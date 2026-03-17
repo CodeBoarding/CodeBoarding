@@ -6,38 +6,13 @@ import logging
 from abc import ABC, abstractmethod
 from pathlib import Path
 
-from static_analyzer.engine.edge_builder import build_edges_via_references
-from static_analyzer.engine.lsp_constants import (  # noqa: F401 — re-exported for backward compatibility
+from repo_utils.ignore import RepoIgnoreManager
+from static_analyzer.constants import NodeType
+from static_analyzer.engine.lsp_constants import (
     CALLABLE_KINDS,
     CLASS_LIKE_KINDS,
-    SYMBOL_KIND_ARRAY,
-    SYMBOL_KIND_BOOLEAN,
-    SYMBOL_KIND_CLASS,
-    SYMBOL_KIND_CONSTANT,
-    SYMBOL_KIND_CONSTRUCTOR,
-    SYMBOL_KIND_ENUM,
-    SYMBOL_KIND_ENUM_MEMBER,
-    SYMBOL_KIND_EVENT,
-    SYMBOL_KIND_FIELD,
-    SYMBOL_KIND_FILE,
-    SYMBOL_KIND_FUNCTION,
-    SYMBOL_KIND_INTERFACE,
-    SYMBOL_KIND_KEY,
-    SYMBOL_KIND_METHOD,
-    SYMBOL_KIND_MODULE,
-    SYMBOL_KIND_NAMESPACE,
-    SYMBOL_KIND_NULL,
-    SYMBOL_KIND_NUMBER,
-    SYMBOL_KIND_OBJECT,
-    SYMBOL_KIND_OPERATOR,
-    SYMBOL_KIND_PACKAGE,
-    SYMBOL_KIND_PROPERTY,
-    SYMBOL_KIND_STRING,
-    SYMBOL_KIND_STRUCT,
-    SYMBOL_KIND_TYPE_PARAMETER,
-    SYMBOL_KIND_VARIABLE,
+    EdgeStrategy,
 )
-from static_analyzer.engine.models import EdgeBuildContext
 from utils import get_config
 
 logger = logging.getLogger(__name__)
@@ -147,33 +122,42 @@ class LanguageAdapter(ABC):
         """Return LSP initialization options specific to this language server."""
         return {}
 
-    def get_excluded_dirs(self) -> set[str]:
-        """Return directory names to exclude from file discovery."""
-        return {
-            ".git",
-            "__pycache__",
-            ".DS_Store",
-            "test",
-            "tests",
-            "testing",
-            "test_data",
-            "__tests__",
-            "__test__",
-            "spec",
-            "specs",
-        }
+    def discover_source_files(self, project_root: Path, ignore_manager: RepoIgnoreManager) -> list[Path]:
+        """Discover source files for this adapter under a project root.
 
-    def is_test_file(self, file_path: Path) -> bool:
-        """Whether a file is a test file and should be excluded."""
-        stem = file_path.stem.lower()
-        name = file_path.name.lower()
-        return (
-            stem.startswith("test_")
-            or stem.endswith("_test")
-            or stem.endswith(".test")
-            or stem.endswith(".spec")
-            or name.endswith("_test.go")
-        )
+        Walks the directory tree, skipping paths rejected by
+        ``ignore_manager`` and files that don't match this adapter's
+        extensions.
+
+        Returns a sorted list of absolute paths.
+        """
+        project_root = project_root.resolve()
+        extensions = set(self.file_extensions)
+        files: list[Path] = []
+
+        for path in self._walk(project_root, ignore_manager):
+            if path.suffix in extensions:
+                files.append(path)
+
+        files.sort()
+        if files:
+            logger.info("Found %d %s files in %s", len(files), self.language, project_root)
+        return files
+
+    def _walk(self, root: Path, ignore_manager: RepoIgnoreManager):
+        """Walk directory tree, skipping paths rejected by RepoIgnoreManager."""
+        try:
+            entries = sorted(root.iterdir())
+        except PermissionError:
+            return
+
+        for entry in entries:
+            if ignore_manager.should_ignore(entry):
+                continue
+            if entry.is_dir():
+                yield from self._walk(entry, ignore_manager)
+            elif entry.is_file():
+                yield entry
 
     def is_class_like(self, symbol_kind: int) -> bool:
         return symbol_kind in CLASS_LIKE_KINDS
@@ -186,24 +170,25 @@ class LanguageAdapter(ABC):
             CALLABLE_KINDS
             | CLASS_LIKE_KINDS
             | {
-                SYMBOL_KIND_VARIABLE,
-                SYMBOL_KIND_CONSTANT,
-                SYMBOL_KIND_PROPERTY,
-                SYMBOL_KIND_FIELD,
-                SYMBOL_KIND_ENUM_MEMBER,
+                NodeType.VARIABLE,
+                NodeType.CONSTANT,
+                NodeType.PROPERTY,
+                NodeType.FIELD,
+                NodeType.ENUM_MEMBER,
             }
         )
 
     def should_track_for_edges(self, symbol_kind: int) -> bool:
-        return symbol_kind in (CALLABLE_KINDS | CLASS_LIKE_KINDS | {SYMBOL_KIND_VARIABLE, SYMBOL_KIND_CONSTANT})
+        return symbol_kind in (CALLABLE_KINDS | CLASS_LIKE_KINDS | {NodeType.VARIABLE, NodeType.CONSTANT})
 
-    def build_edges(self, ctx: EdgeBuildContext, source_files: list[Path]) -> set[tuple[str, str]]:
-        """Phase 2: Build call-graph edges.
+    @property
+    def edge_strategy(self) -> EdgeStrategy:
+        """Edge-building strategy for Phase 2.
 
-        Default uses references-based strategy. Override in language adapters
-        that need a different strategy (e.g. definition-based for JDTLS).
+        Default is ``REFERENCES``. Override to ``DEFINITIONS`` for
+        languages where references queries are too slow (e.g. Java/JDTLS).
         """
-        return build_edges_via_references(self, ctx, source_files)
+        return EdgeStrategy.REFERENCES
 
     @property
     def references_batch_size(self) -> int:

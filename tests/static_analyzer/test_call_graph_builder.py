@@ -3,16 +3,13 @@
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from static_analyzer.engine.call_graph_builder import CallGraphBuilder, DID_OPEN_BATCH_SIZE
-from static_analyzer.engine.language_adapter import (
-    LanguageAdapter,
-    SYMBOL_KIND_CLASS,
-    SYMBOL_KIND_CONSTRUCTOR,
-    SYMBOL_KIND_FUNCTION,
-    SYMBOL_KIND_METHOD,
-    SYMBOL_KIND_VARIABLE,
-)
-from static_analyzer.engine.models import EdgeBuildContext, SymbolInfo
+from static_analyzer.engine.call_graph_builder import CallGraphBuilder
+from static_analyzer.engine.edge_builder import build_edges_via_references
+from static_analyzer.engine.language_adapter import LanguageAdapter
+from static_analyzer.constants import NodeType
+from static_analyzer.engine.lsp_constants import DID_OPEN_BATCH_SIZE
+from static_analyzer.engine.edge_build_context import EdgeBuildContext
+from static_analyzer.engine.models import SymbolInfo
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.symbol_table import SymbolTable
 
@@ -36,13 +33,13 @@ class _TestAdapter(LanguageAdapter):
 def _make_adapter() -> MagicMock:
     adapter = MagicMock()
     adapter.language_id = "python"
-    adapter.is_callable.side_effect = lambda k: k in (SYMBOL_KIND_FUNCTION, SYMBOL_KIND_METHOD, SYMBOL_KIND_CONSTRUCTOR)
-    adapter.is_class_like.side_effect = lambda k: k == SYMBOL_KIND_CLASS
+    adapter.is_callable.side_effect = lambda k: k in (NodeType.FUNCTION, NodeType.METHOD, NodeType.CONSTRUCTOR)
+    adapter.is_class_like.side_effect = lambda k: k == NodeType.CLASS
     adapter.should_track_for_edges.side_effect = lambda k: k in (
-        SYMBOL_KIND_FUNCTION,
-        SYMBOL_KIND_METHOD,
-        SYMBOL_KIND_CLASS,
-        SYMBOL_KIND_VARIABLE,
+        NodeType.FUNCTION,
+        NodeType.METHOD,
+        NodeType.CLASS,
+        NodeType.VARIABLE,
     )
     adapter.is_reference_worthy.return_value = True
     adapter.build_reference_key.side_effect = lambda qn: qn
@@ -104,7 +101,7 @@ class TestDiscoverSymbols:
         probe_symbols = [
             {
                 "name": "foo",
-                "kind": SYMBOL_KIND_FUNCTION,
+                "kind": NodeType.FUNCTION,
                 "range": {"start": {"line": 0, "character": 0}, "end": {"line": 5, "character": 0}},
                 "selectionRange": {"start": {"line": 0, "character": 4}, "end": {"line": 0, "character": 7}},
             }
@@ -152,7 +149,7 @@ class TestBuild:
         lsp.document_symbol.return_value = [
             {
                 "name": "main",
-                "kind": SYMBOL_KIND_FUNCTION,
+                "kind": NodeType.FUNCTION,
                 "range": {"start": {"line": 0, "character": 0}, "end": {"line": 10, "character": 0}},
                 "selectionRange": {"start": {"line": 0, "character": 4}, "end": {"line": 0, "character": 8}},
             }
@@ -191,8 +188,8 @@ class TestBuildEdges:
         ctx = self._make_ctx(lsp, adapter)
 
         # Register two symbols
-        caller = SymbolInfo("main", "app.main", SYMBOL_KIND_FUNCTION, Path("/project/app.py"), 0, 0, 20, 0)
-        callee = SymbolInfo("helper", "app.helper", SYMBOL_KIND_FUNCTION, Path("/project/app.py"), 25, 0, 35, 0)
+        caller = SymbolInfo("main", "app.main", NodeType.FUNCTION, Path("/project/app.py"), 0, 0, 20, 0)
+        callee = SymbolInfo("helper", "app.helper", NodeType.FUNCTION, Path("/project/app.py"), 25, 0, 35, 0)
         st = ctx.symbol_table
         st._symbols["app.main"] = caller
         st._symbols["app.helper"] = callee
@@ -213,7 +210,7 @@ class TestBuildEdges:
         ctx.source_inspector.is_invocation.return_value = True
         ctx.source_inspector.is_callable_usage.return_value = True
 
-        edge_set = adapter.build_edges(ctx, [Path("/project/app.py")])
+        edge_set = build_edges_via_references(adapter, ctx, [Path("/project/app.py")])
 
         assert ("app.main", "app.helper") in edge_set
 
@@ -222,7 +219,7 @@ class TestBuildEdges:
         adapter = _TestAdapter()
         ctx = self._make_ctx(lsp, adapter)
 
-        sym = SymbolInfo("foo", "app.foo", SYMBOL_KIND_FUNCTION, Path("/project/app.py"), 0, 4, 10, 0)
+        sym = SymbolInfo("foo", "app.foo", NodeType.FUNCTION, Path("/project/app.py"), 0, 4, 10, 0)
         st = ctx.symbol_table
         st._symbols["app.foo"] = sym
         st._file_symbols[str(Path("/project/app.py"))] = [sym]
@@ -238,7 +235,7 @@ class TestBuildEdges:
         }
         lsp.send_references_batch.return_value = [[ref]]
 
-        edge_set = adapter.build_edges(ctx, [Path("/project/app.py")])
+        edge_set = build_edges_via_references(adapter, ctx, [Path("/project/app.py")])
         assert len(edge_set) == 0
 
     def test_handles_batch_failure(self):
@@ -246,7 +243,7 @@ class TestBuildEdges:
         adapter = _TestAdapter()
         ctx = self._make_ctx(lsp, adapter)
 
-        sym = SymbolInfo("foo", "app.foo", SYMBOL_KIND_FUNCTION, Path("/project/app.py"), 0, 0, 10, 0)
+        sym = SymbolInfo("foo", "app.foo", NodeType.FUNCTION, Path("/project/app.py"), 0, 0, 10, 0)
         st = ctx.symbol_table
         st._symbols["app.foo"] = sym
         st._file_symbols[str(Path("/project/app.py"))] = [sym]
@@ -255,7 +252,7 @@ class TestBuildEdges:
 
         lsp.send_references_batch.side_effect = Exception("LSP crash")
 
-        edge_set = adapter.build_edges(ctx, [Path("/project/app.py")])
+        edge_set = build_edges_via_references(adapter, ctx, [Path("/project/app.py")])
         assert len(edge_set) == 0
 
 
@@ -268,11 +265,9 @@ class TestPostprocessEdges:
         adapter = _make_adapter()
         builder = CallGraphBuilder(lsp, adapter, Path("/project"))
 
-        caller = SymbolInfo("main", "app.main", SYMBOL_KIND_FUNCTION, Path("/project/app.py"), 0, 0, 20, 0)
-        cls = SymbolInfo("Dog", "app.Dog", SYMBOL_KIND_CLASS, Path("/project/app.py"), 25, 0, 50, 0)
-        ctor = SymbolInfo(
-            "__init__", "app.Dog(__init__)", SYMBOL_KIND_CONSTRUCTOR, Path("/project/app.py"), 30, 4, 40, 0
-        )
+        caller = SymbolInfo("main", "app.main", NodeType.FUNCTION, Path("/project/app.py"), 0, 0, 20, 0)
+        cls = SymbolInfo("Dog", "app.Dog", NodeType.CLASS, Path("/project/app.py"), 25, 0, 50, 0)
+        ctor = SymbolInfo("__init__", "app.Dog(__init__)", NodeType.CONSTRUCTOR, Path("/project/app.py"), 30, 4, 40, 0)
         st = builder._symbol_table
         st._symbols["app.main"] = caller
         st._symbols["app.Dog"] = cls
@@ -295,8 +290,8 @@ class TestBuildPackageDeps:
         adapter = _make_adapter()
         builder = CallGraphBuilder(lsp, adapter, Path("/project"))
 
-        sym_a = SymbolInfo("foo", "pkg_a.foo", SYMBOL_KIND_FUNCTION, Path("/project/pkg_a/mod.py"), 0, 0, 10, 0)
-        sym_b = SymbolInfo("bar", "pkg_b.bar", SYMBOL_KIND_FUNCTION, Path("/project/pkg_b/mod.py"), 0, 0, 10, 0)
+        sym_a = SymbolInfo("foo", "pkg_a.foo", NodeType.FUNCTION, Path("/project/pkg_a/mod.py"), 0, 0, 10, 0)
+        sym_b = SymbolInfo("bar", "pkg_b.bar", NodeType.FUNCTION, Path("/project/pkg_b/mod.py"), 0, 0, 10, 0)
         st = builder._symbol_table
         st._symbols["pkg_a.foo"] = sym_a
         st._symbols["pkg_b.bar"] = sym_b
@@ -316,8 +311,8 @@ class TestBuildPackageDeps:
         adapter = _make_adapter()
         builder = CallGraphBuilder(lsp, adapter, Path("/project"))
 
-        sym_a = SymbolInfo("foo", "pkg.foo", SYMBOL_KIND_FUNCTION, Path("/project/pkg/a.py"), 0, 0, 10, 0)
-        sym_b = SymbolInfo("bar", "pkg.bar", SYMBOL_KIND_FUNCTION, Path("/project/pkg/b.py"), 0, 0, 10, 0)
+        sym_a = SymbolInfo("foo", "pkg.foo", NodeType.FUNCTION, Path("/project/pkg/a.py"), 0, 0, 10, 0)
+        sym_b = SymbolInfo("bar", "pkg.bar", NodeType.FUNCTION, Path("/project/pkg/b.py"), 0, 0, 10, 0)
         st = builder._symbol_table
         st._symbols["pkg.foo"] = sym_a
         st._symbols["pkg.bar"] = sym_b

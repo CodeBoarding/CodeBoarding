@@ -10,19 +10,17 @@ from __future__ import annotations
 import logging
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING
 
+from static_analyzer.engine.edge_build_context import EdgeBuildContext
+from static_analyzer.constants import NodeType
 from static_analyzer.engine.lsp_constants import (
     CALLABLE_KINDS,
     CLASS_LIKE_KINDS,
-    SYMBOL_KIND_CONSTANT,
-    SYMBOL_KIND_VARIABLE,
 )
-from static_analyzer.engine.models import EdgeBuildContext, SymbolInfo
+from static_analyzer.engine.models import SymbolInfo
+from static_analyzer.engine.protocols import EdgeBuildAdapter
+from static_analyzer.engine.symbol_table import SymbolTable
 from static_analyzer.engine.utils import uri_to_path
-
-if TYPE_CHECKING:
-    from static_analyzer.engine.language_adapter import LanguageAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +31,7 @@ logger = logging.getLogger(__name__)
 
 
 def build_edges_via_references(
-    adapter: LanguageAdapter,
+    adapter: EdgeBuildAdapter,
     ctx: EdgeBuildContext,
     source_files: list[Path],
 ) -> set[tuple[str, str]]:
@@ -42,36 +40,11 @@ def build_edges_via_references(
     For each trackable symbol, sends batched references queries and filters
     results to actual call sites (invocations, constructor calls, etc.).
     """
-    edge_set: set[tuple[str, str]] = set()
     st = ctx.symbol_table
-    si = ctx.source_inspector
 
-    trackable = sorted(
-        [
-            sym
-            for sym in st.symbols.values()
-            if adapter.should_track_for_edges(sym.kind) and not st.is_local_variable(sym)
-        ],
-        key=lambda s: s.qualified_name,
-    )
+    pos_to_syms, unique_positions = _prepare_trackable_symbols(adapter, st)
 
-    # Deduplicate by position
-    pos_to_syms: dict[tuple[str, int, int], list[SymbolInfo]] = {}
-    for sym in trackable:
-        pos_key = sym.definition_location
-        if pos_key not in pos_to_syms:
-            pos_to_syms[pos_key] = []
-        pos_to_syms[pos_key].append(sym)
-
-    unique_positions = sorted(pos_to_syms.keys())
     total_unique = len(unique_positions)
-    total_trackable = len(trackable)
-    logger.info(
-        "Phase 2 (edges): %d trackable symbols at %d unique positions (%.0f%% dedup)",
-        total_trackable,
-        total_unique,
-        (1 - total_unique / max(total_trackable, 1)) * 100,
-    )
 
     # Group positions by file for progress tracking
     file_positions: dict[str, list[tuple[str, int, int]]] = {}
@@ -85,6 +58,8 @@ def build_edges_via_references(
     phase2_start = time.monotonic()
     positions_done = 0
     files_done: set[str] = set()
+
+    edge_set: set[tuple[str, str]] = set()
     refs_total = 0
     refs_call_sites = 0
 
@@ -105,49 +80,9 @@ def build_edges_via_references(
             syms_at_pos = pos_to_syms[pos_key]
             refs = result_list[i] if i < len(result_list) else []
 
-            for sym in syms_at_pos:
-                sym_def_loc = sym.definition_location
-                for ref in refs:
-                    ref_uri = ref.get("uri", "")
-                    ref_range = ref.get("range", {})
-                    ref_start = ref_range.get("start", {})
-                    ref_end = ref_range.get("end", {})
-                    ref_line = ref_start.get("line", -1)
-                    ref_char = ref_start.get("character", -1)
-                    ref_end_char = ref_end.get("character", -1)
-
-                    ref_file = uri_to_path(ref_uri)
-                    if ref_file is None:
-                        continue
-                    ref_loc = (str(ref_file), ref_line, ref_char)
-                    if ref_loc == sym_def_loc:
-                        continue
-
-                    refs_total += 1
-
-                    if adapter.is_class_like(sym.kind):
-                        if not si.is_invocation(ref_file, ref_line, ref_end_char):
-                            continue
-                    elif sym.kind == SYMBOL_KIND_CONSTANT:
-                        if not si.is_invocation(ref_file, ref_line, ref_end_char):
-                            continue
-                    elif sym.kind == SYMBOL_KIND_VARIABLE:
-                        if not si.is_callable_usage(ref_file, ref_line, ref_char, ref_end_char):
-                            continue
-
-                    refs_call_sites += 1
-
-                    container = st.find_containing_symbol(ref_file, ref_line, ref_char)
-                    if not container:
-                        continue
-                    container = st.lift_to_callable(container)
-                    if not container or container.qualified_name == sym.qualified_name:
-                        continue
-                    if (str(ref_file), ref_line) == (str(container.file_path), container.start_line):
-                        continue
-                    if sym.qualified_name.startswith(container.qualified_name + "."):
-                        continue
-                    edge_set.add((container.qualified_name, sym.qualified_name))
+            batch_refs, batch_calls = _process_references_for_position(adapter, ctx, syms_at_pos, refs, edge_set)
+            refs_total += batch_refs
+            refs_call_sites += batch_calls
 
         positions_done += len(batch_positions)
         for pos_key in batch_positions:
@@ -175,13 +110,109 @@ def build_edges_via_references(
     return edge_set
 
 
+def _prepare_trackable_symbols(
+    adapter: EdgeBuildAdapter,
+    st: SymbolTable,
+) -> tuple[dict[tuple[str, int, int], list[SymbolInfo]], list[tuple[str, int, int]]]:
+    """Collect trackable symbols and deduplicate by position.
+
+    Returns (pos_to_syms, unique_positions_sorted).
+    """
+    trackable = sorted(
+        [
+            sym
+            for sym in st.symbols.values()
+            if adapter.should_track_for_edges(sym.kind) and not st.is_local_variable(sym)
+        ],
+        key=lambda s: s.qualified_name,
+    )
+
+    pos_to_syms: dict[tuple[str, int, int], list[SymbolInfo]] = {}
+    for sym in trackable:
+        pos_key = sym.definition_location
+        pos_to_syms.setdefault(pos_key, []).append(sym)
+
+    unique_positions = sorted(pos_to_syms.keys())
+    total_unique = len(unique_positions)
+    total_trackable = len(trackable)
+    logger.info(
+        "Phase 2 (edges): %d trackable symbols at %d unique positions (%.0f%% dedup)",
+        total_trackable,
+        total_unique,
+        (1 - total_unique / max(total_trackable, 1)) * 100,
+    )
+    return pos_to_syms, unique_positions
+
+
+def _process_references_for_position(
+    adapter: EdgeBuildAdapter,
+    ctx: EdgeBuildContext,
+    syms_at_pos: list[SymbolInfo],
+    refs: list[dict],
+    edge_set: set[tuple[str, str]],
+) -> tuple[int, int]:
+    """Process reference results for symbols at a single position.
+
+    Filters references to call sites and adds edges to the edge set.
+    Returns (total_refs_checked, call_site_refs).
+    """
+    st = ctx.symbol_table
+    si = ctx.source_inspector
+    refs_total = 0
+    refs_call_sites = 0
+
+    for sym in syms_at_pos:
+        sym_def_loc = sym.definition_location
+        for ref in refs:
+            ref_uri = ref.get("uri", "")
+            ref_range = ref.get("range", {})
+            ref_start = ref_range.get("start", {})
+            ref_end = ref_range.get("end", {})
+            ref_line = ref_start.get("line", -1)
+            ref_char = ref_start.get("character", -1)
+            ref_end_char = ref_end.get("character", -1)
+
+            ref_file = uri_to_path(ref_uri)
+            if ref_file is None:
+                continue
+            ref_loc = (str(ref_file), ref_line, ref_char)
+            if ref_loc == sym_def_loc:
+                continue
+
+            refs_total += 1
+
+            # Filter to actual call sites based on symbol kind
+            if adapter.is_class_like(sym.kind) and not si.is_invocation(ref_file, ref_line, ref_end_char):
+                continue
+            elif sym.kind == NodeType.CONSTANT and not si.is_invocation(ref_file, ref_line, ref_end_char):
+                continue
+            elif sym.kind == NodeType.VARIABLE and not si.is_callable_usage(ref_file, ref_line, ref_char, ref_end_char):
+                continue
+
+            refs_call_sites += 1
+
+            container = st.find_containing_symbol(ref_file, ref_line, ref_char)
+            if not container:
+                continue
+            container = st.lift_to_callable(container)
+            if not container or container.qualified_name == sym.qualified_name:
+                continue
+            if (str(ref_file), ref_line) == (str(container.file_path), container.start_line):
+                continue
+            if sym.qualified_name.startswith(container.qualified_name + "."):
+                continue
+            edge_set.add((container.qualified_name, sym.qualified_name))
+
+    return refs_total, refs_call_sites
+
+
 # ---------------------------------------------------------------------------
 # Definition-based strategy (Java / JDTLS)
 # ---------------------------------------------------------------------------
 
 
 def build_edges_via_definitions(
-    adapter: LanguageAdapter,
+    adapter: EdgeBuildAdapter,
     ctx: EdgeBuildContext,
     source_files: list[Path],
 ) -> set[tuple[str, str]]:
@@ -192,12 +223,35 @@ def build_edges_via_definitions(
     queries are ~20ms each, so we scan source for call sites and resolve
     them via definition, then query implementations for polymorphic dispatch.
     """
-    edge_set: set[tuple[str, str]] = set()
     st = ctx.symbol_table
 
-    # Build position-based lookups for resolving definition results.
-    # Prefer the symbol with the longest qualified name at each position
-    # (e.g. Container.Item.describe() over Container.describe()).
+    pos_to_sym, line_to_syms = _build_definition_lookups(st)
+
+    edge_set, impl_queries_pending, total_sites, total_resolved = _resolve_definitions(
+        adapter, ctx, source_files, pos_to_sym, line_to_syms
+    )
+
+    total_impl_resolved = _resolve_implementations(ctx, edge_set, impl_queries_pending, pos_to_sym, line_to_syms)
+
+    logger.info(
+        "Phase 2 summary: %d call sites, %d def resolved, %d impl resolved, %d raw edges",
+        total_sites,
+        total_resolved,
+        total_impl_resolved,
+        len(edge_set),
+    )
+    return edge_set
+
+
+def _build_definition_lookups(
+    st: SymbolTable,
+) -> tuple[dict[tuple[str, int, int], SymbolInfo], dict[tuple[str, int], list[SymbolInfo]]]:
+    """Build position-based lookups for resolving definition results.
+
+    Returns (pos_to_sym, line_to_syms). Prefers the symbol with the longest
+    qualified name at each position (e.g. Container.Item.describe() over
+    Container.describe()).
+    """
     pos_to_sym: dict[tuple[str, int, int], SymbolInfo] = {}
     line_to_syms: dict[tuple[str, int], list[SymbolInfo]] = {}
     for sym in st.symbols.values():
@@ -207,15 +261,27 @@ def build_edges_via_definitions(
             pos_to_sym[pos] = sym
         key = (str(sym.file_path), sym.start_line)
         line_to_syms.setdefault(key, []).append(sym)
+    return pos_to_sym, line_to_syms
 
+
+def _resolve_definitions(
+    adapter: EdgeBuildAdapter,
+    ctx: EdgeBuildContext,
+    source_files: list[Path],
+    pos_to_sym: dict[tuple[str, int, int], SymbolInfo],
+    line_to_syms: dict[tuple[str, int], list[SymbolInfo]],
+) -> tuple[set[tuple[str, str]], list[tuple[str, Path, int, int]], int, int]:
+    """Phase 2a: Resolve call sites via textDocument/definition.
+
+    Returns (edge_set, impl_queries_pending, total_sites, total_resolved).
+    """
+    edge_set: set[tuple[str, str]] = set()
+    st = ctx.symbol_table
     total_files = len(source_files)
     total_sites = 0
     total_resolved = 0
-    total_impl_resolved = 0
     batch_size = 50
     phase2_start = time.monotonic()
-
-    # Collect implementation queries to batch after definition resolution.
     impl_queries_pending: list[tuple[str, Path, int, int]] = []
 
     for file_idx, file_path in enumerate(source_files, 1):
@@ -269,7 +335,7 @@ def build_edges_via_definitions(
 
                     edge_set.add((caller.qualified_name, target.qualified_name))
 
-                    # If target is a constructor, also add edge to parent class
+                    # If target is a callable with a class-like parent, also add edge to the parent class
                     if adapter.is_callable(target.kind) and target.parent_chain:
                         _, parent_kind = target.parent_chain[-1]
                         if adapter.is_class_like(parent_kind):
@@ -305,7 +371,24 @@ def build_edges_via_definitions(
                 elapsed,
             )
 
-    # Phase 2b: resolve implementations for polymorphic call targets.
+    return edge_set, impl_queries_pending, total_sites, total_resolved
+
+
+def _resolve_implementations(
+    ctx: EdgeBuildContext,
+    edge_set: set[tuple[str, str]],
+    impl_queries_pending: list[tuple[str, Path, int, int]],
+    pos_to_sym: dict[tuple[str, int, int], SymbolInfo],
+    line_to_syms: dict[tuple[str, int], list[SymbolInfo]],
+) -> int:
+    """Phase 2b: Resolve implementations for polymorphic call targets.
+
+    Adds implementation edges to edge_set in-place. Returns total_impl_resolved.
+    """
+    st = ctx.symbol_table
+    batch_size = 50
+    phase2_start = time.monotonic()
+
     target_pos_to_callers: dict[tuple[str, int, int], set[str]] = {}
     for caller_qname, tgt_file, tgt_line, tgt_char in impl_queries_pending:
         tgt_key = (str(tgt_file), tgt_line, tgt_char)
@@ -318,6 +401,8 @@ def build_edges_via_definitions(
         total_impl_queries,
         len(impl_queries_pending),
     )
+
+    total_impl_resolved = 0
 
     for batch_start in range(0, len(unique_impl_targets), batch_size):
         batch_keys = unique_impl_targets[batch_start : batch_start + batch_size]
@@ -356,18 +441,11 @@ def build_edges_via_definitions(
                 elapsed,
             )
 
-    logger.info(
-        "Phase 2 summary: %d call sites, %d def resolved, %d impl resolved, %d raw edges",
-        total_sites,
-        total_resolved,
-        total_impl_resolved,
-        len(edge_set),
-    )
-    return edge_set
+    return total_impl_resolved
 
 
 # ---------------------------------------------------------------------------
-# Shared helpers for definition-based strategy
+# Shared helpers
 # ---------------------------------------------------------------------------
 
 

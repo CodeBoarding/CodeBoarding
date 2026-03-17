@@ -1,24 +1,13 @@
-"""Data models for static analysis results."""
+"""Data models for static analysis results.
+
+Note: EdgeBuildContext was moved to edge_build_context.py to isolate
+the circular type dependency between LSPClient, SymbolTable, and LanguageAdapter.
+"""
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from static_analyzer.engine.lsp_client import LSPClient
-    from static_analyzer.engine.source_inspector import SourceInspector
-    from static_analyzer.engine.symbol_table import SymbolTable
-
-
-@dataclass
-class EdgeBuildContext:
-    """Context passed to adapter.build_edges() with all tools needed for edge building."""
-
-    lsp: LSPClient
-    symbol_table: SymbolTable
-    source_inspector: SourceInspector
 
 
 @dataclass

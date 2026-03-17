@@ -4,11 +4,7 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 from static_analyzer.engine.hierarchy_builder import HierarchyBuilder
-from static_analyzer.engine.language_adapter import (
-    SYMBOL_KIND_CLASS,
-    SYMBOL_KIND_FUNCTION,
-    SYMBOL_KIND_METHOD,
-)
+from static_analyzer.constants import NodeType
 from static_analyzer.engine.lsp_client import MethodNotFoundError
 from static_analyzer.engine.models import SymbolInfo
 from static_analyzer.engine.source_inspector import SourceInspector
@@ -43,8 +39,8 @@ def _sym(
 
 def _make_adapter() -> MagicMock:
     adapter = MagicMock()
-    adapter.is_callable.side_effect = lambda k: k in (SYMBOL_KIND_FUNCTION, SYMBOL_KIND_METHOD)
-    adapter.is_class_like.side_effect = lambda k: k == SYMBOL_KIND_CLASS
+    adapter.is_callable.side_effect = lambda k: k in (NodeType.FUNCTION, NodeType.METHOD)
+    adapter.is_class_like.side_effect = lambda k: k == NodeType.CLASS
     return adapter
 
 
@@ -63,8 +59,8 @@ class TestBuildWithTypeHierarchy:
 
     def test_builds_hierarchy_from_lsp_supertypes(self):
         adapter = _make_adapter()
-        parent = _sym("Animal", "mod.Animal", SYMBOL_KIND_CLASS, start_line=0)
-        child = _sym("Dog", "mod.Dog", SYMBOL_KIND_CLASS, start_line=10)
+        parent = _sym("Animal", "mod.Animal", NodeType.CLASS, start_line=0)
+        child = _sym("Dog", "mod.Dog", NodeType.CLASS, start_line=10)
         st = _setup_symbol_table(adapter, [parent, child])
 
         lsp = MagicMock()
@@ -83,8 +79,8 @@ class TestBuildWithTypeHierarchy:
 
     def test_builds_hierarchy_from_lsp_subtypes(self):
         adapter = _make_adapter()
-        parent = _sym("Animal", "mod.Animal", SYMBOL_KIND_CLASS, start_line=0)
-        child = _sym("Cat", "mod.Cat", SYMBOL_KIND_CLASS, start_line=10)
+        parent = _sym("Animal", "mod.Animal", NodeType.CLASS, start_line=0)
+        child = _sym("Cat", "mod.Cat", NodeType.CLASS, start_line=10)
         st = _setup_symbol_table(adapter, [parent, child])
 
         lsp = MagicMock()
@@ -103,8 +99,8 @@ class TestBuildWithTypeHierarchy:
 
     def test_no_duplicates_in_hierarchy(self):
         adapter = _make_adapter()
-        parent = _sym("A", "mod.A", SYMBOL_KIND_CLASS, start_line=0)
-        child = _sym("B", "mod.B", SYMBOL_KIND_CLASS, start_line=10)
+        parent = _sym("A", "mod.A", NodeType.CLASS, start_line=0)
+        child = _sym("B", "mod.B", NodeType.CLASS, start_line=10)
         st = _setup_symbol_table(adapter, [parent, child])
 
         lsp = MagicMock()
@@ -125,8 +121,8 @@ class TestBuildWithTypeHierarchy:
 
     def test_method_not_found_stops_iteration(self):
         adapter = _make_adapter()
-        cls1 = _sym("A", "mod.A", SYMBOL_KIND_CLASS, start_line=0)
-        cls2 = _sym("B", "mod.B", SYMBOL_KIND_CLASS, start_line=10)
+        cls1 = _sym("A", "mod.A", NodeType.CLASS, start_line=0)
+        cls2 = _sym("B", "mod.B", NodeType.CLASS, start_line=10)
         st = _setup_symbol_table(adapter, [cls1, cls2])
 
         lsp = MagicMock()
@@ -141,7 +137,7 @@ class TestBuildWithTypeHierarchy:
 
     def test_method_not_found_on_supertypes_is_handled(self):
         adapter = _make_adapter()
-        cls = _sym("A", "mod.A", SYMBOL_KIND_CLASS, start_line=0)
+        cls = _sym("A", "mod.A", NodeType.CLASS, start_line=0)
         st = _setup_symbol_table(adapter, [cls])
 
         lsp = MagicMock()
@@ -157,7 +153,7 @@ class TestBuildWithTypeHierarchy:
 
     def test_empty_prepare_result_skipped(self):
         adapter = _make_adapter()
-        cls = _sym("A", "mod.A", SYMBOL_KIND_CLASS, start_line=0)
+        cls = _sym("A", "mod.A", NodeType.CLASS, start_line=0)
         st = _setup_symbol_table(adapter, [cls])
 
         lsp = MagicMock()
@@ -177,8 +173,8 @@ class TestBuildWithSourceInference:
 
     def test_infers_python_single_inheritance(self):
         adapter = _make_adapter()
-        parent = _sym("Animal", "mod.Animal", SYMBOL_KIND_CLASS, start_line=0)
-        child = _sym("Dog", "mod.Dog", SYMBOL_KIND_CLASS, start_line=5)
+        parent = _sym("Animal", "mod.Animal", NodeType.CLASS, start_line=0)
+        child = _sym("Dog", "mod.Dog", NodeType.CLASS, start_line=5)
         st = _setup_symbol_table(adapter, [parent, child])
 
         lsp = MagicMock()
@@ -198,9 +194,9 @@ class TestBuildWithSourceInference:
 
     def test_infers_python_multiple_inheritance(self):
         adapter = _make_adapter()
-        base1 = _sym("A", "mod.A", SYMBOL_KIND_CLASS, start_line=0)
-        base2 = _sym("B", "mod.B", SYMBOL_KIND_CLASS, start_line=5)
-        child = _sym("C", "mod.C", SYMBOL_KIND_CLASS, start_line=10)
+        base1 = _sym("A", "mod.A", NodeType.CLASS, start_line=0)
+        base2 = _sym("B", "mod.B", NodeType.CLASS, start_line=5)
+        child = _sym("C", "mod.C", NodeType.CLASS, start_line=10)
         st = _setup_symbol_table(adapter, [base1, base2, child])
 
         lsp = MagicMock()
@@ -221,8 +217,8 @@ class TestBuildWithSourceInference:
 
     def test_infers_php_extends(self):
         adapter = _make_adapter()
-        parent = _sym("Base", "mod.Base", SYMBOL_KIND_CLASS, fpath=MOD_PHP_PATH, start_line=0)
-        child = _sym("Child", "mod.Child", SYMBOL_KIND_CLASS, fpath=MOD_PHP_PATH, start_line=5)
+        parent = _sym("Base", "mod.Base", NodeType.CLASS, fpath=MOD_PHP_PATH, start_line=0)
+        child = _sym("Child", "mod.Child", NodeType.CLASS, fpath=MOD_PHP_PATH, start_line=5)
         st = _setup_symbol_table(adapter, [parent, child])
 
         lsp = MagicMock()
@@ -241,8 +237,8 @@ class TestBuildWithSourceInference:
 
     def test_infers_php_implements(self):
         adapter = _make_adapter()
-        iface = _sym("Speakable", "mod.Speakable", SYMBOL_KIND_CLASS, fpath=MOD_PHP_PATH, start_line=0)
-        child = _sym("Dog", "mod.Dog", SYMBOL_KIND_CLASS, fpath=MOD_PHP_PATH, start_line=5)
+        iface = _sym("Speakable", "mod.Speakable", NodeType.CLASS, fpath=MOD_PHP_PATH, start_line=0)
+        child = _sym("Dog", "mod.Dog", NodeType.CLASS, fpath=MOD_PHP_PATH, start_line=5)
         st = _setup_symbol_table(adapter, [iface, child])
 
         lsp = MagicMock()
@@ -261,8 +257,8 @@ class TestBuildWithSourceInference:
 
     def test_skips_metaclass_keyword_arg(self):
         adapter = _make_adapter()
-        cls = _sym("Meta", "mod.Meta", SYMBOL_KIND_CLASS, start_line=0)
-        child = _sym("Model", "mod.Model", SYMBOL_KIND_CLASS, start_line=5)
+        cls = _sym("Meta", "mod.Meta", NodeType.CLASS, start_line=0)
+        child = _sym("Model", "mod.Model", NodeType.CLASS, start_line=5)
         st = _setup_symbol_table(adapter, [cls, child])
 
         lsp = MagicMock()
@@ -281,7 +277,7 @@ class TestBuildWithSourceInference:
 
     def test_source_line_none_skips_class(self):
         adapter = _make_adapter()
-        cls = _sym("A", "mod.A", SYMBOL_KIND_CLASS, start_line=0)
+        cls = _sym("A", "mod.A", NodeType.CLASS, start_line=0)
         st = _setup_symbol_table(adapter, [cls])
 
         lsp = MagicMock()
@@ -299,7 +295,7 @@ class TestBuildWithSourceInference:
 class TestResolveTypeHierarchyItem:
     def test_resolves_by_name_and_line(self):
         adapter = _make_adapter()
-        sym = _sym("Dog", "mod.Dog", SYMBOL_KIND_CLASS, start_line=10)
+        sym = _sym("Dog", "mod.Dog", NodeType.CLASS, start_line=10)
         st = _setup_symbol_table(adapter, [sym])
 
         lsp = MagicMock()
@@ -316,7 +312,7 @@ class TestResolveTypeHierarchyItem:
 
     def test_resolves_by_name_within_one_line(self):
         adapter = _make_adapter()
-        sym = _sym("Dog", "mod.Dog", SYMBOL_KIND_CLASS, start_line=10)
+        sym = _sym("Dog", "mod.Dog", NodeType.CLASS, start_line=10)
         st = _setup_symbol_table(adapter, [sym])
 
         lsp = MagicMock()
@@ -333,7 +329,7 @@ class TestResolveTypeHierarchyItem:
 
     def test_falls_back_to_name_and_kind(self):
         adapter = _make_adapter()
-        sym = _sym("Dog", "mod.Dog", SYMBOL_KIND_CLASS, start_line=10)
+        sym = _sym("Dog", "mod.Dog", NodeType.CLASS, start_line=10)
         st = _setup_symbol_table(adapter, [sym])
 
         lsp = MagicMock()

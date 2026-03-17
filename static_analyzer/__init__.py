@@ -11,9 +11,8 @@ from static_analyzer.constants import Language
 from static_analyzer.engine.adapters import get_adapter
 from static_analyzer.engine.call_graph_builder import CallGraphBuilder
 from static_analyzer.engine.language_adapter import LanguageAdapter
-from static_analyzer.engine.lsp_client import LSPClient as EngineLSPClient
+from static_analyzer.engine.lsp_client import LSPClient
 from static_analyzer.engine.result_converter import convert_to_codeboarding_format
-from static_analyzer.engine.scanner import EngineProjectScanner
 from static_analyzer.git_diff_analyzer import GitDiffAnalyzer
 from static_analyzer.graph import CallGraph
 from static_analyzer.incremental_orchestrator import IncrementalAnalysisOrchestrator
@@ -120,7 +119,7 @@ class StaticAnalyzer:
         self.ignore_manager = RepoIgnoreManager(self.repository_path)
         programming_langs = ProjectScanner(self.repository_path).scan()
         self._engine_configs = _create_engine_configs(programming_langs, self.repository_path, self.ignore_manager)
-        self._engine_clients: list[tuple[LanguageAdapter, Path, EngineLSPClient]] = []
+        self._engine_clients: list[tuple[LanguageAdapter, Path, LSPClient]] = []
         self.collected_diagnostics: dict[str, FileDiagnosticsMap] = {}
         self._clients_started: bool = False
 
@@ -141,14 +140,14 @@ class StaticAnalyzer:
             logger.info(f"Clients already started for {self.repository_path}, skipping start.")
             return
 
-        started: list[tuple[LanguageAdapter, Path, EngineLSPClient]] = []
+        started: list[tuple[LanguageAdapter, Path, LSPClient]] = []
         for adapter, project_path in self._engine_configs:
             try:
                 logger.info(f"Starting engine LSP client for {adapter.language} at {project_path}")
                 t_start = time.monotonic()
                 command = adapter.get_lsp_command(project_path)
                 init_options = adapter.get_lsp_init_options()
-                engine_client = EngineLSPClient(
+                engine_client = LSPClient(
                     command=command,
                     project_root=project_path,
                     init_options=init_options,
@@ -248,7 +247,7 @@ class StaticAnalyzer:
 
                 # Use incremental orchestrator only when a cache file already exists
                 if cache_path is not None and cache_path.exists():
-                    orchestrator = IncrementalAnalysisOrchestrator()
+                    orchestrator = IncrementalAnalysisOrchestrator(self.ignore_manager)
                     analysis = orchestrator.run_incremental_analysis(
                         adapter, project_path, engine_client, cache_path, analyze_cluster_changes=False
                     )
@@ -300,16 +299,14 @@ class StaticAnalyzer:
         self,
         adapter: LanguageAdapter,
         project_path: Path,
-        engine_client: EngineLSPClient,
+        engine_client: LSPClient,
     ) -> dict:
         """Run a full analysis using the engine pipeline.
 
         Returns the dict shape expected by analyze():
             call_graph, class_hierarchies, package_relations, references, source_files, diagnostics
         """
-        scanner = EngineProjectScanner(project_path, {adapter.language: adapter})
-        files_by_lang = scanner.scan()
-        source_files = files_by_lang.get(adapter.language, [])
+        source_files = adapter.discover_source_files(project_path, self.ignore_manager)
 
         if not source_files:
             logger.warning(f"No source files found for {adapter.language} in {project_path}")
@@ -389,7 +386,7 @@ class StaticAnalyzer:
                     logger.info(f"Cache path configured but no cache exists at: {cache_path}")
 
             if cache_path is not None:
-                orchestrator = IncrementalAnalysisOrchestrator()
+                orchestrator = IncrementalAnalysisOrchestrator(self.ignore_manager)
                 result = orchestrator.run_incremental_analysis(
                     adapter, project_path, engine_client, cache_path, analyze_cluster_changes=True
                 )

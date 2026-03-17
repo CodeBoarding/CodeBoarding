@@ -3,18 +3,18 @@
 from __future__ import annotations
 
 import logging
+import os
+import platform
 import tempfile
 from pathlib import Path
 
-from static_analyzer.engine.edge_builder import build_edges_via_definitions
-from static_analyzer.engine.language_adapter import (
+from static_analyzer.engine.language_adapter import LanguageAdapter
+from static_analyzer.constants import NodeType
+from static_analyzer.engine.lsp_constants import (
     CALLABLE_KINDS,
     CLASS_LIKE_KINDS,
-    SYMBOL_KIND_CONSTANT,
-    SYMBOL_KIND_VARIABLE,
-    LanguageAdapter,
+    EdgeStrategy,
 )
-from static_analyzer.engine.models import EdgeBuildContext
 from static_analyzer.java_utils import create_jdtls_command, find_java_21_or_later
 from utils import get_config
 
@@ -72,12 +72,21 @@ class JavaAdapter(LanguageAdapter):
             if root.is_dir() and (root / "plugins").is_dir():
                 return root
 
-        # 2. Fallback to well-known locations
-        for location in [
+        # 2. Fallback to well-known locations (platform-specific)
+        well_known: list[Path] = [
             Path.home() / ".jdtls",
             Path.home() / ".codeboarding" / "servers" / "bin" / "jdtls",
-            Path("/opt/jdtls"),
-        ]:
+        ]
+        if platform.system() == "Windows":
+            local_app_data = os.environ.get("LOCALAPPDATA", "")
+            if local_app_data:
+                well_known.append(Path(local_app_data) / "jdtls")
+            program_files = os.environ.get("ProgramFiles", "C:\\Program Files")
+            well_known.append(Path(program_files) / "jdtls")
+        else:
+            well_known.append(Path("/opt/jdtls"))
+
+        for location in well_known:
             if location.is_dir() and (location / "plugins").is_dir():
                 logger.info(f"Found JDTLS at {location}")
                 return location
@@ -86,20 +95,35 @@ class JavaAdapter(LanguageAdapter):
 
     @staticmethod
     def _calculate_heap_size(project_root: Path) -> str:
-        """Calculate appropriate JVM heap size based on the number of JVM files."""
+        """Calculate appropriate JVM heap size based on file count and available system memory.
+
+        Caps the heap at ~50% of physical RAM to avoid starving the OS and other processes.
+        """
         jvm_files = (
             list(project_root.rglob("*.java")) + list(project_root.rglob("*.kt")) + list(project_root.rglob("*.groovy"))
         )
         file_count = len(jvm_files)
         if file_count < 100:
-            return "1G"
+            desired_gb = 1
         elif file_count < 500:
-            return "2G"
+            desired_gb = 2
         elif file_count < 2000:
-            return "4G"
+            desired_gb = 4
         elif file_count < 5000:
-            return "6G"
-        return "8G"
+            desired_gb = 6
+        else:
+            desired_gb = 8
+
+        # Cap at 50% of available physical memory
+        try:
+            total_ram_bytes = os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES")
+            total_ram_gb = total_ram_bytes / (1024**3)
+            max_heap_gb = max(1, int(total_ram_gb * 0.5))
+            desired_gb = min(desired_gb, max_heap_gb)
+        except (ValueError, OSError):
+            pass  # os.sysconf not available (e.g. Windows) — use file-count estimate as-is
+
+        return f"{desired_gb}G"
 
     def build_qualified_name(
         self,
@@ -237,33 +261,13 @@ class JavaAdapter(LanguageAdapter):
             return ".".join(pkg_parts)
         return after_root[0]
 
-    def build_edges(self, ctx: EdgeBuildContext, source_files: list[Path]) -> set[tuple[str, str]]:
-        """Build edges via textDocument/definition instead of references.
-
-        JDTLS serializes references requests (~1-10s each), making the default
-        references-based approach impractical for large projects.
-        """
-        return build_edges_via_definitions(self, ctx, source_files)
+    @property
+    def edge_strategy(self) -> EdgeStrategy:
+        """Use definition-based edges — JDTLS serializes references requests."""
+        return EdgeStrategy.DEFINITIONS
 
     def should_track_for_edges(self, symbol_kind: int) -> bool:
-        return symbol_kind in (CALLABLE_KINDS | CLASS_LIKE_KINDS | {SYMBOL_KIND_VARIABLE, SYMBOL_KIND_CONSTANT})
-
-    def is_test_file(self, file_path: Path) -> bool:
-        name = file_path.name
-        # Exclude Java metadata files that contain no analyzable symbols
-        if name in ("package-info.java", "module-info.java"):
-            return True
-        return super().is_test_file(file_path)
-
-    def get_excluded_dirs(self) -> set[str]:
-        return super().get_excluded_dirs() | {
-            "build",
-            "target",
-            ".gradle",
-            ".idea",
-            "bin",
-            "out",
-        }
+        return symbol_kind in (CALLABLE_KINDS | CLASS_LIKE_KINDS | {NodeType.VARIABLE, NodeType.CONSTANT})
 
     def get_package_for_file(self, file_path: Path, project_root: Path) -> str:
         """Get Java package from file path by stripping src/main/java/ prefix."""

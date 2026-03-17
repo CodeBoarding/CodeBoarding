@@ -81,12 +81,18 @@ def create_test_cluster_result(num_clusters: int = 2) -> dict[str, ClusterResult
     return {"python": cluster_result}
 
 
+def _make_ignore_manager() -> Mock:
+    """Create a mock RepoIgnoreManager that allows all files."""
+    mgr = Mock()
+    mgr.should_ignore.return_value = False
+    return mgr
+
+
 def create_mock_engine_args() -> tuple[Mock, Path, Mock, Path]:
     """Create mock (adapter, project_path, engine_client, cache_path) for engine-based orchestrator."""
     mock_adapter = Mock()
     mock_adapter.language = "Python"
     mock_adapter.file_extensions = {".py"}
-    mock_adapter.is_test_file.return_value = False
     project_path = Path("/test/project")
     mock_engine_client = Mock()
     mock_engine_client.get_collected_diagnostics.return_value = {}
@@ -99,12 +105,12 @@ class TestIncrementalAnalysisOrchestratorInit(unittest.TestCase):
 
     def test_init_creates_cache_manager(self):
         """Test that __init__ creates an AnalysisCacheManager."""
-        orchestrator = IncrementalAnalysisOrchestrator()
+        orchestrator = IncrementalAnalysisOrchestrator(_make_ignore_manager())
         self.assertIsNotNone(orchestrator.cache_manager)
 
     def test_init_creates_cluster_analyzer(self):
         """Test that __init__ creates a ClusterChangeAnalyzer."""
-        orchestrator = IncrementalAnalysisOrchestrator()
+        orchestrator = IncrementalAnalysisOrchestrator(_make_ignore_manager())
         self.assertIsNotNone(orchestrator.cluster_analyzer)
         self.assertIsInstance(orchestrator.cluster_analyzer, ClusterChangeAnalyzer)
 
@@ -114,7 +120,7 @@ class TestRunIncrementalAnalysisNoCache(unittest.TestCase):
 
     def setUp(self):
         self.mock_adapter, self.project_path, self.mock_engine_client, self.cache_path = create_mock_engine_args()
-        self.orchestrator = IncrementalAnalysisOrchestrator()
+        self.orchestrator = IncrementalAnalysisOrchestrator(_make_ignore_manager())
 
     @patch("static_analyzer.incremental_orchestrator.GitDiffAnalyzer")
     def test_no_cache_performs_full_analysis(self, mock_git_analyzer_class):
@@ -177,7 +183,7 @@ class TestRunIncrementalAnalysisCachedNoChanges(unittest.TestCase):
 
     def setUp(self):
         self.mock_adapter, self.project_path, self.mock_engine_client, self.cache_path = create_mock_engine_args()
-        self.orchestrator = IncrementalAnalysisOrchestrator()
+        self.orchestrator = IncrementalAnalysisOrchestrator(_make_ignore_manager())
 
     @patch("static_analyzer.incremental_orchestrator.GitDiffAnalyzer")
     def test_cached_no_changes_returns_cached(self, mock_git_analyzer_class):
@@ -234,7 +240,7 @@ class TestRunIncrementalAnalysisWithChanges(unittest.TestCase):
 
     def setUp(self):
         self.mock_adapter, self.project_path, self.mock_engine_client, self.cache_path = create_mock_engine_args()
-        self.orchestrator = IncrementalAnalysisOrchestrator()
+        self.orchestrator = IncrementalAnalysisOrchestrator(_make_ignore_manager())
 
     @patch("static_analyzer.incremental_orchestrator.GitDiffAnalyzer")
     def test_uncommitted_changes_triggers_incremental(self, mock_git_analyzer_class):
@@ -296,7 +302,7 @@ class TestRunIncrementalAnalysisExceptionHandling(unittest.TestCase):
 
     def setUp(self):
         self.mock_adapter, self.project_path, self.mock_engine_client, self.cache_path = create_mock_engine_args()
-        self.orchestrator = IncrementalAnalysisOrchestrator()
+        self.orchestrator = IncrementalAnalysisOrchestrator(_make_ignore_manager())
 
     @patch("static_analyzer.incremental_orchestrator.GitDiffAnalyzer")
     def test_exception_falls_back_to_full_analysis(self, mock_git_analyzer_class):
@@ -359,18 +365,14 @@ class TestPerformFullAnalysisAndCache(unittest.TestCase):
 
     def setUp(self):
         self.mock_adapter, self.project_path, self.mock_engine_client, self.cache_path = create_mock_engine_args()
-        self.orchestrator = IncrementalAnalysisOrchestrator()
+        self.mock_adapter.discover_source_files.return_value = [Path("/test/file0.py")]
+        self.orchestrator = IncrementalAnalysisOrchestrator(_make_ignore_manager())
 
     @patch("static_analyzer.incremental_orchestrator.convert_to_codeboarding_format")
     @patch("static_analyzer.incremental_orchestrator.CallGraphBuilder")
-    @patch("static_analyzer.incremental_orchestrator.EngineProjectScanner")
-    def test_performs_full_analysis_via_engine(self, mock_scanner_class, mock_builder_class, mock_convert):
+    def test_performs_full_analysis_via_engine(self, mock_builder_class, mock_convert):
         """Test that full analysis uses the engine pipeline."""
         expected_result = create_test_analysis_result()
-
-        mock_scanner = Mock()
-        mock_scanner.scan.return_value = {"Python": [Path("/test/file0.py")]}
-        mock_scanner_class.return_value = mock_scanner
 
         mock_builder = Mock()
         mock_engine_result = Mock()
@@ -389,7 +391,7 @@ class TestPerformFullAnalysisAndCache(unittest.TestCase):
                 False,
             )
 
-            mock_scanner_class.assert_called_once()
+            self.mock_adapter.discover_source_files.assert_called_once()
             mock_builder_class.assert_called_once_with(self.mock_engine_client, self.mock_adapter, self.project_path)
             mock_builder.build.assert_called_once()
             mock_convert.assert_called_once()
@@ -397,14 +399,10 @@ class TestPerformFullAnalysisAndCache(unittest.TestCase):
 
     @patch("static_analyzer.incremental_orchestrator.convert_to_codeboarding_format")
     @patch("static_analyzer.incremental_orchestrator.CallGraphBuilder")
-    @patch("static_analyzer.incremental_orchestrator.EngineProjectScanner")
-    def test_computes_cluster_results_when_enabled(self, mock_scanner_class, mock_builder_class, mock_convert):
+    def test_computes_cluster_results_when_enabled(self, mock_builder_class, mock_convert):
         """Test that cluster results are computed when analyze_clusters=True."""
         expected_result = create_test_analysis_result()
 
-        mock_scanner = Mock()
-        mock_scanner.scan.return_value = {"Python": [Path("/test/file0.py")]}
-        mock_scanner_class.return_value = mock_scanner
         mock_builder = Mock()
         mock_builder.build.return_value = Mock()
         mock_builder_class.return_value = mock_builder
@@ -427,14 +425,10 @@ class TestPerformFullAnalysisAndCache(unittest.TestCase):
 
     @patch("static_analyzer.incremental_orchestrator.convert_to_codeboarding_format")
     @patch("static_analyzer.incremental_orchestrator.CallGraphBuilder")
-    @patch("static_analyzer.incremental_orchestrator.EngineProjectScanner")
-    def test_saves_cache_with_clusters(self, mock_scanner_class, mock_builder_class, mock_convert):
+    def test_saves_cache_with_clusters(self, mock_builder_class, mock_convert):
         """Test that cache is saved with cluster results."""
         expected_result = create_test_analysis_result()
 
-        mock_scanner = Mock()
-        mock_scanner.scan.return_value = {"Python": [Path("/test/file0.py")]}
-        mock_scanner_class.return_value = mock_scanner
         mock_builder = Mock()
         mock_builder.build.return_value = Mock()
         mock_builder_class.return_value = mock_builder
@@ -457,14 +451,10 @@ class TestPerformFullAnalysisAndCache(unittest.TestCase):
 
     @patch("static_analyzer.incremental_orchestrator.convert_to_codeboarding_format")
     @patch("static_analyzer.incremental_orchestrator.CallGraphBuilder")
-    @patch("static_analyzer.incremental_orchestrator.EngineProjectScanner")
-    def test_saves_cache_without_clusters_when_disabled(self, mock_scanner_class, mock_builder_class, mock_convert):
+    def test_saves_cache_without_clusters_when_disabled(self, mock_builder_class, mock_convert):
         """Test that cache is saved without clusters when disabled."""
         expected_result = create_test_analysis_result()
 
-        mock_scanner = Mock()
-        mock_scanner.scan.return_value = {"Python": [Path("/test/file0.py")]}
-        mock_scanner_class.return_value = mock_scanner
         mock_builder = Mock()
         mock_builder.build.return_value = Mock()
         mock_builder_class.return_value = mock_builder
@@ -484,14 +474,10 @@ class TestPerformFullAnalysisAndCache(unittest.TestCase):
 
     @patch("static_analyzer.incremental_orchestrator.convert_to_codeboarding_format")
     @patch("static_analyzer.incremental_orchestrator.CallGraphBuilder")
-    @patch("static_analyzer.incremental_orchestrator.EngineProjectScanner")
-    def test_continues_when_cache_save_fails(self, mock_scanner_class, mock_builder_class, mock_convert):
+    def test_continues_when_cache_save_fails(self, mock_builder_class, mock_convert):
         """Test that analysis result is returned even when cache save fails."""
         expected_result = create_test_analysis_result()
 
-        mock_scanner = Mock()
-        mock_scanner.scan.return_value = {"Python": [Path("/test/file0.py")]}
-        mock_scanner_class.return_value = mock_scanner
         mock_builder = Mock()
         mock_builder.build.return_value = Mock()
         mock_builder_class.return_value = mock_builder
@@ -517,7 +503,7 @@ class TestPerformIncrementalUpdate(unittest.TestCase):
 
     def setUp(self):
         self.mock_adapter, self.project_path, self.mock_engine_client, self.cache_path = create_mock_engine_args()
-        self.orchestrator = IncrementalAnalysisOrchestrator()
+        self.orchestrator = IncrementalAnalysisOrchestrator(_make_ignore_manager())
         self.cached_analysis = create_test_analysis_result()
         self.cached_cluster_results = create_test_cluster_result()
         self.mock_git_analyzer = Mock()
@@ -735,7 +721,7 @@ class TestComputeClusterResults(unittest.TestCase):
     """Tests for _compute_cluster_results method."""
 
     def setUp(self):
-        self.orchestrator = IncrementalAnalysisOrchestrator()
+        self.orchestrator = IncrementalAnalysisOrchestrator(_make_ignore_manager())
 
     def test_returns_empty_dict_for_empty_call_graph(self):
         """Test that an empty call graph returns empty cluster results."""
@@ -782,7 +768,7 @@ class TestMatchClustersToOriginal(unittest.TestCase):
     """Tests for _match_clusters_to_original method."""
 
     def setUp(self):
-        self.orchestrator = IncrementalAnalysisOrchestrator()
+        self.orchestrator = IncrementalAnalysisOrchestrator(_make_ignore_manager())
 
     def test_returns_empty_when_no_old_clusters_for_language(self):
         """Test that no matching is done when old clusters don't have the language."""
@@ -881,7 +867,7 @@ class TestMergeClusterResultsWithMappings(unittest.TestCase):
     """Tests for _merge_cluster_results_with_mappings method."""
 
     def setUp(self):
-        self.orchestrator = IncrementalAnalysisOrchestrator()
+        self.orchestrator = IncrementalAnalysisOrchestrator(_make_ignore_manager())
 
     def test_returns_new_results_when_no_mappings(self):
         """Test that new results are returned unchanged when no mappings exist."""

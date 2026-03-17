@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from static_analyzer.engine.language_adapter import SYMBOL_KIND_MODULE, LanguageAdapter
+from static_analyzer.engine.language_adapter import LanguageAdapter
+from static_analyzer.constants import NodeType
 
 
 class PHPAdapter(LanguageAdapter):
@@ -32,14 +33,7 @@ class PHPAdapter(LanguageAdapter):
         return {"clearCache": False}
 
     def is_reference_worthy(self, symbol_kind: int) -> bool:
-        return super().is_reference_worthy(symbol_kind) or symbol_kind == SYMBOL_KIND_MODULE
-
-    def get_excluded_dirs(self) -> set[str]:
-        return super().get_excluded_dirs() | {
-            "vendor",
-            "cache",
-            ".phpunit.cache",
-        }
+        return super().is_reference_worthy(symbol_kind) or symbol_kind == NodeType.MODULE
 
     def get_all_packages(self, source_files: list[Path], project_root: Path) -> set[str]:
         return self._get_hierarchical_packages(source_files, project_root)

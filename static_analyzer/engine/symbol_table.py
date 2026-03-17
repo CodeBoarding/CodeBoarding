@@ -5,15 +5,9 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from static_analyzer.engine.language_adapter import (
-    CALLABLE_KINDS,
-    SYMBOL_KIND_CLASS,
-    SYMBOL_KIND_CONSTANT,
-    SYMBOL_KIND_CONSTRUCTOR,
-    SYMBOL_KIND_PROPERTY,
-    SYMBOL_KIND_VARIABLE,
-    LanguageAdapter,
-)
+from static_analyzer.engine.protocols import SymbolNaming
+from static_analyzer.constants import NodeType
+from static_analyzer.engine.lsp_constants import CALLABLE_KINDS
 from static_analyzer.engine.models import SymbolInfo
 
 logger = logging.getLogger(__name__)
@@ -26,8 +20,8 @@ class SymbolTable:
     symbols by name, position, or qualified name.
     """
 
-    def __init__(self, adapter: LanguageAdapter) -> None:
-        self._adapter = adapter
+    def __init__(self, naming: SymbolNaming) -> None:
+        self._naming = naming
 
         # Symbol table: qualified_name -> SymbolInfo
         self._symbols: dict[str, SymbolInfo] = {}
@@ -82,10 +76,10 @@ class SymbolTable:
 
             # Promote variables/constants with method children to class
             children = sym.get("children", [])
-            if kind in (SYMBOL_KIND_VARIABLE, SYMBOL_KIND_CONSTANT) and children:
+            if kind in (NodeType.VARIABLE, NodeType.CONSTANT) and children:
                 child_kinds = {c.get("kind", 0) for c in children}
                 if child_kinds & CALLABLE_KINDS:
-                    kind = SYMBOL_KIND_CLASS
+                    kind = NodeType.CLASS
 
             range_info = sym.get("range", sym.get("location", {}).get("range", {}))
             sel_range = sym.get("selectionRange", range_info)
@@ -101,7 +95,7 @@ class SymbolTable:
 
             file_key = str(file_path)
 
-            qualified_name = self._adapter.build_qualified_name(
+            qualified_name = self._naming.build_qualified_name(
                 file_path, name, kind, parent_chain, project_root, detail
             )
 
@@ -118,7 +112,7 @@ class SymbolTable:
             info.parent_chain = list(parent_chain)
 
             self._symbols[qualified_name] = info
-            ref_key = self._adapter.build_reference_key(qualified_name)
+            ref_key = self._naming.build_reference_key(qualified_name)
             self._ref_key_to_symbol[ref_key] = info
             self._file_symbols.setdefault(file_key, []).append(info)
             self._primary_file_symbols.setdefault(file_key, []).append(info)
@@ -126,7 +120,7 @@ class SymbolTable:
             # Dual registration: register unqualified form(s) for symbols with parents
             # Aliases go into _file_symbols but NOT _primary_file_symbols
             if parent_chain:
-                unqualified_name = self._adapter.build_qualified_name(file_path, name, kind, [], project_root, detail)
+                unqualified_name = self._naming.build_qualified_name(file_path, name, kind, [], project_root, detail)
                 if unqualified_name != qualified_name and unqualified_name not in self._symbols:
                     unq_info = SymbolInfo(
                         name=name,
@@ -140,14 +134,14 @@ class SymbolTable:
                     )
                     unq_info.parent_chain = []
                     self._symbols[unqualified_name] = unq_info
-                    unq_ref_key = self._adapter.build_reference_key(unqualified_name)
+                    unq_ref_key = self._naming.build_reference_key(unqualified_name)
                     self._ref_key_to_symbol[unq_ref_key] = unq_info
                     self._file_symbols[file_key].append(unq_info)
 
                 if len(parent_chain) >= 2:
                     for skip in range(1, len(parent_chain)):
                         partial_chain = parent_chain[skip:]
-                        partial_name = self._adapter.build_qualified_name(
+                        partial_name = self._naming.build_qualified_name(
                             file_path, name, kind, partial_chain, project_root, detail
                         )
                         if partial_name != qualified_name and partial_name not in self._symbols:
@@ -163,7 +157,7 @@ class SymbolTable:
                             )
                             p_info.parent_chain = list(partial_chain)
                             self._symbols[partial_name] = p_info
-                            p_ref_key = self._adapter.build_reference_key(partial_name)
+                            p_ref_key = self._naming.build_reference_key(partial_name)
                             self._ref_key_to_symbol[p_ref_key] = p_info
                             self._file_symbols[file_key].append(p_info)
 
@@ -186,7 +180,7 @@ class SymbolTable:
 
         # Build class -> constructor index
         for qname, sym in self._symbols.items():
-            if sym.kind == SYMBOL_KIND_CONSTRUCTOR:
+            if sym.kind == NodeType.CONSTRUCTOR:
                 # Find the class this constructor belongs to by stripping the params
                 paren_idx = qname.find("(")
                 if paren_idx != -1:
@@ -222,16 +216,18 @@ class SymbolTable:
                     best_size = size
 
         # If the best match is a class-like symbol, check if the reference line
-        # is actually a decorator for one of its child methods.  Decorators sit
-        # 1-3 lines before the ``def``/method line (accounting for stacked
-        # decorators).  Attribute the reference to the nearest child method
-        # whose start_line is within a small window after the reference line.
-        if best and self._adapter.is_class_like(best.kind):
+        # is actually a decorator/annotation for one of its child methods.
+        # This heuristic works across languages: Python decorators (@trace),
+        # Java annotations (@Override, @Inject), TypeScript decorators (@Component).
+        # These sit 1-3 lines before the method definition line (accounting for
+        # stacked decorators/annotations).  Attribute the reference to the
+        # nearest child method whose start_line is within a small window.
+        if best and self._naming.is_class_like(best.kind):
             max_decorator_gap = 4
             nearest_child: SymbolInfo | None = None
             nearest_gap = max_decorator_gap + 1
             for sym in symbols:
-                if not self._adapter.is_callable(sym.kind):
+                if not self._naming.is_callable(sym.kind):
                     continue
                 if not sym.qualified_name.startswith(best.qualified_name + "."):
                     continue
@@ -246,7 +242,7 @@ class SymbolTable:
 
     def lift_to_callable(self, sym: SymbolInfo) -> SymbolInfo | None:
         """If sym is a variable/property, find its parent callable symbol."""
-        if self._adapter.is_callable(sym.kind) or self._adapter.is_class_like(sym.kind):
+        if self._naming.is_callable(sym.kind) or self._naming.is_class_like(sym.kind):
             return sym
 
         file_key = str(sym.file_path)
@@ -258,7 +254,7 @@ class SymbolTable:
         for other in candidates:
             if other.qualified_name == sym.qualified_name:
                 continue
-            if not (self._adapter.is_callable(other.kind) or self._adapter.is_class_like(other.kind)):
+            if not (self._naming.is_callable(other.kind) or self._naming.is_class_like(other.kind)):
                 continue
             if other.start_line <= sym.start_line and other.end_line >= sym.end_line:
                 size = (other.end_line - other.start_line) * 10000 + (other.end_char - other.start_char)
@@ -311,7 +307,7 @@ class SymbolTable:
         Also catches unqualified aliases (dual registration) by checking if
         any symbol at the same position has a parent.
         """
-        if sym.kind in (SYMBOL_KIND_VARIABLE, SYMBOL_KIND_CONSTANT):
+        if sym.kind in (NodeType.VARIABLE, NodeType.CONSTANT):
             if sym.parent_chain:
                 return True
             # Check if any co-located symbol (alias at same position) has a parent
@@ -322,11 +318,11 @@ class SymbolTable:
                     return True
             return False
 
-        if sym.kind == SYMBOL_KIND_PROPERTY and sym.parent_chain:
+        if sym.kind == NodeType.PROPERTY and sym.parent_chain:
             # Properties inside callables are local (e.g. destructured values);
             # properties whose immediate parent is a class are class members — keep those.
             parent_kind = sym.parent_chain[-1][1] if sym.parent_chain else 0
-            if self._adapter.is_callable(parent_kind):
+            if self._naming.is_callable(parent_kind):
                 return True
 
         return False

@@ -8,15 +8,11 @@ from static_analyzer.engine.edge_builder import (
     _is_valid_edge,
     _resolve_definition_to_symbol,
     build_edges_via_definitions,
+    build_edges_via_references,
 )
-from static_analyzer.engine.lsp_constants import (
-    SYMBOL_KIND_CLASS,
-    SYMBOL_KIND_CONSTRUCTOR,
-    SYMBOL_KIND_FUNCTION,
-    SYMBOL_KIND_METHOD,
-    SYMBOL_KIND_VARIABLE,
-)
-from static_analyzer.engine.models import EdgeBuildContext, SymbolInfo
+from static_analyzer.constants import NodeType
+from static_analyzer.engine.edge_build_context import EdgeBuildContext
+from static_analyzer.engine.models import SymbolInfo
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.symbol_table import SymbolTable
 
@@ -70,32 +66,32 @@ def _sym(
 
 class TestIsValidEdge:
     def test_valid_edge(self):
-        a = _sym("foo", "a.foo", SYMBOL_KIND_FUNCTION, "/p/a.py", 0)
-        b = _sym("bar", "a.bar", SYMBOL_KIND_FUNCTION, "/p/a.py", 20)
+        a = _sym("foo", "a.foo", NodeType.FUNCTION, "/p/a.py", 0)
+        b = _sym("bar", "a.bar", NodeType.FUNCTION, "/p/a.py", 20)
         assert _is_valid_edge(a, b) is True
 
     def test_rejects_same_name(self):
-        a = _sym("foo", "a.foo", SYMBOL_KIND_FUNCTION, "/p/a.py", 0)
+        a = _sym("foo", "a.foo", NodeType.FUNCTION, "/p/a.py", 0)
         assert _is_valid_edge(a, a) is False
 
     def test_rejects_child_of_caller(self):
-        parent = _sym("Cls", "a.Cls", SYMBOL_KIND_CLASS, "/p/a.py", 0)
-        child = _sym("method", "a.Cls.method", SYMBOL_KIND_METHOD, "/p/a.py", 5)
+        parent = _sym("Cls", "a.Cls", NodeType.CLASS, "/p/a.py", 0)
+        child = _sym("method", "a.Cls.method", NodeType.METHOD, "/p/a.py", 5)
         assert _is_valid_edge(parent, child) is False
 
     def test_rejects_parent_of_target(self):
-        child = _sym("method", "a.Cls.method", SYMBOL_KIND_METHOD, "/p/a.py", 5)
-        parent = _sym("Cls", "a.Cls", SYMBOL_KIND_CLASS, "/p/a.py", 0)
+        child = _sym("method", "a.Cls.method", NodeType.METHOD, "/p/a.py", 5)
+        parent = _sym("Cls", "a.Cls", NodeType.CLASS, "/p/a.py", 0)
         assert _is_valid_edge(child, parent) is False
 
     def test_rejects_same_definition_location(self):
-        a = _sym("foo", "a.foo", SYMBOL_KIND_FUNCTION, "/p/a.py", 10, 4)
-        b = _sym("bar", "b.bar", SYMBOL_KIND_FUNCTION, "/p/a.py", 10, 4)
+        a = _sym("foo", "a.foo", NodeType.FUNCTION, "/p/a.py", 10, 4)
+        b = _sym("bar", "b.bar", NodeType.FUNCTION, "/p/a.py", 10, 4)
         assert _is_valid_edge(a, b) is False
 
     def test_rejects_same_file_and_line(self):
-        a = _sym("foo", "a.foo", SYMBOL_KIND_FUNCTION, "/p/a.py", 10, 0)
-        b = _sym("bar", "a.bar", SYMBOL_KIND_FUNCTION, "/p/a.py", 10, 5)
+        a = _sym("foo", "a.foo", NodeType.FUNCTION, "/p/a.py", 10, 0)
+        b = _sym("bar", "a.bar", NodeType.FUNCTION, "/p/a.py", 10, 5)
         assert _is_valid_edge(a, b) is False
 
 
@@ -106,7 +102,7 @@ class TestIsValidEdge:
 
 class TestResolveDefinitionToSymbol:
     def test_exact_match_with_location_format(self):
-        sym = _sym("foo", "a.foo", SYMBOL_KIND_FUNCTION, "/p/a.py", 10, 4)
+        sym = _sym("foo", "a.foo", NodeType.FUNCTION, "/p/a.py", 10, 4)
         pos_to_sym = {(str(Path("/p/a.py")), 10, 4): sym}
         result = _resolve_definition_to_symbol(
             {"uri": Path("/p/a.py").as_uri(), "range": {"start": {"line": 10, "character": 4}}},
@@ -116,7 +112,7 @@ class TestResolveDefinitionToSymbol:
         assert result is sym
 
     def test_exact_match_with_location_link_format(self):
-        sym = _sym("foo", "a.foo", SYMBOL_KIND_FUNCTION, "/p/a.py", 10, 4)
+        sym = _sym("foo", "a.foo", NodeType.FUNCTION, "/p/a.py", 10, 4)
         pos_to_sym = {(str(Path("/p/a.py")), 10, 4): sym}
         result = _resolve_definition_to_symbol(
             {
@@ -129,7 +125,7 @@ class TestResolveDefinitionToSymbol:
         assert result is sym
 
     def test_fuzzy_match_on_same_line(self):
-        sym = _sym("foo", "a.foo", SYMBOL_KIND_FUNCTION, "/p/a.py", 10, 4)
+        sym = _sym("foo", "a.foo", NodeType.FUNCTION, "/p/a.py", 10, 4)
         line_to_syms = {(str(Path("/p/a.py")), 10): [sym]}
         result = _resolve_definition_to_symbol(
             {"uri": Path("/p/a.py").as_uri(), "range": {"start": {"line": 10, "character": 0}}},
@@ -139,7 +135,7 @@ class TestResolveDefinitionToSymbol:
         assert result is sym
 
     def test_fuzzy_match_on_adjacent_line(self):
-        sym = _sym("foo", "a.foo", SYMBOL_KIND_FUNCTION, "/p/a.py", 11, 4)
+        sym = _sym("foo", "a.foo", NodeType.FUNCTION, "/p/a.py", 11, 4)
         line_to_syms = {(str(Path("/p/a.py")), 11): [sym]}
         result = _resolve_definition_to_symbol(
             {"uri": Path("/p/a.py").as_uri(), "range": {"start": {"line": 10, "character": 0}}},
@@ -172,25 +168,25 @@ class TestResolveDefinitionToSymbol:
 
 class TestBestCandidate:
     def test_prefers_callable_over_class(self):
-        cls = _sym("Foo", "a.Foo", SYMBOL_KIND_CLASS, "/p/a.py", 0)
-        method = _sym("foo", "a.Foo.foo", SYMBOL_KIND_METHOD, "/p/a.py", 5)
+        cls = _sym("Foo", "a.Foo", NodeType.CLASS, "/p/a.py", 0)
+        method = _sym("foo", "a.Foo.foo", NodeType.METHOD, "/p/a.py", 5)
         assert _best_candidate([cls, method]) is method
 
     def test_prefers_class_over_variable(self):
-        var = _sym("x", "a.x", SYMBOL_KIND_VARIABLE, "/p/a.py", 0)
-        cls = _sym("Foo", "a.Foo", SYMBOL_KIND_CLASS, "/p/a.py", 0)
+        var = _sym("x", "a.x", NodeType.VARIABLE, "/p/a.py", 0)
+        cls = _sym("Foo", "a.Foo", NodeType.CLASS, "/p/a.py", 0)
         assert _best_candidate([var, cls]) is cls
 
     def test_prefers_longest_qualified_name(self):
-        short = _sym("foo", "a.foo", SYMBOL_KIND_FUNCTION, "/p/a.py", 0)
-        long = _sym("foo", "a.b.c.foo", SYMBOL_KIND_FUNCTION, "/p/a.py", 0)
+        short = _sym("foo", "a.foo", NodeType.FUNCTION, "/p/a.py", 0)
+        long = _sym("foo", "a.b.c.foo", NodeType.FUNCTION, "/p/a.py", 0)
         assert _best_candidate([short, long]) is long
 
     def test_empty_list(self):
         assert _best_candidate([]) is None
 
     def test_single_variable(self):
-        var = _sym("x", "a.x", SYMBOL_KIND_VARIABLE, "/p/a.py", 0)
+        var = _sym("x", "a.x", NodeType.VARIABLE, "/p/a.py", 0)
         assert _best_candidate([var]) is var
 
 
@@ -209,8 +205,8 @@ class TestBuildEdgesViaDefinitions:
         src = tmp_path / "app.py"
         src.write_text("def main():\n    helper()\n\ndef helper():\n    pass\n")
 
-        caller = _sym("main", "app.main", SYMBOL_KIND_FUNCTION, str(src), 0, 4, 1)
-        callee = _sym("helper", "app.helper", SYMBOL_KIND_FUNCTION, str(src), 3, 4, 4)
+        caller = _sym("main", "app.main", NodeType.FUNCTION, str(src), 0, 4, 1)
+        callee = _sym("helper", "app.helper", NodeType.FUNCTION, str(src), 3, 4, 4)
         st._symbols["app.main"] = caller
         st._symbols["app.helper"] = callee
         st._file_symbols[str(src)] = [caller, callee]
@@ -254,7 +250,7 @@ class TestBuildEdgesViaDefinitions:
         src = tmp_path / "app.py"
         src.write_text("def main():\n    helper()\n")
 
-        caller = _sym("main", "app.main", SYMBOL_KIND_FUNCTION, str(src), 0, 4, 1)
+        caller = _sym("main", "app.main", NodeType.FUNCTION, str(src), 0, 4, 1)
         st._symbols["app.main"] = caller
         st._file_symbols[str(src)] = [caller]
         st._primary_file_symbols[str(src)] = [caller]
@@ -274,17 +270,17 @@ class TestBuildEdgesViaDefinitions:
         src = tmp_path / "app.py"
         src.write_text("def main():\n    Dog()\n\nclass Dog:\n    def __init__(self):\n        pass\n")
 
-        caller = _sym("main", "app.main", SYMBOL_KIND_FUNCTION, str(src), 0, 4, 1)
-        cls = _sym("Dog", "app.Dog", SYMBOL_KIND_CLASS, str(src), 3, 6, 5)
+        caller = _sym("main", "app.main", NodeType.FUNCTION, str(src), 0, 4, 1)
+        cls = _sym("Dog", "app.Dog", NodeType.CLASS, str(src), 3, 6, 5)
         ctor = _sym(
             "__init__",
             "app.Dog.__init__",
-            SYMBOL_KIND_CONSTRUCTOR,
+            NodeType.CONSTRUCTOR,
             str(src),
             4,
             8,
             5,
-            parent_chain=[("Dog", SYMBOL_KIND_CLASS)],
+            parent_chain=[("Dog", NodeType.CLASS)],
         )
         st._symbols["app.main"] = caller
         st._symbols["app.Dog"] = cls
@@ -320,9 +316,9 @@ class TestBuildEdgesViaDefinitions:
         src = tmp_path / "app.py"
         src.write_text("def main():\n    speak()\n\ndef speak():\n    pass\n\ndef dog_speak():\n    pass\n")
 
-        caller = _sym("main", "app.main", SYMBOL_KIND_FUNCTION, str(src), 0, 4, 1)
-        target = _sym("speak", "app.speak", SYMBOL_KIND_METHOD, str(src), 3, 4, 4)
-        impl = _sym("dog_speak", "app.dog_speak", SYMBOL_KIND_METHOD, str(src), 6, 4, 7)
+        caller = _sym("main", "app.main", NodeType.FUNCTION, str(src), 0, 4, 1)
+        target = _sym("speak", "app.speak", NodeType.METHOD, str(src), 3, 4, 4)
+        impl = _sym("dog_speak", "app.dog_speak", NodeType.METHOD, str(src), 6, 4, 7)
         st._symbols["app.main"] = caller
         st._symbols["app.speak"] = target
         st._symbols["app.dog_speak"] = impl
@@ -360,8 +356,8 @@ class TestBuildEdgesViaDefinitions:
         src = tmp_path / "app.py"
         src.write_text("def main():\n    speak()\n\ndef speak():\n    pass\n")
 
-        caller = _sym("main", "app.main", SYMBOL_KIND_FUNCTION, str(src), 0, 4, 1)
-        target = _sym("speak", "app.speak", SYMBOL_KIND_METHOD, str(src), 3, 4, 4)
+        caller = _sym("main", "app.main", NodeType.FUNCTION, str(src), 0, 4, 1)
+        target = _sym("speak", "app.speak", NodeType.METHOD, str(src), 3, 4, 4)
         st._symbols["app.main"] = caller
         st._symbols["app.speak"] = target
         st._file_symbols[str(src)] = [caller, target]
@@ -399,8 +395,8 @@ class TestBuildEdgesViaReferencesExtra:
         ctx, adapter = _make_ctx(lsp)
         st = ctx.symbol_table
 
-        caller = _sym("main", "app.main", SYMBOL_KIND_FUNCTION, "/project/app.py", 0, 0, 20)
-        cls = _sym("Dog", "app.Dog", SYMBOL_KIND_CLASS, "/project/app.py", 25, 0, 50)
+        caller = _sym("main", "app.main", NodeType.FUNCTION, "/project/app.py", 0, 0, 20)
+        cls = _sym("Dog", "app.Dog", NodeType.CLASS, "/project/app.py", 25, 0, 50)
         st._symbols["app.main"] = caller
         st._symbols["app.Dog"] = cls
         st._file_symbols[str(Path("/project/app.py"))] = [caller, cls]
@@ -417,7 +413,7 @@ class TestBuildEdgesViaReferencesExtra:
         ctx.source_inspector = MagicMock()
         ctx.source_inspector.is_invocation.return_value = False  # Not a call
 
-        edges = adapter.build_edges(ctx, [Path("/project/app.py")])
+        edges = build_edges_via_references(adapter, ctx, [Path("/project/app.py")])
         assert ("app.main", "app.Dog") not in edges
 
     def test_skips_nested_symbol_edges(self):
@@ -426,8 +422,8 @@ class TestBuildEdgesViaReferencesExtra:
         ctx, adapter = _make_ctx(lsp)
         st = ctx.symbol_table
 
-        outer = _sym("outer", "app.outer", SYMBOL_KIND_FUNCTION, "/project/app.py", 0, 0, 20)
-        inner = _sym("inner", "app.outer.inner", SYMBOL_KIND_FUNCTION, "/project/app.py", 5, 4, 10)
+        outer = _sym("outer", "app.outer", NodeType.FUNCTION, "/project/app.py", 0, 0, 20)
+        inner = _sym("inner", "app.outer.inner", NodeType.FUNCTION, "/project/app.py", 5, 4, 10)
         st._symbols["app.outer"] = outer
         st._symbols["app.outer.inner"] = inner
         st._file_symbols[str(Path("/project/app.py"))] = [outer, inner]
@@ -444,7 +440,7 @@ class TestBuildEdgesViaReferencesExtra:
         ctx.source_inspector = MagicMock()
         ctx.source_inspector.is_invocation.return_value = True
 
-        edges = adapter.build_edges(ctx, [Path("/project/app.py")])
+        edges = build_edges_via_references(adapter, ctx, [Path("/project/app.py")])
         # inner is nested inside outer, so edge should be skipped
         assert ("app.outer", "app.outer.inner") not in edges
 
@@ -452,5 +448,5 @@ class TestBuildEdgesViaReferencesExtra:
         """Empty symbol table produces no edges and no crash."""
         lsp = _make_lsp()
         ctx, adapter = _make_ctx(lsp)
-        edges = adapter.build_edges(ctx, [Path("/project/app.py")])
+        edges = build_edges_via_references(adapter, ctx, [Path("/project/app.py")])
         assert len(edges) == 0

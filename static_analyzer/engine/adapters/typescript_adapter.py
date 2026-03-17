@@ -28,15 +28,6 @@ class TypeScriptAdapter(LanguageAdapter):
     def extract_package(self, qualified_name: str) -> str:
         return self._extract_deep_package(qualified_name)
 
-    def get_excluded_dirs(self) -> set[str]:
-        return super().get_excluded_dirs() | {
-            "node_modules",
-            "dist",
-            "build",
-            ".next",
-            "coverage",
-        }
-
     def get_all_packages(self, source_files: list[Path], project_root: Path) -> set[str]:
         return self._get_hierarchical_packages(source_files, project_root)
 

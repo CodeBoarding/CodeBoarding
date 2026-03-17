@@ -6,17 +6,17 @@ import logging
 import time
 from pathlib import Path
 
+from static_analyzer.engine.edge_build_context import EdgeBuildContext
+from static_analyzer.engine.edge_builder import build_edges_via_definitions, build_edges_via_references
 from static_analyzer.engine.hierarchy_builder import HierarchyBuilder
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_client import LSPClient
-from static_analyzer.engine.models import CallFlowGraph, EdgeBuildContext, LanguageAnalysisResult
+from static_analyzer.engine.lsp_constants import DID_OPEN_BATCH_SIZE
+from static_analyzer.engine.models import CallFlowGraph, LanguageAnalysisResult
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.symbol_table import SymbolTable
 
 logger = logging.getLogger(__name__)
-
-# Batch size for did_open to avoid overwhelming LSP servers
-DID_OPEN_BATCH_SIZE = 50
 
 
 class CallGraphBuilder:
@@ -40,8 +40,14 @@ class CallGraphBuilder:
         """Public access to the symbol table for result conversion."""
         return self._symbol_table
 
-    def build(self, source_files: list[Path]) -> LanguageAnalysisResult:
-        """Run the full analysis pipeline and return results."""
+    def build(self, source_files: list[Path], skip_hierarchy: bool = True) -> LanguageAnalysisResult:
+        """Run the full analysis pipeline and return results.
+
+        Args:
+            source_files: List of source files to analyze.
+            skip_hierarchy: If True (default), skip Phase 3 (class hierarchy).
+                Hierarchy is currently not consumed by the LLM agents.
+        """
         t_pipeline = time.monotonic()
 
         self._discover_symbols(source_files)
@@ -53,15 +59,20 @@ class CallGraphBuilder:
         logger.info("Build indices: %.1fs", t_indices_done - t_symbols_done)
 
         ctx = EdgeBuildContext(self._lsp, self._symbol_table, self._source_inspector)
-        edge_set = self._adapter.build_edges(ctx, source_files)
+        edge_set = self._build_edges(ctx, source_files)
         edge_set = self._postprocess_edges(edge_set)
         t_edges_done = time.monotonic()
         logger.info("Phase 2 total (build edges): %.1fs, %d edges", t_edges_done - t_indices_done, len(edge_set))
 
-        hierarchy_builder = HierarchyBuilder(self._lsp, self._symbol_table, self._source_inspector, self._adapter)
-        hierarchy = hierarchy_builder.build()
+        hierarchy: dict[str, dict] = {}
+        if skip_hierarchy:
+            logger.info("Phase 3 (hierarchy): skipped (skip_hierarchy=True)")
+        else:
+            hierarchy_builder = HierarchyBuilder(self._lsp, self._symbol_table, self._source_inspector, self._adapter)
+            hierarchy = hierarchy_builder.build()
         t_hierarchy_done = time.monotonic()
-        logger.info("Phase 3 (hierarchy): %.1fs", t_hierarchy_done - t_edges_done)
+        if not skip_hierarchy:
+            logger.info("Phase 3 (hierarchy): %.1fs", t_hierarchy_done - t_edges_done)
 
         package_deps = self._build_package_deps(edge_set, source_files)
         t_pkgdeps_done = time.monotonic()
@@ -105,6 +116,14 @@ class CallGraphBuilder:
             source_files=abs_files,
         )
 
+    def _build_edges(self, ctx: EdgeBuildContext, source_files: list[Path]) -> set[tuple[str, str]]:
+        """Dispatch to the edge-building strategy specified by the adapter."""
+        from static_analyzer.engine.lsp_constants import EdgeStrategy
+
+        if self._adapter.edge_strategy == EdgeStrategy.DEFINITIONS:
+            return build_edges_via_definitions(self._adapter, ctx, source_files)
+        return build_edges_via_references(self._adapter, ctx, source_files)
+
     def _discover_symbols(self, source_files: list[Path]) -> None:
         """Phase 0+1: Open files, wait for indexing, then extract all symbols."""
         total = len(source_files)
@@ -116,13 +135,13 @@ class CallGraphBuilder:
                 self._lsp.did_open(file_path, self._adapter.language_id)
             opened = min(i + DID_OPEN_BATCH_SIZE, total)
             logger.info("Phase 0 (open): %d/%d files opened", opened, total)
-            if i + DID_OPEN_BATCH_SIZE < total:
-                time.sleep(0.1)
+            time.sleep(0.1)
         logger.info("did_open %d files: %.1fs", total, time.monotonic() - t_open_start)
 
-        # Synchronization probe — cache result to avoid re-querying first file.
-        # Use a long timeout (5 min) because LSP servers may need to index the
-        # entire project before responding (e.g. gopls on large Go projects).
+        # Synchronization probe — blocks until the LSP server has indexed the
+        # project. Uses a long timeout (5 min) because servers like gopls may
+        # need to index the entire project before responding. We cache the
+        # result to reuse for the first file in Phase 1 below.
         probe_result: list[dict] | None = None
         logger.info("Phase 0 (open): waiting for LSP server indexing...")
         t_probe = time.monotonic()
@@ -136,6 +155,8 @@ class CallGraphBuilder:
 
         total = len(source_files)
         for idx, file_path in enumerate(source_files, 1):
+            # Reuse the sync probe result for the first file to avoid a
+            # redundant document_symbol query (the probe can take minutes).
             if idx == 1 and probe_result is not None:
                 symbols = probe_result
             else:
@@ -151,28 +172,42 @@ class CallGraphBuilder:
 
         logger.info("Discovered %d symbols across %d files", len(self._symbol_table.symbols), len(source_files))
 
-        # Warmup probe: trigger the LSP server's cross-reference index build
-        # by sending a single references request with a long timeout.
-        if source_files and self._adapter.references_per_query_timeout > 0:
-            logger.info("Phase 1.5 (warmup): triggering LSP index build with a single references request...")
-            t_warmup = time.monotonic()
-            try:
-                self._lsp.references(source_files[0], 0, 0)
-            except (TimeoutError, Exception) as e:
-                logger.warning("Warmup probe failed (non-fatal): %s", e)
-            logger.info("Phase 1.5 (warmup): completed in %.1fs", time.monotonic() - t_warmup)
+        self._warmup_references(source_files)
+
+    def _warmup_references(self, source_files: list[Path]) -> None:
+        """Trigger the LSP server's cross-reference index build.
+
+        Sends a single references request with a long timeout so that the
+        server builds its index before we send batched queries in Phase 2.
+        Only relevant for adapters that use references-based edge building.
+        """
+        if not source_files or self._adapter.references_per_query_timeout <= 0:
+            return
+        logger.info("Phase 1.5 (warmup): triggering LSP index build with a single references request...")
+        t_warmup = time.monotonic()
+        try:
+            self._lsp.references(source_files[0], 0, 0)
+        except (TimeoutError, Exception) as e:
+            logger.warning("Warmup probe failed (non-fatal): %s", e)
+        logger.info("Phase 1.5 (warmup): completed in %.1fs", time.monotonic() - t_warmup)
 
     def _postprocess_edges(self, edge_set: set[tuple[str, str]]) -> set[tuple[str, str]]:
         """Deduplicate edges by definition location and expand constructor edges.
 
-        Shared post-processing applied after any edge-building strategy.
+        Dual registration creates multiple qualified names for the same symbol
+        at the same source position (e.g. ``module.Class.method`` and
+        ``module.method``). Without dedup, we'd get duplicate edges like
+        ``(A -> module.Class.method)`` AND ``(A -> module.method)``.
+
+        This method:
+        1. Groups edges by (src_position, dst_position) to collapse aliases.
+        2. Keeps the edge with the longest qualified names (most specific form).
+        3. Removes "alias self-edges" where src and dst are different qualified
+           names but resolve to the same definition location.
+        4. Expands class edges to include constructor edges.
         """
         st = self._symbol_table
 
-        # Deduplicate edges that refer to the same symbol pair via different
-        # qualified names (aliases from dual registration). Keep the edge with
-        # the longest combined qualified names (class-qualified over unqualified).
-        # Also remove alias self-edges (same definition location for src and dst).
         pos_to_edge: dict[tuple, tuple[str, str]] = {}
         alias_self_edges = 0
         for src, dst in edge_set:
@@ -184,6 +219,8 @@ class CallGraphBuilder:
                     continue
                 edge_key = (src_sym.definition_location, dst_sym.definition_location)
                 existing = pos_to_edge.get(edge_key)
+                # Replace with the longest qualified names (most specific form,
+                # e.g. "module.Class.method" wins over "module.method").
                 if existing is None or (len(src) + len(dst), src, dst) > (
                     len(existing[0]) + len(existing[1]),
                     existing[0],

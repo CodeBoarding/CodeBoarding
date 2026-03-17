@@ -9,11 +9,7 @@ Covers:
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from static_analyzer.engine.language_adapter import (
-    SYMBOL_KIND_CLASS,
-    SYMBOL_KIND_FUNCTION,
-    SYMBOL_KIND_METHOD,
-)
+from static_analyzer.constants import NodeType
 from static_analyzer.engine.models import SymbolInfo
 from static_analyzer.engine.symbol_table import SymbolTable
 
@@ -42,8 +38,8 @@ def _make_symbol(
 
 def _make_adapter() -> MagicMock:
     adapter = MagicMock()
-    adapter.is_callable.side_effect = lambda k: k in (SYMBOL_KIND_FUNCTION, SYMBOL_KIND_METHOD)
-    adapter.is_class_like.side_effect = lambda k: k == SYMBOL_KIND_CLASS
+    adapter.is_callable.side_effect = lambda k: k in (NodeType.FUNCTION, NodeType.METHOD)
+    adapter.is_class_like.side_effect = lambda k: k == NodeType.CLASS
     return adapter
 
 
@@ -57,9 +53,9 @@ class TestFindContainingSymbolDecoratorAttribution:
         file = Path("test.py")
 
         # Class spanning lines 0-50
-        cls_sym = _make_symbol("MyClass", "mod.MyClass", SYMBOL_KIND_CLASS, "test.py", 0, 0, 50, 0)
+        cls_sym = _make_symbol("MyClass", "mod.MyClass", NodeType.CLASS, "test.py", 0, 0, 50, 0)
         # Method starting at line 10 (decorator would be at line 8 or 9)
-        method_sym = _make_symbol("my_method", "mod.MyClass.my_method", SYMBOL_KIND_METHOD, "test.py", 10, 4, 30, 0)
+        method_sym = _make_symbol("my_method", "mod.MyClass.my_method", NodeType.METHOD, "test.py", 10, 4, 30, 0)
 
         st._file_symbols["test.py"] = [cls_sym, method_sym]
 
@@ -74,8 +70,8 @@ class TestFindContainingSymbolDecoratorAttribution:
         st = SymbolTable(adapter)
         file = Path("test.py")
 
-        cls_sym = _make_symbol("MyClass", "mod.MyClass", SYMBOL_KIND_CLASS, "test.py", 0, 0, 50, 0)
-        method_sym = _make_symbol("my_method", "mod.MyClass.my_method", SYMBOL_KIND_METHOD, "test.py", 10, 4, 30, 0)
+        cls_sym = _make_symbol("MyClass", "mod.MyClass", NodeType.CLASS, "test.py", 0, 0, 50, 0)
+        method_sym = _make_symbol("my_method", "mod.MyClass.my_method", NodeType.METHOD, "test.py", 10, 4, 30, 0)
 
         st._file_symbols["test.py"] = [cls_sym, method_sym]
 
@@ -90,8 +86,8 @@ class TestFindContainingSymbolDecoratorAttribution:
         st = SymbolTable(adapter)
         file = Path("test.py")
 
-        cls_sym = _make_symbol("MyClass", "mod.MyClass", SYMBOL_KIND_CLASS, "test.py", 0, 0, 50, 0)
-        method_sym = _make_symbol("my_method", "mod.MyClass.my_method", SYMBOL_KIND_METHOD, "test.py", 10, 4, 30, 0)
+        cls_sym = _make_symbol("MyClass", "mod.MyClass", NodeType.CLASS, "test.py", 0, 0, 50, 0)
+        method_sym = _make_symbol("my_method", "mod.MyClass.my_method", NodeType.METHOD, "test.py", 10, 4, 30, 0)
 
         st._file_symbols["test.py"] = [cls_sym, method_sym]
 
@@ -106,8 +102,8 @@ class TestFindContainingSymbolDecoratorAttribution:
         st = SymbolTable(adapter)
         file = Path("test.py")
 
-        cls_sym = _make_symbol("MyClass", "mod.MyClass", SYMBOL_KIND_CLASS, "test.py", 0, 0, 50, 0)
-        method_sym = _make_symbol("my_method", "mod.MyClass.my_method", SYMBOL_KIND_METHOD, "test.py", 10, 4, 30, 0)
+        cls_sym = _make_symbol("MyClass", "mod.MyClass", NodeType.CLASS, "test.py", 0, 0, 50, 0)
+        method_sym = _make_symbol("my_method", "mod.MyClass.my_method", NodeType.METHOD, "test.py", 10, 4, 30, 0)
 
         st._file_symbols["test.py"] = [cls_sym, method_sym]
 
@@ -122,9 +118,9 @@ class TestFindContainingSymbolDecoratorAttribution:
         st = SymbolTable(adapter)
         file = Path("test.py")
 
-        cls_sym = _make_symbol("MyClass", "mod.MyClass", SYMBOL_KIND_CLASS, "test.py", 0, 0, 50, 0)
-        method_a = _make_symbol("method_a", "mod.MyClass.method_a", SYMBOL_KIND_METHOD, "test.py", 5, 4, 15, 0)
-        method_b = _make_symbol("method_b", "mod.MyClass.method_b", SYMBOL_KIND_METHOD, "test.py", 18, 4, 30, 0)
+        cls_sym = _make_symbol("MyClass", "mod.MyClass", NodeType.CLASS, "test.py", 0, 0, 50, 0)
+        method_a = _make_symbol("method_a", "mod.MyClass.method_a", NodeType.METHOD, "test.py", 5, 4, 15, 0)
+        method_b = _make_symbol("method_b", "mod.MyClass.method_b", NodeType.METHOD, "test.py", 18, 4, 30, 0)
 
         st._file_symbols["test.py"] = [cls_sym, method_a, method_b]
 
@@ -145,10 +141,10 @@ class TestAliasSelfEdgeRemoval:
         st = SymbolTable(adapter)
 
         # Two names for the same symbol (dual registration)
-        sym_a = _make_symbol("method", "mod.Class.method", SYMBOL_KIND_METHOD, "test.py", 10, 4, 20, 0)
-        sym_b = _make_symbol("method", "mod.method", SYMBOL_KIND_METHOD, "test.py", 10, 4, 20, 0)
+        sym_a = _make_symbol("method", "mod.Class.method", NodeType.METHOD, "test.py", 10, 4, 20, 0)
+        sym_b = _make_symbol("method", "mod.method", NodeType.METHOD, "test.py", 10, 4, 20, 0)
         # A different symbol
-        sym_c = _make_symbol("other", "mod.Class.other", SYMBOL_KIND_METHOD, "test.py", 25, 4, 35, 0)
+        sym_c = _make_symbol("other", "mod.Class.other", NodeType.METHOD, "test.py", 25, 4, 35, 0)
 
         st._symbols = {
             sym_a.qualified_name: sym_a,
@@ -191,8 +187,8 @@ class TestAliasSelfEdgeRemoval:
         adapter = _make_adapter()
         st = SymbolTable(adapter)
 
-        sym_a = _make_symbol("a", "mod.a", SYMBOL_KIND_FUNCTION, "test.py", 1, 0, 5, 0)
-        sym_b = _make_symbol("b", "mod.b", SYMBOL_KIND_FUNCTION, "test.py", 10, 0, 15, 0)
+        sym_a = _make_symbol("a", "mod.a", NodeType.FUNCTION, "test.py", 1, 0, 5, 0)
+        sym_b = _make_symbol("b", "mod.b", NodeType.FUNCTION, "test.py", 10, 0, 15, 0)
 
         st._symbols = {sym_a.qualified_name: sym_a, sym_b.qualified_name: sym_b}
 

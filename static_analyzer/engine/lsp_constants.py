@@ -1,46 +1,33 @@
-"""LSP SymbolKind constants and related groupings.
+"""LSP SymbolKind groupings and constants for the engine modules.
 
-Extracted into a standalone module to avoid circular imports between
-language_adapter and edge_builder.
+``NodeType`` from ``static_analyzer.constants`` is the single source of truth
+for LSP SymbolKind integer values.  This module re-exports it for convenience
+and defines derived groupings (CLASS_LIKE_KINDS, CALLABLE_KINDS).
 """
 
-# LSP SymbolKind constants
-SYMBOL_KIND_FILE = 1
-SYMBOL_KIND_MODULE = 2
-SYMBOL_KIND_NAMESPACE = 3
-SYMBOL_KIND_PACKAGE = 4
-SYMBOL_KIND_CLASS = 5
-SYMBOL_KIND_METHOD = 6
-SYMBOL_KIND_PROPERTY = 7
-SYMBOL_KIND_FIELD = 8
-SYMBOL_KIND_CONSTRUCTOR = 9
-SYMBOL_KIND_ENUM = 10
-SYMBOL_KIND_INTERFACE = 11
-SYMBOL_KIND_FUNCTION = 12
-SYMBOL_KIND_VARIABLE = 13
-SYMBOL_KIND_CONSTANT = 14
-SYMBOL_KIND_STRING = 15
-SYMBOL_KIND_NUMBER = 16
-SYMBOL_KIND_BOOLEAN = 17
-SYMBOL_KIND_ARRAY = 18
-SYMBOL_KIND_OBJECT = 19
-SYMBOL_KIND_KEY = 20
-SYMBOL_KIND_NULL = 21
-SYMBOL_KIND_ENUM_MEMBER = 22
-SYMBOL_KIND_STRUCT = 23
-SYMBOL_KIND_EVENT = 24
-SYMBOL_KIND_OPERATOR = 25
-SYMBOL_KIND_TYPE_PARAMETER = 26
+from enum import StrEnum
 
-CLASS_LIKE_KINDS = {
-    SYMBOL_KIND_CLASS,
-    SYMBOL_KIND_INTERFACE,
-    SYMBOL_KIND_STRUCT,
-    SYMBOL_KIND_ENUM,
+from static_analyzer.constants import NodeType
+
+CLASS_LIKE_KINDS: set[int] = {
+    NodeType.CLASS,
+    NodeType.INTERFACE,
+    NodeType.STRUCT,
+    NodeType.ENUM,
 }
 
-CALLABLE_KINDS = {
-    SYMBOL_KIND_FUNCTION,
-    SYMBOL_KIND_METHOD,
-    SYMBOL_KIND_CONSTRUCTOR,
+CALLABLE_KINDS: set[int] = {
+    NodeType.FUNCTION,
+    NodeType.METHOD,
+    NodeType.CONSTRUCTOR,
 }
+
+# Batch size for did_open to avoid overwhelming LSP servers
+DID_OPEN_BATCH_SIZE = 50
+
+
+class EdgeStrategy(StrEnum):
+    """Edge-building strategy selection for Phase 2."""
+
+    REFERENCES = "references"
+    DEFINITIONS = "definitions"

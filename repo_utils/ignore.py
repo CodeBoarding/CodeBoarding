@@ -67,6 +67,9 @@ TEST_INFRASTRUCTURE_PATTERNS = [
     "*/osgi-tests/*",  # OSGi integration tests (seen in Mockito)
     # Development/infrastructure config
     "*.config.*",  # Only if in root? No, can be prod code too
+    # Java/Kotlin metadata files with no analyzable symbols
+    "package-info.java",
+    "module-info.java",
 ]
 
 # Build tool configs and infrastructure files matched by basename only.
@@ -181,6 +184,16 @@ class RepoIgnoreManager:
         "temp",
         "repos",  # Specific to CodeBoarding context
         "runs",  # Monitoring runs
+        # Language-specific build/dependency directories
+        "target",  # Java (Maven/Gradle)
+        "bin",  # Java/Go compiled output
+        "out",  # Java/Gradle output
+        "vendor",  # Go/PHP dependencies
+        "testdata",  # Go test fixtures
+        "egg-info",  # Python packaging
+        ".eggs",  # Python setuptools eggs
+        "cache",  # PHP/general caches
+        "coverage",  # Test coverage output
         # Test directories are handled via patterns below for more flexibility
     }
 

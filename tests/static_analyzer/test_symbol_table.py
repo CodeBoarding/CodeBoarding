@@ -3,16 +3,8 @@
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from static_analyzer.engine.language_adapter import (
-    SYMBOL_KIND_CLASS,
-    SYMBOL_KIND_CONSTANT,
-    SYMBOL_KIND_CONSTRUCTOR,
-    SYMBOL_KIND_FUNCTION,
-    SYMBOL_KIND_METHOD,
-    SYMBOL_KIND_PROPERTY,
-    SYMBOL_KIND_VARIABLE,
-    LanguageAdapter,
-)
+from static_analyzer.engine.language_adapter import LanguageAdapter
+from static_analyzer.constants import NodeType
 from static_analyzer.engine.models import SymbolInfo
 from static_analyzer.engine.symbol_table import SymbolTable
 
@@ -20,19 +12,19 @@ from static_analyzer.engine.symbol_table import SymbolTable
 def _make_adapter() -> MagicMock:
     """Create a mock adapter with realistic is_callable / is_class_like."""
     adapter = MagicMock(spec=LanguageAdapter)
-    adapter.is_callable.side_effect = lambda k: k in (SYMBOL_KIND_FUNCTION, SYMBOL_KIND_METHOD, SYMBOL_KIND_CONSTRUCTOR)
-    adapter.is_class_like.side_effect = lambda k: k == SYMBOL_KIND_CLASS
+    adapter.is_callable.side_effect = lambda k: k in (NodeType.FUNCTION, NodeType.METHOD, NodeType.CONSTRUCTOR)
+    adapter.is_class_like.side_effect = lambda k: k == NodeType.CLASS
     adapter.build_qualified_name.side_effect = lambda fp, name, kind, chain, root, detail="": (
         ".".join(n for n, _ in chain) + "." + name if chain else f"{fp.stem}.{name}"
     )
     adapter.build_reference_key.side_effect = lambda qn: qn
     adapter.should_track_for_edges.side_effect = lambda k: k in (
-        SYMBOL_KIND_FUNCTION,
-        SYMBOL_KIND_METHOD,
-        SYMBOL_KIND_CONSTRUCTOR,
-        SYMBOL_KIND_CLASS,
-        SYMBOL_KIND_VARIABLE,
-        SYMBOL_KIND_CONSTANT,
+        NodeType.FUNCTION,
+        NodeType.METHOD,
+        NodeType.CONSTRUCTOR,
+        NodeType.CLASS,
+        NodeType.VARIABLE,
+        NodeType.CONSTANT,
     )
     return adapter
 
@@ -72,14 +64,14 @@ class TestRegisterSymbols:
         symbols = [
             {
                 "name": "foo",
-                "kind": SYMBOL_KIND_FUNCTION,
+                "kind": NodeType.FUNCTION,
                 "range": {"start": {"line": 0, "character": 0}, "end": {"line": 5, "character": 0}},
                 "selectionRange": {"start": {"line": 0, "character": 4}, "end": {"line": 0, "character": 7}},
             }
         ]
         st.register_symbols(Path("mod.py"), symbols, parent_chain=[], project_root=Path("/root"))
         assert "mod.foo" in st.symbols
-        assert st.symbols["mod.foo"].kind == SYMBOL_KIND_FUNCTION
+        assert st.symbols["mod.foo"].kind == NodeType.FUNCTION
 
     def test_registers_nested_children(self):
         adapter = _make_adapter()
@@ -87,13 +79,13 @@ class TestRegisterSymbols:
         symbols = [
             {
                 "name": "MyClass",
-                "kind": SYMBOL_KIND_CLASS,
+                "kind": NodeType.CLASS,
                 "range": {"start": {"line": 0, "character": 0}, "end": {"line": 20, "character": 0}},
                 "selectionRange": {"start": {"line": 0, "character": 6}, "end": {"line": 0, "character": 13}},
                 "children": [
                     {
                         "name": "method",
-                        "kind": SYMBOL_KIND_METHOD,
+                        "kind": NodeType.METHOD,
                         "range": {"start": {"line": 2, "character": 4}, "end": {"line": 10, "character": 0}},
                         "selectionRange": {"start": {"line": 2, "character": 8}, "end": {"line": 2, "character": 14}},
                     }
@@ -111,13 +103,13 @@ class TestRegisterSymbols:
         symbols = [
             {
                 "name": "handler",
-                "kind": SYMBOL_KIND_VARIABLE,
+                "kind": NodeType.VARIABLE,
                 "range": {"start": {"line": 0, "character": 0}, "end": {"line": 10, "character": 0}},
                 "selectionRange": {"start": {"line": 0, "character": 0}, "end": {"line": 0, "character": 7}},
                 "children": [
                     {
                         "name": "process",
-                        "kind": SYMBOL_KIND_METHOD,
+                        "kind": NodeType.METHOD,
                         "range": {"start": {"line": 2, "character": 4}, "end": {"line": 5, "character": 0}},
                         "selectionRange": {"start": {"line": 2, "character": 4}, "end": {"line": 2, "character": 11}},
                     }
@@ -125,7 +117,7 @@ class TestRegisterSymbols:
             }
         ]
         st.register_symbols(Path("mod.py"), symbols, parent_chain=[], project_root=Path("/root"))
-        assert st.symbols["mod.handler"].kind == SYMBOL_KIND_CLASS
+        assert st.symbols["mod.handler"].kind == NodeType.CLASS
 
     def test_dual_registration_creates_alias(self):
         adapter = _make_adapter()
@@ -133,13 +125,13 @@ class TestRegisterSymbols:
         symbols = [
             {
                 "name": "MyClass",
-                "kind": SYMBOL_KIND_CLASS,
+                "kind": NodeType.CLASS,
                 "range": {"start": {"line": 0, "character": 0}, "end": {"line": 20, "character": 0}},
                 "selectionRange": {"start": {"line": 0, "character": 6}, "end": {"line": 0, "character": 13}},
                 "children": [
                     {
                         "name": "inner_func",
-                        "kind": SYMBOL_KIND_FUNCTION,
+                        "kind": NodeType.FUNCTION,
                         "range": {"start": {"line": 5, "character": 4}, "end": {"line": 10, "character": 0}},
                         "selectionRange": {"start": {"line": 5, "character": 8}, "end": {"line": 5, "character": 18}},
                     }
@@ -164,7 +156,7 @@ class TestRegisterSymbols:
         symbols = [
             {
                 "name": "",
-                "kind": SYMBOL_KIND_FUNCTION,
+                "kind": NodeType.FUNCTION,
                 "range": {"start": {"line": 0, "character": 0}, "end": {"line": 5, "character": 0}},
             }
         ]
@@ -179,7 +171,7 @@ class TestBuildIndices:
     def test_builds_file_name_index(self):
         adapter = _make_adapter()
         st = SymbolTable(adapter)
-        sym = _sym("foo", "mod.foo", SYMBOL_KIND_FUNCTION)
+        sym = _sym("foo", "mod.foo", NodeType.FUNCTION)
         st._symbols["mod.foo"] = sym
         st._file_symbols["mod.py"] = [sym]
 
@@ -190,7 +182,7 @@ class TestBuildIndices:
     def test_builds_class_to_ctor_index(self):
         adapter = _make_adapter()
         st = SymbolTable(adapter)
-        ctor_sym = _sym("__init__", "mod.MyClass(__init__)", SYMBOL_KIND_CONSTRUCTOR, start_line=5, end_line=10)
+        ctor_sym = _sym("__init__", "mod.MyClass(__init__)", NodeType.CONSTRUCTOR, start_line=5, end_line=10)
         st._symbols["mod.MyClass(__init__)"] = ctor_sym
 
         st.build_indices()
@@ -200,7 +192,7 @@ class TestBuildIndices:
     def test_no_ctor_without_parens(self):
         adapter = _make_adapter()
         st = SymbolTable(adapter)
-        method_sym = _sym("do_stuff", "mod.MyClass.do_stuff", SYMBOL_KIND_METHOD)
+        method_sym = _sym("do_stuff", "mod.MyClass.do_stuff", NodeType.METHOD)
         st._symbols["mod.MyClass.do_stuff"] = method_sym
 
         st.build_indices()
@@ -214,8 +206,8 @@ class TestFindContainingSymbol:
     def test_finds_innermost_symbol(self):
         adapter = _make_adapter()
         st = SymbolTable(adapter)
-        outer = _sym("outer", "mod.outer", SYMBOL_KIND_FUNCTION, start_line=0, end_line=20, end_char=0)
-        inner = _sym("inner", "mod.outer.inner", SYMBOL_KIND_FUNCTION, start_line=5, end_line=10, end_char=0)
+        outer = _sym("outer", "mod.outer", NodeType.FUNCTION, start_line=0, end_line=20, end_char=0)
+        inner = _sym("inner", "mod.outer.inner", NodeType.FUNCTION, start_line=5, end_line=10, end_char=0)
         st._file_symbols["mod.py"] = [outer, inner]
 
         result = st.find_containing_symbol(Path("mod.py"), 7, 4)
@@ -225,7 +217,7 @@ class TestFindContainingSymbol:
     def test_returns_none_for_no_match(self):
         adapter = _make_adapter()
         st = SymbolTable(adapter)
-        sym = _sym("foo", "mod.foo", SYMBOL_KIND_FUNCTION, start_line=0, end_line=5)
+        sym = _sym("foo", "mod.foo", NodeType.FUNCTION, start_line=0, end_line=5)
         st._file_symbols["mod.py"] = [sym]
 
         result = st.find_containing_symbol(Path("mod.py"), 10, 0)
@@ -241,8 +233,8 @@ class TestFindContainingSymbol:
     def test_decorator_attributed_to_method_not_class(self):
         adapter = _make_adapter()
         st = SymbolTable(adapter)
-        cls = _sym("C", "mod.C", SYMBOL_KIND_CLASS, start_line=0, end_line=30)
-        method = _sym("m", "mod.C.m", SYMBOL_KIND_METHOD, start_line=5, end_line=15)
+        cls = _sym("C", "mod.C", NodeType.CLASS, start_line=0, end_line=30)
+        method = _sym("m", "mod.C.m", NodeType.METHOD, start_line=5, end_line=15)
         st._file_symbols["mod.py"] = [cls, method]
 
         # Line 3 is a decorator above the method at line 5
@@ -258,7 +250,7 @@ class TestLiftToCallable:
     def test_callable_returns_self(self):
         adapter = _make_adapter()
         st = SymbolTable(adapter)
-        sym = _sym("foo", "mod.foo", SYMBOL_KIND_FUNCTION)
+        sym = _sym("foo", "mod.foo", NodeType.FUNCTION)
         st._file_symbols["mod.py"] = [sym]
 
         result = st.lift_to_callable(sym)
@@ -267,7 +259,7 @@ class TestLiftToCallable:
     def test_class_returns_self(self):
         adapter = _make_adapter()
         st = SymbolTable(adapter)
-        sym = _sym("C", "mod.C", SYMBOL_KIND_CLASS)
+        sym = _sym("C", "mod.C", NodeType.CLASS)
         st._file_symbols["mod.py"] = [sym]
 
         result = st.lift_to_callable(sym)
@@ -276,8 +268,8 @@ class TestLiftToCallable:
     def test_variable_lifts_to_enclosing_function(self):
         adapter = _make_adapter()
         st = SymbolTable(adapter)
-        func = _sym("foo", "mod.foo", SYMBOL_KIND_FUNCTION, start_line=0, end_line=20)
-        var = _sym("x", "mod.foo.x", SYMBOL_KIND_VARIABLE, start_line=5, end_line=5)
+        func = _sym("foo", "mod.foo", NodeType.FUNCTION, start_line=0, end_line=20)
+        var = _sym("x", "mod.foo.x", NodeType.VARIABLE, start_line=5, end_line=5)
         st._file_symbols["mod.py"] = [func, var]
 
         result = st.lift_to_callable(var)
@@ -287,7 +279,7 @@ class TestLiftToCallable:
     def test_variable_with_no_enclosing_returns_self(self):
         adapter = _make_adapter()
         st = SymbolTable(adapter)
-        var = _sym("x", "mod.x", SYMBOL_KIND_VARIABLE, start_line=0, end_line=0)
+        var = _sym("x", "mod.x", NodeType.VARIABLE, start_line=0, end_line=0)
         st._file_symbols["mod.py"] = [var]
 
         result = st.lift_to_callable(var)
@@ -301,8 +293,8 @@ class TestGetEquivalentNames:
     def test_returns_equivalent_names(self):
         adapter = _make_adapter()
         st = SymbolTable(adapter)
-        sym1 = _sym("foo", "mod.foo", SYMBOL_KIND_FUNCTION)
-        sym2 = _sym("foo", "mod.C.foo", SYMBOL_KIND_FUNCTION)
+        sym1 = _sym("foo", "mod.foo", NodeType.FUNCTION)
+        sym2 = _sym("foo", "mod.C.foo", NodeType.FUNCTION)
         st._symbols["mod.foo"] = sym1
         st._symbols["mod.C.foo"] = sym2
         st._file_symbols["mod.py"] = [sym1, sym2]
@@ -324,8 +316,8 @@ class TestGetCanonicalName:
     def test_returns_shortest_equivalent(self):
         adapter = _make_adapter()
         st = SymbolTable(adapter)
-        sym1 = _sym("foo", "mod.foo", SYMBOL_KIND_FUNCTION)
-        sym2 = _sym("foo", "mod.C.foo", SYMBOL_KIND_FUNCTION)
+        sym1 = _sym("foo", "mod.foo", NodeType.FUNCTION)
+        sym2 = _sym("foo", "mod.C.foo", NodeType.FUNCTION)
         st._symbols["mod.foo"] = sym1
         st._symbols["mod.C.foo"] = sym2
         st._file_symbols["mod.py"] = [sym1, sym2]
@@ -336,7 +328,7 @@ class TestGetCanonicalName:
     def test_returns_self_for_no_equivalents(self):
         adapter = _make_adapter()
         st = SymbolTable(adapter)
-        sym1 = _sym("bar", "mod.bar", SYMBOL_KIND_FUNCTION)
+        sym1 = _sym("bar", "mod.bar", NodeType.FUNCTION)
         st._symbols["mod.bar"] = sym1
         st._file_symbols["mod.py"] = [sym1]
         st.build_indices()
@@ -356,7 +348,7 @@ class TestIsLocalVariable:
     def test_module_level_variable_is_not_local(self):
         adapter = _make_adapter()
         st = SymbolTable(adapter)
-        sym = _sym("handler", "mod.handler", SYMBOL_KIND_VARIABLE)
+        sym = _sym("handler", "mod.handler", NodeType.VARIABLE)
         sym.parent_chain = []
         st._file_symbols["mod.py"] = [sym]
 
@@ -365,8 +357,8 @@ class TestIsLocalVariable:
     def test_variable_with_parent_is_local(self):
         adapter = _make_adapter()
         st = SymbolTable(adapter)
-        sym = _sym("x", "mod.foo.x", SYMBOL_KIND_VARIABLE)
-        sym.parent_chain = [("foo", SYMBOL_KIND_FUNCTION)]
+        sym = _sym("x", "mod.foo.x", NodeType.VARIABLE)
+        sym.parent_chain = [("foo", NodeType.FUNCTION)]
         st._file_symbols["mod.py"] = [sym]
 
         assert st.is_local_variable(sym) is True
@@ -374,31 +366,31 @@ class TestIsLocalVariable:
     def test_constant_with_parent_is_local(self):
         adapter = _make_adapter()
         st = SymbolTable(adapter)
-        sym = _sym("MAX", "mod.foo.MAX", SYMBOL_KIND_CONSTANT)
-        sym.parent_chain = [("foo", SYMBOL_KIND_FUNCTION)]
+        sym = _sym("MAX", "mod.foo.MAX", NodeType.CONSTANT)
+        sym.parent_chain = [("foo", NodeType.FUNCTION)]
 
         assert st.is_local_variable(sym) is True
 
     def test_property_inside_callable_is_local(self):
         adapter = _make_adapter()
         st = SymbolTable(adapter)
-        sym = _sym("prop", "mod.foo.prop", SYMBOL_KIND_PROPERTY)
-        sym.parent_chain = [("foo", SYMBOL_KIND_FUNCTION)]
+        sym = _sym("prop", "mod.foo.prop", NodeType.PROPERTY)
+        sym.parent_chain = [("foo", NodeType.FUNCTION)]
 
         assert st.is_local_variable(sym) is True
 
     def test_property_inside_class_is_not_local(self):
         adapter = _make_adapter()
         st = SymbolTable(adapter)
-        sym = _sym("prop", "mod.C.prop", SYMBOL_KIND_PROPERTY)
-        sym.parent_chain = [("C", SYMBOL_KIND_CLASS)]
+        sym = _sym("prop", "mod.C.prop", NodeType.PROPERTY)
+        sym.parent_chain = [("C", NodeType.CLASS)]
 
         assert st.is_local_variable(sym) is False
 
     def test_function_is_never_local(self):
         adapter = _make_adapter()
         st = SymbolTable(adapter)
-        sym = _sym("foo", "mod.foo", SYMBOL_KIND_FUNCTION)
+        sym = _sym("foo", "mod.foo", NodeType.FUNCTION)
         sym.parent_chain = []
 
         assert st.is_local_variable(sym) is False
@@ -408,10 +400,10 @@ class TestIsLocalVariable:
         adapter = _make_adapter()
         st = SymbolTable(adapter)
         # The alias has no parent_chain itself, but shares position with a parented symbol
-        alias = _sym("x", "mod.x", SYMBOL_KIND_VARIABLE, start_line=5, start_char=8)
+        alias = _sym("x", "mod.x", NodeType.VARIABLE, start_line=5, start_char=8)
         alias.parent_chain = []
-        parented = _sym("x", "mod.foo.x", SYMBOL_KIND_VARIABLE, start_line=5, start_char=8)
-        parented.parent_chain = [("foo", SYMBOL_KIND_FUNCTION)]
+        parented = _sym("x", "mod.foo.x", NodeType.VARIABLE, start_line=5, start_char=8)
+        parented.parent_chain = [("foo", NodeType.FUNCTION)]
         st._file_symbols["mod.py"] = [alias, parented]
 
         assert st.is_local_variable(alias) is True

@@ -92,21 +92,28 @@ class SourceInspector:
         if prefix.endswith("return"):
             return True
 
-        # Check if the reference is inside a function call's argument list.
-        # Look for an unmatched '(' before the reference on the same line,
-        # preceded by an identifier (the function being called).
-        # This handles: filter(func), map(func, ...), setTimeout(func, 100)
-        before = line[:ref_start_char]
+        # Check if the reference is inside a function call's argument list
+        if self._is_inside_call_arguments(line, ref_start_char):
+            return True
+
+        return False
+
+    @staticmethod
+    def _is_inside_call_arguments(line: str, char_offset: int) -> bool:
+        """Check if a position is inside a function call's argument list.
+
+        Walks backwards from char_offset looking for an unmatched '(' which
+        indicates the reference is passed as an argument to a function call.
+        Handles: filter(func), map(func, ...), setTimeout(func, 100), .then(func)
+        """
         depth = 0
-        for ch in reversed(before):
+        for ch in reversed(line[:char_offset]):
             if ch == ")":
                 depth += 1
             elif ch == "(":
                 if depth == 0:
-                    # We found an unmatched '(' — this reference is inside a call
                     return True
                 depth -= 1
-
         return False
 
     def find_call_sites(self, file_path: Path) -> list[tuple[int, int]]:

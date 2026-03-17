@@ -16,11 +16,11 @@ from static_analyzer.cluster_change_analyzer import (
     analyze_cluster_changes_for_languages,
     get_overall_classification,
 )
+from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.engine.call_graph_builder import CallGraphBuilder
 from static_analyzer.engine.language_adapter import LanguageAdapter
-from static_analyzer.engine.lsp_client import LSPClient as EngineLSPClient
+from static_analyzer.engine.lsp_client import LSPClient
 from static_analyzer.engine.result_converter import convert_to_codeboarding_format
-from static_analyzer.engine.scanner import EngineProjectScanner
 from static_analyzer.git_diff_analyzer import GitDiffAnalyzer
 from static_analyzer.graph import CallGraph, ClusterResult
 
@@ -36,16 +36,17 @@ class IncrementalAnalysisOrchestrator:
     to provide efficient incremental analysis capabilities.
     """
 
-    def __init__(self):
+    def __init__(self, ignore_manager: RepoIgnoreManager):
         """Initialize the incremental analysis orchestrator."""
         self.cache_manager = AnalysisCacheManager()
         self.cluster_analyzer = ClusterChangeAnalyzer()
+        self._ignore_manager = ignore_manager
 
     def run_incremental_analysis(
         self,
         adapter: LanguageAdapter,
         project_path: Path,
-        engine_client: EngineLSPClient,
+        engine_client: LSPClient,
         cache_path: Path,
         analyze_cluster_changes: bool = True,
     ) -> dict:
@@ -146,7 +147,7 @@ class IncrementalAnalysisOrchestrator:
         self,
         adapter: LanguageAdapter,
         project_path: Path,
-        engine_client: EngineLSPClient,
+        engine_client: LSPClient,
         cache_path: Path,
         commit_hash: str,
         analyze_clusters: bool = True,
@@ -154,9 +155,7 @@ class IncrementalAnalysisOrchestrator:
         """Perform full analysis using the engine pipeline and save to cache."""
         logger.info("Starting full engine analysis")
 
-        scanner = EngineProjectScanner(project_path, {adapter.language: adapter})
-        files_by_lang = scanner.scan()
-        source_files = files_by_lang.get(adapter.language, [])
+        source_files = adapter.discover_source_files(project_path, self._ignore_manager)
 
         logger.info(f"Will analyze {len(source_files)} source files")
 
@@ -224,7 +223,7 @@ class IncrementalAnalysisOrchestrator:
         self,
         adapter: LanguageAdapter,
         project_path: Path,
-        engine_client: EngineLSPClient,
+        engine_client: LSPClient,
         cache_path: Path,
         cached_analysis: dict,
         cached_cluster_results: dict[str, ClusterResult],
@@ -263,7 +262,9 @@ class IncrementalAnalysisOrchestrator:
             # Reanalyze existing changed files using engine pipeline
             logger.info(f"Reanalyzing {len(existing_files)} existing changed files")
             changed_source_files = [
-                f for f in existing_files if f.suffix in adapter.file_extensions and not adapter.is_test_file(f)
+                f
+                for f in existing_files
+                if f.suffix in adapter.file_extensions and not self._ignore_manager.should_ignore(f)
             ]
 
             if changed_source_files:

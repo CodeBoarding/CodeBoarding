@@ -68,6 +68,3 @@ class GoAdapter(LanguageAdapter):
             else:
                 packages.add(rel.stem)
         return packages
-
-    def get_excluded_dirs(self) -> set[str]:
-        return super().get_excluded_dirs() | {"vendor", "testdata"}
