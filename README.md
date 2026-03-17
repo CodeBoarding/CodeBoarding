@@ -6,7 +6,7 @@ CodeBoarding gives developers and coding agents a visual map of a codebase. It c
 
 [Website](https://codeboarding.org) · [Open VSX extension](https://open-vsx.org/extension/CodeBoarding/codeboarding) · [Explore examples](https://codeboarding.org/diagrams) · [VS Code extension](https://marketplace.visualstudio.com/items?itemName=Codeboarding.codeboarding) · [GitHub Action](https://github.com/marketplace/actions/codeboarding-diagram-first-documentation) ·[Discord](https://discord.gg/T5zHTJYFuy)
 
-[![CodeBoarding demo](docs/assets/codeboarding-demo.gif)](https://open-vsx.org/extension/CodeBoarding/codeboarding)
+[![CodeBoarding demo](https://gist.githubusercontent.com/ivanmilevtues/1c4f921066613516cfd7b938014a6877/raw/611aec7711556807860ff2e1679a5dc4c0c23fed/CodeBoarding_extension_demo.gif)](https://open-vsx.org/extension/CodeBoarding/codeboarding)
 
 Install the extension from Open VSX.
 
