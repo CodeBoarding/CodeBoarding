@@ -7,13 +7,12 @@
     "codeboarding_version": "0.2.0"
   },
   "metrics": {
-    "references_count": 13279,
-    "classes_count": 1060,
-    "packages_count": 64,
-    "call_graph_nodes": 9185,
-    "call_graph_edges": 12216,
-    "source_files_count": 2933,
-    "execution_time_seconds": 94.30756937499973
+    "references_count": 12994,
+    "packages_count": 56,
+    "call_graph_nodes": 9097,
+    "call_graph_edges": 12309,
+    "source_files_count": 2035,
+    "execution_time_seconds": 90
   },
   "sample_references": [
     "dev-docs.src.components.Homepage.index.Feature",

@@ -210,12 +210,6 @@ def extract_metrics(static_analysis, language: str) -> dict:
         references_count = 0
 
     try:
-        hierarchy = static_analysis.get_hierarchy(language)
-        classes_count = len(hierarchy)
-    except ValueError:
-        classes_count = 0
-
-    try:
         packages = static_analysis.get_package_dependencies(language)
         packages_count = len(packages)
     except ValueError:
@@ -229,7 +223,6 @@ def extract_metrics(static_analysis, language: str) -> dict:
 
     return {
         "references_count": references_count,
-        "classes_count": classes_count,
         "packages_count": packages_count,
         "call_graph_nodes": nodes_count,
         "call_graph_edges": edges_count,

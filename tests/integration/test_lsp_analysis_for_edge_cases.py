@@ -184,6 +184,7 @@ class TestEdgeCases:
             )
         assert not errors, "\n\n".join(errors)
 
+    @pytest.mark.skip(reason="Class hierarchy is currently skipped (skip_hierarchy=True in CallGraphBuilder)")
     def test_expected_classes_in_hierarchy(self, analysis: AnalysisRunData):
         language = analysis.fixture["language"]
         hierarchy = analysis.all_results[0].get_hierarchy(language)
@@ -198,6 +199,7 @@ class TestEdgeCases:
             errors.append(f"Found {len(unexpected)} unexpected classes:\n" + "\n".join(f"  + {c}" for c in unexpected))
         assert not errors, "\n\n".join(errors)
 
+    @pytest.mark.skip(reason="Class hierarchy is currently skipped (skip_hierarchy=True in CallGraphBuilder)")
     def test_inheritance_relationships(self, analysis: AnalysisRunData):
         language = analysis.fixture["language"]
         hierarchy = analysis.all_results[0].get_hierarchy(language)
@@ -301,21 +303,18 @@ class TestEdgeCases:
 
         def _compute_metrics(results):
             refs = results.results[language].get("references", {})
-            hierarchy = results.get_hierarchy(language)
             deps = results.get_package_dependencies(language)
             cfg = results.get_cfg(language)
             source_files = results.get_source_files(language)
             actual_edges = {(e.get_source(), e.get_destination()) for e in cfg.edges}
             return {
                 "references": len(refs),
-                "classes": len(hierarchy),
                 "packages": len(deps),
                 "graph_nodes": len(cfg.nodes),
                 "graph_edges": len(cfg.edges),
                 "source_files": len(source_files),
                 "edge_set": sorted((s, d) for s, d in actual_edges),
                 "reference_keys": sorted(refs.keys()),
-                "hierarchy_keys": sorted(hierarchy.keys()),
             }
 
         first_metrics = _compute_metrics(analysis.all_results[0])

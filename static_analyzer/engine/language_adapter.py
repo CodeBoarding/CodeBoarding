@@ -216,15 +216,17 @@ class LanguageAdapter(ABC):
         """Get all packages that should appear in package dependencies.
 
         Default: dotted directory path (e.g. ``src.models`` for ``src/models/foo.py``).
+        Root-level files use their stem as the package name.
         Override for languages that need different package extraction.
         """
         packages: set[str] = set()
         for f in source_files:
             rel = f.relative_to(project_root)
-            parts = list(rel.parts[:-1])
-            if parts:
-                pkg = ".".join(parts)
-                packages.add(pkg)
+            parent_parts = rel.parent.parts
+            if parent_parts and parent_parts[0] != ".":
+                packages.add(".".join(parent_parts))
+            else:
+                packages.add(rel.stem)
         return packages
 
     @staticmethod

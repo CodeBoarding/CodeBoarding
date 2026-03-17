@@ -45,7 +45,7 @@ from repo_utils.change_detector import (
     detect_changes_from_commit,
     get_current_commit,
 )
-from repo_utils.ignore import RepoIgnoreManager, should_skip_file
+from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cluster_helpers import build_all_cluster_results
 
@@ -168,7 +168,7 @@ class IncrementalUpdater:
 
         for file_path in changed_files:
             # Skip non-source files
-            if should_skip_file(file_path):
+            if RepoIgnoreManager.should_skip_file(file_path):
                 continue
 
             # Find which component this file should belong to based on cluster membership

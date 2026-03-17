@@ -11,7 +11,7 @@ from static_analyzer.engine.edge_builder import build_edges_via_definitions, bui
 from static_analyzer.engine.hierarchy_builder import HierarchyBuilder
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_client import LSPClient
-from static_analyzer.engine.lsp_constants import DID_OPEN_BATCH_SIZE
+from static_analyzer.engine.lsp_constants import DID_OPEN_BATCH_SIZE, EdgeStrategy
 from static_analyzer.engine.models import CallFlowGraph, LanguageAnalysisResult
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.symbol_table import SymbolTable
@@ -64,19 +64,19 @@ class CallGraphBuilder:
         t_edges_done = time.monotonic()
         logger.info("Phase 2 total (build edges): %.1fs, %d edges", t_edges_done - t_indices_done, len(edge_set))
 
+        next_phase = 3
         hierarchy: dict[str, dict] = {}
         if skip_hierarchy:
-            logger.info("Phase 3 (hierarchy): skipped (skip_hierarchy=True)")
+            logger.info("Phase %d (hierarchy): skipped", next_phase)
         else:
             hierarchy_builder = HierarchyBuilder(self._lsp, self._symbol_table, self._source_inspector, self._adapter)
             hierarchy = hierarchy_builder.build()
-        t_hierarchy_done = time.monotonic()
-        if not skip_hierarchy:
-            logger.info("Phase 3 (hierarchy): %.1fs", t_hierarchy_done - t_edges_done)
+            logger.info("Phase %d (hierarchy): %.1fs", next_phase, time.monotonic() - t_edges_done)
+            next_phase += 1
 
+        t_pre_pkgdeps = time.monotonic()
         package_deps = self._build_package_deps(edge_set, source_files)
-        t_pkgdeps_done = time.monotonic()
-        logger.info("Phase 4 (package deps): %.1fs", t_pkgdeps_done - t_hierarchy_done)
+        logger.info("Phase %d (package deps): %.1fs", next_phase, time.monotonic() - t_pre_pkgdeps)
 
         # Build references from primary symbols only (not unqualified aliases).
         references: dict[str, dict] = {}
@@ -118,8 +118,6 @@ class CallGraphBuilder:
 
     def _build_edges(self, ctx: EdgeBuildContext, source_files: list[Path]) -> set[tuple[str, str]]:
         """Dispatch to the edge-building strategy specified by the adapter."""
-        from static_analyzer.engine.lsp_constants import EdgeStrategy
-
         if self._adapter.edge_strategy == EdgeStrategy.DEFINITIONS:
             return build_edges_via_definitions(self._adapter, ctx, source_files)
         return build_edges_via_references(self._adapter, ctx, source_files)
@@ -187,7 +185,7 @@ class CallGraphBuilder:
         t_warmup = time.monotonic()
         try:
             self._lsp.references(source_files[0], 0, 0)
-        except (TimeoutError, Exception) as e:
+        except Exception as e:
             logger.warning("Warmup probe failed (non-fatal): %s", e)
         logger.info("Phase 1.5 (warmup): completed in %.1fs", time.monotonic() - t_warmup)
 

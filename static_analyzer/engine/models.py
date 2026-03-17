@@ -72,14 +72,10 @@ class AnalysisResults:
     """Container for all analysis results, keyed by language."""
 
     def __init__(self) -> None:
-        self.results: dict[str, dict] = {}
         self._lang_results: dict[str, LanguageAnalysisResult] = {}
 
     def add_language_result(self, language: str, result: LanguageAnalysisResult) -> None:
         self._lang_results[language] = result
-        self.results[language] = {
-            "references": result.references,
-        }
 
     def get_languages(self) -> set[str]:
         return set(self._lang_results.keys())

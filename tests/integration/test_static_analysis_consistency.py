@@ -37,6 +37,7 @@ from unittest.mock import patch
 from static_analyzer import get_static_analysis
 from static_analyzer.analysis_result import StaticAnalysisResults
 from repo_utils import clone_repository
+from repo_utils.ignore import initialize_codeboardingignore
 
 from .conftest import (
     RepositoryTestConfig,
@@ -81,19 +82,6 @@ def _write_snapshot(static_analysis: StaticAnalysisResults, language: str, confi
             }
         )
 
-    # Hierarchy
-    try:
-        hierarchy = static_analysis.get_hierarchy(language)
-    except ValueError:
-        hierarchy = {}
-    hierarchy_snapshot = {}
-    for cls_name, info in sorted(hierarchy.items()):
-        hierarchy_snapshot[cls_name] = {
-            "superclasses": info.get("superclasses", []),
-            "subclasses": info.get("subclasses", []),
-            "file": _relative_path(info.get("file_path", ""), repo_path),
-        }
-
     # Call graph edges
     try:
         cfg = static_analysis.get_cfg(language)
@@ -124,14 +112,12 @@ def _write_snapshot(static_analysis: StaticAnalysisResults, language: str, confi
         "language": language,
         "metrics": {
             "references_count": len(refs),
-            "classes_count": len(hierarchy),
             "packages_count": len(deps),
             "call_graph_nodes": len(nodes_snapshot),
             "call_graph_edges": len(edges_snapshot),
             "source_files_count": len(source_files_rel),
         },
         "references": references_snapshot,
-        "hierarchy": hierarchy_snapshot,
         "call_graph_nodes": nodes_snapshot,
         "call_graph_edges": edges_snapshot,
         "package_dependencies": packages_snapshot,
@@ -221,6 +207,14 @@ class TestStaticAnalysisConsistency:
         repo = Repo(repo_path)
         repo.git.checkout(config.pinned_commit)
 
+        # Ensure the current .codeboardingignore template is used, not whatever
+        # the cloned repo might have from an older version.
+        codeboarding_dir = repo_path / ".codeboarding"
+        codeboarding_dir.mkdir(parents=True, exist_ok=True)
+        ignore_file = codeboarding_dir / ".codeboardingignore"
+        ignore_file.unlink(missing_ok=True)
+        initialize_codeboardingignore(codeboarding_dir)
+
         # Load expected fixture
         expected = load_fixture(config.fixture_file)
         expected_metrics = expected["metrics"]
@@ -245,7 +239,6 @@ class TestStaticAnalysisConsistency:
         # Compare all metrics and collect results
         metric_names = [
             "references_count",
-            "classes_count",
             "packages_count",
             "call_graph_nodes",
             "call_graph_edges",
@@ -294,8 +287,6 @@ class TestStaticAnalysisConsistency:
                 expected["sample_references"],
                 "references",
             )
-        if "sample_classes" in expected:
-            self._verify_sample_classes_present(static_analysis, config.language, expected["sample_classes"])
 
     def _check_metric_within_tolerance(
         self,

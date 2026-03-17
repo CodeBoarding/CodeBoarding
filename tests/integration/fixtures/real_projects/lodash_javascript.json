@@ -7,21 +7,14 @@
     "codeboarding_version": "0.2.0"
   },
   "metrics": {
-    "references_count": 3787,
-    "classes_count": 167,
-    "packages_count": 13,
-    "call_graph_nodes": 7366,
-    "call_graph_edges": 1901,
-    "source_files_count": 25,
+    "references_count": 1543,
+    "packages_count": 7,
+    "call_graph_nodes": 2968,
+    "call_graph_edges": 1474,
+    "source_files_count": 19,
     "execution_time_seconds": 11.124733457996626
   },
   "sample_references": [
-    ".markdown-doctest-setup.<unknown>",
-    ".markdown-doctest-setup.<unknown>.'babel'",
-    ".markdown-doctest-setup.<unknown>.'globals'",
-    ".markdown-doctest-setup.<unknown>.'globals'.'_'",
-    ".markdown-doctest-setup._",
-    ".markdown-doctest-setup.globals",
     "fp._baseConvert.<unknown>",
     "fp._baseConvert.baseArity",
     "fp._baseConvert.baseAry",

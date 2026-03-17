@@ -7,13 +7,12 @@
     "codeboarding_version": "0.2.0"
   },
   "metrics": {
-    "references_count": 3680,
-    "classes_count": 594,
-    "packages_count": 71,
-    "call_graph_nodes": 3812,
-    "call_graph_edges": 5588,
-    "source_files_count": 448,
-    "execution_time_seconds": 312.697319278
+    "references_count": 3668,
+    "packages_count": 70,
+    "call_graph_nodes": 3800,
+    "call_graph_edges": 5575,
+    "source_files_count": 489,
+    "execution_time_seconds": 312
   },
   "sample_references": [
     "mockito-core.src.main.java.org.mockito.AdditionalAnswers.AdditionalAnswers",

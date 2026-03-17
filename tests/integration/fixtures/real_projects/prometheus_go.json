@@ -7,13 +7,12 @@
     "codeboarding_version": "0.2.0"
   },
   "metrics": {
-    "references_count": 11767,
-    "classes_count": 1035,
-    "packages_count": 108,
-    "call_graph_nodes": 6856,
-    "call_graph_edges": 15093,
-    "source_files_count": 348,
-    "execution_time_seconds": 459.34666635400004
+    "references_count": 10198,
+    "packages_count": 99,
+    "call_graph_nodes": 5807,
+    "call_graph_edges": 14031,
+    "source_files_count": 329,
+    "execution_time_seconds": 90
   },
   "sample_references": [
     "cmd.prometheus.main.(*flagConfig).setFeatureListOptions",

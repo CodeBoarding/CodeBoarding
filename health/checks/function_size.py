@@ -7,7 +7,7 @@ from health.models import (
     Severity,
     StandardCheckSummary,
 )
-from repo_utils.ignore import is_test_or_infrastructure_file
+from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.graph import CallGraph
 
 logger = logging.getLogger(__name__)
@@ -42,7 +42,7 @@ def check_function_size(call_graph: CallGraph, config: HealthCheckConfig) -> Sta
             continue
 
         # Skip test/infrastructure files
-        if is_test_or_infrastructure_file(node.file_path):
+        if RepoIgnoreManager.should_skip_file(node.file_path):
             continue
 
         size = node.line_end - node.line_start

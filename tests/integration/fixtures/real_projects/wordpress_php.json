@@ -7,13 +7,12 @@
     "codeboarding_version": "0.2.0"
   },
   "metrics": {
-    "references_count": 30180,
-    "classes_count": 808,
+    "references_count": 31057,
     "packages_count": 160,
-    "call_graph_nodes": 24825,
+    "call_graph_nodes": 25381,
     "call_graph_edges": 90718,
     "source_files_count": 1644,
-    "execution_time_seconds": 236.447447442
+    "execution_time_seconds": 236
   },
   "sample_references": [
     "index.WP_USE_THEMES",

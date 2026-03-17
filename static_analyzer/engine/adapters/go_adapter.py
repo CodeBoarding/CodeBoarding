@@ -57,14 +57,3 @@ class GoAdapter(LanguageAdapter):
     def build_reference_key(self, qualified_name: str) -> str:
         """Preserve original casing for Go qualified names."""
         return qualified_name
-
-    def get_all_packages(self, source_files: list[Path], project_root: Path) -> set[str]:
-        packages: set[str] = set()
-        for f in source_files:
-            rel = f.relative_to(project_root)
-            parent_parts = rel.parent.parts
-            if parent_parts and parent_parts[0] != ".":
-                packages.add(".".join(parent_parts))
-            else:
-                packages.add(rel.stem)
-        return packages

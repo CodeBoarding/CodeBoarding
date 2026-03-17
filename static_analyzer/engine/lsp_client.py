@@ -13,6 +13,7 @@ import queue
 import subprocess
 import threading
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 from static_analyzer.engine.utils import uri_to_path
@@ -238,26 +239,16 @@ class LSPClient:
                 default timeout. Use this for servers that serialize requests
                 internally (e.g. JDTLS) where total time scales linearly.
         """
-        req_ids: list[int] = []
-        for file_path, line, character in queries:
-            self._request_id += 1
-            req_id = self._request_id
-            req_ids.append(req_id)
-            message = {
-                "jsonrpc": "2.0",
-                "id": req_id,
-                "method": "textDocument/references",
-                "params": {
-                    "textDocument": {"uri": file_path.as_uri()},
-                    "position": {"line": line, "character": character},
-                    "context": {"includeDeclaration": True},
-                },
-            }
-            self._write_message(message)
-
         timeout = per_query_timeout * len(queries) if per_query_timeout > 0 else None
-        results, _ = self._collect_batch_responses(req_ids, timeout=timeout)
-        return [results.get(rid, []) for rid in req_ids]
+
+        def build_params(file_path: Path, line: int, character: int) -> dict:
+            return {
+                "textDocument": {"uri": file_path.as_uri()},
+                "position": {"line": line, "character": character},
+                "context": {"includeDeclaration": True},
+            }
+
+        return self._send_batch("textDocument/references", queries, build_params, timeout=timeout)
 
     def definition(self, file_path: Path, line: int, character: int, timeout: int | None = None) -> list[dict]:
         """Find the definition of the symbol at the given position."""
@@ -282,33 +273,7 @@ class LSPClient:
 
         Returns a list of result lists, one per query, in the same order as queries.
         """
-        req_ids: list[int] = []
-        for file_path, line, character in queries:
-            self._request_id += 1
-            req_id = self._request_id
-            req_ids.append(req_id)
-            message = {
-                "jsonrpc": "2.0",
-                "id": req_id,
-                "method": "textDocument/definition",
-                "params": {
-                    "textDocument": {"uri": file_path.as_uri()},
-                    "position": {"line": line, "character": character},
-                },
-            }
-            self._write_message(message)
-
-        results, _ = self._collect_batch_responses(req_ids, timeout=timeout)
-        parsed: list[list[dict]] = []
-        for rid in req_ids:
-            raw = results.get(rid, [])
-            if isinstance(raw, dict):
-                parsed.append([raw])
-            elif isinstance(raw, list):
-                parsed.append(raw)
-            else:
-                parsed.append([])
-        return parsed
+        return self._send_batch("textDocument/definition", queries, self._position_params, timeout=timeout)
 
     def implementation(self, file_path: Path, line: int, character: int, timeout: int | None = None) -> list[dict]:
         """Find implementations of the symbol at the given position."""
@@ -330,33 +295,7 @@ class LSPClient:
         self, queries: list[tuple[Path, int, int]], timeout: int | None = None
     ) -> list[list[dict]]:
         """Send multiple implementation requests without waiting between them."""
-        req_ids: list[int] = []
-        for file_path, line, character in queries:
-            self._request_id += 1
-            req_id = self._request_id
-            req_ids.append(req_id)
-            message = {
-                "jsonrpc": "2.0",
-                "id": req_id,
-                "method": "textDocument/implementation",
-                "params": {
-                    "textDocument": {"uri": file_path.as_uri()},
-                    "position": {"line": line, "character": character},
-                },
-            }
-            self._write_message(message)
-
-        results, _ = self._collect_batch_responses(req_ids, timeout=timeout)
-        parsed: list[list[dict]] = []
-        for rid in req_ids:
-            raw = results.get(rid, [])
-            if isinstance(raw, dict):
-                parsed.append([raw])
-            elif isinstance(raw, list):
-                parsed.append(raw)
-            else:
-                parsed.append([])
-        return parsed
+        return self._send_batch("textDocument/implementation", queries, self._position_params, timeout=timeout)
 
     def type_hierarchy_prepare(self, file_path: Path, line: int, character: int) -> list[dict] | None:
         """Prepare type hierarchy at the given position."""
@@ -410,6 +349,50 @@ class LSPClient:
             logger.warning("Server ready timeout after %ds. Proceeding with analysis anyway.", timeout)
 
     # ---- Internal protocol implementation ----
+
+    def _position_params(self, file_path: Path, line: int, character: int) -> dict:
+        """Build standard position-based LSP params (used by definition/implementation)."""
+        return {
+            "textDocument": {"uri": file_path.as_uri()},
+            "position": {"line": line, "character": character},
+        }
+
+    def _send_batch(
+        self,
+        method: str,
+        queries: list[tuple[Path, int, int]],
+        build_params: Callable[[Path, int, int], dict],
+        timeout: int | None = None,
+    ) -> list[list[dict]]:
+        """Send multiple LSP requests and collect results in order.
+
+        Generic batch helper that eliminates duplication across
+        send_references_batch, send_definition_batch, and send_implementation_batch.
+        """
+        req_ids: list[int] = []
+        for file_path, line, character in queries:
+            self._request_id += 1
+            req_id = self._request_id
+            req_ids.append(req_id)
+            message: dict = {
+                "jsonrpc": "2.0",
+                "id": req_id,
+                "method": method,
+                "params": build_params(file_path, line, character),
+            }
+            self._write_message(message)
+
+        results, _ = self._collect_batch_responses(req_ids, timeout=timeout)
+        parsed: list[list[dict]] = []
+        for rid in req_ids:
+            raw = results.get(rid, [])
+            if isinstance(raw, dict):
+                parsed.append([raw])
+            elif isinstance(raw, list):
+                parsed.append(raw)
+            else:
+                parsed.append([])
+        return parsed
 
     def _send_request(self, method: str, params: dict | list | None, timeout: int | None = None) -> dict | list | None:
         """Send a JSON-RPC request and wait for the response."""
