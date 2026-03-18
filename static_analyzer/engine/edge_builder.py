@@ -65,82 +65,51 @@ def build_edges_via_references(
     skip_files: set[str] = set()
     skipped_positions = 0
 
-    # Build list of batch slices for iteration
-    batch_ranges = list(range(0, total_unique, batch_size))
-
-    def _prepare_batch(batch_start: int) -> tuple[list[tuple[str, int, int]], list[tuple[str, int, int]]]:
-        """Prepare a batch: split positions into filtered (to query) and raw (all)."""
-        raw = unique_positions[batch_start : batch_start + batch_size]
-        filtered = [p for p in raw if p[0] not in skip_files]
-        return raw, filtered
-
-    def _fire(filtered: list[tuple[str, int, int]]) -> list[int] | None:
-        """Fire queries for filtered positions, return request IDs or None."""
-        if not filtered:
-            return None
-        queries = [
-            (pos_to_syms[p][0].file_path, pos_to_syms[p][0].start_line, pos_to_syms[p][0].start_char) for p in filtered
-        ]
-        return ctx.lsp.fire_references_batch(queries)
-
-    def _collect_and_process(
-        req_ids: list[int] | None,
-        filtered: list[tuple[str, int, int]],
-    ) -> None:
-        """Collect responses and process results for a fired batch."""
-        nonlocal refs_total, refs_call_sites, skipped_positions
-
-        if req_ids is None or not filtered:
-            return
-
-        try:
-            result_list, error_indices = ctx.lsp.collect_references_batch(req_ids, per_query_timeout=per_query_timeout)
-        except Exception as e:
-            logger.warning("Batch references failed: %s", e)
-            result_list = [[] for _ in filtered]
-            error_indices = set()
-
-        for err_idx in error_indices:
-            err_file = filtered[err_idx][0]
-            if err_file not in skip_files:
-                skip_files.add(err_file)
-                logger.info("Skipping further queries for file with LSP errors: %s", err_file)
-
-        for i, pos_key in enumerate(filtered):
-            syms_at_pos = pos_to_syms[pos_key]
-            refs = result_list[i] if i < len(result_list) else []
-            batch_refs, batch_calls = _process_references_for_position(adapter, ctx, syms_at_pos, refs, edge_set)
-            refs_total += batch_refs
-            refs_call_sites += batch_calls
-
-    # Pipelined batch loop: fire batch N+1 while processing batch N's results.
-    # This keeps the LSP server busy during our result-processing time.
     with tqdm(total=total_unique, desc="Phase 2 (edges)", unit="pos", file=sys.stderr, leave=False) as pbar:
-        prev_req_ids: list[int] | None = None
-        prev_filtered: list[tuple[str, int, int]] = []
-        prev_raw_len = 0
+        for batch_start in range(0, total_unique, batch_size):
+            batch_positions = unique_positions[batch_start : batch_start + batch_size]
 
-        for batch_idx, batch_start in enumerate(batch_ranges):
-            raw, filtered = _prepare_batch(batch_start)
-            skipped_positions += len(raw) - len(filtered)
+            # Filter out positions from files that already produced LSP errors
+            filtered_positions: list[tuple[str, int, int]] = []
+            for pos_key in batch_positions:
+                if pos_key[0] in skip_files:
+                    skipped_positions += 1
+                else:
+                    filtered_positions.append(pos_key)
 
-            # Fire this batch (non-blocking)
-            req_ids = _fire(filtered)
+            if filtered_positions:
+                queries = []
+                for pos_key in filtered_positions:
+                    representative = pos_to_syms[pos_key][0]
+                    queries.append((representative.file_path, representative.start_line, representative.start_char))
 
-            # Collect and process the *previous* batch's results
-            if batch_idx > 0:
-                _collect_and_process(prev_req_ids, prev_filtered)
-                pbar.update(prev_raw_len)
-                pbar.set_postfix(edges=len(edge_set), files=f"{total_files}")
+                try:
+                    result_list, error_indices = ctx.lsp.send_references_batch(
+                        queries, per_query_timeout=per_query_timeout
+                    )
+                except Exception as e:
+                    logger.warning("Batch references failed: %s", e)
+                    result_list = [[] for _ in queries]
+                    error_indices = set()
 
-            prev_req_ids = req_ids
-            prev_filtered = filtered
-            prev_raw_len = len(raw)
+                for err_idx in error_indices:
+                    err_file = filtered_positions[err_idx][0]
+                    if err_file not in skip_files:
+                        skip_files.add(err_file)
+                        logger.info("Skipping further queries for file with LSP errors: %s", err_file)
 
-        # Collect the final batch
-        _collect_and_process(prev_req_ids, prev_filtered)
-        pbar.update(prev_raw_len)
-        pbar.set_postfix(edges=len(edge_set), files=f"{total_files}")
+                for i, pos_key in enumerate(filtered_positions):
+                    syms_at_pos = pos_to_syms[pos_key]
+                    refs = result_list[i] if i < len(result_list) else []
+
+                    batch_refs, batch_calls = _process_references_for_position(
+                        adapter, ctx, syms_at_pos, refs, edge_set
+                    )
+                    refs_total += batch_refs
+                    refs_call_sites += batch_calls
+
+            pbar.update(len(batch_positions))
+            pbar.set_postfix(edges=len(edge_set), files=f"{total_files}")
 
     if skip_files:
         logger.info(

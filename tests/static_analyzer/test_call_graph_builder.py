@@ -58,8 +58,6 @@ def _make_lsp() -> MagicMock:
     lsp = MagicMock()
     lsp.document_symbol.return_value = []
     lsp.send_references_batch.return_value = ([], set())
-    lsp.fire_references_batch.return_value = []
-    lsp.collect_references_batch.return_value = ([], set())
     lsp.type_hierarchy_prepare.return_value = None
     return lsp
 
@@ -252,7 +250,7 @@ class TestBuildEdges:
                 "end": {"line": 5, "character": 10},
             },
         }
-        lsp.collect_references_batch.return_value = ([[], [ref_to_helper]], set())
+        lsp.send_references_batch.return_value = ([[], [ref_to_helper]], set())
 
         ctx.source_inspector = MagicMock()
         ctx.source_inspector.is_invocation.return_value = True
@@ -281,7 +279,7 @@ class TestBuildEdges:
                 "end": {"line": 0, "character": 7},
             },
         }
-        lsp.collect_references_batch.return_value = ([[ref]], set())
+        lsp.send_references_batch.return_value = ([[ref]], set())
 
         edge_set = build_edges_via_references(adapter, ctx, [Path("/project/app.py")])
         assert len(edge_set) == 0
@@ -298,7 +296,7 @@ class TestBuildEdges:
         st._primary_file_symbols[str(Path("/project/app.py"))] = [sym]
         st.build_indices()
 
-        lsp.collect_references_batch.side_effect = Exception("LSP crash")
+        lsp.send_references_batch.side_effect = Exception("LSP crash")
 
         edge_set = build_edges_via_references(adapter, ctx, [Path("/project/app.py")])
         assert len(edge_set) == 0

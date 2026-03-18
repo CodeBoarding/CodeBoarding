@@ -22,8 +22,6 @@ from tests.static_analyzer.test_call_graph_builder import _TestAdapter
 def _make_lsp() -> MagicMock:
     lsp = MagicMock()
     lsp.send_references_batch.return_value = ([], set())
-    lsp.fire_references_batch.return_value = []
-    lsp.collect_references_batch.return_value = ([], set())
     lsp.send_definition_batch.return_value = ([], set())
     lsp.send_implementation_batch.return_value = ([], set())
     return lsp
@@ -411,7 +409,7 @@ class TestBuildEdgesViaReferencesExtra:
             "uri": Path("/project/app.py").as_uri(),
             "range": {"start": {"line": 5, "character": 4}, "end": {"line": 5, "character": 7}},
         }
-        lsp.collect_references_batch.return_value = ([[], [ref]], set())
+        lsp.send_references_batch.return_value = ([[], [ref]], set())
 
         ctx.source_inspector = MagicMock()
         ctx.source_inspector.is_invocation.return_value = False  # Not a call
@@ -438,7 +436,7 @@ class TestBuildEdgesViaReferencesExtra:
             "uri": Path("/project/app.py").as_uri(),
             "range": {"start": {"line": 3, "character": 4}, "end": {"line": 3, "character": 9}},
         }
-        lsp.collect_references_batch.return_value = ([[], [ref]], set())
+        lsp.send_references_batch.return_value = ([[], [ref]], set())
 
         ctx.source_inspector = MagicMock()
         ctx.source_inspector.is_invocation.return_value = True
@@ -455,18 +453,13 @@ class TestBuildEdgesViaReferencesExtra:
         assert len(edges) == 0
 
     def test_skips_error_producing_files_in_subsequent_batches(self):
-        """When a file produces LSP errors, its symbols are skipped in later batches.
-
-        With pipelining, batch N+1 is fired before batch N's errors are collected,
-        so the skip takes effect starting from batch N+2. We use 4 symbols across
-        3 batches (batch_size=1) so the skip is observable:
-        - Batch 1: fire bad_fn1
-        - Batch 2: fire bad_fn2 (already fired before batch 1 error is known)
-        - Collect batch 1 -> error -> bad.py added to skip_files
-        - Batch 3: bad_fn3 skipped (bad.py in skip_files), fire nothing
-        - Batch 4: fire good_fn
-        """
+        """When a file produces LSP errors, its symbols are skipped in later batches."""
         lsp = _make_lsp()
+        # Use a mock adapter with batch_size=1 so each symbol is its own batch.
+        # Symbols sort as: bad.bad_fn1, bad.bad_fn2, good.good_fn
+        # Batch 1: bad_fn1 -> error -> bad.py added to skip_files
+        # Batch 2: bad_fn2 -> skipped (bad.py in skip_files)
+        # Batch 3: good_fn -> queried normally
         adapter = MagicMock()
         adapter.should_track_for_edges.side_effect = lambda k: k in (NodeType.FUNCTION, NodeType.METHOD)
         adapter.is_class_like.return_value = False
@@ -480,42 +473,20 @@ class TestBuildEdgesViaReferencesExtra:
         good_func = _sym("good_fn", "good.good_fn", NodeType.FUNCTION, "/project/good.py", 0, 0, 10)
         bad_func1 = _sym("bad_fn1", "bad.bad_fn1", NodeType.FUNCTION, "/project/bad.py", 0, 0, 10)
         bad_func2 = _sym("bad_fn2", "bad.bad_fn2", NodeType.FUNCTION, "/project/bad.py", 15, 0, 25)
-        bad_func3 = _sym("bad_fn3", "bad.bad_fn3", NodeType.FUNCTION, "/project/bad.py", 30, 0, 40)
 
         st._symbols["good.good_fn"] = good_func
         st._symbols["bad.bad_fn1"] = bad_func1
         st._symbols["bad.bad_fn2"] = bad_func2
-        st._symbols["bad.bad_fn3"] = bad_func3
         for key in [str(Path("/project/good.py")), str(Path("/project/bad.py"))]:
             st._file_symbols[key] = []
             st._primary_file_symbols[key] = []
         st._file_symbols[str(Path("/project/good.py"))] = [good_func]
         st._primary_file_symbols[str(Path("/project/good.py"))] = [good_func]
-        st._file_symbols[str(Path("/project/bad.py"))] = [bad_func1, bad_func2, bad_func3]
-        st._primary_file_symbols[str(Path("/project/bad.py"))] = [bad_func1, bad_func2, bad_func3]
+        st._file_symbols[str(Path("/project/bad.py"))] = [bad_func1, bad_func2]
+        st._primary_file_symbols[str(Path("/project/bad.py"))] = [bad_func1, bad_func2]
         st.build_indices()
 
-        # Track which queries were fired so we can verify skipping
-        fired_queries: list[list[tuple]] = []
-        req_id_counter = [0]
-
-        def mock_fire(queries):
-            fired_queries.append(list(queries))
-            ids = list(range(req_id_counter[0], req_id_counter[0] + len(queries)))
-            req_id_counter[0] += len(queries)
-            return ids
-
-        def mock_collect(req_ids, per_query_timeout=0):
-            # Find corresponding queries from fired_queries
-            batch_idx = 0
-            offset = 0
-            for i, fq in enumerate(fired_queries):
-                if offset + len(fq) > req_ids[0]:
-                    batch_idx = i
-                    break
-                offset += len(fq)
-            queries = fired_queries[batch_idx] if batch_idx < len(fired_queries) else []
-
+        def mock_refs_with_errors(queries, per_query_timeout=0):
             error_indices: set[int] = set()
             results: list[list[dict]] = []
             for i, (fp, _, _) in enumerate(queries):
@@ -526,23 +497,19 @@ class TestBuildEdgesViaReferencesExtra:
                     results.append([])
             return results, error_indices
 
-        lsp.fire_references_batch.side_effect = mock_fire
-        lsp.collect_references_batch.side_effect = mock_collect
+        lsp.send_references_batch.side_effect = mock_refs_with_errors
 
         edges = build_edges_via_references(adapter, ctx, [Path("/project/good.py"), Path("/project/bad.py")])
 
-        # Collect all files that were actually fired via LSP
+        # Collect all files that were actually queried via LSP
         all_queried_files: list[str] = []
-        for batch in fired_queries:
-            for fp, _, _ in batch:
+        for call_args in lsp.send_references_batch.call_args_list:
+            for fp, _, _ in call_args[0][0]:
                 all_queried_files.append(str(fp))
 
-        # With pipelining (batch_size=1), the pipeline fires batch N+1 before
-        # collecting batch N. So bad_fn1 and bad_fn2 are both fired before the
-        # error from bad_fn1 is known. bad_fn3 is skipped because by then
-        # bad.py is in skip_files. So we expect 2 bad.py queries, not 3.
+        # bad_fn1 was queried (error discovered), but bad_fn2 should be skipped
         bad_queries = [f for f in all_queried_files if "bad.py" in f]
-        assert len(bad_queries) == 2, f"Expected 2 queries for bad.py (pipeline lookahead), got {len(bad_queries)}"
+        assert len(bad_queries) == 1, f"Expected 1 query for bad.py, got {len(bad_queries)}"
         # good.py should still be queried
         good_queries = [f for f in all_queried_files if "good.py" in f]
         assert len(good_queries) == 1

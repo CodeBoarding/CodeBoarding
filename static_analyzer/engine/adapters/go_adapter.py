@@ -29,11 +29,6 @@ class GoAdapter(LanguageAdapter):
     def language_id(self) -> str:
         return "go"
 
-    @property
-    def references_batch_size(self) -> int:
-        """Larger batches reduce inter-batch idle time for gopls."""
-        return 200
-
     def build_qualified_name(
         self,
         file_path: Path,
