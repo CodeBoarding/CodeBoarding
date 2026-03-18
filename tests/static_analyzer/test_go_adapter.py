@@ -1,8 +1,10 @@
 """Tests for the Go language adapter."""
 
 from pathlib import Path
+from unittest.mock import MagicMock
 
-from static_analyzer.engine.adapters.go_adapter import GoAdapter
+from static_analyzer.engine.adapters.go_adapter import GoAdapter, _directory_filters_from_ignore_manager
+from repo_utils.ignore import RepoIgnoreManager
 
 
 class TestBuildTagFiltering:
@@ -57,3 +59,59 @@ class TestBuildTagFiltering:
         go_file.write_text("package main\n\n// This is not a build tag\n//go:build !fake\n")
 
         assert GoAdapter._has_excluding_build_tag(go_file) is False
+
+
+class TestGoplsConfiguration:
+    """Tests for gopls init options and environment variables."""
+
+    def test_init_options_include_directory_filters_from_ignore_manager(self, tmp_path: Path):
+        """Directory filters are derived from .codeboardingignore patterns."""
+        # Create a .codeboardingignore with directory patterns
+        cb_dir = tmp_path / ".codeboarding"
+        cb_dir.mkdir()
+        ignore_file = cb_dir / ".codeboardingignore"
+        ignore_file.write_text("vendor/\n**/tests/**\n**/examples/**\n*.test.js\n")
+
+        ignore_manager = RepoIgnoreManager(tmp_path)
+        adapter = GoAdapter()
+        opts = adapter.get_lsp_init_options(ignore_manager)
+        filters = opts["gopls"]["directoryFilters"]
+
+        # Directory patterns should be converted
+        assert "-**/vendor" in filters
+        assert "-**/tests" in filters
+        assert "-**/examples" in filters
+        # File patterns should NOT appear
+        assert not any("test.js" in f for f in filters)
+        # Always-ignored dirs should be included
+        assert "-**/node_modules" in filters
+
+    def test_init_options_without_ignore_manager(self):
+        """Without ignore manager, still includes always-ignored dirs."""
+        adapter = GoAdapter()
+        opts = adapter.get_lsp_init_options()
+        filters = opts["gopls"]["directoryFilters"]
+        assert "-**/node_modules" in filters
+        assert "-**/build" in filters
+
+    def test_init_options_disable_all_analyzers(self):
+        adapter = GoAdapter()
+        opts = adapter.get_lsp_init_options()
+        assert opts["gopls"]["analyses"]["all"] is False
+
+    def test_env_sets_gogc(self):
+        adapter = GoAdapter()
+        env = adapter.get_lsp_env()
+        assert env["GOGC"] == "50"
+
+    def test_directory_filters_deduplicates(self, tmp_path: Path):
+        """Same directory from multiple patterns should only appear once."""
+        cb_dir = tmp_path / ".codeboarding"
+        cb_dir.mkdir()
+        ignore_file = cb_dir / ".codeboardingignore"
+        ignore_file.write_text("vendor/\n**/vendor/**\n")
+
+        ignore_manager = RepoIgnoreManager(tmp_path)
+        filters = _directory_filters_from_ignore_manager(ignore_manager)
+        vendor_entries = [f for f in filters if "vendor" in f]
+        assert len(vendor_entries) == 1

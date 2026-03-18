@@ -146,12 +146,14 @@ class StaticAnalyzer:
                 logger.info(f"Starting engine LSP client for {adapter.language} at {project_path}")
                 t_start = time.monotonic()
                 command = adapter.get_lsp_command(project_path)
-                init_options = adapter.get_lsp_init_options()
+                init_options = adapter.get_lsp_init_options(self.ignore_manager)
+                extra_env = adapter.get_lsp_env()
                 engine_client = LSPClient(
                     command=command,
                     project_root=project_path,
                     init_options=init_options,
                     collect_diagnostics=True,
+                    extra_env=extra_env,
                 )
                 engine_client.start()
                 t_lsp_started = time.monotonic()

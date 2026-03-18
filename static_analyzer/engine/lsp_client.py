@@ -46,12 +46,14 @@ class LSPClient:
         init_options: dict | None = None,
         default_timeout: int = 60,
         collect_diagnostics: bool = False,
+        extra_env: dict[str, str] | None = None,
     ) -> None:
         self._command = command
         self._project_root = project_root
         self._init_options = init_options or {}
         self._default_timeout = default_timeout
         self._collect_diagnostics = collect_diagnostics
+        self._extra_env = extra_env or {}
         self._process: subprocess.Popen | None = None  # type: ignore[type-arg]
         self._stdout_fd: int | None = None
         self._request_id = 0
@@ -76,6 +78,7 @@ class LSPClient:
     def start(self) -> dict | list | None:
         """Start the LSP server process and perform initialization handshake."""
         env = os.environ.copy()
+        env.update(self._extra_env)
         self._process = subprocess.Popen(
             self._command,
             stdin=subprocess.PIPE,

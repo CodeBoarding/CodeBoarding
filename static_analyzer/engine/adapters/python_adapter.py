@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.engine.language_adapter import LanguageAdapter
 
 
@@ -23,7 +24,7 @@ class PythonAdapter(LanguageAdapter):
     def language_id(self) -> str:
         return "python"
 
-    def get_lsp_init_options(self) -> dict:
+    def get_lsp_init_options(self, ignore_manager: RepoIgnoreManager | None = None) -> dict:
         return {
             "python": {
                 "analysis": {

@@ -118,8 +118,12 @@ class LanguageAdapter(ABC):
             return ".".join(parent_parts)
         return rel.stem
 
-    def get_lsp_init_options(self) -> dict:
+    def get_lsp_init_options(self, ignore_manager: RepoIgnoreManager | None = None) -> dict:
         """Return LSP initialization options specific to this language server."""
+        return {}
+
+    def get_lsp_env(self) -> dict[str, str]:
+        """Return extra environment variables for the LSP server process."""
         return {}
 
     def discover_source_files(self, project_root: Path, ignore_manager: RepoIgnoreManager) -> list[Path]:

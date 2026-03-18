@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.constants import NodeType
 
@@ -29,7 +30,7 @@ class PHPAdapter(LanguageAdapter):
     def extract_package(self, qualified_name: str) -> str:
         return self._extract_deep_package(qualified_name)
 
-    def get_lsp_init_options(self) -> dict:
+    def get_lsp_init_options(self, ignore_manager: RepoIgnoreManager | None = None) -> dict:
         return {"clearCache": False}
 
     def is_reference_worthy(self, symbol_kind: int) -> bool:
