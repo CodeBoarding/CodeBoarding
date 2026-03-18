@@ -8,12 +8,10 @@ Two strategies are provided:
 from __future__ import annotations
 
 import logging
-import sys
 from pathlib import Path
 
-from tqdm import tqdm
-
 from static_analyzer.engine.edge_build_context import EdgeBuildContext
+from static_analyzer.engine.progress import ProgressLogger
 from static_analyzer.constants import NodeType
 from static_analyzer.engine.lsp_constants import (
     CALLABLE_KINDS,
@@ -65,51 +63,48 @@ def build_edges_via_references(
     skip_files: set[str] = set()
     skipped_positions = 0
 
-    with tqdm(total=total_unique, desc="Phase 2 (edges)", unit="pos", file=sys.stderr, leave=False) as pbar:
-        for batch_start in range(0, total_unique, batch_size):
-            batch_positions = unique_positions[batch_start : batch_start + batch_size]
+    pbar = ProgressLogger("Phase 2 (edges)", total_unique, unit="pos")
+    for batch_start in range(0, total_unique, batch_size):
+        batch_positions = unique_positions[batch_start : batch_start + batch_size]
 
-            # Filter out positions from files that already produced LSP errors
-            filtered_positions: list[tuple[str, int, int]] = []
-            for pos_key in batch_positions:
-                if pos_key[0] in skip_files:
-                    skipped_positions += 1
-                else:
-                    filtered_positions.append(pos_key)
+        # Filter out positions from files that already produced LSP errors
+        filtered_positions: list[tuple[str, int, int]] = []
+        for pos_key in batch_positions:
+            if pos_key[0] in skip_files:
+                skipped_positions += 1
+            else:
+                filtered_positions.append(pos_key)
 
-            if filtered_positions:
-                queries = []
-                for pos_key in filtered_positions:
-                    representative = pos_to_syms[pos_key][0]
-                    queries.append((representative.file_path, representative.start_line, representative.start_char))
+        if filtered_positions:
+            queries = []
+            for pos_key in filtered_positions:
+                representative = pos_to_syms[pos_key][0]
+                queries.append((representative.file_path, representative.start_line, representative.start_char))
 
-                try:
-                    result_list, error_indices = ctx.lsp.send_references_batch(
-                        queries, per_query_timeout=per_query_timeout
-                    )
-                except Exception as e:
-                    logger.warning("Batch references failed: %s", e)
-                    result_list = [[] for _ in queries]
-                    error_indices = set()
+            try:
+                result_list, error_indices = ctx.lsp.send_references_batch(queries, per_query_timeout=per_query_timeout)
+            except Exception as e:
+                logger.warning("Batch references failed: %s", e)
+                result_list = [[] for _ in queries]
+                error_indices = set()
 
-                for err_idx in error_indices:
-                    err_file = filtered_positions[err_idx][0]
-                    if err_file not in skip_files:
-                        skip_files.add(err_file)
-                        logger.info("Skipping further queries for file with LSP errors: %s", err_file)
+            for err_idx in error_indices:
+                err_file = filtered_positions[err_idx][0]
+                if err_file not in skip_files:
+                    skip_files.add(err_file)
+                    logger.info("Skipping further queries for file with LSP errors: %s", err_file)
 
-                for i, pos_key in enumerate(filtered_positions):
-                    syms_at_pos = pos_to_syms[pos_key]
-                    refs = result_list[i] if i < len(result_list) else []
+            for i, pos_key in enumerate(filtered_positions):
+                syms_at_pos = pos_to_syms[pos_key]
+                refs = result_list[i] if i < len(result_list) else []
 
-                    batch_refs, batch_calls = _process_references_for_position(
-                        adapter, ctx, syms_at_pos, refs, edge_set
-                    )
-                    refs_total += batch_refs
-                    refs_call_sites += batch_calls
+                batch_refs, batch_calls = _process_references_for_position(adapter, ctx, syms_at_pos, refs, edge_set)
+                refs_total += batch_refs
+                refs_call_sites += batch_calls
 
-            pbar.update(len(batch_positions))
-            pbar.set_postfix(edges=len(edge_set), files=f"{total_files}")
+        pbar.set_postfix(edges=len(edge_set), files=total_files)
+        pbar.update(len(batch_positions))
+    pbar.finish()
 
     if skip_files:
         logger.info(
@@ -300,74 +295,75 @@ def _resolve_definitions(
     batch_size = 50
     impl_queries_pending: list[tuple[str, Path, int, int]] = []
 
-    with tqdm(total=total_files, desc="Phase 2 (definitions)", unit="file", file=sys.stderr, leave=False) as pbar:
-        for file_path in source_files:
-            call_sites = ctx.source_inspector.find_call_sites(file_path)
-            if not call_sites:
-                pbar.update(1)
+    pbar = ProgressLogger("Phase 2 (definitions)", total_files, unit="file")
+    for file_path in source_files:
+        call_sites = ctx.source_inspector.find_call_sites(file_path)
+        if not call_sites:
+            pbar.update(1)
+            continue
+
+        total_sites += len(call_sites)
+
+        for batch_start in range(0, len(call_sites), batch_size):
+            batch = call_sites[batch_start : batch_start + batch_size]
+            queries = [(file_path, line, col) for line, col in batch]
+
+            try:
+                results, _ = ctx.lsp.send_definition_batch(queries)
+            except Exception as e:
+                logger.warning("Definition batch failed for %s: %s", file_path.name, e)
                 continue
 
-            total_sites += len(call_sites)
-
-            for batch_start in range(0, len(call_sites), batch_size):
-                batch = call_sites[batch_start : batch_start + batch_size]
-                queries = [(file_path, line, col) for line, col in batch]
-
-                try:
-                    results, _ = ctx.lsp.send_definition_batch(queries)
-                except Exception as e:
-                    logger.warning("Definition batch failed for %s: %s", file_path.name, e)
+            for i, (site_line, site_col) in enumerate(batch):
+                defs = results[i] if i < len(results) else []
+                if not defs:
                     continue
 
-                for i, (site_line, site_col) in enumerate(batch):
-                    defs = results[i] if i < len(results) else []
-                    if not defs:
+                caller = st.find_containing_symbol(file_path, site_line, site_col)
+                if not caller:
+                    continue
+                caller = st.lift_to_callable(caller)
+                if not caller:
+                    continue
+
+                for def_result in defs:
+                    target = _resolve_definition_to_symbol(def_result, pos_to_sym, line_to_syms)
+                    if not target:
+                        continue
+                    total_resolved += 1
+
+                    if not _is_valid_edge(caller, target):
                         continue
 
-                    caller = st.find_containing_symbol(file_path, site_line, site_col)
-                    if not caller:
-                        continue
-                    caller = st.lift_to_callable(caller)
-                    if not caller:
-                        continue
+                    edge_set.add((caller.qualified_name, target.qualified_name))
 
-                    for def_result in defs:
-                        target = _resolve_definition_to_symbol(def_result, pos_to_sym, line_to_syms)
-                        if not target:
-                            continue
-                        total_resolved += 1
+                    # If target is a callable with a class-like parent, also add edge to the parent class
+                    if adapter.is_callable(target.kind) and target.parent_chain:
+                        _, parent_kind = target.parent_chain[-1]
+                        if adapter.is_class_like(parent_kind):
+                            parent_qname = target.qualified_name.rsplit(".", 1)[0]
+                            paren_idx = parent_qname.find("(")
+                            if paren_idx != -1:
+                                parent_qname = parent_qname[:paren_idx]
+                            if parent_qname in st.symbols:
+                                parent_sym = st.symbols[parent_qname]
+                                if _is_valid_edge(caller, parent_sym):
+                                    edge_set.add((caller.qualified_name, parent_qname))
 
-                        if not _is_valid_edge(caller, target):
-                            continue
-
-                        edge_set.add((caller.qualified_name, target.qualified_name))
-
-                        # If target is a callable with a class-like parent, also add edge to the parent class
-                        if adapter.is_callable(target.kind) and target.parent_chain:
-                            _, parent_kind = target.parent_chain[-1]
-                            if adapter.is_class_like(parent_kind):
-                                parent_qname = target.qualified_name.rsplit(".", 1)[0]
-                                paren_idx = parent_qname.find("(")
-                                if paren_idx != -1:
-                                    parent_qname = parent_qname[:paren_idx]
-                                if parent_qname in st.symbols:
-                                    parent_sym = st.symbols[parent_qname]
-                                    if _is_valid_edge(caller, parent_sym):
-                                        edge_set.add((caller.qualified_name, parent_qname))
-
-                        # Queue implementation query for polymorphic dispatch
-                        if adapter.is_callable(target.kind):
-                            impl_queries_pending.append(
-                                (
-                                    caller.qualified_name,
-                                    target.file_path,
-                                    target.start_line,
-                                    target.start_char,
-                                )
+                    # Queue implementation query for polymorphic dispatch
+                    if adapter.is_callable(target.kind):
+                        impl_queries_pending.append(
+                            (
+                                caller.qualified_name,
+                                target.file_path,
+                                target.start_line,
+                                target.start_char,
                             )
+                        )
 
-            pbar.update(1)
-            pbar.set_postfix(edges=len(edge_set), resolved=total_resolved)
+        pbar.set_postfix(edges=len(edge_set), resolved=total_resolved)
+        pbar.update(1)
+    pbar.finish()
 
     return edge_set, impl_queries_pending, total_sites, total_resolved
 
@@ -401,35 +397,36 @@ def _resolve_implementations(
 
     total_impl_resolved = 0
 
-    with tqdm(total=total_impl_queries, desc="Phase 2b (impl)", unit="target", file=sys.stderr, leave=False) as pbar:
-        for batch_start in range(0, len(unique_impl_targets), batch_size):
-            batch_keys = unique_impl_targets[batch_start : batch_start + batch_size]
-            queries = [(Path(fk), ln, ch) for fk, ln, ch in batch_keys]
+    pbar = ProgressLogger("Phase 2b (impl)", total_impl_queries, unit="target")
+    for batch_start in range(0, len(unique_impl_targets), batch_size):
+        batch_keys = unique_impl_targets[batch_start : batch_start + batch_size]
+        queries = [(Path(fk), ln, ch) for fk, ln, ch in batch_keys]
 
-            try:
-                impl_results, _ = ctx.lsp.send_implementation_batch(queries)
-            except Exception as e:
-                logger.warning("Implementation batch failed: %s", e)
-                pbar.update(len(batch_keys))
-                continue
-
-            for j, tgt_key in enumerate(batch_keys):
-                impls = impl_results[j] if j < len(impl_results) else []
-                callers = target_pos_to_callers[tgt_key]
-
-                for impl_result in impls:
-                    impl_sym = _resolve_definition_to_symbol(impl_result, pos_to_sym, line_to_syms)
-                    if not impl_sym:
-                        continue
-                    total_impl_resolved += 1
-
-                    for caller_qname in callers:
-                        caller_sym = st.symbols.get(caller_qname)
-                        if caller_sym and _is_valid_edge(caller_sym, impl_sym):
-                            edge_set.add((caller_qname, impl_sym.qualified_name))
-
+        try:
+            impl_results, _ = ctx.lsp.send_implementation_batch(queries)
+        except Exception as e:
+            logger.warning("Implementation batch failed: %s", e)
             pbar.update(len(batch_keys))
-            pbar.set_postfix(edges=len(edge_set), resolved=total_impl_resolved)
+            continue
+
+        for j, tgt_key in enumerate(batch_keys):
+            impls = impl_results[j] if j < len(impl_results) else []
+            callers = target_pos_to_callers[tgt_key]
+
+            for impl_result in impls:
+                impl_sym = _resolve_definition_to_symbol(impl_result, pos_to_sym, line_to_syms)
+                if not impl_sym:
+                    continue
+                total_impl_resolved += 1
+
+                for caller_qname in callers:
+                    caller_sym = st.symbols.get(caller_qname)
+                    if caller_sym and _is_valid_edge(caller_sym, impl_sym):
+                        edge_set.add((caller_qname, impl_sym.qualified_name))
+
+        pbar.set_postfix(edges=len(edge_set), resolved=total_impl_resolved)
+        pbar.update(len(batch_keys))
+    pbar.finish()
 
     return total_impl_resolved
 

@@ -3,14 +3,12 @@
 from __future__ import annotations
 
 import logging
-import sys
 import time
 from pathlib import Path
 
-from tqdm import tqdm
-
 from static_analyzer.engine.edge_build_context import EdgeBuildContext
 from static_analyzer.engine.edge_builder import build_edges_via_definitions, build_edges_via_references
+from static_analyzer.engine.progress import ProgressLogger
 from static_analyzer.engine.hierarchy_builder import HierarchyBuilder
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_client import LSPClient
@@ -131,13 +129,14 @@ class CallGraphBuilder:
         t_open_start = time.monotonic()
 
         # Phase 0: open files for the LSP server to index
-        with tqdm(total=total, desc="Phase 0 (open)", unit="file", file=sys.stderr, leave=False) as pbar:
-            for i in range(0, total, DID_OPEN_BATCH_SIZE):
-                batch = source_files[i : i + DID_OPEN_BATCH_SIZE]
-                for file_path in batch:
-                    self._lsp.did_open(file_path, self._adapter.language_id)
-                pbar.update(len(batch))
-                time.sleep(0.1)
+        pbar = ProgressLogger("Phase 0 (open)", total, unit="file")
+        for i in range(0, total, DID_OPEN_BATCH_SIZE):
+            batch = source_files[i : i + DID_OPEN_BATCH_SIZE]
+            for file_path in batch:
+                self._lsp.did_open(file_path, self._adapter.language_id)
+            pbar.update(len(batch))
+            time.sleep(0.1)
+        pbar.finish()
         logger.info("did_open %d files: %.1fs", total, time.monotonic() - t_open_start)
 
         # Synchronization probe — blocks until the LSP server has indexed the
@@ -172,17 +171,18 @@ class CallGraphBuilder:
 
         # Phase 1: extract symbols from each file
         total = len(source_files)
-        with tqdm(total=total, desc="Phase 1 (symbols)", unit="file", file=sys.stderr, leave=False) as pbar:
-            for idx, file_path in enumerate(source_files, 1):
-                # Reuse the sync probe result for the first file to avoid a
-                # redundant document_symbol query (the probe can take minutes).
-                if idx == 1 and probe_result is not None:
-                    symbols = probe_result
-                else:
-                    symbols = self._lsp.document_symbol(file_path)
-                self._symbol_table.register_symbols(file_path, symbols, parent_chain=[], project_root=self._root)
-                pbar.update(1)
-                pbar.set_postfix(symbols=len(self._symbol_table.symbols))
+        pbar = ProgressLogger("Phase 1 (symbols)", total, unit="file")
+        for idx, file_path in enumerate(source_files, 1):
+            # Reuse the sync probe result for the first file to avoid a
+            # redundant document_symbol query (the probe can take minutes).
+            if idx == 1 and probe_result is not None:
+                symbols = probe_result
+            else:
+                symbols = self._lsp.document_symbol(file_path)
+            self._symbol_table.register_symbols(file_path, symbols, parent_chain=[], project_root=self._root)
+            pbar.set_postfix(symbols=len(self._symbol_table.symbols))
+            pbar.update(1)
+        pbar.finish()
 
         logger.info("Discovered %d symbols across %d files", len(self._symbol_table.symbols), len(source_files))
 
