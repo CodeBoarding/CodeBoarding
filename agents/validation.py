@@ -302,9 +302,26 @@ def validate_relation_component_names(result: AnalysisInsights, _context: Valida
     return ValidationResult(is_valid=False, feedback_messages=[feedback])
 
 
+def _try_fix_qualified_name(qname: str, static_analysis: StaticAnalysisResults) -> str | None:
+    """Attempt to resolve an invalid qualified name using loose matching.
+
+    Tries get_loose_reference across all languages. If a unique match is found,
+    returns the corrected qualified name. Otherwise returns None.
+    """
+    for lang in static_analysis.get_languages():
+        matched_key, node = static_analysis.get_loose_reference(lang, qname)
+        if node is not None:
+            return matched_key
+    return None
+
+
 def validate_qualified_names(result: AnalysisInsights, context: ValidationContext) -> ValidationResult:
     """
     Validate that qualified names in key_entities exist in static analysis references.
+
+    Before reporting failures, attempts to auto-fix invalid names using loose matching
+    (suffix/substring match against known references). This avoids expensive LLM retries
+    for minor name mismatches that the LLM commonly produces.
 
     Args:
         result: AnalysisInsights containing components with key_entities
@@ -318,12 +335,13 @@ def validate_qualified_names(result: AnalysisInsights, context: ValidationContex
         return ValidationResult(is_valid=True)
 
     invalid_references: list[str] = []
+    auto_fixed = 0
     for component in result.components:
         for key_entity in component.key_entities:
             qname = key_entity.qualified_name.replace("/", ".")
             found = False
 
-            # Check if qualified name exists in any language
+            # Check if qualified name exists in any language (exact match)
             for lang in context.static_analysis.get_languages():
                 try:
                     context.static_analysis.get_reference(lang, qname)
@@ -333,7 +351,19 @@ def validate_qualified_names(result: AnalysisInsights, context: ValidationContex
                     continue
 
             if not found:
-                invalid_references.append(f"{component.name}: '{key_entity.qualified_name}'")
+                # Attempt deterministic auto-fix via loose matching
+                fixed_name = _try_fix_qualified_name(qname, context.static_analysis)
+                if fixed_name is not None:
+                    logger.info(
+                        f"[Validation] Auto-fixed qualified name '{key_entity.qualified_name}' -> '{fixed_name}'"
+                    )
+                    key_entity.qualified_name = fixed_name
+                    auto_fixed += 1
+                else:
+                    invalid_references.append(f"{component.name}: '{key_entity.qualified_name}'")
+
+    if auto_fixed:
+        logger.info(f"[Validation] Auto-fixed {auto_fixed} qualified name(s) via loose matching")
 
     if not invalid_references:
         logger.info("[Validation] All qualified names exist in static analysis references")
