@@ -291,8 +291,8 @@ class StaticAnalysisResults:
         """
         Retrieves the source code reference for a specific qualified name in a language.
 
-        Lookup is case-insensitive: both the query and the stored keys are lowercased for
-        comparison, so "models.base.(Entity).GetType" and "models.base.(entity).gettype"
+        Lookup is case-insensitive on the canonical reference key, so
+        "models.base.(Entity).GetType" and "models.base.(entity).gettype"
         resolve to the same reference.
 
         :param language: The programming language of the reference.
@@ -305,13 +305,13 @@ class StaticAnalysisResults:
             if qualified_name in refs:
                 return refs[qualified_name]
             # Case-insensitive fallback
-            norm_qn = _reference_key(qualified_name)
+            norm_qn = _reference_key(qualified_name).lower()
             for ref_key, ref_val in refs.items():
-                if _reference_key(ref_key) == norm_qn:
+                if _reference_key(ref_key).lower() == norm_qn:
                     return ref_val
             # Check if the qualified name is a subset meaning it is a file path:
             for ref in refs.keys():
-                if ref.lower().startswith(norm_qn):
+                if _reference_key(ref).lower().startswith(norm_qn):
                     raise FileExistsError(
                         f"Source code reference for '{qualified_name}' in language '{language}' is a file path, "
                         f"please use the full file path instead of the qualified name."
@@ -319,18 +319,18 @@ class StaticAnalysisResults:
         raise ValueError(f"Source code reference for '{qualified_name}' in language '{language}' not found in results.")
 
     def get_loose_reference(self, language: str, qualified_name: str) -> tuple[str | None, Node | None]:
-        norm_qn = _reference_key(qualified_name)
+        norm_qn = _reference_key(qualified_name).lower()
         if language in self.results and "references" in self.results[language]:
             # Check if the qualified name is a subset of any reference:
             subset_refs = []
             for ref in self.results[language]["references"].keys():
-                ref_lower = ref.lower()
-                if ref_lower.endswith(norm_qn):
+                ref_norm = _reference_key(ref).lower()
+                if ref_norm.endswith(norm_qn):
                     return (
                         f"Found a loose match with a fully quantified name: {ref}",
                         self.results[language]["references"][ref],
                     )
-                if norm_qn in ref_lower:
+                if norm_qn in ref_norm:
                     subset_refs.append(ref)
             if len(subset_refs) == 1:
                 return subset_refs[0], self.results[language]["references"][subset_refs[0]]
