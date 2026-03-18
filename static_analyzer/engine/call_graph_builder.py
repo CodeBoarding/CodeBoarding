@@ -146,9 +146,9 @@ class CallGraphBuilder:
         # scales with file count for very large repos. We cache the result to
         # reuse for the first file in Phase 1 below.
         _PROBE_BASE_TIMEOUT = 300  # seconds
-        _PROBE_EXTRA_PER_FILE = 0.1  # seconds per file beyond the threshold
+        _PROBE_EXTRA_PER_FILE = 0.15  # seconds per file beyond the threshold
         _PROBE_FILE_THRESHOLD = 1000
-        _PROBE_MAX_TIMEOUT = 900  # 15 minutes cap
+        _PROBE_MAX_TIMEOUT = 1800  # 30 minutes cap
 
         if total > _PROBE_FILE_THRESHOLD:
             probe_timeout = min(

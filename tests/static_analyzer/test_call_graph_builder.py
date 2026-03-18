@@ -167,11 +167,11 @@ class TestDiscoverSymbols:
 
         probe_call = lsp.document_symbol.call_args_list[0]
         timeout = probe_call.kwargs.get("timeout")
-        # 300 + (2000 - 1000) * 0.1 = 400
-        assert timeout == 400
+        # 300 + (2000 - 1000) * 0.15 = 450
+        assert timeout == 450
 
     def test_probe_timeout_capped_at_maximum(self):
-        """Probe timeout is capped at 900s even for very large repos."""
+        """Probe timeout is capped at 1800s even for very large repos."""
         lsp = _make_lsp()
         adapter = _make_adapter()
         builder = CallGraphBuilder(lsp, adapter, Path("/project"))
@@ -183,7 +183,7 @@ class TestDiscoverSymbols:
 
         probe_call = lsp.document_symbol.call_args_list[0]
         timeout = probe_call.kwargs.get("timeout")
-        assert timeout == 900
+        assert timeout == 1800
 
 
 class TestBuild:
