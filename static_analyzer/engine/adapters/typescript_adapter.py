@@ -15,7 +15,7 @@ class TypeScriptAdapter(LanguageAdapter):
 
     @property
     def file_extensions(self) -> tuple[str, ...]:
-        return (".ts", ".tsx")
+        return (".ts", ".tsx", ".mts", ".cts")
 
     @property
     def lsp_command(self) -> list[str]:

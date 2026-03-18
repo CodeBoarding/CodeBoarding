@@ -214,7 +214,7 @@ class LanguageAdapter(ABC):
         detail: str = "",
     ) -> str:
         """Build the name used in call graph edges. Defaults to qualified_name."""
-        return self.build_qualified_name(file_path, symbol_name, symbol_kind, parent_chain, project_root)
+        return self.build_qualified_name(file_path, symbol_name, symbol_kind, parent_chain, project_root, detail)
 
     def get_all_packages(self, source_files: list[Path], project_root: Path) -> set[str]:
         """Get all packages that should appear in package dependencies.

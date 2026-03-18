@@ -399,7 +399,7 @@ class TestCollectBatchResponses:
         import logging
 
         with caplog.at_level(logging.WARNING):
-            results, _, error_ids = client._collect_batch_responses([1, 2, 3], timeout=5)
+            _, _, error_ids = client._collect_batch_responses([1, 2, 3], timeout=5)
 
         assert error_ids == {1, 2, 3}
         # Should have a single deduplicated warning, not 3 separate ones
@@ -428,7 +428,7 @@ class TestHandleNotification:
 
         diags = client.get_collected_diagnostics()
         assert len(diags) == 1
-        file_key = list(diags.keys())[0]
+        file_key = next(iter(diags))
         assert len(diags[file_key]) == 1
         assert diags[file_key][0].message == "Unused import"
 

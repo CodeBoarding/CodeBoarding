@@ -14,7 +14,7 @@ CODEBOARDINGIGNORE_TEMPLATE = """# CodeBoarding Ignore File
 # NOTE: The following are ALWAYS excluded (not configurable):
 #   - Hidden directories (starting with .)
 #   - .git/, .codeboarding/, node_modules/, __pycache__/
-#   - Build output: build/, dist/, target/, bin/, out/, coverage/
+#   - Build output: build/, dist/, coverage/
 #
 # This file is automatically loaded by CodeBoarding analysis tools to exclude
 # specified paths from code analysis, architecture generation, and other processing.

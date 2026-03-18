@@ -83,7 +83,7 @@ class LSPClient:
             self._command,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
             env=env,
             cwd=str(self._project_root),
         )
@@ -476,7 +476,7 @@ class LSPClient:
             message = self._msg_queue.get(timeout=min(remaining, 1.0))
         except queue.Empty:
             if self._process and self._process.poll() is not None:
-                raise RuntimeError(f"LSP server process exited with code {self._process.returncode}")
+                raise RuntimeError(f"LSP server process exited with code {self._process.returncode}") from None
             return None
 
         # Handle server-initiated requests (e.g. workspace/configuration)
