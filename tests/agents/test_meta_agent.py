@@ -166,7 +166,7 @@ class TestMetaAgent(unittest.TestCase):
         latest = agent._meta_cache.load_most_recent_run()
         self.assertIsNotNone(latest)
         assert latest is not None
-        self.assertEqual(latest[0], "meta")
+        self.assertEqual(latest[0], "test-run-id")
 
 
 if __name__ == "__main__":
