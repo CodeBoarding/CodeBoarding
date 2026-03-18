@@ -242,8 +242,7 @@ def do_worker(repo_path: Path, repo_name: str) -> None:
     from unittest.mock import patch
 
     from static_analyzer import StaticAnalyzer
-    from static_analyzer.lsp_client.java_client import JavaClient
-    from static_analyzer.programming_language import JavaConfig, ProgrammingLanguage
+    from static_analyzer.programming_language import ProgrammingLanguage
     from static_analyzer.scanner import ProjectScanner
     from utils import get_config
 
@@ -254,13 +253,10 @@ def do_worker(repo_path: Path, repo_name: str) -> None:
     lsp_servers = get_config("lsp_servers")
     lsp_key: str = mock_lang["lsp_server_key"]
     server_commands: list[str] = mock_lang["server_commands"]
-    language_specific_config = None
 
     if lsp_key in lsp_servers:
         lsp_config = lsp_servers[lsp_key]
         server_commands = lsp_config.get("command", server_commands)
-        if lsp_key == "java" and "jdtls_root" in lsp_config:
-            language_specific_config = JavaConfig(jdtls_root=Path(lsp_config["jdtls_root"]))
 
     lang_name: str = mock_lang["language"]
     lang_size: int = mock_lang["size"]
@@ -276,7 +272,6 @@ def do_worker(repo_path: Path, repo_name: str) -> None:
                 suffixes=lang_suffixes,
                 server_commands=server_commands,
                 lsp_server_key=lsp_key,
-                language_specific_config=language_specific_config,
             )
         ]
 
@@ -285,48 +280,31 @@ def do_worker(repo_path: Path, repo_name: str) -> None:
     with patch.object(ProjectScanner, "scan", mock_scan):
         analyzer = StaticAnalyzer(repo_path)
 
-    for client in analyzer.clients:
-        client.start()
-        if isinstance(client, JavaClient):
-            client.wait_for_import()
-
-        analysis = client.build_static_analysis()
+    with analyzer:
+        results = analyzer.analyze()
         wall_elapsed = time.perf_counter() - wall_start
 
-        file_results = analysis.get("file_analysis_results", [])
-        call_graph = analysis["call_graph"]
+        # Collect metrics from analysis results
+        total_nodes = 0
+        total_edges = 0
+        total_files = 0
 
-        # Extract timing
-        hierarchy_time = sum(r.method_timings.get("hierarchy", 0) for r in file_results)
-        outgoing_time = sum(r.method_timings.get("outgoing", 0) for r in file_results)
-        incoming_time = sum(r.method_timings.get("incoming", 0) for r in file_results)
-        body_time = sum(r.method_timings.get("body", 0) for r in file_results)
+        for lang in results.get_languages():
+            cfg = results.get_cfg(lang)
+            total_nodes += len(cfg.nodes)
+            total_edges += len(cfg.edges)
 
-        # Extract edge counts
-        outgoing_edges = set(e for r in file_results for e in r.outgoing_edges)
-        incoming_edges = set(e for r in file_results for e in r.incoming_edges)
-        body_edges = set(e for r in file_results for e in r.body_edges)
+        for lang in results.get_languages():
+            total_files += len(results.get_source_files(lang))
 
         result = {
             "wall_clock": round(wall_elapsed, 2),
-            "hierarchy_time": round(hierarchy_time, 2),
-            "outgoing_time": round(outgoing_time, 2),
-            "incoming_time": round(incoming_time, 2),
-            "body_time": round(body_time, 2),
-            "cumulative_lsp": round(hierarchy_time + outgoing_time + incoming_time + body_time, 2),
-            "call_graph_nodes": len(call_graph.nodes),
-            "call_graph_edges": len(call_graph.edges),
-            "outgoing_edges": len(outgoing_edges),
-            "incoming_edges": len(incoming_edges),
-            "body_edges": len(body_edges),
-            "files_analyzed": len(file_results),
+            "call_graph_nodes": total_nodes,
+            "call_graph_edges": total_edges,
+            "files_analyzed": total_files,
         }
 
-        client.close()
         print(json.dumps(result))
-        return
-
-    print(json.dumps({"error": "No clients created"}))
 
 
 def compute_averages(results: list[dict]) -> dict:
@@ -383,16 +361,8 @@ def print_comparison(
     # Comparison table
     metrics = [
         ("wall_clock", "Wall clock avg", "s"),
-        ("hierarchy_time", "Hierarchy time", "s"),
-        ("outgoing_time", "Outgoing time", "s"),
-        ("incoming_time", "Incoming time", "s"),
-        ("body_time", "Body time", "s"),
-        ("cumulative_lsp", "Cumulative LSP", "s"),
         ("call_graph_nodes", "Call graph nodes", ""),
         ("call_graph_edges", "Call graph edges", ""),
-        ("outgoing_edges", "Outgoing edges", ""),
-        ("incoming_edges", "Incoming edges", ""),
-        ("body_edges", "Body edges", ""),
         ("files_analyzed", "Files analyzed", ""),
     ]
 

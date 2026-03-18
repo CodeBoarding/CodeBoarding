@@ -11,7 +11,7 @@ from diagram_analysis.incremental.models import (
 )
 from diagram_analysis.manifest import AnalysisManifest
 from repo_utils.change_detector import ChangeSet, ChangeType
-from repo_utils.ignore import should_skip_file
+from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.graph import CallGraph
 
@@ -32,10 +32,10 @@ def analyze_impact(
         return impact
 
     # Categorize changes - FILTER out non-source files upfront
-    impact.renames = {old: new for old, new in changes.renames.items() if not should_skip_file(new)}
-    impact.modified_files = [f for f in changes.modified_files if not should_skip_file(f)]
-    impact.added_files = [f for f in changes.added_files if not should_skip_file(f)]
-    impact.deleted_files = [f for f in changes.deleted_files if not should_skip_file(f)]
+    impact.renames = {old: new for old, new in changes.renames.items() if not RepoIgnoreManager.should_skip_file(new)}
+    impact.modified_files = [f for f in changes.modified_files if not RepoIgnoreManager.should_skip_file(f)]
+    impact.added_files = [f for f in changes.added_files if not RepoIgnoreManager.should_skip_file(f)]
+    impact.deleted_files = [f for f in changes.deleted_files if not RepoIgnoreManager.should_skip_file(f)]
 
     # Map changes to components
     _map_changes_to_components(impact, manifest)

@@ -1,0 +1,41 @@
+{
+  "metadata": {
+    "repo_url": "https://github.com/excalidraw/excalidraw",
+    "pinned_commit": "v0.18.0",
+    "language": "TypeScript",
+    "generated_at": "2026-03-09T18:03:10.411661+00:00",
+    "codeboarding_version": "0.2.0"
+  },
+  "metrics": {
+    "references_count": 12994,
+    "packages_count": 56,
+    "call_graph_nodes": 9097,
+    "call_graph_edges": 12309,
+    "source_files_count": 2035,
+    "execution_time_seconds": 149
+  },
+  "sample_references": [
+    "dev-docs.src.components.Homepage.index.Feature",
+    "dev-docs.src.components.Homepage.index.Feature.clsx",
+    "dev-docs.src.components.Homepage.index.FeatureItem",
+    "dev-docs.src.components.Homepage.index.FeatureList",
+    "dev-docs.src.components.Homepage.index.FeatureList.<unknown>",
+    "dev-docs.src.components.Homepage.index.FeatureList.Svg",
+    "dev-docs.src.components.Homepage.index.FeatureList.and",
+    "dev-docs.src.components.Homepage.index.FeatureList.be",
+    "dev-docs.src.components.Homepage.index.FeatureList.description",
+    "dev-docs.src.components.Homepage.index.FeatureList.designed"
+  ],
+  "sample_classes": [
+    "dev-docs.src.components.Homepage.index.FeatureList",
+    "examples.with-nextjs.src.app.page.ExcalidrawWithClientOnly",
+    "examples.with-nextjs.src.pages.excalidraw-in-pages.Excalidraw",
+    "examples.with-script-in-browser.components.ExampleApp.AppProps",
+    "examples.with-script-in-browser.components.ExampleApp.ExampleApp.renderExcalidraw.Excalidraw",
+    "examples.with-script-in-browser.components.ExampleApp.ExampleApp.renderExcalidraw.newElement",
+    "examples.with-script-in-browser.components.ExampleApp.ExampleApp.useEffect() callback.fetchData",
+    "examples.with-script-in-browser.components.ExampleApp.onLinkOpen",
+    "examples.with-script-in-browser.components.ExampleApp.onPointerMoveFromPointerDownHandler",
+    "examples.with-script-in-browser.components.ExampleApp.onPointerUpFromPointerDownHandler"
+  ]
+}

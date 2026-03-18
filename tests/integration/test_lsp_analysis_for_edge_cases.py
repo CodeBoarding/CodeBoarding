@@ -32,7 +32,7 @@ from static_analyzer import StaticAnalyzer
 logger = logging.getLogger(__name__)
 
 PROJECTS_DIR = Path(__file__).parent / "projects"
-FIXTURE_DIR = Path(__file__).parent / "fixtures"
+FIXTURE_DIR = Path(__file__).parent / "fixtures" / "edge_cases"
 
 # Each test runs this many times to verify deterministic output
 STABILITY_RUNS = 3
@@ -104,8 +104,25 @@ def _load_fixture(filename: str) -> dict:
         return json.load(f)
 
 
+_LANGUAGE_MARKERS = {
+    "Python": pytest.mark.python_lang,
+    "Java": pytest.mark.java_lang,
+    "Go": pytest.mark.go_lang,
+    "TypeScript": pytest.mark.typescript_lang,
+    "PHP": pytest.mark.php_lang,
+    "JavaScript": pytest.mark.javascript_lang,
+}
+
+
 def _generate_fixture_params():
-    return [pytest.param(project, marks=[pytest.mark.integration], id=project.name) for project in EDGE_CASE_PROJECTS]
+    return [
+        pytest.param(
+            project,
+            marks=[pytest.mark.integration, _LANGUAGE_MARKERS[project.language]],
+            id=project.name,
+        )
+        for project in EDGE_CASE_PROJECTS
+    ]
 
 
 @pytest.fixture(scope="class", params=_generate_fixture_params())
@@ -119,8 +136,8 @@ def analysis(request) -> AnalysisRunData:
 
     all_results = []
     for run in range(1, project.stability_runs + 1):
-        analyzer = StaticAnalyzer(project_path)
-        results = analyzer.analyze(cache_dir=None)
+        with StaticAnalyzer(project_path) as analyzer:
+            results = analyzer.analyze(cache_dir=None)
         all_results.append(results)
         logger.info(
             "[%s] run %d/%d complete",
@@ -154,7 +171,7 @@ class TestEdgeCases:
     def test_expected_references(self, analysis: AnalysisRunData):
         language = analysis.fixture["language"]
         refs = analysis.all_results[0].results[language].get("references", {})
-        expected = {r.lower() for r in analysis.fixture.get("expected_references", [])}
+        expected = set(analysis.fixture.get("expected_references", []))
         actual = set(refs.keys())
         missing = sorted(expected - actual)
         unexpected = sorted(actual - expected)
@@ -167,6 +184,7 @@ class TestEdgeCases:
             )
         assert not errors, "\n\n".join(errors)
 
+    @pytest.mark.skip(reason="Class hierarchy is currently skipped (skip_hierarchy=True in CallGraphBuilder)")
     def test_expected_classes_in_hierarchy(self, analysis: AnalysisRunData):
         language = analysis.fixture["language"]
         hierarchy = analysis.all_results[0].get_hierarchy(language)
@@ -181,6 +199,7 @@ class TestEdgeCases:
             errors.append(f"Found {len(unexpected)} unexpected classes:\n" + "\n".join(f"  + {c}" for c in unexpected))
         assert not errors, "\n\n".join(errors)
 
+    @pytest.mark.skip(reason="Class hierarchy is currently skipped (skip_hierarchy=True in CallGraphBuilder)")
     def test_inheritance_relationships(self, analysis: AnalysisRunData):
         language = analysis.fixture["language"]
         hierarchy = analysis.all_results[0].get_hierarchy(language)
@@ -284,21 +303,18 @@ class TestEdgeCases:
 
         def _compute_metrics(results):
             refs = results.results[language].get("references", {})
-            hierarchy = results.get_hierarchy(language)
             deps = results.get_package_dependencies(language)
             cfg = results.get_cfg(language)
             source_files = results.get_source_files(language)
             actual_edges = {(e.get_source(), e.get_destination()) for e in cfg.edges}
             return {
                 "references": len(refs),
-                "classes": len(hierarchy),
                 "packages": len(deps),
                 "graph_nodes": len(cfg.nodes),
                 "graph_edges": len(cfg.edges),
                 "source_files": len(source_files),
                 "edge_set": sorted((s, d) for s, d in actual_edges),
                 "reference_keys": sorted(refs.keys()),
-                "hierarchy_keys": sorted(hierarchy.keys()),
             }
 
         first_metrics = _compute_metrics(analysis.all_results[0])

@@ -10,7 +10,7 @@ from diagram_analysis.incremental.io_utils import (
     save_sub_analysis,
 )
 from diagram_analysis.manifest import AnalysisManifest
-from repo_utils.ignore import should_skip_file
+from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.analysis_result import StaticAnalysisResults
 from agents.cluster_methods_mixin import ClusterMethodsMixin
 from static_analyzer.graph import ClusterResult
@@ -30,7 +30,7 @@ def assign_new_files(
 
     for file_path in new_files:
         # Skip non-source files
-        if should_skip_file(file_path):
+        if RepoIgnoreManager.should_skip_file(file_path):
             logger.debug(f"Skipping non-source file: {file_path}")
             skipped_count += 1
             continue

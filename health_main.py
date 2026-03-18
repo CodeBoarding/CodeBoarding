@@ -4,11 +4,11 @@ Runs static analysis and health checks only — no LLM agents or diagram generat
 Useful for testing health checks in isolation and for CI/CD health gates.
 
 Usage:
-    # Local repository
-    python health_main.py /path/to/repo --project-name MyProject --output-dir ./health_output
+    # Local repository (output written to <repo>/.codeboarding/health/)
+    python health_main.py --local /path/to/repo
 
-    # Remote repository
-    python health_main.py https://github.com/user/repo --output-dir ./health_output
+    # Remote repository (cloned to cwd/repos/, output to cwd/<repo_name>/.codeboarding/health/)
+    python health_main.py https://github.com/user/repo
 """
 
 import argparse
@@ -25,49 +25,63 @@ from vscode_constants import update_config
 logger = logging.getLogger(__name__)
 
 
-def run_health_check_command(
-    repo_path: str | Path, project_name: str | None = None, output_dir: Path | None = None
+def run_health_check_local(
+    repo_path: Path,
+    project_name: str | None = None,
 ) -> None:
-    """Run health checks on a repository.
+    """Run health checks on a local repository.
 
     Args:
-        repo_path: Path to a local repository or URL of a remote Git repository
-        project_name: Optional project name (extracted from repo if not provided)
-        output_dir: Directory for the health report (default: ./health_output)
+        repo_path: Path to a local repository
+        project_name: Optional project name (default: repo directory name)
     """
-    if output_dir is None:
-        output_dir = Path("./health_output")
-    output_dir = Path(output_dir)
+    resolved_repo_path = repo_path.resolve()
+    if not resolved_repo_path.is_dir():
+        raise ValueError(f"Repository path does not exist: {resolved_repo_path}")
+
+    resolved_project_name = project_name or resolved_repo_path.name
+    output_dir = resolved_repo_path / ".codeboarding"
+
     output_dir.mkdir(parents=True, exist_ok=True)
     setup_logging(log_dir=output_dir)
 
-    # Determine if repo_path is a URL or local path
-    repo_input = str(repo_path)
-    if repo_input.startswith(("https://", "http://", "git@", "ssh://")):
-        # Remote repository URL
-        repo_root = Path.cwd() / "repos"
-        repo_name = clone_repository(repo_input, repo_root)
-        resolved_repo_path = repo_root / repo_name
-        resolved_project_name = project_name or get_repo_name(repo_input)
-    else:
-        # Local repository path
-        resolved_repo_path = Path(repo_input).resolve()
-        if not resolved_repo_path.is_dir():
-            raise ValueError(f"Repository path does not exist: {resolved_repo_path}")
-        resolved_project_name = project_name or resolved_repo_path.name
+    _run_health_checks(resolved_repo_path, resolved_project_name, output_dir)
 
-    logger.info(f"Running health checks on '{resolved_project_name}' at {resolved_repo_path}")
 
-    static_analysis = get_static_analysis(resolved_repo_path)
+def run_health_check_remote(
+    repo_url: str,
+    project_name: str | None = None,
+) -> None:
+    """Run health checks on a remote repository.
+
+    Args:
+        repo_url: URL of a remote Git repository
+        project_name: Optional project name (default: extracted from URL)
+    """
+    repo_root = Path("repos")
+    repo_name = clone_repository(repo_url, repo_root)
+    resolved_repo_path = repo_root / repo_name
+    resolved_project_name = project_name or get_repo_name(repo_url)
+    output_dir = Path.cwd() / repo_name / ".codeboarding"
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    setup_logging(log_dir=output_dir)
+
+    _run_health_checks(resolved_repo_path, resolved_project_name, output_dir)
+
+
+def _run_health_checks(repo_path: Path, project_name: str, output_dir: Path) -> None:
+    """Core health check logic shared by local and remote paths."""
+    logger.info(f"Running health checks on '{project_name}' at {repo_path}")
+
+    static_analysis = get_static_analysis(repo_path)
 
     # Load health check configuration and initialize health config dir
     health_config_dir = output_dir / "health"
     initialize_health_dir(health_config_dir)
     health_config = load_health_config(health_config_dir)
 
-    report = run_health_checks(
-        static_analysis, resolved_project_name, config=health_config, repo_path=resolved_repo_path
-    )
+    report = run_health_checks(static_analysis, project_name, config=health_config, repo_path=repo_path)
 
     if report is None:
         logger.warning("Health checks skipped: no languages found in static analysis results")
@@ -83,10 +97,23 @@ def main():
     """Main entry point that parses CLI arguments and routes to subcommands."""
     parser = argparse.ArgumentParser(
         description="Run static analysis health checks on a repository (local or remote)",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Local repository (output written to <repo>/.codeboarding/health/)
+  python health_main.py --local /path/to/repo
+
+  # Remote repository (cloned to cwd/repos/, output to cwd/<repo_name>/.codeboarding/health/)
+  python health_main.py https://github.com/user/repo
+
+        """,
     )
     parser.add_argument(
-        "repo_path", nargs="?", help="Path to a local repository or URL of a remote Git repository to analyze"
+        "repositories",
+        nargs="*",
+        help="One or more remote Git repository URLs to run health checks on",
     )
+    parser.add_argument("--local", type=Path, help="Path to a local repository")
     parser.add_argument(
         "--project-name",
         type=str,
@@ -94,26 +121,28 @@ def main():
         help="Name of the project (default: extracted from repo path or URL)",
     )
     parser.add_argument(
-        "--output-dir",
-        type=Path,
-        default=Path("./health_output"),
-        help="Directory for the health report (default: ./health_output)",
-    )
-    parser.add_argument(
         "--binary-location", type=Path, help="Path to the binary directory for language servers and tools"
     )
 
     args = parser.parse_args()
 
-    if not args.repo_path:
-        parser.error("Provide a repository path or URL to analyze")
+    # Validate: must provide either remote repos or --local, not both
+    has_remote = bool(args.repositories)
+    has_local = args.local is not None
+
+    if has_remote == has_local:
+        parser.error("Provide either one or more remote repositories or --local, but not both.")
 
     # Resolve binary paths for tools (tokei, LSP servers, etc.)
     if args.binary_location:
         update_config(args.binary_location)
 
     try:
-        run_health_check_command(args.repo_path, args.project_name, args.output_dir)
+        if has_local:
+            run_health_check_local(args.local, args.project_name)
+        else:
+            for repo_url in args.repositories:
+                run_health_check_remote(repo_url, args.project_name)
     except ValueError as e:
         parser.error(str(e))
 

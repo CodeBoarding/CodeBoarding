@@ -56,6 +56,13 @@ temp_files/
 vendor/
 third_party/
 *.backup
+dist/
+*.bundle.js
+*.bundle.js.map
+*.min.js
+*.min.css
+*.chunk.js
+*.chunk.js.map
 """
         (self.repo_path / ".codeboarding" / ".codeboardingignore").write_text(codeboardingignore_content)
 

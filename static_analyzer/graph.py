@@ -76,8 +76,6 @@ class CallGraph:
         self._cluster_cache: ClusterResult | None = None
 
     def add_node(self, node: Node) -> None:
-        if node.type not in GRAPH_NODE_TYPES:
-            return
         if node.fully_qualified_name not in self.nodes:
             self.nodes[node.fully_qualified_name] = node
 

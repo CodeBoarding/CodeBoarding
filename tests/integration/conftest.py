@@ -18,7 +18,7 @@ import pytest
 from static_analyzer.programming_language import ProgrammingLanguage, JavaConfig
 from utils import get_config
 
-FIXTURE_DIR = Path(__file__).parent / "fixtures"
+FIXTURE_DIR = Path(__file__).parent / "fixtures" / "real_projects"
 
 
 @dataclass(frozen=True)
@@ -210,12 +210,6 @@ def extract_metrics(static_analysis, language: str) -> dict:
         references_count = 0
 
     try:
-        hierarchy = static_analysis.get_hierarchy(language)
-        classes_count = len(hierarchy)
-    except ValueError:
-        classes_count = 0
-
-    try:
         packages = static_analysis.get_package_dependencies(language)
         packages_count = len(packages)
     except ValueError:
@@ -229,12 +223,20 @@ def extract_metrics(static_analysis, language: str) -> dict:
 
     return {
         "references_count": references_count,
-        "classes_count": classes_count,
         "packages_count": packages_count,
         "call_graph_nodes": nodes_count,
         "call_graph_edges": edges_count,
         "source_files_count": source_files_count,
     }
+
+
+def pytest_addoption(parser):
+    parser.addoption(
+        "--write-snapshots",
+        action="store_true",
+        default=False,
+        help="Write detailed analysis snapshots to tests/integration/snapshots/ for manual validation",
+    )
 
 
 @pytest.fixture(scope="function")
