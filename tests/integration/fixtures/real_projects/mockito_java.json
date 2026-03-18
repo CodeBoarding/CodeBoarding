@@ -12,7 +12,7 @@
     "call_graph_nodes": 3800,
     "call_graph_edges": 5575,
     "source_files_count": 489,
-    "execution_time_seconds": 207
+    "execution_time_seconds": 196
   },
   "sample_references": [
     "mockito-core.src.main.java.org.mockito.AdditionalAnswers.AdditionalAnswers",
