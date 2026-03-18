@@ -25,6 +25,11 @@ class TypeScriptAdapter(LanguageAdapter):
     def language_id(self) -> str:
         return "typescript"
 
+    @property
+    def references_batch_size(self) -> int:
+        """Larger batches reduce inter-batch idle time for typescript-language-server."""
+        return 200
+
     def extract_package(self, qualified_name: str) -> str:
         return self._extract_deep_package(qualified_name)
 

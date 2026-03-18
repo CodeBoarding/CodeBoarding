@@ -251,6 +251,32 @@ class LSPClient:
 
         return self._send_batch("textDocument/references", queries, build_params, timeout=timeout)
 
+    def fire_references_batch(self, queries: list[tuple[Path, int, int]]) -> list[int]:
+        """Send references requests without waiting for responses.
+
+        Returns request IDs. Call :meth:`collect_references_batch` to get results.
+        Used for pipelining: fire batch N+1 while processing batch N's results.
+        """
+
+        def build_params(file_path: Path, line: int, character: int) -> dict:
+            return {
+                "textDocument": {"uri": file_path.as_uri()},
+                "position": {"line": line, "character": character},
+                "context": {"includeDeclaration": True},
+            }
+
+        return self._fire_batch("textDocument/references", queries, build_params)
+
+    def collect_references_batch(
+        self, req_ids: list[int], per_query_timeout: int = 0
+    ) -> tuple[list[list[dict]], set[int]]:
+        """Collect responses for a previously fired references batch.
+
+        Returns ``(results, error_indices)`` — see :meth:`send_references_batch`.
+        """
+        timeout = per_query_timeout * len(req_ids) if per_query_timeout > 0 else None
+        return self._collect_fired_batch(req_ids, timeout=timeout)
+
     def definition(self, file_path: Path, line: int, character: int, timeout: int | None = None) -> list[dict]:
         """Find the definition of the symbol at the given position."""
         result = self._send_request(
@@ -361,20 +387,16 @@ class LSPClient:
             "position": {"line": line, "character": character},
         }
 
-    def _send_batch(
+    def _fire_batch(
         self,
         method: str,
         queries: list[tuple[Path, int, int]],
         build_params: Callable[[Path, int, int], dict],
-        timeout: int | None = None,
-    ) -> tuple[list[list[dict]], set[int]]:
-        """Send multiple LSP requests and collect results in order.
+    ) -> list[int]:
+        """Send multiple LSP requests without waiting for responses.
 
-        Generic batch helper that eliminates duplication across
-        send_references_batch, send_definition_batch, and send_implementation_batch.
-
-        Returns ``(parsed_results, error_indices)`` where *error_indices*
-        is a set of 0-based query positions that received LSP errors.
+        Returns the list of request IDs in query order. Call
+        :meth:`_collect_fired_batch` with these IDs to get the results.
         """
         req_ids: list[int] = []
         for file_path, line, character in queries:
@@ -388,7 +410,18 @@ class LSPClient:
                 "params": build_params(file_path, line, character),
             }
             self._write_message(message)
+        return req_ids
 
+    def _collect_fired_batch(
+        self,
+        req_ids: list[int],
+        timeout: int | None = None,
+    ) -> tuple[list[list[dict]], set[int]]:
+        """Collect responses for a previously fired batch.
+
+        Returns ``(parsed_results, error_indices)`` where *error_indices*
+        is a set of 0-based query positions that received LSP errors.
+        """
         results, _, error_ids = self._collect_batch_responses(req_ids, timeout=timeout)
 
         error_indices: set[int] = set()
@@ -406,6 +439,23 @@ class LSPClient:
             else:
                 parsed.append([])
         return parsed, error_indices
+
+    def _send_batch(
+        self,
+        method: str,
+        queries: list[tuple[Path, int, int]],
+        build_params: Callable[[Path, int, int], dict],
+        timeout: int | None = None,
+    ) -> tuple[list[list[dict]], set[int]]:
+        """Send multiple LSP requests and collect results in order.
+
+        Convenience wrapper around :meth:`_fire_batch` + :meth:`_collect_fired_batch`.
+
+        Returns ``(parsed_results, error_indices)`` where *error_indices*
+        is a set of 0-based query positions that received LSP errors.
+        """
+        req_ids = self._fire_batch(method, queries, build_params)
+        return self._collect_fired_batch(req_ids, timeout=timeout)
 
     def _send_request(self, method: str, params: dict | list | None, timeout: int | None = None) -> dict | list | None:
         """Send a JSON-RPC request and wait for the response."""
