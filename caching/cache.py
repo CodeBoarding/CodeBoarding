@@ -6,11 +6,12 @@ import time
 from pathlib import Path
 from typing import Generic, TypeVar
 
+from filelock import FileLock
 from utils import get_cache_dir
 
 from langchain_core.language_models import BaseChatModel
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy import Column, Index, Integer, MetaData, String, Table, delete, func, select, text
+from sqlalchemy import Column, Index, Integer, MetaData, String, Table, delete, event, func, select, text
 from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy.engine import Engine, create_engine
 from sqlalchemy.exc import SQLAlchemyError
@@ -19,6 +20,9 @@ K = TypeVar("K", bound=BaseModel)
 V = TypeVar("V", bound=BaseModel)
 CACHE_VERSION = 1
 _CACHE_TABLE = "cache_entries"
+_SQLITE_TIMEOUT_SECONDS = 30
+_SQLITE_BUSY_TIMEOUT_MS = _SQLITE_TIMEOUT_SECONDS * 1000
+_CACHE_LOCK_TIMEOUT_SECONDS = 60
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +47,7 @@ class BaseCache(Generic[K, V]):
         self._namespace = namespace
         self._sqlite_cache: Engine | None = None
         self._init_lock = threading.Lock()
+        self._db_lock = FileLock(str(self.file_path) + ".lock", timeout=_CACHE_LOCK_TIMEOUT_SECONDS)
         self._metadata = MetaData()
         self._cache_entries = Table(
             _CACHE_TABLE,
@@ -64,6 +69,28 @@ class BaseCache(Generic[K, V]):
         if self._sqlite_cache is not None:
             return self._sqlite_cache
 
+        with self._db_lock:
+            return self._open_sqlite_unlocked()
+
+    @staticmethod
+    def _configure_sqlite_connection(dbapi_connection, _connection_record) -> None:
+        cursor = dbapi_connection.cursor()
+        try:
+            cursor.execute(f"PRAGMA busy_timeout = {_SQLITE_BUSY_TIMEOUT_MS}")
+            cursor.execute("PRAGMA journal_mode = WAL")
+            dbapi_connection.commit()
+        except Exception as e:
+            logger.warning("Failed to configure SQLite cache connection pragmas: %s", e)
+        finally:
+            cursor.close()
+
+    def _open_sqlite_unlocked(self) -> Engine | None:
+        if self._sqlite_disabled:
+            return None
+
+        if self._sqlite_cache is not None:
+            return self._sqlite_cache
+
         with self._init_lock:
             if self._sqlite_disabled:
                 return None
@@ -72,7 +99,12 @@ class BaseCache(Generic[K, V]):
 
             try:
                 self.cache_dir.mkdir(parents=True, exist_ok=True)
-                engine = create_engine(f"sqlite:///{self.file_path}", future=True)
+                engine = create_engine(
+                    f"sqlite:///{self.file_path}",
+                    future=True,
+                    connect_args={"timeout": _SQLITE_TIMEOUT_SECONDS},
+                )
+                event.listen(engine, "connect", self._configure_sqlite_connection)
                 self._metadata.create_all(engine)
                 self._reset_if_incompatible_schema(engine)
                 self._sqlite_cache = engine
@@ -122,25 +154,26 @@ class BaseCache(Generic[K, V]):
         return str(value_json) if value_json is not None else None
 
     def _upsert(self, key_sig: str, value_json: str, run_id: str) -> None:
-        engine = self._open_sqlite()
-        if engine is None:
-            return
+        with self._db_lock:
+            engine = self._open_sqlite_unlocked()
+            if engine is None:
+                return
 
-        ns = self._namespace
-        updated_at = time.time_ns()
-        stmt = insert(self._cache_entries).values(
-            namespace=ns,
-            key_sig=key_sig,
-            run_id=run_id,
-            value_json=value_json,
-            updated_at=updated_at,
-        )
-        stmt = stmt.on_conflict_do_update(
-            index_elements=["namespace", "key_sig"],
-            set_={"run_id": run_id, "value_json": value_json, "updated_at": updated_at},
-        )
-        with engine.begin() as conn:
-            conn.execute(stmt)
+            ns = self._namespace
+            updated_at = time.time_ns()
+            stmt = insert(self._cache_entries).values(
+                namespace=ns,
+                key_sig=key_sig,
+                run_id=run_id,
+                value_json=value_json,
+                updated_at=updated_at,
+            )
+            stmt = stmt.on_conflict_do_update(
+                index_elements=["namespace", "key_sig"],
+                set_={"run_id": run_id, "value_json": value_json, "updated_at": updated_at},
+            )
+            with engine.begin() as conn:
+                conn.execute(stmt)
 
     def load(self, key: K) -> V | None:
         try:
@@ -168,44 +201,46 @@ class BaseCache(Generic[K, V]):
 
     def clear(self, keep_run_ids: list[str] | None = None) -> int:
         try:
-            engine = self._open_sqlite()
-            if engine is None:
-                return 0
+            with self._db_lock:
+                engine = self._open_sqlite_unlocked()
+                if engine is None:
+                    return 0
 
-            stmt = (
-                delete(self._cache_entries).where(self._cache_entries.c.run_id.not_in(keep_run_ids))
-                if keep_run_ids
-                else delete(self._cache_entries)
-            )
+                stmt = (
+                    delete(self._cache_entries).where(self._cache_entries.c.run_id.not_in(keep_run_ids))
+                    if keep_run_ids
+                    else delete(self._cache_entries)
+                )
 
-            with engine.begin() as conn:
-                result = conn.execute(stmt)
-            return int(result.rowcount or 0)
+                with engine.begin() as conn:
+                    result = conn.execute(stmt)
+                return int(result.rowcount or 0)
         except Exception as e:
             logger.warning("Cache clear failed: %s", e)
             return 0
 
     def load_most_recent_run(self) -> tuple[str, int] | None:
         try:
-            engine = self._open_sqlite()
-            if engine is None:
-                return None
+            with self._db_lock:
+                engine = self._open_sqlite_unlocked()
+                if engine is None:
+                    return None
 
-            latest = func.max(self._cache_entries.c.updated_at)
-            stmt = (
-                select(self._cache_entries.c.run_id, latest.label("latest_updated_at"))
-                .where(
-                    self._cache_entries.c.run_id != "",
+                latest = func.max(self._cache_entries.c.updated_at)
+                stmt = (
+                    select(self._cache_entries.c.run_id, latest.label("latest_updated_at"))
+                    .where(
+                        self._cache_entries.c.run_id != "",
+                    )
+                    .group_by(self._cache_entries.c.run_id)
+                    .order_by(latest.desc())
+                    .limit(1)
                 )
-                .group_by(self._cache_entries.c.run_id)
-                .order_by(latest.desc())
-                .limit(1)
-            )
-            with engine.connect() as conn:
-                row = conn.execute(stmt).first()
-            if row is None or row[0] is None or row[1] is None:
-                return None
-            return str(row[0]), int(row[1])
+                with engine.connect() as conn:
+                    row = conn.execute(stmt).first()
+                if row is None or row[0] is None or row[1] is None:
+                    return None
+                return str(row[0]), int(row[1])
         except Exception as e:
             logger.warning("Cache latest run_id load failed for namespace=%s: %s", e)
             return None
