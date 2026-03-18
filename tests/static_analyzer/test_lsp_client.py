@@ -179,13 +179,13 @@ class TestSendReferencesBatch:
         refs_b = [{"uri": "file:///b.py", "range": {}}]
 
         def mock_collect(req_ids, timeout=None):
-            return {req_ids[0]: refs_a, req_ids[1]: refs_b}, set()
+            return {req_ids[0]: refs_a, req_ids[1]: refs_b}, set(), set()
 
         with (
             patch.object(client, "_write_message"),
             patch.object(client, "_collect_batch_responses", side_effect=mock_collect),
         ):
-            results = client.send_references_batch(
+            results, error_indices = client.send_references_batch(
                 [
                     (Path("/root/a.py"), 1, 0),
                     (Path("/root/b.py"), 2, 0),
@@ -195,6 +195,33 @@ class TestSendReferencesBatch:
         assert len(results) == 2
         assert results[0] == refs_a
         assert results[1] == refs_b
+        assert error_indices == set()
+
+    def test_returns_error_indices_for_failed_requests(self):
+        client = LSPClient(["cmd"], Path("/root"))
+        client._request_id = 0
+
+        refs_a = [{"uri": "file:///a.py", "range": {}}]
+
+        def mock_collect(req_ids, timeout=None):
+            # Second request errored
+            return {req_ids[0]: refs_a, req_ids[1]: []}, set(), {req_ids[1]}
+
+        with (
+            patch.object(client, "_write_message"),
+            patch.object(client, "_collect_batch_responses", side_effect=mock_collect),
+        ):
+            results, error_indices = client.send_references_batch(
+                [
+                    (Path("/root/a.py"), 1, 0),
+                    (Path("/root/b.py"), 2, 0),
+                ]
+            )
+
+        assert len(results) == 2
+        assert results[0] == refs_a
+        assert results[1] == []
+        assert error_indices == {1}
 
 
 class TestTypeHierarchy:
@@ -325,11 +352,12 @@ class TestCollectBatchResponses:
         client._msg_queue.put({"jsonrpc": "2.0", "id": 2, "result": [{"b": 1}]})
         client._msg_queue.put({"jsonrpc": "2.0", "id": 1, "result": [{"a": 1}]})
 
-        results, timed_out = client._collect_batch_responses([1, 2], timeout=5)
+        results, timed_out, error_ids = client._collect_batch_responses([1, 2], timeout=5)
 
         assert results[1] == [{"a": 1}]
         assert results[2] == [{"b": 1}]
         assert timed_out == set()
+        assert error_ids == set()
 
     def test_reports_timed_out_ids(self):
         client = LSPClient(["cmd"], Path("/root"))
@@ -339,11 +367,12 @@ class TestCollectBatchResponses:
         # Only queue one of two expected responses
         client._msg_queue.put({"jsonrpc": "2.0", "id": 1, "result": [{"a": 1}]})
 
-        results, timed_out = client._collect_batch_responses([1, 2], timeout=1)
+        results, timed_out, error_ids = client._collect_batch_responses([1, 2], timeout=1)
 
         assert results[1] == [{"a": 1}]
         assert results[2] == []
         assert 2 in timed_out
+        assert error_ids == set()
 
     def test_handles_error_responses(self):
         client = LSPClient(["cmd"], Path("/root"))
@@ -352,9 +381,31 @@ class TestCollectBatchResponses:
 
         client._msg_queue.put({"jsonrpc": "2.0", "id": 1, "error": {"code": -1, "message": "fail"}})
 
-        results, timed_out = client._collect_batch_responses([1], timeout=5)
+        results, timed_out, error_ids = client._collect_batch_responses([1], timeout=5)
         assert results[1] == []
         assert timed_out == set()
+        assert 1 in error_ids
+
+    def test_deduplicates_error_logging(self, caplog):
+        """Repeated LSP errors are logged once with a count, not per-request."""
+        client = LSPClient(["cmd"], Path("/root"))
+        client._process = MagicMock()
+        client._process.poll.return_value = None
+
+        # Queue 3 identical errors
+        for i in range(1, 4):
+            client._msg_queue.put({"jsonrpc": "2.0", "id": i, "error": {"code": 0, "message": "no package metadata"}})
+
+        import logging
+
+        with caplog.at_level(logging.WARNING):
+            results, _, error_ids = client._collect_batch_responses([1, 2, 3], timeout=5)
+
+        assert error_ids == {1, 2, 3}
+        # Should have a single deduplicated warning, not 3 separate ones
+        error_lines = [r for r in caplog.records if "no package metadata" in r.message]
+        assert len(error_lines) == 1
+        assert "x3" in error_lines[0].message
 
 
 class TestHandleNotification:

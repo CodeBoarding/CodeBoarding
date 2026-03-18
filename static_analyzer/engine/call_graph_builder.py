@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import logging
+import sys
 import time
 from pathlib import Path
+
+from tqdm import tqdm
 
 from static_analyzer.engine.edge_build_context import EdgeBuildContext
 from static_analyzer.engine.edge_builder import build_edges_via_definitions, build_edges_via_references
@@ -126,47 +129,60 @@ class CallGraphBuilder:
         """Phase 0+1: Open files, wait for indexing, then extract all symbols."""
         total = len(source_files)
         t_open_start = time.monotonic()
-        logger.info("Phase 0 (open): opening %d files for indexing", total)
-        for i in range(0, total, DID_OPEN_BATCH_SIZE):
-            batch = source_files[i : i + DID_OPEN_BATCH_SIZE]
-            for file_path in batch:
-                self._lsp.did_open(file_path, self._adapter.language_id)
-            opened = min(i + DID_OPEN_BATCH_SIZE, total)
-            logger.info("Phase 0 (open): %d/%d files opened", opened, total)
-            time.sleep(0.1)
+
+        # Phase 0: open files for the LSP server to index
+        with tqdm(total=total, desc="Phase 0 (open)", unit="file", file=sys.stderr, leave=False) as pbar:
+            for i in range(0, total, DID_OPEN_BATCH_SIZE):
+                batch = source_files[i : i + DID_OPEN_BATCH_SIZE]
+                for file_path in batch:
+                    self._lsp.did_open(file_path, self._adapter.language_id)
+                pbar.update(len(batch))
+                time.sleep(0.1)
         logger.info("did_open %d files: %.1fs", total, time.monotonic() - t_open_start)
 
         # Synchronization probe — blocks until the LSP server has indexed the
-        # project. Uses a long timeout (5 min) because servers like gopls may
-        # need to index the entire project before responding. We cache the
-        # result to reuse for the first file in Phase 1 below.
+        # project. Uses a long timeout because servers like gopls / tsserver
+        # may need to index the entire project before responding. The timeout
+        # scales with file count for very large repos. We cache the result to
+        # reuse for the first file in Phase 1 below.
+        _PROBE_BASE_TIMEOUT = 300  # seconds
+        _PROBE_EXTRA_PER_FILE = 0.1  # seconds per file beyond the threshold
+        _PROBE_FILE_THRESHOLD = 1000
+        _PROBE_MAX_TIMEOUT = 900  # 15 minutes cap
+
+        if total > _PROBE_FILE_THRESHOLD:
+            probe_timeout = min(
+                _PROBE_BASE_TIMEOUT + (total - _PROBE_FILE_THRESHOLD) * _PROBE_EXTRA_PER_FILE,
+                _PROBE_MAX_TIMEOUT,
+            )
+        else:
+            probe_timeout = _PROBE_BASE_TIMEOUT
+        probe_timeout = int(probe_timeout)
+
         probe_result: list[dict] | None = None
-        logger.info("Phase 0 (open): waiting for LSP server indexing...")
+        logger.info("Waiting for LSP server indexing (timeout=%ds)...", probe_timeout)
         t_probe = time.monotonic()
         if source_files:
-            probe_result = self._lsp.document_symbol(source_files[0], timeout=300)
+            probe_result = self._lsp.document_symbol(source_files[0], timeout=probe_timeout)
         logger.info(
             "Sync probe: %.1fs (%d symbols)",
             time.monotonic() - t_probe,
             len(probe_result) if probe_result else 0,
         )
 
+        # Phase 1: extract symbols from each file
         total = len(source_files)
-        for idx, file_path in enumerate(source_files, 1):
-            # Reuse the sync probe result for the first file to avoid a
-            # redundant document_symbol query (the probe can take minutes).
-            if idx == 1 and probe_result is not None:
-                symbols = probe_result
-            else:
-                symbols = self._lsp.document_symbol(file_path)
-            self._symbol_table.register_symbols(file_path, symbols, parent_chain=[], project_root=self._root)
-            if idx % 50 == 0 or idx == total:
-                logger.info(
-                    "Phase 1 (symbols): %d/%d files processed, %d symbols so far",
-                    idx,
-                    total,
-                    len(self._symbol_table.symbols),
-                )
+        with tqdm(total=total, desc="Phase 1 (symbols)", unit="file", file=sys.stderr, leave=False) as pbar:
+            for idx, file_path in enumerate(source_files, 1):
+                # Reuse the sync probe result for the first file to avoid a
+                # redundant document_symbol query (the probe can take minutes).
+                if idx == 1 and probe_result is not None:
+                    symbols = probe_result
+                else:
+                    symbols = self._lsp.document_symbol(file_path)
+                self._symbol_table.register_symbols(file_path, symbols, parent_chain=[], project_root=self._root)
+                pbar.update(1)
+                pbar.set_postfix(symbols=len(self._symbol_table.symbols))
 
         logger.info("Discovered %d symbols across %d files", len(self._symbol_table.symbols), len(source_files))
 

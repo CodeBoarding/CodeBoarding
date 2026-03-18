@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
+from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.engine.language_adapter import LanguageAdapter
+
+logger = logging.getLogger(__name__)
 
 
 class GoAdapter(LanguageAdapter):
@@ -57,3 +61,40 @@ class GoAdapter(LanguageAdapter):
     def build_reference_key(self, qualified_name: str) -> str:
         """Preserve original casing for Go qualified names."""
         return qualified_name
+
+    def discover_source_files(self, project_root: Path, ignore_manager: RepoIgnoreManager) -> list[Path]:
+        """Discover Go source files, filtering out build-tag-constrained files.
+
+        Files with ``//go:build`` or ``// +build`` directives containing
+        negations (``!``) are excluded because gopls cannot resolve package
+        metadata for them, which causes errors during cross-reference queries.
+        """
+        files = super().discover_source_files(project_root, ignore_manager)
+        filtered = [f for f in files if not self._has_excluding_build_tag(f)]
+        skipped = len(files) - len(filtered)
+        if skipped:
+            logger.info("Filtered %d Go files with excluding build tags", skipped)
+        return filtered
+
+    @staticmethod
+    def _has_excluding_build_tag(file_path: Path) -> bool:
+        """Check if a Go file has a build constraint with negation."""
+        try:
+            with open(file_path, "r", errors="replace") as f:
+                for line in f:
+                    stripped = line.strip()
+                    if not stripped or stripped.startswith("//"):
+                        if stripped.startswith("//go:build ") or stripped.startswith("// +build "):
+                            tag_expr = (
+                                stripped.split(" ", 2)[-1]
+                                if stripped.startswith("// +build")
+                                else stripped[len("//go:build ") :]
+                            )
+                            if "!" in tag_expr:
+                                return True
+                        continue
+                    # Stop at the first non-comment, non-blank line (typically "package ...")
+                    break
+        except OSError:
+            pass
+        return False

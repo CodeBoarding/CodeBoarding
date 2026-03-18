@@ -21,9 +21,9 @@ from tests.static_analyzer.test_call_graph_builder import _TestAdapter
 
 def _make_lsp() -> MagicMock:
     lsp = MagicMock()
-    lsp.send_references_batch.return_value = []
-    lsp.send_definition_batch.return_value = []
-    lsp.send_implementation_batch.return_value = []
+    lsp.send_references_batch.return_value = ([], set())
+    lsp.send_definition_batch.return_value = ([], set())
+    lsp.send_implementation_batch.return_value = ([], set())
     return lsp
 
 
@@ -215,7 +215,7 @@ class TestBuildEdgesViaDefinitions:
 
         # Call sites: main( at (0,4), helper( at (1,4), helper( def at (3,4)
         # helper( at (1,4) resolves to callee at (3,4)
-        def def_batch(queries: list) -> list:
+        def def_batch(queries: list) -> tuple[list, set[int]]:
             return [
                 (
                     [{"uri": src.as_uri(), "range": {"start": {"line": 3, "character": 4}}}]
@@ -223,7 +223,7 @@ class TestBuildEdgesViaDefinitions:
                     else []
                 )
                 for _, line, col in queries
-            ]
+            ], set()
 
         lsp.send_definition_batch.side_effect = def_batch
 
@@ -290,7 +290,7 @@ class TestBuildEdgesViaDefinitions:
         st.build_indices()
 
         # Dog( at (1,4) resolves to __init__ at (4,8); other sites resolve to nothing
-        def def_batch(queries: list) -> list:
+        def def_batch(queries: list) -> tuple[list, set[int]]:
             return [
                 (
                     [{"uri": src.as_uri(), "range": {"start": {"line": 4, "character": 8}}}]
@@ -298,10 +298,10 @@ class TestBuildEdgesViaDefinitions:
                     else []
                 )
                 for _, line, col in queries
-            ]
+            ], set()
 
         lsp.send_definition_batch.side_effect = def_batch
-        lsp.send_implementation_batch.return_value = [[]]
+        lsp.send_implementation_batch.return_value = ([[]], set())
 
         edges = build_edges_via_definitions(adapter, ctx, [src])
         assert ("app.main", "app.Dog.__init__") in edges
@@ -327,7 +327,7 @@ class TestBuildEdgesViaDefinitions:
         st.build_indices()
 
         # speak( at (1,4) resolves to speak def at (3,4); others to nothing
-        def def_batch(queries: list) -> list:
+        def def_batch(queries: list) -> tuple[list, set[int]]:
             return [
                 (
                     [{"uri": src.as_uri(), "range": {"start": {"line": 3, "character": 4}}}]
@@ -335,13 +335,14 @@ class TestBuildEdgesViaDefinitions:
                     else []
                 )
                 for _, line, col in queries
-            ]
+            ], set()
 
         lsp.send_definition_batch.side_effect = def_batch
         # Implementation for speak resolves to dog_speak
-        lsp.send_implementation_batch.return_value = [
-            [{"uri": src.as_uri(), "range": {"start": {"line": 6, "character": 4}}}],
-        ]
+        lsp.send_implementation_batch.return_value = (
+            [[{"uri": src.as_uri(), "range": {"start": {"line": 6, "character": 4}}}]],
+            set(),
+        )
 
         edges = build_edges_via_definitions(adapter, ctx, [src])
         assert ("app.main", "app.speak") in edges
@@ -365,7 +366,7 @@ class TestBuildEdgesViaDefinitions:
         st.build_indices()
 
         # speak( at (1,4) resolves to speak def at (3,4)
-        def def_batch(queries: list) -> list:
+        def def_batch(queries: list) -> tuple[list, set[int]]:
             return [
                 (
                     [{"uri": src.as_uri(), "range": {"start": {"line": 3, "character": 4}}}]
@@ -373,7 +374,7 @@ class TestBuildEdgesViaDefinitions:
                     else []
                 )
                 for _, line, col in queries
-            ]
+            ], set()
 
         lsp.send_definition_batch.side_effect = def_batch
         lsp.send_implementation_batch.side_effect = Exception("LSP crash")
@@ -408,7 +409,7 @@ class TestBuildEdgesViaReferencesExtra:
             "uri": Path("/project/app.py").as_uri(),
             "range": {"start": {"line": 5, "character": 4}, "end": {"line": 5, "character": 7}},
         }
-        lsp.send_references_batch.return_value = [[], [ref]]
+        lsp.send_references_batch.return_value = ([[], [ref]], set())
 
         ctx.source_inspector = MagicMock()
         ctx.source_inspector.is_invocation.return_value = False  # Not a call
@@ -435,7 +436,7 @@ class TestBuildEdgesViaReferencesExtra:
             "uri": Path("/project/app.py").as_uri(),
             "range": {"start": {"line": 3, "character": 4}, "end": {"line": 3, "character": 9}},
         }
-        lsp.send_references_batch.return_value = [[], [ref]]
+        lsp.send_references_batch.return_value = ([[], [ref]], set())
 
         ctx.source_inspector = MagicMock()
         ctx.source_inspector.is_invocation.return_value = True
@@ -449,4 +450,67 @@ class TestBuildEdgesViaReferencesExtra:
         lsp = _make_lsp()
         ctx, adapter = _make_ctx(lsp)
         edges = build_edges_via_references(adapter, ctx, [Path("/project/app.py")])
+        assert len(edges) == 0
+
+    def test_skips_error_producing_files_in_subsequent_batches(self):
+        """When a file produces LSP errors, its symbols are skipped in later batches."""
+        lsp = _make_lsp()
+        # Use a mock adapter with batch_size=1 so each symbol is its own batch.
+        # Symbols sort as: bad.bad_fn1, bad.bad_fn2, good.good_fn
+        # Batch 1: bad_fn1 -> error -> bad.py added to skip_files
+        # Batch 2: bad_fn2 -> skipped (bad.py in skip_files)
+        # Batch 3: good_fn -> queried normally
+        adapter = MagicMock()
+        adapter.should_track_for_edges.side_effect = lambda k: k in (NodeType.FUNCTION, NodeType.METHOD)
+        adapter.is_class_like.return_value = False
+        adapter.is_callable.return_value = True
+        adapter.references_batch_size = 1
+        adapter.references_per_query_timeout = 0
+
+        st = SymbolTable(_TestAdapter())
+        ctx = EdgeBuildContext(lsp, st, SourceInspector())
+
+        good_func = _sym("good_fn", "good.good_fn", NodeType.FUNCTION, "/project/good.py", 0, 0, 10)
+        bad_func1 = _sym("bad_fn1", "bad.bad_fn1", NodeType.FUNCTION, "/project/bad.py", 0, 0, 10)
+        bad_func2 = _sym("bad_fn2", "bad.bad_fn2", NodeType.FUNCTION, "/project/bad.py", 15, 0, 25)
+
+        st._symbols["good.good_fn"] = good_func
+        st._symbols["bad.bad_fn1"] = bad_func1
+        st._symbols["bad.bad_fn2"] = bad_func2
+        for key in [str(Path("/project/good.py")), str(Path("/project/bad.py"))]:
+            st._file_symbols[key] = []
+            st._primary_file_symbols[key] = []
+        st._file_symbols[str(Path("/project/good.py"))] = [good_func]
+        st._primary_file_symbols[str(Path("/project/good.py"))] = [good_func]
+        st._file_symbols[str(Path("/project/bad.py"))] = [bad_func1, bad_func2]
+        st._primary_file_symbols[str(Path("/project/bad.py"))] = [bad_func1, bad_func2]
+        st.build_indices()
+
+        def mock_refs_with_errors(queries, per_query_timeout=0):
+            error_indices: set[int] = set()
+            results: list[list[dict]] = []
+            for i, (fp, _, _) in enumerate(queries):
+                if "bad.py" in str(fp):
+                    results.append([])
+                    error_indices.add(i)
+                else:
+                    results.append([])
+            return results, error_indices
+
+        lsp.send_references_batch.side_effect = mock_refs_with_errors
+
+        edges = build_edges_via_references(adapter, ctx, [Path("/project/good.py"), Path("/project/bad.py")])
+
+        # Collect all files that were actually queried via LSP
+        all_queried_files: list[str] = []
+        for call_args in lsp.send_references_batch.call_args_list:
+            for fp, _, _ in call_args[0][0]:
+                all_queried_files.append(str(fp))
+
+        # bad_fn1 was queried (error discovered), but bad_fn2 should be skipped
+        bad_queries = [f for f in all_queried_files if "bad.py" in f]
+        assert len(bad_queries) == 1, f"Expected 1 query for bad.py, got {len(bad_queries)}"
+        # good.py should still be queried
+        good_queries = [f for f in all_queried_files if "good.py" in f]
+        assert len(good_queries) == 1
         assert len(edges) == 0

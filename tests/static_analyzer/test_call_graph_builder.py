@@ -57,7 +57,7 @@ def _make_adapter() -> MagicMock:
 def _make_lsp() -> MagicMock:
     lsp = MagicMock()
     lsp.document_symbol.return_value = []
-    lsp.send_references_batch.return_value = []
+    lsp.send_references_batch.return_value = ([], set())
     lsp.type_hierarchy_prepare.return_value = None
     return lsp
 
@@ -139,6 +139,52 @@ class TestDiscoverSymbols:
         # Should sleep between batches
         mock_sleep.assert_called()
 
+    def test_probe_timeout_default_for_small_repos(self):
+        """Repos with <= 1000 files use the default 300s probe timeout."""
+        lsp = _make_lsp()
+        adapter = _make_adapter()
+        builder = CallGraphBuilder(lsp, adapter, Path("/project"))
+
+        files = [Path(f"/project/file_{i}.py") for i in range(100)]
+        lsp.document_symbol.return_value = []
+
+        builder._discover_symbols(files)
+
+        # The probe call is the first document_symbol call (with explicit timeout)
+        probe_call = lsp.document_symbol.call_args_list[0]
+        assert probe_call.kwargs.get("timeout") == 300
+
+    def test_probe_timeout_scales_for_large_repos(self):
+        """Repos with > 1000 files get a scaled probe timeout."""
+        lsp = _make_lsp()
+        adapter = _make_adapter()
+        builder = CallGraphBuilder(lsp, adapter, Path("/project"))
+
+        files = [Path(f"/project/file_{i}.py") for i in range(2000)]
+        lsp.document_symbol.return_value = []
+
+        builder._discover_symbols(files)
+
+        probe_call = lsp.document_symbol.call_args_list[0]
+        timeout = probe_call.kwargs.get("timeout")
+        # 300 + (2000 - 1000) * 0.1 = 400
+        assert timeout == 400
+
+    def test_probe_timeout_capped_at_maximum(self):
+        """Probe timeout is capped at 900s even for very large repos."""
+        lsp = _make_lsp()
+        adapter = _make_adapter()
+        builder = CallGraphBuilder(lsp, adapter, Path("/project"))
+
+        files = [Path(f"/project/file_{i}.py") for i in range(20000)]
+        lsp.document_symbol.return_value = []
+
+        builder._discover_symbols(files)
+
+        probe_call = lsp.document_symbol.call_args_list[0]
+        timeout = probe_call.kwargs.get("timeout")
+        assert timeout == 900
+
 
 class TestBuild:
     def test_returns_language_analysis_result(self):
@@ -204,7 +250,7 @@ class TestBuildEdges:
                 "end": {"line": 5, "character": 10},
             },
         }
-        lsp.send_references_batch.return_value = [[], [ref_to_helper]]
+        lsp.send_references_batch.return_value = ([[], [ref_to_helper]], set())
 
         ctx.source_inspector = MagicMock()
         ctx.source_inspector.is_invocation.return_value = True
@@ -233,7 +279,7 @@ class TestBuildEdges:
                 "end": {"line": 0, "character": 7},
             },
         }
-        lsp.send_references_batch.return_value = [[ref]]
+        lsp.send_references_batch.return_value = ([[ref]], set())
 
         edge_set = build_edges_via_references(adapter, ctx, [Path("/project/app.py")])
         assert len(edge_set) == 0
