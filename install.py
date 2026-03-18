@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tarfile
 from dataclasses import dataclass
+from enum import StrEnum
 from pathlib import Path
 
 import requests
@@ -139,8 +140,12 @@ def bootstrap_npm(target_dir: Path | None = None) -> bool:
 
 
 def is_non_interactive_mode() -> bool:
-    """Captures github actions ("CI) and non-interactive session (no terminal keyboard)"""
-    return bool(os.getenv("CI")) or not sys.stdin.isatty()
+    """Detect environments where interactive prompts are unsafe.
+
+    Covers CI runners, piped stdin, and PyInstaller-bundled executables
+    (where stdin reports as a TTY but is not actually connected to a user).
+    """
+    return bool(os.getenv("CI")) or not sys.stdin.isatty() or getattr(sys, "frozen", False)
 
 
 def resolve_missing_npm(auto_install_npm: bool = False, target_dir: Path | None = None) -> bool:
@@ -152,23 +157,23 @@ def resolve_missing_npm(auto_install_npm: bool = False, target_dir: Path | None 
     """
     print("Step: npm required for TypeScript/JavaScript/PHP/Python language servers")
 
-    if auto_install_npm or is_non_interactive_mode():
-        installed = bootstrap_npm(target_dir=target_dir)
-        if not installed:
-            print("Warning: npm bootstrap failed. Node-based language servers will be unavailable.")
-            print("   Install Node.js from https://nodejs.org/en/download to enable them.")
-        return installed
+    if not auto_install_npm and not is_non_interactive_mode():
+        try:
+            choice = (
+                input("npm is missing. Install it now using the configured Node.js runtime? [y/N]: ").strip().lower()
+            )
+        except EOFError:
+            choice = "y"
 
-    choice = input("npm is missing. Install it now using the configured Node.js runtime? [y/N]: ").strip().lower()
-    if choice in {"y", "yes"}:
-        installed = bootstrap_npm(target_dir=target_dir)
-        if not installed:
-            print("Error: npm installation failed. Install Node.js from https://nodejs.org/en/download and retry.")
+        if choice not in {"y", "yes"}:
+            print("Error: npm is required. Install Node.js from https://nodejs.org/en/download and retry.")
             raise SystemExit(1)
-        return True
 
-    print("Error: npm is required. Install Node.js from https://nodejs.org/en/download and retry.")
-    raise SystemExit(1)
+    installed = bootstrap_npm(target_dir=target_dir)
+    if not installed:
+        print("Warning: npm bootstrap failed. Node-based language servers will be unavailable.")
+        print("   Install Node.js from https://nodejs.org/en/download to enable them.")
+    return installed
 
 
 def resolve_npm_availability(auto_install_npm: bool = False, target_dir: Path | None = None) -> bool:
@@ -234,10 +239,18 @@ VCREDIST_URL = "https://aka.ms/vs/17/release/vc_redist.x64.exe"
 STATUS_DLL_NOT_FOUND = 0xC0000135  # 3221225781 unsigned
 
 
-def verify_binary(binary_path: Path) -> bool:
+class BinaryStatus(StrEnum):
+    """Result of a binary verification check."""
+
+    OK = "ok"
+    MISSING_VCPP = "missing_vcpp"
+    LOAD_ERROR = "load_error"
+
+
+def verify_binary(binary_path: Path) -> BinaryStatus:
     """Run a quick smoke test to verify the binary actually executes.
 
-    Returns True if the binary runs without DLL-not-found or similar loader errors.
+    Returns a BinaryStatus constant indicating the result.
     """
     try:
         result = subprocess.run(
@@ -252,14 +265,14 @@ def verify_binary(binary_path: Path) -> bool:
         else:
             code = result.returncode
         if code == STATUS_DLL_NOT_FOUND:
-            return False
-        return True
+            return BinaryStatus.MISSING_VCPP
+        return BinaryStatus.OK
     except OSError:
-        # Binary couldn't be started at all
-        return False
+        # Binary couldn't be started at all (corrupted, blocked, wrong format)
+        return BinaryStatus.LOAD_ERROR
     except subprocess.TimeoutExpired:
         # If it ran long enough to time out, it loaded fine
-        return True
+        return BinaryStatus.OK
 
 
 def install_vcpp_redistributable() -> bool:
@@ -336,20 +349,18 @@ def resolve_missing_vcpp(auto_install_vcpp: bool = False) -> bool:
     """Offer actionable paths when the Visual C++ Redistributable is missing."""
     print("Step: Visual C++ Redistributable required for downloaded binaries (vcruntime140.dll)")
 
-    if auto_install_vcpp:
+    if auto_install_vcpp or is_non_interactive_mode():
         return install_vcpp_redistributable()
 
-    if is_non_interactive_mode():
-        print("Step: Non-interactive mode detected - skipping VC++ prompt")
-        print("   Re-run with --auto-install-vcpp to install automatically")
-        print(f"   Or download and install manually from: {VCREDIST_URL}")
-        return False
+    try:
+        choice = (
+            input("Visual C++ Redistributable is missing. Install it now? (requires admin privileges) [y/N]: ")
+            .strip()
+            .lower()
+        )
+    except EOFError:
+        choice = "y"
 
-    choice = (
-        input("Visual C++ Redistributable is missing. Install it now? (requires admin privileges) [y/N]: ")
-        .strip()
-        .lower()
-    )
     if choice in {"y", "yes"}:
         return install_vcpp_redistributable()
 
@@ -365,27 +376,37 @@ def download_binaries(target_dir: Path, auto_install_vcpp: bool = False):
     install_native_tools(target_dir, native_deps)
 
     # Verify downloaded binaries actually work (catch missing DLL issues on Windows)
-    system = platform.system()
-    if system == "Windows":
-        platform_bin_dir = get_platform_bin_dir(target_dir)
-        needs_vcpp = False
+    if platform.system() == "Windows":
+        bin_dir = get_platform_bin_dir(target_dir)
+        vcpp_failures: list[str] = []
+        load_errors: list[str] = []
         for dep in native_deps:
-            binary_path = platform_bin_dir / f"{dep.binary_name}.exe"
+            binary_path = bin_dir / f"{dep.binary_name}.exe"
             if not binary_path.exists():
                 continue
-            if not verify_binary(binary_path):
-                print(f"  {dep.binary_name}: verification failed - missing Visual C++ runtime")
-                needs_vcpp = True
-            else:
+            status = verify_binary(binary_path)
+            if status == BinaryStatus.OK:
                 print(f"  {dep.binary_name}: verification passed")
+            elif status == BinaryStatus.MISSING_VCPP:
+                print(f"  {dep.binary_name}: verification failed - missing Visual C++ runtime")
+                vcpp_failures.append(dep.binary_name)
+            else:
+                print(f"  {dep.binary_name}: verification failed - binary could not be loaded")
+                print(f"    The binary may be corrupted or blocked by antivirus software.")
+                print(f"    Try deleting {binary_path} and re-running setup.")
+                load_errors.append(dep.binary_name)
 
-        if needs_vcpp:
-            vcpp_resolved = resolve_missing_vcpp(auto_install_vcpp=auto_install_vcpp)
-            if vcpp_resolved:
-                for dep in native_deps:
-                    binary_path = platform_bin_dir / f"{dep.binary_name}.exe"
-                    if binary_path.exists() and verify_binary(binary_path):
-                        print(f"  {dep.binary_name}: verification passed after VC++ install")
+        if vcpp_failures and resolve_missing_vcpp(auto_install_vcpp=auto_install_vcpp):
+            for name in vcpp_failures:
+                binary_path = bin_dir / f"{name}.exe"
+                if verify_binary(binary_path) == BinaryStatus.OK:
+                    print(f"  {name}: verification passed after VC++ install")
+
+        if load_errors:
+            print(
+                f"  Warning: {', '.join(load_errors)} could not be loaded. "
+                f"Language support for those tools will be unavailable."
+            )
 
     print("Step: Binary download finished")
 

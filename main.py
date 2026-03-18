@@ -457,7 +457,7 @@ Examples:
 
         if needs_install():
             logger.info("First run: downloading language server binaries to ~/.codeboarding/servers/ ...")
-            ensure_tools(auto_install_npm=True)
+            ensure_tools(auto_install_npm=True, auto_install_vcpp=True)
 
     should_monitor = args.enable_monitoring or monitoring_enabled()
 
