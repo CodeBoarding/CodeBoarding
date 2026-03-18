@@ -1,7 +1,6 @@
-from typing import cast
 import unittest
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch, PropertyMock
+from unittest.mock import MagicMock, patch
 
 from agents.details_agent import DetailsAgent
 from agents.agent_responses import (
@@ -15,6 +14,9 @@ from agents.agent_responses import (
     ValidationInsights,
 )
 from static_analyzer.analysis_result import StaticAnalysisResults
+from static_analyzer.constants import NodeType
+from static_analyzer.graph import CallGraph, ClusterResult
+from static_analyzer.node import Node
 
 
 class TestDetailsAgent(unittest.TestCase):
@@ -192,6 +194,7 @@ class TestDetailsAgent(unittest.TestCase):
             meta_context=self.mock_meta_context,
             agent_llm=mock_llm,
             parsing_llm=mock_parsing_llm,
+            run_id="test-run-id",
         )
 
         cluster_analysis = ClusterAnalysis(
@@ -236,6 +239,7 @@ class TestDetailsAgent(unittest.TestCase):
             meta_context=self.mock_meta_context,
             agent_llm=mock_llm,
             parsing_llm=mock_parsing_llm,
+            run_id="test-run-id",
         )
 
         cluster_analysis = ClusterAnalysis(
@@ -320,15 +324,8 @@ class TestDetailsAgent(unittest.TestCase):
         self.assertEqual(mock_validation_invoke.call_count, 2)
         mock_fix_ref.assert_called_once()
 
-    @patch("agents.agent.CodeBoardingAgent._classify_unassigned_files_with_llm")
-    @patch("agents.cluster_methods_mixin.ClusterMethodsMixin._get_files_for_clusters")
-    @patch("os.path.exists")
-    @patch("os.path.relpath")
-    def test_classify_files(self, mock_relpath, mock_exists, mock_get_files_for_clusters, mock_classify_unassigned):
-        # Test classify_files (assigns files from clusters + key_entities)
-        mock_get_files_for_clusters.return_value = {str(self.repo_dir / "cluster_file.py")}
-        mock_classify_unassigned.return_value = []  # Mock LLM classification to return empty list
-
+    def test_populate_file_methods(self):
+        # Test deterministic file population from cluster results
         mock_llm = MagicMock()
         mock_parsing_llm = MagicMock()
         agent = DetailsAgent(
@@ -341,19 +338,13 @@ class TestDetailsAgent(unittest.TestCase):
             run_id="test-run-id",
         )
 
-        key_entity = SourceCodeReference(
-            qualified_name="test.TestClass",
-            reference_file=str(self.repo_dir / "test_file.py"),
-            reference_start_line=1,
-            reference_end_line=10,
-        )
-
         sub_component = Component(
             name="SubComponent",
             description="Sub component",
-            key_entities=[key_entity],
+            key_entities=[],
             source_cluster_ids=[1],
         )
+        sub_component.component_id = "1"
 
         analysis = AnalysisInsights(
             description="Test analysis",
@@ -361,25 +352,26 @@ class TestDetailsAgent(unittest.TestCase):
             components_relations=[],
         )
 
-        mock_exists.return_value = True
-        mock_relpath.side_effect = lambda path, start: Path(path).name
+        cluster_file = self.repo_dir / "cluster_file.py"
+        test_file = self.repo_dir / "test_file.py"
+        call_graph = CallGraph(language="python")
+        call_graph.add_node(Node("pkg.cluster_fn", NodeType.FUNCTION, str(cluster_file), 1, 5))
+        call_graph.add_node(Node("pkg.TestClass", NodeType.CLASS, str(test_file), 1, 10))
+        self.mock_static_analysis.get_cfg.return_value = call_graph
 
-        # Create mock cluster_results for subgraph
-        from static_analyzer.graph import ClusterResult
-
-        mock_cluster_result = ClusterResult(
-            clusters={1: {"node1"}},
-            file_to_clusters={str(self.repo_dir / "cluster_file.py"): {1}},
-            cluster_to_files={1: {str(self.repo_dir / "cluster_file.py")}},
+        cluster_result = ClusterResult(
+            clusters={1: {"pkg.cluster_fn", "pkg.TestClass"}},
+            file_to_clusters={str(cluster_file): {1}, str(test_file): {1}},
+            cluster_to_files={1: {str(cluster_file), str(test_file)}},
+            strategy="test",
         )
-        cluster_results = {"python": mock_cluster_result}
+        cluster_results = {"python": cluster_result}
 
-        scope_files = [str(self.repo_dir / "cluster_file.py"), str(self.repo_dir / "test_file.py")]
-        agent.classify_files(analysis, cluster_results, scope_files)
+        agent.populate_file_methods(analysis, cluster_results)
 
-        # Check files were assigned from both clusters and key_entities
-        self.assertIn("cluster_file.py", sub_component.assigned_files)
-        self.assertIn("test_file.py", sub_component.assigned_files)
+        self.assertEqual([group.file_path for group in sub_component.file_methods], ["cluster_file.py", "test_file.py"])
+        self.assertEqual(sub_component.file_methods[0].methods[0].qualified_name, "pkg.cluster_fn")
+        self.assertEqual(sub_component.file_methods[1].methods[0].qualified_name, "pkg.TestClass")
 
 
 if __name__ == "__main__":
