@@ -192,6 +192,7 @@ class TestDetailsAgent(unittest.TestCase):
             meta_context=self.mock_meta_context,
             agent_llm=mock_llm,
             parsing_llm=mock_parsing_llm,
+            run_id="test-run-id",
         )
 
         cluster_analysis = ClusterAnalysis(
@@ -236,6 +237,7 @@ class TestDetailsAgent(unittest.TestCase):
             meta_context=self.mock_meta_context,
             agent_llm=mock_llm,
             parsing_llm=mock_parsing_llm,
+            run_id="test-run-id",
         )
 
         cluster_analysis = ClusterAnalysis(
@@ -320,15 +322,8 @@ class TestDetailsAgent(unittest.TestCase):
         self.assertEqual(mock_validation_invoke.call_count, 2)
         mock_fix_ref.assert_called_once()
 
-    @patch("agents.agent.CodeBoardingAgent._classify_unassigned_files_with_llm")
-    @patch("agents.cluster_methods_mixin.ClusterMethodsMixin._get_files_for_clusters")
-    @patch("os.path.exists")
-    @patch("os.path.relpath")
-    def test_classify_files(self, mock_relpath, mock_exists, mock_get_files_for_clusters, mock_classify_unassigned):
-        # Test classify_files (assigns files from clusters + key_entities)
-        mock_get_files_for_clusters.return_value = {str(self.repo_dir / "cluster_file.py")}
-        mock_classify_unassigned.return_value = []  # Mock LLM classification to return empty list
-
+    def test_classify_files(self):
+        # Test populate_file_methods assigns files from cluster results via CFG nodes
         mock_llm = MagicMock()
         mock_parsing_llm = MagicMock()
         agent = DetailsAgent(
@@ -341,17 +336,27 @@ class TestDetailsAgent(unittest.TestCase):
             run_id="test-run-id",
         )
 
-        key_entity = SourceCodeReference(
-            qualified_name="test.TestClass",
-            reference_file=str(self.repo_dir / "test_file.py"),
-            reference_start_line=1,
-            reference_end_line=10,
+        from static_analyzer.graph import ClusterResult
+        from static_analyzer.node import Node
+        from static_analyzer.constants import NodeType
+
+        cluster_file_path = str(self.repo_dir / "cluster_file.py")
+        node = Node(
+            fully_qualified_name="node1",
+            node_type=NodeType.METHOD,
+            file_path=cluster_file_path,
+            line_start=1,
+            line_end=10,
         )
+
+        mock_cfg = MagicMock()
+        mock_cfg.nodes = {"node1": node}
+        self.mock_static_analysis.get_cfg.return_value = mock_cfg
 
         sub_component = Component(
             name="SubComponent",
             description="Sub component",
-            key_entities=[key_entity],
+            key_entities=[],
             source_cluster_ids=[1],
         )
 
@@ -361,25 +366,18 @@ class TestDetailsAgent(unittest.TestCase):
             components_relations=[],
         )
 
-        mock_exists.return_value = True
-        mock_relpath.side_effect = lambda path, start: Path(path).name
-
-        # Create mock cluster_results for subgraph
-        from static_analyzer.graph import ClusterResult
-
         mock_cluster_result = ClusterResult(
             clusters={1: {"node1"}},
-            file_to_clusters={str(self.repo_dir / "cluster_file.py"): {1}},
-            cluster_to_files={1: {str(self.repo_dir / "cluster_file.py")}},
+            file_to_clusters={cluster_file_path: {1}},
+            cluster_to_files={1: {cluster_file_path}},
         )
         cluster_results = {"python": mock_cluster_result}
 
-        scope_files = [str(self.repo_dir / "cluster_file.py"), str(self.repo_dir / "test_file.py")]
-        agent.classify_files(analysis, cluster_results, scope_files)
+        agent.populate_file_methods(analysis, cluster_results)
 
-        # Check files were assigned from both clusters and key_entities
-        self.assertIn("cluster_file.py", sub_component.assigned_files)
-        self.assertIn("test_file.py", sub_component.assigned_files)
+        # Check file was assigned from cluster via CFG nodes
+        file_paths = [fg.file_path for fg in sub_component.file_methods]
+        self.assertIn("cluster_file.py", file_paths)
 
 
 if __name__ == "__main__":

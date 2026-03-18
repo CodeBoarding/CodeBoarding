@@ -163,7 +163,7 @@ class TestMetaAgent(unittest.TestCase):
 
         agent.analyze_project_metadata(skip_cache=True)
 
-        latest = agent._meta_cache.load_most_recent_run(namespace="__default__")
+        latest = agent._meta_cache.load_most_recent_run()
         self.assertIsNotNone(latest)
         assert latest is not None
         self.assertEqual(latest[0], "meta")

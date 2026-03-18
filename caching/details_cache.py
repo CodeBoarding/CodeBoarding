@@ -58,7 +58,7 @@ def prune_details_caches(repo_dir: Path, only_keep_run_id: str) -> None:
     ClusterCache(repo_dir).clear(keep_run_ids=[only_keep_run_id])
 
 
-def _load_existing_run_id(repo_dir: Path) -> str | None:
+def load_existing_run_id(repo_dir: Path) -> str | None:
     final_cache = FinalAnalysisCache(repo_dir)
     cluster_cache = ClusterCache(repo_dir)
     final_latest = final_cache.load_most_recent_run()

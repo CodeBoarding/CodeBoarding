@@ -5,7 +5,7 @@ from pathlib import Path
 
 from agents.agent_responses import AnalysisInsights, ClusterAnalysis
 from caching.cache import ModelSettings
-from caching.details_cache import ClusterCache, FinalAnalysisCache, _load_existing_run_id
+from caching.details_cache import ClusterCache, FinalAnalysisCache, load_existing_run_id
 
 
 class TestDetailsCacheRunIdSelection(unittest.TestCase):
@@ -36,7 +36,7 @@ class TestDetailsCacheRunIdSelection(unittest.TestCase):
         time.sleep(0.001)
         final_cache.store(new_key, self._analysis("new"), run_id=new_run_id)
 
-        self.assertEqual(_load_existing_run_id(self.repo_dir), new_run_id)
+        self.assertEqual(load_existing_run_id(self.repo_dir), new_run_id)
 
     def test_load_existing_run_id_uses_latest_timestamp_across_both_caches(self):
         final_cache = FinalAnalysisCache(self.repo_dir)
@@ -52,7 +52,7 @@ class TestDetailsCacheRunIdSelection(unittest.TestCase):
         time.sleep(0.001)
         cluster_cache.store(cluster_key, ClusterAnalysis(cluster_components=[]), run_id=cluster_run_id)
 
-        self.assertEqual(_load_existing_run_id(self.repo_dir), cluster_run_id)
+        self.assertEqual(load_existing_run_id(self.repo_dir), cluster_run_id)
 
 
 if __name__ == "__main__":
