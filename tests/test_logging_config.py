@@ -1,13 +1,14 @@
 import codecs
 import io
 import logging
+import logging.handlers
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
 # Assuming logging_config.py exists and setup_logging is importable
-from logging_config import setup_logging
+from logging_config import add_file_handler, setup_logging
 
 
 class TestLoggingConfig(unittest.TestCase):
@@ -145,23 +146,51 @@ class TestLoggingConfig(unittest.TestCase):
             self._clean_logging_handlers()
 
     def test_setup_logging_none_log_dir(self):
-        # Test behavior when log_dir is None
-        # We need to be careful as this might create a 'logs' folder in the current directory
-        # So we'll mock or just check if it uses Path("logs")
-        try:
-            setup_logging(log_dir=None)
-            root_logger = logging.getLogger()
-            file_handler = next(h for h in root_logger.handlers if isinstance(h, logging.FileHandler))
-            log_file_path = Path(file_handler.baseFilename)
+        # When log_dir is None, only a console handler should be configured
+        # (no file handler, no log file created).
+        setup_logging(log_dir=None)
+        root_logger = logging.getLogger()
+        file_handlers = [h for h in root_logger.handlers if isinstance(h, logging.FileHandler)]
+        self.assertEqual(len(file_handlers), 0, "No file handler when log_dir is None")
 
-            # It should be in a folder named 'logs' in the current working directory
-            self.assertEqual(log_file_path.parent.name, "logs")
-            self.assertEqual(log_file_path.parent.parent, Path.cwd())
-        finally:
+        self._clean_logging_handlers()
+
+    def test_add_file_handler_creates_new_file_each_call(self):
+        """Each add_file_handler call creates a separate timestamped log file."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            setup_logging()
+
+            add_file_handler(log_dir=temp_path)
+            add_file_handler(log_dir=temp_path)
+            count = sum(1 for h in logging.root.handlers if isinstance(h, logging.handlers.RotatingFileHandler))
+            self.assertEqual(count, 2, "Each call should add a new file handler")
+
             self._clean_logging_handlers()
-            # Cleanup created logs folder if it was created in CWD
-            # (In a real test we'd mock Path.cwd() but for now we just verify)
-            pass
+
+    def test_add_file_handler_creates_log_file(self):
+        """add_file_handler creates a log file in the logs subdirectory."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            setup_logging()
+
+            add_file_handler(log_dir=temp_path)
+
+            logs_dir = temp_path / "logs"
+            self.assertTrue(logs_dir.exists())
+            log_files = list(logs_dir.glob("*.log"))
+            self.assertEqual(len(log_files), 1)
+
+            self._clean_logging_handlers()
+
+    def test_setup_logging_without_log_dir_is_console_only(self):
+        """setup_logging() without log_dir creates only a console handler."""
+        setup_logging()
+
+        file_handlers = [h for h in logging.root.handlers if isinstance(h, logging.FileHandler)]
+        self.assertEqual(len(file_handlers), 0, "No file handler should exist without log_dir")
+
+        self._clean_logging_handlers()
 
     def test_console_handler_survives_unencodable_unicode(self):
         """Test that logging non-encodable Unicode chars doesn't crash.
