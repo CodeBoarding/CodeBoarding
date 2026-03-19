@@ -77,8 +77,6 @@ class BaseCache(Generic[K, V]):
         cursor = dbapi_connection.cursor()
         try:
             cursor.execute(f"PRAGMA busy_timeout = {_SQLITE_BUSY_TIMEOUT_MS}")
-            cursor.execute("PRAGMA journal_mode = WAL")
-            dbapi_connection.commit()
         except Exception as e:
             logger.warning("Failed to configure SQLite cache connection pragmas: %s", e)
         finally:
@@ -105,6 +103,11 @@ class BaseCache(Generic[K, V]):
                     connect_args={"timeout": _SQLITE_TIMEOUT_SECONDS},
                 )
                 event.listen(engine, "connect", self._configure_sqlite_connection)
+
+                # Set WAL mode once during initialization
+                with engine.connect() as conn:
+                    conn.execute(text("PRAGMA journal_mode = WAL"))
+
                 self._metadata.create_all(engine)
                 self._reset_if_incompatible_schema(engine)
                 self._sqlite_cache = engine
@@ -219,17 +222,19 @@ class BaseCache(Generic[K, V]):
             logger.warning("Cache clear failed: %s", e)
             return 0
 
-    def load_most_recent_run(self) -> tuple[str, int] | None:
+    def load_most_recent_run(self, namespace: str | None = None) -> tuple[str, int] | None:
         try:
             with self._db_lock:
                 engine = self._open_sqlite_unlocked()
                 if engine is None:
                     return None
 
+                ns = namespace or self._namespace
                 latest = func.max(self._cache_entries.c.updated_at)
                 stmt = (
                     select(self._cache_entries.c.run_id, latest.label("latest_updated_at"))
                     .where(
+                        self._cache_entries.c.namespace == ns,
                         self._cache_entries.c.run_id != "",
                     )
                     .group_by(self._cache_entries.c.run_id)
@@ -242,7 +247,7 @@ class BaseCache(Generic[K, V]):
                     return None
                 return str(row[0]), int(row[1])
         except Exception as e:
-            logger.warning("Cache latest run_id load failed for namespace=%s: %s", e)
+            logger.warning("Cache latest run_id load failed for namespace=%s: %s", (namespace or self._namespace), e)
             return None
 
     def close(self) -> None:
