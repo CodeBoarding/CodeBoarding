@@ -1,6 +1,6 @@
 {
   "repository_name": "CodeBoarding",
-  "timestamp": "2026-03-19T15:49:10.381314+00:00",
+  "timestamp": "2026-03-19T22:35:58.221046+00:00",
   "overall_score": 0.9601654331737048,
   "check_summaries": [
     {
@@ -950,13 +950,13 @@
       "cycles": [
         "diagram_analysis -> diagram_analysis.incremental -> diagram_analysis",
         "health -> health.checks -> health",
+        "static_analyzer.engine.adapters -> static_analyzer -> static_analyzer.engine.adapters",
+        "static_analyzer.engine.adapters -> static_analyzer.engine -> static_analyzer -> static_analyzer.engine.adapters",
+        "caching -> agents -> caching",
         "static_analyzer -> agents -> agents.tools -> static_analyzer",
         "static_analyzer -> agents -> static_analyzer",
         "static_analyzer -> static_analyzer.engine -> static_analyzer",
-        "static_analyzer -> static_analyzer.engine.adapters -> static_analyzer",
-        "static_analyzer -> static_analyzer.engine.adapters -> static_analyzer.engine -> static_analyzer",
         "agents.tools -> agents -> agents.tools",
-        "agents -> caching -> agents",
         "tool_registry -> install -> tool_registry"
       ],
       "packages_checked": 49,
@@ -1004,7 +1004,7 @@
           "entities": [
             {
               "entity_name": "cluster_61",
-              "file_path": "monitoring/stats.py",
+              "file_path": "tests/agents/test_agent.py",
               "metric_value": 0.031
             },
             {
@@ -2672,6 +2672,12 @@
       "composite_risk_score": 65.0
     },
     {
+      "file_path": "tests/agents/test_agent.py",
+      "total_findings": 8,
+      "warning_findings": 3,
+      "composite_risk_score": 65.0
+    },
+    {
       "file_path": "tests/static_analyzer/test_incremental_orchestrator.py",
       "total_findings": 13,
       "warning_findings": 3,
@@ -2680,12 +2686,6 @@
     {
       "file_path": "tests/diagram_analysis/test_incremental_e2e.py",
       "total_findings": 8,
-      "warning_findings": 2,
-      "composite_risk_score": 60.0
-    },
-    {
-      "file_path": "tests/agents/test_agent.py",
-      "total_findings": 7,
       "warning_findings": 2,
       "composite_risk_score": 60.0
     },
