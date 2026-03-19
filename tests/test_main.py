@@ -115,10 +115,9 @@ class TestGenerateMarkdownDocs(unittest.TestCase):
 
 
 class TestPartialUpdate(unittest.TestCase):
-    @patch("main.save_sub_analysis")
     @patch("main.load_full_analysis")
     @patch("main.DiagramGenerator")
-    def test_partial_update_success(self, mock_generator_class, mock_load_full, mock_save_sub_analysis):
+    def test_partial_update_success(self, mock_generator_class, mock_load_full):
         # Test successful partial update for a root-level component
         from agents.agent_responses import AnalysisInsights, Component
 
@@ -137,11 +136,7 @@ class TestPartialUpdate(unittest.TestCase):
             ],
             components_relations=[],
         )
-        mock_generator.process_component.return_value = (
-            "test_comp_id",
-            mock_sub_analysis,
-            [],
-        )
+        mock_generator.expand_component.return_value = (mock_sub_analysis, [])
 
         root_component = Component(
             name="TestComponent",
@@ -169,16 +164,11 @@ class TestPartialUpdate(unittest.TestCase):
                 depth_level=1,
             )
 
-            mock_generator.pre_analysis.assert_called_once()
-            mock_generator.process_component.assert_called_once()
-            mock_save_sub_analysis.assert_called_once_with(mock_sub_analysis, output_dir, "test_comp_id")
+            mock_generator.expand_component.assert_called_once_with(root_component)
 
-    @patch("main.save_sub_analysis")
     @patch("main.load_full_analysis")
     @patch("main.DiagramGenerator")
-    def test_partial_update_nested_component_success(
-        self, mock_generator_class, mock_load_full, mock_save_sub_analysis
-    ):
+    def test_partial_update_nested_component_success(self, mock_generator_class, mock_load_full):
         # Test that partial_update finds components nested inside sub-analyses
         from agents.agent_responses import AnalysisInsights, Component
 
@@ -190,11 +180,7 @@ class TestPartialUpdate(unittest.TestCase):
             components=[],
             components_relations=[],
         )
-        mock_generator.process_component.return_value = (
-            "nested_comp_id",
-            mock_sub_analysis_result,
-            [],
-        )
+        mock_generator.expand_component.return_value = (mock_sub_analysis_result, [])
 
         root_component = Component(
             name="RootComponent",
@@ -234,9 +220,7 @@ class TestPartialUpdate(unittest.TestCase):
                 depth_level=1,
             )
 
-            mock_generator.pre_analysis.assert_called_once()
-            mock_generator.process_component.assert_called_once_with(nested_component)
-            mock_save_sub_analysis.assert_called_once_with(mock_sub_analysis_result, output_dir, "nested_comp_id")
+            mock_generator.expand_component.assert_called_once_with(nested_component)
 
     @patch("main.DiagramGenerator")
     def test_partial_update_file_not_found(self, mock_generator_class):
@@ -259,9 +243,9 @@ class TestPartialUpdate(unittest.TestCase):
                 depth_level=1,
             )
 
-            # pre_analysis should be called, but process_component should not
-            mock_generator.pre_analysis.assert_called_once()
-            mock_generator.process_component.assert_not_called()
+            # Generator should never be created when analysis.json is missing
+            mock_generator_class.assert_not_called()
+            mock_generator.expand_component.assert_not_called()
 
 
 class TestProcessRemoteRepository(unittest.TestCase):
