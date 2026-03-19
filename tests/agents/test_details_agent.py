@@ -1,7 +1,6 @@
-from typing import cast
 import unittest
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch, PropertyMock
+from unittest.mock import MagicMock, patch
 
 from agents.details_agent import DetailsAgent
 from agents.agent_responses import (
@@ -14,10 +13,10 @@ from agents.agent_responses import (
     SourceCodeReference,
 )
 
-from static_analyzer.graph import ClusterResult
-from static_analyzer.node import Node
-from static_analyzer.constants import NodeType
 from static_analyzer.analysis_result import StaticAnalysisResults
+from static_analyzer.constants import NodeType
+from static_analyzer.graph import CallGraph, ClusterResult
+from static_analyzer.node import Node
 
 
 class TestDetailsAgent(unittest.TestCase):
@@ -325,8 +324,8 @@ class TestDetailsAgent(unittest.TestCase):
         self.assertEqual(mock_validation_invoke.call_count, 2)
         mock_fix_ref.assert_called_once()
 
-    def test_classify_files(self):
-        # Test populate_file_methods assigns files from cluster results via CFG nodes
+    def test_populate_file_methods(self):
+        # Test deterministic file population from cluster results
         mock_llm = MagicMock()
         mock_parsing_llm = MagicMock()
         agent = DetailsAgent(
@@ -339,25 +338,13 @@ class TestDetailsAgent(unittest.TestCase):
             run_id="test-run-id",
         )
 
-        cluster_file_path = str(self.repo_dir / "cluster_file.py")
-        node = Node(
-            fully_qualified_name="node1",
-            node_type=NodeType.METHOD,
-            file_path=cluster_file_path,
-            line_start=1,
-            line_end=10,
-        )
-
-        mock_cfg = MagicMock()
-        mock_cfg.nodes = {"node1": node}
-        self.mock_static_analysis.get_cfg.return_value = mock_cfg
-
         sub_component = Component(
             name="SubComponent",
             description="Sub component",
             key_entities=[],
             source_cluster_ids=[1],
         )
+        sub_component.component_id = "1"
 
         analysis = AnalysisInsights(
             description="Test analysis",
@@ -365,18 +352,26 @@ class TestDetailsAgent(unittest.TestCase):
             components_relations=[],
         )
 
-        mock_cluster_result = ClusterResult(
-            clusters={1: {"node1"}},
-            file_to_clusters={cluster_file_path: {1}},
-            cluster_to_files={1: {cluster_file_path}},
+        cluster_file = self.repo_dir / "cluster_file.py"
+        test_file = self.repo_dir / "test_file.py"
+        call_graph = CallGraph(language="python")
+        call_graph.add_node(Node("pkg.cluster_fn", NodeType.FUNCTION, str(cluster_file), 1, 5))
+        call_graph.add_node(Node("pkg.TestClass", NodeType.CLASS, str(test_file), 1, 10))
+        self.mock_static_analysis.get_cfg.return_value = call_graph
+
+        cluster_result = ClusterResult(
+            clusters={1: {"pkg.cluster_fn", "pkg.TestClass"}},
+            file_to_clusters={str(cluster_file): {1}, str(test_file): {1}},
+            cluster_to_files={1: {str(cluster_file), str(test_file)}},
+            strategy="test",
         )
-        cluster_results = {"python": mock_cluster_result}
+        cluster_results = {"python": cluster_result}
 
         agent.populate_file_methods(analysis, cluster_results)
 
-        # Check file was assigned from cluster via CFG nodes
-        file_paths = [fg.file_path for fg in sub_component.file_methods]
-        self.assertIn("cluster_file.py", file_paths)
+        self.assertEqual([group.file_path for group in sub_component.file_methods], ["cluster_file.py", "test_file.py"])
+        self.assertEqual(sub_component.file_methods[0].methods[0].qualified_name, "pkg.cluster_fn")
+        self.assertEqual(sub_component.file_methods[1].methods[0].qualified_name, "pkg.TestClass")
 
 
 if __name__ == "__main__":
