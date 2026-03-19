@@ -11,9 +11,9 @@ from output_generators.html import generate_html_file
 from output_generators.markdown import generate_markdown_file
 from output_generators.mdx import generate_mdx_file
 from output_generators.sphinx import generate_rst_file
-from monitoring.paths import generate_log_path
+from diagram_analysis import RunContext
 from repo_utils import checkout_repo, clone_repository
-from utils import create_temp_repo_folder, generate_run_id, sanitize
+from utils import create_temp_repo_folder, sanitize
 
 logger = logging.getLogger(__name__)
 
@@ -136,8 +136,7 @@ def generate_analysis(
     repo_root = Path(os.getenv("REPO_ROOT", "repos"))
     repo_name = clone_repository(repo_url, repo_root)
     repo_dir = repo_root / repo_name
-    run_id = generate_run_id()
-    log_path = generate_log_path(repo_name)
+    run_context = RunContext.resolve(repo_dir=repo_dir, project_name=repo_name)
     checkout_repo(repo_dir, source_branch)
     temp_repo_folder = create_temp_repo_folder()
 
@@ -151,8 +150,8 @@ def generate_analysis(
         repo_name=repo_name,
         output_dir=temp_repo_folder,
         depth_level=int(os.getenv("DIAGRAM_DEPTH_LEVEL", "1")),
-        run_id=run_id,
-        log_path=log_path,
+        run_id=run_context.run_id,
+        log_path=run_context.log_path,
     )
 
     # Use smart analysis: tries incremental first, falls back to full
