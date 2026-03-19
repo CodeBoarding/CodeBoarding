@@ -11,11 +11,7 @@ from tqdm import tqdm
 from agents.llm_config import configure_models, validate_api_key_provided
 from user_config import ensure_config_template, load_user_config
 from core import get_registries, load_plugins
-from diagram_analysis import (
-    DiagramGenerator,
-    finalize_run_context,
-    resolve_run_context,
-)
+from diagram_analysis import DiagramGenerator, RunContext
 from diagram_analysis.analysis_json import build_id_to_name_map, parse_unified_analysis
 from diagram_analysis.incremental.io_utils import load_full_analysis, save_sub_analysis
 from logging_config import setup_logging
@@ -30,7 +26,6 @@ from repo_utils import (
     upload_onboarding_materials,
 )
 from repo_utils.ignore import initialize_codeboardingignore
-from user_config import ensure_config_template, load_user_config
 from utils import (
     create_temp_repo_folder,
     monitoring_enabled,
@@ -263,7 +258,7 @@ def process_remote_repository(
         if upload:
             upload_onboarding_materials(repo_name, temp_folder, "results")
     finally:
-        finalize_run_context(repo_dir=repo_path, run_id=run_id)
+        RunContext(run_id=run_id, log_path=log_path, repo_dir=repo_path).finalize()
         remove_temp_repo_folder(str(temp_folder))
 
 
@@ -491,7 +486,7 @@ Examples:
 
         # Derive project name from the repo directory name
         project_name = local_repo_path.name
-        run_context = resolve_run_context(
+        run_context = RunContext.resolve(
             repo_dir=local_repo_path,
             project_name=project_name,
             reuse_latest_run_id=args.incremental or args.partial_component_id is not None,
@@ -509,7 +504,7 @@ Examples:
             run_id=run_context.run_id,
             log_path=run_context.log_path,
         )
-        finalize_run_context(repo_dir=local_repo_path, run_id=run_context.run_id)
+        run_context.finalize()
         logger.info(f"Documentation generated successfully in {output_dir}")
     else:
         if args.repositories:
@@ -530,7 +525,7 @@ Examples:
                 initialize_codeboardingignore(repo_output_dir)
 
                 repo_cache_root = repo_root / repo_name
-                run_context = resolve_run_context(
+                run_context = RunContext.resolve(
                     repo_dir=repo_cache_root,
                     project_name=repo_name,
                     reuse_latest_run_id=True,
