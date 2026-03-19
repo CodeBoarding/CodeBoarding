@@ -4,7 +4,7 @@ import logging
 import threading
 import time
 from pathlib import Path
-from typing import Generic, TypeVar
+from typing import Any, Callable, Generic, TypeVar
 
 from filelock import FileLock
 from utils import get_cache_dir
@@ -61,6 +61,14 @@ class BaseCache(Generic[K, V]):
             Index(f"idx_{_CACHE_TABLE}_namespace_run_id", "namespace", "run_id"),
         )
         self._sqlite_disabled = False
+
+    def _safe_execute(self, op_name: str, default: Any, func: Callable, *args, **kwargs) -> Any:
+        """Centralized error handling for all cache operations."""
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            logger.warning("Cache %s failed: %s", op_name, e)
+            return default
 
     def _open_sqlite(self) -> Engine | None:
         if self._sqlite_disabled:
@@ -156,111 +164,112 @@ class BaseCache(Generic[K, V]):
             value_json = conn.execute(stmt).scalar_one_or_none()
         return str(value_json) if value_json is not None else None
 
-    def _upsert(self, key_sig: str, value_json: str, run_id: str) -> None:
+    def _upsert_conn(self, conn, key_sig: str, value_json: str, run_id: str) -> None:
+        """Core upsert logic using an existing connection."""
+        ns = self._namespace
+        updated_at = time.time_ns()
+        stmt = insert(self._cache_entries).values(
+            namespace=ns,
+            key_sig=key_sig,
+            run_id=run_id,
+            value_json=value_json,
+            updated_at=updated_at,
+        )
+        stmt = stmt.on_conflict_do_update(
+            index_elements=["namespace", "key_sig"],
+            set_={"run_id": run_id, "value_json": value_json, "updated_at": updated_at},
+        )
+        conn.execute(stmt)
+
+    def _clear_conn(self, conn, keep_run_ids: list[str] | None = None) -> int:
+        """Core clear logic using an existing connection within current namespace."""
+        stmt = delete(self._cache_entries).where(self._cache_entries.c.namespace == self._namespace)
+        if keep_run_ids:
+            stmt = stmt.where(self._cache_entries.c.run_id.not_in(keep_run_ids))
+
+        result = conn.execute(stmt)
+        return int(result.rowcount or 0)
+
+    def load(self, key: K) -> V | None:
+        return self._safe_execute("load", None, self._load_internal, key)
+
+    def _load_internal(self, key: K) -> V | None:
+        key_signature = self.signature(key)
+        value_json = self._lookup(key_signature)
+        if value_json is None:
+            logger.debug("Cache miss: %s key=%s", self.file_path.name, key_signature)
+            return None
+        value = self._value_type.model_validate_json(value_json)
+        logger.debug("Cache load success: %s key=%s", self.file_path.name, key_signature)
+        return value
+
+    def store(self, key: K, value: V, run_id: str) -> None:
+        self._safe_execute("store", None, self._store_internal, key, value, run_id)
+
+    def _store_internal(self, key: K, value: V, run_id: str) -> None:
         with self._db_lock:
             engine = self._open_sqlite_unlocked()
             if engine is None:
                 return
 
-            ns = self._namespace
-            updated_at = time.time_ns()
-            stmt = insert(self._cache_entries).values(
-                namespace=ns,
-                key_sig=key_sig,
-                run_id=run_id,
-                value_json=value_json,
-                updated_at=updated_at,
-            )
-            stmt = stmt.on_conflict_do_update(
-                index_elements=["namespace", "key_sig"],
-                set_={"run_id": run_id, "value_json": value_json, "updated_at": updated_at},
-            )
-            with engine.begin() as conn:
-                conn.execute(stmt)
-
-    def load(self, key: K) -> V | None:
-        try:
-            key_signature = self.signature(key)
-            value_json = self._lookup(key_signature)
-            if value_json is None:
-                logger.info("Cache miss: %s key=%s", self.file_path.name, key_signature)
-                return None
-            value = self._value_type.model_validate_json(value_json)
-            logger.info("Cache load success: %s key=%s", self.file_path.name, key_signature)
-            return value
-        except Exception as e:
-            logger.warning("Cache load failed: %s", e)
-            return None
-
-    def store(self, key: K, value: V, run_id: str) -> None:
-        try:
             key_sig = self.signature(key)
-            if self._CLEAR_BEFORE_STORE:
-                self.clear()
-            self._upsert(key_sig, value.model_dump_json(), run_id=run_id)
+            value_json = value.model_dump_json()
+
+            with engine.begin() as conn:
+                if self._CLEAR_BEFORE_STORE:
+                    self._clear_conn(conn)
+                self._upsert_conn(conn, key_sig, value_json, run_id=run_id)
+
             logger.info("Cache store success: %s key=%s", self.file_path.name, key_sig)
-        except Exception as e:
-            logger.warning("Cache store failed: %s", e)
 
     def clear(self, keep_run_ids: list[str] | None = None) -> int:
-        try:
-            with self._db_lock:
-                engine = self._open_sqlite_unlocked()
-                if engine is None:
-                    return 0
+        return self._safe_execute("clear", 0, self._clear_internal, keep_run_ids)
 
-                stmt = (
-                    delete(self._cache_entries).where(self._cache_entries.c.run_id.not_in(keep_run_ids))
-                    if keep_run_ids
-                    else delete(self._cache_entries)
-                )
+    def _clear_internal(self, keep_run_ids: list[str] | None = None) -> int:
+        with self._db_lock:
+            engine = self._open_sqlite_unlocked()
+            if engine is None:
+                return 0
 
-                with engine.begin() as conn:
-                    result = conn.execute(stmt)
-                return int(result.rowcount or 0)
-        except Exception as e:
-            logger.warning("Cache clear failed: %s", e)
-            return 0
+            with engine.begin() as conn:
+                return self._clear_conn(conn, keep_run_ids=keep_run_ids)
 
     def load_most_recent_run(self, namespace: str | None = None) -> tuple[str, int] | None:
-        try:
-            with self._db_lock:
-                engine = self._open_sqlite_unlocked()
-                if engine is None:
-                    return None
+        return self._safe_execute("load_most_recent_run", None, self._load_most_recent_run_internal, namespace)
 
-                ns = namespace or self._namespace
-                latest = func.max(self._cache_entries.c.updated_at)
-                stmt = (
-                    select(self._cache_entries.c.run_id, latest.label("latest_updated_at"))
-                    .where(
-                        self._cache_entries.c.namespace == ns,
-                        self._cache_entries.c.run_id != "",
-                    )
-                    .group_by(self._cache_entries.c.run_id)
-                    .order_by(latest.desc())
-                    .limit(1)
+    def _load_most_recent_run_internal(self, namespace: str | None = None) -> tuple[str, int] | None:
+        with self._db_lock:
+            engine = self._open_sqlite_unlocked()
+            if engine is None:
+                return None
+
+            ns = namespace or self._namespace
+            latest = func.max(self._cache_entries.c.updated_at)
+            stmt = (
+                select(self._cache_entries.c.run_id, latest.label("latest_updated_at"))
+                .where(
+                    self._cache_entries.c.namespace == ns,
+                    self._cache_entries.c.run_id != "",
                 )
-                with engine.connect() as conn:
-                    row = conn.execute(stmt).first()
-                if row is None or row[0] is None or row[1] is None:
-                    return None
-                return str(row[0]), int(row[1])
-        except Exception as e:
-            logger.warning("Cache latest run_id load failed for namespace=%s: %s", (namespace or self._namespace), e)
-            return None
+                .group_by(self._cache_entries.c.run_id)
+                .order_by(latest.desc())
+                .limit(1)
+            )
+            with engine.connect() as conn:
+                row = conn.execute(stmt).first()
+            if row is None or row[0] is None or row[1] is None:
+                return None
+            return str(row[0]), int(row[1])
 
     def close(self) -> None:
+        self._safe_execute("close", None, self._close_internal)
+
+    def _close_internal(self) -> None:
         cache = self._sqlite_cache
         if cache is None:
             return
-
-        try:
-            cache.dispose()
-        except Exception as e:
-            logger.warning("Cache close failed: %s", e)
-        finally:
-            self._sqlite_cache = None
+        cache.dispose()
+        self._sqlite_cache = None
 
 
 class ModelSettings(BaseModel):
