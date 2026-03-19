@@ -202,17 +202,28 @@ class ClusterMethodsMixin:
         return result, cluster_results
 
     def _collect_all_cfg_nodes(self, cluster_results: dict[str, ClusterResult]) -> dict[str, Node]:
-        """Build a lookup of qualified_name -> Node for all languages present in cluster_results.
+        """Build a lookup of qualified_name -> Node for languages present in cluster_results.
 
-        NOTE: Caching belongs here (not in callers) since cfg.nodes for a given
-        language is immutable within a run.  Currently cheap enough that the
-        dict merge dominates, but a per-language cache could be added if profiling
-        shows this is a bottleneck.
+        Nodes are scoped to files that appear in the cluster results. This ensures
+        that sub-analysis (DetailsAgent) only sees nodes within its component's file
+        scope, matching the subgraph created by _create_strict_component_subgraph().
+        At root level (AbstractionAgent), cluster_to_files covers all files so the
+        full node set is returned.
         """
         all_nodes: dict[str, Node] = {}
-        for lang in cluster_results:
+        for lang, cr in cluster_results.items():
             cfg = self.static_analysis.get_cfg(lang)
-            all_nodes.update(cfg.nodes)
+            # Determine which files are in scope from the cluster results
+            scoped_files: set[str] = set()
+            for file_set in cr.cluster_to_files.values():
+                scoped_files.update(file_set)
+            if scoped_files:
+                for node_id, node in cfg.nodes.items():
+                    if node.file_path in scoped_files:
+                        all_nodes[node_id] = node
+            else:
+                # No file scoping info — fall back to all nodes
+                all_nodes.update(cfg.nodes)
         return all_nodes
 
     def _build_undirected_graphs(self, cluster_results: dict[str, ClusterResult]) -> dict[str, nx.Graph]:
