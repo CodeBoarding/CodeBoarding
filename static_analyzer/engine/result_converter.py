@@ -50,8 +50,8 @@ def convert_to_codeboarding_format(
             fully_qualified_name=qname,
             node_type=node_type,
             file_path=str(sym.file_path),
-            line_start=sym.start_line,
-            line_end=sym.end_line,
+            line_start=sym.start_line + 1,
+            line_end=sym.end_line + 1,
         )
         symbol_nodes[qname] = node
         call_graph.add_node(node)
@@ -106,8 +106,8 @@ def convert_to_codeboarding_format(
                 fully_qualified_name=qname,
                 node_type=_map_symbol_kind(sym.kind),
                 file_path=str(sym.file_path),
-                line_start=sym.start_line,
-                line_end=sym.end_line,
+                line_start=sym.start_line + 1,
+                line_end=sym.end_line + 1,
             )
             references.append(ref_node)
 

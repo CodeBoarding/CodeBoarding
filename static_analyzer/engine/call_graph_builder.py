@@ -94,7 +94,7 @@ class CallGraphBuilder:
                     "qualified_name": qname,
                     "kind": sym.kind,
                     "file": str(sym.file_path),
-                    "line": sym.start_line,
+                    "line": sym.start_line + 1,
                 }
 
         cfg = CallFlowGraph.from_edge_set(edge_set)
