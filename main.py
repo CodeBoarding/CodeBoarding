@@ -426,8 +426,9 @@ Examples:
     if is_local:
         output_dir = args.local.resolve() / ".codeboarding"
     else:
-        # Remote: will be set per-repo inside the loop below
-        output_dir = None
+        # Remote: use a shared .codeboarding dir in cwd so file logging starts immediately
+        output_dir = Path.cwd() / ".codeboarding"
+        output_dir.mkdir(parents=True, exist_ok=True)
 
     # Setup logging
     setup_logging(log_dir=output_dir)

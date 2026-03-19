@@ -108,7 +108,16 @@ def _resolve_log_path(log_dir: Path, log_filename: str | None) -> Path:
     else:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"{timestamp}.log"
-    return logs_dir / filename
+
+    path = logs_dir / filename
+    if path.exists():
+        stem = path.stem
+        suffix = path.suffix
+        counter = 2
+        while path.exists():
+            path = logs_dir / f"{stem}_{counter}{suffix}"
+            counter += 1
+    return path
 
 
 def _fix_console_encoding() -> None:
