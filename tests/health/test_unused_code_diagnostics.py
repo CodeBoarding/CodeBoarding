@@ -3,6 +3,7 @@
 import pytest
 
 from health.checks.unused_code_diagnostics import (
+    DIAGNOSTIC_CODE_MAPPINGS,
     LSPDiagnosticsCollector,
     DeadCodeCategory,
     DiagnosticIssue,
@@ -249,3 +250,285 @@ class TestGetCategoryDescription:
         """Test description for unknown category."""
         description = get_category_description(DeadCodeCategory.UNKNOWN)
         assert "unknown" in description.lower() or "potentially" in description.lower()
+
+
+# ---------------------------------------------------------------------------
+# Line number accuracy across all diagnostic types
+# ---------------------------------------------------------------------------
+
+
+class TestDiagnosticLineNumberAccuracy:
+    """Verify that 0-based LSP line numbers are consistently converted to 1-based
+    across every category of diagnostic."""
+
+    @pytest.mark.parametrize(
+        "code,category,lsp_line,expected_line",
+        [
+            ("reportUnusedImport", DeadCodeCategory.UNUSED_IMPORT, 0, 1),
+            ("reportUnusedImport", DeadCodeCategory.UNUSED_IMPORT, 4, 5),
+            ("reportUnusedVariable", DeadCodeCategory.UNUSED_VARIABLE, 9, 10),
+            ("reportUnusedFunction", DeadCodeCategory.UNUSED_FUNCTION, 99, 100),
+            ("reportUnusedClass", DeadCodeCategory.UNUSED_CLASS, 0, 1),
+            ("reportUnusedParameter", DeadCodeCategory.UNUSED_PARAMETER, 14, 15),
+            ("reportUnreachable", DeadCodeCategory.UNREACHABLE_CODE, 50, 51),
+        ],
+        ids=[
+            "import-line-0",
+            "import-line-4",
+            "variable-line-9",
+            "function-line-99",
+            "class-line-0",
+            "parameter-line-14",
+            "unreachable-line-50",
+        ],
+    )
+    def test_line_conversion_per_category(self, code, category, lsp_line, expected_line):
+        collector = LSPDiagnosticsCollector()
+        collector.add_diagnostic(
+            "/f.py",
+            _make_diagnostic(code, "unused", line=lsp_line, end_line=lsp_line),
+        )
+        issues = collector.process_diagnostics()
+        assert len(issues) == 1
+        assert issues[0].line_start == expected_line
+        assert issues[0].line_end == expected_line
+        assert issues[0].category == category
+
+    def test_multiline_diagnostic_range(self):
+        """A diagnostic spanning lines 10-15 (0-based) should become 11-16 (1-based)."""
+        collector = LSPDiagnosticsCollector()
+        collector.add_diagnostic(
+            "/f.py",
+            _make_diagnostic("reportUnusedFunction", "unused function", line=10, end_line=15),
+        )
+        issues = collector.process_diagnostics()
+        assert issues[0].line_start == 11
+        assert issues[0].line_end == 16
+
+
+# ---------------------------------------------------------------------------
+# Multi-language diagnostic code mappings
+# ---------------------------------------------------------------------------
+
+
+class TestMultiLanguageDiagnosticCodes:
+    """Verify that diagnostic codes from all supported LSP servers are correctly mapped."""
+
+    @pytest.mark.parametrize(
+        "code,expected_category",
+        [
+            # Pyright / Pylance (Python)
+            ("reportUnusedImport", DeadCodeCategory.UNUSED_IMPORT),
+            ("reportUnusedVariable", DeadCodeCategory.UNUSED_VARIABLE),
+            ("reportUnusedFunction", DeadCodeCategory.UNUSED_FUNCTION),
+            ("reportUnusedClass", DeadCodeCategory.UNUSED_CLASS),
+            ("reportUnusedParameter", DeadCodeCategory.UNUSED_PARAMETER),
+            ("reportUnreachable", DeadCodeCategory.UNREACHABLE_CODE),
+            # TypeScript / JavaScript
+            ("6133", DeadCodeCategory.UNUSED_VARIABLE),
+            ("6138", DeadCodeCategory.UNUSED_PARAMETER),
+            ("6196", DeadCodeCategory.UNUSED_IMPORT),
+            ("noUnusedLocals", DeadCodeCategory.UNUSED_VARIABLE),
+            ("noUnusedParameters", DeadCodeCategory.UNUSED_PARAMETER),
+            # gopls (Go)
+            ("unusedparams", DeadCodeCategory.UNUSED_PARAMETER),
+            ("unusedvariable", DeadCodeCategory.UNUSED_VARIABLE),
+            # Intelephense (PHP)
+            ("unusedUseStatement", DeadCodeCategory.UNUSED_IMPORT),
+            ("P1001", DeadCodeCategory.UNUSED_VARIABLE),
+            ("P1002", DeadCodeCategory.UNUSED_IMPORT),
+            # Eclipse JDT (Java)
+            ("org.eclipse.jdt.core.compiler.problem.unusedImport", DeadCodeCategory.UNUSED_IMPORT),
+            ("org.eclipse.jdt.core.compiler.problem.unusedLocal", DeadCodeCategory.UNUSED_VARIABLE),
+            ("org.eclipse.jdt.core.compiler.problem.deadCode", DeadCodeCategory.DEAD_CODE),
+            # ESLint
+            ("no-unused-vars", DeadCodeCategory.UNUSED_VARIABLE),
+            ("unused-imports/no-unused-imports", DeadCodeCategory.UNUSED_IMPORT),
+            ("@typescript-eslint/no-unused-vars", DeadCodeCategory.UNUSED_VARIABLE),
+        ],
+    )
+    def test_code_maps_to_correct_category(self, code, expected_category):
+        collector = LSPDiagnosticsCollector()
+        collector.add_diagnostic(
+            "/f.py",
+            _make_diagnostic(code, "some message", line=5),
+        )
+        issues = collector.process_diagnostics()
+        assert len(issues) == 1
+        assert issues[0].category == expected_category
+
+    def test_all_code_mappings_produce_non_unknown_category(self):
+        """Every entry in DIAGNOSTIC_CODE_MAPPINGS should yield a recognized category."""
+        for code, expected in DIAGNOSTIC_CODE_MAPPINGS.items():
+            assert expected != DeadCodeCategory.UNKNOWN or code in (
+                "shadow",
+                "unusedSymbol",
+                "org.eclipse.jdt.core.compiler.problem.unusedPrivateMember",
+            ), f"Code {code!r} maps to UNKNOWN unexpectedly"
+
+
+# ---------------------------------------------------------------------------
+# Message-based categorization
+# ---------------------------------------------------------------------------
+
+
+class TestMessageBasedCategorization:
+    """Verify fallback categorization via message keywords."""
+
+    @pytest.mark.parametrize(
+        "message,expected_category",
+        [
+            ("'os' is imported but not used", DeadCodeCategory.UNUSED_IMPORT),
+            ("unused import 'json'", DeadCodeCategory.UNUSED_IMPORT),
+            ("Variable 'x' is declared but never used", DeadCodeCategory.UNUSED_VARIABLE),
+            ("'result' is not accessed", DeadCodeCategory.UNUSED_VARIABLE),
+            ("'count' is never read", DeadCodeCategory.UNUSED_VARIABLE),
+            ("Code is unreachable", DeadCodeCategory.UNREACHABLE_CODE),
+            ("dead code detected", DeadCodeCategory.DEAD_CODE),
+            ("Statement is never executed", DeadCodeCategory.UNREACHABLE_CODE),
+            ("'y' is not used", DeadCodeCategory.UNUSED_VARIABLE),
+        ],
+    )
+    def test_message_keyword_categorization(self, message, expected_category):
+        """Use an unrecognized code so the categorizer falls through to message matching."""
+        collector = LSPDiagnosticsCollector()
+        collector.add_diagnostic(
+            "/f.py",
+            _make_diagnostic("", message, line=1, tags=[1]),
+        )
+        issues = collector.process_diagnostics()
+        assert len(issues) == 1
+        assert issues[0].category == expected_category
+
+
+# ---------------------------------------------------------------------------
+# Severity mapping
+# ---------------------------------------------------------------------------
+
+
+class TestSeverityMapping:
+    """Verify LSP severity values map to correct Severity enum."""
+
+    def test_error_maps_to_critical(self):
+        collector = LSPDiagnosticsCollector()
+        collector.add_diagnostic(
+            "/f.py",
+            _make_diagnostic("reportUnusedImport", "unused", line=0, severity=1),
+        )
+        issues = collector.process_diagnostics()
+        assert issues[0].severity == Severity.CRITICAL
+
+    def test_warning_maps_to_warning(self):
+        collector = LSPDiagnosticsCollector()
+        collector.add_diagnostic(
+            "/f.py",
+            _make_diagnostic("reportUnusedImport", "unused", line=0, severity=2),
+        )
+        issues = collector.process_diagnostics()
+        assert issues[0].severity == Severity.WARNING
+
+    def test_info_maps_to_info(self):
+        collector = LSPDiagnosticsCollector()
+        collector.add_diagnostic(
+            "/f.py",
+            _make_diagnostic("reportUnusedImport", "unused", line=0, severity=3),
+        )
+        issues = collector.process_diagnostics()
+        assert issues[0].severity == Severity.INFO
+
+    def test_hint_maps_to_info(self):
+        collector = LSPDiagnosticsCollector()
+        collector.add_diagnostic(
+            "/f.py",
+            _make_diagnostic("reportUnusedImport", "unused", line=0, severity=4),
+        )
+        issues = collector.process_diagnostics()
+        assert issues[0].severity == Severity.INFO
+
+
+# ---------------------------------------------------------------------------
+# Unnecessary tag fallback
+# ---------------------------------------------------------------------------
+
+
+class TestUnnecessaryTagFallback:
+    """When code is unrecognized but tag=1 (Unnecessary), should still categorize."""
+
+    def test_unnecessary_tag_with_import_message(self):
+        collector = LSPDiagnosticsCollector()
+        collector.add_diagnostic(
+            "/f.py",
+            _make_diagnostic("", "'os' imported but unused", line=2, tags=[1]),
+        )
+        issues = collector.process_diagnostics()
+        assert len(issues) == 1
+        assert issues[0].category == DeadCodeCategory.UNUSED_IMPORT
+
+    def test_unnecessary_tag_defaults_to_unused_variable(self):
+        """No matching message keyword, but tag=1 -> default to UNUSED_VARIABLE."""
+        collector = LSPDiagnosticsCollector()
+        collector.add_diagnostic(
+            "/f.py",
+            _make_diagnostic("", "something flagged", line=3, tags=[1]),
+        )
+        issues = collector.process_diagnostics()
+        assert len(issues) == 1
+        assert issues[0].category == DeadCodeCategory.UNUSED_VARIABLE
+
+
+# ---------------------------------------------------------------------------
+# Deduplication edge cases
+# ---------------------------------------------------------------------------
+
+
+class TestDeduplicationEdgeCases:
+    """More deduplication scenarios."""
+
+    def test_same_category_same_line_different_files_not_deduplicated(self):
+        collector = LSPDiagnosticsCollector()
+        collector.add_diagnostic("/a.py", _make_diagnostic("reportUnusedImport", "unused", line=5))
+        collector.add_diagnostic("/b.py", _make_diagnostic("reportUnusedImport", "unused", line=5))
+        issues = collector.process_diagnostics()
+        assert len(issues) == 2
+
+    def test_same_file_different_lines_not_deduplicated(self):
+        collector = LSPDiagnosticsCollector()
+        collector.add_diagnostic("/a.py", _make_diagnostic("reportUnusedImport", "unused os", line=1))
+        collector.add_diagnostic("/a.py", _make_diagnostic("reportUnusedImport", "unused sys", line=2))
+        issues = collector.process_diagnostics()
+        assert len(issues) == 2
+
+    def test_different_categories_same_line_not_deduplicated(self):
+        collector = LSPDiagnosticsCollector()
+        collector.add_diagnostic("/a.py", _make_diagnostic("reportUnusedImport", "unused import", line=5))
+        collector.add_diagnostic("/a.py", _make_diagnostic("reportUnusedVariable", "unused var", line=5))
+        issues = collector.process_diagnostics()
+        assert len(issues) == 2
+
+
+# ---------------------------------------------------------------------------
+# check_unused_code_diagnostics finding groups
+# ---------------------------------------------------------------------------
+
+
+class TestFindingGroupsStructure:
+    """Verify the structure of finding groups in the check summary."""
+
+    def test_finding_groups_have_correct_line_numbers(self):
+        """Entities in finding groups should have correct 1-based line numbers."""
+        collector = LSPDiagnosticsCollector()
+        collector.add_diagnostic("/a.py", _make_diagnostic("reportUnusedImport", "unused os", line=0))
+        collector.add_diagnostic("/a.py", _make_diagnostic("reportUnusedVariable", "unused x", line=9))
+        collector.add_diagnostic("/b.py", _make_diagnostic("reportUnusedFunction", "unused fn", line=49))
+
+        summary = check_unused_code_diagnostics(collector)
+
+        all_entities = []
+        for group in summary.finding_groups:
+            all_entities.extend(group.entities)
+
+        # Collect (file, line_start) pairs
+        entity_locs = {(e.file_path, e.line_start) for e in all_entities}
+        assert ("/a.py", 1) in entity_locs  # line 0 -> 1
+        assert ("/a.py", 10) in entity_locs  # line 9 -> 10
+        assert ("/b.py", 50) in entity_locs  # line 49 -> 50

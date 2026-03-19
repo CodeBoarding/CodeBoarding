@@ -88,9 +88,9 @@ class SymbolTable:
             end = range_info.get("end", {})
             sel_start = sel_range.get("start", start)
 
-            start_line = sel_start.get("line", 0) + 1  # LSP lines are 0-based, convert to 1-based
+            start_line = sel_start.get("line", 0)
             start_char = sel_start.get("character", 0)
-            end_line = end.get("line", 0) + 1  # LSP lines are 0-based, convert to 1-based
+            end_line = end.get("line", 0)
             end_char = end.get("character", 0)
 
             file_key = str(file_path)
