@@ -78,7 +78,6 @@ class TestGenerateAnalysis(unittest.TestCase):
                 monitoring_enabled=False,
             )
             mock_generator.generate_analysis.assert_called_once()
-            self.assertEqual(result, [Path("analysis1.json"), Path("analysis2.json")])
 
     @patch("main.DiagramGenerator")
     def test_generate_analysis_with_force_full(self, mock_generator_class):

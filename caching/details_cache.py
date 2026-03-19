@@ -56,19 +56,3 @@ class ClusterCache(BaseCache[DetailsCacheKey, ClusterAnalysis]):
 def prune_details_caches(repo_dir: Path, only_keep_run_id: str) -> None:
     FinalAnalysisCache(repo_dir).clear(keep_run_ids=[only_keep_run_id])
     ClusterCache(repo_dir).clear(keep_run_ids=[only_keep_run_id])
-
-
-def _load_existing_run_id(repo_dir: Path) -> str | None:
-    final_cache = FinalAnalysisCache(repo_dir)
-    cluster_cache = ClusterCache(repo_dir)
-    final_latest = final_cache.load_most_recent_run()
-    cluster_latest = cluster_cache.load_most_recent_run()
-
-    candidates = [candidate for candidate in (final_latest, cluster_latest) if candidate is not None]
-    if not candidates:
-        logger.info("No existing run_id found in details caches")
-        return None
-
-    run_id, updated_at = max(candidates, key=lambda candidate: candidate[1])
-    logger.info("Reusing most recent run_id=%s (updated_at=%d)", run_id, updated_at)
-    return run_id

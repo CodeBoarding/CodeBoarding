@@ -9,15 +9,14 @@ import requests
 from tqdm import tqdm
 
 from agents.llm_config import configure_models, validate_api_key_provided
-from caching.details_cache import _load_existing_run_id, prune_details_caches
 from user_config import ensure_config_template, load_user_config
 from core import get_registries, load_plugins
-from diagram_analysis import DiagramGenerator
+from diagram_analysis import DiagramGenerator, RunContext
 from diagram_analysis.analysis_json import build_id_to_name_map, parse_unified_analysis
 from diagram_analysis.incremental.io_utils import load_full_analysis, save_sub_analysis
 from logging_config import setup_logging
 from monitoring import monitor_execution
-from monitoring.paths import generate_log_path, get_monitoring_run_dir
+from monitoring.paths import get_monitoring_run_dir
 from output_generators.markdown import generate_markdown_file
 from repo_utils import (
     clone_repository,
@@ -27,10 +26,8 @@ from repo_utils import (
     upload_onboarding_materials,
 )
 from repo_utils.ignore import initialize_codeboardingignore
-from user_config import ensure_config_template, load_user_config
 from utils import (
     create_temp_repo_folder,
-    generate_run_id,
     monitoring_enabled,
     remove_temp_repo_folder,
     sanitize,
@@ -261,7 +258,7 @@ def process_remote_repository(
         if upload:
             upload_onboarding_materials(repo_name, temp_folder, "results")
     finally:
-        prune_details_caches(repo_dir=repo_path, only_keep_run_id=run_id)
+        RunContext(run_id=run_id, log_path=log_path, repo_dir=repo_path).finalize()
         remove_temp_repo_folder(str(temp_folder))
 
 
@@ -482,10 +479,6 @@ Examples:
             ensure_tools(auto_install_npm=True)
 
     should_monitor = args.enable_monitoring or monitoring_enabled()
-    if is_local and (args.incremental or args.partial_component_id):
-        run_id = _load_existing_run_id(local_repo_path) or generate_run_id()
-    else:
-        run_id = generate_run_id()
 
     if is_local:
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -493,7 +486,11 @@ Examples:
 
         # Derive project name from the repo directory name
         project_name = local_repo_path.name
-        log_path = generate_log_path(project_name)
+        run_context = RunContext.resolve(
+            repo_dir=local_repo_path,
+            project_name=project_name,
+            reuse_latest_run_id=args.incremental or args.partial_component_id is not None,
+        )
 
         process_local_repository(
             repo_path=local_repo_path,
@@ -504,10 +501,10 @@ Examples:
             monitoring_enabled=should_monitor,
             incremental=args.incremental,
             force_full=args.full,
-            run_id=run_id,
-            log_path=log_path,
+            run_id=run_context.run_id,
+            log_path=run_context.log_path,
         )
-        prune_details_caches(repo_dir=local_repo_path, only_keep_run_id=run_id)
+        run_context.finalize()
         logger.info(f"Documentation generated successfully in {output_dir}")
     else:
         if args.repositories:
@@ -526,15 +523,21 @@ Examples:
                 repo_output_dir = workspace_root / repo_name / ".codeboarding"
                 repo_output_dir.mkdir(parents=True, exist_ok=True)
                 initialize_codeboardingignore(repo_output_dir)
-                log_path = generate_log_path(repo_name)
 
                 repo_cache_root = repo_root / repo_name
-                run_id = _load_existing_run_id(repo_cache_root) or generate_run_id()
+                run_context = RunContext.resolve(
+                    repo_dir=repo_cache_root,
+                    project_name=repo_name,
+                    reuse_latest_run_id=True,
+                )
 
-                monitoring_dir = get_monitoring_run_dir(log_path, create=should_monitor)
+                monitoring_dir = get_monitoring_run_dir(
+                    run_context.log_path,
+                    create=should_monitor,
+                )
 
                 with monitor_execution(
-                    run_id=run_id,
+                    run_id=run_context.run_id,
                     output_dir=str(monitoring_dir),
                     enabled=should_monitor,
                 ) as mon:
@@ -543,8 +546,8 @@ Examples:
                     try:
                         process_remote_repository(
                             repo_url=repo,
-                            run_id=run_id,
-                            log_path=log_path,
+                            run_id=run_context.run_id,
+                            log_path=run_context.log_path,
                             output_dir=repo_output_dir,
                             depth_level=args.depth_level,
                             upload=args.upload,
