@@ -1,7 +1,7 @@
 {
   "repository_name": "CodeBoarding",
-  "timestamp": "2026-03-18T12:45:08.554357+00:00",
-  "overall_score": 0.9601912598687868,
+  "timestamp": "2026-03-19T08:04:32.581793+00:00",
+  "overall_score": 0.9488272921108742,
   "check_summaries": [
     {
       "check_name": "function_size",
@@ -18,9 +18,9 @@
       "description": "Checks efferent coupling: how many other functions each function calls",
       "check_type": "standard",
       "total_entities_checked": 4176,
-      "findings_count": 29,
-      "warning_count": 29,
-      "score": 0.9930555555555556,
+      "findings_count": 169,
+      "warning_count": 169,
+      "score": 0.9595306513409961,
       "finding_groups": [
         {
           "severity": "warning",
@@ -28,207 +28,1187 @@
           "description": "Functions calling more than 10.0 other functions",
           "entities": [
             {
-              "entity_name": "main.main",
-              "file_path": "main.py",
-              "line_start": 387,
-              "line_end": 521,
-              "metric_value": 24
-            },
-            {
-              "entity_name": "diagram_analysis.incremental.updater.IncrementalUpdater._execute_update_components",
-              "file_path": "diagram_analysis/incremental/updater.py",
-              "line_start": 275,
-              "line_end": 419,
-              "metric_value": 21
-            },
-            {
-              "entity_name": "static_analyzer.incremental_orchestrator.IncrementalAnalysisOrchestrator._perform_incremental_update",
-              "file_path": "static_analyzer/incremental_orchestrator.py",
-              "line_start": 221,
-              "line_end": 391,
-              "metric_value": 21
-            },
-            {
-              "entity_name": "diagram_analysis.diagram_generator.DiagramGenerator.pre_analysis",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 158,
-              "line_end": 266,
-              "metric_value": 18
-            },
-            {
-              "entity_name": "tests.integration.projects.python_edge_cases_project.main.main",
-              "file_path": "tests/integration/projects/python_edge_cases_project/main.py",
-              "line_start": 34,
-              "line_end": 79,
-              "metric_value": 18
-            },
-            {
-              "entity_name": "health.runner._collect_checks_for_language",
-              "file_path": "health/runner.py",
-              "line_start": 70,
-              "line_end": 124,
-              "metric_value": 17
-            },
-            {
-              "entity_name": "diagram_analysis.incremental.scoped_analysis.handle_scoped_component_update",
-              "file_path": "diagram_analysis/incremental/scoped_analysis.py",
-              "line_start": 78,
-              "line_end": 181,
-              "metric_value": 16
-            },
-            {
-              "entity_name": "diagram_analysis.diagram_generator.DiagramGenerator.try_incremental_update",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 421,
-              "line_end": 498,
-              "metric_value": 14
-            },
-            {
-              "entity_name": "static_analyzer.engine.call_graph_builder.CallGraphBuilder.build",
-              "file_path": "static_analyzer/engine/call_graph_builder.py",
-              "line_start": 43,
-              "line_end": 117,
-              "metric_value": 14
-            },
-            {
-              "entity_name": "tests.diagram_analysis.test_incremental_e2e.TestIncrementalFullReanalysis.test_structural_changes_trigger_full_reanalysis",
-              "file_path": "tests/diagram_analysis/test_incremental_e2e.py",
-              "line_start": 388,
-              "line_end": 446,
-              "metric_value": 14
-            },
-            {
-              "entity_name": "static_analyzer.__init__.StaticAnalyzer.analyze",
-              "file_path": "static_analyzer/__init__.py",
-              "line_start": 210,
-              "line_end": 297,
-              "metric_value": 13
-            },
-            {
-              "entity_name": "static_analyzer.engine.edge_builder._resolve_definitions",
-              "file_path": "static_analyzer/engine/edge_builder.py",
-              "line_start": 278,
-              "line_end": 367,
-              "metric_value": 13
-            },
-            {
-              "entity_name": "agents.details_agent.DetailsAgent.step_final_analysis",
-              "file_path": "agents/details_agent.py",
-              "line_start": 99,
-              "line_end": 149,
-              "metric_value": 12
-            },
-            {
-              "entity_name": "tests.diagram_analysis.test_incremental_e2e.TestIncrementalAIAgentsReanalysis.test_ai_agents_changes_trigger_reanalysis",
-              "file_path": "tests/diagram_analysis/test_incremental_e2e.py",
-              "line_start": 318,
-              "line_end": 376,
-              "metric_value": 12
-            },
-            {
-              "entity_name": "tests.diagram_analysis.test_incremental_integration.TestIncrementalUpdaterIntegration.test_incremental_rename_only",
-              "file_path": "tests/diagram_analysis/test_incremental_integration.py",
-              "line_start": 204,
-              "line_end": 257,
-              "metric_value": 12
-            },
-            {
-              "entity_name": "tests.health.test_runner.TestHealthRunner.test_full_report_generation",
-              "file_path": "tests/health/test_runner.py",
-              "line_start": 21,
-              "line_end": 95,
-              "metric_value": 12
-            },
-            {
-              "entity_name": "agents.abstraction_agent.AbstractionAgent.step_final_analysis",
-              "file_path": "agents/abstraction_agent.py",
-              "line_start": 96,
-              "line_end": 132,
-              "metric_value": 11
-            },
-            {
-              "entity_name": "static_analyzer.incremental_orchestrator.IncrementalAnalysisOrchestrator._perform_full_analysis_and_cache",
-              "file_path": "static_analyzer/incremental_orchestrator.py",
-              "line_start": 145,
-              "line_end": 219,
-              "metric_value": 11
+              "entity_name": "tests.integration.generate_integration_fixtures.generate_fixture",
+              "file_path": "tests/integration/generate_integration_fixtures.py",
+              "line_start": 46,
+              "line_end": 115,
+              "metric_value": 26
             },
             {
               "entity_name": "tests.integration.test_static_analysis_consistency.TestStaticAnalysisConsistency.test_static_analysis_matches_fixture",
               "file_path": "tests/integration/test_static_analysis_consistency.py",
-              "line_start": 181,
-              "line_end": 288,
-              "metric_value": 11
+              "line_start": 182,
+              "line_end": 289,
+              "metric_value": 26
             },
             {
-              "entity_name": "agents.tools.toolkit.CodeBoardingToolkit.get_all_tools",
-              "file_path": "agents/tools/toolkit.py",
-              "line_start": 102,
-              "line_end": 118,
-              "metric_value": 10
+              "entity_name": "tests.diagram_analysis.test_incremental_e2e.TestIncrementalAIAgentsReanalysis.test_ai_agents_changes_trigger_reanalysis",
+              "file_path": "tests/diagram_analysis/test_incremental_e2e.py",
+              "line_start": 319,
+              "line_end": 377,
+              "metric_value": 25
             },
             {
-              "entity_name": "diagram_analysis.incremental.impact_analyzer.analyze_impact",
-              "file_path": "diagram_analysis/incremental/impact_analyzer.py",
-              "line_start": 20,
-              "line_end": 49,
-              "metric_value": 10
+              "entity_name": "tests.diagram_analysis.test_incremental_e2e.TestIncrementalFullReanalysis.test_structural_changes_trigger_full_reanalysis",
+              "file_path": "tests/diagram_analysis/test_incremental_e2e.py",
+              "line_start": 389,
+              "line_end": 447,
+              "metric_value": 25
             },
             {
-              "entity_name": "github_action.generate_analysis",
-              "file_path": "github_action.py",
-              "line_start": 117,
-              "line_end": 168,
-              "metric_value": 10
+              "entity_name": "tests.diagram_analysis.incremental.test_scoped_analysis.TestRunScopedComponentImpacts.test_logging_of_component_impact",
+              "file_path": "tests/diagram_analysis/incremental/test_scoped_analysis.py",
+              "line_start": 228,
+              "line_end": 256,
+              "metric_value": 21
             },
             {
-              "entity_name": "static_analyzer.engine.call_graph_builder.CallGraphBuilder._discover_symbols",
-              "file_path": "static_analyzer/engine/call_graph_builder.py",
-              "line_start": 125,
-              "line_end": 188,
-              "metric_value": 10
+              "entity_name": "tests.diagram_analysis.incremental.test_scoped_analysis.TestRunScopedComponentImpacts.test_only_update_or_patch_triggers_handling",
+              "file_path": "tests/diagram_analysis/incremental/test_scoped_analysis.py",
+              "line_start": 294,
+              "line_end": 317,
+              "metric_value": 21
             },
             {
-              "entity_name": "static_analyzer.engine.result_converter.convert_to_codeboarding_format",
-              "file_path": "static_analyzer/engine/result_converter.py",
-              "line_start": 16,
-              "line_end": 120,
-              "metric_value": 10
+              "entity_name": "tests.test_github_action.TestGenerateMarkdown.test_generate_markdown_with_components",
+              "file_path": "tests/test_github_action.py",
+              "line_start": 58,
+              "line_end": 108,
+              "metric_value": 21
             },
             {
-              "entity_name": "static_analyzer.java_config_scanner.JavaConfigScanner.scan",
-              "file_path": "static_analyzer/java_config_scanner.py",
-              "line_start": 38,
-              "line_end": 102,
-              "metric_value": 10
+              "entity_name": "tests.test_github_action.TestGenerateAnalysis.test_generate_analysis_markdown",
+              "file_path": "tests/test_github_action.py",
+              "line_start": 189,
+              "line_end": 237,
+              "metric_value": 21
+            },
+            {
+              "entity_name": "tests.test_github_action.TestGenerateAnalysis.test_generate_analysis_html",
+              "file_path": "tests/test_github_action.py",
+              "line_start": 245,
+              "line_end": 272,
+              "metric_value": 21
+            },
+            {
+              "entity_name": "tests.test_github_action.TestGenerateAnalysis.test_generate_analysis_mdx",
+              "file_path": "tests/test_github_action.py",
+              "line_start": 280,
+              "line_end": 307,
+              "metric_value": 21
+            },
+            {
+              "entity_name": "tests.test_github_action.TestGenerateAnalysis.test_generate_analysis_rst",
+              "file_path": "tests/test_github_action.py",
+              "line_start": 315,
+              "line_end": 342,
+              "metric_value": 21
+            },
+            {
+              "entity_name": "tests.test_github_action.TestGenerateAnalysis.test_generate_analysis_unsupported_extension",
+              "file_path": "tests/test_github_action.py",
+              "line_start": 349,
+              "line_end": 375,
+              "metric_value": 21
+            },
+            {
+              "entity_name": "tests.test_github_action.TestGenerateAnalysis.test_generate_analysis_branch_checkout",
+              "file_path": "tests/test_github_action.py",
+              "line_start": 383,
+              "line_end": 413,
+              "metric_value": 21
+            },
+            {
+              "entity_name": "tests.test_logging_config.TestLoggingConfig.test_console_handler_survives_unencodable_unicode",
+              "file_path": "tests/test_logging_config.py",
+              "line_start": 166,
+              "line_end": 234,
+              "metric_value": 21
+            },
+            {
+              "entity_name": "tests.test_main.TestGenerateMarkdownDocs.test_generate_markdown_docs",
+              "file_path": "tests/test_main.py",
+              "line_start": 84,
+              "line_end": 114,
+              "metric_value": 21
+            },
+            {
+              "entity_name": "tests.test_main.TestPartialUpdate.test_partial_update_success",
+              "file_path": "tests/test_main.py",
+              "line_start": 121,
+              "line_end": 174,
+              "metric_value": 21
+            },
+            {
+              "entity_name": "tests.test_main.TestPartialUpdate.test_partial_update_nested_component_success",
+              "file_path": "tests/test_main.py",
+              "line_start": 179,
+              "line_end": 239,
+              "metric_value": 21
+            },
+            {
+              "entity_name": "tests.test_main.TestPartialUpdate.test_partial_update_file_not_found",
+              "file_path": "tests/test_main.py",
+              "line_start": 242,
+              "line_end": 264,
+              "metric_value": 21
+            },
+            {
+              "entity_name": "tests.test_main.TestProcessRemoteRepository.test_process_remote_repository_with_cache_hit",
+              "file_path": "tests/test_main.py",
+              "line_start": 277,
+              "line_end": 300,
+              "metric_value": 21
+            },
+            {
+              "entity_name": "tests.test_main.TestProcessRemoteRepository.test_process_remote_repository_success",
+              "file_path": "tests/test_main.py",
+              "line_start": 310,
+              "line_end": 343,
+              "metric_value": 21
+            },
+            {
+              "entity_name": "tests.test_main.TestProcessLocalRepository.test_process_local_repository_partial_update",
+              "file_path": "tests/test_main.py",
+              "line_start": 374,
+              "line_end": 395,
+              "metric_value": 21
+            },
+            {
+              "entity_name": "tests.agents.test_abstraction_agent.TestAbstractionAgent.test_step_clusters_grouping_single_language",
+              "file_path": "tests/agents/test_abstraction_agent.py",
+              "line_start": 74,
+              "line_end": 98,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.agents.test_abstraction_agent.TestAbstractionAgent.test_step_clusters_grouping_multiple_languages",
+              "file_path": "tests/agents/test_abstraction_agent.py",
+              "line_start": 101,
+              "line_end": 130,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.agents.test_abstraction_agent.TestAbstractionAgent.test_step_clusters_grouping_no_languages",
+              "file_path": "tests/agents/test_abstraction_agent.py",
+              "line_start": 133,
+              "line_end": 158,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.agents.test_abstraction_agent.TestAbstractionAgent.test_step_final_analysis",
+              "file_path": "tests/agents/test_abstraction_agent.py",
+              "line_start": 161,
+              "line_end": 193,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.agents.test_agent.TestCodeBoardingAgent.test_init_with_openai",
+              "file_path": "tests/agents/test_agent.py",
+              "line_start": 60,
+              "line_end": 80,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.agents.test_agent.TestCodeBoardingAgent.test_init_direct",
+              "file_path": "tests/agents/test_agent.py",
+              "line_start": 83,
+              "line_end": 97,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.agents.test_agent.TestCodeBoardingAgent.test_invoke_success",
+              "file_path": "tests/agents/test_agent.py",
+              "line_start": 100,
+              "line_end": 121,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.agents.test_agent.TestCodeBoardingAgent.test_invoke_with_list_content",
+              "file_path": "tests/agents/test_agent.py",
+              "line_start": 124,
+              "line_end": 144,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.agents.test_agent.TestCodeBoardingAgent.test_invoke_with_retry",
+              "file_path": "tests/agents/test_agent.py",
+              "line_start": 148,
+              "line_end": 176,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.agents.test_agent.TestCodeBoardingAgent.test_invoke_max_retries",
+              "file_path": "tests/agents/test_agent.py",
+              "line_start": 180,
+              "line_end": 201,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.agents.test_agent.TestCodeBoardingAgent.test_invoke_with_callbacks",
+              "file_path": "tests/agents/test_agent.py",
+              "line_start": 204,
+              "line_end": 229,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.agents.test_agent.TestCodeBoardingAgent.test_parse_invoke",
+              "file_path": "tests/agents/test_agent.py",
+              "line_start": 233,
+              "line_end": 260,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.agents.test_agent.TestCodeBoardingAgent.test_get_monitoring_results_no_callback",
+              "file_path": "tests/agents/test_agent.py",
+              "line_start": 263,
+              "line_end": 282,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.agents.test_agent.TestCodeBoardingAgent.test_get_monitoring_results_with_callback",
+              "file_path": "tests/agents/test_agent.py",
+              "line_start": 285,
+              "line_end": 313,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.agents.test_agent.TestCodeBoardingAgent.test_parse_response_with_retry",
+              "file_path": "tests/agents/test_agent.py",
+              "line_start": 318,
+              "line_end": 343,
+              "metric_value": 20
             },
             {
               "entity_name": "tests.agents.test_agent.TestCodeBoardingAgent.test_tools_initialized",
               "file_path": "tests/agents/test_agent.py",
-              "line_start": 345,
-              "line_end": 367,
-              "metric_value": 10
+              "line_start": 346,
+              "line_end": 368,
+              "metric_value": 20
             },
             {
-              "entity_name": "tests.diagram_analysis.test_incremental_integration.TestEndToEndScenarios.test_workflow_rename_refactor",
-              "file_path": "tests/diagram_analysis/test_incremental_integration.py",
-              "line_start": 324,
-              "line_end": 365,
-              "metric_value": 10
+              "entity_name": "tests.agents.test_agent.TestCodeBoardingAgent.test_agent_created_with_tools",
+              "file_path": "tests/agents/test_agent.py",
+              "line_start": 371,
+              "line_end": 389,
+              "metric_value": 20
             },
             {
-              "entity_name": "tests.health.test_runner.TestHealthRunner.test_healthignore_excludes_diagnostics_by_file",
-              "file_path": "tests/health/test_runner.py",
+              "entity_name": "tests.agents.test_details_agent.TestDetailsAgent.test_step_clusters_grouping",
+              "file_path": "tests/agents/test_details_agent.py",
+              "line_start": 126,
+              "line_end": 152,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.agents.test_details_agent.TestDetailsAgent.test_step_final_analysis",
+              "file_path": "tests/agents/test_details_agent.py",
+              "line_start": 155,
+              "line_end": 178,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.agents.test_details_agent.TestDetailsAgent.test_run",
+              "file_path": "tests/agents/test_details_agent.py",
+              "line_start": 262,
+              "line_end": 316,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.agents.test_llm_config.TestEnvironmentVariables.test_agent_model_env_var_respected",
+              "file_path": "tests/agents/test_llm_config.py",
+              "line_start": 233,
+              "line_end": 254,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.agents.test_llm_config.TestEnvironmentVariables.test_agent_model_override_takes_precedence",
+              "file_path": "tests/agents/test_llm_config.py",
+              "line_start": 258,
+              "line_end": 277,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.agents.test_llm_config.TestEnvironmentVariables.test_agent_model_defaults_when_no_env_var",
+              "file_path": "tests/agents/test_llm_config.py",
+              "line_start": 281,
+              "line_end": 298,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.agents.test_llm_config.TestEnvironmentVariables.test_parsing_model_env_var_respected",
+              "file_path": "tests/agents/test_llm_config.py",
               "line_start": 302,
+              "line_end": 320,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.agents.test_llm_config.TestEnvironmentVariables.test_parsing_model_override_takes_precedence",
+              "file_path": "tests/agents/test_llm_config.py",
+              "line_start": 323,
+              "line_end": 341,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.agents.test_llm_config.TestEnvironmentVariables.test_parsing_model_defaults_when_no_env_var",
+              "file_path": "tests/agents/test_llm_config.py",
+              "line_start": 345,
+              "line_end": 362,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.agents.test_llm_config.TestMonitoringIntegration.test_agent_monitoring_callback_gets_model_name",
+              "file_path": "tests/agents/test_llm_config.py",
+              "line_start": 370,
+              "line_end": 420,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.agents.test_meta_agent.TestMetaAgent.test_analyze_project_metadata",
+              "file_path": "tests/agents/test_meta_agent.py",
+              "line_start": 67,
+              "line_end": 79,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.agents.test_meta_agent.TestMetaAgent.test_analyze_project_metadata_application",
+              "file_path": "tests/agents/test_meta_agent.py",
+              "line_start": 82,
+              "line_end": 100,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.agents.test_meta_agent.TestMetaAgent.test_get_meta_context_cache_miss_then_hit",
+              "file_path": "tests/agents/test_meta_agent.py",
+              "line_start": 102,
+              "line_end": 119,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.agents.test_meta_agent.TestMetaAgent.test_get_meta_context_invalidates_when_watch_files_change",
+              "file_path": "tests/agents/test_meta_agent.py",
+              "line_start": 121,
+              "line_end": 138,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.agents.test_meta_agent.TestMetaAgent.test_get_meta_context_refresh_recomputes",
+              "file_path": "tests/agents/test_meta_agent.py",
+              "line_start": 140,
+              "line_end": 158,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.agents.test_meta_agent.TestMetaAgent.test_get_meta_context_corrupt_cache_falls_back_to_recompute",
+              "file_path": "tests/agents/test_meta_agent.py",
+              "line_start": 160,
+              "line_end": 176,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.agents.test_meta_agent.TestMetaAgent.test_get_meta_context_legacy_payload_is_cache_miss",
+              "file_path": "tests/agents/test_meta_agent.py",
+              "line_start": 178,
+              "line_end": 196,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.agents.test_meta_agent.TestMetaAgent.test_get_meta_context_invalidates_when_parsing_model_changes",
+              "file_path": "tests/agents/test_meta_agent.py",
+              "line_start": 211,
+              "line_end": 245,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.agents.test_meta_agent.TestMetaAgent.test_get_meta_context_recomputes_when_gitpython_unavailable",
+              "file_path": "tests/agents/test_meta_agent.py",
+              "line_start": 247,
+              "line_end": 261,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.agents.test_meta_agent.TestMetaAgent.test_discover_watch_files_includes_manifests_and_configs",
+              "file_path": "tests/agents/test_meta_agent.py",
+              "line_start": 263,
+              "line_end": 278,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.agents.test_meta_agent.TestMetaAgent.test_discover_watch_files_excludes_lock_files",
+              "file_path": "tests/agents/test_meta_agent.py",
+              "line_start": 280,
+              "line_end": 297,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.agents.test_meta_agent.TestMetaAgent.test_discover_watch_files_includes_readme",
+              "file_path": "tests/agents/test_meta_agent.py",
+              "line_start": 299,
+              "line_end": 312,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.agents.test_meta_agent.TestMetaAgent.test_discover_watch_files_includes_untracked_watch_files",
+              "file_path": "tests/agents/test_meta_agent.py",
+              "line_start": 314,
+              "line_end": 332,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.agents.test_meta_agent.TestMetaAgent.test_get_meta_context_stores_when_commit_hash_unavailable",
+              "file_path": "tests/agents/test_meta_agent.py",
+              "line_start": 405,
+              "line_end": 420,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.agents.test_monitoring.TestMonitoringCallback.test_on_llm_end_logs_expected_format",
+              "file_path": "tests/agents/test_monitoring.py",
+              "line_start": 97,
+              "line_end": 124,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.core.test_plugin_loader.test_load_plugins_no_plugins",
+              "file_path": "tests/core/test_plugin_loader.py",
+              "line_start": 7,
+              "line_end": 12,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.core.test_plugin_loader.test_load_plugins_calls_init",
+              "file_path": "tests/core/test_plugin_loader.py",
+              "line_start": 15,
+              "line_end": 29,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.core.test_plugin_loader.test_load_plugins_handles_import_failure",
+              "file_path": "tests/core/test_plugin_loader.py",
+              "line_start": 32,
+              "line_end": 44,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.core.test_plugin_loader.test_load_plugins_handles_init_failure",
+              "file_path": "tests/core/test_plugin_loader.py",
+              "line_start": 47,
+              "line_end": 60,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.core.test_plugin_loader.test_load_plugins_multiple_plugins",
+              "file_path": "tests/core/test_plugin_loader.py",
+              "line_start": 63,
+              "line_end": 80,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.diagram_analysis.incremental.test_component_checker.TestIsExpandedComponent.test_returns_true_when_sub_analysis_exists",
+              "file_path": "tests/diagram_analysis/incremental/test_component_checker.py",
+              "line_start": 106,
+              "line_end": 111,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.diagram_analysis.incremental.test_component_checker.TestIsExpandedComponent.test_handles_special_characters_in_name",
+              "file_path": "tests/diagram_analysis/incremental/test_component_checker.py",
+              "line_start": 119,
+              "line_end": 124,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.diagram_analysis.incremental.test_component_checker.TestCanPatchSubAnalysis.test_returns_false_when_load_fails",
+              "file_path": "tests/diagram_analysis/incremental/test_component_checker.py",
+              "line_start": 261,
+              "line_end": 281,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.diagram_analysis.incremental.test_component_checker.TestCanPatchSubAnalysis.test_returns_false_when_deletions_exist",
+              "file_path": "tests/diagram_analysis/incremental/test_component_checker.py",
+              "line_start": 284,
+              "line_end": 326,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.diagram_analysis.incremental.test_component_checker.TestCanPatchSubAnalysis.test_returns_true_when_only_renames",
+              "file_path": "tests/diagram_analysis/incremental/test_component_checker.py",
+              "line_start": 329,
+              "line_end": 370,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.diagram_analysis.incremental.test_validation.TestValidateIncrementalUpdate.test_returns_true_when_all_validators_pass",
+              "file_path": "tests/diagram_analysis/incremental/test_validation.py",
+              "line_start": 75,
+              "line_end": 93,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.diagram_analysis.incremental.test_validation.TestValidateIncrementalUpdate.test_returns_false_when_one_validator_fails",
+              "file_path": "tests/diagram_analysis/incremental/test_validation.py",
+              "line_start": 99,
+              "line_end": 115,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.diagram_analysis.incremental.test_validation.TestValidateIncrementalUpdate.test_returns_false_when_all_validators_fail",
+              "file_path": "tests/diagram_analysis/incremental/test_validation.py",
+              "line_start": 121,
+              "line_end": 141,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.diagram_analysis.incremental.test_validation.TestValidateIncrementalUpdate.test_handles_validator_exception",
+              "file_path": "tests/diagram_analysis/incremental/test_validation.py",
+              "line_start": 147,
+              "line_end": 163,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.diagram_analysis.incremental.test_validation.TestValidateIncrementalUpdate.test_builds_cluster_results_with_static_analysis",
+              "file_path": "tests/diagram_analysis/incremental/test_validation.py",
+              "line_start": 169,
+              "line_end": 184,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.diagram_analysis.incremental.test_validation.TestValidateIncrementalUpdate.test_creates_validation_context_with_cfg",
+              "file_path": "tests/diagram_analysis/incremental/test_validation.py",
+              "line_start": 190,
+              "line_end": 207,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.diagram_analysis.incremental.test_validation.TestValidateIncrementalUpdate.test_returns_false_when_relation_validator_fails",
+              "file_path": "tests/diagram_analysis/incremental/test_validation.py",
+              "line_start": 213,
+              "line_end": 232,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.diagram_analysis.test_diagram_analysis.TestDiagramGenerator.test_pre_analysis",
+              "file_path": "tests/diagram_analysis/test_diagram_analysis.py",
+              "line_start": 344,
+              "line_end": 403,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.diagram_analysis.test_diagram_analysis.TestDiagramGenerator.test_generate_analysis_frontier_submits_child_before_slow_sibling_finishes",
+              "file_path": "tests/diagram_analysis/test_diagram_analysis.py",
+              "line_start": 434,
+              "line_end": 507,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.diagram_analysis.test_diagram_analysis.TestDiagramGenerator.test_generate_analysis_uses_root_expandables_for_can_expand",
+              "file_path": "tests/diagram_analysis/test_diagram_analysis.py",
+              "line_start": 509,
+              "line_end": 569,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.diagram_analysis.test_diagram_analysis.TestDiagramGenerator.test_generate_analysis_depth_one_preserves_root_expandable_flags",
+              "file_path": "tests/diagram_analysis/test_diagram_analysis.py",
+              "line_start": 572,
+              "line_end": 608,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.diagram_analysis.test_duckdb_crud.TestDuckDBCRUD.setUp",
+              "file_path": "tests/diagram_analysis/test_duckdb_crud.py",
+              "line_start": 18,
+              "line_end": 32,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.diagram_analysis.test_incremental_e2e.mock_llm_provider",
+              "file_path": "tests/diagram_analysis/test_incremental_e2e.py",
+              "line_start": 85,
+              "line_end": 125,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.integration.health.test_health_integration.TestHealthCheckIntegration.test_health_report_matches_fixture",
+              "file_path": "tests/integration/health/test_health_integration.py",
+              "line_start": 140,
+              "line_end": 273,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.output_generators.test_output_generators.TestMarkdownGenerator.test_generate_markdown_with_source_references",
+              "file_path": "tests/output_generators/test_output_generators.py",
+              "line_start": 111,
+              "line_end": 130,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.repo_utils.test_cache_invalidation.TestCacheInvalidationWithIgnorePatterns.test_state_hash_ignores_test_directory_untracked",
+              "file_path": "tests/repo_utils/test_cache_invalidation.py",
+              "line_start": 14,
+              "line_end": 40,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.repo_utils.test_cache_invalidation.TestCacheInvalidationWithIgnorePatterns.test_state_hash_changes_with_source_untracked",
+              "file_path": "tests/repo_utils/test_cache_invalidation.py",
+              "line_start": 43,
+              "line_end": 61,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.repo_utils.test_git_diff.TestGetGitDiff.test_get_git_diff_multiple_files",
+              "file_path": "tests/repo_utils/test_git_diff.py",
+              "line_start": 95,
+              "line_end": 123,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.repo_utils.test_git_diff.TestGetGitDiff.test_get_git_diff_no_changes",
+              "file_path": "tests/repo_utils/test_git_diff.py",
+              "line_start": 126,
+              "line_end": 136,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.repo_utils.test_git_diff.TestGetGitDiff.test_get_git_diff_exception_handling",
+              "file_path": "tests/repo_utils/test_git_diff.py",
+              "line_start": 139,
+              "line_end": 147,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.repo_utils.test_git_diff.TestGetGitDiff.test_get_git_diff_with_commit_hash",
+              "file_path": "tests/repo_utils/test_git_diff.py",
+              "line_start": 150,
+              "line_end": 171,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.repo_utils.test_git_diff.TestGetGitDiff.test_get_git_diff_with_tag",
+              "file_path": "tests/repo_utils/test_git_diff.py",
+              "line_start": 174,
+              "line_end": 195,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_call_graph_builder.TestDiscoverSymbols.test_batches_did_open_calls",
+              "file_path": "tests/static_analyzer/test_call_graph_builder.py",
+              "line_start": 127,
+              "line_end": 140,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_graph.TestCallGraph.test_to_cluster_string_with_clusters",
+              "file_path": "tests/static_analyzer/test_graph.py",
+              "line_start": 296,
+              "line_end": 318,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_incremental_orchestrator.TestRunIncrementalAnalysisNoCache.test_no_cache_performs_full_analysis",
+              "file_path": "tests/static_analyzer/test_incremental_orchestrator.py",
+              "line_start": 126,
+              "line_end": 154,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_incremental_orchestrator.TestRunIncrementalAnalysisNoCache.test_no_cache_returns_big_classification",
+              "file_path": "tests/static_analyzer/test_incremental_orchestrator.py",
+              "line_start": 157,
+              "line_end": 178,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_incremental_orchestrator.TestRunIncrementalAnalysisCachedNoChanges.test_cached_no_changes_returns_cached",
+              "file_path": "tests/static_analyzer/test_incremental_orchestrator.py",
+              "line_start": 189,
+              "line_end": 210,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_incremental_orchestrator.TestRunIncrementalAnalysisCachedNoChanges.test_cached_no_changes_returns_small_classification",
+              "file_path": "tests/static_analyzer/test_incremental_orchestrator.py",
+              "line_start": 213,
+              "line_end": 235,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_incremental_orchestrator.TestRunIncrementalAnalysisWithChanges.test_uncommitted_changes_triggers_incremental",
+              "file_path": "tests/static_analyzer/test_incremental_orchestrator.py",
+              "line_start": 246,
+              "line_end": 270,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_incremental_orchestrator.TestRunIncrementalAnalysisWithChanges.test_committed_changes_triggers_incremental",
+              "file_path": "tests/static_analyzer/test_incremental_orchestrator.py",
+              "line_start": 273,
+              "line_end": 297,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_incremental_orchestrator.TestRunIncrementalAnalysisExceptionHandling.test_exception_falls_back_to_full_analysis",
+              "file_path": "tests/static_analyzer/test_incremental_orchestrator.py",
+              "line_start": 308,
+              "line_end": 334,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_incremental_orchestrator.TestRunIncrementalAnalysisExceptionHandling.test_exception_in_fallback_uses_unknown_commit",
+              "file_path": "tests/static_analyzer/test_incremental_orchestrator.py",
+              "line_start": 337,
+              "line_end": 360,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_incremental_orchestrator.TestPerformFullAnalysisAndCache.test_performs_full_analysis_via_engine",
+              "file_path": "tests/static_analyzer/test_incremental_orchestrator.py",
+              "line_start": 373,
+              "line_end": 398,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_incremental_orchestrator.TestPerformFullAnalysisAndCache.test_computes_cluster_results_when_enabled",
+              "file_path": "tests/static_analyzer/test_incremental_orchestrator.py",
+              "line_start": 402,
+              "line_end": 424,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_incremental_orchestrator.TestPerformFullAnalysisAndCache.test_saves_cache_with_clusters",
+              "file_path": "tests/static_analyzer/test_incremental_orchestrator.py",
+              "line_start": 428,
+              "line_end": 450,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_incremental_orchestrator.TestPerformFullAnalysisAndCache.test_saves_cache_without_clusters_when_disabled",
+              "file_path": "tests/static_analyzer/test_incremental_orchestrator.py",
+              "line_start": 454,
+              "line_end": 473,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_incremental_orchestrator.TestPerformFullAnalysisAndCache.test_continues_when_cache_save_fails",
+              "file_path": "tests/static_analyzer/test_incremental_orchestrator.py",
+              "line_start": 477,
+              "line_end": 498,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_incremental_orchestrator.TestPerformIncrementalUpdate.test_reanalyzes_existing_changed_files",
+              "file_path": "tests/static_analyzer/test_incremental_orchestrator.py",
+              "line_start": 554,
+              "line_end": 591,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_incremental_orchestrator.TestPerformIncrementalUpdate.test_merges_results_correctly",
+              "file_path": "tests/static_analyzer/test_incremental_orchestrator.py",
+              "line_start": 595,
+              "line_end": 629,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_incremental_orchestrator.TestPerformIncrementalUpdate.test_analyzes_cluster_changes_when_enabled",
+              "file_path": "tests/static_analyzer/test_incremental_orchestrator.py",
+              "line_start": 635,
+              "line_end": 676,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_incremental_orchestrator.TestPerformIncrementalUpdate.test_returns_dict_format_when_analyze_cluster_changes_true",
+              "file_path": "tests/static_analyzer/test_incremental_orchestrator.py",
+              "line_start": 680,
+              "line_end": 717,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_java_utils.TestGetJavaVersion.test_get_java_version_modern",
+              "file_path": "tests/static_analyzer/test_java_utils.py",
+              "line_start": 25,
+              "line_end": 34,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_java_utils.TestGetJavaVersion.test_get_java_version_legacy",
+              "file_path": "tests/static_analyzer/test_java_utils.py",
+              "line_start": 37,
+              "line_end": 46,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_java_utils.TestGetJavaVersion.test_get_java_version_java_17",
+              "file_path": "tests/static_analyzer/test_java_utils.py",
+              "line_start": 49,
+              "line_end": 58,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_java_utils.TestGetJavaVersion.test_get_java_version_not_found",
+              "file_path": "tests/static_analyzer/test_java_utils.py",
+              "line_start": 61,
+              "line_end": 66,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_java_utils.TestGetJavaVersion.test_get_java_version_timeout",
+              "file_path": "tests/static_analyzer/test_java_utils.py",
+              "line_start": 69,
+              "line_end": 74,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_java_utils.TestGetJavaVersion.test_get_java_version_no_match",
+              "file_path": "tests/static_analyzer/test_java_utils.py",
+              "line_start": 77,
+              "line_end": 86,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_java_utils.TestGetJavaVersion.test_get_java_version_custom_command",
+              "file_path": "tests/static_analyzer/test_java_utils.py",
+              "line_start": 89,
+              "line_end": 100,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_java_utils.TestDetectJavaInstallations.test_detect_from_java_home",
+              "file_path": "tests/static_analyzer/test_java_utils.py",
+              "line_start": 110,
+              "line_end": 119,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_java_utils.TestDetectJavaInstallations.test_detect_on_macos",
+              "file_path": "tests/static_analyzer/test_java_utils.py",
+              "line_start": 126,
+              "line_end": 140,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_java_utils.TestDetectJavaInstallations.test_detect_on_linux",
+              "file_path": "tests/static_analyzer/test_java_utils.py",
+              "line_start": 147,
+              "line_end": 164,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_java_utils.TestDetectJavaInstallations.test_detect_no_installations",
+              "file_path": "tests/static_analyzer/test_java_utils.py",
+              "line_start": 170,
+              "line_end": 178,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_java_utils.TestDetectJavaInstallations.test_detect_validates_java_executable",
+              "file_path": "tests/static_analyzer/test_java_utils.py",
+              "line_start": 181,
+              "line_end": 230,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_java_utils.TestFindJava21OrLater.test_find_java_21_from_installations",
+              "file_path": "tests/static_analyzer/test_java_utils.py",
+              "line_start": 238,
+              "line_end": 248,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_java_utils.TestFindJava21OrLater.test_find_java_23_from_installations",
+              "file_path": "tests/static_analyzer/test_java_utils.py",
+              "line_start": 252,
+              "line_end": 259,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_java_utils.TestFindJava21OrLater.test_find_java_only_old_versions",
+              "file_path": "tests/static_analyzer/test_java_utils.py",
+              "line_start": 263,
+              "line_end": 273,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_java_utils.TestFindJava21OrLater.test_find_java_from_system",
+              "file_path": "tests/static_analyzer/test_java_utils.py",
+              "line_start": 278,
+              "line_end": 288,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_java_utils.TestFindJava21OrLater.test_find_java_none_available",
+              "file_path": "tests/static_analyzer/test_java_utils.py",
+              "line_start": 292,
+              "line_end": 299,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_java_utils.TestGetJdtlsConfigDir.test_get_config_dir_linux",
+              "file_path": "tests/static_analyzer/test_java_utils.py",
+              "line_start": 306,
+              "line_end": 313,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_java_utils.TestGetJdtlsConfigDir.test_get_config_dir_macos",
+              "file_path": "tests/static_analyzer/test_java_utils.py",
+              "line_start": 316,
+              "line_end": 323,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_java_utils.TestGetJdtlsConfigDir.test_get_config_dir_windows",
+              "file_path": "tests/static_analyzer/test_java_utils.py",
+              "line_start": 326,
               "line_end": 333,
-              "metric_value": 10
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_java_utils.TestGetJdtlsConfigDir.test_get_config_dir_unsupported",
+              "file_path": "tests/static_analyzer/test_java_utils.py",
+              "line_start": 336,
+              "line_end": 344,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_java_utils.TestFindLauncherJar.test_find_launcher_jar_success",
+              "file_path": "tests/static_analyzer/test_java_utils.py",
+              "line_start": 352,
+              "line_end": 361,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_java_utils.TestFindLauncherJar.test_find_launcher_jar_no_plugins_dir",
+              "file_path": "tests/static_analyzer/test_java_utils.py",
+              "line_start": 364,
+              "line_end": 371,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_java_utils.TestFindLauncherJar.test_find_launcher_jar_not_found",
+              "file_path": "tests/static_analyzer/test_java_utils.py",
+              "line_start": 375,
+              "line_end": 383,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_java_utils.TestFindLauncherJar.test_find_launcher_jar_multiple_versions",
+              "file_path": "tests/static_analyzer/test_java_utils.py",
+              "line_start": 387,
+              "line_end": 400,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_java_utils.TestCreateJdtlsCommand.test_create_command_success",
+              "file_path": "tests/static_analyzer/test_java_utils.py",
+              "line_start": 411,
+              "line_end": 430,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_java_utils.TestCreateJdtlsCommand.test_create_command_custom_heap_size",
+              "file_path": "tests/static_analyzer/test_java_utils.py",
+              "line_start": 437,
+              "line_end": 451,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_java_utils.TestCreateJdtlsCommand.test_create_command_custom_java_home",
+              "file_path": "tests/static_analyzer/test_java_utils.py",
+              "line_start": 458,
+              "line_end": 474,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_java_utils.TestCreateJdtlsCommand.test_create_command_no_java",
+              "file_path": "tests/static_analyzer/test_java_utils.py",
+              "line_start": 477,
+              "line_end": 487,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_java_utils.TestCreateJdtlsCommand.test_create_command_no_launcher",
+              "file_path": "tests/static_analyzer/test_java_utils.py",
+              "line_start": 491,
+              "line_end": 502,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_java_utils.TestCreateJdtlsCommand.test_create_command_no_config_dir",
+              "file_path": "tests/static_analyzer/test_java_utils.py",
+              "line_start": 508,
+              "line_end": 521,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_java_utils.TestCreateJdtlsCommand.test_create_command_windows",
+              "file_path": "tests/static_analyzer/test_java_utils.py",
+              "line_start": 528,
+              "line_end": 542,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_utils.TestUtils.test_get_config_returns_lsp_servers",
+              "file_path": "tests/static_analyzer/test_utils.py",
+              "line_start": 43,
+              "line_end": 50,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_utils.TestUtils.test_get_config_missing_key_raises",
+              "file_path": "tests/static_analyzer/test_utils.py",
+              "line_start": 52,
+              "line_end": 57,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.test_install.TestResolveMissingNpm.test_non_interactive_falls_back_gracefully",
+              "file_path": "tests/test_install.py",
+              "line_start": 33,
+              "line_end": 37,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.test_install.TestResolveMissingNpm.test_auto_install_failure_degrades_gracefully",
+              "file_path": "tests/test_install.py",
+              "line_start": 40,
+              "line_end": 43,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.test_install.TestResolveNpmAvailability.test_npm_present_does_not_attempt_remediation",
+              "file_path": "tests/test_install.py",
+              "line_start": 49,
+              "line_end": 54,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.test_install.TestResolveNpmAvailability.test_missing_npm_attempts_remediation",
+              "file_path": "tests/test_install.py",
+              "line_start": 58,
+              "line_end": 63,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.test_install.TestBootstrapNpm.test_bootstraps_npm_cli_when_missing",
+              "file_path": "tests/test_install.py",
+              "line_start": 70,
+              "line_end": 94,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.test_install.TestBootstrapNpm.test_uses_existing_bootstrapped_npm_cli",
+              "file_path": "tests/test_install.py",
+              "line_start": 99,
+              "line_end": 111,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.test_install.TestBootstrapNpm.test_returns_false_when_no_node_runtime_is_available",
+              "file_path": "tests/test_install.py",
+              "line_start": 114,
+              "line_end": 120,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.test_main.TestOnboardingMaterialsExist.test_onboarding_materials_exist_false",
+              "file_path": "tests/test_main.py",
+              "line_start": 35,
+              "line_end": 43,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.test_tool_registry.TestToolRegistry.test_resolve_config_falls_back_to_embedded_nodeenv_node",
+              "file_path": "tests/test_tool_registry.py",
+              "line_start": 30,
+              "line_end": 49,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.test_tool_registry.TestToolRegistry.test_install_node_tools_prefers_embedded_npm",
+              "file_path": "tests/test_tool_registry.py",
+              "line_start": 53,
+              "line_end": 71,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.test_tool_registry.TestToolRegistry.test_install_node_tools_uses_bootstrapped_npm_cli",
+              "file_path": "tests/test_tool_registry.py",
+              "line_start": 76,
+              "line_end": 90,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.test_vscode_constants.TestVSCodeConstants.test_get_bin_path_macos",
+              "file_path": "tests/test_vscode_constants.py",
+              "line_start": 30,
+              "line_end": 38,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.test_vscode_constants.TestVSCodeConstants.test_get_bin_path_linux",
+              "file_path": "tests/test_vscode_constants.py",
+              "line_start": 41,
+              "line_end": 49,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.test_vscode_constants.TestVSCodeConstants.test_get_bin_path_unsupported",
+              "file_path": "tests/test_vscode_constants.py",
+              "line_start": 52,
+              "line_end": 60,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.test_vscode_constants.TestVSCodeConstants.test_update_command_paths_typescript",
+              "file_path": "tests/test_vscode_constants.py",
+              "line_start": 99,
+              "line_end": 120,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.test_vscode_constants.TestVSCodeConstants.test_update_command_paths_windows_node_prefix",
+              "file_path": "tests/test_vscode_constants.py",
+              "line_start": 123,
+              "line_end": 141,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "tests.test_vscode_constants.TestVSCodeConstants.test_update_command_paths_non_windows",
+              "file_path": "tests/test_vscode_constants.py",
+              "line_start": 144,
+              "line_end": 165,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "install.bootstrap_npm",
+              "file_path": "install.py",
+              "line_start": 89,
+              "line_end": 138,
+              "metric_value": 14
+            },
+            {
+              "entity_name": "install.print_language_support_summary",
+              "file_path": "install.py",
+              "line_start": 442,
+              "line_end": 509,
+              "metric_value": 14
+            },
+            {
+              "entity_name": "tests.integration.benchmark_static_analysis.clone_codeboarding",
+              "file_path": "tests/integration/benchmark_static_analysis.py",
+              "line_start": 186,
+              "line_end": 208,
+              "metric_value": 14
             },
             {
               "entity_name": "tests.integration.benchmark_static_analysis.main",
               "file_path": "tests/integration/benchmark_static_analysis.py",
-              "line_start": 387,
-              "line_end": 498,
-              "metric_value": 10
+              "line_start": 388,
+              "line_end": 499,
+              "metric_value": 14
             }
           ]
         }
@@ -239,9 +1219,9 @@
       "description": "Checks afferent coupling: how many other functions call each function",
       "check_type": "standard",
       "total_entities_checked": 4176,
-      "findings_count": 63,
-      "warning_count": 63,
-      "score": 0.9849137931034483,
+      "findings_count": 12,
+      "warning_count": 12,
+      "score": 0.9971264367816092,
       "finding_groups": [
         {
           "severity": "warning",
@@ -249,445 +1229,88 @@
           "description": "Functions called by more than 10.0 other functions",
           "entities": [
             {
-              "entity_name": "static_analyzer.graph.CallGraph.add_node",
-              "file_path": "static_analyzer/graph.py",
-              "line_start": 77,
-              "line_end": 79,
-              "metric_value": 67
-            },
-            {
-              "entity_name": "static_analyzer.graph.CallGraph.add_edge",
-              "file_path": "static_analyzer/graph.py",
-              "line_start": 81,
-              "line_end": 93,
-              "metric_value": 43
-            },
-            {
-              "entity_name": "tests.static_analyzer.test_symbol_table._make_adapter",
-              "file_path": "tests/static_analyzer/test_symbol_table.py",
-              "line_start": 11,
-              "line_end": 28,
-              "metric_value": 28
-            },
-            {
-              "entity_name": "static_analyzer.analysis_result.StaticAnalysisResults.get_languages",
-              "file_path": "static_analyzer/analysis_result.py",
-              "line_start": 338,
-              "line_end": 344,
-              "metric_value": 26
-            },
-            {
-              "entity_name": "agents.prompts.prompt_factory.LLMType.from_model_name",
-              "file_path": "agents/prompts/prompt_factory.py",
-              "line_start": 29,
-              "line_end": 45,
-              "metric_value": 25
-            },
-            {
-              "entity_name": "static_analyzer.analysis_result.StaticAnalysisResults.get_cfg",
-              "file_path": "static_analyzer/analysis_result.py",
-              "line_start": 249,
-              "line_end": 258,
-              "metric_value": 25
-            },
-            {
-              "entity_name": "static_analyzer.java_config_scanner.JavaConfigScanner.scan",
-              "file_path": "static_analyzer/java_config_scanner.py",
-              "line_start": 38,
-              "line_end": 102,
-              "metric_value": 24
-            },
-            {
-              "entity_name": "tests.health.test_health_checks._make_node",
-              "file_path": "tests/health/test_health_checks.py",
-              "line_start": 16,
-              "line_end": 23,
-              "metric_value": 22
-            },
-            {
-              "entity_name": "tests.static_analyzer.test_edge_builder._sym",
-              "file_path": "tests/static_analyzer/test_edge_builder.py",
-              "line_start": 37,
-              "line_end": 58,
-              "metric_value": 22
-            },
-            {
-              "entity_name": "tests.agents.test_meta_agent.TestMetaAgent._build_agent",
-              "file_path": "tests/agents/test_meta_agent.py",
-              "line_start": 48,
-              "line_end": 54,
-              "metric_value": 21
-            },
-            {
-              "entity_name": "tests.agents.tools.test_dependency_discovery.TestDependencyDiscovery._relative_results",
-              "file_path": "tests/agents/tools/test_dependency_discovery.py",
-              "line_start": 23,
-              "line_end": 27,
-              "metric_value": 21
-            },
-            {
-              "entity_name": "tests.static_analyzer.test_symbol_table._sym",
-              "file_path": "tests/static_analyzer/test_symbol_table.py",
-              "line_start": 31,
-              "line_end": 53,
-              "metric_value": 20
-            },
-            {
-              "entity_name": "repo_utils.ignore.RepoIgnoreManager.should_ignore",
-              "file_path": "repo_utils/ignore.py",
-              "line_start": 214,
-              "line_end": 242,
-              "metric_value": 19
-            },
-            {
-              "entity_name": "static_analyzer.engine.symbol_table.SymbolTable.build_indices",
-              "file_path": "static_analyzer/engine/symbol_table.py",
-              "line_start": 168,
-              "line_end": 187,
-              "metric_value": 19
-            },
-            {
-              "entity_name": "tests.static_analyzer.test_incremental_orchestrator.create_test_analysis_result",
-              "file_path": "tests/static_analyzer/test_incremental_orchestrator.py",
-              "line_start": 41,
-              "line_end": 52,
-              "metric_value": 19
-            },
-            {
-              "entity_name": "static_analyzer.reference_resolve_mixin.ReferenceResolverMixin.fix_source_code_reference_lines",
-              "file_path": "static_analyzer/reference_resolve_mixin.py",
-              "line_start": 18,
-              "line_end": 38,
-              "metric_value": 18
-            },
-            {
-              "entity_name": "tests.static_analyzer.test_call_graph_builder._make_lsp",
-              "file_path": "tests/static_analyzer/test_call_graph_builder.py",
-              "line_start": 56,
-              "line_end": 61,
-              "metric_value": 18
-            },
-            {
-              "entity_name": "monitoring.callbacks.MonitoringCallback.stats",
-              "file_path": "monitoring/callbacks.py",
-              "line_start": 37,
-              "line_end": 40,
-              "metric_value": 17
-            },
-            {
-              "entity_name": "static_analyzer.analysis_result.StaticAnalysisResults.add_references",
-              "file_path": "static_analyzer/analysis_result.py",
-              "line_start": 230,
-              "line_end": 247,
-              "metric_value": 17
-            },
-            {
-              "entity_name": "static_analyzer.analysis_result.StaticAnalysisResults.add_source_files",
-              "file_path": "static_analyzer/analysis_result.py",
-              "line_start": 346,
-              "line_end": 361,
-              "metric_value": 17
-            },
-            {
-              "entity_name": "static_analyzer.engine.symbol_table.SymbolTable.symbols",
-              "file_path": "static_analyzer/engine/symbol_table.py",
-              "line_start": 41,
-              "line_end": 43,
-              "metric_value": 17
-            },
-            {
-              "entity_name": "tests.static_analyzer.test_hierarchy_builder._make_adapter",
-              "file_path": "tests/static_analyzer/test_hierarchy_builder.py",
+              "entity_name": "static_analyzer.engine.protocols.EdgeBuildAdapter.references_batch_size",
+              "file_path": "static_analyzer/engine/protocols.py",
               "line_start": 39,
-              "line_end": 43,
-              "metric_value": 17
-            },
-            {
-              "entity_name": "tests.static_analyzer.test_hierarchy_builder._setup_symbol_table",
-              "file_path": "tests/static_analyzer/test_hierarchy_builder.py",
-              "line_start": 46,
-              "line_end": 53,
-              "metric_value": 17
-            },
-            {
-              "entity_name": "agents.agent_responses.assign_component_ids",
-              "file_path": "agents/agent_responses.py",
-              "line_start": 224,
-              "line_end": 250,
-              "metric_value": 16
-            },
-            {
-              "entity_name": "tests.agents.test_meta_agent.TestMetaAgent._meta_insights",
-              "file_path": "tests/agents/test_meta_agent.py",
-              "line_start": 33,
-              "line_end": 41,
-              "metric_value": 16
-            },
-            {
-              "entity_name": "utils.sanitize",
-              "file_path": "utils.py",
-              "line_start": 54,
-              "line_end": 56,
-              "metric_value": 16
-            },
-            {
-              "entity_name": "agents.prompts.prompt_factory.get_global_factory",
-              "file_path": "agents/prompts/prompt_factory.py",
-              "line_start": 113,
-              "line_end": 120,
-              "metric_value": 15
-            },
-            {
-              "entity_name": "static_analyzer.analysis_result.StaticAnalysisResults.add_cfg",
-              "file_path": "static_analyzer/analysis_result.py",
-              "line_start": 187,
-              "line_end": 210,
-              "metric_value": 15
-            },
-            {
-              "entity_name": "static_analyzer.graph.Edge.get_source",
-              "file_path": "static_analyzer/graph.py",
-              "line_start": 46,
-              "line_end": 47,
-              "metric_value": 15
-            },
-            {
-              "entity_name": "static_analyzer.graph.Edge.get_destination",
-              "file_path": "static_analyzer/graph.py",
-              "line_start": 49,
-              "line_end": 50,
-              "metric_value": 15
-            },
-            {
-              "entity_name": "tests.static_analyzer.test_call_graph_builder._make_adapter",
-              "file_path": "tests/static_analyzer/test_call_graph_builder.py",
-              "line_start": 32,
-              "line_end": 53,
-              "metric_value": 15
-            },
-            {
-              "entity_name": "tests.static_analyzer.test_hierarchy_builder._sym",
-              "file_path": "tests/static_analyzer/test_hierarchy_builder.py",
-              "line_start": 17,
-              "line_end": 36,
-              "metric_value": 15
-            },
-            {
-              "entity_name": "logging_config.setup_logging",
-              "file_path": "logging_config.py",
-              "line_start": 7,
-              "line_end": 98,
-              "metric_value": 14
-            },
-            {
-              "entity_name": "static_analyzer.engine.lsp_client.LSPClient._send_request",
-              "file_path": "static_analyzer/engine/lsp_client.py",
-              "line_start": 412,
-              "line_end": 443,
-              "metric_value": 14
-            },
-            {
-              "entity_name": "static_analyzer.graph.CallGraph.cluster",
-              "file_path": "static_analyzer/graph.py",
-              "line_start": 109,
-              "line_end": 171,
-              "metric_value": 14
-            },
-            {
-              "entity_name": "diagram_analysis.incremental.io_utils.save_analysis",
-              "file_path": "diagram_analysis/incremental/io_utils.py",
-              "line_start": 254,
-              "line_end": 265,
-              "metric_value": 13
-            },
-            {
-              "entity_name": "health.runner.run_health_checks",
-              "file_path": "health/runner.py",
-              "line_start": 186,
-              "line_end": 235,
-              "metric_value": 13
-            },
-            {
-              "entity_name": "static_analyzer.engine.hierarchy_builder.HierarchyBuilder.build",
-              "file_path": "static_analyzer/engine/hierarchy_builder.py",
-              "line_start": 33,
-              "line_end": 110,
-              "metric_value": 13
-            },
-            {
-              "entity_name": "tests.static_analyzer.test_incremental_orchestrator.create_test_cluster_result",
-              "file_path": "tests/static_analyzer/test_incremental_orchestrator.py",
-              "line_start": 55,
-              "line_end": 80,
-              "metric_value": 13
-            },
-            {
-              "entity_name": "tests.test_logging_config.TestLoggingConfig._clean_logging_handlers",
-              "file_path": "tests/test_logging_config.py",
-              "line_start": 14,
-              "line_end": 20,
-              "metric_value": 13
-            },
-            {
-              "entity_name": "agents.meta_agent.MetaAgent.get_meta_context",
-              "file_path": "agents/meta_agent.py",
-              "line_start": 66,
-              "line_end": 104,
-              "metric_value": 12
-            },
-            {
-              "entity_name": "repo_utils.change_detector.get_current_commit",
-              "file_path": "repo_utils/change_detector.py",
-              "line_start": 276,
-              "line_end": 288,
-              "metric_value": 12
-            },
-            {
-              "entity_name": "duckdb_crud.insert_job",
-              "file_path": "duckdb_crud.py",
-              "line_start": 48,
-              "line_end": 64,
-              "metric_value": 11
-            },
-            {
-              "entity_name": "duckdb_crud.fetch_job",
-              "file_path": "duckdb_crud.py",
-              "line_start": 79,
-              "line_end": 98,
-              "metric_value": 11
-            },
-            {
-              "entity_name": "health.checks.unused_code_diagnostics.LSPDiagnosticsCollector.add_diagnostic",
-              "file_path": "health/checks/unused_code_diagnostics.py",
-              "line_start": 131,
-              "line_end": 132,
-              "metric_value": 11
-            },
-            {
-              "entity_name": "static_analyzer.engine.language_adapter.LanguageAdapter.language",
-              "file_path": "static_analyzer/engine/language_adapter.py",
-              "line_start": 25,
-              "line_end": 26,
-              "metric_value": 11
-            },
-            {
-              "entity_name": "static_analyzer.engine.symbol_table.SymbolTable.find_containing_symbol",
-              "file_path": "static_analyzer/engine/symbol_table.py",
-              "line_start": 189,
-              "line_end": 240,
-              "metric_value": 11
-            },
-            {
-              "entity_name": "tests.static_analyzer.test_edge_builder._make_lsp",
-              "file_path": "tests/static_analyzer/test_edge_builder.py",
-              "line_start": 21,
-              "line_end": 26,
-              "metric_value": 11
-            },
-            {
-              "entity_name": "tests.static_analyzer.test_incremental_orchestrator._make_ignore_manager",
-              "file_path": "tests/static_analyzer/test_incremental_orchestrator.py",
-              "line_start": 83,
-              "line_end": 87,
-              "metric_value": 11
-            },
-            {
-              "entity_name": "agents.planner_agent.should_expand_component",
-              "file_path": "agents/planner_agent.py",
-              "line_start": 28,
-              "line_end": 78,
-              "metric_value": 10
-            },
-            {
-              "entity_name": "agents.tools.get_external_deps.ExternalDepsTool._run",
-              "file_path": "agents/tools/get_external_deps.py",
-              "line_start": 23,
-              "line_end": 46,
-              "metric_value": 10
-            },
-            {
-              "entity_name": "agents.validation.validate_relation_component_names",
-              "file_path": "agents/validation.py",
-              "line_start": 260,
-              "line_end": 301,
-              "metric_value": 10
-            },
-            {
-              "entity_name": "diagram_analysis.incremental.path_patching.patch_sub_analysis",
-              "file_path": "diagram_analysis/incremental/path_patching.py",
-              "line_start": 75,
-              "line_end": 161,
-              "metric_value": 10
-            },
-            {
-              "entity_name": "diagram_analysis.incremental.updater.IncrementalUpdater.can_run_incremental",
-              "file_path": "diagram_analysis/incremental/updater.py",
-              "line_start": 75,
-              "line_end": 90,
-              "metric_value": 10
-            },
-            {
-              "entity_name": "health.checks.function_size.check_function_size",
-              "file_path": "health/checks/function_size.py",
-              "line_start": 27,
-              "line_end": 84,
-              "metric_value": 10
-            },
-            {
-              "entity_name": "health.config.load_health_config",
-              "file_path": "health/config.py",
-              "line_start": 127,
-              "line_end": 171,
-              "metric_value": 10
-            },
-            {
-              "entity_name": "monitoring.writers.StreamingStatsWriter.stop",
-              "file_path": "monitoring/writers.py",
-              "line_start": 69,
-              "line_end": 81,
-              "metric_value": 10
-            },
-            {
-              "entity_name": "repo_utils.change_detector.ChangeSet.is_empty",
-              "file_path": "repo_utils/change_detector.py",
-              "line_start": 93,
-              "line_end": 94,
-              "metric_value": 10
-            },
-            {
-              "entity_name": "static_analyzer.analysis_result.StaticAnalysisResults.add_class_hierarchy",
-              "file_path": "static_analyzer/analysis_result.py",
-              "line_start": 164,
-              "line_end": 185,
-              "metric_value": 10
-            },
-            {
-              "entity_name": "static_analyzer.cluster_relations.build_component_relations",
-              "file_path": "static_analyzer/cluster_relations.py",
-              "line_start": 41,
-              "line_end": 82,
-              "metric_value": 10
-            },
-            {
-              "entity_name": "static_analyzer.engine.source_inspector.SourceInspector.find_call_sites",
-              "file_path": "static_analyzer/engine/source_inspector.py",
-              "line_start": 118,
-              "line_end": 202,
-              "metric_value": 10
-            },
-            {
-              "entity_name": "static_analyzer.incremental_orchestrator.IncrementalAnalysisOrchestrator.run_incremental_analysis",
-              "file_path": "static_analyzer/incremental_orchestrator.py",
-              "line_start": 44,
-              "line_end": 143,
-              "metric_value": 10
-            },
-            {
-              "entity_name": "tests.health.test_unused_code_diagnostics._make_diagnostic",
-              "file_path": "tests/health/test_unused_code_diagnostics.py",
-              "line_start": 15,
               "line_end": 39,
-              "metric_value": 10
+              "metric_value": 81
+            },
+            {
+              "entity_name": "tests.diagram_analysis.test_incremental_e2e.TestIncrementalFileRenames.test_full_workflow_file_renames",
+              "file_path": "tests/diagram_analysis/test_incremental_e2e.py",
+              "line_start": 258,
+              "line_end": 307,
+              "metric_value": 29
+            },
+            {
+              "entity_name": "tests.diagram_analysis.test_incremental_e2e.TestIncrementalAIAgentsReanalysis.test_ai_agents_changes_trigger_reanalysis",
+              "file_path": "tests/diagram_analysis/test_incremental_e2e.py",
+              "line_start": 319,
+              "line_end": 377,
+              "metric_value": 29
+            },
+            {
+              "entity_name": "tests.diagram_analysis.test_incremental_e2e.TestIncrementalFullReanalysis.test_structural_changes_trigger_full_reanalysis",
+              "file_path": "tests/diagram_analysis/test_incremental_e2e.py",
+              "line_start": 389,
+              "line_end": 447,
+              "metric_value": 29
+            },
+            {
+              "entity_name": "tests.agents.tools.test_dependency_discovery.TestDependencyDiscovery.tearDown",
+              "file_path": "tests/agents/tools/test_dependency_discovery.py",
+              "line_start": 21,
+              "line_end": 22,
+              "metric_value": 23
+            },
+            {
+              "entity_name": "tests.repo_utils.test_cache_invalidation.TestIgnorePatternEdgeCases.tearDown",
+              "file_path": "tests/repo_utils/test_cache_invalidation.py",
+              "line_start": 73,
+              "line_end": 74,
+              "metric_value": 23
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_analysis_cache.TestAnalysisCache.tearDown",
+              "file_path": "tests/static_analyzer/test_analysis_cache.py",
+              "line_start": 19,
+              "line_end": 20,
+              "metric_value": 23
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_analysis_cache.TestAnalysisCacheAtomicWrite.tearDown",
+              "file_path": "tests/static_analyzer/test_analysis_cache.py",
+              "line_start": 115,
+              "line_end": 116,
+              "metric_value": 23
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_reference_resolve_real_refs.TestRelativePathAlreadyResolved.tearDown",
+              "file_path": "tests/static_analyzer/test_reference_resolve_real_refs.py",
+              "line_start": 105,
+              "line_end": 106,
+              "metric_value": 23
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_reference_resolve_real_refs.TestResolveFromQualifiedNameOnly.tearDown",
+              "file_path": "tests/static_analyzer/test_reference_resolve_real_refs.py",
+              "line_start": 148,
+              "line_end": 149,
+              "metric_value": 23
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_reference_resolve_real_refs.TestRelativePathCWDBug.tearDown",
+              "file_path": "tests/static_analyzer/test_reference_resolve_real_refs.py",
+              "line_start": 270,
+              "line_end": 271,
+              "metric_value": 23
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_reference_resolve_real_refs.TestMultiComponentAnalysis.tearDown",
+              "file_path": "tests/static_analyzer/test_reference_resolve_real_refs.py",
+              "line_start": 356,
+              "line_end": 357,
+              "metric_value": 23
             }
           ]
         }
@@ -698,9 +1321,9 @@
       "description": "Detects classes with too many methods, too much code, or too many outgoing dependencies",
       "check_type": "standard",
       "total_entities_checked": 286,
-      "findings_count": 35,
-      "warning_count": 35,
-      "score": 0.8776223776223776,
+      "findings_count": 46,
+      "warning_count": 46,
+      "score": 0.8391608391608392,
       "finding_groups": [
         {
           "severity": "warning",
@@ -763,114 +1386,169 @@
               "metric_value": 404.0
             },
             {
-              "entity_name": "tests.health.test_runner.TestHealthRunner",
-              "file_path": "tests/health/test_runner.py",
-              "metric_value": 86.0
-            },
-            {
-              "entity_name": "tests.static_analyzer.test_analysis_result.TestStaticAnalysisResults",
-              "file_path": "tests/static_analyzer/test_analysis_result.py",
-              "metric_value": 63.0
-            },
-            {
-              "entity_name": "static_analyzer.__init__.StaticAnalyzer",
-              "file_path": "static_analyzer/__init__.py",
-              "metric_value": 59.0
-            },
-            {
-              "entity_name": "tests.agents.test_validation.TestCheckEdgeBetweenClusterSets",
-              "file_path": "tests/agents/test_validation.py",
-              "metric_value": 39.0
-            },
-            {
-              "entity_name": "static_analyzer.engine.call_graph_builder.CallGraphBuilder",
-              "file_path": "static_analyzer/engine/call_graph_builder.py",
-              "metric_value": 38.0
-            },
-            {
-              "entity_name": "tests.static_analyzer.test_hierarchy_builder.TestBuildWithTypeHierarchy",
-              "file_path": "tests/static_analyzer/test_hierarchy_builder.py",
-              "metric_value": 38.0
-            },
-            {
-              "entity_name": "tests.agents.test_cluster_methods_mixin.TestFindNearestCluster",
-              "file_path": "tests/agents/test_cluster_methods_mixin.py",
-              "metric_value": 36.0
-            },
-            {
-              "entity_name": "tests.agents.tools.test_cfg_tools.TestCFGTools",
-              "file_path": "tests/agents/tools/test_cfg_tools.py",
-              "metric_value": 35.0
-            },
-            {
-              "entity_name": "agents.details_agent.DetailsAgent",
-              "file_path": "agents/details_agent.py",
-              "metric_value": 34.0
-            },
-            {
-              "entity_name": "tests.test_incremental_analyzer.TestPatchSubAnalysis",
-              "file_path": "tests/test_incremental_analyzer.py",
-              "metric_value": 34.0
-            },
-            {
-              "entity_name": "tests.diagram_analysis.test_duckdb_crud.TestDuckDBCRUD",
-              "file_path": "tests/diagram_analysis/test_duckdb_crud.py",
-              "metric_value": 33.0
-            },
-            {
-              "entity_name": "tests.health.test_unused_code_diagnostics.TestLSPDiagnosticsCollector",
-              "file_path": "tests/health/test_unused_code_diagnostics.py",
-              "metric_value": 33.0
-            },
-            {
-              "entity_name": "tests.monitoring.test_writers.TestStreamingStatsWriter",
-              "file_path": "tests/monitoring/test_writers.py",
-              "metric_value": 33.0
-            },
-            {
-              "entity_name": "agents.abstraction_agent.AbstractionAgent",
-              "file_path": "agents/abstraction_agent.py",
-              "metric_value": 32.0
-            },
-            {
               "entity_name": "tests.agents.test_agent.TestCodeBoardingAgent",
               "file_path": "tests/agents/test_agent.py",
-              "metric_value": 32.0
+              "metric_value": 268.0
             },
             {
-              "entity_name": "tests.static_analyzer.test_edge_builder.TestBuildEdgesViaDefinitions",
-              "file_path": "tests/static_analyzer/test_edge_builder.py",
-              "metric_value": 32.0
+              "entity_name": "tests.diagram_analysis.incremental.test_validation.TestValidateIncrementalUpdate",
+              "file_path": "tests/diagram_analysis/incremental/test_validation.py",
+              "metric_value": 140.0
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_java_utils.TestGetJavaVersion",
+              "file_path": "tests/static_analyzer/test_java_utils.py",
+              "metric_value": 140.0
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_java_utils.TestCreateJdtlsCommand",
+              "file_path": "tests/static_analyzer/test_java_utils.py",
+              "metric_value": 140.0
+            },
+            {
+              "entity_name": "tests.test_github_action.TestGenerateAnalysis",
+              "file_path": "tests/test_github_action.py",
+              "metric_value": 126.0
+            },
+            {
+              "entity_name": "tests.agents.test_llm_config.TestEnvironmentVariables",
+              "file_path": "tests/agents/test_llm_config.py",
+              "metric_value": 120.0
+            },
+            {
+              "entity_name": "tests.test_vscode_constants.TestVSCodeConstants",
+              "file_path": "tests/test_vscode_constants.py",
+              "metric_value": 120.0
+            },
+            {
+              "entity_name": "tests.repo_utils.test_git_diff.TestGetGitDiff",
+              "file_path": "tests/repo_utils/test_git_diff.py",
+              "metric_value": 100.0
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_incremental_orchestrator.TestPerformFullAnalysisAndCache",
+              "file_path": "tests/static_analyzer/test_incremental_orchestrator.py",
+              "metric_value": 100.0
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_java_utils.TestDetectJavaInstallations",
+              "file_path": "tests/static_analyzer/test_java_utils.py",
+              "metric_value": 100.0
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_java_utils.TestFindJava21OrLater",
+              "file_path": "tests/static_analyzer/test_java_utils.py",
+              "metric_value": 100.0
+            },
+            {
+              "entity_name": "tests.agents.test_abstraction_agent.TestAbstractionAgent",
+              "file_path": "tests/agents/test_abstraction_agent.py",
+              "metric_value": 88.0
+            },
+            {
+              "entity_name": "tests.diagram_analysis.test_diagram_analysis.TestDiagramGenerator",
+              "file_path": "tests/diagram_analysis/test_diagram_analysis.py",
+              "metric_value": 88.0
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_incremental_orchestrator.TestPerformIncrementalUpdate",
+              "file_path": "tests/static_analyzer/test_incremental_orchestrator.py",
+              "metric_value": 80.0
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_java_utils.TestGetJdtlsConfigDir",
+              "file_path": "tests/static_analyzer/test_java_utils.py",
+              "metric_value": 80.0
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_java_utils.TestFindLauncherJar",
+              "file_path": "tests/static_analyzer/test_java_utils.py",
+              "metric_value": 80.0
             },
             {
               "entity_name": "tests.agents.test_details_agent.TestDetailsAgent",
               "file_path": "tests/agents/test_details_agent.py",
-              "metric_value": 31.0
+              "metric_value": 68.0
             },
             {
-              "entity_name": "tests.health.test_health_checks.TestEntityTypeFiltering",
-              "file_path": "tests/health/test_health_checks.py",
-              "metric_value": 31.0
+              "entity_name": "tests.test_main.TestPartialUpdate",
+              "file_path": "tests/test_main.py",
+              "metric_value": 63.0
             },
             {
-              "entity_name": "tests.output_generators.test_sphinx_output.TestSphinxOutput",
-              "file_path": "tests/output_generators/test_sphinx_output.py",
-              "metric_value": 31.0
+              "entity_name": "tests.diagram_analysis.incremental.test_component_checker.TestCanPatchSubAnalysis",
+              "file_path": "tests/diagram_analysis/incremental/test_component_checker.py",
+              "metric_value": 60.0
             },
             {
-              "entity_name": "tests.agents.test_monitoring.TestMonitoringCallback",
-              "file_path": "tests/agents/test_monitoring.py",
-              "metric_value": 30.0
+              "entity_name": "tests.test_install.TestBootstrapNpm",
+              "file_path": "tests/test_install.py",
+              "metric_value": 60.0
             },
             {
-              "entity_name": "tests.diagram_analysis.test_incremental_integration.TestIncrementalUpdaterIntegration",
-              "file_path": "tests/diagram_analysis/test_incremental_integration.py",
-              "metric_value": 30.0
+              "entity_name": "tests.test_tool_registry.TestToolRegistry",
+              "file_path": "tests/test_tool_registry.py",
+              "metric_value": 60.0
             },
             {
-              "entity_name": "tests.static_analyzer.test_hierarchy_builder.TestBuildWithSourceInference",
-              "file_path": "tests/static_analyzer/test_hierarchy_builder.py",
-              "metric_value": 30.0
+              "entity_name": "tests.diagram_analysis.incremental.test_scoped_analysis.TestRunScopedComponentImpacts",
+              "file_path": "tests/diagram_analysis/incremental/test_scoped_analysis.py",
+              "metric_value": 45.0
+            },
+            {
+              "entity_name": "tests.test_main.TestProcessRemoteRepository",
+              "file_path": "tests/test_main.py",
+              "metric_value": 42.0
+            },
+            {
+              "entity_name": "tests.diagram_analysis.incremental.test_component_checker.TestIsExpandedComponent",
+              "file_path": "tests/diagram_analysis/incremental/test_component_checker.py",
+              "metric_value": 40.0
+            },
+            {
+              "entity_name": "tests.repo_utils.test_cache_invalidation.TestCacheInvalidationWithIgnorePatterns",
+              "file_path": "tests/repo_utils/test_cache_invalidation.py",
+              "metric_value": 40.0
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_incremental_orchestrator.TestRunIncrementalAnalysisNoCache",
+              "file_path": "tests/static_analyzer/test_incremental_orchestrator.py",
+              "metric_value": 40.0
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_incremental_orchestrator.TestRunIncrementalAnalysisCachedNoChanges",
+              "file_path": "tests/static_analyzer/test_incremental_orchestrator.py",
+              "metric_value": 40.0
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_incremental_orchestrator.TestRunIncrementalAnalysisWithChanges",
+              "file_path": "tests/static_analyzer/test_incremental_orchestrator.py",
+              "metric_value": 40.0
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_incremental_orchestrator.TestRunIncrementalAnalysisExceptionHandling",
+              "file_path": "tests/static_analyzer/test_incremental_orchestrator.py",
+              "metric_value": 40.0
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_utils.TestUtils",
+              "file_path": "tests/static_analyzer/test_utils.py",
+              "metric_value": 40.0
+            },
+            {
+              "entity_name": "tests.test_install.TestResolveMissingNpm",
+              "file_path": "tests/test_install.py",
+              "metric_value": 40.0
+            },
+            {
+              "entity_name": "tests.test_install.TestResolveNpmAvailability",
+              "file_path": "tests/test_install.py",
+              "metric_value": 40.0
+            },
+            {
+              "entity_name": "tests.integration.test_static_analysis_consistency.TestStaticAnalysisConsistency",
+              "file_path": "tests/integration/test_static_analysis_consistency.py",
+              "metric_value": 32.0
             },
             {
               "entity_name": "tests.agents.tools.test_dependency_discovery.TestDependencyDiscovery",
@@ -891,28 +1569,68 @@
       "description": "Detects circular dependencies between packages",
       "check_type": "circular_dependencies",
       "cycles": [
-        "diagram_analysis.incremental -> diagram_analysis -> diagram_analysis.incremental",
-        "health.checks -> health -> health.checks",
-        "static_analyzer -> agents -> agents.tools -> static_analyzer",
-        "static_analyzer -> agents -> static_analyzer",
-        "static_analyzer -> static_analyzer.engine -> static_analyzer",
-        "static_analyzer -> static_analyzer.engine.adapters -> static_analyzer",
-        "static_analyzer -> static_analyzer.engine.adapters -> static_analyzer.engine -> static_analyzer",
-        "agents.tools -> agents -> agents.tools",
-        "caching -> agents -> caching",
-        "tool_registry -> install -> tool_registry"
+        "tests.static_analyzer -> tests -> github_action -> tests.agents.tools -> tests.repo_utils -> tests.diagram_analysis -> tests.static_analyzer",
+        "tests.static_analyzer -> tests -> github_action -> tests.agents.tools -> tests.repo_utils -> tests.static_analyzer",
+        "tests.static_analyzer -> tests -> github_action -> tests.agents.tools -> tests.static_analyzer",
+        "tests.static_analyzer -> tests -> github_action -> tests.repo_utils -> tests.agents.tools -> tests.static_analyzer",
+        "tests.static_analyzer -> tests -> github_action -> tests.repo_utils -> tests.diagram_analysis -> tests.agents.tools -> tests.static_analyzer",
+        "tests.static_analyzer -> tests -> github_action -> tests.repo_utils -> tests.diagram_analysis -> tests.static_analyzer",
+        "tests.static_analyzer -> tests -> github_action -> tests.repo_utils -> tests.static_analyzer",
+        "tests.static_analyzer -> tests -> github_action -> tests.static_analyzer",
+        "tests.static_analyzer -> tests -> main -> agents -> tests.static_analyzer",
+        "tests.static_analyzer -> tests -> main -> tests.agents.tools -> tests.repo_utils -> tests.diagram_analysis -> tests.static_analyzer",
+        "tests.static_analyzer -> tests -> main -> tests.agents.tools -> tests.repo_utils -> tests.static_analyzer",
+        "tests.static_analyzer -> tests -> main -> tests.agents.tools -> tests.static_analyzer",
+        "tests.static_analyzer -> tests -> main -> tests.repo_utils -> tests.agents.tools -> tests.static_analyzer",
+        "tests.static_analyzer -> tests -> main -> tests.repo_utils -> tests.diagram_analysis -> tests.agents.tools -> tests.static_analyzer",
+        "tests.static_analyzer -> tests -> main -> tests.repo_utils -> tests.diagram_analysis -> tests.static_analyzer",
+        "tests.static_analyzer -> tests -> main -> tests.repo_utils -> tests.static_analyzer",
+        "tests.static_analyzer -> tests -> main -> tests.static_analyzer",
+        "tests.static_analyzer -> tests -> tests.diagram_analysis -> tests.agents.tools -> tests.repo_utils -> tests.static_analyzer",
+        "tests.static_analyzer -> tests -> tests.diagram_analysis -> tests.agents.tools -> tests.static_analyzer",
+        "tests.static_analyzer -> tests -> tests.diagram_analysis -> tests.repo_utils -> tests.agents.tools -> tests.static_analyzer",
+        "tests.static_analyzer -> tests -> tests.diagram_analysis -> tests.repo_utils -> tests.static_analyzer",
+        "tests.static_analyzer -> tests -> tests.diagram_analysis -> tests.static_analyzer",
+        "tests.static_analyzer -> tests -> tests.repo_utils -> tests.agents.tools -> tests.static_analyzer",
+        "tests.static_analyzer -> tests -> tests.repo_utils -> tests.diagram_analysis -> tests.agents.tools -> tests.static_analyzer",
+        "tests.static_analyzer -> tests -> tests.repo_utils -> tests.diagram_analysis -> tests.static_analyzer",
+        "tests.static_analyzer -> tests -> tests.repo_utils -> tests.static_analyzer",
+        "tests.static_analyzer -> tests -> tests.static_analyzer",
+        "tests.static_analyzer -> tests.agents.tools -> tests.repo_utils -> tests -> github_action -> tests.static_analyzer",
+        "tests.static_analyzer -> tests.agents.tools -> tests.repo_utils -> tests -> main -> agents -> tests.static_analyzer",
+        "tests.static_analyzer -> tests.agents.tools -> tests.repo_utils -> tests -> main -> tests.static_analyzer",
+        "tests.static_analyzer -> tests.agents.tools -> tests.repo_utils -> tests -> tests.diagram_analysis -> tests.static_analyzer",
+        "tests.static_analyzer -> tests.agents.tools -> tests.repo_utils -> tests -> tests.static_analyzer",
+        "tests.static_analyzer -> tests.agents.tools -> tests.repo_utils -> tests.diagram_analysis -> tests -> github_action -> tests.static_analyzer",
+        "tests.static_analyzer -> tests.agents.tools -> tests.repo_utils -> tests.diagram_analysis -> tests -> main -> agents -> tests.static_analyzer",
+        "tests.static_analyzer -> tests.agents.tools -> tests.repo_utils -> tests.diagram_analysis -> tests -> main -> tests.static_analyzer",
+        "tests.static_analyzer -> tests.agents.tools -> tests.repo_utils -> tests.diagram_analysis -> tests -> tests.static_analyzer",
+        "tests.static_analyzer -> tests.agents.tools -> tests.repo_utils -> tests.diagram_analysis -> tests.static_analyzer",
+        "tests.static_analyzer -> tests.agents.tools -> tests.repo_utils -> tests.static_analyzer",
+        "tests.static_analyzer -> tests.agents.tools -> tests.static_analyzer",
+        "tests.static_analyzer -> tests.diagram_analysis -> tests -> github_action -> tests.agents.tools -> tests.repo_utils -> tests.static_analyzer",
+        "tests.static_analyzer -> tests.diagram_analysis -> tests -> github_action -> tests.agents.tools -> tests.static_analyzer",
+        "tests.static_analyzer -> tests.diagram_analysis -> tests -> github_action -> tests.repo_utils -> tests.agents.tools -> tests.static_analyzer",
+        "tests.static_analyzer -> tests.diagram_analysis -> tests -> github_action -> tests.repo_utils -> tests.static_analyzer",
+        "tests.static_analyzer -> tests.diagram_analysis -> tests -> github_action -> tests.static_analyzer",
+        "tests.static_analyzer -> tests.diagram_analysis -> tests -> main -> agents -> tests.static_analyzer",
+        "tests.static_analyzer -> tests.diagram_analysis -> tests -> main -> tests.agents.tools -> tests.repo_utils -> tests.static_analyzer",
+        "tests.static_analyzer -> tests.diagram_analysis -> tests -> main -> tests.agents.tools -> tests.static_analyzer",
+        "tests.static_analyzer -> tests.diagram_analysis -> tests -> main -> tests.repo_utils -> tests.agents.tools -> tests.static_analyzer",
+        "tests.static_analyzer -> tests.diagram_analysis -> tests -> main -> tests.repo_utils -> tests.static_analyzer",
+        "tests.static_analyzer -> tests.diagram_analysis -> tests -> main -> tests.static_analyzer"
       ],
       "packages_checked": 49,
-      "packages_in_cycles": 12
+      "packages_in_cycles": 8
     },
     {
       "check_name": "package_instability",
       "description": "Computes Martin's instability metric (I = Ce / (Ca + Ce)) per package",
       "check_type": "standard",
-      "total_entities_checked": 44,
+      "total_entities_checked": 31,
       "findings_count": 2,
       "warning_count": 2,
-      "score": 0.9545454545454546,
+      "score": 0.9354838709677419,
       "finding_groups": [
         {
           "severity": "warning",
@@ -920,11 +1638,11 @@
           "description": "Packages with instability >= 0.8 that are depended on by others",
           "entities": [
             {
-              "entity_name": "main",
-              "metric_value": 0.923
+              "entity_name": "install",
+              "metric_value": 0.833
             },
             {
-              "entity_name": "github_action",
+              "entity_name": "main",
               "metric_value": 0.8
             }
           ]
@@ -935,10 +1653,10 @@
       "check_name": "component_cohesion",
       "description": "Measures internal vs external edge ratio per component/cluster",
       "check_type": "standard",
-      "total_entities_checked": 85,
-      "findings_count": 3,
-      "warning_count": 3,
-      "score": 0.9647058823529412,
+      "total_entities_checked": 16,
+      "findings_count": 1,
+      "warning_count": 1,
+      "score": 0.9375,
       "finding_groups": [
         {
           "severity": "warning",
@@ -946,18 +1664,8 @@
           "description": "Components with low cohesion (below 0.1)",
           "entities": [
             {
-              "entity_name": "cluster_32",
-              "file_path": "tests/static_analyzer/test_graph.py",
-              "metric_value": 0.008
-            },
-            {
-              "entity_name": "cluster_20",
-              "file_path": "tests/static_analyzer/test_reference_resolve_mixin.py",
-              "metric_value": 0.02
-            },
-            {
-              "entity_name": "cluster_175",
-              "file_path": "tests/diagram_analysis/test_incremental_e2e.py",
+              "entity_name": "cluster_64",
+              "file_path": "tests/test_logging_config.py",
               "metric_value": 0.091
             }
           ]
@@ -2574,124 +3282,124 @@
   ],
   "file_summaries": [
     {
-      "file_path": "static_analyzer/graph.py",
-      "total_findings": 7,
+      "file_path": "tests/test_main.py",
+      "total_findings": 19,
+      "warning_findings": 10,
+      "composite_risk_score": 100.0
+    },
+    {
+      "file_path": "tests/agents/test_agent.py",
+      "total_findings": 19,
+      "warning_findings": 14,
+      "composite_risk_score": 100.0
+    },
+    {
+      "file_path": "tests/agents/test_meta_agent.py",
+      "total_findings": 15,
+      "warning_findings": 15,
+      "composite_risk_score": 100.0
+    },
+    {
+      "file_path": "tests/static_analyzer/test_incremental_orchestrator.py",
+      "total_findings": 33,
+      "warning_findings": 23,
+      "composite_risk_score": 100.0
+    },
+    {
+      "file_path": "tests/static_analyzer/test_java_utils.py",
+      "total_findings": 43,
+      "warning_findings": 38,
+      "composite_risk_score": 100.0
+    },
+    {
+      "file_path": "tests/test_install.py",
+      "total_findings": 12,
+      "warning_findings": 10,
+      "composite_risk_score": 100.0
+    },
+    {
+      "file_path": "tests/test_github_action.py",
+      "total_findings": 13,
+      "warning_findings": 8,
+      "composite_risk_score": 90.0
+    },
+    {
+      "file_path": "tests/agents/test_llm_config.py",
+      "total_findings": 20,
+      "warning_findings": 8,
+      "composite_risk_score": 90.0
+    },
+    {
+      "file_path": "tests/diagram_analysis/incremental/test_validation.py",
+      "total_findings": 8,
+      "warning_findings": 8,
+      "composite_risk_score": 90.0
+    },
+    {
+      "file_path": "tests/diagram_analysis/incremental/test_component_checker.py",
+      "total_findings": 9,
+      "warning_findings": 7,
+      "composite_risk_score": 85.0
+    },
+    {
+      "file_path": "tests/test_vscode_constants.py",
+      "total_findings": 8,
+      "warning_findings": 7,
+      "composite_risk_score": 85.0
+    },
+    {
+      "file_path": "tests/diagram_analysis/test_incremental_e2e.py",
+      "total_findings": 12,
       "warning_findings": 6,
       "composite_risk_score": 80.0
     },
     {
-      "file_path": "static_analyzer/analysis_result.py",
+      "file_path": "tests/repo_utils/test_git_diff.py",
       "total_findings": 6,
       "warning_findings": 6,
       "composite_risk_score": 80.0
     },
     {
-      "file_path": "tests/static_analyzer/test_hierarchy_builder.py",
-      "total_findings": 17,
+      "file_path": "tests/agents/test_abstraction_agent.py",
+      "total_findings": 7,
       "warning_findings": 5,
       "composite_risk_score": 75.0
     },
     {
-      "file_path": "static_analyzer/incremental_orchestrator.py",
+      "file_path": "tests/core/test_plugin_loader.py",
+      "total_findings": 5,
+      "warning_findings": 5,
+      "composite_risk_score": 75.0
+    },
+    {
+      "file_path": "tests/diagram_analysis/test_diagram_analysis.py",
+      "total_findings": 11,
+      "warning_findings": 5,
+      "composite_risk_score": 75.0
+    },
+    {
+      "file_path": "tests/agents/test_details_agent.py",
+      "total_findings": 9,
+      "warning_findings": 4,
+      "composite_risk_score": 70.0
+    },
+    {
+      "file_path": "tests/test_tool_registry.py",
+      "total_findings": 8,
+      "warning_findings": 4,
+      "composite_risk_score": 70.0
+    },
+    {
+      "file_path": "tests/static_analyzer/test_reference_resolve_real_refs.py",
       "total_findings": 6,
       "warning_findings": 4,
       "composite_risk_score": 70.0
     },
     {
-      "file_path": "diagram_analysis/diagram_generator.py",
+      "file_path": "tests/diagram_analysis/incremental/test_scoped_analysis.py",
       "total_findings": 5,
       "warning_findings": 3,
       "composite_risk_score": 65.0
-    },
-    {
-      "file_path": "tests/diagram_analysis/test_incremental_e2e.py",
-      "total_findings": 9,
-      "warning_findings": 3,
-      "composite_risk_score": 65.0
-    },
-    {
-      "file_path": "tests/diagram_analysis/test_incremental_integration.py",
-      "total_findings": 8,
-      "warning_findings": 3,
-      "composite_risk_score": 65.0
-    },
-    {
-      "file_path": "tests/static_analyzer/test_incremental_orchestrator.py",
-      "total_findings": 13,
-      "warning_findings": 3,
-      "composite_risk_score": 65.0
-    },
-    {
-      "file_path": "tests/agents/test_agent.py",
-      "total_findings": 7,
-      "warning_findings": 2,
-      "composite_risk_score": 60.0
-    },
-    {
-      "file_path": "static_analyzer/engine/language_adapter.py",
-      "total_findings": 6,
-      "warning_findings": 2,
-      "composite_risk_score": 60.0
-    },
-    {
-      "file_path": "tests/health/test_unused_code_diagnostics.py",
-      "total_findings": 5,
-      "warning_findings": 2,
-      "composite_risk_score": 60.0
-    },
-    {
-      "file_path": "tests/static_analyzer/test_reference_resolve_mixin.py",
-      "total_findings": 9,
-      "warning_findings": 2,
-      "composite_risk_score": 60.0
-    },
-    {
-      "file_path": "diagram_analysis/incremental/updater.py",
-      "total_findings": 4,
-      "warning_findings": 3,
-      "composite_risk_score": 55.0
-    },
-    {
-      "file_path": "tests/integration/projects/python_edge_cases_project/main.py",
-      "total_findings": 6,
-      "warning_findings": 1,
-      "composite_risk_score": 55.0
-    },
-    {
-      "file_path": "tests/health/test_runner.py",
-      "total_findings": 4,
-      "warning_findings": 3,
-      "composite_risk_score": 55.0
-    },
-    {
-      "file_path": "tests/static_analyzer/test_edge_builder.py",
-      "total_findings": 4,
-      "warning_findings": 3,
-      "composite_risk_score": 55.0
-    },
-    {
-      "file_path": "monitoring/callbacks.py",
-      "total_findings": 5,
-      "warning_findings": 1,
-      "composite_risk_score": 55.0
-    },
-    {
-      "file_path": "static_analyzer/analysis_cache.py",
-      "total_findings": 5,
-      "warning_findings": 1,
-      "composite_risk_score": 55.0
-    },
-    {
-      "file_path": "tests/agents/test_details_agent.py",
-      "total_findings": 6,
-      "warning_findings": 1,
-      "composite_risk_score": 55.0
-    },
-    {
-      "file_path": "tests/static_analyzer/test_call_graph_builder.py",
-      "total_findings": 4,
-      "warning_findings": 2,
-      "composite_risk_score": 50.0
     }
   ]
 }
