@@ -13,7 +13,8 @@ from user_config import ensure_config_template, load_user_config
 from core import get_registries, load_plugins
 from diagram_analysis import DiagramGenerator, RunContext
 from diagram_analysis.analysis_json import build_id_to_name_map, parse_unified_analysis
-from diagram_analysis.io_utils import load_full_analysis, save_sub_analysis
+from diagram_analysis.io_utils import load_full_analysis
+from agents.agent_responses import AnalysisInsights, Component
 from logging_config import setup_logging
 from monitoring import monitor_execution
 from monitoring.paths import get_monitoring_run_dir
@@ -130,17 +131,6 @@ def partial_update(
     """
     Update a specific component in an existing analysis.
     """
-    generator = DiagramGenerator(
-        repo_location=repo_path,
-        temp_folder=output_dir,
-        repo_name=project_name,
-        output_dir=output_dir,
-        depth_level=depth_level,
-        run_id=run_id,
-        log_path=log_path,
-    )
-    generator.pre_analysis()
-
     # Load the full unified analysis (root + all sub-analyses)
     full_analysis = load_full_analysis(output_dir)
     if full_analysis is None:
@@ -150,33 +140,39 @@ def partial_update(
     root_analysis, sub_analyses = full_analysis
 
     # Search root components first, then all nested sub-analysis components
-    component_to_analyze = None
-    for component in root_analysis.components:
-        if component.component_id == component_id:
-            logger.info(f"Updating analysis for component: {component.name}")
-            component_to_analyze = component
-            break
-    if component_to_analyze is None:
-        for sub_analysis in sub_analyses.values():
-            for component in sub_analysis.components:
-                if component.component_id == component_id:
-                    logger.info(f"Updating analysis for component: {component.name}")
-                    component_to_analyze = component
-                    break
-            if component_to_analyze is not None:
-                break
-
+    component_to_analyze = _find_component(component_id, root_analysis, sub_analyses)
     if component_to_analyze is None:
         logger.error(f"Component with ID '{component_id}' not found in analysis")
         return
 
-    comp_id, sub_analysis, new_components = generator.process_component(component_to_analyze)
+    logger.info(f"Updating analysis for component: {component_to_analyze.name}")
 
-    if sub_analysis:
-        save_sub_analysis(sub_analysis, output_dir, component_id)
-        logger.info(f"Updated component '{component_id}' in analysis.json")
-    else:
+    generator = DiagramGenerator(
+        repo_location=repo_path,
+        temp_folder=output_dir,
+        repo_name=project_name,
+        output_dir=output_dir,
+        depth_level=depth_level,
+    )
+    result = generator.expand_component(component_to_analyze)
+    if result is None:
         logger.error(f"Failed to generate sub-analysis for component '{component_id}'")
+
+
+def _find_component(
+    component_id: str,
+    root: AnalysisInsights,
+    sub_analyses: dict[str, AnalysisInsights],
+) -> Component | None:
+    """Find a component by ID across root and all sub-analyses."""
+    for c in root.components:
+        if c.component_id == component_id:
+            return c
+    for sub in sub_analyses.values():
+        for c in sub.components:
+            if c.component_id == component_id:
+                return c
+    return None
 
 
 def generate_docs_remote(

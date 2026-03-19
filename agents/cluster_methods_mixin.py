@@ -272,23 +272,29 @@ class ClusterMethodsMixin:
 
         return result, cluster_results, subgraph_cfgs
 
-    def _collect_all_cfg_nodes(
-        self,
-        cluster_results: dict[str, ClusterResult],
-        cfg_graphs: dict[str, CallGraph] | None = None,
-    ) -> dict[str, Node]:
-        """Build a lookup of qualified_name -> Node for all languages present in cluster_results.
+    def _collect_all_cfg_nodes(self, cluster_results: dict[str, ClusterResult]) -> dict[str, Node]:
+        """Build a lookup of qualified_name -> Node for languages present in cluster_results.
 
-        Args:
-            cluster_results: Language -> ClusterResult mapping (used to determine languages).
-            cfg_graphs: Optional scoped CallGraphs to use instead of the global CFG.
-                        When provided (e.g. subgraph from DetailsAgent), only nodes
-                        from these graphs are included, preventing scope leakage.
+        Nodes are scoped to files that appear in the cluster results. This ensures
+        that sub-analysis (DetailsAgent) only sees nodes within its component's file
+        scope, matching the subgraph created by _create_strict_component_subgraph().
+        At root level (AbstractionAgent), cluster_to_files covers all files so the
+        full node set is returned.
         """
         all_nodes: dict[str, Node] = {}
-        for lang in cluster_results:
-            cfg = cfg_graphs[lang] if cfg_graphs and lang in cfg_graphs else self.static_analysis.get_cfg(lang)
-            all_nodes.update(cfg.nodes)
+        for lang, cr in cluster_results.items():
+            cfg = self.static_analysis.get_cfg(lang)
+            # Determine which files are in scope from the cluster results
+            scoped_files: set[str] = set()
+            for file_set in cr.cluster_to_files.values():
+                scoped_files.update(file_set)
+            if scoped_files:
+                for node_id, node in cfg.nodes.items():
+                    if node.file_path in scoped_files:
+                        all_nodes[node_id] = node
+            else:
+                # No file scoping info — fall back to all nodes
+                all_nodes.update(cfg.nodes)
         return all_nodes
 
     def _build_undirected_graphs(
