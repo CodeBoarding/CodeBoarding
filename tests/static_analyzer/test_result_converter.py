@@ -117,7 +117,7 @@ class TestReferenceLineNumbers:
     def test_function_line_numbers(self):
         adapter = _make_adapter()
         st = SymbolTable(adapter)
-        # LSP reports line 9 (0-based) → expected 1-based line 10
+        # LSP reports line 9 (0-based) -> expected 1-based line 10
         _register(st, [_lsp_sym("my_func", NodeType.FUNCTION, start_line=9, end_line=19)])
         result = convert_to_codeboarding_format(st, _empty_result(), adapter)
 

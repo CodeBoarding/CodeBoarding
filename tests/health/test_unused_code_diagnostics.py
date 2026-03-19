@@ -465,7 +465,7 @@ class TestUnnecessaryTagFallback:
         assert issues[0].category == DeadCodeCategory.UNUSED_IMPORT
 
     def test_unnecessary_tag_defaults_to_unused_variable(self):
-        """No matching message keyword, but tag=1 → default to UNUSED_VARIABLE."""
+        """No matching message keyword, but tag=1 -> default to UNUSED_VARIABLE."""
         collector = LSPDiagnosticsCollector()
         collector.add_diagnostic(
             "/f.py",
@@ -529,6 +529,6 @@ class TestFindingGroupsStructure:
 
         # Collect (file, line_start) pairs
         entity_locs = {(e.file_path, e.line_start) for e in all_entities}
-        assert ("/a.py", 1) in entity_locs  # line 0 → 1
-        assert ("/a.py", 10) in entity_locs  # line 9 → 10
-        assert ("/b.py", 50) in entity_locs  # line 49 → 50
+        assert ("/a.py", 1) in entity_locs  # line 0 -> 1
+        assert ("/a.py", 10) in entity_locs  # line 9 -> 10
+        assert ("/b.py", 50) in entity_locs  # line 49 -> 50
