@@ -12,8 +12,11 @@ from agents.agent_responses import (
     FileMethodGroup,
     MetaAnalysisInsights,
     SourceCodeReference,
-    ValidationInsights,
 )
+
+from static_analyzer.graph import ClusterResult
+from static_analyzer.node import Node
+from static_analyzer.constants import NodeType
 from static_analyzer.analysis_result import StaticAnalysisResults
 
 
@@ -335,10 +338,6 @@ class TestDetailsAgent(unittest.TestCase):
             parsing_llm=mock_parsing_llm,
             run_id="test-run-id",
         )
-
-        from static_analyzer.graph import ClusterResult
-        from static_analyzer.node import Node
-        from static_analyzer.constants import NodeType
 
         cluster_file_path = str(self.repo_dir / "cluster_file.py")
         node = Node(
