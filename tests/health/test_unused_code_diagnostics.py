@@ -55,6 +55,40 @@ class TestDeadCodeCategory:
         assert DeadCodeCategory.UNKNOWN.value == "unknown"
 
 
+class TestLSPDiagnosticCodeExtraction:
+    """Tests for LSPDiagnostic.from_lsp_dict handling of code formats."""
+
+    def test_string_code_preserved(self):
+        """Plain string codes (older LSP servers) are preserved as-is."""
+        diag = LSPDiagnostic.from_lsp_dict(
+            {"code": "reportUnusedImport", "message": "unused", "range": {"start": {"line": 0}, "end": {"line": 0}}}
+        )
+        assert diag.code == "reportUnusedImport"
+
+    def test_dict_code_extracts_value(self):
+        """Object-form codes (e.g. pyright >= 1.1.3xx) extract the 'value' key."""
+        diag = LSPDiagnostic.from_lsp_dict(
+            {
+                "code": {"value": "reportUnusedImport", "target": "https://docs.example.com"},
+                "message": "unused",
+                "range": {"start": {"line": 0}, "end": {"line": 0}},
+            }
+        )
+        assert diag.code == "reportUnusedImport"
+
+    def test_int_code_converted_to_string(self):
+        """Integer codes (e.g. TypeScript error numbers) are converted to strings."""
+        diag = LSPDiagnostic.from_lsp_dict(
+            {"code": 6133, "message": "unused", "range": {"start": {"line": 0}, "end": {"line": 0}}}
+        )
+        assert diag.code == "6133"
+
+    def test_missing_code_defaults_to_empty(self):
+        """Missing code field defaults to empty string."""
+        diag = LSPDiagnostic.from_lsp_dict({"message": "unused", "range": {"start": {"line": 0}, "end": {"line": 0}}})
+        assert diag.code == ""
+
+
 class TestLSPDiagnosticsCollector:
     """Tests for LSPDiagnosticsCollector class."""
 

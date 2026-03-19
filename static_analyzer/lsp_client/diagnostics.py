@@ -33,13 +33,25 @@ class LSPDiagnostic:
     tags: list[int] = field(default_factory=list)
     range: DiagnosticRange = field(default_factory=DiagnosticRange)
 
+    @staticmethod
+    def _extract_code(raw_code: object) -> str:
+        """Extract the diagnostic code string.
+
+        LSP servers may send ``code`` as a plain string/int or as an object
+        ``{"value": "<code>", "target": "<url>"}``.  Newer versions of pyright
+        (>= 1.1.3xx) use the object form.
+        """
+        if isinstance(raw_code, dict):
+            return str(raw_code.get("value", ""))
+        return str(raw_code)
+
     @classmethod
     def from_lsp_dict(cls, data: dict) -> "LSPDiagnostic":
         range_info = data.get("range", {})
         start = range_info.get("start", {})
         end = range_info.get("end", {})
         return cls(
-            code=str(data.get("code", "")),
+            code=cls._extract_code(data.get("code", "")),
             message=data.get("message", ""),
             severity=data.get("severity", 1),
             tags=data.get("tags", []),
