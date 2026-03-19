@@ -187,8 +187,8 @@ LLM_PROVIDERS = {
         agent_model="qwen3:30b",
         parsing_model="qwen2.5:7b",
         llm_type=LLMType.GEMINI_FLASH,
-        agent_temperature=0.1,
-        parsing_temperature=0.1,
+        agent_temperature=LLMDefaults.DEFAULT_AGENT_TEMPERATURE,
+        parsing_temperature=LLMDefaults.DEFAULT_PARSING_TEMPERATURE,
         extra_args={
             "base_url": lambda: os.getenv("OLLAMA_BASE_URL"),
         },
