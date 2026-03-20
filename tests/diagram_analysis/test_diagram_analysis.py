@@ -325,6 +325,8 @@ class TestDiagramGenerator(unittest.TestCase):
             repo_name="test_repo",
             output_dir=self.output_dir,
             depth_level=2,
+            run_id="test-run-id",
+            log_path="test_repo/test-run-log",
         )
 
         self.assertEqual(gen.repo_location, self.repo_location)
@@ -388,6 +390,8 @@ class TestDiagramGenerator(unittest.TestCase):
             repo_name="test_repo",
             output_dir=self.output_dir,
             depth_level=2,
+            run_id="test-run-id",
+            log_path="test_repo/test-run-log",
         )
 
         gen.pre_analysis()
@@ -396,6 +400,7 @@ class TestDiagramGenerator(unittest.TestCase):
         self.assertIsNotNone(gen.meta_agent)
         self.assertIsNotNone(gen.details_agent)
         self.assertIsNotNone(gen.abstraction_agent)
+        mock_meta_instance.analyze_project_metadata.assert_called_once_with(skip_cache=False)
         # Note: planner is now a module function, not an agent instance
 
         # Verify version file was created
@@ -411,6 +416,8 @@ class TestDiagramGenerator(unittest.TestCase):
             repo_name="test_repo",
             output_dir=self.output_dir,
             depth_level=2,
+            run_id="test-run-id",
+            log_path="test_repo/test-run-log",
         )
 
         # Setup agents
@@ -440,6 +447,8 @@ class TestDiagramGenerator(unittest.TestCase):
             repo_name="test_repo",
             output_dir=self.output_dir,
             depth_level=3,
+            run_id="test-run-id",
+            log_path="test_repo/test-run-log",
         )
 
         root_a = Component(
@@ -513,6 +522,8 @@ class TestDiagramGenerator(unittest.TestCase):
             repo_name="test_repo",
             output_dir=self.output_dir,
             depth_level=1,
+            run_id="test-run-id",
+            log_path="test_repo/test-run-log",
         )
 
         # Prevent pre_analysis from running and avoid manifest writes.
@@ -597,6 +608,8 @@ class TestDiagramGenerator(unittest.TestCase):
             repo_name="test_repo",
             output_dir=self.output_dir,
             depth_level=1,
+            run_id="test-run-id",
+            log_path="test_repo/test-run-log",
         )
         gen.details_agent = Mock()
         gen.abstraction_agent = Mock()

@@ -245,6 +245,7 @@ class TestBugFixes:
         updater = IncrementalUpdater(
             repo_dir=Path("/fake/repo"),
             output_dir=Path("/fake/output"),
+            run_id="test-run-id",
         )
         updater.manifest = AnalysisManifest(
             repo_state_hash="test",

@@ -9,13 +9,14 @@ import requests
 from tqdm import tqdm
 
 from agents.llm_config import configure_models, validate_api_key_provided
+from user_config import ensure_config_template, load_user_config
 from core import get_registries, load_plugins
-from diagram_analysis import DiagramGenerator
+from diagram_analysis import DiagramGenerator, RunContext
 from diagram_analysis.analysis_json import build_id_to_name_map, parse_unified_analysis
 from diagram_analysis.incremental.io_utils import load_full_analysis, save_sub_analysis
 from logging_config import setup_logging
 from monitoring import monitor_execution
-from monitoring.paths import generate_run_id, get_monitoring_run_dir
+from monitoring.paths import get_monitoring_run_dir
 from output_generators.markdown import generate_markdown_file
 from repo_utils import (
     clone_repository,
@@ -25,7 +26,6 @@ from repo_utils import (
     upload_onboarding_materials,
 )
 from repo_utils.ignore import initialize_codeboardingignore
-from user_config import ensure_config_template, load_user_config
 from utils import (
     create_temp_repo_folder,
     monitoring_enabled,
@@ -50,8 +50,9 @@ def generate_analysis(
     repo_name: str,
     repo_path: Path,
     output_dir: Path,
+    run_id: str,
+    log_path: str,
     depth_level: int = 1,
-    run_id: str | None = None,
     monitoring_enabled: bool = False,
     force_full: bool = False,
 ) -> Path:
@@ -62,6 +63,7 @@ def generate_analysis(
         output_dir=output_dir,
         depth_level=depth_level,
         run_id=run_id,
+        log_path=log_path,
         monitoring_enabled=monitoring_enabled,
     )
     generator.force_full_analysis = force_full
@@ -121,6 +123,8 @@ def partial_update(
     output_dir: Path,
     project_name: str,
     component_id: str,
+    run_id: str,
+    log_path: str,
     depth_level: int = 1,
 ):
     """
@@ -132,6 +136,8 @@ def partial_update(
         repo_name=project_name,
         output_dir=output_dir,
         depth_level=depth_level,
+        run_id=run_id,
+        log_path=log_path,
     )
     generator.pre_analysis()
 
@@ -176,8 +182,9 @@ def partial_update(
 def generate_docs_remote(
     repo_url: str,
     temp_repo_folder: Path,
+    run_id: str,
+    log_path: str,
     local_dev: bool = False,
-    run_id: str | None = None,
     monitoring_enabled: bool = False,
 ):
     """
@@ -190,24 +197,25 @@ def generate_docs_remote(
         upload=not local_dev,  # Only upload if not in local dev mode
         cache_check=True,
         run_id=run_id,
+        log_path=log_path,
         monitoring_enabled=monitoring_enabled,
     )
 
 
 def process_remote_repository(
     repo_url: str,
+    run_id: str,
+    log_path: str,
     output_dir: Path | None = None,
     depth_level: int = 1,
     upload: bool = False,
     cache_check: bool = True,
-    run_id: str | None = None,
     monitoring_enabled: bool = False,
 ):
     """
     Process a remote repository by cloning and generating documentation.
     """
     repo_root = Path("repos")
-
     repo_name = get_repo_name(repo_url)
 
     # Check cache if enabled
@@ -228,6 +236,7 @@ def process_remote_repository(
             output_dir=temp_folder,
             depth_level=depth_level,
             run_id=run_id,
+            log_path=log_path,
             monitoring_enabled=monitoring_enabled,
         )
 
@@ -249,6 +258,7 @@ def process_remote_repository(
         if upload:
             upload_onboarding_materials(repo_name, temp_folder, "results")
     finally:
+        RunContext(run_id=run_id, log_path=log_path, repo_dir=repo_path).finalize()
         remove_temp_repo_folder(str(temp_folder))
 
 
@@ -256,6 +266,8 @@ def process_local_repository(
     repo_path: Path,
     output_dir: Path,
     project_name: str,
+    run_id: str,
+    log_path: str,
     depth_level: int = 1,
     component_id: str | None = None,
     monitoring_enabled: bool = False,
@@ -270,6 +282,8 @@ def process_local_repository(
             project_name=project_name,
             component_id=component_id,
             depth_level=depth_level,
+            run_id=run_id,
+            log_path=log_path,
         )
         return
 
@@ -281,6 +295,8 @@ def process_local_repository(
             repo_name=project_name,
             output_dir=output_dir,
             depth_level=depth_level,
+            run_id=run_id,
+            log_path=log_path,
             monitoring_enabled=monitoring_enabled,
         )
         generator.force_full_analysis = force_full
@@ -296,6 +312,8 @@ def process_local_repository(
         repo_path=repo_path,
         output_dir=output_dir,
         depth_level=depth_level,
+        run_id=run_id,
+        log_path=log_path,
         monitoring_enabled=monitoring_enabled,
         force_full=force_full,
     )
@@ -424,7 +442,8 @@ Examples:
 
     # Derive output directory from repo path
     if is_local:
-        output_dir = args.local.resolve() / ".codeboarding"
+        local_repo_path = args.local.resolve()
+        output_dir = local_repo_path / ".codeboarding"
     else:
         # Remote: use a shared .codeboarding dir in cwd so file logging starts immediately
         output_dir = Path.cwd() / ".codeboarding"
@@ -467,10 +486,15 @@ Examples:
         initialize_codeboardingignore(output_dir)
 
         # Derive project name from the repo directory name
-        project_name = args.local.resolve().name
+        project_name = local_repo_path.name
+        run_context = RunContext.resolve(
+            repo_dir=local_repo_path,
+            project_name=project_name,
+            reuse_latest_run_id=args.incremental or args.partial_component_id is not None,
+        )
 
         process_local_repository(
-            repo_path=args.local,
+            repo_path=local_repo_path,
             output_dir=output_dir,
             project_name=project_name,
             depth_level=args.depth_level,
@@ -478,7 +502,10 @@ Examples:
             monitoring_enabled=should_monitor,
             incremental=args.incremental,
             force_full=args.full,
+            run_id=run_context.run_id,
+            log_path=run_context.log_path,
         )
+        run_context.finalize()
         logger.info(f"Documentation generated successfully in {output_dir}")
     else:
         if args.repositories:
@@ -488,18 +515,30 @@ Examples:
                 except Exception as e:
                     logger.warning(f"Could not store GitHub token: {e}")
 
+            repo_root = Path("repos")
+            workspace_root = Path.cwd()
+
             for repo in tqdm(args.repositories, desc="Generating docs for repos"):
                 repo_name = get_repo_name(repo)
-                # Clone to cwd/<repo_name>/, output to cwd/<repo_name>/.codeboarding/
-                repo_output_dir = Path.cwd() / repo_name / ".codeboarding"
+                # Clone target: repos/<repo_name>; docs output: <cwd>/<repo_name>/.codeboarding
+                repo_output_dir = workspace_root / repo_name / ".codeboarding"
                 repo_output_dir.mkdir(parents=True, exist_ok=True)
                 initialize_codeboardingignore(repo_output_dir)
 
-                run_id = generate_run_id(repo_name)
-                monitoring_dir = get_monitoring_run_dir(run_id, create=should_monitor)
+                repo_cache_root = repo_root / repo_name
+                run_context = RunContext.resolve(
+                    repo_dir=repo_cache_root,
+                    project_name=repo_name,
+                    reuse_latest_run_id=True,
+                )
+
+                monitoring_dir = get_monitoring_run_dir(
+                    run_context.log_path,
+                    create=should_monitor,
+                )
 
                 with monitor_execution(
-                    run_id=run_id,
+                    run_id=run_context.run_id,
                     output_dir=str(monitoring_dir),
                     enabled=should_monitor,
                 ) as mon:
@@ -508,10 +547,11 @@ Examples:
                     try:
                         process_remote_repository(
                             repo_url=repo,
+                            run_id=run_context.run_id,
+                            log_path=run_context.log_path,
                             output_dir=repo_output_dir,
                             depth_level=args.depth_level,
                             upload=args.upload,
-                            run_id=run_id,
                             monitoring_enabled=should_monitor,
                         )
                     except Exception as e:

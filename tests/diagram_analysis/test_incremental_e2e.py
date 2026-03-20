@@ -281,6 +281,7 @@ class TestIncrementalFileRenames:
                     output_dir=output_dir,
                     static_analysis=None,  # Renames don't need static analysis
                     force_full=False,
+                    run_id="test-run-id",
                 )
 
                 # Check if incremental is possible
@@ -354,6 +355,7 @@ class TestIncrementalAIAgentsReanalysis:
                     output_dir=output_dir,
                     static_analysis=static_analysis,
                     force_full=False,
+                    run_id="test-run-id",
                 )
 
                 # Check if incremental is possible
@@ -426,6 +428,7 @@ class TestIncrementalFullReanalysis:
                     output_dir=output_dir,
                     static_analysis=static_analysis,
                     force_full=False,
+                    run_id="test-run-id",
                 )
 
                 # Check if incremental is possible

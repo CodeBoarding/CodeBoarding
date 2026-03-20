@@ -190,6 +190,7 @@ class TestRunScopedComponentImpacts:
                 output_dir=tmp_path,
                 static_analysis=None,
                 repo_dir=tmp_path,
+                run_id="test-run",
             )
 
         # Should return early with no log messages about components
@@ -219,6 +220,7 @@ class TestRunScopedComponentImpacts:
                 output_dir=tmp_path,
                 static_analysis=None,
                 repo_dir=tmp_path,
+                run_id="test-run",
             )
 
         # ComponentA should be logged, ComponentB should be skipped
@@ -249,6 +251,7 @@ class TestRunScopedComponentImpacts:
                     output_dir=tmp_path,
                     static_analysis=None,
                     repo_dir=tmp_path,
+                    run_id="test-run",
                 )
 
         assert "Scoped Impact" in caplog.text
@@ -284,6 +287,7 @@ class TestRunScopedComponentImpacts:
                 output_dir=tmp_path,
                 static_analysis=None,
                 repo_dir=tmp_path,
+                run_id="test-run",
             )
 
         # Both components should be logged
@@ -311,6 +315,7 @@ class TestRunScopedComponentImpacts:
                 output_dir=tmp_path,
                 static_analysis=None,
                 repo_dir=tmp_path,
+                run_id="test-run",
             )
 
         # handle_scoped_component_update should not be called for NONE action
