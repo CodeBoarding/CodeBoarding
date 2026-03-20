@@ -59,6 +59,14 @@ class TestStaticAnalysisResults(unittest.TestCase):
         retrieved2 = self.results.get_reference("python", "UTILS.HELPER")
         self.assertEqual(retrieved2.fully_qualified_name, "utils.helper")
 
+    def test_go_receiver_reference_lookup_is_case_insensitive(self):
+        node = Node("models.base.(Entity).GetType", NodeType.METHOD, "models/base.go", 1, 5)
+        self.results.add_references("go", [node])
+
+        retrieved = self.results.get_reference("go", "models.base.(entity).gettype")
+
+        self.assertEqual(retrieved.fully_qualified_name, "models.base.(Entity).GetType")
+
     def test_missing_data_raises_value_error(self):
         with self.assertRaises(ValueError):
             self.results.get_hierarchy("nonexistent")
