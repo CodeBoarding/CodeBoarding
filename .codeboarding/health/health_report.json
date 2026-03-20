@@ -1,7 +1,7 @@
 {
   "repository_name": "CodeBoarding",
-  "timestamp": "2026-03-20T01:01:03.060538+00:00",
-  "overall_score": 0.9605248888406898,
+  "timestamp": "2026-03-20T12:38:17.799927+00:00",
+  "overall_score": 0.9603020496224379,
   "check_summaries": [
     {
       "check_name": "function_size",
@@ -17,10 +17,10 @@
       "check_name": "fan_out",
       "description": "Checks efferent coupling: how many other functions each function calls",
       "check_type": "standard",
-      "total_entities_checked": 4282,
+      "total_entities_checked": 4304,
       "findings_count": 31,
       "warning_count": 31,
-      "score": 0.992760392340028,
+      "score": 0.9927973977695167,
       "finding_groups": [
         {
           "severity": "warning",
@@ -252,10 +252,10 @@
       "check_name": "fan_in",
       "description": "Checks afferent coupling: how many other functions call each function",
       "check_type": "standard",
-      "total_entities_checked": 4282,
+      "total_entities_checked": 4304,
       "findings_count": 66,
       "warning_count": 66,
-      "score": 0.9845866417561887,
+      "score": 0.9846654275092936,
       "finding_groups": [
         {
           "severity": "warning",
@@ -732,10 +732,10 @@
       "check_name": "god_class",
       "description": "Detects classes with too many methods, too much code, or too many outgoing dependencies",
       "check_type": "standard",
-      "total_entities_checked": 304,
+      "total_entities_checked": 308,
       "findings_count": 38,
       "warning_count": 38,
-      "score": 0.875,
+      "score": 0.8766233766233766,
       "finding_groups": [
         {
           "severity": "warning",
@@ -941,8 +941,8 @@
       "description": "Detects circular dependencies between packages",
       "check_type": "circular_dependencies",
       "cycles": [
-        "diagram_analysis.incremental -> diagram_analysis -> diagram_analysis.incremental",
-        "health.checks -> health -> health.checks",
+        "diagram_analysis -> diagram_analysis.incremental -> diagram_analysis",
+        "health -> health.checks -> health",
         "agents -> agents.tools -> agents",
         "agents -> agents.tools -> static_analyzer -> agents",
         "agents -> caching -> agents",
@@ -985,10 +985,10 @@
       "check_name": "component_cohesion",
       "description": "Measures internal vs external edge ratio per component/cluster",
       "check_type": "standard",
-      "total_entities_checked": 85,
-      "findings_count": 3,
-      "warning_count": 3,
-      "score": 0.9647058823529412,
+      "total_entities_checked": 81,
+      "findings_count": 2,
+      "warning_count": 2,
+      "score": 0.9753086419753086,
       "finding_groups": [
         {
           "severity": "warning",
@@ -996,18 +996,13 @@
           "description": "Components with low cohesion (below 0.1)",
           "entities": [
             {
-              "entity_name": "cluster_55",
-              "file_path": "tests/agents/tools/test_external_deps.py",
-              "metric_value": 0.045
-            },
-            {
-              "entity_name": "cluster_64",
-              "file_path": "diagram_analysis/incremental/updater.py",
-              "metric_value": 0.083
-            },
-            {
-              "entity_name": "cluster_179",
+              "entity_name": "cluster_65",
               "file_path": "tests/diagram_analysis/test_incremental_e2e.py",
+              "metric_value": 0.079
+            },
+            {
+              "entity_name": "cluster_114",
+              "file_path": "agents/tools/read_source.py",
               "metric_value": 0.1
             }
           ]
@@ -1018,8 +1013,8 @@
       "check_name": "unused_code_diagnostics",
       "description": "Detects unused imports, variables, functions, and dead code via LSP diagnostics",
       "check_type": "standard",
-      "total_entities_checked": 224,
-      "findings_count": 224,
+      "total_entities_checked": 229,
+      "findings_count": 229,
       "warning_count": 0,
       "score": 0.0,
       "finding_groups": [
@@ -1572,6 +1567,41 @@
               "file_path": "tests/test_install.py",
               "line_start": 40,
               "line_end": 40,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"mock_non_interactive\" is not accessed",
+              "file_path": "tests/test_install.py",
+              "line_start": 152,
+              "line_end": 152,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"mock_input\" is not accessed",
+              "file_path": "tests/test_install.py",
+              "line_start": 161,
+              "line_end": 161,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"mock_input\" is not accessed",
+              "file_path": "tests/test_install.py",
+              "line_start": 172,
+              "line_end": 172,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"mock_input\" is not accessed",
+              "file_path": "tests/test_install.py",
+              "line_start": 181,
+              "line_end": 181,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"mock_run\" is not accessed",
+              "file_path": "tests/test_install.py",
+              "line_start": 201,
+              "line_end": 201,
               "metric_value": 0.0
             },
             {
@@ -2634,12 +2664,6 @@
       "composite_risk_score": 75.0
     },
     {
-      "file_path": "diagram_analysis/incremental/updater.py",
-      "total_findings": 5,
-      "warning_findings": 4,
-      "composite_risk_score": 70.0
-    },
-    {
       "file_path": "static_analyzer/incremental_orchestrator.py",
       "total_findings": 6,
       "warning_findings": 4,
@@ -2680,6 +2704,12 @@
       "total_findings": 6,
       "warning_findings": 2,
       "composite_risk_score": 60.0
+    },
+    {
+      "file_path": "diagram_analysis/incremental/updater.py",
+      "total_findings": 4,
+      "warning_findings": 3,
+      "composite_risk_score": 55.0
     },
     {
       "file_path": "tests/integration/projects/python_edge_cases_project/main.py",
