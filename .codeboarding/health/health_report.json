@@ -1,7 +1,7 @@
 {
   "repository_name": "CodeBoarding",
-  "timestamp": "2026-03-19T22:35:58.221046+00:00",
-  "overall_score": 0.9601654331737048,
+  "timestamp": "2026-03-20T01:01:03.060538+00:00",
+  "overall_score": 0.9605248888406898,
   "check_summaries": [
     {
       "check_name": "function_size",
@@ -17,10 +17,10 @@
       "check_name": "fan_out",
       "description": "Checks efferent coupling: how many other functions each function calls",
       "check_type": "standard",
-      "total_entities_checked": 4269,
-      "findings_count": 29,
-      "warning_count": 29,
-      "score": 0.9932068400093699,
+      "total_entities_checked": 4282,
+      "findings_count": 31,
+      "warning_count": 31,
+      "score": 0.992760392340028,
       "finding_groups": [
         {
           "severity": "warning",
@@ -30,15 +30,15 @@
             {
               "entity_name": "main.main",
               "file_path": "main.py",
-              "line_start": 388,
-              "line_end": 523,
-              "metric_value": 24
+              "line_start": 406,
+              "line_end": 563,
+              "metric_value": 25
             },
             {
               "entity_name": "diagram_analysis.incremental.updater.IncrementalUpdater._execute_update_components",
               "file_path": "diagram_analysis/incremental/updater.py",
-              "line_start": 276,
-              "line_end": 420,
+              "line_start": 280,
+              "line_end": 430,
               "metric_value": 21
             },
             {
@@ -49,18 +49,18 @@
               "metric_value": 21
             },
             {
-              "entity_name": "diagram_analysis.diagram_generator.DiagramGenerator.pre_analysis",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 159,
-              "line_end": 267,
-              "metric_value": 18
-            },
-            {
               "entity_name": "tests.integration.projects.python_edge_cases_project.main.main",
               "file_path": "tests/integration/projects/python_edge_cases_project/main.py",
               "line_start": 35,
               "line_end": 80,
               "metric_value": 18
+            },
+            {
+              "entity_name": "diagram_analysis.diagram_generator.DiagramGenerator.pre_analysis",
+              "file_path": "diagram_analysis/diagram_generator.py",
+              "line_start": 161,
+              "line_end": 264,
+              "metric_value": 17
             },
             {
               "entity_name": "health.runner._collect_checks_for_language",
@@ -73,14 +73,21 @@
               "entity_name": "diagram_analysis.incremental.scoped_analysis.handle_scoped_component_update",
               "file_path": "diagram_analysis/incremental/scoped_analysis.py",
               "line_start": 79,
-              "line_end": 182,
+              "line_end": 185,
               "metric_value": 16
+            },
+            {
+              "entity_name": "agents.details_agent.DetailsAgent.step_final_analysis",
+              "file_path": "agents/details_agent.py",
+              "line_start": 119,
+              "line_end": 179,
+              "metric_value": 15
             },
             {
               "entity_name": "diagram_analysis.diagram_generator.DiagramGenerator.try_incremental_update",
               "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 422,
-              "line_end": 499,
+              "line_start": 419,
+              "line_end": 497,
               "metric_value": 14
             },
             {
@@ -93,8 +100,8 @@
             {
               "entity_name": "tests.diagram_analysis.test_incremental_e2e.TestIncrementalFullReanalysis.test_structural_changes_trigger_full_reanalysis",
               "file_path": "tests/diagram_analysis/test_incremental_e2e.py",
-              "line_start": 389,
-              "line_end": 447,
+              "line_start": 391,
+              "line_end": 450,
               "metric_value": 14
             },
             {
@@ -112,17 +119,17 @@
               "metric_value": 13
             },
             {
-              "entity_name": "agents.details_agent.DetailsAgent.step_final_analysis",
+              "entity_name": "agents.details_agent.DetailsAgent.step_clusters_grouping",
               "file_path": "agents/details_agent.py",
-              "line_start": 100,
-              "line_end": 150,
+              "line_start": 69,
+              "line_end": 116,
               "metric_value": 12
             },
             {
               "entity_name": "tests.diagram_analysis.test_incremental_e2e.TestIncrementalAIAgentsReanalysis.test_ai_agents_changes_trigger_reanalysis",
               "file_path": "tests/diagram_analysis/test_incremental_e2e.py",
-              "line_start": 319,
-              "line_end": 377,
+              "line_start": 320,
+              "line_end": 379,
               "metric_value": 12
             },
             {
@@ -144,6 +151,20 @@
               "file_path": "agents/abstraction_agent.py",
               "line_start": 97,
               "line_end": 133,
+              "metric_value": 11
+            },
+            {
+              "entity_name": "github_action.generate_analysis",
+              "file_path": "github_action.py",
+              "line_start": 119,
+              "line_end": 173,
+              "metric_value": 11
+            },
+            {
+              "entity_name": "main.process_remote_repository",
+              "file_path": "main.py",
+              "line_start": 205,
+              "line_end": 262,
               "metric_value": 11
             },
             {
@@ -172,13 +193,6 @@
               "file_path": "diagram_analysis/incremental/impact_analyzer.py",
               "line_start": 21,
               "line_end": 50,
-              "metric_value": 10
-            },
-            {
-              "entity_name": "github_action.generate_analysis",
-              "file_path": "github_action.py",
-              "line_start": 118,
-              "line_end": 169,
               "metric_value": 10
             },
             {
@@ -238,10 +252,10 @@
       "check_name": "fan_in",
       "description": "Checks afferent coupling: how many other functions call each function",
       "check_type": "standard",
-      "total_entities_checked": 4269,
-      "findings_count": 69,
-      "warning_count": 69,
-      "score": 0.9838369641602249,
+      "total_entities_checked": 4282,
+      "findings_count": 66,
+      "warning_count": 66,
+      "score": 0.9845866417561887,
       "finding_groups": [
         {
           "severity": "warning",
@@ -253,7 +267,7 @@
               "file_path": "static_analyzer/graph.py",
               "line_start": 78,
               "line_end": 80,
-              "metric_value": 67
+              "metric_value": 68
             },
             {
               "entity_name": "static_analyzer.graph.CallGraph.add_edge",
@@ -358,13 +372,6 @@
               "file_path": "health/checks/unused_code_diagnostics.py",
               "line_start": 135,
               "line_end": 170,
-              "metric_value": 21
-            },
-            {
-              "entity_name": "tests.agents.test_meta_agent.TestMetaAgent._build_agent",
-              "file_path": "tests/agents/test_meta_agent.py",
-              "line_start": 49,
-              "line_end": 55,
               "metric_value": 21
             },
             {
@@ -480,13 +487,6 @@
               "metric_value": 16
             },
             {
-              "entity_name": "tests.agents.test_meta_agent.TestMetaAgent._meta_insights",
-              "file_path": "tests/agents/test_meta_agent.py",
-              "line_start": 34,
-              "line_end": 42,
-              "metric_value": 16
-            },
-            {
               "entity_name": "tests.test_logging_config.TestLoggingConfig._clean_logging_handlers",
               "file_path": "tests/test_logging_config.py",
               "line_start": 16,
@@ -496,8 +496,8 @@
             {
               "entity_name": "utils.sanitize",
               "file_path": "utils.py",
-              "line_start": 55,
-              "line_end": 57,
+              "line_start": 67,
+              "line_end": 69,
               "metric_value": 16
             },
             {
@@ -585,13 +585,6 @@
               "metric_value": 13
             },
             {
-              "entity_name": "agents.meta_agent.MetaAgent.get_meta_context",
-              "file_path": "agents/meta_agent.py",
-              "line_start": 67,
-              "line_end": 105,
-              "metric_value": 12
-            },
-            {
               "entity_name": "repo_utils.change_detector.get_current_commit",
               "file_path": "repo_utils/change_detector.py",
               "line_start": 277,
@@ -671,8 +664,8 @@
             {
               "entity_name": "diagram_analysis.incremental.updater.IncrementalUpdater.can_run_incremental",
               "file_path": "diagram_analysis/incremental/updater.py",
-              "line_start": 76,
-              "line_end": 91,
+              "line_start": 80,
+              "line_end": 95,
               "metric_value": 10
             },
             {
@@ -739,10 +732,10 @@
       "check_name": "god_class",
       "description": "Detects classes with too many methods, too much code, or too many outgoing dependencies",
       "check_type": "standard",
-      "total_entities_checked": 297,
+      "total_entities_checked": 304,
       "findings_count": 38,
       "warning_count": 38,
-      "score": 0.8720538720538721,
+      "score": 0.875,
       "finding_groups": [
         {
           "severity": "warning",
@@ -782,7 +775,7 @@
             {
               "entity_name": "diagram_analysis.diagram_generator.DiagramGenerator",
               "file_path": "diagram_analysis/diagram_generator.py",
-              "metric_value": 466.0
+              "metric_value": 464.0
             },
             {
               "entity_name": "tests.static_analyzer.test_reference_resolve_mixin.TestReferenceResolverMixin",
@@ -790,19 +783,14 @@
               "metric_value": 447.0
             },
             {
+              "entity_name": "diagram_analysis.incremental.updater.IncrementalUpdater",
+              "file_path": "diagram_analysis/incremental/updater.py",
+              "metric_value": 416.0
+            },
+            {
               "entity_name": "agents.cluster_methods_mixin.ClusterMethodsMixin",
               "file_path": "agents/cluster_methods_mixin.py",
               "metric_value": 413.0
-            },
-            {
-              "entity_name": "diagram_analysis.incremental.updater.IncrementalUpdater",
-              "file_path": "diagram_analysis/incremental/updater.py",
-              "metric_value": 406.0
-            },
-            {
-              "entity_name": "tests.agents.test_meta_agent.TestMetaAgent",
-              "file_path": "tests/agents/test_meta_agent.py",
-              "metric_value": 404.0
             },
             {
               "entity_name": "tests.health.test_runner.TestHealthRunner",
@@ -818,6 +806,16 @@
               "entity_name": "static_analyzer.__init__.StaticAnalyzer",
               "file_path": "static_analyzer/__init__.py",
               "metric_value": 59.0
+            },
+            {
+              "entity_name": "agents.details_agent.DetailsAgent",
+              "file_path": "agents/details_agent.py",
+              "metric_value": 43.0
+            },
+            {
+              "entity_name": "tests.agents.test_details_agent.TestDetailsAgent",
+              "file_path": "tests/agents/test_details_agent.py",
+              "metric_value": 39.0
             },
             {
               "entity_name": "tests.agents.test_validation.TestCheckEdgeBetweenClusterSets",
@@ -848,11 +846,6 @@
               "entity_name": "tests.agents.tools.test_cfg_tools.TestCFGTools",
               "file_path": "tests/agents/tools/test_cfg_tools.py",
               "metric_value": 35.0
-            },
-            {
-              "entity_name": "agents.details_agent.DetailsAgent",
-              "file_path": "agents/details_agent.py",
-              "metric_value": 34.0
             },
             {
               "entity_name": "tests.test_incremental_analyzer.TestPatchSubAnalysis",
@@ -895,11 +888,6 @@
               "metric_value": 32.0
             },
             {
-              "entity_name": "tests.agents.test_details_agent.TestDetailsAgent",
-              "file_path": "tests/agents/test_details_agent.py",
-              "metric_value": 31.0
-            },
-            {
               "entity_name": "tests.health.test_health_checks.TestEntityTypeFiltering",
               "file_path": "tests/health/test_health_checks.py",
               "metric_value": 31.0
@@ -908,6 +896,11 @@
               "entity_name": "tests.output_generators.test_sphinx_output.TestSphinxOutput",
               "file_path": "tests/output_generators/test_sphinx_output.py",
               "metric_value": 31.0
+            },
+            {
+              "entity_name": "tests.agents.test_meta_agent.TestMetaAgent",
+              "file_path": "tests/agents/test_meta_agent.py",
+              "metric_value": 30.0
             },
             {
               "entity_name": "tests.agents.test_monitoring.TestMonitoringCallback",
@@ -948,16 +941,16 @@
       "description": "Detects circular dependencies between packages",
       "check_type": "circular_dependencies",
       "cycles": [
-        "diagram_analysis -> diagram_analysis.incremental -> diagram_analysis",
-        "health -> health.checks -> health",
+        "diagram_analysis.incremental -> diagram_analysis -> diagram_analysis.incremental",
+        "health.checks -> health -> health.checks",
+        "agents -> agents.tools -> agents",
+        "agents -> agents.tools -> static_analyzer -> agents",
+        "agents -> caching -> agents",
+        "agents -> static_analyzer -> agents",
         "static_analyzer.engine.adapters -> static_analyzer -> static_analyzer.engine.adapters",
         "static_analyzer.engine.adapters -> static_analyzer.engine -> static_analyzer -> static_analyzer.engine.adapters",
-        "caching -> agents -> caching",
-        "static_analyzer -> agents -> agents.tools -> static_analyzer",
-        "static_analyzer -> agents -> static_analyzer",
         "static_analyzer -> static_analyzer.engine -> static_analyzer",
-        "agents.tools -> agents -> agents.tools",
-        "tool_registry -> install -> tool_registry"
+        "install -> tool_registry -> install"
       ],
       "packages_checked": 49,
       "packages_in_cycles": 12
@@ -992,10 +985,10 @@
       "check_name": "component_cohesion",
       "description": "Measures internal vs external edge ratio per component/cluster",
       "check_type": "standard",
-      "total_entities_checked": 84,
+      "total_entities_checked": 85,
       "findings_count": 3,
       "warning_count": 3,
-      "score": 0.9642857142857143,
+      "score": 0.9647058823529412,
       "finding_groups": [
         {
           "severity": "warning",
@@ -1003,19 +996,19 @@
           "description": "Components with low cohesion (below 0.1)",
           "entities": [
             {
-              "entity_name": "cluster_61",
-              "file_path": "tests/agents/test_agent.py",
-              "metric_value": 0.031
+              "entity_name": "cluster_55",
+              "file_path": "tests/agents/tools/test_external_deps.py",
+              "metric_value": 0.045
             },
             {
-              "entity_name": "cluster_141",
-              "file_path": "tests/static_analyzer/test_edge_builder.py",
-              "metric_value": 0.031
+              "entity_name": "cluster_64",
+              "file_path": "diagram_analysis/incremental/updater.py",
+              "metric_value": 0.083
             },
             {
-              "entity_name": "cluster_44",
-              "file_path": "monitoring/callbacks.py",
-              "metric_value": 0.033
+              "entity_name": "cluster_179",
+              "file_path": "tests/diagram_analysis/test_incremental_e2e.py",
+              "metric_value": 0.1
             }
           ]
         }
@@ -1025,8 +1018,8 @@
       "check_name": "unused_code_diagnostics",
       "description": "Detects unused imports, variables, functions, and dead code via LSP diagnostics",
       "check_type": "standard",
-      "total_entities_checked": 225,
-      "findings_count": 225,
+      "total_entities_checked": 224,
+      "findings_count": 224,
       "warning_count": 0,
       "score": 0.0,
       "finding_groups": [
@@ -1057,24 +1050,31 @@
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"configure_models\" is not accessed",
+              "entity_name": "[unused_variable] \"RunContext\" is not accessed",
               "file_path": "diagram_analysis/__init__.py",
               "line_start": 4,
               "line_end": 4,
               "metric_value": 0.0
             },
             {
+              "entity_name": "[unused_variable] \"configure_models\" is not accessed",
+              "file_path": "diagram_analysis/__init__.py",
+              "line_start": 5,
+              "line_end": 5,
+              "metric_value": 0.0
+            },
+            {
               "entity_name": "[unused_variable] \"subgraph_cluster_results\" is not accessed",
               "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 90,
-              "line_end": 90,
+              "line_start": 92,
+              "line_end": 92,
               "metric_value": 0.0
             },
             {
               "entity_name": "[unused_variable] \"cluster_results\" is not accessed",
               "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 363,
-              "line_end": 363,
+              "line_start": 360,
+              "line_end": 360,
               "metric_value": 0.0
             },
             {
@@ -1094,8 +1094,8 @@
             {
               "entity_name": "[unused_variable] \"comp_id\" is not accessed",
               "file_path": "main.py",
-              "line_start": 167,
-              "line_end": 167,
+              "line_start": 173,
+              "line_end": 173,
               "metric_value": 0.0
             },
             {
@@ -1122,8 +1122,8 @@
             {
               "entity_name": "[unused_variable] \"subgraph_str\" is not accessed",
               "file_path": "agents/details_agent.py",
-              "line_start": 168,
-              "line_end": 168,
+              "line_start": 197,
+              "line_end": 197,
               "metric_value": 0.0
             },
             {
@@ -1204,6 +1204,13 @@
               "metric_value": 0.0
             },
             {
+              "entity_name": "[unused_variable] \"_connection_record\" is not accessed",
+              "file_path": "caching/cache.py",
+              "line_start": 76,
+              "line_end": 76,
+              "metric_value": 0.0
+            },
+            {
               "entity_name": "[unused_variable] \"Path\" is not accessed",
               "file_path": "diagram_analysis/incremental/impact_analyzer.py",
               "line_start": 4,
@@ -1234,8 +1241,8 @@
             {
               "entity_name": "[unused_variable] \"subgraph_clusters\" is not accessed",
               "file_path": "diagram_analysis/incremental/scoped_analysis.py",
-              "line_start": 160,
-              "line_end": 160,
+              "line_start": 163,
+              "line_end": 163,
               "metric_value": 0.0
             },
             {
@@ -1313,13 +1320,6 @@
               "file_path": "monitoring/context.py",
               "line_start": 33,
               "line_end": 33,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"os\" is not accessed",
-              "file_path": "monitoring/paths.py",
-              "line_start": 1,
-              "line_end": 1,
               "metric_value": 0.0
             },
             {
@@ -1598,36 +1598,22 @@
             {
               "entity_name": "[unused_variable] \"mock_create_temp\" is not accessed",
               "file_path": "tests/test_main.py",
-              "line_start": 282,
-              "line_end": 282,
+              "line_start": 314,
+              "line_end": 314,
               "metric_value": 0.0
             },
             {
               "entity_name": "[unused_variable] \"mock_remove_temp\" is not accessed",
               "file_path": "tests/test_main.py",
-              "line_start": 283,
-              "line_end": 283,
+              "line_start": 315,
+              "line_end": 315,
               "metric_value": 0.0
             },
             {
               "entity_name": "[unused_variable] \"mock_generate_markdown\" is not accessed",
               "file_path": "tests/test_main.py",
-              "line_start": 285,
-              "line_end": 285,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"mock_copy_files\" is not accessed",
-              "file_path": "tests/test_main.py",
-              "line_start": 286,
-              "line_end": 286,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"mock_upload\" is not accessed",
-              "file_path": "tests/test_main.py",
-              "line_start": 287,
-              "line_end": 287,
+              "line_start": 317,
+              "line_end": 317,
               "metric_value": 0.0
             },
             {
@@ -1642,6 +1628,20 @@
               "file_path": "tests/test_main.py",
               "line_start": 319,
               "line_end": 319,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"mock_copy_files\" is not accessed",
+              "file_path": "tests/test_main.py",
+              "line_start": 352,
+              "line_end": 352,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"mock_upload\" is not accessed",
+              "file_path": "tests/test_main.py",
+              "line_start": 353,
+              "line_end": 353,
               "metric_value": 0.0
             },
             {
@@ -1750,38 +1750,17 @@
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"cast\" is not accessed",
-              "file_path": "tests/agents/test_details_agent.py",
-              "line_start": 1,
-              "line_end": 1,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"Mock\" is not accessed",
-              "file_path": "tests/agents/test_details_agent.py",
-              "line_start": 4,
-              "line_end": 4,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"ValidationInsights\" is not accessed",
-              "file_path": "tests/agents/test_details_agent.py",
-              "line_start": 15,
-              "line_end": 15,
-              "metric_value": 0.0
-            },
-            {
               "entity_name": "[unused_variable] \"subgraph_cluster_results\" is not accessed",
               "file_path": "tests/agents/test_details_agent.py",
-              "line_start": 118,
-              "line_end": 118,
+              "line_start": 122,
+              "line_end": 122,
               "metric_value": 0.0
             },
             {
               "entity_name": "[unused_variable] \"subgraph_results\" is not accessed",
               "file_path": "tests/agents/test_details_agent.py",
-              "line_start": 312,
-              "line_end": 312,
+              "line_start": 321,
+              "line_end": 321,
               "metric_value": 0.0
             },
             {
@@ -1913,29 +1892,29 @@
             {
               "entity_name": "[unused_variable] \"analysis\" is not accessed",
               "file_path": "tests/diagram_analysis/test_diagram_analysis.py",
-              "line_start": 549,
-              "line_end": 549,
+              "line_start": 560,
+              "line_end": 560,
               "metric_value": 0.0
             },
             {
               "entity_name": "[unused_variable] \"repo_name\" is not accessed",
               "file_path": "tests/diagram_analysis/test_diagram_analysis.py",
-              "line_start": 551,
-              "line_end": 551,
+              "line_start": 562,
+              "line_end": 562,
               "metric_value": 0.0
             },
             {
               "entity_name": "[unused_variable] \"sub_analyses\" is not accessed",
               "file_path": "tests/diagram_analysis/test_diagram_analysis.py",
-              "line_start": 552,
-              "line_end": 552,
+              "line_start": 563,
+              "line_end": 563,
               "metric_value": 0.0
             },
             {
               "entity_name": "[unused_variable] \"file_coverage_summary\" is not accessed",
               "file_path": "tests/diagram_analysis/test_diagram_analysis.py",
-              "line_start": 553,
-              "line_end": 553,
+              "line_start": 564,
+              "line_end": 564,
               "metric_value": 0.0
             },
             {
@@ -1983,15 +1962,15 @@
             {
               "entity_name": "[unused_variable] \"mock_llm_provider\" is not accessed",
               "file_path": "tests/diagram_analysis/test_incremental_e2e.py",
-              "line_start": 389,
-              "line_end": 389,
+              "line_start": 391,
+              "line_end": 391,
               "metric_value": 0.0
             },
             {
               "entity_name": "[unused_variable] \"manifest\" is not accessed",
               "file_path": "tests/diagram_analysis/test_incremental_e2e.py",
-              "line_start": 401,
-              "line_end": 401,
+              "line_start": 403,
+              "line_end": 403,
               "metric_value": 0.0
             },
             {
@@ -2591,6 +2570,13 @@
             },
             {
               "entity_name": "[unreachable_code] Type analysis indicates code is unreachable",
+              "file_path": "caching/cache.py",
+              "line_start": 294,
+              "line_end": 294,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unreachable_code] Type analysis indicates code is unreachable",
               "file_path": "diagram_analysis/incremental/file_manager.py",
               "line_start": 160,
               "line_end": 160,
@@ -2606,8 +2592,8 @@
             {
               "entity_name": "[unreachable_code] Type analysis indicates code is unreachable",
               "file_path": "diagram_analysis/incremental/updater.py",
-              "line_start": 142,
-              "line_end": 142,
+              "line_start": 146,
+              "line_end": 146,
               "metric_value": 0.0
             },
             {
@@ -2648,14 +2634,14 @@
       "composite_risk_score": 75.0
     },
     {
-      "file_path": "static_analyzer/incremental_orchestrator.py",
-      "total_findings": 6,
+      "file_path": "diagram_analysis/incremental/updater.py",
+      "total_findings": 5,
       "warning_findings": 4,
       "composite_risk_score": 70.0
     },
     {
-      "file_path": "tests/static_analyzer/test_edge_builder.py",
-      "total_findings": 5,
+      "file_path": "static_analyzer/incremental_orchestrator.py",
+      "total_findings": 6,
       "warning_findings": 4,
       "composite_risk_score": 70.0
     },
@@ -2666,13 +2652,13 @@
       "composite_risk_score": 65.0
     },
     {
-      "file_path": "tests/diagram_analysis/test_incremental_integration.py",
-      "total_findings": 8,
+      "file_path": "tests/diagram_analysis/test_incremental_e2e.py",
+      "total_findings": 9,
       "warning_findings": 3,
       "composite_risk_score": 65.0
     },
     {
-      "file_path": "tests/agents/test_agent.py",
+      "file_path": "tests/diagram_analysis/test_incremental_integration.py",
       "total_findings": 8,
       "warning_findings": 3,
       "composite_risk_score": 65.0
@@ -2684,14 +2670,8 @@
       "composite_risk_score": 65.0
     },
     {
-      "file_path": "tests/diagram_analysis/test_incremental_e2e.py",
-      "total_findings": 8,
-      "warning_findings": 2,
-      "composite_risk_score": 60.0
-    },
-    {
-      "file_path": "monitoring/callbacks.py",
-      "total_findings": 6,
+      "file_path": "tests/agents/test_agent.py",
+      "total_findings": 7,
       "warning_findings": 2,
       "composite_risk_score": 60.0
     },
@@ -2702,21 +2682,33 @@
       "composite_risk_score": 60.0
     },
     {
-      "file_path": "diagram_analysis/incremental/updater.py",
-      "total_findings": 4,
-      "warning_findings": 3,
-      "composite_risk_score": 55.0
-    },
-    {
       "file_path": "tests/integration/projects/python_edge_cases_project/main.py",
       "total_findings": 6,
       "warning_findings": 1,
       "composite_risk_score": 55.0
     },
     {
+      "file_path": "agents/details_agent.py",
+      "total_findings": 4,
+      "warning_findings": 3,
+      "composite_risk_score": 55.0
+    },
+    {
       "file_path": "tests/health/test_runner.py",
       "total_findings": 4,
       "warning_findings": 3,
+      "composite_risk_score": 55.0
+    },
+    {
+      "file_path": "tests/static_analyzer/test_edge_builder.py",
+      "total_findings": 4,
+      "warning_findings": 3,
+      "composite_risk_score": 55.0
+    },
+    {
+      "file_path": "monitoring/callbacks.py",
+      "total_findings": 5,
+      "warning_findings": 1,
       "composite_risk_score": 55.0
     },
     {
@@ -2728,12 +2720,6 @@
     {
       "file_path": "tests/static_analyzer/test_reference_resolve_mixin.py",
       "total_findings": 8,
-      "warning_findings": 1,
-      "composite_risk_score": 55.0
-    },
-    {
-      "file_path": "tests/agents/test_details_agent.py",
-      "total_findings": 6,
       "warning_findings": 1,
       "composite_risk_score": 55.0
     },
