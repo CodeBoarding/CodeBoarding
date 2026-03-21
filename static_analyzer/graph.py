@@ -202,6 +202,7 @@ class CallGraph:
         self,
         cluster_ids: set[int] | None = None,
         cluster_result: ClusterResult | None = None,
+        compact: bool = False,
     ) -> str:
         """
         Generate a human-readable string representation of clusters.
@@ -212,6 +213,9 @@ class CallGraph:
         Args:
             cluster_ids: Optional set of cluster IDs to include. If None, includes all.
             cluster_result: Optional pre-computed ClusterResult. If None, calls cluster().
+            compact: If True, summarize methods as counts per class instead of listing
+                each one. This significantly reduces prompt size for LLM cluster-grouping
+                steps where individual method names are not needed.
 
         Returns:
             Formatted string with cluster definitions and inter-cluster connections
@@ -237,7 +241,7 @@ class CallGraph:
 
         top_nodes = set().union(*communities) if communities else set()
 
-        cluster_str = self.__cluster_str(communities, cfg_graph_x)
+        cluster_str = self.__cluster_str(communities, cfg_graph_x, compact=compact)
         non_cluster_str = self.__non_cluster_str(cfg_graph_x, top_nodes)
         return cluster_str + non_cluster_str
 
@@ -412,7 +416,7 @@ class CallGraph:
         )
 
     @staticmethod
-    def __cluster_str(communities: list[set[str]], cfg_graph_x: nx.DiGraph) -> str:
+    def __cluster_str(communities: list[set[str]], cfg_graph_x: nx.DiGraph, compact: bool = False) -> str:
         valid_communities = [c for c in communities if len(c) >= 2]
         top_communities = sorted(valid_communities, key=len, reverse=True)
 
@@ -455,11 +459,21 @@ class CallGraph:
                 for class_name in sorted(file_groups.get(file_path, {})):
                     methods = file_groups[file_path][class_name]
                     communities_str += f"    {class_name} [Class]\n"
-                    for method in sorted(methods):
-                        communities_str += f"      {method}\n"
+                    if compact:
+                        # In compact mode, show method count instead of listing each one
+                        if methods:
+                            communities_str += f"      ({len(methods)} methods)\n"
+                    else:
+                        for method in sorted(methods):
+                            communities_str += f"      {method}\n"
                 # Render standalone functions
-                for func in sorted(standalone_nodes.get(file_path, [])):
-                    communities_str += f"    {func}\n"
+                if compact:
+                    funcs = standalone_nodes.get(file_path, [])
+                    if funcs:
+                        communities_str += f"    ({len(funcs)} functions)\n"
+                else:
+                    for func in sorted(standalone_nodes.get(file_path, [])):
+                        communities_str += f"    {func}\n"
 
             communities_str += "\n"
 

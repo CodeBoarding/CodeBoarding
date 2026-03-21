@@ -56,6 +56,7 @@ class ClusterMethodsMixin:
         programming_langs: list[str],
         cluster_results: dict[str, ClusterResult],
         cluster_ids: set[int] | None = None,
+        compact: bool = False,
     ) -> str:
         """
         Build a cluster string for LLM consumption using pre-computed cluster results.
@@ -64,6 +65,8 @@ class ClusterMethodsMixin:
             programming_langs: List of languages to include
             cluster_results: Pre-computed cluster results mapping language -> ClusterResult
             cluster_ids: Optional set of cluster IDs to filter by
+            compact: If True, summarize methods as counts instead of listing each one.
+                Use for cluster-grouping prompts where individual method names are not needed.
 
         Returns:
             Formatted cluster string with headers per language
@@ -74,7 +77,7 @@ class ClusterMethodsMixin:
             cfg = self.static_analysis.get_cfg(lang)
             # Get cluster result for this language
             cluster_result = cluster_results.get(lang)
-            cluster_str = cfg.to_cluster_string(cluster_ids, cluster_result)
+            cluster_str = cfg.to_cluster_string(cluster_ids, cluster_result, compact=compact)
 
             if cluster_str.strip() and cluster_str not in ("empty", "none", "No clusters found."):
                 header = "Component CFG" if cluster_ids else "Clusters"
