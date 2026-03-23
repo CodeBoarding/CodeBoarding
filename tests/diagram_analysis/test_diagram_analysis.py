@@ -562,13 +562,14 @@ class TestDiagramGenerator(unittest.TestCase):
             repo_name,
             sub_analyses,
             file_coverage_summary=None,
+            commit_hash="",
         ):
             captured["expandable_components"] = expandable_components
             return "{}"
 
         with patch("diagram_analysis.diagram_generator.get_expandable_components", return_value=planned):
             with patch(
-                "diagram_analysis.incremental.io_utils.build_unified_analysis_json",
+                "diagram_analysis.io_utils.build_unified_analysis_json",
                 side_effect=_capture_build,
             ):
                 gen.generate_analysis()

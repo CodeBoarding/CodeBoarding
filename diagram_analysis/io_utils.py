@@ -112,6 +112,7 @@ class _AnalysisFileStore:
         sub_analyses: dict[str, AnalysisInsights] | None = None,
         repo_name: str = "",
         file_coverage_summary: FileCoverageSummary | None = None,
+        commit_hash: str = "",
     ) -> Path:
         """Write the full analysis to ``analysis.json`` with file locking.
 
@@ -120,7 +121,7 @@ class _AnalysisFileStore:
         """
         with self._lock:
             return self._write_with_lock_held(
-                analysis, expandable_component_ids, sub_analyses, repo_name, file_coverage_summary
+                analysis, expandable_component_ids, sub_analyses, repo_name, file_coverage_summary, commit_hash
             )
 
     def write_sub(
@@ -171,6 +172,7 @@ class _AnalysisFileStore:
         sub_analyses: dict[str, AnalysisInsights] | None = None,
         repo_name: str = "",
         file_coverage_summary: FileCoverageSummary | None = None,
+        commit_hash: str = "",
     ) -> Path:
         """Write ``analysis.json`` — caller must already hold ``self._lock``."""
         # Keep caller-provided expandables, but also preserve deterministic planner eligibility.
@@ -208,6 +210,7 @@ class _AnalysisFileStore:
                     repo_name=repo_name,
                     sub_analyses=sub_analyses_tuples,
                     file_coverage_summary=file_coverage_summary,
+                    commit_hash=commit_hash,
                 )
             )
 
@@ -259,10 +262,11 @@ def save_analysis(
     sub_analyses: dict[str, AnalysisInsights] | None = None,
     repo_name: str = "",
     file_coverage_summary: FileCoverageSummary | None = None,
+    commit_hash: str = "",
 ) -> Path:
     """Save the analysis to a unified analysis.json file with file locking."""
     return _get_store(output_dir).write(
-        analysis, expandable_component_ids, sub_analyses, repo_name, file_coverage_summary
+        analysis, expandable_component_ids, sub_analyses, repo_name, file_coverage_summary, commit_hash
     )
 
 

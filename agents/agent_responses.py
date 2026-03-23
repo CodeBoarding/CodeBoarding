@@ -137,6 +137,10 @@ class MethodEntry(BaseModel):
     start_line: int = Field(description="Starting line number in the file.")
     end_line: int = Field(description="Ending line number in the file.")
     node_type: str = Field(description="Node type name matching NodeType enum (e.g. METHOD, FUNCTION, CLASS).")
+    status: str = Field(
+        default="unchanged",
+        description="Diff status of this method: added, modified, deleted, or unchanged.",
+    )
 
     def __hash__(self) -> int:
         return hash(self.qualified_name)
@@ -151,6 +155,10 @@ class FileMethodGroup(BaseModel):
     """All methods/functions belonging to a component within a single file."""
 
     file_path: str = Field(description="Relative path to the source file.")
+    file_status: str = Field(
+        default="unchanged",
+        description="Diff status of this file: added, modified, deleted, renamed, or unchanged.",
+    )
     methods: list[MethodEntry] = Field(
         default_factory=list,
         description="Methods and functions in this file that belong to the component, sorted by start_line.",

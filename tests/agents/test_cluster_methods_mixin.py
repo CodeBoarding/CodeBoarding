@@ -178,5 +178,36 @@ class TestFindNearestCluster(unittest.TestCase):
         self.assertEqual(result, 10)
 
 
+class TestBuildFileMethodsFromNodes(unittest.TestCase):
+    def test_deduplicates_alias_method_entries_and_keeps_more_specific_qualified_name(self):
+        static = MagicMock()
+        mixin = MockMixin(repo_dir=Path("/repo"), static_analysis=static)
+
+        duplicate_specific = Node(
+            "diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_smart",
+            NodeType.METHOD,
+            "/repo/diagram_analysis/diagram_generator.py",
+            468,
+            470,
+        )
+        duplicate_alias = Node(
+            "diagram_analysis.diagram_generator.generate_analysis_smart",
+            NodeType.METHOD,
+            "/repo/diagram_analysis/diagram_generator.py",
+            468,
+            470,
+        )
+
+        groups = mixin._build_file_methods_from_nodes([duplicate_alias, duplicate_specific])
+
+        self.assertEqual(len(groups), 1)
+        self.assertEqual(groups[0].file_path, "diagram_analysis/diagram_generator.py")
+        self.assertEqual(len(groups[0].methods), 1)
+        self.assertEqual(
+            groups[0].methods[0].qualified_name,
+            "diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_smart",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

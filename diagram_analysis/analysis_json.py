@@ -75,6 +75,7 @@ class FileCoverageReport(BaseModel):
 
 class AnalysisMetadata(BaseModel):
     generated_at: str = Field(description="ISO timestamp of when the analysis was generated.")
+    commit_hash: str = Field(default="", description="Git commit hash at which the analysis was generated.")
     repo_name: str = Field(description="Name of the analyzed repository.")
     depth_level: int = Field(description="Maximum depth level of the analysis.")
     file_coverage_summary: FileCoverageSummary = Field(
@@ -220,6 +221,7 @@ def build_unified_analysis_json(
     repo_name: str,
     sub_analyses: dict[str, tuple[AnalysisInsights, list[Component]]] | None = None,
     file_coverage_summary: FileCoverageSummary | None = None,
+    commit_hash: str = "",
 ) -> str:
     """Build the full unified analysis JSON with metadata and nested sub-analyses.
 
@@ -240,6 +242,7 @@ def build_unified_analysis_json(
     unified = UnifiedAnalysisJson(
         metadata=AnalysisMetadata(
             generated_at=datetime.now(timezone.utc).isoformat(),
+            commit_hash=commit_hash,
             repo_name=repo_name,
             depth_level=_compute_depth_level(sub_analyses),
             file_coverage_summary=summary,

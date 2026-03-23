@@ -273,29 +273,44 @@ class ClusterMethodsMixin:
         constants, properties, and fields are excluded.
         """
         allowed_types = CALLABLE_TYPES | CLASS_TYPES
-        by_file: dict[str, list[MethodEntry]] = defaultdict(list)
-        seen: set[str] = set()
+        by_file: dict[str, dict[tuple[int, int, str, str], MethodEntry]] = defaultdict(dict)
+
+        def _is_more_specific(candidate: str, current: str) -> bool:
+            """Prefer the most specific qualified name for the same symbol span.
+
+            Example: keep ``module.Class.method`` over ``module.method`` when both
+            point to the same file range and symbol kind.
+            """
+            candidate_parts = candidate.split(".")
+            current_parts = current.split(".")
+            if candidate_parts[-1] == current_parts[-1]:
+                return len(candidate_parts) > len(current_parts)
+            return len(candidate) > len(current)
+
         for node in nodes:
             if node.type not in allowed_types:
                 continue
-            if node.fully_qualified_name in seen:
-                continue
-            seen.add(node.fully_qualified_name)
+
             rel_path = (
                 os.path.relpath(node.file_path, self.repo_dir) if os.path.isabs(node.file_path) else node.file_path
             )
-            by_file[rel_path].append(
-                MethodEntry(
-                    qualified_name=node.fully_qualified_name,
-                    start_line=node.line_start,
-                    end_line=node.line_end,
-                    node_type=node.type.name,
-                )
+
+            method_name = node.fully_qualified_name.split(".")[-1]
+            dedupe_key = (node.line_start, node.line_end, node.type.name, method_name)
+            candidate = MethodEntry(
+                qualified_name=node.fully_qualified_name,
+                start_line=node.line_start,
+                end_line=node.line_end,
+                node_type=node.type.name,
             )
+
+            existing = by_file[rel_path].get(dedupe_key)
+            if existing is None or _is_more_specific(candidate.qualified_name, existing.qualified_name):
+                by_file[rel_path][dedupe_key] = candidate
 
         groups: list[FileMethodGroup] = []
         for file_path in sorted(by_file):
-            methods = sorted(by_file[file_path], key=lambda m: m.start_line)
+            methods = sorted(by_file[file_path].values(), key=lambda m: (m.start_line, m.end_line, m.qualified_name))
             groups.append(FileMethodGroup(file_path=file_path, methods=methods))
         return groups
 
