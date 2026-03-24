@@ -35,7 +35,7 @@ from monitoring.paths import get_monitoring_run_dir
 from repo_utils import get_git_commit_hash, get_repo_state_hash
 from repo_utils.change_detector import ChangeSet, detect_changes_from_commit
 from repo_utils.ignore import RepoIgnoreManager
-from repo_utils.method_diff import apply_method_diffs
+from repo_utils.method_diff import apply_method_diffs_to_file_index
 from static_analyzer import StaticAnalyzer, get_static_analysis
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.scanner import ProjectScanner
@@ -115,12 +115,10 @@ class DiagramGenerator:
         if changes.is_empty():
             return
 
-        for component in root_analysis.components:
-            apply_method_diffs(component.file_methods, changes, self.repo_location)
+        apply_method_diffs_to_file_index(root_analysis.files, changes, self.repo_location)
 
         for sub_analysis in sub_analyses.values():
-            for component in sub_analysis.components:
-                apply_method_diffs(component.file_methods, changes, self.repo_location)
+            apply_method_diffs_to_file_index(sub_analysis.files, changes, self.repo_location)
 
     def process_component(
         self, component: Component

@@ -77,7 +77,7 @@ def build_manifest_from_analysis(
     Build a manifest from an AnalysisInsights object.
 
     Args:
-        analysis: The analysis containing components with file_methods
+        analysis: The analysis containing components with assigned_files
         repo_state_hash: Current repo state hash
         base_commit: Current commit hash
         expanded_components: List of component IDs that have sub-analysis JSONs
@@ -88,8 +88,7 @@ def build_manifest_from_analysis(
     file_to_component: dict[str, str] = {}
 
     for component in analysis.components:
-        for fmg in component.file_methods:
-            file_path = fmg.file_path
+        for file_path in component.assigned_files:
             # Normalize path (remove leading ./ if present)
             normalized_path = file_path.lstrip("./")
             file_to_component[normalized_path] = component.component_id

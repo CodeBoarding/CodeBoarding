@@ -306,6 +306,11 @@ def validate_qualified_names(result: AnalysisInsights, context: ValidationContex
     """
     Validate that qualified names in key_entities exist in static analysis references.
 
+    Uses loose matching to auto-correct qualified names that are valid but use a
+    shortened path (e.g. ``markitdown._markitdown.MarkItDown`` instead of
+    ``packages.markitdown.src.markitdown._markitdown.MarkItDown``).  Only names
+    that cannot be resolved even with loose matching are reported as invalid.
+
     Args:
         result: AnalysisInsights containing components with key_entities
         context: ValidationContext with static_analysis to check references
@@ -318,22 +323,38 @@ def validate_qualified_names(result: AnalysisInsights, context: ValidationContex
         return ValidationResult(is_valid=True)
 
     invalid_references: list[str] = []
+    auto_corrected = 0
     for component in result.components:
         for key_entity in component.key_entities:
             qname = key_entity.qualified_name.replace("/", ".")
             found = False
 
-            # Check if qualified name exists in any language
             for lang in context.static_analysis.get_languages():
+                # Exact / case-insensitive match
                 try:
                     context.static_analysis.get_reference(lang, qname)
                     found = True
                     break
                 except (ValueError, FileExistsError):
-                    continue
+                    pass
+
+                # Loose match – auto-correct the qualified name in-place
+                _text, loose_node = context.static_analysis.get_loose_reference(lang, qname)
+                if loose_node is not None:
+                    logger.info(
+                        f"[Validation] Auto-corrected qualified name: "
+                        f"'{key_entity.qualified_name}' -> '{loose_node.fully_qualified_name}'"
+                    )
+                    key_entity.qualified_name = loose_node.fully_qualified_name
+                    found = True
+                    auto_corrected += 1
+                    break
 
             if not found:
                 invalid_references.append(f"{component.name}: '{key_entity.qualified_name}'")
+
+    if auto_corrected:
+        logger.info(f"[Validation] Auto-corrected {auto_corrected} qualified names via loose matching")
 
     if not invalid_references:
         logger.info("[Validation] All qualified names exist in static analysis references")

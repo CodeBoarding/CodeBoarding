@@ -9,6 +9,7 @@ from agents.agent_responses import (
     AnalysisInsights,
     ClusterAnalysis,
     Component,
+    FileEntry,
     FileMethodGroup,
     MethodEntry,
 )
@@ -110,8 +111,8 @@ class ClusterMethodsMixin:
                     original_component = seen_entities[qname]
                     ref_file = key_entity.reference_file
 
-                    component_files = [fg.file_path for fg in component.file_methods]
-                    original_files = [fg.file_path for fg in original_component.file_methods]
+                    component_files = component.assigned_files
+                    original_files = original_component.assigned_files
                     current_has_file = ref_file and any(ref_file in f for f in component_files)
                     original_has_file = ref_file and any(ref_file in f for f in original_files)
 
@@ -162,9 +163,9 @@ class ClusterMethodsMixin:
             Tuple of (formatted cluster string, cluster_results dict)
             where cluster_results maps language -> ClusterResult for the subgraph
         """
-        component_files = [fg.file_path for fg in component.file_methods]
+        component_files = component.assigned_files
         if not component_files:
-            logger.warning(f"Component {component.name} has no file_methods")
+            logger.warning(f"Component {component.name} has no assigned files")
             return "No assigned files found for this component.", {}
 
         # Convert files to absolute paths for comparison
@@ -433,6 +434,16 @@ class ClusterMethodsMixin:
         pct = (assigned_nodes / total_nodes * 100) if total_nodes else 0
         logger.info(f"Node coverage: {assigned_nodes}/{total_nodes} ({pct:.1f}%) nodes assigned to components")
 
+    def _build_files_index(self, analysis: AnalysisInsights) -> dict[str, FileEntry]:
+        files: dict[str, FileEntry] = {}
+        for component in analysis.components:
+            for fmg in component.file_methods:
+                files[fmg.file_path] = FileEntry(
+                    file_status=fmg.file_status,
+                    methods=[m.model_copy(deep=True) for m in fmg.methods],
+                )
+        return files
+
     def populate_file_methods(self, analysis: AnalysisInsights, cluster_results: dict[str, ClusterResult]) -> None:
         """Deterministically populate ``file_methods`` on every component.
 
@@ -458,6 +469,9 @@ class ClusterMethodsMixin:
 
         for comp in analysis.components:
             comp.file_methods = self._build_file_methods_from_nodes(component_nodes.get(comp.component_id, []))
+            comp.assigned_files = [fg.file_path for fg in comp.file_methods]
+
+        analysis.files = self._build_files_index(analysis)
 
         self._log_node_coverage(analysis, len(all_nodes))
 

@@ -10,8 +10,8 @@ import logging
 import subprocess
 from pathlib import Path
 
-from agents.agent_responses import FileMethodGroup, MethodEntry
-from repo_utils.change_detector import ChangeSet, ChangeType
+from agents.agent_responses import FileEntry, MethodEntry
+from repo_utils.change_detector import ChangeSet
 
 logger = logging.getLogger(__name__)
 
@@ -63,55 +63,68 @@ def _method_overlaps_ranges(method: MethodEntry, changed_ranges: list[tuple[int,
     return False
 
 
-def apply_method_diffs(
-    file_method_groups: list[FileMethodGroup],
-    changes: ChangeSet,
-    repo_dir: Path,
-) -> list[FileMethodGroup]:
-    """Apply diff status to FileMethodGroups and their MethodEntries in-place.
-
-    Args:
-        file_method_groups: The file-method groups to annotate.
-        changes: The ChangeSet from change detection.
-        repo_dir: Path to the git repository root.
-
-    Returns:
-        The same list, with ``file_status`` and method ``status`` fields populated.
-    """
-    if changes.is_empty():
-        return file_method_groups
-
-    # Build lookup maps from the ChangeSet
+def _resolve_file_status(file_path: str, changes: ChangeSet) -> str:
     modified_files: set[str] = set(changes.modified_files)
     added_files: set[str] = set(changes.added_files)
     deleted_files: set[str] = set(changes.deleted_files)
-    renames: dict[str, str] = changes.renames  # old_path -> new_path
+    renames: dict[str, str] = changes.renames
     renamed_new_paths: set[str] = set(renames.values())
 
-    for group in file_method_groups:
-        fp = group.file_path
+    if file_path in added_files:
+        return "added"
+    if file_path in deleted_files:
+        return "deleted"
+    if file_path in renamed_new_paths:
+        return "renamed"
+    if file_path in modified_files:
+        return "modified"
+    return "unchanged"
 
-        if fp in added_files:
-            group.file_status = "added"
-            for method in group.methods:
-                method.status = "added"
 
-        elif fp in deleted_files:
-            group.file_status = "deleted"
-            for method in group.methods:
-                method.status = "deleted"
+def get_method_statuses_for_file(
+    methods: list[MethodEntry],
+    file_path: str,
+    changes: ChangeSet,
+    repo_dir: Path,
+) -> str:
+    """Update method statuses for one file and return the file status."""
+    file_status = _resolve_file_status(file_path, changes)
 
-        elif fp in renamed_new_paths:
-            group.file_status = "renamed"
-            # Methods themselves are unchanged unless the file was also modified
+    if file_status == "added":
+        for method in methods:
+            method.status = "added"
+        return file_status
 
-        elif fp in modified_files:
-            group.file_status = "modified"
-            # Determine which methods overlap with changed line ranges
-            changed_ranges = _parse_diff_line_ranges(repo_dir, changes.base_ref, fp)
-            if changed_ranges:
-                for method in group.methods:
-                    if _method_overlaps_ranges(method, changed_ranges):
-                        method.status = "modified"
+    if file_status == "deleted":
+        for method in methods:
+            method.status = "deleted"
+        return file_status
 
-    return file_method_groups
+    if file_status == "modified":
+        changed_ranges = _parse_diff_line_ranges(repo_dir, changes.base_ref, file_path)
+        if changed_ranges:
+            for method in methods:
+                method.status = "modified" if _method_overlaps_ranges(method, changed_ranges) else "unchanged"
+        else:
+            # Zero-context new-file ranges can be empty for deletion-only hunks.
+            # Mark all methods as modified as a safe fallback.
+            for method in methods:
+                method.status = "modified"
+        return file_status
+
+    return file_status
+
+
+def apply_method_diffs_to_file_index(
+    files: dict[str, FileEntry],
+    changes: ChangeSet,
+    repo_dir: Path,
+) -> dict[str, FileEntry]:
+    """Apply file and method statuses to top-level files index in-place."""
+    if changes.is_empty():
+        return files
+
+    for file_path, file_entry in files.items():
+        file_entry.file_status = get_method_statuses_for_file(file_entry.methods, file_path, changes, repo_dir)
+
+    return files

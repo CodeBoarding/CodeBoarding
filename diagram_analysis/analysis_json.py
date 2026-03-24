@@ -7,12 +7,39 @@ from agents.agent_responses import (
     Component,
     Relation,
     AnalysisInsights,
+    FileEntry,
     FileMethodGroup,
     SourceCodeReference,
-    assign_component_ids,
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _build_files_index_from_analysis(analysis: AnalysisInsights) -> dict[str, FileEntry]:
+    """Build a top-level files index from analysis."""
+    return {file_path: entry.model_copy(deep=True) for file_path, entry in analysis.files.items()}
+
+
+def _attach_component_methods_from_files(analysis: AnalysisInsights, files_index: dict[str, FileEntry]) -> None:
+    """Populate component.assigned_files and component.file_methods from files index."""
+    for component in analysis.components:
+        deduped_assigned = sorted(set(component.assigned_files))
+        component.assigned_files = deduped_assigned
+
+        rebuilt_file_methods: list[FileMethodGroup] = []
+        for file_path in deduped_assigned:
+            entry = files_index.get(file_path)
+            if entry is None:
+                continue
+            rebuilt_file_methods.append(
+                FileMethodGroup(
+                    file_path=file_path,
+                    file_status=entry.file_status,
+                    methods=[m.model_copy(deep=True) for m in entry.methods],
+                )
+            )
+
+        component.file_methods = rebuilt_file_methods
 
 
 class RelationJson(Relation):
@@ -35,8 +62,8 @@ class ComponentJson(Component):
         description="Whether the component can be expanded in detail or not.",
         default=False,
     )
-    file_methods: list[FileMethodGroup] = Field(
-        description="All methods/functions belonging to this component, grouped by file.",
+    assigned_files: list[str] = Field(
+        description="Files assigned to this component.",
         default_factory=list,
     )
     # Exclude intermediate field from JSON output
@@ -91,6 +118,10 @@ class UnifiedAnalysisJson(BaseModel):
     description: str = Field(
         description="One paragraph explaining the functionality which is represented by this graph."
     )
+    files: dict[str, FileEntry] = Field(
+        default_factory=dict,
+        description="Top-level file index keyed by relative file path.",
+    )
     components: list[ComponentJson] = Field(description="List of the components identified in the project.")
     components_relations: list[RelationJson] = Field(description="List of relations among the components.")
 
@@ -143,7 +174,7 @@ def from_component_to_json_component(
         description=component.description,
         key_entities=component.key_entities,
         source_cluster_ids=component.source_cluster_ids,
-        file_methods=component.file_methods,
+        assigned_files=component.assigned_files,
         can_expand=can_expand,
         components=nested_components,
         components_relations=nested_relations,
@@ -155,14 +186,16 @@ def from_analysis_to_json(
     expandable_components: list[Component],
     sub_analyses: dict[str, tuple[AnalysisInsights, list[Component]]] | None = None,
 ) -> str:
-    """Convert an AnalysisInsights to a flat JSON string (legacy-compatible, no metadata wrapper)."""
+    """Convert an AnalysisInsights to a flat JSON string (no metadata wrapper)."""
     components_json = [
         from_component_to_json_component(c, expandable_components, sub_analyses, None) for c in analysis.components
     ]
     # Build a dict matching the old AnalysisInsightsJson shape but with nested components
     relations_json = [_relation_to_json(r) for r in analysis.components_relations]
+    files_index = _build_files_index_from_analysis(analysis)
     data = {
         "description": analysis.description,
+        "files": {fp: entry.model_dump() for fp, entry in files_index.items()},
         "components": [c.model_dump(exclude_none=True) for c in components_json],
         "components_relations": [r.model_dump() for r in relations_json],
     }
@@ -231,6 +264,7 @@ def build_unified_analysis_json(
     components_json = [
         from_component_to_json_component(c, expandable_components, sub_analyses, None) for c in analysis.components
     ]
+    files_index = _build_files_index_from_analysis(analysis)
 
     # Use default summary if none provided
     if file_coverage_summary is None:
@@ -248,6 +282,7 @@ def build_unified_analysis_json(
             file_coverage_summary=summary,
         ),
         description=analysis.description,
+        files=files_index,
         components=components_json,
         components_relations=relations_json,
     )
@@ -266,40 +301,16 @@ def parse_unified_analysis(
     sub_analyses: dict[str, AnalysisInsights] = {}
     root_analysis = _extract_analysis_recursive(data, sub_analyses)
 
-    # Backward compatibility: if components lack component_id, assign deterministically
-    if any(c.component_id == "" for c in root_analysis.components):
-        _assign_ids_and_rekey(root_analysis, sub_analyses)
+    files_raw = data["files"]
+    files_index: dict[str, FileEntry] = {path: FileEntry(**entry) for path, entry in files_raw.items()}
+
+    root_analysis.files = {path: entry.model_copy(deep=True) for path, entry in files_index.items()}
+    _attach_component_methods_from_files(root_analysis, files_index)
+    for sub in sub_analyses.values():
+        sub.files = {path: entry.model_copy(deep=True) for path, entry in files_index.items()}
+        _attach_component_methods_from_files(sub, files_index)
 
     return root_analysis, sub_analyses
-
-
-def _assign_ids_and_rekey(
-    root_analysis: AnalysisInsights,
-    sub_analyses: dict[str, AnalysisInsights],
-) -> None:
-    """Assign component IDs to an analysis loaded from old JSON (without IDs) and re-key sub_analyses."""
-    # Build old name -> sub_analysis mapping before clearing
-    old_subs = dict(sub_analyses)
-    sub_analyses.clear()
-
-    # Assign IDs to root and recursively to sub-analyses (empty parent_id for root)
-    _assign_ids_recursive(root_analysis, old_subs, sub_analyses, "")
-
-
-def _assign_ids_recursive(
-    analysis: AnalysisInsights,
-    old_subs: dict[str, AnalysisInsights],
-    new_subs: dict[str, AnalysisInsights],
-    parent_id: str,
-) -> None:
-    """Recursively assign IDs and re-key sub_analyses from name-keyed to id-keyed."""
-    assign_component_ids(analysis, parent_id=parent_id)
-    for comp in analysis.components:
-        # Check if this component had a sub-analysis keyed by name
-        if comp.name in old_subs:
-            sub = old_subs[comp.name]
-            new_subs[comp.component_id] = sub
-            _assign_ids_recursive(sub, old_subs, new_subs, comp.component_id)
 
 
 def build_id_to_name_map(root_analysis: AnalysisInsights, sub_analyses: dict[str, AnalysisInsights]) -> dict[str, str]:
@@ -323,8 +334,8 @@ def _extract_analysis_recursive(data: dict, sub_analyses: dict[str, AnalysisInsi
     """
     components: list[Component] = []
 
-    for comp_data in data.get("components", []):
-        file_methods = [FileMethodGroup(**fm) for fm in comp_data.get("file_methods", [])]
+    for comp_data in data["components"]:
+        assigned_files = comp_data["assigned_files"]
         key_entities = [
             SourceCodeReference(
                 qualified_name=ke["qualified_name"],
@@ -338,10 +349,10 @@ def _extract_analysis_recursive(data: dict, sub_analyses: dict[str, AnalysisInsi
         # Create the component for this level (non-nested)
         component = Component(
             name=comp_data["name"],
-            component_id=comp_data.get("component_id", ""),
+            component_id=comp_data["component_id"],
             description=comp_data["description"],
             key_entities=key_entities,
-            file_methods=file_methods,
+            assigned_files=assigned_files,
             source_cluster_ids=comp_data.get("source_cluster_ids", []),
         )
         components.append(component)
@@ -350,10 +361,10 @@ def _extract_analysis_recursive(data: dict, sub_analyses: dict[str, AnalysisInsi
         nested_components = comp_data.get("components")
         if nested_components is not None:
             sub_analysis = _extract_analysis_recursive(comp_data, sub_analyses)
-            sub_analyses[component.component_id or comp_data["name"]] = sub_analysis
+            sub_analyses[component.component_id] = sub_analysis
 
     return AnalysisInsights(
-        description=data.get("description", ""),
+        description=data["description"],
         components=components,
         components_relations=[
             Relation(
@@ -365,6 +376,6 @@ def _extract_analysis_recursive(data: dict, sub_analyses: dict[str, AnalysisInsi
                 edge_count=r.get("edge_count", 0),
                 is_static=r.get("is_static", False),
             )
-            for r in data.get("components_relations", [])
+            for r in data["components_relations"]
         ],
     )

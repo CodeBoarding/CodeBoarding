@@ -165,6 +165,19 @@ class FileMethodGroup(BaseModel):
     )
 
 
+class FileEntry(BaseModel):
+    """Single source of truth for methods in one file."""
+
+    file_status: str = Field(
+        default="unchanged",
+        description="Diff status of this file: added, modified, deleted, renamed, or unchanged.",
+    )
+    methods: list[MethodEntry] = Field(
+        default_factory=list,
+        description="Methods and functions in this file, sorted by start_line.",
+    )
+
+
 class Component(LLMBaseModel):
     """A software component with name, description, and key entities."""
 
@@ -193,6 +206,12 @@ class Component(LLMBaseModel):
         exclude=True,
     )
 
+    assigned_files: list[str] = Field(
+        description="Files assigned to this component. Methods are stored in the top-level files index.",
+        default_factory=list,
+        exclude=True,
+    )
+
     component_id: str = Field(
         default="",
         description="Deterministic unique identifier for this component.",
@@ -217,6 +236,11 @@ class AnalysisInsights(LLMBaseModel):
 
     description: str = Field(
         description="One paragraph explaining the functionality which is represented by this graph. What the main flow is and what is its purpose."
+    )
+    files: dict[str, FileEntry] = Field(
+        default_factory=dict,
+        description="Top-level file index keyed by relative file path. Contains all methods and statuses.",
+        exclude=True,
     )
     components: list[Component] = Field(description="List of the components identified in the project.")
     components_relations: list[Relation] = Field(description="List of relations among the components.")

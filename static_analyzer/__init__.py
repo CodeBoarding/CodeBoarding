@@ -208,6 +208,39 @@ class StaticAnalyzer:
                 client.did_change(file_path, content)
                 logger.debug(f"Sent didOpen+didChange for {file_path} to {adapter.language} engine LSP")
 
+    def get_file_symbols(self, file_path: Path) -> list[dict]:
+        """Query the LSP server for document symbols in a single file.
+
+        The file must have been opened previously (via ``notify_file_changed``
+        or during the initial analysis) so the LSP server has indexed it.
+
+        Args:
+            file_path: Absolute path to the file.
+
+        Returns:
+            Raw LSP ``DocumentSymbol[]`` response (possibly nested).
+            Returns an empty list if no matching client is found.
+        """
+        suffix = file_path.suffix
+        for adapter, project_path, client in self._engine_clients:
+            if suffix in adapter.file_extensions:
+                try:
+                    symbols = client.document_symbol(file_path, timeout=10)
+                    logger.debug(f"Got {len(symbols)} symbols for {file_path}")
+                    return symbols
+                except Exception:
+                    logger.warning(f"Failed to get symbols for {file_path}", exc_info=True)
+                    return []
+        return []
+
+    def get_adapter_for_file(self, file_path: Path) -> tuple[LanguageAdapter, Path] | None:
+        """Return the (adapter, project_root) pair that handles a given file extension."""
+        suffix = file_path.suffix
+        for adapter, project_path, _ in self._engine_clients:
+            if suffix in adapter.file_extensions:
+                return adapter, project_path
+        return None
+
     def analyze(self, cache_dir: Path | None = None) -> StaticAnalysisResults:
         """Analyze the repository using the engine LSP pipeline.
 
