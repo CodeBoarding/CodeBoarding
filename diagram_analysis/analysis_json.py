@@ -66,6 +66,10 @@ class ComponentJson(Component):
         description="Files assigned to this component.",
         default_factory=list,
     )
+    file_methods: list[FileMethodGroup] = Field(
+        description="All methods/functions belonging to this component, grouped by file.",
+        default_factory=list,
+    )
     # Exclude intermediate field from JSON output
     source_group_names: list[str] = Field(default_factory=list, exclude=True)
     # Nested sub-analysis for expanded components
@@ -175,6 +179,7 @@ def from_component_to_json_component(
         key_entities=component.key_entities,
         source_cluster_ids=component.source_cluster_ids,
         assigned_files=component.assigned_files,
+        file_methods=component.file_methods,
         can_expand=can_expand,
         components=nested_components,
         components_relations=nested_relations,

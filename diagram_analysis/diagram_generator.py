@@ -23,7 +23,6 @@ from diagram_analysis.file_coverage import FileCoverage
 from diagram_analysis.io_utils import save_analysis
 from diagram_analysis.manifest import (
     build_manifest_from_analysis,
-    load_manifest,
     save_manifest,
 )
 from diagram_analysis.version import Version
@@ -33,7 +32,7 @@ from monitoring import StreamingStatsWriter
 from monitoring.mixin import MonitoringMixin
 from monitoring.paths import get_monitoring_run_dir
 from repo_utils import get_git_commit_hash, get_repo_state_hash
-from repo_utils.change_detector import ChangeSet, detect_changes_from_commit
+from repo_utils.change_detector import ChangeSet, detect_uncommitted_changes
 from repo_utils.ignore import RepoIgnoreManager
 from repo_utils.method_diff import apply_method_diffs_to_file_index
 from static_analyzer import StaticAnalyzer, get_static_analysis
@@ -86,20 +85,19 @@ class DiagramGenerator:
         self._method_change_resolution_attempted = False
 
     def _resolve_method_level_changes(self) -> ChangeSet:
-        """Resolve method-level changes from previous manifest base commit to current repo state."""
+        """Resolve method-level changes by detecting uncommitted changes (staged + unstaged).
+
+        This diffs HEAD against the working tree to find files with uncommitted modifications,
+        which is the source of truth for method status assignment during analysis.
+        """
         if self._method_change_resolution_attempted:
             return self._cached_method_changes
 
         self._method_change_resolution_attempted = True
 
-        manifest = load_manifest(self.output_dir)
-        if manifest is None:
-            logger.debug("No analysis manifest found; skipping method-level diff status annotation")
-            return self._cached_method_changes
-
-        changes = detect_changes_from_commit(self.repo_location, manifest.base_commit)
+        changes = detect_uncommitted_changes(self.repo_location)
         if changes.is_empty():
-            logger.debug("No changes detected since manifest base commit; method statuses remain unchanged")
+            logger.debug("No uncommitted changes detected; method statuses remain unchanged")
             return self._cached_method_changes
 
         self._cached_method_changes = changes

@@ -225,7 +225,7 @@ class StaticAnalyzer:
         for adapter, project_path, client in self._engine_clients:
             if suffix in adapter.file_extensions:
                 try:
-                    symbols = client.document_symbol(file_path, timeout=10)
+                    symbols = client.document_symbol(file_path)
                     logger.debug(f"Got {len(symbols)} symbols for {file_path}")
                     return symbols
                 except Exception:

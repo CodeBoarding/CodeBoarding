@@ -3,11 +3,13 @@
 Flow:
 1. Collect changed files from the monitor.
 2. Compare current file symbols with methods stored in analysis.files.
-3. Use git diff line ranges to mark methods as modified.
+3. Use git diff line ranges to mark methods as modified (via repo_utils.method_diff).
 4. Apply updates to the file index, then reflect them in component file lists.
+
+NOTE: Method status assignment is delegated to repo_utils.method_diff to ensure
+consistent behavior between the main analysis pipeline and incremental updates.
 """
 
-import subprocess
 import time
 from pathlib import Path
 from typing import Callable
@@ -15,62 +17,19 @@ from typing import Callable
 from agents.agent_responses import AnalysisInsights, Component, FileEntry, FileMethodGroup, MethodEntry
 from diagram_analysis.incremental_types import FileDelta, IncrementalDelta, MethodChange
 from diagram_analysis.manifest import AnalysisManifest
+from repo_utils.change_detector import ChangeSet, ChangeType, DetectedChange
+from repo_utils.method_diff import get_method_statuses_for_file
 
 # Callable that resolves a repo-relative file path to its current MethodEntry list.
 SymbolResolver = Callable[[str], list[MethodEntry]]
 
 
-def _parse_diff_line_ranges(repo_dir: Path, base_ref: str, file_path: str) -> list[tuple[int, int]]:
-    """Return list of changed line ranges in the new file."""
-    if not base_ref:
-        return []
-
-    try:
-        result = subprocess.run(
-            ["git", "diff", "-U0", base_ref, "--", file_path],
-            cwd=repo_dir,
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        return []
-
-    ranges: list[tuple[int, int]] = []
-    for line in result.stdout.splitlines():
-        if not line.startswith("@@"):
-            continue
-
-        parts = line.split()
-        for part in parts:
-            if not part.startswith("+") or part.startswith("+++"):
-                continue
-
-            part = part[1:]
-            if "," in part:
-                start_str, count_str = part.split(",", 1)
-                start = int(start_str)
-                count = int(count_str)
-            else:
-                start = int(part)
-                count = 1
-
-            if count > 0:
-                ranges.append((start, start + count - 1))
-            break
-
-    return ranges
-
-
-def _method_overlaps_ranges(method: MethodEntry, changed_ranges: list[tuple[int, int]]) -> bool:
-    for start, end in changed_ranges:
-        if method.start_line <= end and method.end_line >= start:
-            return True
-    return False
-
-
 class IncrementalUpdater:
-    """Computes file-level incremental deltas from file changes."""
+    """Computes file-level incremental deltas from file changes.
+
+    Delegates method status assignment to repo_utils.method_diff.get_method_statuses_for_file
+    to ensure consistent behavior with the main analysis pipeline.
+    """
 
     def __init__(
         self,
@@ -102,20 +61,26 @@ class IncrementalUpdater:
             return {}
         return {m.qualified_name: m for m in entry.methods}
 
-    def _modified_qnames(self, file_path: str, current_methods: dict[str, MethodEntry]) -> set[str]:
-        """Return qualified names that overlap git-changed lines."""
-        if self._repo_dir is None:
-            return set(current_methods.keys())
+    def _build_change_set(
+        self,
+        added_files: list[str],
+        modified_files: list[str],
+        deleted_files: list[str],
+    ) -> ChangeSet:
+        """Build a ChangeSet from file lists for use with method_diff functions."""
+        changes: list[DetectedChange] = []
+        for fp in added_files:
+            changes.append(DetectedChange(change_type=ChangeType.ADDED, file_path=fp))
+        for fp in modified_files:
+            changes.append(DetectedChange(change_type=ChangeType.MODIFIED, file_path=fp))
+        for fp in deleted_files:
+            changes.append(DetectedChange(change_type=ChangeType.DELETED, file_path=fp))
 
-        changed_ranges = _parse_diff_line_ranges(self._repo_dir, self.manifest.base_commit, file_path)
-        if not changed_ranges:
-            return set(current_methods.keys())
-
-        modified: set[str] = set()
-        for qname, method in current_methods.items():
-            if _method_overlaps_ranges(method, changed_ranges):
-                modified.add(qname)
-        return modified
+        return ChangeSet(
+            changes=changes,
+            base_ref=self.manifest.base_commit or "",
+            target_ref="",
+        )
 
     def compute_delta(
         self,
@@ -123,10 +88,16 @@ class IncrementalUpdater:
         modified_files: list[str],
         deleted_files: list[str],
     ) -> IncrementalDelta:
-        """Compute delta from file changes."""
+        """Compute delta from file changes.
 
+        Uses the canonical get_method_statuses_for_file from repo_utils.method_diff
+        to determine method statuses, ensuring consistency with the main pipeline.
+        """
         needs_reanalysis = False
         file_deltas: list[FileDelta] = []
+
+        # Build a ChangeSet for use with the canonical method_diff logic
+        change_set = self._build_change_set(added_files, modified_files, deleted_files)
 
         for file_path in added_files:
             current_methods = self._get_current_methods(file_path)
@@ -136,13 +107,18 @@ class IncrementalUpdater:
             else:
                 self.manifest.add_file(file_path, component_id)
 
+            # Use canonical method_diff logic to assign statuses
+            # For added files, all methods get status="added"
+            if self._repo_dir is not None:
+                get_method_statuses_for_file(current_methods, file_path, change_set, self._repo_dir)
+
             added = [
                 MethodChange(
                     qualified_name=m.qualified_name,
                     file_path=file_path,
                     start_line=m.start_line,
                     end_line=m.end_line,
-                    change_type="added",
+                    change_type=m.status,  # Use the status assigned by method_diff
                     node_type=m.node_type,
                 )
                 for m in current_methods
@@ -162,30 +138,55 @@ class IncrementalUpdater:
                 needs_reanalysis = True
 
             prev_methods = self._get_previous_methods(file_path)
-            current = {m.qualified_name: m for m in self._get_current_methods(file_path)}
+            current_methods = self._get_current_methods(file_path)
+            current_by_name = {m.qualified_name: m for m in current_methods}
 
             prev_keys = set(prev_methods.keys())
-            current_keys = set(current.keys())
+            current_keys = set(current_by_name.keys())
 
+            # Determine which methods are truly new vs existing
             added_keys = current_keys - prev_keys
             deleted_keys = prev_keys - current_keys
-            candidate_modified = current_keys & prev_keys
-            modified_keys = candidate_modified & self._modified_qnames(
-                file_path, {k: current[k] for k in candidate_modified}
-            )
+            existing_keys = current_keys & prev_keys
 
-            added = [
-                MethodChange(
-                    qualified_name=qname,
-                    file_path=file_path,
-                    start_line=current[qname].start_line,
-                    end_line=current[qname].end_line,
-                    change_type="added",
-                    node_type=current[qname].node_type,
-                )
-                for qname in sorted(added_keys)
-            ]
-            deleted = [
+            # Use canonical method_diff logic to assign statuses to ALL current methods
+            # This correctly determines which methods in "modified" file are actually
+            # modified (their lines overlap git diff ranges) vs unchanged
+            if self._repo_dir is not None:
+                get_method_statuses_for_file(current_methods, file_path, change_set, self._repo_dir)
+
+            # Build MethodChange lists based on the canonical statuses
+            added_method_changes: list[MethodChange] = []
+            modified_method_changes: list[MethodChange] = []
+
+            for m in current_methods:
+                if m.qualified_name in added_keys:
+                    # Truly new method - status should be "added" or "modified" based on diff overlap
+                    added_method_changes.append(
+                        MethodChange(
+                            qualified_name=m.qualified_name,
+                            file_path=file_path,
+                            start_line=m.start_line,
+                            end_line=m.end_line,
+                            change_type=m.status,
+                            node_type=m.node_type,
+                        )
+                    )
+                elif m.qualified_name in existing_keys:
+                    # Existing method - only include if actually modified
+                    if m.status == "modified":
+                        modified_method_changes.append(
+                            MethodChange(
+                                qualified_name=m.qualified_name,
+                                file_path=file_path,
+                                start_line=m.start_line,
+                                end_line=m.end_line,
+                                change_type="modified",
+                                node_type=m.node_type,
+                            )
+                        )
+
+            deleted_method_changes = [
                 MethodChange(
                     qualified_name=qname,
                     file_path=file_path,
@@ -196,26 +197,15 @@ class IncrementalUpdater:
                 )
                 for qname in sorted(deleted_keys)
             ]
-            modified = [
-                MethodChange(
-                    qualified_name=qname,
-                    file_path=file_path,
-                    start_line=current[qname].start_line,
-                    end_line=current[qname].end_line,
-                    change_type="modified",
-                    node_type=current[qname].node_type,
-                )
-                for qname in sorted(modified_keys)
-            ]
 
             file_deltas.append(
                 FileDelta(
                     file_path=file_path,
                     file_status="modified",
                     component_id=component_id,
-                    added_methods=added,
-                    modified_methods=modified,
-                    deleted_methods=deleted,
+                    added_methods=added_method_changes,
+                    modified_methods=modified_method_changes,
+                    deleted_methods=deleted_method_changes,
                 )
             )
 
@@ -308,7 +298,7 @@ def _apply_file_delta_to_index(files: dict[str, FileEntry], file_delta: FileDelt
             start_line=method.start_line,
             end_line=method.end_line,
             node_type=method.node_type,
-            status="added",
+            status=method.change_type,  # Use the status computed by method_diff
         )
 
     for method in file_delta.modified_methods:
@@ -317,7 +307,7 @@ def _apply_file_delta_to_index(files: dict[str, FileEntry], file_delta: FileDelt
             start_line=method.start_line,
             end_line=method.end_line,
             node_type=method.node_type,
-            status="modified",
+            status=method.change_type,  # Use the status computed by method_diff
         )
 
     existing.methods = sorted(by_name.values(), key=lambda m: (m.start_line, m.end_line, m.qualified_name))
