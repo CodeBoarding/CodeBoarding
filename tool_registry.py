@@ -258,16 +258,36 @@ def _read_manifest() -> dict:
     return {}
 
 
+def _npm_specs_fingerprint() -> str:
+    """Deterministic fingerprint of all pinned npm package specs.
+
+    Changes whenever an npm version pin in TOOL_REGISTRY is updated,
+    causing ``needs_install()`` to trigger a reinstall.
+    """
+    specs: list[str] = []
+    for dep in TOOL_REGISTRY:
+        if dep.kind is ToolKind.NODE:
+            specs.extend(sorted(dep.npm_packages))
+    return ",".join(specs)
+
+
 def _write_manifest() -> None:
     p = _manifest_path()
     p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(json.dumps({"version": _installed_version()}, indent=2))
+    p.write_text(
+        json.dumps(
+            {"version": _installed_version(), "npm_specs": _npm_specs_fingerprint()},
+            indent=2,
+        )
+    )
 
 
 def needs_install() -> bool:
     """Return True when binaries are missing or installed by a different package version."""
     manifest = _read_manifest()
     if manifest.get("version") != _installed_version():
+        return True
+    if manifest.get("npm_specs") != _npm_specs_fingerprint():
         return True
     return not has_required_tools(get_servers_dir())
 
