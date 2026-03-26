@@ -15,6 +15,7 @@ from agents.agent_responses import (
     assign_component_ids,
 )
 from diagram_analysis.analysis_json import (
+    ComponentFileMethodGroupJson,
     ComponentJson,
     RelationJson,
     UnifiedAnalysisJson,
@@ -61,8 +62,8 @@ class TestComponentJson(unittest.TestCase):
             description="Test description",
             can_expand=True,
             file_methods=[
-                FileMethodGroup(file_path="file1.py"),
-                FileMethodGroup(file_path="file2.py"),
+                ComponentFileMethodGroupJson(file_path="file1.py", methods=[]),
+                ComponentFileMethodGroupJson(file_path="file2.py", methods=[]),
             ],
             key_entities=[],
         )

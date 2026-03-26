@@ -7,6 +7,7 @@ on MethodEntry and the ``file_status`` field on FileMethodGroup.
 """
 
 import logging
+import re
 import subprocess
 from pathlib import Path
 
@@ -16,8 +17,18 @@ from repo_utils.change_detector import ChangeSet
 logger = logging.getLogger(__name__)
 
 
-def _parse_diff_line_ranges(repo_dir: Path, base_ref: str, file_path: str) -> list[tuple[int, int]]:
-    """Return list of (start, end) line ranges in the *new* file that were changed.
+def _parse_hunk_side(side: str) -> tuple[int, int]:
+    """Parse one hunk side like ``+12,3`` or ``-8`` into (start, count)."""
+    m = re.match(r"^[+-](\d+)(?:,(\d+))?$", side)
+    if m is None:
+        return 0, 0
+    start = int(m.group(1))
+    count = int(m.group(2) or "1")
+    return start, count
+
+
+def _parse_diff_hunks(repo_dir: Path, base_ref: str, file_path: str) -> list[tuple[int, int, int, int]]:
+    """Return parsed hunk tuples: (old_start, old_count, new_start, new_count).
 
     Uses ``git diff -U0`` to get exact changed line ranges without context lines.
     """
@@ -32,27 +43,20 @@ def _parse_diff_line_ranges(repo_dir: Path, base_ref: str, file_path: str) -> li
     except (subprocess.CalledProcessError, FileNotFoundError):
         return []
 
-    ranges: list[tuple[int, int]] = []
+    hunks: list[tuple[int, int, int, int]] = []
     for line in result.stdout.splitlines():
         if not line.startswith("@@"):
             continue
-        # Parse @@ -old_start,old_count +new_start,new_count @@
+        # Parse header like: @@ -3,2 +4,5 @@
         parts = line.split()
-        for part in parts:
-            if part.startswith("+") and not part.startswith("+++"):
-                # +start or +start,count
-                part = part[1:]
-                if "," in part:
-                    start_str, count_str = part.split(",", 1)
-                    start = int(start_str)
-                    count = int(count_str)
-                else:
-                    start = int(part)
-                    count = 1
-                if count > 0:
-                    ranges.append((start, start + count - 1))
-                break
-    return ranges
+        if len(parts) < 3:
+            continue
+        old_start, old_count = _parse_hunk_side(parts[1])
+        new_start, new_count = _parse_hunk_side(parts[2])
+        if old_start == 0 and new_start == 0:
+            continue
+        hunks.append((old_start, old_count, new_start, new_count))
+    return hunks
 
 
 def _method_overlaps_ranges(method: MethodEntry, changed_ranges: list[tuple[int, int]]) -> bool:
@@ -61,6 +65,20 @@ def _method_overlaps_ranges(method: MethodEntry, changed_ranges: list[tuple[int,
         if method.start_line <= end and method.end_line >= start:
             return True
     return False
+
+
+def _method_fully_inside_ranges(method: MethodEntry, ranges: list[tuple[int, int]]) -> bool:
+    """Return True when every line of method is covered by provided ranges."""
+    if not ranges:
+        return False
+    covered = 0
+    method_len = method.end_line - method.start_line + 1
+    for start, end in ranges:
+        overlap_start = max(method.start_line, start)
+        overlap_end = min(method.end_line, end)
+        if overlap_start <= overlap_end:
+            covered += overlap_end - overlap_start + 1
+    return covered >= method_len
 
 
 def _resolve_file_status(file_path: str, changes: ChangeSet) -> str:
@@ -101,10 +119,28 @@ def get_method_statuses_for_file(
         return file_status
 
     if file_status == "modified":
-        changed_ranges = _parse_diff_line_ranges(repo_dir, changes.base_ref, file_path)
-        if changed_ranges:
+        hunks = _parse_diff_hunks(repo_dir, changes.base_ref, file_path)
+        if hunks:
+            added_ranges: list[tuple[int, int]] = []
+            changed_ranges: list[tuple[int, int]] = []
+            for _old_start, old_count, new_start, new_count in hunks:
+                if new_count <= 0:
+                    continue
+                new_range = (new_start, new_start + new_count - 1)
+                if old_count == 0:
+                    added_ranges.append(new_range)
+                else:
+                    changed_ranges.append(new_range)
+
             for method in methods:
-                method.status = "modified" if _method_overlaps_ranges(method, changed_ranges) else "unchanged"
+                if _method_overlaps_ranges(method, changed_ranges):
+                    method.status = "modified"
+                elif _method_fully_inside_ranges(method, added_ranges):
+                    method.status = "added"
+                elif _method_overlaps_ranges(method, added_ranges):
+                    method.status = "modified"
+                else:
+                    method.status = "unchanged"
         else:
             # Zero-context new-file ranges can be empty for deletion-only hunks.
             # Mark all methods as modified as a safe fallback.

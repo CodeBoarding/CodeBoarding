@@ -9,6 +9,7 @@ from agents.agent_responses import (
     AnalysisInsights,
     FileEntry,
     FileMethodGroup,
+    MethodEntry,
     SourceCodeReference,
 )
 
@@ -20,26 +21,93 @@ def _build_files_index_from_analysis(analysis: AnalysisInsights) -> dict[str, Fi
     return {file_path: entry.model_copy(deep=True) for file_path, entry in analysis.files.items()}
 
 
-def _attach_component_methods_from_files(analysis: AnalysisInsights, files_index: dict[str, FileEntry]) -> None:
-    """Populate component.assigned_files and component.file_methods from files index."""
-    for component in analysis.components:
-        deduped_assigned = sorted(set(component.assigned_files))
-        component.assigned_files = deduped_assigned
+def _method_key(file_path: str, qualified_name: str) -> str:
+    return f"{file_path}|{qualified_name}"
 
-        rebuilt_file_methods: list[FileMethodGroup] = []
-        for file_path in deduped_assigned:
-            entry = files_index.get(file_path)
-            if entry is None:
+
+def _to_method_qualified_name(method: MethodEntry) -> str:
+    return method.qualified_name
+
+
+def _to_component_file_method_refs(file_methods: list[FileMethodGroup]) -> list["ComponentFileMethodGroupJson"]:
+    refs: list[ComponentFileMethodGroupJson] = []
+    for group in file_methods:
+        qnames: list[str] = []
+        seen: set[str] = set()
+        for method in group.methods:
+            qname = _to_method_qualified_name(method)
+            if qname in seen:
                 continue
-            rebuilt_file_methods.append(
-                FileMethodGroup(
-                    file_path=file_path,
-                    file_status=entry.file_status,
-                    methods=[m.model_copy(deep=True) for m in entry.methods],
-                )
-            )
+            seen.add(qname)
+            qnames.append(qname)
+        refs.append(
+            ComponentFileMethodGroupJson(file_path=group.file_path, file_status=group.file_status, methods=qnames)
+        )
+    return refs
 
-        component.file_methods = rebuilt_file_methods
+
+def _method_refs_to_placeholders(method_names: list[str]) -> list[MethodEntry]:
+    return [
+        MethodEntry(
+            qualified_name=method_name,
+            start_line=0,
+            end_line=0,
+            node_type="METHOD",
+        )
+        for method_name in method_names
+    ]
+
+
+def _build_methods_index_from_files(files_index: dict[str, FileEntry]) -> dict[str, "MethodIndexEntry"]:
+    methods_index: dict[str, MethodIndexEntry] = {}
+    for file_path, entry in files_index.items():
+        for method in entry.methods:
+            methods_index[_method_key(file_path, method.qualified_name)] = MethodIndexEntry(
+                file_path=file_path,
+                qualified_name=method.qualified_name,
+                start_line=method.start_line,
+                end_line=method.end_line,
+                type=method.node_type,
+                status=method.status,
+            )
+    return methods_index
+
+
+def _hydrate_component_methods_from_refs(
+    analysis: AnalysisInsights,
+    files_index: dict[str, FileEntry],
+    methods_index: dict[str, "MethodIndexEntry"],
+) -> None:
+    for component in analysis.components:
+        rebuilt: list[FileMethodGroup] = []
+        for group in component.file_methods:
+            file_path = group.file_path
+            file_status = files_index.get(file_path).file_status if file_path in files_index else group.file_status
+            methods: list[MethodEntry] = []
+            for method in group.methods:
+                qname = _to_method_qualified_name(method)
+                indexed = methods_index.get(_method_key(file_path, qname))
+                if indexed is None:
+                    logger.warning(f"Missing method index entry for {file_path}|{qname}")
+                    continue
+                methods.append(
+                    MethodEntry(
+                        qualified_name=indexed.qualified_name,
+                        start_line=indexed.start_line,
+                        end_line=indexed.end_line,
+                        node_type=indexed.type,
+                        status=indexed.status,
+                    )
+                )
+
+            methods = sorted(methods, key=lambda m: (m.start_line, m.end_line, m.qualified_name))
+            rebuilt.append(FileMethodGroup(file_path=file_path, file_status=file_status, methods=methods))
+
+        component.file_methods = rebuilt
+        if component.assigned_files:
+            component.assigned_files = sorted(set(component.assigned_files))
+        else:
+            component.assigned_files = [group.file_path for group in rebuilt]
 
 
 class RelationJson(Relation):
@@ -66,8 +134,8 @@ class ComponentJson(Component):
         description="Files assigned to this component.",
         default_factory=list,
     )
-    file_methods: list[FileMethodGroup] = Field(
-        description="All methods/functions belonging to this component, grouped by file.",
+    file_methods: list["ComponentFileMethodGroupJson"] = Field(
+        description="Component method references grouped by file. Each methods entry stores only qualified_name.",
         default_factory=list,
     )
     # Exclude intermediate field from JSON output
@@ -117,6 +185,27 @@ class AnalysisMetadata(BaseModel):
     )
 
 
+class MethodIndexEntry(BaseModel):
+    file_path: str = Field(description="Relative path to the source file.")
+    qualified_name: str = Field(description="Fully qualified method/function name.")
+    start_line: int = Field(description="Starting line number in the file.")
+    end_line: int = Field(description="Ending line number in the file.")
+    type: str = Field(description="Node type name (METHOD, FUNCTION, CLASS, ...).")
+    status: str = Field(description="Diff status: added, modified, deleted, unchanged.")
+
+
+class ComponentFileMethodGroupJson(BaseModel):
+    file_path: str = Field(description="Relative path to the source file.")
+    file_status: str = Field(
+        default="unchanged",
+        description="Diff status of this file: added, modified, deleted, renamed, or unchanged.",
+    )
+    methods: list[str] = Field(
+        default_factory=list,
+        description="Qualified method/function names assigned to this component in this file.",
+    )
+
+
 class UnifiedAnalysisJson(BaseModel):
     metadata: AnalysisMetadata = Field(description="Metadata about the analysis run.")
     description: str = Field(
@@ -125,6 +214,10 @@ class UnifiedAnalysisJson(BaseModel):
     files: dict[str, FileEntry] = Field(
         default_factory=dict,
         description="Top-level file index keyed by relative file path.",
+    )
+    methods_index: dict[str, MethodIndexEntry] = Field(
+        default_factory=dict,
+        description="Canonical method metadata keyed by '<file_path>|<qualified_name>'.",
     )
     components: list[ComponentJson] = Field(description="List of the components identified in the project.")
     components_relations: list[RelationJson] = Field(description="List of relations among the components.")
@@ -179,7 +272,7 @@ def from_component_to_json_component(
         key_entities=component.key_entities,
         source_cluster_ids=component.source_cluster_ids,
         assigned_files=component.assigned_files,
-        file_methods=component.file_methods,
+        file_methods=_to_component_file_method_refs(component.file_methods),
         can_expand=can_expand,
         components=nested_components,
         components_relations=nested_relations,
@@ -198,9 +291,11 @@ def from_analysis_to_json(
     # Build a dict matching the old AnalysisInsightsJson shape but with nested components
     relations_json = [_relation_to_json(r) for r in analysis.components_relations]
     files_index = _build_files_index_from_analysis(analysis)
+    methods_index = _build_methods_index_from_files(files_index)
     data = {
         "description": analysis.description,
         "files": {fp: entry.model_dump() for fp, entry in files_index.items()},
+        "methods_index": {k: v.model_dump() for k, v in methods_index.items()},
         "components": [c.model_dump(exclude_none=True) for c in components_json],
         "components_relations": [r.model_dump() for r in relations_json],
     }
@@ -270,6 +365,7 @@ def build_unified_analysis_json(
         from_component_to_json_component(c, expandable_components, sub_analyses, None) for c in analysis.components
     ]
     files_index = _build_files_index_from_analysis(analysis)
+    methods_index = _build_methods_index_from_files(files_index)
 
     # Use default summary if none provided
     if file_coverage_summary is None:
@@ -288,6 +384,7 @@ def build_unified_analysis_json(
         ),
         description=analysis.description,
         files=files_index,
+        methods_index=methods_index,
         components=components_json,
         components_relations=relations_json,
     )
@@ -308,12 +405,16 @@ def parse_unified_analysis(
 
     files_raw = data["files"]
     files_index: dict[str, FileEntry] = {path: FileEntry(**entry) for path, entry in files_raw.items()}
+    methods_index_raw = data["methods_index"]
+    methods_index: dict[str, MethodIndexEntry] = {
+        key: MethodIndexEntry(**entry) for key, entry in methods_index_raw.items()
+    }
 
     root_analysis.files = {path: entry.model_copy(deep=True) for path, entry in files_index.items()}
-    _attach_component_methods_from_files(root_analysis, files_index)
+    _hydrate_component_methods_from_refs(root_analysis, files_index, methods_index)
     for sub in sub_analyses.values():
         sub.files = {path: entry.model_copy(deep=True) for path, entry in files_index.items()}
-        _attach_component_methods_from_files(sub, files_index)
+        _hydrate_component_methods_from_refs(sub, files_index, methods_index)
 
     return root_analysis, sub_analyses
 
@@ -341,6 +442,14 @@ def _extract_analysis_recursive(data: dict, sub_analyses: dict[str, AnalysisInsi
 
     for comp_data in data["components"]:
         assigned_files = comp_data["assigned_files"]
+        file_methods = [
+            FileMethodGroup(
+                file_path=group["file_path"],
+                file_status=group.get("file_status", "unchanged"),
+                methods=_method_refs_to_placeholders([str(m) for m in group.get("methods", [])]),
+            )
+            for group in comp_data.get("file_methods", [])
+        ]
         key_entities = [
             SourceCodeReference(
                 qualified_name=ke["qualified_name"],
@@ -357,6 +466,7 @@ def _extract_analysis_recursive(data: dict, sub_analyses: dict[str, AnalysisInsi
             component_id=comp_data["component_id"],
             description=comp_data["description"],
             key_entities=key_entities,
+            file_methods=file_methods,
             assigned_files=assigned_files,
             source_cluster_ids=comp_data.get("source_cluster_ids", []),
         )

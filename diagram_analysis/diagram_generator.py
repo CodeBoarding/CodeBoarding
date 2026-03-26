@@ -108,7 +108,7 @@ class DiagramGenerator:
         root_analysis: AnalysisInsights,
         sub_analyses: dict[str, AnalysisInsights],
     ) -> None:
-        """Annotate file/method status fields using git diffs against last manifest base commit."""
+        """Annotate file/method status fields using working-tree git diffs."""
         changes = self._resolve_method_level_changes()
         if changes.is_empty():
             return

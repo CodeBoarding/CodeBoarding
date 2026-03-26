@@ -17,7 +17,7 @@ from typing import Callable
 from agents.agent_responses import AnalysisInsights, Component, FileEntry, FileMethodGroup, MethodEntry
 from diagram_analysis.incremental_types import FileDelta, IncrementalDelta, MethodChange
 from diagram_analysis.manifest import AnalysisManifest
-from repo_utils.change_detector import ChangeSet, ChangeType, DetectedChange
+from repo_utils.change_detector import ChangeSet
 from repo_utils.method_diff import get_method_statuses_for_file
 
 # Callable that resolves a repo-relative file path to its current MethodEntry list.
@@ -61,32 +61,12 @@ class IncrementalUpdater:
             return {}
         return {m.qualified_name: m for m in entry.methods}
 
-    def _build_change_set(
-        self,
-        added_files: list[str],
-        modified_files: list[str],
-        deleted_files: list[str],
-    ) -> ChangeSet:
-        """Build a ChangeSet from file lists for use with method_diff functions."""
-        changes: list[DetectedChange] = []
-        for fp in added_files:
-            changes.append(DetectedChange(change_type=ChangeType.ADDED, file_path=fp))
-        for fp in modified_files:
-            changes.append(DetectedChange(change_type=ChangeType.MODIFIED, file_path=fp))
-        for fp in deleted_files:
-            changes.append(DetectedChange(change_type=ChangeType.DELETED, file_path=fp))
-
-        return ChangeSet(
-            changes=changes,
-            base_ref=self.manifest.base_commit or "",
-            target_ref="",
-        )
-
     def compute_delta(
         self,
         added_files: list[str],
         modified_files: list[str],
         deleted_files: list[str],
+        changes: ChangeSet,
     ) -> IncrementalDelta:
         """Compute delta from file changes.
 
@@ -95,9 +75,6 @@ class IncrementalUpdater:
         """
         needs_reanalysis = False
         file_deltas: list[FileDelta] = []
-
-        # Build a ChangeSet for use with the canonical method_diff logic
-        change_set = self._build_change_set(added_files, modified_files, deleted_files)
 
         for file_path in added_files:
             current_methods = self._get_current_methods(file_path)
@@ -110,7 +87,7 @@ class IncrementalUpdater:
             # Use canonical method_diff logic to assign statuses
             # For added files, all methods get status="added"
             if self._repo_dir is not None:
-                get_method_statuses_for_file(current_methods, file_path, change_set, self._repo_dir)
+                get_method_statuses_for_file(current_methods, file_path, changes, self._repo_dir)
 
             added = [
                 MethodChange(
@@ -153,7 +130,7 @@ class IncrementalUpdater:
             # This correctly determines which methods in "modified" file are actually
             # modified (their lines overlap git diff ranges) vs unchanged
             if self._repo_dir is not None:
-                get_method_statuses_for_file(current_methods, file_path, change_set, self._repo_dir)
+                get_method_statuses_for_file(current_methods, file_path, changes, self._repo_dir)
 
             # Build MethodChange lists based on the canonical statuses
             added_method_changes: list[MethodChange] = []
