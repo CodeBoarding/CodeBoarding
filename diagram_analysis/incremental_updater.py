@@ -12,6 +12,7 @@ consistent behavior between the main analysis pipeline and incremental updates.
 
 import time
 from pathlib import Path
+import re
 from typing import Callable
 
 from agents.agent_responses import AnalysisInsights, Component, FileEntry, FileMethodGroup, MethodEntry
@@ -22,6 +23,52 @@ from repo_utils.method_diff import get_method_statuses_for_file
 
 # Callable that resolves a repo-relative file path to its current MethodEntry list.
 SymbolResolver = Callable[[str], list[MethodEntry]]
+
+
+def _parse_deleted_line_ranges(repo_dir: Path, base_ref: str, file_path: str) -> list[tuple[int, int]]:
+    """Return deleted old-file line ranges from git diff hunks for one file."""
+    cmd = [
+        "git",
+        "diff",
+        "-U0",
+        base_ref,
+        "--",
+        file_path,
+    ]
+    try:
+        import subprocess
+
+        result = subprocess.run(cmd, cwd=repo_dir, capture_output=True, text=True, check=True)
+    except Exception:
+        return []
+
+    ranges: list[tuple[int, int]] = []
+    for line in result.stdout.splitlines():
+        if not line.startswith("@@"):
+            continue
+        # @@ -old_start,old_count +new_start,new_count @@
+        m = re.search(r"@@\s+-(\d+)(?:,(\d+))?\s+\+(\d+)(?:,(\d+))?\s+@@", line)
+        if m is None:
+            continue
+        old_start = int(m.group(1))
+        old_count = int(m.group(2) or "1")
+        new_count = int(m.group(4) or "1")
+        if old_count > 0 and new_count == 0:
+            ranges.append((old_start, old_start + old_count - 1))
+    return ranges
+
+
+def _method_fully_inside_ranges(method: MethodEntry, ranges: list[tuple[int, int]]) -> bool:
+    if not ranges:
+        return False
+    covered = 0
+    method_len = method.end_line - method.start_line + 1
+    for start, end in ranges:
+        overlap_start = max(method.start_line, start)
+        overlap_end = min(method.end_line, end)
+        if overlap_start <= overlap_end:
+            covered += overlap_end - overlap_start + 1
+    return covered >= method_len
 
 
 class IncrementalUpdater:
@@ -126,6 +173,12 @@ class IncrementalUpdater:
             deleted_keys = prev_keys - current_keys
             existing_keys = current_keys & prev_keys
 
+            if not deleted_keys and self._repo_dir is not None and changes.base_ref:
+                deleted_ranges = _parse_deleted_line_ranges(self._repo_dir, changes.base_ref, file_path)
+                for qname, prev in prev_methods.items():
+                    if _method_fully_inside_ranges(prev, deleted_ranges):
+                        deleted_keys.add(qname)
+
             # Use canonical method_diff logic to assign statuses to ALL current methods
             # This correctly determines which methods in "modified" file are actually
             # modified (their lines overlap git diff ranges) vs unchanged
@@ -137,6 +190,8 @@ class IncrementalUpdater:
             modified_method_changes: list[MethodChange] = []
 
             for m in current_methods:
+                if m.qualified_name in deleted_keys:
+                    continue
                 if m.qualified_name in added_keys:
                     # Truly new method - status should be "added" or "modified" based on diff overlap
                     added_method_changes.append(
