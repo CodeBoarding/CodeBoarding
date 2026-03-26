@@ -122,6 +122,18 @@ class LanguageAdapter(ABC):
         """Return LSP initialization options specific to this language server."""
         return {}
 
+    def get_workspace_settings(self) -> dict | None:
+        """Return settings to send via ``workspace/didChangeConfiguration``.
+
+        Some LSP servers (e.g. Pyright) ignore ``initializationOptions``
+        for certain configuration keys and only respond to settings
+        delivered through ``workspace/didChangeConfiguration``.  Override
+        this method to provide those settings.
+
+        Returns ``None`` (the default) when no workspace settings are needed.
+        """
+        return None
+
     def get_lsp_env(self) -> dict[str, str]:
         """Return extra environment variables for the LSP server process."""
         return {}

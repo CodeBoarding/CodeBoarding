@@ -33,6 +33,16 @@ class PHPAdapter(LanguageAdapter):
     def get_lsp_init_options(self, ignore_manager: RepoIgnoreManager | None = None) -> dict:
         return {"clearCache": False}
 
+    def get_workspace_settings(self) -> dict | None:
+        # unusedSymbols is already true by default but we set it defensively.
+        return {
+            "intelephense": {
+                "diagnostics": {
+                    "unusedSymbols": True,
+                }
+            }
+        }
+
     def is_reference_worthy(self, symbol_kind: int) -> bool:
         return super().is_reference_worthy(symbol_kind) or symbol_kind == NodeType.MODULE
 

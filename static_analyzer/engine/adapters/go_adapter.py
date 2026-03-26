@@ -131,13 +131,32 @@ class GoAdapter(LanguageAdapter):
           from the Go type-checker, not from analyzers.
         """
         directory_filters = _directory_filters_from_ignore_manager(ignore_manager)
+        # gopls expects flat settings (no "gopls" wrapper) in initializationOptions.
+        # The "gopls" nesting seen in editor configs is an editor convention.
         return {
-            "gopls": {
-                "directoryFilters": directory_filters,
-                "analyses": {
-                    "all": False,
-                },
+            "directoryFilters": directory_filters,
+            "analyses": {
+                "all": False,
+                # Re-enable unused-code analyzers for dead-code detection.
+                # Both are off by default and must be explicitly enabled.
+                # unusedparams: flags unused function parameters.
+                # unusedfunc: flags unused unexported functions.
+                # unusedvariable is intentionally omitted — it only provides
+                # quick-fixes for existing compiler errors, not new diagnostics.
+                "unusedparams": True,
+                "unusedfunc": True,
             },
+        }
+
+    def get_workspace_settings(self) -> dict | None:
+        # gopls requests settings via workspace/configuration with section "gopls".
+        # The response must be a flat settings object (no "gopls" wrapper).
+        return {
+            "analyses": {
+                "unusedparams": True,
+                "unusedfunc": True,
+            },
+            "ui.diagnostic.staticcheck": True,
         }
 
     def get_lsp_env(self) -> dict[str, str]:

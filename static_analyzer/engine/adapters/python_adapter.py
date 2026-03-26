@@ -34,3 +34,26 @@ class PythonAdapter(LanguageAdapter):
                 },
             },
         }
+
+    def get_workspace_settings(self) -> dict | None:
+        # Pyright ignores diagnosticSeverityOverrides in initializationOptions
+        # and only responds to workspace/didChangeConfiguration.  At the
+        # default "hint" severity pyright omits the diagnostic code from
+        # publishDiagnostics; raising to "warning" makes it include codes
+        # like reportUnusedImport, which are needed for fine-grained
+        # dead-code categorization.
+        return {
+            "python": {
+                "analysis": {
+                    "typeCheckingMode": "basic",
+                    "diagnosticSeverityOverrides": {
+                        "reportUnusedImport": "warning",
+                        "reportUnusedVariable": "warning",
+                        "reportUnusedFunction": "warning",
+                        "reportUnusedClass": "warning",
+                        "reportUnusedParameter": "warning",
+                        "reportUnreachable": "warning",
+                    },
+                },
+            },
+        }

@@ -261,6 +261,20 @@ class JavaAdapter(LanguageAdapter):
             return ".".join(pkg_parts)
         return after_root[0]
 
+    def get_workspace_settings(self) -> dict | None:
+        # JDTLS defaults these to "ignore"; raising to "warning" is required
+        # for unused-code diagnostics.
+        return {
+            "java": {
+                "settings": {
+                    "org.eclipse.jdt.core.compiler.problem.unusedImport": "warning",
+                    "org.eclipse.jdt.core.compiler.problem.unusedLocal": "warning",
+                    "org.eclipse.jdt.core.compiler.problem.unusedPrivateMember": "warning",
+                    "org.eclipse.jdt.core.compiler.problem.deadCode": "warning",
+                }
+            }
+        }
+
     @property
     def edge_strategy(self) -> EdgeStrategy:
         """Use definition-based edges — JDTLS serializes references requests."""

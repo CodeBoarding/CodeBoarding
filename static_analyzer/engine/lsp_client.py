@@ -47,6 +47,7 @@ class LSPClient:
         default_timeout: int = 60,
         collect_diagnostics: bool = False,
         extra_env: dict[str, str] | None = None,
+        workspace_settings: dict | None = None,
     ) -> None:
         self._command = command
         self._project_root = project_root
@@ -54,6 +55,7 @@ class LSPClient:
         self._default_timeout = default_timeout
         self._collect_diagnostics = collect_diagnostics
         self._extra_env = extra_env or {}
+        self._workspace_settings = workspace_settings
         self._process: subprocess.Popen | None = None  # type: ignore[type-arg]
         self._stdout_fd: int | None = None
         self._request_id = 0
@@ -133,6 +135,16 @@ class LSPClient:
         )
 
         self._send_notification("initialized", {})
+
+        # Some LSP servers (e.g. Pyright) ignore settings in
+        # initializationOptions and only respond to
+        # workspace/didChangeConfiguration.
+        if self._workspace_settings:
+            self._send_notification(
+                "workspace/didChangeConfiguration",
+                {"settings": self._workspace_settings},
+            )
+
         return init_result
 
     def shutdown(self) -> None:
@@ -481,7 +493,8 @@ class LSPClient:
 
         # Handle server-initiated requests (e.g. workspace/configuration)
         if "method" in message and "id" in message:
-            self._write_message({"jsonrpc": "2.0", "id": message["id"], "result": None})
+            result = self._handle_server_request(message)
+            self._write_message({"jsonrpc": "2.0", "id": message["id"], "result": result})
             return None
 
         # Skip notifications that leaked past the reader loop
@@ -571,6 +584,22 @@ class LSPClient:
                 if not self._shutdown_event.is_set():
                     logger.debug("Reader loop error: %s", e)
                 break
+
+    def _handle_server_request(self, message: dict) -> object:
+        """Respond to server-initiated requests.
+
+        LSP servers may send requests like ``workspace/configuration`` to
+        fetch client-side settings.  gopls, for example, sends one
+        ``workspace/configuration`` request per workspace folder with
+        ``items: [{"section": "gopls"}]`` and expects an array of flat
+        settings objects back.
+        """
+        method = message.get("method", "")
+        if method == "workspace/configuration" and self._workspace_settings:
+            items = message.get("params", {}).get("items", [])
+            # Return one settings object per requested item.
+            return [self._workspace_settings for _ in items] if items else [self._workspace_settings]
+        return None
 
     def _handle_notification(self, method: str, params: dict) -> None:
         """Process LSP notifications for diagnostics and server status."""
