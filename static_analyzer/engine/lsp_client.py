@@ -136,9 +136,19 @@ class LSPClient:
 
         self._send_notification("initialized", {})
 
-        # Some LSP servers (e.g. Pyright) ignore settings in
-        # initializationOptions and only respond to
-        # workspace/didChangeConfiguration.
+        # LSP servers receive configuration through three mechanisms:
+        #   1. initializationOptions  — sent in the initialize request above.
+        #   2. workspace/didChangeConfiguration — push notification from client.
+        #   3. workspace/configuration — pull request initiated by the server
+        #      (handled in _handle_server_request).
+        #
+        # Many servers only act on (2) or (3) and silently ignore (1) for
+        # certain settings.  For example, Pyright needs
+        # diagnosticSeverityOverrides via (2) to emit diagnostic codes in
+        # publishDiagnostics, and gopls fetches analyzer config via (3).
+        # We therefore deliver workspace_settings through both (2) and (3)
+        # to ensure every server picks them up regardless of which
+        # mechanism it prefers.
         if self._workspace_settings:
             self._send_notification(
                 "workspace/didChangeConfiguration",

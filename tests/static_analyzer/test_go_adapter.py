@@ -75,7 +75,7 @@ class TestGoplsConfiguration:
         ignore_manager = RepoIgnoreManager(tmp_path)
         adapter = GoAdapter()
         opts = adapter.get_lsp_init_options(ignore_manager)
-        filters = opts["gopls"]["directoryFilters"]
+        filters = opts["directoryFilters"]
 
         # Directory patterns should be converted
         assert "-**/vendor" in filters
@@ -90,14 +90,14 @@ class TestGoplsConfiguration:
         """Without ignore manager, still includes always-ignored dirs."""
         adapter = GoAdapter()
         opts = adapter.get_lsp_init_options()
-        filters = opts["gopls"]["directoryFilters"]
+        filters = opts["directoryFilters"]
         assert "-**/node_modules" in filters
         assert "-**/build" in filters
 
     def test_init_options_disable_all_analyzers(self):
         adapter = GoAdapter()
         opts = adapter.get_lsp_init_options()
-        assert opts["gopls"]["analyses"]["all"] is False
+        assert opts["analyses"]["all"] is False
 
     def test_env_sets_gogc(self):
         adapter = GoAdapter()
