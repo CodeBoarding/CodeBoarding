@@ -12,7 +12,6 @@ consistent behavior between the main analysis pipeline and incremental updates.
 
 import time
 from pathlib import Path
-import re
 from typing import Callable
 
 from agents.agent_responses import AnalysisInsights, Component, FileEntry, FileMethodGroup, MethodEntry
@@ -23,52 +22,6 @@ from repo_utils.method_diff import get_method_statuses_for_file
 
 # Callable that resolves a repo-relative file path to its current MethodEntry list.
 SymbolResolver = Callable[[str], list[MethodEntry]]
-
-
-def _parse_deleted_line_ranges(repo_dir: Path, base_ref: str, file_path: str) -> list[tuple[int, int]]:
-    """Return deleted old-file line ranges from git diff hunks for one file."""
-    cmd = [
-        "git",
-        "diff",
-        "-U0",
-        base_ref,
-        "--",
-        file_path,
-    ]
-    try:
-        import subprocess
-
-        result = subprocess.run(cmd, cwd=repo_dir, capture_output=True, text=True, check=True)
-    except Exception:
-        return []
-
-    ranges: list[tuple[int, int]] = []
-    for line in result.stdout.splitlines():
-        if not line.startswith("@@"):
-            continue
-        # @@ -old_start,old_count +new_start,new_count @@
-        m = re.search(r"@@\s+-(\d+)(?:,(\d+))?\s+\+(\d+)(?:,(\d+))?\s+@@", line)
-        if m is None:
-            continue
-        old_start = int(m.group(1))
-        old_count = int(m.group(2) or "1")
-        new_count = int(m.group(4) or "1")
-        if old_count > 0 and new_count == 0:
-            ranges.append((old_start, old_start + old_count - 1))
-    return ranges
-
-
-def _method_fully_inside_ranges(method: MethodEntry, ranges: list[tuple[int, int]]) -> bool:
-    if not ranges:
-        return False
-    covered = 0
-    method_len = method.end_line - method.start_line + 1
-    for start, end in ranges:
-        overlap_start = max(method.start_line, start)
-        overlap_end = min(method.end_line, end)
-        if overlap_start <= overlap_end:
-            covered += overlap_end - overlap_start + 1
-    return covered >= method_len
 
 
 class IncrementalUpdater:
@@ -162,22 +115,19 @@ class IncrementalUpdater:
                 needs_reanalysis = True
 
             prev_methods = self._get_previous_methods(file_path)
+            prev_active_methods = {
+                qname: method for qname, method in prev_methods.items() if method.status != "deleted"
+            }
             current_methods = self._get_current_methods(file_path)
             current_by_name = {m.qualified_name: m for m in current_methods}
 
-            prev_keys = set(prev_methods.keys())
+            prev_keys = set(prev_active_methods.keys())
             current_keys = set(current_by_name.keys())
 
             # Determine which methods are truly new vs existing
             added_keys = current_keys - prev_keys
             deleted_keys = prev_keys - current_keys
             existing_keys = current_keys & prev_keys
-
-            if not deleted_keys and self._repo_dir is not None and changes.base_ref:
-                deleted_ranges = _parse_deleted_line_ranges(self._repo_dir, changes.base_ref, file_path)
-                for qname, prev in prev_methods.items():
-                    if _method_fully_inside_ranges(prev, deleted_ranges):
-                        deleted_keys.add(qname)
 
             # Use canonical method_diff logic to assign statuses to ALL current methods
             # This correctly determines which methods in "modified" file are actually
@@ -190,8 +140,6 @@ class IncrementalUpdater:
             modified_method_changes: list[MethodChange] = []
 
             for m in current_methods:
-                if m.qualified_name in deleted_keys:
-                    continue
                 if m.qualified_name in added_keys:
                     # Truly new method - status should be "added" or "modified" based on diff overlap
                     added_method_changes.append(
@@ -222,10 +170,10 @@ class IncrementalUpdater:
                 MethodChange(
                     qualified_name=qname,
                     file_path=file_path,
-                    start_line=prev_methods[qname].start_line,
-                    end_line=prev_methods[qname].end_line,
+                    start_line=prev_active_methods[qname].start_line,
+                    end_line=prev_active_methods[qname].end_line,
                     change_type="deleted",
-                    node_type=prev_methods[qname].node_type,
+                    node_type=prev_active_methods[qname].node_type,
                 )
                 for qname in sorted(deleted_keys)
             ]
@@ -245,9 +193,11 @@ class IncrementalUpdater:
             component_id = self.manifest.get_component_for_file(file_path)
             if component_id is None:
                 needs_reanalysis = True
-            self.manifest.remove_file(file_path)
 
             prev_methods = self._get_previous_methods(file_path)
+            prev_active_methods = {
+                qname: method for qname, method in prev_methods.items() if method.status != "deleted"
+            }
             deleted = [
                 MethodChange(
                     qualified_name=qname,
@@ -257,7 +207,7 @@ class IncrementalUpdater:
                     change_type="deleted",
                     node_type=method.node_type,
                 )
-                for qname, method in sorted(prev_methods.items())
+                for qname, method in sorted(prev_active_methods.items())
             ]
             file_deltas.append(
                 FileDelta(
@@ -310,7 +260,27 @@ def _apply_file_delta_to_index(files: dict[str, FileEntry], file_delta: FileDelt
     file_path = file_delta.file_path
 
     if file_delta.file_status == "deleted":
-        files.pop(file_path, None)
+        existing = files.get(file_path)
+        if existing is None:
+            existing = FileEntry(file_status="deleted", methods=[])
+            files[file_path] = existing
+
+        existing.file_status = "deleted"
+        by_name: dict[str, MethodEntry] = {m.qualified_name: m for m in existing.methods}
+
+        for method in file_delta.deleted_methods:
+            by_name[method.qualified_name] = MethodEntry(
+                qualified_name=method.qualified_name,
+                start_line=method.start_line,
+                end_line=method.end_line,
+                node_type=method.node_type,
+                status="deleted",
+            )
+
+        for method in by_name.values():
+            method.status = "deleted"
+
+        existing.methods = sorted(by_name.values(), key=lambda m: (m.start_line, m.end_line, m.qualified_name))
         return
 
     existing = files.get(file_path)
@@ -322,7 +292,13 @@ def _apply_file_delta_to_index(files: dict[str, FileEntry], file_delta: FileDelt
     by_name: dict[str, MethodEntry] = {m.qualified_name: m for m in existing.methods}
 
     for method in file_delta.deleted_methods:
-        by_name.pop(method.qualified_name, None)
+        by_name[method.qualified_name] = MethodEntry(
+            qualified_name=method.qualified_name,
+            start_line=method.start_line,
+            end_line=method.end_line,
+            node_type=method.node_type,
+            status="deleted",
+        )
 
     for method in file_delta.added_methods:
         by_name[method.qualified_name] = MethodEntry(
@@ -388,9 +364,7 @@ def apply_delta(
             continue
 
         assigned = _ensure_assigned_files(component)
-        if file_delta.file_status == "deleted":
-            component.assigned_files = [fp for fp in assigned if fp != file_delta.file_path]
-        elif file_delta.file_path not in assigned:
+        if file_delta.file_path not in assigned:
             component.assigned_files = sorted(set([*assigned, file_delta.file_path]))
 
     root.files = files
