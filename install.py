@@ -484,7 +484,7 @@ def download_jdtls(target_dir: Path, on_progress: ProgressCallback | None = None
     for dep in archive_deps:
         install_archive_tool(target_dir, dep, on_progress=on_progress)
 
-    print("Step: JDTLS download finished")
+    print("Step: Archive tools download finished")
     return True
 
 

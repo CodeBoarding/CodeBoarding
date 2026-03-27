@@ -24,6 +24,7 @@ class Language(StrEnum):
     RUST = "rust"
     CSHARP = "csharp"
     CPP = "cpp"
+    NEXTFLOW = "nextflow"
 
 
 # File extensions per language. Every ``Language`` member appears here — keep
