@@ -111,6 +111,13 @@ VSCODE_CONFIG = {
             "file_extensions": [".java"],
             "install_commands": "null",
         },
+        "nextflow": {
+            "name": "Nextflow Language Server",
+            "command": ["java", "-jar", "language-server-all.jar"],
+            "languages": ["nextflow"],
+            "file_extensions": [".nf"],
+            "install_commands": "null",
+        },
     },
     "tools": {
         "tokei": {

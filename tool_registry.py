@@ -79,6 +79,7 @@ class ToolDependency:
         archive_subdir: Subdirectory name under bin/ for archive extraction.
         js_entry_file: JS entry point filename for Windows direct execution (e.g. "cli.mjs").
         js_entry_parent: Parent directory substring to locate the entry point (e.g. "typescript-language-server").
+        github_repo: GitHub repo (owner/name) to download from. Defaults to CodeBoarding repo.
     """
 
     key: str
@@ -91,6 +92,7 @@ class ToolDependency:
     archive_subdir: str = ""
     js_entry_file: str = ""
     js_entry_parent: str = ""
+    github_repo: str = "CodeBoarding/CodeBoarding"
 
 
 TOOL_REGISTRY: list[ToolDependency] = [
@@ -142,6 +144,15 @@ TOOL_REGISTRY: list[ToolDependency] = [
         config_section=ConfigSection.LSP_SERVERS,
         archive_asset="jdtls.tar.gz",
         archive_subdir="jdtls",
+    ),
+    ToolDependency(
+        key="nextflow",
+        binary_name="java",
+        kind=ToolKind.ARCHIVE,
+        config_section=ConfigSection.LSP_SERVERS,
+        github_repo="nextflow-io/language-server",
+        archive_asset="language-server-all.jar",
+        archive_subdir="nextflow-lsp",
     ),
 ]
 
@@ -373,7 +384,13 @@ def resolve_config(base_dir: Path) -> dict[str, Any]:
 
         elif dep.kind is ToolKind.ARCHIVE and dep.archive_subdir:
             archive_dir = base_dir / "bin" / dep.archive_subdir
-            if archive_dir.is_dir() and (archive_dir / "plugins").is_dir():
+            if dep.archive_asset.endswith(".jar"):
+                # Single JAR file (e.g., Nextflow LS)
+                jar_path = archive_dir / dep.archive_asset
+                if jar_path.exists():
+                    config[dep.config_section][dep.key]["jar_path"] = str(jar_path)
+            elif archive_dir.is_dir() and (archive_dir / "plugins").is_dir():
+                # Extracted archive (e.g., JDTLS)
                 config[dep.config_section][dep.key]["jdtls_root"] = str(archive_dir)
 
     return config
@@ -433,17 +450,17 @@ def platform_bin_dir(base: Path) -> Path:
     return base / "bin" / subdir
 
 
-def get_latest_release_tag() -> str:
+def get_latest_release_tag(repo: str = GITHUB_REPO) -> str:
     """Fetch the latest release tag from the GitHub repository."""
-    response = requests.get(f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest", timeout=30)
+    response = requests.get(f"https://api.github.com/repos/{repo}/releases/latest", timeout=30)
     response.raise_for_status()
     return response.json()["tag_name"]
 
 
-def download_asset(tag: str, asset_name: str, destination: Path) -> bool:
+def download_asset(tag: str, asset_name: str, destination: Path, repo: str = GITHUB_REPO) -> bool:
     """Download a GitHub release asset to destination. Returns True on success."""
     destination.parent.mkdir(parents=True, exist_ok=True)
-    url = f"https://github.com/{GITHUB_REPO}/releases/download/{tag}/{asset_name}"
+    url = f"https://github.com/{repo}/releases/download/{tag}/{asset_name}"
     response = requests.get(url, stream=True, timeout=300, allow_redirects=True)
     response.raise_for_status()
     with open(destination, "wb") as f:
@@ -534,6 +551,28 @@ def install_archive_tool(target_dir: Path, dep: ToolDependency) -> None:
     assert dep.archive_subdir, f"{dep.key}: archive_subdir required for archive tools"
 
     extract_dir = target_dir / "bin" / dep.archive_subdir
+
+    # For JAR files, just download directly (no extraction needed)
+    if dep.archive_asset.endswith(".jar"):
+        jar_path = extract_dir / dep.archive_asset
+        if jar_path.exists():
+            logger.info("%s already installed", dep.key)
+            return
+
+        logger.info("Downloading %s...", dep.key)
+        extract_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            tag = get_latest_release_tag(repo=dep.github_repo)
+            if not download_asset(tag, dep.archive_asset, jar_path, repo=dep.github_repo):
+                logger.warning("%s download failed (empty file)", dep.key)
+                return
+            logger.info("%s installed successfully", dep.key)
+        except Exception:
+            logger.exception("%s installation failed", dep.key)
+            jar_path.unlink(missing_ok=True)
+        return
+
+    # Existing tarball extraction logic (e.g., JDTLS)
     if extract_dir.exists() and (extract_dir / "plugins").is_dir():
         logger.info("%s already installed", dep.key)
         return
@@ -543,8 +582,8 @@ def install_archive_tool(target_dir: Path, dep: ToolDependency) -> None:
     archive_path = target_dir / "bin" / dep.archive_asset
 
     try:
-        tag = get_latest_release_tag()
-        if not download_asset(tag, dep.archive_asset, archive_path):
+        tag = get_latest_release_tag(repo=dep.github_repo)
+        if not download_asset(tag, dep.archive_asset, archive_path, repo=dep.github_repo):
             logger.warning("%s download failed (empty file)", dep.key)
             return
 

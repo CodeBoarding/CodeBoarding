@@ -126,6 +126,21 @@ REPOSITORY_CONFIGS = [
             "lsp_server_key": "typescript",
         },
     ),
+    RepositoryTestConfig(
+        name="nextflow_rnaseq",
+        repo_url="https://github.com/nf-core/rnaseq",
+        pinned_commit="3.17.0",
+        language="Nextflow",
+        fixture_file="nextflow_rnaseq.json",
+        mock_language={
+            "language": "Nextflow",
+            "size": 5000,
+            "percentage": 100.0,
+            "suffixes": [".nf", ".config"],
+            "server_commands": ["java", "-jar", "language-server-all.jar"],
+            "lsp_server_key": "nextflow",
+        },
+    ),
 ]
 
 

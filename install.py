@@ -411,14 +411,16 @@ def download_binaries(target_dir: Path, auto_install_vcpp: bool = False):
     print("Step: Binary download finished")
 
 
-def download_jdtls(target_dir: Path):
-    """Download and extract JDTLS from the latest GitHub release."""
-    print("Step: JDTLS download started")
+def download_archive_tools(target_dir: Path):
+    """Download and extract archive-based tools from GitHub releases."""
+    print("Step: Archive tools download started")
     archive_deps = [d for d in TOOL_REGISTRY if d.kind is ToolKind.ARCHIVE]
     for dep in archive_deps:
+        print(f"Step: {dep.key} download started")
         install_archive_tool(target_dir, dep)
+        print(f"Step: {dep.key} download finished")
 
-    print("Step: JDTLS download finished")
+    print("Step: Archive tools download finished")
     return True
 
 
@@ -475,6 +477,7 @@ def print_language_support_summary(npm_available: bool, target_dir: Path):
     py_env_path = shutil.which("pyright-langserver") or shutil.which("pyright-python-langserver")
     go_path = platform_bin_dir / ("gopls.exe" if is_win else "gopls")
     java_path = target_dir / "bin" / "jdtls"
+    nextflow_jar_path = target_dir / "bin" / "nextflow-lsp" / "language-server-all.jar"
 
     npm_missing = "npm not available"
     pyright_missing = "pyright-langserver not found in node_modules or active environment"
@@ -521,6 +524,12 @@ def print_language_support_summary(npm_available: bool, target_dir: Path):
             reason_if_requirement_missing="jdtls installation not found",
             reason_if_binary_missing="jdtls installation not found",
         ),
+        LanguageSupportCheck(
+            language="Nextflow",
+            paths=[nextflow_jar_path],
+            reason_if_requirement_missing="Nextflow language server JAR not found",
+            reason_if_binary_missing="Nextflow language server JAR not found",
+        ),
     ]
 
     for check in language_checks:
@@ -550,7 +559,7 @@ def run_install(
         install_node_servers(target)
 
     download_binaries(target, auto_install_vcpp=auto_install_vcpp)
-    download_jdtls(target)
+    download_archive_tools(target)
     install_pre_commit_hooks()
     print_language_support_summary(npm_available, target)
 

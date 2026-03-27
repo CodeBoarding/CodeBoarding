@@ -22,6 +22,7 @@ class Language(StrEnum):
     JAVA = "java"
     PHP = "php"
     CPP = "cpp"
+    NEXTFLOW = "nextflow"
 
 
 class ClusteringConfig:
@@ -50,6 +51,7 @@ class ClusteringConfig:
         Language.TYPESCRIPT: ".",
         Language.JAVASCRIPT: ".",
         Language.JAVA: ".",
+        Language.NEXTFLOW: ".",
     }
 
     # Deterministic seed for clustering algorithms

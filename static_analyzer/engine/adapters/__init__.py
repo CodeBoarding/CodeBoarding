@@ -5,6 +5,7 @@ from __future__ import annotations
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.adapters.go_adapter import GoAdapter
 from static_analyzer.engine.adapters.java_adapter import JavaAdapter
+from static_analyzer.engine.adapters.nextflow_adapter import NextflowAdapter
 from static_analyzer.engine.adapters.php_adapter import PHPAdapter
 from static_analyzer.engine.adapters.python_adapter import PythonAdapter
 from static_analyzer.engine.adapters.typescript_adapter import JavaScriptAdapter, TypeScriptAdapter
@@ -16,6 +17,7 @@ ADAPTER_REGISTRY: dict[str, type[LanguageAdapter]] = {
     "Go": GoAdapter,
     "Java": JavaAdapter,
     "PHP": PHPAdapter,
+    "Nextflow": NextflowAdapter,
 }
 
 
