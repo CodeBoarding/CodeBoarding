@@ -28,6 +28,15 @@ class ProjectScanner:
         commands = get_config("tools")["tokei"]["command"]
         result = subprocess.run(commands, cwd=self.repo_location, capture_output=True, text=True, check=True)
 
+        if not result.stdout:
+            stderr_msg = result.stderr.strip() if result.stderr else "no stderr output"
+            raise RuntimeError(
+                f"Tokei produced no output for repository '{self.repo_location}'. "
+                f"stderr: {stderr_msg}. "
+                f"This may indicate a tokei installation issue (e.g. Windows binary invoked inside WSL). "
+                f"Verify that 'tokei -o json' works in your terminal."
+            )
+
         server_config = get_config("lsp_servers")
         builder = ProgrammingLanguageBuilder(server_config)
 
