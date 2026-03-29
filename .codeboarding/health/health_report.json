@@ -1,7 +1,7 @@
 {
   "repository_name": "CodeBoarding",
-  "timestamp": "2026-03-28T10:28:14.556444+00:00",
-  "overall_score": 0.9607127522541864,
+  "timestamp": "2026-03-29T21:55:51.062664+00:00",
+  "overall_score": 0.952724954849676,
   "check_summaries": [
     {
       "check_name": "function_size",
@@ -17,10 +17,10 @@
       "check_name": "fan_out",
       "description": "Checks efferent coupling: how many other functions each function calls",
       "check_type": "standard",
-      "total_entities_checked": 4322,
+      "total_entities_checked": 4331,
       "findings_count": 31,
       "warning_count": 31,
-      "score": 0.9928273947246645,
+      "score": 0.9928422996998384,
       "finding_groups": [
         {
           "severity": "warning",
@@ -107,8 +107,8 @@
             {
               "entity_name": "static_analyzer.__init__.StaticAnalyzer.analyze",
               "file_path": "static_analyzer/__init__.py",
-              "line_start": 211,
-              "line_end": 298,
+              "line_start": 213,
+              "line_end": 300,
               "metric_value": 13
             },
             {
@@ -252,10 +252,10 @@
       "check_name": "fan_in",
       "description": "Checks afferent coupling: how many other functions call each function",
       "check_type": "standard",
-      "total_entities_checked": 4322,
+      "total_entities_checked": 4331,
       "findings_count": 66,
       "warning_count": 66,
-      "score": 0.984729291994447,
+      "score": 0.9847610251673978,
       "finding_groups": [
         {
           "severity": "warning",
@@ -545,8 +545,8 @@
             {
               "entity_name": "static_analyzer.engine.lsp_client.LSPClient._send_request",
               "file_path": "static_analyzer/engine/lsp_client.py",
-              "line_start": 413,
-              "line_end": 444,
+              "line_start": 435,
+              "line_end": 466,
               "metric_value": 14
             },
             {
@@ -748,14 +748,14 @@
               "metric_value": 660.0
             },
             {
+              "entity_name": "static_analyzer.engine.lsp_client.LSPClient",
+              "file_path": "static_analyzer/engine/lsp_client.py",
+              "metric_value": 637.0
+            },
+            {
               "entity_name": "static_analyzer.incremental_orchestrator.IncrementalAnalysisOrchestrator",
               "file_path": "static_analyzer/incremental_orchestrator.py",
               "metric_value": 605.0
-            },
-            {
-              "entity_name": "static_analyzer.engine.lsp_client.LSPClient",
-              "file_path": "static_analyzer/engine/lsp_client.py",
-              "metric_value": 598.0
             },
             {
               "entity_name": "static_analyzer.graph.CallGraph",
@@ -805,7 +805,7 @@
             {
               "entity_name": "static_analyzer.__init__.StaticAnalyzer",
               "file_path": "static_analyzer/__init__.py",
-              "metric_value": 59.0
+              "metric_value": 60.0
             },
             {
               "entity_name": "agents.details_agent.DetailsAgent",
@@ -923,14 +923,14 @@
               "metric_value": 30.0
             },
             {
-              "entity_name": "tests.agents.tools.test_dependency_discovery.TestDependencyDiscovery",
-              "file_path": "tests/agents/tools/test_dependency_discovery.py",
+              "entity_name": "static_analyzer.engine.language_adapter.LanguageAdapter",
+              "file_path": "static_analyzer/engine/language_adapter.py",
               "metric_value": 26.0
             },
             {
-              "entity_name": "static_analyzer.engine.language_adapter.LanguageAdapter",
-              "file_path": "static_analyzer/engine/language_adapter.py",
-              "metric_value": 25.0
+              "entity_name": "tests.agents.tools.test_dependency_discovery.TestDependencyDiscovery",
+              "file_path": "tests/agents/tools/test_dependency_discovery.py",
+              "metric_value": 26.0
             }
           ]
         }
@@ -941,15 +941,15 @@
       "description": "Detects circular dependencies between packages",
       "check_type": "circular_dependencies",
       "cycles": [
-        "diagram_analysis.incremental -> diagram_analysis -> diagram_analysis.incremental",
-        "health -> health.checks -> health",
-        "agents -> agents.tools -> agents",
-        "agents -> agents.tools -> static_analyzer -> agents",
-        "agents -> caching -> agents",
-        "agents -> static_analyzer -> agents",
+        "diagram_analysis -> diagram_analysis.incremental -> diagram_analysis",
+        "health.checks -> health -> health.checks",
+        "agents.tools -> agents -> agents.tools",
+        "agents.tools -> static_analyzer -> agents -> agents.tools",
         "static_analyzer.engine -> static_analyzer -> static_analyzer.engine",
         "static_analyzer.engine -> static_analyzer -> static_analyzer.engine.adapters -> static_analyzer.engine",
         "static_analyzer.engine.adapters -> static_analyzer -> static_analyzer.engine.adapters",
+        "caching -> agents -> caching",
+        "agents -> static_analyzer -> agents",
         "install -> tool_registry -> install"
       ],
       "packages_checked": 49,
@@ -995,9 +995,9 @@
       "check_name": "unused_code_diagnostics",
       "description": "Detects unused imports, variables, functions, and dead code via LSP diagnostics",
       "check_type": "standard",
-      "total_entities_checked": 229,
-      "findings_count": 229,
-      "warning_count": 0,
+      "total_entities_checked": 308,
+      "findings_count": 308,
+      "warning_count": 79,
       "score": 0.0,
       "finding_groups": [
         {
@@ -1421,8 +1421,8 @@
             {
               "entity_name": "[unused_variable] \"_exc_type\" is not accessed",
               "file_path": "static_analyzer/engine/lsp_client.py",
-              "line_start": 75,
-              "line_end": 75,
+              "line_start": 77,
+              "line_end": 77,
               "metric_value": 0.0
             },
             {
@@ -1874,13 +1874,6 @@
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] Code is not analyzed because condition is statically evaluated as false",
-              "file_path": "tests/agents/test_validation.py",
-              "line_start": 223,
-              "line_end": 224,
-              "metric_value": 0.0
-            },
-            {
               "entity_name": "[unused_variable] \"MagicMock\" is not accessed",
               "file_path": "tests/agents/prompts/test_prompts.py",
               "line_start": 2,
@@ -2060,13 +2053,6 @@
               "file_path": "tests/health/test_health_checks.py",
               "line_start": 1,
               "line_end": 1,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] Code is not analyzed because condition is statically evaluated as false",
-              "file_path": "tests/health/test_runner.py",
-              "line_start": 190,
-              "line_end": 192,
               "metric_value": 0.0
             },
             {
@@ -2555,6 +2541,552 @@
           ]
         },
         {
+          "severity": "warning",
+          "threshold": 0,
+          "description": "Unused import statements that should be removed",
+          "entities": [
+            {
+              "entity_name": "[unused_import] Import \"DiagramGenerator\" is not accessed",
+              "file_path": "diagram_analysis/__init__.py",
+              "line_start": 1,
+              "line_end": 1,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"AnalysisManifest\" is not accessed",
+              "file_path": "diagram_analysis/__init__.py",
+              "line_start": 2,
+              "line_end": 2,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"IncrementalUpdater\" is not accessed",
+              "file_path": "diagram_analysis/__init__.py",
+              "line_start": 3,
+              "line_end": 3,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"RunContext\" is not accessed",
+              "file_path": "diagram_analysis/__init__.py",
+              "line_start": 4,
+              "line_end": 4,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"configure_models\" is not accessed",
+              "file_path": "diagram_analysis/__init__.py",
+              "line_start": 5,
+              "line_end": 5,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"get_all_cluster_ids\" is not accessed",
+              "file_path": "agents/cluster_methods_mixin.py",
+              "line_start": 17,
+              "line_end": 17,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"get_files_for_cluster_ids\" is not accessed",
+              "file_path": "agents/cluster_methods_mixin.py",
+              "line_start": 18,
+              "line_end": 18,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"NodeType\" is not accessed",
+              "file_path": "agents/cluster_methods_mixin.py",
+              "line_start": 25,
+              "line_end": 25,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"CodeReferenceReader\" is not accessed",
+              "file_path": "agents/tools/__init__.py",
+              "line_start": 1,
+              "line_end": 1,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"CodeStructureTool\" is not accessed",
+              "file_path": "agents/tools/__init__.py",
+              "line_start": 2,
+              "line_end": 2,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"PackageRelationsTool\" is not accessed",
+              "file_path": "agents/tools/__init__.py",
+              "line_start": 3,
+              "line_end": 3,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"FileStructureTool\" is not accessed",
+              "file_path": "agents/tools/__init__.py",
+              "line_start": 4,
+              "line_end": 4,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"GetCFGTool\" is not accessed",
+              "file_path": "agents/tools/__init__.py",
+              "line_start": 5,
+              "line_end": 5,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"MethodInvocationsTool\" is not accessed",
+              "file_path": "agents/tools/__init__.py",
+              "line_start": 6,
+              "line_end": 6,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"ReadFileTool\" is not accessed",
+              "file_path": "agents/tools/__init__.py",
+              "line_start": 7,
+              "line_end": 7,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"ReadDocsTool\" is not accessed",
+              "file_path": "agents/tools/__init__.py",
+              "line_start": 8,
+              "line_end": 8,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"Path\" is not accessed",
+              "file_path": "diagram_analysis/incremental/impact_analyzer.py",
+              "line_start": 4,
+              "line_end": 4,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"Path\" is not accessed",
+              "file_path": "diagram_analysis/incremental/path_patching.py",
+              "line_start": 9,
+              "line_end": 9,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"MetaAnalysisInsights\" is not accessed",
+              "file_path": "diagram_analysis/incremental/scoped_analysis.py",
+              "line_start": 13,
+              "line_end": 13,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"RunStats\" is not accessed",
+              "file_path": "monitoring/__init__.py",
+              "line_start": 9,
+              "line_end": 9,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"MonitoringCallback\" is not accessed",
+              "file_path": "monitoring/__init__.py",
+              "line_start": 10,
+              "line_end": 10,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"StreamingStatsWriter\" is not accessed",
+              "file_path": "monitoring/__init__.py",
+              "line_start": 11,
+              "line_end": 11,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"monitor_execution\" is not accessed",
+              "file_path": "monitoring/__init__.py",
+              "line_start": 12,
+              "line_end": 12,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"Edge\" is not accessed",
+              "file_path": "static_analyzer/analysis_cache.py",
+              "line_start": 16,
+              "line_end": 16,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"GRAPH_NODE_TYPES\" is not accessed",
+              "file_path": "static_analyzer/graph.py",
+              "line_start": 10,
+              "line_end": 10,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"DiagnosticPosition\" is not accessed",
+              "file_path": "static_analyzer/lsp_client/__init__.py",
+              "line_start": 8,
+              "line_end": 8,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"DiagnosticRange\" is not accessed",
+              "file_path": "static_analyzer/lsp_client/__init__.py",
+              "line_start": 9,
+              "line_end": 9,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"FileDiagnosticsMap\" is not accessed",
+              "file_path": "static_analyzer/lsp_client/__init__.py",
+              "line_start": 10,
+              "line_end": 10,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"LSPDiagnostic\" is not accessed",
+              "file_path": "static_analyzer/lsp_client/__init__.py",
+              "line_start": 11,
+              "line_end": 11,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"pytest\" is not accessed",
+              "file_path": "tests/test_incremental_analyzer.py",
+              "line_start": 3,
+              "line_end": 3,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"codecs\" is not accessed",
+              "file_path": "tests/test_logging_config.py",
+              "line_start": 1,
+              "line_end": 1,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"os\" is not accessed",
+              "file_path": "tests/test_main.py",
+              "line_start": 1,
+              "line_end": 1,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"call\" is not accessed",
+              "file_path": "tests/test_main.py",
+              "line_start": 5,
+              "line_end": 5,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"platform\" is not accessed",
+              "file_path": "tests/test_vscode_constants.py",
+              "line_start": 2,
+              "line_end": 2,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"os\" is not accessed",
+              "file_path": "tests/test_windows_compatibility.py",
+              "line_start": 8,
+              "line_end": 8,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"Component\" is not accessed",
+              "file_path": "tests/agents/test_abstraction_agent.py",
+              "line_start": 9,
+              "line_end": 9,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"SourceCodeReference\" is not accessed",
+              "file_path": "tests/agents/test_abstraction_agent.py",
+              "line_start": 11,
+              "line_end": 11,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"nx\" is not accessed",
+              "file_path": "tests/agents/test_cluster_methods_mixin.py",
+              "line_start": 5,
+              "line_end": 5,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"AnalysisInsights\" is not accessed",
+              "file_path": "tests/agents/test_cluster_methods_mixin.py",
+              "line_start": 8,
+              "line_end": 8,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"os\" is not accessed",
+              "file_path": "tests/agents/test_monitoring.py",
+              "line_start": 1,
+              "line_end": 1,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"MagicMock\" is not accessed",
+              "file_path": "tests/agents/test_monitoring.py",
+              "line_start": 4,
+              "line_end": 4,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"MagicMock\" is not accessed",
+              "file_path": "tests/agents/prompts/test_prompts.py",
+              "line_start": 2,
+              "line_end": 2,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"os\" is not accessed",
+              "file_path": "tests/diagram_analysis/test_diagram_analysis.py",
+              "line_start": 2,
+              "line_end": 2,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"MagicMock\" is not accessed",
+              "file_path": "tests/diagram_analysis/test_diagram_analysis.py",
+              "line_start": 7,
+              "line_end": 7,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"Path\" is not accessed",
+              "file_path": "tests/diagram_analysis/test_duckdb_crud.py",
+              "line_start": 5,
+              "line_end": 5,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"ANY\" is not accessed",
+              "file_path": "tests/diagram_analysis/test_incremental_e2e.py",
+              "line_start": 28,
+              "line_end": 28,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"json\" is not accessed",
+              "file_path": "tests/diagram_analysis/test_incremental_integration.py",
+              "line_start": 6,
+              "line_end": 6,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"os\" is not accessed",
+              "file_path": "tests/diagram_analysis/test_incremental_integration.py",
+              "line_start": 7,
+              "line_end": 7,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"TemporaryDirectory\" is not accessed",
+              "file_path": "tests/diagram_analysis/test_incremental_integration.py",
+              "line_start": 10,
+              "line_end": 10,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"MANIFEST_FILENAME\" is not accessed",
+              "file_path": "tests/diagram_analysis/test_incremental_integration.py",
+              "line_start": 28,
+              "line_end": 28,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"detect_changes\" is not accessed",
+              "file_path": "tests/diagram_analysis/test_incremental_integration.py",
+              "line_start": 34,
+              "line_end": 34,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"json\" is not accessed",
+              "file_path": "tests/diagram_analysis/incremental/test_component_checker.py",
+              "line_start": 3,
+              "line_end": 3,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"MagicMock\" is not accessed",
+              "file_path": "tests/diagram_analysis/incremental/test_component_checker.py",
+              "line_start": 6,
+              "line_end": 6,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"Path\" is not accessed",
+              "file_path": "tests/diagram_analysis/incremental/test_file_manager.py",
+              "line_start": 4,
+              "line_end": 4,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"Path\" is not accessed",
+              "file_path": "tests/diagram_analysis/incremental/test_scoped_analysis.py",
+              "line_start": 4,
+              "line_end": 4,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"Mock\" is not accessed",
+              "file_path": "tests/diagram_analysis/incremental/test_scoped_analysis.py",
+              "line_start": 5,
+              "line_end": 5,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"os\" is not accessed",
+              "file_path": "tests/health/test_health_checks.py",
+              "line_start": 1,
+              "line_end": 1,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"DiagnosticIssue\" is not accessed",
+              "file_path": "tests/health/test_unused_code_diagnostics.py",
+              "line_start": 9,
+              "line_end": 9,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"os\" is not accessed",
+              "file_path": "tests/integration/generate_integration_fixtures.py",
+              "line_start": 20,
+              "line_end": 20,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"tempfile\" is not accessed",
+              "file_path": "tests/integration/health/test_health_integration.py",
+              "line_start": 21,
+              "line_end": 21,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"Dog\" is not accessed",
+              "file_path": "tests/integration/projects/python_edge_cases_project/main.py",
+              "line_start": 20,
+              "line_end": 20,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"Animal\" is not accessed",
+              "file_path": "tests/integration/projects/python_edge_cases_project/core/__init__.py",
+              "line_start": 11,
+              "line_end": 11,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"UserProfile\" is not accessed",
+              "file_path": "tests/integration/projects/python_edge_cases_project/core/__init__.py",
+              "line_start": 12,
+              "line_end": 12,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"Config\" is not accessed",
+              "file_path": "tests/integration/projects/python_edge_cases_project/core/pipeline.py",
+              "line_start": 41,
+              "line_end": 41,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"Cat\" is not accessed",
+              "file_path": "tests/integration/projects/python_edge_cases_project/core/services.py",
+              "line_start": 23,
+              "line_end": 23,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"add\" is not accessed",
+              "file_path": "tests/integration/projects/python_edge_cases_project/utils/__init__.py",
+              "line_start": 9,
+              "line_end": 9,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"MagicMock\" is not accessed",
+              "file_path": "tests/monitoring/test_writers.py",
+              "line_start": 7,
+              "line_end": 7,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"MagicMock\" is not accessed",
+              "file_path": "tests/static_analyzer/test_go_adapter.py",
+              "line_start": 4,
+              "line_end": 4,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"Mock\" is not accessed",
+              "file_path": "tests/static_analyzer/test_graph.py",
+              "line_start": 2,
+              "line_end": 2,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"tempfile\" is not accessed",
+              "file_path": "tests/static_analyzer/test_incremental_orchestrator.py",
+              "line_start": 3,
+              "line_end": 3,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"patch\" is not accessed",
+              "file_path": "tests/static_analyzer/test_java_config_scanner.py",
+              "line_start": 8,
+              "line_end": 8,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"platform\" is not accessed",
+              "file_path": "tests/static_analyzer/test_java_utils.py",
+              "line_start": 5,
+              "line_end": 5,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"MagicMock\" is not accessed",
+              "file_path": "tests/static_analyzer/test_java_utils.py",
+              "line_start": 9,
+              "line_end": 9,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"os\" is not accessed",
+              "file_path": "tests/static_analyzer/test_java_utils.py",
+              "line_start": 185,
+              "line_end": 185,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"patch\" is not accessed",
+              "file_path": "tests/static_analyzer/test_reference_resolve_mixin.py",
+              "line_start": 5,
+              "line_end": 5,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"Path\" is not accessed",
+              "file_path": "tests/static_analyzer/test_utils.py",
+              "line_start": 2,
+              "line_end": 2,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"Counter\" is not accessed",
+              "file_path": "tests/static_analyzer/scripts/edge_recovery_diagnostic.py",
+              "line_start": 4,
+              "line_end": 4,
+              "metric_value": 0.0
+            }
+          ]
+        },
+        {
           "severity": "info",
           "threshold": 0,
           "description": "Code that cannot be reached during execution",
@@ -2567,7 +3099,7 @@
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unreachable_code] Code is structurally unreachable",
+              "entity_name": "[unreachable_code] Code is unreachable",
               "file_path": "agents/abstraction_agent.py",
               "line_start": 160,
               "line_end": 162,
@@ -2614,6 +3146,41 @@
               "line_start": 61,
               "line_end": 61,
               "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unreachable_code] Code is unreachable",
+              "file_path": "tests/agents/test_validation.py",
+              "line_start": 223,
+              "line_end": 224,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unreachable_code] Code is unreachable",
+              "file_path": "tests/health/test_runner.py",
+              "line_start": 190,
+              "line_end": 192,
+              "metric_value": 0.0
+            }
+          ]
+        },
+        {
+          "severity": "warning",
+          "threshold": 0,
+          "description": "Functions/methods defined but never called",
+          "entities": [
+            {
+              "entity_name": "[unused_function] Function \"_check_edge_between_cluster_sets\" is not accessed",
+              "file_path": "agents/validation.py",
+              "line_start": 383,
+              "line_end": 383,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_function] Function \"_filter_changes_for_scope\" is not accessed",
+              "file_path": "diagram_analysis/incremental/impact_analyzer.py",
+              "line_start": 215,
+              "line_end": 215,
+              "metric_value": 0.0
             }
           ]
         }
@@ -2622,10 +3189,22 @@
   ],
   "file_summaries": [
     {
+      "file_path": "tests/diagram_analysis/test_incremental_integration.py",
+      "total_findings": 13,
+      "warning_findings": 8,
+      "composite_risk_score": 90.0
+    },
+    {
+      "file_path": "agents/tools/__init__.py",
+      "total_findings": 16,
+      "warning_findings": 8,
+      "composite_risk_score": 90.0
+    },
+    {
       "file_path": "static_analyzer/graph.py",
-      "total_findings": 7,
-      "warning_findings": 6,
-      "composite_risk_score": 80.0
+      "total_findings": 8,
+      "warning_findings": 7,
+      "composite_risk_score": 85.0
     },
     {
       "file_path": "static_analyzer/analysis_result.py",
@@ -2646,8 +3225,38 @@
       "composite_risk_score": 75.0
     },
     {
+      "file_path": "diagram_analysis/__init__.py",
+      "total_findings": 10,
+      "warning_findings": 5,
+      "composite_risk_score": 75.0
+    },
+    {
       "file_path": "static_analyzer/incremental_orchestrator.py",
       "total_findings": 6,
+      "warning_findings": 4,
+      "composite_risk_score": 70.0
+    },
+    {
+      "file_path": "tests/static_analyzer/test_incremental_orchestrator.py",
+      "total_findings": 14,
+      "warning_findings": 4,
+      "composite_risk_score": 70.0
+    },
+    {
+      "file_path": "agents/cluster_methods_mixin.py",
+      "total_findings": 7,
+      "warning_findings": 4,
+      "composite_risk_score": 70.0
+    },
+    {
+      "file_path": "monitoring/__init__.py",
+      "total_findings": 8,
+      "warning_findings": 4,
+      "composite_risk_score": 70.0
+    },
+    {
+      "file_path": "static_analyzer/lsp_client/__init__.py",
+      "total_findings": 8,
       "warning_findings": 4,
       "composite_risk_score": 70.0
     },
@@ -2658,88 +3267,46 @@
       "composite_risk_score": 65.0
     },
     {
-      "file_path": "tests/diagram_analysis/test_incremental_integration.py",
-      "total_findings": 8,
-      "warning_findings": 3,
-      "composite_risk_score": 65.0
-    },
-    {
-      "file_path": "tests/static_analyzer/test_incremental_orchestrator.py",
-      "total_findings": 13,
-      "warning_findings": 3,
-      "composite_risk_score": 65.0
-    },
-    {
       "file_path": "tests/diagram_analysis/test_incremental_e2e.py",
-      "total_findings": 8,
-      "warning_findings": 2,
-      "composite_risk_score": 60.0
+      "total_findings": 9,
+      "warning_findings": 3,
+      "composite_risk_score": 65.0
     },
     {
-      "file_path": "tests/agents/test_agent.py",
+      "file_path": "diagram_analysis/incremental/impact_analyzer.py",
+      "total_findings": 5,
+      "warning_findings": 3,
+      "composite_risk_score": 65.0
+    },
+    {
+      "file_path": "tests/agents/test_cluster_methods_mixin.py",
+      "total_findings": 5,
+      "warning_findings": 3,
+      "composite_risk_score": 65.0
+    },
+    {
+      "file_path": "tests/agents/test_monitoring.py",
+      "total_findings": 5,
+      "warning_findings": 3,
+      "composite_risk_score": 65.0
+    },
+    {
+      "file_path": "tests/static_analyzer/test_java_utils.py",
+      "total_findings": 8,
+      "warning_findings": 3,
+      "composite_risk_score": 65.0
+    },
+    {
+      "file_path": "tests/integration/projects/python_edge_cases_project/main.py",
       "total_findings": 7,
       "warning_findings": 2,
       "composite_risk_score": 60.0
     },
     {
-      "file_path": "static_analyzer/engine/language_adapter.py",
-      "total_findings": 6,
+      "file_path": "diagram_analysis/incremental/scoped_analysis.py",
+      "total_findings": 5,
       "warning_findings": 2,
       "composite_risk_score": 60.0
-    },
-    {
-      "file_path": "diagram_analysis/incremental/updater.py",
-      "total_findings": 4,
-      "warning_findings": 3,
-      "composite_risk_score": 55.0
-    },
-    {
-      "file_path": "tests/integration/projects/python_edge_cases_project/main.py",
-      "total_findings": 6,
-      "warning_findings": 1,
-      "composite_risk_score": 55.0
-    },
-    {
-      "file_path": "agents/details_agent.py",
-      "total_findings": 4,
-      "warning_findings": 3,
-      "composite_risk_score": 55.0
-    },
-    {
-      "file_path": "tests/health/test_runner.py",
-      "total_findings": 4,
-      "warning_findings": 3,
-      "composite_risk_score": 55.0
-    },
-    {
-      "file_path": "tests/static_analyzer/test_edge_builder.py",
-      "total_findings": 4,
-      "warning_findings": 3,
-      "composite_risk_score": 55.0
-    },
-    {
-      "file_path": "monitoring/callbacks.py",
-      "total_findings": 5,
-      "warning_findings": 1,
-      "composite_risk_score": 55.0
-    },
-    {
-      "file_path": "static_analyzer/analysis_cache.py",
-      "total_findings": 5,
-      "warning_findings": 1,
-      "composite_risk_score": 55.0
-    },
-    {
-      "file_path": "tests/static_analyzer/test_reference_resolve_mixin.py",
-      "total_findings": 8,
-      "warning_findings": 1,
-      "composite_risk_score": 55.0
-    },
-    {
-      "file_path": "tests/static_analyzer/test_call_graph_builder.py",
-      "total_findings": 4,
-      "warning_findings": 2,
-      "composite_risk_score": 50.0
     }
   ]
 }
