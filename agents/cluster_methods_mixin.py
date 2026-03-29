@@ -163,7 +163,7 @@ class ClusterMethodsMixin:
             Tuple of (formatted cluster string, cluster_results dict)
             where cluster_results maps language -> ClusterResult for the subgraph
         """
-        component_files = component.assigned_files
+        component_files = component.assigned_files or [group.file_path for group in component.file_methods]
         if not component_files:
             logger.warning(f"Component {component.name} has no assigned files")
             return "No assigned files found for this component.", {}

@@ -150,6 +150,16 @@ class MethodEntry(BaseModel):
             return NotImplemented
         return self.qualified_name == other.qualified_name
 
+    @classmethod
+    def from_method_change(cls, method_change, *, status_override: str | None = None) -> "MethodEntry":
+        return cls(
+            qualified_name=method_change.qualified_name,
+            start_line=method_change.start_line,
+            end_line=method_change.end_line,
+            node_type=method_change.node_type,
+            status=status_override or method_change.change_type,
+        )
+
 
 class FileMethodGroup(BaseModel):
     """All methods/functions belonging to a component within a single file."""

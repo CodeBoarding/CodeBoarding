@@ -123,8 +123,16 @@ def get_method_statuses_for_file(
         if hunks:
             added_ranges: list[tuple[int, int]] = []
             changed_ranges: list[tuple[int, int]] = []
+            deletion_points: list[tuple[int, int]] = []
             for _old_start, old_count, new_start, new_count in hunks:
                 if new_count <= 0:
+                    # Deletion-only hunk: lines were removed at this point in the
+                    # new file.  Any method that spans the deletion point was
+                    # modified.  new_start is the line *before* which the deletion
+                    # occurred, so the affected region in the new file is the
+                    # single line at new_start (the line right after the gap).
+                    if new_start > 0:
+                        deletion_points.append((new_start, new_start))
                     continue
                 new_range = (new_start, new_start + new_count - 1)
                 if old_count == 0:
@@ -139,13 +147,15 @@ def get_method_statuses_for_file(
                     method.status = "added"
                 elif _method_overlaps_ranges(method, added_ranges):
                     method.status = "modified"
+                elif _method_overlaps_ranges(method, deletion_points):
+                    method.status = "modified"
                 else:
                     method.status = "unchanged"
         else:
-            # Zero-context new-file ranges can be empty for deletion-only hunks.
-            # Mark all methods as modified as a safe fallback.
+            # No hunks parsed at all (e.g. binary file or diff failure).
+            # Mark all methods as unchanged since we cannot determine status.
             for method in methods:
-                method.status = "modified"
+                method.status = "unchanged"
         return file_status
 
     return file_status

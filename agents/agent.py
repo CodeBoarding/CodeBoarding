@@ -17,6 +17,7 @@ from trustcall import create_extractor
 from agents.prompts import get_validation_feedback_message
 from agents.tools.base import RepoContext
 from agents.tools.toolkit import CodeBoardingToolkit
+from agents.validation import ValidationResult, score_validation_results, VALIDATOR_WEIGHTS, DEFAULT_VALIDATOR_WEIGHT
 from monitoring.mixin import MonitoringMixin
 from repo_utils.ignore import RepoIgnoreManager
 from agents.llm_config import MONITORING_CALLBACK
@@ -216,11 +217,38 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         assert isinstance(response, str), f"Expected a string as response type got {response}"
         return self._parse_response(prompt, response, type)
 
+    def _score_result(self, result, validators: list, context) -> tuple[float, list[str]]:
+        """Run all validators on a result and return (score, feedback_messages).
+
+        The score is computed using weighted validators where coverage-related
+        validators (cluster coverage, group name coverage) carry significantly
+        more weight than others.
+        """
+        validator_results: list[tuple] = []
+        all_feedback: list[str] = []
+        for validator in validators:
+            vr: ValidationResult = validator(result, context)
+            validator_results.append((validator, vr))
+            if not vr.is_valid:
+                all_feedback.extend(vr.feedback_messages)
+
+        score = score_validation_results(validator_results)
+        return score, all_feedback
+
     def _validation_invoke(
         self, prompt: str, return_type: type, validators: list, context, max_validation_retries: int = 1
     ):
         """
-        Invoke LLM with validation and feedback loop.
+        Invoke LLM with validation, feedback loop, and best-of-N selection.
+
+        Each attempt (initial + retries) is scored using weighted validators.
+        Coverage validators (validate_cluster_coverage, validate_group_name_coverage)
+        are weighted ~2x higher than other validators, so the selection strongly
+        favours results with complete coverage.
+
+        If any attempt scores perfectly (all validators pass), it is returned
+        immediately. Otherwise the highest-scoring result across all attempts is
+        returned.
 
         Args:
             prompt: The original prompt
@@ -230,31 +258,44 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
             max_validation_retries: Maximum retry attempts with feedback (default: 1)
 
         Returns:
-            Validated result of return_type
+            The highest-scoring result of return_type across all attempts
         """
+        # Compute the maximum possible score so we can detect a perfect result
+        max_possible_score = sum(VALIDATOR_WEIGHTS.get(v.__name__, DEFAULT_VALIDATOR_WEIGHT) for v in validators)
+
         result = self._parse_invoke(prompt, return_type)
 
+        # Track the best candidate across all attempts
+        best_result = result
+        best_score = -1.0
+
         for attempt in range(1, max_validation_retries + 1):
-            # Run all validators
-            all_feedback = []
-            for validator in validators:
-                validation_result = validator(result, context)
-                if not validation_result.is_valid:
-                    all_feedback.extend(validation_result.feedback_messages)
+            score, all_feedback = self._score_result(result, validators, context)
 
-            if not all_feedback:
-                logger.info(f"[Validation] All validations passed on attempt {attempt}")
-                return result  # All validations passed
+            logger.info(
+                f"[Validation] Attempt {attempt}/{max_validation_retries} "
+                f"score: {score}/{max_possible_score} "
+                f"({len(all_feedback)} issue(s))"
+            )
 
-            # On the last attempt, log that validation still failed but don't retry
-            if attempt == max_validation_retries:
-                logger.warning(
-                    f"[Validation] Still {len(all_feedback)} issue(s) after {max_validation_retries} retries, "
-                    f"returning best result"
-                )
+            if score > best_score:
+                best_score = score
+                best_result = result
+
+            # Perfect score — return immediately
+            if score >= max_possible_score:
+                logger.info(f"[Validation] Perfect score on attempt {attempt}, returning result")
                 return result
 
-            # Build feedback prompt using the prompt factory
+            # On the last attempt, don't retry — just fall through to return best
+            if attempt == max_validation_retries:
+                logger.warning(
+                    f"[Validation] Final attempt reached. Best score: {best_score}/{max_possible_score}. "
+                    f"Returning best result."
+                )
+                break
+
+            # Build feedback prompt for the next attempt
             feedback_template = get_validation_feedback_message()
             feedback_prompt = feedback_template.format(
                 original_output=result.llm_str(),
@@ -267,7 +308,7 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
             )
             result = self._parse_invoke(feedback_prompt, return_type)
 
-        return result
+        return best_result
 
     def _parse_response(self, prompt, response, return_type, max_retries=5, attempt=0):
         if attempt >= max_retries:
@@ -306,6 +347,9 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         except IndexError as e:
             # try to parse with the json parser if possible
             logger.warning(f"IndexError while parsing response (attempt {attempt + 1}/{max_retries}): {e}")
+            return self._parse_response(prompt, response, return_type, max_retries, attempt + 1)
+        except (json.JSONDecodeError, ValueError) as e:
+            logger.warning(f"Parse error (attempt {attempt + 1}/{max_retries}): {e}")
             return self._parse_response(prompt, response, return_type, max_retries, attempt + 1)
         except ResourceExhausted as e:
             # Parsing uses exponential backoff for rate limits

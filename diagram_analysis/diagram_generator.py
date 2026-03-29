@@ -187,9 +187,12 @@ class DiagramGenerator:
             f.write(report.model_dump_json(indent=2, exclude_none=True))
         logger.info(f"File coverage report written to {coverage_path}")
 
-    def _get_static_from_injected_analyzer(self, cache_dir: Path | None) -> StaticAnalysisResults:
+    def _get_static_from_injected_analyzer(
+        self, cache_dir: Path | None, skip_cache: bool = False
+    ) -> StaticAnalysisResults:
         result = self._static_analyzer.analyze(  # type: ignore[union-attr]
             cache_dir=cache_dir,
+            skip_cache=skip_cache,
         )
         result.diagnostics = self._static_analyzer.collected_diagnostics  # type: ignore[union-attr]
         return result
@@ -211,7 +214,7 @@ class DiagramGenerator:
 
         def get_static_with_injected_analyzer() -> StaticAnalysisResults:
             cache_dir = None if self.force_full_analysis else get_cache_dir(self.repo_location)
-            return self._get_static_from_injected_analyzer(cache_dir)
+            return self._get_static_from_injected_analyzer(cache_dir, skip_cache=self.force_full_analysis)
 
         def get_static_with_new_analyzer() -> StaticAnalysisResults:
             skip_cache = self.force_full_analysis

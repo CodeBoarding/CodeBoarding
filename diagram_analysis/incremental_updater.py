@@ -61,6 +61,43 @@ class IncrementalUpdater:
             return {}
         return {m.qualified_name: m for m in entry.methods}
 
+    def _get_previous_active_methods(self, file_path: str) -> dict[str, MethodEntry]:
+        previous_methods = self._get_previous_methods(file_path)
+        return {qname: method for qname, method in previous_methods.items() if method.status != "deleted"}
+
+    def _resolve_component(self, file_path: str, *, register_file: bool = False) -> tuple[str | None, bool]:
+        component_id = self.manifest.get_component_for_file(file_path)
+        if component_id is None:
+            return None, True
+
+        if register_file:
+            self.manifest.add_file(file_path, component_id)
+
+        return component_id, False
+
+    def _apply_method_diff_statuses(
+        self, file_path: str, current_methods: list[MethodEntry], changes: ChangeSet
+    ) -> None:
+        if self._repo_dir is None:
+            return
+        get_method_statuses_for_file(current_methods, file_path, changes, self._repo_dir)
+
+    @staticmethod
+    def _to_method_change(
+        file_path: str,
+        method: MethodEntry,
+        *,
+        change_type: str | None = None,
+    ) -> MethodChange:
+        return MethodChange(
+            qualified_name=method.qualified_name,
+            file_path=file_path,
+            start_line=method.start_line,
+            end_line=method.end_line,
+            change_type=change_type or method.status,
+            node_type=method.node_type,
+        )
+
     def compute_delta(
         self,
         added_files: list[str],
@@ -78,28 +115,11 @@ class IncrementalUpdater:
 
         for file_path in added_files:
             current_methods = self._get_current_methods(file_path)
-            component_id = self.manifest.get_component_for_file(file_path)
-            if component_id is None:
-                needs_reanalysis = True
-            else:
-                self.manifest.add_file(file_path, component_id)
+            component_id, missing_component = self._resolve_component(file_path, register_file=True)
+            needs_reanalysis = needs_reanalysis or missing_component
 
-            # Use canonical method_diff logic to assign statuses
-            # For added files, all methods get status="added"
-            if self._repo_dir is not None:
-                get_method_statuses_for_file(current_methods, file_path, changes, self._repo_dir)
-
-            added = [
-                MethodChange(
-                    qualified_name=m.qualified_name,
-                    file_path=file_path,
-                    start_line=m.start_line,
-                    end_line=m.end_line,
-                    change_type=m.status,  # Use the status assigned by method_diff
-                    node_type=m.node_type,
-                )
-                for m in current_methods
-            ]
+            self._apply_method_diff_statuses(file_path, current_methods, changes)
+            added = [self._to_method_change(file_path, method) for method in current_methods]
             file_deltas.append(
                 FileDelta(
                     file_path=file_path,
@@ -110,14 +130,10 @@ class IncrementalUpdater:
             )
 
         for file_path in modified_files:
-            component_id = self.manifest.get_component_for_file(file_path)
-            if component_id is None:
-                needs_reanalysis = True
+            component_id, missing_component = self._resolve_component(file_path)
+            needs_reanalysis = needs_reanalysis or missing_component
 
-            prev_methods = self._get_previous_methods(file_path)
-            prev_active_methods = {
-                qname: method for qname, method in prev_methods.items() if method.status != "deleted"
-            }
+            prev_active_methods = self._get_previous_active_methods(file_path)
             current_methods = self._get_current_methods(file_path)
             current_by_name = {m.qualified_name: m for m in current_methods}
 
@@ -129,52 +145,20 @@ class IncrementalUpdater:
             deleted_keys = prev_keys - current_keys
             existing_keys = current_keys & prev_keys
 
-            # Use canonical method_diff logic to assign statuses to ALL current methods
-            # This correctly determines which methods in "modified" file are actually
-            # modified (their lines overlap git diff ranges) vs unchanged
-            if self._repo_dir is not None:
-                get_method_statuses_for_file(current_methods, file_path, changes, self._repo_dir)
+            self._apply_method_diff_statuses(file_path, current_methods, changes)
 
-            # Build MethodChange lists based on the canonical statuses
-            added_method_changes: list[MethodChange] = []
-            modified_method_changes: list[MethodChange] = []
-
-            for m in current_methods:
-                if m.qualified_name in added_keys:
-                    # Truly new method - status should be "added" or "modified" based on diff overlap
-                    added_method_changes.append(
-                        MethodChange(
-                            qualified_name=m.qualified_name,
-                            file_path=file_path,
-                            start_line=m.start_line,
-                            end_line=m.end_line,
-                            change_type=m.status,
-                            node_type=m.node_type,
-                        )
-                    )
-                elif m.qualified_name in existing_keys:
-                    # Existing method - only include if actually modified
-                    if m.status == "modified":
-                        modified_method_changes.append(
-                            MethodChange(
-                                qualified_name=m.qualified_name,
-                                file_path=file_path,
-                                start_line=m.start_line,
-                                end_line=m.end_line,
-                                change_type="modified",
-                                node_type=m.node_type,
-                            )
-                        )
-
+            added_method_changes = [
+                self._to_method_change(file_path, method)
+                for method in current_methods
+                if method.qualified_name in added_keys
+            ]
+            modified_method_changes = [
+                self._to_method_change(file_path, method, change_type="modified")
+                for method in current_methods
+                if method.qualified_name in existing_keys and method.status == "modified"
+            ]
             deleted_method_changes = [
-                MethodChange(
-                    qualified_name=qname,
-                    file_path=file_path,
-                    start_line=prev_active_methods[qname].start_line,
-                    end_line=prev_active_methods[qname].end_line,
-                    change_type="deleted",
-                    node_type=prev_active_methods[qname].node_type,
-                )
+                self._to_method_change(file_path, prev_active_methods[qname], change_type="deleted")
                 for qname in sorted(deleted_keys)
             ]
 
@@ -190,24 +174,13 @@ class IncrementalUpdater:
             )
 
         for file_path in deleted_files:
-            component_id = self.manifest.get_component_for_file(file_path)
-            if component_id is None:
-                needs_reanalysis = True
+            component_id, missing_component = self._resolve_component(file_path)
+            needs_reanalysis = needs_reanalysis or missing_component
 
-            prev_methods = self._get_previous_methods(file_path)
-            prev_active_methods = {
-                qname: method for qname, method in prev_methods.items() if method.status != "deleted"
-            }
+            prev_active_methods = self._get_previous_active_methods(file_path)
             deleted = [
-                MethodChange(
-                    qualified_name=qname,
-                    file_path=file_path,
-                    start_line=method.start_line,
-                    end_line=method.end_line,
-                    change_type="deleted",
-                    node_type=method.node_type,
-                )
-                for qname, method in sorted(prev_active_methods.items())
+                self._to_method_change(file_path, method, change_type="deleted")
+                for _, method in sorted(prev_active_methods.items())
             ]
             file_deltas.append(
                 FileDelta(
@@ -256,69 +229,51 @@ def _ensure_assigned_files(component: Component) -> list[str]:
     return component.assigned_files
 
 
-def _apply_file_delta_to_index(files: dict[str, FileEntry], file_delta: FileDelta) -> None:
-    file_path = file_delta.file_path
-
-    if file_delta.file_status == "deleted":
-        existing = files.get(file_path)
-        if existing is None:
-            existing = FileEntry(file_status="deleted", methods=[])
-            files[file_path] = existing
-
-        existing.file_status = "deleted"
-        by_name: dict[str, MethodEntry] = {m.qualified_name: m for m in existing.methods}
-
-        for method in file_delta.deleted_methods:
-            by_name[method.qualified_name] = MethodEntry(
-                qualified_name=method.qualified_name,
-                start_line=method.start_line,
-                end_line=method.end_line,
-                node_type=method.node_type,
-                status="deleted",
-            )
-
-        for method in by_name.values():
-            method.status = "deleted"
-
-        existing.methods = sorted(by_name.values(), key=lambda m: (m.start_line, m.end_line, m.qualified_name))
-        return
-
+def _ensure_file_entry(files: dict[str, FileEntry], file_path: str, file_status: str) -> FileEntry:
     existing = files.get(file_path)
     if existing is None:
-        existing = FileEntry(file_status=file_delta.file_status, methods=[])
+        existing = FileEntry(file_status=file_status, methods=[])
         files[file_path] = existing
+    return existing
 
+
+def _apply_method_changes(
+    methods_by_name: dict[str, MethodEntry],
+    method_changes: list[MethodChange],
+    *,
+    status_override: str | None = None,
+) -> None:
+    for method in method_changes:
+        methods_by_name[method.qualified_name] = MethodEntry.from_method_change(
+            method,
+            status_override=status_override,
+        )
+
+
+def _sorted_methods(methods_by_name: dict[str, MethodEntry]) -> list[MethodEntry]:
+    return sorted(methods_by_name.values(), key=lambda m: (m.start_line, m.end_line, m.qualified_name))
+
+
+def _apply_file_delta_to_index(files: dict[str, FileEntry], file_delta: FileDelta) -> None:
+    file_path = file_delta.file_path
+    existing = _ensure_file_entry(files, file_path, file_delta.file_status)
     existing.file_status = file_delta.file_status
-    by_name: dict[str, MethodEntry] = {m.qualified_name: m for m in existing.methods}
+    methods_by_name: dict[str, MethodEntry] = {m.qualified_name: m for m in existing.methods}
 
-    for method in file_delta.deleted_methods:
-        by_name[method.qualified_name] = MethodEntry(
-            qualified_name=method.qualified_name,
-            start_line=method.start_line,
-            end_line=method.end_line,
-            node_type=method.node_type,
-            status="deleted",
-        )
+    if file_delta.file_status == "deleted":
+        _apply_method_changes(methods_by_name, file_delta.deleted_methods, status_override="deleted")
 
-    for method in file_delta.added_methods:
-        by_name[method.qualified_name] = MethodEntry(
-            qualified_name=method.qualified_name,
-            start_line=method.start_line,
-            end_line=method.end_line,
-            node_type=method.node_type,
-            status=method.change_type,  # Use the status computed by method_diff
-        )
+        for method_entry in methods_by_name.values():
+            method_entry.status = "deleted"
 
-    for method in file_delta.modified_methods:
-        by_name[method.qualified_name] = MethodEntry(
-            qualified_name=method.qualified_name,
-            start_line=method.start_line,
-            end_line=method.end_line,
-            node_type=method.node_type,
-            status=method.change_type,  # Use the status computed by method_diff
-        )
+        existing.methods = _sorted_methods(methods_by_name)
+        return
 
-    existing.methods = sorted(by_name.values(), key=lambda m: (m.start_line, m.end_line, m.qualified_name))
+    _apply_method_changes(methods_by_name, file_delta.deleted_methods, status_override="deleted")
+    _apply_method_changes(methods_by_name, file_delta.added_methods)
+    _apply_method_changes(methods_by_name, file_delta.modified_methods)
+
+    existing.methods = _sorted_methods(methods_by_name)
 
 
 def _sync_component_methods(component: Component, files: dict[str, FileEntry]) -> None:

@@ -1,4 +1,5 @@
 import logging
+import json
 from datetime import datetime, timezone
 
 from pydantic import BaseModel, Field
@@ -40,9 +41,7 @@ def _to_component_file_method_refs(file_methods: list[FileMethodGroup]) -> list[
                 continue
             seen.add(qname)
             qnames.append(qname)
-        refs.append(
-            ComponentFileMethodGroupJson(file_path=group.file_path, file_status=group.file_status, methods=qnames)
-        )
+        refs.append(ComponentFileMethodGroupJson(file_path=group.file_path, methods=qnames))
     return refs
 
 
@@ -82,7 +81,8 @@ def _hydrate_component_methods_from_refs(
         rebuilt: list[FileMethodGroup] = []
         for group in component.file_methods:
             file_path = group.file_path
-            file_status = files_index.get(file_path).file_status if file_path in files_index else group.file_status
+            file_entry = files_index.get(file_path)
+            file_status = file_entry.file_status if file_entry is not None else group.file_status
             methods: list[MethodEntry] = []
             for method in group.methods:
                 qname = _to_method_qualified_name(method)
@@ -196,10 +196,6 @@ class MethodIndexEntry(BaseModel):
 
 class ComponentFileMethodGroupJson(BaseModel):
     file_path: str = Field(description="Relative path to the source file.")
-    file_status: str = Field(
-        default="unchanged",
-        description="Diff status of this file: added, modified, deleted, renamed, or unchanged.",
-    )
     methods: list[str] = Field(
         default_factory=list,
         description="Qualified method/function names assigned to this component in this file.",
@@ -299,7 +295,6 @@ def from_analysis_to_json(
         "components": [c.model_dump(exclude_none=True) for c in components_json],
         "components_relations": [r.model_dump() for r in relations_json],
     }
-    import json
 
     return json.dumps(data, indent=2)
 
@@ -403,12 +398,15 @@ def parse_unified_analysis(
     sub_analyses: dict[str, AnalysisInsights] = {}
     root_analysis = _extract_analysis_recursive(data, sub_analyses)
 
-    files_raw = data["files"]
+    files_raw = data.get("files", {})
     files_index: dict[str, FileEntry] = {path: FileEntry(**entry) for path, entry in files_raw.items()}
-    methods_index_raw = data["methods_index"]
-    methods_index: dict[str, MethodIndexEntry] = {
-        key: MethodIndexEntry(**entry) for key, entry in methods_index_raw.items()
-    }
+    methods_index_raw = data.get("methods_index", {})
+    if methods_index_raw:
+        methods_index: dict[str, MethodIndexEntry] = {
+            key: MethodIndexEntry(**entry) for key, entry in methods_index_raw.items()
+        }
+    else:
+        methods_index = _build_methods_index_from_files(files_index)
 
     root_analysis.files = {path: entry.model_copy(deep=True) for path, entry in files_index.items()}
     _hydrate_component_methods_from_refs(root_analysis, files_index, methods_index)
@@ -428,7 +426,11 @@ def build_id_to_name_map(root_analysis: AnalysisInsights, sub_analyses: dict[str
     return id_to_name
 
 
-def _extract_analysis_recursive(data: dict, sub_analyses: dict[str, AnalysisInsights]) -> AnalysisInsights:
+def _extract_analysis_recursive(
+    data: dict,
+    sub_analyses: dict[str, AnalysisInsights],
+    parent_component_id: str = "",
+) -> AnalysisInsights:
     """Recursively extract AnalysisInsights from data dict, collecting all sub-analyses.
 
     Args:
@@ -440,16 +442,18 @@ def _extract_analysis_recursive(data: dict, sub_analyses: dict[str, AnalysisInsi
     """
     components: list[Component] = []
 
-    for comp_data in data["components"]:
-        assigned_files = comp_data["assigned_files"]
+    for index, comp_data in enumerate(data.get("components", []), start=1):
+        assigned_files = [str(path) for path in comp_data.get("assigned_files", [])]
         file_methods = [
             FileMethodGroup(
                 file_path=group["file_path"],
-                file_status=group.get("file_status", "unchanged"),
+                file_status="unchanged",
                 methods=_method_refs_to_placeholders([str(m) for m in group.get("methods", [])]),
             )
             for group in comp_data.get("file_methods", [])
         ]
+        if not assigned_files and file_methods:
+            assigned_files = [group.file_path for group in file_methods]
         key_entities = [
             SourceCodeReference(
                 qualified_name=ke["qualified_name"],
@@ -461,10 +465,12 @@ def _extract_analysis_recursive(data: dict, sub_analyses: dict[str, AnalysisInsi
         ]
 
         # Create the component for this level (non-nested)
+        legacy_prefix = f"{parent_component_id}_" if parent_component_id else ""
+        fallback_component_id = f"legacy_component_{legacy_prefix}{index}"
         component = Component(
-            name=comp_data["name"],
-            component_id=comp_data["component_id"],
-            description=comp_data["description"],
+            name=comp_data.get("name", fallback_component_id),
+            component_id=comp_data.get("component_id") or fallback_component_id,
+            description=comp_data.get("description", ""),
             key_entities=key_entities,
             file_methods=file_methods,
             assigned_files=assigned_files,
@@ -474,12 +480,17 @@ def _extract_analysis_recursive(data: dict, sub_analyses: dict[str, AnalysisInsi
 
         # Recursively process nested components if they exist
         nested_components = comp_data.get("components")
-        if nested_components is not None:
-            sub_analysis = _extract_analysis_recursive(comp_data, sub_analyses)
+        if isinstance(nested_components, list) and nested_components:
+            nested_data = {
+                "description": comp_data.get("description", ""),
+                "components": nested_components,
+                "components_relations": comp_data.get("components_relations", []),
+            }
+            sub_analysis = _extract_analysis_recursive(nested_data, sub_analyses, component.component_id)
             sub_analyses[component.component_id] = sub_analysis
 
     return AnalysisInsights(
-        description=data["description"],
+        description=data.get("description", ""),
         components=components,
         components_relations=[
             Relation(
@@ -491,6 +502,6 @@ def _extract_analysis_recursive(data: dict, sub_analyses: dict[str, AnalysisInsi
                 edge_count=r.get("edge_count", 0),
                 is_static=r.get("is_static", False),
             )
-            for r in data["components_relations"]
+            for r in data.get("components_relations", [])
         ],
     )
