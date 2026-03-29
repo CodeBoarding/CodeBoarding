@@ -34,3 +34,23 @@ class PythonAdapter(LanguageAdapter):
                 },
             },
         }
+
+    def get_workspace_settings(self) -> dict | None:
+        # All six rules default to "none" under basic mode.  Raising them to
+        # "warning" makes pyright include the diagnostic code (e.g.
+        # reportUnusedImport) which is needed for dead-code categorization.
+        return {
+            "python": {
+                "analysis": {
+                    "typeCheckingMode": "basic",
+                    "diagnosticSeverityOverrides": {
+                        "reportUnusedImport": "warning",
+                        "reportUnusedVariable": "warning",
+                        "reportUnusedFunction": "warning",
+                        "reportUnusedClass": "warning",
+                        "reportUnusedParameter": "warning",
+                        "reportUnreachable": "warning",
+                    },
+                },
+            },
+        }

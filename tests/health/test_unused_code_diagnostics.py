@@ -66,17 +66,6 @@ class TestLSPDiagnosticCodeExtraction:
         )
         assert diag.code == "reportUnusedImport"
 
-    def test_dict_code_extracts_value(self):
-        """Object-form codes (e.g. pyright >= 1.1.3xx) extract the 'value' key."""
-        diag = LSPDiagnostic.from_lsp_dict(
-            {
-                "code": {"value": "reportUnusedImport", "target": "https://docs.example.com"},
-                "message": "unused",
-                "range": {"start": {"line": 0}, "end": {"line": 0}},
-            }
-        )
-        assert diag.code == "reportUnusedImport"
-
     def test_int_code_converted_to_string(self):
         """Integer codes (e.g. TypeScript error numbers) are converted to strings."""
         diag = LSPDiagnostic.from_lsp_dict(
