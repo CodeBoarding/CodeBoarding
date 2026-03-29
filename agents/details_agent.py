@@ -7,10 +7,10 @@ from langchain_core.language_models import BaseChatModel
 from agents.agent import CodeBoardingAgent
 from agents.agent_responses import (
     AnalysisInsights,
+    AnalysisStructure,
     ClusterAnalysis,
     Component,
     MetaAnalysisInsights,
-    assign_component_ids,
 )
 from agents.prompts import get_system_details_message, get_cfg_details_message, get_details_message
 from agents.cluster_methods_mixin import ClusterMethodsMixin
@@ -23,9 +23,6 @@ from agents.validation import (
     ValidationContext,
     validate_cluster_coverage,
     validate_group_name_coverage,
-    validate_key_entities,
-    validate_relation_component_names,
-    validate_qualified_names,
 )
 from monitoring import trace
 from static_analyzer.analysis_result import StaticAnalysisResults
@@ -57,7 +54,15 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
         self.prompts = {
             "group_clusters": PromptTemplate(
                 template=get_cfg_details_message(),
-                input_variables=["project_name", "cfg_clusters", "component", "meta_context", "project_type"],
+                input_variables=[
+                    "project_name",
+                    "cfg_clusters",
+                    "component",
+                    "meta_context",
+                    "project_type",
+                    "sorted_cluster_ids",
+                    "cluster_count",
+                ],
             ),
             "final_analysis": PromptTemplate(
                 template=get_details_message(),
@@ -84,6 +89,7 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
         project_type = self.meta_context.project_type if self.meta_context else "unknown"
 
         programming_langs = self.static_analysis.get_languages()
+        expected_cluster_ids = get_all_cluster_ids(subgraph_cluster_results)
 
         # Build cluster string using the pre-computed cluster results (same as AbstractionAgent)
         cluster_str = self._build_cluster_string(programming_langs, subgraph_cluster_results)
@@ -94,11 +100,13 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
             component=component.llm_str(),
             meta_context=meta_context_str,
             project_type=project_type,
+            sorted_cluster_ids=", ".join(str(cluster_id) for cluster_id in sorted(expected_cluster_ids)),
+            cluster_count=len(expected_cluster_ids),
         )
 
         context = ValidationContext(
             cluster_results=subgraph_cluster_results,
-            expected_cluster_ids=get_all_cluster_ids(subgraph_cluster_results),
+            expected_cluster_ids=expected_cluster_ids,
         )
 
         cache_key = self._cluster_cache.build_key(prompt, self._cache_model_settings)
@@ -147,29 +155,25 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
             project_type=project_type,
         )
 
-        # Build validation context with subgraph CFG graphs for edge checking
-        context = ValidationContext(
-            cluster_results=subgraph_cluster_results,
-            cfg_graphs={lang: self.static_analysis.get_cfg(lang) for lang in self.static_analysis.get_languages()},
-            static_analysis=self.static_analysis,
-            llm_cluster_analysis=cluster_analysis,
-        )
-
         cache_key = self._analysis_cache.build_key(prompt, self._cache_model_settings)
 
         if (cached := self._analysis_cache.load(cache_key)) is not None:
             return cached
-        result = self._validation_invoke(
+        structure = self._validation_invoke(
             prompt,
-            AnalysisInsights,
-            validators=[
-                validate_relation_component_names,
-                validate_group_name_coverage,
-                validate_key_entities,
-                validate_qualified_names,
-            ],
-            context=context,
+            AnalysisStructure,
+            validators=[validate_group_name_coverage],
+            context=ValidationContext(
+                cluster_results=subgraph_cluster_results,
+                llm_cluster_analysis=cluster_analysis,
+            ),
             max_validation_retries=3,
+        )
+        result = self._materialize_analysis(
+            structure,
+            cluster_analysis,
+            subgraph_cluster_results,
+            parent_id=component.component_id,
         )
         self._analysis_cache.store(
             cache_key,
@@ -201,23 +205,5 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
 
         # Step 3: Generate detailed analysis from grouped clusters
         analysis = self.step_final_analysis(component, cluster_analysis, subgraph_cluster_results)
-
-        # Step 4: Assign hierarchical component IDs (e.g., "1.1", "1.2" under parent "1")
-        assign_component_ids(analysis, parent_id=component.component_id)
-
-        # Step 5: Resolve cluster IDs deterministically from group names
-        self._resolve_cluster_ids_from_groups(analysis, cluster_analysis)
-
-        # Step 6: Populate file_methods deterministically from cluster results + orphan assignment
-        self.populate_file_methods(analysis, subgraph_cluster_results)
-
-        # Step 7: Build static inter-component relations from subgraph CFG edges
-        self.build_static_relations(analysis)
-
-        # Step 8: Fix source code reference lines (resolves reference_file paths)
-        analysis = self.fix_source_code_reference_lines(analysis)
-
-        # Step 9: Ensure unique key entities across components
-        self._ensure_unique_key_entities(analysis)
 
         return analysis, subgraph_cluster_results

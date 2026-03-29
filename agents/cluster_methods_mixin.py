@@ -7,10 +7,15 @@ import networkx as nx
 
 from agents.agent_responses import (
     AnalysisInsights,
+    AnalysisStructure,
     ClusterAnalysis,
+    ClustersComponent,
     Component,
+    ComponentStructure,
     FileMethodGroup,
     MethodEntry,
+    SourceCodeReference,
+    assign_component_ids,
 )
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cluster_helpers import (
@@ -71,9 +76,11 @@ class ClusterMethodsMixin:
         cluster_lines = []
 
         for lang in programming_langs:
-            cfg = self.static_analysis.get_cfg(lang)
-            # Get cluster result for this language
             cluster_result = cluster_results.get(lang)
+            if cluster_result is None:
+                continue
+
+            cfg = self.static_analysis.get_cfg(lang)
             cluster_str = cfg.to_cluster_string(cluster_ids, cluster_result)
 
             if cluster_str.strip() and cluster_str not in ("empty", "none", "No clusters found."):
@@ -132,6 +139,106 @@ class ClusterMethodsMixin:
                     seen_entities[qname] = component
 
             component.key_entities = [e for e in component.key_entities if e not in entities_to_remove]
+
+    def _build_cluster_to_group_map(self, cluster_analysis: ClusterAnalysis) -> dict[int, ClustersComponent]:
+        """Build cluster_id -> grouped cluster component mapping from ClusterAnalysis."""
+        cluster_to_group: dict[int, ClustersComponent] = {}
+        for group in cluster_analysis.cluster_components:
+            for cluster_id in group.cluster_ids:
+                cluster_to_group[cluster_id] = group
+        return cluster_to_group
+
+    def _build_cluster_adjacency_scores(
+        self,
+        cluster_results: dict[str, ClusterResult],
+        cfg_graphs: dict[str, CallGraph] | None = None,
+    ) -> dict[int, dict[int, int]]:
+        """Build an undirected cluster-to-cluster edge strength map from CFG edges."""
+        if cfg_graphs is None:
+            cfg_graphs = {lang: self.static_analysis.get_cfg(lang) for lang in cluster_results}
+
+        adjacency_scores: dict[int, dict[int, int]] = defaultdict(lambda: defaultdict(int))
+
+        for lang, cfg in cfg_graphs.items():
+            cluster_result = cluster_results.get(lang)
+            if cluster_result is None:
+                continue
+
+            node_to_cluster: dict[str, int] = {}
+            for cluster_id, members in cluster_result.clusters.items():
+                for member in members:
+                    node_to_cluster[member] = cluster_id
+
+            for edge in cfg.edges:
+                src_cluster = node_to_cluster.get(edge.get_source())
+                dst_cluster = node_to_cluster.get(edge.get_destination())
+                if src_cluster is None or dst_cluster is None or src_cluster == dst_cluster:
+                    continue
+
+                adjacency_scores[src_cluster][dst_cluster] += 1
+                adjacency_scores[dst_cluster][src_cluster] += 1
+
+        return {cluster_id: dict(scores) for cluster_id, scores in adjacency_scores.items()}
+
+    def _select_best_component_for_cluster(
+        self,
+        cluster_id: int,
+        cluster_analysis: ClusterAnalysis,
+        adjacency_scores: dict[int, dict[int, int]],
+    ) -> ClustersComponent | None:
+        """Select the strongest existing group for a missing cluster, or None if ambiguous."""
+        best_group: ClustersComponent | None = None
+        best_score = 0
+        tie = False
+
+        for group in cluster_analysis.cluster_components:
+            score = sum(adjacency_scores.get(cluster_id, {}).get(existing_id, 0) for existing_id in group.cluster_ids)
+            if score > best_score:
+                best_group = group
+                best_score = score
+                tie = False
+            elif score > 0 and score == best_score:
+                tie = True
+
+        if best_score <= 0 or tie:
+            return None
+
+        return best_group
+
+    def _auto_assign_missing_clusters(
+        self,
+        cluster_analysis: ClusterAnalysis,
+        expected_cluster_ids: set[int],
+        cluster_results: dict[str, ClusterResult],
+        cfg_graphs: dict[str, CallGraph] | None = None,
+    ) -> tuple[ClusterAnalysis, set[int]]:
+        """Assign missing cluster IDs to the strongest connected existing group when unambiguous."""
+        repaired = cluster_analysis.model_copy(deep=True)
+        assigned_cluster_ids = set(self._build_cluster_to_group_map(repaired).keys())
+        missing_cluster_ids = sorted(expected_cluster_ids - assigned_cluster_ids)
+        if not missing_cluster_ids:
+            return repaired, set()
+
+        adjacency_scores = self._build_cluster_adjacency_scores(cluster_results, cfg_graphs)
+        unresolved: set[int] = set()
+        repaired_count = 0
+
+        for cluster_id in missing_cluster_ids:
+            best_group = self._select_best_component_for_cluster(cluster_id, repaired, adjacency_scores)
+            if best_group is None:
+                unresolved.add(cluster_id)
+                continue
+
+            best_group.cluster_ids.append(cluster_id)
+            best_group.cluster_ids = sorted(set(best_group.cluster_ids))
+            repaired_count += 1
+
+        if repaired_count:
+            logger.info(f"[Repair] Auto-assigned {repaired_count} missing cluster(s)")
+        if unresolved:
+            logger.info(f"[Repair] Could not auto-assign missing clusters: {sorted(unresolved)}")
+
+        return repaired, unresolved
 
     def _resolve_cluster_ids_from_groups(self, analysis: AnalysisInsights, cluster_analysis: ClusterAnalysis) -> None:
         """Resolve source_cluster_ids deterministically from source_group_names via case-insensitive lookup."""
@@ -200,6 +307,122 @@ class ClusterMethodsMixin:
             return "No relevant CFG clusters found for this component.", cluster_results
 
         return result, cluster_results
+
+    def _build_analysis_from_structure(self, structure: AnalysisStructure) -> AnalysisInsights:
+        """Convert structure-only LLM output into AnalysisInsights for deterministic enrichment."""
+        components = [
+            Component(
+                name=component.name,
+                description=component.description,
+                key_entities=[],
+                source_group_names=list(component.source_group_names),
+            )
+            for component in structure.components
+        ]
+        return AnalysisInsights(
+            description=structure.description,
+            components=components,
+            components_relations=[],
+        )
+
+    def _collect_component_candidate_nodes(
+        self,
+        component: Component,
+        cluster_results: dict[str, ClusterResult],
+    ) -> list[Node]:
+        """Collect candidate callable/class nodes for deterministic key-entity population."""
+        all_nodes = self._collect_all_cfg_nodes(cluster_results)
+        candidate_names: set[str] = set()
+
+        for cluster_result in cluster_results.values():
+            for cluster_id in component.source_cluster_ids:
+                candidate_names.update(cluster_result.clusters.get(cluster_id, set()))
+
+        for file_group in component.file_methods:
+            for method in file_group.methods:
+                candidate_names.add(method.qualified_name)
+
+        candidates: list[Node] = []
+        for qualified_name in sorted(candidate_names):
+            node = all_nodes.get(qualified_name)
+            if node is None or node.type not in CALLABLE_TYPES | CLASS_TYPES:
+                continue
+            candidates.append(node)
+
+        return candidates
+
+    def _rank_component_entities(
+        self,
+        nodes: list[Node],
+        cfg_graphs: dict[str, CallGraph] | None = None,
+    ) -> list[Node]:
+        """Rank candidate nodes by architectural importance for key-entity selection."""
+        if cfg_graphs is None:
+            cfg_graphs = {lang: self.static_analysis.get_cfg(lang) for lang in self.static_analysis.get_languages()}
+
+        degree_by_name: dict[str, int] = defaultdict(int)
+        for cfg in cfg_graphs.values():
+            for edge in cfg.edges:
+                degree_by_name[edge.get_source()] += 1
+                degree_by_name[edge.get_destination()] += 1
+
+        def sort_key(node: Node) -> tuple[int, int, str]:
+            is_class = 1 if node.type in CLASS_TYPES else 0
+            return (-is_class, -degree_by_name.get(node.fully_qualified_name, 0), node.fully_qualified_name)
+
+        return sorted(nodes, key=sort_key)
+
+    def _build_source_code_references(self, nodes: list[Node], limit: int = 5) -> list[SourceCodeReference]:
+        """Convert ranked nodes into SourceCodeReference objects."""
+        references: list[SourceCodeReference] = []
+        for node in nodes[:limit]:
+            file_path = (
+                os.path.relpath(node.file_path, self.repo_dir) if os.path.isabs(node.file_path) else node.file_path
+            )
+            references.append(
+                SourceCodeReference(
+                    qualified_name=node.fully_qualified_name,
+                    reference_file=file_path,
+                    reference_start_line=node.line_start,
+                    reference_end_line=node.line_end,
+                )
+            )
+        return references
+
+    def _populate_key_entities(
+        self,
+        analysis: AnalysisInsights,
+        cluster_results: dict[str, ClusterResult],
+        fill_missing_only: bool = True,
+    ) -> None:
+        """Populate key_entities deterministically from static analysis."""
+        cfg_graphs = {lang: self.static_analysis.get_cfg(lang) for lang in cluster_results}
+
+        for component in analysis.components:
+            if fill_missing_only and component.key_entities:
+                continue
+
+            candidates = self._collect_component_candidate_nodes(component, cluster_results)
+            ranked_candidates = self._rank_component_entities(candidates, cfg_graphs)
+            component.key_entities = self._build_source_code_references(ranked_candidates, limit=5)
+
+    def _materialize_analysis(
+        self,
+        structure: AnalysisStructure,
+        cluster_analysis: ClusterAnalysis,
+        cluster_results: dict[str, ClusterResult],
+        parent_id: str = "",
+    ) -> AnalysisInsights:
+        """Materialize structure-only LLM output into final analysis with deterministic enrichment."""
+        analysis = self._build_analysis_from_structure(structure)
+        assign_component_ids(analysis, parent_id=parent_id)
+        self._resolve_cluster_ids_from_groups(analysis, cluster_analysis)
+        self.populate_file_methods(analysis, cluster_results)
+        self._populate_key_entities(analysis, cluster_results)
+        self.build_static_relations(analysis)
+        analysis = getattr(self, "fix_source_code_reference_lines")(analysis)
+        self._ensure_unique_key_entities(analysis)
+        return analysis
 
     def _collect_all_cfg_nodes(self, cluster_results: dict[str, ClusterResult]) -> dict[str, Node]:
         """Build a lookup of qualified_name -> Node for all languages present in cluster_results.
@@ -429,6 +652,10 @@ class ClusterMethodsMixin:
            or fall back to the first component.
         5. Build ``FileMethodGroup`` lists grouped by file path.
         """
+        if not analysis.components:
+            logger.info("Skipping file_methods population because analysis has no components")
+            return
+
         # NOTE: These maps are intentionally rebuilt on each call — not cached — because
         # cluster_results differ per invocation (full graph in AbstractionAgent vs.
         # per-component subgraph in DetailsAgent, which runs in parallel).

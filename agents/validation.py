@@ -25,9 +25,19 @@ class ValidationContext:
     expected_cluster_ids: set[int] = field(default_factory=set)
     expected_files: set[str] = field(default_factory=set)
     valid_component_names: set[str] = field(default_factory=set)  # For file classification validation
+    cluster_edge_scores: dict[int, dict[int, int]] = field(default_factory=dict)
     repo_dir: str | None = None  # For path normalization
     static_analysis: StaticAnalysisResults | None = None  # For qualified name validation
     llm_cluster_analysis: ClusterAnalysis | None = None  # For group name coverage validation
+
+
+@dataclass
+class ValidationIssue:
+    """Machine-readable validation issue used for deterministic repairs and targeted retries."""
+
+    code: str
+    message: str
+    payload: dict[str, object] = field(default_factory=dict)
 
 
 @dataclass
@@ -36,6 +46,7 @@ class ValidationResult:
 
     is_valid: bool
     feedback_messages: list[str] = field(default_factory=list)
+    issues: list[ValidationIssue] = field(default_factory=list)
 
 
 def validate_cluster_coverage(result: ClusterAnalysis, context: ValidationContext) -> ValidationResult:
@@ -70,7 +81,17 @@ def validate_cluster_coverage(result: ClusterAnalysis, context: ValidationContex
     )
 
     logger.warning(f"[Validation] Missing clusters: {missing_str}")
-    return ValidationResult(is_valid=False, feedback_messages=[feedback])
+    return ValidationResult(
+        is_valid=False,
+        feedback_messages=[feedback],
+        issues=[
+            ValidationIssue(
+                code="missing_cluster_ids",
+                message=feedback,
+                payload={"cluster_ids": sorted(missing_clusters)},
+            )
+        ],
+    )
 
 
 def validate_group_name_coverage(result: AnalysisInsights, context: ValidationContext) -> ValidationResult:
@@ -116,22 +137,39 @@ def validate_group_name_coverage(result: AnalysisInsights, context: ValidationCo
         return ValidationResult(is_valid=True)
 
     feedback_messages: list[str] = []
+    issues: list[ValidationIssue] = []
 
     if missing_groups and not empty_components:
         missing_str = ", ".join(sorted(missing_groups))
-        feedback_messages.append(
+        message = (
             f"The following cluster groups are not assigned to any component: {missing_str}. "
             f"Please revisit whether they were missed or whether they require a new component of their own."
+        )
+        feedback_messages.append(message)
+        issues.append(
+            ValidationIssue(
+                code="unassigned_cluster_groups",
+                message=message,
+                payload={"group_names": sorted(missing_groups)},
+            )
         )
         logger.warning(f"[Validation] Unassigned cluster groups: {missing_str}")
 
     if empty_components and not missing_groups:
         empty_str = ", ".join(sorted(empty_components))
-        feedback_messages.append(
+        message = (
             f"The following components have no source_group_names assigned: {empty_str}. "
             f"All cluster groups are already covered, so these components have no source code backing them. "
             f"Please revisit the component structure — consider removing these components or "
             f"redistributing cluster groups to include them."
+        )
+        feedback_messages.append(message)
+        issues.append(
+            ValidationIssue(
+                code="components_without_source_groups",
+                message=message,
+                payload={"component_names": sorted(empty_components)},
+            )
         )
         logger.warning(f"[Validation] Components without source groups: {empty_str}")
 
@@ -139,26 +177,49 @@ def validate_group_name_coverage(result: AnalysisInsights, context: ValidationCo
         missing_str = ", ".join(sorted(missing_groups))
         empty_str = ", ".join(sorted(empty_components))
         all_names_str = ", ".join(sorted(expected_group_names))
-        feedback_messages.append(
+        message = (
             f"Cluster groups not assigned to any component: {missing_str}. "
             f"Components without any source_group_names: {empty_str}. "
             f"All available cluster group names are: {all_names_str}. "
             f"Please ensure every cluster group is assigned to a component via source_group_names "
             f"and every component references at least one cluster group."
         )
+        feedback_messages.append(message)
+        issues.append(
+            ValidationIssue(
+                code="unassigned_cluster_groups",
+                message=message,
+                payload={"group_names": sorted(missing_groups)},
+            )
+        )
+        issues.append(
+            ValidationIssue(
+                code="components_without_source_groups",
+                message=message,
+                payload={"component_names": sorted(empty_components)},
+            )
+        )
         logger.warning(f"[Validation] Unassigned groups: {missing_str}; empty components: {empty_str}")
 
     if unknown_refs:
         details = "; ".join(f"{comp}: {', '.join(names)}" for comp, names in sorted(unknown_refs.items()))
         all_names_str = ", ".join(sorted(expected_group_names))
-        feedback_messages.append(
+        message = (
             f"The following components reference non-existent cluster group names: {details}. "
             f"Available cluster group names are: {all_names_str}. "
             f"Please fix or remove the invalid source_group_names."
         )
+        feedback_messages.append(message)
+        issues.append(
+            ValidationIssue(
+                code="unknown_source_group_names",
+                message=message,
+                payload={"unknown_refs": unknown_refs, "valid_group_names": sorted(expected_group_names)},
+            )
+        )
         logger.warning(f"[Validation] Unknown source_group_names: {details}")
 
-    return ValidationResult(is_valid=False, feedback_messages=feedback_messages)
+    return ValidationResult(is_valid=False, feedback_messages=feedback_messages, issues=issues)
 
 
 def validate_key_entities(result: AnalysisInsights, context: ValidationContext) -> ValidationResult:
@@ -192,7 +253,17 @@ def validate_key_entities(result: AnalysisInsights, context: ValidationContext) 
     )
 
     logger.warning(f"[Validation] Components without key entities: {missing_str}")
-    return ValidationResult(is_valid=False, feedback_messages=[feedback])
+    return ValidationResult(
+        is_valid=False,
+        feedback_messages=[feedback],
+        issues=[
+            ValidationIssue(
+                code="missing_key_entities",
+                message=feedback,
+                payload={"component_names": components_without_key_entities},
+            )
+        ],
+    )
 
 
 def validate_file_classifications(result: ComponentFiles, context: ValidationContext) -> ValidationResult:
@@ -215,6 +286,7 @@ def validate_file_classifications(result: ComponentFiles, context: ValidationCon
         return ValidationResult(is_valid=True)
 
     feedback_messages = []
+    issues: list[ValidationIssue] = []
 
     # Get classified file paths from result
     classified_files = {normalize_path(fc.file_path, context.repo_dir) for fc in result.file_paths}
@@ -228,9 +300,17 @@ def validate_file_classifications(result: ComponentFiles, context: ValidationCon
         missing_list = sorted(str(f) for f in missing_files)[:10]
         missing_str = ", ".join(missing_list)
         more_msg = f" and {len(missing_files) - 10} more" if len(missing_files) > 10 else ""
-        feedback_messages.append(
+        message = (
             f"The following files were not classified: {missing_str}{more_msg}. "
             f"Please ensure all files are assigned to a component."
+        )
+        feedback_messages.append(message)
+        issues.append(
+            ValidationIssue(
+                code="missing_file_classifications",
+                message=message,
+                payload={"file_paths": sorted(missing_files)},
+            )
         )
 
     # Check 2: Are all component names valid?
@@ -244,10 +324,21 @@ def validate_file_classifications(result: ComponentFiles, context: ValidationCon
             invalid_str = ", ".join(invalid_classifications[:10])
             more_msg = f" and {len(invalid_classifications) - 10} more" if len(invalid_classifications) > 10 else ""
             valid_names = ", ".join(sorted(context.valid_component_names))
-            feedback_messages.append(
+            message = (
                 f"Invalid component names found: {invalid_str}{more_msg}. "
                 f"Valid component names are: {valid_names}. "
                 f"Please use only these component names."
+            )
+            feedback_messages.append(message)
+            issues.append(
+                ValidationIssue(
+                    code="invalid_component_classifications",
+                    message=message,
+                    payload={
+                        "invalid_classifications": invalid_classifications,
+                        "valid_component_names": sorted(context.valid_component_names),
+                    },
+                )
             )
 
     if not feedback_messages:
@@ -255,7 +346,7 @@ def validate_file_classifications(result: ComponentFiles, context: ValidationCon
         return ValidationResult(is_valid=True)
 
     logger.warning(f"[Validation] File classification issues: {len(feedback_messages)} problems found")
-    return ValidationResult(is_valid=False, feedback_messages=feedback_messages)
+    return ValidationResult(is_valid=False, feedback_messages=feedback_messages, issues=issues)
 
 
 def validate_relation_component_names(result: AnalysisInsights, _context: ValidationContext) -> ValidationResult:
@@ -299,7 +390,17 @@ def validate_relation_component_names(result: AnalysisInsights, _context: Valida
     )
 
     logger.warning(f"[Validation] Relations with unknown component names: {invalid_str}")
-    return ValidationResult(is_valid=False, feedback_messages=[feedback])
+    return ValidationResult(
+        is_valid=False,
+        feedback_messages=[feedback],
+        issues=[
+            ValidationIssue(
+                code="unknown_relation_component_names",
+                message=feedback,
+                payload={"invalid_relations": invalid_relations, "known_component_names": sorted(known_names)},
+            )
+        ],
+    )
 
 
 def validate_qualified_names(result: AnalysisInsights, context: ValidationContext) -> ValidationResult:
@@ -347,7 +448,17 @@ def validate_qualified_names(result: AnalysisInsights, context: ValidationContex
     )
 
     logger.warning(f"[Validation] Invalid qualified names: {len(invalid_references)} found")
-    return ValidationResult(is_valid=False, feedback_messages=[feedback])
+    return ValidationResult(
+        is_valid=False,
+        feedback_messages=[feedback],
+        issues=[
+            ValidationIssue(
+                code="invalid_qualified_names",
+                message=feedback,
+                payload={"invalid_references": invalid_references},
+            )
+        ],
+    )
 
 
 def _build_cluster_edge_lookup(

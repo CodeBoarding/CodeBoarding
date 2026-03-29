@@ -3,6 +3,7 @@ import unittest
 
 from agents.validation import (
     ValidationContext,
+    ValidationIssue,
     ValidationResult,
     validate_cluster_coverage,
     validate_file_classifications,
@@ -66,12 +67,19 @@ class TestValidationResult(unittest.TestCase):
         result = ValidationResult(is_valid=True)
         self.assertTrue(result.is_valid)
         self.assertEqual(result.feedback_messages, [])
+        self.assertEqual(result.issues, [])
 
     def test_invalid_result_with_feedback(self):
         feedback = ["Error 1", "Error 2"]
         result = ValidationResult(is_valid=False, feedback_messages=feedback)
         self.assertFalse(result.is_valid)
         self.assertEqual(result.feedback_messages, feedback)
+
+    def test_invalid_result_with_issues(self):
+        issues = [ValidationIssue(code="missing_cluster_ids", message="Missing 2", payload={"cluster_ids": [2]})]
+        result = ValidationResult(is_valid=False, issues=issues)
+        self.assertFalse(result.is_valid)
+        self.assertEqual(result.issues, issues)
 
 
 class TestValidateClusterCoverage(unittest.TestCase):
@@ -98,6 +106,8 @@ class TestValidateClusterCoverage(unittest.TestCase):
         result = validate_cluster_coverage(cluster_analysis, context)
         self.assertFalse(result.is_valid)
         self.assertIn("3, 4, 5", result.feedback_messages[0])
+        self.assertEqual(result.issues[0].code, "missing_cluster_ids")
+        self.assertEqual(result.issues[0].payload["cluster_ids"], [3, 4, 5])
 
     def test_no_expected_clusters(self):
         cluster_analysis = ClusterAnalysis(cluster_components=[])

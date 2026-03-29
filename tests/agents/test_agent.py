@@ -9,6 +9,8 @@ from langchain_core.language_models import BaseChatModel
 from pydantic import BaseModel
 
 from agents.agent import CodeBoardingAgent
+from agents.agent_responses import ClusterAnalysis, ClustersComponent
+from agents.validation import ValidationContext, validate_cluster_coverage
 from static_analyzer.analysis_result import StaticAnalysisResults
 from monitoring.stats import RunStats, current_stats
 
@@ -258,6 +260,39 @@ class TestCodeBoardingAgent(unittest.TestCase):
         # Should return parsed response
         self.assertIsInstance(result, TestResponse)
         self.assertEqual(result.value, "test_value")
+
+    @patch("agents.agent.create_agent")
+    def test_validation_invoke_repairs_missing_clusters_before_retry(self, mock_create_agent):
+        mock_create_agent.return_value = Mock()
+        mock_parsing_llm = Mock(spec=BaseChatModel)
+        agent = CodeBoardingAgent(
+            repo_dir=self.repo_dir,
+            static_analysis=self.mock_analysis,
+            system_message="Test",
+            agent_llm=self.mock_llm,
+            parsing_llm=mock_parsing_llm,
+        )
+
+        initial = ClusterAnalysis(
+            cluster_components=[ClustersComponent(name="Comp", description="desc", cluster_ids=[1])]
+        )
+        repaired = ClusterAnalysis(
+            cluster_components=[ClustersComponent(name="Comp", description="desc", cluster_ids=[1, 2])]
+        )
+
+        agent._parse_invoke = Mock(return_value=initial)  # type: ignore[method-assign]
+        agent._auto_assign_missing_clusters = Mock(return_value=(repaired, set()))  # type: ignore[attr-defined]
+
+        result = agent._validation_invoke(
+            prompt="prompt",
+            return_type=ClusterAnalysis,
+            validators=[validate_cluster_coverage],
+            context=ValidationContext(expected_cluster_ids={1, 2}),
+            max_validation_retries=2,
+        )
+
+        self.assertEqual(result, repaired)
+        agent._parse_invoke.assert_called_once()
 
     @patch("agents.agent.create_agent")
     def test_get_monitoring_results_no_callback(self, mock_create_agent):
