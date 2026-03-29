@@ -1,0 +1,5 @@
+#  OverClaw agent registry — use: overclaw agent register / list / remove / update 
+
+agents = [
+    {name = "cluster_grouping", entrypoint = "evals.overclaw_cluster_grouping.harness:run"},
+]

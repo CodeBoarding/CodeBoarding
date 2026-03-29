@@ -1,0 +1,192 @@
+{
+  "project_count": 6,
+  "max_possible_score": 600.0,
+  "grouped_score": 453.85,
+  "grouped_score_pct": 75.64,
+  "grouped_dimensions": {
+    "coverage": 346.33,
+    "duplicates": 600,
+    "hallucinated": 500,
+    "structural": 600,
+    "count": 600,
+    "grouping": 506.75
+  },
+  "weights": {
+    "coverage": 50,
+    "duplicates": 15,
+    "hallucinated": 10,
+    "structural": 10,
+    "count": 5,
+    "grouping": 10
+  },
+  "per_project": [
+    {
+      "project_name": "click",
+      "total_clusters": 24,
+      "total_nodes": 778,
+      "languages": [
+        "Python"
+      ],
+      "total_score": 97.5,
+      "coverage_score": 100.0,
+      "validate_cluster_coverage_passed": true,
+      "missing_count": 0,
+      "duplicate_count": 0,
+      "hallucinated_count": 0,
+      "structural_score": 100,
+      "component_count": 8,
+      "singleton_ratio": 0.25,
+      "component_names": [
+        "Core Execution Engine",
+        "Decorator API (DSL)",
+        "Parameter & Type System",
+        "Terminal UI & Help Formatting",
+        "Context & Global State",
+        "Testing Infrastructure",
+        "Platform & IO Abstraction",
+        "Shell Integration"
+      ],
+      "elapsed_seconds": 24.59
+    },
+    {
+      "project_name": "httpx",
+      "total_clusters": 35,
+      "total_nodes": 759,
+      "languages": [
+        "Python"
+      ],
+      "total_score": 100.0,
+      "coverage_score": 100.0,
+      "validate_cluster_coverage_passed": true,
+      "missing_count": 0,
+      "duplicate_count": 0,
+      "hallucinated_count": 0,
+      "structural_score": 100,
+      "component_count": 7,
+      "singleton_ratio": 0.0,
+      "component_names": [
+        "Client Core & Orchestration",
+        "Transport Layer (Sync/Async)",
+        "Content Processing (Encoding/Decoding)",
+        "Domain Models & URL Handling",
+        "Authentication Strategy",
+        "Configuration & Environment",
+        "I/O Stream Abstractions"
+      ],
+      "elapsed_seconds": 33.27
+    },
+    {
+      "project_name": "markitdown",
+      "total_clusters": 38,
+      "total_nodes": 404,
+      "languages": [
+        "Python"
+      ],
+      "total_score": 98.69,
+      "coverage_score": 97.37,
+      "validate_cluster_coverage_passed": false,
+      "missing_count": 1,
+      "duplicate_count": 0,
+      "hallucinated_count": 0,
+      "structural_score": 100,
+      "component_count": 8,
+      "singleton_ratio": 0.0,
+      "component_names": [
+        "Core Orchestration & Utilities",
+        "Converter Framework",
+        "Format-Specific Converters",
+        "OCR & Vision Extensions",
+        "HTML/Markdown Transformation Engine",
+        "Office Math (OMML) Utilities",
+        "MCP Server Integration",
+        "Sample Plugins"
+      ],
+      "elapsed_seconds": 38.29
+    },
+    {
+      "project_name": "trpc",
+      "total_clusters": 200,
+      "total_nodes": 3613,
+      "languages": [
+        "TypeScript"
+      ],
+      "total_score": 62.64,
+      "coverage_score": 27.5,
+      "validate_cluster_coverage_passed": false,
+      "missing_count": 145,
+      "duplicate_count": 0,
+      "hallucinated_count": 0,
+      "structural_score": 100,
+      "component_count": 9,
+      "singleton_ratio": 0.11,
+      "component_names": [
+        "Server Core & Adapters",
+        "Client Core & Transport Pipeline",
+        "Framework Integrations (Next.js & React)",
+        "TanStack Query Integration",
+        "WebSocket Transport",
+        "Reactive Primitives & Streaming",
+        "Metadata & Tooling",
+        "Documentation & Marketing (WWW)",
+        "Build & DevOps"
+      ],
+      "elapsed_seconds": 62.74
+    },
+    {
+      "project_name": "vitest",
+      "total_clusters": 0,
+      "total_nodes": 0,
+      "languages": [
+        "JavaScript",
+        "TypeScript"
+      ],
+      "total_score": 34.29,
+      "coverage_score": 0.0,
+      "validate_cluster_coverage_passed": true,
+      "missing_count": 0,
+      "duplicate_count": 0,
+      "hallucinated_count": 10,
+      "structural_score": 100,
+      "component_count": 7,
+      "singleton_ratio": 0.57,
+      "component_names": [
+        "Core Orchestrator & Workspace Management",
+        "Test Runner Engine",
+        "Worker Pool & Isolation",
+        "Module Mocking System",
+        "Runtime Environment & State",
+        "Browser Mode & RPC",
+        "Reporting & Visualization"
+      ],
+      "elapsed_seconds": 23.05
+    },
+    {
+      "project_name": "zod",
+      "total_clusters": 247,
+      "total_nodes": 4780,
+      "languages": [
+        "TypeScript"
+      ],
+      "total_score": 60.73,
+      "coverage_score": 21.46,
+      "validate_cluster_coverage_passed": false,
+      "missing_count": 194,
+      "duplicate_count": 0,
+      "hallucinated_count": 0,
+      "structural_score": 100,
+      "component_count": 8,
+      "singleton_ratio": 0.0,
+      "component_names": [
+        "V4 Core Execution Engine",
+        "V4 Schema Definition Library",
+        "V3 Legacy Core & Error System",
+        "JSON Schema & Registry Services",
+        "Zod Mini (Lightweight Core)",
+        "Benchmarking & Performance Suite",
+        "Documentation & Web Assets",
+        "Development & Build Utilities"
+      ],
+      "elapsed_seconds": 50.18
+    }
+  ]
+}

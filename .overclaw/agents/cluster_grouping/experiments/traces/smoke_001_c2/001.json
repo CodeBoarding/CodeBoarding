@@ -1,0 +1,17 @@
+{
+  "trace_id": "smoke_001_c2_001",
+  "input_data": {
+    "snapshot_dir": "evals/overclaw_cluster_grouping/snapshots"
+  },
+  "output_data": {
+    "error": "No module named 'pathspec'"
+  },
+  "spans": [],
+  "start_time": 1774645306.88748,
+  "end_time": 1774645306.8880808,
+  "total_latency_ms": 0.6008148193359375,
+  "total_tokens": 0,
+  "total_cost": 0.0,
+  "score": 0.0,
+  "error": null
+}

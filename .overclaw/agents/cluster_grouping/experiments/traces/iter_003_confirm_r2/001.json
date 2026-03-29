@@ -1,0 +1,17 @@
+{
+  "trace_id": "iter_003_confirm_r2_001",
+  "input_data": {
+    "snapshot_dir": "evals/overclaw_cluster_grouping/snapshots"
+  },
+  "output_data": {
+    "error": "No module named 'pathspec'"
+  },
+  "spans": [],
+  "start_time": 1774645457.4887831,
+  "end_time": 1774645457.490279,
+  "total_latency_ms": 1.4958381652832031,
+  "total_tokens": 0,
+  "total_cost": 0.0,
+  "score": 0.0,
+  "error": null
+}

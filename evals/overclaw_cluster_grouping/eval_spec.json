@@ -1,0 +1,65 @@
+{
+  "agent_name": "cluster_grouping",
+  "description": "Evaluates AbstractionAgent.step_clusters_grouping across multiple project snapshots. Grouped score is SUMMED (not averaged) to prevent overfitting to a single repo.",
+  "entrypoint": "evals.overclaw_cluster_grouping.harness:run",
+  "prepare_command": "uv run python -m evals.overclaw_cluster_grouping.prepare_snapshots <repo_paths...>",
+  "eval_command": "uv run python -m evals.overclaw_cluster_grouping.run_eval",
+  "scoring": {
+    "dimensions": [
+      {
+        "name": "coverage",
+        "weight": 50,
+        "type": "numeric",
+        "description": "Uses production validator validate_cluster_coverage. Percentage of expected cluster IDs present in output.",
+        "pass_threshold": 100
+      },
+      {
+        "name": "duplicates",
+        "weight": 15,
+        "type": "numeric",
+        "description": "No cluster ID appears in more than one component. 100 if clean, -10 per duplicate.",
+        "pass_threshold": 100
+      },
+      {
+        "name": "hallucinated",
+        "weight": 10,
+        "type": "numeric",
+        "description": "No cluster IDs that don't exist in the expected set. 100 if clean, -10 per hallucinated ID.",
+        "pass_threshold": 100
+      },
+      {
+        "name": "structural",
+        "weight": 10,
+        "type": "numeric",
+        "description": "Predicts downstream validator success: no empty components, no weak descriptions, no duplicate names. -20 per issue type.",
+        "pass_threshold": 80
+      },
+      {
+        "name": "count",
+        "weight": 5,
+        "type": "range",
+        "description": "Component count between 4-12 is ideal.",
+        "ideal_range": [4, 12]
+      },
+      {
+        "name": "grouping",
+        "weight": 10,
+        "type": "numeric",
+        "description": "Low singleton ratio indicates meaningful grouping. 100 - singleton_ratio * 100.",
+        "pass_threshold": 70
+      }
+    ],
+    "composite_formula": "weighted_average per project, then SUMMED across projects"
+  },
+  "validation": {
+    "production_validators_used": [
+      "validate_cluster_coverage (agents/validation.py) — directly applied to ClusterAnalysis"
+    ],
+    "downstream_validators_predicted": [
+      "validate_group_name_coverage — checked via duplicate_names and empty_components",
+      "validate_key_entities — structural quality predicts success",
+      "validate_relation_component_names — structural quality predicts success",
+      "validate_qualified_names — not applicable to step 1 (no key_entities yet)"
+    ]
+  }
+}

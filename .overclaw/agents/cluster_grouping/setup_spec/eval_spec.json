@@ -1,0 +1,813 @@
+{
+  "agent_description": "This agent evaluates an LLM-driven software architecture clustering step by replaying precomputed repository snapshots, asking an abstraction agent to group static-analysis CFG clusters into logical components, and then scoring the resulting ClusterAnalysis for coverage, correctness, structural quality, and grouping usefulness across one or more projects. Its purpose is to provide a cheap, repeatable benchmark for improving the cluster-grouping stage without rerunning expensive static analysis or metadata extraction.",
+  "agent_path": "/Users/imilev/StartUp/CodeBoarding-core/CodeBoarding/evals/overclaw_cluster_grouping/harness.py",
+  "input_schema": {
+    "snapshot_dir": {
+      "type": "string",
+      "description": "Optional path to a directory containing pickled ClusterGroupingSnapshot files; if omitted, the default snapshots directory is used"
+    }
+  },
+  "output_fields": {
+    "grouped_score": {
+      "type": "number",
+      "description": "Sum of total_score across all evaluated snapshot projects",
+      "weight": 6,
+      "importance": "critical",
+      "range": [
+        0,
+        100000
+      ],
+      "tolerance_bands": [
+        {
+          "within": 2,
+          "score_pct": 1.0
+        },
+        {
+          "within": 5,
+          "score_pct": 0.8
+        },
+        {
+          "within": 7,
+          "score_pct": 0.5
+        },
+        {
+          "within": 12,
+          "score_pct": 0.25
+        }
+      ]
+    },
+    "project_count": {
+      "type": "number",
+      "description": "Number of snapshot projects evaluated",
+      "weight": 2,
+      "importance": "important",
+      "range": [
+        0,
+        10000
+      ],
+      "tolerance_bands": [
+        {
+          "within": 1,
+          "score_pct": 1.0
+        },
+        {
+          "within": 0,
+          "score_pct": 0.8
+        },
+        {
+          "within": 0,
+          "score_pct": 0.5
+        },
+        {
+          "within": 0,
+          "score_pct": 0.25
+        }
+      ]
+    },
+    "per_project": {
+      "type": "text",
+      "description": "List-like JSON payload containing one entry per project with project_name, scores, and cluster_analysis",
+      "weight": 4,
+      "importance": "critical",
+      "eval_mode": "non_empty"
+    },
+    "project_name": {
+      "type": "text",
+      "description": "Repository or project name for an individual evaluation result",
+      "weight": 2,
+      "importance": "important",
+      "eval_mode": "non_empty"
+    },
+    "cluster_analysis": {
+      "type": "text",
+      "description": "Serialized ClusterAnalysis model output produced by the abstraction agent, including cluster_components",
+      "weight": 4,
+      "importance": "critical",
+      "eval_mode": "non_empty"
+    },
+    "validate_cluster_coverage_passed": {
+      "type": "boolean",
+      "description": "Whether the production coverage validator determined that all expected cluster IDs were represented",
+      "weight": 4,
+      "importance": "critical"
+    },
+    "validate_cluster_coverage_feedback": {
+      "type": "text",
+      "description": "Validator feedback messages describing missing cluster coverage issues, if any",
+      "weight": 1,
+      "importance": "minor",
+      "eval_mode": "skip"
+    },
+    "coverage_score": {
+      "type": "number",
+      "description": "Percentage of expected cluster IDs that were assigned to at least one component",
+      "weight": 4,
+      "importance": "critical",
+      "range": [
+        0,
+        100
+      ],
+      "tolerance_bands": [
+        {
+          "within": 1,
+          "score_pct": 1.0
+        },
+        {
+          "within": 2,
+          "score_pct": 0.8
+        },
+        {
+          "within": 3,
+          "score_pct": 0.5
+        },
+        {
+          "within": 5,
+          "score_pct": 0.25
+        }
+      ]
+    },
+    "duplicate_score": {
+      "type": "number",
+      "description": "Penalty-based score reflecting whether cluster IDs were assigned to multiple components",
+      "weight": 2,
+      "importance": "important",
+      "range": [
+        0,
+        100
+      ],
+      "tolerance_bands": [
+        {
+          "within": 2,
+          "score_pct": 1.0
+        },
+        {
+          "within": 5,
+          "score_pct": 0.8
+        },
+        {
+          "within": 7,
+          "score_pct": 0.5
+        },
+        {
+          "within": 12,
+          "score_pct": 0.25
+        }
+      ]
+    },
+    "hallucinated_score": {
+      "type": "number",
+      "description": "Penalty-based score reflecting whether nonexistent cluster IDs were invented by the model",
+      "weight": 2,
+      "importance": "important",
+      "range": [
+        0,
+        100
+      ],
+      "tolerance_bands": [
+        {
+          "within": 2,
+          "score_pct": 1.0
+        },
+        {
+          "within": 5,
+          "score_pct": 0.8
+        },
+        {
+          "within": 7,
+          "score_pct": 0.5
+        },
+        {
+          "within": 12,
+          "score_pct": 0.25
+        }
+      ]
+    },
+    "structural_score": {
+      "type": "number",
+      "description": "Penalty-based score for structural quality issues such as empty components, weak descriptions, or duplicate names",
+      "weight": 2,
+      "importance": "important",
+      "range": [
+        0,
+        100
+      ],
+      "tolerance_bands": [
+        {
+          "within": 5,
+          "score_pct": 1.0
+        },
+        {
+          "within": 10,
+          "score_pct": 0.8
+        },
+        {
+          "within": 15,
+          "score_pct": 0.5
+        },
+        {
+          "within": 25,
+          "score_pct": 0.25
+        }
+      ]
+    },
+    "count_score": {
+      "type": "number",
+      "description": "Score based on whether the number of output components falls within the preferred range",
+      "weight": 2,
+      "importance": "important",
+      "range": [
+        0,
+        100
+      ],
+      "tolerance_bands": [
+        {
+          "within": 5,
+          "score_pct": 1.0
+        },
+        {
+          "within": 10,
+          "score_pct": 0.8
+        },
+        {
+          "within": 15,
+          "score_pct": 0.5
+        },
+        {
+          "within": 25,
+          "score_pct": 0.25
+        }
+      ]
+    },
+    "grouping_score": {
+      "type": "number",
+      "description": "Score favoring multi-cluster components over mostly singleton groupings",
+      "weight": 2,
+      "importance": "important",
+      "range": [
+        0,
+        100
+      ],
+      "tolerance_bands": [
+        {
+          "within": 5,
+          "score_pct": 1.0
+        },
+        {
+          "within": 10,
+          "score_pct": 0.8
+        },
+        {
+          "within": 15,
+          "score_pct": 0.5
+        },
+        {
+          "within": 25,
+          "score_pct": 0.25
+        }
+      ]
+    },
+    "missing_cluster_ids": {
+      "type": "text",
+      "description": "Sorted list of expected cluster IDs that were not assigned in the output",
+      "weight": 4,
+      "importance": "critical",
+      "eval_mode": "skip"
+    },
+    "missing_count": {
+      "type": "number",
+      "description": "Count of missing expected cluster IDs",
+      "weight": 4,
+      "importance": "critical",
+      "range": [
+        0,
+        100000
+      ],
+      "tolerance_bands": [
+        {
+          "within": 1,
+          "score_pct": 1.0
+        },
+        {
+          "within": 1,
+          "score_pct": 0.8
+        },
+        {
+          "within": 1,
+          "score_pct": 0.5
+        },
+        {
+          "within": 2,
+          "score_pct": 0.25
+        }
+      ]
+    },
+    "duplicate_cluster_ids": {
+      "type": "text",
+      "description": "Sorted list of cluster IDs that were assigned to more than one component",
+      "weight": 2,
+      "importance": "important",
+      "eval_mode": "skip"
+    },
+    "duplicate_count": {
+      "type": "number",
+      "description": "Count of duplicated cluster IDs",
+      "weight": 2,
+      "importance": "important",
+      "range": [
+        0,
+        100000
+      ],
+      "tolerance_bands": [
+        {
+          "within": 1,
+          "score_pct": 1.0
+        },
+        {
+          "within": 1,
+          "score_pct": 0.8
+        },
+        {
+          "within": 1,
+          "score_pct": 0.5
+        },
+        {
+          "within": 2,
+          "score_pct": 0.25
+        }
+      ]
+    },
+    "hallucinated_cluster_ids": {
+      "type": "text",
+      "description": "Sorted list of cluster IDs produced by the agent that do not exist in the snapshot's expected set",
+      "weight": 2,
+      "importance": "important",
+      "eval_mode": "skip"
+    },
+    "hallucinated_count": {
+      "type": "number",
+      "description": "Count of hallucinated cluster IDs",
+      "weight": 2,
+      "importance": "important",
+      "range": [
+        0,
+        100000
+      ],
+      "tolerance_bands": [
+        {
+          "within": 1,
+          "score_pct": 1.0
+        },
+        {
+          "within": 1,
+          "score_pct": 0.8
+        },
+        {
+          "within": 1,
+          "score_pct": 0.5
+        },
+        {
+          "within": 2,
+          "score_pct": 0.25
+        }
+      ]
+    },
+    "empty_components": {
+      "type": "text",
+      "description": "List of component names whose cluster_ids list was empty",
+      "weight": 2,
+      "importance": "important",
+      "eval_mode": "skip"
+    },
+    "empty_descriptions": {
+      "type": "text",
+      "description": "List of component names whose descriptions were empty or too short",
+      "weight": 2,
+      "importance": "important",
+      "eval_mode": "skip"
+    },
+    "duplicate_names": {
+      "type": "text",
+      "description": "List of normalized component names that appeared more than once",
+      "weight": 2,
+      "importance": "important",
+      "eval_mode": "skip"
+    },
+    "structural_details": {
+      "type": "text",
+      "description": "Human-readable structural issue summaries",
+      "weight": 1,
+      "importance": "minor",
+      "eval_mode": "skip"
+    },
+    "component_count": {
+      "type": "number",
+      "description": "Number of grouped components produced in the ClusterAnalysis",
+      "weight": 2,
+      "importance": "important",
+      "range": [
+        0,
+        10000
+      ],
+      "tolerance_bands": [
+        {
+          "within": 1,
+          "score_pct": 1.0
+        },
+        {
+          "within": 1,
+          "score_pct": 0.8
+        },
+        {
+          "within": 1,
+          "score_pct": 0.5
+        },
+        {
+          "within": 2,
+          "score_pct": 0.25
+        }
+      ]
+    },
+    "avg_cluster_size": {
+      "type": "number",
+      "description": "Average number of cluster IDs per component",
+      "weight": 1,
+      "importance": "minor",
+      "range": [
+        0,
+        100000
+      ],
+      "tolerance_bands": [
+        {
+          "within": 1,
+          "score_pct": 1.0
+        },
+        {
+          "within": 0.5,
+          "score_pct": 0.8
+        },
+        {
+          "within": 0,
+          "score_pct": 0.5
+        },
+        {
+          "within": 1,
+          "score_pct": 0.25
+        }
+      ]
+    },
+    "singleton_ratio": {
+      "type": "number",
+      "description": "Fraction of components that contain exactly one cluster ID",
+      "weight": 2,
+      "importance": "important",
+      "range": [
+        0,
+        1
+      ],
+      "tolerance_bands": [
+        {
+          "within": 1,
+          "score_pct": 1.0
+        },
+        {
+          "within": 0.1,
+          "score_pct": 0.8
+        },
+        {
+          "within": 0,
+          "score_pct": 0.5
+        },
+        {
+          "within": 0,
+          "score_pct": 0.25
+        }
+      ]
+    },
+    "total_score": {
+      "type": "number",
+      "description": "Weighted composite score combining coverage, duplicates, hallucinations, structural quality, component count, and grouping quality",
+      "weight": 4,
+      "importance": "critical",
+      "range": [
+        0,
+        100
+      ],
+      "tolerance_bands": [
+        {
+          "within": 1,
+          "score_pct": 1.0
+        },
+        {
+          "within": 2,
+          "score_pct": 0.8
+        },
+        {
+          "within": 3,
+          "score_pct": 0.5
+        },
+        {
+          "within": 5,
+          "score_pct": 0.25
+        }
+      ]
+    },
+    "weights": {
+      "type": "text",
+      "description": "Weight mapping used to compute the composite total_score",
+      "weight": 1,
+      "importance": "minor",
+      "eval_mode": "skip"
+    }
+  },
+  "structure_weight": 20,
+  "total_points": 100,
+  "optimizable_elements": [
+    "System prompt / instructions",
+    "Tool definitions (descriptions, parameter schemas) \u2014 not implementations",
+    "Input formatting functions such as CFG/cluster string rendering and snapshot-to-prompt formatting",
+    "run \u2014 agent orchestration: tool call ordering, post-processing, validation, batching, error isolation, score aggregation",
+    "run_cluster_grouping \u2014 orchestration around AbstractionAgent invocation and retry policy",
+    "score_cluster_analysis \u2014 heuristic weights, penalties, and metric design",
+    "Prompt factory selection and prompt text by model family",
+    "Model selection",
+    "LLM initialization policy and provider/model override behavior",
+    "Output shaping in the run() response payload"
+  ],
+  "fixed_elements": [
+    "Tool IMPLEMENTATIONS (the actual Python functions that tools call)",
+    "Data sources / databases",
+    "Output parsing logic",
+    "Import structure and tracing integration",
+    "Underlying static analysis snapshot contents once generated",
+    "Pickled snapshot files as provided evaluation inputs",
+    "External provider SDK implementations",
+    "Production validator implementation contracts such as validate_cluster_coverage"
+  ],
+  "tool_config": {
+    "expected_tools": [
+      "load_snapshot",
+      "initialize_llms",
+      "AbstractionAgent.step_clusters_grouping",
+      "validate_cluster_coverage",
+      "score_cluster_analysis"
+    ],
+    "dependencies": [
+      {
+        "from_tool": "load_snapshot",
+        "from_field": "ClusterGroupingSnapshot",
+        "to_tool": "AbstractionAgent.step_clusters_grouping",
+        "to_param": "cluster_results",
+        "description": "The grouping step consumes the precomputed cluster results from the snapshot"
+      },
+      {
+        "from_tool": "load_snapshot",
+        "from_field": "repo_dir/static_analysis/project_name/meta_context",
+        "to_tool": "AbstractionAgent.step_clusters_grouping",
+        "to_param": "agent initialization parameters",
+        "description": "The abstraction agent requires repository context, static analysis, and metadata from the snapshot to build prompts and context"
+      },
+      {
+        "from_tool": "initialize_llms",
+        "from_field": "agent_llm",
+        "to_tool": "AbstractionAgent.step_clusters_grouping",
+        "to_param": "agent_llm",
+        "description": "The grouping step depends on the initialized reasoning model"
+      },
+      {
+        "from_tool": "initialize_llms",
+        "from_field": "parsing_llm",
+        "to_tool": "AbstractionAgent.step_clusters_grouping",
+        "to_param": "parsing_llm",
+        "description": "The grouping step depends on the initialized parsing/extraction model"
+      },
+      {
+        "from_tool": "AbstractionAgent.step_clusters_grouping",
+        "from_field": "ClusterAnalysis",
+        "to_tool": "validate_cluster_coverage",
+        "to_param": "result",
+        "description": "The produced cluster grouping is first validated for expected cluster coverage"
+      },
+      {
+        "from_tool": "load_snapshot",
+        "from_field": "expected_cluster_ids/cluster_results",
+        "to_tool": "validate_cluster_coverage",
+        "to_param": "ValidationContext",
+        "description": "Coverage validation requires the snapshot's expected IDs and cluster results"
+      },
+      {
+        "from_tool": "AbstractionAgent.step_clusters_grouping",
+        "from_field": "ClusterAnalysis",
+        "to_tool": "score_cluster_analysis",
+        "to_param": "result",
+        "description": "The generated grouping is the primary input to the scoring function"
+      },
+      {
+        "from_tool": "load_snapshot",
+        "from_field": "ClusterGroupingSnapshot",
+        "to_tool": "score_cluster_analysis",
+        "to_param": "snapshot",
+        "description": "Scoring uses snapshot metadata and expected IDs to compute all detailed metrics"
+      }
+    ],
+    "param_constraints": {
+      "initialize_llms": {
+        "agent_model": [],
+        "parsing_model": []
+      },
+      "AbstractionAgent.step_clusters_grouping": {
+        "cluster_results": [
+          "must be a dict keyed by language",
+          "values must be ClusterResult objects",
+          "cluster IDs should come only from snapshot.expected_cluster_ids"
+        ]
+      },
+      "validate_cluster_coverage": {
+        "expected_cluster_ids": [
+          "set of integer cluster IDs"
+        ]
+      },
+      "load_snapshot": {
+        "path": [
+          "must point to a .pkl file containing a ClusterGroupingSnapshot"
+        ]
+      },
+      "score_cluster_analysis": {
+        "coverage_score": [
+          "0-100"
+        ],
+        "duplicate_score": [
+          "0-100"
+        ],
+        "hallucinated_score": [
+          "0-100"
+        ],
+        "structural_score": [
+          "0-100"
+        ],
+        "count_score": [
+          "0-100"
+        ],
+        "grouping_score": [
+          "0-100"
+        ],
+        "total_score": [
+          "0-100"
+        ]
+      }
+    }
+  },
+  "tool_usage_weight": 10,
+  "consistency_rules": [
+    {
+      "field_a": "validate_cluster_coverage_passed",
+      "field_b": "coverage_score",
+      "type": "correlation",
+      "description": "If coverage validation passes, coverage_score should be effectively complete; low coverage with a passing validator would be inconsistent",
+      "penalty": 4.0
+    },
+    {
+      "field_a": "missing_count",
+      "field_b": "coverage_score",
+      "type": "correlation",
+      "description": "Higher missing_count should correspond to lower coverage_score",
+      "penalty": 4.0
+    },
+    {
+      "field_a": "duplicate_count",
+      "field_b": "duplicate_score",
+      "type": "correlation",
+      "description": "Higher duplicate_count should correspond to lower duplicate_score",
+      "penalty": 3.0
+    },
+    {
+      "field_a": "hallucinated_count",
+      "field_b": "hallucinated_score",
+      "type": "correlation",
+      "description": "Higher hallucinated_count should correspond to lower hallucinated_score",
+      "penalty": 3.0
+    },
+    {
+      "field_a": "singleton_ratio",
+      "field_b": "grouping_score",
+      "type": "correlation",
+      "description": "Higher singleton_ratio should correspond to lower grouping_score because singleton-heavy outputs indicate weak grouping",
+      "penalty": 3.0
+    },
+    {
+      "field_a": "component_count",
+      "field_b": "count_score",
+      "type": "correlation",
+      "description": "count_score should be highest when component_count is in the preferred 4-12 range and lower outside it",
+      "penalty": 2.5
+    },
+    {
+      "field_a": "structural_score",
+      "field_b": "empty_components",
+      "type": "correlation",
+      "description": "Presence of empty_components should reduce structural_score",
+      "penalty": 2.0
+    },
+    {
+      "field_a": "structural_score",
+      "field_b": "empty_descriptions",
+      "type": "correlation",
+      "description": "Presence of weak or empty descriptions should reduce structural_score",
+      "penalty": 2.0
+    },
+    {
+      "field_a": "structural_score",
+      "field_b": "duplicate_names",
+      "type": "correlation",
+      "description": "Duplicate component names should reduce structural_score",
+      "penalty": 2.0
+    },
+    {
+      "field_a": "grouped_score",
+      "field_b": "project_count",
+      "type": "correlation",
+      "description": "grouped_score should generally scale upward with project_count because it is defined as a sum of per-project total_score values",
+      "penalty": 2.0
+    }
+  ],
+  "policy": {
+    "purpose": "Evaluate and improve the LLM cluster-grouping step by replaying precomputed CFG snapshots and scoring the resulting ClusterAnalysis.",
+    "domain_rules": [
+      "Every cluster ID must be assigned to exactly one component\u2019s cluster_ids.",
+      "No duplicate cluster IDs across components.",
+      "Component count should usually be 4\u201312 for typical projects.",
+      "Minimize singleton components unless a cluster is genuinely isolated.",
+      "Group names must be descriptive and architecture-oriented.",
+      "Descriptions must explain why clusters are grouped together using call patterns, shared files, or domain cohesion.",
+      "Inter-group interactions should be mentioned when supported by inter-cluster edges.",
+      "(added) Groupings may cross language boundaries in multi-language repositories.",
+      "(added) Prefer semantically cohesive multi-cluster groups over coverage-only packing."
+    ],
+    "domain_edge_cases": [
+      {
+        "scenario": "Only 1 cluster total",
+        "correct_handling": "Return 1 component containing that cluster."
+      },
+      {
+        "scenario": "2\u20133 clusters",
+        "correct_handling": "Return 1\u20132 components if appropriate; strict 4\u201312 count is not required."
+      },
+      {
+        "scenario": "500+ clusters",
+        "correct_handling": "Still assign all expected IDs even if only top clusters are shown in detail."
+      },
+      {
+        "scenario": "Multi-language repository",
+        "correct_handling": "Assign cluster IDs across all languages; language boundaries are optional."
+      },
+      {
+        "scenario": "No/weak interconnections between clusters",
+        "correct_handling": "Group by file proximity, naming, or domain similarity."
+      },
+      {
+        "scenario": "Empty components or empty output",
+        "correct_handling": "(added) Treat as structurally invalid and penalize heavily."
+      },
+      {
+        "scenario": "Hallucinated IDs",
+        "correct_handling": "(added) Never introduce IDs outside the expected set."
+      }
+    ],
+    "terminology": {
+      "cluster": "A precomputed CFG cluster of related methods/functions.",
+      "component": "A logical grouping of one or more cluster IDs produced by the LLM.",
+      "singleton": "A component containing exactly one cluster ID.",
+      "coverage": "The percentage of expected cluster IDs assigned at least once.",
+      "hallucinated_id": "A cluster ID not present in the snapshot\u2019s expected set."
+    },
+    "output_constraints": [
+      "Output must parse as ClusterAnalysis with cluster_components: list[ClustersComponent].",
+      "Each ClustersComponent must include name, cluster_ids, and description.",
+      "(added) Descriptions shorter than about 20 stripped characters are treated as weak.",
+      "(added) Score dimensions are 0\u2013100: coverage, duplicate, hallucinated, structural, count, grouping, total.",
+      "(added) Eval output contains per_project, grouped_score, and project_count.",
+      "(added) grouped_score is the sum of per-project total_score values, not an average."
+    ],
+    "tool_requirements": [
+      "Load snapshot data before grouping.",
+      "Initialize LLMs before calling AbstractionAgent.step_clusters_grouping.",
+      "Run validate_cluster_coverage as part of scoring/validation.",
+      "(added) Score missing, duplicate, hallucinated, structural, count, and grouping dimensions from the produced ClusterAnalysis.",
+      "(added) In this eval harness, retry correction is disabled with max_validation_retries=0.",
+      "(added) Snapshot loading uses trusted pickle input without schema/version checks."
+    ],
+    "decision_mapping": [
+      "Use snapshot cluster_results as the source of truth for expected cluster IDs.",
+      "Map all expected IDs into component cluster_ids exactly once.",
+      "Prefer 4\u201312 components when feasible, but allow fewer for tiny projects.",
+      "Reduce singleton_ratio by combining related clusters into cohesive groups.",
+      "Avoid empty components, duplicate names, and weak descriptions to preserve structural quality."
+    ],
+    "quality_expectations": [
+      "Prioritize 100% coverage first.",
+      "Then ensure zero duplicate IDs and zero hallucinated IDs.",
+      "Then optimize component count and grouping usefulness.",
+      "Then improve descriptive names and rationale-rich descriptions.",
+      "(added) Mention interactions between groups when the cluster graph indicates them."
+    ]
+  }
+}
