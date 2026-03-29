@@ -1,7 +1,7 @@
 {
   "repository_name": "CodeBoarding",
-  "timestamp": "2026-03-20T12:38:17.799927+00:00",
-  "overall_score": 0.9603020496224379,
+  "timestamp": "2026-03-28T10:28:14.556444+00:00",
+  "overall_score": 0.9607127522541864,
   "check_summaries": [
     {
       "check_name": "function_size",
@@ -17,10 +17,10 @@
       "check_name": "fan_out",
       "description": "Checks efferent coupling: how many other functions each function calls",
       "check_type": "standard",
-      "total_entities_checked": 4304,
+      "total_entities_checked": 4322,
       "findings_count": 31,
       "warning_count": 31,
-      "score": 0.9927973977695167,
+      "score": 0.9928273947246645,
       "finding_groups": [
         {
           "severity": "warning",
@@ -252,10 +252,10 @@
       "check_name": "fan_in",
       "description": "Checks afferent coupling: how many other functions call each function",
       "check_type": "standard",
-      "total_entities_checked": 4304,
+      "total_entities_checked": 4322,
       "findings_count": 66,
       "warning_count": 66,
-      "score": 0.9846654275092936,
+      "score": 0.984729291994447,
       "finding_groups": [
         {
           "severity": "warning",
@@ -732,10 +732,10 @@
       "check_name": "god_class",
       "description": "Detects classes with too many methods, too much code, or too many outgoing dependencies",
       "check_type": "standard",
-      "total_entities_checked": 308,
+      "total_entities_checked": 310,
       "findings_count": 38,
       "warning_count": 38,
-      "score": 0.8766233766233766,
+      "score": 0.8774193548387097,
       "finding_groups": [
         {
           "severity": "warning",
@@ -941,15 +941,15 @@
       "description": "Detects circular dependencies between packages",
       "check_type": "circular_dependencies",
       "cycles": [
-        "diagram_analysis -> diagram_analysis.incremental -> diagram_analysis",
+        "diagram_analysis.incremental -> diagram_analysis -> diagram_analysis.incremental",
         "health -> health.checks -> health",
         "agents -> agents.tools -> agents",
         "agents -> agents.tools -> static_analyzer -> agents",
         "agents -> caching -> agents",
         "agents -> static_analyzer -> agents",
+        "static_analyzer.engine -> static_analyzer -> static_analyzer.engine",
+        "static_analyzer.engine -> static_analyzer -> static_analyzer.engine.adapters -> static_analyzer.engine",
         "static_analyzer.engine.adapters -> static_analyzer -> static_analyzer.engine.adapters",
-        "static_analyzer.engine.adapters -> static_analyzer.engine -> static_analyzer -> static_analyzer.engine.adapters",
-        "static_analyzer -> static_analyzer.engine -> static_analyzer",
         "install -> tool_registry -> install"
       ],
       "packages_checked": 49,
@@ -985,29 +985,11 @@
       "check_name": "component_cohesion",
       "description": "Measures internal vs external edge ratio per component/cluster",
       "check_type": "standard",
-      "total_entities_checked": 81,
-      "findings_count": 2,
-      "warning_count": 2,
-      "score": 0.9753086419753086,
-      "finding_groups": [
-        {
-          "severity": "warning",
-          "threshold": 0.1,
-          "description": "Components with low cohesion (below 0.1)",
-          "entities": [
-            {
-              "entity_name": "cluster_65",
-              "file_path": "tests/diagram_analysis/test_incremental_e2e.py",
-              "metric_value": 0.079
-            },
-            {
-              "entity_name": "cluster_114",
-              "file_path": "agents/tools/read_source.py",
-              "metric_value": 0.1
-            }
-          ]
-        }
-      ]
+      "total_entities_checked": 89,
+      "findings_count": 0,
+      "warning_count": 0,
+      "score": 1.0,
+      "finding_groups": []
     },
     {
       "check_name": "unused_code_diagnostics",
@@ -2676,12 +2658,6 @@
       "composite_risk_score": 65.0
     },
     {
-      "file_path": "tests/diagram_analysis/test_incremental_e2e.py",
-      "total_findings": 9,
-      "warning_findings": 3,
-      "composite_risk_score": 65.0
-    },
-    {
       "file_path": "tests/diagram_analysis/test_incremental_integration.py",
       "total_findings": 8,
       "warning_findings": 3,
@@ -2692,6 +2668,12 @@
       "total_findings": 13,
       "warning_findings": 3,
       "composite_risk_score": 65.0
+    },
+    {
+      "file_path": "tests/diagram_analysis/test_incremental_e2e.py",
+      "total_findings": 8,
+      "warning_findings": 2,
+      "composite_risk_score": 60.0
     },
     {
       "file_path": "tests/agents/test_agent.py",
