@@ -1,7 +1,10 @@
 """Validation utilities for LLM agent outputs."""
 
 import logging
+import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
+from difflib import SequenceMatcher
 
 from agents.agent_responses import AnalysisInsights, ClusterAnalysis, ComponentFiles
 from repo_utils import normalize_path
@@ -10,6 +13,19 @@ from static_analyzer.graph import CallGraph, ClusterResult
 from static_analyzer.analysis_result import StaticAnalysisResults
 
 logger = logging.getLogger(__name__)
+
+# Validator weight configuration.
+# Coverage validators are the most critical for result quality, so they carry
+# significantly more weight than other validators.
+VALIDATOR_WEIGHTS: dict[str, float] = {
+    "validate_cluster_coverage": 20.0,
+    "validate_group_name_coverage": 20.0,
+    "validate_key_entities": 5.0,
+    "validate_qualified_names": 5.0,
+    "validate_relation_component_names": 5.0,
+    "validate_file_classifications": 5.0,
+}
+DEFAULT_VALIDATOR_WEIGHT = 5.0
 
 
 @dataclass
@@ -38,20 +54,57 @@ class ValidationResult:
     feedback_messages: list[str] = field(default_factory=list)
 
 
+def score_validation_results(
+    validator_results: list[tuple[Callable, ValidationResult]],
+) -> float:
+    """Compute a weighted score for a set of validation results.
+
+    Each validator contributes its weight to the total score when it passes.
+    The returned score is in the range [0, max_possible_score] where a higher
+    value means a better result.
+
+    Args:
+        validator_results: List of (validator_function, ValidationResult) pairs.
+
+    Returns:
+        Weighted score (higher is better).
+    """
+    score = 0.0
+    for validator_fn, vr in validator_results:
+        weight = VALIDATOR_WEIGHTS.get(validator_fn.__name__, DEFAULT_VALIDATOR_WEIGHT)
+        if vr.is_valid:
+            score += weight
+    return score
+
+
 def validate_cluster_coverage(result: ClusterAnalysis, context: ValidationContext) -> ValidationResult:
     """
-    Validate that all expected clusters are represented in the ClusterAnalysis.
+    Validate that all expected clusters are represented in the ClusterAnalysis
+    and that no cluster component has an empty cluster_ids list.
 
     Args:
         result: ClusterAnalysis with cluster_components
         context: ValidationContext with expected_cluster_ids
 
     Returns:
-        ValidationResult with feedback for missing clusters
+        ValidationResult with feedback for missing clusters or empty components
     """
     if not context.expected_cluster_ids:
         logger.warning("[Validation] No expected cluster IDs provided for coverage validation")
         return ValidationResult(is_valid=True)
+
+    feedback_messages: list[str] = []
+
+    # Check for cluster components with empty cluster_ids
+    empty_components = [cc.name for cc in result.cluster_components if not cc.cluster_ids]
+    if empty_components:
+        empty_str = ", ".join(sorted(empty_components))
+        feedback_messages.append(
+            f"The following cluster groups have no cluster IDs assigned: {empty_str}. "
+            f"Every cluster group must reference at least one cluster ID. "
+            f"Either assign clusters to these groups or remove them entirely."
+        )
+        logger.warning(f"[Validation] Cluster groups with empty cluster_ids: {empty_str}")
 
     result_cluster_ids: set[int] = set()
     for cc in result.cluster_components:
@@ -59,26 +112,108 @@ def validate_cluster_coverage(result: ClusterAnalysis, context: ValidationContex
 
     missing_clusters = context.expected_cluster_ids - result_cluster_ids
 
-    if not missing_clusters:
+    if missing_clusters:
+        missing_str = ", ".join(str(cid) for cid in sorted(missing_clusters))
+        feedback_messages.append(
+            f"The following cluster IDs are missing from the analysis: {missing_str}. "
+            f"Please ensure all clusters are assigned to a component via cluster_ids."
+        )
+        logger.warning(f"[Validation] Missing clusters: {missing_str}")
+
+    if not feedback_messages:
         logger.info("[Validation] All clusters are represented in the ClusterAnalysis")
         return ValidationResult(is_valid=True)
 
-    missing_str = ", ".join(str(cid) for cid in sorted(missing_clusters))
-    feedback = (
-        f"The following cluster IDs are missing from the analysis: {missing_str}. "
-        f"Please ensure all clusters are assigned to a component via cluster_ids."
-    )
+    return ValidationResult(is_valid=False, feedback_messages=feedback_messages)
 
-    logger.warning(f"[Validation] Missing clusters: {missing_str}")
-    return ValidationResult(is_valid=False, feedback_messages=[feedback])
+
+def _normalize_group_name(name: str) -> str:
+    """Normalize a group name for fuzzy comparison: lowercase, collapse whitespace, strip punctuation."""
+    name = name.lower().strip()
+    name = re.sub(r"\s+", " ", name)
+    # Remove common punctuation that LLMs might add/drop inconsistently
+    name = re.sub(r"[()&/\\,\-–—]", " ", name)
+    name = re.sub(r"\s+", " ", name).strip()
+    return name
+
+
+def _fuzzy_match_group_name(name: str, candidates: dict[str, str], threshold: float = 0.75) -> str | None:
+    """Find the best fuzzy match for *name* among *candidates*.
+
+    Args:
+        name: The name to match (already normalized).
+        candidates: Mapping of normalized_name -> original_name.
+        threshold: Minimum similarity ratio (0-1) to accept a match.
+
+    Returns:
+        The original (canonical) name of the best match, or None.
+    """
+    best_score = 0.0
+    best_match: str | None = None
+    for norm_candidate, original in candidates.items():
+        score = SequenceMatcher(None, name, norm_candidate).ratio()
+        if score > best_score and score >= threshold:
+            best_score = score
+            best_match = original
+    return best_match
+
+
+def _auto_correct_group_names(result: AnalysisInsights, expected_group_names: set[str]) -> int:
+    """Auto-correct source_group_names on components in-place.
+
+    Fixes case mismatches, whitespace differences, and close fuzzy matches
+    (similar to how validate_qualified_names auto-corrects key_entity names).
+
+    Returns:
+        Number of names that were auto-corrected.
+    """
+    # Build lookup: normalized_name -> canonical_name
+    canonical_lookup: dict[str, str] = {_normalize_group_name(name): name for name in expected_group_names}
+
+    auto_corrected = 0
+    for component in result.components:
+        corrected_names: list[str] = []
+        for gname in component.source_group_names:
+            normalized = _normalize_group_name(gname)
+
+            # Exact normalized match (handles case + whitespace)
+            if normalized in canonical_lookup:
+                canonical = canonical_lookup[normalized]
+                if gname != canonical:
+                    logger.info(
+                        f"[Validation] Auto-corrected source_group_name: "
+                        f"'{gname}' -> '{canonical}' (component '{component.name}')"
+                    )
+                    auto_corrected += 1
+                corrected_names.append(canonical)
+                continue
+
+            # Fuzzy match for close typos
+            fuzzy_match = _fuzzy_match_group_name(normalized, canonical_lookup)
+            if fuzzy_match is not None:
+                logger.info(
+                    f"[Validation] Auto-corrected source_group_name (fuzzy): "
+                    f"'{gname}' -> '{fuzzy_match}' (component '{component.name}')"
+                )
+                auto_corrected += 1
+                corrected_names.append(fuzzy_match)
+                continue
+
+            # No match found, keep original for error reporting
+            corrected_names.append(gname)
+
+        component.source_group_names = corrected_names
+
+    return auto_corrected
 
 
 def validate_group_name_coverage(result: AnalysisInsights, context: ValidationContext) -> ValidationResult:
     """
     Validate bidirectional coverage between cluster groups and components:
-    1. Every ClusterComponent must be referenced by at least one Component's source_group_names.
-    2. Every Component must have at least one source_group_name assigned.
-    3. Every source_group_name referenced by a Component must exist in the cluster analysis.
+    1. Auto-correct trivial mismatches (case, whitespace, close typos) in-place.
+    2. Every ClusterComponent must be referenced by at least one Component's source_group_names.
+    3. Every Component must have at least one source_group_name assigned.
+    4. Every source_group_name referenced by a Component must exist in the cluster analysis.
 
     Args:
         result: AnalysisInsights containing components with source_group_names
@@ -92,6 +227,12 @@ def validate_group_name_coverage(result: AnalysisInsights, context: ValidationCo
         return ValidationResult(is_valid=True)
 
     expected_group_names = {cc.name for cc in context.llm_cluster_analysis.cluster_components}
+
+    # Auto-correct trivial mismatches before validation
+    auto_corrected = _auto_correct_group_names(result, expected_group_names)
+    if auto_corrected:
+        logger.info(f"[Validation] Auto-corrected {auto_corrected} source_group_name(s)")
+
     referenced_group_names: set[str] = set()
     for component in result.components:
         referenced_group_names.update(component.source_group_names)

@@ -157,6 +157,3 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
         self._ensure_unique_key_entities(analysis)
 
         return analysis, cluster_results
-        self._ensure_unique_key_entities(analysis)
-
-        return analysis, cluster_results
