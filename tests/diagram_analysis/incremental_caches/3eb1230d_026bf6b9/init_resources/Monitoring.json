@@ -12,9 +12,6 @@
           "reference_end_line": null
         }
       ],
-      "assigned_files": [
-        "monitoring/callbacks.py"
-      ],
       "source_cluster_ids": [],
       "can_expand": true
     },
@@ -28,9 +25,6 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [
-        "monitoring/stats.py"
       ],
       "source_cluster_ids": [],
       "can_expand": true
@@ -46,10 +40,6 @@
           "reference_end_line": null
         }
       ],
-      "assigned_files": [
-        "monitoring/context.py",
-        "monitoring/__init__.py"
-      ],
       "source_cluster_ids": [],
       "can_expand": true
     },
@@ -63,9 +53,6 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [
-        "monitoring/writers.py"
       ],
       "source_cluster_ids": [],
       "can_expand": true
@@ -81,9 +68,6 @@
           "reference_end_line": null
         }
       ],
-      "assigned_files": [
-        "monitoring/paths.py"
-      ],
       "source_cluster_ids": [],
       "can_expand": true
     },
@@ -97,9 +81,6 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [
-        "monitoring/mixin.py"
       ],
       "source_cluster_ids": [],
       "can_expand": true

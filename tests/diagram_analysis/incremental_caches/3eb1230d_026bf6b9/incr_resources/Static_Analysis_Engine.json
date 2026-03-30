@@ -18,9 +18,6 @@
           "reference_end_line": null
         }
       ],
-      "assigned_files": [
-        "static_analyzer/__init__.py"
-      ],
       "source_cluster_ids": [],
       "can_expand": true
     },
@@ -35,9 +32,6 @@
           "reference_end_line": 85
         }
       ],
-      "assigned_files": [
-        "static_analyzer/scanner.py"
-      ],
       "source_cluster_ids": [],
       "can_expand": true
     },
@@ -51,9 +45,6 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [
-        "static_analyzer/programming_language.py"
       ],
       "source_cluster_ids": [],
       "can_expand": true
@@ -74,11 +65,6 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [
-        "static_analyzer/typescript_config_scanner.py",
-        "static_analyzer/java_config_scanner.py",
-        "static_analyzer/java_utils.py"
       ],
       "source_cluster_ids": [],
       "can_expand": true
@@ -106,12 +92,6 @@
           "reference_end_line": null
         }
       ],
-      "assigned_files": [
-        "static_analyzer/lsp_client/typescript_client.py",
-        "static_analyzer/lsp_client/java_client.py",
-        "static_analyzer/lsp_client/client.py",
-        "static_analyzer/lsp_client/__init__.py"
-      ],
       "source_cluster_ids": [],
       "can_expand": true
     },
@@ -125,9 +105,6 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [
-        "static_analyzer/reference_resolve_mixin.py"
       ],
       "source_cluster_ids": [],
       "can_expand": true
@@ -149,10 +126,6 @@
           "reference_end_line": null
         }
       ],
-      "assigned_files": [
-        "static_analyzer/graph.py",
-        "static_analyzer/cluster_helpers.py"
-      ],
       "source_cluster_ids": [],
       "can_expand": true
     },
@@ -166,9 +139,6 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [
-        "static_analyzer/analysis_result.py"
       ],
       "source_cluster_ids": [],
       "can_expand": true

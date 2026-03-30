@@ -231,11 +231,11 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         validator_results: list[tuple] = []
         weighted_feedback: list[tuple[float, str]] = []
         for validator in validators:
-            vr: ValidationResult = validator(result, context)
-            validator_results.append((validator, vr))
-            if not vr.is_valid:
+            validator_result: ValidationResult = validator(result, context)
+            validator_results.append((validator, validator_result))
+            if not validator_result.is_valid:
                 weight = VALIDATOR_WEIGHTS.get(validator.__name__, DEFAULT_VALIDATOR_WEIGHT)
-                for msg in vr.feedback_messages:
+                for msg in validator_result.feedback_messages:
                     weighted_feedback.append((weight, msg))
 
         # Sort by weight descending so critical feedback comes first
@@ -245,7 +245,7 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         return score, weighted_feedback
 
     def _validation_invoke(
-        self, prompt: str, return_type: type, validators: list, context, max_validation_retries: int = 1
+        self, prompt: str, return_type: type, validators: list, context, max_validation_attempts: int = 1
     ):
         """
         Invoke LLM with validation, feedback loop, and best-of-N selection.
@@ -264,7 +264,8 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
             return_type: Pydantic type to parse into
             validators: List of validation functions to run
             context: ValidationContext with data needed for validation
-            max_validation_retries: Maximum retry attempts with feedback (default: 1)
+            max_validation_attempts: Maximum validation attempts (initial attempt included).
+                Retries occur only when this value is greater than 1. (default: 1)
 
         Returns:
             The highest-scoring result of return_type across all attempts
@@ -281,11 +282,11 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         # Weight threshold: validators above this are tagged [CRITICAL]
         critical_threshold = 10.0
 
-        for attempt in range(1, max_validation_retries + 1):
+        for attempt in range(1, max_validation_attempts + 1):
             score, weighted_feedback = self._score_result(result, validators, context)
 
             logger.info(
-                f"[Validation] Attempt {attempt}/{max_validation_retries} "
+                f"[Validation] Attempt {attempt}/{max_validation_attempts} "
                 f"score: {score}/{max_possible_score} "
                 f"({len(weighted_feedback)} issue(s))"
             )
@@ -300,7 +301,7 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
                 return result
 
             # On the last attempt, don't retry — just fall through to return best
-            if attempt == max_validation_retries:
+            if attempt == max_validation_attempts:
                 logger.warning(
                     f"[Validation] Final attempt reached. Best score: {best_score}/{max_possible_score}. "
                     f"Returning best result."
@@ -322,7 +323,8 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
             )
 
             logger.info(
-                f"[Validation] Retry {attempt}/{max_validation_retries} with {len(weighted_feedback)} feedback items"
+                f"[Validation] Preparing attempt {attempt + 1}/{max_validation_attempts} "
+                f"with {len(weighted_feedback)} feedback items"
             )
             result = self._parse_invoke(feedback_prompt, return_type)
 

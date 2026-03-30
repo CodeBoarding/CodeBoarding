@@ -30,10 +30,6 @@
           "reference_end_line": 122
         }
       ],
-      "assigned_files": [
-        "repo_utils/__init__.py",
-        "repo_utils/errors.py"
-      ],
       "source_cluster_ids": [],
       "can_expand": true
     },
@@ -53,9 +49,6 @@
           "reference_start_line": 105,
           "reference_end_line": 107
         }
-      ],
-      "assigned_files": [
-        "repo_utils/ignore.py"
       ],
       "source_cluster_ids": [],
       "can_expand": true
@@ -83,9 +76,6 @@
           "reference_end_line": 22
         }
       ],
-      "assigned_files": [
-        "repo_utils/git_diff.py"
-      ],
       "source_cluster_ids": [],
       "can_expand": true
     },
@@ -100,7 +90,6 @@
           "reference_end_line": 52
         }
       ],
-      "assigned_files": [],
       "source_cluster_ids": [],
       "can_expand": false
     }

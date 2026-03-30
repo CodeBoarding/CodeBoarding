@@ -105,7 +105,7 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
         if (cached := self._cluster_cache.load(cache_key)) is not None:
             return cached
         cluster_analysis = self._validation_invoke(
-            prompt, ClusterAnalysis, validators=[validate_cluster_coverage], context=context, max_validation_retries=3
+            prompt, ClusterAnalysis, validators=[validate_cluster_coverage], context=context, max_validation_attempts=3
         )
         self._cluster_cache.store(
             cache_key,
@@ -167,7 +167,7 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
                 validate_key_entities,
             ],
             context=context,
-            max_validation_retries=3,
+            max_validation_attempts=3,
         )
         self._analysis_cache.store(
             cache_key,
@@ -199,7 +199,7 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
 
         # Step 1: Create subgraph from component's assigned files using strict filtering
         # If subgraph has < MIN_CLUSTERS_THRESHOLD clusters, auto-expands to method-level
-        subgraph_str, subgraph_cluster_results, subgraph_cfgs = self._create_strict_component_subgraph(component)
+        _subgraph_str, subgraph_cluster_results, subgraph_cfgs = self._create_strict_component_subgraph(component)
 
         # Step 2: Group clusters within the subgraph
         cluster_analysis = self.step_clusters_grouping(component, subgraph_cluster_results)

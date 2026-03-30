@@ -5,6 +5,8 @@ from typing import get_origin, Optional
 
 from pydantic import BaseModel, Field
 
+from agents.change_status import ChangeStatus
+
 logger = logging.getLogger(__name__)
 
 
@@ -20,6 +22,8 @@ class LLMBaseModel(BaseModel, abc.ABC):
         # Here iterate over the fields that we have and use their description like:
         result_str = "please extract the following: "
         for fname, fvalue in cls.model_fields.items():
+            if getattr(fvalue, "exclude", False):
+                continue
             # check if the field type is Optional
             ftype = fvalue.annotation
             # Check if the type is a typing.List (e.g., typing.List[SomeType])
@@ -137,8 +141,8 @@ class MethodEntry(BaseModel):
     start_line: int = Field(description="Starting line number in the file.")
     end_line: int = Field(description="Ending line number in the file.")
     node_type: str = Field(description="Node type name matching NodeType enum (e.g. METHOD, FUNCTION, CLASS).")
-    status: str = Field(
-        default="unchanged",
+    status: ChangeStatus = Field(
+        default=ChangeStatus.UNCHANGED,
         description="Diff status of this method: added, modified, deleted, or unchanged.",
     )
 
@@ -151,7 +155,7 @@ class MethodEntry(BaseModel):
         return self.qualified_name == other.qualified_name
 
     @classmethod
-    def from_method_change(cls, method_change, *, status_override: str | None = None) -> "MethodEntry":
+    def from_method_change(cls, method_change, *, status_override: ChangeStatus | None = None) -> "MethodEntry":
         return cls(
             qualified_name=method_change.qualified_name,
             start_line=method_change.start_line,
@@ -165,8 +169,8 @@ class FileMethodGroup(BaseModel):
     """All methods/functions belonging to a component within a single file."""
 
     file_path: str = Field(description="Relative path to the source file.")
-    file_status: str = Field(
-        default="unchanged",
+    file_status: ChangeStatus = Field(
+        default=ChangeStatus.UNCHANGED,
         description="Diff status of this file: added, modified, deleted, renamed, or unchanged.",
     )
     methods: list[MethodEntry] = Field(
@@ -178,8 +182,8 @@ class FileMethodGroup(BaseModel):
 class FileEntry(BaseModel):
     """Single source of truth for methods in one file."""
 
-    file_status: str = Field(
-        default="unchanged",
+    file_status: ChangeStatus = Field(
+        default=ChangeStatus.UNCHANGED,
         description="Diff status of this file: added, modified, deleted, renamed, or unchanged.",
     )
     methods: list[MethodEntry] = Field(
@@ -212,12 +216,6 @@ class Component(LLMBaseModel):
 
     file_methods: list[FileMethodGroup] = Field(
         description="All methods/functions belonging to this component, grouped by file (populated deterministically from cluster results).",
-        default_factory=list,
-        exclude=True,
-    )
-
-    assigned_files: list[str] = Field(
-        description="Files assigned to this component. Methods are stored in the top-level files index.",
         default_factory=list,
         exclude=True,
     )

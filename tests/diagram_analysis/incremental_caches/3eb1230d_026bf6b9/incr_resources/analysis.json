@@ -30,29 +30,6 @@
           "reference_end_line": null
         }
       ],
-      "assigned_files": [
-        "github_action.py",
-        "output_generators/mdx.py",
-        "output_generators/html.py",
-        "utils.py",
-        "diagram_analysis/diagram_generator.py",
-        "local_app.py",
-        "main.py",
-        "output_generators/sphinx.py",
-        "logging_config.py",
-        "duckdb_crud.py",
-        "vscode_constants.py",
-        "diagram_analysis/__init__.py",
-        "diagram_analysis/analysis_json.py",
-        "diagram_analysis/version.py",
-        "output_generators/__init__.py",
-        "output_generators/html_template.py",
-        "output_generators/markdown.py",
-        "install.py",
-        "health_main.py",
-        "evals/cli.py",
-        "output_generators"
-      ],
       "source_cluster_ids": [
         2
       ],
@@ -86,37 +63,6 @@
           "reference_start_line": 149,
           "reference_end_line": 164
         }
-      ],
-      "assigned_files": [
-        "agents/prompts/gemini_flash_prompts.py",
-        "agents/agent.py",
-        "agents/agent_responses.py",
-        "agents/tools/read_cfg.py",
-        "agents/tools/get_method_invocations.py",
-        "agents/prompts/claude_prompts.py",
-        "agents/cluster_methods_mixin.py",
-        "agents/tools/read_git_diff.py",
-        "agents/tools/toolkit.py",
-        "agents/details_agent.py",
-        "agents/prompts/abstract_prompt_factory.py",
-        "agents/tools/external_deps.py",
-        "agents/prompts/gpt_prompts.py",
-        "agents/tools/read_source.py",
-        "agents/tools/read_packages.py",
-        "agents/tools/read_structure.py",
-        "agents/tools/read_docs.py",
-        "agents/prompts/prompt_factory.py",
-        "agents/tools/read_file.py",
-        "agents/__init__.py",
-        "agents/abstraction_agent.py",
-        "agents/llm_config.py",
-        "agents/meta_agent.py",
-        "agents/planner_agent.py",
-        "agents/prompts/__init__.py",
-        "agents/tools/__init__.py",
-        "agents/tools/base.py",
-        "agents/tools/read_file_structure.py",
-        "agents/validation.py"
       ],
       "source_cluster_ids": [
         1,
@@ -153,22 +99,6 @@
           "reference_end_line": 175
         }
       ],
-      "assigned_files": [
-        "static_analyzer/programming_language.py",
-        "static_analyzer/lsp_client/java_client.py",
-        "static_analyzer/lsp_client/typescript_client.py",
-        "static_analyzer/reference_resolve_mixin.py",
-        "static_analyzer/java_config_scanner.py",
-        "static_analyzer/graph.py",
-        "static_analyzer/lsp_client/client.py",
-        "static_analyzer/analysis_result.py",
-        "static_analyzer/__init__.py",
-        "static_analyzer/java_utils.py",
-        "static_analyzer/lsp_client/__init__.py",
-        "static_analyzer/scanner.py",
-        "static_analyzer/typescript_config_scanner.py",
-        "static_analyzer/cluster_helpers.py"
-      ],
       "source_cluster_ids": [
         3,
         6,
@@ -197,12 +127,6 @@
           "reference_end_line": 69
         }
       ],
-      "assigned_files": [
-        "repo_utils/__init__.py",
-        "repo_utils/errors.py",
-        "repo_utils/git_diff.py",
-        "repo_utils/ignore.py"
-      ],
       "source_cluster_ids": [
         13
       ],
@@ -218,23 +142,6 @@
           "reference_start_line": 16,
           "reference_end_line": 167
         }
-      ],
-      "assigned_files": [
-        "monitoring/callbacks.py",
-        "monitoring/writers.py",
-        "evals/base.py",
-        "evals/cli.py",
-        "evals/config.py",
-        "evals/definitions/end_to_end.py",
-        "evals/definitions/scalability.py",
-        "evals/definitions/static_analysis.py",
-        "evals/schemas.py",
-        "evals/utils.py",
-        "monitoring/__init__.py",
-        "monitoring/context.py",
-        "monitoring/mixin.py",
-        "monitoring/paths.py",
-        "monitoring/stats.py"
       ],
       "source_cluster_ids": [
         16,

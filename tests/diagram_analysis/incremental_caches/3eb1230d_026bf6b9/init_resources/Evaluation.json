@@ -12,9 +12,6 @@
           "reference_end_line": null
         }
       ],
-      "assigned_files": [
-        "evals/cli.py"
-      ],
       "source_cluster_ids": [],
       "can_expand": true
     },
@@ -28,9 +25,6 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [
-        "evals/config.py"
       ],
       "source_cluster_ids": [],
       "can_expand": true
@@ -46,9 +40,6 @@
           "reference_end_line": null
         }
       ],
-      "assigned_files": [
-        "evals/base.py"
-      ],
       "source_cluster_ids": [],
       "can_expand": true
     },
@@ -56,9 +47,6 @@
       "name": "Static Analysis Evaluation",
       "description": "Evaluation focused on collecting and analyzing static code metrics such as LOC, file counts, and language breakdowns.",
       "key_entities": [],
-      "assigned_files": [
-        "evals/definitions/static_analysis.py"
-      ],
       "source_cluster_ids": [],
       "can_expand": true
     },
@@ -66,9 +54,6 @@
       "name": "End-to-End Pipeline Evaluation",
       "description": "Orchestrates and aggregates results from the full CodeBoarding pipeline, producing holistic metrics and visualizations.",
       "key_entities": [],
-      "assigned_files": [
-        "evals/definitions/end_to_end.py"
-      ],
       "source_cluster_ids": [],
       "can_expand": true
     },
@@ -76,9 +61,6 @@
       "name": "Scalability Evaluation",
       "description": "Measures performance and resource consumption metrics (e.g., token usage, tool invocation patterns, concurrency effects) to assess system scalability.",
       "key_entities": [],
-      "assigned_files": [
-        "evals/definitions/scalability.py"
-      ],
       "source_cluster_ids": [],
       "can_expand": true
     },
@@ -93,9 +75,6 @@
           "reference_end_line": null
         }
       ],
-      "assigned_files": [
-        "evals/schemas.py"
-      ],
       "source_cluster_ids": [],
       "can_expand": true
     },
@@ -109,9 +88,6 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [
-        "evals/utils.py"
       ],
       "source_cluster_ids": [],
       "can_expand": true

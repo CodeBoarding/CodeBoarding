@@ -88,7 +88,7 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
                 cluster_results=cluster_results,
                 expected_cluster_ids=get_all_cluster_ids(cluster_results),
             ),
-            max_validation_retries=3,
+            max_validation_attempts=3,
         )
         return cluster_analysis
 
@@ -127,7 +127,7 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
                 validate_key_entities,
             ],
             context=context,
-            max_validation_retries=3,
+            max_validation_attempts=3,
         )
 
     def run(self):

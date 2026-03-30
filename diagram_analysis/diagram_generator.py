@@ -114,9 +114,27 @@ class DiagramGenerator:
             return
 
         apply_method_diffs_to_file_index(root_analysis.files, changes, self.repo_location)
+        self._sync_component_statuses_from_files_index(root_analysis)
 
         for sub_analysis in sub_analyses.values():
             apply_method_diffs_to_file_index(sub_analysis.files, changes, self.repo_location)
+            self._sync_component_statuses_from_files_index(sub_analysis)
+
+    @staticmethod
+    def _sync_component_statuses_from_files_index(analysis: AnalysisInsights) -> None:
+        """Copy file/method statuses from analysis.files into component.file_methods."""
+        for component in analysis.components:
+            for file_group in component.file_methods:
+                file_entry = analysis.files.get(file_group.file_path)
+                if file_entry is None:
+                    continue
+
+                file_group.file_status = file_entry.file_status
+                method_statuses = {method.qualified_name: method.status for method in file_entry.methods}
+                for method in file_group.methods:
+                    status = method_statuses.get(method.qualified_name)
+                    if status is not None:
+                        method.status = status
 
     def process_component(
         self, component: Component

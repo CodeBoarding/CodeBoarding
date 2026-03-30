@@ -5,9 +5,6 @@
       "name": "Static Analysis Orchestrator",
       "description": "Orchestrates the entire static analysis workflow: initiates scanning, determines languages, manages LSP clients, coordinates collection/storage of results, and triggers post-processing.",
       "key_entities": [],
-      "assigned_files": [
-        "static_analyzer/__init__.py"
-      ],
       "source_cluster_ids": [],
       "can_expand": true
     },
@@ -15,10 +12,6 @@
       "name": "Project Scanner",
       "description": "Scans the repository to detect programming languages, identify file distributions, and establish basic project structure; provides file lists and language proportions.",
       "key_entities": [],
-      "assigned_files": [
-        "static_analyzer/programming_language.py",
-        "static_analyzer/scanner.py"
-      ],
       "source_cluster_ids": [],
       "can_expand": true
     },
@@ -26,7 +19,6 @@
       "name": "Language Configuration Manager",
       "description": "Maintains language-specific configurations and metadata (file suffixes, LSP command definitions, defaults) and supplies configuration to scanner and LSP client.",
       "key_entities": [],
-      "assigned_files": [],
       "source_cluster_ids": [],
       "can_expand": false
     },
@@ -34,11 +26,6 @@
       "name": "Language Project Scanners",
       "description": "Parses language-specific build and project configs (e.g., Maven/Gradle, tsconfig/package.json) to supply module structure and bootstrap info for LSP initialization.",
       "key_entities": [],
-      "assigned_files": [
-        "static_analyzer/java_config_scanner.py",
-        "static_analyzer/java_utils.py",
-        "static_analyzer/typescript_config_scanner.py"
-      ],
       "source_cluster_ids": [],
       "can_expand": true
     },
@@ -53,12 +40,6 @@
           "reference_end_line": null
         }
       ],
-      "assigned_files": [
-        "static_analyzer/lsp_client/client.py",
-        "static_analyzer/lsp_client/__init__.py",
-        "static_analyzer/lsp_client/java_client.py",
-        "static_analyzer/lsp_client/typescript_client.py"
-      ],
       "source_cluster_ids": [],
       "can_expand": true
     },
@@ -66,9 +47,6 @@
       "name": "Static Analysis Results Store",
       "description": "Central repository for all collected analysis data (CFGs, class hierarchies, package deps, symbols, references); provides query APIs and prepares data for downstream processing/persistence.",
       "key_entities": [],
-      "assigned_files": [
-        "static_analyzer/analysis_result.py"
-      ],
       "source_cluster_ids": [],
       "can_expand": true
     },
@@ -83,9 +61,6 @@
           "reference_end_line": null
         }
       ],
-      "assigned_files": [
-        "static_analyzer/graph.py"
-      ],
       "source_cluster_ids": [],
       "can_expand": true
     },
@@ -99,9 +74,6 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [
-        "static_analyzer/reference_resolve_mixin.py"
       ],
       "source_cluster_ids": [],
       "can_expand": true

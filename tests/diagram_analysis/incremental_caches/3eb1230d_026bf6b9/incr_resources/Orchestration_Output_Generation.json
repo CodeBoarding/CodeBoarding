@@ -12,13 +12,6 @@
           "reference_end_line": null
         }
       ],
-      "assigned_files": [
-        "main.py",
-        "logging_config.py",
-        "setup.py",
-        "utils.py",
-        "vscode_constants.py"
-      ],
       "source_cluster_ids": [],
       "can_expand": true
     },
@@ -39,12 +32,6 @@
           "reference_end_line": null
         }
       ],
-      "assigned_files": [
-        "repo_utils/ignore.py",
-        "repo_utils/git_diff.py",
-        "repo_utils/__init__.py",
-        "repo_utils/errors.py"
-      ],
       "source_cluster_ids": [],
       "can_expand": true
     },
@@ -58,10 +45,6 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [
-        "diagram_analysis/diagram_generator.py",
-        "diagram_analysis/__init__.py"
       ],
       "source_cluster_ids": [],
       "can_expand": true
@@ -83,10 +66,6 @@
           "reference_end_line": null
         }
       ],
-      "assigned_files": [
-        "diagram_analysis/analysis_json.py",
-        "diagram_analysis/version.py"
-      ],
       "source_cluster_ids": [],
       "can_expand": true
     },
@@ -106,14 +85,6 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [
-        "output_generators/html_template.py",
-        "output_generators/html.py",
-        "output_generators/__init__.py",
-        "output_generators/markdown.py",
-        "output_generators/mdx.py",
-        "output_generators/sphinx.py"
       ],
       "source_cluster_ids": [],
       "can_expand": true
@@ -135,10 +106,6 @@
           "reference_end_line": null
         }
       ],
-      "assigned_files": [
-        "local_app.py",
-        "duckdb_crud.py"
-      ],
       "source_cluster_ids": [],
       "can_expand": true
     },
@@ -152,9 +119,6 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [
-        "github_action.py"
       ],
       "source_cluster_ids": [],
       "can_expand": true

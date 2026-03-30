@@ -18,11 +18,6 @@
           "reference_end_line": null
         }
       ],
-      "assigned_files": [
-        "monitoring/callbacks.py",
-        "monitoring/__init__.py",
-        "monitoring/mixin.py"
-      ],
       "source_cluster_ids": [],
       "can_expand": true
     },
@@ -42,9 +37,6 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [
-        "monitoring/context.py"
       ],
       "source_cluster_ids": [],
       "can_expand": true
@@ -66,9 +58,6 @@
           "reference_end_line": null
         }
       ],
-      "assigned_files": [
-        "monitoring/stats.py"
-      ],
       "source_cluster_ids": [],
       "can_expand": true
     },
@@ -89,9 +78,6 @@
           "reference_end_line": null
         }
       ],
-      "assigned_files": [
-        "monitoring/paths.py"
-      ],
       "source_cluster_ids": [],
       "can_expand": true
     },
@@ -99,17 +85,6 @@
       "name": "Monitoring Data Writer",
       "description": "Handles durable persistence of raw and aggregated monitoring data and evaluation metadata, writing artifacts to storage locations provided by the Path Manager.",
       "key_entities": [],
-      "assigned_files": [
-        "evals/base.py",
-        "evals/cli.py",
-        "evals/config.py",
-        "evals/definitions/end_to_end.py",
-        "evals/definitions/scalability.py",
-        "evals/definitions/static_analysis.py",
-        "evals/schemas.py",
-        "evals/utils.py",
-        "monitoring/writers.py"
-      ],
       "source_cluster_ids": [],
       "can_expand": true
     }

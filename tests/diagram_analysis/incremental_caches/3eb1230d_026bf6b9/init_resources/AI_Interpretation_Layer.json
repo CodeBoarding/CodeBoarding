@@ -12,13 +12,6 @@
           "reference_end_line": null
         }
       ],
-      "assigned_files": [
-        "agents/agent.py",
-        "agents/__init__.py",
-        "agents/details_agent.py",
-        "agents/llm_config.py",
-        "agents/planner_agent.py"
-      ],
       "source_cluster_ids": [],
       "can_expand": true
     },
@@ -32,17 +25,6 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [
-        "agents/prompts/abstract_prompt_factory.py",
-        "agents/prompts/__init__.py",
-        "agents/prompts/claude_prompts_bidirectional.py",
-        "agents/prompts/claude_prompts_unidirectional.py",
-        "agents/prompts/gemini_flash_prompts_bidirectional.py",
-        "agents/prompts/gemini_flash_prompts_unidirectional.py",
-        "agents/prompts/gpt_prompts_bidirectional.py",
-        "agents/prompts/gpt_prompts_unidirectional.py",
-        "agents/prompts/prompt_factory.py"
       ],
       "source_cluster_ids": [],
       "can_expand": true
@@ -58,21 +40,6 @@
           "reference_end_line": null
         }
       ],
-      "assigned_files": [
-        "agents/tools/toolkit.py",
-        "agents/tools/__init__.py",
-        "agents/tools/base.py",
-        "agents/tools/external_deps.py",
-        "agents/tools/get_method_invocations.py",
-        "agents/tools/read_cfg.py",
-        "agents/tools/read_docs.py",
-        "agents/tools/read_file.py",
-        "agents/tools/read_file_structure.py",
-        "agents/tools/read_git_diff.py",
-        "agents/tools/read_packages.py",
-        "agents/tools/read_source.py",
-        "agents/tools/read_structure.py"
-      ],
       "source_cluster_ids": [],
       "can_expand": true
     },
@@ -86,9 +53,6 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [
-        "agents/agent_responses.py"
       ],
       "source_cluster_ids": [],
       "can_expand": true
@@ -104,9 +68,6 @@
           "reference_end_line": 40
         }
       ],
-      "assigned_files": [
-        "agents/meta_agent.py"
-      ],
       "source_cluster_ids": [],
       "can_expand": true
     },
@@ -120,10 +81,6 @@
           "reference_start_line": 27,
           "reference_end_line": 105
         }
-      ],
-      "assigned_files": [
-        "agents/abstraction_agent.py",
-        "agents/cluster_methods_mixin.py"
       ],
       "source_cluster_ids": [],
       "can_expand": true
@@ -139,9 +96,6 @@
           "reference_end_line": 211
         }
       ],
-      "assigned_files": [
-        "agents/diff_analyzer.py"
-      ],
       "source_cluster_ids": [],
       "can_expand": true
     },
@@ -155,9 +109,6 @@
           "reference_start_line": 20,
           "reference_end_line": 167
         }
-      ],
-      "assigned_files": [
-        "agents/validator_agent.py"
       ],
       "source_cluster_ids": [],
       "can_expand": true

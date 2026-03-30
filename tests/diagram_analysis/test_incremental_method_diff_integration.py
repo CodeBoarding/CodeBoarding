@@ -14,7 +14,8 @@ from agents.agent_responses import (
     MethodEntry,
     assign_component_ids,
 )
-from diagram_analysis.incremental_updater import create_incremental_updater
+from agents.change_status import ChangeStatus
+from diagram_analysis.incremental_updater import IncrementalUpdater
 from diagram_analysis.manifest import AnalysisManifest
 from repo_utils.change_detector import detect_uncommitted_changes
 
@@ -26,16 +27,12 @@ def _git(repo: Path, *args: str) -> None:
 def _build_analysis(methods_by_file: dict[str, list[MethodEntry]]) -> AnalysisInsights:
     files: dict[str, FileEntry] = {}
     groups: list[FileMethodGroup] = []
-    assigned: list[str] = []
     for file_path, methods in methods_by_file.items():
         ordered = sorted(methods, key=lambda m: (m.start_line, m.end_line, m.qualified_name))
-        files[file_path] = FileEntry(file_status="unchanged", methods=ordered)
-        groups.append(FileMethodGroup(file_path=file_path, file_status="unchanged", methods=ordered))
-        assigned.append(file_path)
+        files[file_path] = FileEntry(file_status=ChangeStatus.UNCHANGED, methods=ordered)
+        groups.append(FileMethodGroup(file_path=file_path, file_status=ChangeStatus.UNCHANGED, methods=ordered))
 
-    component = Component(
-        name="Core", description="Core component", key_entities=[], file_methods=groups, assigned_files=assigned
-    )
+    component = Component(name="Core", description="Core component", key_entities=[], file_methods=groups)
     analysis = AnalysisInsights(description="integration", components=[component], components_relations=[], files=files)
     assign_component_ids(analysis)
     return analysis
@@ -113,7 +110,7 @@ def test_incremental_delta_reports_added_modified_deleted_in_single_file():
             return current_methods.get(rel_path, [])
 
         changes = detect_uncommitted_changes(repo)
-        updater = create_incremental_updater(analysis, manifest, symbol_resolver=resolver, repo_dir=repo)
+        updater = IncrementalUpdater(analysis, manifest, symbol_resolver=resolver, repo_dir=repo)
         delta = updater.compute_delta(
             added_files=changes.added_files,
             modified_files=changes.modified_files,

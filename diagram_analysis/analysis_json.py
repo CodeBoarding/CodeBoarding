@@ -13,6 +13,7 @@ from agents.agent_responses import (
     MethodEntry,
     SourceCodeReference,
 )
+from agents.change_status import ChangeStatus
 
 logger = logging.getLogger(__name__)
 
@@ -96,7 +97,7 @@ def _hydrate_component_methods_from_refs(
                         start_line=indexed.start_line,
                         end_line=indexed.end_line,
                         node_type=indexed.type,
-                        status=indexed.status,
+                        status=ChangeStatus(indexed.status),
                     )
                 )
 
@@ -104,10 +105,6 @@ def _hydrate_component_methods_from_refs(
             rebuilt.append(FileMethodGroup(file_path=file_path, file_status=file_status, methods=methods))
 
         component.file_methods = rebuilt
-        if component.assigned_files:
-            component.assigned_files = sorted(set(component.assigned_files))
-        else:
-            component.assigned_files = [group.file_path for group in rebuilt]
 
 
 class RelationJson(Relation):
@@ -129,10 +126,6 @@ class ComponentJson(Component):
     can_expand: bool = Field(
         description="Whether the component can be expanded in detail or not.",
         default=False,
-    )
-    assigned_files: list[str] = Field(
-        description="Files assigned to this component.",
-        default_factory=list,
     )
     file_methods: list["ComponentFileMethodGroupJson"] = Field(
         description="Component method references grouped by file. Each methods entry stores only qualified_name.",
@@ -267,7 +260,6 @@ def from_component_to_json_component(
         description=component.description,
         key_entities=component.key_entities,
         source_cluster_ids=component.source_cluster_ids,
-        assigned_files=component.assigned_files,
         file_methods=_to_component_file_method_refs(component.file_methods),
         can_expand=can_expand,
         components=nested_components,
@@ -443,17 +435,14 @@ def _extract_analysis_recursive(
     components: list[Component] = []
 
     for index, comp_data in enumerate(data.get("components", []), start=1):
-        assigned_files = [str(path) for path in comp_data.get("assigned_files", [])]
         file_methods = [
             FileMethodGroup(
                 file_path=group["file_path"],
-                file_status="unchanged",
+                file_status=ChangeStatus.UNCHANGED,
                 methods=_method_refs_to_placeholders([str(m) for m in group.get("methods", [])]),
             )
             for group in comp_data.get("file_methods", [])
         ]
-        if not assigned_files and file_methods:
-            assigned_files = [group.file_path for group in file_methods]
         key_entities = [
             SourceCodeReference(
                 qualified_name=ke["qualified_name"],
@@ -473,7 +462,6 @@ def _extract_analysis_recursive(
             description=comp_data.get("description", ""),
             key_entities=key_entities,
             file_methods=file_methods,
-            assigned_files=assigned_files,
             source_cluster_ids=comp_data.get("source_cluster_ids", []),
         )
         components.append(component)

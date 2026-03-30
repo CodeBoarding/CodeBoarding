@@ -36,42 +36,6 @@
           "reference_end_line": null
         }
       ],
-      "assigned_files": [
-        "output_generators/markdown.py",
-        "output_generators/__init__.py",
-        "main.py",
-        "github_action.py",
-        "output_generators/html.py",
-        "output_generators/sphinx.py",
-        "duckdb_crud.py",
-        "local_app.py",
-        "output_generators/mdx.py",
-        "logging_config.py",
-        "utils.py",
-        "diagram_analysis/diagram_generator.py",
-        "vscode_constants.py",
-        "repo_utils/__init__.py",
-        "diagram_analysis/__init__.py",
-        "diagram_analysis/analysis_json.py",
-        "diagram_analysis/version.py",
-        "evals/base.py",
-        "evals/cli.py",
-        "evals/config.py",
-        "evals/definitions/end_to_end.py",
-        "evals/definitions/scalability.py",
-        "evals/definitions/static_analysis.py",
-        "evals/schemas.py",
-        "evals/utils.py",
-        "install.py",
-        "monitoring/__init__.py",
-        "monitoring/callbacks.py",
-        "monitoring/context.py",
-        "monitoring/mixin.py",
-        "monitoring/paths.py",
-        "monitoring/stats.py",
-        "monitoring/writers.py",
-        "output_generators/html_template.py"
-      ],
       "source_cluster_ids": [
         2
       ],
@@ -93,12 +57,6 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [
-        "repo_utils/ignore.py",
-        "repo_utils/__init__.py",
-        "repo_utils/errors.py",
-        "repo_utils/git_diff.py"
       ],
       "source_cluster_ids": [
         17,
@@ -141,21 +99,6 @@
           "reference_end_line": null
         }
       ],
-      "assigned_files": [
-        "static_analyzer/java_config_scanner.py",
-        "static_analyzer/lsp_client/client.py",
-        "static_analyzer/lsp_client/java_client.py",
-        "static_analyzer/lsp_client/typescript_client.py",
-        "static_analyzer/programming_language.py",
-        "static_analyzer/analysis_result.py",
-        "static_analyzer/graph.py",
-        "static_analyzer/__init__.py",
-        "static_analyzer/cluster_helpers.py",
-        "static_analyzer/java_utils.py",
-        "static_analyzer/lsp_client/__init__.py",
-        "static_analyzer/scanner.py",
-        "static_analyzer/typescript_config_scanner.py"
-      ],
       "source_cluster_ids": [
         3,
         5,
@@ -182,17 +125,6 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [
-        "agents/prompts/claude_prompts_unidirectional.py",
-        "agents/prompts/gpt_prompts_bidirectional.py",
-        "agents/prompts/claude_prompts_bidirectional.py",
-        "agents/prompts/prompt_factory.py",
-        "agents/prompts/gemini_flash_prompts_bidirectional.py",
-        "agents/prompts/gpt_prompts_unidirectional.py",
-        "agents/prompts/gemini_flash_prompts_unidirectional.py",
-        "agents/prompts/abstract_prompt_factory.py",
-        "agents/prompts/__init__.py"
       ],
       "source_cluster_ids": [
         1,
@@ -235,18 +167,6 @@
           "reference_end_line": null
         }
       ],
-      "assigned_files": [
-        "agents/agent_responses.py",
-        "agents/cluster_methods_mixin.py",
-        "agents/validation.py",
-        "agents/agent.py",
-        "agents/__init__.py",
-        "agents/abstraction_agent.py",
-        "agents/details_agent.py",
-        "agents/llm_config.py",
-        "agents/meta_agent.py",
-        "agents/planner_agent.py"
-      ],
       "source_cluster_ids": [
         7,
         8,
@@ -271,22 +191,6 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [
-        "agents/tools/read_packages.py",
-        "static_analyzer/reference_resolve_mixin.py",
-        "agents/tools/read_docs.py",
-        "agents/tools/read_structure.py",
-        "agents/tools/external_deps.py",
-        "agents/tools/read_file.py",
-        "agents/tools/read_source.py",
-        "agents/tools/read_cfg.py",
-        "agents/tools/toolkit.py",
-        "agents/tools/get_method_invocations.py",
-        "agents/tools/read_git_diff.py",
-        "agents/tools/__init__.py",
-        "agents/tools/base.py",
-        "agents/tools/read_file_structure.py"
       ],
       "source_cluster_ids": [
         4,

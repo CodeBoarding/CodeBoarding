@@ -3,6 +3,8 @@
 from dataclasses import dataclass, field
 from typing import Any
 
+from agents.change_status import ChangeStatus
+
 
 @dataclass
 class MethodChange:
@@ -10,7 +12,7 @@ class MethodChange:
     file_path: str
     start_line: int
     end_line: int
-    change_type: str
+    change_type: ChangeStatus
     node_type: str
 
     def to_dict(self) -> dict[str, Any]:
@@ -27,7 +29,7 @@ class MethodChange:
 @dataclass
 class FileDelta:
     file_path: str
-    file_status: str
+    file_status: ChangeStatus
     component_id: str | None = None
     added_methods: list[MethodChange] = field(default_factory=list)
     modified_methods: list[MethodChange] = field(default_factory=list)

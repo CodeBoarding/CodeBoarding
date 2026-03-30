@@ -18,11 +18,6 @@
           "reference_end_line": null
         }
       ],
-      "assigned_files": [
-        "agents/agent.py",
-        "agents/__init__.py",
-        "agents/meta_agent.py"
-      ],
       "source_cluster_ids": [],
       "can_expand": true
     },
@@ -30,9 +25,6 @@
       "name": "Analysis Planner Agent",
       "description": "Determines the optimal analysis strategy, specifying which agents to run, their sequence and scope, and when deeper expansion of components is required; provides structured plans to the Orchestrator.",
       "key_entities": [],
-      "assigned_files": [
-        "agents/planner_agent.py"
-      ],
       "source_cluster_ids": [],
       "can_expand": true
     },
@@ -46,14 +38,6 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [
-        "agents/prompts/gpt_prompts.py",
-        "agents/prompts/__init__.py",
-        "agents/prompts/abstract_prompt_factory.py",
-        "agents/prompts/claude_prompts.py",
-        "agents/prompts/gemini_flash_prompts.py",
-        "agents/prompts/prompt_factory.py"
       ],
       "source_cluster_ids": [],
       "can_expand": true
@@ -69,9 +53,6 @@
           "reference_end_line": null
         }
       ],
-      "assigned_files": [
-        "agents/llm_config.py"
-      ],
       "source_cluster_ids": [],
       "can_expand": true
     },
@@ -79,21 +60,6 @@
       "name": "Codebase Interaction Tools",
       "description": "Provides abstractions and utilities for agents to interact with the codebase: read files, retrieve CFGs, list directories, extract method invocations, and analyze dependencies.",
       "key_entities": [],
-      "assigned_files": [
-        "agents/tools/__init__.py",
-        "agents/tools/base.py",
-        "agents/tools/external_deps.py",
-        "agents/tools/get_method_invocations.py",
-        "agents/tools/read_cfg.py",
-        "agents/tools/read_docs.py",
-        "agents/tools/read_file.py",
-        "agents/tools/read_file_structure.py",
-        "agents/tools/read_git_diff.py",
-        "agents/tools/read_packages.py",
-        "agents/tools/read_source.py",
-        "agents/tools/read_structure.py",
-        "agents/tools/toolkit.py"
-      ],
       "source_cluster_ids": [],
       "can_expand": true
     },
@@ -101,11 +67,6 @@
       "name": "Specialized Analysis Agents",
       "description": "Composite of agents performing deep code analysis tasks (metadata extraction, clustering, abstraction): extract project context, cluster methods, classify files, and synthesize higher-level architectural abstractions.",
       "key_entities": [],
-      "assigned_files": [
-        "agents/abstraction_agent.py",
-        "agents/cluster_methods_mixin.py",
-        "agents/details_agent.py"
-      ],
       "source_cluster_ids": [],
       "can_expand": true
     },
@@ -138,9 +99,6 @@
           "reference_end_line": null
         }
       ],
-      "assigned_files": [
-        "agents/agent_responses.py"
-      ],
       "source_cluster_ids": [],
       "can_expand": true
     },
@@ -148,9 +106,6 @@
       "name": "Validation Engine",
       "description": "Evaluates correctness, completeness, and consistency of agents' analysis outputs, performing validation checks and providing feedback to improve result quality and reliability.",
       "key_entities": [],
-      "assigned_files": [
-        "agents/validation.py"
-      ],
       "source_cluster_ids": [],
       "can_expand": true
     }

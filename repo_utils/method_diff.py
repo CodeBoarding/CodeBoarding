@@ -12,6 +12,7 @@ import subprocess
 from pathlib import Path
 
 from agents.agent_responses import FileEntry, MethodEntry
+from agents.change_status import ChangeStatus
 from repo_utils.change_detector import ChangeSet
 
 logger = logging.getLogger(__name__)
@@ -81,7 +82,7 @@ def _method_fully_inside_ranges(method: MethodEntry, ranges: list[tuple[int, int
     return covered >= method_len
 
 
-def _resolve_file_status(file_path: str, changes: ChangeSet) -> str:
+def _resolve_file_status(file_path: str, changes: ChangeSet) -> ChangeStatus:
     modified_files: set[str] = set(changes.modified_files)
     added_files: set[str] = set(changes.added_files)
     deleted_files: set[str] = set(changes.deleted_files)
@@ -89,14 +90,14 @@ def _resolve_file_status(file_path: str, changes: ChangeSet) -> str:
     renamed_new_paths: set[str] = set(renames.values())
 
     if file_path in added_files:
-        return "added"
+        return ChangeStatus.ADDED
     if file_path in deleted_files:
-        return "deleted"
+        return ChangeStatus.DELETED
     if file_path in renamed_new_paths:
-        return "renamed"
+        return ChangeStatus.RENAMED
     if file_path in modified_files:
-        return "modified"
-    return "unchanged"
+        return ChangeStatus.MODIFIED
+    return ChangeStatus.UNCHANGED
 
 
 def get_method_statuses_for_file(
@@ -104,21 +105,21 @@ def get_method_statuses_for_file(
     file_path: str,
     changes: ChangeSet,
     repo_dir: Path,
-) -> str:
+) -> ChangeStatus:
     """Update method statuses for one file and return the file status."""
     file_status = _resolve_file_status(file_path, changes)
 
-    if file_status == "added":
+    if file_status == ChangeStatus.ADDED:
         for method in methods:
-            method.status = "added"
+            method.status = ChangeStatus.ADDED
         return file_status
 
-    if file_status == "deleted":
+    if file_status == ChangeStatus.DELETED:
         for method in methods:
-            method.status = "deleted"
+            method.status = ChangeStatus.DELETED
         return file_status
 
-    if file_status == "modified":
+    if file_status == ChangeStatus.MODIFIED:
         hunks = _parse_diff_hunks(repo_dir, changes.base_ref, file_path)
         if hunks:
             added_ranges: list[tuple[int, int]] = []
@@ -142,20 +143,20 @@ def get_method_statuses_for_file(
 
             for method in methods:
                 if _method_overlaps_ranges(method, changed_ranges):
-                    method.status = "modified"
+                    method.status = ChangeStatus.MODIFIED
                 elif _method_fully_inside_ranges(method, added_ranges):
-                    method.status = "added"
+                    method.status = ChangeStatus.ADDED
                 elif _method_overlaps_ranges(method, added_ranges):
-                    method.status = "modified"
+                    method.status = ChangeStatus.MODIFIED
                 elif _method_overlaps_ranges(method, deletion_points):
-                    method.status = "modified"
+                    method.status = ChangeStatus.MODIFIED
                 else:
-                    method.status = "unchanged"
+                    method.status = ChangeStatus.UNCHANGED
         else:
             # No hunks parsed at all (e.g. binary file or diff failure).
             # Mark all methods as unchanged since we cannot determine status.
             for method in methods:
-                method.status = "unchanged"
+                method.status = ChangeStatus.UNCHANGED
         return file_status
 
     return file_status
