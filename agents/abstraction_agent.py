@@ -72,7 +72,10 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
         programming_langs = self.static_analysis.get_languages()
 
         # Build cluster string using the pre-computed cluster results
-        cluster_str = self._build_cluster_string(programming_langs, cluster_results)
+        # Use compact mode: summarize methods as counts instead of listing each one.
+        # The grouping step only needs to understand what each cluster is about (files + classes),
+        # not individual method names. This significantly reduces prompt size.
+        cluster_str = self._build_cluster_string(programming_langs, cluster_results, compact=True)
 
         prompt = self.prompts["group_clusters"].format(
             project_name=self.project_name,

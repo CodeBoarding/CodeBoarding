@@ -1,3 +1,4 @@
+import datetime
 import logging
 from pathlib import Path
 
@@ -290,14 +291,29 @@ class RepoIgnoreManager:
 
 
 def initialize_codeboardingignore(output_dir: Path) -> None:
-    """Initialize .codeboardingignore file in the .codeboarding directory if it doesn't exist.
+    """Initialize or update .codeboardingignore file in the .codeboarding directory.
+
+    Creates the file if it doesn't exist, or overwrites it if it predates the
+    template update cutoff (2026-03-22) to ensure users get the latest default patterns.
 
     Args:
         output_dir: Path to the .codeboarding directory
     """
     codeboardingignore_path = output_dir / ".codeboardingignore"
 
+    # Overwrite files older than 2026-03-22 so updated default patterns propagate
+    _TEMPLATE_UPDATE_CUTOFF = datetime.datetime(2026, 3, 22, tzinfo=datetime.timezone.utc)
+
+    should_write = False
     if not codeboardingignore_path.exists():
+        should_write = True
+    else:
+        mtime = datetime.datetime.fromtimestamp(codeboardingignore_path.stat().st_mtime, tz=datetime.timezone.utc)
+        if mtime < _TEMPLATE_UPDATE_CUTOFF:
+            should_write = True
+            logger.info(f"Overwriting outdated .codeboardingignore (modified {mtime.date()}) " f"with updated template")
+
+    if should_write:
         try:
             codeboardingignore_path.write_text(CODEBOARDINGIGNORE_TEMPLATE, encoding="utf-8")
             logger.debug(f"Created .codeboardingignore file at {codeboardingignore_path}")

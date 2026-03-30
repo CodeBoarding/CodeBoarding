@@ -92,6 +92,23 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
     def external_deps_tool(self):
         return self.toolkit.external_deps
 
+    @staticmethod
+    def _compute_timeout(prompt_length: int, attempt: int) -> int:
+        """Compute timeout based on prompt size and attempt number.
+
+        Large prompts (e.g. 250K+ chars) need significantly more time for LLM
+        processing. We scale the base timeout linearly with prompt size and
+        double it on retries to avoid wasting time on premature timeouts.
+        """
+        # Base: 300s for prompts up to 50K chars, +60s per additional 50K chars
+        base = 300 + max(0, (prompt_length - 50_000) // 50_000) * 60
+        # Cap base at 600s
+        base = min(base, 600)
+        # Double on retries
+        if attempt > 0:
+            base = min(base * 2, 900)
+        return base
+
     def _invoke(self, prompt, callbacks: list | None = None) -> str:
         """Unified agent invocation method with timeout and exponential backoff.
 
@@ -102,7 +119,7 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         max_retries = 5
 
         for attempt in range(max_retries):
-            timeout_seconds = 300 if attempt == 0 else 600
+            timeout_seconds = self._compute_timeout(len(prompt), attempt)
             try:
                 callback_list = callbacks or []
                 # Always append monitoring callback - logging config controls output
