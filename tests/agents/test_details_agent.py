@@ -100,28 +100,40 @@ class TestDetailsAgent(unittest.TestCase):
         )
         # Mock StaticAnalysis and CFG behavior
         abs_assigned = {str(self.repo_dir / fg.file_path) for fg in self.test_component.file_methods}
-        mock_cluster_result = MagicMock()
-        mock_cluster_result.get_cluster_ids.return_value = {1}
-        mock_cluster_result.get_files_for_cluster.return_value = abs_assigned
 
-        mock_sub_cluster_result = MagicMock()
+        # Create a mock node with proper attributes for method-level expansion check
+        mock_node = MagicMock()
+        mock_node.type = NodeType.FUNCTION
+        mock_node.file_path = str(self.repo_dir / "test.py")
+        mock_node.fully_qualified_name = "test.func"
+
+        # Mock cluster result with enough clusters to skip method-level expansion
+        mock_sub_cluster_result = ClusterResult(
+            clusters={i: {f"method_{i}"} for i in range(5)},  # 5 clusters to skip expansion
+            cluster_to_files={i: {str(self.repo_dir / "test.py")} for i in range(5)},
+            file_to_clusters={str(self.repo_dir / "test.py"): set(range(5))},
+            strategy="test",
+        )
 
         mock_subgraph = MagicMock()
-        mock_subgraph.nodes = {"n1": object()}
+        mock_subgraph.nodes = {"n1": mock_node}
         mock_subgraph.cluster.return_value = mock_sub_cluster_result
         mock_subgraph.to_cluster_string.return_value = "Component CFG String"
 
         mock_cfg = MagicMock()
-        mock_cfg.cluster.return_value = mock_cluster_result
         # Ensure filter_by_files returns our mock subgraph
         mock_cfg.filter_by_files.return_value = mock_subgraph
 
         self.mock_static_analysis.get_languages.return_value = ["python"]
         self.mock_static_analysis.get_cfg.return_value = mock_cfg
 
-        subgraph_str, subgraph_cluster_results = agent._create_strict_component_subgraph(self.test_component)
+        subgraph_str, subgraph_cluster_results, subgraph_cfgs = agent._create_strict_component_subgraph(
+            self.test_component
+        )
 
         self.assertIn("Component CFG String", subgraph_str)
+        self.assertIn("python", subgraph_cfgs)
+        self.assertIs(subgraph_cfgs["python"], mock_subgraph)
         self.mock_static_analysis.get_cfg.assert_called_with("python")
         mock_cfg.filter_by_files.assert_called_with(abs_assigned)
         mock_subgraph.cluster.assert_called_once()
@@ -287,8 +299,15 @@ class TestDetailsAgent(unittest.TestCase):
 
         mock_sub_cluster_result = MagicMock()
 
+        mock_node = MagicMock()
+        mock_node.file_path = str(self.repo_dir / "src" / "main.py")
+        mock_node.fully_qualified_name = "n1"
+        mock_node.type = NodeType.FUNCTION
+        mock_node.line_start = 1
+        mock_node.line_end = 10
+
         mock_subgraph = MagicMock()
-        mock_subgraph.nodes = {"n1": object()}
+        mock_subgraph.nodes = {"n1": mock_node}
         mock_subgraph.cluster.return_value = mock_sub_cluster_result
         mock_subgraph.to_cluster_string.return_value = "Component CFG String"
 

@@ -25,7 +25,6 @@ from agents.validation import (
     validate_group_name_coverage,
     validate_key_entities,
     validate_relation_component_names,
-    validate_qualified_names,
 )
 from monitoring import trace
 from static_analyzer.analysis_result import StaticAnalysisResults
@@ -166,7 +165,6 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
                 validate_relation_component_names,
                 validate_group_name_coverage,
                 validate_key_entities,
-                validate_qualified_names,
             ],
             context=context,
             max_validation_retries=3,
@@ -185,6 +183,12 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
         This follows the same pattern as AbstractionAgent but operates on a component-level
         subgraph instead of the full codebase.
 
+        Pipeline:
+        1. Create subgraph from component's assigned files (with method-level expansion if < 5 clusters)
+        2. LLM groups clusters into logical sub-components
+        3. LLM creates components from groups (validated: key_entities must be in cluster scope)
+        4. Deterministically assign methods via cluster -> component mapping
+
         Args:
             component: Component to analyze in detail
 
@@ -194,12 +198,14 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
         logger.info(f"[DetailsAgent] Processing component: {component.name}")
 
         # Step 1: Create subgraph from component's assigned files using strict filtering
-        subgraph_str, subgraph_cluster_results = self._create_strict_component_subgraph(component)
+        # If subgraph has < MIN_CLUSTERS_THRESHOLD clusters, auto-expands to method-level
+        subgraph_str, subgraph_cluster_results, subgraph_cfgs = self._create_strict_component_subgraph(component)
 
         # Step 2: Group clusters within the subgraph
         cluster_analysis = self.step_clusters_grouping(component, subgraph_cluster_results)
 
         # Step 3: Generate detailed analysis from grouped clusters
+        # Validation ensures key_entities are within cluster scope (no rescue needed)
         analysis = self.step_final_analysis(component, cluster_analysis, subgraph_cluster_results)
 
         # Step 4: Assign hierarchical component IDs (e.g., "1.1", "1.2" under parent "1")
@@ -209,10 +215,12 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
         self._resolve_cluster_ids_from_groups(analysis, cluster_analysis)
 
         # Step 6: Populate file_methods deterministically from cluster results + orphan assignment
-        self.populate_file_methods(analysis, subgraph_cluster_results)
+        # Pass subgraph_cfgs to scope node collection to the component's filtered graph
+        # With method-level expansion, each method has its own cluster -> deterministic assignment
+        self.populate_file_methods(analysis, subgraph_cluster_results, subgraph_cfgs)
 
         # Step 7: Build static inter-component relations from subgraph CFG edges
-        self.build_static_relations(analysis)
+        self.build_static_relations(analysis, subgraph_cfgs)
 
         # Step 8: Fix source code reference lines (resolves reference_file paths)
         analysis = self.fix_source_code_reference_lines(analysis)

@@ -137,6 +137,10 @@ class MethodEntry(BaseModel):
     start_line: int = Field(description="Starting line number in the file.")
     end_line: int = Field(description="Ending line number in the file.")
     node_type: str = Field(description="Node type name matching NodeType enum (e.g. METHOD, FUNCTION, CLASS).")
+    status: str = Field(
+        default="unchanged",
+        description="Diff status of this method: added, modified, deleted, or unchanged.",
+    )
 
     def __hash__(self) -> int:
         return hash(self.qualified_name)
@@ -146,14 +150,41 @@ class MethodEntry(BaseModel):
             return NotImplemented
         return self.qualified_name == other.qualified_name
 
+    @classmethod
+    def from_method_change(cls, method_change, *, status_override: str | None = None) -> "MethodEntry":
+        return cls(
+            qualified_name=method_change.qualified_name,
+            start_line=method_change.start_line,
+            end_line=method_change.end_line,
+            node_type=method_change.node_type,
+            status=status_override or method_change.change_type,
+        )
+
 
 class FileMethodGroup(BaseModel):
     """All methods/functions belonging to a component within a single file."""
 
     file_path: str = Field(description="Relative path to the source file.")
+    file_status: str = Field(
+        default="unchanged",
+        description="Diff status of this file: added, modified, deleted, renamed, or unchanged.",
+    )
     methods: list[MethodEntry] = Field(
         default_factory=list,
         description="Methods and functions in this file that belong to the component, sorted by start_line.",
+    )
+
+
+class FileEntry(BaseModel):
+    """Single source of truth for methods in one file."""
+
+    file_status: str = Field(
+        default="unchanged",
+        description="Diff status of this file: added, modified, deleted, renamed, or unchanged.",
+    )
+    methods: list[MethodEntry] = Field(
+        default_factory=list,
+        description="Methods and functions in this file, sorted by start_line.",
     )
 
 
@@ -185,6 +216,12 @@ class Component(LLMBaseModel):
         exclude=True,
     )
 
+    assigned_files: list[str] = Field(
+        description="Files assigned to this component. Methods are stored in the top-level files index.",
+        default_factory=list,
+        exclude=True,
+    )
+
     component_id: str = Field(
         default="",
         description="Deterministic unique identifier for this component.",
@@ -209,6 +246,11 @@ class AnalysisInsights(LLMBaseModel):
 
     description: str = Field(
         description="One paragraph explaining the functionality which is represented by this graph. What the main flow is and what is its purpose."
+    )
+    files: dict[str, FileEntry] = Field(
+        default_factory=dict,
+        description="Top-level file index keyed by relative file path. Contains all methods and statuses.",
+        exclude=True,
     )
     components: list[Component] = Field(description="List of the components identified in the project.")
     components_relations: list[Relation] = Field(description="List of relations among the components.")

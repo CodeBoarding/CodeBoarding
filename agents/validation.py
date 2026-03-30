@@ -1,7 +1,10 @@
 """Validation utilities for LLM agent outputs."""
 
 import logging
+import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
+from difflib import SequenceMatcher
 
 from agents.agent_responses import AnalysisInsights, ClusterAnalysis, ComponentFiles
 from repo_utils import normalize_path
@@ -10,6 +13,19 @@ from static_analyzer.graph import CallGraph, ClusterResult
 from static_analyzer.analysis_result import StaticAnalysisResults
 
 logger = logging.getLogger(__name__)
+
+# Validator weight configuration.
+# Coverage validators (cluster + group name) are the most critical — they
+# determine whether every cluster is accounted for and properly assigned.
+# Key-entity validation is secondary (auto-correctable, less structural).
+VALIDATOR_WEIGHTS: dict[str, float] = {
+    "validate_cluster_coverage": 20.0,
+    "validate_group_name_coverage": 20.0,
+    "validate_key_entities": 5.0,
+    "validate_relation_component_names": 5.0,
+    "validate_file_classifications": 5.0,
+}
+DEFAULT_VALIDATOR_WEIGHT = 5.0
 
 
 @dataclass
@@ -38,47 +54,183 @@ class ValidationResult:
     feedback_messages: list[str] = field(default_factory=list)
 
 
+def score_validation_results(
+    validator_results: list[tuple[Callable, ValidationResult]],
+) -> float:
+    """Compute a weighted score for a set of validation results.
+
+    Each validator contributes its weight to the total score when it passes.
+    The returned score is in the range [0, max_possible_score] where a higher
+    value means a better result.
+
+    Args:
+        validator_results: List of (validator_function, ValidationResult) pairs.
+
+    Returns:
+        Weighted score (higher is better).
+    """
+    score = 0.0
+    for validator_fn, vr in validator_results:
+        weight = VALIDATOR_WEIGHTS.get(validator_fn.__name__, DEFAULT_VALIDATOR_WEIGHT)
+        if vr.is_valid:
+            score += weight
+    return score
+
+
 def validate_cluster_coverage(result: ClusterAnalysis, context: ValidationContext) -> ValidationResult:
     """
-    Validate that all expected clusters are represented in the ClusterAnalysis.
+    Validate that all expected clusters are represented in the ClusterAnalysis
+    and that no cluster component has an empty cluster_ids list.
 
     Args:
         result: ClusterAnalysis with cluster_components
         context: ValidationContext with expected_cluster_ids
 
     Returns:
-        ValidationResult with feedback for missing clusters
+        ValidationResult with feedback for missing clusters or empty components
     """
     if not context.expected_cluster_ids:
         logger.warning("[Validation] No expected cluster IDs provided for coverage validation")
         return ValidationResult(is_valid=True)
 
-    result_cluster_ids: set[int] = set()
+    feedback_messages: list[str] = []
+
+    # Check for cluster components with empty cluster_ids
+    empty_components = [cc.name for cc in result.cluster_components if not cc.cluster_ids]
+    if empty_components:
+        empty_str = ", ".join(sorted(empty_components))
+        feedback_messages.append(
+            f"The following cluster groups have no cluster IDs assigned: {empty_str}. "
+            f"Every cluster group must reference at least one cluster ID. "
+            f"Either assign clusters to these groups or remove them entirely."
+        )
+        logger.warning(f"[Validation] Cluster groups with empty cluster_ids: {empty_str}")
+
+    # Check for duplicate cluster IDs across different cluster groups
+    seen_clusters: dict[int, str] = {}
+    duplicate_reports: list[str] = []
     for cc in result.cluster_components:
-        result_cluster_ids.update(cc.cluster_ids)
+        for cid in cc.cluster_ids:
+            if cid in seen_clusters:
+                duplicate_reports.append(f"cluster {cid} in both '{seen_clusters[cid]}' and '{cc.name}'")
+            else:
+                seen_clusters[cid] = cc.name
+
+    if duplicate_reports:
+        dup_str = "; ".join(duplicate_reports)
+        feedback_messages.append(
+            f"The following cluster IDs are assigned to multiple groups: {dup_str}. "
+            f"Each cluster ID must belong to exactly one group. "
+            f"Please remove the duplicate assignments so every cluster is in only one group."
+        )
+        logger.warning(f"[Validation] Duplicate cluster assignments: {dup_str}")
+
+    result_cluster_ids = set(seen_clusters.keys())
 
     missing_clusters = context.expected_cluster_ids - result_cluster_ids
 
-    if not missing_clusters:
+    if missing_clusters:
+        missing_str = ", ".join(str(cid) for cid in sorted(missing_clusters))
+        feedback_messages.append(
+            f"The following cluster IDs are missing from the analysis: {missing_str}. "
+            f"Please ensure all clusters are assigned to a component via cluster_ids."
+        )
+        logger.warning(f"[Validation] Missing clusters: {missing_str}")
+
+    if not feedback_messages:
         logger.info("[Validation] All clusters are represented in the ClusterAnalysis")
         return ValidationResult(is_valid=True)
 
-    missing_str = ", ".join(str(cid) for cid in sorted(missing_clusters))
-    feedback = (
-        f"The following cluster IDs are missing from the analysis: {missing_str}. "
-        f"Please ensure all clusters are assigned to a component via cluster_ids."
-    )
+    return ValidationResult(is_valid=False, feedback_messages=feedback_messages)
 
-    logger.warning(f"[Validation] Missing clusters: {missing_str}")
-    return ValidationResult(is_valid=False, feedback_messages=[feedback])
+
+def _normalize_group_name(name: str) -> str:
+    """Normalize a group name for fuzzy comparison: lowercase, collapse whitespace, strip punctuation."""
+    name = name.lower().strip()
+    name = re.sub(r"\s+", " ", name)
+    # Remove common punctuation that LLMs might add/drop inconsistently
+    name = re.sub(r"[()&/\\,\-–—]", " ", name)
+    name = re.sub(r"\s+", " ", name).strip()
+    return name
+
+
+def _fuzzy_match_group_name(name: str, candidates: dict[str, str], threshold: float = 0.75) -> str | None:
+    """Find the best fuzzy match for *name* among *candidates*.
+
+    Args:
+        name: The name to match (already normalized).
+        candidates: Mapping of normalized_name -> original_name.
+        threshold: Minimum similarity ratio (0-1) to accept a match.
+
+    Returns:
+        The original (canonical) name of the best match, or None.
+    """
+    best_score = 0.0
+    best_match: str | None = None
+    for norm_candidate, original in candidates.items():
+        score = SequenceMatcher(None, name, norm_candidate).ratio()
+        if score > best_score and score >= threshold:
+            best_score = score
+            best_match = original
+    return best_match
+
+
+def _auto_correct_group_names(result: AnalysisInsights, expected_group_names: set[str]) -> int:
+    """Auto-correct source_group_names on components in-place.
+
+    Fixes case mismatches, whitespace differences, and close fuzzy matches
+    (similar to how validate_key_entities auto-corrects key_entity names).
+
+    Returns:
+        Number of names that were auto-corrected.
+    """
+    # Build lookup: normalized_name -> canonical_name
+    canonical_lookup: dict[str, str] = {_normalize_group_name(name): name for name in expected_group_names}
+
+    auto_corrected = 0
+    for component in result.components:
+        corrected_names: list[str] = []
+        for gname in component.source_group_names:
+            normalized = _normalize_group_name(gname)
+
+            # Exact normalized match (handles case + whitespace)
+            if normalized in canonical_lookup:
+                canonical = canonical_lookup[normalized]
+                if gname != canonical:
+                    logger.info(
+                        f"[Validation] Auto-corrected source_group_name: "
+                        f"'{gname}' -> '{canonical}' (component '{component.name}')"
+                    )
+                    auto_corrected += 1
+                corrected_names.append(canonical)
+                continue
+
+            # Fuzzy match for close typos
+            fuzzy_match = _fuzzy_match_group_name(normalized, canonical_lookup)
+            if fuzzy_match is not None:
+                logger.info(
+                    f"[Validation] Auto-corrected source_group_name (fuzzy): "
+                    f"'{gname}' -> '{fuzzy_match}' (component '{component.name}')"
+                )
+                auto_corrected += 1
+                corrected_names.append(fuzzy_match)
+                continue
+
+            # No match found, keep original for error reporting
+            corrected_names.append(gname)
+
+        component.source_group_names = corrected_names
+
+    return auto_corrected
 
 
 def validate_group_name_coverage(result: AnalysisInsights, context: ValidationContext) -> ValidationResult:
     """
     Validate bidirectional coverage between cluster groups and components:
-    1. Every ClusterComponent must be referenced by at least one Component's source_group_names.
-    2. Every Component must have at least one source_group_name assigned.
-    3. Every source_group_name referenced by a Component must exist in the cluster analysis.
+    1. Auto-correct trivial mismatches (case, whitespace, close typos) in-place.
+    2. Every ClusterComponent must be referenced by at least one Component's source_group_names.
+    3. Every Component must have at least one source_group_name assigned.
+    4. Every source_group_name referenced by a Component must exist in the cluster analysis.
 
     Args:
         result: AnalysisInsights containing components with source_group_names
@@ -92,6 +244,12 @@ def validate_group_name_coverage(result: AnalysisInsights, context: ValidationCo
         return ValidationResult(is_valid=True)
 
     expected_group_names = {cc.name for cc in context.llm_cluster_analysis.cluster_components}
+
+    # Auto-correct trivial mismatches before validation
+    auto_corrected = _auto_correct_group_names(result, expected_group_names)
+    if auto_corrected:
+        logger.info(f"[Validation] Auto-corrected {auto_corrected} source_group_name(s)")
+
     referenced_group_names: set[str] = set()
     for component in result.components:
         referenced_group_names.update(component.source_group_names)
@@ -163,36 +321,135 @@ def validate_group_name_coverage(result: AnalysisInsights, context: ValidationCo
 
 def validate_key_entities(result: AnalysisInsights, context: ValidationContext) -> ValidationResult:
     """
-    Validate that every component in AnalysisInsights has at least one key_entity assigned.
+    Validate key_entities on every component:
+    1. Every component must have at least one key_entity.
+    2. Key entities must reference code within the component's cluster scope.
+       If cluster_results are provided, validates strictly against the scope.
+       Otherwise, validates that qualified names exist in the static analysis.
+       Uses loose matching to auto-correct shortened paths in-place.
 
     Args:
-        result: AnalysisInsights containing components
-        context: ValidationContext (not used but kept for interface consistency)
+        result: AnalysisInsights containing components with key_entities
+        context: ValidationContext with optional static_analysis for name resolution
+                 and cluster_results for scope validation
 
     Returns:
-        ValidationResult with feedback for components missing key entities
+        ValidationResult with feedback for missing or invalid key entities
     """
-    components_without_key_entities: list[str] = []
+    feedback_messages: list[str] = []
 
-    for component in result.components:
-        if not component.key_entities or len(component.key_entities) == 0:
-            components_without_key_entities.append(component.name)
+    # Check 1: components without any key_entities
+    components_without_key_entities = [c.name for c in result.components if not c.key_entities]
+    if components_without_key_entities:
+        missing_str = ", ".join(components_without_key_entities)
+        feedback_messages.append(
+            f"The following components are missing key entities: {missing_str}. "
+            f"Every component must have at least one key entity (critical class or method) "
+            f"that represents its core functionality. Please identify and add 2-5 key entities "
+            f"for each component."
+        )
+        logger.warning(f"[Validation] Components without key entities: {missing_str}")
 
-    if not components_without_key_entities:
-        logger.info("[Validation] All components have key entities assigned")
+    # Check 2: Unified scope/existence check — key entities must be valid for this component.
+    # Auto-correct via loose matching first (fixes typos in qualified names).
+    # Then validate against cluster scope (strict) or static analysis existence (fallback).
+    invalid_entities: list[str] = []
+    auto_corrected = 0
+
+    # Auto-correct qualified names via loose matching (always, when static_analysis available)
+    if context.static_analysis:
+        for component in result.components:
+            for key_entity in component.key_entities:
+                qname = key_entity.qualified_name.replace("/", ".")
+                for lang in context.static_analysis.get_languages():
+                    # Exact / case-insensitive match
+                    try:
+                        context.static_analysis.get_reference(lang, qname)
+                        break
+                    except (ValueError, FileExistsError):
+                        pass
+                    # Loose match – auto-correct the qualified name in-place
+                    _text, loose_node = context.static_analysis.get_loose_reference(lang, qname)
+                    if loose_node is not None:
+                        logger.info(
+                            f"[Validation] Auto-corrected qualified name: "
+                            f"'{key_entity.qualified_name}' -> '{loose_node.fully_qualified_name}'"
+                        )
+                        key_entity.qualified_name = loose_node.fully_qualified_name
+                        auto_corrected += 1
+                        break
+        if auto_corrected:
+            logger.info(f"[Validation] Auto-corrected {auto_corrected} qualified names via loose matching")
+
+    # Validate: cluster scope if available, else static analysis existence
+    if context.cluster_results:
+        nodes_in_scope: set[str] = set()
+        for cr in context.cluster_results.values():
+            for members in cr.clusters.values():
+                nodes_in_scope.update(members)
+
+        for component in result.components:
+            for key_entity in component.key_entities:
+                qname = key_entity.qualified_name
+                in_scope = qname in nodes_in_scope
+                if not in_scope:
+                    for scope_node in nodes_in_scope:
+                        if qname.startswith(scope_node + "."):
+                            in_scope = True
+                            break
+                    if not in_scope:
+                        for scope_node in nodes_in_scope:
+                            if scope_node.startswith(qname + "."):
+                                in_scope = True
+                                break
+                if not in_scope:
+                    invalid_entities.append(f"{component.name}: '{qname}'")
+
+        if invalid_entities:
+            invalid_str = "; ".join(invalid_entities[:10])
+            more_msg = f" and {len(invalid_entities) - 10} more" if len(invalid_entities) > 10 else ""
+            feedback_messages.append(
+                f"The following key_entities are outside the component's cluster scope: {invalid_str}{more_msg}. "
+                f"Key entities must reference code that is within the component's assigned clusters. "
+                f"Please choose key entities from the code shown in the cluster analysis."
+            )
+            logger.warning(f"[Validation] Invalid key entities (out of scope): {len(invalid_entities)} found")
+
+    elif context.static_analysis:
+        # No cluster_results — fall back to checking if qualified names exist in static analysis
+        for component in result.components:
+            for key_entity in component.key_entities:
+                qname = key_entity.qualified_name.replace("/", ".")
+                found = False
+                for lang in context.static_analysis.get_languages():
+                    try:
+                        context.static_analysis.get_reference(lang, qname)
+                        found = True
+                        break
+                    except (ValueError, FileExistsError):
+                        pass
+                    _text, loose_node = context.static_analysis.get_loose_reference(lang, qname)
+                    if loose_node is not None:
+                        key_entity.qualified_name = loose_node.fully_qualified_name
+                        found = True
+                        break
+                if not found:
+                    invalid_entities.append(f"{component.name}: '{key_entity.qualified_name}'")
+
+        if invalid_entities:
+            invalid_str = "; ".join(invalid_entities[:10])
+            more_msg = f" and {len(invalid_entities) - 10} more" if len(invalid_entities) > 10 else ""
+            feedback_messages.append(
+                f"The following qualified names do not exist in the static analysis: {invalid_str}{more_msg}. "
+                f"Please ensure all key_entities use qualified names that were found during static analysis."
+            )
+            logger.warning(f"[Validation] Invalid key entities (not found): {len(invalid_entities)} found")
+
+    if not feedback_messages:
+        logger.info("[Validation] All key entities are valid")
         return ValidationResult(is_valid=True)
 
-    # Build feedback message
-    missing_str = ", ".join(components_without_key_entities)
-    feedback = (
-        f"The following components are missing key entities: {missing_str}. "
-        f"Every component must have at least one key entity (critical class or method) "
-        f"that represents its core functionality. Please identify and add 2-5 key entities "
-        f"for each component."
-    )
-
-    logger.warning(f"[Validation] Components without key entities: {missing_str}")
-    return ValidationResult(is_valid=False, feedback_messages=[feedback])
+    return ValidationResult(is_valid=False, feedback_messages=feedback_messages)
 
 
 def validate_file_classifications(result: ComponentFiles, context: ValidationContext) -> ValidationResult:
@@ -299,54 +556,6 @@ def validate_relation_component_names(result: AnalysisInsights, _context: Valida
     )
 
     logger.warning(f"[Validation] Relations with unknown component names: {invalid_str}")
-    return ValidationResult(is_valid=False, feedback_messages=[feedback])
-
-
-def validate_qualified_names(result: AnalysisInsights, context: ValidationContext) -> ValidationResult:
-    """
-    Validate that qualified names in key_entities exist in static analysis references.
-
-    Args:
-        result: AnalysisInsights containing components with key_entities
-        context: ValidationContext with static_analysis to check references
-
-    Returns:
-        ValidationResult with feedback for invalid qualified names
-    """
-    if not context.static_analysis:
-        logger.warning("[Validation] No static analysis provided for qualified name validation")
-        return ValidationResult(is_valid=True)
-
-    invalid_references: list[str] = []
-    for component in result.components:
-        for key_entity in component.key_entities:
-            qname = key_entity.qualified_name.replace("/", ".")
-            found = False
-
-            # Check if qualified name exists in any language
-            for lang in context.static_analysis.get_languages():
-                try:
-                    context.static_analysis.get_reference(lang, qname)
-                    found = True
-                    break
-                except (ValueError, FileExistsError):
-                    continue
-
-            if not found:
-                invalid_references.append(f"{component.name}: '{key_entity.qualified_name}'")
-
-    if not invalid_references:
-        logger.info("[Validation] All qualified names exist in static analysis references")
-        return ValidationResult(is_valid=True)
-
-    invalid_str = "; ".join(invalid_references[:10])
-    more_msg = f" and {len(invalid_references) - 10} more" if len(invalid_references) > 10 else ""
-    feedback = (
-        f"The following qualified names do not exist in the static analysis: {invalid_str}{more_msg}. "
-        f"Please ensure all key_entities use qualified names that were found during static analysis."
-    )
-
-    logger.warning(f"[Validation] Invalid qualified names: {len(invalid_references)} found")
     return ValidationResult(is_valid=False, feedback_messages=[feedback])
 
 

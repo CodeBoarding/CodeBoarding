@@ -5,7 +5,7 @@ from pathlib import Path
 from repo_utils import get_git_commit_hash
 from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.analysis_cache import AnalysisCacheManager
-from static_analyzer.analysis_result import StaticAnalysisResults
+from static_analyzer.analysis_result import AnalysisCache, StaticAnalysisResults
 from static_analyzer.cluster_change_analyzer import ChangeClassification
 from static_analyzer.constants import Language
 from static_analyzer.engine.adapters import get_adapter
@@ -122,6 +122,7 @@ class StaticAnalyzer:
         self._engine_clients: list[tuple[LanguageAdapter, Path, LSPClient]] = []
         self.collected_diagnostics: dict[str, FileDiagnosticsMap] = {}
         self._clients_started: bool = False
+        self._cached_results: StaticAnalysisResults | None = None
 
     def __enter__(self) -> "StaticAnalyzer":
         self.start_clients()
@@ -191,6 +192,7 @@ class StaticAnalyzer:
                 logger.error(f"Error shutting down engine LSP client for {adapter.language}: {e}")
         self._engine_clients = []
         self._clients_started = False
+        self._cached_results = None
 
     def notify_file_changed(self, file_path: Path, content: str) -> None:
         """Notify the LSP server that the editor has saved new content for a file.
@@ -210,7 +212,40 @@ class StaticAnalyzer:
                 client.did_change(file_path, content)
                 logger.debug(f"Sent didOpen+didChange for {file_path} to {adapter.language} engine LSP")
 
-    def analyze(self, cache_dir: Path | None = None) -> StaticAnalysisResults:
+    def get_file_symbols(self, file_path: Path) -> list[dict]:
+        """Query the LSP server for document symbols in a single file.
+
+        The file must have been opened previously (via ``notify_file_changed``
+        or during the initial analysis) so the LSP server has indexed it.
+
+        Args:
+            file_path: Absolute path to the file.
+
+        Returns:
+            Raw LSP ``DocumentSymbol[]`` response (possibly nested).
+            Returns an empty list if no matching client is found.
+        """
+        suffix = file_path.suffix
+        for adapter, project_path, client in self._engine_clients:
+            if suffix in adapter.file_extensions:
+                try:
+                    symbols = client.document_symbol(file_path)
+                    logger.debug(f"Got {len(symbols)} symbols for {file_path}")
+                    return symbols
+                except Exception:
+                    logger.warning(f"Failed to get symbols for {file_path}", exc_info=True)
+                    return []
+        return []
+
+    def get_adapter_for_file(self, file_path: Path) -> tuple[LanguageAdapter, Path] | None:
+        """Return the (adapter, project_root) pair that handles a given file extension."""
+        suffix = file_path.suffix
+        for adapter, project_path, _ in self._engine_clients:
+            if suffix in adapter.file_extensions:
+                return adapter, project_path
+        return None
+
+    def analyze(self, cache_dir: Path | None = None, skip_cache: bool = False) -> StaticAnalysisResults:
         """Analyze the repository using the engine LSP pipeline.
 
         Clients must be running before calling this method. Use start_clients() or
@@ -220,6 +255,8 @@ class StaticAnalyzer:
             cache_dir: Optional cache directory for incremental analysis.
                       If provided, uses git-based incremental analysis per client.
                       If None, performs full analysis without caching.
+            skip_cache: If True, bypass the in-memory cached results and re-run
+                       the LSP analysis. Useful when force_full_analysis is requested.
 
         Returns:
             StaticAnalysisResults containing all analysis data.
@@ -229,6 +266,29 @@ class StaticAnalyzer:
                 "LSP clients are not running. Call start_clients() or use StaticAnalyzer as a context manager "
                 "('with StaticAnalyzer(...) as sa:') before calling analyze()."
             )
+
+        if not skip_cache and self._cached_results is not None:
+            logger.info("Returning cached static analysis results")
+            return self._cached_results
+
+        logger.info(f"analyze() called with cache_dir={cache_dir}, skip_cache={skip_cache}")
+
+        # Try loading from disk cache (survives across processes)
+        if not skip_cache:
+            load_dir = Path(cache_dir) if cache_dir is not None else get_cache_dir(self.repository_path)
+            disk_cache = AnalysisCache(load_dir)
+            cached = disk_cache.get("static_analysis_results")
+            if cached is not None:
+                langs = cached.get_languages()
+                file_count = len(cached.get_all_source_files())
+                logger.info(
+                    f"Returning static analysis results from disk cache "
+                    f"({file_count} files, languages: {', '.join(langs)})"
+                )
+                self._cached_results = cached
+                self.collected_diagnostics = cached.diagnostics
+                return cached
+
         results = StaticAnalysisResults()
 
         for adapter, project_path, engine_client in self._engine_clients:
@@ -297,6 +357,15 @@ class StaticAnalyzer:
                 logger.error(f"Error during engine analysis for {adapter.language}: {e}")
 
         logger.info(f"Static analysis complete: {results}")
+        results.diagnostics = self.collected_diagnostics
+        self._cached_results = results
+
+        # Persist to disk so subprocess callers can reuse without LSP
+        save_dir = Path(cache_dir) if cache_dir is not None else get_cache_dir(self.repository_path)
+        logger.info(f"Saving static analysis results to disk cache at {save_dir}")
+        disk_cache = AnalysisCache(save_dir)
+        disk_cache.save("static_analysis_results", results)
+
         return results
 
     def _run_full_analysis(

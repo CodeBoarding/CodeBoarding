@@ -178,5 +178,131 @@ class TestFindNearestCluster(unittest.TestCase):
         self.assertEqual(result, 10)
 
 
+class TestBuildFileMethodsFromNodes(unittest.TestCase):
+    def test_deduplicates_alias_method_entries_and_keeps_more_specific_qualified_name(self):
+        static = MagicMock()
+        mixin = MockMixin(repo_dir=Path("/repo"), static_analysis=static)
+
+        duplicate_specific = Node(
+            "diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_smart",
+            NodeType.METHOD,
+            "/repo/diagram_analysis/diagram_generator.py",
+            468,
+            470,
+        )
+        duplicate_alias = Node(
+            "diagram_analysis.diagram_generator.generate_analysis_smart",
+            NodeType.METHOD,
+            "/repo/diagram_analysis/diagram_generator.py",
+            468,
+            470,
+        )
+
+        groups = mixin._build_file_methods_from_nodes([duplicate_alias, duplicate_specific])
+
+        self.assertEqual(len(groups), 1)
+        self.assertEqual(groups[0].file_path, "diagram_analysis/diagram_generator.py")
+        self.assertEqual(len(groups[0].methods), 1)
+        self.assertEqual(
+            groups[0].methods[0].qualified_name,
+            "diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_smart",
+        )
+
+
+class TestExpandToMethodLevelClusters(unittest.TestCase):
+    """Test the _expand_to_method_level_clusters method."""
+
+    def setUp(self):
+        self.repo_dir = Path("/test/repo")
+        self.mock_static_analysis = MagicMock()
+        self.mixin = MockMixin(self.repo_dir, self.mock_static_analysis)
+
+    def test_does_not_expand_when_enough_clusters(self):
+        """Should return original cluster result when >= MIN_CLUSTERS_THRESHOLD clusters."""
+        cfg = CallGraph(language="python")
+        # Add some nodes
+        for i in range(10):
+            cfg.add_node(Node(f"mod.func_{i}", NodeType.FUNCTION, f"/test/file_{i}.py", 1, 10))
+
+        # Create cluster result with 5 clusters (threshold)
+        original_result = ClusterResult(
+            clusters={i: {f"mod.func_{i}", f"mod.func_{i+5}"} for i in range(5)},
+            cluster_to_files={i: {f"/test/file_{i}.py"} for i in range(5)},
+            file_to_clusters={f"/test/file_{i}.py": {i % 5} for i in range(10)},
+            strategy="original",
+        )
+
+        result = self.mixin._expand_to_method_level_clusters(cfg, original_result)
+
+        # Should return the original since we have 5 clusters (= threshold)
+        self.assertIs(result, original_result)
+
+    def test_expands_when_few_clusters(self):
+        """Should expand to method-level when < MIN_CLUSTERS_THRESHOLD clusters."""
+        cfg = CallGraph(language="python")
+        # Add 3 function nodes
+        cfg.add_node(Node("mod.func_a", NodeType.FUNCTION, "/test/file_a.py", 1, 10))
+        cfg.add_node(Node("mod.func_b", NodeType.FUNCTION, "/test/file_a.py", 11, 20))
+        cfg.add_node(Node("mod.func_c", NodeType.FUNCTION, "/test/file_b.py", 1, 10))
+
+        # Create cluster result with only 2 clusters (< threshold)
+        original_result = ClusterResult(
+            clusters={0: {"mod.func_a", "mod.func_b"}, 1: {"mod.func_c"}},
+            cluster_to_files={0: {"/test/file_a.py"}, 1: {"/test/file_b.py"}},
+            file_to_clusters={"/test/file_a.py": {0}, "/test/file_b.py": {1}},
+            strategy="original",
+        )
+
+        result = self.mixin._expand_to_method_level_clusters(cfg, original_result)
+
+        # Should create 3 clusters (one per function)
+        self.assertEqual(len(result.clusters), 3)
+        self.assertEqual(result.strategy, "method_level_expansion")
+        # Each cluster should have exactly one member
+        for cluster_members in result.clusters.values():
+            self.assertEqual(len(cluster_members), 1)
+
+    def test_includes_classes_when_few_callables(self):
+        """Should include classes if there aren't enough callable nodes."""
+        cfg = CallGraph(language="python")
+        # Add only 2 function nodes and 3 class nodes
+        cfg.add_node(Node("mod.func_a", NodeType.FUNCTION, "/test/file.py", 1, 10))
+        cfg.add_node(Node("mod.func_b", NodeType.FUNCTION, "/test/file.py", 11, 20))
+        cfg.add_node(Node("mod.ClassA", NodeType.CLASS, "/test/file.py", 21, 50))
+        cfg.add_node(Node("mod.ClassB", NodeType.CLASS, "/test/file.py", 51, 100))
+        cfg.add_node(Node("mod.ClassC", NodeType.CLASS, "/test/file2.py", 1, 50))
+
+        # Create cluster result with only 1 cluster (< threshold)
+        original_result = ClusterResult(
+            clusters={0: {"mod.func_a", "mod.func_b", "mod.ClassA", "mod.ClassB", "mod.ClassC"}},
+            cluster_to_files={0: {"/test/file.py", "/test/file2.py"}},
+            file_to_clusters={"/test/file.py": {0}, "/test/file2.py": {0}},
+            strategy="original",
+        )
+
+        result = self.mixin._expand_to_method_level_clusters(cfg, original_result)
+
+        # Should create 5 clusters (2 functions + 3 classes since functions alone < threshold)
+        self.assertEqual(len(result.clusters), 5)
+        self.assertEqual(result.strategy, "method_level_expansion")
+
+    def test_empty_cfg_returns_empty_clusters(self):
+        """Should handle empty CFG gracefully."""
+        cfg = CallGraph(language="python")
+
+        original_result = ClusterResult(
+            clusters={},
+            cluster_to_files={},
+            file_to_clusters={},
+            strategy="empty",
+        )
+
+        result = self.mixin._expand_to_method_level_clusters(cfg, original_result)
+
+        # Should return a new empty result with method_level_expansion strategy
+        self.assertEqual(len(result.clusters), 0)
+        self.assertEqual(result.strategy, "method_level_expansion")
+
+
 if __name__ == "__main__":
     unittest.main()

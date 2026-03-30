@@ -116,7 +116,10 @@ def detect_changes(
     Args:
         repo_dir: Path to the git repository
         base_ref: Base reference (commit hash, tag, or branch)
-        target_ref: Target reference (default: HEAD, includes working tree)
+        target_ref: Optional target reference. If provided, compares
+            ``base_ref`` to ``target_ref``. If empty, compares
+            ``base_ref`` to the current working tree (including uncommitted
+            changes).
         exclude_patterns: List of path patterns to exclude (e.g., [".codeboarding/"])
 
     Returns:
@@ -128,6 +131,7 @@ def detect_changes(
             logger.info(f"Renamed: {rename_old} -> {rename_new}")
     """
     changes: list[DetectedChange] = []
+    target_ref_value = target_ref
 
     # Default exclusions for analysis output directories
     if exclude_patterns is None:
@@ -141,8 +145,9 @@ def detect_changes(
         "-C",
         "--find-renames=50%",
         base_ref,
-        target_ref,
     ]
+    if target_ref:
+        cmd.append(target_ref)
 
     def _run_diff() -> subprocess.CompletedProcess:
         return subprocess.run(
@@ -170,13 +175,13 @@ def detect_changes(
                 result = _run_diff()
             except subprocess.CalledProcessError as fetch_err:
                 logger.error(f"Git fetch/diff retry failed: {fetch_err.stderr}")
-                return ChangeSet(changes=changes, base_ref=base_ref, target_ref=target_ref)
+                return ChangeSet(changes=changes, base_ref=base_ref, target_ref=target_ref_value)
         else:
             logger.error(f"Git diff failed: {e.stderr}")
-            return ChangeSet(changes=changes, base_ref=base_ref, target_ref=target_ref)
+            return ChangeSet(changes=changes, base_ref=base_ref, target_ref=target_ref_value)
     except FileNotFoundError:
         logger.error("Git not found in PATH")
-        return ChangeSet(changes=changes, base_ref=base_ref, target_ref=target_ref)
+        return ChangeSet(changes=changes, base_ref=base_ref, target_ref=target_ref_value)
 
     for line in result.stdout.strip().split("\n"):
         if not line:
@@ -201,7 +206,7 @@ def detect_changes(
             changes.append(change)
             logger.debug(f"Detected change: {change.change_type.name} {change.file_path}")
 
-    return ChangeSet(changes=changes, base_ref=base_ref, target_ref=target_ref)
+    return ChangeSet(changes=changes, base_ref=base_ref, target_ref=target_ref_value)
 
 
 def detect_changes_from_commit(repo_dir: Path, base_commit: str) -> ChangeSet:
@@ -210,7 +215,7 @@ def detect_changes_from_commit(repo_dir: Path, base_commit: str) -> ChangeSet:
 
     This includes both committed and uncommitted changes.
     """
-    return detect_changes(repo_dir, base_commit, "HEAD")
+    return detect_changes(repo_dir, base_commit, "")
 
 
 def detect_uncommitted_changes(repo_dir: Path) -> ChangeSet:

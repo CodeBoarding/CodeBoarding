@@ -17,6 +17,7 @@ from agents.agent_responses import (
     AnalysisInsights,
     Component,
     FileMethodGroup,
+    MethodEntry,
     SourceCodeReference,
 )
 
@@ -29,20 +30,46 @@ class TestShouldExpandComponent(unittest.TestCase):
         name: str = "TestComponent",
         cluster_ids: list[int] | None = None,
         file_count: int = 5,
+        method_count: int = 5,
     ) -> Component:
-        """Helper to create test components."""
+        """Helper to create test components.
+
+        Args:
+            name: Component name
+            cluster_ids: Source cluster IDs
+            file_count: Number of file groups to create
+            method_count: Total number of methods distributed across files
+        """
         ref = SourceCodeReference(
             qualified_name=f"{name}.Class",
             reference_file=f"{name.lower()}.py",
             reference_start_line=1,
             reference_end_line=10,
         )
+        # Distribute methods across files
+        file_methods = []
+        for i in range(file_count):
+            # Assign roughly equal methods to each file
+            methods_for_file = method_count // file_count if file_count > 0 else 0
+            # Give extra methods to the first file if there's a remainder
+            if i == 0 and file_count > 0:
+                methods_for_file += method_count % file_count
+            methods = [
+                MethodEntry(
+                    qualified_name=f"{name}.file{i}.method{j}",
+                    start_line=j * 10 + 1,
+                    end_line=j * 10 + 9,
+                    node_type="METHOD",
+                )
+                for j in range(methods_for_file)
+            ]
+            file_methods.append(FileMethodGroup(file_path=f"file{i}.py", methods=methods))
         return Component(
             name=name,
             description=f"Test component {name}",
             key_entities=[ref],
             source_cluster_ids=cluster_ids or [],
-            file_methods=[FileMethodGroup(file_path=f"file{i}.py", methods=[]) for i in range(file_count)],
+            file_methods=file_methods,
         )
 
     def test_expand_with_clusters(self):
@@ -74,6 +101,12 @@ class TestShouldExpandComponent(unittest.TestCase):
         self.assertFalse(should_expand_component(component, parent_had_clusters=True))
         self.assertFalse(should_expand_component(component, parent_had_clusters=False))
 
+    def test_no_expand_clusters_but_no_files(self):
+        """Component with clusters but no file_methods should not expand."""
+        component = self._make_component(cluster_ids=[1, 2], file_count=0)
+        self.assertFalse(should_expand_component(component, parent_had_clusters=True))
+        self.assertFalse(should_expand_component(component, parent_had_clusters=False))
+
     def test_default_parent_had_clusters_is_true(self):
         """Default assumes parent had clusters (for top-level components)."""
         component = self._make_component(cluster_ids=[], file_count=5)
@@ -87,7 +120,17 @@ class TestShouldExpandComponent(unittest.TestCase):
             description="Agent for detailed analysis",
             key_entities=[],
             source_cluster_ids=[],  # No clusters
-            file_methods=[FileMethodGroup(file_path="agents/details_agent.py", methods=[])],  # Single file
+            file_methods=[
+                FileMethodGroup(
+                    file_path="agents/details_agent.py",
+                    methods=[
+                        MethodEntry(qualified_name="DetailsAgent.run", start_line=1, end_line=10, node_type="METHOD"),
+                        MethodEntry(
+                            qualified_name="DetailsAgent.expand", start_line=11, end_line=20, node_type="METHOD"
+                        ),
+                    ],
+                )
+            ],  # Single file with methods
         )
         # Parent (Agents component) had clusters -> can expand to explain file internals
         self.assertTrue(should_expand_component(component, parent_had_clusters=True))
@@ -113,16 +156,39 @@ class TestPlanAnalysis(unittest.TestCase):
         name: str,
         cluster_ids: list[int] | None = None,
         file_count: int = 5,
+        method_count: int = 5,
     ) -> Component:
-        """Helper to create test components."""
+        """Helper to create test components.
+
+        Args:
+            name: Component name
+            cluster_ids: Source cluster IDs
+            file_count: Number of file groups to create
+            method_count: Total number of methods distributed across files
+        """
+        file_methods = []
+        for i in range(file_count):
+            # Assign roughly equal methods to each file
+            methods_for_file = method_count // file_count if file_count > 0 else 0
+            # Give extra methods to the first file if there's a remainder
+            if i == 0 and file_count > 0:
+                methods_for_file += method_count % file_count
+            methods = [
+                MethodEntry(
+                    qualified_name=f"{name}.file{i}.method{j}",
+                    start_line=j * 10 + 1,
+                    end_line=j * 10 + 9,
+                    node_type="METHOD",
+                )
+                for j in range(methods_for_file)
+            ]
+            file_methods.append(FileMethodGroup(file_path=f"{name.lower()}_file{i}.py", methods=methods))
         return Component(
             name=name,
             description=f"Test component {name}",
             key_entities=[],
             source_cluster_ids=cluster_ids or [],
-            file_methods=[
-                FileMethodGroup(file_path=f"{name.lower()}_file{i}.py", methods=[]) for i in range(file_count)
-            ],
+            file_methods=file_methods,
         )
 
     def test_plan_analysis_top_level_with_clusters(self):
@@ -206,7 +272,17 @@ class TestPlanAnalysis(unittest.TestCase):
             description="Details agent module",
             key_entities=[],
             source_cluster_ids=[],  # No clusters at this level
-            file_methods=[FileMethodGroup(file_path="agents/details_agent.py", methods=[])],
+            file_methods=[
+                FileMethodGroup(
+                    file_path="agents/details_agent.py",
+                    methods=[
+                        MethodEntry(qualified_name="DetailsAgent.run", start_line=1, end_line=50, node_type="METHOD"),
+                        MethodEntry(
+                            qualified_name="DetailsAgent.expand", start_line=51, end_line=100, node_type="METHOD"
+                        ),
+                    ],
+                )
+            ],
         )
         level1_analysis = AnalysisInsights(
             description="Agents detail",
