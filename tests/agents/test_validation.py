@@ -121,7 +121,11 @@ class TestValidateClusterCoverage(unittest.TestCase):
         )
         context = ValidationContext(expected_cluster_ids={1, 2, 3, 4})
         result = validate_cluster_coverage(cluster_analysis, context)
-        self.assertTrue(result.is_valid)
+        self.assertFalse(result.is_valid)
+        # Clusters 2 and 3 are duplicated
+        feedback = " ".join(result.feedback_messages)
+        self.assertIn("cluster 2", feedback)
+        self.assertIn("cluster 3", feedback)
 
 
 class TestValidateFileClassifications(unittest.TestCase):

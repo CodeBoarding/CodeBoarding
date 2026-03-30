@@ -10,6 +10,10 @@ Expansion Rules:
 2. If component has no clusters but has files -> expandable ONE level (to explain files)
 3. If neither component nor its parent has clusters -> leaf (stop expanding)
 
+Note: The MIN_CLUSTERS_THRESHOLD in constants.py controls when subgraphs are
+automatically expanded to method-level clustering in cluster_methods_mixin.py.
+This ensures fine-grained method assignment even for small components.
+
 Example:
 - Component: "Agents" (clusters: [1,2,3]) -> expand (yes)
   - Sub-component: "DetailsAgent" (clusters: [], files: [details_agent.py]) -> expand (yes, parent had clusters)
@@ -40,6 +44,11 @@ def should_expand_component(
       (allows one more level to explain file internals)
     - If neither component nor parent has clusters -> stop (leaf node)
 
+    Note: Method-level cluster expansion is handled separately in
+    cluster_methods_mixin._expand_to_method_level_clusters() when a subgraph
+    has fewer than MIN_CLUSTERS_THRESHOLD clusters. This ensures the planner
+    doesn't need to worry about method counts.
+
     Args:
         component: The component to evaluate
         parent_had_clusters: Whether the parent component had source_cluster_ids.
@@ -52,16 +61,19 @@ def should_expand_component(
     has_clusters = bool(component.source_cluster_ids)
     has_files = len(component.file_methods) >= min_files
 
-    # Must have some content (clusters or files)
-    if not has_clusters and not has_files:
-        logger.debug(f"Component '{component.name}' has no clusters and no files, skipping expansion")
+    # A component without files has nothing to expand regardless of clusters
+    if not has_files:
+        logger.debug(
+            f"Component '{component.name}' has no file_methods ({len(component.file_methods)} < {min_files}), "
+            f"skipping expansion"
+        )
         return False
 
     # If component has clusters, it's expandable (CFG structure exists)
     if has_clusters:
         logger.debug(
             f"Component '{component.name}' is expandable: "
-            f"{len(component.source_cluster_ids)} clusters, {len(component.file_methods)} file groups"
+            f"{len(component.source_cluster_ids)} clusters, {len(component.file_methods)} files"
         )
         return True
 
@@ -70,12 +82,12 @@ def should_expand_component(
     if parent_had_clusters:
         logger.debug(
             f"Component '{component.name}' is expandable (file-level): "
-            f"no clusters but {len(component.file_methods)} file groups, parent had clusters"
+            f"no clusters but {len(component.file_methods)} files, parent had clusters"
         )
         return True
 
     # Neither parent nor current has clusters - we're at leaf level
-    logger.debug(f"Component '{component.name}' is a leaf: " f"no clusters and parent also had no clusters")
+    logger.debug(f"Component '{component.name}' is a leaf: no clusters and parent also had no clusters")
     return False
 
 

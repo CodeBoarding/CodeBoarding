@@ -13,6 +13,7 @@ from agents.agent_responses import (
     FileMethodGroup,
     MethodEntry,
 )
+from constants import MIN_CLUSTERS_THRESHOLD
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cluster_helpers import (
     get_all_cluster_ids,
@@ -151,22 +152,85 @@ class ClusterMethodsMixin:
                 )
             component.source_cluster_ids = sorted(set(resolved_ids))
 
-    def _create_strict_component_subgraph(self, component: Component) -> tuple[str, dict]:
+    def _expand_to_method_level_clusters(self, cfg: CallGraph, cluster_result: ClusterResult) -> ClusterResult:
+        """
+        Expand cluster results to method-level granularity when there are too few clusters.
+
+        When a subgraph has fewer than MIN_CLUSTERS_THRESHOLD clusters, this creates
+        synthetic clusters where each method/function becomes its own cluster. This
+        ensures fine-grained method assignment even for small components.
+
+        Args:
+            cfg: The CallGraph containing nodes to cluster
+            cluster_result: Original cluster result (may have insufficient clusters)
+
+        Returns:
+            New ClusterResult with method-level clusters (each method = 1 cluster)
+        """
+        num_clusters = len(cluster_result.clusters)
+
+        if num_clusters >= MIN_CLUSTERS_THRESHOLD:
+            return cluster_result
+
+        logger.info(f"Expanding to method-level clusters: {num_clusters} clusters < {MIN_CLUSTERS_THRESHOLD} threshold")
+
+        # Create synthetic clusters: each callable node becomes its own cluster
+        new_clusters: dict[int, set[str]] = {}
+        new_cluster_to_files: dict[int, set[str]] = {}
+        new_file_to_clusters: dict[str, set[int]] = defaultdict(set)
+
+        cluster_id = 0
+        for qname, node in sorted(cfg.nodes.items()):
+            # Only create clusters for callable types (functions, methods)
+            if node.type not in CALLABLE_TYPES:
+                continue
+
+            new_clusters[cluster_id] = {qname}
+            new_cluster_to_files[cluster_id] = {node.file_path}
+            new_file_to_clusters[node.file_path].add(cluster_id)
+            cluster_id += 1
+
+        # If we still have few clusters (e.g., only classes, no methods), include classes too
+        if len(new_clusters) < MIN_CLUSTERS_THRESHOLD:
+            for qname, node in sorted(cfg.nodes.items()):
+                if node.type in CLASS_TYPES and qname not in {n for members in new_clusters.values() for n in members}:
+                    new_clusters[cluster_id] = {qname}
+                    new_cluster_to_files[cluster_id] = {node.file_path}
+                    new_file_to_clusters[node.file_path].add(cluster_id)
+                    cluster_id += 1
+
+        logger.info(f"Created {len(new_clusters)} method-level clusters from {len(cfg.nodes)} nodes")
+
+        return ClusterResult(
+            clusters=new_clusters,
+            cluster_to_files=new_cluster_to_files,
+            file_to_clusters=dict(new_file_to_clusters),
+            strategy="method_level_expansion",
+        )
+
+    def _create_strict_component_subgraph(
+        self, component: Component
+    ) -> tuple[str, dict[str, ClusterResult], dict[str, CallGraph]]:
         """
         Create a strict subgraph containing ONLY nodes from the component's file_methods.
         This ensures the analysis is strictly scoped to the component's boundaries.
+
+        If the resulting subgraph has fewer than MIN_CLUSTERS_THRESHOLD clusters,
+        automatically expands to method-level clustering (each method = 1 cluster)
+        to ensure fine-grained component assignment.
 
         Args:
             component: Component with file_methods to filter by
 
         Returns:
-            Tuple of (formatted cluster string, cluster_results dict)
+            Tuple of (formatted cluster string, cluster_results dict, subgraph_cfgs dict)
             where cluster_results maps language -> ClusterResult for the subgraph
+            and subgraph_cfgs maps language -> filtered CallGraph for the subgraph
         """
         component_files = component.assigned_files or [group.file_path for group in component.file_methods]
         if not component_files:
             logger.warning(f"Component {component.name} has no assigned files")
-            return "No assigned files found for this component.", {}
+            return "No assigned files found for this component.", {}, {}
 
         # Convert files to absolute paths for comparison
         assigned_file_set = set()
@@ -175,7 +239,8 @@ class ClusterMethodsMixin:
             assigned_file_set.add(abs_path)
 
         result_parts = []
-        cluster_results = {}
+        cluster_results: dict[str, ClusterResult] = {}
+        subgraph_cfgs: dict[str, CallGraph] = {}
 
         for lang in self.static_analysis.get_languages():
             cfg = self.static_analysis.get_cfg(lang)
@@ -184,8 +249,13 @@ class ClusterMethodsMixin:
             sub_cfg = cfg.filter_by_files(assigned_file_set)
 
             if sub_cfg.nodes:
+                subgraph_cfgs[lang] = sub_cfg
+
                 # Calculate clusters for the subgraph
                 sub_cluster_result = sub_cfg.cluster()
+
+                # Expand to method-level if insufficient clusters
+                sub_cluster_result = self._expand_to_method_level_clusters(sub_cfg, sub_cluster_result)
                 cluster_results[lang] = sub_cluster_result
 
                 cluster_str = sub_cfg.to_cluster_string(cluster_result=sub_cluster_result)
@@ -198,33 +268,46 @@ class ClusterMethodsMixin:
 
         if not result.strip():
             logger.warning(f"No CFG found for component {component.name} with {len(component_files)} files")
-            return "No relevant CFG clusters found for this component.", cluster_results
+            return "No relevant CFG clusters found for this component.", cluster_results, subgraph_cfgs
 
-        return result, cluster_results
+        return result, cluster_results, subgraph_cfgs
 
-    def _collect_all_cfg_nodes(self, cluster_results: dict[str, ClusterResult]) -> dict[str, Node]:
+    def _collect_all_cfg_nodes(
+        self,
+        cluster_results: dict[str, ClusterResult],
+        cfg_graphs: dict[str, CallGraph] | None = None,
+    ) -> dict[str, Node]:
         """Build a lookup of qualified_name -> Node for all languages present in cluster_results.
 
-        NOTE: Caching belongs here (not in callers) since cfg.nodes for a given
-        language is immutable within a run.  Currently cheap enough that the
-        dict merge dominates, but a per-language cache could be added if profiling
-        shows this is a bottleneck.
+        Args:
+            cluster_results: Language -> ClusterResult mapping (used to determine languages).
+            cfg_graphs: Optional scoped CallGraphs to use instead of the global CFG.
+                        When provided (e.g. subgraph from DetailsAgent), only nodes
+                        from these graphs are included, preventing scope leakage.
         """
         all_nodes: dict[str, Node] = {}
         for lang in cluster_results:
-            cfg = self.static_analysis.get_cfg(lang)
+            cfg = cfg_graphs[lang] if cfg_graphs and lang in cfg_graphs else self.static_analysis.get_cfg(lang)
             all_nodes.update(cfg.nodes)
         return all_nodes
 
-    def _build_undirected_graphs(self, cluster_results: dict[str, ClusterResult]) -> dict[str, nx.Graph]:
+    def _build_undirected_graphs(
+        self,
+        cluster_results: dict[str, ClusterResult],
+        cfg_graphs: dict[str, CallGraph] | None = None,
+    ) -> dict[str, nx.Graph]:
         """Pre-build undirected networkx graphs for each language in cluster_results.
 
         Meant to be called once before iterating over orphan nodes, so that
         ``_find_nearest_cluster`` doesn't rebuild the graph on every call.
+
+        Args:
+            cluster_results: Language -> ClusterResult mapping (used to determine languages).
+            cfg_graphs: Optional scoped CallGraphs to use instead of the global CFG.
         """
         graphs: dict[str, nx.Graph] = {}
         for lang in cluster_results:
-            cfg = self.static_analysis.get_cfg(lang)
+            cfg = cfg_graphs[lang] if cfg_graphs and lang in cfg_graphs else self.static_analysis.get_cfg(lang)
             graphs[lang] = cfg.to_networkx().to_undirected()
         return graphs
 
@@ -369,6 +452,7 @@ class ClusterMethodsMixin:
         cluster_to_component: dict[int, Component],
         cluster_results: dict[str, ClusterResult],
         fallback_component: Component,
+        cfg_graphs: dict[str, CallGraph] | None = None,
     ) -> dict[str, list[Node]]:
         """Assign every node to a component via its cluster, file co-location, graph distance, or fallback."""
         component_nodes: dict[str, list[Node]] = defaultdict(list)
@@ -390,7 +474,7 @@ class ClusterMethodsMixin:
         fallback_files: set[str] = set()
 
         # Pre-build undirected graphs once for all orphan lookups
-        undirected_graphs = self._build_undirected_graphs(cluster_results) if unassigned else {}
+        undirected_graphs = self._build_undirected_graphs(cluster_results, cfg_graphs) if unassigned else {}
 
         for qname in unassigned:
             node = all_nodes[qname]
@@ -444,7 +528,12 @@ class ClusterMethodsMixin:
                 )
         return files
 
-    def populate_file_methods(self, analysis: AnalysisInsights, cluster_results: dict[str, ClusterResult]) -> None:
+    def populate_file_methods(
+        self,
+        analysis: AnalysisInsights,
+        cluster_results: dict[str, ClusterResult],
+        cfg_graphs: dict[str, CallGraph] | None = None,
+    ) -> None:
         """Deterministically populate ``file_methods`` on every component.
 
         Node-centric approach guaranteeing 100% coverage:
@@ -454,17 +543,24 @@ class ClusterMethodsMixin:
         4. Orphan nodes (not in any cluster) go to the nearest cluster's component
            or fall back to the first component.
         5. Build ``FileMethodGroup`` lists grouped by file path.
+
+        Args:
+            analysis: The analysis insights to populate.
+            cluster_results: Language -> ClusterResult mapping.
+            cfg_graphs: Optional scoped CallGraphs (e.g. subgraph from DetailsAgent).
+                        When provided, only nodes from these graphs are considered,
+                        preventing child components from exceeding parent scope.
         """
         # NOTE: These maps are intentionally rebuilt on each call — not cached — because
         # cluster_results differ per invocation (full graph in AbstractionAgent vs.
         # per-component subgraph in DetailsAgent, which runs in parallel).
-        all_nodes = self._collect_all_cfg_nodes(cluster_results)
+        all_nodes = self._collect_all_cfg_nodes(cluster_results, cfg_graphs)
         cluster_to_component = self._build_cluster_to_component_map(analysis)
         node_to_cluster, all_cluster_ids = self._build_node_to_cluster_map(cluster_results)
         self._validate_cluster_coverage(cluster_to_component, all_cluster_ids)
 
         component_nodes = self._assign_nodes_to_components(
-            all_nodes, node_to_cluster, cluster_to_component, cluster_results, analysis.components[0]
+            all_nodes, node_to_cluster, cluster_to_component, cluster_results, analysis.components[0], cfg_graphs
         )
 
         for comp in analysis.components:

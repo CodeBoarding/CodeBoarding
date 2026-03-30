@@ -22,7 +22,6 @@ from agents.validation import (
     validate_cluster_coverage,
     validate_group_name_coverage,
     validate_key_entities,
-    validate_qualified_names,
     validate_relation_component_names,
 )
 from monitoring import trace
@@ -126,7 +125,6 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
                 validate_relation_component_names,
                 validate_group_name_coverage,
                 validate_key_entities,
-                validate_qualified_names,
             ],
             context=context,
             max_validation_retries=3,

@@ -217,23 +217,32 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         assert isinstance(response, str), f"Expected a string as response type got {response}"
         return self._parse_response(prompt, response, type)
 
-    def _score_result(self, result, validators: list, context) -> tuple[float, list[str]]:
-        """Run all validators on a result and return (score, feedback_messages).
+    def _score_result(self, result, validators: list, context) -> tuple[float, list[tuple[float, str]]]:
+        """Run all validators on a result and return (score, prioritized_feedback).
 
         The score is computed using weighted validators where coverage-related
         validators (cluster coverage, group name coverage) carry significantly
         more weight than others.
+
+        Feedback messages are returned as (weight, message) tuples sorted by
+        weight descending, so that the LLM focuses on the most critical issues
+        (cluster/group coverage) before lower-priority ones (key entities).
         """
         validator_results: list[tuple] = []
-        all_feedback: list[str] = []
+        weighted_feedback: list[tuple[float, str]] = []
         for validator in validators:
             vr: ValidationResult = validator(result, context)
             validator_results.append((validator, vr))
             if not vr.is_valid:
-                all_feedback.extend(vr.feedback_messages)
+                weight = VALIDATOR_WEIGHTS.get(validator.__name__, DEFAULT_VALIDATOR_WEIGHT)
+                for msg in vr.feedback_messages:
+                    weighted_feedback.append((weight, msg))
+
+        # Sort by weight descending so critical feedback comes first
+        weighted_feedback.sort(key=lambda x: x[0], reverse=True)
 
         score = score_validation_results(validator_results)
-        return score, all_feedback
+        return score, weighted_feedback
 
     def _validation_invoke(
         self, prompt: str, return_type: type, validators: list, context, max_validation_retries: int = 1
@@ -269,13 +278,16 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         best_result = result
         best_score = -1.0
 
+        # Weight threshold: validators above this are tagged [CRITICAL]
+        critical_threshold = 10.0
+
         for attempt in range(1, max_validation_retries + 1):
-            score, all_feedback = self._score_result(result, validators, context)
+            score, weighted_feedback = self._score_result(result, validators, context)
 
             logger.info(
                 f"[Validation] Attempt {attempt}/{max_validation_retries} "
                 f"score: {score}/{max_possible_score} "
-                f"({len(all_feedback)} issue(s))"
+                f"({len(weighted_feedback)} issue(s))"
             )
 
             if score > best_score:
@@ -295,16 +307,22 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
                 )
                 break
 
-            # Build feedback prompt for the next attempt
+            # Build feedback prompt for the next attempt.
+            # Feedback is sorted by weight; high-weight items are tagged [CRITICAL].
+            feedback_lines: list[str] = []
+            for weight, msg in weighted_feedback:
+                tag = "CRITICAL" if weight >= critical_threshold else "Secondary"
+                feedback_lines.append(f"- [{tag}] {msg}")
+
             feedback_template = get_validation_feedback_message()
             feedback_prompt = feedback_template.format(
                 original_output=result.llm_str(),
-                feedback_list="\n".join(f"- {msg}" for msg in all_feedback),
+                feedback_list="\n".join(feedback_lines),
                 original_prompt=prompt,
             )
 
             logger.info(
-                f"[Validation] Retry {attempt}/{max_validation_retries} with {len(all_feedback)} feedback items"
+                f"[Validation] Retry {attempt}/{max_validation_retries} with {len(weighted_feedback)} feedback items"
             )
             result = self._parse_invoke(feedback_prompt, return_type)
 

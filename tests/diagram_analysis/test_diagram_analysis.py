@@ -10,6 +10,7 @@ from agents.agent_responses import (
     AnalysisInsights,
     Component,
     FileMethodGroup,
+    MethodEntry,
     Relation,
     SourceCodeReference,
     assign_component_ids,
@@ -536,13 +537,33 @@ class TestDiagramGenerator(unittest.TestCase):
             name="Component1",
             description="First",
             key_entities=[],
-            file_methods=[FileMethodGroup(file_path="file1.py", methods=[])],
+            file_methods=[
+                FileMethodGroup(
+                    file_path="file1.py",
+                    methods=[
+                        MethodEntry(qualified_name="Component1.method1", start_line=1, end_line=10, node_type="METHOD"),
+                        MethodEntry(
+                            qualified_name="Component1.method2", start_line=11, end_line=20, node_type="METHOD"
+                        ),
+                    ],
+                )
+            ],
         )
         comp2 = Component(
             name="Component2",
             description="Second",
             key_entities=[],
-            file_methods=[FileMethodGroup(file_path="file2.py", methods=[])],
+            file_methods=[
+                FileMethodGroup(
+                    file_path="file2.py",
+                    methods=[
+                        MethodEntry(qualified_name="Component2.method1", start_line=1, end_line=10, node_type="METHOD"),
+                        MethodEntry(
+                            qualified_name="Component2.method2", start_line=11, end_line=20, node_type="METHOD"
+                        ),
+                    ],
+                )
+            ],
         )
         analysis = AnalysisInsights(
             description="Test analysis",
@@ -587,13 +608,29 @@ class TestDiagramGenerator(unittest.TestCase):
             name="Comp1",
             description="Component one",
             key_entities=[],
-            file_methods=[FileMethodGroup(file_path="a.py", methods=[])],
+            file_methods=[
+                FileMethodGroup(
+                    file_path="a.py",
+                    methods=[
+                        MethodEntry(qualified_name="Comp1.method1", start_line=1, end_line=10, node_type="METHOD"),
+                        MethodEntry(qualified_name="Comp1.method2", start_line=11, end_line=20, node_type="METHOD"),
+                    ],
+                )
+            ],
         )
         comp2 = Component(
             name="Comp2",
             description="Component two",
             key_entities=[],
-            file_methods=[FileMethodGroup(file_path="b.py", methods=[])],
+            file_methods=[
+                FileMethodGroup(
+                    file_path="b.py",
+                    methods=[
+                        MethodEntry(qualified_name="Comp2.method1", start_line=1, end_line=10, node_type="METHOD"),
+                        MethodEntry(qualified_name="Comp2.method2", start_line=11, end_line=20, node_type="METHOD"),
+                    ],
+                )
+            ],
         )
         analysis = AnalysisInsights(
             description="Root analysis",
