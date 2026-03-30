@@ -177,7 +177,7 @@ def upload_onboarding_materials(project_name, output_dir, repo_dir):
 
 
 @require_git_import(default=NO_COMMIT_HASH)
-def get_git_commit_hash(repo_dir: str) -> str:
+def get_git_commit_hash(repo_dir: Path) -> str:
     """
     Get the latest commit hash of the repository.
     """

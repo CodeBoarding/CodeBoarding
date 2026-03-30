@@ -22,7 +22,6 @@ from agents.validation import (
     validate_cluster_coverage,
     validate_group_name_coverage,
     validate_key_entities,
-    validate_qualified_names,
     validate_relation_component_names,
 )
 from monitoring import trace
@@ -89,7 +88,7 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
                 cluster_results=cluster_results,
                 expected_cluster_ids=get_all_cluster_ids(cluster_results),
             ),
-            max_validation_retries=3,
+            max_validation_attempts=3,
         )
         return cluster_analysis
 
@@ -126,10 +125,9 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
                 validate_relation_component_names,
                 validate_group_name_coverage,
                 validate_key_entities,
-                validate_qualified_names,
             ],
             context=context,
-            max_validation_retries=3,
+            max_validation_attempts=3,
         )
 
     def run(self):
@@ -154,9 +152,6 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
         # Step 7: Fix source code reference lines (resolves reference_file paths for key_entities)
         analysis = self.fix_source_code_reference_lines(analysis)
         # Step 8: Ensure unique key entities across components
-        self._ensure_unique_key_entities(analysis)
-
-        return analysis, cluster_results
         self._ensure_unique_key_entities(analysis)
 
         return analysis, cluster_results

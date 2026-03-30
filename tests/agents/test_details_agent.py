@@ -10,6 +10,7 @@ from agents.agent_responses import (
     Component,
     FileMethodGroup,
     MetaAnalysisInsights,
+    MethodEntry,
     SourceCodeReference,
 )
 
@@ -100,28 +101,40 @@ class TestDetailsAgent(unittest.TestCase):
         )
         # Mock StaticAnalysis and CFG behavior
         abs_assigned = {str(self.repo_dir / fg.file_path) for fg in self.test_component.file_methods}
-        mock_cluster_result = MagicMock()
-        mock_cluster_result.get_cluster_ids.return_value = {1}
-        mock_cluster_result.get_files_for_cluster.return_value = abs_assigned
 
-        mock_sub_cluster_result = MagicMock()
+        # Create a mock node with proper attributes for method-level expansion check
+        mock_node = MagicMock()
+        mock_node.type = NodeType.FUNCTION
+        mock_node.file_path = str(self.repo_dir / "test.py")
+        mock_node.fully_qualified_name = "test.func"
+
+        # Mock cluster result with enough clusters to skip method-level expansion
+        mock_sub_cluster_result = ClusterResult(
+            clusters={i: {f"method_{i}"} for i in range(5)},  # 5 clusters to skip expansion
+            cluster_to_files={i: {str(self.repo_dir / "test.py")} for i in range(5)},
+            file_to_clusters={str(self.repo_dir / "test.py"): set(range(5))},
+            strategy="test",
+        )
 
         mock_subgraph = MagicMock()
-        mock_subgraph.nodes = {"n1": object()}
+        mock_subgraph.nodes = {"n1": mock_node}
         mock_subgraph.cluster.return_value = mock_sub_cluster_result
         mock_subgraph.to_cluster_string.return_value = "Component CFG String"
 
         mock_cfg = MagicMock()
-        mock_cfg.cluster.return_value = mock_cluster_result
         # Ensure filter_by_files returns our mock subgraph
         mock_cfg.filter_by_files.return_value = mock_subgraph
 
         self.mock_static_analysis.get_languages.return_value = ["python"]
         self.mock_static_analysis.get_cfg.return_value = mock_cfg
 
-        subgraph_str, subgraph_cluster_results = agent._create_strict_component_subgraph(self.test_component)
+        subgraph_str, subgraph_cluster_results, subgraph_cfgs = agent._create_strict_component_subgraph(
+            self.test_component
+        )
 
         self.assertIn("Component CFG String", subgraph_str)
+        self.assertIn("python", subgraph_cfgs)
+        self.assertIs(subgraph_cfgs["python"], mock_subgraph)
         self.mock_static_analysis.get_cfg.assert_called_with("python")
         mock_cfg.filter_by_files.assert_called_with(abs_assigned)
         mock_subgraph.cluster.assert_called_once()
@@ -287,8 +300,15 @@ class TestDetailsAgent(unittest.TestCase):
 
         mock_sub_cluster_result = MagicMock()
 
+        mock_node = MagicMock()
+        mock_node.file_path = str(self.repo_dir / "src" / "main.py")
+        mock_node.fully_qualified_name = "n1"
+        mock_node.type = NodeType.FUNCTION
+        mock_node.line_start = 1
+        mock_node.line_end = 10
+
         mock_subgraph = MagicMock()
-        mock_subgraph.nodes = {"n1": object()}
+        mock_subgraph.nodes = {"n1": mock_node}
         mock_subgraph.cluster.return_value = mock_sub_cluster_result
         mock_subgraph.to_cluster_string.return_value = "Component CFG String"
 
@@ -372,6 +392,70 @@ class TestDetailsAgent(unittest.TestCase):
         self.assertEqual([group.file_path for group in sub_component.file_methods], ["cluster_file.py", "test_file.py"])
         self.assertEqual(sub_component.file_methods[0].methods[0].qualified_name, "pkg.cluster_fn")
         self.assertEqual(sub_component.file_methods[1].methods[0].qualified_name, "pkg.TestClass")
+
+    def test_build_files_index_merges_shared_file_methods(self):
+        mock_llm = MagicMock()
+        mock_parsing_llm = MagicMock()
+        agent = DetailsAgent(
+            repo_dir=self.repo_dir,
+            static_analysis=self.mock_static_analysis,
+            project_name=self.project_name,
+            meta_context=self.mock_meta_context,
+            agent_llm=mock_llm,
+            parsing_llm=mock_parsing_llm,
+            run_id="test-run-id",
+        )
+
+        component_a = Component(
+            name="CompA",
+            description="A",
+            key_entities=[],
+            file_methods=[
+                FileMethodGroup(
+                    file_path="shared.py",
+                    methods=[
+                        MethodEntry(
+                            qualified_name="pkg.shared.alpha",
+                            start_line=1,
+                            end_line=5,
+                            node_type="FUNCTION",
+                        )
+                    ],
+                )
+            ],
+        )
+        component_b = Component(
+            name="CompB",
+            description="B",
+            key_entities=[],
+            file_methods=[
+                FileMethodGroup(
+                    file_path="shared.py",
+                    methods=[
+                        MethodEntry(
+                            qualified_name="pkg.shared.beta",
+                            start_line=10,
+                            end_line=15,
+                            node_type="FUNCTION",
+                        )
+                    ],
+                )
+            ],
+        )
+
+        analysis = AnalysisInsights(
+            description="Test analysis",
+            components=[component_a, component_b],
+            components_relations=[],
+        )
+
+        files_index = agent._build_files_index(analysis)
+
+        self.assertIn("shared.py", files_index)
+        self.assertEqual(
+            [method.qualified_name for method in files_index["shared.py"].methods],
+            ["pkg.shared.alpha", "pkg.shared.beta"],
+        )
 
 
 if __name__ == "__main__":

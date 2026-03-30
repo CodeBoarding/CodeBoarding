@@ -10,11 +10,13 @@ from agents.agent_responses import (
     AnalysisInsights,
     Component,
     FileMethodGroup,
+    MethodEntry,
     Relation,
     SourceCodeReference,
     assign_component_ids,
 )
 from diagram_analysis.analysis_json import (
+    ComponentFileMethodGroupJson,
     ComponentJson,
     RelationJson,
     UnifiedAnalysisJson,
@@ -61,8 +63,8 @@ class TestComponentJson(unittest.TestCase):
             description="Test description",
             can_expand=True,
             file_methods=[
-                FileMethodGroup(file_path="file1.py"),
-                FileMethodGroup(file_path="file2.py"),
+                ComponentFileMethodGroupJson(file_path="file1.py", methods=[]),
+                ComponentFileMethodGroupJson(file_path="file2.py", methods=[]),
             ],
             key_entities=[],
         )
@@ -535,13 +537,33 @@ class TestDiagramGenerator(unittest.TestCase):
             name="Component1",
             description="First",
             key_entities=[],
-            file_methods=[FileMethodGroup(file_path="file1.py", methods=[])],
+            file_methods=[
+                FileMethodGroup(
+                    file_path="file1.py",
+                    methods=[
+                        MethodEntry(qualified_name="Component1.method1", start_line=1, end_line=10, node_type="METHOD"),
+                        MethodEntry(
+                            qualified_name="Component1.method2", start_line=11, end_line=20, node_type="METHOD"
+                        ),
+                    ],
+                )
+            ],
         )
         comp2 = Component(
             name="Component2",
             description="Second",
             key_entities=[],
-            file_methods=[FileMethodGroup(file_path="file2.py", methods=[])],
+            file_methods=[
+                FileMethodGroup(
+                    file_path="file2.py",
+                    methods=[
+                        MethodEntry(qualified_name="Component2.method1", start_line=1, end_line=10, node_type="METHOD"),
+                        MethodEntry(
+                            qualified_name="Component2.method2", start_line=11, end_line=20, node_type="METHOD"
+                        ),
+                    ],
+                )
+            ],
         )
         analysis = AnalysisInsights(
             description="Test analysis",
@@ -562,13 +584,14 @@ class TestDiagramGenerator(unittest.TestCase):
             repo_name,
             sub_analyses,
             file_coverage_summary=None,
+            commit_hash="",
         ):
             captured["expandable_components"] = expandable_components
             return "{}"
 
         with patch("diagram_analysis.diagram_generator.get_expandable_components", return_value=planned):
             with patch(
-                "diagram_analysis.incremental.io_utils.build_unified_analysis_json",
+                "diagram_analysis.io_utils.build_unified_analysis_json",
                 side_effect=_capture_build,
             ):
                 gen.generate_analysis()
@@ -585,13 +608,29 @@ class TestDiagramGenerator(unittest.TestCase):
             name="Comp1",
             description="Component one",
             key_entities=[],
-            file_methods=[FileMethodGroup(file_path="a.py", methods=[])],
+            file_methods=[
+                FileMethodGroup(
+                    file_path="a.py",
+                    methods=[
+                        MethodEntry(qualified_name="Comp1.method1", start_line=1, end_line=10, node_type="METHOD"),
+                        MethodEntry(qualified_name="Comp1.method2", start_line=11, end_line=20, node_type="METHOD"),
+                    ],
+                )
+            ],
         )
         comp2 = Component(
             name="Comp2",
             description="Component two",
             key_entities=[],
-            file_methods=[FileMethodGroup(file_path="b.py", methods=[])],
+            file_methods=[
+                FileMethodGroup(
+                    file_path="b.py",
+                    methods=[
+                        MethodEntry(qualified_name="Comp2.method1", start_line=1, end_line=10, node_type="METHOD"),
+                        MethodEntry(qualified_name="Comp2.method2", start_line=11, end_line=20, node_type="METHOD"),
+                    ],
+                )
+            ],
         )
         analysis = AnalysisInsights(
             description="Root analysis",

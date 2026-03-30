@@ -112,6 +112,7 @@ class _AnalysisFileStore:
         sub_analyses: dict[str, AnalysisInsights] | None = None,
         repo_name: str = "",
         file_coverage_summary: FileCoverageSummary | None = None,
+        commit_hash: str = "",
     ) -> Path:
         """Write the full analysis to ``analysis.json`` with file locking.
 
@@ -120,7 +121,7 @@ class _AnalysisFileStore:
         """
         with self._lock:
             return self._write_with_lock_held(
-                analysis, expandable_component_ids, sub_analyses, repo_name, file_coverage_summary
+                analysis, expandable_component_ids, sub_analyses, repo_name, file_coverage_summary, commit_hash
             )
 
     def write_sub(
@@ -171,6 +172,7 @@ class _AnalysisFileStore:
         sub_analyses: dict[str, AnalysisInsights] | None = None,
         repo_name: str = "",
         file_coverage_summary: FileCoverageSummary | None = None,
+        commit_hash: str = "",
     ) -> Path:
         """Write ``analysis.json`` — caller must already hold ``self._lock``."""
         # Keep caller-provided expandables, but also preserve deterministic planner eligibility.
@@ -180,14 +182,29 @@ class _AnalysisFileStore:
         )
         expandable = [c for c in analysis.components if c.component_id in expandable_ids]
 
-        # If no sub_analyses provided, try to preserve existing ones from disk
-        if sub_analyses is None:
+        # Preserve existing metadata fields from disk when not explicitly provided
+        existing_data_cache: dict | None = None
+        if sub_analyses is None or file_coverage_summary is None or not repo_name or not commit_hash:
             existing = self.read()
             if existing:
                 _, existing_subs, existing_data = existing
-                sub_analyses = existing_subs
-                if not repo_name and "metadata" in existing_data:
-                    repo_name = existing_data["metadata"].get("repo_name", "")
+                existing_data_cache = existing_data
+                if sub_analyses is None:
+                    sub_analyses = existing_subs
+                metadata = existing_data.get("metadata", {})
+                if not repo_name:
+                    repo_name = metadata.get("repo_name", "")
+                if not commit_hash:
+                    commit_hash = metadata.get("commit_hash", "")
+                if file_coverage_summary is None:
+                    raw_summary = metadata.get("file_coverage_summary")
+                    if raw_summary:
+                        file_coverage_summary = FileCoverageSummary(
+                            total_files=raw_summary.get("total_files", 0),
+                            analyzed=raw_summary.get("analyzed", 0),
+                            not_analyzed=raw_summary.get("not_analyzed", 0),
+                            not_analyzed_by_reason=raw_summary.get("not_analyzed_by_reason", {}),
+                        )
 
         # Convert sub_analyses dict to the format expected by build_unified_analysis_json
         sub_analyses_tuples: dict[str, tuple[AnalysisInsights, list[Component]]] | None = None
@@ -208,6 +225,7 @@ class _AnalysisFileStore:
                     repo_name=repo_name,
                     sub_analyses=sub_analyses_tuples,
                     file_coverage_summary=file_coverage_summary,
+                    commit_hash=commit_hash,
                 )
             )
 
@@ -259,10 +277,11 @@ def save_analysis(
     sub_analyses: dict[str, AnalysisInsights] | None = None,
     repo_name: str = "",
     file_coverage_summary: FileCoverageSummary | None = None,
+    commit_hash: str = "",
 ) -> Path:
     """Save the analysis to a unified analysis.json file with file locking."""
     return _get_store(output_dir).write(
-        analysis, expandable_component_ids, sub_analyses, repo_name, file_coverage_summary
+        analysis, expandable_component_ids, sub_analyses, repo_name, file_coverage_summary, commit_hash
     )
 
 

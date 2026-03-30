@@ -12,19 +12,6 @@
           "reference_end_line": null
         }
       ],
-      "assigned_files": [
-        "evals/cli.py",
-        "diagram_analysis/__init__.py",
-        "diagram_analysis/analysis_json.py",
-        "diagram_analysis/diagram_generator.py",
-        "diagram_analysis/version.py",
-        "health_main.py",
-        "install.py",
-        "logging_config.py",
-        "main.py",
-        "utils.py",
-        "vscode_constants.py"
-      ],
       "source_cluster_ids": [],
       "can_expand": true
     },
@@ -38,9 +25,6 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [
-        "local_app.py"
       ],
       "source_cluster_ids": [],
       "can_expand": true
@@ -56,9 +40,6 @@
           "reference_end_line": null
         }
       ],
-      "assigned_files": [
-        "duckdb_crud.py"
-      ],
       "source_cluster_ids": [],
       "can_expand": true
     },
@@ -73,15 +54,6 @@
           "reference_end_line": null
         }
       ],
-      "assigned_files": [
-        "output_generators",
-        "output_generators/__init__.py",
-        "output_generators/html.py",
-        "output_generators/html_template.py",
-        "output_generators/markdown.py",
-        "output_generators/mdx.py",
-        "output_generators/sphinx.py"
-      ],
       "source_cluster_ids": [],
       "can_expand": true
     },
@@ -95,9 +67,6 @@
           "reference_start_line": null,
           "reference_end_line": null
         }
-      ],
-      "assigned_files": [
-        "github_action.py"
       ],
       "source_cluster_ids": [],
       "can_expand": true

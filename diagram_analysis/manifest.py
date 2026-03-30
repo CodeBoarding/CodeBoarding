@@ -88,8 +88,8 @@ def build_manifest_from_analysis(
     file_to_component: dict[str, str] = {}
 
     for component in analysis.components:
-        for fmg in component.file_methods:
-            file_path = fmg.file_path
+        for file_group in component.file_methods:
+            file_path = file_group.file_path
             # Normalize path (remove leading ./ if present)
             normalized_path = file_path.lstrip("./")
             file_to_component[normalized_path] = component.component_id

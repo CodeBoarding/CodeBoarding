@@ -1,4 +1,5 @@
 import logging
+import json
 from datetime import datetime, timezone
 
 from pydantic import BaseModel, Field
@@ -7,12 +8,103 @@ from agents.agent_responses import (
     Component,
     Relation,
     AnalysisInsights,
+    FileEntry,
     FileMethodGroup,
+    MethodEntry,
     SourceCodeReference,
-    assign_component_ids,
 )
+from agents.change_status import ChangeStatus
 
 logger = logging.getLogger(__name__)
+
+
+def _build_files_index_from_analysis(analysis: AnalysisInsights) -> dict[str, FileEntry]:
+    """Build a top-level files index from analysis."""
+    return {file_path: entry.model_copy(deep=True) for file_path, entry in analysis.files.items()}
+
+
+def _method_key(file_path: str, qualified_name: str) -> str:
+    return f"{file_path}|{qualified_name}"
+
+
+def _to_method_qualified_name(method: MethodEntry) -> str:
+    return method.qualified_name
+
+
+def _to_component_file_method_refs(file_methods: list[FileMethodGroup]) -> list["ComponentFileMethodGroupJson"]:
+    refs: list[ComponentFileMethodGroupJson] = []
+    for group in file_methods:
+        qnames: list[str] = []
+        seen: set[str] = set()
+        for method in group.methods:
+            qname = _to_method_qualified_name(method)
+            if qname in seen:
+                continue
+            seen.add(qname)
+            qnames.append(qname)
+        refs.append(ComponentFileMethodGroupJson(file_path=group.file_path, methods=qnames))
+    return refs
+
+
+def _method_refs_to_placeholders(method_names: list[str]) -> list[MethodEntry]:
+    return [
+        MethodEntry(
+            qualified_name=method_name,
+            start_line=0,
+            end_line=0,
+            node_type="METHOD",
+        )
+        for method_name in method_names
+    ]
+
+
+def _build_methods_index_from_files(files_index: dict[str, FileEntry]) -> dict[str, "MethodIndexEntry"]:
+    methods_index: dict[str, MethodIndexEntry] = {}
+    for file_path, entry in files_index.items():
+        for method in entry.methods:
+            methods_index[_method_key(file_path, method.qualified_name)] = MethodIndexEntry(
+                file_path=file_path,
+                qualified_name=method.qualified_name,
+                start_line=method.start_line,
+                end_line=method.end_line,
+                type=method.node_type,
+                status=method.status,
+            )
+    return methods_index
+
+
+def _hydrate_component_methods_from_refs(
+    analysis: AnalysisInsights,
+    files_index: dict[str, FileEntry],
+    methods_index: dict[str, "MethodIndexEntry"],
+) -> None:
+    for component in analysis.components:
+        rebuilt: list[FileMethodGroup] = []
+        for group in component.file_methods:
+            file_path = group.file_path
+            file_entry = files_index.get(file_path)
+            file_status = file_entry.file_status if file_entry is not None else group.file_status
+            methods: list[MethodEntry] = []
+            for method in group.methods:
+                qname = _to_method_qualified_name(method)
+                indexed = methods_index.get(_method_key(file_path, qname))
+                if indexed is None:
+                    logger.warning(f"Missing method index entry for {file_path}|{qname}")
+                    continue
+                methods.append(
+                    MethodEntry(
+                        qualified_name=indexed.qualified_name,
+                        start_line=indexed.start_line,
+                        end_line=indexed.end_line,
+                        node_type=indexed.type,
+                        status=ChangeStatus(indexed.status),
+                    )
+                )
+
+            methods = sorted(methods, key=lambda m: (m.start_line, m.end_line, m.qualified_name))
+            rebuilt.append(FileMethodGroup(file_path=file_path, file_status=file_status, methods=methods))
+
+        component.file_methods = rebuilt
 
 
 class RelationJson(Relation):
@@ -35,8 +127,8 @@ class ComponentJson(Component):
         description="Whether the component can be expanded in detail or not.",
         default=False,
     )
-    file_methods: list[FileMethodGroup] = Field(
-        description="All methods/functions belonging to this component, grouped by file.",
+    file_methods: list["ComponentFileMethodGroupJson"] = Field(
+        description="Component method references grouped by file. Each methods entry stores only qualified_name.",
         default_factory=list,
     )
     # Exclude intermediate field from JSON output
@@ -75,6 +167,7 @@ class FileCoverageReport(BaseModel):
 
 class AnalysisMetadata(BaseModel):
     generated_at: str = Field(description="ISO timestamp of when the analysis was generated.")
+    commit_hash: str = Field(default="", description="Git commit hash at which the analysis was generated.")
     repo_name: str = Field(description="Name of the analyzed repository.")
     depth_level: int = Field(description="Maximum depth level of the analysis.")
     file_coverage_summary: FileCoverageSummary = Field(
@@ -85,10 +178,35 @@ class AnalysisMetadata(BaseModel):
     )
 
 
+class MethodIndexEntry(BaseModel):
+    file_path: str = Field(description="Relative path to the source file.")
+    qualified_name: str = Field(description="Fully qualified method/function name.")
+    start_line: int = Field(description="Starting line number in the file.")
+    end_line: int = Field(description="Ending line number in the file.")
+    type: str = Field(description="Node type name (METHOD, FUNCTION, CLASS, ...).")
+    status: str = Field(description="Diff status: added, modified, deleted, unchanged.")
+
+
+class ComponentFileMethodGroupJson(BaseModel):
+    file_path: str = Field(description="Relative path to the source file.")
+    methods: list[str] = Field(
+        default_factory=list,
+        description="Qualified method/function names assigned to this component in this file.",
+    )
+
+
 class UnifiedAnalysisJson(BaseModel):
     metadata: AnalysisMetadata = Field(description="Metadata about the analysis run.")
     description: str = Field(
         description="One paragraph explaining the functionality which is represented by this graph."
+    )
+    files: dict[str, FileEntry] = Field(
+        default_factory=dict,
+        description="Top-level file index keyed by relative file path.",
+    )
+    methods_index: dict[str, MethodIndexEntry] = Field(
+        default_factory=dict,
+        description="Canonical method metadata keyed by '<file_path>|<qualified_name>'.",
     )
     components: list[ComponentJson] = Field(description="List of the components identified in the project.")
     components_relations: list[RelationJson] = Field(description="List of relations among the components.")
@@ -142,7 +260,7 @@ def from_component_to_json_component(
         description=component.description,
         key_entities=component.key_entities,
         source_cluster_ids=component.source_cluster_ids,
-        file_methods=component.file_methods,
+        file_methods=_to_component_file_method_refs(component.file_methods),
         can_expand=can_expand,
         components=nested_components,
         components_relations=nested_relations,
@@ -154,18 +272,21 @@ def from_analysis_to_json(
     expandable_components: list[Component],
     sub_analyses: dict[str, tuple[AnalysisInsights, list[Component]]] | None = None,
 ) -> str:
-    """Convert an AnalysisInsights to a flat JSON string (legacy-compatible, no metadata wrapper)."""
+    """Convert an AnalysisInsights to a flat JSON string (no metadata wrapper)."""
     components_json = [
         from_component_to_json_component(c, expandable_components, sub_analyses, None) for c in analysis.components
     ]
     # Build a dict matching the old AnalysisInsightsJson shape but with nested components
     relations_json = [_relation_to_json(r) for r in analysis.components_relations]
+    files_index = _build_files_index_from_analysis(analysis)
+    methods_index = _build_methods_index_from_files(files_index)
     data = {
         "description": analysis.description,
+        "files": {fp: entry.model_dump() for fp, entry in files_index.items()},
+        "methods_index": {k: v.model_dump() for k, v in methods_index.items()},
         "components": [c.model_dump(exclude_none=True) for c in components_json],
         "components_relations": [r.model_dump() for r in relations_json],
     }
-    import json
 
     return json.dumps(data, indent=2)
 
@@ -220,6 +341,7 @@ def build_unified_analysis_json(
     repo_name: str,
     sub_analyses: dict[str, tuple[AnalysisInsights, list[Component]]] | None = None,
     file_coverage_summary: FileCoverageSummary | None = None,
+    commit_hash: str = "",
 ) -> str:
     """Build the full unified analysis JSON with metadata and nested sub-analyses.
 
@@ -229,6 +351,8 @@ def build_unified_analysis_json(
     components_json = [
         from_component_to_json_component(c, expandable_components, sub_analyses, None) for c in analysis.components
     ]
+    files_index = _build_files_index_from_analysis(analysis)
+    methods_index = _build_methods_index_from_files(files_index)
 
     # Use default summary if none provided
     if file_coverage_summary is None:
@@ -240,11 +364,14 @@ def build_unified_analysis_json(
     unified = UnifiedAnalysisJson(
         metadata=AnalysisMetadata(
             generated_at=datetime.now(timezone.utc).isoformat(),
+            commit_hash=commit_hash,
             repo_name=repo_name,
             depth_level=_compute_depth_level(sub_analyses),
             file_coverage_summary=summary,
         ),
         description=analysis.description,
+        files=files_index,
+        methods_index=methods_index,
         components=components_json,
         components_relations=relations_json,
     )
@@ -263,40 +390,23 @@ def parse_unified_analysis(
     sub_analyses: dict[str, AnalysisInsights] = {}
     root_analysis = _extract_analysis_recursive(data, sub_analyses)
 
-    # Backward compatibility: if components lack component_id, assign deterministically
-    if any(c.component_id == "" for c in root_analysis.components):
-        _assign_ids_and_rekey(root_analysis, sub_analyses)
+    files_raw = data.get("files", {})
+    files_index: dict[str, FileEntry] = {path: FileEntry(**entry) for path, entry in files_raw.items()}
+    methods_index_raw = data.get("methods_index", {})
+    if methods_index_raw:
+        methods_index: dict[str, MethodIndexEntry] = {
+            key: MethodIndexEntry(**entry) for key, entry in methods_index_raw.items()
+        }
+    else:
+        methods_index = _build_methods_index_from_files(files_index)
+
+    root_analysis.files = {path: entry.model_copy(deep=True) for path, entry in files_index.items()}
+    _hydrate_component_methods_from_refs(root_analysis, files_index, methods_index)
+    for sub in sub_analyses.values():
+        sub.files = {path: entry.model_copy(deep=True) for path, entry in files_index.items()}
+        _hydrate_component_methods_from_refs(sub, files_index, methods_index)
 
     return root_analysis, sub_analyses
-
-
-def _assign_ids_and_rekey(
-    root_analysis: AnalysisInsights,
-    sub_analyses: dict[str, AnalysisInsights],
-) -> None:
-    """Assign component IDs to an analysis loaded from old JSON (without IDs) and re-key sub_analyses."""
-    # Build old name -> sub_analysis mapping before clearing
-    old_subs = dict(sub_analyses)
-    sub_analyses.clear()
-
-    # Assign IDs to root and recursively to sub-analyses (empty parent_id for root)
-    _assign_ids_recursive(root_analysis, old_subs, sub_analyses, "")
-
-
-def _assign_ids_recursive(
-    analysis: AnalysisInsights,
-    old_subs: dict[str, AnalysisInsights],
-    new_subs: dict[str, AnalysisInsights],
-    parent_id: str,
-) -> None:
-    """Recursively assign IDs and re-key sub_analyses from name-keyed to id-keyed."""
-    assign_component_ids(analysis, parent_id=parent_id)
-    for comp in analysis.components:
-        # Check if this component had a sub-analysis keyed by name
-        if comp.name in old_subs:
-            sub = old_subs[comp.name]
-            new_subs[comp.component_id] = sub
-            _assign_ids_recursive(sub, old_subs, new_subs, comp.component_id)
 
 
 def build_id_to_name_map(root_analysis: AnalysisInsights, sub_analyses: dict[str, AnalysisInsights]) -> dict[str, str]:
@@ -308,7 +418,11 @@ def build_id_to_name_map(root_analysis: AnalysisInsights, sub_analyses: dict[str
     return id_to_name
 
 
-def _extract_analysis_recursive(data: dict, sub_analyses: dict[str, AnalysisInsights]) -> AnalysisInsights:
+def _extract_analysis_recursive(
+    data: dict,
+    sub_analyses: dict[str, AnalysisInsights],
+    parent_component_id: str = "",
+) -> AnalysisInsights:
     """Recursively extract AnalysisInsights from data dict, collecting all sub-analyses.
 
     Args:
@@ -320,8 +434,15 @@ def _extract_analysis_recursive(data: dict, sub_analyses: dict[str, AnalysisInsi
     """
     components: list[Component] = []
 
-    for comp_data in data.get("components", []):
-        file_methods = [FileMethodGroup(**fm) for fm in comp_data.get("file_methods", [])]
+    for index, comp_data in enumerate(data.get("components", []), start=1):
+        file_methods = [
+            FileMethodGroup(
+                file_path=group["file_path"],
+                file_status=ChangeStatus.UNCHANGED,
+                methods=_method_refs_to_placeholders([str(m) for m in group.get("methods", [])]),
+            )
+            for group in comp_data.get("file_methods", [])
+        ]
         key_entities = [
             SourceCodeReference(
                 qualified_name=ke["qualified_name"],
@@ -333,10 +454,12 @@ def _extract_analysis_recursive(data: dict, sub_analyses: dict[str, AnalysisInsi
         ]
 
         # Create the component for this level (non-nested)
+        legacy_prefix = f"{parent_component_id}_" if parent_component_id else ""
+        fallback_component_id = f"legacy_component_{legacy_prefix}{index}"
         component = Component(
-            name=comp_data["name"],
-            component_id=comp_data.get("component_id", ""),
-            description=comp_data["description"],
+            name=comp_data.get("name", fallback_component_id),
+            component_id=comp_data.get("component_id") or fallback_component_id,
+            description=comp_data.get("description", ""),
             key_entities=key_entities,
             file_methods=file_methods,
             source_cluster_ids=comp_data.get("source_cluster_ids", []),
@@ -345,9 +468,14 @@ def _extract_analysis_recursive(data: dict, sub_analyses: dict[str, AnalysisInsi
 
         # Recursively process nested components if they exist
         nested_components = comp_data.get("components")
-        if nested_components is not None:
-            sub_analysis = _extract_analysis_recursive(comp_data, sub_analyses)
-            sub_analyses[component.component_id or comp_data["name"]] = sub_analysis
+        if isinstance(nested_components, list) and nested_components:
+            nested_data = {
+                "description": comp_data.get("description", ""),
+                "components": nested_components,
+                "components_relations": comp_data.get("components_relations", []),
+            }
+            sub_analysis = _extract_analysis_recursive(nested_data, sub_analyses, component.component_id)
+            sub_analyses[component.component_id] = sub_analysis
 
     return AnalysisInsights(
         description=data.get("description", ""),
