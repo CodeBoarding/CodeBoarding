@@ -522,9 +522,19 @@ class ClusterMethodsMixin:
         files: dict[str, FileEntry] = {}
         for component in analysis.components:
             for fmg in component.file_methods:
-                files[fmg.file_path] = FileEntry(
-                    file_status=fmg.file_status,
-                    methods=[m.model_copy(deep=True) for m in fmg.methods],
+                entry = files.get(fmg.file_path)
+                if entry is None:
+                    entry = FileEntry(file_status=fmg.file_status, methods=[])
+                    files[fmg.file_path] = entry
+
+                methods_by_qname = {m.qualified_name: m for m in entry.methods}
+                for method in fmg.methods:
+                    if method.qualified_name not in methods_by_qname:
+                        methods_by_qname[method.qualified_name] = method.model_copy(deep=True)
+
+                entry.methods = sorted(
+                    methods_by_qname.values(),
+                    key=lambda m: (m.start_line, m.end_line, m.qualified_name),
                 )
         return files
 

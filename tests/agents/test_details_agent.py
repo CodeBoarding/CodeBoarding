@@ -10,6 +10,7 @@ from agents.agent_responses import (
     Component,
     FileMethodGroup,
     MetaAnalysisInsights,
+    MethodEntry,
     SourceCodeReference,
 )
 
@@ -391,6 +392,70 @@ class TestDetailsAgent(unittest.TestCase):
         self.assertEqual([group.file_path for group in sub_component.file_methods], ["cluster_file.py", "test_file.py"])
         self.assertEqual(sub_component.file_methods[0].methods[0].qualified_name, "pkg.cluster_fn")
         self.assertEqual(sub_component.file_methods[1].methods[0].qualified_name, "pkg.TestClass")
+
+    def test_build_files_index_merges_shared_file_methods(self):
+        mock_llm = MagicMock()
+        mock_parsing_llm = MagicMock()
+        agent = DetailsAgent(
+            repo_dir=self.repo_dir,
+            static_analysis=self.mock_static_analysis,
+            project_name=self.project_name,
+            meta_context=self.mock_meta_context,
+            agent_llm=mock_llm,
+            parsing_llm=mock_parsing_llm,
+            run_id="test-run-id",
+        )
+
+        component_a = Component(
+            name="CompA",
+            description="A",
+            key_entities=[],
+            file_methods=[
+                FileMethodGroup(
+                    file_path="shared.py",
+                    methods=[
+                        MethodEntry(
+                            qualified_name="pkg.shared.alpha",
+                            start_line=1,
+                            end_line=5,
+                            node_type="FUNCTION",
+                        )
+                    ],
+                )
+            ],
+        )
+        component_b = Component(
+            name="CompB",
+            description="B",
+            key_entities=[],
+            file_methods=[
+                FileMethodGroup(
+                    file_path="shared.py",
+                    methods=[
+                        MethodEntry(
+                            qualified_name="pkg.shared.beta",
+                            start_line=10,
+                            end_line=15,
+                            node_type="FUNCTION",
+                        )
+                    ],
+                )
+            ],
+        )
+
+        analysis = AnalysisInsights(
+            description="Test analysis",
+            components=[component_a, component_b],
+            components_relations=[],
+        )
+
+        files_index = agent._build_files_index(analysis)
+
+        self.assertIn("shared.py", files_index)
+        self.assertEqual(
+            [method.qualified_name for method in files_index["shared.py"].methods],
+            ["pkg.shared.alpha", "pkg.shared.beta"],
+        )
 
 
 if __name__ == "__main__":
