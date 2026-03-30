@@ -42,7 +42,9 @@ def _to_component_file_method_refs(file_methods: list[FileMethodGroup]) -> list[
                 continue
             seen.add(qname)
             qnames.append(qname)
-        refs.append(ComponentFileMethodGroupJson(file_path=group.file_path, methods=qnames))
+        refs.append(
+            ComponentFileMethodGroupJson(file_path=group.file_path, file_status=group.file_status, methods=qnames)
+        )
     return refs
 
 
@@ -189,6 +191,10 @@ class MethodIndexEntry(BaseModel):
 
 class ComponentFileMethodGroupJson(BaseModel):
     file_path: str = Field(description="Relative path to the source file.")
+    file_status: str = Field(
+        default="unchanged",
+        description="Diff status of this file: added, modified, deleted, renamed, or unchanged.",
+    )
     methods: list[str] = Field(
         default_factory=list,
         description="Qualified method/function names assigned to this component in this file.",
