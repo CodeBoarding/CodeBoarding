@@ -1,6 +1,8 @@
 import unittest
 
 from agents.agent_responses import (
+    AnalysisStructure,
+    ComponentStructure,
     SourceCodeReference,
     Relation,
     Component,
@@ -205,6 +207,19 @@ class TestAnalysisInsights(unittest.TestCase):
         # Should work with non-empty list
         component = Component(name="Test", description="Test component", key_entities=[ref])
         self.assertEqual(len(component.key_entities), 1)
+
+
+class TestAnalysisStructure(unittest.TestCase):
+
+    def test_analysis_structure_llm_str(self):
+        structure = AnalysisStructure(
+            description="Structure overview",
+            components=[ComponentStructure(name="Service", description="Business logic", source_group_names=["Core"])],
+            components_relations=[],
+        )
+        llm_str = structure.llm_str()
+        self.assertIn("Structure overview", llm_str)
+        self.assertIn("Service", llm_str)
 
 
 class TestComponentIds(unittest.TestCase):

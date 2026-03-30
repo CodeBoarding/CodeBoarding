@@ -7,9 +7,9 @@ from langchain_core.prompts import PromptTemplate
 from agents.agent import CodeBoardingAgent
 from agents.agent_responses import (
     AnalysisInsights,
+    AnalysisStructure,
     ClusterAnalysis,
     MetaAnalysisInsights,
-    assign_component_ids,
 )
 from agents.cluster_methods_mixin import ClusterMethodsMixin
 from agents.prompts import (
@@ -21,9 +21,6 @@ from agents.validation import (
     ValidationContext,
     validate_cluster_coverage,
     validate_group_name_coverage,
-    validate_key_entities,
-    validate_qualified_names,
-    validate_relation_component_names,
 )
 from monitoring import trace
 from static_analyzer.analysis_result import StaticAnalysisResults
@@ -54,7 +51,14 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
         self.prompts = {
             "group_clusters": PromptTemplate(
                 template=get_cluster_grouping_message(),
-                input_variables=["project_name", "cfg_clusters", "meta_context", "project_type"],
+                input_variables=[
+                    "project_name",
+                    "cfg_clusters",
+                    "meta_context",
+                    "project_type",
+                    "sorted_cluster_ids",
+                    "cluster_count",
+                ],
             ),
             "final_analysis": PromptTemplate(
                 template=get_final_analysis_message(),
@@ -70,6 +74,7 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
         project_type = self.meta_context.project_type if self.meta_context else "unknown"
 
         programming_langs = self.static_analysis.get_languages()
+        expected_cluster_ids = get_all_cluster_ids(cluster_results)
 
         # Build cluster string using the pre-computed cluster results
         cluster_str = self._build_cluster_string(programming_langs, cluster_results)
@@ -79,6 +84,8 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
             cfg_clusters=cluster_str,
             meta_context=meta_context_str,
             project_type=project_type,
+            sorted_cluster_ids=", ".join(str(cluster_id) for cluster_id in sorted(expected_cluster_ids)),
+            cluster_count=len(expected_cluster_ids),
         )
 
         cluster_analysis = self._validation_invoke(
@@ -87,7 +94,7 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
             validators=[validate_cluster_coverage],
             context=ValidationContext(
                 cluster_results=cluster_results,
-                expected_cluster_ids=get_all_cluster_ids(cluster_results),
+                expected_cluster_ids=expected_cluster_ids,
             ),
             max_validation_retries=3,
         )
@@ -111,26 +118,17 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
             project_type=project_type,
         )
 
-        # Build validation context with CFG graphs for edge checking
-        context = ValidationContext(
-            cluster_results=cluster_results,
-            cfg_graphs={lang: self.static_analysis.get_cfg(lang) for lang in self.static_analysis.get_languages()},
-            static_analysis=self.static_analysis,
-            llm_cluster_analysis=llm_cluster_analysis,
-        )
-
-        return self._validation_invoke(
+        structure = self._validation_invoke(
             prompt,
-            AnalysisInsights,
-            validators=[
-                validate_relation_component_names,
-                validate_group_name_coverage,
-                validate_key_entities,
-                validate_qualified_names,
-            ],
-            context=context,
+            AnalysisStructure,
+            validators=[validate_group_name_coverage],
+            context=ValidationContext(
+                cluster_results=cluster_results,
+                llm_cluster_analysis=llm_cluster_analysis,
+            ),
             max_validation_retries=3,
         )
+        return self._materialize_analysis(structure, llm_cluster_analysis, cluster_results)
 
     def run(self):
         # Build full cluster results dict for all languages ONCE
@@ -141,22 +139,5 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
 
         # Step 2: Generate abstract components from grouped clusters
         analysis = self.step_final_analysis(cluster_analysis, cluster_results)
-        # Step 3: Assign hierarchical component IDs ("1", "2", "3", ...)
-        assign_component_ids(analysis)
-        # Step 4: Resolve cluster IDs deterministically from group names
-        self._resolve_cluster_ids_from_groups(analysis, cluster_analysis)
-        # Step 5: Populate file_methods deterministically from cluster results + orphan assignment
-        self.populate_file_methods(analysis, cluster_results)
-
-        # Step 6: Build static inter-component relations from CFG edges
-        self.build_static_relations(analysis)
-
-        # Step 7: Fix source code reference lines (resolves reference_file paths for key_entities)
-        analysis = self.fix_source_code_reference_lines(analysis)
-        # Step 8: Ensure unique key entities across components
-        self._ensure_unique_key_entities(analysis)
-
-        return analysis, cluster_results
-        self._ensure_unique_key_entities(analysis)
 
         return analysis, cluster_results

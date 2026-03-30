@@ -11,7 +11,7 @@ from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.prompts import PromptTemplate
 from langchain.agents import create_agent
 from langgraph.graph.state import CompiledStateGraph
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 from trustcall import create_extractor
 
 from agents.prompts import get_validation_feedback_message
@@ -22,6 +22,7 @@ from repo_utils.ignore import RepoIgnoreManager
 from agents.llm_config import MONITORING_CALLBACK
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.reference_resolve_mixin import ReferenceResolverMixin
+from agents.validation import ValidationIssue
 
 logger = logging.getLogger(__name__)
 
@@ -216,6 +217,83 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         assert isinstance(response, str), f"Expected a string as response type got {response}"
         return self._parse_response(prompt, response, type)
 
+    def _run_validators(self, result, validators: list, context) -> list[ValidationIssue]:
+        """Run validators and flatten machine-readable issues."""
+        issues: list[ValidationIssue] = []
+
+        for validator in validators:
+            validation_result = validator(result, context)
+            if validation_result.is_valid:
+                continue
+
+            if validation_result.issues:
+                issues.extend(validation_result.issues)
+                continue
+
+            issues.extend(
+                ValidationIssue(code=validator.__name__, message=message)
+                for message in validation_result.feedback_messages
+            )
+
+        return issues
+
+    def _serialize_result_for_retry(self, result) -> str:
+        """Serialize the current result for schema-preserving repair prompts."""
+        if isinstance(result, BaseModel):
+            return result.model_dump_json(indent=2, exclude_none=True)
+        return json.dumps(result, indent=2, default=str)
+
+    def _try_programmatic_repairs(self, result, issues: list[ValidationIssue], context) -> tuple[object, bool]:
+        """Attempt deterministic repairs before falling back to an LLM retry."""
+        if not issues:
+            return result, False
+
+        repaired = False
+        missing_cluster_ids: set[int] = set()
+        for issue in issues:
+            if issue.code != "missing_cluster_ids":
+                continue
+            cluster_ids = issue.payload.get("cluster_ids", [])
+            if isinstance(cluster_ids, list):
+                missing_cluster_ids.update(cid for cid in cluster_ids if isinstance(cid, int))
+
+        if missing_cluster_ids and hasattr(self, "_auto_assign_missing_clusters"):
+            updated_result, unresolved = self._auto_assign_missing_clusters(
+                cluster_analysis=result,
+                expected_cluster_ids=context.expected_cluster_ids,
+                cluster_results=context.cluster_results,
+                cfg_graphs=context.cfg_graphs or None,
+            )
+            if len(unresolved) < len(missing_cluster_ids):
+                repaired = True
+                result = updated_result
+                logger.info(
+                    f"[Validation] Programmatic repair resolved {len(missing_cluster_ids) - len(unresolved)} "
+                    f"cluster issue(s) before retry"
+                )
+
+        return result, repaired
+
+    def _build_targeted_retry_prompt(self, prompt: str, result, issues: list[ValidationIssue]) -> str:
+        """Build a retry prompt that preserves the current schema and narrows repair scope."""
+        feedback_template = get_validation_feedback_message()
+        feedback_lines = [f"- [{issue.code}] {issue.message}" for issue in issues]
+        retry_scope = "mixed"
+        unique_codes = {issue.code for issue in issues}
+        if len(unique_codes) == 1:
+            retry_scope = next(iter(unique_codes))
+        scoped_prompt = (
+            f"Retry scope: `{retry_scope}`.\n"
+            f"Return the corrected object in the exact same schema. Do not rename fields. "
+            f"Do not remove valid items. Only apply the minimum necessary edits.\n\n"
+            f"{prompt}"
+        )
+        return feedback_template.format(
+            original_output=self._serialize_result_for_retry(result),
+            feedback_list="\n".join(feedback_lines),
+            original_prompt=scoped_prompt,
+        )
+
     def _validation_invoke(
         self, prompt: str, return_type: type, validators: list, context, max_validation_retries: int = 1
     ):
@@ -235,36 +313,27 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         result = self._parse_invoke(prompt, return_type)
 
         for attempt in range(1, max_validation_retries + 1):
-            # Run all validators
-            all_feedback = []
-            for validator in validators:
-                validation_result = validator(result, context)
-                if not validation_result.is_valid:
-                    all_feedback.extend(validation_result.feedback_messages)
-
-            if not all_feedback:
+            issues = self._run_validators(result, validators, context)
+            if not issues:
                 logger.info(f"[Validation] All validations passed on attempt {attempt}")
-                return result  # All validations passed
+                return result
 
-            # On the last attempt, log that validation still failed but don't retry
+            result, repaired = self._try_programmatic_repairs(result, issues, context)
+            if repaired:
+                issues = self._run_validators(result, validators, context)
+                if not issues:
+                    logger.info(f"[Validation] All validations passed after programmatic repair on attempt {attempt}")
+                    return result
+
             if attempt == max_validation_retries:
                 logger.warning(
-                    f"[Validation] Still {len(all_feedback)} issue(s) after {max_validation_retries} retries, "
+                    f"[Validation] Still {len(issues)} issue(s) after {max_validation_retries} retries, "
                     f"returning best result"
                 )
                 return result
 
-            # Build feedback prompt using the prompt factory
-            feedback_template = get_validation_feedback_message()
-            feedback_prompt = feedback_template.format(
-                original_output=result.llm_str(),
-                feedback_list="\n".join(f"- {msg}" for msg in all_feedback),
-                original_prompt=prompt,
-            )
-
-            logger.info(
-                f"[Validation] Retry {attempt}/{max_validation_retries} with {len(all_feedback)} feedback items"
-            )
+            logger.info(f"[Validation] Retry {attempt}/{max_validation_retries} with {len(issues)} feedback items")
+            feedback_prompt = self._build_targeted_retry_prompt(prompt, result, issues)
             result = self._parse_invoke(feedback_prompt, return_type)
 
         return result

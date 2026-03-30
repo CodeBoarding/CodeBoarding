@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 import networkx as nx
 
 from agents.cluster_methods_mixin import ClusterMethodsMixin
-from agents.agent_responses import AnalysisInsights, Component, SourceCodeReference
+from agents.agent_responses import AnalysisInsights, ClusterAnalysis, ClustersComponent, Component, SourceCodeReference
 from static_analyzer.graph import CallGraph, ClusterResult
 from static_analyzer.constants import NodeType
 from static_analyzer.node import Node
@@ -176,6 +176,102 @@ class TestFindNearestCluster(unittest.TestCase):
         undirected_graphs = mixin._build_undirected_graphs(cluster_results)
         result = mixin._find_nearest_cluster("W", cluster_results, undirected_graphs)
         self.assertEqual(result, 10)
+
+
+class TestDeterministicClusterRepairs(unittest.TestCase):
+    def test_build_cluster_string_skips_languages_without_cluster_results(self):
+        static = MagicMock()
+        python_cfg = MagicMock()
+        python_cfg.to_cluster_string.return_value = "Cluster 1: A"
+        static.get_cfg.return_value = python_cfg
+        mixin = MockMixin(repo_dir=Path("/repo"), static_analysis=static)
+
+        cluster_str = mixin._build_cluster_string(
+            programming_langs=["python", "javascript"],
+            cluster_results={
+                "python": ClusterResult(
+                    clusters={1: {"A"}},
+                    file_to_clusters={},
+                    cluster_to_files={},
+                    strategy="test",
+                )
+            },
+        )
+
+        self.assertIn("Python - Clusters", cluster_str)
+        self.assertNotIn("Javascript - Clusters", cluster_str)
+        static.get_cfg.assert_called_once_with("python")
+
+    def test_auto_assign_missing_clusters_prefers_strongest_connected_group(self):
+        static = MagicMock()
+        cfg = CallGraph(language="python")
+        for name in ("A", "B", "C"):
+            cfg.add_node(Node(name, NodeType.FUNCTION, "/src/mod.py", 1, 10))
+        cfg.add_edge("C", "A")
+        static.get_cfg.return_value = cfg
+        mixin = MockMixin(repo_dir=Path("/repo"), static_analysis=static)
+
+        cluster_results = {
+            "python": ClusterResult(
+                clusters={1: {"A"}, 2: {"B"}, 3: {"C"}},
+                file_to_clusters={},
+                cluster_to_files={},
+                strategy="test",
+            )
+        }
+        cluster_analysis = ClusterAnalysis(
+            cluster_components=[
+                ClustersComponent(name="GroupA", description="desc", cluster_ids=[1]),
+                ClustersComponent(name="GroupB", description="desc", cluster_ids=[2]),
+            ]
+        )
+
+        repaired, unresolved = mixin._auto_assign_missing_clusters(
+            cluster_analysis=cluster_analysis,
+            expected_cluster_ids={1, 2, 3},
+            cluster_results=cluster_results,
+        )
+
+        self.assertEqual(unresolved, set())
+        self.assertEqual(repaired.cluster_components[0].cluster_ids, [1, 3])
+
+    def test_populate_key_entities_fills_empty_components(self):
+        static = MagicMock()
+        cfg = CallGraph(language="python")
+        for name in ("A", "B"):
+            cfg.add_node(Node(name, NodeType.FUNCTION, "/src/mod.py", 1, 10))
+        cfg.add_edge("A", "B")
+        cfg.add_edge("A", "B")
+        static.get_cfg.return_value = cfg
+        static.get_languages.return_value = ["python"]
+        mixin = MockMixin(repo_dir=Path("/repo"), static_analysis=static)
+
+        cluster_results = {
+            "python": ClusterResult(
+                clusters={1: {"A", "B"}},
+                file_to_clusters={},
+                cluster_to_files={},
+                strategy="test",
+            )
+        }
+        analysis = AnalysisInsights(
+            description="test",
+            components=[
+                Component(
+                    name="Comp",
+                    description="desc",
+                    key_entities=[],
+                    source_group_names=["GroupA"],
+                    source_cluster_ids=[1],
+                )
+            ],
+            components_relations=[],
+        )
+
+        mixin._populate_key_entities(analysis, cluster_results)
+
+        self.assertTrue(analysis.components[0].key_entities)
+        self.assertEqual(analysis.components[0].key_entities[0].qualified_name, "A")
 
 
 if __name__ == "__main__":

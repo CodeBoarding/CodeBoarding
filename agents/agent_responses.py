@@ -204,6 +204,25 @@ class Component(LLMBaseModel):
         return "\n".join([n, d, sg, qn]).strip()
 
 
+class ComponentStructure(LLMBaseModel):
+    """Structure-only component returned by the LLM before deterministic enrichment."""
+
+    name: str = Field(description="Name of the component")
+    description: str = Field(description="A short description of the component.")
+    source_group_names: list[str] = Field(
+        description="Names of the cluster groups from the grouping analysis that this component encompasses.",
+        default_factory=list,
+    )
+
+    def llm_str(self):
+        n = f"**Component:** `{self.name}`"
+        d = f"   - *Description*: {self.description}"
+        sg = ""
+        if self.source_group_names:
+            sg = f"   - *Source Group Names*: {', '.join(self.source_group_names)}"
+        return "\n".join([n, d, sg]).strip()
+
+
 class AnalysisInsights(LLMBaseModel):
     """Project analysis insights including components and their relations."""
 
@@ -220,6 +239,30 @@ class AnalysisInsights(LLMBaseModel):
         body = "\n".join(ac.llm_str() for ac in self.components)
         relations = "\n".join(cr.llm_str() for cr in self.components_relations)
         return title + body + relations
+
+
+class AnalysisStructure(LLMBaseModel):
+    """Structure-only analysis returned by the LLM before deterministic enrichment."""
+
+    description: str = Field(
+        description="One paragraph explaining the functionality which is represented by this graph. What the main flow is and what is its purpose."
+    )
+    components: list[ComponentStructure] = Field(
+        description="List of the structural components identified in the project."
+    )
+    components_relations: list[Relation] = Field(
+        default_factory=list,
+        description="Optional list of relations among the components. May be left empty when relations are derived statically.",
+    )
+
+    def llm_str(self):
+        if not self.components:
+            return "No abstract components found."
+        title = "# Abstract Components Overview\n"
+        description = f"{self.description}\n"
+        body = "\n".join(component.llm_str() for component in self.components)
+        relations = "\n".join(relation.llm_str() for relation in self.components_relations)
+        return title + description + body + relations
 
 
 def assign_component_ids(analysis: AnalysisInsights, parent_id: str = "") -> None:

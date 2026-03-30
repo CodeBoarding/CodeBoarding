@@ -143,10 +143,13 @@ class TestDetailsAgent(unittest.TestCase):
         mock_response = ClusterAnalysis(cluster_components=[])
         mock_validation_invoke.return_value = mock_response
 
-        # Mock CFG to return a proper cluster string
-        mock_cfg = MagicMock()
-        mock_cfg.to_cluster_string.return_value = "Cluster 1: method_a, method_b"
-        self.mock_static_analysis.get_cfg.return_value = mock_cfg
+        # Only languages present in the subgraph cluster results should be rendered.
+        python_cfg = MagicMock()
+        python_cfg.to_cluster_string.return_value = "Cluster 1: method_a, method_b"
+        javascript_cfg = MagicMock()
+        javascript_cfg.to_cluster_string.return_value = "Unrelated full repo clusters"
+        self.mock_static_analysis.get_languages.return_value = ["python", "javascript"]
+        self.mock_static_analysis.get_cfg.side_effect = [python_cfg, javascript_cfg]
 
         mock_cluster_result = MagicMock()
         subgraph_cluster_results = {"python": mock_cluster_result}
@@ -155,6 +158,7 @@ class TestDetailsAgent(unittest.TestCase):
 
         self.assertEqual(result, mock_response)
         mock_validation_invoke.assert_called_once()
+        self.mock_static_analysis.get_cfg.assert_called_once_with("python")
 
     @patch("agents.details_agent.DetailsAgent._validation_invoke")
     def test_step_final_analysis(self, mock_validation_invoke):

@@ -93,6 +93,16 @@ class TestPromptFactory(unittest.TestCase):
         self.assertGreater(len(prompts), 0)
         self.assertIn("SYSTEM_MESSAGE", prompts)
 
+    def test_cluster_grouping_prompt_enforces_cluster_coverage(self):
+        factory = PromptFactory(LLMType.GEMINI_FLASH)
+        prompt = factory.get_prompt("cluster_grouping_message")
+        self.assertIn("All cluster IDs that MUST be assigned exactly once", prompt)
+
+    def test_validation_feedback_prompt_preserves_schema(self):
+        factory = PromptFactory(LLMType.GEMINI_FLASH)
+        prompt = factory.get_prompt("validation_feedback_message")
+        self.assertIn("exact same schema", prompt)
+
 
 class TestLLMTypeFromModelName(unittest.TestCase):
     def test_from_model_name_gemini(self):

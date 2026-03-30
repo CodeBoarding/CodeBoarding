@@ -51,6 +51,11 @@ Project Type: {project_type}
 
 The CFG has been pre-clustered into groups of related methods/functions. Each cluster represents methods that call each other frequently.
 
+All cluster IDs that MUST be assigned exactly once:
+{sorted_cluster_ids}
+
+Total clusters: {cluster_count}
+
 CFG Clusters:
 {cfg_clusters}
 
@@ -60,8 +65,10 @@ GROUP similar clusters together into logical components based on their relations
 Instructions:
 1. Analyze the clusters shown above and identify which ones work together or are functionally related
 2. Group related clusters into meaningful components
-3. A component can contain one or more cluster IDs (e.g., [1], [2, 5], or [3, 7, 9])
-4. For each grouped component, provide:
+3. You MUST assign every cluster ID from the list above exactly once
+4. Do NOT invent cluster IDs, omit cluster IDs, or place the same cluster ID in multiple components
+5. A component can contain one or more cluster IDs (e.g., [1], [2, 5], or [3, 7, 9])
+6. For each grouped component, provide:
    - **name**: Short, descriptive name for this group (e.g., 'Authentication', 'Data Pipeline', 'Request Handling')
    - **cluster_ids**: List of cluster IDs that belong together (as a list, e.g., [1, 3, 5])
    - **description**: Comprehensive explanation including:
@@ -75,6 +82,7 @@ Focus on:
 - Semantic meaning based on method names, call patterns, and architectural context
 - Clear justification for why clusters belong together
 - Describing inter-group interactions based on the inter-cluster connections
+- Before answering, verify that the union of all cluster_ids equals the provided cluster list
 
 Output Format:
 Return a ClusterAnalysis with cluster_components using ClustersComponent model.
@@ -92,8 +100,8 @@ Instructions:
 1. Review the named cluster groups above
 2. Decide which named groups should be merged into final components
 3. For each component, specify which named cluster groups it encompasses via source_group_names
-4. Add key entities (2-5 most important classes/methods) for each component using SourceCodeReference
-5. Define relationships between components
+4. Do NOT add key_entities. They are derived later from static analysis.
+5. Do NOT invent relationships. Return an empty relations list; relationships are derived later from static analysis.
 
 Guidelines for {project_type} projects:
 - Aim for 5-8 final components
@@ -106,9 +114,8 @@ Required outputs:
 - Components: Each with:
   * name: Clear component name
   * description: What this component does
-  * source_group_names: Which named cluster groups from the analysis above this component encompasses (use exact group names)
-  * key_entities: 2-5 most important classes/methods (SourceCodeReference objects with qualified_name and reference_file)
-- Relations: Max 2 relationships per component pair (avoid relations in which we have sends/returns i.e. ComponentA sends a message to ComponentB and ComponentB returns result to ComponentA)
+  * source_group_names: Which named cluster groups from the analysis above this component encompasses (use exact group names and exact spelling)
+- Relations: Return an empty list
 
 Constraints:
 - Focus on highest level architectural components
@@ -335,6 +342,10 @@ VALIDATION_FEEDBACK_MESSAGE = """IMPORTANT: You must CORRECT the output below. D
 
 ## Correction Instructions
 Address EACH issue listed above. Preserve all correct components, relationships, and assignments. Only modify what the feedback specifically calls out.
+Return the corrected object in the exact same schema.
+Do not rename fields.
+Do not remove valid items.
+Only apply the minimum necessary edits.
 
 ## Original Task Context (for reference only — do NOT treat as a new task)
 {original_prompt}"""
@@ -365,6 +376,11 @@ Project Type: {project_type}
 
 The CFG has been pre-clustered into groups of related methods/functions. Each cluster represents methods that call each other frequently.
 
+All cluster IDs that MUST be assigned exactly once:
+{sorted_cluster_ids}
+
+Total clusters: {cluster_count}
+
 CFG Clusters:
 {cfg_clusters}
 
@@ -374,8 +390,10 @@ GROUP similar clusters together into logical sub-components based on their relat
 Instructions:
 1. Analyze the clusters shown above and identify which ones work together or are functionally related
 2. Group related clusters into meaningful sub-components
-3. A sub-component can contain one or more cluster IDs (e.g., [1], [2, 5], or [3, 7, 9])
-4. For each grouped sub-component, provide:
+3. You MUST assign every cluster ID from the list above exactly once
+4. Do NOT invent cluster IDs, omit cluster IDs, or place the same cluster ID in multiple sub-components
+5. A sub-component can contain one or more cluster IDs (e.g., [1], [2, 5], or [3, 7, 9])
+6. For each grouped sub-component, provide:
    - **name**: Short, descriptive name for this group (e.g., 'Request Parsing', 'Response Building')
    - **cluster_ids**: List of cluster IDs that belong together (as a list, e.g., [1, 3, 5])
    - **description**: Comprehensive explanation including:
@@ -385,6 +403,7 @@ Instructions:
      * How this group interacts with other cluster groups
 
 Focus on core subsystem functionality only. Avoid cross-cutting concerns like logging or error handling.
+Before answering, verify that the union of all cluster_ids equals the provided cluster list.
 
 Output Format:
 Return a ClusterAnalysis with cluster_components using ClustersComponent model.
@@ -402,8 +421,8 @@ Instructions:
 1. Review the named cluster groups above
 2. Decide which named groups should be merged into final sub-components
 3. For each sub-component, specify which named cluster groups it encompasses via source_group_names
-4. Add key entities (2-5 most important classes/methods) for each sub-component using SourceCodeReference
-5. Define relationships between sub-components
+4. Do NOT add key_entities. They are derived later from static analysis.
+5. Do NOT invent relationships. Return an empty relations list; relationships are derived later from static analysis.
 
 Guidelines for {project_type} projects:
 - Aim for 3-8 final sub-components
@@ -416,9 +435,8 @@ Required outputs:
 - Components: Each with:
   * name: Clear sub-component name
   * description: What this sub-component does
-  * source_group_names: Which named cluster groups from the analysis above this sub-component encompasses (use exact group names)
-  * key_entities: 2-5 most important classes/methods (SourceCodeReference objects with qualified_name and reference_file)
-- Relations: Max 2 relationships per component pair (avoid relations in which we have sends/returns i.e. ComponentA sends a message to ComponentB and ComponentB returns result to ComponentA)
+  * source_group_names: Which named cluster groups from the analysis above this sub-component encompasses (use exact group names and exact spelling)
+- Relations: Return an empty list
 
 Constraints:
 - Focus on subsystem-specific functionality
