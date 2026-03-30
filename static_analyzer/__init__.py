@@ -298,7 +298,6 @@ class StaticAnalyzer:
                 # Determine cache path for this client if caching is enabled
                 cache_path = None
                 if cache_dir is not None:
-                    cache_dir = Path(cache_dir)
                     cache_dir.mkdir(parents=True, exist_ok=True)
                     client_id = language.lower()
                     cache_path = cache_dir / f"incremental_cache_{client_id}.json"
@@ -447,7 +446,6 @@ class StaticAnalyzer:
 
             cache_path = None
             if cache_dir is not None:
-                cache_dir = Path(cache_dir)
                 cache_dir.mkdir(parents=True, exist_ok=True)
                 client_id = language.lower()
                 cache_path = cache_dir / f"incremental_cache_{client_id}.json"
@@ -466,7 +464,7 @@ class StaticAnalyzer:
                     if isinstance(dict_analysis, dict):
                         result["analysis_result"] = self._dict_to_static_results(dict_analysis, language)
                         if "commit_hash" not in result:
-                            result["commit_hash"] = get_git_commit_hash(str(self.repository_path))
+                            result["commit_hash"] = get_git_commit_hash(self.repository_path)
                 return result
             else:
                 analysis = self._run_full_analysis(adapter, project_path, engine_client)
@@ -475,7 +473,7 @@ class StaticAnalyzer:
                     "analysis_result": static_results,
                     "cluster_change_result": None,
                     "change_classification": ChangeClassification.BIG,
-                    "commit_hash": get_git_commit_hash(str(self.repository_path)),
+                    "commit_hash": get_git_commit_hash(self.repository_path),
                 }
 
         except Exception as e:

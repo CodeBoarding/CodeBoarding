@@ -188,7 +188,7 @@ class FileEntry(BaseModel):
     )
     methods: list[MethodEntry] = Field(
         default_factory=list,
-        description="Methods and functions in this file, sorted by start_line.",
+        description="Methods and functions in this file, sorted by start line.",
     )
 
 

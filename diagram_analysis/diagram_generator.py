@@ -251,12 +251,8 @@ class DiagramGenerator:
         with ThreadPoolExecutor(max_workers=2) as executor:
             meta_agent = self.meta_agent
             assert meta_agent is not None
-
-            def analyze_meta_context() -> Any:
-                return getattr(meta_agent, "analyze_project_metadata")(skip_cache=self.force_full_analysis)
-
             static_future = executor.submit(static_callable)
-            meta_future = executor.submit(analyze_meta_context)
+            meta_future = executor.submit(meta_agent.analyze_project_metadata, skip_cache=self.force_full_analysis)
             static_analysis = static_future.result()
             meta_context = meta_future.result()
 
@@ -302,7 +298,7 @@ class DiagramGenerator:
         with open(version_file, "w", encoding="utf-8") as f:
             f.write(
                 Version(
-                    commit_hash=get_git_commit_hash(str(self.repo_location)),
+                    commit_hash=get_git_commit_hash(self.repo_location),
                     code_boarding_version="0.2.0",
                 ).model_dump_json(indent=2)
             )
@@ -465,7 +461,7 @@ class DiagramGenerator:
         """Save the analysis manifest for incremental updates."""
         try:
             repo_state_hash = get_repo_state_hash(self.repo_location)
-            base_commit = get_git_commit_hash(str(self.repo_location))
+            base_commit = get_git_commit_hash(self.repo_location)
 
             expanded_names = [c.component_id for c in expanded_components]
 
