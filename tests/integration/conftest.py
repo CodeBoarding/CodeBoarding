@@ -129,7 +129,7 @@ REPOSITORY_CONFIGS = [
     RepositoryTestConfig(
         name="nextflow_demo",
         repo_url="https://github.com/nf-core/demo",
-        pinned_commit="1.0.0",
+        pinned_commit="1.1.0",
         language="Nextflow",
         fixture_file="nextflow_demo.json",
         mock_language={
