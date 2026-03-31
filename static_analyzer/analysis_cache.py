@@ -598,7 +598,7 @@ class AnalysisCacheManager:
         """Serialize FileDiagnosticsMap to JSON-compatible format."""
         result: dict[str, list[dict[str, Any]]] = {}
         for file_path, diag_list in diagnostics.items():
-            result[file_path] = [
+            result[self._to_relative_path(file_path)] = [
                 {
                     "code": d.code,
                     "message": d.message,
@@ -617,7 +617,7 @@ class AnalysisCacheManager:
         """Deserialize FileDiagnosticsMap from JSON format."""
         result: FileDiagnosticsMap = {}
         for file_path, diag_list in data.items():
-            result[file_path] = [LSPDiagnostic.from_lsp_dict(d) for d in diag_list]
+            result[self._to_absolute_path(file_path)] = [LSPDiagnostic.from_lsp_dict(d) for d in diag_list]
         return result
 
     def _validate_cache_structure(self, cache_data: dict) -> bool:
