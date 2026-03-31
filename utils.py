@@ -64,6 +64,22 @@ def get_config(item_key: str):
     return config[item_key]
 
 
+def to_relative_path(file_path: str, repo_root: Path) -> str:
+    """Convert an absolute path to a path relative to repo_root for portable storage."""
+    try:
+        return str(Path(file_path).relative_to(repo_root))
+    except ValueError:
+        return file_path
+
+
+def to_absolute_path(file_path: str, repo_root: Path) -> str:
+    """Expand a repo-relative path back to an absolute path."""
+    p = Path(file_path)
+    if p.is_absolute():
+        return file_path
+    return str(repo_root / p)
+
+
 def sanitize(name: str) -> str:
     """Replace non-alphanumerics with underscores so IDs are valid identifiers."""
     return re.sub(r"\W+", "_", name)

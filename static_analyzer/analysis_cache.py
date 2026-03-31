@@ -16,6 +16,7 @@ from typing import Any
 from static_analyzer.graph import CallGraph, ClusterResult, Edge
 from static_analyzer.node import Node
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap, LSPDiagnostic
+from utils import to_relative_path, to_absolute_path
 
 logger = logging.getLogger(__name__)
 
@@ -47,19 +48,10 @@ class AnalysisCacheManager:
         self.repo_root = repo_root
 
     def _to_relative_path(self, file_path: str) -> str:
-        """Convert absolute file path to a path relative to repo_root for portable storage."""
-        try:
-            return str(Path(file_path).relative_to(self.repo_root))
-        except ValueError:
-            # Path is outside repo root — keep as-is
-            return file_path
+        return to_relative_path(file_path, self.repo_root)
 
     def _to_absolute_path(self, file_path: str) -> str:
-        """Expand a repo-relative path back to an absolute path on load."""
-        p = Path(file_path)
-        if p.is_absolute():
-            return file_path
-        return str(self.repo_root / p)
+        return to_absolute_path(file_path, self.repo_root)
 
     def save_cache(
         self,

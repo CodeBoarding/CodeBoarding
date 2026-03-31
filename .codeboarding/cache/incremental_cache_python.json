@@ -30511,7 +30511,7 @@
     "github_action.py"
   ],
   "diagnostics": {
-    "/Users/imilev/StartUp/CodeBoarding/diagram_analysis/__init__.py": [
+    "diagram_analysis/__init__.py": [
       {
         "code": "reportAttributeAccessIssue",
         "message": "\"IncrementalUpdater\" is unknown import symbol",
@@ -30799,7 +30799,7 @@
         }
       }
     ],
-    "/Users/imilev/StartUp/CodeBoarding/diagram_analysis/analysis_json.py": [
+    "diagram_analysis/analysis_json.py": [
       {
         "code": "reportMissingImports",
         "message": "Import \"agents.agent_responses\" could not be resolved",
@@ -30833,7 +30833,7 @@
         }
       }
     ],
-    "/Users/imilev/StartUp/CodeBoarding/static_analyzer/cluster_change_analyzer.py": [
+    "static_analyzer/cluster_change_analyzer.py": [
       {
         "code": "reportMissingImports",
         "message": "Import \"static_analyzer.graph\" could not be resolved",
@@ -30921,7 +30921,7 @@
         }
       }
     ],
-    "/Users/imilev/StartUp/CodeBoarding/static_analyzer/scanner.py": [
+    "static_analyzer/scanner.py": [
       {
         "code": "reportMissingImports",
         "message": "Import \"static_analyzer.programming_language\" could not be resolved",
@@ -30955,7 +30955,7 @@
         }
       }
     ],
-    "/Users/imilev/StartUp/CodeBoarding/static_analyzer/typescript_config_scanner.py": [
+    "static_analyzer/typescript_config_scanner.py": [
       {
         "code": "reportMissingImports",
         "message": "Import \"repo_utils.ignore\" could not be resolved",
@@ -30973,7 +30973,7 @@
         }
       }
     ],
-    "/Users/imilev/StartUp/CodeBoarding/static_analyzer/analysis_cache.py": [
+    "static_analyzer/analysis_cache.py": [
       {
         "code": "reportMissingImports",
         "message": "Import \"static_analyzer.graph\" could not be resolved",
@@ -31143,7 +31143,7 @@
         }
       }
     ],
-    "/Users/imilev/StartUp/CodeBoarding/static_analyzer/graph.py": [
+    "static_analyzer/graph.py": [
       {
         "code": "reportMissingImports",
         "message": "Import \"static_analyzer.constants\" could not be resolved",
@@ -31209,7 +31209,7 @@
         }
       }
     ],
-    "/Users/imilev/StartUp/CodeBoarding/static_analyzer/analysis_result.py": [
+    "static_analyzer/analysis_result.py": [
       {
         "code": "reportMissingImports",
         "message": "Import \"static_analyzer.constants\" could not be resolved",
@@ -31259,7 +31259,7 @@
         }
       }
     ],
-    "/Users/imilev/StartUp/CodeBoarding/static_analyzer/__init__.py": [
+    "static_analyzer/__init__.py": [
       {
         "code": "reportMissingImports",
         "message": "Import \"repo_utils\" could not be resolved",
@@ -31517,7 +31517,7 @@
         }
       }
     ],
-    "/Users/imilev/StartUp/CodeBoarding/static_analyzer/programming_language.py": [
+    "static_analyzer/programming_language.py": [
       {
         "code": "reportMissingImports",
         "message": "Import \"static_analyzer.constants\" could not be resolved",
@@ -31535,7 +31535,7 @@
         }
       }
     ],
-    "/Users/imilev/StartUp/CodeBoarding/static_analyzer/constants.py": [
+    "static_analyzer/constants.py": [
       {
         "code": "reportUnreachable",
         "message": "Type analysis indicates code is unreachable",
@@ -31571,7 +31571,7 @@
         }
       }
     ],
-    "/Users/imilev/StartUp/CodeBoarding/monitoring/__init__.py": [
+    "monitoring/__init__.py": [
       {
         "code": "",
         "message": "\"RunStats\" is not accessed",
@@ -31777,7 +31777,7 @@
         }
       }
     ],
-    "/Users/imilev/StartUp/CodeBoarding/health/checks/unused_code_diagnostics.py": [
+    "health/checks/unused_code_diagnostics.py": [
       {
         "code": "reportMissingImports",
         "message": "Import \"static_analyzer.lsp_client.diagnostics\" could not be resolved",
@@ -31829,7 +31829,7 @@
         }
       }
     ],
-    "/Users/imilev/StartUp/CodeBoarding/agents/tools/read_git_diff.py": [
+    "agents/tools/read_git_diff.py": [
       {
         "code": "reportMissingImports",
         "message": "Import \"agents.tools.base\" could not be resolved",
@@ -31863,7 +31863,7 @@
         }
       }
     ],
-    "/Users/imilev/StartUp/CodeBoarding/agents/tools/base.py": [
+    "agents/tools/base.py": [
       {
         "code": "reportMissingImports",
         "message": "Import \"repo_utils.ignore\" could not be resolved",
@@ -31897,7 +31897,7 @@
         }
       }
     ],
-    "/Users/imilev/StartUp/CodeBoarding/agents/tools/read_structure.py": [
+    "agents/tools/read_structure.py": [
       {
         "code": "reportMissingImports",
         "message": "Import \"agents.tools.base\" could not be resolved",
@@ -31915,7 +31915,7 @@
         }
       }
     ],
-    "/Users/imilev/StartUp/CodeBoarding/agents/tools/read_packages.py": [
+    "agents/tools/read_packages.py": [
       {
         "code": "reportMissingImports",
         "message": "Import \"agents.tools.base\" could not be resolved",
@@ -31933,7 +31933,7 @@
         }
       }
     ],
-    "/Users/imilev/StartUp/CodeBoarding/agents/tools/read_file_structure.py": [
+    "agents/tools/read_file_structure.py": [
       {
         "code": "reportMissingImports",
         "message": "Import \"agents.constants\" could not be resolved",
@@ -31967,7 +31967,7 @@
         }
       }
     ],
-    "/Users/imilev/StartUp/CodeBoarding/agents/tools/read_cfg.py": [
+    "agents/tools/read_cfg.py": [
       {
         "code": "reportMissingImports",
         "message": "Import \"agents.agent_responses\" could not be resolved",
@@ -32001,7 +32001,7 @@
         }
       }
     ],
-    "/Users/imilev/StartUp/CodeBoarding/agents/tools/get_method_invocations.py": [
+    "agents/tools/get_method_invocations.py": [
       {
         "code": "reportMissingImports",
         "message": "Import \"agents.tools.base\" could not be resolved",
@@ -32019,7 +32019,7 @@
         }
       }
     ],
-    "/Users/imilev/StartUp/CodeBoarding/agents/tools/read_file.py": [
+    "agents/tools/read_file.py": [
       {
         "code": "reportMissingImports",
         "message": "Import \"agents.tools.base\" could not be resolved",
@@ -32037,7 +32037,7 @@
         }
       }
     ],
-    "/Users/imilev/StartUp/CodeBoarding/agents/tools/read_docs.py": [
+    "agents/tools/read_docs.py": [
       {
         "code": "reportMissingImports",
         "message": "Import \"agents.tools.base\" could not be resolved",
@@ -32055,7 +32055,7 @@
         }
       }
     ],
-    "/Users/imilev/StartUp/CodeBoarding/agents/tools/external_deps.py": [
+    "agents/tools/external_deps.py": [
       {
         "code": "reportMissingImports",
         "message": "Import \"agents.tools.base\" could not be resolved",
@@ -32073,7 +32073,7 @@
         }
       }
     ],
-    "/Users/imilev/StartUp/CodeBoarding/agents/tools/__init__.py": [
+    "agents/tools/__init__.py": [
       {
         "code": "",
         "message": "\"CodeReferenceReader\" is not accessed",
@@ -32347,7 +32347,7 @@
         }
       }
     ],
-    "/Users/imilev/StartUp/CodeBoarding/agents/prompts/prompt_factory.py": [
+    "agents/prompts/prompt_factory.py": [
       {
         "code": "reportUnreachable",
         "message": "Type analysis indicates code is unreachable",
@@ -32383,7 +32383,7 @@
         }
       }
     ],
-    "/Users/imilev/StartUp/CodeBoarding/static_analyzer/lsp_client/client.py": [
+    "static_analyzer/lsp_client/client.py": [
       {
         "code": "reportMissingImports",
         "message": "Import \"repo_utils.ignore\" could not be resolved",
@@ -32555,7 +32555,7 @@
         }
       }
     ],
-    "/Users/imilev/StartUp/CodeBoarding/static_analyzer/lsp_client/java_client.py": [
+    "static_analyzer/lsp_client/java_client.py": [
       {
         "code": "reportMissingImports",
         "message": "Import \"static_analyzer.lsp_client.client\" could not be resolved",
@@ -32637,7 +32637,7 @@
         }
       }
     ],
-    "/Users/imilev/StartUp/CodeBoarding/static_analyzer/lsp_client/__init__.py": [
+    "static_analyzer/lsp_client/__init__.py": [
       {
         "code": "reportMissingImports",
         "message": "Import \"static_analyzer.lsp_client.diagnostics\" could not be resolved",
@@ -32791,7 +32791,7 @@
         }
       }
     ],
-    "/Users/imilev/StartUp/CodeBoarding/static_analyzer/lsp_client/typescript_client.py": [
+    "static_analyzer/lsp_client/typescript_client.py": [
       {
         "code": "",
         "message": "\"method\" is not accessed",
@@ -32829,7 +32829,7 @@
         }
       }
     ],
-    "/home/ivan/StartUp/CodeBoarding/agents/tools/toolkit.py": [
+    "agents/tools/toolkit.py": [
       {
         "code": "reportMissingImports",
         "message": "Import \"core\" could not be resolved",
@@ -32863,7 +32863,7 @@
         }
       }
     ],
-    "/home/ivan/StartUp/CodeBoarding/diagram_analysis/incremental/reexpansion.py": [
+    "diagram_analysis/incremental/reexpansion.py": [
       {
         "code": "reportMissingImports",
         "message": "Import \"agents.llm_config\" could not be resolved",
@@ -33075,7 +33075,7 @@
         }
       }
     ],
-    "/home/ivan/StartUp/CodeBoarding/repo_utils/__init__.py": [
+    "repo_utils/__init__.py": [
       {
         "code": "reportMissingImports",
         "message": "Import \"repo_utils.errors\" could not be resolved",
@@ -33319,7 +33319,7 @@
         }
       }
     ],
-    "/home/ivan/StartUp/CodeBoarding/agents/dependency_discovery.py": [
+    "agents/dependency_discovery.py": [
       {
         "code": "reportMissingImports",
         "message": "Import \"repo_utils.ignore\" could not be resolved",
@@ -33337,7 +33337,7 @@
         }
       }
     ],
-    "/home/ivan/StartUp/CodeBoarding/diagram_analysis/diagram_generator.py": [
+    "diagram_analysis/diagram_generator.py": [
       {
         "code": "reportMissingImports",
         "message": "Import \"agents.abstraction_agent\" could not be resolved",
@@ -33775,7 +33775,7 @@
         }
       }
     ],
-    "/home/ivan/StartUp/CodeBoarding/core/plugin_loader.py": [
+    "core/plugin_loader.py": [
       {
         "code": "reportMissingImports",
         "message": "Import \"core\" could not be resolved",
@@ -33793,7 +33793,7 @@
         }
       }
     ],
-    "/home/ivan/StartUp/CodeBoarding/agents/agent.py": [
+    "agents/agent.py": [
       {
         "code": "reportMissingImports",
         "message": "Import \"agents.agent_responses\" could not be resolved",
@@ -34057,7 +34057,7 @@
         }
       }
     ],
-    "/home/ivan/StartUp/CodeBoarding/agents/llm_config.py": [
+    "agents/llm_config.py": [
       {
         "code": "reportMissingImports",
         "message": "Import \"agents.constants\" could not be resolved",
@@ -34123,7 +34123,7 @@
         }
       }
     ],
-    "/home/ivan/StartUp/CodeBoarding/diagram_analysis/__init__.py": [
+    "diagram_analysis/__init__.py": [
       {
         "code": "reportMissingImports",
         "message": "Import \"agents.llm_config\" could not be resolved",
@@ -34461,7 +34461,7 @@
         }
       }
     ],
-    "/home/ivan/StartUp/CodeBoarding/diagram_analysis/incremental/io_utils.py": [
+    "diagram_analysis/incremental/io_utils.py": [
       {
         "code": "reportMissingImports",
         "message": "Import \"agents.agent_responses\" could not be resolved",
@@ -34511,7 +34511,7 @@
         }
       }
     ],
-    "/home/ivan/StartUp/CodeBoarding/caching/meta_cache.py": [
+    "caching/meta_cache.py": [
       {
         "code": "reportMissingImports",
         "message": "Import \"agents.agent_responses\" could not be resolved",
@@ -34609,7 +34609,7 @@
         }
       }
     ],
-    "/home/ivan/StartUp/CodeBoarding/agents/tools/read_source.py": [
+    "agents/tools/read_source.py": [
       {
         "code": "reportMissingImports",
         "message": "Import \"agents.tools.base\" could not be resolved",
@@ -34627,7 +34627,7 @@
         }
       }
     ],
-    "/home/ivan/StartUp/CodeBoarding/install.py": [
+    "install.py": [
       {
         "code": "",
         "message": "\"result\" is not accessed",
@@ -34663,7 +34663,7 @@
         }
       }
     ],
-    "/home/ivan/StartUp/CodeBoarding/static_analyzer/__init__.py": [
+    "static_analyzer/__init__.py": [
       {
         "code": "reportMissingImports",
         "message": "Import \"utils\" could not be resolved",
@@ -34937,7 +34937,7 @@
         }
       }
     ],
-    "/home/ivan/StartUp/CodeBoarding/output_generators/mdx.py": [
+    "output_generators/mdx.py": [
       {
         "code": "reportMissingImports",
         "message": "Import \"agents.agent_responses\" could not be resolved",
@@ -35041,7 +35041,7 @@
         }
       }
     ],
-    "/home/ivan/StartUp/CodeBoarding/main.py": [
+    "main.py": [
       {
         "code": "reportMissingImports",
         "message": "Import \"agents.llm_config\" could not be resolved",
@@ -35223,7 +35223,7 @@
         }
       }
     ],
-    "/home/ivan/StartUp/CodeBoarding/diagram_analysis/incremental/file_manager.py": [
+    "diagram_analysis/incremental/file_manager.py": [
       {
         "code": "reportMissingImports",
         "message": "Import \"agents.agent_responses\" could not be resolved",
@@ -35337,7 +35337,7 @@
         }
       }
     ],
-    "/home/ivan/StartUp/CodeBoarding/diagram_analysis/incremental/validation.py": [
+    "diagram_analysis/incremental/validation.py": [
       {
         "code": "reportMissingImports",
         "message": "Import \"agents.agent_responses\" could not be resolved",
@@ -35403,7 +35403,7 @@
         }
       }
     ],
-    "/home/ivan/StartUp/CodeBoarding/diagram_analysis/incremental/scoped_analysis.py": [
+    "diagram_analysis/incremental/scoped_analysis.py": [
       {
         "code": "reportMissingImports",
         "message": "Import \"agents.llm_config\" could not be resolved",
@@ -35649,7 +35649,7 @@
         }
       }
     ],
-    "/home/ivan/StartUp/CodeBoarding/agents/abstraction_agent.py": [
+    "agents/abstraction_agent.py": [
       {
         "code": "reportMissingImports",
         "message": "Import \"agents.agent\" could not be resolved",
@@ -35829,7 +35829,7 @@
         }
       }
     ],
-    "/home/ivan/StartUp/CodeBoarding/agents/tools/read_cfg.py": [
+    "agents/tools/read_cfg.py": [
       {
         "code": "reportMissingImports",
         "message": "Import \"agents.agent_responses\" could not be resolved",
@@ -35863,7 +35863,7 @@
         }
       }
     ],
-    "/home/ivan/StartUp/CodeBoarding/agents/validation.py": [
+    "agents/validation.py": [
       {
         "code": "reportMissingImports",
         "message": "Import \"agents.agent_responses\" could not be resolved",
@@ -35999,7 +35999,7 @@
         }
       }
     ],
-    "/home/ivan/StartUp/CodeBoarding/agents/prompts/__init__.py": [
+    "agents/prompts/__init__.py": [
       {
         "code": "reportUnsupportedDunderAll",
         "message": "\"SYSTEM_MESSAGE\" is specified in __all__ but is not present in module",
@@ -36161,7 +36161,7 @@
         }
       }
     ],
-    "/home/ivan/StartUp/CodeBoarding/agents/prompts/prompt_factory.py": [
+    "agents/prompts/prompt_factory.py": [
       {
         "code": "reportUnreachable",
         "message": "Type analysis indicates code is unreachable",
@@ -36197,7 +36197,7 @@
         }
       }
     ],
-    "/home/ivan/StartUp/CodeBoarding/agents/details_agent.py": [
+    "agents/details_agent.py": [
       {
         "code": "reportMissingImports",
         "message": "Import \"agents.agent\" could not be resolved",
@@ -36327,7 +36327,7 @@
         }
       }
     ],
-    "/home/ivan/StartUp/CodeBoarding/diagram_analysis/analysis_json.py": [
+    "diagram_analysis/analysis_json.py": [
       {
         "code": "reportMissingImports",
         "message": "Import \"agents.agent_responses\" could not be resolved",
@@ -36361,7 +36361,7 @@
         }
       }
     ],
-    "/home/ivan/StartUp/CodeBoarding/diagram_analysis/incremental/path_patching.py": [
+    "diagram_analysis/incremental/path_patching.py": [
       {
         "code": "reportMissingImports",
         "message": "Import \"agents.agent_responses\" could not be resolved",
@@ -36429,7 +36429,7 @@
         }
       }
     ],
-    "/home/ivan/StartUp/CodeBoarding/agents/cluster_methods_mixin.py": [
+    "agents/cluster_methods_mixin.py": [
       {
         "code": "reportMissingImports",
         "message": "Import \"agents.agent_responses\" could not be resolved",
