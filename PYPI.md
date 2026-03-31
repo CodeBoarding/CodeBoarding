@@ -14,11 +14,25 @@
 
 ---
 
+## Requirements
+
+- **Python 3.12 or 3.13** — other versions are currently not supported.
+
 ## Installation
+
+The recommended way to install the CLI is with [pipx](https://pipx.pypa.io), which automatically creates an isolated environment:
+
+```bash
+pipx install codeboarding
+```
+
+Alternatively, install into an existing virtual environment with pip:
 
 ```bash
 pip install codeboarding
 ```
+
+> Installing into the global Python environment with `pip` is not recommended — it can cause dependency conflicts and will fail if the system Python is not 3.12 or 3.13.
 
 Language server binaries are downloaded automatically on first use. To pre-install them explicitly (useful in CI or restricted environments):
 
