@@ -481,7 +481,13 @@ class LSPClient:
 
         # Handle server-initiated requests (e.g. workspace/configuration)
         if "method" in message and "id" in message:
-            self._write_message({"jsonrpc": "2.0", "id": message["id"], "result": None})
+            if message["method"] == "workspace/configuration":
+                # Return init_options for each requested config section
+                items = message.get("params", {}).get("items", [])
+                result = [self._init_options.get(item.get("section", ""), {}) for item in items]
+                self._write_message({"jsonrpc": "2.0", "id": message["id"], "result": result})
+            else:
+                self._write_message({"jsonrpc": "2.0", "id": message["id"], "result": None})
             return None
 
         # Skip notifications that leaked past the reader loop

@@ -38,6 +38,47 @@ class NextflowAdapter(LanguageAdapter):
     def language_id(self) -> str:
         return "nextflow"
 
+    def get_lsp_init_options(self, ignore_manager: RepoIgnoreManager | None = None) -> dict:
+        """Return Nextflow-specific LSP initialization options."""
+        return {
+            "nextflow": {
+                "debug": False,
+                "files": {"exclude": [".git", ".nf-test", "work"]},
+            }
+        }
+
+    def post_init_lsp(self, client: object) -> None:
+        """Send workspace/didChangeConfiguration to trigger Nextflow LS indexing.
+
+        The Nextflow LS requires this notification before it will index
+        workspace files and return document symbols.
+        """
+        from static_analyzer.engine.lsp_client import LSPClient
+
+        if not isinstance(client, LSPClient):
+            return
+        client._send_notification(
+            "workspace/didChangeConfiguration",
+            {
+                "settings": {
+                    "nextflow": {
+                        "debug": False,
+                        "files": {"exclude": [".git", ".nf-test", "work"]},
+                    }
+                }
+            },
+        )
+
+    @property
+    def indexing_retries(self) -> int:
+        """The Nextflow LS indexes lazily after didOpen and responds eagerly
+        with empty results. Retry the sync probe to wait for indexing."""
+        return 15
+
+    @property
+    def indexing_retry_delay(self) -> float:
+        return 2.0
+
     def get_lsp_command(self, project_root: Path) -> list[str]:
         """Build the Nextflow LS launch command.
 
@@ -132,8 +173,11 @@ class NextflowAdapter(LanguageAdapter):
             elif cf.parent.name in _NEXTFLOW_CONFIG_DIRS:
                 filtered_configs.append(cf)
 
+        # Sort .nf files before .config files so the sync probe (which
+        # uses source_files[0]) targets a file that produces symbols.
+        nf_files.sort()
+        filtered_configs.sort()
         all_files = nf_files + filtered_configs
-        all_files.sort()
 
         if all_files:
             logger.info(

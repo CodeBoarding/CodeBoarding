@@ -139,6 +139,10 @@ class CallGraphBuilder:
         pbar.finish()
         logger.info("did_open %d files: %.1fs", total, time.monotonic() - t_open_start)
 
+        # Give the adapter a chance to send post-open notifications
+        # (e.g. Nextflow LS requires workspace/didChangeConfiguration after didOpen)
+        self._adapter.post_init_lsp(self._lsp)
+
         # Synchronization probe — blocks until the LSP server has indexed the
         # project. Uses a long timeout because servers like gopls / tsserver
         # may need to index the entire project before responding. The timeout
@@ -163,6 +167,24 @@ class CallGraphBuilder:
         t_probe = time.monotonic()
         if source_files:
             probe_result = self._lsp.document_symbol(source_files[0], timeout=probe_timeout)
+
+            # Some LSP servers (e.g. Nextflow) respond eagerly with empty
+            # results before indexing completes. Retry the probe if the adapter
+            # signals it needs extra time.
+            retries = self._adapter.indexing_retries
+            retry_delay = self._adapter.indexing_retry_delay
+            attempt = 0
+            while not probe_result and attempt < retries:
+                attempt += 1
+                logger.info(
+                    "Sync probe returned 0 symbols, retrying in %.1fs (attempt %d/%d)...",
+                    retry_delay,
+                    attempt,
+                    retries,
+                )
+                time.sleep(retry_delay)
+                probe_result = self._lsp.document_symbol(source_files[0], timeout=probe_timeout)
+
         logger.info(
             "Sync probe: %.1fs (%d symbols)",
             time.monotonic() - t_probe,

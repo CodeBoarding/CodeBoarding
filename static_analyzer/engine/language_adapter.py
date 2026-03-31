@@ -126,6 +126,15 @@ class LanguageAdapter(ABC):
         """Return extra environment variables for the LSP server process."""
         return {}
 
+    def post_init_lsp(self, client: object) -> None:
+        """Hook called after the LSP client is started and initialized.
+
+        Override to send additional notifications needed by specific
+        language servers (e.g. ``workspace/didChangeConfiguration``).
+        The ``client`` is an ``LSPClient`` instance (typed as object to
+        avoid circular imports).
+        """
+
     def discover_source_files(self, project_root: Path, ignore_manager: RepoIgnoreManager) -> list[Path]:
         """Discover source files for this adapter under a project root.
 
@@ -184,6 +193,22 @@ class LanguageAdapter(ABC):
 
     def should_track_for_edges(self, symbol_kind: int) -> bool:
         return symbol_kind in (CALLABLE_KINDS | CLASS_LIKE_KINDS | {NodeType.VARIABLE, NodeType.CONSTANT})
+
+    @property
+    def indexing_retries(self) -> int:
+        """Number of times to retry the sync probe if it returns 0 symbols.
+
+        Some LSP servers (e.g. Nextflow) respond eagerly with empty results
+        before indexing is complete. Override to enable retry-based waiting.
+        Each retry waits ``indexing_retry_delay`` seconds before re-probing.
+        Default is 0 (no retries — probe result is accepted immediately).
+        """
+        return 0
+
+    @property
+    def indexing_retry_delay(self) -> float:
+        """Seconds to wait between sync probe retries. Default: 2.0."""
+        return 2.0
 
     @property
     def edge_strategy(self) -> EdgeStrategy:
