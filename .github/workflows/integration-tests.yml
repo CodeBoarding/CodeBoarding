@@ -144,7 +144,7 @@ jobs:
           go-version: '1.21'
 
       - name: Install Java 21
-        if: matrix.language == 'java'
+        if: matrix.language == 'java' || matrix.language == 'nextflow'
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
