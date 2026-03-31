@@ -23,7 +23,7 @@
 The recommended way to install the CLI is with [pipx](https://pipx.pypa.io), which automatically creates an isolated environment:
 
 ```bash
-pipx install codeboarding
+pipx install codeboarding --python python3.12
 ```
 
 Alternatively, install into an existing virtual environment with pip:

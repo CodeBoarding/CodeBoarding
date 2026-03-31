@@ -76,7 +76,7 @@ python main.py --local /path/to/repo
 Requires **Python 3.12 or 3.13**. The recommended install method is [pipx](https://pipx.pypa.io), which keeps the CLI in its own isolated environment:
 
 ```bash
-pipx install codeboarding
+pipx install codeboarding --python python3.12
 codeboarding-setup
 codeboarding --local /path/to/repo
 ```
