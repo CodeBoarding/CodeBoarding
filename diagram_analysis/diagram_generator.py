@@ -19,20 +19,17 @@ from diagram_analysis.analysis_json import (
     FileCoverageSummary,
     NotAnalyzedFile,
 )
+from diagram_analysis.checkpoints import get_latest_checkpoint, remove_legacy_manifest, save_checkpoint
 from diagram_analysis.file_coverage import FileCoverage
 from diagram_analysis.io_utils import save_analysis
-from diagram_analysis.manifest import (
-    build_manifest_from_analysis,
-    save_manifest,
-)
 from diagram_analysis.version import Version
 from health.config import initialize_health_dir, load_health_config
 from health.runner import run_health_checks
 from monitoring import StreamingStatsWriter
 from monitoring.mixin import MonitoringMixin
 from monitoring.paths import get_monitoring_run_dir
-from repo_utils import get_git_commit_hash, get_repo_state_hash
-from repo_utils.change_detector import ChangeSet, detect_uncommitted_changes
+from repo_utils import get_git_commit_hash
+from repo_utils.change_detector import ChangeSet, detect_changes
 from repo_utils.ignore import RepoIgnoreManager
 from repo_utils.method_diff import apply_method_diffs_to_file_index
 from static_analyzer import StaticAnalyzer, get_static_analysis
@@ -83,25 +80,30 @@ class DiagramGenerator:
         self.stats_writer: StreamingStatsWriter | None = None
         self._cached_method_changes = ChangeSet()
         self._method_change_resolution_attempted = False
+        self._method_diff_base_ref: str | None = "HEAD"
 
     def _resolve_method_level_changes(self) -> ChangeSet:
-        """Resolve method-level changes by detecting uncommitted changes (staged + unstaged).
-
-        This diffs HEAD against the working tree to find files with uncommitted modifications,
-        which is the source of truth for method status assignment during analysis.
-        """
+        """Resolve method-level changes against the configured base ref."""
         if self._method_change_resolution_attempted:
             return self._cached_method_changes
 
         self._method_change_resolution_attempted = True
+        if self._method_diff_base_ref is None:
+            logger.debug("Method diff detection disabled for this analysis run")
+            return self._cached_method_changes
 
-        changes = detect_uncommitted_changes(self.repo_location)
+        changes = detect_changes(self.repo_location, self._method_diff_base_ref, "")
         if changes.is_empty():
-            logger.debug("No uncommitted changes detected; method statuses remain unchanged")
+            logger.debug("No changes detected from %s to the working tree", self._method_diff_base_ref)
             return self._cached_method_changes
 
         self._cached_method_changes = changes
         return changes
+
+    def _set_method_diff_base_ref(self, base_ref: str | None) -> None:
+        self._method_diff_base_ref = base_ref
+        self._cached_method_changes = ChangeSet(base_ref=base_ref or "", target_ref="")
+        self._method_change_resolution_attempted = False
 
     def _apply_method_diff_statuses(
         self,
@@ -451,32 +453,33 @@ class DiagramGenerator:
 
             # Write file_coverage.json
             self._write_file_coverage()
-
-            # Save manifest for incremental updates
-            self._save_manifest(analysis, expanded_components)
+            remove_legacy_manifest(Path(self.output_dir))
 
             return analysis_path
 
-    def _save_manifest(self, analysis: AnalysisInsights, expanded_components: list) -> None:
-        """Save the analysis manifest for incremental updates."""
+    def _save_checkpoint(self) -> None:
+        """Save the latest successful analysis as a checkpoint."""
         try:
-            repo_state_hash = get_repo_state_hash(self.repo_location)
-            base_commit = get_git_commit_hash(self.repo_location)
-
-            expanded_names = [c.component_id for c in expanded_components]
-
-            manifest = build_manifest_from_analysis(
-                analysis=analysis,
-                repo_state_hash=repo_state_hash,
-                base_commit=base_commit,
-                expanded_components=expanded_names,
-            )
-
-            save_manifest(manifest, self.output_dir)
-            logger.info(f"Saved manifest with {len(manifest.file_to_component)} file mappings")
-        except Exception as e:
-            logger.warning(f"Failed to save manifest: {e}")
+            checkpoint = save_checkpoint(self.repo_location, Path(self.output_dir), run_id=self.run_id)
+            logger.info("Saved checkpoint %s at %s", checkpoint.checkpoint_id, checkpoint.checkpoint_commit)
+        except Exception as exc:
+            logger.warning("Failed to save checkpoint: %s", exc)
 
     def generate_analysis_smart(self) -> Path:
-        """Run full analysis."""
-        return self.generate_analysis()
+        """Run smart analysis against the latest checkpoint and save a new checkpoint."""
+        latest_checkpoint = get_latest_checkpoint(self.repo_location, Path(self.output_dir))
+
+        if latest_checkpoint is None:
+            logger.info("No checkpoint found; running the first smart analysis without method diff annotations")
+            self._set_method_diff_base_ref(None)
+        else:
+            logger.info(
+                "Running smart analysis against checkpoint id=%s ref=%s",
+                latest_checkpoint.checkpoint_id,
+                latest_checkpoint.checkpoint_ref,
+            )
+            self._set_method_diff_base_ref(latest_checkpoint.checkpoint_ref)
+
+        analysis_path = self.generate_analysis()
+        self._save_checkpoint()
+        return analysis_path

@@ -28,13 +28,26 @@ from repo_utils import (
 from repo_utils.ignore import initialize_codeboardingignore
 from utils import (
     create_temp_repo_folder,
-    monitoring_enabled,
     remove_temp_repo_folder,
     sanitize,
 )
 from vscode_constants import update_config
 
 logger = logging.getLogger(__name__)
+action_logger = logging.getLogger("actions")
+
+
+def log_action(action: str, **fields: object) -> None:
+    payload = {
+        "event": "action",
+        "action": action,
+        **fields,
+    }
+    action_logger.info(json.dumps(payload, default=str, sort_keys=True))
+
+
+def env_monitoring_enabled() -> bool:
+    return os.getenv("ENABLE_MONITORING", "false").lower() in ("1", "true", "yes")
 
 
 def onboarding_materials_exist(project_name: str) -> bool:
@@ -130,6 +143,13 @@ def partial_update(
     """
     Update a specific component in an existing analysis.
     """
+    log_action(
+        "component_analysis_started",
+        component_id=component_id,
+        depth_level=depth_level,
+        project_name=project_name,
+        run_id=run_id,
+    )
     generator = DiagramGenerator(
         repo_location=repo_path,
         temp_folder=output_dir,
@@ -145,6 +165,13 @@ def partial_update(
     full_analysis = load_full_analysis(output_dir)
     if full_analysis is None:
         logger.error(f"No analysis.json found in '{output_dir}'. Please ensure the file exists.")
+        log_action(
+            "component_analysis_failed",
+            component_id=component_id,
+            project_name=project_name,
+            reason="analysis_missing",
+            run_id=run_id,
+        )
         return
 
     root_analysis, sub_analyses = full_analysis
@@ -168,6 +195,13 @@ def partial_update(
 
     if component_to_analyze is None:
         logger.error(f"Component with ID '{component_id}' not found in analysis")
+        log_action(
+            "component_analysis_failed",
+            component_id=component_id,
+            project_name=project_name,
+            reason="component_not_found",
+            run_id=run_id,
+        )
         return
 
     comp_id, sub_analysis, new_components = generator.process_component(component_to_analyze)
@@ -175,8 +209,23 @@ def partial_update(
     if sub_analysis:
         save_sub_analysis(sub_analysis, output_dir, component_id)
         logger.info(f"Updated component '{component_id}' in analysis.json")
+        log_action(
+            "component_analysis_completed",
+            component_id=component_id,
+            new_components=len(new_components),
+            project_name=project_name,
+            run_id=run_id,
+            sub_analysis_component_id=comp_id,
+        )
     else:
         logger.error(f"Failed to generate sub-analysis for component '{component_id}'")
+        log_action(
+            "component_analysis_failed",
+            component_id=component_id,
+            project_name=project_name,
+            reason="sub_analysis_generation_failed",
+            run_id=run_id,
+        )
 
 
 def generate_docs_remote(
@@ -217,19 +266,49 @@ def process_remote_repository(
     """
     repo_root = Path("repos")
     repo_name = get_repo_name(repo_url)
+    log_action(
+        "remote_repository_started",
+        cache_check=cache_check,
+        depth_level=depth_level,
+        output_dir=str(output_dir) if output_dir else None,
+        repo_name=repo_name,
+        repo_url=repo_url,
+        run_id=run_id,
+        upload=upload,
+    )
 
     # Check cache if enabled
     if cache_check and onboarding_materials_exist(repo_name):
         logger.info(f"Cache hit for '{repo_name}', skipping documentation generation.")
+        log_action(
+            "remote_cache_hit",
+            repo_name=repo_name,
+            repo_url=repo_url,
+            run_id=run_id,
+        )
         return
 
     # Clone repository
+    log_action(
+        "remote_clone_started",
+        repo_name=repo_name,
+        repo_url=repo_url,
+        run_id=run_id,
+    )
     repo_name = clone_repository(repo_url, repo_root)
     repo_path = repo_root / repo_name
 
     temp_folder = create_temp_repo_folder()
 
     try:
+        log_action(
+            "analysis_started",
+            depth_level=depth_level,
+            mode="remote",
+            repo_name=repo_name,
+            repo_path=str(repo_path),
+            run_id=run_id,
+        )
         analysis_path = generate_analysis(
             repo_name=repo_name,
             repo_path=repo_path,
@@ -239,8 +318,21 @@ def process_remote_repository(
             log_path=log_path,
             monitoring_enabled=monitoring_enabled,
         )
+        log_action(
+            "analysis_completed",
+            analysis_path=str(analysis_path),
+            mode="remote",
+            repo_name=repo_name,
+            run_id=run_id,
+        )
 
         # Generate markdown documentation for remote repo
+        log_action(
+            "markdown_generation_started",
+            analysis_path=str(analysis_path),
+            repo_name=repo_name,
+            run_id=run_id,
+        )
         generate_markdown_docs(
             repo_name=repo_name,
             repo_path=repo_path,
@@ -249,14 +341,50 @@ def process_remote_repository(
             output_dir=temp_folder,
             demo_mode=True,
         )
+        log_action(
+            "markdown_generation_completed",
+            repo_name=repo_name,
+            run_id=run_id,
+        )
 
         # Copy files to output directory if specified
         if output_dir:
+            log_action(
+                "output_copy_started",
+                destination=str(output_dir),
+                repo_name=repo_name,
+                run_id=run_id,
+                source=str(temp_folder),
+            )
             copy_files(temp_folder, output_dir)
+            log_action(
+                "output_copy_completed",
+                destination=str(output_dir),
+                repo_name=repo_name,
+                run_id=run_id,
+            )
 
         # Upload if requested
         if upload:
+            log_action(
+                "upload_started",
+                repo_name=repo_name,
+                run_id=run_id,
+                source=str(temp_folder),
+            )
             upload_onboarding_materials(repo_name, temp_folder, "results")
+            log_action(
+                "upload_completed",
+                repo_name=repo_name,
+                run_id=run_id,
+            )
+
+        log_action(
+            "remote_repository_completed",
+            repo_name=repo_name,
+            repo_url=repo_url,
+            run_id=run_id,
+        )
     finally:
         RunContext(run_id=run_id, log_path=log_path, repo_dir=repo_path).finalize()
         remove_temp_repo_folder(str(temp_folder))
@@ -276,6 +404,14 @@ def process_local_repository(
 ):
     # Handle partial updates
     if component_id:
+        log_action(
+            "local_repository_started",
+            depth_level=depth_level,
+            mode_detail="component_analysis",
+            project_name=project_name,
+            repo_path=str(repo_path),
+            run_id=run_id,
+        )
         partial_update(
             repo_path=repo_path,
             output_dir=output_dir,
@@ -287,8 +423,15 @@ def process_local_repository(
         )
         return
 
-    # Use smart incremental analysis if requested
     if incremental and not force_full:
+        log_action(
+            "local_repository_started",
+            depth_level=depth_level,
+            mode_detail="incremental_analysis",
+            project_name=project_name,
+            repo_path=str(repo_path),
+            run_id=run_id,
+        )
         generator = DiagramGenerator(
             repo_location=repo_path,
             temp_folder=output_dir,
@@ -301,13 +444,28 @@ def process_local_repository(
         )
         generator.force_full_analysis = force_full
 
-        # Try incremental first, fall back to full
+        # Run checkpoint-backed smart analysis and update the mutable latest alias
         result = generator.generate_analysis_smart()
         logger.info(f"Analysis completed: {result}")
+        log_action(
+            "incremental_analysis_completed",
+            project_name=project_name,
+            result=str(result),
+            run_id=run_id,
+        )
         return
 
     # Full analysis (local repo - no markdown generation)
-    generate_analysis(
+    log_action(
+        "local_repository_started",
+        depth_level=depth_level,
+        force_full=force_full,
+        mode_detail="full_analysis",
+        project_name=project_name,
+        repo_path=str(repo_path),
+        run_id=run_id,
+    )
+    analysis_path = generate_analysis(
         repo_name=project_name,
         repo_path=repo_path,
         output_dir=output_dir,
@@ -316,6 +474,13 @@ def process_local_repository(
         log_path=log_path,
         monitoring_enabled=monitoring_enabled,
         force_full=force_full,
+    )
+    log_action(
+        "full_analysis_completed",
+        analysis_path=str(analysis_path),
+        force_full=force_full,
+        project_name=project_name,
+        run_id=run_id,
     )
 
 
@@ -394,12 +559,12 @@ def define_cli_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--full",
         action="store_true",
-        help="Force full reanalysis, skipping incremental update detection",
+        help="Force full analysis, skipping checkpoint-backed smart comparison",
     )
     parser.add_argument(
         "--incremental",
         action="store_true",
-        help="Use smart incremental updates (tries incremental first, falls back to full)",
+        help="Run checkpoint-backed smart analysis and compare against the previous checkpoint",
     )
 
 
@@ -422,10 +587,10 @@ Examples:
   # Partial update (update single component by ID)
   codeboarding --local /path/to/repo --partial-component-id "1.2"
 
-  # Incremental update (smart - detects changes automatically)
+  # Checkpoint-backed smart analysis
   codeboarding --local /path/to/repo --incremental
 
-  # Force full reanalysis (skip incremental detection)
+  # Force full analysis (skip checkpoint comparison)
   codeboarding --local /path/to/repo --full
 
   # Use custom binary location (e.g. VS Code extension)
@@ -449,9 +614,24 @@ Examples:
         output_dir = Path.cwd() / ".codeboarding"
         output_dir.mkdir(parents=True, exist_ok=True)
 
+    should_monitor = args.enable_monitoring or env_monitoring_enabled()
+
     # Setup logging
     setup_logging(log_dir=output_dir)
-    logger.info("Starting CodeBoarding documentation generation...")
+    log_action(
+        "cli_start",
+        binary_location=str(args.binary_location) if args.binary_location else None,
+        depth_level=args.depth_level,
+        force_full=args.full,
+        incremental=args.incremental,
+        mode="local" if is_local else "remote",
+        monitoring_enabled=should_monitor,
+        output_dir=str(output_dir),
+        partial_component_id=args.partial_component_id,
+        repo_path=str(local_repo_path) if is_local else None,
+        repository_count=len(args.repositories) if args.repositories else 0,
+        upload=args.upload,
+    )
 
     # Ensure ~/.codeboarding/config.toml exists (writes template on first run)
     ensure_config_template()
@@ -479,8 +659,6 @@ Examples:
             logger.info("First run: downloading language server binaries to ~/.codeboarding/servers/ ...")
             ensure_tools(auto_install_npm=True, auto_install_vcpp=True)
 
-    should_monitor = args.enable_monitoring or monitoring_enabled()
-
     if is_local:
         output_dir.mkdir(parents=True, exist_ok=True)
         initialize_codeboardingignore(output_dir)
@@ -491,6 +669,13 @@ Examples:
             repo_dir=local_repo_path,
             project_name=project_name,
             reuse_latest_run_id=args.incremental or args.partial_component_id is not None,
+        )
+        log_action(
+            "run_context_resolved",
+            mode="local",
+            project_name=project_name,
+            reuse_latest_run_id=args.incremental or args.partial_component_id is not None,
+            run_id=run_context.run_id,
         )
 
         process_local_repository(
@@ -506,6 +691,13 @@ Examples:
             log_path=run_context.log_path,
         )
         run_context.finalize()
+        log_action(
+            "cli_completed",
+            mode="local",
+            output_dir=str(output_dir),
+            project_name=project_name,
+            run_id=run_context.run_id,
+        )
         logger.info(f"Documentation generated successfully in {output_dir}")
     else:
         if args.repositories:
@@ -530,6 +722,14 @@ Examples:
                     repo_dir=repo_cache_root,
                     project_name=repo_name,
                     reuse_latest_run_id=True,
+                )
+                log_action(
+                    "run_context_resolved",
+                    mode="remote",
+                    project_name=repo_name,
+                    repo_url=repo,
+                    reuse_latest_run_id=True,
+                    run_id=run_context.run_id,
                 )
 
                 monitoring_dir = get_monitoring_run_dir(
@@ -558,6 +758,11 @@ Examples:
                         logger.error(f"Failed to process repository {repo}: {e}")
                         continue
 
+            log_action(
+                "cli_completed",
+                mode="remote",
+                repository_count=len(args.repositories),
+            )
             logger.info("All repositories processed successfully!")
         else:
             logger.error("No repositories specified")

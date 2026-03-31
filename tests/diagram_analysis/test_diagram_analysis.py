@@ -483,7 +483,7 @@ class TestDiagramGenerator(unittest.TestCase):
         gen.abstraction_agent = Mock()
         gen.abstraction_agent.run.return_value = (root_analysis, {})
         gen.details_agent = Mock()  # pre_analysis is skipped when details/abstraction are already initialized
-        gen._save_manifest = Mock()
+        gen._save_checkpoint = Mock()
         mock_get_expandable_components.return_value = [root_a, root_b]
         mock_save_analysis.return_value = self.output_dir / "analysis.json"
 
@@ -528,10 +528,10 @@ class TestDiagramGenerator(unittest.TestCase):
             log_path="test_repo/test-run-log",
         )
 
-        # Prevent pre_analysis from running and avoid manifest writes.
+        # Prevent pre_analysis from running and avoid checkpoint writes.
         gen.abstraction_agent = Mock()
         gen.details_agent = Mock()
-        gen._save_manifest = Mock()
+        gen._save_checkpoint = Mock()
 
         comp1 = Component(
             name="Component1",

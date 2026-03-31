@@ -122,7 +122,7 @@ codeboarding --local PATH             # local: analyze in-place
 |---|---|
 | `--local PATH` | Analyze a local repository (output: `PATH/.codeboarding/`) |
 | `--depth-level INT` | Diagram depth (default: 1) |
-| `--incremental` | Smart incremental update (only re-analyze changed files) |
+| `--incremental` | Incremental update (only re-analyze changed files) |
 | `--full` | Force full reanalysis, skip incremental detection |
 | `--partial-component-id ID` | Update a single component by its ID |
 | `--binary-location PATH` | Custom path to language server binaries (overrides `~/.codeboarding/servers/`) |
