@@ -276,7 +276,7 @@ class StaticAnalyzer:
         # Try loading from disk cache (survives across processes)
         if not skip_cache:
             load_dir = Path(cache_dir) if cache_dir is not None else get_cache_dir(self.repository_path)
-            disk_cache = AnalysisCache(load_dir)
+            disk_cache = AnalysisCache(load_dir, self.repository_path)
             cached = disk_cache.get("static_analysis_results")
             if cached is not None:
                 langs = cached.get_languages()
@@ -362,7 +362,7 @@ class StaticAnalyzer:
         # Persist to disk so subprocess callers can reuse without LSP
         save_dir = Path(cache_dir) if cache_dir is not None else get_cache_dir(self.repository_path)
         logger.info(f"Saving static analysis results to disk cache at {save_dir}")
-        disk_cache = AnalysisCache(save_dir)
+        disk_cache = AnalysisCache(save_dir, self.repository_path)
         disk_cache.save("static_analysis_results", results)
 
         return results
@@ -410,7 +410,7 @@ class StaticAnalyzer:
         """
         try:
             commit_hash = GitDiffAnalyzer(project_path).get_current_commit()
-            cache_manager = AnalysisCacheManager()
+            cache_manager = AnalysisCacheManager(self.repository_path)
             cache_manager.save_cache(
                 cache_path=cache_path,
                 analysis_result=analysis,

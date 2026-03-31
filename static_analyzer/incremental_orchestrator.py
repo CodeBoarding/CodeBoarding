@@ -38,7 +38,7 @@ class IncrementalAnalysisOrchestrator:
 
     def __init__(self, ignore_manager: RepoIgnoreManager):
         """Initialize the incremental analysis orchestrator."""
-        self.cache_manager = AnalysisCacheManager()
+        self.cache_manager = AnalysisCacheManager(ignore_manager.repo_root)
         self.cluster_analyzer = ClusterChangeAnalyzer()
         self._ignore_manager = ignore_manager
 

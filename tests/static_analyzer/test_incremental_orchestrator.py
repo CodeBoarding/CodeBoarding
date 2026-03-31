@@ -104,9 +104,11 @@ class TestIncrementalAnalysisOrchestratorInit(unittest.TestCase):
     """Tests for IncrementalAnalysisOrchestrator initialization."""
 
     def test_init_creates_cache_manager(self):
-        """Test that __init__ creates an AnalysisCacheManager."""
-        orchestrator = IncrementalAnalysisOrchestrator(_make_ignore_manager())
+        """Test that __init__ creates an AnalysisCacheManager with the repo root."""
+        ignore_manager = _make_ignore_manager()
+        orchestrator = IncrementalAnalysisOrchestrator(ignore_manager)
         self.assertIsNotNone(orchestrator.cache_manager)
+        self.assertEqual(orchestrator.cache_manager.repo_root, ignore_manager.repo_root)
 
     def test_init_creates_cluster_analyzer(self):
         """Test that __init__ creates a ClusterChangeAnalyzer."""

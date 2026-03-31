@@ -1,3 +1,4 @@
+import copy
 import logging
 import pickle
 import re
@@ -5,9 +6,10 @@ import sys
 import tempfile
 from pathlib import Path
 
-from static_analyzer.node import Node
 from static_analyzer.graph import CallGraph
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
+from static_analyzer.node import Node
+from utils import to_absolute_path, to_relative_path
 
 logger = logging.getLogger(__name__)
 
@@ -119,8 +121,70 @@ def _reference_key(fully_qualified_name: str) -> str:
 
 
 class AnalysisCache:
-    def __init__(self, cache_dir: Path):
+    def __init__(self, cache_dir: Path, repo_root: Path):
         self.cache_dir = cache_dir
+        self.repo_root = repo_root.resolve()
+
+    def _to_relative(self, path: str) -> str:
+        return to_relative_path(path, self.repo_root)
+
+    def _to_absolute(self, path: str) -> str:
+        return to_absolute_path(path, self.repo_root)
+
+    def _relativize(self, result: "StaticAnalysisResults") -> "StaticAnalysisResults":
+        """Return a copy of result with all file paths made repo-relative."""
+        result = copy.deepcopy(result)
+        for lang_data in result.results.values():
+            if "source_files" in lang_data:
+                lang_data["source_files"] = [self._to_relative(f) for f in lang_data["source_files"]]
+            cfg: CallGraph | None = lang_data.get("cfg")
+            if cfg is not None:
+                for node in cfg.nodes.values():
+                    node.file_path = self._to_relative(node.file_path)
+            hierarchy: dict = lang_data.get("hierarchy", {})
+            for info in hierarchy.values():
+                if isinstance(info, dict) and "file_path" in info:
+                    info["file_path"] = self._to_relative(info["file_path"])
+            references: dict = lang_data.get("references", {})
+            for ref in references.values():
+                if isinstance(ref, Node):
+                    ref.file_path = self._to_relative(ref.file_path)
+            dependencies: dict = lang_data.get("dependencies", {})
+            for pkg_info in dependencies.values():
+                if isinstance(pkg_info, dict) and "files" in pkg_info:
+                    pkg_info["files"] = [self._to_relative(f) for f in pkg_info["files"]]
+        result.diagnostics = {
+            lang: {self._to_relative(fp): diags for fp, diags in file_map.items()}
+            for lang, file_map in result.diagnostics.items()
+        }
+        return result
+
+    def _absolutize(self, result: "StaticAnalysisResults") -> "StaticAnalysisResults":
+        """Expand all repo-relative file paths in result to absolute paths."""
+        for lang_data in result.results.values():
+            if "source_files" in lang_data:
+                lang_data["source_files"] = [self._to_absolute(f) for f in lang_data["source_files"]]
+            cfg: CallGraph | None = lang_data.get("cfg")
+            if cfg is not None:
+                for node in cfg.nodes.values():
+                    node.file_path = self._to_absolute(node.file_path)
+            hierarchy: dict = lang_data.get("hierarchy", {})
+            for info in hierarchy.values():
+                if isinstance(info, dict) and "file_path" in info:
+                    info["file_path"] = self._to_absolute(info["file_path"])
+            references: dict = lang_data.get("references", {})
+            for ref in references.values():
+                if isinstance(ref, Node):
+                    ref.file_path = self._to_absolute(ref.file_path)
+            dependencies: dict = lang_data.get("dependencies", {})
+            for pkg_info in dependencies.values():
+                if isinstance(pkg_info, dict) and "files" in pkg_info:
+                    pkg_info["files"] = [self._to_absolute(f) for f in pkg_info["files"]]
+        result.diagnostics = {
+            lang: {self._to_absolute(fp): diags for fp, diags in file_map.items()}
+            for lang, file_map in result.diagnostics.items()
+        }
+        return result
 
     def get(self, repo_hash: str) -> "StaticAnalysisResults | None":
         """Load cached results for the given repo hash, or None if not found/invalid."""
@@ -131,6 +195,7 @@ class AnalysisCache:
         try:
             with open(cache_file, "rb") as f:
                 result = pickle.load(f)
+            result = self._absolutize(result)
             logger.info(f"Loaded static analysis from cache: {cache_file}")
             return result
         except Exception as e:
@@ -138,11 +203,12 @@ class AnalysisCache:
             return None
 
     def save(self, repo_hash: str, result: "StaticAnalysisResults") -> None:
-        """Save results to cache using atomic write."""
+        """Save results to cache using atomic write with repo-relative paths."""
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         cache_file = self.cache_dir / f"{repo_hash}.pkl"
 
-        data = pickle.dumps(result)
+        portable = self._relativize(result)
+        data = pickle.dumps(portable)
         size_mb = sys.getsizeof(data) / (1024 * 1024)
         logger.info(f"Static analysis cache size: {size_mb:.2f} MB")
 
