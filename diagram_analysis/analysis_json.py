@@ -444,7 +444,7 @@ def _extract_analysis_recursive(
         file_methods = [
             FileMethodGroup(
                 file_path=group["file_path"],
-                file_status=ChangeStatus.UNCHANGED,
+                file_status=ChangeStatus(group.get("file_status", "unchanged")),
                 methods=_method_refs_to_placeholders([str(m) for m in group.get("methods", [])]),
             )
             for group in comp_data.get("file_methods", [])

@@ -252,9 +252,9 @@ def _sorted_methods(methods_by_name: dict[str, MethodEntry]) -> list[MethodEntry
 
 
 def _apply_file_delta_to_index(files: dict[str, FileEntry], file_delta: FileDelta) -> None:
-    if file_delta.is_reset and file_delta.reset_methods is not None:
+    if file_delta.is_reset:
         methods_by_name: dict[str, MethodEntry] = {
-            m.qualified_name: MethodEntry.from_method_change(m) for m in file_delta.reset_methods
+            m.qualified_name: MethodEntry.from_method_change(m) for m in (file_delta.reset_methods or [])
         }
         files[file_delta.file_path] = FileEntry(
             file_status=file_delta.file_status,
