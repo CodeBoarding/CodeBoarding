@@ -37,9 +37,29 @@ class AnalysisCacheManager:
     and load them back, enabling incremental analysis workflows.
     """
 
-    def __init__(self):
-        """Initialize the cache manager."""
-        pass
+    def __init__(self, repo_root: Path):
+        """Initialize the cache manager.
+
+        Args:
+            repo_root: Repository root used to store paths relative to the repo,
+                       making the cache portable across machines.
+        """
+        self.repo_root = repo_root
+
+    def _to_relative_path(self, file_path: str) -> str:
+        """Convert absolute file path to a path relative to repo_root for portable storage."""
+        try:
+            return str(Path(file_path).relative_to(self.repo_root))
+        except ValueError:
+            # Path is outside repo root — keep as-is
+            return file_path
+
+    def _to_absolute_path(self, file_path: str) -> str:
+        """Expand a repo-relative path back to an absolute path on load."""
+        p = Path(file_path)
+        if p.is_absolute():
+            return file_path
+        return str(self.repo_root / p)
 
     def save_cache(
         self,
@@ -85,10 +105,10 @@ class AnalysisCacheManager:
                     "timestamp": time.time(),
                 },
                 "call_graph": self._serialize_call_graph(analysis_result["call_graph"]),
-                "class_hierarchies": analysis_result["class_hierarchies"],
-                "package_relations": analysis_result["package_relations"],
+                "class_hierarchies": self._serialize_class_hierarchies(analysis_result["class_hierarchies"]),
+                "package_relations": self._serialize_package_relations(analysis_result["package_relations"]),
                 "references": self._serialize_references(analysis_result["references"]),
-                "source_files": [str(path) for path in analysis_result["source_files"]],
+                "source_files": [self._to_relative_path(str(path)) for path in analysis_result["source_files"]],
             }
 
             # Save diagnostics if present in the analysis result
@@ -151,10 +171,10 @@ class AnalysisCacheManager:
             # Deserialize analysis data
             analysis_result = {
                 "call_graph": self._deserialize_call_graph(cache_data["call_graph"]),
-                "class_hierarchies": cache_data["class_hierarchies"],
-                "package_relations": cache_data["package_relations"],
+                "class_hierarchies": self._deserialize_class_hierarchies(cache_data["class_hierarchies"]),
+                "package_relations": self._deserialize_package_relations(cache_data["package_relations"]),
                 "references": self._deserialize_references(cache_data["references"]),
-                "source_files": [Path(path) for path in cache_data["source_files"]],
+                "source_files": [Path(self._to_absolute_path(path)) for path in cache_data["source_files"]],
             }
 
             # Load diagnostics if present in cache
@@ -478,7 +498,7 @@ class AnalysisCacheManager:
         for node_name, node in call_graph.nodes.items():
             nodes_data[node_name] = {
                 "fully_qualified_name": node.fully_qualified_name,
-                "file_path": node.file_path,
+                "file_path": self._to_relative_path(node.file_path),
                 "line_start": node.line_start,
                 "line_end": node.line_end,
                 "type": node.type,
@@ -496,10 +516,11 @@ class AnalysisCacheManager:
 
         # Add nodes
         for node_name, node_data in call_graph_data["nodes"].items():
+            file_path = self._to_absolute_path(node_data["file_path"])
             node = Node(
                 fully_qualified_name=node_data["fully_qualified_name"],
                 node_type=node_data["type"],
-                file_path=node_data["file_path"],
+                file_path=file_path,
                 line_start=node_data["line_start"],
                 line_end=node_data["line_end"],
             )
@@ -515,12 +536,52 @@ class AnalysisCacheManager:
 
         return call_graph
 
+    def _serialize_class_hierarchies(self, class_hierarchies: dict[str, Any]) -> dict[str, Any]:
+        """Serialize class hierarchies, converting file_path values to repo-relative paths."""
+        result: dict[str, Any] = {}
+        for class_name, class_info in class_hierarchies.items():
+            info = dict(class_info)
+            if "file_path" in info and info["file_path"]:
+                info["file_path"] = self._to_relative_path(info["file_path"])
+            result[class_name] = info
+        return result
+
+    def _deserialize_class_hierarchies(self, class_hierarchies: dict[str, Any]) -> dict[str, Any]:
+        """Deserialize class hierarchies, expanding repo-relative file_path values to absolute."""
+        result: dict[str, Any] = {}
+        for class_name, class_info in class_hierarchies.items():
+            info = dict(class_info)
+            if "file_path" in info and info["file_path"]:
+                info["file_path"] = self._to_absolute_path(info["file_path"])
+            result[class_name] = info
+        return result
+
+    def _serialize_package_relations(self, package_relations: dict[str, Any]) -> dict[str, Any]:
+        """Serialize package relations, converting file path lists to repo-relative paths."""
+        result: dict[str, Any] = {}
+        for package_name, package_info in package_relations.items():
+            info = dict(package_info)
+            if "files" in info:
+                info["files"] = [self._to_relative_path(f) for f in info["files"]]
+            result[package_name] = info
+        return result
+
+    def _deserialize_package_relations(self, package_relations: dict[str, Any]) -> dict[str, Any]:
+        """Deserialize package relations, expanding repo-relative file paths to absolute."""
+        result: dict[str, Any] = {}
+        for package_name, package_info in package_relations.items():
+            info = dict(package_info)
+            if "files" in info:
+                info["files"] = [self._to_absolute_path(f) for f in info["files"]]
+            result[package_name] = info
+        return result
+
     def _serialize_references(self, references: list[Node]) -> list[dict[str, Any]]:
         """Serialize list of Node objects to JSON-compatible format."""
         return [
             {
                 "fully_qualified_name": ref.fully_qualified_name,
-                "file_path": ref.file_path,
+                "file_path": self._to_relative_path(ref.file_path),
                 "line_start": ref.line_start,
                 "line_end": ref.line_end,
                 "type": ref.type,
@@ -534,7 +595,7 @@ class AnalysisCacheManager:
             Node(
                 fully_qualified_name=ref_data["fully_qualified_name"],
                 node_type=ref_data["type"],
-                file_path=ref_data["file_path"],
+                file_path=self._to_absolute_path(ref_data["file_path"]),
                 line_start=ref_data["line_start"],
                 line_end=ref_data["line_end"],
             )
@@ -599,10 +660,14 @@ class AnalysisCacheManager:
         for language, cluster_result in cluster_results.items():
             # Normalize language key to lowercase for consistency
             normalized_language = language.lower()
+            file_to_clusters = {self._to_relative_path(k): list(v) for k, v in cluster_result.file_to_clusters.items()}
+            cluster_to_files = {
+                str(k): [self._to_relative_path(f) for f in v] for k, v in cluster_result.cluster_to_files.items()
+            }
             serialized[normalized_language] = {
                 "clusters": {str(k): list(v) for k, v in cluster_result.clusters.items()},
-                "file_to_clusters": {k: list(v) for k, v in cluster_result.file_to_clusters.items()},
-                "cluster_to_files": {str(k): list(v) for k, v in cluster_result.cluster_to_files.items()},
+                "file_to_clusters": file_to_clusters,
+                "cluster_to_files": cluster_to_files,
                 "strategy": cluster_result.strategy,
             }
         return serialized
@@ -614,8 +679,10 @@ class AnalysisCacheManager:
             # Normalize language key to lowercase for consistency
             normalized_language = language.lower()
             clusters = {int(k): set(v) for k, v in data["clusters"].items()}
-            file_to_clusters = {k: set(v) for k, v in data["file_to_clusters"].items()}
-            cluster_to_files = {int(k): set(v) for k, v in data["cluster_to_files"].items()}
+            file_to_clusters = {self._to_absolute_path(k): set(v) for k, v in data["file_to_clusters"].items()}
+            cluster_to_files = {
+                int(k): {self._to_absolute_path(f) for f in v} for k, v in data["cluster_to_files"].items()
+            }
 
             cluster_results[normalized_language] = ClusterResult(
                 clusters=clusters,

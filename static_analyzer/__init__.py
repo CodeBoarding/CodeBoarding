@@ -410,7 +410,7 @@ class StaticAnalyzer:
         """
         try:
             commit_hash = GitDiffAnalyzer(project_path).get_current_commit()
-            cache_manager = AnalysisCacheManager()
+            cache_manager = AnalysisCacheManager(project_path)
             cache_manager.save_cache(
                 cache_path=cache_path,
                 analysis_result=analysis,
