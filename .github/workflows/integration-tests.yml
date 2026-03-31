@@ -17,6 +17,7 @@ on:
           - typescript
           - php
           - javascript
+          - nextflow
 
   # Run on merge to main
   push:
@@ -37,7 +38,7 @@ jobs:
         id: set-languages
         run: |
           if [ "${{ github.event.inputs.language }}" = "" ] || [ "${{ github.event.inputs.language }}" = "null" ]; then
-            echo 'languages=["python", "java", "go", "typescript", "php", "javascript"]' >> $GITHUB_OUTPUT
+            echo 'languages=["python", "java", "go", "typescript", "php", "javascript", "nextflow"]' >> $GITHUB_OUTPUT
           else
             echo "languages=[\"${{ github.event.inputs.language }}\"]" >> $GITHUB_OUTPUT
           fi
@@ -80,7 +81,7 @@ jobs:
           go-version: '1.21'
 
       - name: Install Java 21
-        if: matrix.language == 'java'
+        if: matrix.language == 'java' || matrix.language == 'nextflow'
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
