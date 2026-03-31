@@ -155,12 +155,37 @@ class IncrementalUpdater:
             missing,
         )
 
+    def _compute_reset_delta(self, file_path: str) -> tuple[FileDelta, bool]:
+        """Compute a reset delta for a file that is now clean relative to HEAD.
+
+        Replaces the stored file state with the current unchanged snapshot,
+        removing stale added/deleted/modified statuses from prior incremental updates.
+        """
+        component_id, missing = self._resolve_component(file_path)
+        current = self._get_current_methods(file_path)
+        for m in current:
+            m.status = ChangeStatus.UNCHANGED
+
+        return (
+            FileDelta(
+                file_path=file_path,
+                file_status=ChangeStatus.UNCHANGED,
+                component_id=component_id,
+                is_reset=True,
+                reset_methods=[
+                    self._to_method_change(file_path, m, change_type=ChangeStatus.UNCHANGED) for m in current
+                ],
+            ),
+            missing,
+        )
+
     def compute_delta(
         self,
         added_files: list[str],
         modified_files: list[str],
         deleted_files: list[str],
         changes: ChangeSet,
+        reset_files: list[str] | None = None,
     ) -> IncrementalDelta:
         """Compute delta from file changes."""
         needs_reanalysis = False
@@ -178,6 +203,11 @@ class IncrementalUpdater:
 
         for file_path in deleted_files:
             delta, missing = self._compute_file_delta(file_path, ChangeStatus.DELETED, False, changes)
+            file_deltas.append(delta)
+            needs_reanalysis = needs_reanalysis or missing
+
+        for file_path in reset_files or []:
+            delta, missing = self._compute_reset_delta(file_path)
             file_deltas.append(delta)
             needs_reanalysis = needs_reanalysis or missing
 
@@ -222,9 +252,19 @@ def _sorted_methods(methods_by_name: dict[str, MethodEntry]) -> list[MethodEntry
 
 
 def _apply_file_delta_to_index(files: dict[str, FileEntry], file_delta: FileDelta) -> None:
+    if file_delta.is_reset:
+        methods_by_name: dict[str, MethodEntry] = {
+            m.qualified_name: MethodEntry.from_method_change(m) for m in (file_delta.reset_methods or [])
+        }
+        files[file_delta.file_path] = FileEntry(
+            file_status=file_delta.file_status,
+            methods=_sorted_methods(methods_by_name),
+        )
+        return
+
     existing = _ensure_file_entry(files, file_delta.file_path, file_delta.file_status)
     existing.file_status = file_delta.file_status
-    methods_by_name: dict[str, MethodEntry] = {m.qualified_name: m for m in existing.methods}
+    methods_by_name = {m.qualified_name: m for m in existing.methods}
 
     if file_delta.file_status == ChangeStatus.DELETED:
         _apply_method_changes(methods_by_name, file_delta.deleted_methods, status_override=ChangeStatus.DELETED)

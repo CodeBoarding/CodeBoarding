@@ -34,9 +34,11 @@ class FileDelta:
     added_methods: list[MethodChange] = field(default_factory=list)
     modified_methods: list[MethodChange] = field(default_factory=list)
     deleted_methods: list[MethodChange] = field(default_factory=list)
+    is_reset: bool = False
+    reset_methods: list[MethodChange] | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        d: dict[str, Any] = {
             "file_path": self.file_path,
             "file_status": self.file_status,
             "component_id": self.component_id,
@@ -44,6 +46,10 @@ class FileDelta:
             "modified_methods": [m.to_dict() for m in self.modified_methods],
             "deleted_methods": [m.to_dict() for m in self.deleted_methods],
         }
+        if self.is_reset:
+            d["is_reset"] = True
+            d["reset_methods"] = [m.to_dict() for m in self.reset_methods] if self.reset_methods else []
+        return d
 
 
 @dataclass
