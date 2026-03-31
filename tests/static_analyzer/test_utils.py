@@ -7,6 +7,8 @@ from utils import (
     create_temp_repo_folder,
     get_config,
     remove_temp_repo_folder,
+    to_absolute_path,
+    to_relative_path,
 )
 
 
@@ -55,6 +57,67 @@ class TestUtils(unittest.TestCase):
             with self.assertRaises(KeyError) as ctx:
                 get_config("nonexistent_key")
             self.assertIn("not found in configuration", str(ctx.exception))
+
+
+class TestToRelativePath(unittest.TestCase):
+    def setUp(self):
+        self.repo_root = Path("/repo/root")
+
+    def test_absolute_path_under_root_becomes_relative(self):
+        result = to_relative_path("/repo/root/src/main.py", self.repo_root)
+        self.assertEqual(result, "src/main.py")
+
+    def test_uses_forward_slashes(self):
+        # Result must always use forward slashes for cross-platform portability.
+        result = to_relative_path("/repo/root/src/pkg/module.py", self.repo_root)
+        self.assertNotIn("\\", result)
+        self.assertEqual(result, "src/pkg/module.py")
+
+    def test_nested_path_preserved(self):
+        result = to_relative_path("/repo/root/a/b/c/file.py", self.repo_root)
+        self.assertEqual(result, "a/b/c/file.py")
+
+    def test_path_outside_root_returned_unchanged(self):
+        outside = "/other/machine/path/file.py"
+        result = to_relative_path(outside, self.repo_root)
+        self.assertEqual(result, outside)
+
+    def test_roundtrip_relative_then_absolute(self):
+        original = "/repo/root/src/app.py"
+        relative = to_relative_path(original, self.repo_root)
+        restored = to_absolute_path(relative, self.repo_root)
+        self.assertEqual(restored, original)
+
+
+class TestToAbsolutePath(unittest.TestCase):
+    def setUp(self):
+        self.repo_root = Path("/repo/root")
+
+    def test_relative_path_resolved_against_root(self):
+        result = to_absolute_path("src/main.py", self.repo_root)
+        self.assertEqual(result, "/repo/root/src/main.py")
+
+    def test_already_absolute_path_returned_unchanged(self):
+        abs_path = "/repo/root/src/main.py"
+        result = to_absolute_path(abs_path, self.repo_root)
+        self.assertEqual(result, abs_path)
+
+    def test_windows_backslash_separators_normalised(self):
+        # A path written on Windows must resolve correctly on POSIX.
+        windows_relative = "src\\pkg\\module.py"
+        result = to_absolute_path(windows_relative, self.repo_root)
+        self.assertEqual(result, "/repo/root/src/pkg/module.py")
+
+    def test_windows_backslash_nested(self):
+        windows_relative = "a\\b\\c\\file.py"
+        result = to_absolute_path(windows_relative, self.repo_root)
+        self.assertEqual(result, "/repo/root/a/b/c/file.py")
+
+    def test_roundtrip_absolute_then_relative(self):
+        original = "src/utils.py"
+        absolute = to_absolute_path(original, self.repo_root)
+        restored = to_relative_path(absolute, self.repo_root)
+        self.assertEqual(restored, original)
 
 
 if __name__ == "__main__":

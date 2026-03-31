@@ -149,7 +149,14 @@ class AnalysisCache:
             for ref in references.values():
                 if isinstance(ref, Node):
                     ref.file_path = self._to_relative(ref.file_path)
-        result.diagnostics = {self._to_relative(fp): diags for fp, diags in result.diagnostics.items()}
+            dependencies: dict = lang_data.get("dependencies", {})
+            for pkg_info in dependencies.values():
+                if isinstance(pkg_info, dict) and "files" in pkg_info:
+                    pkg_info["files"] = [self._to_relative(f) for f in pkg_info["files"]]
+        result.diagnostics = {
+            lang: {self._to_relative(fp): diags for fp, diags in file_map.items()}
+            for lang, file_map in result.diagnostics.items()
+        }
         return result
 
     def _absolutize(self, result: "StaticAnalysisResults") -> "StaticAnalysisResults":
@@ -169,7 +176,14 @@ class AnalysisCache:
             for ref in references.values():
                 if isinstance(ref, Node):
                     ref.file_path = self._to_absolute(ref.file_path)
-        result.diagnostics = {self._to_absolute(fp): diags for fp, diags in result.diagnostics.items()}
+            dependencies: dict = lang_data.get("dependencies", {})
+            for pkg_info in dependencies.values():
+                if isinstance(pkg_info, dict) and "files" in pkg_info:
+                    pkg_info["files"] = [self._to_absolute(f) for f in pkg_info["files"]]
+        result.diagnostics = {
+            lang: {self._to_absolute(fp): diags for fp, diags in file_map.items()}
+            for lang, file_map in result.diagnostics.items()
+        }
         return result
 
     def get(self, repo_hash: str) -> "StaticAnalysisResults | None":

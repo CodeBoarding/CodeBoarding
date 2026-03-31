@@ -65,18 +65,22 @@ def get_config(item_key: str):
 
 
 def to_relative_path(file_path: str, repo_root: Path) -> str:
-    """Convert an absolute path to a path relative to repo_root for portable storage."""
+    """Convert an absolute path to a repo-relative path with forward slashes for portable storage."""
     try:
-        return str(Path(file_path).relative_to(repo_root))
+        rel = Path(file_path).relative_to(repo_root)
+        return rel.as_posix()
     except ValueError:
         return file_path
 
 
 def to_absolute_path(file_path: str, repo_root: Path) -> str:
-    """Expand a repo-relative path back to an absolute path."""
-    p = Path(file_path)
+    """Expand a (possibly Windows-style) repo-relative path back to an absolute path."""
+    # Normalise separator before constructing a Path so that backslashes from
+    # Windows-written caches are treated as path separators on POSIX systems.
+    normalised = file_path.replace("\\", "/")
+    p = Path(normalised)
     if p.is_absolute():
-        return file_path
+        return str(p)
     return str(repo_root / p)
 
 
