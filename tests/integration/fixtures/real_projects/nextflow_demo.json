@@ -1,0 +1,25 @@
+{
+  "metadata": {
+    "repo_url": "https://github.com/nf-core/demo",
+    "pinned_commit": "1.0.0",
+    "language": "Nextflow",
+    "generated_at": "2026-03-31T18:34:53.454686+00:00",
+    "codeboarding_version": "0.9.5"
+  },
+  "metrics": {
+    "references_count": 6,
+    "packages_count": 11,
+    "call_graph_nodes": 6,
+    "call_graph_edges": 4,
+    "source_files_count": 15,
+    "execution_time_seconds": 3
+  },
+  "sample_references": [
+    "main.workflow <entry>",
+    "main.workflow NFCORE_DEMO",
+    "modules.nf-core.fastqc.main.process FASTQC",
+    "modules.nf-core.seqtk.trim.main.process SEQTK_TRIM",
+    "subworkflows.nf-core.utils_nfvalidation_plugin.main.workflow UTILS_NFVALIDATION_PLUGIN",
+    "workflows.demo.workflow DEMO"
+  ]
+}

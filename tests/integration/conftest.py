@@ -127,11 +127,11 @@ REPOSITORY_CONFIGS = [
         },
     ),
     RepositoryTestConfig(
-        name="nextflow_rnaseq",
-        repo_url="https://github.com/nf-core/rnaseq",
-        pinned_commit="3.17.0",
+        name="nextflow_demo",
+        repo_url="https://github.com/nf-core/demo",
+        pinned_commit="1.0.0",
         language="Nextflow",
-        fixture_file="nextflow_rnaseq.json",
+        fixture_file="nextflow_demo.json",
         mock_language={
             "language": "Nextflow",
             "size": 5000,

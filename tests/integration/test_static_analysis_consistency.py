@@ -153,6 +153,7 @@ def get_language_marker(language: str):
         "TypeScript": pytest.mark.typescript_lang,
         "PHP": pytest.mark.php_lang,
         "JavaScript": pytest.mark.javascript_lang,
+        "Nextflow": pytest.mark.nextflow_lang,
     }
     return marker_map.get(language)
 
