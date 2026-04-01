@@ -80,6 +80,7 @@ def _hydrate_component_methods_from_refs(
     files_index: dict[str, FileEntry],
     methods_index: dict[str, "MethodIndexEntry"],
 ) -> None:
+    missing: list[str] = []
     for component in analysis.components:
         rebuilt: list[FileMethodGroup] = []
         for group in component.file_methods:
@@ -91,7 +92,7 @@ def _hydrate_component_methods_from_refs(
                 qname = _to_method_qualified_name(method)
                 indexed = methods_index.get(_method_key(file_path, qname))
                 if indexed is None:
-                    logger.warning(f"Missing method index entry for {file_path}|{qname}")
+                    missing.append(f"{file_path}|{qname}")
                     continue
                 methods.append(
                     MethodEntry(
@@ -107,6 +108,9 @@ def _hydrate_component_methods_from_refs(
             rebuilt.append(FileMethodGroup(file_path=file_path, file_status=file_status, methods=methods))
 
         component.file_methods = rebuilt
+
+    if missing:
+        logger.warning("Missing method index entry for %d ref(s): %s", len(missing), missing)
 
 
 class RelationJson(Relation):

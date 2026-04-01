@@ -416,10 +416,9 @@ class CallGraph:
         valid_communities = [c for c in communities if len(c) >= 2]
         top_communities = sorted(valid_communities, key=len, reverse=True)
 
-        # Limit display to avoid overwhelming output
-        display_communities = top_communities[: ClusteringConfig.MAX_DISPLAY_CLUSTERS]
+        display_communities = top_communities
 
-        communities_str = f"Cluster Definitions ({len(display_communities)} clusters shown):\n\n"
+        communities_str = f"Cluster Definitions ({len(display_communities)} clusters):\n\n"
         for idx, community in enumerate(display_communities, start=1):
             # Group nodes by file, then by class hierarchy within each file
             file_groups: dict[str, dict[str, list[str]]] = defaultdict(lambda: defaultdict(list))
