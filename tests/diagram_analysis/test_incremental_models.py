@@ -27,6 +27,7 @@ def test_trace_response_continue():
     )
     assert resp.status == TraceStopReason.CONTINUE
     assert "foo.bar" in resp.llm_str()
+    assert resp.semantic_impact_summary == ""
 
 
 def test_trace_response_stop_no_impact():
@@ -37,6 +38,18 @@ def test_trace_response_stop_no_impact():
     assert resp.status == "stop_no_material_semantic_impact"
     assert resp.impacted_methods == []
     assert resp.next_methods_to_fetch == []
+    assert resp.semantic_impact_summary == ""
+
+
+def test_trace_response_closure_with_semantic_summary():
+    resp = TraceResponse(
+        status=TraceStopReason.CLOSURE_REACHED,
+        impacted_methods=["foo.bar"],
+        reason="Enough evidence gathered",
+        semantic_impact_summary="The change broadens validation semantics by enforcing stricter input checks.",
+    )
+    assert resp.status == TraceStopReason.CLOSURE_REACHED
+    assert "Semantic impact summary:" in resp.llm_str()
 
 
 def test_trace_result_empty():

@@ -307,6 +307,7 @@ def _build_initial_prompt(groups: list[ChangeGroup]) -> str:
         "- impacted_methods: methods whose diagram description needs updating\n"
         "- next_methods_to_fetch: methods to inspect next (if continuing)\n"
         "- reason: brief explanation\n"
+        "- semantic_impact_summary: one sentence describing the semantic change at a high level only when status is stop_material_semantic_impact_closure_reached; otherwise leave it empty. Do not mention method names, files, or component names.\n"
         "- confidence: 0.0-1.0\n"
     )
     return "\n".join(parts)
@@ -330,6 +331,7 @@ def _build_continuation_prompt(
         f"Previously identified impacted methods: {', '.join(previous_response.impacted_methods)}\n\n"
         "Continue your analysis with the additional context above.\n"
         "Update impacted_methods (cumulative) and either request more methods or stop.\n"
+        "Only populate semantic_impact_summary if you conclude there is material semantic impact and closure has been reached.\n"
     )
     return "\n".join(parts)
 
@@ -414,6 +416,8 @@ def run_trace(
             len(response.next_methods_to_fetch),
             response.reason[:80],
         )
+        if response.status == TraceStopReason.CLOSURE_REACHED and response.semantic_impact_summary:
+            logger.info("Trace semantic impact summary: %s", response.semantic_impact_summary[:200])
 
         # Check stop conditions
         if response.status != TraceStopReason.CONTINUE:

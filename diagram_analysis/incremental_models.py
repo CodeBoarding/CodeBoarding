@@ -56,6 +56,14 @@ class TraceResponse(LLMBaseModel):
     reason: str = Field(
         description="Brief explanation of why this stop/continue decision was made.",
     )
+    semantic_impact_summary: str = Field(
+        default="",
+        description=(
+            "One-sentence semantic summary of the impact, only when "
+            "status=stop_material_semantic_impact_closure_reached. Leave empty otherwise. "
+            "Do not mention method names, files, or component names."
+        ),
+    )
     confidence: float = Field(
         default=0.8,
         description="Confidence in this assessment (0.0-1.0).",
@@ -63,6 +71,8 @@ class TraceResponse(LLMBaseModel):
 
     def llm_str(self) -> str:
         parts = [f"Status: {self.status}", f"Reason: {self.reason}"]
+        if self.semantic_impact_summary:
+            parts.append(f"Semantic impact summary: {self.semantic_impact_summary}")
         if self.impacted_methods:
             parts.append(f"Impacted: {', '.join(self.impacted_methods)}")
         if self.next_methods_to_fetch:
