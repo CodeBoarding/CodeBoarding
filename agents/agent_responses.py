@@ -13,6 +13,9 @@ logger = logging.getLogger(__name__)
 class LLMBaseModel(BaseModel, abc.ABC):
     """Base model for LLM-parseable response types."""
 
+    def _new_methods():
+        pass
+
     @abstractmethod
     def llm_str(self):
         raise NotImplementedError("LLM String has to be implemented.")

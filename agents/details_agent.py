@@ -151,7 +151,7 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
         if group_names:
             prompt += (
                 f"\n\n## All Group Names ({len(group_names)} total)\n"
-                f"Every one of these names must appear in exactly one component's source_group_names: {group_names}\n"
+                f"Every one of these names: {group_names} must appear in exactly one component's source_group_names\n"
             )
 
         # Build validation context with subgraph CFG graphs for edge checking

@@ -71,7 +71,7 @@ class ClusterMethodsMixin:
             Formatted cluster string with headers per language
         """
         cluster_lines = []
-        all_ids: set[int] = set()
+        all_cluster_ids: set[int] = set()
 
         for lang in programming_langs:
             cfg = self.static_analysis.get_cfg(lang)
@@ -86,14 +86,14 @@ class ClusterMethodsMixin:
                 cluster_lines.append("\n")
                 if cluster_result:
                     lang_ids = cluster_ids if cluster_ids else cluster_result.get_cluster_ids()
-                    all_ids.update(lang_ids)
+                    all_cluster_ids.update(lang_ids)
 
         # Add explicit ID checklist so the LLM knows exactly which IDs to assign
-        if all_ids and not cluster_ids:
-            sorted_ids = sorted(all_ids)
+        if all_cluster_ids and not cluster_ids:
+            sorted_cluster_ids = sorted(all_cluster_ids)
             cluster_lines.append(
-                f"\n## All Cluster IDs ({len(sorted_ids)} total)\n"
-                f"Every one of these IDs must appear in exactly one group: {sorted_ids}\n"
+                f"\n## All Cluster IDs ({len(sorted_cluster_ids)} total)\n"
+                f"Every one of these IDs: {sorted_cluster_ids} must appear in exactly one group."
             )
 
         return "".join(cluster_lines)
