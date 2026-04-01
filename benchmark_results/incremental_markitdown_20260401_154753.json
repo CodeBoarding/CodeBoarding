@@ -1,0 +1,110 @@
+{
+  "repo": "/Users/brovatten/Documents/github_folder/markitdown",
+  "timestamp": "20260401_154753",
+  "scenarios": {
+    "add_json_converter": [
+      {
+        "wall_clock_seconds": 5.71,
+        "escalation_level": "additive_skip",
+        "hops_used": 0,
+        "trace_stop_reason": "",
+        "components_affected": 0,
+        "impacted_methods_count": 0,
+        "file_deltas_count": 3,
+        "purely_additive": true,
+        "error": null
+      }
+    ],
+    "add_conversion_stats": [
+      {
+        "wall_clock_seconds": 5.92,
+        "escalation_level": "scoped",
+        "hops_used": 1,
+        "trace_stop_reason": "stop_uncertain",
+        "components_affected": 0,
+        "impacted_methods_count": 0,
+        "file_deltas_count": 2,
+        "purely_additive": false,
+        "error": null
+      }
+    ],
+    "add_conversion_pipeline": [
+      {
+        "wall_clock_seconds": 5.79,
+        "escalation_level": "additive_skip",
+        "hops_used": 0,
+        "trace_stop_reason": "",
+        "components_affected": 0,
+        "impacted_methods_count": 0,
+        "file_deltas_count": 2,
+        "purely_additive": true,
+        "error": null
+      }
+    ],
+    "enhance_csv_converter": [
+      {
+        "wall_clock_seconds": 157.1,
+        "escalation_level": "scoped",
+        "hops_used": 1,
+        "trace_stop_reason": "stop_uncertain",
+        "components_affected": 1,
+        "impacted_methods_count": 2,
+        "file_deltas_count": 2,
+        "purely_additive": false,
+        "error": null
+      }
+    ],
+    "add_error_recovery": [
+      {
+        "wall_clock_seconds": 6.23,
+        "escalation_level": "scoped",
+        "hops_used": 1,
+        "trace_stop_reason": "stop_uncertain",
+        "components_affected": 0,
+        "impacted_methods_count": 0,
+        "file_deltas_count": 2,
+        "purely_additive": false,
+        "error": null
+      }
+    ],
+    "modify_core_convert": [
+      {
+        "wall_clock_seconds": 7.51,
+        "escalation_level": "scoped",
+        "hops_used": 1,
+        "trace_stop_reason": "stop_uncertain",
+        "components_affected": 0,
+        "impacted_methods_count": 0,
+        "file_deltas_count": 1,
+        "purely_additive": false,
+        "error": null
+      }
+    ],
+    "cross_module_refactor": [
+      {
+        "wall_clock_seconds": 5.91,
+        "escalation_level": "scoped",
+        "hops_used": 1,
+        "trace_stop_reason": "stop_uncertain",
+        "components_affected": 0,
+        "impacted_methods_count": 0,
+        "file_deltas_count": 2,
+        "purely_additive": false,
+        "error": null
+      }
+    ],
+    "remove_deprecated_api": [
+      {
+        "wall_clock_seconds": 5.9,
+        "escalation_level": "scoped",
+        "hops_used": 1,
+        "trace_stop_reason": "stop_uncertain",
+        "components_affected": 0,
+        "impacted_methods_count": 0,
+        "file_deltas_count": 2,
+        "purely_additive": false,
+        "error": null
+      }
+    ]
+  }
+}

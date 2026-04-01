@@ -1,0 +1,103 @@
+{
+  "repo": "/Users/brovatten/Documents/github_folder/deepface",
+  "timestamp": "20260401_152347",
+  "scenarios": {
+    "cosmetic_docstring": [
+      {
+        "wall_clock_seconds": 5.67,
+        "escalation_level": "",
+        "hops_used": 0,
+        "trace_stop_reason": "",
+        "components_affected": 0,
+        "impacted_methods_count": 0,
+        "file_deltas_count": 1,
+        "purely_additive": false,
+        "error": "ChangeGroup.__init__() got an unexpected keyword argument 'diff_hunks'"
+      }
+    ],
+    "add_utility_function": [
+      {
+        "wall_clock_seconds": 5.53,
+        "escalation_level": "",
+        "hops_used": 0,
+        "trace_stop_reason": "",
+        "components_affected": 0,
+        "impacted_methods_count": 0,
+        "file_deltas_count": 1,
+        "purely_additive": false,
+        "error": "ChangeGroup.__init__() got an unexpected keyword argument 'diff_hunks'"
+      }
+    ],
+    "modify_function_logic": [
+      {
+        "wall_clock_seconds": 5.62,
+        "escalation_level": "",
+        "hops_used": 0,
+        "trace_stop_reason": "",
+        "components_affected": 0,
+        "impacted_methods_count": 0,
+        "file_deltas_count": 1,
+        "purely_additive": false,
+        "error": "ChangeGroup.__init__() got an unexpected keyword argument 'diff_hunks'"
+      }
+    ],
+    "add_parameter_cross_module": [
+      {
+        "wall_clock_seconds": 5.51,
+        "escalation_level": "",
+        "hops_used": 0,
+        "trace_stop_reason": "",
+        "components_affected": 0,
+        "impacted_methods_count": 0,
+        "file_deltas_count": 2,
+        "purely_additive": false,
+        "error": "ChangeGroup.__init__() got an unexpected keyword argument 'diff_hunks'"
+      }
+    ],
+    "add_new_file": [
+      {
+        "wall_clock_seconds": 5.56,
+        "escalation_level": "",
+        "hops_used": 0,
+        "trace_stop_reason": "",
+        "components_affected": 0,
+        "impacted_methods_count": 0,
+        "file_deltas_count": 2,
+        "purely_additive": false,
+        "error": "ChangeGroup.__init__() got an unexpected keyword argument 'diff_hunks'"
+      }
+    ],
+    "cross_component_change": [
+      {
+        "wall_clock_seconds": 5.51,
+        "escalation_level": "",
+        "hops_used": 0,
+        "trace_stop_reason": "",
+        "components_affected": 0,
+        "impacted_methods_count": 0,
+        "file_deltas_count": 4,
+        "purely_additive": false,
+        "error": "ChangeGroup.__init__() got an unexpected keyword argument 'diff_hunks'"
+      }
+    ],
+    "delete_function": [
+      {
+        "wall_clock_seconds": 5.55,
+        "escalation_level": "",
+        "hops_used": 0,
+        "trace_stop_reason": "",
+        "components_affected": 0,
+        "impacted_methods_count": 0,
+        "file_deltas_count": 1,
+        "purely_additive": false,
+        "error": "ChangeGroup.__init__() got an unexpected keyword argument 'diff_hunks'"
+      }
+    ],
+    "rename_across_files": [
+      {
+        "error": "content_fn produced no change for deepface/modules/recognition.py",
+        "wall_clock_seconds": 0
+      }
+    ]
+  }
+}

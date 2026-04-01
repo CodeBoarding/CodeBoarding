@@ -1,0 +1,110 @@
+{
+  "repo": "/Users/brovatten/Documents/github_folder/markitdown",
+  "timestamp": "20260401_154231",
+  "scenarios": {
+    "add_json_converter": [
+      {
+        "wall_clock_seconds": 5.92,
+        "escalation_level": "additive_skip",
+        "hops_used": 0,
+        "trace_stop_reason": "",
+        "components_affected": 0,
+        "impacted_methods_count": 0,
+        "file_deltas_count": 3,
+        "purely_additive": true,
+        "error": null
+      }
+    ],
+    "add_conversion_stats": [
+      {
+        "wall_clock_seconds": 5.6,
+        "escalation_level": "",
+        "hops_used": 0,
+        "trace_stop_reason": "",
+        "components_affected": 0,
+        "impacted_methods_count": 0,
+        "file_deltas_count": 2,
+        "purely_additive": false,
+        "error": "name 'cfg' is not defined"
+      }
+    ],
+    "add_conversion_pipeline": [
+      {
+        "wall_clock_seconds": 5.76,
+        "escalation_level": "additive_skip",
+        "hops_used": 0,
+        "trace_stop_reason": "",
+        "components_affected": 0,
+        "impacted_methods_count": 0,
+        "file_deltas_count": 2,
+        "purely_additive": true,
+        "error": null
+      }
+    ],
+    "enhance_csv_converter": [
+      {
+        "wall_clock_seconds": 5.63,
+        "escalation_level": "",
+        "hops_used": 0,
+        "trace_stop_reason": "",
+        "components_affected": 0,
+        "impacted_methods_count": 0,
+        "file_deltas_count": 2,
+        "purely_additive": false,
+        "error": "name 'cfg' is not defined"
+      }
+    ],
+    "add_error_recovery": [
+      {
+        "wall_clock_seconds": 5.62,
+        "escalation_level": "",
+        "hops_used": 0,
+        "trace_stop_reason": "",
+        "components_affected": 0,
+        "impacted_methods_count": 0,
+        "file_deltas_count": 2,
+        "purely_additive": false,
+        "error": "name 'cfg' is not defined"
+      }
+    ],
+    "modify_core_convert": [
+      {
+        "wall_clock_seconds": 5.66,
+        "escalation_level": "",
+        "hops_used": 0,
+        "trace_stop_reason": "",
+        "components_affected": 0,
+        "impacted_methods_count": 0,
+        "file_deltas_count": 1,
+        "purely_additive": false,
+        "error": "name 'cfg' is not defined"
+      }
+    ],
+    "cross_module_refactor": [
+      {
+        "wall_clock_seconds": 5.63,
+        "escalation_level": "",
+        "hops_used": 0,
+        "trace_stop_reason": "",
+        "components_affected": 0,
+        "impacted_methods_count": 0,
+        "file_deltas_count": 2,
+        "purely_additive": false,
+        "error": "name 'cfg' is not defined"
+      }
+    ],
+    "remove_deprecated_api": [
+      {
+        "wall_clock_seconds": 5.6,
+        "escalation_level": "",
+        "hops_used": 0,
+        "trace_stop_reason": "",
+        "components_affected": 0,
+        "impacted_methods_count": 0,
+        "file_deltas_count": 2,
+        "purely_additive": false,
+        "error": "name 'cfg' is not defined"
+      }
+    ]
+  }
+}

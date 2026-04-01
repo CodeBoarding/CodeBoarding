@@ -1,5 +1,6 @@
 """Tests for the incremental tracer and scope classification."""
 
+import subprocess
 from unittest.mock import MagicMock, patch
 
 from agents.change_status import ChangeStatus
@@ -15,6 +16,7 @@ from diagram_analysis.incremental_tracer import (
     _get_neighbors,
     _trace_message_content,
     classify_scope,
+    run_trace,
 )
 from diagram_analysis.incremental_types import FileDelta, IncrementalDelta, MethodChange
 from static_analyzer.graph import CallGraph
@@ -433,6 +435,112 @@ def test_build_change_groups_uses_indexes(tmp_path):
     assert "module.bar" in groups[0].downstream_neighbors
 
 
+def test_build_change_groups_groups_connected_files_together(tmp_path):
+    src_a = tmp_path / "src" / "a.py"
+    src_b = tmp_path / "src" / "b.py"
+    src_a.parent.mkdir(parents=True)
+    src_a.write_text("def a():\n    return 1\n")
+    src_b.write_text("def b():\n    return 2\n")
+
+    cfg = _make_cfg_with_edge("pkg.a", "pkg.b", "src/a.py", "src/b.py")
+    up_idx, down_idx = _build_neighbor_indexes({"python": cfg})
+
+    delta = IncrementalDelta(
+        file_deltas=[
+            FileDelta(
+                file_path="src/a.py",
+                file_status=ChangeStatus.MODIFIED,
+                component_id="1",
+                modified_methods=[
+                    MethodChange(
+                        qualified_name="pkg.a",
+                        file_path="src/a.py",
+                        start_line=1,
+                        end_line=2,
+                        change_type=ChangeStatus.MODIFIED,
+                        node_type="FUNCTION",
+                    )
+                ],
+            ),
+            FileDelta(
+                file_path="src/b.py",
+                file_status=ChangeStatus.MODIFIED,
+                component_id="2",
+                modified_methods=[
+                    MethodChange(
+                        qualified_name="pkg.b",
+                        file_path="src/b.py",
+                        start_line=1,
+                        end_line=2,
+                        change_type=ChangeStatus.MODIFIED,
+                        node_type="FUNCTION",
+                    )
+                ],
+            ),
+        ]
+    )
+
+    groups = _build_change_groups(delta, up_idx, down_idx, tmp_path, "HEAD")
+    assert len(groups) == 1
+    assert set(groups[0].file_paths) == {"src/a.py", "src/b.py"}
+
+
+def test_build_change_groups_keeps_disconnected_files_separate(tmp_path):
+    src_a = tmp_path / "src" / "a.py"
+    src_c = tmp_path / "src" / "c.py"
+    src_a.parent.mkdir(parents=True)
+    src_a.write_text("def a():\n    return 1\n")
+    src_c.write_text("def c():\n    return 3\n")
+
+    cfg = CallGraph(language="python")
+    cfg.add_node(_make_node("pkg.a", "src/a.py"))
+    cfg.add_node(_make_node("pkg.b", "src/b.py"))
+    cfg.add_node(_make_node("pkg.c", "src/c.py"))
+    cfg.add_node(_make_node("pkg.d", "src/d.py"))
+    cfg.add_edge("pkg.a", "pkg.b")
+    cfg.add_edge("pkg.c", "pkg.d")
+    up_idx, down_idx = _build_neighbor_indexes({"python": cfg})
+
+    delta = IncrementalDelta(
+        file_deltas=[
+            FileDelta(
+                file_path="src/a.py",
+                file_status=ChangeStatus.MODIFIED,
+                component_id="1",
+                modified_methods=[
+                    MethodChange(
+                        qualified_name="pkg.a",
+                        file_path="src/a.py",
+                        start_line=1,
+                        end_line=2,
+                        change_type=ChangeStatus.MODIFIED,
+                        node_type="FUNCTION",
+                    )
+                ],
+            ),
+            FileDelta(
+                file_path="src/c.py",
+                file_status=ChangeStatus.MODIFIED,
+                component_id="2",
+                modified_methods=[
+                    MethodChange(
+                        qualified_name="pkg.c",
+                        file_path="src/c.py",
+                        start_line=1,
+                        end_line=2,
+                        change_type=ChangeStatus.MODIFIED,
+                        node_type="FUNCTION",
+                    )
+                ],
+            ),
+        ]
+    )
+
+    groups = _build_change_groups(delta, up_idx, down_idx, tmp_path, "HEAD")
+    assert len(groups) == 2
+    assert {group.group_key for group in groups} == {"src/a.py", "src/c.py"}
+
+
 def test_purely_additive_all_added():
     delta = IncrementalDelta(
         file_deltas=[
@@ -667,3 +775,437 @@ def test_build_change_groups_no_skip_when_methods_added(mock_cosmetic, tmp_path)
     groups = _build_change_groups(delta, {}, {}, tmp_path, "HEAD")
     assert len(groups) == 1
     mock_cosmetic.assert_not_called()
+
+
+def _init_git_repo(tmp_path):
+    subprocess.run(["git", "init"], cwd=tmp_path, capture_output=True, check=True)
+    subprocess.run(["git", "config", "user.email", "t@t.com"], cwd=tmp_path, capture_output=True, check=True)
+    subprocess.run(["git", "config", "user.name", "T"], cwd=tmp_path, capture_output=True, check=True)
+
+
+def _commit_file(repo, file_path: str, content: str, message: str = "c") -> str:
+    full = repo / file_path
+    full.parent.mkdir(parents=True, exist_ok=True)
+    full.write_text(content)
+    subprocess.run(["git", "add", file_path], cwd=repo, capture_output=True, check=True)
+    subprocess.run(["git", "commit", "-m", message], cwd=repo, capture_output=True, check=True)
+    result = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo, capture_output=True, text=True, check=True)
+    return result.stdout.strip()
+
+
+def test_build_change_groups_filters_semantically_unchanged_methods(tmp_path):
+    _init_git_repo(tmp_path)
+    base = _commit_file(
+        tmp_path,
+        "src/module.py",
+        "def foo():\n    return 1\n\ndef bar():\n    return 2\n",
+    )
+    (tmp_path / "src" / "module.py").write_text(
+        "def foo():\n    # comment only\n    return 1\n\ndef bar():\n    return 3\n"
+    )
+
+    delta = IncrementalDelta(
+        file_deltas=[
+            FileDelta(
+                file_path="src/module.py",
+                file_status=ChangeStatus.MODIFIED,
+                component_id="1",
+                modified_methods=[
+                    MethodChange(
+                        qualified_name="module.foo",
+                        file_path="src/module.py",
+                        start_line=1,
+                        end_line=3,
+                        change_type=ChangeStatus.MODIFIED,
+                        node_type="FUNCTION",
+                    ),
+                    MethodChange(
+                        qualified_name="module.bar",
+                        file_path="src/module.py",
+                        start_line=5,
+                        end_line=6,
+                        change_type=ChangeStatus.MODIFIED,
+                        node_type="FUNCTION",
+                    ),
+                ],
+            )
+        ]
+    )
+
+    groups = _build_change_groups(delta, {}, {}, tmp_path, base)
+    assert len(groups) == 1
+    assert [method.qualified_name for method in groups[0].methods] == ["module.bar"]
+
+
+def test_run_trace_uses_deterministic_fast_path_without_llm(tmp_path):
+    _init_git_repo(tmp_path)
+    base = _commit_file(tmp_path, "src/module.py", "def foo():\n    return 1\n")
+    (tmp_path / "src" / "module.py").write_text("def foo():\n    return 2\n")
+
+    delta = IncrementalDelta(
+        file_deltas=[
+            FileDelta(
+                file_path="src/module.py",
+                file_status=ChangeStatus.MODIFIED,
+                component_id="1",
+                modified_methods=[
+                    MethodChange(
+                        qualified_name="module.foo",
+                        file_path="src/module.py",
+                        start_line=1,
+                        end_line=2,
+                        change_type=ChangeStatus.MODIFIED,
+                        node_type="FUNCTION",
+                    )
+                ],
+            )
+        ]
+    )
+
+    result = run_trace(
+        delta=delta,
+        cfgs={},
+        static_analysis=MagicMock(),
+        repo_dir=tmp_path,
+        base_ref=base,
+        agent_llm=MagicMock(),
+        parsing_llm=MagicMock(),
+    )
+
+    assert result.stop_reason == TraceStopReason.CLOSURE_REACHED
+    assert result.all_impacted_methods == ["module.foo"]
+
+
+@patch("diagram_analysis.incremental_tracer._trace_single_group")
+def test_run_trace_parallelizes_independent_regions(mock_trace_single_group, tmp_path):
+    src_a = tmp_path / "src" / "a.py"
+    src_c = tmp_path / "src" / "c.py"
+    src_a.parent.mkdir(parents=True)
+    src_a.write_text("def a():\n    return 1\n")
+    src_c.write_text("def c():\n    return 3\n")
+
+    cfg = CallGraph(language="python")
+    cfg.add_node(_make_node("pkg.a", "src/a.py"))
+    cfg.add_node(_make_node("pkg.b", "src/b.py"))
+    cfg.add_node(_make_node("pkg.c", "src/c.py"))
+    cfg.add_node(_make_node("pkg.d", "src/d.py"))
+    cfg.add_edge("pkg.a", "pkg.b")
+    cfg.add_edge("pkg.c", "pkg.d")
+
+    delta = IncrementalDelta(
+        file_deltas=[
+            FileDelta(
+                file_path="src/a.py",
+                file_status=ChangeStatus.MODIFIED,
+                component_id="1",
+                modified_methods=[
+                    MethodChange(
+                        qualified_name="pkg.a",
+                        file_path="src/a.py",
+                        start_line=1,
+                        end_line=2,
+                        change_type=ChangeStatus.MODIFIED,
+                        node_type="FUNCTION",
+                    )
+                ],
+            ),
+            FileDelta(
+                file_path="src/c.py",
+                file_status=ChangeStatus.MODIFIED,
+                component_id="2",
+                modified_methods=[
+                    MethodChange(
+                        qualified_name="pkg.c",
+                        file_path="src/c.py",
+                        start_line=1,
+                        end_line=2,
+                        change_type=ChangeStatus.MODIFIED,
+                        node_type="FUNCTION",
+                    )
+                ],
+            ),
+        ]
+    )
+
+    mock_trace_single_group.side_effect = [
+        TraceResult(all_impacted_methods=["pkg.a"], stop_reason=TraceStopReason.CLOSURE_REACHED, hops_used=1),
+        TraceResult(all_impacted_methods=["pkg.c"], stop_reason=TraceStopReason.CLOSURE_REACHED, hops_used=2),
+    ]
+
+    result = run_trace(
+        delta=delta,
+        cfgs={"python": cfg},
+        static_analysis=MagicMock(),
+        repo_dir=tmp_path,
+        base_ref="HEAD",
+        agent_llm=MagicMock(),
+        parsing_llm=MagicMock(),
+    )
+
+    assert mock_trace_single_group.call_count == 2
+    assert result.stop_reason == TraceStopReason.CLOSURE_REACHED
+    assert result.all_impacted_methods == ["pkg.a", "pkg.c"]
+    assert result.hops_used == 2
+
+
+# ---------------------------------------------------------------------------
+# File extension filtering
+# ---------------------------------------------------------------------------
+
+
+def test_build_change_groups_skips_non_analyzable_extensions(tmp_path):
+    """Files with non-analyzable extensions (e.g. .yml, .md) are skipped entirely."""
+    cfg_file = tmp_path / "config.yml"
+    cfg_file.write_text("key: value\n")
+
+    delta = IncrementalDelta(
+        file_deltas=[
+            FileDelta(
+                file_path="config.yml",
+                file_status=ChangeStatus.MODIFIED,
+                component_id="1",
+                modified_methods=[
+                    MethodChange(
+                        qualified_name="config.key",
+                        file_path="config.yml",
+                        start_line=1,
+                        end_line=1,
+                        change_type=ChangeStatus.MODIFIED,
+                        node_type="FUNCTION",
+                    )
+                ],
+            )
+        ],
+    )
+    groups = _build_change_groups(delta, {}, {}, tmp_path, "HEAD")
+    assert len(groups) == 0
+
+
+def test_build_change_groups_keeps_analyzable_extensions(tmp_path):
+    """Files with analyzable extensions (e.g. .py) are kept."""
+    src = tmp_path / "module.py"
+    src.write_text("def foo():\n    return 1\n")
+
+    delta = IncrementalDelta(
+        file_deltas=[
+            FileDelta(
+                file_path="module.py",
+                file_status=ChangeStatus.MODIFIED,
+                component_id="1",
+                modified_methods=[
+                    MethodChange(
+                        qualified_name="module.foo",
+                        file_path="module.py",
+                        start_line=1,
+                        end_line=2,
+                        change_type=ChangeStatus.MODIFIED,
+                        node_type="FUNCTION",
+                    )
+                ],
+            )
+        ],
+    )
+    groups = _build_change_groups(delta, {}, {}, tmp_path, "HEAD")
+    assert len(groups) == 1
+
+
+def test_build_change_groups_mixed_extensions(tmp_path):
+    """Only analyzable files produce groups when mixed with non-analyzable."""
+    src = tmp_path / "module.py"
+    src.write_text("def foo():\n    return 1\n")
+    cfg_file = tmp_path / "config.yml"
+    cfg_file.write_text("key: value\n")
+
+    delta = IncrementalDelta(
+        file_deltas=[
+            FileDelta(
+                file_path="module.py",
+                file_status=ChangeStatus.MODIFIED,
+                component_id="1",
+                modified_methods=[
+                    MethodChange(
+                        qualified_name="module.foo",
+                        file_path="module.py",
+                        start_line=1,
+                        end_line=2,
+                        change_type=ChangeStatus.MODIFIED,
+                        node_type="FUNCTION",
+                    )
+                ],
+            ),
+            FileDelta(
+                file_path="config.yml",
+                file_status=ChangeStatus.MODIFIED,
+                component_id="1",
+                modified_methods=[
+                    MethodChange(
+                        qualified_name="config.key",
+                        file_path="config.yml",
+                        start_line=1,
+                        end_line=1,
+                        change_type=ChangeStatus.MODIFIED,
+                        node_type="FUNCTION",
+                    )
+                ],
+            ),
+        ],
+    )
+    groups = _build_change_groups(delta, {}, {}, tmp_path, "HEAD")
+    assert len(groups) == 1
+    assert groups[0].methods[0].file_path == "module.py"
+
+
+# ---------------------------------------------------------------------------
+# Syntax error gating
+# ---------------------------------------------------------------------------
+
+
+def test_run_trace_aborts_on_syntax_error(tmp_path):
+    """Incremental trace aborts when a changed file has syntax errors."""
+    src = tmp_path / "broken.py"
+    src.write_text("def foo(\n    return 1\n")  # missing closing paren
+
+    delta = IncrementalDelta(
+        file_deltas=[
+            FileDelta(
+                file_path="broken.py",
+                file_status=ChangeStatus.MODIFIED,
+                component_id="1",
+                modified_methods=[
+                    MethodChange(
+                        qualified_name="broken.foo",
+                        file_path="broken.py",
+                        start_line=1,
+                        end_line=2,
+                        change_type=ChangeStatus.MODIFIED,
+                        node_type="FUNCTION",
+                    )
+                ],
+            )
+        ],
+    )
+
+    result = run_trace(
+        delta=delta,
+        cfgs={},
+        static_analysis=MagicMock(),
+        repo_dir=tmp_path,
+        base_ref="HEAD",
+        agent_llm=MagicMock(),
+        parsing_llm=MagicMock(),
+    )
+
+    assert result.stop_reason == TraceStopReason.SYNTAX_ERROR
+    assert result.all_impacted_methods == []
+
+
+def test_run_trace_skips_syntax_check_for_deleted_files(tmp_path):
+    """Deleted files are not syntax-checked (they don't exist on disk)."""
+    delta = IncrementalDelta(
+        file_deltas=[
+            FileDelta(
+                file_path="gone.py",
+                file_status=ChangeStatus.DELETED,
+                component_id="1",
+                deleted_methods=[
+                    MethodChange(
+                        qualified_name="gone.func",
+                        file_path="gone.py",
+                        start_line=1,
+                        end_line=5,
+                        change_type=ChangeStatus.DELETED,
+                        node_type="FUNCTION",
+                    )
+                ],
+            )
+        ],
+    )
+
+    result = run_trace(
+        delta=delta,
+        cfgs={},
+        static_analysis=MagicMock(),
+        repo_dir=tmp_path,
+        base_ref="HEAD",
+        agent_llm=MagicMock(),
+        parsing_llm=MagicMock(),
+    )
+
+    # Should not abort — deleted files can't be syntax-checked
+    assert result.stop_reason != TraceStopReason.SYNTAX_ERROR
+
+
+def test_run_trace_skips_syntax_check_for_non_analyzable(tmp_path):
+    """Non-analyzable files are not syntax-checked."""
+    cfg_file = tmp_path / "config.yml"
+    cfg_file.write_text("key: {{{invalid yaml maybe\n")
+
+    delta = IncrementalDelta(
+        file_deltas=[
+            FileDelta(
+                file_path="config.yml",
+                file_status=ChangeStatus.MODIFIED,
+                component_id="1",
+                modified_methods=[
+                    MethodChange(
+                        qualified_name="config.key",
+                        file_path="config.yml",
+                        start_line=1,
+                        end_line=1,
+                        change_type=ChangeStatus.MODIFIED,
+                        node_type="FUNCTION",
+                    )
+                ],
+            )
+        ],
+    )
+
+    result = run_trace(
+        delta=delta,
+        cfgs={},
+        static_analysis=MagicMock(),
+        repo_dir=tmp_path,
+        base_ref="HEAD",
+        agent_llm=MagicMock(),
+        parsing_llm=MagicMock(),
+    )
+
+    assert result.stop_reason != TraceStopReason.SYNTAX_ERROR
+
+
+def test_run_trace_passes_with_valid_syntax(tmp_path):
+    """Valid Python files pass the syntax gate and proceed to tracing."""
+    src = tmp_path / "valid.py"
+    src.write_text("def foo():\n    return 1\n")
+
+    delta = IncrementalDelta(
+        file_deltas=[
+            FileDelta(
+                file_path="valid.py",
+                file_status=ChangeStatus.MODIFIED,
+                component_id="1",
+                modified_methods=[
+                    MethodChange(
+                        qualified_name="valid.foo",
+                        file_path="valid.py",
+                        start_line=1,
+                        end_line=2,
+                        change_type=ChangeStatus.MODIFIED,
+                        node_type="FUNCTION",
+                    )
+                ],
+            )
+        ],
+    )
+
+    result = run_trace(
+        delta=delta,
+        cfgs={},
+        static_analysis=MagicMock(),
+        repo_dir=tmp_path,
+        base_ref="HEAD",
+        agent_llm=MagicMock(),
+        parsing_llm=MagicMock(),
+    )
+
+    assert result.stop_reason != TraceStopReason.SYNTAX_ERROR
