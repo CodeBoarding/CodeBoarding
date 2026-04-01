@@ -8,6 +8,7 @@ blocks via symbol-table lookup.
 
 import logging
 import subprocess
+from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -128,18 +129,38 @@ class MethodResolver:
 # ---------------------------------------------------------------------------
 # Neighbor extraction from CFG
 # ---------------------------------------------------------------------------
-def _get_neighbors(cfgs: dict[str, CallGraph], qualified_name: str) -> tuple[list[str], list[str]]:
-    """Return (upstream_callers, downstream_callees) for a method."""
-    upstream: list[str] = []
-    downstream: list[str] = []
-    for cfg in cfgs.values():
-        if qualified_name in cfg.nodes:
-            node = cfg.nodes[qualified_name]
-            downstream.extend(node.methods_called_by_me)
-        for edge in cfg.edges:
-            if edge.get_destination() == qualified_name:
-                upstream.append(edge.get_source())
-    return list(set(upstream)), list(set(downstream))
+NeighborIndex = tuple[dict[str, list[str]], dict[str, list[str]]]
+
+
+def _build_neighbor_indexes(*cfg_dicts: dict[str, CallGraph]) -> NeighborIndex:
+    """Build upstream/downstream adjacency maps from one or more CFG dicts.
+
+    Returns ``(upstream_index, downstream_index)`` where each maps a qualified
+    method name to its list of unique callers / callees.  Single O(N+E) pass
+    per CFG dict replaces the previous O(E)-per-lookup scan.
+    """
+    upstream: dict[str, set[str]] = defaultdict(set)
+    downstream: dict[str, set[str]] = defaultdict(set)
+    for cfgs in cfg_dicts:
+        for cfg in cfgs.values():
+            for qname, node in cfg.nodes.items():
+                if node.methods_called_by_me:
+                    downstream.setdefault(qname, set()).update(node.methods_called_by_me)
+            for edge in cfg.edges:
+                upstream[edge.get_destination()].add(edge.get_source())
+    return (
+        {k: list(v) for k, v in upstream.items()},
+        {k: list(v) for k, v in downstream.items()},
+    )
+
+
+def _get_neighbors(
+    upstream_index: dict[str, list[str]],
+    downstream_index: dict[str, list[str]],
+    qualified_name: str,
+) -> tuple[list[str], list[str]]:
+    """Return (upstream_callers, downstream_callees) for a method via pre-built indexes."""
+    return upstream_index.get(qualified_name, []), downstream_index.get(qualified_name, [])
 
 
 # ---------------------------------------------------------------------------
@@ -147,7 +168,8 @@ def _get_neighbors(cfgs: dict[str, CallGraph], qualified_name: str) -> tuple[lis
 # ---------------------------------------------------------------------------
 def _build_change_groups(
     delta: IncrementalDelta,
-    cfgs: dict[str, CallGraph],
+    upstream_index: dict[str, list[str]],
+    downstream_index: dict[str, list[str]],
     repo_dir: Path,
     base_ref: str,
 ) -> list[ChangeGroup]:
@@ -173,7 +195,7 @@ def _build_change_groups(
                 diff_hunks=diff_text,
             )
             group.methods.append(ctx)
-            up, down = _get_neighbors(cfgs, mc.qualified_name)
+            up, down = _get_neighbors(upstream_index, downstream_index, mc.qualified_name)
             group.upstream_neighbors.extend(up)
             group.downstream_neighbors.extend(down)
 
@@ -187,6 +209,9 @@ def _build_change_groups(
                 diff_hunks=diff_text,
             )
             group.methods.append(ctx)
+            up, down = _get_neighbors(upstream_index, downstream_index, mc.qualified_name)
+            group.upstream_neighbors.extend(up)
+            group.downstream_neighbors.extend(down)
 
         group.upstream_neighbors = list(set(group.upstream_neighbors))
         group.downstream_neighbors = list(set(group.downstream_neighbors))
@@ -271,16 +296,27 @@ def run_trace(
     agent_llm: BaseChatModel,
     parsing_llm: BaseChatModel,
     config: TraceConfig | None = None,
+    baseline_cfgs: dict[str, CallGraph] | None = None,
 ) -> TraceResult:
     """Run the semantic tracing loop over changed methods.
 
     Returns a TraceResult with impacted methods and components (unmapped —
     scope classification happens in the orchestrator).
+
+    *baseline_cfgs*, when provided, supplies neighbor data for deleted methods
+    that are no longer present in the current *cfgs*.
     """
     from trustcall import create_extractor
 
     cfg = config or TraceConfig()
-    groups = _build_change_groups(delta, cfgs, repo_dir, base_ref)
+
+    # Build neighbor indexes once — O(N+E) total
+    index_args: list[dict[str, CallGraph]] = [cfgs]
+    if baseline_cfgs is not None:
+        index_args.append(baseline_cfgs)
+    upstream_idx, downstream_idx = _build_neighbor_indexes(*index_args)
+
+    groups = _build_change_groups(delta, upstream_idx, downstream_idx, repo_dir, base_ref)
 
     if not groups:
         logger.info("No traceable changed methods; skipping trace")
@@ -291,20 +327,19 @@ def run_trace(
 
     # Initial prompt
     prompt = _build_initial_prompt(groups)
-    messages = [
+    messages: list[dict[str, str]] = [
         {"role": "system", "content": _TRACE_SYSTEM},
         {"role": "user", "content": prompt},
     ]
 
     all_impacted: set[str] = set()
     total_fetched = 0
-    tokens_consumed = 0
+    hops_used = 0
 
     for hop in range(cfg.max_hops + 1):
-        # Invoke LLM
-        full_prompt = "\n\n".join(m["content"] for m in messages)
+        # Invoke LLM with structured messages
         try:
-            result = extractor.invoke(full_prompt)
+            result = extractor.invoke({"messages": messages})  # type: ignore[arg-type]
             response: TraceResponse
             if "responses" in result and result["responses"]:
                 response = TraceResponse.model_validate(result["responses"][0])
@@ -329,34 +364,35 @@ def run_trace(
 
         # Check stop conditions
         if response.status != TraceStopReason.CONTINUE:
-            tokens_consumed = hop  # approximate
+            hops_used = hop
             return TraceResult(
                 all_impacted_methods=sorted(all_impacted),
                 unresolved_frontier=resolver.unresolved + response.unresolved_frontier,
                 stop_reason=response.status,
-                tokens_consumed=tokens_consumed,
+                hops_used=hops_used,
             )
 
-        # Budget check
+        # Determine how many methods we can still fetch
         remaining = cfg.max_fetched_methods - total_fetched
         to_fetch = response.next_methods_to_fetch[:remaining]
-        # Count unresolved requests against budget
-        total_fetched += len(response.next_methods_to_fetch)
 
-        if not to_fetch or total_fetched > cfg.max_fetched_methods:
+        if not to_fetch:
             logger.info("Fetch budget exhausted at hop %d", hop)
             return TraceResult(
                 all_impacted_methods=sorted(all_impacted),
                 unresolved_frontier=resolver.unresolved + response.unresolved_frontier,
-                stop_reason=TraceStopReason.CLOSURE_REACHED,
-                tokens_consumed=tokens_consumed,
+                stop_reason=TraceStopReason.UNCERTAIN,
+                hops_used=hops_used,
             )
 
-        # Fetch requested methods
+        # Fetch requested methods — only resolved ones count against budget
         fetched: dict[str, str | None] = {}
         for qname in to_fetch:
             _, body = resolver.resolve(qname)
             fetched[qname] = body
+
+        resolved_count = sum(1 for b in fetched.values() if b is not None)
+        total_fetched += resolved_count
 
         # Build continuation prompt
         cont_prompt = _build_continuation_prompt(fetched, response)
@@ -368,7 +404,7 @@ def run_trace(
         all_impacted_methods=sorted(all_impacted),
         unresolved_frontier=resolver.unresolved,
         stop_reason=TraceStopReason.UNCERTAIN,
-        tokens_consumed=tokens_consumed,
+        hops_used=hop + 1 if groups else 0,
     )
 
 

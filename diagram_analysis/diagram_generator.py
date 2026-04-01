@@ -510,14 +510,54 @@ class DiagramGenerator:
         Raises ``RuntimeError`` if no baseline checkpoint exists.
         Use ``--reset-baseline`` to re-establish one.
         """
-        from diagram_analysis.analysis_patcher import merge_patched_sub_analyses, patch_sub_analysis
-        from diagram_analysis.incremental_models import EscalationLevel, TraceConfig, TraceStopReason
-        from diagram_analysis.incremental_tracer import classify_scope, run_trace
-        from diagram_analysis.incremental_updater import IncrementalUpdater
+        from diagram_analysis.incremental_models import EscalationLevel
 
         output_dir = Path(self.output_dir)
 
-        # --- Step 1: require existing baseline ---
+        # 1. Load baseline and re-run static analysis
+        latest_checkpoint, root_analysis, sub_analyses, file_component_index, cfgs = self._load_incremental_baseline(
+            output_dir
+        )
+        base_ref = latest_checkpoint.checkpoint_ref
+        static_analysis = self.static_analysis
+        assert static_analysis is not None  # guaranteed by _load_incremental_baseline
+
+        # 2. Detect changes and compute delta
+        changes = detect_changes(self.repo_location, base_ref, "")
+        delta = self._compute_incremental_delta(
+            output_dir, changes, root_analysis, file_component_index, static_analysis
+        )
+        if delta is None:
+            return self._restore_or_raise(output_dir)
+
+        # 3. Semantic tracing + scope classification
+        agent_llm, parsing_llm = initialize_llms()
+        trace_result = self._run_semantic_trace(
+            delta, cfgs, static_analysis, base_ref, file_component_index, agent_llm, parsing_llm
+        )
+
+        # 4. Check escalation
+        escalation = self._determine_escalation(trace_result, root_analysis, changes)
+        if escalation in (EscalationLevel.FULL, EscalationLevel.ROOT):
+            logger.info("Escalation %s triggered; falling back to full analysis", escalation.value)
+            return self.generate_analysis()
+
+        # 5. Apply changes (patch or scoped re-expansion)
+        if escalation == EscalationLevel.SCOPED:
+            logger.info("Scoped escalation: re-running DetailsAgent on affected components")
+            affected_ids = {ic.component_id for ic in trace_result.impacted_components}
+            self._scoped_reexpansion(root_analysis, sub_analyses, affected_ids, agent_llm, parsing_llm)
+        elif trace_result.impacted_components:
+            self._patch_impacted_components(root_analysis, sub_analyses, trace_result, parsing_llm)
+
+        # 6. Finalize: method diff statuses, save analysis and checkpoint
+        return self._save_incremental_result(output_dir, root_analysis, sub_analyses, base_ref)
+
+    def _load_incremental_baseline(self, output_dir: Path):
+        """Load checkpoint, previous analysis, static analysis, and CFGs.
+
+        Returns (checkpoint, root_analysis, sub_analyses, file_component_index, cfgs).
+        """
         latest_checkpoint = get_latest_checkpoint(self.repo_location, output_dir)
         if latest_checkpoint is None:
             raise RuntimeError(
@@ -531,31 +571,11 @@ class DiagramGenerator:
             latest_checkpoint.checkpoint_ref,
         )
 
-        # --- Step 2: re-run static analysis (deterministic, no LLM) ---
-        if self.static_analysis is None:
-            if self._static_analyzer is not None:
-                cache_dir = get_cache_dir(self.repo_location)
-                self.static_analysis = self._get_static_from_injected_analyzer(cache_dir)
-            else:
-                self.static_analysis = get_static_analysis(self.repo_location)
+        self._ensure_static_analysis()
         static_analysis = self.static_analysis
-
-        # Build CFG dict: language -> CallGraph
+        assert static_analysis is not None  # guaranteed by _ensure_static_analysis
         cfgs = {lang: static_analysis.get_cfg(lang) for lang in static_analysis.get_languages()}
 
-        # --- Step 3: detect delta against checkpoint ---
-        base_ref = latest_checkpoint.checkpoint_ref
-        changes = detect_changes(self.repo_location, base_ref, "")
-        if changes.is_empty():
-            logger.info("No changes detected since last checkpoint; restoring previous analysis")
-            from diagram_analysis.checkpoints import restore_latest_artifacts
-
-            restored = restore_latest_artifacts(output_dir)
-            if restored:
-                return restored
-            raise RuntimeError("No changes detected and failed to restore checkpoint artifacts")
-
-        # Load previous analysis from checkpoint
         loaded = load_checkpoint_analysis(output_dir, latest_checkpoint.checkpoint_id)
         if loaded is None:
             raise RuntimeError(
@@ -565,7 +585,28 @@ class DiagramGenerator:
         root_analysis, sub_analyses = loaded
         file_component_index = build_file_component_index(root_analysis)
 
-        # Build IncrementalDelta using the existing updater machinery
+        return latest_checkpoint, root_analysis, sub_analyses, file_component_index, cfgs
+
+    def _ensure_static_analysis(self) -> None:
+        """Populate ``self.static_analysis`` if not already set."""
+        if self.static_analysis is None:
+            if self._static_analyzer is not None:
+                cache_dir = get_cache_dir(self.repo_location)
+                self.static_analysis = self._get_static_from_injected_analyzer(cache_dir)
+            else:
+                self.static_analysis = get_static_analysis(self.repo_location)
+
+    def _compute_incremental_delta(self, output_dir, changes, root_analysis, file_component_index, static_analysis):
+        """Build an IncrementalDelta from file-level changes.
+
+        Returns ``None`` when there are no method-level changes (caller should restore).
+        """
+        from diagram_analysis.incremental_updater import IncrementalUpdater
+
+        if changes.is_empty():
+            logger.info("No changes detected since last checkpoint; restoring previous analysis")
+            return None
+
         def symbol_resolver(file_path: str):
             from agents.agent_responses import MethodEntry
 
@@ -602,17 +643,23 @@ class DiagramGenerator:
 
         if not delta.has_changes:
             logger.info("Delta has no method-level changes; restoring previous analysis")
-            from diagram_analysis.checkpoints import restore_latest_artifacts
+            return None
 
-            restored = restore_latest_artifacts(output_dir)
-            if restored:
-                return restored
-            raise RuntimeError("No method changes and failed to restore checkpoint artifacts")
+        return delta
 
-        # --- Step 4-5: handled inside the tracer (method bodies + symbol lookup) ---
-        # --- Step 6-8: semantic tracing loop ---
-        agent_llm, parsing_llm = initialize_llms()
-        trace_config = TraceConfig()
+    def _restore_or_raise(self, output_dir: Path) -> Path:
+        """Restore latest checkpoint artifacts, or raise if that fails."""
+        from diagram_analysis.checkpoints import restore_latest_artifacts
+
+        restored = restore_latest_artifacts(output_dir)
+        if restored:
+            return restored
+        raise RuntimeError("No changes detected and failed to restore checkpoint artifacts")
+
+    def _run_semantic_trace(self, delta, cfgs, static_analysis, base_ref, file_component_index, agent_llm, parsing_llm):
+        """Run the tracing loop and classify scope."""
+        from diagram_analysis.incremental_models import TraceConfig
+        from diagram_analysis.incremental_tracer import classify_scope, run_trace
 
         trace_result = run_trace(
             delta=delta,
@@ -622,39 +669,15 @@ class DiagramGenerator:
             base_ref=base_ref,
             agent_llm=agent_llm,
             parsing_llm=parsing_llm,
-            config=trace_config,
+            config=TraceConfig(),
         )
+        return classify_scope(trace_result, file_component_index, static_analysis)
 
-        # --- Step 9: deterministic scope classification ---
-        trace_result = classify_scope(trace_result, file_component_index, static_analysis)
-
-        # --- Step 12: check escalation ---
-        escalation = self._determine_escalation(trace_result, root_analysis, changes)
-
-        if escalation == EscalationLevel.FULL:
-            logger.info("Full escalation triggered; falling back to full analysis")
-            return self.generate_analysis()
-
-        if escalation == EscalationLevel.ROOT:
-            logger.info("Root escalation triggered; re-running abstraction + details for affected components")
-            # Re-run full analysis for now; scoped re-run is a future optimization
-            return self.generate_analysis()
-
-        if escalation == EscalationLevel.SCOPED:
-            logger.info("Scoped escalation: re-running DetailsAgent on affected components")
-            # For scoped escalation, we re-expand only affected components
-            affected_ids = {ic.component_id for ic in trace_result.impacted_components}
-            self._scoped_reexpansion(root_analysis, sub_analyses, affected_ids, agent_llm, parsing_llm)
-        else:
-            # --- Step 10: patch impacted components ---
-            if trace_result.impacted_components:
-                self._patch_impacted_components(root_analysis, sub_analyses, trace_result, parsing_llm)
-
-        # --- Apply method diff statuses to the analysis ---
+    def _save_incremental_result(self, output_dir, root_analysis, sub_analyses, base_ref) -> Path:
+        """Apply diff statuses, save analysis, and save checkpoint."""
         self._set_method_diff_base_ref(base_ref)
         self._apply_method_diff_statuses(root_analysis, sub_analyses)
 
-        # --- Save the merged analysis ---
         analysis_path = save_analysis(
             analysis=root_analysis,
             output_dir=output_dir,
@@ -663,10 +686,7 @@ class DiagramGenerator:
         ).resolve()
 
         logger.info("Incremental analysis complete. Written to %s", analysis_path)
-
-        # --- Step 11: save checkpoint ---
         self._save_checkpoint()
-
         return analysis_path
 
     def _patch_impacted_components(
@@ -735,7 +755,8 @@ class DiagramGenerator:
         parsing_llm: BaseChatModel,
     ) -> None:
         """Re-run DetailsAgent only on affected root components."""
-        assert self.static_analysis is not None
+        if self.static_analysis is None:
+            raise RuntimeError("static_analysis must be populated before scoped re-expansion")
         meta_context = None
         if self.meta_agent is not None:
             meta_context = self.meta_agent.analyze_project_metadata()

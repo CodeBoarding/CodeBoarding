@@ -18,7 +18,6 @@ class TraceConfig:
 
     max_hops: int = 3
     max_fetched_methods: int = 30
-    max_tokens: int = 100_000
 
 
 # ---------------------------------------------------------------------------
@@ -90,7 +89,7 @@ class TraceResult:
     all_impacted_methods: list[str] = field(default_factory=list)
     unresolved_frontier: list[str] = field(default_factory=list)
     stop_reason: TraceStopReason = TraceStopReason.NO_MATERIAL_IMPACT
-    tokens_consumed: int = 0
+    hops_used: int = 0
 
 
 # ---------------------------------------------------------------------------

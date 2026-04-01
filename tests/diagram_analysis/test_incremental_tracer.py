@@ -11,6 +11,7 @@ from diagram_analysis.incremental_tracer import (
     MethodResolver,
     _build_change_groups,
     _build_initial_prompt,
+    _build_neighbor_indexes,
     _get_neighbors,
     classify_scope,
 )
@@ -36,20 +37,21 @@ def _make_cfg_with_edge(src_name: str, dst_name: str, src_file: str = "a.py", ds
 
 def test_get_neighbors():
     cfg = _make_cfg_with_edge("caller", "callee")
-    cfgs = {"python": cfg}
+    up_idx, down_idx = _build_neighbor_indexes({"python": cfg})
 
-    upstream, downstream = _get_neighbors(cfgs, "callee")
+    upstream, downstream = _get_neighbors(up_idx, down_idx, "callee")
     assert "caller" in upstream
     assert downstream == []
 
-    upstream, downstream = _get_neighbors(cfgs, "caller")
+    upstream, downstream = _get_neighbors(up_idx, down_idx, "caller")
     assert upstream == []
     assert "callee" in downstream
 
 
 def test_get_neighbors_unknown_method():
     cfg = _make_cfg_with_edge("a", "b")
-    upstream, downstream = _get_neighbors({"python": cfg}, "unknown")
+    up_idx, down_idx = _build_neighbor_indexes({"python": cfg})
+    upstream, downstream = _get_neighbors(up_idx, down_idx, "unknown")
     assert upstream == []
     assert downstream == []
 
@@ -80,7 +82,7 @@ def test_build_change_groups_modified_file(tmp_path):
         ],
     )
 
-    groups = _build_change_groups(delta, {}, tmp_path, "HEAD")
+    groups = _build_change_groups(delta, {}, {}, tmp_path, "HEAD")
     assert len(groups) == 1
     assert groups[0].group_key == "src/module.py"
     assert len(groups[0].methods) == 1
@@ -97,7 +99,7 @@ def test_build_change_groups_skips_empty_delta(tmp_path):
             )
         ],
     )
-    groups = _build_change_groups(delta, {}, tmp_path, "HEAD")
+    groups = _build_change_groups(delta, {}, {}, tmp_path, "HEAD")
     assert len(groups) == 0
 
 
@@ -122,7 +124,7 @@ def test_build_change_groups_deleted_methods(tmp_path):
         ],
     )
     # Deleted file with deleted methods should produce a group
-    groups = _build_change_groups(delta, {}, tmp_path, "HEAD")
+    groups = _build_change_groups(delta, {}, {}, tmp_path, "HEAD")
     assert len(groups) == 1
     assert groups[0].methods[0].change_type == ChangeStatus.DELETED
 
@@ -210,6 +212,7 @@ def test_method_resolver_exact_match(tmp_path):
     resolver = MethodResolver(static, tmp_path)
     resolved_node, body = resolver.resolve("mod.hello")
     assert resolved_node is not None
+    assert body is not None
     assert "def hello" in body
     assert resolver.unresolved == []
 
@@ -225,3 +228,134 @@ def test_method_resolver_unresolved(tmp_path):
     assert node is None
     assert body is None
     assert "nonexistent.method" in resolver.unresolved
+
+
+# ---------------------------------------------------------------------------
+# Neighbor index tests
+# ---------------------------------------------------------------------------
+
+
+def test_build_neighbor_indexes():
+    """Indexes from a single CFG give correct O(1) lookups."""
+    cfg = CallGraph(language="python")
+    a = _make_node("a", "a.py")
+    b = _make_node("b", "b.py")
+    c = _make_node("c", "c.py")
+    cfg.add_node(a)
+    cfg.add_node(b)
+    cfg.add_node(c)
+    cfg.add_edge("a", "b")
+    cfg.add_edge("a", "c")
+    cfg.add_edge("b", "c")
+
+    up_idx, down_idx = _build_neighbor_indexes({"python": cfg})
+
+    # a calls b and c
+    assert sorted(down_idx["a"]) == ["b", "c"]
+    # b calls c
+    assert down_idx["b"] == ["c"]
+    # c calls nothing
+    assert "c" not in down_idx
+
+    # c is called by a and b
+    assert sorted(up_idx["c"]) == ["a", "b"]
+    # b is called by a
+    assert up_idx["b"] == ["a"]
+    # a is not called by anyone
+    assert "a" not in up_idx
+
+
+def test_build_neighbor_indexes_with_baseline():
+    """Baseline CFGs contribute edges for deleted methods not in current CFGs."""
+    current_cfg = CallGraph(language="python")
+    a = _make_node("a", "a.py")
+    b = _make_node("b", "b.py")
+    current_cfg.add_node(a)
+    current_cfg.add_node(b)
+    current_cfg.add_edge("a", "b")
+
+    baseline_cfg = CallGraph(language="python")
+    deleted = _make_node("deleted_func", "old.py")
+    c = _make_node("c", "c.py")
+    baseline_cfg.add_node(deleted)
+    baseline_cfg.add_node(c)
+    baseline_cfg.add_edge("deleted_func", "c")
+    baseline_cfg.add_edge("c", "deleted_func")
+
+    up_idx, down_idx = _build_neighbor_indexes({"python": current_cfg}, {"python": baseline_cfg})
+
+    # deleted_func downstream from baseline
+    assert "c" in down_idx["deleted_func"]
+    # deleted_func upstream from baseline
+    assert "c" in up_idx["deleted_func"]
+    # current CFG edges still present
+    assert "b" in down_idx["a"]
+
+
+def test_deleted_method_gets_neighbors(tmp_path):
+    """Deleted methods should get neighbor context via indexes."""
+    baseline_cfg = CallGraph(language="python")
+    caller = _make_node("caller", "mod.py")
+    deleted = _make_node("deleted_func", "old.py")
+    baseline_cfg.add_node(caller)
+    baseline_cfg.add_node(deleted)
+    baseline_cfg.add_edge("caller", "deleted_func")
+
+    up_idx, down_idx = _build_neighbor_indexes({}, {"python": baseline_cfg})
+
+    delta = IncrementalDelta(
+        file_deltas=[
+            FileDelta(
+                file_path="old.py",
+                file_status=ChangeStatus.DELETED,
+                component_id="1",
+                deleted_methods=[
+                    MethodChange(
+                        qualified_name="deleted_func",
+                        file_path="old.py",
+                        start_line=1,
+                        end_line=5,
+                        change_type=ChangeStatus.DELETED,
+                        node_type="FUNCTION",
+                    )
+                ],
+            )
+        ],
+    )
+    groups = _build_change_groups(delta, up_idx, down_idx, tmp_path, "HEAD")
+    assert len(groups) == 1
+    assert "caller" in groups[0].upstream_neighbors
+
+
+def test_build_change_groups_uses_indexes(tmp_path):
+    """_build_change_groups uses pre-built indexes instead of raw cfgs."""
+    src = tmp_path / "src" / "module.py"
+    src.parent.mkdir(parents=True)
+    src.write_text("def foo():\n    return 1\n")
+
+    cfg = _make_cfg_with_edge("module.foo", "module.bar")
+    up_idx, down_idx = _build_neighbor_indexes({"python": cfg})
+
+    delta = IncrementalDelta(
+        file_deltas=[
+            FileDelta(
+                file_path="src/module.py",
+                file_status=ChangeStatus.MODIFIED,
+                component_id="1",
+                modified_methods=[
+                    MethodChange(
+                        qualified_name="module.foo",
+                        file_path="src/module.py",
+                        start_line=1,
+                        end_line=2,
+                        change_type=ChangeStatus.MODIFIED,
+                        node_type="FUNCTION",
+                    )
+                ],
+            )
+        ],
+    )
+
+    groups = _build_change_groups(delta, up_idx, down_idx, tmp_path, "HEAD")
+    assert len(groups) == 1
+    assert "module.bar" in groups[0].downstream_neighbors

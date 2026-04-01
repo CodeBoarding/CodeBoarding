@@ -16,7 +16,6 @@ def test_trace_config_defaults():
     cfg = TraceConfig()
     assert cfg.max_hops == 3
     assert cfg.max_fetched_methods == 30
-    assert cfg.max_tokens == 100_000
 
 
 def test_trace_response_continue():

@@ -14,7 +14,7 @@ from langchain_core.language_models import BaseChatModel
 from pydantic import ValidationError
 from trustcall import create_extractor
 
-from agents.agent_responses import AnalysisInsights, Component, Relation
+from agents.agent_responses import AnalysisInsights, Component, Relation, SourceCodeReference
 from diagram_analysis.ease import ease_decode, ease_encode
 from diagram_analysis.incremental_models import AnalysisPatch, ImpactedComponent
 
@@ -198,6 +198,81 @@ def _validate_patched(decoded: dict[str, Any]) -> AnalysisInsights | None:
         return None
 
 
+def _merge_patched_onto_original(
+    decoded: dict[str, Any],
+    original: AnalysisInsights,
+) -> AnalysisInsights | None:
+    """Merge LLM-edited fields from *decoded* back onto *original*, preserving deterministic data.
+
+    Updates ``name``, ``description``, ``key_entities``, and ``components_relations``
+    from the decoded dict while keeping ``source_group_names``, ``source_cluster_ids``,
+    ``file_methods``, ``component_id``, and the ``files`` index from *original*.
+
+    Returns ``None`` (with a warning) when the decoded dict adds, removes, or
+    renames component IDs — incremental patching is not meant to reshape structure.
+    """
+    try:
+        decoded_components = decoded.get("components", [])
+        original_by_id = {c.component_id: c for c in original.components}
+
+        if len(decoded_components) != len(original_by_id):
+            logger.warning(
+                "Patch changed component count (%d -> %d); rejecting",
+                len(original_by_id),
+                len(decoded_components),
+            )
+            return None
+
+        merged: list[Component] = []
+        for c in decoded_components:
+            cid = c.get("component_id", "")
+            orig = original_by_id.get(cid)
+            if orig is None:
+                logger.warning("Patch introduced unknown component_id %r; rejecting", cid)
+                return None
+            key_entities = [
+                SourceCodeReference(
+                    qualified_name=ke["qualified_name"],
+                    reference_file=ke.get("reference_file"),
+                    reference_start_line=ke.get("reference_start_line"),
+                    reference_end_line=ke.get("reference_end_line"),
+                )
+                for ke in c.get("key_entities", [])
+            ]
+            merged.append(
+                Component(
+                    name=c["name"],
+                    description=c["description"],
+                    key_entities=key_entities,
+                    source_group_names=orig.source_group_names,
+                    source_cluster_ids=orig.source_cluster_ids,
+                    file_methods=orig.file_methods,
+                    component_id=orig.component_id,
+                )
+            )
+
+        relations = [
+            Relation(
+                relation=r["relation"],
+                src_name=r["src_name"],
+                dst_name=r["dst_name"],
+                src_id=r.get("src_id", ""),
+                dst_id=r.get("dst_id", ""),
+            )
+            for r in decoded.get("components_relations", [])
+        ]
+
+        return AnalysisInsights(
+            description=decoded.get("description", ""),
+            files=original.files,
+            components=merged,
+            components_relations=relations,
+        )
+    except (ValidationError, KeyError, TypeError) as exc:
+        logger.warning("Merge onto original failed validation: %s", exc)
+        return None
+
+
 # ---------------------------------------------------------------------------
 # Main patch flow
 # ---------------------------------------------------------------------------
@@ -238,7 +313,7 @@ def patch_sub_analysis(
 
             patched = _apply_patches(encoded, patch_ops)
             decoded = _decode_sub_analysis(patched)
-            validated = _validate_patched(decoded)
+            validated = _merge_patched_onto_original(decoded, sub_analysis)
 
             if validated is not None:
                 logger.info("Successfully patched sub-analysis %s on attempt %d", sub_analysis_id, attempt + 1)
