@@ -24,6 +24,7 @@ from diagram_analysis.incremental_models import (
     TraceStopReason,
 )
 from diagram_analysis.incremental_types import IncrementalDelta
+from repo_utils.parsed_diff import ParsedGitDiff
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.graph import CallGraph
 from static_analyzer.node import Node
@@ -48,8 +49,17 @@ def _read_method_body(repo_dir: Path, file_path: str, start_line: int, end_line:
         return None
 
 
-def _get_diff_hunks(repo_dir: Path, base_ref: str, file_path: str) -> str:
+def _get_diff_hunks(
+    repo_dir: Path,
+    base_ref: str,
+    file_path: str,
+    parsed_diff: ParsedGitDiff | None = None,
+) -> str:
     """Return unified diff hunks for a single file."""
+    if parsed_diff is not None:
+        file_diff = parsed_diff.get_file(file_path)
+        return file_diff.patch_text if file_diff is not None else ""
+
     try:
         result = subprocess.run(
             ["git", "diff", "-U3", base_ref, "--", file_path],
@@ -74,7 +84,6 @@ class ChangedMethodContext:
     file_path: str
     change_type: str
     new_body: str | None = None
-    diff_hunks: str = ""
 
 
 @dataclass
@@ -85,6 +94,7 @@ class ChangeGroup:
     methods: list[ChangedMethodContext] = field(default_factory=list)
     upstream_neighbors: list[str] = field(default_factory=list)
     downstream_neighbors: list[str] = field(default_factory=list)
+    diff_hunks: str = ""
 
 
 # ---------------------------------------------------------------------------
@@ -172,6 +182,7 @@ def _build_change_groups(
     downstream_index: dict[str, list[str]],
     repo_dir: Path,
     base_ref: str,
+    parsed_diff: ParsedGitDiff | None = None,
 ) -> list[ChangeGroup]:
     """Group changed methods by file and attach neighbor metadata."""
     groups: dict[str, ChangeGroup] = {}
@@ -182,9 +193,11 @@ def _build_change_groups(
         if not all_methods and file_delta.file_status != ChangeStatus.DELETED:
             continue
 
-        diff_text = _get_diff_hunks(repo_dir, base_ref, fp) if file_delta.file_status != ChangeStatus.ADDED else ""
+        diff_text = (
+            _get_diff_hunks(repo_dir, base_ref, fp, parsed_diff) if file_delta.file_status != ChangeStatus.ADDED else ""
+        )
 
-        group = groups.setdefault(fp, ChangeGroup(group_key=fp))
+        group = groups.setdefault(fp, ChangeGroup(group_key=fp, diff_hunks=diff_text))
         for mc in all_methods:
             body = _read_method_body(repo_dir, fp, mc.start_line, mc.end_line)
             ctx = ChangedMethodContext(
@@ -192,7 +205,6 @@ def _build_change_groups(
                 file_path=fp,
                 change_type=mc.change_type,
                 new_body=body,
-                diff_hunks=diff_text,
             )
             group.methods.append(ctx)
             up, down = _get_neighbors(upstream_index, downstream_index, mc.qualified_name)
@@ -206,7 +218,6 @@ def _build_change_groups(
                 file_path=fp,
                 change_type=ChangeStatus.DELETED,
                 new_body=None,
-                diff_hunks=diff_text,
             )
             group.methods.append(ctx)
             up, down = _get_neighbors(upstream_index, downstream_index, mc.qualified_name)
@@ -243,8 +254,8 @@ def _build_initial_prompt(groups: list[ChangeGroup]) -> str:
             parts.append(f"### {m.qualified_name} ({m.change_type})")
             if m.new_body:
                 parts.append(f"```\n{m.new_body}\n```")
-            if m.diff_hunks:
-                parts.append(f"Diff:\n```diff\n{m.diff_hunks}\n```")
+        if group.diff_hunks:
+            parts.append(f"Diff:\n```diff\n{group.diff_hunks}\n```")
         if group.upstream_neighbors:
             parts.append(f"Upstream callers: {', '.join(group.upstream_neighbors[:20])}")
         if group.downstream_neighbors:
@@ -297,6 +308,7 @@ def run_trace(
     parsing_llm: BaseChatModel,
     config: TraceConfig | None = None,
     baseline_cfgs: dict[str, CallGraph] | None = None,
+    parsed_diff: ParsedGitDiff | None = None,
 ) -> TraceResult:
     """Run the semantic tracing loop over changed methods.
 
@@ -316,7 +328,7 @@ def run_trace(
         index_args.append(baseline_cfgs)
     upstream_idx, downstream_idx = _build_neighbor_indexes(*index_args)
 
-    groups = _build_change_groups(delta, upstream_idx, downstream_idx, repo_dir, base_ref)
+    groups = _build_change_groups(delta, upstream_idx, downstream_idx, repo_dir, base_ref, parsed_diff)
 
     if not groups:
         logger.info("No traceable changed methods; skipping trace")
@@ -415,6 +427,7 @@ def classify_scope(
     trace_result: TraceResult,
     file_component_index: FileComponentIndex,
     static_analysis: StaticAnalysisResults,
+    repo_dir: Path,
 ) -> TraceResult:
     """Deterministically map impacted methods to components using file index.
 
@@ -427,6 +440,10 @@ def classify_scope(
         file_path = _resolve_method_file(qname, static_analysis)
         if file_path is None:
             continue
+        try:
+            file_path = Path(file_path).resolve().relative_to(repo_dir.resolve()).as_posix()
+        except ValueError:
+            file_path = file_path.lstrip("./")
         comp_id = file_component_index.get_component_for_file(file_path)
         if comp_id is None:
             continue

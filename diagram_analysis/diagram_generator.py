@@ -45,6 +45,7 @@ from repo_utils import get_git_commit_hash
 from repo_utils.change_detector import ChangeSet, detect_changes
 from repo_utils.ignore import RepoIgnoreManager
 from repo_utils.method_diff import apply_method_diffs_to_file_index
+from repo_utils.parsed_diff import ParsedGitDiff
 from static_analyzer import StaticAnalyzer, get_static_analysis
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.scanner import ProjectScanner
@@ -95,8 +96,18 @@ class DiagramGenerator:
         self._method_change_resolution_attempted = False
         self._method_diff_base_ref: str | None = "HEAD"
 
-    def _resolve_method_level_changes(self) -> ChangeSet:
+    def _resolve_method_level_changes(self, parsed_diff: ParsedGitDiff | None = None) -> ChangeSet:
         """Resolve method-level changes against the configured base ref."""
+        if parsed_diff is not None:
+            self._cached_method_changes = detect_changes(
+                self.repo_location,
+                parsed_diff.base_ref,
+                parsed_diff.target_ref,
+                parsed_diff=parsed_diff,
+            )
+            self._method_change_resolution_attempted = True
+            return self._cached_method_changes
+
         if self._method_change_resolution_attempted:
             return self._cached_method_changes
 
@@ -122,9 +133,10 @@ class DiagramGenerator:
         self,
         root_analysis: AnalysisInsights,
         sub_analyses: dict[str, AnalysisInsights],
+        parsed_diff: ParsedGitDiff | None = None,
     ) -> None:
         """Annotate file/method status fields using working-tree git diffs."""
-        changes = self._resolve_method_level_changes()
+        changes = self._resolve_method_level_changes(parsed_diff)
         if changes.is_empty():
             return
 
@@ -522,27 +534,42 @@ class DiagramGenerator:
         static_analysis = self.static_analysis
         assert static_analysis is not None  # guaranteed by _load_incremental_baseline
 
-        # 2. Detect changes and compute delta
+        # 2. Start LLM init in background (overlaps with delta computation)
+        llm_executor = ThreadPoolExecutor(max_workers=1)
+        llm_future: Future = llm_executor.submit(initialize_llms)
+
+        # 3. Detect changes and compute delta (runs concurrently with LLM init)
         changes = detect_changes(self.repo_location, base_ref, "")
+        parsed_diff = changes.parsed_diff
         delta = self._compute_incremental_delta(
             output_dir, changes, root_analysis, file_component_index, static_analysis
         )
         if delta is None:
+            llm_executor.shutdown(wait=False)
             return self._restore_or_raise(output_dir)
 
-        # 3. Semantic tracing + scope classification
-        agent_llm, parsing_llm = initialize_llms()
+        if delta.is_purely_additive:
+            llm_executor.shutdown(wait=False)
+            logger.info(
+                "Delta is purely additive (%d file deltas); skipping semantic tracing",
+                len(delta.file_deltas),
+            )
+            return self._save_incremental_result(output_dir, root_analysis, sub_analyses, base_ref, parsed_diff)
+
+        # 4. Wait for LLMs, then run semantic tracing + scope classification
+        agent_llm, parsing_llm = llm_future.result()
+        llm_executor.shutdown(wait=False)
         trace_result = self._run_semantic_trace(
-            delta, cfgs, static_analysis, base_ref, file_component_index, agent_llm, parsing_llm
+            delta, cfgs, static_analysis, base_ref, file_component_index, agent_llm, parsing_llm, parsed_diff
         )
 
-        # 4. Check escalation
+        # 5. Check escalation
         escalation = self._determine_escalation(trace_result, root_analysis, changes)
         if escalation in (EscalationLevel.FULL, EscalationLevel.ROOT):
             logger.info("Escalation %s triggered; falling back to full analysis", escalation.value)
             return self.generate_analysis()
 
-        # 5. Apply changes (patch or scoped re-expansion)
+        # 6. Apply changes (patch or scoped re-expansion)
         if escalation == EscalationLevel.SCOPED:
             logger.info("Scoped escalation: re-running DetailsAgent on affected components")
             affected_ids = {ic.component_id for ic in trace_result.impacted_components}
@@ -550,8 +577,8 @@ class DiagramGenerator:
         elif trace_result.impacted_components:
             self._patch_impacted_components(root_analysis, sub_analyses, trace_result, parsing_llm)
 
-        # 6. Finalize: method diff statuses, save analysis and checkpoint
-        return self._save_incremental_result(output_dir, root_analysis, sub_analyses, base_ref)
+        # 7. Finalize: method diff statuses, save analysis and checkpoint
+        return self._save_incremental_result(output_dir, root_analysis, sub_analyses, base_ref, parsed_diff)
 
     def _load_incremental_baseline(self, output_dir: Path):
         """Load checkpoint, previous analysis, static analysis, and CFGs.
@@ -656,7 +683,17 @@ class DiagramGenerator:
             return restored
         raise RuntimeError("No changes detected and failed to restore checkpoint artifacts")
 
-    def _run_semantic_trace(self, delta, cfgs, static_analysis, base_ref, file_component_index, agent_llm, parsing_llm):
+    def _run_semantic_trace(
+        self,
+        delta,
+        cfgs,
+        static_analysis,
+        base_ref,
+        file_component_index,
+        agent_llm,
+        parsing_llm,
+        parsed_diff: ParsedGitDiff | None = None,
+    ):
         """Run the tracing loop and classify scope."""
         from diagram_analysis.incremental_models import TraceConfig
         from diagram_analysis.incremental_tracer import classify_scope, run_trace
@@ -670,13 +707,21 @@ class DiagramGenerator:
             agent_llm=agent_llm,
             parsing_llm=parsing_llm,
             config=TraceConfig(),
+            parsed_diff=parsed_diff,
         )
-        return classify_scope(trace_result, file_component_index, static_analysis)
+        return classify_scope(trace_result, file_component_index, static_analysis, self.repo_location)
 
-    def _save_incremental_result(self, output_dir, root_analysis, sub_analyses, base_ref) -> Path:
+    def _save_incremental_result(
+        self,
+        output_dir,
+        root_analysis,
+        sub_analyses,
+        base_ref,
+        parsed_diff: ParsedGitDiff | None = None,
+    ) -> Path:
         """Apply diff statuses, save analysis, and save checkpoint."""
         self._set_method_diff_base_ref(base_ref)
-        self._apply_method_diff_statuses(root_analysis, sub_analyses)
+        self._apply_method_diff_statuses(root_analysis, sub_analyses, parsed_diff)
 
         analysis_path = save_analysis(
             analysis=root_analysis,

@@ -30,6 +30,9 @@ logger = logging.getLogger(__name__)
 _agent_model_override: str | None = None
 _parsing_model_override: str | None = None
 
+_cached_agent_llm: BaseChatModel | None = None
+_cached_parsing_llm: BaseChatModel | None = None
+
 
 def configure_models(
     agent_model: str | None = None,
@@ -58,6 +61,7 @@ def configure_models(
         for env_var, value in api_keys.items():
             if value and not os.environ.get(env_var):
                 os.environ[env_var] = value
+    invalidate_llm_cache()
 
 
 @dataclass
@@ -306,13 +310,21 @@ def validate_api_key_provided() -> None:
 
 
 def initialize_agent_llm(model_override: str | None = None) -> BaseChatModel:
+    global _cached_agent_llm
+    if _cached_agent_llm is not None:
+        return _cached_agent_llm
     model, model_name = _initialize_llm(model_override, "agent_model", "agent_temperature", "", init_factory=True)
     MONITORING_CALLBACK.model_name = model_name
+    _cached_agent_llm = model
     return model
 
 
 def initialize_parsing_llm(model_override: str | None = None) -> BaseChatModel:
+    global _cached_parsing_llm
+    if _cached_parsing_llm is not None:
+        return _cached_parsing_llm
     model, _ = _initialize_llm(model_override, "parsing_model", "parsing_temperature", "Extractor ")
+    _cached_parsing_llm = model
     return model
 
 
@@ -320,3 +332,10 @@ def initialize_llms() -> tuple[BaseChatModel, BaseChatModel]:
     agent_llm = initialize_agent_llm(_agent_model_override or os.getenv("AGENT_MODEL"))
     parsing_llm = initialize_parsing_llm(_parsing_model_override or os.getenv("PARSING_MODEL"))
     return agent_llm, parsing_llm
+
+
+def invalidate_llm_cache() -> None:
+    """Reset cached LLM instances. Call after configure_models() or in tests."""
+    global _cached_agent_llm, _cached_parsing_llm
+    _cached_agent_llm = None
+    _cached_parsing_llm = None

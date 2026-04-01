@@ -139,21 +139,29 @@ def test_build_initial_prompt():
                     file_path="file.py",
                     change_type="modified",
                     new_body="def func(): pass",
-                    diff_hunks="@@ -1,1 +1,1 @@\n-old\n+new",
+                ),
+                ChangedMethodContext(
+                    qualified_name="file.other",
+                    file_path="file.py",
+                    change_type="modified",
+                    new_body="def other(): pass",
                 ),
             ],
             upstream_neighbors=["caller1"],
             downstream_neighbors=["callee1"],
+            diff_hunks="@@ -1,1 +1,1 @@\n-old\n+new",
         ),
     ]
     prompt = _build_initial_prompt(groups)
     assert "file.func" in prompt
+    assert "file.other" in prompt
     assert "def func(): pass" in prompt
     assert "caller1" in prompt
     assert "callee1" in prompt
+    assert prompt.count("```diff") == 1
 
 
-def test_classify_scope():
+def test_classify_scope(tmp_path):
     fci = FileComponentIndex(
         file_to_component={
             "src/auth.py": "1",
@@ -166,8 +174,8 @@ def test_classify_scope():
 
     def mock_get_reference(lang, qname):
         file_map = {
-            "auth.login": _make_node("auth.login", "src/auth.py"),
-            "db.query": _make_node("db.query", "src/db.py"),
+            "auth.login": _make_node("auth.login", str(tmp_path / "src/auth.py")),
+            "db.query": _make_node("db.query", str(tmp_path / "src/db.py")),
         }
         if qname in file_map:
             return file_map[qname]
@@ -181,13 +189,13 @@ def test_classify_scope():
         stop_reason=TraceStopReason.CLOSURE_REACHED,
     )
 
-    result = classify_scope(trace, fci, static)
+    result = classify_scope(trace, fci, static, repo_dir=tmp_path)
     assert len(result.impacted_components) == 2
     comp_ids = {ic.component_id for ic in result.impacted_components}
     assert comp_ids == {"1", "2"}
 
 
-def test_classify_scope_unresolvable():
+def test_classify_scope_unresolvable(tmp_path):
     fci = FileComponentIndex(file_to_component={"src/a.py": "1"})
     static = MagicMock()
     static.get_languages.return_value = ["python"]
@@ -195,7 +203,7 @@ def test_classify_scope_unresolvable():
     static.get_loose_reference.return_value = (None, None)
 
     trace = TraceResult(all_impacted_methods=["unknown.method"])
-    result = classify_scope(trace, fci, static)
+    result = classify_scope(trace, fci, static, repo_dir=tmp_path)
     assert result.impacted_components == []
 
 
@@ -359,3 +367,91 @@ def test_build_change_groups_uses_indexes(tmp_path):
     groups = _build_change_groups(delta, up_idx, down_idx, tmp_path, "HEAD")
     assert len(groups) == 1
     assert "module.bar" in groups[0].downstream_neighbors
+
+
+def test_purely_additive_all_added():
+    delta = IncrementalDelta(
+        file_deltas=[
+            FileDelta(
+                file_path="new.py",
+                file_status=ChangeStatus.ADDED,
+                added_methods=[
+                    MethodChange(
+                        qualified_name="new.func",
+                        file_path="new.py",
+                        start_line=1,
+                        end_line=5,
+                        change_type=ChangeStatus.ADDED,
+                        node_type="FUNCTION",
+                    )
+                ],
+            )
+        ]
+    )
+    assert delta.is_purely_additive is True
+
+
+def test_not_purely_additive_modified():
+    delta = IncrementalDelta(
+        file_deltas=[
+            FileDelta(
+                file_path="old.py",
+                file_status=ChangeStatus.MODIFIED,
+                modified_methods=[
+                    MethodChange(
+                        qualified_name="old.func",
+                        file_path="old.py",
+                        start_line=1,
+                        end_line=5,
+                        change_type=ChangeStatus.MODIFIED,
+                        node_type="FUNCTION",
+                    )
+                ],
+            )
+        ]
+    )
+    assert delta.is_purely_additive is False
+
+
+def test_not_purely_additive_deleted():
+    delta = IncrementalDelta(
+        file_deltas=[
+            FileDelta(
+                file_path="gone.py",
+                file_status=ChangeStatus.DELETED,
+                deleted_methods=[
+                    MethodChange(
+                        qualified_name="gone.func",
+                        file_path="gone.py",
+                        start_line=1,
+                        end_line=5,
+                        change_type=ChangeStatus.DELETED,
+                        node_type="FUNCTION",
+                    )
+                ],
+            )
+        ]
+    )
+    assert delta.is_purely_additive is False
+
+
+def test_purely_additive_new_methods_in_existing_file():
+    delta = IncrementalDelta(
+        file_deltas=[
+            FileDelta(
+                file_path="existing.py",
+                file_status=ChangeStatus.MODIFIED,
+                added_methods=[
+                    MethodChange(
+                        qualified_name="existing.new_func",
+                        file_path="existing.py",
+                        start_line=10,
+                        end_line=15,
+                        change_type=ChangeStatus.ADDED,
+                        node_type="FUNCTION",
+                    )
+                ],
+            )
+        ]
+    )
+    assert delta.is_purely_additive is True

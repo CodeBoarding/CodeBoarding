@@ -62,6 +62,14 @@ class IncrementalDelta:
     def has_changes(self) -> bool:
         return bool(self.file_deltas)
 
+    @property
+    def is_purely_additive(self) -> bool:
+        """True when all changes are new files/methods only — nothing to update."""
+        return all(
+            fd.file_status != ChangeStatus.DELETED and not fd.modified_methods and not fd.deleted_methods
+            for fd in self.file_deltas
+        )
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "file_deltas": [fd.to_dict() for fd in self.file_deltas],

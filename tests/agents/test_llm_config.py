@@ -5,7 +5,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from agents.llm_config import initialize_agent_llm, initialize_parsing_llm, validate_api_key_provided
+from agents.llm_config import (
+    initialize_agent_llm,
+    initialize_parsing_llm,
+    invalidate_llm_cache,
+    validate_api_key_provided,
+)
 from agents.prompts.prompt_factory import LLMType
 
 
@@ -234,6 +239,7 @@ class TestEnvironmentVariables:
         """Test that AGENT_MODEL environment variable is used by initialize_llms()."""
         from agents.llm_config import LLM_PROVIDERS, initialize_llms
 
+        invalidate_llm_cache()
         # Test with AGENT_MODEL env var set
         with patch.dict(os.environ, {"AGENT_MODEL": "gpt-4-turbo", "OPENAI_API_KEY": "test-key"}):
             with patch("agents.llm_config.LLMType.from_model_name", return_value=LLMType.GPT4):
@@ -257,6 +263,7 @@ class TestEnvironmentVariables:
     @patch("agents.prompts.prompt_factory.initialize_global_factory")
     def test_agent_model_override_takes_precedence(self, mock_init_factory, mock_providers):
         """Test that model_override parameter takes precedence over default in initialize_agent_llm()."""
+        invalidate_llm_cache()
         # Setup mock provider
         mock_config = MagicMock()
         mock_config.is_active.return_value = True
@@ -282,6 +289,7 @@ class TestEnvironmentVariables:
         """Test that default model is used when AGENT_MODEL env var is not set in initialize_llms()."""
         from agents.llm_config import LLM_PROVIDERS, initialize_llms
 
+        invalidate_llm_cache()
         # Test without AGENT_MODEL env var
         with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}, clear=True):
             with patch("agents.llm_config.LLMType.from_model_name", return_value=LLMType.GPT4):
@@ -303,6 +311,7 @@ class TestEnvironmentVariables:
         """Test that PARSING_MODEL environment variable is used by initialize_llms()."""
         from agents.llm_config import LLM_PROVIDERS, initialize_llms
 
+        invalidate_llm_cache()
         # Test with PARSING_MODEL env var set
         with patch.dict(os.environ, {"PARSING_MODEL": "gpt-3.5-turbo", "OPENAI_API_KEY": "test-key"}):
             with patch("agents.llm_config.LLMType.from_model_name", return_value=LLMType.GPT4):
@@ -322,6 +331,7 @@ class TestEnvironmentVariables:
     @patch("agents.llm_config.LLM_PROVIDERS")
     def test_parsing_model_override_takes_precedence(self, mock_providers):
         """Test that model_override parameter takes precedence over default in initialize_parsing_llm()."""
+        invalidate_llm_cache()
         # Setup mock provider
         mock_config = MagicMock()
         mock_config.is_active.return_value = True
@@ -346,6 +356,7 @@ class TestEnvironmentVariables:
         """Test that default parsing model is used when PARSING_MODEL env var is not set in initialize_llms()."""
         from agents.llm_config import LLM_PROVIDERS, initialize_llms
 
+        invalidate_llm_cache()
         # Test without PARSING_MODEL env var
         with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}, clear=True):
             with patch("agents.llm_config.LLMType.from_model_name", return_value=LLMType.GPT4):
@@ -369,6 +380,7 @@ class TestMonitoringIntegration:
     @patch("agents.prompts.prompt_factory.initialize_global_factory")
     def test_agent_monitoring_callback_gets_model_name(self, mock_init_factory, mock_providers):
         """Test that agent's monitoring callback gets the correct model name."""
+        invalidate_llm_cache()
         import tempfile
         from pathlib import Path
         from unittest.mock import MagicMock
@@ -418,3 +430,38 @@ class TestMonitoringIntegration:
                         # Verify the agent's monitoring callback has the correct model name
                         results = agent.get_monitoring_results()
                         assert results["model_name"] == "gpt-4-turbo"
+
+
+class TestLLMCache:
+    def test_cache_returns_same_instance(self):
+        from agents.llm_config import initialize_llms, invalidate_llm_cache
+
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test"}, clear=True):
+            invalidate_llm_cache()
+            agent1, parsing1 = initialize_llms()
+            agent2, parsing2 = initialize_llms()
+            assert agent1 is agent2
+            assert parsing1 is parsing2
+            invalidate_llm_cache()
+
+    def test_invalidate_clears_cache(self):
+        from agents.llm_config import initialize_llms, invalidate_llm_cache
+
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test"}, clear=True):
+            invalidate_llm_cache()
+            agent1, _ = initialize_llms()
+            invalidate_llm_cache()
+            agent2, _ = initialize_llms()
+            assert agent1 is not agent2
+            invalidate_llm_cache()
+
+    def test_configure_models_invalidates_cache(self):
+        from agents.llm_config import configure_models, initialize_llms, invalidate_llm_cache
+
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test"}, clear=True):
+            invalidate_llm_cache()
+            agent1, _ = initialize_llms()
+            configure_models(agent_model="gpt-4o")
+            agent2, _ = initialize_llms()
+            assert agent1 is not agent2
+            invalidate_llm_cache()
