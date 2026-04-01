@@ -67,6 +67,7 @@ REQUIRED STEPS (execute in order):
      * What is its main flow/purpose
      * WHY these specific clusters are grouped together (MUST provide clear rationale)
      * How this group interacts with other cluster groups (which groups it calls, receives data from, or depends on)
+     * The most important classes/methods in this group — mention their exact qualified names as shown in the clusters above
 
 FOCUS AREAS (prioritize):
 - Create cohesive, logical groupings that reflect the actual {project_type} architecture
@@ -313,6 +314,7 @@ REQUIRED STEPS (execute in order):
      * What is its main flow/purpose
      * WHY these specific clusters are grouped together (MUST provide clear rationale)
      * How this group interacts with other cluster groups
+     * The most important classes/methods in this group — mention their exact qualified names as shown in the clusters above
 
 FOCUS:
 MUST analyze core subsystem functionality only. STRICTLY avoid cross-cutting concerns like logging or error handling.

@@ -69,6 +69,7 @@ Instructions:
      * What is its main flow/purpose
      * WHY these specific clusters are grouped together (provide clear rationale for the grouping decision)
      * How this group interacts with other cluster groups (which groups it calls, receives data from, or depends on)
+     * The most important classes/methods in this group — mention their exact qualified names as shown in the clusters above
 
 Focus on:
 - Creating cohesive, logical groupings that reflect the actual {project_type} architecture
@@ -383,6 +384,7 @@ Instructions:
      * What is its main flow/purpose
      * WHY these specific clusters are grouped together (provide clear rationale)
      * How this group interacts with other cluster groups
+     * The most important classes/methods in this group — mention their exact qualified names as shown in the clusters above
 
 Focus on core subsystem functionality only. Avoid cross-cutting concerns like logging or error handling.
 

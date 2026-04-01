@@ -49,6 +49,10 @@ CFG Clusters:
 Your Task:
 GROUP similar clusters together into logical components based on their relationships and purpose.
 
+CRITICAL requirements:
+- Every cluster ID must be included in exactly one group — no cluster left out, no duplicates
+- Each group must represent a coherent architectural concept justified by method names, call patterns, and inter-cluster connections
+
 Instructions:
 1. Analyze the clusters shown above and identify which ones work together or are functionally related
 2. Group related clusters into meaningful components
@@ -61,6 +65,7 @@ Instructions:
      * What is its main flow/purpose
      * WHY these specific clusters are grouped together (provide clear rationale for the grouping decision)
      * How this group interacts with other cluster groups (which groups it calls, receives data from, or depends on)
+     * The most important classes/methods in this group — mention their exact qualified names as shown in the clusters above
 
 Focus on:
 - Creating cohesive, logical groupings that reflect the actual {project_type} architecture
@@ -275,6 +280,7 @@ Instructions:
      * What is its main flow/purpose
      * WHY these specific clusters are grouped together (provide clear rationale)
      * How this group interacts with other cluster groups
+     * The most important classes/methods in this group — mention their exact qualified names as shown in the clusters above
 
 Focus on core subsystem functionality only. Avoid cross-cutting concerns like logging or error handling.
 

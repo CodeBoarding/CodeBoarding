@@ -111,7 +111,7 @@ class ClustersComponent(LLMBaseModel):
         description="List of cluster IDs from the CFG analysis that are grouped together (e.g., [1, 3, 5])"
     )
     description: str = Field(
-        description="Explanation of what this component does, its main flow, WHY these clusters are grouped together, and how it interacts with other cluster groups"
+        description="Explanation of what this component does, its main flow, WHY these clusters are grouped together, how it interacts with other cluster groups, and the most important classes/methods (by their exact qualified names from the clusters)"
     )
 
     def llm_str(self):

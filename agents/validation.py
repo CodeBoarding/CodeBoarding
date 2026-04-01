@@ -322,11 +322,9 @@ def validate_group_name_coverage(result: AnalysisInsights, context: ValidationCo
 def validate_key_entities(result: AnalysisInsights, context: ValidationContext) -> ValidationResult:
     """
     Validate key_entities on every component:
-    1. Every component must have at least one key_entity.
-    2. Key entities must reference code within the component's cluster scope.
-       If cluster_results are provided, validates strictly against the scope.
-       Otherwise, validates that qualified names exist in the static analysis.
-       Uses loose matching to auto-correct shortened paths in-place.
+    1. Auto-correct qualified names via loose matching.
+    2. Silently drop invalid key entities (out of scope or not found).
+    3. Only fail if a component ends up with zero key_entities after dropping.
 
     Args:
         result: AnalysisInsights containing components with key_entities
@@ -334,26 +332,8 @@ def validate_key_entities(result: AnalysisInsights, context: ValidationContext) 
                  and cluster_results for scope validation
 
     Returns:
-        ValidationResult with feedback for missing or invalid key entities
+        ValidationResult with feedback only for components left with zero key entities
     """
-    feedback_messages: list[str] = []
-
-    # Check 1: components without any key_entities
-    components_without_key_entities = [c.name for c in result.components if not c.key_entities]
-    if components_without_key_entities:
-        missing_str = ", ".join(components_without_key_entities)
-        feedback_messages.append(
-            f"The following components are missing key entities: {missing_str}. "
-            f"Every component must have at least one key entity (critical class or method) "
-            f"that represents its core functionality. Please identify and add 2-5 key entities "
-            f"for each component."
-        )
-        logger.warning(f"[Validation] Components without key entities: {missing_str}")
-
-    # Check 2: Unified scope/existence check — key entities must be valid for this component.
-    # Auto-correct via loose matching first (fixes typos in qualified names).
-    # Then validate against cluster scope (strict) or static analysis existence (fallback).
-    invalid_entities: list[str] = []
     auto_corrected = 0
 
     # Auto-correct qualified names via loose matching (always, when static_analysis available)
@@ -362,13 +342,11 @@ def validate_key_entities(result: AnalysisInsights, context: ValidationContext) 
             for key_entity in component.key_entities:
                 qname = key_entity.qualified_name.replace("/", ".")
                 for lang in context.static_analysis.get_languages():
-                    # Exact / case-insensitive match
                     try:
                         context.static_analysis.get_reference(lang, qname)
                         break
                     except (ValueError, FileExistsError):
                         pass
-                    # Loose match – auto-correct the qualified name in-place
                     _text, loose_node = context.static_analysis.get_loose_reference(lang, qname)
                     if loose_node is not None:
                         logger.info(
@@ -381,7 +359,8 @@ def validate_key_entities(result: AnalysisInsights, context: ValidationContext) 
         if auto_corrected:
             logger.info(f"[Validation] Auto-corrected {auto_corrected} qualified names via loose matching")
 
-    # Validate: cluster scope if available, else static analysis existence
+    # Silently drop invalid key entities
+    dropped = 0
     if context.cluster_results:
         nodes_in_scope: set[str] = set()
         for cr in context.cluster_results.values():
@@ -389,35 +368,24 @@ def validate_key_entities(result: AnalysisInsights, context: ValidationContext) 
                 nodes_in_scope.update(members)
 
         for component in result.components:
+            valid = []
             for key_entity in component.key_entities:
                 qname = key_entity.qualified_name
                 in_scope = qname in nodes_in_scope
                 if not in_scope:
                     for scope_node in nodes_in_scope:
-                        if qname.startswith(scope_node + "."):
+                        if qname.startswith(scope_node + ".") or scope_node.startswith(qname + "."):
                             in_scope = True
                             break
-                    if not in_scope:
-                        for scope_node in nodes_in_scope:
-                            if scope_node.startswith(qname + "."):
-                                in_scope = True
-                                break
-                if not in_scope:
-                    invalid_entities.append(f"{component.name}: '{qname}'")
-
-        if invalid_entities:
-            invalid_str = "; ".join(invalid_entities[:10])
-            more_msg = f" and {len(invalid_entities) - 10} more" if len(invalid_entities) > 10 else ""
-            feedback_messages.append(
-                f"The following key_entities are outside the component's cluster scope: {invalid_str}{more_msg}. "
-                f"Key entities must reference code that is within the component's assigned clusters. "
-                f"Please choose key entities from the code shown in the cluster analysis."
-            )
-            logger.warning(f"[Validation] Invalid key entities (out of scope): {len(invalid_entities)} found")
+                if in_scope:
+                    valid.append(key_entity)
+                else:
+                    dropped += 1
+            component.key_entities = valid
 
     elif context.static_analysis:
-        # No cluster_results — fall back to checking if qualified names exist in static analysis
         for component in result.components:
+            valid = []
             for key_entity in component.key_entities:
                 qname = key_entity.qualified_name.replace("/", ".")
                 found = False
@@ -433,23 +401,31 @@ def validate_key_entities(result: AnalysisInsights, context: ValidationContext) 
                         key_entity.qualified_name = loose_node.fully_qualified_name
                         found = True
                         break
-                if not found:
-                    invalid_entities.append(f"{component.name}: '{key_entity.qualified_name}'")
+                if found:
+                    valid.append(key_entity)
+                else:
+                    dropped += 1
+            component.key_entities = valid
 
-        if invalid_entities:
-            invalid_str = "; ".join(invalid_entities[:10])
-            more_msg = f" and {len(invalid_entities) - 10} more" if len(invalid_entities) > 10 else ""
-            feedback_messages.append(
-                f"The following qualified names do not exist in the static analysis: {invalid_str}{more_msg}. "
-                f"Please ensure all key_entities use qualified names that were found during static analysis."
-            )
-            logger.warning(f"[Validation] Invalid key entities (not found): {len(invalid_entities)} found")
+    if dropped:
+        logger.info(f"[Validation] Silently dropped {dropped} invalid key entities")
 
-    if not feedback_messages:
-        logger.info("[Validation] All key entities are valid")
-        return ValidationResult(is_valid=True)
+    # Only fail if any component ended up with zero key_entities
+    empty_components = [c.name for c in result.components if not c.key_entities]
+    if empty_components:
+        missing_str = ", ".join(empty_components)
+        logger.warning(f"[Validation] Components with no valid key entities after cleanup: {missing_str}")
+        return ValidationResult(
+            is_valid=False,
+            feedback_messages=[
+                f"The following components have no valid key entities: {missing_str}. "
+                f"Every component must have at least one key entity (critical class or method) "
+                f"that represents its core functionality. Use exact qualified names from the cluster analysis."
+            ],
+        )
 
-    return ValidationResult(is_valid=False, feedback_messages=feedback_messages)
+    logger.info("[Validation] All key entities are valid")
+    return ValidationResult(is_valid=True)
 
 
 def validate_file_classifications(result: ComponentFiles, context: ValidationContext) -> ValidationResult:

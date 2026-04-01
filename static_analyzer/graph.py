@@ -415,12 +415,8 @@ class CallGraph:
     def __cluster_str(communities: list[set[str]], cfg_graph_x: nx.DiGraph) -> str:
         valid_communities = [c for c in communities if len(c) >= 2]
         top_communities = sorted(valid_communities, key=len, reverse=True)
-
-        # Limit display to avoid overwhelming output
-        display_communities = top_communities[: ClusteringConfig.MAX_DISPLAY_CLUSTERS]
-
-        communities_str = f"Cluster Definitions ({len(display_communities)} clusters shown):\n\n"
-        for idx, community in enumerate(display_communities, start=1):
+        communities_str = f"Cluster Definitions ({len(top_communities)} clusters):\n\n"
+        for idx, community in enumerate(top_communities, start=1):
             # Group nodes by file, then by class hierarchy within each file
             file_groups: dict[str, dict[str, list[str]]] = defaultdict(lambda: defaultdict(list))
             standalone_nodes: dict[str, list[str]] = defaultdict(list)
@@ -464,7 +460,7 @@ class CallGraph:
             communities_str += "\n"
 
         # Build summarized inter-cluster connections
-        node_to_cluster = {node: idx for idx, community in enumerate(display_communities) for node in community}
+        node_to_cluster = {node: idx for idx, community in enumerate(top_communities) for node in community}
 
         # Aggregate inter-cluster edges: (src_cluster, dst_cluster) -> count + sample edges
         inter_cluster_summary: dict[tuple[int, int], list[str]] = defaultdict(list)
