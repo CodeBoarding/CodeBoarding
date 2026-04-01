@@ -401,6 +401,7 @@ def process_local_repository(
     monitoring_enabled: bool = False,
     incremental: bool = False,
     force_full: bool = False,
+    reset_baseline: bool = False,
 ):
     # Handle partial updates
     if component_id:
@@ -444,11 +445,45 @@ def process_local_repository(
         )
         generator.force_full_analysis = force_full
 
-        # Run checkpoint-backed smart analysis and update the mutable latest alias
-        result = generator.generate_analysis_smart()
-        logger.info(f"Analysis completed: {result}")
+        # Run trace-based incremental analysis against the previous checkpoint
+        try:
+            result = generator.generate_analysis_incremental()
+        except RuntimeError as e:
+            logger.error(str(e))
+            raise SystemExit(1)
+        logger.info(f"Incremental analysis completed: {result}")
         log_action(
             "incremental_analysis_completed",
+            project_name=project_name,
+            result=str(result),
+            run_id=run_id,
+        )
+        return
+
+    if reset_baseline:
+        # Run full analysis and save as new baseline checkpoint
+        log_action(
+            "local_repository_started",
+            depth_level=depth_level,
+            mode_detail="reset_baseline",
+            project_name=project_name,
+            repo_path=str(repo_path),
+            run_id=run_id,
+        )
+        generator = DiagramGenerator(
+            repo_location=repo_path,
+            temp_folder=output_dir,
+            repo_name=project_name,
+            output_dir=output_dir,
+            depth_level=depth_level,
+            run_id=run_id,
+            log_path=log_path,
+            monitoring_enabled=monitoring_enabled,
+        )
+        result = generator.generate_analysis_smart()
+        logger.info(f"Baseline reset completed: {result}")
+        log_action(
+            "baseline_reset_completed",
             project_name=project_name,
             result=str(result),
             run_id=run_id,
@@ -564,7 +599,12 @@ def define_cli_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--incremental",
         action="store_true",
-        help="Run checkpoint-backed smart analysis and compare against the previous checkpoint",
+        help="Run trace-based incremental analysis against the previous checkpoint",
+    )
+    parser.add_argument(
+        "--reset-baseline",
+        action="store_true",
+        help="Run a full analysis and save it as the new baseline checkpoint for future incremental runs",
     )
 
 
@@ -687,6 +727,7 @@ Examples:
             monitoring_enabled=should_monitor,
             incremental=args.incremental,
             force_full=args.full,
+            reset_baseline=args.reset_baseline,
             run_id=run_context.run_id,
             log_path=run_context.log_path,
         )

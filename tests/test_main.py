@@ -501,7 +501,7 @@ class TestProcessLocalRepository(unittest.TestCase):
             output_dir.mkdir(parents=True, exist_ok=True)
 
             mock_generator = MagicMock()
-            mock_generator.generate_analysis_smart.return_value = Path("analysis.json")
+            mock_generator.generate_analysis_incremental.return_value = Path("analysis.json")
             mock_generator_class.return_value = mock_generator
 
             process_local_repository(
@@ -525,7 +525,7 @@ class TestProcessLocalRepository(unittest.TestCase):
             mock_log_action.assert_any_call(
                 "incremental_analysis_completed",
                 project_name="test_project",
-                result="analysis.json",
+                result=str(Path("analysis.json")),
                 run_id="test-run-id",
             )
 

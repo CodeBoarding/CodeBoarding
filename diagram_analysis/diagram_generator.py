@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 import logging
 import os
@@ -6,7 +8,12 @@ from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from contextlib import nullcontext
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from langchain_core.language_models import BaseChatModel
+
+    from diagram_analysis.incremental_models import EscalationLevel, TraceResult
 
 from agents.abstraction_agent import AbstractionAgent
 from agents.agent_responses import AnalysisInsights, Component
@@ -19,7 +26,13 @@ from diagram_analysis.analysis_json import (
     FileCoverageSummary,
     NotAnalyzedFile,
 )
-from diagram_analysis.checkpoints import get_latest_checkpoint, remove_legacy_manifest, save_checkpoint
+from diagram_analysis.checkpoints import (
+    build_file_component_index,
+    get_latest_checkpoint,
+    load_checkpoint_analysis,
+    remove_legacy_manifest,
+    save_checkpoint,
+)
 from diagram_analysis.file_coverage import FileCoverage
 from diagram_analysis.io_utils import save_analysis
 from diagram_analysis.version import Version
@@ -483,3 +496,303 @@ class DiagramGenerator:
         analysis_path = self.generate_analysis()
         self._save_checkpoint()
         return analysis_path
+
+    # ------------------------------------------------------------------
+    # Incremental analysis (trace-based)
+    # ------------------------------------------------------------------
+    def generate_analysis_incremental(self) -> Path:
+        """Run trace-based incremental analysis against the latest checkpoint.
+
+        Requires an existing baseline checkpoint. Re-runs static analysis,
+        detects the delta, traces semantic impact, and patches only the
+        affected sub-analyses. Saves a new checkpoint on success.
+
+        Raises ``RuntimeError`` if no baseline checkpoint exists.
+        Use ``--reset-baseline`` to re-establish one.
+        """
+        from diagram_analysis.analysis_patcher import merge_patched_sub_analyses, patch_sub_analysis
+        from diagram_analysis.incremental_models import EscalationLevel, TraceConfig, TraceStopReason
+        from diagram_analysis.incremental_tracer import classify_scope, run_trace
+        from diagram_analysis.incremental_updater import IncrementalUpdater
+
+        output_dir = Path(self.output_dir)
+
+        # --- Step 1: require existing baseline ---
+        latest_checkpoint = get_latest_checkpoint(self.repo_location, output_dir)
+        if latest_checkpoint is None:
+            raise RuntimeError(
+                "Incremental analysis requires an existing baseline checkpoint. "
+                "Run a full analysis first, or use --reset-baseline to create one."
+            )
+
+        logger.info(
+            "Incremental analysis against checkpoint id=%s ref=%s",
+            latest_checkpoint.checkpoint_id,
+            latest_checkpoint.checkpoint_ref,
+        )
+
+        # --- Step 2: re-run static analysis (deterministic, no LLM) ---
+        if self.static_analysis is None:
+            if self._static_analyzer is not None:
+                cache_dir = get_cache_dir(self.repo_location)
+                self.static_analysis = self._get_static_from_injected_analyzer(cache_dir)
+            else:
+                self.static_analysis = get_static_analysis(self.repo_location)
+        static_analysis = self.static_analysis
+
+        # Build CFG dict: language -> CallGraph
+        cfgs = {lang: static_analysis.get_cfg(lang) for lang in static_analysis.get_languages()}
+
+        # --- Step 3: detect delta against checkpoint ---
+        base_ref = latest_checkpoint.checkpoint_ref
+        changes = detect_changes(self.repo_location, base_ref, "")
+        if changes.is_empty():
+            logger.info("No changes detected since last checkpoint; restoring previous analysis")
+            from diagram_analysis.checkpoints import restore_latest_artifacts
+
+            restored = restore_latest_artifacts(output_dir)
+            if restored:
+                return restored
+            raise RuntimeError("No changes detected and failed to restore checkpoint artifacts")
+
+        # Load previous analysis from checkpoint
+        loaded = load_checkpoint_analysis(output_dir, latest_checkpoint.checkpoint_id)
+        if loaded is None:
+            raise RuntimeError(
+                f"Failed to load analysis from checkpoint {latest_checkpoint.checkpoint_id}. "
+                "Run a full analysis to re-establish the baseline."
+            )
+        root_analysis, sub_analyses = loaded
+        file_component_index = build_file_component_index(root_analysis)
+
+        # Build IncrementalDelta using the existing updater machinery
+        def symbol_resolver(file_path: str):
+            from agents.agent_responses import MethodEntry
+
+            methods: list[MethodEntry] = []
+            for lang in static_analysis.get_languages():
+                try:
+                    cfg = static_analysis.get_cfg(lang)
+                except ValueError:
+                    continue
+                for qname, node in cfg.nodes.items():
+                    if node.file_path.rstrip("/").endswith(file_path.rstrip("/")):
+                        methods.append(
+                            MethodEntry(
+                                qualified_name=qname,
+                                start_line=node.line_start,
+                                end_line=node.line_end,
+                                node_type=node.type.name,
+                            )
+                        )
+            return methods
+
+        updater = IncrementalUpdater(
+            analysis=root_analysis,
+            file_component_index=file_component_index,
+            symbol_resolver=symbol_resolver,
+            repo_dir=self.repo_location,
+        )
+        delta = updater.compute_delta(
+            added_files=changes.added_files,
+            modified_files=changes.modified_files,
+            deleted_files=changes.deleted_files,
+            changes=changes,
+        )
+
+        if not delta.has_changes:
+            logger.info("Delta has no method-level changes; restoring previous analysis")
+            from diagram_analysis.checkpoints import restore_latest_artifacts
+
+            restored = restore_latest_artifacts(output_dir)
+            if restored:
+                return restored
+            raise RuntimeError("No method changes and failed to restore checkpoint artifacts")
+
+        # --- Step 4-5: handled inside the tracer (method bodies + symbol lookup) ---
+        # --- Step 6-8: semantic tracing loop ---
+        agent_llm, parsing_llm = initialize_llms()
+        trace_config = TraceConfig()
+
+        trace_result = run_trace(
+            delta=delta,
+            cfgs=cfgs,
+            static_analysis=static_analysis,
+            repo_dir=self.repo_location,
+            base_ref=base_ref,
+            agent_llm=agent_llm,
+            parsing_llm=parsing_llm,
+            config=trace_config,
+        )
+
+        # --- Step 9: deterministic scope classification ---
+        trace_result = classify_scope(trace_result, file_component_index, static_analysis)
+
+        # --- Step 12: check escalation ---
+        escalation = self._determine_escalation(trace_result, root_analysis, changes)
+
+        if escalation == EscalationLevel.FULL:
+            logger.info("Full escalation triggered; falling back to full analysis")
+            return self.generate_analysis()
+
+        if escalation == EscalationLevel.ROOT:
+            logger.info("Root escalation triggered; re-running abstraction + details for affected components")
+            # Re-run full analysis for now; scoped re-run is a future optimization
+            return self.generate_analysis()
+
+        if escalation == EscalationLevel.SCOPED:
+            logger.info("Scoped escalation: re-running DetailsAgent on affected components")
+            # For scoped escalation, we re-expand only affected components
+            affected_ids = {ic.component_id for ic in trace_result.impacted_components}
+            self._scoped_reexpansion(root_analysis, sub_analyses, affected_ids, agent_llm, parsing_llm)
+        else:
+            # --- Step 10: patch impacted components ---
+            if trace_result.impacted_components:
+                self._patch_impacted_components(root_analysis, sub_analyses, trace_result, parsing_llm)
+
+        # --- Apply method diff statuses to the analysis ---
+        self._set_method_diff_base_ref(base_ref)
+        self._apply_method_diff_statuses(root_analysis, sub_analyses)
+
+        # --- Save the merged analysis ---
+        analysis_path = save_analysis(
+            analysis=root_analysis,
+            output_dir=output_dir,
+            sub_analyses=sub_analyses,
+            repo_name=self.repo_name,
+        ).resolve()
+
+        logger.info("Incremental analysis complete. Written to %s", analysis_path)
+
+        # --- Step 11: save checkpoint ---
+        self._save_checkpoint()
+
+        return analysis_path
+
+    def _patch_impacted_components(
+        self,
+        root_analysis: AnalysisInsights,
+        sub_analyses: dict[str, AnalysisInsights],
+        trace_result: TraceResult,
+        parsing_llm: BaseChatModel,
+    ) -> None:
+        """Patch impacted sub-analyses using EASE-encoded JSON patches."""
+        from diagram_analysis.analysis_patcher import merge_patched_sub_analyses, patch_sub_analysis
+
+        # Identify parent sub-analyses for impacted components
+        patched: dict[str, AnalysisInsights] = {}
+        seen_parents: set[str] = set()
+
+        for impact in trace_result.impacted_components:
+            # Find the parent sub-analysis containing this component
+            parent_id = self._find_parent_sub_analysis(impact.component_id, sub_analyses)
+            if parent_id is None:
+                logger.warning("No parent sub-analysis found for component %s", impact.component_id)
+                continue
+            if parent_id in seen_parents:
+                continue
+            seen_parents.add(parent_id)
+
+            sub = sub_analyses.get(parent_id)
+            if sub is None:
+                continue
+
+            result = patch_sub_analysis(sub, parent_id, impact, parsing_llm)
+            if result is not None:
+                patched[parent_id] = result
+
+        if patched:
+            merge_patched_sub_analyses(sub_analyses, patched)
+
+    @staticmethod
+    def _find_parent_sub_analysis(
+        component_id: str,
+        sub_analyses: dict[str, AnalysisInsights],
+    ) -> str | None:
+        """Find the sub-analysis that contains a given component_id."""
+        # Direct match: the component_id IS a sub-analysis key
+        if component_id in sub_analyses:
+            return component_id
+        # Check if parent (e.g., "1" for "1.2") is a sub-analysis
+        parts = component_id.rsplit(".", 1)
+        if len(parts) == 2:
+            parent = parts[0]
+            if parent in sub_analyses:
+                return parent
+        # Search all sub-analyses for a component with this ID
+        for sub_id, sub in sub_analyses.items():
+            for comp in sub.components:
+                if comp.component_id == component_id:
+                    return sub_id
+        return None
+
+    def _scoped_reexpansion(
+        self,
+        root_analysis: AnalysisInsights,
+        sub_analyses: dict[str, AnalysisInsights],
+        affected_ids: set[str],
+        agent_llm: BaseChatModel,
+        parsing_llm: BaseChatModel,
+    ) -> None:
+        """Re-run DetailsAgent only on affected root components."""
+        assert self.static_analysis is not None
+        meta_context = None
+        if self.meta_agent is not None:
+            meta_context = self.meta_agent.analyze_project_metadata()
+
+        details = DetailsAgent(
+            repo_dir=self.repo_location,
+            project_name=self.repo_name,
+            static_analysis=self.static_analysis,
+            meta_context=meta_context,
+            agent_llm=agent_llm,
+            parsing_llm=parsing_llm,
+            run_id=self.run_id,
+        )
+
+        for comp in root_analysis.components:
+            if comp.component_id not in affected_ids:
+                continue
+            logger.info("Re-expanding component %s (%s)", comp.component_id, comp.name)
+            try:
+                new_sub, _ = details.run(comp)
+                sub_analyses[comp.component_id] = new_sub
+            except Exception as exc:
+                logger.error("Failed to re-expand component %s: %s", comp.component_id, exc)
+
+    @staticmethod
+    def _determine_escalation(
+        trace_result: TraceResult,
+        root_analysis: AnalysisInsights,
+        changes: ChangeSet,
+    ) -> EscalationLevel:
+        """Determine escalation level based on trace results and structural signals."""
+        from diagram_analysis.incremental_models import EscalationLevel, TraceStopReason
+
+        # Uncertain trace -> scoped escalation
+        if trace_result.stop_reason == TraceStopReason.UNCERTAIN:
+            return EscalationLevel.SCOPED
+
+        # Large structural changes -> check scope
+        total_root = len(root_analysis.components)
+        impacted_root_ids = set()
+        for ic in trace_result.impacted_components:
+            # Extract root component ID (e.g., "1" from "1.2.3")
+            root_id = ic.component_id.split(".")[0]
+            impacted_root_ids.add(root_id)
+
+        if total_root > 0 and len(impacted_root_ids) / total_root > 0.5:
+            return EscalationLevel.ROOT
+
+        # Check for deleted files that were sole members of a component
+        deleted_files = set(changes.deleted_files)
+        if deleted_files:
+            from diagram_analysis.checkpoints import build_file_component_index
+
+            fci = build_file_component_index(root_analysis)
+            for comp in root_analysis.components:
+                comp_files = set(fci.get_files_for_component(comp.component_id))
+                if comp_files and comp_files.issubset(deleted_files):
+                    return EscalationLevel.ROOT
+
+        return EscalationLevel.NONE

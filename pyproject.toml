@@ -30,6 +30,7 @@ dependencies = [
     "filelock>=3.12",
     "gitpython>=3.1",
     "google-api-core>=2.10",
+    "jsonpatch>=1.33",
     "jsonschema>=4.25",
     "langchain>=1.2",
     "langchain-anthropic>=1.3",
