@@ -13,6 +13,7 @@ from diagram_analysis.incremental_tracer import (
     _build_initial_prompt,
     _build_neighbor_indexes,
     _get_neighbors,
+    _trace_message_content,
     classify_scope,
 )
 from diagram_analysis.incremental_types import FileDelta, IncrementalDelta, MethodChange
@@ -87,6 +88,37 @@ def test_build_change_groups_modified_file(tmp_path):
     assert groups[0].group_key == "src/module.py"
     assert len(groups[0].methods) == 1
     assert groups[0].methods[0].qualified_name == "module.foo"
+
+
+def test_build_change_groups_strips_comments_from_changed_methods(tmp_path):
+    src = tmp_path / "src" / "module.py"
+    src.parent.mkdir(parents=True)
+    src.write_text("def foo():\n    # old comment\n    return 1\n")
+
+    delta = IncrementalDelta(
+        file_deltas=[
+            FileDelta(
+                file_path="src/module.py",
+                file_status=ChangeStatus.MODIFIED,
+                component_id="1",
+                modified_methods=[
+                    MethodChange(
+                        qualified_name="module.foo",
+                        file_path="src/module.py",
+                        start_line=1,
+                        end_line=3,
+                        change_type=ChangeStatus.MODIFIED,
+                        node_type="FUNCTION",
+                    )
+                ],
+            )
+        ],
+    )
+
+    groups = _build_change_groups(delta, {}, {}, tmp_path, "HEAD")
+    assert len(groups) == 1
+    assert groups[0].methods[0].new_body is not None
+    assert "# old comment" not in groups[0].methods[0].new_body
 
 
 def test_build_change_groups_skips_empty_delta(tmp_path):
@@ -225,6 +257,23 @@ def test_method_resolver_exact_match(tmp_path):
     assert resolver.unresolved == []
 
 
+def test_method_resolver_strips_comments(tmp_path):
+    src = tmp_path / "src" / "mod.py"
+    src.parent.mkdir(parents=True)
+    src.write_text("def hello():\n    # comment\n    return 'hi'\n")
+
+    node = _make_node("mod.hello", str(src), 1, 3)
+    static = MagicMock()
+    static.get_languages.return_value = ["python"]
+    static.get_reference.return_value = node
+
+    resolver = MethodResolver(static, tmp_path)
+    _, body = resolver.resolve("mod.hello")
+    assert body is not None
+    assert "# comment" not in body
+    assert "return 'hi'" in body
+
+
 def test_method_resolver_unresolved(tmp_path):
     static = MagicMock()
     static.get_languages.return_value = ["python"]
@@ -236,6 +285,21 @@ def test_method_resolver_unresolved(tmp_path):
     assert node is None
     assert body is None
     assert "nonexistent.method" in resolver.unresolved
+
+
+def test_trace_message_content_adds_cache_for_anthropic():
+    class FakeAnthropicLLM:
+        __module__ = "langchain_anthropic.chat_models"
+
+    content = _trace_message_content("hello", FakeAnthropicLLM(), enable_cache=True)
+    assert isinstance(content, list)
+    assert content[0]["text"] == "hello"
+    assert content[0]["cache_control"] == {"type": "ephemeral"}
+
+
+def test_trace_message_content_leaves_plain_text_for_other_models():
+    content = _trace_message_content("hello", MagicMock(), enable_cache=True)
+    assert content == "hello"
 
 
 # ---------------------------------------------------------------------------

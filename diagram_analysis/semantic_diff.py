@@ -377,3 +377,59 @@ def is_file_cosmetic(repo_dir: Path, base_ref: str, file_path: str) -> bool:
         return True
 
     return False
+
+
+def _collect_extra_ranges(node: Any, ranges: list[tuple[int, int]]) -> None:
+    """Collect byte ranges for tree-sitter ``is_extra`` nodes."""
+    for child in node.children:
+        if child.is_extra:
+            ranges.append((child.start_byte, child.end_byte))
+            continue
+        _collect_extra_ranges(child, ranges)
+
+
+def strip_comments_from_source(file_path: str, source: str) -> str:
+    """Return *source* with tree-sitter comment/extra nodes removed when supported.
+
+    Falls back to the original source for unsupported languages or parse errors.
+    Newlines from removed ranges are preserved to keep the remaining text readable.
+    """
+    ext = Path(file_path).suffix.lower()
+    language = EXTENSION_TO_LANGUAGE.get(ext)
+    if language is None:
+        return source
+
+    parser = _get_parser(language, ext)
+    if parser is None:
+        return source
+
+    source_bytes = source.encode("utf-8")
+    try:
+        tree = parser.parse(source_bytes)
+    except Exception:
+        logger.debug("Tree-sitter parse failed while stripping comments for %s", file_path, exc_info=True)
+        return source
+
+    if tree.root_node.has_error:
+        return source
+
+    ranges: list[tuple[int, int]] = []
+    _collect_extra_ranges(tree.root_node, ranges)
+    if not ranges:
+        return source
+
+    ranges.sort()
+    parts: list[bytes] = []
+    cursor = 0
+    for start, end in ranges:
+        if start < cursor:
+            start = cursor
+        if start >= end:
+            continue
+        parts.append(source_bytes[cursor:start])
+        removed = source_bytes[start:end]
+        if removed:
+            parts.append(b"\n" * removed.count(b"\n"))
+        cursor = end
+    parts.append(source_bytes[cursor:])
+    return b"".join(parts).decode("utf-8", errors="replace")

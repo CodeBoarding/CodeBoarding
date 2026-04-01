@@ -1,5 +1,7 @@
 """Tests for the EASE-encoded analysis patcher."""
 
+from unittest.mock import patch
+
 from agents.agent_responses import (
     AnalysisInsights,
     Component,
@@ -18,7 +20,9 @@ from diagram_analysis.analysis_patcher import (
     _sub_analysis_to_dict,
     _validate_patched,
     merge_patched_sub_analyses,
+    patch_sub_analysis,
 )
+from diagram_analysis.incremental_models import ImpactedComponent
 from diagram_analysis.diagram_generator import DiagramGenerator
 from diagram_analysis.ease import ease_encode
 
@@ -164,6 +168,42 @@ def test_merge_patched_unknown_id():
     merge_patched_sub_analyses(original, {"999": patched_sub})
     assert "1" in original
     assert "999" not in original
+
+
+def test_patch_sub_analysis_escalates_to_agent_model_on_retry():
+    sub = _make_sub_analysis()
+    impact = ImpactedComponent(component_id="1.1", impacted_methods=["auth.login"])
+    parsing_llm = object()
+    agent_llm = object()
+    response = {
+        "sub_analysis_id": "1",
+        "reasoning": "Update login description",
+        "patches": [{"op": "replace", "path": "/description", "value": "Updated"}],
+    }
+    validated = AnalysisInsights(description="updated", components=[], components_relations=[])
+
+    class FakeExtractor:
+        def invoke(self, payload):
+            return {"responses": [response]}
+
+    def fake_create_extractor(llm, **kwargs):
+        return parsing_extractor if llm is parsing_llm else agent_extractor
+
+    parsing_extractor = FakeExtractor()
+    agent_extractor = FakeExtractor()
+
+    with (
+        patch("diagram_analysis.analysis_patcher.create_extractor", side_effect=fake_create_extractor),
+        patch("diagram_analysis.analysis_patcher._apply_patches", return_value={"description": "updated"}),
+        patch("diagram_analysis.analysis_patcher._decode_sub_analysis", return_value={"description": "updated"}),
+        patch(
+            "diagram_analysis.analysis_patcher._merge_patched_onto_original",
+            side_effect=[None, validated],
+        ),
+    ):
+        result = patch_sub_analysis(sub, "1", impact, parsing_llm, agent_llm)
+
+    assert result is validated
 
 
 # ---------------------------------------------------------------------------

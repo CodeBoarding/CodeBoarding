@@ -1,5 +1,7 @@
 """Tests for the incremental analysis orchestrator (DiagramGenerator methods)."""
 
+from unittest.mock import patch
+
 import pytest
 
 from agents.agent_responses import AnalysisInsights, Component
@@ -161,3 +163,36 @@ class TestFindParentSubAnalysis:
             "1": AnalysisInsights(description="sub1", components=[], components_relations=[]),
         }
         assert DiagramGenerator._find_parent_sub_analysis("99", sub_analyses) is None
+
+
+def test_patch_impacted_components_parallel_deduplicates_parents(tmp_path):
+    gen = _make_generator(tmp_path)
+    root = _make_root_analysis(2)
+    sub_analyses = {
+        "1": AnalysisInsights(description="sub1", components=[], components_relations=[]),
+        "2": AnalysisInsights(description="sub2", components=[], components_relations=[]),
+    }
+    trace = TraceResult(
+        impacted_components=[
+            ImpactedComponent(component_id="1.1", impacted_methods=["a"]),
+            ImpactedComponent(component_id="1.2", impacted_methods=["b"]),
+            ImpactedComponent(component_id="2.1", impacted_methods=["c"]),
+        ]
+    )
+    parsing_llm = object()
+    agent_llm = object()
+
+    def fake_patch(sub, parent_id, impact, parsing_model, agent_model):
+        return AnalysisInsights(description=f"{parent_id}-updated", components=[], components_relations=[])
+
+    with patch("diagram_analysis.analysis_patcher.patch_sub_analysis", side_effect=fake_patch) as mock_patch:
+        gen._patch_impacted_components(root, sub_analyses, trace, agent_llm, parsing_llm)
+
+    assert mock_patch.call_count == 2
+    called_parents = {call.args[1] for call in mock_patch.call_args_list}
+    assert called_parents == {"1", "2"}
+    for call in mock_patch.call_args_list:
+        assert call.args[3] is parsing_llm
+        assert call.args[4] is agent_llm
+    assert sub_analyses["1"].description == "1-updated"
+    assert sub_analyses["2"].description == "2-updated"

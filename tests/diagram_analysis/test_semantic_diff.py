@@ -12,6 +12,7 @@ from diagram_analysis.semantic_diff import (
     _to_normalized_tuple,
     _to_structural_tuple,
     is_file_cosmetic,
+    strip_comments_from_source,
 )
 from static_analyzer.constants import Language
 
@@ -100,6 +101,18 @@ class TestParserLoading:
 
     def test_unsupported_language_returns_none(self):
         assert _get_parser(Language.CPP, ".cpp") is None
+
+
+class TestCommentStripping:
+    def test_strip_comments_from_source_python(self):
+        source = "def foo():\n    # comment\n    return 1\n"
+        stripped = strip_comments_from_source("foo.py", source)
+        assert "# comment" not in stripped
+        assert "return 1" in stripped
+
+    def test_strip_comments_unsupported_extension_returns_original(self):
+        source = "fn main() { // comment\n}\n"
+        assert strip_comments_from_source("main.rs", source) == source
 
 
 # ---------------------------------------------------------------------------

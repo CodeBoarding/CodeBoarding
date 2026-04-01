@@ -4,7 +4,7 @@ import json
 import logging
 import os
 import time
-from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, as_completed, wait
 from contextlib import nullcontext
 from datetime import datetime, timezone
 from pathlib import Path
@@ -575,7 +575,7 @@ class DiagramGenerator:
             affected_ids = {ic.component_id for ic in trace_result.impacted_components}
             self._scoped_reexpansion(root_analysis, sub_analyses, affected_ids, agent_llm, parsing_llm)
         elif trace_result.impacted_components:
-            self._patch_impacted_components(root_analysis, sub_analyses, trace_result, parsing_llm)
+            self._patch_impacted_components(root_analysis, sub_analyses, trace_result, agent_llm, parsing_llm)
 
         # 7. Finalize: method diff statuses, save analysis and checkpoint
         return self._save_incremental_result(output_dir, root_analysis, sub_analyses, base_ref, parsed_diff)
@@ -739,6 +739,7 @@ class DiagramGenerator:
         root_analysis: AnalysisInsights,
         sub_analyses: dict[str, AnalysisInsights],
         trace_result: TraceResult,
+        agent_llm: BaseChatModel,
         parsing_llm: BaseChatModel,
     ) -> None:
         """Patch impacted sub-analyses using EASE-encoded JSON patches."""
@@ -746,6 +747,7 @@ class DiagramGenerator:
 
         patched: dict[str, AnalysisInsights] = {}
         seen_parents: set[str] = set()
+        patch_tasks: list[tuple[str, AnalysisInsights, ImpactedComponent]] = []
 
         for impact in trace_result.impacted_components:
             parent_id = self._find_parent_sub_analysis(impact.component_id, sub_analyses)
@@ -759,10 +761,26 @@ class DiagramGenerator:
             sub = sub_analyses.get(parent_id)
             if sub is None:
                 continue
+            patch_tasks.append((parent_id, sub, impact))
 
-            result = patch_sub_analysis(sub, parent_id, impact, parsing_llm)
-            if result is not None:
-                patched[parent_id] = result
+        if not patch_tasks:
+            return
+
+        max_workers = min(len(patch_tasks), os.cpu_count() or 4, 8)
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {
+                executor.submit(patch_sub_analysis, sub, parent_id, impact, parsing_llm, agent_llm): parent_id
+                for parent_id, sub, impact in patch_tasks
+            }
+            for future in as_completed(futures):
+                parent_id = futures[future]
+                try:
+                    result = future.result()
+                except Exception as exc:
+                    logger.error("Patch failed for %s: %s", parent_id, exc)
+                    continue
+                if result is not None:
+                    patched[parent_id] = result
 
         if patched:
             merge_patched_sub_analyses(sub_analyses, patched)

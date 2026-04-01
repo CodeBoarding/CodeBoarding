@@ -11,11 +11,12 @@ import subprocess
 from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 from langchain_core.language_models import BaseChatModel
 
 from agents.change_status import ChangeStatus
-from diagram_analysis.semantic_diff import is_file_cosmetic
+from diagram_analysis.semantic_diff import is_file_cosmetic, strip_comments_from_source
 from diagram_analysis.checkpoints import FileComponentIndex
 from diagram_analysis.incremental_models import (
     ImpactedComponent,
@@ -120,6 +121,8 @@ class MethodResolver:
             logger.warning("Unresolved method during tracing: %s", qualified_name)
             return None, None
         body = _read_method_body(self._repo_dir, node.file_path, node.line_start, node.line_end)
+        if body is not None:
+            body = strip_comments_from_source(node.file_path, body)
         return node, body
 
     def _try_lookup(self, qualified_name: str) -> Node | None:
@@ -214,6 +217,8 @@ def _build_change_groups(
         group = groups.setdefault(fp, ChangeGroup(group_key=fp, diff_hunks=diff_text))
         for mc in all_methods:
             body = _read_method_body(repo_dir, fp, mc.start_line, mc.end_line)
+            if body is not None:
+                body = strip_comments_from_source(fp, body)
             ctx = ChangedMethodContext(
                 qualified_name=mc.qualified_name,
                 file_path=fp,
@@ -261,6 +266,23 @@ updating — not just because it calls or is called by a changed method.
 You control traversal: request additional method bodies to inspect by name.
 Stay within the budget. When you have enough information, stop.
 """
+
+
+def _supports_anthropic_prompt_caching(llm: BaseChatModel) -> bool:
+    """Return True when *llm* is a langchain Anthropic chat model."""
+    return llm.__class__.__module__.startswith("langchain_anthropic")
+
+
+def _trace_message_content(
+    text: str,
+    llm: BaseChatModel,
+    *,
+    enable_cache: bool = False,
+) -> str | list[dict[str, Any]]:
+    """Return message content, adding Anthropic cache metadata when enabled."""
+    if not enable_cache or not _supports_anthropic_prompt_caching(llm):
+        return text
+    return [{"type": "text", "text": text, "cache_control": {"type": "ephemeral"}}]
 
 
 def _build_initial_prompt(groups: list[ChangeGroup]) -> str:
@@ -356,9 +378,11 @@ def run_trace(
 
     # Initial prompt
     prompt = _build_initial_prompt(groups)
-    messages: list[dict[str, str]] = [
+    caching_supported = _supports_anthropic_prompt_caching(parsing_llm)
+    cached_turns = 1 if caching_supported else 0
+    messages: list[dict[str, Any]] = [
         {"role": "system", "content": _TRACE_SYSTEM},
-        {"role": "user", "content": prompt},
+        {"role": "user", "content": _trace_message_content(prompt, parsing_llm, enable_cache=caching_supported)},
     ]
 
     all_impacted: set[str] = set()
@@ -425,8 +449,13 @@ def run_trace(
 
         # Build continuation prompt
         cont_prompt = _build_continuation_prompt(fetched, response)
+        use_cache = caching_supported and cached_turns < 4
         messages.append({"role": "assistant", "content": response.llm_str()})
-        messages.append({"role": "user", "content": cont_prompt})
+        messages.append(
+            {"role": "user", "content": _trace_message_content(cont_prompt, parsing_llm, enable_cache=use_cache)}
+        )
+        if use_cache:
+            cached_turns += 1
 
     # Fell through max hops
     return TraceResult(

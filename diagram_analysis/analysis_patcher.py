@@ -252,6 +252,7 @@ def patch_sub_analysis(
     sub_analysis_id: str,
     impact: ImpactedComponent,
     parsing_llm: BaseChatModel,
+    agent_llm: BaseChatModel | None = None,
 ) -> AnalysisInsights | None:
     """Patch a single sub-analysis using EASE-encoded JSON patches.
 
@@ -261,16 +262,27 @@ def patch_sub_analysis(
     encoded = _encode_sub_analysis(sub_dict)
 
     prompt = _build_patch_prompt(encoded, impact, sub_analysis_id)
-    extractor = create_extractor(parsing_llm, tools=[AnalysisPatch], tool_choice=AnalysisPatch.__name__)
+    extractor_cache: dict[int, Any] = {}
+
+    def get_extractor(llm: BaseChatModel):
+        key = id(llm)
+        extractor = extractor_cache.get(key)
+        if extractor is None:
+            extractor = create_extractor(llm, tools=[AnalysisPatch], tool_choice=AnalysisPatch.__name__)
+            extractor_cache[key] = extractor
+        return extractor
 
     last_error = ""
     for attempt in range(MAX_PATCH_RETRIES):
         try:
+            current_llm = parsing_llm if attempt == 0 or agent_llm is None else agent_llm
             user_content = prompt
             if last_error:
                 user_content += f"\n\nPrevious attempt failed validation: {last_error}\nPlease fix the patch."
+            if attempt > 0 and agent_llm is not None:
+                logger.info("Escalating patch retry for %s on attempt %d", sub_analysis_id, attempt + 1)
 
-            result = extractor.invoke(  # type: ignore[arg-type]
+            result = get_extractor(current_llm).invoke(  # type: ignore[arg-type]
                 {"messages": [{"role": "system", "content": _PATCH_SYSTEM}, {"role": "user", "content": user_content}]}
             )
             if "responses" not in result or not result["responses"]:
