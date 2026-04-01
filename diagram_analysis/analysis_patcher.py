@@ -43,23 +43,6 @@ def _sub_analysis_to_dict(sub: AnalysisInsights) -> dict[str, Any]:
                 }
                 for ke in c.key_entities
             ],
-            "file_methods": [
-                {
-                    "file_path": fm.file_path,
-                    "file_status": fm.file_status,
-                    "methods": [
-                        {
-                            "qualified_name": m.qualified_name,
-                            "start_line": m.start_line,
-                            "end_line": m.end_line,
-                            "node_type": m.node_type,
-                            "status": m.status,
-                        }
-                        for m in fm.methods
-                    ],
-                }
-                for fm in c.file_methods
-            ],
         }
         components.append(comp)
 
@@ -88,29 +71,17 @@ def _encode_sub_analysis(sub_dict: dict[str, Any]) -> dict[str, Any]:
         for key, comp in encoded["components"].items():
             if key == "display_order" or not isinstance(comp, dict):
                 continue
-            encoded["components"][key] = ease_encode(comp, ["key_entities", "file_methods"])
-            # Encode methods within file_methods
-            if isinstance(encoded["components"][key].get("file_methods"), dict):
-                for fm_key, fm in encoded["components"][key]["file_methods"].items():
-                    if fm_key == "display_order" or not isinstance(fm, dict):
-                        continue
-                    encoded["components"][key]["file_methods"][fm_key] = ease_encode(fm, ["methods"])
+            encoded["components"][key] = ease_encode(comp, ["key_entities"])
     return encoded
 
 
 def _decode_sub_analysis(encoded: dict[str, Any]) -> dict[str, Any]:
     """Decode EASE-encoded sub-analysis back to plain arrays."""
-    # Decode nested first (bottom-up)
     if isinstance(encoded.get("components"), dict):
         for key, comp in encoded["components"].items():
             if key == "display_order" or not isinstance(comp, dict):
                 continue
-            if isinstance(comp.get("file_methods"), dict):
-                for fm_key, fm in comp["file_methods"].items():
-                    if fm_key == "display_order" or not isinstance(fm, dict):
-                        continue
-                    comp["file_methods"][fm_key] = ease_decode(fm, ["methods"])
-            encoded["components"][key] = ease_decode(comp, ["key_entities", "file_methods"])
+            encoded["components"][key] = ease_decode(comp, ["key_entities"])
     return ease_decode(encoded, ["components", "components_relations"])
 
 
@@ -295,11 +266,13 @@ def patch_sub_analysis(
     last_error = ""
     for attempt in range(MAX_PATCH_RETRIES):
         try:
-            full_prompt = _PATCH_SYSTEM + "\n\n" + prompt
+            user_content = prompt
             if last_error:
-                full_prompt += f"\n\nPrevious attempt failed validation: {last_error}\nPlease fix the patch."
+                user_content += f"\n\nPrevious attempt failed validation: {last_error}\nPlease fix the patch."
 
-            result = extractor.invoke(full_prompt)
+            result = extractor.invoke(  # type: ignore[arg-type]
+                {"messages": [{"role": "system", "content": _PATCH_SYSTEM}, {"role": "user", "content": user_content}]}
+            )
             if "responses" not in result or not result["responses"]:
                 logger.warning("Patch extractor returned no responses (attempt %d)", attempt + 1)
                 continue

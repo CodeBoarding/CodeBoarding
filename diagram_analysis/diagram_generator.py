@@ -699,12 +699,10 @@ class DiagramGenerator:
         """Patch impacted sub-analyses using EASE-encoded JSON patches."""
         from diagram_analysis.analysis_patcher import merge_patched_sub_analyses, patch_sub_analysis
 
-        # Identify parent sub-analyses for impacted components
         patched: dict[str, AnalysisInsights] = {}
         seen_parents: set[str] = set()
 
         for impact in trace_result.impacted_components:
-            # Find the parent sub-analysis containing this component
             parent_id = self._find_parent_sub_analysis(impact.component_id, sub_analyses)
             if parent_id is None:
                 logger.warning("No parent sub-analysis found for component %s", impact.component_id)
