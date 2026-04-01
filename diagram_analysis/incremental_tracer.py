@@ -15,6 +15,7 @@ from pathlib import Path
 from langchain_core.language_models import BaseChatModel
 
 from agents.change_status import ChangeStatus
+from diagram_analysis.semantic_diff import is_file_cosmetic
 from diagram_analysis.checkpoints import FileComponentIndex
 from diagram_analysis.incremental_models import (
     ImpactedComponent,
@@ -187,10 +188,23 @@ def _build_change_groups(
     """Group changed methods by file and attach neighbor metadata."""
     groups: dict[str, ChangeGroup] = {}
 
+    cosmetic_skipped = 0
     for file_delta in delta.file_deltas:
         fp = file_delta.file_path
         all_methods = file_delta.added_methods + file_delta.modified_methods
         if not all_methods and file_delta.file_status != ChangeStatus.DELETED:
+            continue
+
+        # Skip files whose changes are purely cosmetic (formatting, comments, renames)
+        if (
+            file_delta.file_status == ChangeStatus.MODIFIED
+            and file_delta.modified_methods
+            and not file_delta.added_methods
+            and not file_delta.deleted_methods
+            and is_file_cosmetic(repo_dir, base_ref, fp)
+        ):
+            cosmetic_skipped += 1
+            logger.info("Skipping cosmetic-only file: %s", fp)
             continue
 
         diff_text = (
@@ -226,6 +240,9 @@ def _build_change_groups(
 
         group.upstream_neighbors = list(set(group.upstream_neighbors))
         group.downstream_neighbors = list(set(group.downstream_neighbors))
+
+    if cosmetic_skipped:
+        logger.info("Skipped %d cosmetic-only file(s) from tracing", cosmetic_skipped)
 
     return list(groups.values())
 

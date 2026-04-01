@@ -1,6 +1,6 @@
 """Tests for the incremental tracer and scope classification."""
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from agents.change_status import ChangeStatus
 from diagram_analysis.checkpoints import FileComponentIndex
@@ -455,3 +455,151 @@ def test_purely_additive_new_methods_in_existing_file():
         ]
     )
     assert delta.is_purely_additive is True
+
+
+# ---------------------------------------------------------------------------
+# Cosmetic change skipping in _build_change_groups
+# ---------------------------------------------------------------------------
+
+
+def _make_modified_delta(file_path: str = "src/module.py") -> IncrementalDelta:
+    return IncrementalDelta(
+        file_deltas=[
+            FileDelta(
+                file_path=file_path,
+                file_status=ChangeStatus.MODIFIED,
+                component_id="1",
+                modified_methods=[
+                    MethodChange(
+                        qualified_name="module.foo",
+                        file_path=file_path,
+                        start_line=1,
+                        end_line=2,
+                        change_type=ChangeStatus.MODIFIED,
+                        node_type="FUNCTION",
+                    )
+                ],
+            )
+        ],
+    )
+
+
+@patch("diagram_analysis.incremental_tracer.is_file_cosmetic", return_value=True)
+def test_build_change_groups_skips_cosmetic_file(mock_cosmetic, tmp_path):
+    src = tmp_path / "src" / "module.py"
+    src.parent.mkdir(parents=True)
+    src.write_text("def foo():\n    return 1\n")
+
+    delta = _make_modified_delta()
+    groups = _build_change_groups(delta, {}, {}, tmp_path, "HEAD")
+    assert len(groups) == 0
+    mock_cosmetic.assert_called_once()
+
+
+@patch("diagram_analysis.incremental_tracer.is_file_cosmetic", return_value=False)
+def test_build_change_groups_keeps_semantic_file(mock_cosmetic, tmp_path):
+    src = tmp_path / "src" / "module.py"
+    src.parent.mkdir(parents=True)
+    src.write_text("def foo():\n    return 1\n")
+
+    delta = _make_modified_delta()
+    groups = _build_change_groups(delta, {}, {}, tmp_path, "HEAD")
+    assert len(groups) == 1
+    mock_cosmetic.assert_called_once()
+
+
+@patch("diagram_analysis.incremental_tracer.is_file_cosmetic")
+def test_build_change_groups_no_cosmetic_check_for_added(mock_cosmetic, tmp_path):
+    src = tmp_path / "src" / "new.py"
+    src.parent.mkdir(parents=True)
+    src.write_text("def bar():\n    return 2\n")
+
+    delta = IncrementalDelta(
+        file_deltas=[
+            FileDelta(
+                file_path="src/new.py",
+                file_status=ChangeStatus.ADDED,
+                component_id="1",
+                added_methods=[
+                    MethodChange(
+                        qualified_name="new.bar",
+                        file_path="src/new.py",
+                        start_line=1,
+                        end_line=2,
+                        change_type=ChangeStatus.ADDED,
+                        node_type="FUNCTION",
+                    )
+                ],
+            )
+        ],
+    )
+    groups = _build_change_groups(delta, {}, {}, tmp_path, "HEAD")
+    assert len(groups) == 1
+    mock_cosmetic.assert_not_called()
+
+
+@patch("diagram_analysis.incremental_tracer.is_file_cosmetic")
+def test_build_change_groups_no_cosmetic_check_for_deleted(mock_cosmetic, tmp_path):
+    delta = IncrementalDelta(
+        file_deltas=[
+            FileDelta(
+                file_path="src/old.py",
+                file_status=ChangeStatus.DELETED,
+                component_id="1",
+                deleted_methods=[
+                    MethodChange(
+                        qualified_name="old.func",
+                        file_path="src/old.py",
+                        start_line=1,
+                        end_line=5,
+                        change_type=ChangeStatus.DELETED,
+                        node_type="FUNCTION",
+                    )
+                ],
+            )
+        ],
+    )
+    groups = _build_change_groups(delta, {}, {}, tmp_path, "HEAD")
+    assert len(groups) == 1
+    mock_cosmetic.assert_not_called()
+
+
+@patch("diagram_analysis.incremental_tracer.is_file_cosmetic", return_value=True)
+def test_build_change_groups_no_skip_when_methods_added(mock_cosmetic, tmp_path):
+    """A MODIFIED file with both added and modified methods should not be skipped."""
+    src = tmp_path / "src" / "module.py"
+    src.parent.mkdir(parents=True)
+    src.write_text("def foo():\n    return 1\ndef bar():\n    return 2\n")
+
+    delta = IncrementalDelta(
+        file_deltas=[
+            FileDelta(
+                file_path="src/module.py",
+                file_status=ChangeStatus.MODIFIED,
+                component_id="1",
+                added_methods=[
+                    MethodChange(
+                        qualified_name="module.bar",
+                        file_path="src/module.py",
+                        start_line=3,
+                        end_line=4,
+                        change_type=ChangeStatus.ADDED,
+                        node_type="FUNCTION",
+                    )
+                ],
+                modified_methods=[
+                    MethodChange(
+                        qualified_name="module.foo",
+                        file_path="src/module.py",
+                        start_line=1,
+                        end_line=2,
+                        change_type=ChangeStatus.MODIFIED,
+                        node_type="FUNCTION",
+                    )
+                ],
+            )
+        ],
+    )
+    groups = _build_change_groups(delta, {}, {}, tmp_path, "HEAD")
+    assert len(groups) == 1
+    mock_cosmetic.assert_not_called()
