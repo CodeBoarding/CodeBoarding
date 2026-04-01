@@ -28,6 +28,7 @@ class TraceStopReason(StrEnum):
     NO_MATERIAL_IMPACT = "stop_no_material_semantic_impact"
     CLOSURE_REACHED = "stop_material_semantic_impact_closure_reached"
     UNCERTAIN = "stop_uncertain"
+    SYNTAX_ERROR = "stop_syntax_error"
 
 
 class TraceResponse(LLMBaseModel):

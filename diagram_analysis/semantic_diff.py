@@ -9,7 +9,9 @@ Two tiers:
   Tier 1 – normalized: alpha-renames locals, sorts commutative operands.
 """
 
+import hashlib
 import logging
+import re
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -20,6 +22,7 @@ from static_analyzer.constants import Language
 logger = logging.getLogger(__name__)
 
 _MAX_FILE_SIZE = 100_000  # bytes – skip semantic diff for very large files
+_WHITESPACE_RE = re.compile(r"\s+")
 
 # ---------------------------------------------------------------------------
 # Per-language tree-sitter configuration
@@ -322,6 +325,52 @@ def _to_normalized_tuple(
 # ---------------------------------------------------------------------------
 
 
+def _collect_error_positions(node: Any, errors: list[tuple[int, int]], max_errors: int = 3) -> None:
+    """Collect (line, column) for ERROR or MISSING tree-sitter nodes."""
+    if node.type == "ERROR" or node.is_missing:
+        errors.append((node.start_point[0] + 1, node.start_point[1]))
+        if len(errors) >= max_errors:
+            return
+    for child in node.children:
+        _collect_error_positions(child, errors, max_errors)
+        if len(errors) >= max_errors:
+            return
+
+
+def check_syntax_errors(repo_dir: Path, file_path: str) -> list[tuple[int, int]]:
+    """Return positions of syntax errors in *file_path*, empty list if clean.
+
+    Each entry is a ``(line, column)`` tuple with 1-indexed line numbers.
+    Returns an empty list for unsupported file extensions, unreadable files,
+    or when tree-sitter is unavailable.
+    """
+    ext = Path(file_path).suffix.lower()
+    language = EXTENSION_TO_LANGUAGE.get(ext)
+    if language is None:
+        return []
+
+    content = _get_new_content(repo_dir, file_path)
+    if content is None:
+        return []
+
+    parser = _get_parser(language, ext)
+    if parser is None:
+        return []
+
+    try:
+        tree = parser.parse(content.encode("utf-8"))
+    except Exception:
+        logger.debug("Tree-sitter parse failed for %s", file_path, exc_info=True)
+        return [(1, 0)]
+
+    if not tree.root_node.has_error:
+        return []
+
+    errors: list[tuple[int, int]] = []
+    _collect_error_positions(tree.root_node, errors)
+    return errors or [(1, 0)]
+
+
 def is_file_cosmetic(repo_dir: Path, base_ref: str, file_path: str) -> bool:
     """Return True if the changes to *file_path* are cosmetic-only.
 
@@ -433,3 +482,49 @@ def strip_comments_from_source(file_path: str, source: str) -> str:
         cursor = end
     parts.append(source_bytes[cursor:])
     return b"".join(parts).decode("utf-8", errors="replace")
+
+
+def fingerprint_source_text(file_path: str, source: str) -> str:
+    """Return a stable fingerprint for comment-stripped, whitespace-normalized source."""
+    normalized = _WHITESPACE_RE.sub(" ", strip_comments_from_source(file_path, source)).strip()
+    return hashlib.blake2b(normalized.encode("utf-8"), digest_size=16).hexdigest()
+
+
+def fingerprint_method_signature(file_path: str, source: str) -> str | None:
+    """Return a stable fingerprint for the signature/header portion of a method source slice.
+
+    Returns ``None`` when a safe signature/header boundary cannot be determined.
+    """
+    ext = Path(file_path).suffix.lower()
+    stripped = strip_comments_from_source(file_path, source)
+    signature: str | None = None
+
+    if ext == ".py":
+        collected: list[str] = []
+        for line in stripped.splitlines():
+            if not collected and not line.strip():
+                continue
+            collected.append(line)
+            line_text = line.strip()
+            if line_text.startswith(("def ", "async def ", "class ")) and line_text.endswith(":"):
+                signature = "\n".join(collected)
+                break
+            if (
+                collected
+                and line_text.endswith(":")
+                and any(token in "\n".join(collected) for token in ("def ", "async def ", "class "))
+            ):
+                signature = "\n".join(collected)
+                break
+    else:
+        brace_index = stripped.find("{")
+        if brace_index != -1:
+            signature = stripped[:brace_index]
+
+    if signature is None:
+        return None
+
+    normalized = _WHITESPACE_RE.sub(" ", signature).strip()
+    if not normalized:
+        return None
+    return hashlib.blake2b(normalized.encode("utf-8"), digest_size=16).hexdigest()
