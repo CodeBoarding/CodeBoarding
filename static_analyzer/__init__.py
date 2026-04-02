@@ -208,6 +208,27 @@ class StaticAnalyzer:
                 result[adapter.language] = diags
         return result
 
+    def get_diagnostics_generation(self) -> int:
+        """Return the sum of diagnostics generation counters across all LSP clients."""
+        return sum(client.get_diagnostics_generation() for _, _, client in self._engine_clients)
+
+    def load_from_disk_cache(self) -> StaticAnalysisResults | None:
+        """Load structural analysis results from the on-disk cache.
+
+        Returns the cached ``StaticAnalysisResults`` if a disk cache exists
+        (written by a prior ``analyze()`` call, possibly in a subprocess).
+        Sets ``_cached_results`` so subsequent calls are free.  Returns None
+        if no cache is found.
+        """
+        if self._cached_results is not None:
+            return self._cached_results
+        disk_cache = AnalysisCache(get_cache_dir(self.repository_path), self.repository_path)
+        cached = disk_cache.get("static_analysis_results")
+        if cached is not None:
+            self._cached_results = cached
+            logger.info("Loaded static analysis results from disk cache")
+        return self._cached_results
+
     def notify_file_changed(self, file_path: Path, content: str) -> None:
         """Notify the LSP server that the editor has saved new content for a file.
 

@@ -69,6 +69,7 @@ class LSPClient:
         # Diagnostics collection
         self._diagnostics: FileDiagnosticsMap = {}
         self._diagnostics_lock = threading.Lock()
+        self._diagnostics_generation: int = 0
 
         # JDTLS import tracking
         self._server_ready = threading.Event()
@@ -374,6 +375,11 @@ class LSPClient:
         with self._diagnostics_lock:
             return dict(self._diagnostics)
 
+    def get_diagnostics_generation(self) -> int:
+        """Return a counter bumped on each ``publishDiagnostics`` notification."""
+        with self._diagnostics_lock:
+            return self._diagnostics_generation
+
     # ---- JDTLS server-ready wait ----
 
     def wait_for_server_ready(self, timeout: int = 300) -> None:
@@ -637,6 +643,7 @@ class LSPClient:
                     lsp_diags = [LSPDiagnostic.from_lsp_dict(d) for d in diagnostics]
                     with self._diagnostics_lock:
                         self._diagnostics[file_key] = lsp_diags
+                        self._diagnostics_generation += 1
 
         elif method == "language/status":
             status_type = params.get("type", "")
