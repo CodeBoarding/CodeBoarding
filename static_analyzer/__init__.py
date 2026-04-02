@@ -194,6 +194,20 @@ class StaticAnalyzer:
         self._clients_started = False
         self._cached_results = None
 
+    def collect_fresh_diagnostics(self) -> dict[str, FileDiagnosticsMap]:
+        """Read current diagnostics from all running LSP clients without re-analyzing.
+
+        The LSP servers accumulate ``textDocument/publishDiagnostics`` notifications
+        automatically after ``didChange``.  This method reads the collected
+        diagnostics without triggering any new analysis work.
+        """
+        result: dict[str, FileDiagnosticsMap] = {}
+        for adapter, _, client in self._engine_clients:
+            diags = client.get_collected_diagnostics()
+            if diags:
+                result[adapter.language] = diags
+        return result
+
     def notify_file_changed(self, file_path: Path, content: str) -> None:
         """Notify the LSP server that the editor has saved new content for a file.
 
