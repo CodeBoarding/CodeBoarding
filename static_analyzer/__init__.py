@@ -226,6 +226,7 @@ class StaticAnalyzer:
         cached = disk_cache.get("static_analysis_results")
         if cached is not None:
             self._cached_results = cached
+            self.collected_diagnostics = cached.diagnostics
             logger.info("Loaded static analysis results from disk cache")
         return self._cached_results
 

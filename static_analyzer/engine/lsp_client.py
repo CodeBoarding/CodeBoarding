@@ -63,8 +63,9 @@ class LSPClient:
         self._reader_thread: threading.Thread | None = None
         self._shutdown_event = threading.Event()
 
-        # Track opened documents so did_open is only sent once per file.
+        # Track opened documents and their version counters.
         self._opened_uris: set[str] = set()
+        self._doc_versions: dict[str, int] = {}
 
         # Diagnostics collection
         self._diagnostics: FileDiagnosticsMap = {}
@@ -188,6 +189,7 @@ class LSPClient:
                 pass
             self._stdout_fd = None
         self._opened_uris.clear()
+        self._doc_versions.clear()
 
     # ---- Document management ----
 
@@ -216,10 +218,13 @@ class LSPClient:
             },
         )
         self._opened_uris.add(uri)
+        self._doc_versions[uri] = 1
 
-    def did_change(self, file_path: Path, content: str, version: int = 2) -> None:
+    def did_change(self, file_path: Path, content: str) -> None:
         """Notify the server that a document's content has changed."""
         uri = file_path.resolve().as_uri()
+        version = self._doc_versions.get(uri, 1) + 1
+        self._doc_versions[uri] = version
         self._send_notification(
             "textDocument/didChange",
             {
@@ -236,6 +241,7 @@ class LSPClient:
             {"textDocument": {"uri": uri}},
         )
         self._opened_uris.discard(uri)
+        self._doc_versions.pop(uri, None)
 
     # ---- LSP queries ----
 
@@ -255,7 +261,7 @@ class LSPClient:
         result = self._send_request(
             "textDocument/references",
             {
-                "textDocument": {"uri": file_path.as_uri()},
+                "textDocument": {"uri": file_path.resolve().as_uri()},
                 "position": {"line": line, "character": character},
                 "context": {"includeDeclaration": True},
             },
@@ -284,7 +290,7 @@ class LSPClient:
 
         def build_params(file_path: Path, line: int, character: int) -> dict:
             return {
-                "textDocument": {"uri": file_path.as_uri()},
+                "textDocument": {"uri": file_path.resolve().as_uri()},
                 "position": {"line": line, "character": character},
                 "context": {"includeDeclaration": True},
             }
@@ -296,7 +302,7 @@ class LSPClient:
         result = self._send_request(
             "textDocument/definition",
             {
-                "textDocument": {"uri": file_path.as_uri()},
+                "textDocument": {"uri": file_path.resolve().as_uri()},
                 "position": {"line": line, "character": character},
             },
             timeout=timeout,
@@ -321,7 +327,7 @@ class LSPClient:
         result = self._send_request(
             "textDocument/implementation",
             {
-                "textDocument": {"uri": file_path.as_uri()},
+                "textDocument": {"uri": file_path.resolve().as_uri()},
                 "position": {"line": line, "character": character},
             },
             timeout=timeout,
@@ -346,7 +352,7 @@ class LSPClient:
         result = self._send_request(
             "textDocument/prepareTypeHierarchy",
             {
-                "textDocument": {"uri": file_path.as_uri()},
+                "textDocument": {"uri": file_path.resolve().as_uri()},
                 "position": {"line": line, "character": character},
             },
         )
@@ -402,7 +408,7 @@ class LSPClient:
     def _position_params(self, file_path: Path, line: int, character: int) -> dict:
         """Build standard position-based LSP params (used by definition/implementation)."""
         return {
-            "textDocument": {"uri": file_path.as_uri()},
+            "textDocument": {"uri": file_path.resolve().as_uri()},
             "position": {"line": line, "character": character},
         }
 
