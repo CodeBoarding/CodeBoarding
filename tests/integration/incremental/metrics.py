@@ -34,6 +34,7 @@ class IncrementalRunMetrics:
     file_deltas_count: int = 0
     purely_additive: bool = False
     error: str | None = None
+    phase_timings: dict[str, float] = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -64,11 +65,22 @@ def run_incremental_with_metrics(
         monitoring_enabled=False,
     )
 
-    # Wrap _compute_incremental_delta to capture delta info
+    # Wrap _load_incremental_baseline to capture timing
+    original_load_baseline = generator._load_incremental_baseline
+
+    def capturing_load_baseline(*args, **kwargs):
+        t0 = time.perf_counter()
+        result = original_load_baseline(*args, **kwargs)
+        metrics.phase_timings["load_baseline"] = round(time.perf_counter() - t0, 3)
+        return result
+
+    # Wrap _compute_incremental_delta to capture delta info + timing
     original_compute_delta = generator._compute_incremental_delta
 
     def capturing_compute_delta(*args, **kwargs):
+        t0 = time.perf_counter()
         delta = original_compute_delta(*args, **kwargs)
+        metrics.phase_timings["compute_delta"] = round(time.perf_counter() - t0, 3)
         if delta is not None:
             metrics.file_deltas_count = len(delta.file_deltas)
             metrics.purely_additive = delta.is_purely_additive
@@ -78,29 +90,44 @@ def run_incremental_with_metrics(
             metrics.escalation_level = "no_changes"
         return delta
 
-    # Wrap _run_semantic_trace to capture trace result
+    # Wrap _run_semantic_trace to capture trace result + timing
     original_run_trace = generator._run_semantic_trace
 
     def capturing_run_trace(*args, **kwargs):
+        t0 = time.perf_counter()
         result = original_run_trace(*args, **kwargs)
+        metrics.phase_timings["semantic_trace"] = round(time.perf_counter() - t0, 3)
         metrics.hops_used = result.hops_used
         metrics.trace_stop_reason = result.stop_reason.value
         metrics.impacted_methods_count = len(result.all_impacted_methods)
         metrics.components_affected = len(result.impacted_components)
         return result
 
-    # Wrap _determine_escalation to capture escalation level
+    # Wrap _determine_escalation to capture escalation level + timing
     original_determine_escalation = generator._determine_escalation
 
     def capturing_determine_escalation(*args, **kwargs):
+        t0 = time.perf_counter()
         escalation = original_determine_escalation(*args, **kwargs)
+        metrics.phase_timings["determine_escalation"] = round(time.perf_counter() - t0, 3)
         metrics.escalation_level = escalation.value
         return escalation
 
+    # Wrap _save_incremental_result to capture timing
+    original_save_result = generator._save_incremental_result
+
+    def capturing_save_result(*args, **kwargs):
+        t0 = time.perf_counter()
+        result = original_save_result(*args, **kwargs)
+        metrics.phase_timings["save_result"] = round(time.perf_counter() - t0, 3)
+        return result
+
     # Apply patches and run
+    generator._load_incremental_baseline = capturing_load_baseline  # type: ignore[method-assign]
     generator._compute_incremental_delta = capturing_compute_delta  # type: ignore[method-assign]
     generator._run_semantic_trace = capturing_run_trace  # type: ignore[method-assign]
     generator._determine_escalation = capturing_determine_escalation  # type: ignore[method-assign]
+    generator._save_incremental_result = capturing_save_result  # type: ignore[method-assign]
 
     start = time.perf_counter()
     try:

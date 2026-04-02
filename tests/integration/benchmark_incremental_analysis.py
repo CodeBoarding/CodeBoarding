@@ -101,6 +101,38 @@ def print_results(all_results: dict[str, list[dict]]) -> None:
                     f"{r['components_affected']:>11} {r['file_deltas_count']:>7}"
                 )
 
+    # Print phase timing breakdown if available
+    has_phases = any(r.get("phase_timings") for runs in all_results.values() for r in runs)
+    if has_phases:
+        print(f"\n{'=' * 110}")
+        print("  Phase Timing Breakdown (seconds)")
+        print(f"{'=' * 110}\n")
+        phase_header = (
+            f"  {'Scenario':<30} {'load_base':>10} {'compute_d':>10} "
+            f"{'sem_trace':>10} {'escalation':>10} {'save_res':>10} {'other':>10}"
+        )
+        print(phase_header)
+        print(f"  {'-' * 106}")
+
+        for scenario_name, runs in all_results.items():
+            for i, r in enumerate(runs):
+                suffix = f" [{i+1}]" if len(runs) > 1 else ""
+                name = f"{scenario_name}{suffix}"
+                pt = r.get("phase_timings", {})
+                if not pt:
+                    continue
+                total = r["wall_clock_seconds"]
+                load_b = pt.get("load_baseline", 0)
+                comp_d = pt.get("compute_delta", 0)
+                sem_t = pt.get("semantic_trace", 0)
+                esc = pt.get("determine_escalation", 0)
+                save = pt.get("save_result", 0)
+                other = round(total - load_b - comp_d - sem_t - esc - save, 3)
+                print(
+                    f"  {name:<30} {load_b:>10.3f} {comp_d:>10.3f} "
+                    f"{sem_t:>10.3f} {esc:>10.3f} {save:>10.3f} {other:>10.3f}"
+                )
+
     print()
 
 
@@ -131,6 +163,7 @@ def main() -> None:
         sys.exit(1)
 
     from tests.integration.incremental.scenarios import SCENARIOS, SCENARIOS_BY_NAME
+    from tests.integration.incremental.scenarios_langchain import LANGCHAIN_SCENARIOS, LANGCHAIN_SCENARIOS_BY_NAME
     from tests.integration.incremental.scenarios_markitdown import MARKITDOWN_SCENARIOS, MARKITDOWN_SCENARIOS_BY_NAME
     from tests.integration.incremental.state_manager import StateManager
 
@@ -139,6 +172,9 @@ def main() -> None:
     if "markitdown" in repo_name:
         all_scenarios = MARKITDOWN_SCENARIOS
         all_by_name = MARKITDOWN_SCENARIOS_BY_NAME
+    elif "langchain" in repo_name:
+        all_scenarios = LANGCHAIN_SCENARIOS
+        all_by_name = LANGCHAIN_SCENARIOS_BY_NAME
     else:
         all_scenarios = SCENARIOS
         all_by_name = SCENARIOS_BY_NAME
