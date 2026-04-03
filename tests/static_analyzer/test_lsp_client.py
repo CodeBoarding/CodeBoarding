@@ -432,6 +432,28 @@ class TestHandleNotification:
         assert len(diags[file_key]) == 1
         assert diags[file_key][0].message == "Unused import"
 
+    def test_diagnostics_generation_increments(self):
+        client = LSPClient(["cmd"], Path("/root"), collect_diagnostics=True)
+        assert client.get_diagnostics_generation() == 0
+
+        params = {
+            "uri": Path("/root/test.py").as_uri(),
+            "diagnostics": [
+                {
+                    "range": {"start": {"line": 0, "character": 0}, "end": {"line": 0, "character": 5}},
+                    "message": "error 1",
+                    "severity": 1,
+                }
+            ],
+        }
+        client._handle_notification("textDocument/publishDiagnostics", params)
+        assert client.get_diagnostics_generation() == 1
+
+        # Second notification for a different file bumps again
+        params["uri"] = Path("/root/other.py").as_uri()
+        client._handle_notification("textDocument/publishDiagnostics", params)
+        assert client.get_diagnostics_generation() == 2
+
     def test_service_ready_notification(self):
         client = LSPClient(["cmd"], Path("/root"))
         assert not client._server_ready.is_set()
@@ -544,13 +566,48 @@ class TestDidOpenDidChangeDidClose:
         client = LSPClient(["cmd"], Path("/root"))
 
         with patch.object(client, "_send_notification") as mock_notif:
-            client.did_change(Path("/root/test.py"), "new content", version=3)
+            client.did_change(Path("/root/test.py"), "new content")
 
             mock_notif.assert_called_once()
             args = mock_notif.call_args[0]
             assert args[0] == "textDocument/didChange"
-            assert args[1]["textDocument"]["version"] == 3
             assert args[1]["contentChanges"][0]["text"] == "new content"
+
+    def test_did_change_auto_increments_version(self):
+        client = LSPClient(["cmd"], Path("/root"))
+        file_path = Path("/root/test.py")
+
+        with patch.object(client, "_send_notification") as mock_notif:
+            client.did_change(file_path, "v1")
+            client.did_change(file_path, "v2")
+            client.did_change(file_path, "v3")
+
+            versions = [call[0][1]["textDocument"]["version"] for call in mock_notif.call_args_list]
+            assert versions == [2, 3, 4]
+
+    def test_did_change_continues_version_after_did_open(self):
+        client = LSPClient(["cmd"], Path("/root"))
+        file_path = Path("/root/test.py")
+
+        with patch.object(client, "_send_notification") as mock_notif:
+            with patch.object(Path, "read_text", return_value=""):
+                client.did_open(file_path, "python")
+            client.did_change(file_path, "edited")
+
+            change_args = mock_notif.call_args_list[-1][0]
+            assert change_args[1]["textDocument"]["version"] == 2
+
+    def test_did_open_is_idempotent(self):
+        client = LSPClient(["cmd"], Path("/root"))
+        file_path = Path("/root/test.py")
+
+        with patch.object(client, "_send_notification") as mock_notif:
+            with patch.object(Path, "read_text", return_value="content"):
+                client.did_open(file_path, "python")
+                client.did_open(file_path, "python")
+
+            # Only one didOpen should be sent
+            assert mock_notif.call_count == 1
 
     def test_did_close_sends_notification(self):
         client = LSPClient(["cmd"], Path("/root"))
@@ -561,6 +618,19 @@ class TestDidOpenDidChangeDidClose:
             mock_notif.assert_called_once()
             args = mock_notif.call_args[0]
             assert args[0] == "textDocument/didClose"
+
+    def test_did_close_allows_reopen(self):
+        client = LSPClient(["cmd"], Path("/root"))
+        file_path = Path("/root/test.py")
+
+        with patch.object(client, "_send_notification") as mock_notif:
+            with patch.object(Path, "read_text", return_value="content"):
+                client.did_open(file_path, "python")
+                client.did_close(file_path)
+                client.did_open(file_path, "python")
+
+            methods = [call[0][0] for call in mock_notif.call_args_list]
+            assert methods == ["textDocument/didOpen", "textDocument/didClose", "textDocument/didOpen"]
 
     def test_did_open_handles_unreadable_file(self):
         client = LSPClient(["cmd"], Path("/root"))
@@ -613,3 +683,18 @@ class TestShutdown:
         client.shutdown()
 
         assert client._stdout_fd is None
+
+    def test_shutdown_clears_document_tracking(self):
+        client = LSPClient(["cmd"], Path("/root"))
+        client._process = MagicMock()
+        client._process.poll.return_value = 0
+
+        # Simulate having opened a file
+        uri = Path("/root/test.py").resolve().as_uri()
+        client._opened_uris.add(uri)
+        client._doc_versions[uri] = 3
+
+        client.shutdown()
+
+        assert len(client._opened_uris) == 0
+        assert len(client._doc_versions) == 0

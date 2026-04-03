@@ -63,9 +63,14 @@ class LSPClient:
         self._reader_thread: threading.Thread | None = None
         self._shutdown_event = threading.Event()
 
+        # Track opened documents and their version counters.
+        self._opened_uris: set[str] = set()
+        self._doc_versions: dict[str, int] = {}
+
         # Diagnostics collection
         self._diagnostics: FileDiagnosticsMap = {}
         self._diagnostics_lock = threading.Lock()
+        self._diagnostics_generation: int = 0
 
         # JDTLS import tracking
         self._server_ready = threading.Event()
@@ -183,12 +188,20 @@ class LSPClient:
             except OSError:
                 pass
             self._stdout_fd = None
+        self._opened_uris.clear()
+        self._doc_versions.clear()
 
     # ---- Document management ----
 
     def did_open(self, file_path: Path, language_id: str) -> None:
-        """Notify the server that a document was opened."""
-        uri = file_path.as_uri()
+        """Notify the server that a document was opened.
+
+        Idempotent: silently skips if the file is already open, since the
+        LSP spec forbids duplicate didOpen notifications for the same URI.
+        """
+        uri = file_path.resolve().as_uri()
+        if uri in self._opened_uris:
+            return
         try:
             text = file_path.read_text(errors="replace")
         except Exception:
@@ -204,23 +217,31 @@ class LSPClient:
                 },
             },
         )
+        self._opened_uris.add(uri)
+        self._doc_versions[uri] = 1
 
-    def did_change(self, file_path: Path, content: str, version: int = 2) -> None:
+    def did_change(self, file_path: Path, content: str) -> None:
         """Notify the server that a document's content has changed."""
+        uri = file_path.resolve().as_uri()
+        version = self._doc_versions.get(uri, 1) + 1
+        self._doc_versions[uri] = version
         self._send_notification(
             "textDocument/didChange",
             {
-                "textDocument": {"uri": file_path.as_uri(), "version": version},
+                "textDocument": {"uri": uri, "version": version},
                 "contentChanges": [{"text": content}],
             },
         )
 
     def did_close(self, file_path: Path) -> None:
         """Notify the server that a document was closed."""
+        uri = file_path.resolve().as_uri()
         self._send_notification(
             "textDocument/didClose",
-            {"textDocument": {"uri": file_path.as_uri()}},
+            {"textDocument": {"uri": uri}},
         )
+        self._opened_uris.discard(uri)
+        self._doc_versions.pop(uri, None)
 
     # ---- LSP queries ----
 
@@ -228,7 +249,7 @@ class LSPClient:
         """Request document symbols for a file."""
         result = self._send_request(
             "textDocument/documentSymbol",
-            {"textDocument": {"uri": file_path.as_uri()}},
+            {"textDocument": {"uri": file_path.resolve().as_uri()}},
             timeout=timeout,
         )
         if isinstance(result, list):
@@ -240,7 +261,7 @@ class LSPClient:
         result = self._send_request(
             "textDocument/references",
             {
-                "textDocument": {"uri": file_path.as_uri()},
+                "textDocument": {"uri": file_path.resolve().as_uri()},
                 "position": {"line": line, "character": character},
                 "context": {"includeDeclaration": True},
             },
@@ -269,7 +290,7 @@ class LSPClient:
 
         def build_params(file_path: Path, line: int, character: int) -> dict:
             return {
-                "textDocument": {"uri": file_path.as_uri()},
+                "textDocument": {"uri": file_path.resolve().as_uri()},
                 "position": {"line": line, "character": character},
                 "context": {"includeDeclaration": True},
             }
@@ -281,7 +302,7 @@ class LSPClient:
         result = self._send_request(
             "textDocument/definition",
             {
-                "textDocument": {"uri": file_path.as_uri()},
+                "textDocument": {"uri": file_path.resolve().as_uri()},
                 "position": {"line": line, "character": character},
             },
             timeout=timeout,
@@ -306,7 +327,7 @@ class LSPClient:
         result = self._send_request(
             "textDocument/implementation",
             {
-                "textDocument": {"uri": file_path.as_uri()},
+                "textDocument": {"uri": file_path.resolve().as_uri()},
                 "position": {"line": line, "character": character},
             },
             timeout=timeout,
@@ -331,7 +352,7 @@ class LSPClient:
         result = self._send_request(
             "textDocument/prepareTypeHierarchy",
             {
-                "textDocument": {"uri": file_path.as_uri()},
+                "textDocument": {"uri": file_path.resolve().as_uri()},
                 "position": {"line": line, "character": character},
             },
         )
@@ -360,6 +381,11 @@ class LSPClient:
         with self._diagnostics_lock:
             return dict(self._diagnostics)
 
+    def get_diagnostics_generation(self) -> int:
+        """Return a counter bumped on each ``publishDiagnostics`` notification."""
+        with self._diagnostics_lock:
+            return self._diagnostics_generation
+
     # ---- JDTLS server-ready wait ----
 
     def wait_for_server_ready(self, timeout: int = 300) -> None:
@@ -382,7 +408,7 @@ class LSPClient:
     def _position_params(self, file_path: Path, line: int, character: int) -> dict:
         """Build standard position-based LSP params (used by definition/implementation)."""
         return {
-            "textDocument": {"uri": file_path.as_uri()},
+            "textDocument": {"uri": file_path.resolve().as_uri()},
             "position": {"line": line, "character": character},
         }
 
@@ -619,10 +645,11 @@ class LSPClient:
             if uri:
                 file_path = uri_to_path(uri)
                 if file_path:
-                    file_key = str(file_path)
+                    file_key = str(file_path.resolve())
                     lsp_diags = [LSPDiagnostic.from_lsp_dict(d) for d in diagnostics]
                     with self._diagnostics_lock:
                         self._diagnostics[file_key] = lsp_diags
+                        self._diagnostics_generation += 1
 
         elif method == "language/status":
             status_type = params.get("type", "")
