@@ -5,7 +5,7 @@ from pathlib import Path
 from repo_utils import get_git_commit_hash
 from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.analysis_cache import AnalysisCacheManager
-from static_analyzer.analysis_result import AnalysisCache, StaticAnalysisResults
+from static_analyzer.analysis_result import StaticAnalysisCache, StaticAnalysisResults
 from static_analyzer.cluster_change_analyzer import ChangeClassification
 from static_analyzer.constants import Language
 from static_analyzer.engine.adapters import get_adapter
@@ -212,23 +212,27 @@ class StaticAnalyzer:
         """Return the sum of diagnostics generation counters across all LSP clients."""
         return sum(client.get_diagnostics_generation() for _, _, client in self._engine_clients)
 
-    def load_from_disk_cache(self) -> StaticAnalysisResults | None:
+    def load_from_disk_cache(self, cache_dir: Path | None = None) -> StaticAnalysisResults | None:
         """Load structural analysis results from the on-disk cache.
 
-        Returns the cached ``StaticAnalysisResults`` if a disk cache exists
-        (written by a prior ``analyze()`` call, possibly in a subprocess).
-        Sets ``_cached_results`` so subsequent calls are free.  Returns None
-        if no cache is found.
+        Args:
+            cache_dir: Optional cache directory to load from. If None, uses the default
+                      cache directory for this repository.
+
+        Returns:
+            Cached StaticAnalysisResults if found, None otherwise.
+            Sets ``_cached_results`` so subsequent calls are free.
         """
         if self._cached_results is not None:
             return self._cached_results
-        disk_cache = AnalysisCache(get_cache_dir(self.repository_path), self.repository_path)
-        cached = disk_cache.get("static_analysis_results")
-        if cached is not None:
-            self._cached_results = cached
-            self.collected_diagnostics = cached.diagnostics
-            logger.info("Loaded static analysis results from disk cache")
-        return self._cached_results
+
+        load_dir = Path(cache_dir) if cache_dir is not None else get_cache_dir(self.repository_path)
+        static_analysis_cache = StaticAnalysisCache(load_dir, self.repository_path)
+        cached_results = static_analysis_cache.get("static_analysis_results")
+        if cached_results is not None:
+            self._cached_results = cached_results
+            self.collected_diagnostics = cached_results.diagnostics
+        return cached_results
 
     def notify_file_changed(self, file_path: Path, content: str) -> None:
         """Notify the LSP server that the editor has saved new content for a file.
@@ -312,8 +316,7 @@ class StaticAnalyzer:
         # Try loading from disk cache (survives across processes)
         if not skip_cache:
             load_dir = Path(cache_dir) if cache_dir is not None else get_cache_dir(self.repository_path)
-            disk_cache = AnalysisCache(load_dir, self.repository_path)
-            cached = disk_cache.get("static_analysis_results")
+            cached = self.load_from_disk_cache(load_dir)
             if cached is not None:
                 langs = cached.get_languages()
                 file_count = len(cached.get_all_source_files())
@@ -321,8 +324,6 @@ class StaticAnalyzer:
                     f"Returning static analysis results from disk cache "
                     f"({file_count} files, languages: {', '.join(langs)})"
                 )
-                self._cached_results = cached
-                self.collected_diagnostics = cached.diagnostics
                 return cached
 
         results = StaticAnalysisResults()
@@ -398,8 +399,8 @@ class StaticAnalyzer:
         # Persist to disk so subprocess callers can reuse without LSP
         save_dir = Path(cache_dir) if cache_dir is not None else get_cache_dir(self.repository_path)
         logger.info(f"Saving static analysis results to disk cache at {save_dir}")
-        disk_cache = AnalysisCache(save_dir, self.repository_path)
-        disk_cache.save("static_analysis_results", results)
+        static_analysis_cache = StaticAnalysisCache(save_dir, self.repository_path)
+        static_analysis_cache.save("static_analysis_results", results)
 
         return results
 

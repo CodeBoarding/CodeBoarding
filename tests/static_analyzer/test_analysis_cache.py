@@ -1,21 +1,21 @@
-"""Tests for the AnalysisCache class."""
+"""Tests for the StaticAnalysisCache class."""
 
 import tempfile
 import shutil
 import unittest
 from pathlib import Path
 
-from static_analyzer.analysis_result import AnalysisCache, StaticAnalysisResults
+from static_analyzer.analysis_result import StaticAnalysisCache, StaticAnalysisResults
 
 
-class TestAnalysisCache(unittest.TestCase):
-    """Tests for AnalysisCache save/load functionality."""
+class TestStaticAnalysisCache(unittest.TestCase):
+    """Tests for StaticAnalysisCache save/load functionality."""
 
     def setUp(self):
         self.temp_dir = tempfile.mkdtemp()
         self.cache_dir = Path(self.temp_dir) / "cache"
         self.repo_root = Path(self.temp_dir)
-        self.cache = AnalysisCache(self.cache_dir, self.repo_root)
+        self.cache = StaticAnalysisCache(self.cache_dir, self.repo_root)
 
     def tearDown(self):
         shutil.rmtree(self.temp_dir, ignore_errors=True)
@@ -113,14 +113,14 @@ class TestAnalysisCache(unittest.TestCase):
         self.assertTrue(expected_file.exists())
 
 
-class TestAnalysisCacheAtomicWrite(unittest.TestCase):
-    """Tests for atomic write behavior of AnalysisCache."""
+class TestStaticAnalysisCacheAtomicWrite(unittest.TestCase):
+    """Tests for atomic write behavior of StaticAnalysisCache."""
 
     def setUp(self):
         self.temp_dir = tempfile.mkdtemp()
         self.cache_dir = Path(self.temp_dir) / "cache"
         self.repo_root = Path(self.temp_dir)
-        self.cache = AnalysisCache(self.cache_dir, self.repo_root)
+        self.cache = StaticAnalysisCache(self.cache_dir, self.repo_root)
 
     def tearDown(self):
         shutil.rmtree(self.temp_dir, ignore_errors=True)

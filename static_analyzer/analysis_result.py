@@ -120,7 +120,7 @@ def _reference_key(fully_qualified_name: str) -> str:
     return _strip_java_generics(result)
 
 
-class AnalysisCache:
+class StaticAnalysisCache:
     def __init__(self, cache_dir: Path, repo_root: Path):
         self.cache_dir = cache_dir
         self.repo_root = repo_root.resolve()
