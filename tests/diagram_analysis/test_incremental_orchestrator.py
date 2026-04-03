@@ -12,7 +12,7 @@ from diagram_analysis.incremental_models import (
     TraceResult,
     TraceStopReason,
 )
-from diagram_analysis.diagram_generator import DiagramGenerator
+from diagram_analysis.diagram_generator import DiagramGenerator, IncrementalAnalysisRequiresFullError
 from repo_utils.change_detector import ChangeSet
 
 
@@ -225,6 +225,108 @@ def test_build_incremental_summary_prioritizes_material_impact_over_additive():
 
     assert summary.kind == IncrementalSummaryKind.MATERIAL_IMPACT
     assert summary.message == trace.semantic_impact_summary
+
+
+def test_build_incremental_summary_marks_requires_full_analysis_for_syntax_error():
+    summary = DiagramGenerator._build_incremental_summary(
+        delta=Mock(file_deltas=[Mock(file_status="modified")], is_purely_additive=False),
+        trace_result=TraceResult(stop_reason=TraceStopReason.SYNTAX_ERROR),
+        used_llm=False,
+    )
+
+    assert summary.kind == IncrementalSummaryKind.REQUIRES_FULL_ANALYSIS
+    assert summary.requires_full_analysis is True
+
+
+def test_incremental_syntax_error_requires_full_analysis(tmp_path):
+    gen = _make_generator(tmp_path)
+    output_dir = tmp_path / ".codeboarding"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    gen.static_analysis = Mock()
+
+    checkpoint = Mock(checkpoint_ref="refs/codeboarding/checkpoints/latest")
+    root_analysis = _make_root_analysis(2)
+    delta = Mock(is_purely_additive=False, file_deltas=[Mock(file_status="modified")])
+    changes = Mock(parsed_diff=None, deleted_files=[])
+    agent_llm = Mock()
+    parsing_llm = Mock()
+    trace_result = TraceResult(stop_reason=TraceStopReason.SYNTAX_ERROR)
+
+    with (
+        patch.object(
+            gen,
+            "_load_incremental_baseline",
+            return_value=(checkpoint, root_analysis, {}, Mock(), {}),
+        ),
+        patch("diagram_analysis.diagram_generator.detect_changes", return_value=changes),
+        patch.object(gen, "_compute_incremental_delta", return_value=delta),
+        patch(
+            "diagram_analysis.incremental_tracer.build_trace_plan",
+            return_value=Mock(groups=[Mock()], fast_path_impacted_methods=[]),
+        ),
+        patch("diagram_analysis.incremental_updater.apply_delta"),
+        patch(
+            "diagram_analysis.diagram_generator.initialize_llms",
+            return_value=(agent_llm, parsing_llm),
+        ),
+        patch.object(gen, "_run_semantic_trace", return_value=trace_result),
+        patch.object(gen, "_determine_escalation") as mock_determine_escalation,
+        patch.object(gen, "_save_incremental_result") as mock_save_result,
+    ):
+        with pytest.raises(IncrementalAnalysisRequiresFullError, match="Run a full analysis instead"):
+            gen.generate_analysis_incremental()
+
+    mock_determine_escalation.assert_not_called()
+    mock_save_result.assert_not_called()
+    assert gen.last_incremental_summary is not None
+    assert gen.last_incremental_summary.kind == IncrementalSummaryKind.REQUIRES_FULL_ANALYSIS
+    assert gen.last_incremental_summary.requires_full_analysis is True
+
+
+def test_incremental_root_escalation_requires_full_analysis(tmp_path):
+    gen = _make_generator(tmp_path)
+    output_dir = tmp_path / ".codeboarding"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    gen.static_analysis = Mock()
+
+    checkpoint = Mock(checkpoint_ref="refs/codeboarding/checkpoints/latest")
+    root_analysis = _make_root_analysis(2)
+    delta = Mock(is_purely_additive=False, file_deltas=[Mock(file_status="modified")])
+    changes = Mock(parsed_diff=None, deleted_files=[])
+    agent_llm = Mock()
+    parsing_llm = Mock()
+    trace_result = TraceResult(stop_reason=TraceStopReason.CLOSURE_REACHED)
+
+    with (
+        patch.object(
+            gen,
+            "_load_incremental_baseline",
+            return_value=(checkpoint, root_analysis, {}, Mock(), {}),
+        ),
+        patch("diagram_analysis.diagram_generator.detect_changes", return_value=changes),
+        patch.object(gen, "_compute_incremental_delta", return_value=delta),
+        patch(
+            "diagram_analysis.incremental_tracer.build_trace_plan",
+            return_value=Mock(groups=[Mock()], fast_path_impacted_methods=[]),
+        ),
+        patch("diagram_analysis.incremental_updater.apply_delta"),
+        patch(
+            "diagram_analysis.diagram_generator.initialize_llms",
+            return_value=(agent_llm, parsing_llm),
+        ),
+        patch.object(gen, "_run_semantic_trace", return_value=trace_result),
+        patch.object(gen, "_determine_escalation", return_value=EscalationLevel.ROOT),
+        patch.object(gen, "_save_incremental_result") as mock_save_result,
+        patch.object(gen, "generate_analysis") as mock_generate_analysis,
+    ):
+        with pytest.raises(IncrementalAnalysisRequiresFullError, match="Run a full analysis instead"):
+            gen.generate_analysis_incremental()
+
+    mock_save_result.assert_not_called()
+    mock_generate_analysis.assert_not_called()
+    assert gen.last_incremental_summary is not None
+    assert gen.last_incremental_summary.kind == IncrementalSummaryKind.REQUIRES_FULL_ANALYSIS
+    assert gen.last_incremental_summary.requires_full_analysis is True
 
 
 # -------------------------------------------------------------------

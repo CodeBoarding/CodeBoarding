@@ -11,7 +11,7 @@ from tqdm import tqdm
 from agents.llm_config import configure_models, validate_api_key_provided
 from user_config import ensure_config_template, load_user_config
 from core import get_registries, load_plugins
-from diagram_analysis import DiagramGenerator, RunContext
+from diagram_analysis import DiagramGenerator, IncrementalAnalysisRequiresFullError, RunContext
 from diagram_analysis.analysis_json import build_id_to_name_map, parse_unified_analysis
 from diagram_analysis.io_utils import load_full_analysis, save_sub_analysis
 from logging_config import setup_logging
@@ -448,9 +448,19 @@ def process_local_repository(
         # Run trace-based incremental analysis against the previous checkpoint
         try:
             result = generator.generate_analysis_incremental()
+        except IncrementalAnalysisRequiresFullError as e:
+            logger.error(str(e))
+            log_action(
+                "incremental_analysis_requires_full",
+                incremental_summary=e.summary.to_dict() if e.summary is not None else None,
+                project_name=project_name,
+                reason=str(e),
+                run_id=run_id,
+            )
+            raise SystemExit(str(e)) from e
         except RuntimeError as e:
             logger.error(str(e))
-            raise SystemExit(1)
+            raise SystemExit(1) from e
         logger.info(f"Incremental analysis completed: {result}")
         log_action(
             "incremental_analysis_completed",
@@ -480,7 +490,7 @@ def process_local_repository(
             log_path=log_path,
             monitoring_enabled=monitoring_enabled,
         )
-        result = generator.generate_analysis_smart()
+        result = generator.generate_incremental_analysis_baseline()
         logger.info(f"Baseline reset completed: {result}")
         log_action(
             "baseline_reset_completed",
@@ -550,6 +560,16 @@ def validate_arguments(args, parser, is_local: bool):
     if args.partial_component_id and not is_local:
         parser.error("--partial-component-id only works with local repositories")
 
+    selected_modes = sum(
+        [
+            getattr(args, "full", False) is True,
+            getattr(args, "incremental", False) is True,
+            getattr(args, "reset_baseline", False) is True,
+        ]
+    )
+    if selected_modes > 1:
+        parser.error("Provide at most one of --full, --incremental, or --reset-baseline.")
+
 
 def define_cli_arguments(parser: argparse.ArgumentParser):
     """
@@ -591,17 +611,18 @@ def define_cli_arguments(parser: argparse.ArgumentParser):
     parser.add_argument("--enable-monitoring", action="store_true", help="Enable monitoring")
 
     # Incremental update options
-    parser.add_argument(
+    analysis_mode_group = parser.add_mutually_exclusive_group()
+    analysis_mode_group.add_argument(
         "--full",
         action="store_true",
-        help="Force full analysis, skipping checkpoint-backed smart comparison",
+        help="Force full analysis, skipping checkpoint-backed incremental comparison",
     )
-    parser.add_argument(
+    analysis_mode_group.add_argument(
         "--incremental",
         action="store_true",
         help="Run trace-based incremental analysis against the previous checkpoint",
     )
-    parser.add_argument(
+    analysis_mode_group.add_argument(
         "--reset-baseline",
         action="store_true",
         help="Run a full analysis and save it as the new baseline checkpoint for future incremental runs",
@@ -627,7 +648,7 @@ Examples:
   # Partial update (update single component by ID)
   codeboarding --local /path/to/repo --partial-component-id "1.2"
 
-  # Checkpoint-backed smart analysis
+  # Checkpoint-backed incremental analysis
   codeboarding --local /path/to/repo --incremental
 
   # Force full analysis (skip checkpoint comparison)

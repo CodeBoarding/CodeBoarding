@@ -184,14 +184,14 @@ class TestBuildFileMethodsFromNodes(unittest.TestCase):
         mixin = MockMixin(repo_dir=Path("/repo"), static_analysis=static)
 
         duplicate_specific = Node(
-            "diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_smart",
+            "diagram_analysis.diagram_generator.DiagramGenerator.generate_incremental_analysis_baseline",
             NodeType.METHOD,
             "/repo/diagram_analysis/diagram_generator.py",
             468,
             470,
         )
         duplicate_alias = Node(
-            "diagram_analysis.diagram_generator.generate_analysis_smart",
+            "diagram_analysis.diagram_generator.generate_incremental_analysis_baseline",
             NodeType.METHOD,
             "/repo/diagram_analysis/diagram_generator.py",
             468,
@@ -205,7 +205,7 @@ class TestBuildFileMethodsFromNodes(unittest.TestCase):
         self.assertEqual(len(groups[0].methods), 1)
         self.assertEqual(
             groups[0].methods[0].qualified_name,
-            "diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_smart",
+            "diagram_analysis.diagram_generator.DiagramGenerator.generate_incremental_analysis_baseline",
         )
 
 

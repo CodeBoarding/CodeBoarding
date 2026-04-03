@@ -6,6 +6,8 @@ from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
 
 import main as main_module
+from diagram_analysis import IncrementalAnalysisRequiresFullError
+from diagram_analysis.incremental_models import IncrementalSummary, IncrementalSummaryKind
 from main import (
     copy_files,
     generate_analysis,
@@ -529,6 +531,49 @@ class TestProcessLocalRepository(unittest.TestCase):
                 run_id="test-run-id",
             )
 
+    @patch("main.log_action")
+    @patch("main.DiagramGenerator")
+    def test_process_local_repository_incremental_requires_full_logs_action(
+        self, mock_generator_class, mock_log_action
+    ):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_path = Path(temp_dir) / "repo"
+            repo_path.mkdir()
+            output_dir = Path(temp_dir) / "output"
+            output_dir.mkdir(parents=True, exist_ok=True)
+
+            summary = IncrementalSummary(
+                kind=IncrementalSummaryKind.REQUIRES_FULL_ANALYSIS,
+                message="Incremental analysis cannot continue because changed files contain syntax errors. Run a full analysis instead.",
+                requires_full_analysis=True,
+            )
+            mock_generator = MagicMock()
+            mock_generator.generate_analysis_incremental.side_effect = IncrementalAnalysisRequiresFullError(
+                summary.message,
+                summary=summary,
+            )
+            mock_generator_class.return_value = mock_generator
+
+            with self.assertRaises(SystemExit) as cm:
+                process_local_repository(
+                    repo_path=repo_path,
+                    output_dir=output_dir,
+                    project_name="test_project",
+                    run_id="test-run-id",
+                    log_path="test_project/test-run-log",
+                    depth_level=3,
+                    incremental=True,
+                )
+
+            self.assertEqual(str(cm.exception), summary.message)
+            mock_log_action.assert_any_call(
+                "incremental_analysis_requires_full",
+                incremental_summary=summary.to_dict(),
+                project_name="test_project",
+                reason=summary.message,
+                run_id="test-run-id",
+            )
+
 
 class TestCopyFiles(unittest.TestCase):
     def test_copy_files_success(self):
@@ -596,6 +641,19 @@ class TestValidateArguments(unittest.TestCase):
 
         validate_arguments(args, parser, is_local=True)
         parser.error.assert_called_once()
+
+    def test_validate_arguments_rejects_multiple_analysis_modes(self):
+        parser = MagicMock()
+        args = MagicMock()
+        args.repositories = None
+        args.local = "/path/to/repo"
+        args.partial_component_id = None
+        args.full = True
+        args.incremental = True
+        args.reset_baseline = False
+
+        validate_arguments(args, parser, is_local=True)
+        parser.error.assert_called_once_with("Provide at most one of --full, --incremental, or --reset-baseline.")
 
 
 class TestMainActionLogging(unittest.TestCase):

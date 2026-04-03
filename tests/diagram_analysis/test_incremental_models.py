@@ -118,4 +118,5 @@ def test_incremental_summary_to_dict():
         "usedLlm": False,
         "traceStopReason": TraceStopReason.NO_MATERIAL_IMPACT,
         "escalationLevel": EscalationLevel.NONE,
+        "requiresFullAnalysis": False,
     }

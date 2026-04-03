@@ -123,6 +123,7 @@ class IncrementalSummaryKind(StrEnum):
     MATERIAL_IMPACT = "material_impact"
     SCOPED_REANALYSIS = "scoped_reanalysis"
     FULL_FALLBACK = "full_fallback"
+    REQUIRES_FULL_ANALYSIS = "requires_full_analysis"
 
 
 @dataclass
@@ -134,6 +135,7 @@ class IncrementalSummary:
     used_llm: bool = False
     trace_stop_reason: TraceStopReason | None = None
     escalation_level: EscalationLevel | None = None
+    requires_full_analysis: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -142,6 +144,7 @@ class IncrementalSummary:
             "usedLlm": self.used_llm,
             "traceStopReason": self.trace_stop_reason,
             "escalationLevel": self.escalation_level,
+            "requiresFullAnalysis": self.requires_full_analysis,
         }
 
 

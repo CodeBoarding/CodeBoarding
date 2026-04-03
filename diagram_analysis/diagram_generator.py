@@ -56,6 +56,14 @@ from utils import get_cache_dir
 logger = logging.getLogger(__name__)
 
 
+class IncrementalAnalysisRequiresFullError(RuntimeError):
+    """Raised when incremental analysis must stop and the caller should run a full analysis."""
+
+    def __init__(self, message: str, summary: IncrementalSummary | None = None):
+        super().__init__(message)
+        self.summary = summary
+
+
 class DiagramGenerator:
     def __init__(
         self,
@@ -143,13 +151,24 @@ class DiagramGenerator:
                 escalation_level=escalation,
             )
 
-        if escalation in (EscalationLevel.FULL, EscalationLevel.ROOT):
+        if trace_stop_reason == TraceStopReason.SYNTAX_ERROR:
             return IncrementalSummary(
-                kind=IncrementalSummaryKind.FULL_FALLBACK,
-                message="The change scope was too broad for incremental patching, so a full architecture analysis was run.",
+                kind=IncrementalSummaryKind.REQUIRES_FULL_ANALYSIS,
+                message="Incremental analysis cannot continue because changed files contain syntax errors. Run a full analysis instead.",
                 used_llm=used_llm,
                 trace_stop_reason=trace_stop_reason,
                 escalation_level=escalation,
+                requires_full_analysis=True,
+            )
+
+        if escalation in (EscalationLevel.FULL, EscalationLevel.ROOT):
+            return IncrementalSummary(
+                kind=IncrementalSummaryKind.REQUIRES_FULL_ANALYSIS,
+                message="Incremental analysis determined the change is too broad for safe patching. Run a full analysis instead.",
+                used_llm=used_llm,
+                trace_stop_reason=trace_stop_reason,
+                escalation_level=escalation,
+                requires_full_analysis=True,
             )
 
         if escalation == EscalationLevel.SCOPED:
@@ -605,16 +624,18 @@ class DiagramGenerator:
         except Exception as exc:
             logger.warning("Failed to save checkpoint: %s", exc)
 
-    def generate_analysis_smart(self) -> Path:
-        """Run smart analysis against the latest checkpoint and save a new checkpoint."""
+    def generate_incremental_analysis_baseline(self) -> Path:
+        """Run a full analysis and save a fresh checkpoint for future incremental runs."""
         latest_checkpoint = get_latest_checkpoint(self.repo_location, Path(self.output_dir))
 
         if latest_checkpoint is None:
-            logger.info("No checkpoint found; running the first smart analysis without method diff annotations")
+            logger.info(
+                "No checkpoint found; running the first incremental baseline analysis without method diff annotations"
+            )
             self._set_method_diff_base_ref(None)
         else:
             logger.info(
-                "Running smart analysis against checkpoint id=%s ref=%s",
+                "Running incremental baseline analysis against checkpoint id=%s ref=%s",
                 latest_checkpoint.checkpoint_id,
                 latest_checkpoint.checkpoint_ref,
             )
@@ -623,6 +644,23 @@ class DiagramGenerator:
         analysis_path = self.generate_analysis()
         self._save_checkpoint()
         return analysis_path
+
+    def _raise_requires_full_analysis(
+        self,
+        message: str,
+        *,
+        delta: IncrementalDelta | None = None,
+        trace_result: TraceResult | None = None,
+        escalation: EscalationLevel | None = None,
+        used_llm: bool = False,
+    ) -> None:
+        self.last_incremental_summary = self._build_incremental_summary(
+            delta=delta,
+            trace_result=trace_result,
+            escalation=escalation,
+            used_llm=used_llm,
+        )
+        raise IncrementalAnalysisRequiresFullError(message, summary=self.last_incremental_summary)
 
     # ------------------------------------------------------------------
     # Incremental analysis (trace-based)
@@ -635,9 +673,10 @@ class DiagramGenerator:
         affected sub-analyses. Saves a new checkpoint on success.
 
         Raises ``RuntimeError`` if no baseline checkpoint exists.
-        Use ``--reset-baseline`` to re-establish one.
+        Raises ``IncrementalAnalysisRequiresFullError`` when incremental analysis
+        must stop and the caller should trigger a full analysis instead.
         """
-        from diagram_analysis.incremental_models import EscalationLevel, TraceResult
+        from diagram_analysis.incremental_models import EscalationLevel, TraceResult, TraceStopReason
         from diagram_analysis.incremental_tracer import build_trace_plan, classify_scope
         from diagram_analysis.incremental_updater import apply_delta
 
@@ -719,19 +758,27 @@ class DiagramGenerator:
             )
             logger.info("[TIMING] run_semantic_trace: %.2fs", time.time() - _t)
 
+        if trace_result.stop_reason == TraceStopReason.SYNTAX_ERROR:
+            self._raise_requires_full_analysis(
+                "Incremental analysis cannot continue because changed files contain syntax errors. Run a full analysis instead.",
+                delta=delta,
+                trace_result=trace_result,
+                used_llm=used_llm,
+            )
+
         # 5. Check escalation
         _t = time.time()
         escalation = self._determine_escalation(trace_result, root_analysis, changes)
         logger.info("[TIMING] determine_escalation: %.2fs", time.time() - _t)
         if escalation in (EscalationLevel.FULL, EscalationLevel.ROOT):
-            logger.info("Escalation %s triggered; falling back to full analysis", escalation.value)
-            self.last_incremental_summary = self._build_incremental_summary(
+            logger.info("Escalation %s triggered; incremental analysis requires a full analysis", escalation.value)
+            self._raise_requires_full_analysis(
+                "Incremental analysis determined the change is too broad for safe patching. Run a full analysis instead.",
                 delta=delta,
                 trace_result=trace_result,
                 escalation=escalation,
                 used_llm=used_llm,
             )
-            return self.generate_analysis()
 
         # 6. Apply changes (patch or scoped re-expansion)
         _t = time.time()
