@@ -1,12 +1,13 @@
 """Tests for the incremental analysis orchestrator (DiagramGenerator methods)."""
 
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pytest
 
 from agents.agent_responses import AnalysisInsights, Component
 from diagram_analysis.incremental_models import (
     EscalationLevel,
+    IncrementalSummaryKind,
     ImpactedComponent,
     TraceResult,
     TraceStopReason,
@@ -52,8 +53,178 @@ def test_incremental_requires_baseline(tmp_path):
     gen = _make_generator(tmp_path)
     (tmp_path / ".codeboarding").mkdir(parents=True, exist_ok=True)
 
-    with pytest.raises(RuntimeError, match="requires an existing baseline"):
+    with pytest.raises(RuntimeError, match="requires an existing analysis"):
         gen.generate_analysis_incremental()
+
+
+def test_incremental_skips_llm_init_when_trace_plan_is_empty(tmp_path):
+    gen = _make_generator(tmp_path)
+    output_dir = tmp_path / ".codeboarding"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    gen.static_analysis = Mock()
+
+    checkpoint = Mock(checkpoint_ref="refs/codeboarding/checkpoints/latest")
+    root_analysis = _make_root_analysis(2)
+    delta = Mock(is_purely_additive=False, file_deltas=[Mock()])
+    changes = Mock(parsed_diff=None, deleted_files=[])
+    saved_path = output_dir / "analysis.json"
+
+    with (
+        patch.object(
+            gen,
+            "_load_incremental_baseline",
+            return_value=(checkpoint, root_analysis, {}, Mock(), {}),
+        ),
+        patch("diagram_analysis.diagram_generator.detect_changes", return_value=changes),
+        patch.object(gen, "_compute_incremental_delta", return_value=delta),
+        patch(
+            "diagram_analysis.incremental_tracer.build_trace_plan",
+            return_value=Mock(groups=[], fast_path_impacted_methods=[]),
+        ),
+        patch(
+            "diagram_analysis.incremental_tracer.classify_scope",
+            return_value=TraceResult(),
+        ),
+        patch("diagram_analysis.incremental_updater.apply_delta") as mock_apply_delta,
+        patch("diagram_analysis.diagram_generator.initialize_llms") as mock_initialize_llms,
+        patch.object(gen, "_run_semantic_trace") as mock_run_semantic_trace,
+        patch.object(gen, "_determine_escalation", return_value=EscalationLevel.NONE),
+        patch.object(gen, "_save_incremental_result", return_value=saved_path) as mock_save_result,
+    ):
+        result = gen.generate_analysis_incremental()
+
+    mock_apply_delta.assert_called_once()
+    mock_initialize_llms.assert_not_called()
+    mock_run_semantic_trace.assert_not_called()
+    mock_save_result.assert_called_once()
+    assert result == saved_path
+    assert gen.last_incremental_summary is not None
+    assert gen.last_incremental_summary.kind == IncrementalSummaryKind.COSMETIC_ONLY
+    assert gen.last_incremental_summary.used_llm is False
+
+
+def test_incremental_runs_semantic_trace_for_purely_additive_delta(tmp_path):
+    gen = _make_generator(tmp_path)
+    output_dir = tmp_path / ".codeboarding"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    gen.static_analysis = Mock()
+
+    checkpoint = Mock(checkpoint_ref="refs/codeboarding/checkpoints/latest")
+    root_analysis = _make_root_analysis(2)
+    file_component_index = Mock()
+    delta = Mock(is_purely_additive=True, file_deltas=[Mock(file_status="modified")])
+    changes = Mock(parsed_diff=None, deleted_files=[])
+    saved_path = output_dir / "analysis.json"
+    agent_llm = Mock()
+    parsing_llm = Mock()
+    trace_result = TraceResult()
+
+    with (
+        patch.object(
+            gen,
+            "_load_incremental_baseline",
+            return_value=(checkpoint, root_analysis, {}, file_component_index, {}),
+        ),
+        patch("diagram_analysis.diagram_generator.detect_changes", return_value=changes),
+        patch.object(gen, "_compute_incremental_delta", return_value=delta),
+        patch(
+            "diagram_analysis.incremental_tracer.build_trace_plan",
+            return_value=Mock(groups=[Mock()], fast_path_impacted_methods=[]),
+        ),
+        patch("diagram_analysis.incremental_updater.apply_delta") as mock_apply_delta,
+        patch(
+            "diagram_analysis.diagram_generator.initialize_llms",
+            return_value=(agent_llm, parsing_llm),
+        ) as mock_initialize_llms,
+        patch.object(gen, "_run_semantic_trace", return_value=trace_result) as mock_run_semantic_trace,
+        patch.object(gen, "_determine_escalation", return_value=EscalationLevel.NONE),
+        patch.object(gen, "_save_incremental_result", return_value=saved_path) as mock_save_result,
+    ):
+        result = gen.generate_analysis_incremental()
+
+    mock_apply_delta.assert_called_once()
+    mock_initialize_llms.assert_called_once()
+    mock_run_semantic_trace.assert_called_once_with(
+        delta,
+        {},
+        gen.static_analysis,
+        checkpoint.checkpoint_ref,
+        file_component_index,
+        agent_llm,
+        parsing_llm,
+        None,
+    )
+    mock_save_result.assert_called_once()
+    assert result == saved_path
+    assert gen.last_incremental_summary is not None
+    assert gen.last_incremental_summary.kind == IncrementalSummaryKind.ADDITIVE_ONLY
+    assert gen.last_incremental_summary.used_llm is True
+
+
+def test_incremental_summary_reports_no_changes_when_worktree_is_clean(tmp_path):
+    gen = _make_generator(tmp_path)
+    output_dir = tmp_path / ".codeboarding"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    gen.static_analysis = Mock()
+
+    checkpoint = Mock(checkpoint_ref="refs/codeboarding/checkpoints/latest")
+    root_analysis = _make_root_analysis(1)
+    changes = ChangeSet()
+    restored_path = output_dir / "analysis.json"
+
+    with (
+        patch.object(
+            gen,
+            "_load_incremental_baseline",
+            return_value=(checkpoint, root_analysis, {}, Mock(), {}),
+        ),
+        patch("diagram_analysis.diagram_generator.detect_changes", return_value=changes),
+        patch.object(gen, "_compute_incremental_delta", return_value=None),
+        patch.object(gen, "_restore_or_raise", return_value=restored_path),
+    ):
+        result = gen.generate_analysis_incremental()
+
+    assert result == restored_path
+    assert gen.last_incremental_summary is not None
+    assert gen.last_incremental_summary.kind == IncrementalSummaryKind.NO_CHANGES
+    assert gen.last_incremental_summary.used_llm is False
+
+
+def test_build_incremental_summary_uses_semantic_impact_sentence():
+    trace = TraceResult(
+        stop_reason=TraceStopReason.CLOSURE_REACHED,
+        impacted_components=[ImpactedComponent(component_id="1", impacted_methods=["pkg.alpha"])],
+        semantic_impact_summary="The change broadens validation behavior to reject malformed inputs earlier.",
+    )
+
+    summary = DiagramGenerator._build_incremental_summary(
+        delta=Mock(file_deltas=[Mock(file_status="modified")], is_purely_additive=False),
+        trace_result=trace,
+        escalation=EscalationLevel.NONE,
+        used_llm=True,
+    )
+
+    assert summary.kind == IncrementalSummaryKind.MATERIAL_IMPACT
+    assert summary.message == trace.semantic_impact_summary
+    assert summary.used_llm is True
+
+
+def test_build_incremental_summary_prioritizes_material_impact_over_additive():
+    trace = TraceResult(
+        stop_reason=TraceStopReason.CLOSURE_REACHED,
+        impacted_components=[ImpactedComponent(component_id="1", impacted_methods=["pkg.alpha"])],
+        semantic_impact_summary="The new helper changes component behavior enough to update the diagram.",
+    )
+
+    summary = DiagramGenerator._build_incremental_summary(
+        delta=Mock(file_deltas=[Mock(file_status="modified")], is_purely_additive=True),
+        trace_result=trace,
+        escalation=EscalationLevel.NONE,
+        used_llm=True,
+    )
+
+    assert summary.kind == IncrementalSummaryKind.MATERIAL_IMPACT
+    assert summary.message == trace.semantic_impact_summary
 
 
 # -------------------------------------------------------------------

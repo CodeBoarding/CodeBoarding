@@ -13,10 +13,12 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel
 
-    from diagram_analysis.incremental_models import EscalationLevel, TraceResult
+    from diagram_analysis.incremental_models import EscalationLevel, IncrementalSummary, TraceResult
+    from diagram_analysis.incremental_types import IncrementalDelta
 
 from agents.abstraction_agent import AbstractionAgent
 from agents.agent_responses import AnalysisInsights, Component
+from agents.change_status import ChangeStatus
 from agents.details_agent import DetailsAgent
 from agents.llm_config import initialize_llms
 from agents.meta_agent import MetaAgent
@@ -95,6 +97,119 @@ class DiagramGenerator:
         self._cached_method_changes = ChangeSet()
         self._method_change_resolution_attempted = False
         self._method_diff_base_ref: str | None = "HEAD"
+        self.last_incremental_summary: IncrementalSummary | None = None
+
+    @staticmethod
+    def _is_rename_only_delta(delta: IncrementalDelta) -> bool:
+        return bool(delta.file_deltas) and all(
+            file_delta.file_status == ChangeStatus.RENAMED for file_delta in delta.file_deltas
+        )
+
+    @classmethod
+    def _build_incremental_summary(
+        cls,
+        *,
+        changes: ChangeSet | None = None,
+        delta: IncrementalDelta | None = None,
+        trace_result: TraceResult | None = None,
+        escalation: EscalationLevel | None = None,
+        used_llm: bool = False,
+    ) -> IncrementalSummary:
+        from diagram_analysis.incremental_models import (
+            EscalationLevel,
+            IncrementalSummary,
+            IncrementalSummaryKind,
+            TraceStopReason,
+        )
+
+        trace_stop_reason = trace_result.stop_reason if trace_result is not None else None
+
+        if delta is None:
+            if changes is not None and changes.is_empty():
+                return IncrementalSummary(
+                    kind=IncrementalSummaryKind.NO_CHANGES,
+                    message="No relevant changes were detected, so the existing architecture analysis was reused.",
+                )
+            return IncrementalSummary(
+                kind=IncrementalSummaryKind.COSMETIC_ONLY,
+                message="Only cosmetic or non-structural changes were detected, so the architecture analysis was left unchanged.",
+            )
+
+        if cls._is_rename_only_delta(delta):
+            return IncrementalSummary(
+                kind=IncrementalSummaryKind.RENAME_ONLY,
+                message="Only file renames were detected, so the architecture analysis was updated without semantic tracing.",
+                trace_stop_reason=trace_stop_reason,
+                escalation_level=escalation,
+            )
+
+        if escalation in (EscalationLevel.FULL, EscalationLevel.ROOT):
+            return IncrementalSummary(
+                kind=IncrementalSummaryKind.FULL_FALLBACK,
+                message="The change scope was too broad for incremental patching, so a full architecture analysis was run.",
+                used_llm=used_llm,
+                trace_stop_reason=trace_stop_reason,
+                escalation_level=escalation,
+            )
+
+        if escalation == EscalationLevel.SCOPED:
+            return IncrementalSummary(
+                kind=IncrementalSummaryKind.SCOPED_REANALYSIS,
+                message=trace_result.semantic_impact_summary
+                or "The change affected a limited part of the architecture, so only the impacted components were refreshed.",
+                used_llm=used_llm,
+                trace_stop_reason=trace_stop_reason,
+                escalation_level=escalation,
+            )
+
+        if trace_result is None:
+            if delta.is_purely_additive:
+                return IncrementalSummary(
+                    kind=IncrementalSummaryKind.ADDITIVE_ONLY,
+                    message="New code was added without affecting existing architecture descriptions.",
+                    used_llm=used_llm,
+                    trace_stop_reason=trace_stop_reason,
+                    escalation_level=escalation,
+                )
+            return IncrementalSummary(
+                kind=IncrementalSummaryKind.NO_MATERIAL_IMPACT,
+                message="The change did not materially affect component behavior or responsibilities.",
+            )
+
+        if trace_result.stop_reason == TraceStopReason.CLOSURE_REACHED and trace_result.impacted_components:
+            return IncrementalSummary(
+                kind=IncrementalSummaryKind.MATERIAL_IMPACT,
+                message=trace_result.semantic_impact_summary
+                or "The change materially affected part of the architecture, and the impacted components were updated.",
+                used_llm=used_llm,
+                trace_stop_reason=trace_result.stop_reason,
+                escalation_level=escalation,
+            )
+
+        if delta.is_purely_additive:
+            return IncrementalSummary(
+                kind=IncrementalSummaryKind.ADDITIVE_ONLY,
+                message="New code was added without affecting existing architecture descriptions.",
+                used_llm=used_llm,
+                trace_stop_reason=trace_result.stop_reason,
+                escalation_level=escalation,
+            )
+
+        if not used_llm:
+            return IncrementalSummary(
+                kind=IncrementalSummaryKind.COSMETIC_ONLY,
+                message="Only cosmetic or local changes were detected, so semantic tracing was skipped.",
+                trace_stop_reason=trace_result.stop_reason,
+                escalation_level=escalation,
+            )
+
+        return IncrementalSummary(
+            kind=IncrementalSummaryKind.NO_MATERIAL_IMPACT,
+            message="The change did not materially affect component behavior or responsibilities.",
+            used_llm=used_llm,
+            trace_stop_reason=trace_result.stop_reason,
+            escalation_level=escalation,
+        )
 
     def _resolve_method_level_changes(self, parsed_diff: ParsedGitDiff | None = None) -> ChangeSet:
         """Resolve method-level changes against the configured base ref."""
@@ -522,75 +637,147 @@ class DiagramGenerator:
         Raises ``RuntimeError`` if no baseline checkpoint exists.
         Use ``--reset-baseline`` to re-establish one.
         """
-        from diagram_analysis.incremental_models import EscalationLevel
+        from diagram_analysis.incremental_models import EscalationLevel, TraceResult
+        from diagram_analysis.incremental_tracer import build_trace_plan, classify_scope
+        from diagram_analysis.incremental_updater import apply_delta
 
+        self.last_incremental_summary = None
         output_dir = Path(self.output_dir)
+        _t_total = time.time()
 
         # 1. Load baseline and re-run static analysis
+        _t = time.time()
         latest_checkpoint, root_analysis, sub_analyses, file_component_index, cfgs = self._load_incremental_baseline(
             output_dir
         )
+        logger.info("[TIMING] load_incremental_baseline: %.2fs", time.time() - _t)
         base_ref = latest_checkpoint.checkpoint_ref
         static_analysis = self.static_analysis
         assert static_analysis is not None  # guaranteed by _load_incremental_baseline
 
-        # 2. Start LLM init in background (overlaps with delta computation)
-        llm_executor = ThreadPoolExecutor(max_workers=1)
-        llm_future: Future = llm_executor.submit(initialize_llms)
-
-        # 3. Detect changes and compute delta (runs concurrently with LLM init)
+        # 2. Detect changes and compute delta
+        _t = time.time()
         changes = detect_changes(self.repo_location, base_ref, "")
+        logger.info("[TIMING] detect_changes: %.2fs", time.time() - _t)
         parsed_diff = changes.parsed_diff
+
+        _t = time.time()
         delta = self._compute_incremental_delta(
             output_dir, changes, root_analysis, file_component_index, static_analysis
         )
+        logger.info("[TIMING] compute_incremental_delta: %.2fs", time.time() - _t)
         if delta is None:
-            llm_executor.shutdown(wait=False)
-            return self._restore_or_raise(output_dir)
+            result = self._restore_or_raise(output_dir)
+            self.last_incremental_summary = self._build_incremental_summary(changes=changes)
+            return result
 
-        if delta.is_purely_additive:
-            llm_executor.shutdown(wait=False)
-            logger.info(
-                "Delta is purely additive (%d file deltas); skipping semantic tracing",
-                len(delta.file_deltas),
-            )
-            return self._save_incremental_result(output_dir, root_analysis, sub_analyses, base_ref, parsed_diff)
+        _t = time.time()
+        apply_delta(root_analysis, sub_analyses, delta)
+        logger.info("[TIMING] apply_delta: %.2fs", time.time() - _t)
 
-        # 4. Wait for LLMs, then run semantic tracing + scope classification
-        agent_llm, parsing_llm = llm_future.result()
-        llm_executor.shutdown(wait=False)
-        trace_result = self._run_semantic_trace(
-            delta, cfgs, static_analysis, base_ref, file_component_index, agent_llm, parsing_llm, parsed_diff
+        if self._is_rename_only_delta(delta):
+            logger.info("Delta only contains file renames; skipping semantic tracing")
+            _t = time.time()
+            result = self._save_incremental_result(output_dir, root_analysis, sub_analyses, base_ref, parsed_diff)
+            logger.info("[TIMING] save_incremental_result: %.2fs", time.time() - _t)
+            logger.info("[TIMING] generate_analysis_incremental total: %.2fs", time.time() - _t_total)
+            self.last_incremental_summary = self._build_incremental_summary(delta=delta)
+            return result
+
+        # 3. Skip LLM setup entirely when deterministic analysis shows no traceable work.
+        _t = time.time()
+        trace_plan = build_trace_plan(
+            delta=delta,
+            cfgs=cfgs,
+            repo_dir=self.repo_location,
+            base_ref=base_ref,
+            parsed_diff=parsed_diff,
         )
+        logger.info("[TIMING] build_trace_plan: %.2fs", time.time() - _t)
+
+        agent_llm: BaseChatModel | None = None
+        parsing_llm: BaseChatModel | None = None
+        used_llm = False
+        if not trace_plan.groups and not trace_plan.fast_path_impacted_methods:
+            logger.info("No traceable changed methods; skipping LLM initialization and semantic tracing")
+            trace_result = classify_scope(
+                trace_result=TraceResult(),
+                file_component_index=file_component_index,
+                static_analysis=static_analysis,
+                repo_dir=self.repo_location,
+            )
+        else:
+            # 4. Initialize LLMs only when tracing or patching may still need them.
+            _t = time.time()
+            agent_llm, parsing_llm = initialize_llms()
+            used_llm = True
+            logger.info("[TIMING] initialize_llms: %.2fs", time.time() - _t)
+
+            _t = time.time()
+            trace_result = self._run_semantic_trace(
+                delta, cfgs, static_analysis, base_ref, file_component_index, agent_llm, parsing_llm, parsed_diff
+            )
+            logger.info("[TIMING] run_semantic_trace: %.2fs", time.time() - _t)
 
         # 5. Check escalation
+        _t = time.time()
         escalation = self._determine_escalation(trace_result, root_analysis, changes)
+        logger.info("[TIMING] determine_escalation: %.2fs", time.time() - _t)
         if escalation in (EscalationLevel.FULL, EscalationLevel.ROOT):
             logger.info("Escalation %s triggered; falling back to full analysis", escalation.value)
+            self.last_incremental_summary = self._build_incremental_summary(
+                delta=delta,
+                trace_result=trace_result,
+                escalation=escalation,
+                used_llm=used_llm,
+            )
             return self.generate_analysis()
 
         # 6. Apply changes (patch or scoped re-expansion)
+        _t = time.time()
         if escalation == EscalationLevel.SCOPED:
+            assert agent_llm is not None and parsing_llm is not None
             logger.info("Scoped escalation: re-running DetailsAgent on affected components")
             affected_ids = {ic.component_id for ic in trace_result.impacted_components}
             self._scoped_reexpansion(root_analysis, sub_analyses, affected_ids, agent_llm, parsing_llm)
         elif trace_result.impacted_components:
+            assert agent_llm is not None and parsing_llm is not None
             self._patch_impacted_components(root_analysis, sub_analyses, trace_result, agent_llm, parsing_llm)
+        logger.info("[TIMING] apply_changes (patch/re-expansion): %.2fs", time.time() - _t)
 
         # 7. Finalize: method diff statuses, save analysis and checkpoint
-        return self._save_incremental_result(output_dir, root_analysis, sub_analyses, base_ref, parsed_diff)
+        _t = time.time()
+        result = self._save_incremental_result(output_dir, root_analysis, sub_analyses, base_ref, parsed_diff)
+        logger.info("[TIMING] save_incremental_result: %.2fs", time.time() - _t)
+        logger.info("[TIMING] generate_analysis_incremental total: %.2fs", time.time() - _t_total)
+        self.last_incremental_summary = self._build_incremental_summary(
+            delta=delta,
+            trace_result=trace_result,
+            escalation=escalation,
+            used_llm=used_llm,
+        )
+        return result
 
     def _load_incremental_baseline(self, output_dir: Path):
         """Load checkpoint, previous analysis, static analysis, and CFGs.
 
+        If no checkpoint exists but an analysis is on disk, a baseline
+        checkpoint is created automatically so that incremental analysis
+        can proceed without requiring a full re-analysis.
+
         Returns (checkpoint, root_analysis, sub_analyses, file_component_index, cfgs).
         """
+        _t = time.time()
         latest_checkpoint = get_latest_checkpoint(self.repo_location, output_dir)
         if latest_checkpoint is None:
-            raise RuntimeError(
-                "Incremental analysis requires an existing baseline checkpoint. "
-                "Run a full analysis first, or use --reset-baseline to create one."
-            )
+            if not (output_dir / "analysis.json").is_file():
+                raise RuntimeError("Incremental analysis requires an existing analysis. " "Run a full analysis first.")
+            logger.info("No checkpoint found; creating baseline from existing analysis")
+            save_checkpoint(self.repo_location, output_dir, run_id=self.run_id)
+            latest_checkpoint = get_latest_checkpoint(self.repo_location, output_dir)
+            if latest_checkpoint is None:
+                raise RuntimeError("Failed to create baseline checkpoint from existing analysis.")
+        logger.info("[TIMING]   get/create checkpoint: %.2fs", time.time() - _t)
 
         logger.info(
             "Incremental analysis against checkpoint id=%s ref=%s",
@@ -598,11 +785,17 @@ class DiagramGenerator:
             latest_checkpoint.checkpoint_ref,
         )
 
+        _t = time.time()
         self._ensure_static_analysis()
+        logger.info("[TIMING]   ensure_static_analysis: %.2fs", time.time() - _t)
         static_analysis = self.static_analysis
         assert static_analysis is not None  # guaranteed by _ensure_static_analysis
-        cfgs = {lang: static_analysis.get_cfg(lang) for lang in static_analysis.get_languages()}
 
+        _t = time.time()
+        cfgs = {lang: static_analysis.get_cfg(lang) for lang in static_analysis.get_languages()}
+        logger.info("[TIMING]   build CFGs: %.2fs", time.time() - _t)
+
+        _t = time.time()
         loaded = load_checkpoint_analysis(output_dir, latest_checkpoint.checkpoint_id)
         if loaded is None:
             raise RuntimeError(
@@ -610,7 +803,11 @@ class DiagramGenerator:
                 "Run a full analysis to re-establish the baseline."
             )
         root_analysis, sub_analyses = loaded
+        logger.info("[TIMING]   load_checkpoint_analysis: %.2fs", time.time() - _t)
+
+        _t = time.time()
         file_component_index = build_file_component_index(root_analysis)
+        logger.info("[TIMING]   build_file_component_index: %.2fs", time.time() - _t)
 
         return latest_checkpoint, root_analysis, sub_analyses, file_component_index, cfgs
 

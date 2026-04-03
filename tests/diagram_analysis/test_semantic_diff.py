@@ -110,6 +110,12 @@ class TestCommentStripping:
         assert "# comment" not in stripped
         assert "return 1" in stripped
 
+    def test_strip_comments_from_source_python_removes_docstring(self):
+        source = 'def foo():\n    """old docstring"""\n    return 1\n'
+        stripped = strip_comments_from_source("foo.py", source)
+        assert '"""old docstring"""' not in stripped
+        assert "return 1" in stripped
+
     def test_strip_comments_unsupported_extension_returns_original(self):
         source = "fn main() { // comment\n}\n"
         assert strip_comments_from_source("main.rs", source) == source
@@ -322,6 +328,12 @@ class TestIsFileCosmetic:
         repo = _init_git_repo(tmp_path)
         base = _commit_file(repo, "src/foo.py", "def foo():\n    # old\n    return 1\n")
         (repo / "src/foo.py").write_text("def foo():\n    # new\n    return 1\n")
+        assert is_file_cosmetic(repo, base, "src/foo.py") is True
+
+    def test_python_docstring_change_is_cosmetic(self, tmp_path):
+        repo = _init_git_repo(tmp_path)
+        base = _commit_file(repo, "src/foo.py", 'def foo():\n    """old docstring"""\n    return 1\n')
+        (repo / "src/foo.py").write_text('def foo():\n    """new docstring"""\n    return 1\n')
         assert is_file_cosmetic(repo, base, "src/foo.py") is True
 
     def test_semantic_change(self, tmp_path):

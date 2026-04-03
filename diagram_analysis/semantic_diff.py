@@ -9,6 +9,7 @@ Two tiers:
   Tier 1 – normalized: alpha-renames locals, sorts commutative operands.
 """
 
+import ast
 import hashlib
 import logging
 import re
@@ -395,6 +396,12 @@ def is_file_cosmetic(repo_dir: Path, base_ref: str, file_path: str) -> bool:
     if old_content == new_content:
         return True
 
+    old_content = strip_comments_from_source(file_path, old_content)
+    new_content = strip_comments_from_source(file_path, new_content)
+
+    if old_content == new_content:
+        return True
+
     if len(old_content) > _MAX_FILE_SIZE or len(new_content) > _MAX_FILE_SIZE:
         return False
 
@@ -437,8 +444,58 @@ def _collect_extra_ranges(node: Any, ranges: list[tuple[int, int]]) -> None:
         _collect_extra_ranges(child, ranges)
 
 
+def _line_col_to_byte_offset(line_bytes: list[bytes], lineno: int | None, column: int | None) -> int | None:
+    """Convert a Python AST line/column position into a UTF-8 byte offset."""
+    if lineno is None or column is None or lineno < 1 or lineno > len(line_bytes):
+        return None
+    return sum(len(line) for line in line_bytes[: lineno - 1]) + column
+
+
+def _collect_python_docstring_ranges(source: str) -> list[tuple[int, int]]:
+    """Return UTF-8 byte ranges for Python module/class/function docstrings."""
+    try:
+        module = ast.parse(source)
+    except SyntaxError:
+        return []
+
+    line_bytes = source.encode("utf-8").splitlines(keepends=True)
+    if not line_bytes:
+        line_bytes = [b""]
+
+    ranges: list[tuple[int, int]] = []
+
+    def visit(node: ast.Module | ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef) -> None:
+        body = getattr(node, "body", [])
+        if body:
+            first = body[0]
+            if (
+                isinstance(first, ast.Expr)
+                and isinstance(first.value, ast.Constant)
+                and isinstance(first.value.value, str)
+            ):
+                start = _line_col_to_byte_offset(
+                    line_bytes,
+                    getattr(first, "lineno", None),
+                    getattr(first, "col_offset", None),
+                )
+                end = _line_col_to_byte_offset(
+                    line_bytes,
+                    getattr(first, "end_lineno", None),
+                    getattr(first, "end_col_offset", None),
+                )
+                if start is not None and end is not None and end > start:
+                    ranges.append((start, end))
+
+        for child in body:
+            if isinstance(child, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
+                visit(child)
+
+    visit(module)
+    return ranges
+
+
 def strip_comments_from_source(file_path: str, source: str) -> str:
-    """Return *source* with tree-sitter comment/extra nodes removed when supported.
+    """Return *source* with comments and Python docstrings removed when supported.
 
     Falls back to the original source for unsupported languages or parse errors.
     Newlines from removed ranges are preserved to keep the remaining text readable.
@@ -464,6 +521,8 @@ def strip_comments_from_source(file_path: str, source: str) -> str:
 
     ranges: list[tuple[int, int]] = []
     _collect_extra_ranges(tree.root_node, ranges)
+    if language == Language.PYTHON:
+        ranges.extend(_collect_python_docstring_ranges(source))
     if not ranges:
         return source
 

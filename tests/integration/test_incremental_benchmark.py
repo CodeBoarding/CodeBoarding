@@ -80,9 +80,8 @@ def test_incremental_scenario(scenario: ChangeScenario, state_manager: StateMana
         assert (
             metrics.purely_additive is True
         ), f"Expected purely additive but got escalation={metrics.escalation_level}"
-        assert metrics.hops_used == 0
 
-    if scenario.expected_escalation and scenario.expected_escalation not in ("additive_skip", "cosmetic_skip"):
+    if scenario.expected_escalation and scenario.expected_escalation != "cosmetic_skip":
         assert (
             metrics.escalation_level == scenario.expected_escalation
         ), f"Expected escalation={scenario.expected_escalation} but got {metrics.escalation_level}"

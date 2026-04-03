@@ -84,8 +84,6 @@ def run_incremental_with_metrics(
         if delta is not None:
             metrics.file_deltas_count = len(delta.file_deltas)
             metrics.purely_additive = delta.is_purely_additive
-            if delta.is_purely_additive:
-                metrics.escalation_level = "additive_skip"
         else:
             metrics.escalation_level = "no_changes"
         return delta
@@ -132,6 +130,16 @@ def run_incremental_with_metrics(
     start = time.perf_counter()
     try:
         generator.generate_analysis_incremental()
+        if (
+            metrics.file_deltas_count > 0
+            and not metrics.purely_additive
+            and "semantic_trace" not in metrics.phase_timings
+            and metrics.hops_used == 0
+            and metrics.impacted_methods_count == 0
+            and metrics.components_affected == 0
+            and metrics.escalation_level == "none"
+        ):
+            metrics.escalation_level = "cosmetic_skip"
     except Exception as e:
         import traceback
 

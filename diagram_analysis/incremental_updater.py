@@ -179,6 +179,60 @@ class IncrementalUpdater:
             missing,
         )
 
+    @staticmethod
+    def _build_rename_mapping(
+        previous_methods: dict[str, MethodEntry],
+        current_methods: list[MethodEntry],
+    ) -> dict[str, str]:
+        prev_sorted = sorted(
+            previous_methods.values(), key=lambda m: (m.start_line, m.end_line, m.node_type, m.qualified_name)
+        )
+        curr_sorted = sorted(current_methods, key=lambda m: (m.start_line, m.end_line, m.node_type, m.qualified_name))
+        if len(prev_sorted) != len(curr_sorted):
+            return {}
+
+        renamed: dict[str, str] = {}
+        for previous, current in zip(prev_sorted, curr_sorted, strict=True):
+            if (previous.start_line, previous.end_line, previous.node_type) != (
+                current.start_line,
+                current.end_line,
+                current.node_type,
+            ):
+                return {}
+            if previous.qualified_name != current.qualified_name:
+                renamed[previous.qualified_name] = current.qualified_name
+        return renamed
+
+    def _compute_rename_delta(self, old_path: str, new_path: str) -> tuple[FileDelta | None, bool]:
+        previous_methods = self._get_previous_methods(old_path)
+        component_id, missing = self._resolve_component(old_path)
+        if component_id is not None:
+            self.file_component_index.update_file_path(old_path, new_path)
+
+        if not previous_methods and component_id is None:
+            return None, False
+
+        current_methods = self._get_current_methods(new_path)
+        replacement_methods = current_methods or [method.model_copy(deep=True) for method in previous_methods.values()]
+        for method in replacement_methods:
+            method.status = ChangeStatus.UNCHANGED
+
+        return (
+            FileDelta(
+                file_path=new_path,
+                old_file_path=old_path,
+                file_status=ChangeStatus.RENAMED,
+                component_id=component_id,
+                renamed_qualified_names=self._build_rename_mapping(previous_methods, replacement_methods),
+                is_reset=True,
+                reset_methods=[
+                    self._to_method_change(new_path, method, change_type=ChangeStatus.UNCHANGED)
+                    for method in replacement_methods
+                ],
+            ),
+            missing,
+        )
+
     def compute_delta(
         self,
         added_files: list[str],
@@ -190,6 +244,13 @@ class IncrementalUpdater:
         """Compute delta from file changes."""
         needs_reanalysis = False
         file_deltas: list[FileDelta] = []
+
+        for old_path, new_path in changes.renames.items():
+            delta, missing = self._compute_rename_delta(old_path, new_path)
+            if delta is None:
+                continue
+            file_deltas.append(delta)
+            needs_reanalysis = needs_reanalysis or missing
 
         for file_path in added_files:
             delta, missing = self._compute_file_delta(file_path, ChangeStatus.ADDED, True, changes)
@@ -252,6 +313,9 @@ def _sorted_methods(methods_by_name: dict[str, MethodEntry]) -> list[MethodEntry
 
 
 def _apply_file_delta_to_index(files: dict[str, FileEntry], file_delta: FileDelta) -> None:
+    if file_delta.old_file_path and file_delta.old_file_path != file_delta.file_path:
+        files.pop(file_delta.old_file_path, None)
+
     if file_delta.is_reset:
         methods_by_name: dict[str, MethodEntry] = {
             m.qualified_name: MethodEntry.from_method_change(m) for m in (file_delta.reset_methods or [])
@@ -291,6 +355,19 @@ def _sync_component_methods(component: Component, files: dict[str, FileEntry]) -
     ]
 
 
+def _apply_rename_metadata(analysis: AnalysisInsights, file_delta: FileDelta) -> None:
+    if not file_delta.old_file_path:
+        return
+
+    for component in analysis.components:
+        for entity in component.key_entities:
+            if entity.reference_file == file_delta.old_file_path:
+                entity.reference_file = file_delta.file_path
+            renamed_qname = file_delta.renamed_qualified_names.get(entity.qualified_name)
+            if renamed_qname is not None:
+                entity.qualified_name = renamed_qname
+
+
 def apply_delta(
     root: AnalysisInsights,
     sub_analyses: dict[str, AnalysisInsights],
@@ -305,6 +382,7 @@ def apply_delta(
 
     for file_delta in delta.file_deltas:
         _apply_file_delta_to_index(files, file_delta)
+        _apply_rename_metadata(root, file_delta)
 
         component = component_lookup.get(file_delta.component_id or "")
         if component is None:
@@ -321,5 +399,7 @@ def apply_delta(
 
     for sub in sub_analyses.values():
         sub.files = files
+        for file_delta in delta.file_deltas:
+            _apply_rename_metadata(sub, file_delta)
         for component in sub.components:
             _sync_component_methods(component, files)

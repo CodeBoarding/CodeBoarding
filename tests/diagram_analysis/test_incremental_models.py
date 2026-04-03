@@ -3,6 +3,8 @@
 from diagram_analysis.incremental_models import (
     AnalysisPatch,
     EscalationLevel,
+    IncrementalSummary,
+    IncrementalSummaryKind,
     ImpactedComponent,
     JsonPatchOp,
     TraceConfig,
@@ -57,6 +59,7 @@ def test_trace_result_empty():
     assert result.impacted_components == []
     assert result.all_impacted_methods == []
     assert result.stop_reason == TraceStopReason.NO_MATERIAL_IMPACT
+    assert result.semantic_impact_summary == ""
 
 
 def test_impacted_component():
@@ -98,3 +101,21 @@ def test_escalation_levels():
     assert EscalationLevel.SCOPED == "scoped"
     assert EscalationLevel.ROOT == "root"
     assert EscalationLevel.FULL == "full"
+
+
+def test_incremental_summary_to_dict():
+    summary = IncrementalSummary(
+        kind=IncrementalSummaryKind.RENAME_ONLY,
+        message="Only file renames were detected, so the architecture analysis was updated without semantic tracing.",
+        used_llm=False,
+        trace_stop_reason=TraceStopReason.NO_MATERIAL_IMPACT,
+        escalation_level=EscalationLevel.NONE,
+    )
+
+    assert summary.to_dict() == {
+        "kind": IncrementalSummaryKind.RENAME_ONLY,
+        "message": "Only file renames were detected, so the architecture analysis was updated without semantic tracing.",
+        "usedLlm": False,
+        "traceStopReason": TraceStopReason.NO_MATERIAL_IMPACT,
+        "escalationLevel": EscalationLevel.NONE,
+    }

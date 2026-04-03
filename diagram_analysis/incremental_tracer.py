@@ -479,6 +479,22 @@ def _build_trace_plan(
     )
 
 
+def build_trace_plan(
+    delta: IncrementalDelta,
+    cfgs: dict[str, CallGraph],
+    repo_dir: Path,
+    base_ref: str,
+    baseline_cfgs: dict[str, CallGraph] | None = None,
+    parsed_diff: ParsedGitDiff | None = None,
+) -> TracePlan:
+    """Build a trace plan from the current and optional baseline call graphs."""
+    index_args: list[dict[str, CallGraph]] = [cfgs]
+    if baseline_cfgs is not None:
+        index_args.append(baseline_cfgs)
+    upstream_idx, downstream_idx = _build_neighbor_indexes(*index_args)
+    return _build_trace_plan(delta, upstream_idx, downstream_idx, repo_dir, base_ref, parsed_diff)
+
+
 def _build_change_groups(
     delta: IncrementalDelta,
     upstream_index: dict[str, list[str]],
@@ -658,6 +674,7 @@ def _trace_single_group(
                 unresolved_frontier=resolver.unresolved + response.unresolved_frontier,
                 stop_reason=response.status,
                 hops_used=hops_used,
+                semantic_impact_summary=response.semantic_impact_summary,
             )
 
         # Determine how many methods we can still fetch
@@ -711,6 +728,7 @@ def _merge_trace_results(
     hops_used = 0
     saw_uncertain = False
     saw_impact = bool(all_impacted)
+    semantic_summaries: set[str] = set()
 
     for result in trace_results:
         all_impacted.update(result.all_impacted_methods)
@@ -720,6 +738,8 @@ def _merge_trace_results(
             saw_uncertain = True
         if result.stop_reason == TraceStopReason.CLOSURE_REACHED or result.all_impacted_methods:
             saw_impact = True
+        if result.semantic_impact_summary:
+            semantic_summaries.add(result.semantic_impact_summary)
 
     if saw_uncertain:
         stop_reason = TraceStopReason.UNCERTAIN
@@ -733,6 +753,7 @@ def _merge_trace_results(
         unresolved_frontier=sorted(unresolved_frontier),
         stop_reason=stop_reason,
         hops_used=hops_used,
+        semantic_impact_summary=semantic_summaries.pop() if len(semantic_summaries) == 1 else "",
     )
 
 
@@ -778,12 +799,14 @@ def run_trace(
             )
             return TraceResult(stop_reason=TraceStopReason.SYNTAX_ERROR)
 
-    index_args: list[dict[str, CallGraph]] = [cfgs]
-    if baseline_cfgs is not None:
-        index_args.append(baseline_cfgs)
-    upstream_idx, downstream_idx = _build_neighbor_indexes(*index_args)
-
-    trace_plan = _build_trace_plan(delta, upstream_idx, downstream_idx, repo_dir, base_ref, parsed_diff)
+    trace_plan = build_trace_plan(
+        delta=delta,
+        cfgs=cfgs,
+        repo_dir=repo_dir,
+        base_ref=base_ref,
+        baseline_cfgs=baseline_cfgs,
+        parsed_diff=parsed_diff,
+    )
     if trace_plan.fast_path_impacted_methods:
         logger.info(
             "Using deterministic fast path for %d changed method(s)",

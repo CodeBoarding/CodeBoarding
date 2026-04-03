@@ -38,7 +38,7 @@ COSMETIC_DOCSTRING = ChangeScenario(
 
 
 # ---------------------------------------------------------------------------
-# Scenario 2: Add utility function (purely additive)
+# Scenario 2: Add utility function
 # ---------------------------------------------------------------------------
 _NEW_UTILITY_FUNCTION = '''
 
@@ -82,8 +82,7 @@ ADD_UTILITY_FUNCTION = ChangeScenario(
         ),
     ],
     commit_message="feat: add truncate_format_string utility for safe template truncation",
-    expected_escalation="additive_skip",
-    expected_additive=True,
+    expected_escalation="none",
 )
 
 

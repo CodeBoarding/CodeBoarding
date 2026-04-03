@@ -27,7 +27,7 @@ class ChangeScenario:
     description: str
     edits: list[FileEdit]
     commit_message: str
-    expected_escalation: str | None = None  # "none", "scoped", "root", "additive_skip", "cosmetic_skip", "no_changes"
+    expected_escalation: str | None = None  # "none", "scoped", "root", "cosmetic_skip", "no_changes"
     expected_additive: bool = False
 
 
@@ -58,7 +58,7 @@ COSMETIC_DOCSTRING = ChangeScenario(
 
 
 # ---------------------------------------------------------------------------
-# Scenario 2: Add utility function (purely additive)
+# Scenario 2: Add utility function
 # ---------------------------------------------------------------------------
 _NEW_UTILITY_FUNCTION = '''
 
@@ -100,8 +100,7 @@ ADD_UTILITY_FUNCTION = ChangeScenario(
         ),
     ],
     commit_message="feat: add perceptual hash utility for image deduplication",
-    expected_escalation="additive_skip",
-    expected_additive=True,
+    expected_escalation="none",
 )
 
 

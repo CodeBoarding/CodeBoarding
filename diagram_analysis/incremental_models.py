@@ -101,6 +101,48 @@ class TraceResult:
     unresolved_frontier: list[str] = field(default_factory=list)
     stop_reason: TraceStopReason = TraceStopReason.NO_MATERIAL_IMPACT
     hops_used: int = 0
+    semantic_impact_summary: str = ""
+
+
+# ---------------------------------------------------------------------------
+# Escalation level (step 12)
+# ---------------------------------------------------------------------------
+class EscalationLevel(StrEnum):
+    NONE = "none"
+    SCOPED = "scoped"
+    ROOT = "root"
+    FULL = "full"
+
+
+class IncrementalSummaryKind(StrEnum):
+    NO_CHANGES = "no_changes"
+    COSMETIC_ONLY = "cosmetic_only"
+    RENAME_ONLY = "rename_only"
+    ADDITIVE_ONLY = "additive_only"
+    NO_MATERIAL_IMPACT = "no_material_impact"
+    MATERIAL_IMPACT = "material_impact"
+    SCOPED_REANALYSIS = "scoped_reanalysis"
+    FULL_FALLBACK = "full_fallback"
+
+
+@dataclass
+class IncrementalSummary:
+    """Single-sentence summary for an incremental run."""
+
+    kind: IncrementalSummaryKind
+    message: str
+    used_llm: bool = False
+    trace_stop_reason: TraceStopReason | None = None
+    escalation_level: EscalationLevel | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "kind": self.kind,
+            "message": self.message,
+            "usedLlm": self.used_llm,
+            "traceStopReason": self.trace_stop_reason,
+            "escalationLevel": self.escalation_level,
+        }
 
 
 # ---------------------------------------------------------------------------
@@ -126,13 +168,3 @@ class AnalysisPatch(LLMBaseModel):
     def llm_str(self) -> str:
         ops = "; ".join(f"{p.op} {p.path}" for p in self.patches)
         return f"Patch {self.sub_analysis_id}: {self.reasoning} [{ops}]"
-
-
-# ---------------------------------------------------------------------------
-# Escalation level (step 12)
-# ---------------------------------------------------------------------------
-class EscalationLevel(StrEnum):
-    NONE = "none"
-    SCOPED = "scoped"
-    ROOT = "root"
-    FULL = "full"
