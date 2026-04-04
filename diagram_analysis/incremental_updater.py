@@ -129,7 +129,8 @@ class IncrementalUpdater:
         prev_active = self._get_previous_active_methods(file_path)
         try:
             current = self._get_current_methods(file_path)
-        except Exception:
+        except Exception as exc:
+            logger.warning("Symbol resolution failed for %s: %s", file_path, exc)
             current = []
 
         if not current and prev_active:
