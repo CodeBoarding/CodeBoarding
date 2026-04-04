@@ -24,7 +24,7 @@ ARTIFACT_FILENAMES = ("analysis.json", "codeboarding_version.json", "file_covera
 HEALTH_ARTIFACT_PATH = Path("health") / "health_report.json"
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(slots=True)
 class FileComponentIndex:
     file_to_component: dict[str, str] = field(default_factory=dict)
 

@@ -1013,7 +1013,7 @@ class DiagramGenerator:
         max_workers = min(len(patch_tasks), os.cpu_count() or 4, 8)
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = {
-                executor.submit(patch_sub_analysis, sub, parent_id, impact, parsing_llm, agent_llm): parent_id
+                executor.submit(patch_sub_analysis, sub, parent_id, impact, parsing_llm): parent_id
                 for parent_id, sub, impact in patch_tasks
             }
             for future in as_completed(futures):

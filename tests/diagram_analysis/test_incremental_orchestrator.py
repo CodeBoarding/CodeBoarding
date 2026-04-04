@@ -455,7 +455,7 @@ def test_patch_impacted_components_parallel_deduplicates_parents(tmp_path):
     parsing_llm = object()
     agent_llm = object()
 
-    def fake_patch(sub, parent_id, impact, parsing_model, agent_model):
+    def fake_patch(sub, parent_id, impact, parsing_model):
         return AnalysisInsights(description=f"{parent_id}-updated", components=[], components_relations=[])
 
     with patch("diagram_analysis.analysis_patcher.patch_sub_analysis", side_effect=fake_patch) as mock_patch:
@@ -466,6 +466,5 @@ def test_patch_impacted_components_parallel_deduplicates_parents(tmp_path):
     assert called_parents == {"1", "2"}
     for call in mock_patch.call_args_list:
         assert call.args[3] is parsing_llm
-        assert call.args[4] is agent_llm
     assert sub_analyses["1"].description == "1-updated"
     assert sub_analyses["2"].description == "2-updated"

@@ -189,7 +189,7 @@ def _build_neighbor_indexes(*cfg_dicts: dict[str, CallGraph]) -> NeighborIndex:
         for cfg in cfgs.values():
             for qname, node in cfg.nodes.items():
                 if node.methods_called_by_me:
-                    downstream.setdefault(qname, set()).update(node.methods_called_by_me)
+                    downstream[qname].update(node.methods_called_by_me)
             for edge in cfg.edges:
                 upstream[edge.get_destination()].add(edge.get_source())
     return (
@@ -475,7 +475,7 @@ def _build_trace_plan(
     return TracePlan(
         groups=finalized_groups,
         fast_path_impacted_methods=sorted(fast_path_impacted_methods),
-        parallel_safe=parallel_safe and len(finalized_groups) > 1,
+        parallel_safe=parallel_safe,
     )
 
 
@@ -708,13 +708,14 @@ def _trace_single_group(
         )
         if use_cache:
             cached_turns += 1
+        hops_used = hop + 1
 
     # Fell through max hops
     return TraceResult(
         all_impacted_methods=sorted(all_impacted),
         unresolved_frontier=resolver.unresolved,
         stop_reason=TraceStopReason.UNCERTAIN,
-        hops_used=hop + 1,
+        hops_used=hops_used,
     )
 
 
