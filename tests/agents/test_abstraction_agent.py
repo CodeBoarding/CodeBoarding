@@ -1,3 +1,4 @@
+import shutil
 import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -47,8 +48,6 @@ class TestAbstractionAgent(unittest.TestCase):
         self.project_name = "test_project"
 
     def tearDown(self):
-        import shutil
-
         if hasattr(self, "temp_dir"):
             shutil.rmtree(self.temp_dir, ignore_errors=True)
 

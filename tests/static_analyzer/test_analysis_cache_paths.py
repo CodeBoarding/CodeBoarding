@@ -7,6 +7,7 @@ wrapper tried to resolve them on a different machine.
 
 import json
 import re
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
@@ -96,8 +97,6 @@ class TestCachePathsAreRelative(unittest.TestCase):
         self.manager = AnalysisCacheManager(self.repo_root)
 
     def tearDown(self):
-        import shutil
-
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def _save_and_read_json(self, with_clusters: bool = False) -> dict:

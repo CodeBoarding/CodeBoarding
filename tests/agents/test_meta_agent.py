@@ -1,4 +1,5 @@
 import hashlib
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
@@ -19,8 +20,6 @@ class TestMetaAgent(unittest.TestCase):
         self.project_name = "test_project"
 
     def tearDown(self):
-        import shutil
-
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def _meta_insights(self, project_type: str) -> MetaAnalysisInsights:

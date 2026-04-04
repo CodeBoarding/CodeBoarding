@@ -1,4 +1,5 @@
 import os
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
@@ -48,8 +49,6 @@ class TestReferenceResolverMixin(unittest.TestCase):
 
     def tearDown(self):
         # Clean up
-        import shutil
-
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def test_fix_source_code_reference_lines_already_resolved(self):
