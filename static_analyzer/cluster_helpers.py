@@ -106,11 +106,11 @@ def enforce_cross_language_budget(
          each language's count (minimum 2 per language) via ``merge_clusters``.
       2. Re-index cluster IDs with per-language offsets so they form a unique,
          non-overlapping namespace (required by downstream code that maps
-         cluster_id → component in a single dict).
+         cluster_id -> component in a single dict).
 
     Args:
-        cluster_results: Language → ClusterResult mapping (mutated in place).
-        cfg_graphs: Language → networkx DiGraph for each language (needed by
+        cluster_results: Language -> ClusterResult mapping (mutated in place).
+        cfg_graphs: Language -> networkx DiGraph for each language (needed by
             ``merge_clusters`` when reducing).
         target: Maximum total clusters across all languages.
     """
