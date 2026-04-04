@@ -2,6 +2,7 @@
 Tests for Java project configuration scanner.
 """
 
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
@@ -62,8 +63,6 @@ class TestJavaConfigScanner(unittest.TestCase):
 
     def tearDown(self):
         """Clean up test directory."""
-        import shutil
-
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def test_init(self):
@@ -548,8 +547,6 @@ class TestScanJavaProjects(unittest.TestCase):
 
     def tearDown(self):
         """Clean up test directory."""
-        import shutil
-
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def test_scan_java_projects(self):

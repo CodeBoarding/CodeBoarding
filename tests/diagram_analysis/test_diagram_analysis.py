@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 import tempfile
 import time
 import unittest
@@ -315,8 +316,6 @@ class TestDiagramGenerator(unittest.TestCase):
 
     def tearDown(self):
         # Clean up temporary directory
-        import shutil
-
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def test_init(self):

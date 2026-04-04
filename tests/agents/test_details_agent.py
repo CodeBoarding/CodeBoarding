@@ -1,3 +1,4 @@
+import shutil
 import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -62,8 +63,6 @@ class TestDetailsAgent(unittest.TestCase):
         )
 
     def tearDown(self):
-        import shutil
-
         if hasattr(self, "temp_dir"):
             shutil.rmtree(self.temp_dir, ignore_errors=True)
 

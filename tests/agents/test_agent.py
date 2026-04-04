@@ -1,4 +1,5 @@
 import os
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
@@ -47,8 +48,6 @@ class TestCodeBoardingAgent(unittest.TestCase):
 
     def tearDown(self):
         # Clean up
-        import shutil
-
         shutil.rmtree(self.temp_dir, ignore_errors=True)
         self.env_patcher.stop()
 
