@@ -438,6 +438,104 @@ class TestProcessLocalRepository(unittest.TestCase):
                 depth_level=2,
             )
 
+    @patch("main.record_incremental_history")
+    @patch("main.DiagramGenerator")
+    def test_process_local_repository_incremental_records_history(self, mock_generator_class, mock_record_history):
+        mock_generator = MagicMock()
+        mock_generator.last_incremental_summary = None
+        mock_generator.generate_analysis_incremental.return_value = Path("analysis.json")
+        mock_generator_class.return_value = mock_generator
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_path = Path(temp_dir) / "repo"
+            repo_path.mkdir()
+            output_dir = Path(temp_dir) / "output"
+            output_dir.mkdir()
+
+            process_local_repository(
+                repo_path=repo_path,
+                output_dir=output_dir,
+                project_name="test_project",
+                run_id="run-123",
+                log_path="test_project/test-run-log",
+                depth_level=1,
+                incremental=True,
+            )
+
+        mock_generator.generate_analysis_incremental.assert_called_once()
+        mock_record_history.assert_called_once()
+        history_entry = mock_record_history.call_args.args[1]
+        self.assertEqual(history_entry["mode"], "incremental")
+        self.assertFalse(history_entry["resetBaseline"])
+
+    @patch("main.record_incremental_history")
+    @patch("main.DiagramGenerator")
+    def test_process_local_repository_incremental_requires_full_records_baseline(
+        self, mock_generator_class, mock_record_history
+    ):
+        from diagram_analysis.diagram_generator import IncrementalAnalysisRequiresFullError
+
+        mock_generator = MagicMock()
+        mock_generator.generate_analysis_incremental.side_effect = IncrementalAnalysisRequiresFullError(
+            "Run a full analysis instead"
+        )
+        mock_generator.generate_incremental_analysis_baseline.return_value = Path("baseline.json")
+        mock_generator_class.return_value = mock_generator
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_path = Path(temp_dir) / "repo"
+            repo_path.mkdir()
+            output_dir = Path(temp_dir) / "output"
+            output_dir.mkdir()
+
+            process_local_repository(
+                repo_path=repo_path,
+                output_dir=output_dir,
+                project_name="test_project",
+                run_id="run-456",
+                log_path="test_project/test-run-log",
+                depth_level=1,
+                incremental=True,
+            )
+
+        mock_generator.generate_incremental_analysis_baseline.assert_called_once()
+        mock_record_history.assert_called_once()
+        history_entry = mock_record_history.call_args.args[1]
+        self.assertEqual(history_entry["mode"], "baseline")
+        self.assertTrue(history_entry["resetBaseline"])
+
+    @patch("main.record_incremental_history")
+    @patch("main.DiagramGenerator")
+    def test_process_local_repository_reset_baseline_uses_baseline_mode(
+        self, mock_generator_class, mock_record_history
+    ):
+        mock_generator = MagicMock()
+        mock_generator.generate_incremental_analysis_baseline.return_value = Path("baseline.json")
+        mock_generator_class.return_value = mock_generator
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_path = Path(temp_dir) / "repo"
+            repo_path.mkdir()
+            output_dir = Path(temp_dir) / "output"
+            output_dir.mkdir()
+
+            process_local_repository(
+                repo_path=repo_path,
+                output_dir=output_dir,
+                project_name="test_project",
+                run_id="run-789",
+                log_path="test_project/test-run-log",
+                depth_level=1,
+                incremental=True,
+                reset_baseline=True,
+            )
+
+        mock_generator.generate_incremental_analysis_baseline.assert_called_once()
+        mock_record_history.assert_called_once()
+        history_entry = mock_record_history.call_args.args[1]
+        self.assertEqual(history_entry["mode"], "baseline")
+        self.assertTrue(history_entry["resetBaseline"])
+
 
 class TestCopyFiles(unittest.TestCase):
     def test_copy_files_success(self):
@@ -494,6 +592,17 @@ class TestValidateArguments(unittest.TestCase):
 
         validate_arguments(args, parser, is_local=False)
         parser.error.assert_not_called()
+
+    def test_validate_arguments_reset_baseline_without_local(self):
+        parser = MagicMock()
+        args = MagicMock()
+        args.repositories = ["https://github.com/test/repo"]
+        args.local = None
+        args.partial_component_id = None
+        args.reset_baseline = True
+
+        validate_arguments(args, parser, is_local=False)
+        parser.error.assert_called_once()
 
     def test_validate_arguments_both_local_and_remote(self):
         # Test that providing both local and remote raises an error

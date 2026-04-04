@@ -13,6 +13,8 @@ from user_config import ensure_config_template, load_user_config
 from core import get_registries, load_plugins
 from diagram_analysis import DiagramGenerator, RunContext
 from diagram_analysis.analysis_json import build_id_to_name_map, parse_unified_analysis
+from diagram_analysis.diagram_generator import IncrementalAnalysisRequiresFullError
+from diagram_analysis.incremental_history import record_incremental_history
 from diagram_analysis.io_utils import load_full_analysis, save_sub_analysis
 from logging_config import setup_logging
 from monitoring import monitor_execution
@@ -273,6 +275,7 @@ def process_local_repository(
     monitoring_enabled: bool = False,
     incremental: bool = False,
     force_full: bool = False,
+    reset_baseline: bool = False,
 ):
     # Handle partial updates
     if component_id:
@@ -287,8 +290,8 @@ def process_local_repository(
         )
         return
 
-    # Use smart incremental analysis if requested
-    if incremental and not force_full:
+    # Use incremental analysis if requested
+    if incremental:
         generator = DiagramGenerator(
             repo_location=repo_path,
             temp_folder=output_dir,
@@ -299,10 +302,35 @@ def process_local_repository(
             log_path=log_path,
             monitoring_enabled=monitoring_enabled,
         )
-        generator.force_full_analysis = force_full
+        generator.force_full_analysis = force_full or reset_baseline
 
-        # Try incremental first, fall back to full
-        result = generator.generate_analysis_smart()
+        try:
+            if force_full or reset_baseline:
+                result = generator.generate_incremental_analysis_baseline()
+                history_mode = "baseline"
+            else:
+                result = generator.generate_analysis_incremental()
+                history_mode = "incremental"
+        except IncrementalAnalysisRequiresFullError:
+            logger.info("Incremental analysis requires a full baseline; rebuilding baseline.")
+            result = generator.generate_incremental_analysis_baseline()
+            history_mode = "baseline"
+
+        record_incremental_history(
+            output_dir,
+            {
+                "runId": run_id,
+                "projectName": project_name,
+                "mode": history_mode,
+                "resetBaseline": history_mode == "baseline",
+                "analysisPath": str(result),
+                "incrementalSummary": (
+                    generator.last_incremental_summary.to_dict()
+                    if generator.last_incremental_summary is not None
+                    else None
+                ),
+            },
+        )
         logger.info(f"Analysis completed: {result}")
         return
 
@@ -349,6 +377,8 @@ def validate_arguments(args, parser, is_local: bool):
     # Validate partial update arguments
     if args.partial_component_id and not is_local:
         parser.error("--partial-component-id only works with local repositories")
+    if vars(args).get("reset_baseline", False) and not is_local:
+        parser.error("--reset-baseline only works with local repositories")
 
 
 def define_cli_arguments(parser: argparse.ArgumentParser):
@@ -400,6 +430,11 @@ def define_cli_arguments(parser: argparse.ArgumentParser):
         "--incremental",
         action="store_true",
         help="Use smart incremental updates (tries incremental first, falls back to full)",
+    )
+    parser.add_argument(
+        "--reset-baseline",
+        action="store_true",
+        help="Force a fresh incremental baseline instead of reusing the latest run",
     )
 
 
@@ -490,7 +525,7 @@ Examples:
         run_context = RunContext.resolve(
             repo_dir=local_repo_path,
             project_name=project_name,
-            reuse_latest_run_id=args.incremental or args.partial_component_id is not None,
+            reuse_latest_run_id=(args.incremental and not args.reset_baseline) or args.partial_component_id is not None,
         )
 
         process_local_repository(
@@ -502,6 +537,7 @@ Examples:
             monitoring_enabled=should_monitor,
             incremental=args.incremental,
             force_full=args.full,
+            reset_baseline=args.reset_baseline,
             run_id=run_context.run_id,
             log_path=run_context.log_path,
         )
