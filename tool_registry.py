@@ -18,12 +18,18 @@ import os
 import platform
 import shutil
 import subprocess
+import sys
 import tarfile
 from copy import deepcopy
 from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
 from typing import Any, cast
+
+if sys.platform == "win32":
+    import msvcrt
+else:
+    import fcntl
 
 import requests
 
@@ -293,17 +299,49 @@ def needs_install() -> bool:
 
 
 def ensure_tools(auto_install_npm: bool = False, auto_install_vcpp: bool = False) -> None:
-    """Install tools to ~/.codeboarding/servers/ if needed. No-op if already current."""
-    if not needs_install():
-        return
-    from install import run_install  # deferred to avoid circular import at module level
+    """Install tools to ~/.codeboarding/servers/ if needed. No-op if already current.
 
-    run_install(
-        target_dir=get_servers_dir(),
-        auto_install_npm=auto_install_npm,
-        auto_install_vcpp=auto_install_vcpp,
-    )
-    _write_manifest()
+    Uses a file lock so that concurrent instances (multiple VSCode windows)
+    don't corrupt binaries by downloading simultaneously.
+    """
+    servers_dir = get_servers_dir()
+    servers_dir.mkdir(parents=True, exist_ok=True)
+    lock_path = servers_dir / ".download.lock"
+
+    with open(lock_path, "w") as lock_fd:
+        _acquire_lock(lock_fd)
+
+        if not needs_install():
+            return
+
+        print("[download] Installing language server tools...", flush=True, file=sys.stderr)
+        from install import run_install  # deferred to avoid circular import at module level
+
+        run_install(
+            target_dir=servers_dir,
+            auto_install_npm=auto_install_npm,
+            auto_install_vcpp=auto_install_vcpp,
+        )
+        _write_manifest()
+        print("[download] complete", flush=True, file=sys.stderr)
+
+
+def _acquire_lock(lock_fd: Any) -> None:
+    """Acquire an exclusive file lock, logging if we have to wait."""
+    if sys.platform == "win32":
+        try:
+            msvcrt.locking(lock_fd.fileno(), msvcrt.LK_NBLCK, 1)
+        except OSError:
+            logger.info("Another instance is downloading tools, waiting...")
+            print("Waiting for another instance to finish downloading tools...", flush=True, file=sys.stderr)
+            msvcrt.locking(lock_fd.fileno(), msvcrt.LK_LOCK, 1)
+    else:
+        try:
+            fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            logger.info("Another instance is downloading tools, waiting...")
+            print("Waiting for another instance to finish downloading tools...", flush=True, file=sys.stderr)
+            fcntl.flock(lock_fd, fcntl.LOCK_EX)
 
 
 def build_config() -> dict[str, Any]:
@@ -461,16 +499,29 @@ def get_latest_release_tag() -> str:
 
 
 def download_asset(tag: str, asset_name: str, destination: Path) -> bool:
-    """Download a GitHub release asset to destination. Returns True on success."""
+    """Download a GitHub release asset to destination. Returns True on success.
+
+    Writes to a temp file first, then atomically renames to prevent
+    corrupt binaries if the download is interrupted.
+    """
     destination.parent.mkdir(parents=True, exist_ok=True)
+    temp_dest = destination.with_suffix(destination.suffix + ".download")
     url = f"https://github.com/{GITHUB_REPO}/releases/download/{tag}/{asset_name}"
-    response = requests.get(url, stream=True, timeout=300, allow_redirects=True)
-    response.raise_for_status()
-    with open(destination, "wb") as f:
-        for chunk in response.iter_content(chunk_size=32768):
-            if chunk:
-                f.write(chunk)
-    return destination.exists() and destination.stat().st_size > 0
+    try:
+        response = requests.get(url, stream=True, timeout=300, allow_redirects=True)
+        response.raise_for_status()
+        with open(temp_dest, "wb") as f:
+            for chunk in response.iter_content(chunk_size=32768):
+                if chunk:
+                    f.write(chunk)
+        if temp_dest.stat().st_size > 0:
+            temp_dest.rename(destination)
+            return True
+        temp_dest.unlink(missing_ok=True)
+        return False
+    except Exception:
+        temp_dest.unlink(missing_ok=True)
+        raise
 
 
 def install_native_tools(target_dir: Path, deps: list[ToolDependency]) -> None:
@@ -491,13 +542,14 @@ def install_native_tools(target_dir: Path, deps: list[ToolDependency]) -> None:
         logger.exception("Could not determine latest release")
         return
 
-    for dep in deps:
-        assert dep.github_asset_template, f"{dep.key}: github_asset_template required for native tools"
+    downloadable = [d for d in deps if d.github_asset_template]
+    for i, dep in enumerate(downloadable, 1):
         binary_path = bin_dir / f"{dep.binary_name}{exe_suffix()}"
         if binary_path.exists():
             logger.info("  %s: already installed, skipping", dep.binary_name)
             continue
         asset_name = dep.github_asset_template.format(platform_suffix=suffix)
+        print(f"[download] {dep.binary_name} ({i}/{len(downloadable)})", flush=True)
         try:
             if download_asset(tag, asset_name, binary_path):
                 if system != "Windows":
@@ -527,6 +579,7 @@ def install_node_tools(target_dir: Path, deps: list[ToolDependency]) -> None:
         return
 
     env = npm_subprocess_env(target_dir)
+    print(f"[download] npm packages: {', '.join(all_packages)}", flush=True)
     logger.info("Installing Node.js packages: %s", all_packages)
     try:
         if not (target_dir / "package.json").exists():
@@ -558,6 +611,7 @@ def install_archive_tool(target_dir: Path, dep: ToolDependency) -> None:
         logger.info("%s already installed", dep.key)
         return
 
+    print(f"[download] {dep.key}", flush=True)
     logger.info("Downloading %s...", dep.key)
     extract_dir.mkdir(parents=True, exist_ok=True)
     archive_path = target_dir / "bin" / dep.archive_asset
