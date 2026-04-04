@@ -12,8 +12,8 @@ from agents.llm_config import configure_models, validate_api_key_provided
 from user_config import ensure_config_template, load_user_config
 from core import get_registries, load_plugins
 from diagram_analysis import DiagramGenerator, RunContext
-from diagram_analysis.analysis_json import build_id_to_name_map, parse_unified_analysis
-from diagram_analysis.io_utils import load_full_analysis, save_sub_analysis
+from diagram_analysis.persistence.analysis_json import build_id_to_name_map, parse_unified_analysis
+from diagram_analysis.persistence.io_utils import load_full_analysis, save_sub_analysis
 from logging_config import setup_logging
 from monitoring import monitor_execution
 from monitoring.paths import get_monitoring_run_dir

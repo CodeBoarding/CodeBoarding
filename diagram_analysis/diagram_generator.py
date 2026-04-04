@@ -14,15 +14,15 @@ from agents.details_agent import DetailsAgent
 from agents.llm_config import initialize_llms
 from agents.meta_agent import MetaAgent
 from agents.planner_agent import get_expandable_components
-from diagram_analysis.analysis_json import (
+from diagram_analysis.persistence.analysis_json import (
     FileCoverageReport,
     FileCoverageSummary,
     NotAnalyzedFile,
 )
-from diagram_analysis.checkpoints import remove_legacy_manifest, save_checkpoint
+from diagram_analysis.persistence.checkpoints import remove_legacy_manifest, save_checkpoint
 from diagram_analysis.file_coverage import FileCoverage
-from diagram_analysis.io_utils import save_analysis
-from diagram_analysis.version import Version
+from diagram_analysis.persistence.io_utils import save_analysis
+from diagram_analysis.persistence.version import Version
 from health.config import initialize_health_dir, load_health_config
 from health.runner import run_health_checks
 from monitoring import StreamingStatsWriter

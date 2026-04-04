@@ -17,7 +17,7 @@ from typing import Callable
 
 from agents.agent_responses import AnalysisInsights, Component, FileEntry, FileMethodGroup, MethodEntry
 from agents.change_status import ChangeStatus
-from diagram_analysis.checkpoints import FileComponentIndex
+from diagram_analysis.persistence.checkpoints import FileComponentIndex
 from diagram_analysis.incremental_types import FileDelta, IncrementalDelta, MethodChange
 from repo_utils.change_detector import ChangeSet
 from repo_utils.method_diff import get_method_statuses_for_file

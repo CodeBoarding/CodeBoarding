@@ -591,7 +591,7 @@ class TestDiagramGenerator(unittest.TestCase):
 
         with patch("diagram_analysis.diagram_generator.get_expandable_components", return_value=planned):
             with patch(
-                "diagram_analysis.io_utils.build_unified_analysis_json",
+                "diagram_analysis.persistence.io_utils.build_unified_analysis_json",
                 side_effect=_capture_build,
             ):
                 gen.generate_analysis()
