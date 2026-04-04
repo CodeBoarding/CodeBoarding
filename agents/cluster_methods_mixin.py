@@ -16,8 +16,10 @@ from agents.agent_responses import (
 from constants import MIN_CLUSTERS_THRESHOLD
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cluster_helpers import (
+    MAX_LLM_CLUSTERS,
     get_all_cluster_ids,
     get_files_for_cluster_ids,
+    merge_clusters,
 )
 from static_analyzer.cluster_relations import (
     build_component_relations,
@@ -265,6 +267,15 @@ class ClusterMethodsMixin:
 
                 # Calculate clusters for the subgraph
                 sub_cluster_result = sub_cfg.cluster()
+
+                # Merge into super-clusters if too many (same limit as AbstractionAgent)
+                if len(sub_cluster_result.clusters) > MAX_LLM_CLUSTERS:
+                    n_before = len(sub_cluster_result.clusters)
+                    sub_cluster_result = merge_clusters(sub_cluster_result, sub_cfg.to_networkx(), MAX_LLM_CLUSTERS)
+                    logger.info(
+                        f"[DetailsAgent] Subgraph for '{component.name}': "
+                        f"merged {n_before} -> {len(sub_cluster_result.clusters)} super-clusters"
+                    )
 
                 # Expand to method-level if insufficient clusters
                 sub_cluster_result = self._expand_to_method_level_clusters(sub_cfg, sub_cluster_result)
