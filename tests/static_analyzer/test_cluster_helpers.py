@@ -1,8 +1,15 @@
 import unittest
 from unittest.mock import MagicMock, patch
 
+import networkx as nx
+
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.cluster_helpers import build_all_cluster_results
+from static_analyzer.cluster_helpers import (
+    build_all_cluster_results,
+    enforce_cross_language_budget,
+    reindex_cluster_result,
+    MAX_LLM_CLUSTERS,
+)
 from static_analyzer.graph import ClusterResult
 
 
@@ -55,6 +62,69 @@ class TestClusterHelpers(unittest.TestCase):
 
         shifted_ts_ids = set().union(*result["typescript"].file_to_clusters.values())
         self.assertEqual(shifted_ts_ids, set(range(26, 51)))
+
+    def test_reindex_cluster_result_shifts_all_ids(self):
+        cr = self._make_cluster_result("x", 3)
+        shifted = reindex_cluster_result(cr, 10)
+
+        self.assertEqual(set(shifted.clusters.keys()), {11, 12, 13})
+        self.assertEqual(set(shifted.cluster_to_files.keys()), {11, 12, 13})
+        for file_ids in shifted.file_to_clusters.values():
+            self.assertTrue(file_ids.issubset({11, 12, 13}))
+
+    def test_enforce_cross_language_budget_reindexes_without_overlap(self):
+        """IDs must be unique across languages even when total <= MAX_LLM_CLUSTERS."""
+        cluster_results = {
+            "javascript": self._make_cluster_result("js", 10),
+            "python": self._make_cluster_result("py", 10),
+        }
+        cfg_graphs = {
+            "javascript": nx.DiGraph(),
+            "python": nx.DiGraph(),
+        }
+
+        enforce_cross_language_budget(cluster_results, cfg_graphs)
+
+        js_ids = set(cluster_results["javascript"].clusters.keys())
+        py_ids = set(cluster_results["python"].clusters.keys())
+        self.assertTrue(js_ids.isdisjoint(py_ids), f"Overlap detected: {js_ids & py_ids}")
+        self.assertEqual(len(js_ids) + len(py_ids), 20)
+
+    def test_enforce_cross_language_budget_reduces_when_over_limit(self):
+        """Combined clusters exceeding MAX_LLM_CLUSTERS must be proportionally reduced."""
+        cluster_results = {
+            "javascript": self._make_cluster_result("js", 30),
+            "python": self._make_cluster_result("py", 40),
+        }
+        cfg_graphs = {
+            "javascript": nx.DiGraph(),
+            "python": nx.DiGraph(),
+        }
+
+        with patch("static_analyzer.cluster_helpers.merge_clusters") as mock_merge:
+            mock_merge.side_effect = lambda cr, _g, target: self._make_cluster_result(
+                "js" if next(iter(cr.file_to_clusters)).startswith("/repo/js_") else "py",
+                target,
+            )
+            enforce_cross_language_budget(cluster_results, cfg_graphs)
+
+        total = sum(len(cr.clusters) for cr in cluster_results.values())
+        self.assertLessEqual(total, MAX_LLM_CLUSTERS)
+
+        js_ids = set(cluster_results["javascript"].clusters.keys())
+        py_ids = set(cluster_results["python"].clusters.keys())
+        self.assertTrue(js_ids.isdisjoint(py_ids), f"Overlap detected: {js_ids & py_ids}")
+
+    def test_enforce_cross_language_budget_noop_for_single_language(self):
+        """Single-language results should not be modified."""
+        cr = self._make_cluster_result("py", 10)
+        cluster_results = {"python": cr}
+        cfg_graphs = {"python": nx.DiGraph()}
+
+        enforce_cross_language_budget(cluster_results, cfg_graphs)
+
+        self.assertIs(cluster_results["python"], cr)
+        self.assertEqual(set(cr.clusters.keys()), set(range(1, 11)))
 
 
 if __name__ == "__main__":

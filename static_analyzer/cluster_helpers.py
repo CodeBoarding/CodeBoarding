@@ -88,30 +88,53 @@ def build_all_cluster_results(static_analysis: StaticAnalysisResults) -> dict[st
     # within MAX_LLM_CLUSTERS by proportionally reducing per-language counts,
     # then re-index IDs so they don't overlap across languages.
     if len(cluster_results) > 1:
-        total_clusters = sum(len(cr.clusters) for cr in cluster_results.values())
-        if total_clusters > MAX_LLM_CLUSTERS:
-            # Proportionally allocate budget, minimum 2 per language
-            for lang in list(cluster_results.keys()):
-                cr = cluster_results[lang]
-                lang_count = len(cr.clusters)
-                lang_target = max(2, round(MAX_LLM_CLUSTERS * lang_count / total_clusters))
-                if lang_count > lang_target:
-                    cfg = static_analysis.get_cfg(lang)
-                    logger.info(
-                        f"[SuperCluster] {lang}: reducing {lang_count} -> {lang_target} (cross-language budget)"
-                    )
-                    cluster_results[lang] = merge_clusters(cr, cfg.to_networkx(), lang_target)
-
-        # Re-index so IDs don't overlap across languages
-        offset = 0
-        for lang in sorted(cluster_results.keys()):
-            cr = cluster_results[lang]
-            if offset > 0:
-                cluster_results[lang] = _reindex_cluster_result(cr, offset)
-                logger.info(f"[ReIndex] {lang}: offset IDs by +{offset} (now {offset + 1}-{offset + len(cr.clusters)})")
-            offset += len(cr.clusters)
+        cfg_graphs = {lang: static_analysis.get_cfg(lang).to_networkx() for lang in cluster_results}
+        enforce_cross_language_budget(cluster_results, cfg_graphs)
 
     return cluster_results
+
+
+def enforce_cross_language_budget(
+    cluster_results: dict[str, ClusterResult],
+    cfg_graphs: dict[str, nx.DiGraph],
+    target: int = MAX_LLM_CLUSTERS,
+) -> None:
+    """Enforce a combined cluster budget across languages and re-index IDs.
+
+    Mutates *cluster_results* in place:
+      1. If the combined cluster count exceeds *target*, proportionally reduce
+         each language's count (minimum 2 per language) via ``merge_clusters``.
+      2. Re-index cluster IDs with per-language offsets so they form a unique,
+         non-overlapping namespace (required by downstream code that maps
+         cluster_id → component in a single dict).
+
+    Args:
+        cluster_results: Language → ClusterResult mapping (mutated in place).
+        cfg_graphs: Language → networkx DiGraph for each language (needed by
+            ``merge_clusters`` when reducing).
+        target: Maximum total clusters across all languages.
+    """
+    if len(cluster_results) <= 1:
+        return
+
+    total_clusters = sum(len(cr.clusters) for cr in cluster_results.values())
+    if total_clusters > target:
+        for lang in list(cluster_results.keys()):
+            cr = cluster_results[lang]
+            lang_count = len(cr.clusters)
+            lang_target = max(2, round(target * lang_count / total_clusters))
+            if lang_count > lang_target:
+                logger.info(f"[SuperCluster] {lang}: reducing {lang_count} -> {lang_target} (cross-language budget)")
+                cluster_results[lang] = merge_clusters(cr, cfg_graphs[lang], lang_target)
+
+    # Re-index so IDs don't overlap across languages
+    offset = 0
+    for lang in sorted(cluster_results.keys()):
+        cr = cluster_results[lang]
+        if offset > 0:
+            cluster_results[lang] = reindex_cluster_result(cr, offset)
+            logger.info(f"[ReIndex] {lang}: offset IDs by +{offset} (now {offset + 1}-{offset + len(cr.clusters)})")
+        offset += len(cr.clusters)
 
 
 # ---------------------------------------------------------------------------
@@ -267,7 +290,7 @@ def _find_nearest_by_file_overlap(
     return best_idx
 
 
-def _reindex_cluster_result(cluster_result: ClusterResult, offset: int) -> ClusterResult:
+def reindex_cluster_result(cluster_result: ClusterResult, offset: int) -> ClusterResult:
     """Re-index all cluster IDs in a ClusterResult by adding an offset.
 
     Args:

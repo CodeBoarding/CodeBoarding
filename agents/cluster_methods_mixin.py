@@ -17,6 +17,7 @@ from constants import MIN_CLUSTERS_THRESHOLD
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cluster_helpers import (
     MAX_LLM_CLUSTERS,
+    enforce_cross_language_budget,
     get_all_cluster_ids,
     get_files_for_cluster_ids,
     merge_clusters,
@@ -252,7 +253,6 @@ class ClusterMethodsMixin:
             abs_path = os.path.join(self.repo_dir, f) if not os.path.isabs(f) else f
             assigned_file_set.add(abs_path)
 
-        result_parts = []
         cluster_results: dict[str, ClusterResult] = {}
         subgraph_cfgs: dict[str, CallGraph] = {}
 
@@ -281,11 +281,20 @@ class ClusterMethodsMixin:
                 sub_cluster_result = self._expand_to_method_level_clusters(sub_cfg, sub_cluster_result)
                 cluster_results[lang] = sub_cluster_result
 
-                cluster_str = sub_cfg.to_cluster_string(cluster_result=sub_cluster_result)
-                if cluster_str.strip() and cluster_str not in ("empty", "none", "No clusters found."):
-                    result_parts.append(f"\n## {lang.capitalize()} - Component CFG\n")
-                    result_parts.append(cluster_str)
-                    result_parts.append("\n")
+        # Cross-language: enforce combined budget and unique IDs
+        if len(cluster_results) > 1:
+            cfg_nx = {lang: subgraph_cfgs[lang].to_networkx() for lang in cluster_results}
+            enforce_cross_language_budget(cluster_results, cfg_nx)
+
+        result_parts = []
+        for lang in self.static_analysis.get_languages():
+            if lang not in cluster_results:
+                continue
+            cluster_str = subgraph_cfgs[lang].to_cluster_string(cluster_result=cluster_results[lang])
+            if cluster_str.strip() and cluster_str not in ("empty", "none", "No clusters found."):
+                result_parts.append(f"\n## {lang.capitalize()} - Component CFG\n")
+                result_parts.append(cluster_str)
+                result_parts.append("\n")
 
         result = "".join(result_parts)
 
