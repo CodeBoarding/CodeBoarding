@@ -20,7 +20,8 @@ from diagram_analysis.analysis_json import (
     NotAnalyzedFile,
 )
 from diagram_analysis.file_coverage import FileCoverage
-from diagram_analysis.io_utils import save_analysis
+from static_analyzer.cluster_relations import build_global_relations
+from diagram_analysis.io_utils import load_full_analysis, save_analysis, save_sub_analysis
 from diagram_analysis.manifest import (
     build_manifest_from_analysis,
     save_manifest,
@@ -399,6 +400,68 @@ class DiagramGenerator:
 
         return expanded_components, sub_analyses
 
+    def expand_component(
+        self,
+        component: Component,
+    ) -> tuple[AnalysisInsights, list[Component]] | None:
+        """Expand a single component: run detail analysis, save, and rebuild global relations.
+
+        This is the shared path for both CLI partial updates and IDE expand operations.
+        The caller is responsible for loading the analysis and finding the component.
+
+        Returns (sub_analysis, new_components) on success, None on failure.
+        """
+        if self.details_agent is None or self.abstraction_agent is None:
+            self.pre_analysis()
+
+        comp_id, sub_analysis, new_components = self.process_component(component)
+        if comp_id is None or sub_analysis is None:
+            logger.error("Failed to generate sub-analysis for component '%s'", component.component_id)
+            return None
+
+        output_dir = Path(self.output_dir)
+        save_sub_analysis(sub_analysis, output_dir, component.component_id)
+        logger.info("Saved sub-analysis for component '%s'", component.component_id)
+
+        # Rebuild global cross-boundary relations so the new sub-components
+        # get proper edges to components outside their parent's scope.
+        updated = load_full_analysis(output_dir)
+        if updated:
+            updated_root, updated_subs = updated
+            global_relations = self.rebuild_global_relations(updated_root, updated_subs)
+            if global_relations:
+                save_analysis(
+                    analysis=updated_root,
+                    output_dir=output_dir,
+                    sub_analyses=updated_subs,
+                    repo_name=self.repo_name,
+                )
+                logger.info("Rebuilt %d global relations after expanding '%s'", len(global_relations), comp_id)
+
+        return sub_analysis, new_components
+
+    def rebuild_global_relations(
+        self,
+        root_analysis: AnalysisInsights,
+        sub_analyses: dict[str, AnalysisInsights],
+    ) -> list:
+        """Rebuild cross-boundary relations using the full CFG.
+
+        Computes a global node-to-deepest-component-id map so that relations
+        like "2.1" -> "3.5.2" (across parent scopes) are discovered.
+
+        Mutates ``root_analysis.components_relations`` in place and returns
+        the new relations list.  Returns an empty list when static analysis
+        data is not available.
+        """
+        if not self.static_analysis:
+            return []
+
+        cfg_graphs = {lang: self.static_analysis.get_cfg(lang) for lang in self.static_analysis.get_languages()}
+        global_relations = build_global_relations(root_analysis, sub_analyses, cfg_graphs)
+        root_analysis.components_relations = global_relations
+        return global_relations
+
     def generate_analysis(self) -> Path:
         """
         Generate the graph analysis for the given repository.
@@ -424,6 +487,14 @@ class DiagramGenerator:
 
             # Process components using a frontier queue: submit children as soon as parent finishes.
             expanded_components, sub_analyses = self._generate_subcomponents(analysis, root_components)
+
+            # Build global cross-boundary relations at the deepest available granularity.
+            # This uses the full CFG with a global node->deepest_component_id map to find
+            # relations like "2.1" -> "3.5.2" that per-level analysis cannot see.
+            if sub_analyses:
+                global_relations = self.rebuild_global_relations(analysis, sub_analyses)
+                if global_relations:
+                    logger.info(f"Replaced per-level relations with {len(global_relations)} global relations")
 
             # Build file coverage summary for metadata
             file_coverage_summary = None

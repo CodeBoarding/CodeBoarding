@@ -83,6 +83,143 @@ def build_component_relations(
     return relations
 
 
+def build_global_node_to_component_map(
+    root_analysis: AnalysisInsights,
+    sub_analyses: dict[str, AnalysisInsights],
+) -> dict[str, str]:
+    """Map every node to its deepest component_id across the entire hierarchy.
+
+    Walks all sub-analyses and maps each node's qualified_name to the most specific
+    (deepest) component it belongs to. This enables cross-boundary relation detection
+    between components at different hierarchy levels (e.g., "2.1" -> "3.5.2").
+    """
+    node_to_component: dict[str, str] = {}
+
+    def collect_from_analysis(analysis: AnalysisInsights) -> None:
+        for comp in analysis.components:
+            # If this component has a sub-analysis, its children provide deeper mappings.
+            # We still record the parent mapping first; children will overwrite with deeper IDs.
+            for fg in comp.file_methods:
+                for method in fg.methods:
+                    node_to_component[method.qualified_name] = comp.component_id
+
+            if comp.component_id in sub_analyses:
+                collect_from_analysis(sub_analyses[comp.component_id])
+
+    collect_from_analysis(root_analysis)
+    return node_to_component
+
+
+def build_global_relations(
+    root_analysis: AnalysisInsights,
+    sub_analyses: dict[str, AnalysisInsights],
+    cfg_graphs: dict[str, CallGraph],
+) -> list[Relation]:
+    """Build cross-boundary relations at the deepest available granularity.
+
+    Uses the full CFG with a global node-to-component map to find ALL edges between
+    components at any depth. This captures relationships like "2.1" -> "3.5.2" that
+    per-level analysis cannot see.
+
+    LLM-generated labels from all levels are matched where possible; otherwise
+    static-only relations get the auto-label "calls".
+    """
+    # Build global map: node -> deepest component_id
+    global_map = build_global_node_to_component_map(root_analysis, sub_analyses)
+
+    # Find all inter-component edges using the full CFG
+    static_relations = build_component_relations(global_map, cfg_graphs)
+
+    # Collect all LLM-generated relations from every level for label matching
+    all_llm_relations: list[Relation] = list(root_analysis.components_relations)
+    for sub_analysis in sub_analyses.values():
+        all_llm_relations.extend(sub_analysis.components_relations)
+
+    # Build id-to-name map across all levels
+    id_to_name: dict[str, str] = {}
+
+    def collect_names(analysis: AnalysisInsights) -> None:
+        for comp in analysis.components:
+            id_to_name[comp.component_id] = comp.name
+            if comp.component_id in sub_analyses:
+                collect_names(sub_analyses[comp.component_id])
+
+    collect_names(root_analysis)
+
+    # Index LLM relations by (src_id, dst_id) for label matching.
+    # A parent-level relation like "1" -> "2" should provide labels for
+    # child relations like "1.1" -> "2.3". We match by checking if the
+    # static relation's src/dst are descendants of the LLM relation's src/dst.
+    llm_by_ids: dict[tuple[str, str], Relation] = {}
+    for rel in all_llm_relations:
+        llm_by_ids[(rel.src_id, rel.dst_id)] = rel
+
+    def find_llm_label(src_id: str, dst_id: str) -> str | None:
+        """Find the best LLM label for a static relation, checking ancestors."""
+        # Direct match
+        if (src_id, dst_id) in llm_by_ids:
+            return llm_by_ids[(src_id, dst_id)].relation
+
+        # Check ancestor combinations: e.g., for "1.2.3" -> "4.5",
+        # try "1.2" -> "4", "1" -> "4", etc.
+        src_parts = src_id.split(".")
+        dst_parts = dst_id.split(".")
+        for si in range(len(src_parts), 0, -1):
+            src_ancestor = ".".join(src_parts[:si])
+            for di in range(len(dst_parts), 0, -1):
+                dst_ancestor = ".".join(dst_parts[:di])
+                if (src_ancestor, dst_ancestor) in llm_by_ids:
+                    return llm_by_ids[(src_ancestor, dst_ancestor)].relation
+        return None
+
+    result: list[Relation] = []
+    for sr in static_relations:
+        label = find_llm_label(sr.src_cluster_id, sr.dst_cluster_id)
+        result.append(
+            Relation(
+                relation=label or "calls",
+                src_name=id_to_name.get(sr.src_cluster_id, sr.src_cluster_id),
+                dst_name=id_to_name.get(sr.dst_cluster_id, sr.dst_cluster_id),
+                src_id=sr.src_cluster_id,
+                dst_id=sr.dst_cluster_id,
+                edge_count=sr.edge_count,
+                is_static=True,
+            )
+        )
+
+    # Also include LLM-only relations (no static backing) — these are architectural
+    # relations the LLM identified that may not have direct CFG edges.
+    static_keys = {(sr.src_cluster_id, sr.dst_cluster_id) for sr in static_relations}
+    for rel in all_llm_relations:
+        if (rel.src_id, rel.dst_id) not in static_keys:
+            # Check this isn't a parent-level relation superseded by a child-level one.
+            # E.g., skip "1" -> "2" if "1.1" -> "2.3" exists in static_keys.
+            is_superseded = (
+                any(
+                    src.startswith(rel.src_id + ".") or src == rel.src_id
+                    for src, dst in static_keys
+                    if dst.startswith(rel.dst_id + ".") or dst == rel.dst_id
+                )
+                if rel.src_id and rel.dst_id
+                else False
+            )
+            if not is_superseded:
+                result.append(
+                    Relation(
+                        relation=rel.relation,
+                        src_name=rel.src_name,
+                        dst_name=rel.dst_name,
+                        src_id=rel.src_id,
+                        dst_id=rel.dst_id,
+                        edge_count=0,
+                        is_static=False,
+                    )
+                )
+
+    logger.info(f"Built {len(result)} global relations ({len(static_relations)} static, rest LLM-only)")
+    return result
+
+
 def merge_relations(
     llm_relations: list[Relation],
     static_relations: list[ClusterRelation],
