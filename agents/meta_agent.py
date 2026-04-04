@@ -46,7 +46,6 @@ class MetaAgent(CodeBoardingAgent):
         )
 
         self._meta_cache = MetaCache(repo_dir=repo_dir, ignore_manager=self.ignore_manager)
-        self._cache = self._meta_cache
 
     @trace
     def analyze_project_metadata(self, skip_cache: bool = False) -> MetaAnalysisInsights:
