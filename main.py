@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import shutil
+from typing import Literal
 from pathlib import Path
 
 import requests
@@ -12,6 +13,8 @@ from agents.llm_config import configure_models, validate_api_key_provided
 from user_config import ensure_config_template, load_user_config
 from core import get_registries, load_plugins
 from diagram_analysis import DiagramGenerator, IncrementalAnalysisRequiresFullError, RunContext
+from diagram_analysis.incremental_history import append_incremental_history_event, build_incremental_history_event
+from diagram_analysis.incremental_models import IncrementalRunStats, IncrementalSummary
 from diagram_analysis.analysis_json import build_id_to_name_map, parse_unified_analysis
 from diagram_analysis.io_utils import load_full_analysis, save_sub_analysis
 from logging_config import setup_logging
@@ -44,6 +47,32 @@ def log_action(action: str, **fields: object) -> None:
         **fields,
     }
     action_logger.info(json.dumps(payload, default=str, sort_keys=True))
+
+
+def record_incremental_history(
+    *,
+    output_dir: Path,
+    run_id: str,
+    project_name: str,
+    event_type: Literal["incremental_analysis", "baseline_reset"],
+    status: Literal["completed", "requires_full_analysis"],
+    message: str,
+    summary: IncrementalSummary | None = None,
+    stats: IncrementalRunStats | None = None,
+) -> None:
+    try:
+        event = build_incremental_history_event(
+            run_id=run_id,
+            event_type=event_type,
+            status=status,
+            message=message,
+            project_name=project_name,
+            summary=summary,
+            stats=stats,
+        )
+        append_incremental_history_event(output_dir, event)
+    except Exception as exc:
+        logger.warning("Failed to record incremental history: %s", exc)
 
 
 def env_monitoring_enabled() -> bool:
@@ -450,6 +479,16 @@ def process_local_repository(
             result = generator.generate_analysis_incremental()
         except IncrementalAnalysisRequiresFullError as e:
             logger.error(str(e))
+            record_incremental_history(
+                output_dir=output_dir,
+                run_id=run_id,
+                project_name=project_name,
+                event_type="incremental_analysis",
+                status="requires_full_analysis",
+                message=str(e),
+                summary=e.summary,
+                stats=generator.last_incremental_run_stats,
+            )
             log_action(
                 "incremental_analysis_requires_full",
                 incremental_summary=e.summary.to_dict() if e.summary is not None else None,
@@ -462,6 +501,20 @@ def process_local_repository(
             logger.error(str(e))
             raise SystemExit(1) from e
         logger.info(f"Incremental analysis completed: {result}")
+        record_incremental_history(
+            output_dir=output_dir,
+            run_id=run_id,
+            project_name=project_name,
+            event_type="incremental_analysis",
+            status="completed",
+            message=(
+                generator.last_incremental_summary.message
+                if generator.last_incremental_summary is not None
+                else "Incremental analysis completed."
+            ),
+            summary=generator.last_incremental_summary,
+            stats=generator.last_incremental_run_stats,
+        )
         log_action(
             "incremental_analysis_completed",
             project_name=project_name,
@@ -492,6 +545,15 @@ def process_local_repository(
         )
         result = generator.generate_incremental_analysis_baseline()
         logger.info(f"Baseline reset completed: {result}")
+        record_incremental_history(
+            output_dir=output_dir,
+            run_id=run_id,
+            project_name=project_name,
+            event_type="baseline_reset",
+            status="completed",
+            message="A full analysis completed and a new incremental baseline checkpoint was saved.",
+            stats=generator.last_incremental_run_stats,
+        )
         log_action(
             "baseline_reset_completed",
             project_name=project_name,
