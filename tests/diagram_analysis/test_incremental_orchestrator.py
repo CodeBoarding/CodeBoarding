@@ -63,7 +63,7 @@ def test_incremental_skips_llm_init_when_trace_plan_is_empty(tmp_path):
     output_dir.mkdir(parents=True, exist_ok=True)
     gen.static_analysis = Mock()
 
-    checkpoint = Mock(checkpoint_ref="refs/codeboarding/checkpoints/latest")
+    checkpoint = Mock(checkpoint_id="cp-1", checkpoint_ref="refs/codeboarding/checkpoints/latest")
     root_analysis = _make_root_analysis(2)
     delta = Mock(is_purely_additive=False, file_deltas=[Mock()])
     changes = Mock(parsed_diff=None, deleted_files=[])
@@ -89,7 +89,13 @@ def test_incremental_skips_llm_init_when_trace_plan_is_empty(tmp_path):
         patch("diagram_analysis.diagram_generator.initialize_llms") as mock_initialize_llms,
         patch.object(gen, "_run_semantic_trace") as mock_run_semantic_trace,
         patch.object(gen, "_determine_escalation", return_value=EscalationLevel.NONE),
-        patch.object(gen, "_save_incremental_result", return_value=saved_path) as mock_save_result,
+        patch.object(
+            gen,
+            "_save_incremental_result",
+            side_effect=lambda *args, **kwargs: (
+                setattr(gen, "_last_saved_checkpoint_metadata", Mock(checkpoint_id="cp-2")) or saved_path
+            ),
+        ) as mock_save_result,
     ):
         result = gen.generate_analysis_incremental()
 
@@ -101,6 +107,10 @@ def test_incremental_skips_llm_init_when_trace_plan_is_empty(tmp_path):
     assert gen.last_incremental_summary is not None
     assert gen.last_incremental_summary.kind == IncrementalSummaryKind.COSMETIC_ONLY
     assert gen.last_incremental_summary.used_llm is False
+    assert gen.last_incremental_run_stats is not None
+    assert gen.last_incremental_run_stats.baseline_checkpoint_id == "cp-1"
+    assert gen.last_incremental_run_stats.result_checkpoint_id == "cp-2"
+    assert gen.last_incremental_run_stats.file_deltas_count == 1
 
 
 def test_incremental_runs_semantic_trace_for_purely_additive_delta(tmp_path):
@@ -109,7 +119,7 @@ def test_incremental_runs_semantic_trace_for_purely_additive_delta(tmp_path):
     output_dir.mkdir(parents=True, exist_ok=True)
     gen.static_analysis = Mock()
 
-    checkpoint = Mock(checkpoint_ref="refs/codeboarding/checkpoints/latest")
+    checkpoint = Mock(checkpoint_id="cp-1", checkpoint_ref="refs/codeboarding/checkpoints/latest")
     root_analysis = _make_root_analysis(2)
     file_component_index = Mock()
     delta = Mock(is_purely_additive=True, file_deltas=[Mock(file_status="modified")])
@@ -138,7 +148,13 @@ def test_incremental_runs_semantic_trace_for_purely_additive_delta(tmp_path):
         ) as mock_initialize_llms,
         patch.object(gen, "_run_semantic_trace", return_value=trace_result) as mock_run_semantic_trace,
         patch.object(gen, "_determine_escalation", return_value=EscalationLevel.NONE),
-        patch.object(gen, "_save_incremental_result", return_value=saved_path) as mock_save_result,
+        patch.object(
+            gen,
+            "_save_incremental_result",
+            side_effect=lambda *args, **kwargs: (
+                setattr(gen, "_last_saved_checkpoint_metadata", Mock(checkpoint_id="cp-2")) or saved_path
+            ),
+        ) as mock_save_result,
     ):
         result = gen.generate_analysis_incremental()
 
@@ -159,6 +175,10 @@ def test_incremental_runs_semantic_trace_for_purely_additive_delta(tmp_path):
     assert gen.last_incremental_summary is not None
     assert gen.last_incremental_summary.kind == IncrementalSummaryKind.ADDITIVE_ONLY
     assert gen.last_incremental_summary.used_llm is True
+    assert gen.last_incremental_run_stats is not None
+    assert gen.last_incremental_run_stats.baseline_checkpoint_id == "cp-1"
+    assert gen.last_incremental_run_stats.result_checkpoint_id == "cp-2"
+    assert gen.last_incremental_run_stats.file_deltas_count == 1
 
 
 def test_incremental_summary_reports_no_changes_when_worktree_is_clean(tmp_path):
@@ -167,7 +187,7 @@ def test_incremental_summary_reports_no_changes_when_worktree_is_clean(tmp_path)
     output_dir.mkdir(parents=True, exist_ok=True)
     gen.static_analysis = Mock()
 
-    checkpoint = Mock(checkpoint_ref="refs/codeboarding/checkpoints/latest")
+    checkpoint = Mock(checkpoint_id="cp-1", checkpoint_ref="refs/codeboarding/checkpoints/latest")
     root_analysis = _make_root_analysis(1)
     changes = ChangeSet()
     restored_path = output_dir / "analysis.json"
@@ -188,6 +208,9 @@ def test_incremental_summary_reports_no_changes_when_worktree_is_clean(tmp_path)
     assert gen.last_incremental_summary is not None
     assert gen.last_incremental_summary.kind == IncrementalSummaryKind.NO_CHANGES
     assert gen.last_incremental_summary.used_llm is False
+    assert gen.last_incremental_run_stats is not None
+    assert gen.last_incremental_run_stats.baseline_checkpoint_id == "cp-1"
+    assert gen.last_incremental_run_stats.file_deltas_count == 0
 
 
 def test_build_incremental_summary_uses_semantic_impact_sentence():
@@ -244,7 +267,7 @@ def test_incremental_syntax_error_requires_full_analysis(tmp_path):
     output_dir.mkdir(parents=True, exist_ok=True)
     gen.static_analysis = Mock()
 
-    checkpoint = Mock(checkpoint_ref="refs/codeboarding/checkpoints/latest")
+    checkpoint = Mock(checkpoint_id="cp-1", checkpoint_ref="refs/codeboarding/checkpoints/latest")
     root_analysis = _make_root_analysis(2)
     delta = Mock(is_purely_additive=False, file_deltas=[Mock(file_status="modified")])
     changes = Mock(parsed_diff=None, deleted_files=[])
@@ -281,6 +304,10 @@ def test_incremental_syntax_error_requires_full_analysis(tmp_path):
     assert gen.last_incremental_summary is not None
     assert gen.last_incremental_summary.kind == IncrementalSummaryKind.REQUIRES_FULL_ANALYSIS
     assert gen.last_incremental_summary.requires_full_analysis is True
+    assert gen.last_incremental_run_stats is not None
+    assert gen.last_incremental_run_stats.baseline_checkpoint_id == "cp-1"
+    assert gen.last_incremental_run_stats.result_checkpoint_id is None
+    assert gen.last_incremental_run_stats.file_deltas_count == 1
 
 
 def test_incremental_root_escalation_requires_full_analysis(tmp_path):
@@ -289,7 +316,7 @@ def test_incremental_root_escalation_requires_full_analysis(tmp_path):
     output_dir.mkdir(parents=True, exist_ok=True)
     gen.static_analysis = Mock()
 
-    checkpoint = Mock(checkpoint_ref="refs/codeboarding/checkpoints/latest")
+    checkpoint = Mock(checkpoint_id="cp-1", checkpoint_ref="refs/codeboarding/checkpoints/latest")
     root_analysis = _make_root_analysis(2)
     delta = Mock(is_purely_additive=False, file_deltas=[Mock(file_status="modified")])
     changes = Mock(parsed_diff=None, deleted_files=[])
@@ -327,6 +354,10 @@ def test_incremental_root_escalation_requires_full_analysis(tmp_path):
     assert gen.last_incremental_summary is not None
     assert gen.last_incremental_summary.kind == IncrementalSummaryKind.REQUIRES_FULL_ANALYSIS
     assert gen.last_incremental_summary.requires_full_analysis is True
+    assert gen.last_incremental_run_stats is not None
+    assert gen.last_incremental_run_stats.baseline_checkpoint_id == "cp-1"
+    assert gen.last_incremental_run_stats.result_checkpoint_id is None
+    assert gen.last_incremental_run_stats.file_deltas_count == 1
 
 
 # -------------------------------------------------------------------

@@ -148,6 +148,30 @@ class IncrementalSummary:
         }
 
 
+@dataclass
+class IncrementalRunStats:
+    """Structured stats for an incremental or baseline run."""
+
+    repo_commit: str | None = None
+    baseline_checkpoint_id: str | None = None
+    result_checkpoint_id: str | None = None
+    file_deltas_count: int = 0
+    components_affected: int = 0
+    impacted_methods_count: int = 0
+    hops_used: int = 0
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "repoCommit": self.repo_commit,
+            "baselineCheckpointId": self.baseline_checkpoint_id,
+            "resultCheckpointId": self.result_checkpoint_id,
+            "fileDeltasCount": self.file_deltas_count,
+            "componentsAffected": self.components_affected,
+            "impactedMethodsCount": self.impacted_methods_count,
+            "hopsUsed": self.hops_used,
+        }
+
+
 # ---------------------------------------------------------------------------
 # JSON Patch models (step 10)
 # ---------------------------------------------------------------------------

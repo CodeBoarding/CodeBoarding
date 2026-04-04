@@ -13,7 +13,13 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel
 
-    from diagram_analysis.incremental_models import EscalationLevel, IncrementalSummary, TraceResult
+    from diagram_analysis.checkpoints import CheckpointMetadata
+    from diagram_analysis.incremental_models import (
+        EscalationLevel,
+        IncrementalRunStats,
+        IncrementalSummary,
+        TraceResult,
+    )
     from diagram_analysis.incremental_types import IncrementalDelta
 
 from agents.abstraction_agent import AbstractionAgent
@@ -105,7 +111,9 @@ class DiagramGenerator:
         self._cached_method_changes = ChangeSet()
         self._method_change_resolution_attempted = False
         self._method_diff_base_ref: str | None = "HEAD"
+        self._last_saved_checkpoint_metadata: CheckpointMetadata | None = None
         self.last_incremental_summary: IncrementalSummary | None = None
+        self.last_incremental_run_stats: IncrementalRunStats | None = None
 
     @staticmethod
     def _is_rename_only_delta(delta: IncrementalDelta) -> bool:
@@ -262,6 +270,48 @@ class DiagramGenerator:
         self._method_diff_base_ref = base_ref
         self._cached_method_changes = ChangeSet(base_ref=base_ref or "", target_ref="")
         self._method_change_resolution_attempted = False
+
+    @staticmethod
+    def _count_impacted_methods(trace_result: TraceResult | None) -> int:
+        if trace_result is None:
+            return 0
+        if trace_result.all_impacted_methods:
+            return len(set(trace_result.all_impacted_methods))
+        impacted_methods = {
+            method
+            for impacted_component in trace_result.impacted_components
+            for method in impacted_component.impacted_methods
+        }
+        return len(impacted_methods)
+
+    @classmethod
+    def _build_incremental_run_stats(
+        cls,
+        *,
+        baseline_checkpoint_id: str | None = None,
+        result_checkpoint_id: str | None = None,
+        delta: IncrementalDelta | None = None,
+        changes: ChangeSet | None = None,
+        trace_result: TraceResult | None = None,
+        repo_commit: str | None = None,
+    ) -> IncrementalRunStats:
+        from diagram_analysis.incremental_models import IncrementalRunStats
+
+        file_deltas_count = 0
+        if delta is not None:
+            file_deltas_count = len(delta.file_deltas)
+        elif changes is not None:
+            file_deltas_count = len(changes.changes)
+
+        return IncrementalRunStats(
+            repo_commit=repo_commit,
+            baseline_checkpoint_id=baseline_checkpoint_id,
+            result_checkpoint_id=result_checkpoint_id,
+            file_deltas_count=file_deltas_count,
+            components_affected=len(trace_result.impacted_components) if trace_result is not None else 0,
+            impacted_methods_count=cls._count_impacted_methods(trace_result),
+            hops_used=trace_result.hops_used if trace_result is not None else 0,
+        )
 
     def _apply_method_diff_statuses(
         self,
@@ -616,17 +666,22 @@ class DiagramGenerator:
 
             return analysis_path
 
-    def _save_checkpoint(self) -> None:
+    def _save_checkpoint(self) -> CheckpointMetadata | None:
         """Save the latest successful analysis as a checkpoint."""
+        self._last_saved_checkpoint_metadata = None
         try:
             checkpoint = save_checkpoint(self.repo_location, Path(self.output_dir), run_id=self.run_id)
+            self._last_saved_checkpoint_metadata = checkpoint
             logger.info("Saved checkpoint %s at %s", checkpoint.checkpoint_id, checkpoint.checkpoint_commit)
+            return checkpoint
         except Exception as exc:
             logger.warning("Failed to save checkpoint: %s", exc)
+            return None
 
     def generate_incremental_analysis_baseline(self) -> Path:
         """Run a full analysis and save a fresh checkpoint for future incremental runs."""
         latest_checkpoint = get_latest_checkpoint(self.repo_location, Path(self.output_dir))
+        self.last_incremental_run_stats = None
 
         if latest_checkpoint is None:
             logger.info(
@@ -642,7 +697,12 @@ class DiagramGenerator:
             self._set_method_diff_base_ref(latest_checkpoint.checkpoint_ref)
 
         analysis_path = self.generate_analysis()
-        self._save_checkpoint()
+        checkpoint = self._save_checkpoint()
+        self.last_incremental_run_stats = self._build_incremental_run_stats(
+            baseline_checkpoint_id=latest_checkpoint.checkpoint_id if latest_checkpoint is not None else None,
+            result_checkpoint_id=checkpoint.checkpoint_id if checkpoint is not None else None,
+            repo_commit=get_git_commit_hash(self.repo_location),
+        )
         return analysis_path
 
     def _raise_requires_full_analysis(
@@ -659,6 +719,16 @@ class DiagramGenerator:
             trace_result=trace_result,
             escalation=escalation,
             used_llm=used_llm,
+        )
+        self.last_incremental_run_stats = self._build_incremental_run_stats(
+            baseline_checkpoint_id=(
+                self.last_incremental_run_stats.baseline_checkpoint_id
+                if self.last_incremental_run_stats is not None
+                else None
+            ),
+            delta=delta,
+            trace_result=trace_result,
+            repo_commit=get_git_commit_hash(self.repo_location),
         )
         raise IncrementalAnalysisRequiresFullError(message, summary=self.last_incremental_summary)
 
@@ -681,6 +751,8 @@ class DiagramGenerator:
         from diagram_analysis.incremental_updater import apply_delta
 
         self.last_incremental_summary = None
+        self.last_incremental_run_stats = None
+        self._last_saved_checkpoint_metadata = None
         output_dir = Path(self.output_dir)
         _t_total = time.time()
 
@@ -691,6 +763,10 @@ class DiagramGenerator:
         )
         logger.info("[TIMING] load_incremental_baseline: %.2fs", time.time() - _t)
         base_ref = latest_checkpoint.checkpoint_ref
+        self.last_incremental_run_stats = self._build_incremental_run_stats(
+            baseline_checkpoint_id=latest_checkpoint.checkpoint_id,
+            repo_commit=get_git_commit_hash(self.repo_location),
+        )
         static_analysis = self.static_analysis
         assert static_analysis is not None  # guaranteed by _load_incremental_baseline
 
@@ -708,6 +784,11 @@ class DiagramGenerator:
         if delta is None:
             result = self._restore_or_raise(output_dir)
             self.last_incremental_summary = self._build_incremental_summary(changes=changes)
+            self.last_incremental_run_stats = self._build_incremental_run_stats(
+                baseline_checkpoint_id=latest_checkpoint.checkpoint_id,
+                changes=changes,
+                repo_commit=get_git_commit_hash(self.repo_location),
+            )
             return result
 
         _t = time.time()
@@ -721,6 +802,16 @@ class DiagramGenerator:
             logger.info("[TIMING] save_incremental_result: %.2fs", time.time() - _t)
             logger.info("[TIMING] generate_analysis_incremental total: %.2fs", time.time() - _t_total)
             self.last_incremental_summary = self._build_incremental_summary(delta=delta)
+            self.last_incremental_run_stats = self._build_incremental_run_stats(
+                baseline_checkpoint_id=latest_checkpoint.checkpoint_id,
+                result_checkpoint_id=(
+                    self._last_saved_checkpoint_metadata.checkpoint_id
+                    if self._last_saved_checkpoint_metadata is not None
+                    else None
+                ),
+                delta=delta,
+                repo_commit=get_git_commit_hash(self.repo_location),
+            )
             return result
 
         # 3. Skip LLM setup entirely when deterministic analysis shows no traceable work.
@@ -803,6 +894,17 @@ class DiagramGenerator:
             escalation=escalation,
             used_llm=used_llm,
         )
+        self.last_incremental_run_stats = self._build_incremental_run_stats(
+            baseline_checkpoint_id=latest_checkpoint.checkpoint_id,
+            result_checkpoint_id=(
+                self._last_saved_checkpoint_metadata.checkpoint_id
+                if self._last_saved_checkpoint_metadata is not None
+                else None
+            ),
+            delta=delta,
+            trace_result=trace_result,
+            repo_commit=get_git_commit_hash(self.repo_location),
+        )
         return result
 
     def _load_incremental_baseline(self, output_dir: Path):
@@ -830,6 +932,10 @@ class DiagramGenerator:
             "Incremental analysis against checkpoint id=%s ref=%s",
             latest_checkpoint.checkpoint_id,
             latest_checkpoint.checkpoint_ref,
+        )
+        self.last_incremental_run_stats = self._build_incremental_run_stats(
+            baseline_checkpoint_id=latest_checkpoint.checkpoint_id,
+            repo_commit=get_git_commit_hash(self.repo_location),
         )
 
         _t = time.time()

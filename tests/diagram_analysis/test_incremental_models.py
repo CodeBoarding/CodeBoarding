@@ -3,6 +3,7 @@
 from diagram_analysis.incremental_models import (
     AnalysisPatch,
     EscalationLevel,
+    IncrementalRunStats,
     IncrementalSummary,
     IncrementalSummaryKind,
     ImpactedComponent,
@@ -119,4 +120,26 @@ def test_incremental_summary_to_dict():
         "traceStopReason": TraceStopReason.NO_MATERIAL_IMPACT,
         "escalationLevel": EscalationLevel.NONE,
         "requiresFullAnalysis": False,
+    }
+
+
+def test_incremental_run_stats_to_dict():
+    stats = IncrementalRunStats(
+        repo_commit="abc123",
+        baseline_checkpoint_id="cp-1",
+        result_checkpoint_id="cp-2",
+        file_deltas_count=2,
+        components_affected=1,
+        impacted_methods_count=3,
+        hops_used=2,
+    )
+
+    assert stats.to_dict() == {
+        "repoCommit": "abc123",
+        "baselineCheckpointId": "cp-1",
+        "resultCheckpointId": "cp-2",
+        "fileDeltasCount": 2,
+        "componentsAffected": 1,
+        "impactedMethodsCount": 3,
+        "hopsUsed": 2,
     }

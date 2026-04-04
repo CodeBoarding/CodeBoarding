@@ -4329,7 +4329,7 @@ Persists analysis results and implements incremental update logic using manifest
   - `diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis` ([L345-L399](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py#L345-L399)) - Method
   - `diagram_analysis.diagram_generator.DiagramGenerator._save_manifest` ([L401-L419](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py#L401-L419)) - Method
   - `diagram_analysis.diagram_generator.DiagramGenerator.try_incremental_update` ([L421-L498](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py#L421-L498)) - Method
-  - `diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_smart` ([L500-L512](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py#L500-L512)) - Method
+  - `diagram_analysis.diagram_generator.DiagramGenerator.generate_incremental_analysis_baseline` ([L500-L512](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py#L500-L512)) - Method
 - [`diagram_analysis/file_coverage.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/file_coverage.py)
   - `diagram_analysis.file_coverage.FileCoverage` ([L22-L211](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/file_coverage.py#L22-L211)) - Class
   - `diagram_analysis.file_coverage.FileCoverage.__init__` ([L29-L37](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/file_coverage.py#L29-L37)) - Method
@@ -4790,7 +4790,7 @@ Synthesizes outputs from MAS and static analysis to generate documentation artif
   - `diagram_analysis.diagram_generator.generate_analysis` ([L345-L399](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py#L345-L399)) - Method
   - `diagram_analysis.diagram_generator._save_manifest` ([L401-L419](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py#L401-L419)) - Method
   - `diagram_analysis.diagram_generator.try_incremental_update` ([L421-L498](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py#L421-L498)) - Method
-  - `diagram_analysis.diagram_generator.generate_analysis_smart` ([L500-L512](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py#L500-L512)) - Method
+  - `diagram_analysis.diagram_generator.generate_incremental_analysis_baseline` ([L500-L512](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py#L500-L512)) - Method
 - [`diagram_analysis/incremental/path_patching.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/incremental/path_patching.py)
   - `diagram_analysis.incremental.path_patching.patch_paths_in_analysis` ([L16-L52](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/incremental/path_patching.py#L16-L52)) - Function
   - `diagram_analysis.incremental.path_patching.patch_paths_in_manifest` ([L55-L72](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/incremental/path_patching.py#L55-L72)) - Function

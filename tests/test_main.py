@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, Mock, patch
 
 import main as main_module
 from diagram_analysis import IncrementalAnalysisRequiresFullError
-from diagram_analysis.incremental_models import IncrementalSummary, IncrementalSummaryKind
+from diagram_analysis.incremental_models import IncrementalRunStats, IncrementalSummary, IncrementalSummaryKind
 from main import (
     copy_files,
     generate_analysis,
@@ -494,8 +494,11 @@ class TestProcessLocalRepository(unittest.TestCase):
             )
 
     @patch("main.log_action")
+    @patch("main.append_incremental_history_event")
     @patch("main.DiagramGenerator")
-    def test_process_local_repository_incremental_logs_actions(self, mock_generator_class, mock_log_action):
+    def test_process_local_repository_incremental_logs_actions(
+        self, mock_generator_class, mock_append_history, mock_log_action
+    ):
         with tempfile.TemporaryDirectory() as temp_dir:
             repo_path = Path(temp_dir) / "repo"
             repo_path.mkdir()
@@ -504,6 +507,17 @@ class TestProcessLocalRepository(unittest.TestCase):
 
             mock_generator = MagicMock()
             mock_generator.generate_analysis_incremental.return_value = Path("analysis.json")
+            mock_generator.last_incremental_summary = IncrementalSummary(
+                kind=IncrementalSummaryKind.MATERIAL_IMPACT,
+                message="The change broadens validation behavior to reject malformed inputs earlier.",
+                used_llm=True,
+            )
+            mock_generator.last_incremental_run_stats = IncrementalRunStats(
+                repo_commit="abc123",
+                baseline_checkpoint_id="cp-1",
+                result_checkpoint_id="cp-2",
+                file_deltas_count=2,
+            )
             mock_generator_class.return_value = mock_generator
 
             process_local_repository(
@@ -530,11 +544,18 @@ class TestProcessLocalRepository(unittest.TestCase):
                 result=str(Path("analysis.json")),
                 run_id="test-run-id",
             )
+            event = mock_append_history.call_args.args[1]
+            self.assertEqual(event.event_type, "incremental_analysis")
+            self.assertEqual(event.status, "completed")
+            self.assertEqual(event.message, mock_generator.last_incremental_summary.message)
+            self.assertEqual(event.summary, mock_generator.last_incremental_summary.to_dict())
+            self.assertEqual(event.stats, mock_generator.last_incremental_run_stats.to_dict())
 
     @patch("main.log_action")
+    @patch("main.append_incremental_history_event")
     @patch("main.DiagramGenerator")
     def test_process_local_repository_incremental_requires_full_logs_action(
-        self, mock_generator_class, mock_log_action
+        self, mock_generator_class, mock_append_history, mock_log_action
     ):
         with tempfile.TemporaryDirectory() as temp_dir:
             repo_path = Path(temp_dir) / "repo"
@@ -551,6 +572,11 @@ class TestProcessLocalRepository(unittest.TestCase):
             mock_generator.generate_analysis_incremental.side_effect = IncrementalAnalysisRequiresFullError(
                 summary.message,
                 summary=summary,
+            )
+            mock_generator.last_incremental_run_stats = IncrementalRunStats(
+                repo_commit="abc123",
+                baseline_checkpoint_id="cp-1",
+                file_deltas_count=1,
             )
             mock_generator_class.return_value = mock_generator
 
@@ -573,6 +599,58 @@ class TestProcessLocalRepository(unittest.TestCase):
                 reason=summary.message,
                 run_id="test-run-id",
             )
+            event = mock_append_history.call_args.args[1]
+            self.assertEqual(event.event_type, "incremental_analysis")
+            self.assertEqual(event.status, "requires_full_analysis")
+            self.assertEqual(event.message, summary.message)
+            self.assertEqual(event.summary, summary.to_dict())
+            self.assertEqual(event.stats, mock_generator.last_incremental_run_stats.to_dict())
+
+    @patch("main.log_action")
+    @patch("main.append_incremental_history_event")
+    @patch("main.DiagramGenerator")
+    def test_process_local_repository_reset_baseline_records_history(
+        self, mock_generator_class, mock_append_history, mock_log_action
+    ):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_path = Path(temp_dir) / "repo"
+            repo_path.mkdir()
+            output_dir = Path(temp_dir) / "output"
+            output_dir.mkdir(parents=True, exist_ok=True)
+
+            mock_generator = MagicMock()
+            mock_generator.generate_incremental_analysis_baseline.return_value = Path("analysis.json")
+            mock_generator.last_incremental_run_stats = IncrementalRunStats(
+                repo_commit="def456",
+                result_checkpoint_id="cp-2",
+            )
+            mock_generator_class.return_value = mock_generator
+
+            process_local_repository(
+                repo_path=repo_path,
+                output_dir=output_dir,
+                project_name="test_project",
+                run_id="test-run-id",
+                log_path="test_project/test-run-log",
+                depth_level=2,
+                reset_baseline=True,
+            )
+
+            mock_log_action.assert_any_call(
+                "baseline_reset_completed",
+                project_name="test_project",
+                result=str(Path("analysis.json")),
+                run_id="test-run-id",
+            )
+            event = mock_append_history.call_args.args[1]
+            self.assertEqual(event.event_type, "baseline_reset")
+            self.assertEqual(event.status, "completed")
+            self.assertEqual(
+                event.message,
+                "A full analysis completed and a new incremental baseline checkpoint was saved.",
+            )
+            self.assertIsNone(event.summary)
+            self.assertEqual(event.stats, mock_generator.last_incremental_run_stats.to_dict())
 
 
 class TestCopyFiles(unittest.TestCase):
