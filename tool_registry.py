@@ -24,6 +24,7 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
+from collections.abc import Callable
 from typing import Any, cast
 
 if sys.platform == "win32":
@@ -36,6 +37,9 @@ import requests
 from vscode_constants import VSCODE_CONFIG, find_runnable
 
 logger = logging.getLogger(__name__)
+
+# Callback type for reporting download progress: (tool_name, current_step, total_steps)
+ProgressCallback = Callable[[str, int, int], None]
 
 GITHUB_REPO = "CodeBoarding/CodeBoarding"
 
@@ -298,11 +302,18 @@ def needs_install() -> bool:
     return not has_required_tools(get_servers_dir())
 
 
-def ensure_tools(auto_install_npm: bool = False, auto_install_vcpp: bool = False) -> None:
+def ensure_tools(
+    auto_install_npm: bool = False,
+    auto_install_vcpp: bool = False,
+    on_progress: ProgressCallback | None = None,
+) -> None:
     """Install tools to ~/.codeboarding/servers/ if needed. No-op if already current.
 
     Uses a file lock so that concurrent instances (multiple VSCode windows)
     don't corrupt binaries by downloading simultaneously.
+
+    Args:
+        on_progress: Optional callback invoked as (tool_name, step, total) during downloads.
     """
     servers_dir = get_servers_dir()
     servers_dir.mkdir(parents=True, exist_ok=True)
@@ -314,16 +325,15 @@ def ensure_tools(auto_install_npm: bool = False, auto_install_vcpp: bool = False
         if not needs_install():
             return
 
-        print("[download] Installing language server tools...", flush=True, file=sys.stderr)
         from install import run_install  # deferred to avoid circular import at module level
 
         run_install(
             target_dir=servers_dir,
             auto_install_npm=auto_install_npm,
             auto_install_vcpp=auto_install_vcpp,
+            on_progress=on_progress,
         )
         _write_manifest()
-        print("[download] complete", flush=True, file=sys.stderr)
 
 
 def _acquire_lock(lock_fd: Any) -> None:
@@ -524,7 +534,11 @@ def download_asset(tag: str, asset_name: str, destination: Path) -> bool:
         raise
 
 
-def install_native_tools(target_dir: Path, deps: list[ToolDependency]) -> None:
+def install_native_tools(
+    target_dir: Path,
+    deps: list[ToolDependency],
+    on_progress: ProgressCallback | None = None,
+) -> None:
     """Download native binaries from GitHub releases."""
     system = platform.system()
     suffix = _PLATFORM_SUFFIX.get(system)
@@ -549,7 +563,8 @@ def install_native_tools(target_dir: Path, deps: list[ToolDependency]) -> None:
             logger.info("  %s: already installed, skipping", dep.binary_name)
             continue
         asset_name = dep.github_asset_template.format(platform_suffix=suffix)
-        print(f"[download] {dep.binary_name} ({i}/{len(downloadable)})", flush=True)
+        if on_progress:
+            on_progress(dep.binary_name, i, len(downloadable))
         try:
             if download_asset(tag, asset_name, binary_path):
                 if system != "Windows":
@@ -563,7 +578,11 @@ def install_native_tools(target_dir: Path, deps: list[ToolDependency]) -> None:
             binary_path.unlink(missing_ok=True)
 
 
-def install_node_tools(target_dir: Path, deps: list[ToolDependency]) -> None:
+def install_node_tools(
+    target_dir: Path,
+    deps: list[ToolDependency],
+    on_progress: ProgressCallback | None = None,
+) -> None:
     """Install Node.js tools via npm."""
     npm_command = preferred_npm_command(target_dir)
     if not npm_command:
@@ -579,7 +598,8 @@ def install_node_tools(target_dir: Path, deps: list[ToolDependency]) -> None:
         return
 
     env = npm_subprocess_env(target_dir)
-    print(f"[download] npm packages: {', '.join(all_packages)}", flush=True)
+    if on_progress:
+        on_progress("npm packages", 1, 1)
     logger.info("Installing Node.js packages: %s", all_packages)
     try:
         if not (target_dir / "package.json").exists():
@@ -601,7 +621,11 @@ def install_node_tools(target_dir: Path, deps: list[ToolDependency]) -> None:
         logger.exception("Node.js package installation failed")
 
 
-def install_archive_tool(target_dir: Path, dep: ToolDependency) -> None:
+def install_archive_tool(
+    target_dir: Path,
+    dep: ToolDependency,
+    on_progress: ProgressCallback | None = None,
+) -> None:
     """Download and extract an archive tool."""
     assert dep.archive_asset, f"{dep.key}: archive_asset required for archive tools"
     assert dep.archive_subdir, f"{dep.key}: archive_subdir required for archive tools"
@@ -611,7 +635,8 @@ def install_archive_tool(target_dir: Path, dep: ToolDependency) -> None:
         logger.info("%s already installed", dep.key)
         return
 
-    print(f"[download] {dep.key}", flush=True)
+    if on_progress:
+        on_progress(dep.key, 1, 1)
     logger.info("Downloading %s...", dep.key)
     extract_dir.mkdir(parents=True, exist_ok=True)
     archive_path = target_dir / "bin" / dep.archive_asset
