@@ -14,24 +14,21 @@ from agents.details_agent import DetailsAgent
 from agents.llm_config import initialize_llms
 from agents.meta_agent import MetaAgent
 from agents.planner_agent import get_expandable_components
-from diagram_analysis.analysis_json import (
+from diagram_analysis.persistence.analysis_json import (
     FileCoverageReport,
     FileCoverageSummary,
     NotAnalyzedFile,
 )
+from diagram_analysis.persistence.checkpoints import remove_legacy_manifest, save_checkpoint
 from diagram_analysis.file_coverage import FileCoverage
-from diagram_analysis.io_utils import save_analysis
-from diagram_analysis.manifest import (
-    build_manifest_from_analysis,
-    save_manifest,
-)
-from diagram_analysis.version import Version
+from diagram_analysis.persistence.io_utils import save_analysis
+from diagram_analysis.persistence.version import Version
 from health.config import initialize_health_dir, load_health_config
 from health.runner import run_health_checks
 from monitoring import StreamingStatsWriter
 from monitoring.mixin import MonitoringMixin
 from monitoring.paths import get_monitoring_run_dir
-from repo_utils import get_git_commit_hash, get_repo_state_hash
+from repo_utils import get_git_commit_hash
 from repo_utils.change_detector import ChangeSet, detect_uncommitted_changes
 from repo_utils.ignore import RepoIgnoreManager
 from repo_utils.method_diff import apply_method_diffs_to_file_index
@@ -452,30 +449,20 @@ class DiagramGenerator:
             # Write file_coverage.json
             self._write_file_coverage()
 
-            # Save manifest for incremental updates
-            self._save_manifest(analysis, expanded_components)
+            if self._save_checkpoint():
+                remove_legacy_manifest(Path(self.output_dir))
 
             return analysis_path
 
-    def _save_manifest(self, analysis: AnalysisInsights, expanded_components: list) -> None:
-        """Save the analysis manifest for incremental updates."""
+    def _save_checkpoint(self) -> bool:
+        """Save the latest analysis as a checkpoint. Returns True on success."""
         try:
-            repo_state_hash = get_repo_state_hash(self.repo_location)
-            base_commit = get_git_commit_hash(self.repo_location)
-
-            expanded_names = [c.component_id for c in expanded_components]
-
-            manifest = build_manifest_from_analysis(
-                analysis=analysis,
-                repo_state_hash=repo_state_hash,
-                base_commit=base_commit,
-                expanded_components=expanded_names,
-            )
-
-            save_manifest(manifest, self.output_dir)
-            logger.info(f"Saved manifest with {len(manifest.file_to_component)} file mappings")
-        except Exception as e:
-            logger.warning(f"Failed to save manifest: {e}")
+            checkpoint = save_checkpoint(self.repo_location, Path(self.output_dir), run_id=self.run_id)
+            logger.info("Saved checkpoint %s at %s", checkpoint.checkpoint_id, checkpoint.checkpoint_commit)
+            return True
+        except Exception as exc:
+            logger.warning("Failed to save checkpoint: %s", exc)
+            return False
 
     def generate_analysis_smart(self) -> Path:
         """Run full analysis."""
