@@ -501,7 +501,7 @@ def download_asset(tag: str, asset_name: str, destination: Path) -> bool:
                 if chunk:
                     f.write(chunk)
         if temp_dest.stat().st_size > 0:
-            temp_dest.rename(destination)
+            os.replace(temp_dest, destination)
             return True
         temp_dest.unlink(missing_ok=True)
         return False
