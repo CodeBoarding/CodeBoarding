@@ -449,18 +449,20 @@ class DiagramGenerator:
             # Write file_coverage.json
             self._write_file_coverage()
 
-            self._save_checkpoint()
-            remove_legacy_manifest(Path(self.output_dir))
+            if self._save_checkpoint():
+                remove_legacy_manifest(Path(self.output_dir))
 
             return analysis_path
 
-    def _save_checkpoint(self) -> None:
-        """Save the latest analysis as a checkpoint."""
+    def _save_checkpoint(self) -> bool:
+        """Save the latest analysis as a checkpoint. Returns True on success."""
         try:
             checkpoint = save_checkpoint(self.repo_location, Path(self.output_dir), run_id=self.run_id)
             logger.info("Saved checkpoint %s at %s", checkpoint.checkpoint_id, checkpoint.checkpoint_commit)
+            return True
         except Exception as exc:
             logger.warning("Failed to save checkpoint: %s", exc)
+            return False
 
     def generate_analysis_smart(self) -> Path:
         """Run full analysis."""

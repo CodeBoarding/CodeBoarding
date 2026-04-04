@@ -36,7 +36,6 @@ class ParsedDiffFile:
     file_path: str
     old_path: str | None = None
     similarity: int | None = None
-    patch_text: str = ""
     hunks: list[ParsedDiffHunk] = field(default_factory=list)
 
 
@@ -132,8 +131,7 @@ def _finalize_file_diff(file_diff: ParsedDiffFile | None, patch_lines: list[str]
     if file_diff is None:
         return None
 
-    file_diff.patch_text = "\n".join(patch_lines).strip()
-    file_diff.hunks = _parse_patch_text(file_diff.patch_text)
+    file_diff.hunks = _parse_patch_text("\n".join(patch_lines).strip())
     return file_diff
 
 
@@ -246,8 +244,9 @@ def classify_new_file_ranges(
                     changed_ranges.append(new_range)
                 else:
                     added_ranges.append(new_range)
-            elif minus_count and new_line > 0:
-                deletion_points.append((new_line, new_line))
+            elif minus_count:
+                anchor = max(new_line - 1, 1)
+                deletion_points.append((anchor, anchor))
 
             segment_new_start = None
             plus_count = 0

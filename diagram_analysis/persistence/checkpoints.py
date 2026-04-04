@@ -143,7 +143,7 @@ def get_latest_checkpoint(repo_dir: Path, output_dir: Path) -> CheckpointMetadat
     resolved_commit = _resolve_ref(repo_dir, LATEST_CHECKPOINT_REF)
     resolved_artifact_commit = _resolve_ref(repo_dir, LATEST_CHECKPOINT_ARTIFACT_REF)
     if resolved_commit is None:
-        return None
+        return latest
     if resolved_commit == latest.commit_sha and resolved_artifact_commit == latest.artifact_commit_sha:
         return latest
 
@@ -212,24 +212,26 @@ def save_checkpoint(repo_dir: Path, output_dir: Path, run_id: str) -> Checkpoint
     previous = get_latest_checkpoint(repo_dir, output_dir)
     checkpoint_id = _generate_checkpoint_id()
 
-    parent_commit_sha = _resolve_ref(repo_dir, LATEST_CHECKPOINT_REF)
-    if parent_commit_sha is None and previous is not None:
-        parent_commit_sha = previous.commit_sha
-    commit_sha = _create_checkpoint_commit(repo_dir, parent_commit_sha, checkpoint_id, output_dir)
+    git_parent_sha = _resolve_ref(repo_dir, LATEST_CHECKPOINT_REF)
+    metadata_parent_sha = git_parent_sha
+    if metadata_parent_sha is None and previous is not None:
+        metadata_parent_sha = previous.commit_sha
+    commit_sha = _create_checkpoint_commit(repo_dir, git_parent_sha, checkpoint_id, output_dir)
 
-    parent_artifact_commit_sha = _resolve_ref(repo_dir, LATEST_CHECKPOINT_ARTIFACT_REF)
-    if parent_artifact_commit_sha is None and previous is not None:
-        parent_artifact_commit_sha = previous.artifact_commit_sha
+    git_artifact_parent_sha = _resolve_ref(repo_dir, LATEST_CHECKPOINT_ARTIFACT_REF)
+    metadata_artifact_parent_sha = git_artifact_parent_sha
+    if metadata_artifact_parent_sha is None and previous is not None:
+        metadata_artifact_parent_sha = previous.artifact_commit_sha
 
     metadata = CheckpointMetadata(
         checkpoint_id=checkpoint_id,
         commit_sha=commit_sha,
-        parent_commit_sha=parent_commit_sha,
+        parent_commit_sha=metadata_parent_sha,
         created_at=datetime.now(timezone.utc).isoformat(),
         run_id=run_id,
-        parent_artifact_commit_sha=parent_artifact_commit_sha,
+        parent_artifact_commit_sha=metadata_artifact_parent_sha,
     )
-    artifact_commit_sha = _create_artifact_commit(repo_dir, parent_artifact_commit_sha, metadata, output_dir)
+    artifact_commit_sha = _create_artifact_commit(repo_dir, git_artifact_parent_sha, metadata, output_dir)
     metadata = CheckpointMetadata(
         checkpoint_id=metadata.checkpoint_id,
         commit_sha=metadata.commit_sha,
@@ -238,9 +240,10 @@ def save_checkpoint(repo_dir: Path, output_dir: Path, run_id: str) -> Checkpoint
         run_id=metadata.run_id,
         version=metadata.version,
         artifact_commit_sha=artifact_commit_sha,
-        parent_artifact_commit_sha=parent_artifact_commit_sha,
+        parent_artifact_commit_sha=metadata_artifact_parent_sha,
     )
     _update_refs(repo_dir, metadata)
+    _persist_checkpoint_to_disk(metadata, output_dir)
     logger.info("Saved checkpoint %s at source=%s artifacts=%s", checkpoint_id, commit_sha, artifact_commit_sha)
     return metadata
 
@@ -494,6 +497,18 @@ def _checkpoint_metadata_payload(metadata: CheckpointMetadata) -> dict:
         "run_id": metadata.run_id,
         "version": metadata.version,
     }
+
+
+def _persist_checkpoint_to_disk(metadata: CheckpointMetadata, output_dir: Path) -> None:
+    cp_dir = checkpoint_dir(output_dir, metadata.checkpoint_id)
+    _write_metadata(cp_dir / METADATA_FILENAME, metadata)
+    _copy_artifacts(output_dir, cp_dir)
+
+    latest_dir = latest_checkpoint_dir(output_dir)
+    if latest_dir.exists():
+        shutil.rmtree(latest_dir)
+    _write_metadata(latest_dir / METADATA_FILENAME, metadata)
+    _copy_artifacts(output_dir, latest_dir)
 
 
 def _iter_artifact_sources(output_dir: Path) -> list[tuple[str, Path]]:
