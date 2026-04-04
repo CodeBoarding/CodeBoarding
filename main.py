@@ -17,6 +17,8 @@ from diagram_analysis.io_utils import load_full_analysis, save_sub_analysis
 from logging_config import setup_logging
 from monitoring import monitor_execution
 from monitoring.paths import get_monitoring_run_dir
+from install import ensure_tools
+from tool_registry import needs_install
 from output_generators.markdown import generate_markdown_file
 from repo_utils import (
     clone_repository,
@@ -473,8 +475,6 @@ Examples:
     if args.binary_location:
         update_config(args.binary_location)
     else:
-        from tool_registry import ensure_tools, needs_install
-
         if needs_install():
             logger.info("First run: downloading language server binaries to ~/.codeboarding/servers/ ...")
             ensure_tools(auto_install_npm=True, auto_install_vcpp=True)

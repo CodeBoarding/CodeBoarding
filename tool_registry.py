@@ -20,11 +20,12 @@ import shutil
 import subprocess
 import sys
 import tarfile
+import time
+from collections.abc import Callable
 from copy import deepcopy
 from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
-from collections.abc import Callable
 from typing import Any, cast
 
 if sys.platform == "win32":
@@ -302,50 +303,25 @@ def needs_install() -> bool:
     return not has_required_tools(get_servers_dir())
 
 
-def ensure_tools(
-    auto_install_npm: bool = False,
-    auto_install_vcpp: bool = False,
-    on_progress: ProgressCallback | None = None,
-) -> None:
-    """Install tools to ~/.codeboarding/servers/ if needed. No-op if already current.
-
-    Uses a file lock so that concurrent instances (multiple VSCode windows)
-    don't corrupt binaries by downloading simultaneously.
-
-    Args:
-        on_progress: Optional callback invoked as (tool_name, step, total) during downloads.
-    """
-    servers_dir = get_servers_dir()
-    servers_dir.mkdir(parents=True, exist_ok=True)
-    lock_path = servers_dir / ".download.lock"
-
-    with open(lock_path, "w") as lock_fd:
-        _acquire_lock(lock_fd)
-
-        if not needs_install():
-            return
-
-        from install import run_install  # deferred to avoid circular import at module level
-
-        run_install(
-            target_dir=servers_dir,
-            auto_install_npm=auto_install_npm,
-            auto_install_vcpp=auto_install_vcpp,
-            on_progress=on_progress,
-        )
-        _write_manifest()
-
-
 def _acquire_lock(lock_fd: Any) -> None:
     """Acquire an exclusive file lock, logging if we have to wait."""
     if sys.platform == "win32":
+        # msvcrt.LK_LOCK only retries for ~10 s which is too short for tool
+        # downloads.  Poll with LK_NBLCK every 2 s instead — no hard timeout.
         try:
             msvcrt.locking(lock_fd.fileno(), msvcrt.LK_NBLCK, 1)
         except OSError:
             logger.info("Another instance is downloading tools, waiting...")
             print("Waiting for another instance to finish downloading tools...", flush=True, file=sys.stderr)
-            msvcrt.locking(lock_fd.fileno(), msvcrt.LK_LOCK, 1)
+            while True:
+                time.sleep(2)
+                try:
+                    msvcrt.locking(lock_fd.fileno(), msvcrt.LK_NBLCK, 1)
+                    break
+                except OSError:
+                    continue
     else:
+        # fcntl.LOCK_EX blocks indefinitely — exactly what we want.
         try:
             fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
@@ -558,13 +534,13 @@ def install_native_tools(
 
     downloadable = [d for d in deps if d.github_asset_template]
     for i, dep in enumerate(downloadable, 1):
+        if on_progress:
+            on_progress(dep.binary_name, i, len(downloadable))
         binary_path = bin_dir / f"{dep.binary_name}{exe_suffix()}"
         if binary_path.exists():
             logger.info("  %s: already installed, skipping", dep.binary_name)
             continue
         asset_name = dep.github_asset_template.format(platform_suffix=suffix)
-        if on_progress:
-            on_progress(dep.binary_name, i, len(downloadable))
         try:
             if download_asset(tag, asset_name, binary_path):
                 if system != "Windows":
@@ -630,13 +606,14 @@ def install_archive_tool(
     assert dep.archive_asset, f"{dep.key}: archive_asset required for archive tools"
     assert dep.archive_subdir, f"{dep.key}: archive_subdir required for archive tools"
 
+    if on_progress:
+        on_progress(dep.key, 1, 1)
+
     extract_dir = target_dir / "bin" / dep.archive_subdir
     if extract_dir.exists() and (extract_dir / "plugins").is_dir():
         logger.info("%s already installed", dep.key)
         return
 
-    if on_progress:
-        on_progress(dep.key, 1, 1)
     logger.info("Downloading %s...", dep.key)
     extract_dir.mkdir(parents=True, exist_ok=True)
     archive_path = target_dir / "bin" / dep.archive_asset
@@ -652,5 +629,7 @@ def install_archive_tool(
         archive_path.unlink()
         logger.info("%s installed successfully", dep.key)
     except Exception:
+        logger.exception("%s installation failed", dep.key)
+        archive_path.unlink(missing_ok=True)
         logger.exception("%s installation failed", dep.key)
         archive_path.unlink(missing_ok=True)

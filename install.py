@@ -16,11 +16,13 @@ from tool_registry import (
     TOOL_REGISTRY,
     ProgressCallback,
     ToolKind,
+    _acquire_lock,
     _write_manifest,
     get_servers_dir,
     install_archive_tool,
     install_native_tools,
     install_node_tools,
+    needs_install,
     npm_subprocess_env,
     platform_bin_dir,
     preferred_node_path,
@@ -529,6 +531,38 @@ def print_language_support_summary(npm_available: bool, target_dir: Path):
         print(f"  - {check.language}: {'yes' if is_available else 'no'}")
         if reason:
             print(f"    reason: {reason}")
+
+
+def ensure_tools(
+    auto_install_npm: bool = False,
+    auto_install_vcpp: bool = False,
+    on_progress: ProgressCallback | None = None,
+) -> None:
+    """Install tools to ~/.codeboarding/servers/ if needed. No-op if already current.
+
+    Uses a file lock so that concurrent instances (multiple VSCode windows)
+    don't corrupt binaries by downloading simultaneously.
+
+    Args:
+        on_progress: Optional callback invoked as (tool_name, step, total) during downloads.
+    """
+    servers_dir = get_servers_dir()
+    servers_dir.mkdir(parents=True, exist_ok=True)
+    lock_path = servers_dir / ".download.lock"
+
+    with open(lock_path, "w") as lock_fd:
+        _acquire_lock(lock_fd)
+
+        if not needs_install():
+            return
+
+        run_install(
+            target_dir=servers_dir,
+            auto_install_npm=auto_install_npm,
+            auto_install_vcpp=auto_install_vcpp,
+            on_progress=on_progress,
+        )
+        _write_manifest()
 
 
 def run_install(
