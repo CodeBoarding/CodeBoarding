@@ -31,9 +31,11 @@ class FileDelta:
     file_path: str
     file_status: ChangeStatus
     component_id: str | None = None
+    old_file_path: str | None = None
     added_methods: list[MethodChange] = field(default_factory=list)
     modified_methods: list[MethodChange] = field(default_factory=list)
     deleted_methods: list[MethodChange] = field(default_factory=list)
+    renamed_qualified_names: dict[str, str] = field(default_factory=dict)
     is_reset: bool = False
     reset_methods: list[MethodChange] | None = None
 
@@ -42,9 +44,11 @@ class FileDelta:
             "file_path": self.file_path,
             "file_status": self.file_status,
             "component_id": self.component_id,
+            "old_file_path": self.old_file_path,
             "added_methods": [m.to_dict() for m in self.added_methods],
             "modified_methods": [m.to_dict() for m in self.modified_methods],
             "deleted_methods": [m.to_dict() for m in self.deleted_methods],
+            "renamed_qualified_names": self.renamed_qualified_names,
         }
         if self.is_reset:
             d["is_reset"] = True
@@ -61,6 +65,14 @@ class IncrementalDelta:
     @property
     def has_changes(self) -> bool:
         return bool(self.file_deltas)
+
+    @property
+    def is_purely_additive(self) -> bool:
+        """True when all changes are new files/methods only — nothing to update."""
+        return all(
+            fd.file_status != ChangeStatus.DELETED and not fd.modified_methods and not fd.deleted_methods
+            for fd in self.file_deltas
+        )
 
     def to_dict(self) -> dict[str, Any]:
         return {
