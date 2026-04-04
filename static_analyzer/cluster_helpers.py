@@ -59,8 +59,10 @@ def build_all_cluster_results(static_analysis: StaticAnalysisResults) -> dict[st
     """
     Build cluster results for all detected languages in the static analysis.
 
-    If a language produces more than MAX_LLM_CLUSTERS clusters, they are
-    automatically merged into super-clusters using inter-cluster connectivity.
+    Each language is independently capped at MAX_LLM_CLUSTERS clusters.
+    If a language exceeds the limit, its clusters are merged into super-clusters
+    using inter-cluster connectivity. For multi-language repos, IDs are
+    re-indexed so they don't overlap across languages.
 
     Args:
         static_analysis: Static analysis results containing CFG data
@@ -84,25 +86,8 @@ def build_all_cluster_results(static_analysis: StaticAnalysisResults) -> dict[st
             new_count = len(cluster_results[lang].clusters)
             logger.info(f"[SuperCluster] {lang}: merged {n_clusters} -> {new_count} super-clusters")
 
-    # For multi-language repos, ensure the combined cluster count stays
-    # within MAX_LLM_CLUSTERS by proportionally reducing per-language counts,
-    # then re-index IDs so they don't overlap across languages.
+    # For multi-language repos, re-index IDs so they don't overlap across languages.
     if len(cluster_results) > 1:
-        total_clusters = sum(len(cr.clusters) for cr in cluster_results.values())
-        if total_clusters > MAX_LLM_CLUSTERS:
-            # Proportionally allocate budget, minimum 2 per language
-            for lang in list(cluster_results.keys()):
-                cr = cluster_results[lang]
-                lang_count = len(cr.clusters)
-                lang_target = max(2, round(MAX_LLM_CLUSTERS * lang_count / total_clusters))
-                if lang_count > lang_target:
-                    cfg = static_analysis.get_cfg(lang)
-                    logger.info(
-                        f"[SuperCluster] {lang}: reducing {lang_count} -> {lang_target} (cross-language budget)"
-                    )
-                    cluster_results[lang] = merge_clusters(cr, cfg.to_networkx(), lang_target)
-
-        # Re-index so IDs don't overlap across languages
         offset = 0
         for lang in sorted(cluster_results.keys()):
             cr = cluster_results[lang]
