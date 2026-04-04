@@ -10,6 +10,7 @@ NOTE: Method status assignment is delegated to repo_utils.method_diff to ensure
 consistent behavior between the main analysis pipeline and incremental updates.
 """
 
+import logging
 import time
 from pathlib import Path
 from typing import Callable
@@ -20,6 +21,8 @@ from diagram_analysis.incremental_types import FileDelta, IncrementalDelta, Meth
 from diagram_analysis.manifest import AnalysisManifest
 from repo_utils.change_detector import ChangeSet
 from repo_utils.method_diff import get_method_statuses_for_file
+
+logger = logging.getLogger(__name__)
 
 # Callable that resolves a repo-relative file path to its current MethodEntry list.
 SymbolResolver = Callable[[str], list[MethodEntry]]
@@ -124,7 +127,29 @@ class IncrementalUpdater:
 
         # Modified
         prev_active = self._get_previous_active_methods(file_path)
-        current = self._get_current_methods(file_path)
+        try:
+            current = self._get_current_methods(file_path)
+        except Exception as exc:
+            logger.warning("Symbol resolution failed for %s: %s", file_path, exc)
+            current = []
+
+        if not current and prev_active:
+            logger.warning(
+                "Symbol resolution returned no methods for %s; marking all existing methods as modified",
+                file_path,
+            )
+            return (
+                FileDelta(
+                    file_path=file_path,
+                    file_status=ChangeStatus.MODIFIED,
+                    component_id=component_id,
+                    modified_methods=[
+                        self._to_method_change(file_path, m, change_type=ChangeStatus.MODIFIED)
+                        for _, m in sorted(prev_active.items())
+                    ],
+                ),
+                missing,
+            )
         current_by_name = {m.qualified_name: m for m in current}
 
         prev_keys = set(prev_active.keys())
@@ -138,7 +163,7 @@ class IncrementalUpdater:
                 file_status=ChangeStatus.MODIFIED,
                 component_id=component_id,
                 added_methods=[
-                    self._to_method_change(file_path, m)
+                    self._to_method_change(file_path, m, change_type=ChangeStatus.ADDED)
                     for m in current
                     if m.qualified_name in current_keys - prev_keys
                 ],
