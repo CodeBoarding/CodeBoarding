@@ -415,6 +415,107 @@ class TestCodeBoardingAgent(unittest.TestCase):
         # Should have at least 5 tools
         self.assertGreaterEqual(len(tools), 5)
 
+    @patch("agents.agent.get_validation_feedback_message")
+    @patch("agents.agent.create_agent")
+    def test_validation_invoke_truncates_large_prompt(self, mock_create_agent, mock_get_feedback):
+        """Test that _validation_invoke truncates the original prompt in feedback to avoid re-sending massive data."""
+        mock_agent_executor = Mock()
+        mock_create_agent.return_value = mock_agent_executor
+
+        mock_parsing_llm = Mock(spec=BaseChatModel)
+        agent = CodeBoardingAgent(
+            repo_dir=self.repo_dir,
+            static_analysis=self.mock_analysis,
+            system_message="Test",
+            agent_llm=self.mock_llm,
+            parsing_llm=mock_parsing_llm,
+        )
+
+        # Create a mock response type with llm_str and extractor_str
+        mock_result = Mock()
+        mock_result.llm_str.return_value = "mock output"
+
+        # Mock _parse_invoke to return our mock on each call
+        agent._parse_invoke = Mock(return_value=mock_result)
+
+        # Create a validator that always fails with feedback
+        def always_fail_validator(result, context):
+            from agents.validation import ValidationResult
+
+            return ValidationResult(is_valid=False, feedback_messages=["Fix this issue"])
+
+        always_fail_validator.__name__ = "always_fail_validator"
+
+        # Set up the feedback template to capture what gets passed
+        mock_get_feedback.return_value = "Output: {original_output}\nFeedback: {feedback_list}\nPrompt: {original_prompt}"
+
+        # Use a large prompt (> 2000 chars)
+        large_prompt = "X" * 5000
+
+        # Run with 2 validation attempts so it actually builds feedback
+        agent._validation_invoke(
+            prompt=large_prompt,
+            return_type=TestResponse,
+            validators=[always_fail_validator],
+            context=None,
+            max_validation_attempts=2,
+        )
+
+        # The second call to _parse_invoke should have the truncated prompt
+        self.assertEqual(agent._parse_invoke.call_count, 2)
+        feedback_call_prompt = agent._parse_invoke.call_args_list[1][0][0]
+
+        # The feedback should contain the truncation marker
+        self.assertIn("[... original prompt truncated for context limit ...]", feedback_call_prompt)
+        # The feedback should NOT contain the full 5000-char prompt
+        self.assertNotIn("X" * 5000, feedback_call_prompt)
+
+    @patch("agents.agent.get_validation_feedback_message")
+    @patch("agents.agent.create_agent")
+    def test_validation_invoke_preserves_short_prompt(self, mock_create_agent, mock_get_feedback):
+        """Test that _validation_invoke does NOT truncate a short prompt."""
+        mock_agent_executor = Mock()
+        mock_create_agent.return_value = mock_agent_executor
+
+        mock_parsing_llm = Mock(spec=BaseChatModel)
+        agent = CodeBoardingAgent(
+            repo_dir=self.repo_dir,
+            static_analysis=self.mock_analysis,
+            system_message="Test",
+            agent_llm=self.mock_llm,
+            parsing_llm=mock_parsing_llm,
+        )
+
+        mock_result = Mock()
+        mock_result.llm_str.return_value = "mock output"
+        agent._parse_invoke = Mock(return_value=mock_result)
+
+        def always_fail_validator(result, context):
+            from agents.validation import ValidationResult
+
+            return ValidationResult(is_valid=False, feedback_messages=["Fix this issue"])
+
+        always_fail_validator.__name__ = "always_fail_validator"
+
+        mock_get_feedback.return_value = "Output: {original_output}\nFeedback: {feedback_list}\nPrompt: {original_prompt}"
+
+        short_prompt = "This is a short prompt"
+
+        agent._validation_invoke(
+            prompt=short_prompt,
+            return_type=TestResponse,
+            validators=[always_fail_validator],
+            context=None,
+            max_validation_attempts=2,
+        )
+
+        self.assertEqual(agent._parse_invoke.call_count, 2)
+        feedback_call_prompt = agent._parse_invoke.call_args_list[1][0][0]
+
+        # Short prompt should be fully preserved
+        self.assertIn(short_prompt, feedback_call_prompt)
+        self.assertNotIn("[... original prompt truncated for context limit ...]", feedback_call_prompt)
+
 
 if __name__ == "__main__":
     unittest.main()

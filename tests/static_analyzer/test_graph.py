@@ -737,5 +737,187 @@ class TestCallGraph(unittest.TestCase):
         self.assertTrue(graph2.has_node("bar"))
 
 
+class TestClusterStringCompression(unittest.TestCase):
+    """Tests for adaptive cluster string compression (max_chars parameter)."""
+
+    @staticmethod
+    def _build_large_graph(num_files: int, classes_per_file: int, methods_per_class: int) -> CallGraph:
+        """Build a CallGraph with many classes and methods for compression testing."""
+        graph = CallGraph()
+
+        for f in range(num_files):
+            file_path = f"/src/pkg{f // 10}/module{f}.py"
+            for c in range(classes_per_file):
+                class_name = f"pkg{f // 10}.module{f}.Class{c}"
+                class_node = Node(class_name, NodeType.CLASS, file_path, c * 100, c * 100 + 99)
+                graph.add_node(class_node)
+                for m in range(methods_per_class):
+                    method_name = f"{class_name}.method{m}"
+                    method_node = Node(method_name, NodeType.METHOD, file_path, c * 100 + m, c * 100 + m + 1)
+                    graph.add_node(method_node)
+
+            # Add a standalone function per file
+            func_name = f"pkg{f // 10}.module{f}.helper_func"
+            func_node = Node(func_name, NodeType.FUNCTION, file_path, 999, 1000)
+            graph.add_node(func_node)
+
+        # Create edges between methods to form clusters
+        all_methods = [n for n, data in graph.nodes.items() if graph.nodes[n].type == NodeType.METHOD]
+        for i in range(len(all_methods) - 1):
+            try:
+                graph.add_edge(all_methods[i], all_methods[i + 1])
+            except ValueError:
+                pass
+
+        return graph
+
+    def test_small_cluster_string_unchanged(self):
+        """A small cluster string should be returned in full detail when under max_chars."""
+        graph = CallGraph()
+
+        for i in range(6):
+            node = Node(f"module.func{i}", 12, "/file.py", i * 10, i * 10 + 5)
+            graph.add_node(node)
+
+        graph.add_edge("module.func0", "module.func1")
+        graph.add_edge("module.func2", "module.func3")
+
+        nx_graph = graph.to_networkx()
+        communities = [
+            {"module.func0", "module.func1", "module.func2"},
+            {"module.func3", "module.func4", "module.func5"},
+        ]
+
+        # Large max_chars — should return full detail
+        result = graph._CallGraph__cluster_str(communities, nx_graph, max_chars=1_000_000)  # type: ignore[attr-defined]
+
+        self.assertIn("Cluster Definitions", result)
+        self.assertNotIn("compact", result)
+        self.assertNotIn("file-level", result)
+
+    def test_large_cluster_string_triggers_compact_mode(self):
+        """When full detail exceeds max_chars, compact mode should be used."""
+        graph = self._build_large_graph(num_files=20, classes_per_file=5, methods_per_class=10)
+        nx_graph = graph.to_networkx()
+
+        # Build communities from all nodes
+        all_nodes = list(graph.nodes.keys())
+        mid = len(all_nodes) // 2
+        communities = [set(all_nodes[:mid]), set(all_nodes[mid:])]
+
+        # Use a small max_chars that the full detail will exceed but compact may fit
+        full_result = graph._CallGraph__cluster_str_detailed(  # type: ignore[attr-defined]
+            sorted([c for c in communities if len(c) >= 2], key=len, reverse=True), nx_graph
+        )
+
+        # Set max_chars between compact and full size to trigger compact mode
+        compact_result = graph._CallGraph__cluster_str_compact(  # type: ignore[attr-defined]
+            sorted([c for c in communities if len(c) >= 2], key=len, reverse=True), nx_graph
+        )
+
+        if len(full_result) > len(compact_result):
+            # Use a max_chars that full detail exceeds but compact fits within
+            max_chars = len(full_result) - 1
+            result = graph._CallGraph__cluster_str(  # type: ignore[attr-defined]
+                communities, nx_graph, max_chars=max_chars
+            )
+            self.assertIn("compact", result)
+            self.assertNotIn("file-level", result)
+
+    def test_very_large_cluster_string_triggers_file_level(self):
+        """When even compact mode exceeds max_chars, file-level summaries should be used."""
+        graph = self._build_large_graph(num_files=20, classes_per_file=5, methods_per_class=10)
+        nx_graph = graph.to_networkx()
+
+        all_nodes = list(graph.nodes.keys())
+        mid = len(all_nodes) // 2
+        communities = [set(all_nodes[:mid]), set(all_nodes[mid:])]
+
+        # Use a very small max_chars to force file-level
+        result = graph._CallGraph__cluster_str(communities, nx_graph, max_chars=100)  # type: ignore[attr-defined]
+
+        self.assertIn("file-level", result)
+
+    def test_compact_mode_output_under_max_chars(self):
+        """Compact mode output should be within the max_chars budget (or fall to file-level)."""
+        graph = self._build_large_graph(num_files=20, classes_per_file=5, methods_per_class=10)
+        nx_graph = graph.to_networkx()
+
+        all_nodes = list(graph.nodes.keys())
+        mid = len(all_nodes) // 2
+        communities = [set(all_nodes[:mid]), set(all_nodes[mid:])]
+
+        # Find a max_chars that forces compression
+        full_result = graph._CallGraph__cluster_str(  # type: ignore[attr-defined]
+            communities, nx_graph, max_chars=1_000_000
+        )
+        if len(full_result) > 500:
+            max_chars = len(full_result) // 2
+            compressed = graph._CallGraph__cluster_str(  # type: ignore[attr-defined]
+                communities, nx_graph, max_chars=max_chars
+            )
+            # The compressed result should be smaller than the full result
+            self.assertLess(len(compressed), len(full_result))
+
+    def test_to_cluster_string_max_chars_parameter(self):
+        """Test that max_chars is passed through from to_cluster_string to __cluster_str."""
+        graph = self._build_large_graph(num_files=20, classes_per_file=5, methods_per_class=10)
+
+        # Get full output
+        full_result = graph.to_cluster_string(max_chars=1_000_000)
+
+        if len(full_result) > 500:
+            # Request compressed output
+            compressed_result = graph.to_cluster_string(max_chars=len(full_result) // 2)
+            self.assertLessEqual(len(compressed_result), len(full_result))
+
+    def test_compact_mode_shows_method_counts(self):
+        """Compact mode should show method counts per class instead of listing each method."""
+        graph = CallGraph()
+
+        # Create a class with methods
+        class_node = Node("mod.MyClass", NodeType.CLASS, "/file.py", 1, 100)
+        graph.add_node(class_node)
+        for i in range(5):
+            method_node = Node(f"mod.MyClass.method{i}", NodeType.METHOD, "/file.py", i * 10, i * 10 + 5)
+            graph.add_node(method_node)
+
+        # Add a second cluster member
+        func_node = Node("mod.helper", NodeType.FUNCTION, "/file.py", 200, 210)
+        graph.add_node(func_node)
+
+        # Create edge to form community
+        graph.add_edge("mod.MyClass.method0", "mod.helper")
+
+        nx_graph = graph.to_networkx()
+        communities = [set(graph.nodes.keys())]
+        top = sorted([c for c in communities if len(c) >= 2], key=len, reverse=True)
+
+        compact = graph._CallGraph__cluster_str_compact(top, nx_graph)  # type: ignore[attr-defined]
+
+        self.assertIn("mod.MyClass [Class] (5 methods)", compact)
+        self.assertIn("1 standalone functions", compact)
+
+    def test_file_level_shows_class_and_function_counts(self):
+        """File-level mode should show class and function counts per file."""
+        graph = CallGraph()
+
+        class_node = Node("mod.MyClass", NodeType.CLASS, "/file.py", 1, 100)
+        graph.add_node(class_node)
+        func_node = Node("mod.helper", NodeType.FUNCTION, "/file.py", 200, 210)
+        graph.add_node(func_node)
+        func_node2 = Node("mod.helper2", NodeType.FUNCTION, "/file.py", 220, 230)
+        graph.add_node(func_node2)
+        graph.add_edge("mod.helper", "mod.helper2")
+
+        nx_graph = graph.to_networkx()
+        communities = [set(graph.nodes.keys())]
+        top = sorted([c for c in communities if len(c) >= 2], key=len, reverse=True)
+
+        file_level = graph._CallGraph__cluster_str_file_level(top, nx_graph)  # type: ignore[attr-defined]
+
+        self.assertIn("/file.py: 1 classes, 2 functions", file_level)
+
+
 if __name__ == "__main__":
     unittest.main()

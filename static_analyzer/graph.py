@@ -262,6 +262,7 @@ class CallGraph:
         self,
         cluster_ids: set[int] | None = None,
         cluster_result: ClusterResult | None = None,
+        max_chars: int = 300_000,
     ) -> str:
         """
         Generate a human-readable string representation of clusters.
@@ -269,9 +270,17 @@ class CallGraph:
         If cluster_ids is provided, only those clusters are included.
         Uses provided cluster_result or calls cluster() if not provided.
 
+        When the output exceeds max_chars, progressively compresses:
+        1. Full detail (method-level listing per class)
+        2. Compact mode (class-level summaries: "ClassName [Class] (N methods)")
+        3. File-level summaries ("path/to/file.py: N classes, M functions")
+
         Args:
             cluster_ids: Optional set of cluster IDs to include. If None, includes all.
             cluster_result: Optional pre-computed ClusterResult. If None, calls cluster().
+            max_chars: Maximum character budget for the output. Defaults to 300000
+                (~75k tokens), leaving room for system message and validation overhead
+                within a 200k token context window.
 
         Returns:
             Formatted string with cluster definitions and inter-cluster connections
@@ -297,7 +306,7 @@ class CallGraph:
 
         top_nodes = set().union(*communities) if communities else set()
 
-        cluster_str = self.__cluster_str(communities, cfg_graph_x)
+        cluster_str = self.__cluster_str(communities, cfg_graph_x, max_chars)
         non_cluster_str = self.__non_cluster_str(cfg_graph_x, top_nodes)
         return cluster_str + non_cluster_str
 
@@ -472,12 +481,40 @@ class CallGraph:
         )
 
     @staticmethod
-    def __cluster_str(communities: list[set[str]], cfg_graph_x: nx.DiGraph) -> str:
-        valid_communities = [c for c in communities if len(c) >= 2]
-        top_communities = sorted(valid_communities, key=len, reverse=True)
+    def __build_inter_cluster_str(top_communities: list[set[str]], cfg_graph_x: nx.DiGraph) -> str:
+        """Build the inter-cluster connections summary. Shared by all compression levels."""
+        node_to_cluster = {node: idx for idx, community in enumerate(top_communities) for node in community}
+
+        inter_cluster_summary: dict[tuple[int, int], list[str]] = defaultdict(list)
+        for src, dst in cfg_graph_x.edges():
+            src_cluster = node_to_cluster.get(src)
+            dst_cluster = node_to_cluster.get(dst)
+            if src_cluster is not None and dst_cluster is not None and src_cluster != dst_cluster:
+                inter_cluster_summary[(src_cluster, dst_cluster)].append(f"{src} -> {dst}")
+
+        inter_cluster_str = "Inter-Cluster Connections:\n\n"
+        if inter_cluster_summary:
+            for src_cid, dst_cid in sorted(inter_cluster_summary.keys()):
+                calls = inter_cluster_summary[(src_cid, dst_cid)]
+                src_display = src_cid + 1
+                dst_display = dst_cid + 1
+                max_examples = 3
+                inter_cluster_str += f"Cluster {src_display} -> Cluster {dst_display} ({len(calls)} calls):\n"
+                for call in calls[:max_examples]:
+                    inter_cluster_str += f"  - {call}\n"
+                if len(calls) > max_examples:
+                    inter_cluster_str += f"  - ... and {len(calls) - max_examples} more\n"
+                inter_cluster_str += "\n"
+        else:
+            inter_cluster_str += "No inter-cluster connections detected.\n\n"
+
+        return inter_cluster_str
+
+    @staticmethod
+    def __cluster_str_detailed(top_communities: list[set[str]], cfg_graph_x: nx.DiGraph) -> str:
+        """Full detail: list every method under every class, every standalone function."""
         communities_str = f"Cluster Definitions ({len(top_communities)} clusters):\n\n"
         for idx, community in enumerate(top_communities, start=1):
-            # Group nodes by file, then by class hierarchy within each file
             file_groups: dict[str, dict[str, list[str]]] = defaultdict(lambda: defaultdict(list))
             standalone_nodes: dict[str, list[str]] = defaultdict(list)
             files_in_cluster: set[str] = set()
@@ -492,61 +529,134 @@ class CallGraph:
                 parts = node_name.split(".")
 
                 if node_type == NodeType.CLASS:
-                    # Class node — register as a group header
                     file_groups[file_path][node_name]  # ensure key exists
                 elif node_type == NodeType.METHOD and len(parts) > 1:
-                    # Method — group under its parent class
                     class_name = ".".join(parts[:-1])
                     method_short = parts[-1]
                     file_groups[file_path][class_name].append(f".{method_short} [{type_label}]")
                 else:
-                    # Standalone function or unresolvable
                     standalone_nodes[file_path].append(f"{node_name} [{type_label}]")
 
             communities_str += f"Cluster {idx} ({len(community)} nodes, {len(files_in_cluster)} files):\n"
 
             for file_path in sorted(files_in_cluster):
                 communities_str += f"  {file_path}:\n"
-                # Render class groups
                 for class_name in sorted(file_groups.get(file_path, {})):
                     methods = file_groups[file_path][class_name]
                     communities_str += f"    {class_name} [Class]\n"
                     for method in sorted(methods):
                         communities_str += f"      {method}\n"
-                # Render standalone functions
                 for func in sorted(standalone_nodes.get(file_path, [])):
                     communities_str += f"    {func}\n"
 
             communities_str += "\n"
 
-        # Build summarized inter-cluster connections
-        node_to_cluster = {node: idx for idx, community in enumerate(top_communities) for node in community}
+        return communities_str
 
-        # Aggregate inter-cluster edges: (src_cluster, dst_cluster) -> count + sample edges
-        inter_cluster_summary: dict[tuple[int, int], list[str]] = defaultdict(list)
-        for src, dst in cfg_graph_x.edges():
-            src_cluster = node_to_cluster.get(src)
-            dst_cluster = node_to_cluster.get(dst)
-            if src_cluster is not None and dst_cluster is not None and src_cluster != dst_cluster:
-                inter_cluster_summary[(src_cluster, dst_cluster)].append(f"{src} -> {dst}")
+    @staticmethod
+    def __cluster_str_compact(top_communities: list[set[str]], cfg_graph_x: nx.DiGraph) -> str:
+        """Compact mode: class-level summaries with method counts, standalone function counts."""
+        communities_str = f"Cluster Definitions ({len(top_communities)} clusters, compact):\n\n"
+        for idx, community in enumerate(top_communities, start=1):
+            file_groups: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+            standalone_counts: dict[str, int] = defaultdict(int)
+            files_in_cluster: set[str] = set()
 
-        inter_cluster_str = "Inter-Cluster Connections:\n\n"
-        if inter_cluster_summary:
-            for src_cid, dst_cid in sorted(inter_cluster_summary.keys()):
-                calls = inter_cluster_summary[(src_cid, dst_cid)]
-                src_display = src_cid + 1
-                dst_display = dst_cid + 1
-                # Show count and up to 3 representative edges
-                max_examples = 3
-                inter_cluster_str += f"Cluster {src_display} -> Cluster {dst_display} ({len(calls)} calls):\n"
-                for call in calls[:max_examples]:
-                    inter_cluster_str += f"  - {call}\n"
-                if len(calls) > max_examples:
-                    inter_cluster_str += f"  - ... and {len(calls) - max_examples} more\n"
-                inter_cluster_str += "\n"
-        else:
-            inter_cluster_str += "No inter-cluster connections detected.\n\n"
+            for node_name in sorted(community):
+                node_data = cfg_graph_x.nodes.get(node_name, {})
+                file_path = node_data.get("file_path", "unknown")
+                node_type = node_data.get("type")
+                files_in_cluster.add(file_path)
 
+                parts = node_name.split(".")
+
+                if node_type == NodeType.CLASS:
+                    file_groups[file_path][node_name] += 0  # ensure key exists
+                elif node_type == NodeType.METHOD and len(parts) > 1:
+                    class_name = ".".join(parts[:-1])
+                    file_groups[file_path][class_name] += 1
+                else:
+                    standalone_counts[file_path] += 1
+
+            communities_str += f"Cluster {idx} ({len(community)} nodes, {len(files_in_cluster)} files):\n"
+
+            for file_path in sorted(files_in_cluster):
+                communities_str += f"  {file_path}:\n"
+                for class_name in sorted(file_groups.get(file_path, {})):
+                    method_count = file_groups[file_path][class_name]
+                    communities_str += f"    {class_name} [Class] ({method_count} methods)\n"
+                func_count = standalone_counts.get(file_path, 0)
+                if func_count > 0:
+                    communities_str += f"    {func_count} standalone functions\n"
+
+            communities_str += "\n"
+
+        return communities_str
+
+    @staticmethod
+    def __cluster_str_file_level(top_communities: list[set[str]], cfg_graph_x: nx.DiGraph) -> str:
+        """File-level summaries: 'path/to/file.py: N classes, M functions'."""
+        communities_str = f"Cluster Definitions ({len(top_communities)} clusters, file-level):\n\n"
+        for idx, community in enumerate(top_communities, start=1):
+            file_class_counts: dict[str, int] = defaultdict(int)
+            file_func_counts: dict[str, int] = defaultdict(int)
+            files_in_cluster: set[str] = set()
+
+            for node_name in sorted(community):
+                node_data = cfg_graph_x.nodes.get(node_name, {})
+                file_path = node_data.get("file_path", "unknown")
+                node_type = node_data.get("type")
+                files_in_cluster.add(file_path)
+
+                if node_type == NodeType.CLASS:
+                    file_class_counts[file_path] += 1
+                elif node_type == NodeType.METHOD:
+                    pass  # methods are counted under their class
+                else:
+                    file_func_counts[file_path] += 1
+
+            communities_str += f"Cluster {idx} ({len(community)} nodes, {len(files_in_cluster)} files):\n"
+
+            for file_path in sorted(files_in_cluster):
+                classes = file_class_counts.get(file_path, 0)
+                functions = file_func_counts.get(file_path, 0)
+                communities_str += f"  {file_path}: {classes} classes, {functions} functions\n"
+
+            communities_str += "\n"
+
+        return communities_str
+
+    @staticmethod
+    def __cluster_str(communities: list[set[str]], cfg_graph_x: nx.DiGraph, max_chars: int = 300_000) -> str:
+        valid_communities = [c for c in communities if len(c) >= 2]
+        top_communities = sorted(valid_communities, key=len, reverse=True)
+
+        inter_cluster_str = CallGraph.__build_inter_cluster_str(top_communities, cfg_graph_x)
+
+        # Level 1: Full detail
+        communities_str = CallGraph.__cluster_str_detailed(top_communities, cfg_graph_x)
+        full_output = communities_str + inter_cluster_str
+        if len(full_output) <= max_chars:
+            return full_output
+
+        logger.info(
+            f"[Cluster] Full detail output ({len(full_output)} chars) exceeds max_chars ({max_chars}), "
+            f"switching to compact mode"
+        )
+
+        # Level 2: Compact mode (class-level summaries)
+        communities_str = CallGraph.__cluster_str_compact(top_communities, cfg_graph_x)
+        compact_output = communities_str + inter_cluster_str
+        if len(compact_output) <= max_chars:
+            return compact_output
+
+        logger.info(
+            f"[Cluster] Compact output ({len(compact_output)} chars) still exceeds max_chars ({max_chars}), "
+            f"switching to file-level summaries"
+        )
+
+        # Level 3: File-level summaries
+        communities_str = CallGraph.__cluster_str_file_level(top_communities, cfg_graph_x)
         return communities_str + inter_cluster_str
 
     @staticmethod

@@ -321,10 +321,20 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
                 feedback_lines.append(f"- [{tag}] {msg}")
 
             feedback_template = get_validation_feedback_message()
+
+            # Truncate original prompt reference to avoid re-sending massive cluster data
+            MAX_PROMPT_REFERENCE_CHARS = 2000
+            if len(prompt) > MAX_PROMPT_REFERENCE_CHARS:
+                prompt_reference = (
+                    prompt[:MAX_PROMPT_REFERENCE_CHARS] + "\n\n[... original prompt truncated for context limit ...]"
+                )
+            else:
+                prompt_reference = prompt
+
             feedback_prompt = feedback_template.format(
                 original_output=result.llm_str(),
                 feedback_list="\n".join(feedback_lines),
-                original_prompt=prompt,
+                original_prompt=prompt_reference,
             )
 
             logger.info(
