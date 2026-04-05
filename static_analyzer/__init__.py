@@ -8,6 +8,7 @@ from static_analyzer.analysis_cache import AnalysisCacheManager
 from static_analyzer.analysis_result import StaticAnalysisCache, StaticAnalysisResults
 from static_analyzer.cluster_change_analyzer import ChangeClassification
 from static_analyzer.constants import Language
+from static_analyzer.csharp_config_scanner import CSharpConfigScanner
 from static_analyzer.engine.adapters import get_adapter
 from static_analyzer.engine.call_graph_builder import CallGraphBuilder
 from static_analyzer.engine.language_adapter import LanguageAdapter
@@ -88,6 +89,20 @@ def _create_engine_configs(
                 else:
                     logger.info("No Java projects detected")
 
+            elif lang_lower == Language.CSHARP:
+                csharp_scanner = CSharpConfigScanner(repository_path, ignore_manager=ignore_manager)
+                csharp_projects = csharp_scanner.scan()
+
+                if csharp_projects:
+                    for csharp_config in csharp_projects:
+                        logger.info(
+                            f"Creating engine config for CSharp ({csharp_config.project_type}) at: "
+                            f"{csharp_config.root.relative_to(repository_path)}"
+                        )
+                        configs.append((adapter, csharp_config.root))
+                else:
+                    logger.info("No C# projects detected")
+
             else:
                 configs.append((adapter, repository_path))
 
@@ -105,6 +120,7 @@ def _lang_to_adapter_name(language: str) -> str | None:
         "javascript": "JavaScript",
         "tsx": "TypeScript",
         "jsx": "JavaScript",
+        "csharp": "CSharp",
         "go": "Go",
         "java": "Java",
         "php": "PHP",
