@@ -11,13 +11,11 @@ from enum import StrEnum
 from pathlib import Path
 
 import requests
-
 from tool_registry import (
     TOOL_REGISTRY,
     ProgressCallback,
     ToolKind,
     _acquire_lock,
-    _write_manifest,
     get_servers_dir,
     install_archive_tool,
     install_native_tools,
@@ -27,6 +25,7 @@ from tool_registry import (
     platform_bin_dir,
     preferred_node_path,
     preferred_npm_command,
+    write_manifest,
 )
 from user_config import ensure_config_template
 
@@ -562,7 +561,7 @@ def ensure_tools(
             auto_install_vcpp=auto_install_vcpp,
             on_progress=on_progress,
         )
-        _write_manifest()
+        write_manifest()
 
 
 def run_install(
@@ -585,7 +584,7 @@ def run_install(
     ensure_config_template()
 
     # Compute a unified total so the caller sees a single progress stream.
-    native_count = sum(1 for d in TOOL_REGISTRY if d.kind is ToolKind.NATIVE and d.github_asset_template)
+    native_count = sum(1 for d in TOOL_REGISTRY if d.kind is ToolKind.NATIVE and d.source)
     node_deps = [d for d in TOOL_REGISTRY if d.kind is ToolKind.NODE]
     archive_count = sum(1 for d in TOOL_REGISTRY if d.kind is ToolKind.ARCHIVE)
     npm_available = resolve_npm_availability(auto_install_npm=auto_install_npm, target_dir=target)
@@ -623,7 +622,7 @@ def main() -> None:
 
     run_install(auto_install_npm=args.auto_install_npm, auto_install_vcpp=args.auto_install_vcpp)
 
-    _write_manifest()
+    write_manifest()
 
     print("\n" + "=" * 40)
     print("Setup complete!")
