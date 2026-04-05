@@ -23,18 +23,24 @@ class CSharpAdapter(LanguageAdapter):
 
     @property
     def lsp_command(self) -> list[str]:
-        resolved = shutil.which("csharp-ls")
-        if resolved:
-            return [resolved]
-        # Fallback: check the default dotnet tools directory
-        home_tool = Path.home() / ".dotnet" / "tools" / "csharp-ls"
-        if home_tool.is_file():
-            return [str(home_tool)]
         return ["csharp-ls"]
 
     @property
     def language_id(self) -> str:
         return "csharp"
+
+    def get_lsp_command(self, project_root: Path) -> list[str]:
+        """Resolve csharp-ls, checking ~/.dotnet/tools if not on PATH."""
+        cmd = super().get_lsp_command(project_root)
+        binary = cmd[0]
+        # If the binary resolves on PATH, use as-is
+        if shutil.which(binary):
+            return cmd
+        # Fallback: dotnet global tools directory
+        home_tool = Path.home() / ".dotnet" / "tools" / binary
+        if home_tool.is_file():
+            return [str(home_tool)] + cmd[1:]
+        return cmd
 
     def build_qualified_name(
         self,
