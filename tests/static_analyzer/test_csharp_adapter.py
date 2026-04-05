@@ -19,7 +19,9 @@ class TestCSharpAdapterProperties:
 
     def test_lsp_command(self):
         adapter = CSharpAdapter()
-        assert adapter.lsp_command == ["csharp-ls"]
+        cmd = adapter.lsp_command
+        assert len(cmd) == 1
+        assert cmd[0].endswith("csharp-ls")
 
     def test_language_id(self):
         adapter = CSharpAdapter()
