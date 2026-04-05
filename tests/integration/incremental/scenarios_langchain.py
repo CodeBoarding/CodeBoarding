@@ -33,7 +33,7 @@ COSMETIC_DOCSTRING = ChangeScenario(
         ),
     ],
     commit_message="docs: reword StrictFormatter docstring for clarity",
-    expected_escalation="cosmetic_skip",
+    expected_outcome="skip",
 )
 
 
@@ -82,7 +82,7 @@ ADD_UTILITY_FUNCTION = ChangeScenario(
         ),
     ],
     commit_message="feat: add truncate_format_string utility for safe template truncation",
-    expected_escalation="additive_skip",
+    expected_outcome="skip",
     expected_additive=True,
 )
 
@@ -114,7 +114,7 @@ MODIFY_JSON_PARSER = ChangeScenario(
         ),
     ],
     commit_message="fix: strip bare markdown fences in JSON output parser",
-    expected_escalation="none",
+    expected_outcome="patch",
 )
 
 
@@ -158,7 +158,7 @@ ADD_DOCUMENT_METHOD = ChangeScenario(
         ),
     ],
     commit_message="feat: add Document.summarize() for truncated content preview",
-    expected_escalation="none",
+    expected_outcome="patch",
 )
 
 
@@ -410,7 +410,7 @@ DELETE_FUNCTION = ChangeScenario(
         ),
     ],
     commit_message="refactor: remove unused validate_input_variables from StrictFormatter",
-    expected_escalation="none",
+    expected_outcome="patch",
 )
 
 

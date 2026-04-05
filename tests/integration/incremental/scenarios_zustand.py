@@ -32,7 +32,7 @@ COSMETIC_COMMENT = ChangeScenario(
         ),
     ],
     commit_message="docs: reword TypeScript issue TODO comment for clarity",
-    expected_escalation="cosmetic_skip",
+    expected_outcome="skip",
 )
 
 
@@ -89,7 +89,7 @@ ADD_UTILITY_FUNCTION = ChangeScenario(
         ),
     ],
     commit_message="feat: add deepEqual utility for recursive object comparison",
-    expected_escalation="additive_skip",
+    expected_outcome="skip",
     expected_additive=True,
 )
 
@@ -118,7 +118,7 @@ MODIFY_FUNCTION_LOGIC = ChangeScenario(
         ),
     ],
     commit_message="fix: handle undefined return from subscribeWithSelector initializer",
-    expected_escalation="none",
+    expected_outcome="patch",
 )
 
 
@@ -159,7 +159,7 @@ ADD_PARAMETER_CROSS_MODULE = ChangeScenario(
         ),
     ],
     commit_message="feat: add strict mode to hasIterableEntries for type-safe entry checking",
-    expected_escalation="none",
+    expected_outcome="patch",
 )
 
 
@@ -272,7 +272,7 @@ DELETE_FUNCTION = ChangeScenario(
         ),
     ],
     commit_message="refactor: remove unused removeStoreFromTrackedConnections function",
-    expected_escalation="none",
+    expected_outcome="patch",
 )
 
 
@@ -317,7 +317,7 @@ RENAME_ACROSS_FILES = ChangeScenario(
         ),
     ],
     commit_message="refactor: rename identity to defaultSelector for clarity",
-    expected_escalation="none",
+    expected_outcome="patch",
 )
 
 

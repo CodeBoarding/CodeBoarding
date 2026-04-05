@@ -1,8 +1,8 @@
 """Regression tests for incremental analysis using change scenarios.
 
 These tests verify that the incremental analysis pipeline handles
-different types of code changes correctly (escalation levels, additive
-detection, cosmetic skip, etc.) and stays within timing bounds.
+different types of code changes correctly (outcomes: no_change, skip,
+patch, reexpand, full) and stays within timing bounds.
 
 The target repo is auto-cloned at a pinned tag when it is not already
 present in the sibling directory.  Set ``INCREMENTAL_BENCHMARK_REPO`` to
@@ -75,7 +75,7 @@ def state_manager():
 @pytest.mark.incremental_benchmark
 @pytest.mark.parametrize("scenario", SCENARIOS, ids=lambda s: s.name)
 def test_incremental_scenario(scenario: ChangeScenario, state_manager: StateManager) -> None:
-    """Run a change scenario and verify escalation behavior + timing."""
+    """Run a change scenario and verify outcome behavior + timing."""
     state_manager.apply_scenario(scenario)
 
     try:
@@ -88,17 +88,15 @@ def test_incremental_scenario(scenario: ChangeScenario, state_manager: StateMana
 
     assert metrics.error is None, f"Incremental analysis failed: {metrics.error}"
 
-    # Check expected escalation path
+    # Check expected outcome
     if scenario.expected_additive:
-        assert (
-            metrics.purely_additive is True
-        ), f"Expected purely additive but got escalation={metrics.escalation_level}"
+        assert metrics.purely_additive is True, f"Expected purely additive but got outcome={metrics.outcome}"
         assert metrics.hops_used == 0
 
-    if scenario.expected_escalation and scenario.expected_escalation not in ("additive_skip", "cosmetic_skip"):
+    if scenario.expected_outcome:
         assert (
-            metrics.escalation_level == scenario.expected_escalation
-        ), f"Expected escalation={scenario.expected_escalation} but got {metrics.escalation_level}"
+            metrics.outcome == scenario.expected_outcome
+        ), f"Expected outcome={scenario.expected_outcome} but got {metrics.outcome}"
 
     # Timing bound
     max_time = MAX_WALL_CLOCK.get(scenario.name, 90.0)

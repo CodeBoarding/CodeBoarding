@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   benchmark:
-    if: github.event.issue.pull_request && contains(github.event.comment.body, '/benchmark')
+    if: github.event.issue.pull_request && contains(github.event.comment.body, '/bench-incremental')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -110,7 +110,7 @@ jobs:
             echo '```'
             echo "</details>"
             echo ""
-            echo "_Triggered by /benchmark on #${{ steps.pr.outputs.pr_number }}_"
+            echo "_Triggered by /bench-incremental on #${{ steps.pr.outputs.pr_number }}_"
           } > comment.md
 
       - name: Post PR comment

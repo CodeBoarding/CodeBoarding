@@ -23,16 +23,16 @@ def compare(base_path: str, head_path: str) -> str:
         delta = ht - bt
         pct = (delta / bt * 100) if bt else 0
         sign = "+" if delta > 0 else ""
-        b_esc = b.get("escalation_level", "-")
-        h_esc = h.get("escalation_level", "-")
+        b_esc = b.get("outcome", "-")
+        h_esc = h.get("outcome", "-")
         flag = " :warning:" if b_esc != h_esc else ""
         rows.append(
             f"| {name} | {bt:.1f} | {ht:.1f} | {sign}{delta:.1f} | {sign}{pct:.0f}% | {b_esc} | {h_esc}{flag} |"
         )
 
     header = (
-        "| Scenario | Base (s) | Head (s) | Delta | Delta% | Base Escalation | Head Escalation |\n"
-        "|----------|----------|----------|-------|--------|-----------------|-----------------|"
+        "| Scenario | Base (s) | Head (s) | Delta | Delta% | Base Outcome | Head Outcome |\n"
+        "|----------|----------|----------|-------|--------|--------------|--------------|"
     )
     return header + "\n" + "\n".join(rows)
 

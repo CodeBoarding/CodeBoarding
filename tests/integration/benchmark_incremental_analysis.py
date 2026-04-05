@@ -103,7 +103,7 @@ def run_scenario(state_manager, scenario, iteration: int) -> dict:
 
 def print_results(all_results: dict[str, list[dict]]) -> None:
     """Print a summary table of benchmark results."""
-    header = f"  {'Scenario':<30} {'Time (s)':>10} {'Escalation':<18} {'Hops':>5} {'Components':>11} {'Deltas':>7}"
+    header = f"  {'Scenario':<30} {'Time (s)':>10} {'Outcome':<18} {'Hops':>5} {'Components':>11} {'Deltas':>7}"
     print(f"\n{'=' * 95}")
     print("  Incremental Analysis Benchmark Results")
     print(f"{'=' * 95}\n")
@@ -120,7 +120,7 @@ def print_results(all_results: dict[str, list[dict]]) -> None:
             else:
                 print(
                     f"  {name:<30} {r['wall_clock_seconds']:>10.2f} "
-                    f"{r['escalation_level']:<18} {r['hops_used']:>5} "
+                    f"{r['outcome']:<18} {r['hops_used']:>5} "
                     f"{r['components_affected']:>11} {r['file_deltas_count']:>7}"
                 )
 
@@ -200,7 +200,7 @@ def main() -> None:
                     else:
                         print(
                             f"time={result['wall_clock_seconds']}s "
-                            f"escalation={result['escalation_level']} "
+                            f"outcome={result['outcome']} "
                             f"hops={result['hops_used']}"
                         )
                     runs.append(result)

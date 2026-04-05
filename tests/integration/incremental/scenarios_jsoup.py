@@ -30,7 +30,7 @@ COSMETIC_JAVADOC = ChangeScenario(
         ),
     ],
     commit_message="docs: reword Jsoup class Javadoc for clarity",
-    expected_escalation="cosmetic_skip",
+    expected_outcome="skip",
 )
 
 
@@ -74,7 +74,7 @@ ADD_UTILITY_METHOD = ChangeScenario(
         ),
     ],
     commit_message="feat: add isGzipFile utility method to DataUtil",
-    expected_escalation="additive_skip",
+    expected_outcome="skip",
     expected_additive=True,
 )
 
@@ -115,7 +115,7 @@ MODIFY_FUNCTION_LOGIC = ChangeScenario(
         ),
     ],
     commit_message="feat: allow maxDepth of 0 to mean unlimited in Parser.setMaxDepth",
-    expected_escalation="none",
+    expected_outcome="patch",
 )
 
 
@@ -163,7 +163,7 @@ ADD_PARAMETER_CROSS_MODULE = ChangeScenario(
         ),
     ],
     commit_message="feat: add case-insensitive selectFirst overload to Selector",
-    expected_escalation="none",
+    expected_outcome="patch",
 )
 
 
@@ -287,7 +287,7 @@ DELETE_FUNCTION = ChangeScenario(
         ),
     ],
     commit_message="refactor: remove unused escapeCssIdentifier() wrapper from Selector",
-    expected_escalation="none",
+    expected_outcome="patch",
 )
 
 
@@ -356,7 +356,7 @@ RENAME_ACROSS_FILES = ChangeScenario(
         ),
     ],
     commit_message="refactor: rename UTF_8 to UTF8_CHARSET across codebase",
-    expected_escalation="none",
+    expected_outcome="patch",
 )
 
 

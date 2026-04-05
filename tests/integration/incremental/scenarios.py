@@ -27,7 +27,7 @@ class ChangeScenario:
     description: str
     edits: list[FileEdit]
     commit_message: str
-    expected_escalation: str | None = None  # "none", "scoped", "root", "additive_skip", "cosmetic_skip", "no_changes"
+    expected_outcome: str | None = None  # "no_change", "skip", "patch", "reexpand", "full"
     expected_additive: bool = False
 
 
@@ -53,7 +53,7 @@ COSMETIC_DOCSTRING = ChangeScenario(
         ),
     ],
     commit_message="docs: reword verify() docstring for clarity",
-    expected_escalation="cosmetic_skip",
+    expected_outcome="skip",
 )
 
 
@@ -100,7 +100,7 @@ ADD_UTILITY_FUNCTION = ChangeScenario(
         ),
     ],
     commit_message="feat: add perceptual hash utility for image deduplication",
-    expected_escalation="additive_skip",
+    expected_outcome="skip",
     expected_additive=True,
 )
 
@@ -133,7 +133,7 @@ MODIFY_FUNCTION_LOGIC = ChangeScenario(
         ),
     ],
     commit_message="feat: skip low-confidence faces in demography analysis",
-    expected_escalation="none",
+    expected_outcome="patch",
 )
 
 
@@ -179,7 +179,7 @@ ADD_PARAMETER_CROSS_MODULE = ChangeScenario(
         ),
     ],
     commit_message="feat: add verbose parameter to represent() for debug logging",
-    expected_escalation="none",
+    expected_outcome="patch",
 )
 
 
@@ -394,7 +394,7 @@ DELETE_FUNCTION = ChangeScenario(
         ),
     ],
     commit_message="refactor: remove unused yield_images() function",
-    expected_escalation="none",
+    expected_outcome="patch",
 )
 
 
@@ -427,7 +427,7 @@ RENAME_ACROSS_FILES = ChangeScenario(
         ),
     ],
     commit_message="refactor: rename yield_images to iterate_image_paths",
-    expected_escalation="none",
+    expected_outcome="patch",
 )
 
 

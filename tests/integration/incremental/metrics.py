@@ -26,7 +26,7 @@ class IncrementalRunMetrics:
     """Metrics captured from a single incremental analysis run."""
 
     wall_clock_seconds: float = 0.0
-    escalation_level: str = ""
+    outcome: str = ""
     hops_used: int = 0
     trace_stop_reason: str = ""
     components_affected: int = 0
@@ -73,9 +73,9 @@ def run_incremental_with_metrics(
             metrics.file_deltas_count = len(delta.file_deltas)
             metrics.purely_additive = delta.is_purely_additive
             if delta.is_purely_additive:
-                metrics.escalation_level = "additive_skip"
+                metrics.outcome = "skip"
         else:
-            metrics.escalation_level = "no_changes"
+            metrics.outcome = "no_change"
         return delta
 
     # Wrap _run_semantic_trace to capture trace result
@@ -89,12 +89,25 @@ def run_incremental_with_metrics(
         metrics.components_affected = len(result.impacted_components)
         return result
 
-    # Wrap _determine_escalation to capture escalation level
+    # Wrap _determine_escalation to capture outcome
     original_determine_escalation = generator._determine_escalation
 
     def capturing_determine_escalation(*args, **kwargs):
         escalation = original_determine_escalation(*args, **kwargs)
-        metrics.escalation_level = escalation.value
+        # Map internal escalation to benchmark outcome:
+        #   no_change  - no diff detected, analysis untouched
+        #   skip       - additive/cosmetic, no patch needed
+        #   patch      - delta applied, JSON patched in-place (LLM)
+        #   reexpand   - DetailsAgent re-ran on affected components
+        #   full       - requires full analysis
+        if escalation.value in ("root", "full"):
+            metrics.outcome = "full"
+        elif escalation.value == "scoped":
+            metrics.outcome = "reexpand"
+        elif metrics.components_affected > 0:
+            metrics.outcome = "patch"
+        else:
+            metrics.outcome = "skip"
         return escalation
 
     # Apply patches and run
