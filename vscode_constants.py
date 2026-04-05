@@ -111,6 +111,13 @@ VSCODE_CONFIG = {
             "file_extensions": [".java"],
             "install_commands": "null",
         },
+        "rust": {
+            "name": "rust-analyzer",
+            "command": ["rust-analyzer"],
+            "languages": ["rust"],
+            "file_extensions": [".rs"],
+            "install_commands": "rustup component add rust-analyzer",
+        },
     },
     "tools": {
         "tokei": {
