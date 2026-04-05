@@ -23,6 +23,13 @@ class CSharpAdapter(LanguageAdapter):
 
     @property
     def lsp_command(self) -> list[str]:
+        resolved = shutil.which("csharp-ls")
+        if resolved:
+            return [resolved]
+        # Fallback: check the default dotnet tools directory
+        home_tool = Path.home() / ".dotnet" / "tools" / "csharp-ls"
+        if home_tool.is_file():
+            return [str(home_tool)]
         return ["csharp-ls"]
 
     @property
