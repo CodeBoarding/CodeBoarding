@@ -89,7 +89,7 @@ def _create_engine_configs(
                 else:
                     logger.info("No Java projects detected")
 
-            elif lang_lower == Language.CSHARP:
+            elif lang_lower in (Language.CSHARP, "c#"):
                 csharp_scanner = CSharpConfigScanner(repository_path, ignore_manager=ignore_manager)
                 csharp_projects = csharp_scanner.scan()
 
