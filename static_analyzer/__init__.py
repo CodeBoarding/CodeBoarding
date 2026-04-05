@@ -119,6 +119,7 @@ def _lang_to_adapter_name(language: str) -> str | None:
         "javascript": "JavaScript",
         "tsx": "TypeScript",
         "jsx": "JavaScript",
+        "c#": "CSharp",
         "csharp": "CSharp",
         "go": "Go",
         "java": "Java",
