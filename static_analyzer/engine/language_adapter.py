@@ -144,6 +144,16 @@ class LanguageAdapter(ABC):
         """
         return 60
 
+    def get_probe_timeout_minimum(self) -> int:
+        """Return the minimum probe timeout in seconds for initial indexing.
+
+        The call graph builder sends a sync probe after opening all files
+        to wait for the LSP server to finish indexing.  Some servers
+        (e.g., csharp-ls loading a Roslyn workspace) need significantly
+        more time than the default 300s base.  Override to raise the floor.
+        """
+        return 0
+
     def get_lsp_env(self) -> dict[str, str]:
         """Return extra environment variables for the LSP server process."""
         return {}

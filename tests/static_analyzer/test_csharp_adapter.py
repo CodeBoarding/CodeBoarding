@@ -131,6 +131,10 @@ class TestLspConfiguration:
         adapter = CSharpAdapter()
         assert adapter.get_lsp_default_timeout() > 60
 
+    def test_probe_timeout_minimum_exceeds_default(self):
+        adapter = CSharpAdapter()
+        assert adapter.get_probe_timeout_minimum() > 300
+
 
 class TestLspEnv:
     """Tests for DOTNET_ROOT resolution."""

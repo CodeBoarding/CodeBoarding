@@ -156,7 +156,7 @@ class CallGraphBuilder:
             )
         else:
             probe_timeout = _PROBE_BASE_TIMEOUT
-        probe_timeout = int(probe_timeout)
+        probe_timeout = max(int(probe_timeout), self._adapter.get_probe_timeout_minimum())
 
         probe_result: list[dict] | None = None
         logger.info("Waiting for LSP server indexing (timeout=%ds)...", probe_timeout)
