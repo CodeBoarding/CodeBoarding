@@ -21,6 +21,7 @@ class Language(StrEnum):
     GO = "go"
     JAVA = "java"
     PHP = "php"
+    RUST = "rust"
     CPP = "cpp"
 
 
@@ -50,6 +51,7 @@ class ClusteringConfig:
         Language.TYPESCRIPT: ".",
         Language.JAVASCRIPT: ".",
         Language.JAVA: ".",
+        Language.RUST: ".",
     }
 
     # Deterministic seed for clustering algorithms

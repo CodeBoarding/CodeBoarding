@@ -154,6 +154,13 @@ TOOL_REGISTRY: list[ToolDependency] = [
         archive_asset="jdtls.tar.gz",
         archive_subdir="jdtls",
     ),
+    ToolDependency(
+        key="rust",
+        binary_name="rust-analyzer",
+        kind=ToolKind.NATIVE,
+        config_section=ConfigSection.LSP_SERVERS,
+        github_asset_template="rust-analyzer-{platform_suffix}",
+    ),
 ]
 
 
