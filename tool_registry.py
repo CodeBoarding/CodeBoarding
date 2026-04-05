@@ -18,18 +18,29 @@ import os
 import platform
 import shutil
 import subprocess
+import sys
 import tarfile
+import time
+from collections.abc import Callable
 from copy import deepcopy
 from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
 from typing import Any, cast
 
+if sys.platform == "win32":
+    import msvcrt
+else:
+    import fcntl
+
 import requests
 
 from vscode_constants import VSCODE_CONFIG, find_runnable
 
 logger = logging.getLogger(__name__)
+
+# Callback type for reporting download progress: (tool_name, current_step, total_steps)
+ProgressCallback = Callable[[str, int, int], None]
 
 GITHUB_REPO = "CodeBoarding/CodeBoarding"
 
@@ -292,18 +303,31 @@ def needs_install() -> bool:
     return not has_required_tools(get_servers_dir())
 
 
-def ensure_tools(auto_install_npm: bool = False, auto_install_vcpp: bool = False) -> None:
-    """Install tools to ~/.codeboarding/servers/ if needed. No-op if already current."""
-    if not needs_install():
-        return
-    from install import run_install  # deferred to avoid circular import at module level
-
-    run_install(
-        target_dir=get_servers_dir(),
-        auto_install_npm=auto_install_npm,
-        auto_install_vcpp=auto_install_vcpp,
-    )
-    _write_manifest()
+def _acquire_lock(lock_fd: Any) -> None:
+    """Acquire an exclusive file lock, logging if we have to wait."""
+    if sys.platform == "win32":
+        # msvcrt.LK_LOCK only retries for ~10 s which is too short for tool
+        # downloads.  Poll with LK_NBLCK every 2 s instead — no hard timeout.
+        try:
+            msvcrt.locking(lock_fd.fileno(), msvcrt.LK_NBLCK, 1)
+        except OSError:
+            logger.info("Another instance is downloading tools, waiting...")
+            print("Waiting for another instance to finish downloading tools...", flush=True, file=sys.stderr)
+            while True:
+                time.sleep(2)
+                try:
+                    msvcrt.locking(lock_fd.fileno(), msvcrt.LK_NBLCK, 1)
+                    break
+                except OSError:
+                    continue
+    else:
+        # fcntl.LOCK_EX blocks indefinitely — exactly what we want.
+        try:
+            fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            logger.info("Another instance is downloading tools, waiting...")
+            print("Waiting for another instance to finish downloading tools...", flush=True, file=sys.stderr)
+            fcntl.flock(lock_fd, fcntl.LOCK_EX)
 
 
 def build_config() -> dict[str, Any]:
@@ -461,19 +485,36 @@ def get_latest_release_tag() -> str:
 
 
 def download_asset(tag: str, asset_name: str, destination: Path) -> bool:
-    """Download a GitHub release asset to destination. Returns True on success."""
+    """Download a GitHub release asset to destination. Returns True on success.
+
+    Writes to a temp file first, then atomically renames to prevent
+    corrupt binaries if the download is interrupted.
+    """
     destination.parent.mkdir(parents=True, exist_ok=True)
+    temp_dest = destination.with_suffix(destination.suffix + ".download")
     url = f"https://github.com/{GITHUB_REPO}/releases/download/{tag}/{asset_name}"
-    response = requests.get(url, stream=True, timeout=300, allow_redirects=True)
-    response.raise_for_status()
-    with open(destination, "wb") as f:
-        for chunk in response.iter_content(chunk_size=32768):
-            if chunk:
-                f.write(chunk)
-    return destination.exists() and destination.stat().st_size > 0
+    try:
+        response = requests.get(url, stream=True, timeout=300, allow_redirects=True)
+        response.raise_for_status()
+        with open(temp_dest, "wb") as f:
+            for chunk in response.iter_content(chunk_size=32768):
+                if chunk:
+                    f.write(chunk)
+        if temp_dest.stat().st_size > 0:
+            os.replace(temp_dest, destination)
+            return True
+        temp_dest.unlink(missing_ok=True)
+        return False
+    except Exception:
+        temp_dest.unlink(missing_ok=True)
+        raise
 
 
-def install_native_tools(target_dir: Path, deps: list[ToolDependency]) -> None:
+def install_native_tools(
+    target_dir: Path,
+    deps: list[ToolDependency],
+    on_progress: ProgressCallback | None = None,
+) -> None:
     """Download native binaries from GitHub releases."""
     system = platform.system()
     suffix = _PLATFORM_SUFFIX.get(system)
@@ -491,8 +532,10 @@ def install_native_tools(target_dir: Path, deps: list[ToolDependency]) -> None:
         logger.exception("Could not determine latest release")
         return
 
-    for dep in deps:
-        assert dep.github_asset_template, f"{dep.key}: github_asset_template required for native tools"
+    downloadable = [d for d in deps if d.github_asset_template]
+    for i, dep in enumerate(downloadable, 1):
+        if on_progress:
+            on_progress(dep.binary_name, i, len(downloadable))
         binary_path = bin_dir / f"{dep.binary_name}{exe_suffix()}"
         if binary_path.exists():
             logger.info("  %s: already installed, skipping", dep.binary_name)
@@ -511,7 +554,11 @@ def install_native_tools(target_dir: Path, deps: list[ToolDependency]) -> None:
             binary_path.unlink(missing_ok=True)
 
 
-def install_node_tools(target_dir: Path, deps: list[ToolDependency]) -> None:
+def install_node_tools(
+    target_dir: Path,
+    deps: list[ToolDependency],
+    on_progress: ProgressCallback | None = None,
+) -> None:
     """Install Node.js tools via npm."""
     npm_command = preferred_npm_command(target_dir)
     if not npm_command:
@@ -527,6 +574,8 @@ def install_node_tools(target_dir: Path, deps: list[ToolDependency]) -> None:
         return
 
     env = npm_subprocess_env(target_dir)
+    if on_progress:
+        on_progress("npm packages", 1, 1)
     logger.info("Installing Node.js packages: %s", all_packages)
     try:
         if not (target_dir / "package.json").exists():
@@ -548,10 +597,17 @@ def install_node_tools(target_dir: Path, deps: list[ToolDependency]) -> None:
         logger.exception("Node.js package installation failed")
 
 
-def install_archive_tool(target_dir: Path, dep: ToolDependency) -> None:
+def install_archive_tool(
+    target_dir: Path,
+    dep: ToolDependency,
+    on_progress: ProgressCallback | None = None,
+) -> None:
     """Download and extract an archive tool."""
     assert dep.archive_asset, f"{dep.key}: archive_asset required for archive tools"
     assert dep.archive_subdir, f"{dep.key}: archive_subdir required for archive tools"
+
+    if on_progress:
+        on_progress(dep.key, 1, 1)
 
     extract_dir = target_dir / "bin" / dep.archive_subdir
     if extract_dir.exists() and (extract_dir / "plugins").is_dir():
@@ -573,5 +629,7 @@ def install_archive_tool(target_dir: Path, dep: ToolDependency) -> None:
         archive_path.unlink()
         logger.info("%s installed successfully", dep.key)
     except Exception:
+        logger.exception("%s installation failed", dep.key)
+        archive_path.unlink(missing_ok=True)
         logger.exception("%s installation failed", dep.key)
         archive_path.unlink(missing_ok=True)

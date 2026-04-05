@@ -14,12 +14,15 @@ import requests
 
 from tool_registry import (
     TOOL_REGISTRY,
+    ProgressCallback,
     ToolKind,
+    _acquire_lock,
     _write_manifest,
     get_servers_dir,
     install_archive_tool,
     install_native_tools,
     install_node_tools,
+    needs_install,
     npm_subprocess_env,
     platform_bin_dir,
     preferred_node_path,
@@ -207,13 +210,13 @@ def get_platform_bin_dir(servers_dir: Path) -> Path:
     return platform_bin_dir(servers_dir)
 
 
-def install_node_servers(target_dir: Path):
+def install_node_servers(target_dir: Path, on_progress: ProgressCallback | None = None):
     """Install Node.js based servers (TypeScript, Pyright) using npm in target_dir."""
     print("Step: Node.js servers installation started")
     target_dir.mkdir(parents=True, exist_ok=True)
 
     node_deps = [d for d in TOOL_REGISTRY if d.kind is ToolKind.NODE]
-    install_node_tools(target_dir, node_deps)
+    install_node_tools(target_dir, node_deps, on_progress=on_progress)
 
     # Verify the installation
     ts_lsp_path = target_dir / "node_modules" / ".bin" / "typescript-language-server"
@@ -369,11 +372,11 @@ def resolve_missing_vcpp(auto_install_vcpp: bool = False) -> bool:
     return False
 
 
-def download_binaries(target_dir: Path, auto_install_vcpp: bool = False):
+def download_binaries(target_dir: Path, auto_install_vcpp: bool = False, on_progress: ProgressCallback | None = None):
     """Download tokei and gopls binaries from the latest GitHub release."""
     print("Step: Binary download started")
     native_deps = [d for d in TOOL_REGISTRY if d.kind is ToolKind.NATIVE]
-    install_native_tools(target_dir, native_deps)
+    install_native_tools(target_dir, native_deps, on_progress=on_progress)
 
     # Verify downloaded binaries actually work (catch missing DLL issues on Windows)
     if platform.system() == "Windows":
@@ -411,12 +414,12 @@ def download_binaries(target_dir: Path, auto_install_vcpp: bool = False):
     print("Step: Binary download finished")
 
 
-def download_jdtls(target_dir: Path):
+def download_jdtls(target_dir: Path, on_progress: ProgressCallback | None = None):
     """Download and extract JDTLS from the latest GitHub release."""
     print("Step: JDTLS download started")
     archive_deps = [d for d in TOOL_REGISTRY if d.kind is ToolKind.ARCHIVE]
     for dep in archive_deps:
-        install_archive_tool(target_dir, dep)
+        install_archive_tool(target_dir, dep, on_progress=on_progress)
 
     print("Step: JDTLS download finished")
     return True
@@ -530,27 +533,79 @@ def print_language_support_summary(npm_available: bool, target_dir: Path):
             print(f"    reason: {reason}")
 
 
+def ensure_tools(
+    auto_install_npm: bool = False,
+    auto_install_vcpp: bool = False,
+    on_progress: ProgressCallback | None = None,
+) -> None:
+    """Install tools to ~/.codeboarding/servers/ if needed. No-op if already current.
+
+    Uses a file lock so that concurrent instances (multiple VSCode windows)
+    don't corrupt binaries by downloading simultaneously.
+
+    Args:
+        on_progress: Optional callback invoked as (tool_name, step, total) during downloads.
+    """
+    servers_dir = get_servers_dir()
+    servers_dir.mkdir(parents=True, exist_ok=True)
+    lock_path = servers_dir / ".download.lock"
+
+    with open(lock_path, "w") as lock_fd:
+        _acquire_lock(lock_fd)
+
+        if not needs_install():
+            return
+
+        run_install(
+            target_dir=servers_dir,
+            auto_install_npm=auto_install_npm,
+            auto_install_vcpp=auto_install_vcpp,
+            on_progress=on_progress,
+        )
+        _write_manifest()
+
+
 def run_install(
     target_dir: Path | None = None,
     auto_install_npm: bool = False,
     auto_install_vcpp: bool = False,
+    on_progress: ProgressCallback | None = None,
 ) -> None:
     """Core installation logic — callable programmatically or via CLI.
 
     Downloads language server binaries to target_dir (defaults to ~/.codeboarding/servers/).
     Safe to call multiple times; already-installed tools are skipped.
+
+    The ``on_progress`` callback receives ``(tool_name, step, total)`` where
+    step/total count across *all* tool categories (native, node, archive).
     """
     target = (target_dir or get_servers_dir()).resolve()
     target.mkdir(parents=True, exist_ok=True)
 
     ensure_config_template()
 
+    # Compute a unified total so the caller sees a single progress stream.
+    native_count = sum(1 for d in TOOL_REGISTRY if d.kind is ToolKind.NATIVE and d.github_asset_template)
+    node_deps = [d for d in TOOL_REGISTRY if d.kind is ToolKind.NODE]
+    archive_count = sum(1 for d in TOOL_REGISTRY if d.kind is ToolKind.ARCHIVE)
     npm_available = resolve_npm_availability(auto_install_npm=auto_install_npm, target_dir=target)
-    if npm_available:
-        install_node_servers(target)
+    total_steps = native_count + (1 if npm_available and node_deps else 0) + archive_count
 
-    download_binaries(target, auto_install_vcpp=auto_install_vcpp)
-    download_jdtls(target)
+    step = 0
+
+    def unified_progress(name: str, _i: int, _t: int) -> None:
+        nonlocal step
+        step += 1
+        if on_progress:
+            on_progress(name, step, total_steps)
+
+    tracker = unified_progress if on_progress else None
+
+    if npm_available:
+        install_node_servers(target, on_progress=tracker)
+
+    download_binaries(target, auto_install_vcpp=auto_install_vcpp, on_progress=tracker)
+    download_jdtls(target, on_progress=tracker)
     install_pre_commit_hooks()
     print_language_support_summary(npm_available, target)
 
