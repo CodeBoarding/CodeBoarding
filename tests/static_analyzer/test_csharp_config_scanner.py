@@ -126,11 +126,24 @@ class TestCSharpConfigScanner:
 
         assert len(projects) == 0
 
-    def test_ignored_directories_skipped(self, tmp_path: Path):
+    def test_ignored_csproj_directory_skipped(self, tmp_path: Path):
         """Projects in ignored directories are not detected."""
         ignored = tmp_path / "node_modules" / "some-pkg"
         ignored.mkdir(parents=True)
         (ignored / "Tool.csproj").write_text("<Project/>")
+
+        (tmp_path / ".gitignore").write_text("node_modules/")
+
+        scanner = CSharpConfigScanner(tmp_path)
+        projects = scanner.scan()
+
+        assert len(projects) == 0
+
+    def test_ignored_solution_directory_skipped(self, tmp_path: Path):
+        """Solution files in ignored directories are not detected."""
+        ignored = tmp_path / "node_modules" / "some-pkg"
+        ignored.mkdir(parents=True)
+        (ignored / "Embedded.sln").write_text("solution content")
 
         (tmp_path / ".gitignore").write_text("node_modules/")
 
