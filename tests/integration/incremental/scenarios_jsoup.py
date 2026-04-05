@@ -261,6 +261,7 @@ ADD_NEW_FILE = ChangeScenario(
         ),
     ],
     commit_message="feat: add LRU cache utility class CacheUtil",
+    expected_outcome="patch",
 )
 
 
@@ -444,6 +445,7 @@ CROSS_COMPONENT_CHANGE = ChangeScenario(
         ),
     ],
     commit_message="feat: add timeout parameter to selectFirst across Element and Selector",
+    expected_outcome="reexpand",
 )
 
 

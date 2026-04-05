@@ -98,12 +98,14 @@ def run_scenario(state_manager, scenario, iteration: int) -> dict:
 
     state_manager.restore_baseline()
 
-    return metrics.to_dict()
+    result = metrics.to_dict()
+    result["expected"] = scenario.expected_outcome or ""
+    return result
 
 
 def print_results(all_results: dict[str, list[dict]]) -> None:
     """Print a summary table of benchmark results."""
-    header = f"  {'Scenario':<30} {'Time (s)':>10} {'Outcome':<18} {'Hops':>5} {'Components':>11} {'Deltas':>7}"
+    header = f"  {'Scenario':<30} {'Time (s)':>10} {'Outcome':<10} {'Expected':<10} {'Hops':>5} {'Components':>11} {'Deltas':>7}"
     print(f"\n{'=' * 95}")
     print("  Incremental Analysis Benchmark Results")
     print(f"{'=' * 95}\n")
@@ -118,9 +120,12 @@ def print_results(all_results: dict[str, list[dict]]) -> None:
             if error:
                 print(f"  {name:<30} {'ERROR':>10} {error[:40]}")
             else:
+                expected = r.get("expected", "")
+                match = "" if not expected else (" ✓" if r["outcome"] == expected else " ✗")
                 print(
                     f"  {name:<30} {r['wall_clock_seconds']:>10.2f} "
-                    f"{r['outcome']:<18} {r['hops_used']:>5} "
+                    f"{r['outcome']:<10} {expected:<10}{match}"
+                    f" {r['hops_used']:>5} "
                     f"{r['components_affected']:>11} {r['file_deltas_count']:>7}"
                 )
 

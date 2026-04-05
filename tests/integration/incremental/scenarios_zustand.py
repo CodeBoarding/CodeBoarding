@@ -228,6 +228,7 @@ ADD_NEW_FILE = ChangeScenario(
         ),
     ],
     commit_message="feat: add logger middleware for state change debugging",
+    expected_outcome="patch",
 )
 
 
@@ -384,6 +385,7 @@ CROSS_COMPONENT_CHANGE = ChangeScenario(
         ),
     ],
     commit_message="feat: add DevtoolsState type across middleware layer",
+    expected_outcome="reexpand",
 )
 
 

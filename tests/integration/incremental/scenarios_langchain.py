@@ -266,6 +266,7 @@ ADD_NEW_FILE = ChangeScenario(
         ),
     ],
     commit_message="feat: add document deduplication utilities for retrieval pipelines",
+    expected_outcome="patch",
 )
 
 
@@ -339,6 +340,7 @@ CROSS_COMPONENT_CHANGE = ChangeScenario(
         ),
     ],
     commit_message="feat: add timing instrumentation across runnables, callbacks, and retrievers",
+    expected_outcome="reexpand",
 )
 
 
@@ -384,6 +386,7 @@ MODIFY_CROSS_MODULE_TYPE = ChangeScenario(
         ),
     ],
     commit_message="feat: add reasoning_content field to AIMessage for CoT model support",
+    expected_outcome="patch",
 )
 
 

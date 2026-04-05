@@ -282,6 +282,7 @@ ADD_NEW_FILE = ChangeScenario(
         ),
     ],
     commit_message="feat: add SQLite vector store backend for local development",
+    expected_outcome="patch",
 )
 
 
@@ -368,6 +369,7 @@ CROSS_COMPONENT_CHANGE = ChangeScenario(
         ),
     ],
     commit_message="feat: add output_format parameter across detection pipeline",
+    expected_outcome="reexpand",
 )
 
 
