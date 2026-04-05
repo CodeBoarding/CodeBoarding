@@ -144,6 +144,19 @@ class LanguageAdapter(ABC):
         """
         return 60
 
+    @property
+    def probe_before_open(self) -> bool:
+        """If True, send the sync probe BEFORE bulk didOpen notifications.
+
+        Workspace-based servers (e.g., csharp-ls) load all files from the
+        solution/project automatically.  Sending hundreds of didOpen
+        notifications before the workspace is ready can overwhelm them.
+        When True, the call graph builder sends the sync probe first to
+        wait for workspace loading, then opens files individually as
+        needed for analysis.
+        """
+        return False
+
     def get_probe_timeout_minimum(self) -> int:
         """Return the minimum probe timeout in seconds for initial indexing.
 
