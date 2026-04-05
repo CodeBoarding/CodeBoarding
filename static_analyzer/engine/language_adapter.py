@@ -134,6 +134,16 @@ class LanguageAdapter(ABC):
         """
         return None
 
+    def get_lsp_default_timeout(self) -> int:
+        """Return the default per-request timeout in seconds for the LSP client.
+
+        Override for language servers that need more time to index large
+        projects before they can respond to requests (e.g., csharp-ls
+        loading a Roslyn workspace).  The default (60s) is suitable for
+        most servers.
+        """
+        return 60
+
     def get_lsp_env(self) -> dict[str, str]:
         """Return extra environment variables for the LSP server process."""
         return {}

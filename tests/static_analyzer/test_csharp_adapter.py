@@ -127,6 +127,10 @@ class TestLspConfiguration:
         assert settings is not None
         assert settings["csharp"]["logLevel"] == "warning"
 
+    def test_default_timeout_higher_than_base(self):
+        adapter = CSharpAdapter()
+        assert adapter.get_lsp_default_timeout() > 60
+
 
 class TestLspEnv:
     """Tests for DOTNET_ROOT resolution."""

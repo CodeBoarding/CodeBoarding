@@ -191,6 +191,7 @@ class StaticAnalyzer:
                     command=command,
                     project_root=project_path,
                     init_options=init_options,
+                    default_timeout=adapter.get_lsp_default_timeout(),
                     collect_diagnostics=True,
                     extra_env=extra_env,
                     workspace_settings=workspace_settings,
