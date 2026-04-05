@@ -148,7 +148,7 @@ TOOL_REGISTRY: list[ToolDependency] = [
     ),
     ToolDependency(
         key="csharp",
-        binary_name="OmniSharp",
+        binary_name="csharp-ls",
         kind=ToolKind.NATIVE,
         config_section=ConfigSection.LSP_SERVERS,
     ),

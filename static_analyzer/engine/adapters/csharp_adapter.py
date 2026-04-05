@@ -1,7 +1,9 @@
-"""C# language adapter using OmniSharp."""
+"""C# language adapter using csharp-ls (Roslyn-based)."""
 
 from __future__ import annotations
 
+import os
+import shutil
 from pathlib import Path
 
 from repo_utils.ignore import RepoIgnoreManager
@@ -21,7 +23,7 @@ class CSharpAdapter(LanguageAdapter):
 
     @property
     def lsp_command(self) -> list[str]:
-        return ["OmniSharp", "-lsp"]
+        return ["csharp-ls"]
 
     @property
     def language_id(self) -> str:
@@ -65,28 +67,40 @@ class CSharpAdapter(LanguageAdapter):
         return self._extract_deep_package(qualified_name)
 
     def get_lsp_init_options(self, ignore_manager: RepoIgnoreManager | None = None) -> dict:
-        """Configure OmniSharp for static analysis.
+        """Configure csharp-ls for static analysis.
 
-        Disables formatting-related features and enables analyzers for
-        unused code detection.
+        Settings are read from the ``csharp`` workspace configuration section.
         """
         return {
-            "RoslynExtensionsOptions": {
-                "enableAnalyzersSupport": True,
-                "enableDecompilationSupport": False,
-            },
-            "FormattingOptions": {
-                "enableEditorConfigSupport": False,
+            "csharp": {
+                "logLevel": "warning",
             },
         }
 
     def get_workspace_settings(self) -> dict | None:
         return {
-            "omnisharp": {
-                "enableRoslynAnalyzers": True,
-                "enableEditorConfigSupport": False,
-            }
+            "csharp": {
+                "logLevel": "warning",
+            },
         }
+
+    def get_lsp_env(self) -> dict[str, str]:
+        """Set DOTNET_ROOT when not already in the environment.
+
+        csharp-ls requires the .NET runtime to be discoverable. On systems
+        where the SDK is installed via a package manager (e.g. Homebrew on
+        macOS), the ``DOTNET_ROOT`` variable may not be set, causing
+        csharp-ls to fail at startup.  This resolves the runtime location
+        from the ``dotnet`` binary on PATH.
+        """
+        if os.environ.get("DOTNET_ROOT"):
+            return {}
+        dotnet = shutil.which("dotnet")
+        if dotnet:
+            dotnet_root = Path(dotnet).resolve().parent.parent / "libexec"
+            if dotnet_root.is_dir():
+                return {"DOTNET_ROOT": str(dotnet_root)}
+        return {}
 
     def is_reference_worthy(self, symbol_kind: int) -> bool:
         """Include namespaces in reference tracking (similar to PHP modules)."""
