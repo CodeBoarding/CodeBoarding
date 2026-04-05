@@ -88,6 +88,10 @@ class CSharpAdapter(LanguageAdapter):
         """csharp-ls needs extra time to load Roslyn workspace for large solutions."""
         return 120
 
+    def get_probe_timeout_minimum(self) -> int:
+        """Roslyn workspace loading for large .NET solutions can exceed 5 minutes."""
+        return 600
+
     def get_lsp_env(self) -> dict[str, str]:
         """Set DOTNET_ROOT when not already in the environment.
 

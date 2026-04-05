@@ -51,6 +51,7 @@ def _make_adapter() -> MagicMock:
     adapter.get_all_packages.return_value = {"pkg"}
     adapter.get_package_for_file.return_value = "pkg"
     adapter.build_edges.return_value = set()
+    adapter.get_probe_timeout_minimum.return_value = 0
     return adapter
 
 

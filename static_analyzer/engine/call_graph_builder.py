@@ -143,11 +143,14 @@ class CallGraphBuilder:
         # the project. Scales linearly with file count (no OS branching);
         # the per-file ceiling is picked conservatively to cover gopls on
         # AV-heavy Windows and APFS macOS without being loose enough to
-        # let a hung LSP waste CI minutes.
+        # let a hung LSP waste CI minutes. Adapters can raise the floor via
+        # ``get_probe_timeout_minimum()`` (e.g. csharp-ls needs extra time
+        # to load a Roslyn workspace).
         _PROBE_STARTUP_BASE = 60  # seconds — LSP startup independent of file count
         _PROBE_PER_FILE = 2.0  # seconds — ceiling across OSes (Linux observed ~0.35s/file)
         _PROBE_MAX_TIMEOUT = 1800  # seconds — hard cap
         probe_timeout = int(min(_PROBE_STARTUP_BASE + total * _PROBE_PER_FILE, _PROBE_MAX_TIMEOUT))
+        probe_timeout = max(probe_timeout, self._adapter.get_probe_timeout_minimum())
 
         probe_result: list[dict] | None = None
         logger.info("Waiting for LSP server indexing (timeout=%ds)...", probe_timeout)
