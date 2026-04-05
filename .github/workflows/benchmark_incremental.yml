@@ -68,7 +68,7 @@ jobs:
               output_dir=out, depth_level=1, run_id='bootstrap',
               log_path=str(out / 'logs' / 'bootstrap.log'), monitoring_enabled=False,
           )
-          gen.generate_analysis()
+          gen.generate_incremental_analysis_baseline()
           "
 
       # --- Run on PR head ---

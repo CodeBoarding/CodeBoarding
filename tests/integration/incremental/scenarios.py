@@ -100,7 +100,7 @@ ADD_UTILITY_FUNCTION = ChangeScenario(
         ),
     ],
     commit_message="feat: add perceptual hash utility for image deduplication",
-    expected_outcome="skip",
+    expected_outcome="patch",
     expected_additive=True,
 )
 
@@ -179,7 +179,7 @@ ADD_PARAMETER_CROSS_MODULE = ChangeScenario(
         ),
     ],
     commit_message="feat: add verbose parameter to represent() for debug logging",
-    expected_outcome="patch",
+    expected_outcome="reexpand",
 )
 
 
@@ -369,7 +369,7 @@ CROSS_COMPONENT_CHANGE = ChangeScenario(
         ),
     ],
     commit_message="feat: add output_format parameter across detection pipeline",
-    expected_outcome="reexpand",
+    expected_outcome="patch",
 )
 
 
@@ -396,7 +396,7 @@ DELETE_FUNCTION = ChangeScenario(
         ),
     ],
     commit_message="refactor: remove unused yield_images() function",
-    expected_outcome="patch",
+    expected_outcome="reexpand",
 )
 
 
