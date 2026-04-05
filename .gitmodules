@@ -1,0 +1,20 @@
+[submodule "tests/integration/benchmark_repos/deepface"]
+	path = tests/integration/benchmark_repos/deepface
+	url = https://github.com/serengil/deepface.git
+	shallow = true
+[submodule "tests/integration/benchmark_repos/markitdown"]
+	path = tests/integration/benchmark_repos/markitdown
+	url = https://github.com/microsoft/markitdown.git
+	shallow = true
+[submodule "tests/integration/benchmark_repos/langchain"]
+	path = tests/integration/benchmark_repos/langchain
+	url = https://github.com/langchain-ai/langchain.git
+	shallow = true
+[submodule "tests/integration/benchmark_repos/jsoup"]
+	path = tests/integration/benchmark_repos/jsoup
+	url = https://github.com/jhy/jsoup.git
+	shallow = true
+[submodule "tests/integration/benchmark_repos/zustand"]
+	path = tests/integration/benchmark_repos/zustand
+	url = https://github.com/pmndrs/zustand.git
+	shallow = true

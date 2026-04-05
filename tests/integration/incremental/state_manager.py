@@ -28,6 +28,22 @@ class StateManager:
         self._checkpoint_backup: Path | None = None
         self._baseline_refs: dict[str, str] = {}
 
+    def verify_pinned_commit(self, expected_tag: str) -> None:
+        """Warn if HEAD does not match *expected_tag*."""
+        try:
+            head = self._git("rev-parse", "HEAD").strip()
+            tag_sha = self._git("rev-parse", f"refs/tags/{expected_tag}^{{}}").strip()
+        except RuntimeError:
+            logger.warning("Could not resolve tag %s in %s — skipping commit verification", expected_tag, self.repo_dir)
+            return
+        if head != tag_sha:
+            logger.warning(
+                "HEAD (%s) does not match pinned tag %s (%s). " "Scenarios may fail if file contents have changed.",
+                head[:12],
+                expected_tag,
+                tag_sha[:12],
+            )
+
     def snapshot_baseline(self) -> None:
         """Record current HEAD and backup the entire .codeboarding/ directory + git refs."""
         self.baseline_commit = self._git("rev-parse", "HEAD").strip()

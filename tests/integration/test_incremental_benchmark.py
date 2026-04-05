@@ -4,6 +4,10 @@ These tests verify that the incremental analysis pipeline handles
 different types of code changes correctly (escalation levels, additive
 detection, cosmetic skip, etc.) and stays within timing bounds.
 
+The target repo is auto-cloned at a pinned tag when it is not already
+present in the sibling directory.  Set ``INCREMENTAL_BENCHMARK_REPO`` to
+override the repo path.
+
 Usage:
     uv run pytest tests/integration/test_incremental_benchmark.py -v -m incremental_benchmark
 """
@@ -13,6 +17,7 @@ from pathlib import Path
 
 import pytest
 
+from tests.integration.incremental.repo_configs import REPO_CONFIGS, ensure_repo
 from tests.integration.incremental.scenarios import SCENARIOS, ChangeScenario
 from tests.integration.incremental.state_manager import StateManager
 from tests.integration.incremental.metrics import run_incremental_with_metrics, IncrementalRunMetrics
@@ -29,27 +34,35 @@ MAX_WALL_CLOCK: dict[str, float] = {
     "rename_across_files": 60.0,
 }
 
-DEEPFACE_REPO_PATH = os.environ.get(
-    "INCREMENTAL_BENCHMARK_REPO",
-    str(Path(__file__).parent.parent.parent.parent / "deepface"),
-)
+_DEEPFACE_CONFIG = REPO_CONFIGS["deepface"]
+
+
+def _resolve_repo_path() -> Path:
+    """Return the deepface repo path, auto-cloning at the pinned tag if needed."""
+    env_override = os.environ.get("INCREMENTAL_BENCHMARK_REPO")
+    if env_override:
+        return Path(env_override)
+    return ensure_repo(_DEEPFACE_CONFIG)
 
 
 def _repo_available() -> bool:
-    repo = Path(DEEPFACE_REPO_PATH)
+    try:
+        repo = _resolve_repo_path()
+    except Exception:
+        return False
     return repo.exists() and (repo / ".git").exists() and (repo / ".codeboarding" / "checkpoints").exists()
 
 
 skip_if_no_repo = pytest.mark.skipif(
     not _repo_available(),
-    reason=f"Target repo not available at {DEEPFACE_REPO_PATH} or has no baseline checkpoint",
+    reason="Target repo not available or has no baseline checkpoint",
 )
 
 
 @pytest.fixture(scope="module")
 def state_manager():
     """Module-scoped state manager (expensive baseline snapshot shared across tests)."""
-    repo_dir = Path(DEEPFACE_REPO_PATH)
+    repo_dir = _resolve_repo_path()
     mgr = StateManager(repo_dir)
     mgr.snapshot_baseline()
     yield mgr

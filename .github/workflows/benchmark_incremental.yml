@@ -1,0 +1,119 @@
+name: Incremental Benchmark
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  benchmark:
+    if: github.event.issue.pull_request && contains(github.event.comment.body, '/benchmark')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Get PR details
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PR=$(gh api repos/${{ github.repository }}/pulls/${{ github.event.issue.number }})
+          echo "head_ref=$(echo "$PR" | jq -r .head.ref)" >> "$GITHUB_OUTPUT"
+          echo "base_ref=$(echo "$PR" | jq -r .base.ref)" >> "$GITHUB_OUTPUT"
+          echo "pr_number=${{ github.event.issue.number }}" >> "$GITHUB_OUTPUT"
+
+      - name: React to comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions -f content=rocket
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.pr.outputs.head_ref }}
+          fetch-depth: 0
+          submodules: true
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: astral-sh/setup-uv@v5
+
+      - name: Install dependencies
+        run: uv sync
+
+      # Cache the baseline checkpoint (created by a full analysis run).
+      # Key includes the pinned tag — cache is invalidated when the pin changes.
+      - name: Restore checkpoint cache
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: tests/integration/benchmark_repos/deepface/.codeboarding
+          key: benchmark-checkpoint-deepface-v0.0.97
+
+      - name: Create baseline checkpoint (first run only)
+        if: steps.cache.outputs.cache-hit != 'true'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          uv run python -c "
+          from pathlib import Path
+          from diagram_analysis.diagram_generator import DiagramGenerator
+          repo = Path('tests/integration/benchmark_repos/deepface').resolve()
+          out = repo / '.codeboarding'
+          gen = DiagramGenerator(
+              repo_location=repo, temp_folder=out, repo_name='deepface',
+              output_dir=out, depth_level=1, run_id='bootstrap',
+              log_path=str(out / 'logs' / 'bootstrap.log'), monitoring_enabled=False,
+          )
+          gen.generate_analysis()
+          "
+
+      # --- Run on PR head ---
+      - name: Benchmark (head)
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: uv run python tests/integration/benchmark_incremental_analysis.py --output head.json
+
+      # --- Run on base branch ---
+      - name: Checkout base
+        run: git checkout ${{ steps.pr.outputs.base_ref }}
+
+      - name: Benchmark (base)
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: uv run python tests/integration/benchmark_incremental_analysis.py --output base.json
+
+      # --- Compare and post ---
+      - name: Compare results
+        id: compare
+        run: |
+          # Switch back to head so compare_results.py is available
+          git checkout ${{ steps.pr.outputs.head_ref }}
+          TABLE=$(uv run python tests/integration/incremental/compare_results.py base.json head.json)
+          # Write to file for gh pr comment
+          {
+            echo "## Incremental Benchmark Results"
+            echo ""
+            echo "$TABLE"
+            echo ""
+            echo "<details><summary>Raw results</summary>"
+            echo ""
+            echo '```json'
+            echo "// head"
+            cat head.json
+            echo ""
+            echo "// base"
+            cat base.json
+            echo '```'
+            echo "</details>"
+            echo ""
+            echo "_Triggered by /benchmark on #${{ steps.pr.outputs.pr_number }}_"
+          } > comment.md
+
+      - name: Post PR comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh pr comment ${{ steps.pr.outputs.pr_number }} --body-file comment.md

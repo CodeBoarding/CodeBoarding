@@ -3,15 +3,25 @@
 Applies deterministic change scenarios to a target repo, runs incremental
 analysis, and captures timing + pipeline metrics.
 
+The target repo is auto-cloned at a pinned tag if it doesn't already exist
+in the sibling directory.  Pass ``--repo-path`` to override with a custom
+location.
+
 Usage:
-    # Run all scenarios with 1 iteration
-    uv run python tests/integration/benchmark_incremental_analysis.py --repo-path ../deepface
+    # Run all deepface scenarios (auto-clones if needed)
+    uv run python tests/integration/benchmark_incremental_analysis.py
+
+    # Run markitdown scenarios
+    uv run python tests/integration/benchmark_incremental_analysis.py --repo-name markitdown
 
     # Run specific scenario with 3 iterations
-    uv run python tests/integration/benchmark_incremental_analysis.py --repo-path ../deepface --scenario modify_function_logic --iterations 3
+    uv run python tests/integration/benchmark_incremental_analysis.py --scenario modify_function_logic --iterations 3
+
+    # Use a custom clone location
+    uv run python tests/integration/benchmark_incremental_analysis.py --repo-path /tmp/deepface
 
     # Save results to benchmark_results/
-    uv run python tests/integration/benchmark_incremental_analysis.py --repo-path ../deepface --save-results
+    uv run python tests/integration/benchmark_incremental_analysis.py --save-results
 """
 
 import argparse
@@ -37,10 +47,17 @@ load_dotenv(CODEBOARDING_ROOT / ".env")
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Benchmark incremental analysis scenarios")
     parser.add_argument(
+        "--repo-name",
+        type=str,
+        default="deepface",
+        choices=["deepface", "langchain", "markitdown", "jsoup", "zustand"],
+        help="Target repo to benchmark (default: deepface). Auto-clones at pinned tag if needed.",
+    )
+    parser.add_argument(
         "--repo-path",
         type=Path,
-        required=True,
-        help="Path to the target repository (e.g., ../deepface)",
+        default=None,
+        help="Override: path to an already-cloned target repository",
     )
     parser.add_argument(
         "--scenario",
@@ -58,6 +75,12 @@ def parse_args() -> argparse.Namespace:
         "--save-results",
         action="store_true",
         help="Save results to benchmark_results/ as JSON",
+    )
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=None,
+        help="Write results JSON to this exact path (implies --save-results)",
     )
     return parser.parse_args()
 
@@ -124,24 +147,22 @@ def save_results(all_results: dict[str, list[dict]], repo_path: Path) -> Path:
 
 def main() -> None:
     args = parse_args()
-    repo_path = args.repo_path.resolve()
 
-    if not (repo_path / ".git").exists():
-        print(f"Error: {repo_path} is not a git repository", file=sys.stderr)
-        sys.exit(1)
-
-    from tests.integration.incremental.scenarios import SCENARIOS, SCENARIOS_BY_NAME
-    from tests.integration.incremental.scenarios_markitdown import MARKITDOWN_SCENARIOS, MARKITDOWN_SCENARIOS_BY_NAME
+    from tests.integration.incremental.repo_configs import REPO_CONFIGS, ensure_repo, get_scenario_module
     from tests.integration.incremental.state_manager import StateManager
 
-    # Detect repo type from directory name to pick the right scenario set
-    repo_name = repo_path.name.lower()
-    if "markitdown" in repo_name:
-        all_scenarios = MARKITDOWN_SCENARIOS
-        all_by_name = MARKITDOWN_SCENARIOS_BY_NAME
+    config = REPO_CONFIGS[args.repo_name]
+
+    if args.repo_path is not None:
+        repo_path = args.repo_path.resolve()
+        if not (repo_path / ".git").exists():
+            print(f"Error: {repo_path} is not a git repository", file=sys.stderr)
+            sys.exit(1)
     else:
-        all_scenarios = SCENARIOS
-        all_by_name = SCENARIOS_BY_NAME
+        print(f"Ensuring {config.name} is cloned at {config.pinned_tag} ...")
+        repo_path = ensure_repo(config)
+
+    all_scenarios, all_by_name = get_scenario_module(config)
 
     # Select scenarios
     if args.scenario:
@@ -155,11 +176,12 @@ def main() -> None:
     else:
         selected = all_scenarios
 
-    print(f"Repo: {repo_path}")
+    print(f"Repo: {repo_path} (pinned: {config.pinned_tag})")
     print(f"Scenarios: {', '.join(s.name for s in selected)}")
     print(f"Iterations: {args.iterations}")
 
     state = StateManager(repo_path)
+    state.verify_pinned_commit(config.pinned_tag)
     state.snapshot_baseline()
 
     all_results: dict[str, list[dict]] = {}
@@ -191,7 +213,17 @@ def main() -> None:
 
         print_results(all_results)
 
-        if args.save_results:
+        if args.output:
+            args.output.parent.mkdir(parents=True, exist_ok=True)
+            data = {
+                "repo": str(repo_path),
+                "timestamp": datetime.now().strftime("%Y%m%d_%H%M%S"),
+                "scenarios": all_results,
+            }
+            with open(args.output, "w") as f:
+                json.dump(data, f, indent=2)
+            print(f"Results saved to: {args.output}")
+        elif args.save_results:
             filepath = save_results(all_results, repo_path)
             print(f"Results saved to: {filepath}")
 
