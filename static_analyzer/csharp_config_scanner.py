@@ -1,7 +1,7 @@
 """Scanner for C# / .NET project configurations.
 
 Detects solution files (.sln), project files (.csproj), and standalone
-C# source trees to support mono-repo analysis with OmniSharp.
+C# source trees to support mono-repo analysis with csharp-ls.
 """
 
 import logging
@@ -31,7 +31,7 @@ class CSharpConfigScanner:
     """Scan a repository for C# / .NET project configurations.
 
     Scanning priority:
-        1. ``.sln`` files — solution-level roots (OmniSharp uses these
+        1. ``.sln`` files — solution-level roots (csharp-ls uses these
            to discover all referenced projects automatically).
         2. Standalone ``.csproj`` files not already covered by a solution.
         3. Fallback to the repository root when ``.cs`` files exist but

@@ -19,7 +19,7 @@ class TestCSharpAdapterProperties:
 
     def test_lsp_command(self):
         adapter = CSharpAdapter()
-        assert adapter.lsp_command == ["OmniSharp", "-lsp"]
+        assert adapter.lsp_command == ["csharp-ls"]
 
     def test_language_id(self):
         adapter = CSharpAdapter()
@@ -114,23 +114,48 @@ class TestExtractPackage:
 
 
 class TestLspConfiguration:
-    """Tests for OmniSharp LSP configuration."""
+    """Tests for csharp-ls LSP configuration."""
 
-    def test_init_options_enable_analyzers(self):
+    def test_init_options_log_level(self):
         adapter = CSharpAdapter()
         opts = adapter.get_lsp_init_options()
-        assert opts["RoslynExtensionsOptions"]["enableAnalyzersSupport"] is True
-
-    def test_init_options_disable_decompilation(self):
-        adapter = CSharpAdapter()
-        opts = adapter.get_lsp_init_options()
-        assert opts["RoslynExtensionsOptions"]["enableDecompilationSupport"] is False
+        assert opts["csharp"]["logLevel"] == "warning"
 
     def test_workspace_settings(self):
         adapter = CSharpAdapter()
         settings = adapter.get_workspace_settings()
         assert settings is not None
-        assert settings["omnisharp"]["enableRoslynAnalyzers"] is True
+        assert settings["csharp"]["logLevel"] == "warning"
+
+
+class TestLspEnv:
+    """Tests for DOTNET_ROOT resolution."""
+
+    def test_returns_empty_when_dotnet_root_set(self, monkeypatch):
+        monkeypatch.setenv("DOTNET_ROOT", "/usr/share/dotnet")
+        adapter = CSharpAdapter()
+        assert adapter.get_lsp_env() == {}
+
+    def test_resolves_dotnet_root_from_path(self, monkeypatch, tmp_path):
+        monkeypatch.delenv("DOTNET_ROOT", raising=False)
+        # Simulate Homebrew layout: bin/dotnet -> Cellar/.../libexec/dotnet
+        libexec = tmp_path / "opt" / "dotnet" / "libexec"
+        libexec.mkdir(parents=True)
+        bin_dir = tmp_path / "bin"
+        bin_dir.mkdir()
+        dotnet_bin = bin_dir / "dotnet"
+        dotnet_bin.symlink_to(libexec / "dotnet")
+        (libexec / "dotnet").touch()
+        monkeypatch.setattr("shutil.which", lambda _: str(dotnet_bin))
+        adapter = CSharpAdapter()
+        env = adapter.get_lsp_env()
+        assert env.get("DOTNET_ROOT") == str(libexec)
+
+    def test_returns_empty_when_dotnet_not_found(self, monkeypatch):
+        monkeypatch.delenv("DOTNET_ROOT", raising=False)
+        monkeypatch.setattr("shutil.which", lambda _: None)
+        adapter = CSharpAdapter()
+        assert adapter.get_lsp_env() == {}
 
 
 class TestReferenceTracking:

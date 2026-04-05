@@ -105,11 +105,11 @@ VSCODE_CONFIG = {
             "install_commands": "npm install intelephense",
         },
         "csharp": {
-            "name": "OmniSharp Language Server",
-            "command": ["OmniSharp", "-lsp"],
+            "name": "csharp-ls Language Server",
+            "command": ["csharp-ls"],
             "languages": ["csharp"],
             "file_extensions": [".cs"],
-            "install_commands": "dotnet tool install -g omnisharp",
+            "install_commands": "dotnet tool install --global csharp-ls",
         },
         "java": {
             "name": "Eclipse JDT Language Server",
