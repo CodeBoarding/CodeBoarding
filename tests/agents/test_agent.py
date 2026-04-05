@@ -367,6 +367,34 @@ class TestCodeBoardingAgent(unittest.TestCase):
         self.assertIsNotNone(agent.external_deps_tool)
 
     @patch("agents.agent.create_agent")
+    @patch("time.sleep")
+    def test_invoke_raises_immediately_on_404(self, mock_sleep, mock_create_agent):
+        """HTTP 404 (e.g. retired model) should raise immediately without retrying."""
+        mock_agent_executor = Mock()
+        mock_create_agent.return_value = mock_agent_executor
+
+        # Simulate a NotFoundError-like exception with status_code=404
+        error = Exception("model not found")
+        error.status_code = 404  # type: ignore[attr-defined]
+        mock_agent_executor.invoke.side_effect = error
+
+        mock_parsing_llm = Mock(spec=BaseChatModel)
+        agent = CodeBoardingAgent(
+            repo_dir=self.repo_dir,
+            static_analysis=self.mock_analysis,
+            system_message="Test",
+            agent_llm=self.mock_llm,
+            parsing_llm=mock_parsing_llm,
+        )
+
+        with self.assertRaises(Exception, msg="model not found"):
+            agent._invoke("Test prompt")
+
+        # Should NOT have retried — only one call
+        self.assertEqual(mock_agent_executor.invoke.call_count, 1)
+        mock_sleep.assert_not_called()
+
+    @patch("agents.agent.create_agent")
     def test_agent_created_with_tools(self, mock_create_agent):
         # Test that agent is created with correct tools
         mock_create_agent.return_value = Mock()

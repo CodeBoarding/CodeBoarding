@@ -59,12 +59,14 @@ class TestDetectLLMTypeFromModel:
             "claude-3-sonnet-20240229",
             "claude-3-haiku-20240307",
             "claude-3-7-sonnet-20250219",
+            "claude-sonnet-4-5-20250929",
             "claude-3.5-sonnet-20241022",
             "claude-2.1",
             "claude-instant-1.2",
             "CLAUDE-3-OPUS",  # Uppercase
             "anthropic.claude-3-sonnet-20240229-v1:0",  # Bedrock format
-            "us.anthropic.claude-3-7-sonnet-20250219-v1:0",  # Bedrock with region
+            "us.anthropic.claude-3-7-sonnet-20250219-v1:0",  # Bedrock with region (retired)
+            "us.anthropic.claude-sonnet-4-5-20250929-v1:0",  # Bedrock with region (current)
             "opus",  # Just model family name
             "sonnet",  # Just model family name
             "haiku",  # Just model family name
@@ -127,7 +129,7 @@ class TestDetectLLMTypeFromModel:
         """
         # Vercel can proxy any model, detection should work based on model name
         assert LLMType.from_model_name("gpt-4o") == LLMType.GPT4
-        assert LLMType.from_model_name("claude-3-7-sonnet-20250219") == LLMType.CLAUDE
+        assert LLMType.from_model_name("claude-sonnet-4-5-20250929") == LLMType.CLAUDE
         assert LLMType.from_model_name("gemini-2.5-flash") == LLMType.GEMINI_FLASH
 
     # Future-proofing
