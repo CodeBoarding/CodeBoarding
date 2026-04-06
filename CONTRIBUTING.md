@@ -126,7 +126,9 @@ If the LSP server doesn't publish pre-built binaries (like gopls or tokei), you 
 - Write unit tests for the adapter (aim for 100% coverage on new code)
 - Run `uv run pytest --ignore=tests/integration` to verify nothing is broken
 - Run `uv run mypy .` and `uv run black . --check`
-- Add an integration test fixture for a hand-crafted and well-known repo in the added language
+- Add integration test fixtures:
+  - **Edge cases** (`tests/integration/fixtures/edge_cases/<lang>_edge_cases.json`): A hand-crafted small project that exercises language-specific features (interfaces, generics, inheritance, etc.). Lists `expected_references` that the static analysis must find. See `go_edge_cases.json` or `python_edge_cases.json` for the format.
+  - **Real project** (`tests/integration/fixtures/real_projects/<project>_<lang>.json`): A well-known open-source repo pinned to a specific commit, with expected metric counts (references, packages, call graph nodes/edges, source files). See `prometheus_go.json` or `mockito_java.json` for the format.
 
 ---
 
