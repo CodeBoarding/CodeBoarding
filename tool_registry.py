@@ -45,8 +45,11 @@ ProgressCallback = Callable[[str, int, int], None]
 TOOLS_REPO = "CodeBoarding/tools"
 TOOLS_TAG = "tools-2026.04.05"
 
-JDTLS_VERSION = "1.44.0-202501301522"
-JDTLS_URL_TEMPLATE = "https://download.eclipse.org/jdtls/milestones/{version}/jdt-language-server-{version}.tar.gz"
+JDTLS_VERSION = "1.44.0"
+JDTLS_BUILD = "202501221502"
+JDTLS_URL_TEMPLATE = (
+    "https://download.eclipse.org/jdtls/milestones/{version}/jdt-language-server-{version}-{build}.tar.gz"
+)
 
 _PLATFORM_SUFFIX = {
     "Darwin": "macos",
@@ -106,10 +109,12 @@ class UpstreamToolSource(ToolSource):
     """Tool downloaded directly from an upstream provider (e.g. Eclipse).
 
     Attributes:
-        url_template: Full download URL with a ``{version}`` placeholder.
+        url_template: Full download URL with ``{version}`` and optional ``{build}`` placeholders.
+        build: Build identifier appended to the version in the download URL.
     """
 
     url_template: str = ""
+    build: str = ""
 
 
 @dataclass(frozen=True)
@@ -149,7 +154,11 @@ TOOL_REGISTRY: list[ToolDependency] = [
             tag=TOOLS_TAG,
             repo=TOOLS_REPO,
             asset_template="tokei-{platform_suffix}",
-            sha256={},
+            sha256={
+                "linux": "e366026993bce6a40d6df19dcac9c1c58e88820268c68304c056cd3878e545e2",
+                "macos": "90ae8a2e979b9658c2616787bcc26f187f14b922fcd0bf61cb3f7fcc2a43634e",
+                "windows.exe": "7db547cb6bfa1722e89ca52a43426fb212aa53603a60256af25fb6e59ca12099",
+            },
         ),
     ),
     ToolDependency(
@@ -161,7 +170,11 @@ TOOL_REGISTRY: list[ToolDependency] = [
             tag=TOOLS_TAG,
             repo=TOOLS_REPO,
             asset_template="gopls-{platform_suffix}",
-            sha256={},
+            sha256={
+                "linux": "76ecc01106266aa03f75c3ea857f6bd6a1da79b00abb6cb5a573b1cd5ecbdcb7",
+                "macos": "a12551ec82e8000c055a8e8e3447cbf22bd7c4b220d4e3802112a569e88a4965",
+                "windows.exe": "b739c89bcd3068257a5ac1be1b9b4978576f7731c7893fdc0b13577927bd6483",
+            },
         ),
     ),
     ToolDependency(
@@ -199,6 +212,7 @@ TOOL_REGISTRY: list[ToolDependency] = [
         source=UpstreamToolSource(
             tag=JDTLS_VERSION,
             url_template=JDTLS_URL_TEMPLATE,
+            build=JDTLS_BUILD,
         ),
         archive_subdir="jdtls",
     ),
@@ -339,8 +353,10 @@ def _tools_fingerprint() -> str:
     parts: list[str] = []
     for dep in TOOL_REGISTRY:
         if dep.source:
-            repo = dep.source.repo if isinstance(dep.source, GitHubToolSource) else ""
-            parts.append(f"{dep.key}:{repo}:{dep.source.tag}")
+            if isinstance(dep.source, GitHubToolSource):
+                parts.append(f"{dep.key}:{dep.source.repo}:{dep.source.tag}")
+            elif isinstance(dep.source, UpstreamToolSource):
+                parts.append(f"{dep.key}::{dep.source.tag}-{dep.source.build}")
     return ",".join(sorted(parts))
 
 
@@ -552,7 +568,7 @@ def _asset_url(source: ToolSource, asset_name: str) -> str:
     For upstream sources, the url_template is the full URL with a ``{version}`` placeholder.
     """
     if isinstance(source, UpstreamToolSource):
-        return source.url_template.format(version=source.tag)
+        return source.url_template.format(version=source.tag, build=source.build)
     if isinstance(source, GitHubToolSource):
         return f"https://github.com/{source.repo}/releases/download/{source.tag}/{asset_name}"
     raise TypeError(f"Unknown source type: {type(source)}")
