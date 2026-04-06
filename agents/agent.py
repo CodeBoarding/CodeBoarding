@@ -160,6 +160,11 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
                     raise
 
             except Exception as e:
+                # HTTP 404 (e.g. retired model ID) is permanent — retrying won't help.
+                if getattr(e, "status_code", None) == 404:
+                    logger.error(f"Permanent HTTP 404 — not retrying: {type(e).__name__}: {e}")
+                    raise
+
                 # Other errors (network, parsing, etc.) get standard exponential backoff
                 if attempt < max_retries - 1:
                     delay = min(10 * (2**attempt), 120)

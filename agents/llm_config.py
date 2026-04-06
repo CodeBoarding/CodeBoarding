@@ -136,7 +136,7 @@ LLM_PROVIDERS = {
     "anthropic": LLMConfig(
         chat_class=ChatAnthropic,
         api_key_env="ANTHROPIC_API_KEY",
-        agent_model="claude-3-7-sonnet-20250219",
+        agent_model="claude-sonnet-4-5-20250929",
         parsing_model="claude-3-haiku-20240307",
         llm_type=LLMType.CLAUDE,
         extra_args={
@@ -160,7 +160,7 @@ LLM_PROVIDERS = {
     "aws": LLMConfig(
         chat_class=ChatBedrockConverse,
         api_key_env="AWS_BEARER_TOKEN_BEDROCK",  # Used for existence check
-        agent_model="us.anthropic.claude-3-7-sonnet-20250219-v1:0",
+        agent_model="us.anthropic.claude-sonnet-4-5-20250929-v1:0",
         parsing_model="us.anthropic.claude-3-haiku-20240307-v1:0",
         llm_type=LLMType.CLAUDE,
         extra_args={
