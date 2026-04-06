@@ -11,6 +11,7 @@ Adding a new language/tool:
     That's it — install, resolve, and wrapper pick it up automatically.
 """
 
+import hashlib
 import importlib.metadata
 import json
 import logging
@@ -34,7 +35,6 @@ else:
     import fcntl
 
 import requests
-
 from vscode_constants import VSCODE_CONFIG, find_runnable
 
 logger = logging.getLogger(__name__)
@@ -42,7 +42,11 @@ logger = logging.getLogger(__name__)
 # Callback type for reporting download progress: (tool_name, current_step, total_steps)
 ProgressCallback = Callable[[str, int, int], None]
 
-GITHUB_REPO = "CodeBoarding/CodeBoarding"
+TOOLS_REPO = "CodeBoarding/tools"
+TOOLS_TAG = "tools-2026.04.05"
+
+JDTLS_VERSION = "1.44.0-202501301522"
+JDTLS_URL_TEMPLATE = "https://download.eclipse.org/jdtls/milestones/{version}/jdt-language-server-{version}.tar.gz"
 
 _PLATFORM_SUFFIX = {
     "Darwin": "macos",
@@ -76,6 +80,39 @@ class ConfigSection(StrEnum):
 
 
 @dataclass(frozen=True)
+class ToolSource:
+    """Base class describing where to download a tool from."""
+
+    tag: str
+
+
+@dataclass(frozen=True)
+class GitHubToolSource(ToolSource):
+    """Tool binary hosted on a GitHub release (built by our pipeline).
+
+    Attributes:
+        repo: GitHub ``owner/repo`` (e.g. ``CodeBoarding/tools``).
+        asset_template: Asset filename with ``{platform_suffix}`` placeholder.
+        sha256: Per-platform SHA256 hashes keyed by platform suffix.
+    """
+
+    repo: str = ""
+    asset_template: str = ""
+    sha256: dict[str, str] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class UpstreamToolSource(ToolSource):
+    """Tool downloaded directly from an upstream provider (e.g. Eclipse).
+
+    Attributes:
+        url_template: Full download URL with a ``{version}`` placeholder.
+    """
+
+    url_template: str = ""
+
+
+@dataclass(frozen=True)
 class ToolDependency:
     """Declarative description of an external tool dependency.
 
@@ -84,9 +121,8 @@ class ToolDependency:
         binary_name: Executable name on disk (e.g. "tokei", "pyright-langserver").
         kind: How the tool is distributed — native binary, npm package, or archive.
         config_section: Top-level key in get_config() — "tools" or "lsp_servers".
-        github_asset_template: Asset name with {platform_suffix} placeholder for native binaries.
+        source: Download source for native/archive tools (None for npm-only tools).
         npm_packages: npm packages to install for node tools.
-        archive_asset: Asset name for archive tools (e.g. "jdtls.tar.gz").
         archive_subdir: Subdirectory name under bin/ for archive extraction.
         js_entry_file: JS entry point filename for Windows direct execution (e.g. "cli.mjs").
         js_entry_parent: Parent directory substring to locate the entry point (e.g. "typescript-language-server").
@@ -96,9 +132,8 @@ class ToolDependency:
     binary_name: str
     kind: ToolKind
     config_section: ConfigSection
-    github_asset_template: str = ""
+    source: ToolSource | None = None
     npm_packages: list[str] = field(default_factory=list)
-    archive_asset: str = ""
     archive_subdir: str = ""
     js_entry_file: str = ""
     js_entry_parent: str = ""
@@ -110,14 +145,24 @@ TOOL_REGISTRY: list[ToolDependency] = [
         binary_name="tokei",
         kind=ToolKind.NATIVE,
         config_section=ConfigSection.TOOLS,
-        github_asset_template="tokei-{platform_suffix}",
+        source=GitHubToolSource(
+            tag=TOOLS_TAG,
+            repo=TOOLS_REPO,
+            asset_template="tokei-{platform_suffix}",
+            sha256={},
+        ),
     ),
     ToolDependency(
         key="go",
         binary_name="gopls",
         kind=ToolKind.NATIVE,
         config_section=ConfigSection.LSP_SERVERS,
-        github_asset_template="gopls-{platform_suffix}",
+        source=GitHubToolSource(
+            tag=TOOLS_TAG,
+            repo=TOOLS_REPO,
+            asset_template="gopls-{platform_suffix}",
+            sha256={},
+        ),
     ),
     ToolDependency(
         key="python",
@@ -151,7 +196,10 @@ TOOL_REGISTRY: list[ToolDependency] = [
         binary_name="java",
         kind=ToolKind.ARCHIVE,
         config_section=ConfigSection.LSP_SERVERS,
-        archive_asset="jdtls.tar.gz",
+        source=UpstreamToolSource(
+            tag=JDTLS_VERSION,
+            url_template=JDTLS_URL_TEMPLATE,
+        ),
         archive_subdir="jdtls",
     ),
 ]
@@ -282,12 +330,30 @@ def _npm_specs_fingerprint() -> str:
     return ",".join(specs)
 
 
-def _write_manifest() -> None:
+def _tools_fingerprint() -> str:
+    """Deterministic fingerprint of all pinned tool sources.
+
+    Changes whenever a tool version or source in TOOL_REGISTRY is updated,
+    causing ``needs_install()`` to trigger a reinstall.
+    """
+    parts: list[str] = []
+    for dep in TOOL_REGISTRY:
+        if dep.source:
+            repo = dep.source.repo if isinstance(dep.source, GitHubToolSource) else ""
+            parts.append(f"{dep.key}:{repo}:{dep.source.tag}")
+    return ",".join(sorted(parts))
+
+
+def write_manifest() -> None:
     p = _manifest_path()
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(
         json.dumps(
-            {"version": _installed_version(), "npm_specs": _npm_specs_fingerprint()},
+            {
+                "version": _installed_version(),
+                "npm_specs": _npm_specs_fingerprint(),
+                "tools": _tools_fingerprint(),
+            },
             indent=2,
         )
     )
@@ -299,6 +365,8 @@ def needs_install() -> bool:
     if manifest.get("version") != _installed_version():
         return True
     if manifest.get("npm_specs") != _npm_specs_fingerprint():
+        return True
+    if manifest.get("tools") != _tools_fingerprint():
         return True
     return not has_required_tools(get_servers_dir())
 
@@ -477,22 +545,28 @@ def platform_bin_dir(base: Path) -> Path:
     return base / "bin" / subdir
 
 
-def get_latest_release_tag() -> str:
-    """Fetch the latest release tag from the GitHub repository."""
-    response = requests.get(f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest", timeout=30)
-    response.raise_for_status()
-    return response.json()["tag_name"]
+def _asset_url(source: ToolSource, asset_name: str) -> str:
+    """Construct the download URL for a tool asset.
+
+    For GitHub-hosted tools, builds a releases URL from repo/tag/asset.
+    For upstream sources, the url_template is the full URL with a ``{version}`` placeholder.
+    """
+    if isinstance(source, UpstreamToolSource):
+        return source.url_template.format(version=source.tag)
+    if isinstance(source, GitHubToolSource):
+        return f"https://github.com/{source.repo}/releases/download/{source.tag}/{asset_name}"
+    raise TypeError(f"Unknown source type: {type(source)}")
 
 
-def download_asset(tag: str, asset_name: str, destination: Path) -> bool:
-    """Download a GitHub release asset to destination. Returns True on success.
+def download_asset(url: str, destination: Path, expected_sha256: str | None = None) -> bool:
+    """Download a file from *url* to *destination*. Returns True on success.
 
     Writes to a temp file first, then atomically renames to prevent
-    corrupt binaries if the download is interrupted.
+    corrupt binaries if the download is interrupted.  When *expected_sha256*
+    is provided the downloaded content is verified against it.
     """
     destination.parent.mkdir(parents=True, exist_ok=True)
     temp_dest = destination.with_suffix(destination.suffix + ".download")
-    url = f"https://github.com/{GITHUB_REPO}/releases/download/{tag}/{asset_name}"
     try:
         response = requests.get(url, stream=True, timeout=300, allow_redirects=True)
         response.raise_for_status()
@@ -500,11 +574,16 @@ def download_asset(tag: str, asset_name: str, destination: Path) -> bool:
             for chunk in response.iter_content(chunk_size=32768):
                 if chunk:
                     f.write(chunk)
-        if temp_dest.stat().st_size > 0:
-            os.replace(temp_dest, destination)
-            return True
-        temp_dest.unlink(missing_ok=True)
-        return False
+        if temp_dest.stat().st_size == 0:
+            temp_dest.unlink(missing_ok=True)
+            return False
+        if expected_sha256:
+            actual = hashlib.sha256(temp_dest.read_bytes()).hexdigest()
+            if actual != expected_sha256:
+                temp_dest.unlink(missing_ok=True)
+                raise ValueError(f"SHA256 mismatch for {destination.name}: expected {expected_sha256}, got {actual}")
+        os.replace(temp_dest, destination)
+        return True
     except Exception:
         temp_dest.unlink(missing_ok=True)
         raise
@@ -515,7 +594,7 @@ def install_native_tools(
     deps: list[ToolDependency],
     on_progress: ProgressCallback | None = None,
 ) -> None:
-    """Download native binaries from GitHub releases."""
+    """Download native binaries from their configured sources."""
     system = platform.system()
     suffix = _PLATFORM_SUFFIX.get(system)
     if suffix is None:
@@ -525,14 +604,7 @@ def install_native_tools(
     bin_dir = platform_bin_dir(target_dir)
     bin_dir.mkdir(parents=True, exist_ok=True)
 
-    try:
-        tag = get_latest_release_tag()
-        logger.info("Using release: %s", tag)
-    except Exception:
-        logger.exception("Could not determine latest release")
-        return
-
-    downloadable = [d for d in deps if d.github_asset_template]
+    downloadable = [d for d in deps if isinstance(d.source, GitHubToolSource)]
     for i, dep in enumerate(downloadable, 1):
         if on_progress:
             on_progress(dep.binary_name, i, len(downloadable))
@@ -540,9 +612,13 @@ def install_native_tools(
         if binary_path.exists():
             logger.info("  %s: already installed, skipping", dep.binary_name)
             continue
-        asset_name = dep.github_asset_template.format(platform_suffix=suffix)
+        source = dep.source
+        assert isinstance(source, GitHubToolSource)
+        asset_name = source.asset_template.format(platform_suffix=suffix)
+        url = _asset_url(source, asset_name)
+        expected_hash = source.sha256.get(suffix)
         try:
-            if download_asset(tag, asset_name, binary_path):
+            if download_asset(url, binary_path, expected_sha256=expected_hash):
                 if system != "Windows":
                     os.chmod(binary_path, 0o755)
                 logger.info("  %s: downloaded successfully", dep.binary_name)
@@ -603,7 +679,7 @@ def install_archive_tool(
     on_progress: ProgressCallback | None = None,
 ) -> None:
     """Download and extract an archive tool."""
-    assert dep.archive_asset, f"{dep.key}: archive_asset required for archive tools"
+    assert dep.source, f"{dep.key}: source required for archive tools"
     assert dep.archive_subdir, f"{dep.key}: archive_subdir required for archive tools"
 
     if on_progress:
@@ -616,11 +692,12 @@ def install_archive_tool(
 
     logger.info("Downloading %s...", dep.key)
     extract_dir.mkdir(parents=True, exist_ok=True)
-    archive_path = target_dir / "bin" / dep.archive_asset
+    archive_path = target_dir / "bin" / f"{dep.archive_subdir}.tar.gz"
 
+    url = _asset_url(dep.source, "")
+    expected_hash = dep.source.sha256.get("") if isinstance(dep.source, GitHubToolSource) else None
     try:
-        tag = get_latest_release_tag()
-        if not download_asset(tag, dep.archive_asset, archive_path):
+        if not download_asset(url, archive_path, expected_sha256=expected_hash):
             logger.warning("%s download failed (empty file)", dep.key)
             return
 
@@ -629,7 +706,5 @@ def install_archive_tool(
         archive_path.unlink()
         logger.info("%s installed successfully", dep.key)
     except Exception:
-        logger.exception("%s installation failed", dep.key)
-        archive_path.unlink(missing_ok=True)
         logger.exception("%s installation failed", dep.key)
         archive_path.unlink(missing_ok=True)

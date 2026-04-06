@@ -1,0 +1,111 @@
+name: Build Tool Binaries
+
+on:
+  workflow_dispatch:
+
+env:
+  TOKEI_VERSION: "v14.0.0"
+  GOPLS_VERSION: "v0.21.1"
+  TOOLS_TAG: "tools-2026.04.05"
+
+permissions:
+  contents: read
+
+jobs:
+  build-tokei:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform_suffix: linux
+            binary_name: tokei
+          - os: macos-latest
+            platform_suffix: macos
+            binary_name: tokei
+          - os: windows-latest
+            platform_suffix: windows.exe
+            binary_name: tokei.exe
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout tokei
+        uses: actions/checkout@v4
+        with:
+          repository: XAMPPRocky/tokei
+          ref: ${{ env.TOKEI_VERSION }}
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build tokei
+        run: cargo build --release
+
+      - name: Rename binary
+        shell: bash
+        run: cp target/release/${{ matrix.binary_name }} tokei-${{ matrix.platform_suffix }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tokei-${{ matrix.platform_suffix }}
+          path: tokei-${{ matrix.platform_suffix }}
+
+  build-gopls:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform_suffix: linux
+            binary_name: gopls
+          - os: macos-latest
+            platform_suffix: macos
+            binary_name: gopls
+          - os: windows-latest
+            platform_suffix: windows.exe
+            binary_name: gopls.exe
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "stable"
+
+      - name: Build gopls
+        shell: bash
+        run: go install "golang.org/x/tools/gopls@${GOPLS_VERSION}"
+
+      - name: Rename binary
+        shell: bash
+        run: cp "$(go env GOPATH)/bin/${{ matrix.binary_name }}" gopls-${{ matrix.platform_suffix }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gopls-${{ matrix.platform_suffix }}
+          path: gopls-${{ matrix.platform_suffix }}
+
+  publish-release:
+    needs: [build-tokei, build-gopls]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Generate checksums
+        working-directory: artifacts
+        run: sha256sum tokei-* gopls-* > checksums.sha256
+
+      - name: Display checksums
+        run: cat artifacts/checksums.sha256
+
+      - name: Create release on CodeBoarding/tools
+        env:
+          GH_TOKEN: ${{ secrets.TOOLS_REPO_TOKEN }}
+        run: |
+          gh release create "$TOOLS_TAG" \
+            --repo CodeBoarding/tools \
+            --title "Tools $TOOLS_TAG" \
+            --notes "Built from tokei $TOKEI_VERSION, gopls $GOPLS_VERSION" \
+            artifacts/*
