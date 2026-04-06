@@ -140,10 +140,11 @@ class CallGraphBuilder:
         probe_timeout = int(min(_PROBE_STARTUP_BASE + total * _PROBE_PER_FILE, _PROBE_MAX_TIMEOUT))
         probe_timeout = max(probe_timeout, self._adapter.get_probe_timeout_minimum())
 
-        # Workspace-based servers (e.g., csharp-ls) load files from the
-        # solution automatically.  Sending bulk didOpen before the workspace
-        # is ready overwhelms them.  Probe first to wait for workspace load,
-        # then open files.
+        # Phase 0 (didOpen) and the sync probe were originally inline here.
+        # Extracted to _bulk_did_open / _send_sync_probe so the order can
+        # flip: workspace-based servers (e.g., csharp-ls) need the probe
+        # BEFORE didOpen because bulk notifications overwhelm them during
+        # workspace loading.
         if self._adapter.probe_before_open:
             probe_result = self._send_sync_probe(source_files, probe_timeout)
             self._bulk_did_open(source_files)

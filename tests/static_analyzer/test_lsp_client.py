@@ -164,10 +164,12 @@ class TestNextResponse:
         assert result is None
 
     def test_server_requests_pass_through_next_response(self):
-        """Server-initiated requests are handled in the reader thread.
+        """Server-initiated requests are no longer intercepted by _next_response.
 
-        If one somehow reaches the queue, _next_response no longer intercepts
-        it — the reader thread is responsible for responding immediately.
+        Replaces test_handles_server_initiated_request — that test verified
+        _next_response handled server requests and returned None.  Handling
+        moved to _reader_loop (csharp-ls blocks on registerCapability until
+        the client responds; deferring to _next_response caused a deadlock).
         """
         client = LSPClient(["cmd"], Path("/root"))
         client._process = MagicMock()
