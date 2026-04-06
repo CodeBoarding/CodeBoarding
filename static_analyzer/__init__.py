@@ -181,8 +181,8 @@ class StaticAnalyzer:
                 logger.info(f"{adapter.language} LSP start: {t_lsp_started - t_start:.1f}s")
                 started.append((adapter, project_path, engine_client))
 
-                # For Java, wait for JDTLS to finish importing
-                if adapter.language.lower() == "java":
+                # Wait for workspace-loading servers to finish before analysis
+                if adapter.language.lower() in ("java", "csharp"):
                     engine_client.wait_for_server_ready()
                     logger.info(f"{adapter.language} project import: {time.monotonic() - t_lsp_started:.1f}s")
 
