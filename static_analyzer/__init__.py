@@ -8,6 +8,7 @@ from static_analyzer.analysis_cache import AnalysisCacheManager
 from static_analyzer.analysis_result import StaticAnalysisCache, StaticAnalysisResults
 from static_analyzer.cluster_change_analyzer import ChangeClassification
 from static_analyzer.constants import Language
+from static_analyzer.csharp_config_scanner import CSharpConfigScanner
 from static_analyzer.engine.adapters import get_adapter
 from static_analyzer.engine.call_graph_builder import CallGraphBuilder
 from static_analyzer.engine.language_adapter import LanguageAdapter
@@ -87,6 +88,20 @@ def _create_engine_configs(
                 else:
                     logger.info("No Java projects detected")
 
+            elif lang_lower in (Language.CSHARP, "c#"):
+                csharp_scanner = CSharpConfigScanner(repository_path, ignore_manager=ignore_manager)
+                csharp_projects = csharp_scanner.scan()
+
+                if csharp_projects:
+                    for csharp_config in csharp_projects:
+                        logger.info(
+                            f"Creating engine config for CSharp ({csharp_config.project_type}) at: "
+                            f"{csharp_config.root.relative_to(repository_path)}"
+                        )
+                        configs.append((adapter, csharp_config.root))
+                else:
+                    logger.info("No C# projects detected")
+
             else:
                 configs.append((adapter, repository_path))
 
@@ -104,6 +119,8 @@ def _lang_to_adapter_name(language: str) -> str | None:
         "javascript": "JavaScript",
         "tsx": "TypeScript",
         "jsx": "JavaScript",
+        "c#": "CSharp",
+        "csharp": "CSharp",
         "go": "Go",
         "java": "Java",
         "php": "PHP",
@@ -154,6 +171,7 @@ class StaticAnalyzer:
                     command=command,
                     project_root=project_path,
                     init_options=init_options,
+                    default_timeout=adapter.get_lsp_default_timeout(),
                     collect_diagnostics=True,
                     extra_env=extra_env,
                     workspace_settings=workspace_settings,
@@ -163,8 +181,8 @@ class StaticAnalyzer:
                 logger.info(f"{adapter.language} LSP start: {t_lsp_started - t_start:.1f}s")
                 started.append((adapter, project_path, engine_client))
 
-                # For Java, wait for JDTLS to finish importing
-                if adapter.language.lower() == "java":
+                # Wait for workspace-loading servers to finish before analysis
+                if adapter.language.lower() in ("java", "csharp"):
                     engine_client.wait_for_server_ready()
                     logger.info(f"{adapter.language} project import: {time.monotonic() - t_lsp_started:.1f}s")
 

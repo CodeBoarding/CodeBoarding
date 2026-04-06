@@ -134,6 +134,39 @@ class LanguageAdapter(ABC):
         """
         return None
 
+    def get_lsp_default_timeout(self) -> int:
+        """Return the default per-request timeout in seconds for the LSP client.
+
+        Override for language servers that need more time to index large
+        projects before they can respond to requests (e.g., csharp-ls
+        loading a Roslyn workspace).  The default (60s) is suitable for
+        most servers.
+        """
+        return 60
+
+    @property
+    def probe_before_open(self) -> bool:
+        """If True, send the sync probe BEFORE bulk didOpen notifications.
+
+        Workspace-based servers (e.g., csharp-ls) load all files from the
+        solution/project automatically.  Sending hundreds of didOpen
+        notifications before the workspace is ready can overwhelm them.
+        When True, the call graph builder sends the sync probe first to
+        wait for workspace loading, then opens files individually as
+        needed for analysis.
+        """
+        return False
+
+    def get_probe_timeout_minimum(self) -> int:
+        """Return the minimum probe timeout in seconds for initial indexing.
+
+        The call graph builder sends a sync probe after opening all files
+        to wait for the LSP server to finish indexing.  Some servers
+        (e.g., csharp-ls loading a Roslyn workspace) need significantly
+        more time than the default 300s base.  Override to raise the floor.
+        """
+        return 0
+
     def get_lsp_env(self) -> dict[str, str]:
         """Return extra environment variables for the LSP server process."""
         return {}

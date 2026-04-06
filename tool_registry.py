@@ -147,6 +147,12 @@ TOOL_REGISTRY: list[ToolDependency] = [
         js_entry_parent="intelephense",
     ),
     ToolDependency(
+        key="csharp",
+        binary_name="csharp-ls",
+        kind=ToolKind.NATIVE,
+        config_section=ConfigSection.LSP_SERVERS,
+    ),
+    ToolDependency(
         key="java",
         binary_name="java",
         kind=ToolKind.ARCHIVE,

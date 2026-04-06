@@ -104,6 +104,13 @@ VSCODE_CONFIG = {
             "file_extensions": [".php"],
             "install_commands": "npm install intelephense",
         },
+        "csharp": {
+            "name": "csharp-ls Language Server",
+            "command": ["csharp-ls"],
+            "languages": ["csharp"],
+            "file_extensions": [".cs"],
+            "install_commands": "dotnet tool install --global csharp-ls",
+        },
         "java": {
             "name": "Eclipse JDT Language Server",
             "command": ["java"],  # Placeholder - will be resolved by update_command_paths()
