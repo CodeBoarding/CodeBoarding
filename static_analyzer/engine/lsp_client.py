@@ -61,10 +61,11 @@ class LSPClient:
         self._extra_client_capabilities = extra_client_capabilities or {}
         self._process: subprocess.Popen | None = None  # type: ignore[type-arg]
         self._stdout_fd: int | None = None
-        self._request_id = 0
+        self._request_id = 1000
         self._msg_queue: queue.Queue[dict] = queue.Queue()
         self._reader_thread: threading.Thread | None = None
         self._shutdown_event = threading.Event()
+        self._write_lock = threading.Lock()
 
         # Track opened documents and their version counters.
         self._opened_uris: set[str] = set()
@@ -511,14 +512,19 @@ class LSPClient:
         self._write_message(message)
 
     def _write_message(self, message: dict) -> None:
-        """Write a JSON-RPC message with Content-Length header."""
+        """Write a JSON-RPC message with Content-Length header.
+
+        Thread-safe — the reader thread may write responses to server-
+        initiated requests concurrently with the main thread.
+        """
         if not self._process or not self._process.stdin:
             raise RuntimeError("LSP server not running")
         body = json.dumps(message)
         header = f"Content-Length: {len(body)}\r\n\r\n"
         data = (header + body).encode("utf-8")
-        self._process.stdin.write(data)
-        self._process.stdin.flush()
+        with self._write_lock:
+            self._process.stdin.write(data)
+            self._process.stdin.flush()
 
     def _next_response(self, deadline: float) -> dict | None:
         """Dequeue the next response message, handling protocol housekeeping.
@@ -535,12 +541,6 @@ class LSPClient:
         except queue.Empty:
             if self._process and self._process.poll() is not None:
                 raise RuntimeError(f"LSP server process exited with code {self._process.returncode}") from None
-            return None
-
-        # Handle server-initiated requests (e.g. workspace/configuration)
-        if "method" in message and "id" in message:
-            result = self._handle_server_request(message)
-            self._write_message({"jsonrpc": "2.0", "id": message["id"], "result": result})
             return None
 
         # Skip notifications that leaked past the reader loop
@@ -606,8 +606,11 @@ class LSPClient:
     def _reader_loop(self) -> None:
         """Background thread: continuously read messages and enqueue them.
 
-        Notifications are handled inline and NOT enqueued — only responses
-        and server-initiated requests go on the queue, keeping it lean.
+        Notifications and server-initiated requests are handled inline
+        and NOT enqueued — only responses go on the queue.  Server
+        requests (e.g. client/registerCapability) must be answered
+        immediately because some servers (csharp-ls) block on the
+        response before continuing workspace initialization.
         """
         while not self._shutdown_event.is_set():
             if not self._process or self._stdout_fd is None:
@@ -623,6 +626,13 @@ class LSPClient:
                 if "id" not in msg and method:
                     # Pure notification — handle and discard, don't enqueue
                     self._handle_notification(method, msg.get("params", {}))
+                    continue
+
+                # Server-initiated request — respond immediately so the
+                # server isn't blocked waiting for our reply.
+                if "id" in msg and method:
+                    result = self._handle_server_request(msg)
+                    self._write_message({"jsonrpc": "2.0", "id": msg["id"], "result": result})
                     continue
 
                 self._msg_queue.put(msg)
@@ -684,6 +694,13 @@ class LSPClient:
             if quiescent:
                 self._server_ready.set()
                 logger.info("LSP server: rust-analyzer quiescent (health=%s)", health)
+
+        elif method == "window/logMessage":
+            message_text = params.get("message", "")
+            # csharp-ls signals workspace readiness via logMessage
+            if "Finished loading solution" in message_text:
+                self._server_ready.set()
+                logger.info("LSP server: solution loaded (%s)", message_text)
 
     def _read_single_message(self) -> dict | None:
         """Read a single JSON-RPC message from stdout using raw fd I/O."""

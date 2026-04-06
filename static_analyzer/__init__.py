@@ -201,11 +201,11 @@ class StaticAnalyzer:
                 t_lsp_started = time.monotonic()
                 logger.info(f"{adapter.language} LSP start: {t_lsp_started - t_start:.1f}s")
 
-                # Some LSP servers (JDTLS, rust-analyzer) load workspace
-                # metadata asynchronously and only respond to cross-file
-                # queries once that's complete. Adapters opt in via
-                # ``wait_for_workspace_ready`` so the language-name check
-                # doesn't keep growing.
+                # Some LSP servers (JDTLS, rust-analyzer, csharp-ls) load
+                # workspace metadata asynchronously and only respond to
+                # cross-file queries once that's complete. Adapters opt in
+                # via ``wait_for_workspace_ready`` so the language-name
+                # check doesn't keep growing.
                 if getattr(adapter, "wait_for_workspace_ready", False):
                     engine_client.wait_for_server_ready()
                     logger.info(f"{adapter.language} workspace ready: {time.monotonic() - t_lsp_started:.1f}s")
