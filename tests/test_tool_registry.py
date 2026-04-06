@@ -117,12 +117,15 @@ class TestToolSource(unittest.TestCase):
 
     def test_asset_url_direct_upstream(self):
         source = UpstreamToolSource(
-            tag="1.44.0-202501301522",
-            url_template="https://download.eclipse.org/jdtls/milestones/{version}/jdt-language-server-{version}.tar.gz",
+            tag="1.44.0",
+            url_template="https://download.eclipse.org/jdtls/milestones/{version}/jdt-language-server-{version}-{build}.tar.gz",
+            build="202501221502",
         )
         url = _asset_url(source, "ignored")
-        self.assertIn("1.44.0-202501301522", url)
-        self.assertTrue(url.startswith("https://download.eclipse.org/"))
+        self.assertEqual(
+            url,
+            "https://download.eclipse.org/jdtls/milestones/1.44.0/jdt-language-server-1.44.0-202501221502.tar.gz",
+        )
 
     @patch("tool_registry.requests.get")
     def test_download_asset_verifies_sha256(self, mock_get):
