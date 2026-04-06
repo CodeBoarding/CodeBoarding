@@ -64,7 +64,7 @@ class CSharpConfigScanner:
         # 3. Fallback: .cs files exist but no project infrastructure
         if not configs and self._has_cs_files(self.repo_path):
             logger.warning(
-                f"No .sln or .csproj found in {self.repo_path}, " f"but C# files detected. Analysis will be limited."
+                f"No .sln or .csproj found in {self.repo_path}, but C# files detected. Analysis will be limited."
             )
             configs.append(CSharpProjectConfig(self.repo_path, "none"))
 
