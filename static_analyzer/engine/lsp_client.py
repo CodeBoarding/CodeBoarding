@@ -61,7 +61,7 @@ class LSPClient:
         self._extra_client_capabilities = extra_client_capabilities or {}
         self._process: subprocess.Popen | None = None  # type: ignore[type-arg]
         self._stdout_fd: int | None = None
-        self._request_id = 1000
+        self._request_id = 0
         self._msg_queue: queue.Queue[dict] = queue.Queue()
         self._reader_thread: threading.Thread | None = None
         self._shutdown_event = threading.Event()

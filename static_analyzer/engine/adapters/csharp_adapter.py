@@ -98,6 +98,10 @@ class CSharpAdapter(LanguageAdapter):
         }
 
     @property
+    def wait_for_workspace_ready(self) -> bool:
+        return True
+
+    @property
     def probe_before_open(self) -> bool:
         """csharp-ls loads all files from the .sln — didOpen before workspace load kills it."""
         return True

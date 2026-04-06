@@ -206,7 +206,7 @@ class StaticAnalyzer:
                 # cross-file queries once that's complete. Adapters opt in
                 # via ``wait_for_workspace_ready`` so the language-name
                 # check doesn't keep growing.
-                if getattr(adapter, "wait_for_workspace_ready", False):
+                if adapter.wait_for_workspace_ready:
                     engine_client.wait_for_server_ready()
                     logger.info(f"{adapter.language} workspace ready: {time.monotonic() - t_lsp_started:.1f}s")
 

@@ -25,6 +25,10 @@ logger = logging.getLogger(__name__)
 class JavaAdapter(LanguageAdapter):
 
     @property
+    def wait_for_workspace_ready(self) -> bool:
+        return True
+
+    @property
     def language(self) -> str:
         return "Java"
 

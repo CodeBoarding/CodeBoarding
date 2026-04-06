@@ -145,6 +145,16 @@ class LanguageAdapter(ABC):
         return 60
 
     @property
+    def wait_for_workspace_ready(self) -> bool:
+        """If True, call wait_for_server_ready() after LSP startup.
+
+        Workspace-based servers (e.g., JDTLS, csharp-ls) need to finish
+        loading projects before they can respond to requests.  When True,
+        the analyzer blocks on wait_for_server_ready() after start().
+        """
+        return False
+
+    @property
     def probe_before_open(self) -> bool:
         """If True, send the sync probe BEFORE bulk didOpen notifications.
 

@@ -163,24 +163,24 @@ class TestNextResponse:
         result = client._next_response(time.monotonic() - 1)
         assert result is None
 
-    def test_handles_server_initiated_request(self):
-        client = LSPClient(["cmd"], Path("/root"))
-        mock_stdin = MagicMock()
-        mock_process = MagicMock()
-        mock_process.stdin = mock_stdin
-        mock_process.poll.return_value = None
-        client._process = mock_process
+    def test_server_requests_pass_through_next_response(self):
+        """Server-initiated requests are handled in the reader thread.
 
-        # Server-initiated request (has both 'method' and 'id')
+        If one somehow reaches the queue, _next_response no longer intercepts
+        it — the reader thread is responsible for responding immediately.
+        """
+        client = LSPClient(["cmd"], Path("/root"))
+        client._process = MagicMock()
+        client._process.poll.return_value = None
+
         server_req = {"jsonrpc": "2.0", "id": 99, "method": "workspace/configuration", "params": {}}
         client._msg_queue.put(server_req)
 
         import time
 
         result = client._next_response(time.monotonic() + 5)
-        # Should respond to server and return None
-        assert result is None
-        mock_stdin.write.assert_called_once()
+        assert result is not None
+        assert result["id"] == 99
 
     def test_skips_notifications(self):
         client = LSPClient(["cmd"], Path("/root"))
