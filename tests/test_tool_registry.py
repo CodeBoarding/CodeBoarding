@@ -14,6 +14,7 @@ from tool_registry import (
     ToolKind,
     UpstreamToolSource,
     _asset_url,
+    _npm_specs_fingerprint,
     _tools_fingerprint,
     download_asset,
     install_node_tools,
@@ -193,7 +194,7 @@ class TestManifest(unittest.TestCase):
     def test_needs_install_triggers_on_tools_change(self, mock_version, mock_manifest, mock_tools):
         mock_manifest.return_value = {
             "version": "1.0.0",
-            "npm_specs": "",
+            "npm_specs": _npm_specs_fingerprint(),
             "tools": "old-fingerprint",
         }
         self.assertTrue(needs_install())

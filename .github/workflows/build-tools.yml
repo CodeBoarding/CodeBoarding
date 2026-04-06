@@ -2,20 +2,11 @@ name: Build Tool Binaries
 
 on:
   workflow_dispatch:
-    inputs:
-      tokei_version:
-        description: "Tokei git tag (e.g. v14.0.0)"
-        required: true
-      gopls_version:
-        description: "Gopls version (e.g. v0.21.1)"
-        required: true
-      tools_tag:
-        description: "Release tag for CodeBoarding/tools (e.g. tools-2026.04.05)"
-        required: true
-      dry_run:
-        description: "Build without publishing"
-        type: boolean
-        default: false
+
+env:
+  TOKEI_VERSION: "v14.0.0"
+  GOPLS_VERSION: "v0.21.1"
+  TOOLS_TAG: "tools-2026.04.05"
 
 permissions:
   contents: read
@@ -40,7 +31,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: XAMPPRocky/tokei
-          ref: ${{ inputs.tokei_version }}
+          ref: ${{ env.TOKEI_VERSION }}
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -79,7 +70,8 @@ jobs:
           go-version: "stable"
 
       - name: Build gopls
-        run: go install golang.org/x/tools/gopls@${{ inputs.gopls_version }}
+        shell: bash
+        run: go install "golang.org/x/tools/gopls@${GOPLS_VERSION}"
 
       - name: Rename binary
         shell: bash
@@ -93,7 +85,6 @@ jobs:
 
   publish-release:
     needs: [build-tokei, build-gopls]
-    if: ${{ inputs.dry_run != true }}
     runs-on: ubuntu-latest
     steps:
       - name: Download all artifacts
@@ -113,8 +104,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.TOOLS_REPO_TOKEN }}
         run: |
-          gh release create "${{ inputs.tools_tag }}" \
+          gh release create "$TOOLS_TAG" \
             --repo CodeBoarding/tools \
-            --title "Tools ${{ inputs.tools_tag }}" \
-            --notes "Built from tokei ${{ inputs.tokei_version }}, gopls ${{ inputs.gopls_version }}" \
+            --title "Tools $TOOLS_TAG" \
+            --notes "Built from tokei $TOKEI_VERSION, gopls $GOPLS_VERSION" \
             artifacts/*
