@@ -98,6 +98,56 @@ class TestBuildQualifiedName:
         # UserController matches file stem -> stripped, InnerClass kept
         assert result == "Controllers.UserController.InnerClass.GetById"
 
+    def test_csharp_ls_hierarchy_skips_file_and_namespace(self):
+        """csharp-ls: File(kind=1) -> Namespace(kind=3) -> Class -> Method."""
+        result = self.adapter.build_qualified_name(
+            file_path=Path("/repo/src/Contoso.Processing/Download/DownloadService.cs"),
+            symbol_name="ProcessAsync",
+            symbol_kind=NodeType.METHOD,
+            parent_chain=[
+                ("DownloadService.cs", NodeType.FILE),
+                ("Download", NodeType.NAMESPACE),
+                ("DownloadService", NodeType.CLASS),
+            ],
+            project_root=self.root,
+        )
+        # File and Namespace skipped, DownloadService matches filename -> deduped
+        assert result == "Contoso.Processing.Download.DownloadService.ProcessAsync"
+
+    def test_namespace_symbol_uses_detail(self):
+        """Namespace symbols use their detail field as the qualified name."""
+        result = self.adapter.build_qualified_name(
+            file_path=Path("/repo/src/Contoso.Processing/Download/DownloadService.cs"),
+            symbol_name="Download",
+            symbol_kind=NodeType.NAMESPACE,
+            parent_chain=[("DownloadService.cs", NodeType.FILE)],
+            project_root=self.root,
+            detail="Contoso.Processing.Download",
+        )
+        assert result == "Contoso.Processing.Download"
+
+    def test_class_matching_filename_deduplicates(self):
+        """Class name == filename -> don't duplicate."""
+        result = self.adapter.build_qualified_name(
+            file_path=Path("/repo/src/Contoso.Api/Program.cs"),
+            symbol_name="Program",
+            symbol_kind=NodeType.CLASS,
+            parent_chain=[("Program.cs", NodeType.FILE)],
+            project_root=self.root,
+        )
+        assert result == "Contoso.Api.Program"
+
+    def test_src_prefix_stripped(self):
+        """The 'src' directory is stripped from qualified names."""
+        result = self.adapter.build_qualified_name(
+            file_path=Path("/repo/src/Contoso.Core/Models/Media.cs"),
+            symbol_name="Media",
+            symbol_kind=NodeType.CLASS,
+            parent_chain=[],
+            project_root=self.root,
+        )
+        assert result == "Contoso.Core.Models.Media"
+
 
 class TestExtractPackage:
     """Tests for namespace/package extraction."""

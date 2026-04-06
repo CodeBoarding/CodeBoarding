@@ -51,25 +51,41 @@ class CSharpAdapter(LanguageAdapter):
         project_root: Path,
         detail: str = "",
     ) -> str:
-        """Build qualified name, deduplicating filename/class like Java adapter.
+        """Build namespace-based qualified names for C#.
 
-        C# convention: one primary type per file, filename matches the type name.
-        Without deduplication, ``Services/UserService.cs`` containing class
-        ``UserService`` would produce ``Services.UserService.UserService`` instead
-        of ``Services.UserService``.
+        csharp-ls returns: File (kind=1) > Namespace (kind=3) > Class > Members.
+        The namespace's ``detail`` has the full namespace, but only the
+        namespace symbol itself receives it -- children get ``detail=""``.
+
+        Strategy: use namespace detail when available (for namespace
+        symbols themselves), otherwise reconstruct from file path,
+        skipping ``src/`` prefix and deduplicating filename/class.
         """
+        # Namespace symbol itself — detail has the full namespace
+        if detail and symbol_kind == NodeType.NAMESPACE:
+            return detail
+
+        # Build from file path, stripping 'src' prefix
         rel = file_path.relative_to(project_root)
-        module = ".".join(rel.with_suffix("").parts)
+        parts = [p for p in rel.with_suffix("").parts if p != "src"]
+        module = ".".join(parts)
 
-        if parent_chain:
+        # Filter parents: skip File (kind=1) and Namespace (kind=3) —
+        # the namespace is already encoded in the file path for C#
+        code_parents = [name for name, kind in parent_chain if kind not in (NodeType.FILE, NodeType.NAMESPACE)]
+
+        if code_parents:
+            # Deduplicate first parent if it matches filename
             module_last = module.rsplit(".", 1)[-1] if "." in module else module
-            effective_parents = list(parent_chain)
-            if effective_parents and effective_parents[0][0] == module_last:
-                effective_parents = effective_parents[1:]
+            if code_parents[0] == module_last:
+                code_parents = code_parents[1:]
+            if code_parents:
+                return f"{module}.{'.'.join(code_parents)}.{symbol_name}"
 
-            if effective_parents:
-                parents = ".".join(name for name, _ in effective_parents)
-                return f"{module}.{parents}.{symbol_name}"
+        # Deduplicate filename/class (one type per file convention)
+        module_last = module.rsplit(".", 1)[-1] if "." in module else module
+        if symbol_name == module_last:
+            return module
         return f"{module}.{symbol_name}"
 
     def extract_package(self, qualified_name: str) -> str:
