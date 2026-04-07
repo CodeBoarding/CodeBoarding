@@ -26,7 +26,13 @@ class ProjectScanner:
         """
 
         commands = get_config("tools")["tokei"]["command"]
-        result = subprocess.run(commands, cwd=self.repo_location, capture_output=True, text=True, check=True)
+        try:
+            result = subprocess.run(commands, cwd=self.repo_location, capture_output=True, text=True, check=True)
+        except FileNotFoundError as e:
+            raise FileNotFoundError(
+                f"Required tool '{commands[0]}' was not found. "
+                f"Please ensure tokei is installed and available on your PATH."
+            ) from e
 
         if not result.stdout:
             stderr_msg = result.stderr.strip() if result.stderr else "no stderr output"

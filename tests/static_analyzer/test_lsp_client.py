@@ -486,11 +486,11 @@ class TestWaitForServerReady:
         # Should not block
         client.wait_for_server_ready(timeout=1)
 
-    def test_times_out_gracefully(self):
+    def test_times_out_with_error(self):
         client = LSPClient(["cmd"], Path("/root"))
 
-        # Should not raise, just log warning
-        client.wait_for_server_ready(timeout=1)
+        with pytest.raises(TimeoutError, match="did not become ready"):
+            client.wait_for_server_ready(timeout=1)
         assert not client._server_ready.is_set()
 
 

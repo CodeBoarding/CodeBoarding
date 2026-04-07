@@ -176,7 +176,7 @@ class StaticAnalyzer:
                     except Exception:
                         logger.exception("Error shutting down engine client during cleanup")
                 self._clients_started = False
-                raise RuntimeError(f"Failed to start engine LSP client for {adapter.language}") from e
+                raise RuntimeError(f"Failed to start engine LSP client for {adapter.language}: {e}") from e
 
         self._engine_clients = started
         self._clients_started = True
