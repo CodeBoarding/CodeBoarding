@@ -6,7 +6,7 @@ from pathlib import Path
 
 from agents.agent_responses import AnalysisInsights
 from diagram_analysis import DiagramGenerator
-from diagram_analysis.analysis_json import build_id_to_name_map, parse_unified_analysis
+from diagram_analysis.persistence.analysis_json import build_id_to_name_map, parse_unified_analysis
 from output_generators.html import generate_html_file
 from output_generators.markdown import generate_markdown_file
 from output_generators.mdx import generate_mdx_file
@@ -108,12 +108,16 @@ def generate_rst(
 
 
 def _seed_existing_analysis(existing_analysis_dir: Path, temp_repo_folder: Path) -> None:
-    """Copy existing analysis files into the temp folder so incremental analysis can use them."""
-    for filename in ("analysis.json", "analysis_manifest.json"):
-        src = existing_analysis_dir / filename
-        if src.is_file():
-            shutil.copy2(src, temp_repo_folder / filename)
-            logger.info(f"Seeded existing {filename} for incremental analysis")
+    """Copy existing analysis artifacts into the temp folder."""
+    analysis_path = existing_analysis_dir / "analysis.json"
+    if analysis_path.is_file():
+        shutil.copy2(analysis_path, temp_repo_folder / "analysis.json")
+        logger.info("Seeded existing analysis.json")
+
+    checkpoints_dir = existing_analysis_dir / "checkpoints"
+    if checkpoints_dir.is_dir():
+        shutil.copytree(checkpoints_dir, temp_repo_folder / "checkpoints", dirs_exist_ok=True)
+        logger.info("Seeded existing checkpoints directory")
 
 
 def generate_analysis(
@@ -129,9 +133,9 @@ def generate_analysis(
     This function is intended to be used in a GitHub Action context.
 
     Args:
-        existing_analysis_dir: Path to a directory containing a previous analysis.json
-            and analysis_manifest.json. When provided, incremental analysis is attempted
-            before falling back to a full analysis.
+        existing_analysis_dir: Path to a directory containing prior analysis artifacts.
+            The current GitHub Action path still runs a full analysis in the fresh clone,
+            but preserved artifacts are copied into the temp output directory.
     """
     repo_root = Path(os.getenv("REPO_ROOT", "repos"))
     repo_name = clone_repository(repo_url, repo_root)
@@ -140,7 +144,7 @@ def generate_analysis(
     checkout_repo(repo_dir, source_branch)
     temp_repo_folder = create_temp_repo_folder()
 
-    # Seed previous analysis files so incremental update can detect changes
+    # Preserve previous analysis artifacts when provided.
     if existing_analysis_dir:
         _seed_existing_analysis(Path(existing_analysis_dir), temp_repo_folder)
 
@@ -154,8 +158,7 @@ def generate_analysis(
         log_path=run_context.log_path,
     )
 
-    # Use smart analysis: tries incremental first, falls back to full
-    analysis_path = generator.generate_analysis_smart()
+    analysis_path = generator.generate_analysis()
 
     # Now generate the output docs:
     match extension:

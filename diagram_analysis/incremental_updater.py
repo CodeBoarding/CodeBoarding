@@ -17,8 +17,8 @@ from typing import Callable
 
 from agents.agent_responses import AnalysisInsights, Component, FileEntry, FileMethodGroup, MethodEntry
 from agents.change_status import ChangeStatus
+from diagram_analysis.persistence.checkpoints import FileComponentIndex
 from diagram_analysis.incremental_types import FileDelta, IncrementalDelta, MethodChange
-from diagram_analysis.manifest import AnalysisManifest
 from repo_utils.change_detector import ChangeSet
 from repo_utils.method_diff import get_method_statuses_for_file
 
@@ -38,12 +38,12 @@ class IncrementalUpdater:
     def __init__(
         self,
         analysis: AnalysisInsights,
-        manifest: AnalysisManifest,
+        file_component_index: FileComponentIndex,
         symbol_resolver: SymbolResolver,
         repo_dir: Path,
     ):
         self.analysis = analysis
-        self.manifest = manifest
+        self.file_component_index = file_component_index
         self._symbol_resolver = symbol_resolver
         self._repo_dir = repo_dir
 
@@ -60,11 +60,11 @@ class IncrementalUpdater:
         return {qn: m for qn, m in self._get_previous_methods(file_path).items() if m.status != ChangeStatus.DELETED}
 
     def _resolve_component(self, file_path: str, *, register_file: bool = False) -> tuple[str | None, bool]:
-        component_id = self.manifest.get_component_for_file(file_path)
+        component_id = self.file_component_index.get_component_for_file(file_path)
         if component_id is None:
             return None, True
         if register_file:
-            self.manifest.add_file(file_path, component_id)
+            self.file_component_index.add_file(file_path, component_id)
         return component_id, False
 
     def _apply_method_diff_statuses(

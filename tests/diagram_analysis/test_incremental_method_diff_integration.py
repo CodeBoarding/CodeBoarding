@@ -15,8 +15,8 @@ from agents.agent_responses import (
     assign_component_ids,
 )
 from agents.change_status import ChangeStatus
+from diagram_analysis.checkpoints import build_file_component_index
 from diagram_analysis.incremental_updater import IncrementalUpdater
-from diagram_analysis.manifest import AnalysisManifest
 from repo_utils.change_detector import detect_uncommitted_changes
 
 
@@ -76,10 +76,7 @@ def test_incremental_delta_reports_added_modified_deleted_in_single_file():
             ]
         }
         analysis = _build_analysis(old_methods)
-        component_id = analysis.components[0].component_id
-        manifest = AnalysisManifest(
-            repo_state_hash="x", base_commit="", file_to_component={"src/utils.py": component_id}
-        )
+        file_component_index = build_file_component_index(analysis)
 
         changed = dedent(
             """\
@@ -110,7 +107,7 @@ def test_incremental_delta_reports_added_modified_deleted_in_single_file():
             return current_methods.get(rel_path, [])
 
         changes = detect_uncommitted_changes(repo)
-        updater = IncrementalUpdater(analysis, manifest, symbol_resolver=resolver, repo_dir=repo)
+        updater = IncrementalUpdater(analysis, file_component_index, symbol_resolver=resolver, repo_dir=repo)
         delta = updater.compute_delta(
             added_files=changes.added_files,
             modified_files=changes.modified_files,

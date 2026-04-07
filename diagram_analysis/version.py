@@ -1,6 +1,1 @@
-from pydantic import BaseModel
-
-
-class Version(BaseModel):
-    commit_hash: str
-    code_boarding_version: str
+from diagram_analysis.persistence.version import *  # noqa: F401,F403
