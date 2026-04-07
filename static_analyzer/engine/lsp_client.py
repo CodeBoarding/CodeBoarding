@@ -411,7 +411,11 @@ class LSPClient:
         if self._server_ready.wait(timeout=timeout):
             logger.info("Server ready")
         else:
-            logger.warning("Server ready timeout after %ds. Proceeding with analysis anyway.", timeout)
+            raise TimeoutError(
+                f"LSP server did not become ready within {timeout}s. "
+                f"Large Java projects may take several minutes to import. "
+                f"Check system resources or try again."
+            )
 
     # ---- Internal protocol implementation ----
 

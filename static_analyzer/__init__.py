@@ -165,13 +165,7 @@ class StaticAnalyzer:
 
                 # For Java, wait for JDTLS to finish importing
                 if adapter.language.lower() == "java":
-                    try:
-                        engine_client.wait_for_server_ready()
-                    except TimeoutError as e:
-                        raise TimeoutError(
-                            "JDTLS project import timed out. Large Java projects may take "
-                            "several minutes to import. Check system resources or try again."
-                        ) from e
+                    engine_client.wait_for_server_ready()
                     logger.info(f"{adapter.language} project import: {time.monotonic() - t_lsp_started:.1f}s")
 
             except Exception as e:
