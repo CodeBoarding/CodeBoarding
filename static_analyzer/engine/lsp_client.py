@@ -84,16 +84,26 @@ class LSPClient:
 
     def start(self) -> dict | list | None:
         """Start the LSP server process and perform initialization handshake."""
+        executable = "Unknown"
+        if len(self._command) > 0:
+            executable = self._command[0]
+
         env = os.environ.copy()
         env.update(self._extra_env)
-        self._process = subprocess.Popen(
-            self._command,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-            env=env,
-            cwd=str(self._project_root),
-        )
+        try:
+            self._process = subprocess.Popen(
+                self._command,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                env=env,
+                cwd=str(self._project_root),
+            )
+        except FileNotFoundError as e:
+            raise FileNotFoundError(
+                f"Could not start language server: executable '{executable}' not found. "
+                f"Please ensure the required language server is installed and available on your PATH."
+            ) from e
 
         # Grab raw fd and close Python's BufferedReader immediately
         self._stdout_fd = os.dup(self._process.stdout.fileno())  # type: ignore[union-attr]

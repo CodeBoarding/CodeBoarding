@@ -165,7 +165,13 @@ class StaticAnalyzer:
 
                 # For Java, wait for JDTLS to finish importing
                 if adapter.language.lower() == "java":
-                    engine_client.wait_for_server_ready()
+                    try:
+                        engine_client.wait_for_server_ready()
+                    except TimeoutError as e:
+                        raise TimeoutError(
+                            "JDTLS project import timed out. Large Java projects may take "
+                            "several minutes to import. Check system resources or try again."
+                        ) from e
                     logger.info(f"{adapter.language} project import: {time.monotonic() - t_lsp_started:.1f}s")
 
             except Exception as e:
@@ -176,7 +182,7 @@ class StaticAnalyzer:
                     except Exception:
                         logger.exception("Error shutting down engine client during cleanup")
                 self._clients_started = False
-                raise RuntimeError(f"Failed to start engine LSP client for {adapter.language}") from e
+                raise RuntimeError(f"Failed to start engine LSP client for {adapter.language}: {e}") from e
 
         self._engine_clients = started
         self._clients_started = True
