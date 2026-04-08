@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 
 # Callable that resolves a repo-relative file path to its current MethodEntry list.
 SymbolResolver = Callable[[str], list[MethodEntry]]
+ComponentResolver = Callable[[str, AnalysisManifest], str | None]
 
 
 class IncrementalUpdater:
@@ -41,11 +42,13 @@ class IncrementalUpdater:
         manifest: AnalysisManifest,
         symbol_resolver: SymbolResolver,
         repo_dir: Path,
+        component_resolver: ComponentResolver | None = None,
     ):
         self.analysis = analysis
         self.manifest = manifest
         self._symbol_resolver = symbol_resolver
         self._repo_dir = repo_dir
+        self._component_resolver = component_resolver
 
     def _get_current_methods(self, file_path: str) -> list[MethodEntry]:
         return self._symbol_resolver(file_path)
@@ -61,11 +64,18 @@ class IncrementalUpdater:
 
     def _resolve_component(self, file_path: str, *, register_file: bool = False) -> tuple[str | None, bool]:
         component_id = self.manifest.get_component_for_file(file_path)
-        if component_id is None:
-            return None, True
-        if register_file:
-            self.manifest.add_file(file_path, component_id)
-        return component_id, False
+        if component_id is not None:
+            if register_file:
+                self.manifest.add_file(file_path, component_id)
+            return component_id, False
+
+        if register_file and self._component_resolver is not None:
+            component_id = self._component_resolver(file_path, self.manifest)
+            if component_id is not None:
+                self.manifest.add_file(file_path, component_id)
+                return component_id, False
+
+        return None, True
 
     def _apply_method_diff_statuses(
         self, file_path: str, current_methods: list[MethodEntry], changes: ChangeSet
@@ -105,7 +115,9 @@ class IncrementalUpdater:
                     file_path=file_path,
                     file_status=ChangeStatus.ADDED,
                     component_id=component_id,
-                    added_methods=[self._to_method_change(file_path, m) for m in current],
+                    added_methods=[
+                        self._to_method_change(file_path, m, change_type=ChangeStatus.ADDED) for m in current
+                    ],
                 ),
                 missing,
             )
