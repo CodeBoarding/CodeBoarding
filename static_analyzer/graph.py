@@ -74,12 +74,45 @@ class CallGraph:
             self.delimiter = ClusteringConfig.DEFAULT_DELIMITER
         # Cache for cluster result
         self._cluster_cache: ClusterResult | None = None
+        # Location-based dedup: (file_path, line_start, line_end, type) -> canonical qualified name.
+        # When the LSP produces multiple qualified-name aliases for the same
+        # physical symbol (e.g. ``src.index.funcA`` vs
+        # ``container.agent-runner.src.index.funcA``), only the most specific
+        # (longest) name is kept.  The shorter alias is recorded here so that
+        # ``add_edge`` can transparently resolve references to dropped aliases.
+        self._location_index: dict[tuple[str, int, int, int, str], str] = {}
+        self._alias_to_canonical: dict[str, str] = {}
 
     def add_node(self, node: Node) -> None:
+        short_name = node.fully_qualified_name.rsplit(".", 1)[-1]
+        loc_key = (node.file_path, node.line_start, node.line_end, node.type.value, short_name)
+        existing_name = self._location_index.get(loc_key)
+
+        if existing_name is not None:
+            if len(node.fully_qualified_name) > len(existing_name):
+                # New name is more specific — promote it to canonical.
+                old_node = self.nodes.pop(existing_name)
+                node.methods_called_by_me = old_node.methods_called_by_me
+                self.nodes[node.fully_qualified_name] = node
+                self._location_index[loc_key] = node.fully_qualified_name
+                self._alias_to_canonical[existing_name] = node.fully_qualified_name
+            else:
+                # Existing name is already the most specific — record alias.
+                self._alias_to_canonical[node.fully_qualified_name] = existing_name
+            return
+
         if node.fully_qualified_name not in self.nodes:
             self.nodes[node.fully_qualified_name] = node
+            self._location_index[loc_key] = node.fully_qualified_name
+
+    def _resolve_name(self, name: str) -> str:
+        """Resolve a possibly-aliased name to the canonical name in the graph."""
+        return self._alias_to_canonical.get(name, name)
 
     def add_edge(self, src_name: str, dst_name: str) -> None:
+        src_name = self._resolve_name(src_name)
+        dst_name = self._resolve_name(dst_name)
+
         if src_name not in self.nodes or dst_name not in self.nodes:
             raise ValueError("Both source and destination nodes must exist in the graph.")
 
