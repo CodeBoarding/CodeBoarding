@@ -316,12 +316,60 @@ def _apply_file_delta_to_index(files: dict[str, FileEntry], file_delta: FileDelt
     existing.methods = _sorted_methods(methods_by_name)
 
 
-def _sync_component_methods(component: Component, files: dict[str, FileEntry]) -> None:
+def _sync_component_methods(
+    component: Component,
+    files: dict[str, FileEntry],
+    deltas_by_path: dict[str, FileDelta],
+) -> None:
+    """Rebuild component's file_methods, preserving method boundaries between components.
+
+    Strategy:
+    1. Collect the qualified names this component originally owned.
+    2. For files with a delta, only add newly added methods when the delta
+       targets this exact component (``is_primary``).  Child / sibling
+       components that merely share the file keep only their originally-owned
+       methods so that cluster-level boundaries established during full
+       analysis are preserved.
+    3. Deleted methods are removed from ``owned_qnames`` so they disappear
+       from every component that previously owned them.
+    4. Modified methods that the component already owns stay owned; modified
+       methods belonging to a sibling component are NOT absorbed.
+    5. Filter the global files index to only include methods this component owns.
+    """
+    owned_qnames: set[str] = set()
+
+    for group in component.file_methods:
+        for method in group.methods:
+            owned_qnames.add(method.qualified_name)
+
+    for file_path, delta in deltas_by_path.items():
+        if not component.file_methods:
+            continue
+        if not any(group.file_path == file_path for group in component.file_methods):
+            continue
+
+        # Remove deleted methods from this component's ownership.
+        for method in delta.deleted_methods:
+            owned_qnames.discard(method.qualified_name)
+
+        # Only the component that the manifest mapped the file to (the
+        # "primary owner") should absorb newly added methods.  Child /
+        # sibling components keep only the methods they already owned so
+        # that the cluster-level boundaries from the full analysis are
+        # not destroyed.
+        is_primary = (delta.component_id or "") == component.component_id
+
+        if is_primary:
+            for method in delta.added_methods:
+                owned_qnames.add(method.qualified_name)
+
     component.file_methods = [
         FileMethodGroup(
             file_path=fp,
-            file_status=entry.file_status,
-            methods=[m.model_copy(deep=True) for m in entry.methods],
+            file_status=entry.file_status if entry else "unchanged",
+            methods=[
+                m.model_copy(deep=True) for m in (entry.methods if entry else []) if m.qualified_name in owned_qnames
+            ],
         )
         for fp in sorted({g.file_path for g in component.file_methods})
         if (entry := files.get(fp)) is not None
@@ -340,7 +388,9 @@ def apply_delta(
     files = dict(root.files)
     component_lookup = _component_lookup(root, sub_analyses)
 
+    deltas_by_path: dict[str, FileDelta] = {}
     for file_delta in delta.file_deltas:
+        deltas_by_path[file_delta.file_path] = file_delta
         _apply_file_delta_to_index(files, file_delta)
 
         component = component_lookup.get(file_delta.component_id or "")
@@ -354,9 +404,9 @@ def apply_delta(
 
     root.files = files
     for component in root.components:
-        _sync_component_methods(component, files)
+        _sync_component_methods(component, files, deltas_by_path)
 
     for sub in sub_analyses.values():
         sub.files = files
         for component in sub.components:
-            _sync_component_methods(component, files)
+            _sync_component_methods(component, files, deltas_by_path)
