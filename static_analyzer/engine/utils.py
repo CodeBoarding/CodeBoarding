@@ -2,22 +2,17 @@
 
 from __future__ import annotations
 
+import functools
+import platform
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
+_IS_WINDOWS = platform.system() == "Windows"
 
+
+@functools.lru_cache(maxsize=4096)
 def uri_to_path(uri: str) -> Path | None:
-    """Convert a file URI to a Path object.
-
-    Returns None for empty strings, non-file URIs, or on parse errors.
-
-    Windows file URIs (``file:///C:/foo/bar``) parse with a leading slash
-    before the drive letter. Passing ``/C:/foo`` straight to ``Path`` on
-    Windows produces a drive-less absolute path that fails ``relative_to``
-    against any real project root, silently dropping LSP references and
-    emptying the call graph. We strip the leading slash when the second
-    char is a colon so both POSIX and Windows URIs round-trip correctly.
-    """
+    """Convert a file URI to a Path; None for empty, non-file, or parse errors."""
     if not uri:
         return None
     try:
@@ -25,8 +20,11 @@ def uri_to_path(uri: str) -> Path | None:
         if parsed.scheme != "file":
             return None
         path = unquote(parsed.path)
+        # Strip the leading slash on Windows-style URIs (``/C:/foo`` -> ``C:/foo``).
         if len(path) >= 3 and path[0] == "/" and path[2] == ":":
             path = path[1:]
+        if _IS_WINDOWS:
+            return Path(path).resolve()
         return Path(path)
     except Exception:
         return None

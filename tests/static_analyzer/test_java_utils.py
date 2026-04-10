@@ -4,6 +4,7 @@ Tests for Java utility functions.
 
 import platform
 import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch, MagicMock
@@ -180,10 +181,6 @@ class TestDetectJavaInstallations(unittest.TestCase):
     @patch("static_analyzer.java_utils.get_java_version")
     def test_detect_validates_java_executable(self, mock_version):
         """Test that only JDKs with valid java executable are returned."""
-        # Create a real temporary directory structure for testing
-        import tempfile
-        import os
-
         with tempfile.TemporaryDirectory() as tmpdir:
             # Create valid JDK structure
             valid_jdk = Path(tmpdir) / "java-21"
@@ -304,16 +301,6 @@ class TestFindJava21OrLater(unittest.TestCase):
         self.assertIsNone(java_home)
 
     def test_java_home_wins_over_newer_jdk_on_disk(self):
-        """JAVA_HOME must beat a newer JDK discovered on disk.
-
-        Why: macos-latest ships Temurin 25 alongside the Java 21 that
-        actions/setup-java installs; sorting candidates by version picks 25
-        and JDTLS (which targets 21) exits with code 13. Honoring JAVA_HOME
-        first also matches what users expect when they set the variable
-        explicitly.
-        """
-        import tempfile
-
         with tempfile.TemporaryDirectory() as tmpdir:
             fake_java_home = Path(tmpdir) / "jdk-21"
             (fake_java_home / "bin").mkdir(parents=True)
@@ -322,9 +309,6 @@ class TestFindJava21OrLater(unittest.TestCase):
             with patch.dict("os.environ", {"JAVA_HOME": str(fake_java_home)}):
                 with patch("static_analyzer.java_utils.get_java_version", return_value=21) as mock_version:
                     with patch("static_analyzer.java_utils.detect_java_installations") as mock_detect:
-                        # detect_java_installations must NOT be consulted when
-                        # JAVA_HOME is valid — otherwise a newer JDK on disk
-                        # would still win via the sort.
                         result = find_java_21_or_later()
 
                         self.assertEqual(result, fake_java_home)
@@ -332,9 +316,6 @@ class TestFindJava21OrLater(unittest.TestCase):
                         mock_version.assert_called_once()
 
     def test_java_home_too_old_falls_through_to_scan(self):
-        """JAVA_HOME pointing at Java < 21 must fall through to the scan."""
-        import tempfile
-
         with tempfile.TemporaryDirectory() as tmpdir:
             old_java_home = Path(tmpdir) / "jdk-17"
             (old_java_home / "bin").mkdir(parents=True)

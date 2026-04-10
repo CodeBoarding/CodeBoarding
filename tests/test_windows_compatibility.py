@@ -1,42 +1,26 @@
-"""
-Tests to verify Windows compatibility fixes for path handling.
-"""
+"""Tests for Windows-sensitive path handling."""
 
+import platform
+import tempfile
 import unittest
 from pathlib import Path
 
 from static_analyzer.engine.utils import uri_to_path
 
+IS_WINDOWS = platform.system() == "Windows"
+
 
 class TestFileURIParsing(unittest.TestCase):
-    """Test that file:// URI parsing works correctly on all platforms.
-
-    uri_to_path is platform-independent — the Windows drive-letter strip
-    runs unconditionally so a Linux dev machine parsing a Windows LSP
-    fixture gets the same Path object a Windows machine would get.
-    """
-
     def test_unix_file_uri(self):
-        unix_uri = "file:///home/user/project/file.py"
-        self.assertEqual(uri_to_path(unix_uri), Path("/home/user/project/file.py"))
+        self.assertEqual(
+            uri_to_path("file:///home/user/project/file.py"),
+            Path("/home/user/project/file.py"),
+        )
 
-    def test_windows_file_uri(self):
-        """Windows URIs must lose the leading slash before the drive letter.
-
-        Without the strip, ``Path("/C:/foo")`` on Windows is a drive-less
-        absolute path that fails ``relative_to`` against any real project
-        root, silently dropping every LSP reference.
-        """
+    def test_windows_file_uri_strips_leading_slash(self):
         self.assertEqual(
             uri_to_path("file:///C:/Users/user/project/file.py"),
             Path("C:/Users/user/project/file.py"),
-        )
-
-    def test_windows_file_uri_lowercase_drive(self):
-        """Drive letter case is preserved (tsserver returns lowercase)."""
-        self.assertEqual(
-            uri_to_path("file:///d:/a/repo/src/index.js"),
-            Path("d:/a/repo/src/index.js"),
         )
 
     def test_windows_file_uri_with_encoded_spaces(self):
@@ -46,7 +30,6 @@ class TestFileURIParsing(unittest.TestCase):
         )
 
     def test_windows_file_uri_with_percent_encoded_drive(self):
-        """Some LSP servers emit the colon as %3A."""
         self.assertEqual(
             uri_to_path("file:///d%3A/a/repo/src/index.js"),
             Path("d:/a/repo/src/index.js"),
@@ -57,3 +40,19 @@ class TestFileURIParsing(unittest.TestCase):
 
     def test_non_file_scheme(self):
         self.assertIsNone(uri_to_path("http://example.com/foo"))
+
+
+@unittest.skipUnless(IS_WINDOWS, "case-canonicalization is Windows-only behavior")
+class TestWindowsCaseCanonicalization(unittest.TestCase):
+    def test_lowercase_uri_resolves_to_real_filesystem_case(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            real_dir = Path(tmpdir) / "SrcDir"
+            real_dir.mkdir()
+            real_file = real_dir / "Index.js"
+            real_file.touch()
+
+            uri = real_file.as_uri().lower()
+            result = uri_to_path(uri)
+
+            self.assertIsNotNone(result)
+            self.assertEqual(str(result), str(real_file.resolve()))
