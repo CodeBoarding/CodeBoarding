@@ -91,7 +91,7 @@ codeboarding --local /path/to/repo
 
 Output is written to `/path/to/repo/.codeboarding/`.
 
-`python install.py` and `codeboarding-setup` download language server binaries to `~/.codeboarding/servers/`, shared across projects. `npm` is required for Python, TypeScript, JavaScript, and PHP language servers; if it is missing, setup can install it via `nodeenv`.
+`python install.py` and `codeboarding-setup` download language server binaries to `~/.codeboarding/servers/`, shared across projects. Node.js (and its bundled `npm`) is required for the Python, TypeScript, JavaScript, and PHP language servers; if neither `node` nor `CODEBOARDING_NODE_PATH` is set, setup downloads a pinned Node.js runtime into `~/.codeboarding/servers/nodeenv/` automatically.
 
 ## Configuration
 

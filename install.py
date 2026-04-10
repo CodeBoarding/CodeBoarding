@@ -16,7 +16,7 @@ from tool_registry import (
     TOOL_REGISTRY,
     ProgressCallback,
     ToolKind,
-    _acquire_lock,
+    acquire_lock,
     get_servers_dir,
     install_archive_tool,
     install_embedded_node,
@@ -625,7 +625,7 @@ def ensure_tools(
     lock_path = servers_dir / ".download.lock"
 
     with open(lock_path, "w") as lock_fd:
-        _acquire_lock(lock_fd)
+        acquire_lock(lock_fd)
 
         # Run the Node bootstrap *before* the needs_install() short-circuit.
         # If a user deletes only ~/.codeboarding/servers/nodeenv/, tokei and
@@ -712,9 +712,24 @@ def main() -> None:
     print("CodeBoarding Setup")
     print("=" * 40)
 
-    run_install(auto_install_npm=args.auto_install_npm, auto_install_vcpp=args.auto_install_vcpp)
-
-    write_manifest()
+    # Hold the same download lock that ensure_tools() uses, so two concurrent
+    # codeboarding-setup invocations (e.g. a user running it in two terminals,
+    # or a VSCode extension startup racing with a manual CLI run) do not
+    # corrupt binaries by downloading into the same servers directory.
+    #
+    # The lock is taken here — not inside run_install() — because ensure_tools()
+    # also calls run_install() *while already holding this lock*, and nesting
+    # lock acquisitions on the same file from the same process is not
+    # guaranteed to be a no-op across platforms (fcntl.flock is advisory and
+    # per-file, msvcrt.locking is per-byte-range).  Keeping the lock at the
+    # entry-point level avoids any reentrancy question.
+    servers_dir = get_servers_dir()
+    servers_dir.mkdir(parents=True, exist_ok=True)
+    lock_path = servers_dir / ".download.lock"
+    with open(lock_path, "w") as lock_fd:
+        acquire_lock(lock_fd)
+        run_install(auto_install_npm=args.auto_install_npm, auto_install_vcpp=args.auto_install_vcpp)
+        write_manifest()
 
     print("\n" + "=" * 40)
     print("Setup complete!")

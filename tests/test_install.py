@@ -201,3 +201,70 @@ class TestVerifyBinary(unittest.TestCase):
     def test_load_error(self, mock_run):
         result = install.verify_binary(Path("/fake/binary"))
         self.assertEqual(result, install.BinaryStatus.LOAD_ERROR)
+
+
+class TestMainCliLock(unittest.TestCase):
+    """C1: the bare ``codeboarding-setup`` CLI entry point must hold the
+    same ``.download.lock`` that ``ensure_tools`` uses, so two concurrent
+    CLI invocations (or a CLI invocation racing a VSCode extension startup)
+    cannot corrupt the servers directory by downloading into it in parallel.
+
+    Testing actual multi-process locking would require subprocesses, so
+    instead we assert the *structural* guarantees:
+
+        - ``main()`` creates the lock file under the servers directory
+        - ``acquire_lock`` is called on the open file descriptor
+        - ``run_install`` runs while the lock is held
+    """
+
+    @patch("install.io.TextIOWrapper")
+    @patch("install.write_manifest")
+    @patch("install.run_install")
+    @patch("install.acquire_lock")
+    @patch("install.get_servers_dir")
+    @patch("install.parse_args")
+    def test_main_acquires_download_lock_before_run_install(
+        self,
+        mock_parse_args,
+        mock_get_servers_dir,
+        mock_acquire_lock,
+        mock_run_install,
+        mock_write_manifest,
+        mock_text_io_wrapper,
+    ):
+        # parse_args returns the defaults ``main()`` would build from sys.argv.
+        mock_parse_args.return_value = Mock(auto_install_npm=False, auto_install_vcpp=False)
+
+        # main() reassigns sys.stdout/sys.stderr to io.TextIOWrapper as a
+        # Windows cp1252 workaround.  Under pytest capture, that rewrap
+        # explodes because pytest's stdout capture doesn't expose a real
+        # ``.buffer``.  The wrapper is a side concern here (we're testing
+        # the lock, not the Windows workaround), so we replace it with a
+        # Mock that just swallows writes — keeps pytest's stdout untouched.
+        mock_text_io_wrapper.return_value = Mock()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            servers_dir = Path(temp_dir)
+            mock_get_servers_dir.return_value = servers_dir
+
+            # Track call order so we can assert _acquire_lock fires BEFORE run_install.
+            call_order: list[str] = []
+            mock_acquire_lock.side_effect = lambda _fd: call_order.append("acquire")
+            mock_run_install.side_effect = lambda **_kwargs: call_order.append("run_install")
+            mock_write_manifest.side_effect = lambda: call_order.append("write_manifest")
+
+            install.main()
+
+            # Lock file exists under the servers directory — created by
+            # the ``open(lock_path, "w")`` inside main().  Asserted inside
+            # the tempdir's ``with`` block because the directory is
+            # cleaned up when it exits.
+            self.assertTrue((servers_dir / ".download.lock").exists())
+
+        # _acquire_lock was called exactly once with a file-like object
+        # (any truthy arg — the real lock fd isn't accessible here).
+        mock_acquire_lock.assert_called_once()
+
+        # And it happened before run_install, which happened before
+        # write_manifest.  Both must be inside the lock's critical section.
+        self.assertEqual(call_order, ["acquire", "run_install", "write_manifest"])
