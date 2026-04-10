@@ -8,7 +8,10 @@ This module provides:
 """
 
 import json
+import platform
+import shutil
 import tempfile
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Generator
@@ -241,6 +244,24 @@ def pytest_addoption(parser):
 
 @pytest.fixture(scope="function")
 def temp_workspace() -> Generator[Path, None, None]:
-    """Provide a temporary directory for test isolation."""
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        yield Path(tmp_dir)
+    """Temporary directory per test, with Windows-tolerant teardown."""
+    tmp_dir = Path(tempfile.mkdtemp())
+    try:
+        yield tmp_dir
+    finally:
+        _robust_rmtree(tmp_dir)
+
+
+def _robust_rmtree(path: Path) -> None:
+    is_windows = platform.system() == "Windows"
+    attempts = 5 if is_windows else 1
+    for attempt in range(attempts):
+        try:
+            shutil.rmtree(path)
+            return
+        except PermissionError:
+            if not is_windows or attempt == attempts - 1:
+                raise
+            time.sleep(0.5 * (attempt + 1))
+        except FileNotFoundError:
+            return

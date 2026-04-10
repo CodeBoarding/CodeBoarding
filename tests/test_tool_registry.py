@@ -11,7 +11,6 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import nodeenv
-
 from tool_registry import (
     MINIMUM_NODE_MAJOR_VERSION,
     NODEENV_VERSION_STAMP,
@@ -394,9 +393,8 @@ class TestInitializeNodeenvGlobals(unittest.TestCase):
 
 
 class TestInstallEmbeddedNodeEndToEnd(unittest.TestCase):
-    """Exercises the real nodeenv module with only HTTP mocked — closes the
-    gap left by TestInstallEmbeddedNode's wholesale create_environment mock,
-    which never exercised the internal URL construction where src_base_url=None lived."""
+    """Exercises the real nodeenv module with only HTTP mocked to verify
+    that download URL construction works end-to-end."""
 
     def test_full_install_flow_with_mocked_download(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -896,7 +894,7 @@ def _populate_complete_servers_dir(base_dir: Path) -> None:
 
 
 class TestHasRequiredTools(unittest.TestCase):
-    """Per-kind validation: every tool must be present (pre-fix only checked tokei)."""
+    """Per-kind validation: every tool must be present."""
 
     def test_fully_populated_dir_returns_true(self):
         with tempfile.TemporaryDirectory() as tmp:

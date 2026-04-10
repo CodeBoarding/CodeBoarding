@@ -139,24 +139,15 @@ class CallGraphBuilder:
         pbar.finish()
         logger.info("did_open %d files: %.1fs", total, time.monotonic() - t_open_start)
 
-        # Synchronization probe — blocks until the LSP server has indexed the
-        # project. Uses a long timeout because servers like gopls / tsserver
-        # may need to index the entire project before responding. The timeout
-        # scales with file count for very large repos. We cache the result to
-        # reuse for the first file in Phase 1 below.
-        _PROBE_BASE_TIMEOUT = 300  # seconds
-        _PROBE_EXTRA_PER_FILE = 0.15  # seconds per file beyond the threshold
-        _PROBE_FILE_THRESHOLD = 1000
-        _PROBE_MAX_TIMEOUT = 1800  # 30 minutes cap
-
-        if total > _PROBE_FILE_THRESHOLD:
-            probe_timeout = min(
-                _PROBE_BASE_TIMEOUT + (total - _PROBE_FILE_THRESHOLD) * _PROBE_EXTRA_PER_FILE,
-                _PROBE_MAX_TIMEOUT,
-            )
-        else:
-            probe_timeout = _PROBE_BASE_TIMEOUT
-        probe_timeout = int(probe_timeout)
+        # Synchronization probe — blocks until the LSP server has indexed
+        # the project. Scales linearly with file count (no OS branching);
+        # the per-file ceiling is picked conservatively to cover gopls on
+        # AV-heavy Windows and APFS macOS without being loose enough to
+        # let a hung LSP waste CI minutes.
+        _PROBE_STARTUP_BASE = 60  # seconds — LSP startup independent of file count
+        _PROBE_PER_FILE = 2.0  # seconds — ceiling across OSes (Linux observed ~0.35s/file)
+        _PROBE_MAX_TIMEOUT = 1800  # seconds — hard cap
+        probe_timeout = int(min(_PROBE_STARTUP_BASE + total * _PROBE_PER_FILE, _PROBE_MAX_TIMEOUT))
 
         probe_result: list[dict] | None = None
         logger.info("Waiting for LSP server indexing (timeout=%ds)...", probe_timeout)

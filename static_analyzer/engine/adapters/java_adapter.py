@@ -15,6 +15,7 @@ from static_analyzer.engine.lsp_constants import (
     CLASS_LIKE_KINDS,
     EdgeStrategy,
 )
+from static_analyzer.engine.utils import total_ram_gb
 from static_analyzer.java_utils import create_jdtls_command, find_java_21_or_later
 from utils import get_config
 
@@ -114,14 +115,11 @@ class JavaAdapter(LanguageAdapter):
         else:
             desired_gb = 8
 
-        # Cap at 50% of available physical memory
-        try:
-            total_ram_bytes = os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES")
-            total_ram_gb = total_ram_bytes / (1024**3)
-            max_heap_gb = max(1, int(total_ram_gb * 0.5))
+        # Cap at 50% of available physical memory.
+        ram_gb = total_ram_gb()
+        if ram_gb is not None:
+            max_heap_gb = max(1, int(ram_gb * 0.5))
             desired_gb = min(desired_gb, max_heap_gb)
-        except (ValueError, OSError):
-            pass  # os.sysconf not available (e.g. Windows) — use file-count estimate as-is
 
         return f"{desired_gb}G"
 
