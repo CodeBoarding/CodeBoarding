@@ -326,7 +326,10 @@ class StaticAnalyzer:
                     uri = defn.get("uri", "")
                     if not uri.startswith("file://"):
                         continue
-                    dep_path = str(Path(uri.replace("file://", "")))
+                    dep_path_obj = uri_to_path(uri)
+                    if dep_path_obj is None:
+                        continue
+                    dep_path = str(dep_path_obj)
                     if dep_path != str(resolved):
                         unique_paths.add(dep_path)
 
