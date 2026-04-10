@@ -22,6 +22,25 @@ on:
   push:
     branches: [main]
 
+  # Run on pull requests that touch install/bootstrap code, so regressions in
+  # the Node.js bootstrap path (which only surfaces on Node-less machines —
+  # see the "Mask system Node.js" step below) are caught in PR review rather
+  # than after merge.  Filtered by paths to avoid burning CI minutes on docs
+  # or agent/LLM-provider changes that can't affect LSP startup.
+  pull_request:
+    branches: [main]
+    paths:
+      - 'install.py'
+      - 'tool_registry.py'
+      - 'vscode_constants.py'
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - 'static_analyzer/**'
+      - 'tests/integration/**'
+      - 'tests/test_install.py'
+      - 'tests/test_tool_registry.py'
+      - '.github/workflows/integration-tests.yml'
+
   # Scheduled run (weekly, to catch regressions)
   schedule:
     - cron: '0 3 * * 0'  # Every Sunday at 3 AM UTC
