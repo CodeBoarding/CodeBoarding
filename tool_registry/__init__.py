@@ -51,7 +51,7 @@ JDTLS_URL_TEMPLATE = (
 # Pinned Node.js runtime used when the user has no system Node. Downloaded on
 # first run into ``<servers_dir>/nodeenv/`` via the ``nodeenv`` Python package
 # (see install_embedded_node()).  Bump deliberately — a version change is
-# folded into _tools_fingerprint() and triggers a full reinstall.
+# folded into tools_fingerprint() and triggers a full reinstall.
 PINNED_NODE_VERSION = "20.18.1"
 
 _PLATFORM_SUFFIX = {
@@ -231,13 +231,14 @@ TOOL_REGISTRY: list[ToolDependency] = [
 
 from .paths import (  # noqa: F401, E402
     MINIMUM_NODE_MAJOR_VERSION,
-    _node_is_acceptable,
-    _node_version_tuple,
     embedded_node_path,
     embedded_npm_cli_path,
     embedded_npm_path,
+    ensure_node_on_path,
     exe_suffix,
     get_servers_dir,
+    node_is_acceptable,
+    node_version_tuple,
     nodeenv_bin_dir,
     nodeenv_root_dir,
     npm_subprocess_env,
@@ -248,29 +249,29 @@ from .paths import (  # noqa: F401, E402
     user_data_dir,
 )
 from .manifest import (  # noqa: F401, E402
-    _installed_version,
-    _manifest_path,
-    _npm_specs_fingerprint,
-    _read_manifest,
-    _tools_fingerprint,
     acquire_lock,
     build_config,
     has_required_tools,
+    installed_version,
+    manifest_path,
     needs_install,
+    npm_specs_fingerprint,
+    read_manifest,
     resolve_config,
     resolve_config_from_path,
+    tools_fingerprint,
     write_manifest,
 )
 from .installers import (  # noqa: F401, E402
-    _NODEENV_VERSION_STAMP,
-    _asset_url,
-    _embedded_node_is_healthy,
-    _initialize_nodeenv_globals,
-    _nodeenv_needs_unofficial_builds,
+    NODEENV_VERSION_STAMP,
+    asset_url,
     download_asset,
+    embedded_node_is_healthy,
+    initialize_nodeenv_globals,
     install_archive_tool,
     install_embedded_node,
     install_native_tools,
     install_node_tools,
     install_tools,
+    nodeenv_needs_unofficial_builds,
 )

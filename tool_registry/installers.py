@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 # -- Download primitive -------------------------------------------------------
 
 
-def _asset_url(source: Any, asset_name: str) -> str:
+def asset_url(source: Any, asset_name: str) -> str:
     """Construct the download URL for a tool asset.
 
     For GitHub-hosted tools, builds a releases URL from repo/tag/asset.
@@ -114,7 +114,7 @@ def install_native_tools(
         source = dep.source
         assert isinstance(source, GitHubToolSource)
         asset_name = source.asset_template.format(platform_suffix=suffix)
-        url = _asset_url(source, asset_name)
+        url = asset_url(source, asset_name)
         expected_hash = source.sha256.get(suffix)
         try:
             if download_asset(url, binary_path, expected_sha256=expected_hash):
@@ -201,7 +201,7 @@ def install_archive_tool(
     extract_dir.mkdir(parents=True, exist_ok=True)
     archive_path = target_dir / "bin" / f"{dep.archive_subdir}.tar.gz"
 
-    url = _asset_url(dep.source, "")
+    url = asset_url(dep.source, "")
     expected_hash = dep.source.sha256.get("") if isinstance(dep.source, GitHubToolSource) else None
     try:
         if not download_asset(url, archive_path, expected_sha256=expected_hash):
@@ -251,10 +251,10 @@ def install_tools(target_dir: Path) -> None:
 # Contains PINNED_NODE_VERSION. Used on subsequent runs to decide whether an
 # existing install is (a) complete and (b) the version we currently pin.
 # If missing or mismatched, install_embedded_node() wipes and reinstalls.
-_NODEENV_VERSION_STAMP = ".codeboarding-node-version"
+NODEENV_VERSION_STAMP = ".codeboarding-node-version"
 
 
-def _embedded_node_is_healthy(base_dir: Path) -> bool:
+def embedded_node_is_healthy(base_dir: Path) -> bool:
     """Return True only if the embedded Node binary looks genuinely usable.
 
     Stricter than ``embedded_node_path()`` (which just calls ``exists()``).
@@ -290,14 +290,14 @@ def _embedded_node_is_healthy(base_dir: Path) -> bool:
     if platform.system() != "Windows" and not os.access(node_path, os.X_OK):
         return False
 
-    stamp = nodeenv_root_dir(base_dir) / _NODEENV_VERSION_STAMP
+    stamp = nodeenv_root_dir(base_dir) / NODEENV_VERSION_STAMP
     try:
         return stamp.read_text().strip() == PINNED_NODE_VERSION
     except OSError:
         return False
 
 
-def _initialize_nodeenv_globals(nodeenv_module: Any, args: Any) -> None:
+def initialize_nodeenv_globals(nodeenv_module: Any, args: Any) -> None:
     """Replicate the module-global initialization that nodeenv.main() does.
 
     nodeenv is designed to be invoked via its CLI entry point ``main()``,
@@ -326,7 +326,7 @@ def _initialize_nodeenv_globals(nodeenv_module: Any, args: Any) -> None:
             nodeenv_module.src_base_url = mirror
             return
         src_domain = mirror
-    elif _nodeenv_needs_unofficial_builds(nodeenv_module):
+    elif nodeenv_needs_unofficial_builds(nodeenv_module):
         src_domain = "unofficial-builds.nodejs.org"
     else:
         src_domain = "nodejs.org"
@@ -334,11 +334,11 @@ def _initialize_nodeenv_globals(nodeenv_module: Any, args: Any) -> None:
     nodeenv_module.src_base_url = f"https://{src_domain}/download/release"
 
 
-def _nodeenv_needs_unofficial_builds(nodeenv_module: Any) -> bool:
+def nodeenv_needs_unofficial_builds(nodeenv_module: Any) -> bool:
     """Return True on hosts where nodeenv would use unofficial Node builds.
 
     Matches the ``elif is_x86_64_musl() or is_riscv64()`` branch of
-    nodeenv.main().  Split out so ``_initialize_nodeenv_globals`` stays
+    nodeenv.main().  Split out so ``initialize_nodeenv_globals`` stays
     easy to read and so the musl/riscv detection can be tested in isolation.
     Returns False if either helper is missing on a future nodeenv release,
     so the caller falls through to the standard ``nodejs.org`` host — which
@@ -390,7 +390,7 @@ def install_embedded_node(
     """
     from . import PINNED_NODE_VERSION
 
-    if _embedded_node_is_healthy(base_dir):
+    if embedded_node_is_healthy(base_dir):
         return True
 
     env_dir = nodeenv_root_dir(base_dir)
@@ -455,7 +455,7 @@ def install_embedded_node(
         # like "None/v20.18.1/node-v20.18.1-linux-x64.tar.gz" and crashes
         # with ``ValueError: unknown url type``.  We replicate main()'s
         # initialization in-process to fix this.
-        _initialize_nodeenv_globals(nodeenv, args)
+        initialize_nodeenv_globals(nodeenv, args)
 
         nodeenv.create_environment(str(env_dir), args)
     except SystemExit:
@@ -482,8 +482,8 @@ def install_embedded_node(
     # Stamp the version last so the sentinel only exists when the install
     # is actually healthy. Written atomically via a temp-file swap to avoid
     # leaving a partial sentinel if we're interrupted during the write.
-    stamp = env_dir / _NODEENV_VERSION_STAMP
-    tmp_stamp = env_dir / f"{_NODEENV_VERSION_STAMP}.tmp"
+    stamp = env_dir / NODEENV_VERSION_STAMP
+    tmp_stamp = env_dir / f"{NODEENV_VERSION_STAMP}.tmp"
     try:
         tmp_stamp.write_text(PINNED_NODE_VERSION)
         os.replace(tmp_stamp, stamp)

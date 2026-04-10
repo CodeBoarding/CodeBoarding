@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 
 from tool_registry import (
     MINIMUM_NODE_MAJOR_VERSION,
+    NODEENV_VERSION_STAMP,
     PINNED_NODE_VERSION,
     TOOL_REGISTRY,
     TOOLS_REPO,
@@ -15,20 +16,20 @@ from tool_registry import (
     GitHubToolSource,
     ToolKind,
     UpstreamToolSource,
-    _asset_url,
-    _embedded_node_is_healthy,
-    _initialize_nodeenv_globals,
-    _node_is_acceptable,
-    _node_version_tuple,
-    _NODEENV_VERSION_STAMP,
-    _npm_specs_fingerprint,
-    _tools_fingerprint,
+    asset_url,
     download_asset,
+    embedded_node_is_healthy,
+    ensure_node_on_path,
+    initialize_nodeenv_globals,
     install_embedded_node,
     install_node_tools,
     needs_install,
+    node_is_acceptable,
+    node_version_tuple,
+    npm_specs_fingerprint,
     preferred_node_path,
     resolve_config,
+    tools_fingerprint,
     write_manifest,
 )
 
@@ -36,7 +37,7 @@ from tool_registry import (
 def _write_healthy_embedded_node(base_dir: Path, version: str = PINNED_NODE_VERSION) -> Path:
     """Populate ``base_dir/nodeenv/`` as a fully-healthy embedded Node install.
 
-    Produces the exact layout that ``_embedded_node_is_healthy()`` accepts:
+    Produces the exact layout that ``embedded_node_is_healthy()`` accepts:
     a non-empty, executable ``bin/node`` plus a version sentinel matching
     ``version``.  Returns the path to the fake node binary.
     """
@@ -45,7 +46,7 @@ def _write_healthy_embedded_node(base_dir: Path, version: str = PINNED_NODE_VERS
     node_path = nodeenv_bin / "node"
     node_path.write_text("#!/bin/sh\necho fake node\n")
     node_path.chmod(0o755)
-    (base_dir / "nodeenv" / _NODEENV_VERSION_STAMP).write_text(version)
+    (base_dir / "nodeenv" / NODEENV_VERSION_STAMP).write_text(version)
     return node_path
 
 
@@ -76,11 +77,12 @@ def _make_successful_install_side_effect():
 # real version probe via this side_effect keeps them focused on their
 # original purpose while still enforcing the "None is rejected" semantics
 # that the real helper guarantees.
-_ACCEPT_ANY_NON_NONE_NODE = lambda node_path: bool(node_path)  # noqa: E731
+def _accept_any_non_none_node(node_path):
+    return bool(node_path)
 
 
 class TestToolRegistry(unittest.TestCase):
-    @patch("tool_registry.paths._node_is_acceptable", side_effect=_ACCEPT_ANY_NON_NONE_NODE)
+    @patch("tool_registry.paths.node_is_acceptable", side_effect=_accept_any_non_none_node)
     @patch("platform.system", return_value="Linux")
     @patch.dict(os.environ, {"CODEBOARDING_NODE_PATH": "/vscode/node"}, clear=False)
     def test_resolve_config_uses_explicit_node_path_for_node_servers(self, mock_system, mock_accept):
@@ -99,7 +101,7 @@ class TestToolRegistry(unittest.TestCase):
             self.assertTrue(command[1].endswith("cli.mjs"))
             self.assertEqual(command[2:], ["--stdio", "--log-level=2"])
 
-    @patch("tool_registry.paths._node_is_acceptable", side_effect=_ACCEPT_ANY_NON_NONE_NODE)
+    @patch("tool_registry.paths.node_is_acceptable", side_effect=_accept_any_non_none_node)
     @patch("platform.system", return_value="Linux")
     def test_resolve_config_falls_back_to_embedded_nodeenv_node(self, mock_system, mock_accept):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -122,7 +124,7 @@ class TestToolRegistry(unittest.TestCase):
             self.assertTrue(command[1].endswith("langserver.index.js"))
             self.assertEqual(command[2:], ["--stdio"])
 
-    @patch("tool_registry.paths._node_is_acceptable", side_effect=_ACCEPT_ANY_NON_NONE_NODE)
+    @patch("tool_registry.paths.node_is_acceptable", side_effect=_accept_any_non_none_node)
     @patch("tool_registry.installers.subprocess.run")
     @patch("platform.system", return_value="Linux")
     def test_install_node_tools_prefers_embedded_npm(self, mock_system, mock_run, mock_accept):
@@ -135,7 +137,7 @@ class TestToolRegistry(unittest.TestCase):
             node_deps = [dep for dep in TOOL_REGISTRY if dep.kind is ToolKind.NODE]
             install_node_tools(base_dir, node_deps)
 
-            # Look only at npm commands — ``_node_is_acceptable`` is mocked so
+            # Look only at npm commands — ``node_is_acceptable`` is mocked so
             # it does not invoke subprocess.run, but npm_subprocess_env may
             # still trigger lookups we don't care about in this assertion.
             # The npm-related calls are the ones whose first arg ends in
@@ -155,7 +157,7 @@ class TestToolRegistry(unittest.TestCase):
                 env = call.kwargs.get("env", {})
                 self.assertEqual(env.get("ELECTRON_RUN_AS_NODE"), "1")
 
-    @patch("tool_registry.paths._node_is_acceptable", side_effect=_ACCEPT_ANY_NON_NONE_NODE)
+    @patch("tool_registry.paths.node_is_acceptable", side_effect=_accept_any_non_none_node)
     @patch("tool_registry.installers.subprocess.run")
     @patch("platform.system", return_value="Linux")
     @patch.dict(os.environ, {"CODEBOARDING_NODE_PATH": "/vscode/node"}, clear=False)
@@ -238,7 +240,7 @@ class TestInstallEmbeddedNode(unittest.TestCase):
 
             # A successful install must leave the version sentinel behind so
             # subsequent runs can short-circuit.
-            sentinel = base_dir / "nodeenv" / _NODEENV_VERSION_STAMP
+            sentinel = base_dir / "nodeenv" / NODEENV_VERSION_STAMP
             self.assertTrue(sentinel.exists())
             self.assertEqual(sentinel.read_text().strip(), PINNED_NODE_VERSION)
 
@@ -271,7 +273,7 @@ class TestInstallEmbeddedNode(unittest.TestCase):
             # would have raised SystemExit before our side_effect ran.
             self.assertFalse((base_dir / "nodeenv" / "src" / "half-downloaded.tar.gz").exists())
             # And the sentinel is now in place.
-            self.assertTrue((base_dir / "nodeenv" / _NODEENV_VERSION_STAMP).exists())
+            self.assertTrue((base_dir / "nodeenv" / NODEENV_VERSION_STAMP).exists())
 
     @patch("platform.system", return_value="Linux")
     def test_does_not_die_on_create_environment_system_exit(self, mock_system):
@@ -316,7 +318,7 @@ class TestInstallEmbeddedNode(unittest.TestCase):
             self.assertTrue(result)
             mock_create.assert_called_once()
             # Sentinel now matches the current pin.
-            sentinel = base_dir / "nodeenv" / _NODEENV_VERSION_STAMP
+            sentinel = base_dir / "nodeenv" / NODEENV_VERSION_STAMP
             self.assertEqual(sentinel.read_text().strip(), PINNED_NODE_VERSION)
 
     @patch("platform.system", return_value="Linux")
@@ -328,9 +330,9 @@ class TestInstallEmbeddedNode(unittest.TestCase):
             bin_dir = base_dir / "nodeenv" / "bin"
             bin_dir.mkdir(parents=True)
             (bin_dir / "node").write_text("")  # zero bytes
-            (base_dir / "nodeenv" / _NODEENV_VERSION_STAMP).write_text(PINNED_NODE_VERSION)
+            (base_dir / "nodeenv" / NODEENV_VERSION_STAMP).write_text(PINNED_NODE_VERSION)
 
-            self.assertFalse(_embedded_node_is_healthy(base_dir))
+            self.assertFalse(embedded_node_is_healthy(base_dir))
 
             # install_embedded_node should therefore reinstall.
             with patch(
@@ -352,7 +354,7 @@ class TestInstallEmbeddedNode(unittest.TestCase):
             # Strip the exec bit.
             (base_dir / "nodeenv" / "bin" / "node").chmod(0o644)
 
-            self.assertFalse(_embedded_node_is_healthy(base_dir))
+            self.assertFalse(embedded_node_is_healthy(base_dir))
 
     @patch("platform.system", return_value="Linux")
     def test_rejects_missing_version_sentinel(self, mock_system):
@@ -361,9 +363,9 @@ class TestInstallEmbeddedNode(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             base_dir = Path(temp_dir)
             _write_healthy_embedded_node(base_dir)
-            (base_dir / "nodeenv" / _NODEENV_VERSION_STAMP).unlink()
+            (base_dir / "nodeenv" / NODEENV_VERSION_STAMP).unlink()
 
-            self.assertFalse(_embedded_node_is_healthy(base_dir))
+            self.assertFalse(embedded_node_is_healthy(base_dir))
 
     @patch("platform.system", return_value="Linux")
     def test_does_not_stamp_sentinel_when_install_produced_empty_binary(self, mock_system):
@@ -382,12 +384,12 @@ class TestInstallEmbeddedNode(unittest.TestCase):
                 result = install_embedded_node(base_dir)
 
             self.assertFalse(result)
-            sentinel = base_dir / "nodeenv" / _NODEENV_VERSION_STAMP
+            sentinel = base_dir / "nodeenv" / NODEENV_VERSION_STAMP
             self.assertFalse(sentinel.exists())
 
 
 class TestInitializeNodeenvGlobals(unittest.TestCase):
-    """Unit tests for ``_initialize_nodeenv_globals`` — the helper that
+    """Unit tests for ``initialize_nodeenv_globals`` — the helper that
     replicates the module-global setup nodeenv's own ``main()`` performs
     before calling ``create_environment``.
 
@@ -410,7 +412,7 @@ class TestInitializeNodeenvGlobals(unittest.TestCase):
             parser = nodeenv.make_parser()
             args = parser.parse_args(["--prebuilt", "--node", "20.18.1", "/tmp/unused"])
 
-            _initialize_nodeenv_globals(nodeenv, args)
+            initialize_nodeenv_globals(nodeenv, args)
 
             self.assertEqual(nodeenv.src_base_url, "https://nodejs.org/download/release")
             self.assertFalse(nodeenv.ignore_ssl_certs)
@@ -433,7 +435,7 @@ class TestInitializeNodeenvGlobals(unittest.TestCase):
             parser = nodeenv.make_parser()
             args = parser.parse_args(["--prebuilt", "--node", "20.18.1", "/tmp/unused"])
 
-            _initialize_nodeenv_globals(nodeenv, args)
+            initialize_nodeenv_globals(nodeenv, args)
 
             base_url = nodeenv.src_base_url
             self.assertIsNotNone(base_url)
@@ -475,7 +477,7 @@ class TestInstallEmbeddedNodeEndToEnd(unittest.TestCase):
             self.assertTrue((base_dir / "nodeenv" / "bin" / "node").stat().st_size > 0)
 
             # And our version sentinel should have been written last.
-            sentinel = base_dir / "nodeenv" / _NODEENV_VERSION_STAMP
+            sentinel = base_dir / "nodeenv" / NODEENV_VERSION_STAMP
             self.assertTrue(sentinel.exists())
             self.assertEqual(sentinel.read_text().strip(), PINNED_NODE_VERSION)
 
@@ -508,7 +510,7 @@ class TestInstallEmbeddedNodeEndToEnd(unittest.TestCase):
 def _fake_node_proc(stdout: str, returncode: int = 0) -> MagicMock:
     """Build a fake ``subprocess.run`` CompletedProcess result.
 
-    Used by the version-probe tests to feed ``_node_version_tuple`` a known
+    Used by the version-probe tests to feed ``node_version_tuple`` a known
     stdout without actually exec'ing a real Node binary.
     """
     result = MagicMock()
@@ -518,8 +520,8 @@ def _fake_node_proc(stdout: str, returncode: int = 0) -> MagicMock:
 
 
 class TestNodeVersionProbe(unittest.TestCase):
-    """Unit tests for ``_node_version_tuple`` — the subprocess-based Node
-    version probe that ``_node_is_acceptable`` uses to enforce the minimum
+    """Unit tests for ``node_version_tuple`` — the subprocess-based Node
+    version probe that ``node_is_acceptable`` uses to enforce the minimum
     required Node major version.
 
     These tests exercise the parser in isolation so they remain fast and
@@ -532,23 +534,23 @@ class TestNodeVersionProbe(unittest.TestCase):
         """V4 reproducer at the helper level: a missing path must be rejected
         *before* we ever spawn a subprocess, otherwise Popen raises
         FileNotFoundError on the caller's side."""
-        self.assertIsNone(_node_version_tuple("/definitely/does/not/exist/node"))
+        self.assertIsNone(node_version_tuple("/definitely/does/not/exist/node"))
 
     def test_returns_none_for_empty_path(self):
-        self.assertIsNone(_node_version_tuple(""))
+        self.assertIsNone(node_version_tuple(""))
 
     def test_parses_standard_node_output(self):
         """Node prints ``v20.18.1\\n`` — the leading 'v' must be stripped and
         the three-part version parsed into a tuple."""
         with tempfile.NamedTemporaryFile() as tmp:
             with patch("tool_registry.paths.subprocess.run", return_value=_fake_node_proc("v20.18.1\n")):
-                result = _node_version_tuple(tmp.name)
+                result = node_version_tuple(tmp.name)
             self.assertEqual(result, (20, 18, 1))
 
     def test_parses_version_without_trailing_newline(self):
         with tempfile.NamedTemporaryFile() as tmp:
             with patch("tool_registry.paths.subprocess.run", return_value=_fake_node_proc("v18.0.0")):
-                result = _node_version_tuple(tmp.name)
+                result = node_version_tuple(tmp.name)
             self.assertEqual(result, (18, 0, 0))
 
     def test_returns_none_on_nonzero_exit(self):
@@ -556,7 +558,7 @@ class TestNodeVersionProbe(unittest.TestCase):
         should be treated as unrunnable, not parsed for partial output."""
         with tempfile.NamedTemporaryFile() as tmp:
             with patch("tool_registry.paths.subprocess.run", return_value=_fake_node_proc("", returncode=1)):
-                result = _node_version_tuple(tmp.name)
+                result = node_version_tuple(tmp.name)
             self.assertIsNone(result)
 
     def test_returns_none_on_unparseable_output(self):
@@ -564,18 +566,18 @@ class TestNodeVersionProbe(unittest.TestCase):
         not crash the parser — it must return None so the candidate is skipped."""
         with tempfile.NamedTemporaryFile() as tmp:
             with patch("tool_registry.paths.subprocess.run", return_value=_fake_node_proc("hello world\n")):
-                self.assertIsNone(_node_version_tuple(tmp.name))
+                self.assertIsNone(node_version_tuple(tmp.name))
             with patch("tool_registry.paths.subprocess.run", return_value=_fake_node_proc("v20\n")):
-                self.assertIsNone(_node_version_tuple(tmp.name))
+                self.assertIsNone(node_version_tuple(tmp.name))
             with patch("tool_registry.paths.subprocess.run", return_value=_fake_node_proc("v20.18\n")):
-                self.assertIsNone(_node_version_tuple(tmp.name))
+                self.assertIsNone(node_version_tuple(tmp.name))
             with patch("tool_registry.paths.subprocess.run", return_value=_fake_node_proc("va.b.c\n")):
-                self.assertIsNone(_node_version_tuple(tmp.name))
+                self.assertIsNone(node_version_tuple(tmp.name))
 
     def test_returns_none_on_subprocess_timeout(self):
         """A Node binary that hangs (corrupt binary, network FS stall,
         antivirus scan) must not block the caller indefinitely — the 5s
-        timeout inside _node_version_tuple turns a hang into a None return
+        timeout inside node_version_tuple turns a hang into a None return
         so resolution falls through to the next candidate."""
         import subprocess as sp
 
@@ -584,14 +586,14 @@ class TestNodeVersionProbe(unittest.TestCase):
                 "tool_registry.paths.subprocess.run",
                 side_effect=sp.TimeoutExpired(cmd=["node"], timeout=5),
             ):
-                self.assertIsNone(_node_version_tuple(tmp.name))
+                self.assertIsNone(node_version_tuple(tmp.name))
 
     def test_returns_none_on_os_error(self):
         """Permission-denied, not-executable, wrong-format — any OSError from
         subprocess.run must be caught and translated to None."""
         with tempfile.NamedTemporaryFile() as tmp:
             with patch("tool_registry.paths.subprocess.run", side_effect=OSError("permission denied")):
-                self.assertIsNone(_node_version_tuple(tmp.name))
+                self.assertIsNone(node_version_tuple(tmp.name))
 
     def test_sets_electron_run_as_node_env(self):
         """VS Code ships its Electron binary as the Node runtime; without
@@ -600,47 +602,47 @@ class TestNodeVersionProbe(unittest.TestCase):
         always sets the env var regardless of what the caller has in theirs."""
         with tempfile.NamedTemporaryFile() as tmp:
             with patch("tool_registry.paths.subprocess.run", return_value=_fake_node_proc("v20.18.1\n")) as mock_run:
-                _node_version_tuple(tmp.name)
+                node_version_tuple(tmp.name)
             env = mock_run.call_args.kwargs["env"]
             self.assertEqual(env["ELECTRON_RUN_AS_NODE"], "1")
 
 
 class TestNodeAcceptability(unittest.TestCase):
-    """Unit tests for ``_node_is_acceptable`` — the minimum-version gate."""
+    """Unit tests for ``node_is_acceptable`` — the minimum-version gate."""
 
     def test_rejects_none(self):
-        self.assertFalse(_node_is_acceptable(None))
+        self.assertFalse(node_is_acceptable(None))
 
     def test_rejects_empty_string(self):
-        self.assertFalse(_node_is_acceptable(""))
+        self.assertFalse(node_is_acceptable(""))
 
     def test_rejects_too_old_version(self):
         """Node 16 was LTS when many workstations were set up; it is below
         our current minimum of ``MINIMUM_NODE_MAJOR_VERSION`` (18), so a
         ``CODEBOARDING_NODE_PATH`` or system Node pointing at it must be
         skipped rather than used with pyright/typescript-language-server."""
-        with patch("tool_registry.paths._node_version_tuple", return_value=(16, 14, 0)):
-            self.assertFalse(_node_is_acceptable("/usr/local/bin/node"))
+        with patch("tool_registry.paths.node_version_tuple", return_value=(16, 14, 0)):
+            self.assertFalse(node_is_acceptable("/usr/local/bin/node"))
 
     def test_rejects_ancient_version(self):
-        with patch("tool_registry.paths._node_version_tuple", return_value=(12, 0, 0)):
-            self.assertFalse(_node_is_acceptable("/old/node"))
+        with patch("tool_registry.paths.node_version_tuple", return_value=(12, 0, 0)):
+            self.assertFalse(node_is_acceptable("/old/node"))
 
     def test_accepts_minimum_version(self):
         """A Node at exactly ``MINIMUM_NODE_MAJOR_VERSION.0.0`` must be
         accepted — the constraint is ``>=``, not ``>``."""
-        with patch("tool_registry.paths._node_version_tuple", return_value=(MINIMUM_NODE_MAJOR_VERSION, 0, 0)):
-            self.assertTrue(_node_is_acceptable("/usr/local/bin/node"))
+        with patch("tool_registry.paths.node_version_tuple", return_value=(MINIMUM_NODE_MAJOR_VERSION, 0, 0)):
+            self.assertTrue(node_is_acceptable("/usr/local/bin/node"))
 
     def test_accepts_newer_version(self):
-        with patch("tool_registry.paths._node_version_tuple", return_value=(22, 11, 0)):
-            self.assertTrue(_node_is_acceptable("/usr/local/bin/node"))
+        with patch("tool_registry.paths.node_version_tuple", return_value=(22, 11, 0)):
+            self.assertTrue(node_is_acceptable("/usr/local/bin/node"))
 
     def test_rejects_unrunnable_binary(self):
         """If the probe returns None (hang, crash, unparseable output),
         treat as unacceptable rather than risking a downstream crash."""
-        with patch("tool_registry.paths._node_version_tuple", return_value=None):
-            self.assertFalse(_node_is_acceptable("/broken/node"))
+        with patch("tool_registry.paths.node_version_tuple", return_value=None):
+            self.assertFalse(node_is_acceptable("/broken/node"))
 
 
 class TestPreferredNodePathResolution(unittest.TestCase):
@@ -652,7 +654,7 @@ class TestPreferredNodePathResolution(unittest.TestCase):
         - V2/V3: too-old Node falls through to the embedded install
         - Happy path: acceptable ``CODEBOARDING_NODE_PATH`` is returned verbatim
 
-    They use ``_node_version_tuple`` mocks rather than hitting real binaries
+    They use ``node_version_tuple`` mocks rather than hitting real binaries
     so they pass regardless of what the host machine has installed.
     """
 
@@ -686,7 +688,7 @@ class TestPreferredNodePathResolution(unittest.TestCase):
 
             with patch.dict(os.environ, {"CODEBOARDING_NODE_PATH": "/nonexistent/node"}, clear=False):
                 with patch(
-                    "tool_registry.paths._node_version_tuple",
+                    "tool_registry.paths.node_version_tuple",
                     side_effect=lambda path: (20, 18, 1) if path == str(embedded) else None,
                 ):
                     result = preferred_node_path(base_dir)
@@ -720,7 +722,7 @@ class TestPreferredNodePathResolution(unittest.TestCase):
                 return None
 
             with patch.dict(os.environ, {"CODEBOARDING_NODE_PATH": str(old_node)}, clear=False):
-                with patch("tool_registry.paths._node_version_tuple", side_effect=fake_version):
+                with patch("tool_registry.paths.node_version_tuple", side_effect=fake_version):
                     result = preferred_node_path(base_dir)
 
             self.assertEqual(result, str(embedded))
@@ -736,7 +738,7 @@ class TestPreferredNodePathResolution(unittest.TestCase):
             good_node.chmod(0o755)
 
             with patch.dict(os.environ, {"CODEBOARDING_NODE_PATH": str(good_node)}, clear=False):
-                with patch("tool_registry.paths._node_version_tuple", return_value=(22, 11, 0)) as mock_probe:
+                with patch("tool_registry.paths.node_version_tuple", return_value=(22, 11, 0)) as mock_probe:
                     result = preferred_node_path(base_dir)
 
             self.assertEqual(result, str(good_node))
@@ -758,21 +760,181 @@ class TestPreferredNodePathResolution(unittest.TestCase):
             self.assertIsNone(result)
 
 
+class TestEnsureNodeOnPath(unittest.TestCase):
+    """Unit tests for ``ensure_node_on_path``.
+
+    This helper exists because Node-based LSPs (pyright,
+    typescript-language-server, intelephense) spawn child processes that
+    look up ``node`` via ``$PATH``.  When CodeBoarding runs against its
+    embedded nodeenv and the user has no system Node, the LSP subprocess
+    inherits a PATH with no ``node`` on it and those child spawns fail
+    with ENOENT at analysis time.  Prepending the node binary's directory
+    to the subprocess ``PATH`` fixes that without relying on the host's
+    PATH being correctly configured.
+
+    The helper operates on the ``extra_env`` dict that
+    ``StaticAnalyzer.start_clients`` passes to ``LSPClient``.  Because
+    ``LSPClient.start()`` merges that dict into ``os.environ.copy()`` via
+    ``env.update(extra_env)`` -- which *replaces* the ``PATH`` key rather
+    than merging it -- the helper must construct the full final PATH
+    string, using either a PATH already set in ``extra_env`` (adapter
+    intent) or the process's current ``os.environ['PATH']`` as the baseline.
+
+    These tests pin ``os.environ['PATH']`` with ``@patch.dict`` so the
+    baseline is deterministic regardless of what the host CI runner
+    happens to have on its own PATH.
+    """
+
+    @patch.dict(os.environ, {"PATH": "/usr/bin:/bin"}, clear=False)
+    def test_prepends_node_dir_to_os_environ_path(self):
+        """The common case: ``extra_env`` is empty (adapter returned ``{}``),
+        and the helper must use ``os.environ['PATH']`` as the baseline and
+        prepend the node dir to it.  This is the path-producing-bug the
+        fix was written to prevent: without this step, ``extra_env['PATH']``
+        would be set to just the node dir, and ``env.update(extra_env)``
+        inside ``LSPClient.start()`` would wipe the system PATH."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            node_path = Path(temp_dir) / "nodeenv" / "bin" / "node"
+            node_path.parent.mkdir(parents=True)
+            node_path.touch()
+            command = [str(node_path), "/fake/cli.mjs", "--stdio"]
+            extra_env: dict[str, str] = {}
+
+            ensure_node_on_path(command, extra_env)
+
+            self.assertEqual(
+                extra_env["PATH"],
+                f"{node_path.parent}{os.pathsep}/usr/bin:/bin",
+            )
+
+    @patch.dict(os.environ, {"PATH": "/usr/bin:/bin"}, clear=False)
+    def test_respects_pre_existing_path_in_extra_env(self):
+        """If the adapter already set a PATH in ``extra_env`` (e.g. to make
+        a vendored library visible), that value is the baseline we prepend
+        to -- we do not silently replace it with ``os.environ['PATH']``."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            node_path = Path(temp_dir) / "nodeenv" / "bin" / "node"
+            node_path.parent.mkdir(parents=True)
+            node_path.touch()
+            command = [str(node_path), "/fake/cli.mjs", "--stdio"]
+            extra_env = {"PATH": "/opt/vendor/bin"}
+
+            ensure_node_on_path(command, extra_env)
+
+            self.assertEqual(
+                extra_env["PATH"],
+                f"{node_path.parent}{os.pathsep}/opt/vendor/bin",
+            )
+
+    @patch.dict(os.environ, {"PATH": "/usr/bin"}, clear=False)
+    def test_is_idempotent_when_node_dir_already_on_baseline(self):
+        """Calling twice must not duplicate the entry.  The helper detects
+        that the node dir is already on the baseline PATH and copies the
+        baseline into ``extra_env`` unchanged (so the key still exists in
+        ``extra_env`` for LSPClient's ``env.update``)."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            node_path = Path(temp_dir) / "nodeenv" / "bin" / "node"
+            node_path.parent.mkdir(parents=True)
+            node_path.touch()
+            command = [str(node_path), "/fake/cli.mjs", "--stdio"]
+            # Seed extra_env with a PATH that already contains the node dir.
+            baseline = f"{node_path.parent}{os.pathsep}/usr/bin"
+            extra_env = {"PATH": baseline}
+
+            ensure_node_on_path(command, extra_env)
+
+            # No duplication.
+            self.assertEqual(extra_env["PATH"], baseline)
+
+    @patch.dict(os.environ, {"PATH": "/usr/bin"}, clear=False)
+    def test_no_op_for_non_node_command(self):
+        """Java/Go/native binaries must not have their PATH modified -- the
+        heuristic is specifically 'the command is a node process launched
+        from an explicit path.'"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            jdtls_path = Path(temp_dir) / "jdtls" / "bin" / "jdtls"
+            jdtls_path.parent.mkdir(parents=True)
+            jdtls_path.touch()
+            command = [str(jdtls_path), "-data", "/workspace"]
+            extra_env: dict[str, str] = {}
+
+            ensure_node_on_path(command, extra_env)
+
+            # extra_env was not touched -- no PATH key was added.
+            self.assertNotIn("PATH", extra_env)
+
+    @patch.dict(os.environ, {"PATH": "/usr/bin"}, clear=False)
+    def test_no_op_for_bare_node_name(self):
+        """If the command is a bare ``node`` (relying on PATH lookup), we
+        have no directory to prepend -- and if we're here with that shape,
+        upstream resolution has already decided the caller's PATH is usable.
+        Don't second-guess it."""
+        command = ["node", "/fake/cli.mjs", "--stdio"]
+        extra_env: dict[str, str] = {}
+
+        ensure_node_on_path(command, extra_env)
+
+        self.assertNotIn("PATH", extra_env)
+
+    @patch.dict(os.environ, {"PATH": "/usr/bin"}, clear=False)
+    def test_no_op_for_empty_command(self):
+        """Defensive: an empty command list must not blow up."""
+        extra_env: dict[str, str] = {}
+
+        ensure_node_on_path([], extra_env)
+
+        self.assertNotIn("PATH", extra_env)
+
+    @patch.dict(os.environ, {"PATH": "/usr/bin"}, clear=False)
+    def test_no_op_for_electron_runtime(self):
+        """VS Code's Electron binary is ``code`` (or ``Electron``), not
+        ``node`` -- we shouldn't mistakenly prepend its directory, because
+        that directory doesn't contain a standard ``node`` executable that
+        grandchild processes could use.  Electron is handled via
+        ``ELECTRON_RUN_AS_NODE`` elsewhere in the stack."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            code_path = Path(temp_dir) / "vscode" / "code"
+            code_path.parent.mkdir(parents=True)
+            code_path.touch()
+            command = [str(code_path), "/fake/cli.mjs", "--stdio"]
+            extra_env: dict[str, str] = {}
+
+            ensure_node_on_path(command, extra_env)
+
+            self.assertNotIn("PATH", extra_env)
+
+    @patch.dict(os.environ, {"PATH": "C:\\Windows\\System32"}, clear=False)
+    def test_recognizes_node_exe_on_windows(self):
+        """On Windows the embedded node lives at ``nodeenv/Scripts/node.exe``.
+        The basename check must be case-insensitive and must accept the
+        ``.exe`` suffix."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            node_path = Path(temp_dir) / "nodeenv" / "Scripts" / "node.exe"
+            node_path.parent.mkdir(parents=True)
+            node_path.touch()
+            command = [str(node_path), "/fake/cli.mjs", "--stdio"]
+            extra_env: dict[str, str] = {}
+
+            ensure_node_on_path(command, extra_env)
+
+            self.assertTrue(extra_env["PATH"].startswith(str(node_path.parent)))
+
+
 class TestToolSource(unittest.TestCase):
-    def test_asset_url_github_repo(self):
+    def testasset_url_github_repo(self):
         source = GitHubToolSource(
             tag="tools-2026.01.01", repo="CodeBoarding/tools", asset_template="tokei-{platform_suffix}"
         )
-        url = _asset_url(source, "tokei-linux")
+        url = asset_url(source, "tokei-linux")
         self.assertEqual(url, "https://github.com/CodeBoarding/tools/releases/download/tools-2026.01.01/tokei-linux")
 
-    def test_asset_url_direct_upstream(self):
+    def testasset_url_direct_upstream(self):
         source = UpstreamToolSource(
             tag="1.44.0",
             url_template="https://download.eclipse.org/jdtls/milestones/{version}/jdt-language-server-{version}-{build}.tar.gz",
             build="202501221502",
         )
-        url = _asset_url(source, "ignored")
+        url = asset_url(source, "ignored")
         self.assertEqual(
             url,
             "https://download.eclipse.org/jdtls/milestones/1.44.0/jdt-language-server-1.44.0-202501221502.tar.gz",
@@ -819,18 +981,18 @@ class TestToolSource(unittest.TestCase):
 
 
 class TestManifest(unittest.TestCase):
-    def test_tools_fingerprint_includes_sources(self):
-        fp = _tools_fingerprint()
+    def testtools_fingerprint_includes_sources(self):
+        fp = tools_fingerprint()
         self.assertIn("tokei:", fp)
         self.assertIn(TOOLS_REPO, fp)
         self.assertIn(TOOLS_TAG, fp)
 
-    def test_tools_fingerprint_changes_on_version_bump(self):
-        fp1 = _tools_fingerprint()
+    def testtools_fingerprint_changes_on_version_bump(self):
+        fp1 = tools_fingerprint()
         self.assertIsInstance(fp1, str)
         self.assertTrue(len(fp1) > 0)
         # The fingerprint is deterministic
-        fp2 = _tools_fingerprint()
+        fp2 = tools_fingerprint()
         self.assertEqual(fp1, fp2)
 
     @patch("tool_registry.manifest.get_servers_dir")
@@ -840,15 +1002,15 @@ class TestManifest(unittest.TestCase):
             write_manifest()
             manifest = json.loads((Path(tmp) / "installed.json").read_text())
             self.assertIn("tools", manifest)
-            self.assertEqual(manifest["tools"], _tools_fingerprint())
+            self.assertEqual(manifest["tools"], tools_fingerprint())
 
     @patch("tool_registry.manifest.has_required_tools", return_value=True)
-    @patch("tool_registry.manifest._read_manifest")
-    @patch("tool_registry.manifest._installed_version", return_value="1.0.0")
+    @patch("tool_registry.manifest.read_manifest")
+    @patch("tool_registry.manifest.installed_version", return_value="1.0.0")
     def test_needs_install_triggers_on_tools_change(self, mock_version, mock_manifest, mock_tools):
         mock_manifest.return_value = {
             "version": "1.0.0",
-            "npm_specs": _npm_specs_fingerprint(),
+            "npm_specs": npm_specs_fingerprint(),
             "tools": "old-fingerprint",
         }
         self.assertTrue(needs_install())

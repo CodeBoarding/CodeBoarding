@@ -31,7 +31,7 @@ on:
     branches: [main]
     paths:
       - 'install.py'
-      - 'tool_registry.py'
+      - 'tool_registry/**'
       - 'vscode_constants.py'
       - 'pyproject.toml'
       - 'uv.lock'
@@ -113,16 +113,24 @@ jobs:
 
       - name: Mask system Node.js (force ensure_node_runtime path)
         # ubuntu-latest runners ship Node.js pre-installed, which would let
-        # codeboarding-setup skip the Node-bootstrap code path entirely. We
-        # remove every known Node location so the next step has to exercise
-        # the real install.ensure_node_runtime() -> nodeenv download path.
-        # This is the only CI guarantee that a Node-less user environment
-        # actually works — without it, a regression would pass CI and only
-        # surface when a real user hit
+        # codeboarding-setup skip the Node-bootstrap code path entirely.  We
+        # remove every known Node location so the next step exercises the
+        # real install.ensure_node_runtime() -> nodeenv download path.  This
+        # is the only CI guarantee that a Node-less user environment actually
+        # works — without it, a regression would pass CI and only surface
+        # when a real user hit:
+        #
         #   FileNotFoundError: [Errno 2] No such file or directory: 'cli.mjs'
         #
+        # We deliberately do NOT add the embedded nodeenv bin dir back to
+        # PATH after masking.  The whole point is to simulate a user who has
+        # no Node on PATH at all, and having our production code succeed in
+        # that environment is what CI is validating.  If the integration
+        # tests later fail because an LSP subprocess needs ``node`` on PATH,
+        # that is a real production bug to fix in our code — not here.
+        #
         # If this step ever starts failing with "node still on PATH", a future
-        # runner image has added a new Node location. Extend the purge below.
+        # runner image has added a new Node location.  Extend the purge below.
         # Do NOT "fix" it by deleting this step — that would silently
         # invalidate the clean-environment test and let the original bug
         # regress.
@@ -151,14 +159,29 @@ jobs:
         run: codeboarding-setup --auto-install-npm
 
       - name: Verify embedded Node was installed
-        # Belt-and-braces: prove the previous step actually downloaded Node
-        # via nodeenv rather than silently skipping Node-dependent languages.
-        # If this step fails but the bootstrap looked successful, check the
-        # install.py logs for "Node.js bootstrap finished: success".
+        # Two checks that are both PATH-independent, so a failure here
+        # unambiguously means the bootstrap is broken (not that PATH is
+        # misconfigured):
+        #
+        # 1. ``test -x`` proves the file exists and has the executable bit.
+        # 2. ``node --version`` invokes the binary by absolute path (no
+        #    PATH lookup anywhere) and asserts it is a real, runnable
+        #    Node of the expected version.
+        #
+        # We deliberately do NOT invoke ``npm --version``.  The npm shim
+        # is ``#!/usr/bin/env node``, which needs ``node`` on PATH, and
+        # the mask step above has removed it.  Any PATH gymnastics we
+        # might do here would test the verify step's cleverness, not the
+        # production code's correctness — the real proof that the
+        # bootstrap works end-to-end is the ``Run integration tests``
+        # step below, which spawns real LSPs on a masked-PATH machine
+        # and relies on ``ensure_node_on_path`` in
+        # ``StaticAnalyzer.start_clients`` to set up the subprocess env.
+        # If that production code is broken, the integration tests fail
+        # with ENOENT and we find out.
         run: |
           test -x ~/.codeboarding/servers/nodeenv/bin/node
           ~/.codeboarding/servers/nodeenv/bin/node --version
-          ~/.codeboarding/servers/nodeenv/bin/npm --version
 
       - name: Run integration tests (${{ matrix.language }})
         run: pytest -m "integration and ${{ matrix.language }}_lang" -v -s --tb=long --log-cli-level=INFO

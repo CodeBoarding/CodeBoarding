@@ -41,25 +41,25 @@ logger = logging.getLogger(__name__)
 # -- Manifest + fingerprints --------------------------------------------------
 
 
-def _installed_version() -> str:
+def installed_version() -> str:
     try:
         return importlib.metadata.version("codeboarding")
     except importlib.metadata.PackageNotFoundError:
         return "dev"
 
 
-def _manifest_path() -> Path:
+def manifest_path() -> Path:
     return get_servers_dir() / "installed.json"
 
 
-def _read_manifest() -> dict:
-    p = _manifest_path()
+def read_manifest() -> dict:
+    p = manifest_path()
     if p.exists():
         return json.loads(p.read_text())
     return {}
 
 
-def _npm_specs_fingerprint() -> str:
+def npm_specs_fingerprint() -> str:
     """Deterministic fingerprint of all pinned npm package specs.
 
     Changes whenever an npm version pin in TOOL_REGISTRY is updated,
@@ -78,7 +78,7 @@ def _npm_specs_fingerprint() -> str:
     return ",".join(specs)
 
 
-def _tools_fingerprint() -> str:
+def tools_fingerprint() -> str:
     """Deterministic fingerprint of all pinned tool sources.
 
     Changes whenever a tool version or source in TOOL_REGISTRY is updated,
@@ -99,14 +99,14 @@ def _tools_fingerprint() -> str:
 
 
 def write_manifest() -> None:
-    p = _manifest_path()
+    p = manifest_path()
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(
         json.dumps(
             {
-                "version": _installed_version(),
-                "npm_specs": _npm_specs_fingerprint(),
-                "tools": _tools_fingerprint(),
+                "version": installed_version(),
+                "npm_specs": npm_specs_fingerprint(),
+                "tools": tools_fingerprint(),
             },
             indent=2,
         )
@@ -115,12 +115,12 @@ def write_manifest() -> None:
 
 def needs_install() -> bool:
     """Return True when binaries are missing or installed by a different package version."""
-    manifest = _read_manifest()
-    if manifest.get("version") != _installed_version():
+    manifest = read_manifest()
+    if manifest.get("version") != installed_version():
         return True
-    if manifest.get("npm_specs") != _npm_specs_fingerprint():
+    if manifest.get("npm_specs") != npm_specs_fingerprint():
         return True
-    if manifest.get("tools") != _tools_fingerprint():
+    if manifest.get("tools") != tools_fingerprint():
         return True
     return not has_required_tools(get_servers_dir())
 

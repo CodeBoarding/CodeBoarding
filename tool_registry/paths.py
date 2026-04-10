@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 #   - intelephense@1.16.5:              (no constraint declared)
 #
 # If we bump any pinned npm package and its minimum increases, update this
-# value deliberately — the version probe in ``_node_version_tuple()`` will
+# value deliberately — the version probe in ``node_version_tuple()`` will
 # start rejecting previously-accepted system Nodes, and users on older LTS
 # will see the embedded runtime take over automatically.
 MINIMUM_NODE_MAJOR_VERSION = 18
@@ -111,12 +111,12 @@ def embedded_npm_cli_path(base_dir: Path) -> str | None:
 # -- Node.js version probing --------------------------------------------------
 
 
-def _node_version_tuple(node_path: str) -> tuple[int, int, int] | None:
+def node_version_tuple(node_path: str) -> tuple[int, int, int] | None:
     """Probe a Node.js binary for its version.
 
     Returns a ``(major, minor, patch)`` tuple on success, ``None`` when the
     path is not a runnable Node binary (doesn't exist, hangs, crashes, or
-    prints unparseable output).  Intentionally tolerant: a None return is
+    prints unparseable output).  Intentionally tolerant: a ``None`` return is
     interpreted by ``preferred_node_path()`` as "skip this candidate and try
     the next one," so this must never raise.
 
@@ -178,11 +178,11 @@ def _node_version_tuple(node_path: str) -> tuple[int, int, int] | None:
         return None
 
 
-def _node_is_acceptable(node_path: str | None) -> bool:
+def node_is_acceptable(node_path: str | None) -> bool:
     """Return True if ``node_path`` resolves to a Node binary that meets
     ``MINIMUM_NODE_MAJOR_VERSION``.
 
-    Wrapper around ``_node_version_tuple`` that applies the minimum-version
+    Wrapper around ``node_version_tuple`` that applies the minimum-version
     policy in one place so callers (``preferred_node_path``,
     ``preferred_npm_command``) stay consistent about which candidates are
     usable.  Logs at INFO when rejecting a candidate so operators who set
@@ -192,7 +192,7 @@ def _node_is_acceptable(node_path: str | None) -> bool:
     if not node_path:
         return False
 
-    version = _node_version_tuple(node_path)
+    version = node_version_tuple(node_path)
     if version is None:
         logger.info("Node.js candidate %s is not runnable; skipping", node_path)
         return False
@@ -224,7 +224,7 @@ def preferred_node_path(base_dir: Path) -> str | None:
         2. Embedded Node.js from a previous ``install_embedded_node`` bootstrap
         3. ``node`` on the system PATH
 
-    Each candidate is validated via ``_node_is_acceptable()`` — which rejects
+    Each candidate is validated via ``node_is_acceptable()`` — which rejects
     missing files (the original ``CODEBOARDING_NODE_PATH=/nonexistent`` bug),
     unrunnable binaries, and Nodes older than ``MINIMUM_NODE_MAJOR_VERSION``.
     Unusable candidates fall through to the next one, so a user with Node 16
@@ -232,15 +232,15 @@ def preferred_node_path(base_dir: Path) -> str | None:
     the embedded runtime — the same recovery path as a user with no Node at all.
     """
     candidate = os.environ.get("CODEBOARDING_NODE_PATH")
-    if _node_is_acceptable(candidate):
+    if node_is_acceptable(candidate):
         return candidate
 
     candidate = embedded_node_path(base_dir)
-    if _node_is_acceptable(candidate):
+    if node_is_acceptable(candidate):
         return candidate
 
     candidate = shutil.which("node")
-    if _node_is_acceptable(candidate):
+    if node_is_acceptable(candidate):
         return candidate
 
     return None
@@ -264,7 +264,7 @@ def preferred_npm_command(base_dir: Path) -> list[str] | None:
     """Return the preferred command prefix for invoking npm.
 
     The sibling-npm branch only trusts ``CODEBOARDING_NODE_PATH`` if that
-    Node passes ``_node_is_acceptable`` — otherwise we would use the npm
+    Node passes ``node_is_acceptable`` — otherwise we would use the npm
     belonging to a too-old Node that ``preferred_node_path`` has already
     rejected, producing inconsistent state where the LSPs run against one
     Node and were installed by the npm of another.
@@ -272,7 +272,7 @@ def preferred_npm_command(base_dir: Path) -> list[str] | None:
     if npm_path := embedded_npm_path(base_dir):
         return [npm_path]
     env_node = os.environ.get("CODEBOARDING_NODE_PATH")
-    if _node_is_acceptable(env_node):
+    if node_is_acceptable(env_node):
         if npm_path := sibling_npm_path(env_node):
             return [npm_path]
     if node_path := preferred_node_path(base_dir):
@@ -298,3 +298,66 @@ def npm_subprocess_env(base_dir: Path) -> dict[str, str]:
         node_dir = str(Path(node).parent)
         env["PATH"] = node_dir + os.pathsep + env.get("PATH", "")
     return env
+
+
+def ensure_node_on_path(command: list[str], extra_env: dict[str, str]) -> None:
+    """Ensure the Node binary's directory will be on the subprocess's PATH
+    when the LSP is a Node process launched from an explicit path.
+
+    CodeBoarding's embedded Node runtime lives at
+    ``~/.codeboarding/servers/nodeenv/bin/node`` for users who don't have
+    system Node.  When we launch a Node-based LSP via its absolute path
+    (e.g. ``["/.../nodeenv/bin/node", "/.../cli.mjs", "--stdio"]``), the LSP
+    process itself runs fine because ``command[0]`` is already a full path,
+    but any *child* process the LSP spawns by name will fall back to
+    ``$PATH`` lookup, and that lookup fails on a Node-less machine.
+
+    In particular, pyright's worker processes and
+    typescript-language-server's internal tsserver both spawn ``node`` by
+    name for parallelism / IPC.  Without this fix they crash with ``ENOENT``
+    at analysis time, which only reproduces on environments where the user
+    has no system Node -- exactly the case our bootstrap was designed to
+    support.
+
+    This helper is called at the *extra_env* layer -- the per-adapter
+    override dict that gets merged on top of ``os.environ.copy()`` via
+    ``env.update(extra_env)`` inside ``LSPClient.start()``.  Because that
+    ``update`` *replaces* rather than *merges* the ``PATH`` key, we must
+    construct the final PATH ourselves: ``<node_dir> + os.pathsep +
+    <baseline>`` where the baseline is whatever PATH the subprocess would
+    otherwise inherit.  We take the baseline from ``extra_env['PATH']`` if
+    the adapter already set one (preserving adapter intent), otherwise from
+    ``os.environ['PATH']`` (the same PATH ``os.environ.copy()`` will feed
+    into ``env`` in ``LSPClient.start()``).
+
+    The heuristic for *when* to act: ``command[0]`` must be an absolute
+    path whose basename is ``node`` or ``node.exe``.  We deliberately skip
+    Electron binaries (VS Code's runtime) -- their parent directory
+    contains the editor binary, not a standard ``node``, and Electron is
+    handled separately via ``ELECTRON_RUN_AS_NODE``.
+    """
+    if not command:
+        return
+    first_path = Path(command[0])
+    if not first_path.is_absolute():
+        return
+    # Basename check is case-insensitive and accepts the Windows ``.exe``
+    # suffix so the same helper works for ``nodeenv/bin/node`` on Unix and
+    # ``nodeenv/Scripts/node.exe`` on Windows.
+    basename = first_path.name.lower()
+    if basename not in ("node", "node.exe"):
+        return
+    node_dir = str(first_path.parent)
+    if not node_dir:
+        return
+    # If the adapter already set a PATH in extra_env, respect it as the
+    # baseline; otherwise use the process's current PATH (which is what
+    # LSPClient.start() will otherwise inherit via os.environ.copy()).
+    baseline = extra_env.get("PATH", os.environ.get("PATH", ""))
+    if node_dir in baseline.split(os.pathsep):
+        # Already present — don't duplicate, but make sure the key exists
+        # in extra_env so the subsequent ``env.update(extra_env)`` doesn't
+        # drop the PATH we intended.
+        extra_env["PATH"] = baseline
+        return
+    extra_env["PATH"] = node_dir + os.pathsep + baseline if baseline else node_dir

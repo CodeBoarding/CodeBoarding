@@ -21,6 +21,7 @@ from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
 from static_analyzer.programming_language import ProgrammingLanguage
 from static_analyzer.scanner import ProjectScanner
 from static_analyzer.typescript_config_scanner import TypeScriptConfigScanner
+from tool_registry import ensure_node_on_path
 from utils import get_cache_dir
 
 logger = logging.getLogger(__name__)
@@ -149,6 +150,16 @@ class StaticAnalyzer:
                 command = adapter.get_lsp_command(project_path)
                 init_options = adapter.get_lsp_init_options(self.ignore_manager)
                 extra_env = adapter.get_lsp_env()
+                # When the LSP is a Node process launched from an absolute
+                # path (e.g. the embedded nodeenv bootstrap at
+                # ``~/.codeboarding/servers/nodeenv/bin/node``), its worker
+                # children — pyright's background analyzers,
+                # typescript-language-server's internal tsserver — spawn
+                # ``node`` by name and rely on ``$PATH`` to find it.  On a
+                # Node-less host (exactly the scenario our bootstrap exists
+                # to support) that lookup fails with ENOENT unless we put
+                # the node directory on PATH in the subprocess env first.
+                ensure_node_on_path(command, extra_env)
                 workspace_settings = adapter.get_workspace_settings()
                 engine_client = LSPClient(
                     command=command,
