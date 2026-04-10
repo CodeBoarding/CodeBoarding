@@ -1,11 +1,16 @@
 import hashlib
+import io
 import json
 import os
 import shutil
+import subprocess
+import tarfile
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+
+import nodeenv
 
 from tool_registry import (
     MINIMUM_NODE_MAJOR_VERSION,
@@ -315,14 +320,43 @@ class TestInstallEmbeddedNode(unittest.TestCase):
             sentinel = base_dir / "nodeenv" / NODEENV_VERSION_STAMP
             self.assertFalse(sentinel.exists())
 
+    @patch("platform.system", return_value="Linux")
+    def test_clears_node_version_cache_after_successful_install(self, mock_system):
+        """A pre-install probe of a broken binary poisons node_version_tuple's
+        LRU under the exact path the reinstall then overwrites. Without a
+        cache_clear() after install, preferred_node_path() keeps returning
+        None and LSPs degrade to bare command names that ENOENT on Node-less machines."""
+        node_version_tuple.cache_clear()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            base_dir = Path(temp_dir)
+
+            # Simulate the broken binary that triggered the reinstall: same
+            # path the new nodeenv will occupy, probed (and cached as None) here.
+            bin_dir = base_dir / "nodeenv" / "bin"
+            bin_dir.mkdir(parents=True)
+            broken_node = bin_dir / "node"
+            broken_node.write_text("broken")
+            broken_node.chmod(0o755)
+
+            with patch("tool_registry.paths.subprocess.run", return_value=_fake_node_proc("", returncode=1)):
+                self.assertIsNone(node_version_tuple(str(broken_node)))
+
+            with patch(
+                "nodeenv.create_environment",
+                side_effect=_make_successful_install_side_effect(),
+            ):
+                self.assertTrue(install_embedded_node(base_dir))
+
+            # Same path, same process: a stale cache entry would still return None here.
+            with patch("tool_registry.paths.subprocess.run", return_value=_fake_node_proc("v20.18.1\n")):
+                self.assertEqual(node_version_tuple(str(broken_node)), (20, 18, 1))
+
 
 class TestInitializeNodeenvGlobals(unittest.TestCase):
     """Guards against the ``src_base_url = None`` bug — nodeenv reads a
     module-level global when building download URLs, and it defaults to None."""
 
     def test_sets_src_base_url_to_nodejs_dist(self):
-        import nodeenv
-
         saved_base = nodeenv.src_base_url
         saved_ssl = nodeenv.ignore_ssl_certs
         try:
@@ -340,8 +374,6 @@ class TestInitializeNodeenvGlobals(unittest.TestCase):
 
     def test_src_base_url_not_none_after_init(self):
         """Guards against future nodeenv renames of the global."""
-        import nodeenv
-
         saved_base = nodeenv.src_base_url
         saved_ssl = nodeenv.ignore_ssl_certs
         try:
@@ -367,8 +399,6 @@ class TestInstallEmbeddedNodeEndToEnd(unittest.TestCase):
     which never exercised the internal URL construction where src_base_url=None lived."""
 
     def test_full_install_flow_with_mocked_download(self):
-        import nodeenv  # noqa: F401
-
         with tempfile.TemporaryDirectory() as tmp:
             base_dir = Path(tmp)
             with patch("nodeenv.urlopen", side_effect=self._fake_urlopen):
@@ -385,9 +415,6 @@ class TestInstallEmbeddedNodeEndToEnd(unittest.TestCase):
     @staticmethod
     def _fake_urlopen(*_args, **_kwargs):
         """Mimic a ``node-vX.Y.Z-{os}-{arch}.tar.gz`` archive for nodeenv's extractor."""
-        import io
-        import tarfile
-
         buf = io.BytesIO()
         with tarfile.open(fileobj=buf, mode="w:gz") as tar:
             for name in ("bin/node", "bin/npm"):
@@ -452,12 +479,10 @@ class TestNodeVersionProbe(unittest.TestCase):
                     self.assertIsNone(node_version_tuple(tmp.name), f"output {bad_output!r} should be rejected")
 
     def test_returns_none_on_subprocess_timeout(self):
-        import subprocess as sp
-
         with tempfile.NamedTemporaryFile() as tmp:
             with patch(
                 "tool_registry.paths.subprocess.run",
-                side_effect=sp.TimeoutExpired(cmd=["node"], timeout=5),
+                side_effect=subprocess.TimeoutExpired(cmd=["node"], timeout=5),
             ):
                 self.assertIsNone(node_version_tuple(tmp.name))
 

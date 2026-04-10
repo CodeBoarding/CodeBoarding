@@ -18,6 +18,7 @@ import requests
 from .paths import (
     embedded_node_path,
     exe_suffix,
+    node_version_tuple,
     nodeenv_root_dir,
     npm_subprocess_env,
     platform_bin_dir,
@@ -384,5 +385,11 @@ def install_embedded_node(
     except OSError:
         logger.exception("Failed to write Node.js version stamp; next run will reinstall")
         return False
+
+    # a previous probe of a broken binary at this same path may have
+    # cached None in node_version_tuple's LRU. Without clearing, subsequent
+    # preferred_node_path() calls in the same process would skip the freshly
+    # installed runtime and fall through to system PATH — ENOENT on Node-less machines.
+    node_version_tuple.cache_clear()
 
     return True

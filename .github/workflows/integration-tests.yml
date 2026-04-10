@@ -24,7 +24,7 @@ on:
 
   # Run on pull requests that touch install/bootstrap code, so regressions in
   # the Node.js bootstrap path (which only surfaces on Node-less machines —
-  # see the "Mask system Node.js" step below) are caught in PR review rather
+  # see the per-OS Node-removal steps below) are caught in PR review rather
   # than after merge.  Filtered by paths to avoid burning CI minutes on docs
   # or agent/LLM-provider changes that can't affect LSP startup.
   pull_request:
@@ -46,7 +46,11 @@ on:
     - cron: '0 3 * * 0'  # Every Sunday at 3 AM UTC
 
 jobs:
-  # Determine which languages to test based on input
+  # Resolve the workflow_dispatch language filter into a JSON list.
+  # Each OS job filters its own hard-coded language set against this —
+  # the OS ↔ language mapping is a capability constraint (php needs
+  # apt-get, Node-based LSPs route to macOS/Windows for bootstrap
+  # coverage), not something the user picks.
   setup-matrix:
     runs-on: ubuntu-latest
     outputs:
@@ -61,15 +65,127 @@ jobs:
             echo "languages=[\"${{ github.event.inputs.language }}\"]" >> $GITHUB_OUTPUT
           fi
 
-  # Run integration tests for each language in parallel
-  integration-tests:
+  # Linux integration tests: run inside a Node-free container.
+  #
+  # We use python:3.12-slim — a Debian-based image that provably has no
+  # Node.js on PATH — so codeboarding-setup's ensure_node_runtime() path
+  # is exercised against a truly clean environment.  No PATH masking, no
+  # file deletion: the image simply doesn't ship Node.
+  #
+  # Language distribution: each language runs on exactly one OS.  php is
+  # pinned here because its install step uses apt-get; go fills out the
+  # Linux slot as a non-Node LSP that still exercises codeboarding-setup.
+  # See integration-tests-macos / integration-tests-windows for the rest.
+  integration-tests-linux:
     needs: setup-matrix
     runs-on: ubuntu-latest
-    timeout-minutes: 60  # Integration tests can be slow
+    container:
+      image: python:3.12-slim
+    timeout-minutes: 60
+    # Skip the whole job when the workflow_dispatch filter targets a
+    # language owned by another OS.  On push / pull_request / schedule
+    # the filter is empty and setup-matrix emits every language, so
+    # this evaluates true and the job runs normally.
+    if: contains(fromJson(needs.setup-matrix.outputs.languages), 'php') || contains(fromJson(needs.setup-matrix.outputs.languages), 'go')
     strategy:
       fail-fast: false
       matrix:
-        language: ${{ fromJson(needs.setup-matrix.outputs.languages) }}
+        language: [php, go]
+
+    steps:
+      - name: Install container prerequisites
+        # python:3.12-slim omits git (needed by actions/checkout for full
+        # clone semantics) and curl (needed by astral-sh/setup-uv).  Build
+        # tools cover any uv-resolved wheels that need to compile.
+        run: |
+          set -eux
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            git curl ca-certificates build-essential
+
+      - name: Verify container has no Node.js
+        # Fail loudly if a future base-image update starts shipping Node —
+        # otherwise this job would silently stop testing the bootstrap path.
+        run: |
+          set -eux
+          if command -v node >/dev/null 2>&1; then
+            echo "ERROR: python:3.12-slim unexpectedly contains node at $(command -v node)" >&2
+            echo "Pick a different base image or the bootstrap test is invalidated." >&2
+            exit 1
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Setup virtual environment
+        run: |
+          . .venv/bin/activate
+          echo "VIRTUAL_ENV=$VIRTUAL_ENV" >> $GITHUB_ENV
+          echo "$VIRTUAL_ENV/bin" >> $GITHUB_PATH
+
+      - name: Install Go
+        if: matrix.language == 'go'
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Install system dependencies
+        if: matrix.language == 'php'
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends php
+
+      - name: Setup LSP servers
+        run: codeboarding-setup --auto-install-npm
+
+      - name: Verify embedded Node was installed
+        # PATH-independent check: absolute path + runnable binary.
+        run: |
+          test -x ~/.codeboarding/servers/nodeenv/bin/node
+          ~/.codeboarding/servers/nodeenv/bin/node --version
+
+      - name: Run integration tests (${{ matrix.language }})
+        if: contains(fromJson(needs.setup-matrix.outputs.languages), matrix.language)
+        run: pytest -m "integration and ${{ matrix.language }}_lang" -v -s --tb=long --log-cli-level=INFO
+
+      - name: Upload test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-results-linux-${{ matrix.language }}
+          path: |
+            /tmp/actual_*.json
+          retention-days: 7
+          if-no-files-found: ignore
+
+  # macOS integration tests: remove pre-installed Node via Homebrew.
+  #
+  # The macos-latest image installs Node.js via `brew install node@N`
+  # (see actions/runner-images images/macos/scripts/build/install-node.sh),
+  # so the supported removal is `brew uninstall node@N` — the same tool
+  # that installed it, reversing its own symlinks under /opt/homebrew/bin.
+  # We also drop the hosted toolcache copy that actions/setup-node would
+  # otherwise pick up.  No PATH surgery: Homebrew's own unlink does it.
+  #
+  # Language distribution: typescript (Node-based LSP, exercises
+  # ensure_node_on_path on macOS) + java (non-Node LSP, cross-OS via
+  # actions/setup-java).  See integration-tests-linux / integration-tests-windows
+  # for the other languages.
+  integration-tests-macos:
+    needs: setup-matrix
+    runs-on: macos-latest
+    timeout-minutes: 60
+    if: contains(fromJson(needs.setup-matrix.outputs.languages), 'java') || contains(fromJson(needs.setup-matrix.outputs.languages), 'typescript')
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [java, typescript]
 
     steps:
       - name: Checkout
@@ -92,12 +208,6 @@ jobs:
           echo "VIRTUAL_ENV=$VIRTUAL_ENV" >> $GITHUB_ENV
           echo "$VIRTUAL_ENV/bin" >> $GITHUB_PATH
 
-      - name: Install Go
-        if: matrix.language == 'go'
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.21'
-
       - name: Install Java 21
         if: matrix.language == 'java'
         uses: actions/setup-java@v4
@@ -105,93 +215,165 @@ jobs:
           distribution: 'temurin'
           java-version: '21'
 
-      - name: Install system dependencies
-        if: matrix.language == 'php'
+      - name: Uninstall pre-installed Node.js
+        # Uses Homebrew's own uninstall verb — the same mechanism the
+        # runner image used to install Node in the first place.  This
+        # reverses /opt/homebrew/bin/node symlinks without touching PATH.
+        #
+        # The hostedtoolcache drop is separate: it's what actions/setup-node
+        # would cache, and although nothing on this job calls setup-node,
+        # a prior workflow layer could have seeded it.  Removing it keeps
+        # the "no node anywhere" invariant honest.
+        #
+        # If a future image update changes the brew formula name, this
+        # step will fail loudly on the `command -v node` check below —
+        # DO NOT paper over it, extend the uninstall instead.
         run: |
-          sudo apt-get update
-          sudo apt-get install -y php
-
-      - name: Mask system Node.js (force ensure_node_runtime path)
-        # ubuntu-latest runners ship Node.js pre-installed, which would let
-        # codeboarding-setup skip the Node-bootstrap code path entirely.  We
-        # remove every known Node location so the next step exercises the
-        # real install.ensure_node_runtime() -> nodeenv download path.  This
-        # is the only CI guarantee that a Node-less user environment actually
-        # works — without it, a regression would pass CI and only surface
-        # when a real user hit:
-        #
-        #   FileNotFoundError: [Errno 2] No such file or directory: 'cli.mjs'
-        #
-        # We deliberately do NOT add the embedded nodeenv bin dir back to
-        # PATH after masking.  The whole point is to simulate a user who has
-        # no Node on PATH at all, and having our production code succeed in
-        # that environment is what CI is validating.  If the integration
-        # tests later fail because an LSP subprocess needs ``node`` on PATH,
-        # that is a real production bug to fix in our code — not here.
-        #
-        # If this step ever starts failing with "node still on PATH", a future
-        # runner image has added a new Node location.  Extend the purge below.
-        # Do NOT "fix" it by deleting this step — that would silently
-        # invalidate the clean-environment test and let the original bug
-        # regress.
-        run: |
-          set -euo pipefail
-          sudo rm -f /usr/local/bin/node /usr/local/bin/npm /usr/local/bin/npx
-          sudo rm -rf /opt/hostedtoolcache/node
-          NEW_PATH=$(echo "$PATH" | tr ':' '\n' | grep -viE '(hostedtoolcache/node|/nvm/|/\.nvm/)' | paste -sd:)
-          echo "PATH=$NEW_PATH" >> "$GITHUB_ENV"
-          for var in $(env | grep -iE '^(npm_|NODE_)' | cut -d= -f1); do
-            echo "$var=" >> "$GITHUB_ENV"
-          done
-          export PATH="$NEW_PATH"
+          set -euxo pipefail
+          brew list --formula | grep -E '^node(@[0-9]+)?$' | xargs -I {} brew uninstall --force --ignore-dependencies {} || true
+          brew list --formula | grep -E '^yarn$' | xargs -I {} brew uninstall --force --ignore-dependencies {} || true
+          rm -rf "${RUNNER_TOOL_CACHE}/node" || true
           if command -v node >/dev/null 2>&1; then
-            echo "ERROR: node still on PATH at $(command -v node)" >&2
-            echo "A runner image update has added a new Node location." >&2
+            echo "ERROR: node still present at $(command -v node) after brew uninstall" >&2
+            echo "A runner image update has added a new Node location — extend this step." >&2
             exit 1
           fi
           if command -v npm >/dev/null 2>&1; then
-            echo "ERROR: npm still on PATH at $(command -v npm)" >&2
+            echo "ERROR: npm still present at $(command -v npm)" >&2
             exit 1
           fi
-          echo "System Node.js successfully masked."
+          echo "macOS Node.js successfully removed."
 
       - name: Setup LSP servers
         run: codeboarding-setup --auto-install-npm
 
       - name: Verify embedded Node was installed
-        # Two checks that are both PATH-independent, so a failure here
-        # unambiguously means the bootstrap is broken (not that PATH is
-        # misconfigured):
-        #
-        # 1. ``test -x`` proves the file exists and has the executable bit.
-        # 2. ``node --version`` invokes the binary by absolute path (no
-        #    PATH lookup anywhere) and asserts it is a real, runnable
-        #    Node of the expected version.
-        #
-        # We deliberately do NOT invoke ``npm --version``.  The npm shim
-        # is ``#!/usr/bin/env node``, which needs ``node`` on PATH, and
-        # the mask step above has removed it.  Any PATH gymnastics we
-        # might do here would test the verify step's cleverness, not the
-        # production code's correctness — the real proof that the
-        # bootstrap works end-to-end is the ``Run integration tests``
-        # step below, which spawns real LSPs on a masked-PATH machine
-        # and relies on ``ensure_node_on_path`` in
-        # ``StaticAnalyzer.start_clients`` to set up the subprocess env.
-        # If that production code is broken, the integration tests fail
-        # with ENOENT and we find out.
         run: |
           test -x ~/.codeboarding/servers/nodeenv/bin/node
           ~/.codeboarding/servers/nodeenv/bin/node --version
 
       - name: Run integration tests (${{ matrix.language }})
+        if: contains(fromJson(needs.setup-matrix.outputs.languages), matrix.language)
         run: pytest -m "integration and ${{ matrix.language }}_lang" -v -s --tb=long --log-cli-level=INFO
 
       - name: Upload test artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: integration-test-results-${{ matrix.language }}
+          name: integration-test-results-macos-${{ matrix.language }}
           path: |
             /tmp/actual_*.json
+          retention-days: 7
+          if-no-files-found: ignore
+
+  # Windows integration tests: uninstall pre-installed Node via MSI.
+  #
+  # The windows-latest image installs Node.js via a direct MSI download
+  # (see actions/runner-images images/windows/scripts/build/Install-NodeJS.ps1)
+  # and additionally prepends C:\npm\prefix to PATH.  Supported removal is
+  # Get-Package | Uninstall-Package (the MSI's own uninstaller) plus
+  # reverting the C:\npm\prefix customization.  Same principle as macOS:
+  # reverse the installer, don't hand-edit PATH.
+  #
+  # Language distribution: javascript (Node-based LSP, exercises
+  # ensure_node_on_path on Windows) + python (Pyright — also Node-based,
+  # which doubles as a second Node-bootstrap check on Windows where it
+  # matters most).  See integration-tests-linux / integration-tests-macos
+  # for the other languages.
+  integration-tests-windows:
+    needs: setup-matrix
+    runs-on: windows-latest
+    timeout-minutes: 60
+    if: contains(fromJson(needs.setup-matrix.outputs.languages), 'python') || contains(fromJson(needs.setup-matrix.outputs.languages), 'javascript')
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [python, javascript]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Setup virtual environment
+        shell: pwsh
+        run: |
+          .\.venv\Scripts\Activate.ps1
+          "VIRTUAL_ENV=$env:VIRTUAL_ENV" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "$env:VIRTUAL_ENV\Scripts" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+
+      - name: Uninstall pre-installed Node.js
+        # Uses the Windows MSI's own uninstall path (Get-Package ->
+        # Uninstall-Package).  Also reverses the C:\npm\prefix image
+        # customization — that's not part of the MSI, the runner image
+        # adds it separately in Install-NodeJS.ps1.
+        #
+        # If a future image update changes the product name or adds a
+        # new Node location, the `Get-Command node` check will fail the
+        # step — extend the uninstall, do not silently skip.
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Get-Package -Name 'Node.js*' -ErrorAction SilentlyContinue | ForEach-Object {
+            Write-Host "Uninstalling $($_.Name) $($_.Version)"
+            $_ | Uninstall-Package -Force -ErrorAction Stop
+          }
+          if (Test-Path 'C:\npm') { Remove-Item -Recurse -Force 'C:\npm' }
+          [Environment]::SetEnvironmentVariable('npm_config_prefix', $null, 'Machine')
+          [Environment]::SetEnvironmentVariable('npm_config_prefix', $null, 'User')
+          Remove-Item Env:\npm_config_prefix -ErrorAction SilentlyContinue
+          if (Test-Path "$env:RUNNER_TOOL_CACHE\node") {
+            Remove-Item -Recurse -Force "$env:RUNNER_TOOL_CACHE\node"
+          }
+          # Rebuild PATH from the machine+user scopes so the uninstalled
+          # nodejs dir is no longer inherited by the step shell.
+          $machinePath = [Environment]::GetEnvironmentVariable('Path', 'Machine')
+          $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
+          $env:Path = "$machinePath;$userPath"
+          "PATH=$env:Path" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          if (Get-Command node -ErrorAction SilentlyContinue) {
+            Write-Error "node still present at $((Get-Command node).Source) after MSI uninstall"
+            exit 1
+          }
+          if (Get-Command npm -ErrorAction SilentlyContinue) {
+            Write-Error "npm still present at $((Get-Command npm).Source)"
+            exit 1
+          }
+          Write-Host "Windows Node.js successfully removed."
+
+      - name: Setup LSP servers
+        run: codeboarding-setup --auto-install-npm
+
+      - name: Verify embedded Node was installed
+        shell: pwsh
+        run: |
+          $nodeExe = "$env:USERPROFILE\.codeboarding\servers\nodeenv\Scripts\node.exe"
+          if (-not (Test-Path $nodeExe)) {
+            Write-Error "Embedded node not found at $nodeExe"
+            exit 1
+          }
+          & $nodeExe --version
+
+      - name: Run integration tests (${{ matrix.language }})
+        if: contains(fromJson(needs.setup-matrix.outputs.languages), matrix.language)
+        run: pytest -m "integration and ${{ matrix.language }}_lang" -v -s --tb=long --log-cli-level=INFO
+
+      - name: Upload test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-results-windows-${{ matrix.language }}
+          path: |
+            ${{ runner.temp }}/actual_*.json
           retention-days: 7
           if-no-files-found: ignore
