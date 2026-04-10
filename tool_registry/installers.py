@@ -1,13 +1,6 @@
-"""Tool installers: download, npm install, archive extract, and embedded Node bootstrap.
+"""Tool installers: download, npm install, archive extract, embedded Node bootstrap.
 
-This is the only module in the package that performs side effects on the
-user's filesystem beyond reading it.  Everything that writes to
-``~/.codeboarding/servers/`` — pulling down native binaries from GitHub
-releases, running ``npm install``, extracting JDTLS, and bootstrapping a
-pinned Node.js runtime via the ``nodeenv`` package — lives here.
-
-Kept separate from ``paths`` and ``manifest`` so those layers stay free of
-subprocess/network side effects and can be imported cheaply at startup.
+The only module in the package with filesystem side effects.
 """
 
 import hashlib
@@ -30,6 +23,14 @@ from .paths import (
     platform_bin_dir,
     preferred_npm_command,
 )
+from .registry import (
+    PINNED_NODE_VERSION,
+    PLATFORM_SUFFIX,
+    TOOL_REGISTRY,
+    GitHubToolSource,
+    ToolKind,
+    UpstreamToolSource,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -38,13 +39,7 @@ logger = logging.getLogger(__name__)
 
 
 def asset_url(source: Any, asset_name: str) -> str:
-    """Construct the download URL for a tool asset.
-
-    For GitHub-hosted tools, builds a releases URL from repo/tag/asset.
-    For upstream sources, the url_template is the full URL with a ``{version}`` placeholder.
-    """
-    from . import GitHubToolSource, UpstreamToolSource
-
+    """Construct the download URL for a tool asset."""
     if isinstance(source, UpstreamToolSource):
         return source.url_template.format(version=source.tag, build=source.build)
     if isinstance(source, GitHubToolSource):
@@ -53,12 +48,7 @@ def asset_url(source: Any, asset_name: str) -> str:
 
 
 def download_asset(url: str, destination: Path, expected_sha256: str | None = None) -> bool:
-    """Download a file from *url* to *destination*. Returns True on success.
-
-    Writes to a temp file first, then atomically renames to prevent
-    corrupt binaries if the download is interrupted.  When *expected_sha256*
-    is provided the downloaded content is verified against it.
-    """
+    """Download *url* to *destination* via temp-file + rename. Verifies SHA256 if provided."""
     destination.parent.mkdir(parents=True, exist_ok=True)
     temp_dest = destination.with_suffix(destination.suffix + ".download")
     try:
@@ -92,10 +82,8 @@ def install_native_tools(
     on_progress: Any = None,
 ) -> None:
     """Download native binaries from their configured sources."""
-    from . import _PLATFORM_SUFFIX, GitHubToolSource
-
     system = platform.system()
-    suffix = _PLATFORM_SUFFIX.get(system)
+    suffix = PLATFORM_SUFFIX.get(system)
     if suffix is None:
         logger.error("Unsupported platform: %s", system)
         return
@@ -184,8 +172,6 @@ def install_archive_tool(
     on_progress: Any = None,
 ) -> None:
     """Download and extract an archive tool."""
-    from . import GitHubToolSource
-
     assert dep.source, f"{dep.key}: source required for archive tools"
     assert dep.archive_subdir, f"{dep.key}: archive_subdir required for archive tools"
 
@@ -228,8 +214,6 @@ def install_tools(target_dir: Path) -> None:
         <target_dir>/bin/<subdir>/     — archive extractions (e.g. jdtls)
         <target_dir>/node_modules/     — Node-based tools
     """
-    from . import TOOL_REGISTRY, ToolKind
-
     target_dir.mkdir(parents=True, exist_ok=True)
 
     native_deps = [d for d in TOOL_REGISTRY if d.kind is ToolKind.NATIVE]
@@ -247,32 +231,18 @@ def install_tools(target_dir: Path) -> None:
 # -- Embedded Node.js runtime bootstrap ---------------------------------------
 
 
-# Sentinel file written next to the nodeenv install after a successful bootstrap.
-# Contains PINNED_NODE_VERSION. Used on subsequent runs to decide whether an
-# existing install is (a) complete and (b) the version we currently pin.
-# If missing or mismatched, install_embedded_node() wipes and reinstalls.
+# Version sentinel written after a successful bootstrap. Contains
+# PINNED_NODE_VERSION; a mismatch or absence triggers wipe + reinstall.
 NODEENV_VERSION_STAMP = ".codeboarding-node-version"
 
 
 def embedded_node_is_healthy(base_dir: Path) -> bool:
-    """Return True only if the embedded Node binary looks genuinely usable.
+    """Return True only if the embedded Node binary is genuinely usable.
 
-    Stricter than ``embedded_node_path()`` (which just calls ``exists()``).
-    Catches three real partial-install failure modes that the plain existence
-    check would accept:
-
-        1. Zero-byte ``node`` file — disk full mid-extract, or truncated write.
-        2. Non-executable ``node`` on Unix — ``chmod +x`` step failed.
-        3. Missing sentinel — a prior install crashed after creating the binary
-           but before stamping the version, so we can't trust it's the pin.
-
-    Kept separate from ``embedded_node_path()`` so the rest of the codebase
-    (LSP command resolution, ``has_required_tools``) keeps its simpler
-    "does the path exist" semantics — we only need the stricter check to
-    decide whether ``install_embedded_node`` should reinstall.
+    Stricter than ``embedded_node_path()``'s existence check: rejects
+    zero-byte files, non-executable Unix binaries, and missing version
+    sentinels (partial installs from an interrupted previous run).
     """
-    from . import PINNED_NODE_VERSION
-
     node_path_str = embedded_node_path(base_dir)
     if not node_path_str:
         return False
@@ -284,9 +254,7 @@ def embedded_node_is_healthy(base_dir: Path) -> bool:
     except OSError:
         return False
 
-    # On Unix, the binary must be executable. Windows doesn't use the
-    # executable bit — the .exe suffix is what matters and that's already
-    # baked into embedded_node_path().
+    # Unix only: Windows doesn't use the executable bit.
     if platform.system() != "Windows" and not os.access(node_path, os.X_OK):
         return False
 
@@ -298,27 +266,16 @@ def embedded_node_is_healthy(base_dir: Path) -> bool:
 
 
 def initialize_nodeenv_globals(nodeenv_module: Any, args: Any) -> None:
-    """Replicate the module-global initialization that nodeenv.main() does.
+    """Replicate the module-global init that nodeenv.main() does before
+    calling create_environment().
 
-    nodeenv is designed to be invoked via its CLI entry point ``main()``,
-    which sets module-level globals ``src_base_url`` and ``ignore_ssl_certs``
-    based on argparse results before calling ``create_environment()``.  When
-    we bypass ``main()`` and call ``create_environment()`` in-process (which
-    we need to do inside the PyInstaller-frozen wrapper), those globals stay
-    at their defaults — ``src_base_url`` is ``None`` — and downstream URL
-    construction produces strings like ``"None/v20.18.1/..."`` that crash
-    with ``ValueError: unknown url type``.
-
-    This helper mirrors the relevant init block from nodeenv.main() at
-    lines ~1116-1133 of nodeenv.py.  We only handle the ``prebuilt`` /
-    non-``--mirror`` path that install_embedded_node() actually exercises;
-    musl and riscv64 are detected via nodeenv's own helpers so we stay
-    correct on Alpine / RISC-V hosts.
+    nodeenv's ``src_base_url`` defaults to None; calling ``create_environment()``
+    in-process (needed inside the frozen wrapper) without this helper produces
+    URLs like ``"None/v20.18.1/..."``. Mirrors nodeenv.main()'s init block for
+    the prebuilt / non-mirror path.
     """
     nodeenv_module.ignore_ssl_certs = getattr(args, "ignore_ssl_certs", False)
 
-    # Mirror the src_base_url resolution from nodeenv.main().  We do NOT
-    # support --mirror in our args, so args.mirror is always None here.
     src_domain: str | None = None
     mirror = getattr(args, "mirror", None)
     if mirror:
@@ -335,14 +292,10 @@ def initialize_nodeenv_globals(nodeenv_module: Any, args: Any) -> None:
 
 
 def nodeenv_needs_unofficial_builds(nodeenv_module: Any) -> bool:
-    """Return True on hosts where nodeenv would use unofficial Node builds.
+    """Return True for musl/riscv64 hosts (nodeenv.main()'s unofficial-builds branch).
 
-    Matches the ``elif is_x86_64_musl() or is_riscv64()`` branch of
-    nodeenv.main().  Split out so ``initialize_nodeenv_globals`` stays
-    easy to read and so the musl/riscv detection can be tested in isolation.
-    Returns False if either helper is missing on a future nodeenv release,
-    so the caller falls through to the standard ``nodejs.org`` host — which
-    is the conservative default for unknown platforms.
+    Returns False if a future nodeenv release removes either helper — the
+    caller then falls through to nodejs.org, the conservative default.
     """
     is_musl = getattr(nodeenv_module, "is_x86_64_musl", None)
     is_rv64 = getattr(nodeenv_module, "is_riscv64", None)
@@ -352,9 +305,6 @@ def nodeenv_needs_unofficial_builds(nodeenv_module: Any) -> bool:
         if callable(is_rv64) and is_rv64():
             return True
     except Exception:
-        # If either helper raises on an exotic platform, don't let that
-        # block the bootstrap — fall through to nodejs.org and let the
-        # download attempt surface any real incompatibility.
         return False
     return False
 
@@ -365,39 +315,23 @@ def install_embedded_node(
 ) -> bool:
     """Download a pinned Node.js runtime into ``<base_dir>/nodeenv/``.
 
-    Used when the user has no system Node.js and has not set
-    ``CODEBOARDING_NODE_PATH``.  Calls ``nodeenv.create_environment()``
-    in-process — **not** via ``python -m nodeenv`` — so this also works
-    inside the PyInstaller-frozen wrapper binary, where ``sys.executable``
-    points at the frozen binary rather than a Python interpreter.
+    Used when no system Node is available. Calls ``nodeenv.create_environment()``
+    in-process (not via ``python -m nodeenv``) so it also works inside the
+    PyInstaller-frozen wrapper. Always uses ``--prebuilt`` — the source-build
+    path would need python2 + a C compiler.
 
-    Always runs in prebuilt mode so the source-build path (which would
-    shell out to ``python2`` and a C compiler) is never reached.
-
-    Idempotent and recovery-aware: returns ``True`` immediately when an
-    existing install is healthy (non-empty executable binary + matching
-    version stamp).  When an install directory exists but is *unhealthy*
-    (partial download from a previous interrupted run, zero-byte binary,
-    or an older pinned version) the stale directory is wiped and reinstalled.
-    This matters because ``nodeenv.create_environment()`` hard-exits with
-    ``SystemExit(2)`` when its target directory already exists — that
-    ``SystemExit`` would bypass any ``except Exception`` and kill the whole
-    process, including a PyInstaller-frozen wrapper.
-
-    Returns ``True`` when the runtime is available after the call,
-    ``False`` on failure (which callers surface as "Node-based language
-    servers will be unavailable" rather than a hard error).
+    Idempotent: returns True immediately on a healthy existing install.
+    Wipes and reinstalls on unhealthy state (partial install, zero-byte binary,
+    older version stamp). This matters because ``create_environment()`` hard-exits
+    with SystemExit(2) on a pre-existing directory — uncatchable via ``except Exception``.
+    Returns False on failure; callers surface as "Node-based LSPs unavailable".
     """
-    from . import PINNED_NODE_VERSION
-
     if embedded_node_is_healthy(base_dir):
         return True
 
     env_dir = nodeenv_root_dir(base_dir)
 
-    # Wipe any partial/stale state before calling create_environment() —
-    # it hard-exits (sys.exit(2)) on a pre-existing directory, which is
-    # not catchable by ``except Exception``.
+    # Wipe stale state — create_environment() sys.exits on a pre-existing dir.
     if env_dir.exists():
         logger.info("Removing stale/partial embedded Node.js install at %s", env_dir)
         try:
@@ -407,7 +341,7 @@ def install_embedded_node(
             return False
 
     try:
-        import nodeenv  # local import keeps cold-path imports out of the hot path
+        import nodeenv
     except ImportError:
         logger.exception("nodeenv package is not available; cannot bootstrap Node.js runtime")
         return False
@@ -418,70 +352,38 @@ def install_embedded_node(
     env_dir.parent.mkdir(parents=True, exist_ok=True)
 
     try:
-        # Build the argparse Namespace directly from nodeenv's own parser.
-        # We deliberately bypass ``nodeenv.parse_args()`` because that helper
-        # reads ``sys.argv`` rather than accepting an argv list — which would
-        # crash under pytest (args like ``--no-header`` leak in) and is also
-        # unsafe inside the PyInstaller-frozen wrapper where ``sys.argv`` is
-        # the wrapper's own CLI.  ``make_parser()`` gives us the raw parser;
-        # calling ``.parse_args(list)`` on it returns a Namespace without
-        # touching global state.
+        # Use make_parser().parse_args(list) directly — nodeenv.parse_args()
+        # reads sys.argv, which leaks pytest flags and is wrong in the frozen wrapper.
         parser = nodeenv.make_parser()
-        args = parser.parse_args(
-            [
-                "--prebuilt",
-                "--node",
-                PINNED_NODE_VERSION,
-                str(env_dir),
-            ]
-        )
-        # nodeenv.parse_args() normally post-processes ``config_file``: when
-        # None, it probes ./tox.ini, ./setup.cfg, and ~/.nodeenvrc.  Those
-        # paths are meaningless in our install directory and actively harmful
-        # in a frozen binary without a real HOME, so we skip config entirely.
+        args = parser.parse_args(["--prebuilt", "--node", PINNED_NODE_VERSION, str(env_dir)])
+        # Skip nodeenv's config_file probing — it looks at tox.ini / ~/.nodeenvrc
+        # which are meaningless here and harmful in a frozen binary without a real HOME.
         args.config_file = []
-        # Defensive: these flags are already set by parse_args() from the
-        # argv list above, but if a future nodeenv release changes the
-        # default we want the source-build path to stay unreachable — it
-        # would try to invoke python2 and a C compiler, neither of which we
-        # can rely on inside the frozen wrapper.
+        # Defensive — keep the source-build path unreachable across nodeenv versions.
         args.prebuilt = True
 
-        # Initialize nodeenv's module-level globals the same way its own
-        # main() does at lines ~1116-1133 of nodeenv.py.  create_environment()
-        # reads ``nodeenv.src_base_url`` (a module-level global!) to build
-        # download URLs, and that global is None by default — so calling
-        # create_environment() without running main() first produces URLs
-        # like "None/v20.18.1/node-v20.18.1-linux-x64.tar.gz" and crashes
-        # with ``ValueError: unknown url type``.  We replicate main()'s
-        # initialization in-process to fix this.
+        # Replicate nodeenv.main()'s module-global init — create_environment()
+        # reads nodeenv.src_base_url (defaults to None) when building download URLs.
         initialize_nodeenv_globals(nodeenv, args)
 
         nodeenv.create_environment(str(env_dir), args)
     except SystemExit:
-        # create_environment() calls sys.exit(2) when env_dir already exists.
-        # We wipe env_dir above so this *should* be unreachable, but if
-        # something races us into that state (concurrent install without
-        # the file lock), catching SystemExit keeps the wrapper process alive
-        # instead of dying with an uncatchable exit.
+        # Should be unreachable (we wipe env_dir above), but catch to defend
+        # against a race with a concurrent install without the file lock.
         logger.exception("nodeenv.create_environment() called sys.exit — unexpected pre-existing state")
         return False
     except Exception:
         logger.exception("Failed to install embedded Node.js runtime via nodeenv")
         return False
 
-    # Verify the install actually produced a usable binary before stamping.
-    # If nodeenv reported success but the binary is missing/empty, we do
-    # *not* write the sentinel — so the next run will detect the broken
-    # state and retry rather than trusting it.
+    # Verify before stamping — if nodeenv succeeded but left a bad binary,
+    # skip the sentinel so the next run retries.
     node_path_str = embedded_node_path(base_dir)
     if not node_path_str or Path(node_path_str).stat().st_size == 0:
         logger.error("nodeenv.create_environment() completed but node binary is missing or empty")
         return False
 
-    # Stamp the version last so the sentinel only exists when the install
-    # is actually healthy. Written atomically via a temp-file swap to avoid
-    # leaving a partial sentinel if we're interrupted during the write.
+    # Stamp atomically via tmp-file swap so a crash mid-write can't leave a partial sentinel.
     stamp = env_dir / NODEENV_VERSION_STAMP
     tmp_stamp = env_dir / f"{NODEENV_VERSION_STAMP}.tmp"
     try:

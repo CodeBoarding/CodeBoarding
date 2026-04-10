@@ -34,6 +34,10 @@
 - [ ] **No redundant comments:** Comments explain "why" not "what" (code should be self-documenting)
 - [ ] **TODO/FIXME tracked:** Any temporary comments have corresponding tickets/tasks
 - [ ] **Type hints:** All function parameters and return types are annotated
+- [ ] **Comments are concise:** No multi-paragraph explanations of simple decisions (see §10)
+- [ ] **Docstrings are short:** One-line summary + minimal `Why:` when non-obvious. Avoid duplicating the code in prose.
+- [ ] **No historical narrative:** Don't explain what the code *used to do*, what bug this fixes, or what "V4" / "Bug C" is — that belongs in the commit message, not the source
+- [ ] **No line-number references to external files:** e.g. "see lines ~1116-1133 of nodeenv.py" — those rot the moment upstream changes
 
 ### Code Clarity
 - [ ] **Descriptive naming:** Variable/function names clearly indicate purpose (avoid `data`, `temp`, `x`)
@@ -79,9 +83,10 @@
 - [ ] **No star imports:** Explicit imports only (`from module import specific_thing`)
 - [ ] **Import ordering:** Standard library → third-party → local (alphabetical within groups)
 
+For circular dependencies, try to redesign the approach to not have a circular dependency in the first place. 
+
 ### Exceptions for Function-Level Imports
 Only allow function-level imports if:
-- [ ] **Circular dependency prevention:** Required to break import cycles
 - [ ] **Heavy module loading:** Module takes >100ms to import and is rarely used
 - [ ] **Optional dependencies:** Import may fail (feature not installed)
 - [ ] **Tree-shaking:** Large library where only specific exports are needed
@@ -318,6 +323,39 @@ Watch for these patterns that indicate deeper issues:
 - **Slow tests:** Tests taking > 1 second (should be unit tests)
 - **Mystery guest:** Test relies on external data not visible in test
 - **Happy path only:** No error condition tests
+
+### 🚩 Comment & Docstring Bloat (critical — recent recurring issue)
+
+Verbose commentary costs context budget every time an agent reads the file and
+buries the actual logic. The rule: if the prose is longer than the code it
+documents, you're probably writing it wrong. Watch for:
+
+- **Multi-paragraph function docstrings** for a 10-line function. A single
+  summary sentence is almost always enough; add a short `Why:` only when the
+  behavior is genuinely non-obvious.
+- **Narrating the diff:** "Previously this only checked tokei...", "The pre-fix
+  behavior would have...", "This is the Phase-2 fix for Bug C." The code is
+  what it *is now* — the reader has `git blame` for history.
+- **Bug-ticket names in source:** "the V4 scenario", "Bug C reproducer",
+  "the original issue". These are meaningless six months later and leak
+  private tracker vocabulary into the repo.
+- **Tutorial-style docstrings on test methods:** Test names should already say
+  what's being tested. A docstring that re-states the assertion in English is
+  pure overhead.
+- **Line-number references to other files** (especially third-party ones):
+  "mirrors nodeenv.main() at lines ~1116-1133". Guaranteed to be wrong on the
+  next upstream bump.
+- **Docstrings restating the type hints:** "``repo: GitHub owner/repo string``"
+  when the parameter is already `repo: str`.
+- **Duplicated module-level preamble explaining the package layout** in every
+  submodule. Put it once in the package `__init__.py` (or a design doc) — not
+  re-pasted into each file.
+- **"Defensive" explanations of single-line obvious code.** `if not path: return None`
+  does not need three sentences explaining what None means.
+
+The goal isn't zero comments — it's comments that *earn their line count*.
+When in doubt: delete the prose, keep the code, and if a reviewer is confused
+they'll ask. Then you know which sentence was actually load-bearing.
 
 ---
 

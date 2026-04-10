@@ -1,23 +1,9 @@
-"""Install-state tracking: manifest, fingerprints, locks, and config resolution.
-
-This module is the "what's installed and is it still current?" layer.  It
-owns:
-
-    * The install manifest file at ``<servers_dir>/installed.json`` and the
-      fingerprint functions that decide whether a reinstall is needed.
-    * The cross-process file lock that protects concurrent installs from
-      stomping on each other.
-    * The LSP/tool config builder that walks ``<servers_dir>/`` and produces
-      a fully-resolved command dict for each language server.
-
-It sits between ``paths`` (where things live on disk) and ``installers``
-(what to do when the manifest says we need to reinstall), so it only
-imports from ``paths`` and from the package root (for registry data).
-"""
+"""Install-state tracking: manifest, fingerprints, locks, and config resolution."""
 
 import importlib.metadata
 import json
 import logging
+import os
 import platform
 import shutil
 import sys
@@ -34,6 +20,13 @@ else:
 from vscode_constants import VSCODE_CONFIG, find_runnable
 
 from .paths import exe_suffix, get_servers_dir, platform_bin_dir, preferred_node_path
+from .registry import (
+    PINNED_NODE_VERSION,
+    TOOL_REGISTRY,
+    GitHubToolSource,
+    ToolKind,
+    UpstreamToolSource,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -65,12 +58,6 @@ def npm_specs_fingerprint() -> str:
     Changes whenever an npm version pin in TOOL_REGISTRY is updated,
     causing ``needs_install()`` to trigger a reinstall.
     """
-    # Local import to avoid a circular dependency: manifest is imported by
-    # ``tool_registry/__init__.py`` at the bottom, which means at module
-    # load time the ``TOOL_REGISTRY`` attribute of the package is already
-    # set.  We resolve it lazily so the import order stays correct.
-    from . import TOOL_REGISTRY, ToolKind
-
     specs: list[str] = []
     for dep in TOOL_REGISTRY:
         if dep.kind is ToolKind.NODE:
@@ -86,8 +73,6 @@ def tools_fingerprint() -> str:
     ``PINNED_NODE_VERSION`` so bumping the embedded Node.js runtime invalidates
     any previously-written manifest and forces the bootstrap to re-run.
     """
-    from . import PINNED_NODE_VERSION, TOOL_REGISTRY, GitHubToolSource, UpstreamToolSource
-
     parts: list[str] = [f"node:{PINNED_NODE_VERSION}"]
     for dep in TOOL_REGISTRY:
         if dep.source:
@@ -99,18 +84,28 @@ def tools_fingerprint() -> str:
 
 
 def write_manifest() -> None:
-    p = manifest_path()
-    p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(
-        json.dumps(
-            {
-                "version": installed_version(),
-                "npm_specs": npm_specs_fingerprint(),
-                "tools": tools_fingerprint(),
-            },
-            indent=2,
-        )
+    """Atomically persist the install manifest via tmp-file + ``os.replace``.
+
+    ``flush + fsync`` before the rename guarantees the bytes hit disk before
+    the rename becomes visible — without it, a post-rename crash can leave
+    the manifest pointing at a file whose contents are only in page cache.
+    """
+    target = manifest_path()
+    target.parent.mkdir(parents=True, exist_ok=True)
+    payload = json.dumps(
+        {
+            "version": installed_version(),
+            "npm_specs": npm_specs_fingerprint(),
+            "tools": tools_fingerprint(),
+        },
+        indent=2,
     )
+    tmp = target.with_name(target.name + ".tmp")
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write(payload)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp, target)
 
 
 def needs_install() -> bool:
@@ -131,15 +126,11 @@ def needs_install() -> bool:
 def acquire_lock(lock_fd: Any) -> None:
     """Acquire an exclusive file lock, logging if we have to wait.
 
-    Public across the install layer: ``install.py`` calls this from both
-    ``ensure_tools`` and ``main()`` to protect the ``~/.codeboarding/servers/``
-    directory from concurrent writers.  The name does not have an underscore
-    prefix because it is part of the cross-module contract with install.py,
-    not an implementation detail of this module.
+    Used by install.py to protect ``~/.codeboarding/servers/`` from
+    concurrent writers. Blocks indefinitely — tool downloads are slow.
     """
     if sys.platform == "win32":
-        # msvcrt.LK_LOCK only retries for ~10 s which is too short for tool
-        # downloads.  Poll with LK_NBLCK every 2 s instead — no hard timeout.
+        # msvcrt.LK_LOCK only retries for ~10s; poll LK_NBLCK every 2s instead.
         try:
             msvcrt.locking(lock_fd.fileno(), msvcrt.LK_NBLCK, 1)
         except OSError:
@@ -153,7 +144,6 @@ def acquire_lock(lock_fd: Any) -> None:
                 except OSError:
                     continue
     else:
-        # fcntl.LOCK_EX blocks indefinitely — exactly what we want.
         try:
             fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
@@ -166,17 +156,15 @@ def acquire_lock(lock_fd: Any) -> None:
 
 
 def build_config() -> dict[str, Any]:
-    """Build the tool config dict from ~/.codeboarding/servers/, falling back to system PATH.
+    """Resolve tool config from ~/.codeboarding/servers/, falling back to system PATH.
 
-    The returned dict has the same shape as VSCODE_CONFIG ("lsp_servers" + "tools")
-    with command paths resolved to absolute paths wherever binaries are found.
+    Returns a VSCODE_CONFIG-shaped dict with command paths made absolute.
     """
     servers = get_servers_dir()
     config = resolve_config(servers)
     path_config = resolve_config_from_path()
-    # For any entry still pointing to a bare name (not found in servers dir), try system PATH.
-    # Skip entries where resolve_config() already resolved the tool (e.g. on Windows, Node tools
-    # use [node, /absolute/path/to/entry.mjs, ...] — cmd[0] is "node" but cmd[1] is absolute).
+    # Fall back to PATH only if no command entry is absolute. Windows Node
+    # tools look like [node, /abs/entry.mjs, ...] — cmd[1] being absolute counts.
     for section in ("lsp_servers", "tools"):
         for key, entry in config[section].items():
             cmd = entry.get("command", [])
@@ -196,8 +184,6 @@ def resolve_config(base_dir: Path) -> dict[str, Any]:
     The returned dict has the same shape as VSCODE_CONFIG ("lsp_servers" + "tools")
     with command paths resolved to absolute paths under base_dir.
     """
-    from . import TOOL_REGISTRY, ToolKind
-
     config = deepcopy(VSCODE_CONFIG)
     bin_dir = platform_bin_dir(base_dir)
     native_ext = exe_suffix()
@@ -215,11 +201,11 @@ def resolve_config(base_dir: Path) -> dict[str, Any]:
             if binary_path.exists():
                 cmd = cast(list[str], config[dep.config_section][dep.key]["command"])
                 if dep.js_entry_file:
+                    # Prefer [node, <abs/entry.mjs>] so frozen wrapper binaries
+                    # can use their embedded Node runtime.
                     js_entry = find_runnable(str(base_dir), dep.js_entry_file, dep.js_entry_parent or dep.binary_name)
                     node_path = preferred_node_path(base_dir)
                     if js_entry and node_path:
-                        # Run the JS entry file with an explicit Node.js path so frozen
-                        # wrapper binaries can use their bundled/embedded Node runtime too.
                         cmd[0] = js_entry
                         cmd.insert(0, node_path)
                     else:
@@ -237,8 +223,6 @@ def resolve_config(base_dir: Path) -> dict[str, Any]:
 
 def resolve_config_from_path() -> dict[str, Any]:
     """Discover tools on the system PATH and return a config dict."""
-    from . import TOOL_REGISTRY, ToolKind
-
     config = deepcopy(VSCODE_CONFIG)
 
     for dep in TOOL_REGISTRY:
@@ -248,10 +232,8 @@ def resolve_config_from_path() -> dict[str, Any]:
         if path:
             cmd = cast(list[str], config[dep.config_section][dep.key]["command"])
             if platform.system() == "Windows" and dep.kind is ToolKind.NODE and dep.js_entry_file:
-                # On Windows, bypass .cmd wrappers found on PATH — same rationale
-                # as resolve_config(): .cmd wrappers cause pipe buffering issues.
-                # Walk up from the resolved binary to find the JS entry point.
-                bin_dir = str(Path(path).parent.parent)  # .../node_modules/.bin -> .../node_modules/..
+                # Bypass .cmd wrappers on Windows — they cause pipe buffering issues.
+                bin_dir = str(Path(path).parent.parent)  # .bin -> node_modules/..
                 js_entry = find_runnable(bin_dir, dep.js_entry_file, dep.js_entry_parent or dep.binary_name)
                 node = preferred_node_path(get_servers_dir())
                 if js_entry and node:
@@ -266,9 +248,46 @@ def resolve_config_from_path() -> dict[str, Any]:
 
 
 def has_required_tools(base_dir: Path) -> bool:
-    """Check if the minimum required tools (tokei) are installed."""
+    """Return True when every ``TOOL_REGISTRY`` artifact is present on disk.
+
+    Validation rules are kept in sync with ``resolve_config``:
+    NATIVE -> ``platform_bin_dir/<binary><exe>`` exists;
+    NODE -> ``find_runnable`` locates ``js_entry_file`` (``.bin/`` wrapper is
+    skipped because Windows AV strips it first, and the resolver bypasses it too);
+    ARCHIVE -> ``bin/<archive_subdir>/plugins/`` exists.
+    """
     if not base_dir.exists():
         return False
-    bin_dir = platform_bin_dir(base_dir)
-    tokei = bin_dir / f"tokei{exe_suffix()}"
-    return tokei.exists()
+
+    for dep in TOOL_REGISTRY:
+        if dep.kind is ToolKind.NATIVE:
+            binary_path = platform_bin_dir(base_dir) / f"{dep.binary_name}{exe_suffix()}"
+            if not binary_path.exists():
+                logger.info("has_required_tools: %s missing at %s", dep.key, binary_path)
+                return False
+
+        elif dep.kind is ToolKind.NODE:
+            # A dep without js_entry_file is unverifiable here — treat as present.
+            if not dep.js_entry_file:
+                continue
+            js_entry = find_runnable(str(base_dir), dep.js_entry_file, dep.js_entry_parent or dep.binary_name)
+            if not js_entry:
+                logger.info(
+                    "has_required_tools: %s JS entry %s not found under %s",
+                    dep.key,
+                    dep.js_entry_file,
+                    base_dir / "node_modules",
+                )
+                return False
+
+        elif dep.kind is ToolKind.ARCHIVE and dep.archive_subdir:
+            archive_dir = base_dir / "bin" / dep.archive_subdir
+            if not (archive_dir.is_dir() and (archive_dir / "plugins").is_dir()):
+                logger.info(
+                    "has_required_tools: %s archive missing or incomplete at %s",
+                    dep.key,
+                    archive_dir,
+                )
+                return False
+
+    return True
