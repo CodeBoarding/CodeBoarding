@@ -80,22 +80,32 @@ class CallGraph:
         # ``container.agent-runner.src.index.funcA``), only the most specific
         # (longest) name is kept.  The shorter alias is recorded here so that
         # ``add_edge`` can transparently resolve references to dropped aliases.
-        self._location_index: dict[tuple[str, int, int, int, str], str] = {}
+        self._location_index: dict[tuple[str, int, int, int], str] = {}
         self._alias_to_canonical: dict[str, str] = {}
 
     def add_node(self, node: Node) -> None:
-        short_name = node.fully_qualified_name.rsplit(".", 1)[-1]
-        loc_key = (node.file_path, node.line_start, node.line_end, node.type.value, short_name)
+        loc_key = (node.file_path, node.line_start, node.line_end, node.type.value)
         existing_name = self._location_index.get(loc_key)
 
         if existing_name is not None:
             if len(node.fully_qualified_name) > len(existing_name):
-                # New name is more specific — promote it to canonical.
+                # New name is more specific — promote the existing node in-place
+                # so that Edge objects referencing it automatically see the new name.
+                canonical = node.fully_qualified_name
                 old_node = self.nodes.pop(existing_name)
-                node.methods_called_by_me = old_node.methods_called_by_me
-                self.nodes[node.fully_qualified_name] = node
-                self._location_index[loc_key] = node.fully_qualified_name
-                self._alias_to_canonical[existing_name] = node.fully_qualified_name
+                old_node.fully_qualified_name = canonical
+                self.nodes[canonical] = old_node
+                self._location_index[loc_key] = canonical
+                # Flatten alias chain: repoint any alias that targeted the old name
+                for alias, target in self._alias_to_canonical.items():
+                    if target == existing_name:
+                        self._alias_to_canonical[alias] = canonical
+                self._alias_to_canonical[existing_name] = canonical
+                # Rewrite _edge_set so dedup works under the new canonical name
+                self._edge_set = {
+                    (canonical if s == existing_name else s, canonical if d == existing_name else d)
+                    for s, d in self._edge_set
+                }
             else:
                 # Existing name is already the most specific — record alias.
                 self._alias_to_canonical[node.fully_qualified_name] = existing_name
@@ -104,6 +114,10 @@ class CallGraph:
         if node.fully_qualified_name not in self.nodes:
             self.nodes[node.fully_qualified_name] = node
             self._location_index[loc_key] = node.fully_qualified_name
+
+    def has_node(self, name: str) -> bool:
+        """Check if a name (or any of its aliases) maps to a node in the graph."""
+        return self._resolve_name(name) in self.nodes
 
     def _resolve_name(self, name: str) -> str:
         """Resolve a possibly-aliased name to the canonical name in the graph."""

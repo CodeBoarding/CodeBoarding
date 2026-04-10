@@ -306,7 +306,7 @@ class IncrementalAnalysisOrchestrator:
                     filtered_cg.add_node(node)
             for edge in merged_cg.edges:
                 src, dst = edge.get_source(), edge.get_destination()
-                if src in filtered_cg.nodes and dst in filtered_cg.nodes:
+                if filtered_cg.has_node(src) and filtered_cg.has_node(dst):
                     try:
                         filtered_cg.add_edge(src, dst)
                     except ValueError:
