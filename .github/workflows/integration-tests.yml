@@ -92,8 +92,54 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y php
 
+      - name: Mask system Node.js (force ensure_node_runtime path)
+        # ubuntu-latest runners ship Node.js pre-installed, which would let
+        # codeboarding-setup skip the Node-bootstrap code path entirely. We
+        # remove every known Node location so the next step has to exercise
+        # the real install.ensure_node_runtime() -> nodeenv download path.
+        # This is the only CI guarantee that a Node-less user environment
+        # actually works — without it, a regression would pass CI and only
+        # surface when a real user hit
+        #   FileNotFoundError: [Errno 2] No such file or directory: 'cli.mjs'
+        #
+        # If this step ever starts failing with "node still on PATH", a future
+        # runner image has added a new Node location. Extend the purge below.
+        # Do NOT "fix" it by deleting this step — that would silently
+        # invalidate the clean-environment test and let the original bug
+        # regress.
+        run: |
+          set -euo pipefail
+          sudo rm -f /usr/local/bin/node /usr/local/bin/npm /usr/local/bin/npx
+          sudo rm -rf /opt/hostedtoolcache/node
+          NEW_PATH=$(echo "$PATH" | tr ':' '\n' | grep -viE '(hostedtoolcache/node|/nvm/|/\.nvm/)' | paste -sd:)
+          echo "PATH=$NEW_PATH" >> "$GITHUB_ENV"
+          for var in $(env | grep -iE '^(npm_|NODE_)' | cut -d= -f1); do
+            echo "$var=" >> "$GITHUB_ENV"
+          done
+          export PATH="$NEW_PATH"
+          if command -v node >/dev/null 2>&1; then
+            echo "ERROR: node still on PATH at $(command -v node)" >&2
+            echo "A runner image update has added a new Node location." >&2
+            exit 1
+          fi
+          if command -v npm >/dev/null 2>&1; then
+            echo "ERROR: npm still on PATH at $(command -v npm)" >&2
+            exit 1
+          fi
+          echo "System Node.js successfully masked."
+
       - name: Setup LSP servers
         run: codeboarding-setup --auto-install-npm
+
+      - name: Verify embedded Node was installed
+        # Belt-and-braces: prove the previous step actually downloaded Node
+        # via nodeenv rather than silently skipping Node-dependent languages.
+        # If this step fails but the bootstrap looked successful, check the
+        # install.py logs for "Node.js bootstrap finished: success".
+        run: |
+          test -x ~/.codeboarding/servers/nodeenv/bin/node
+          ~/.codeboarding/servers/nodeenv/bin/node --version
+          ~/.codeboarding/servers/nodeenv/bin/npm --version
 
       - name: Run integration tests (${{ matrix.language }})
         run: pytest -m "integration and ${{ matrix.language }}_lang" -v -s --tb=long --log-cli-level=INFO
