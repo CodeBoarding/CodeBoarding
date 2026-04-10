@@ -324,7 +324,7 @@ class StaticAnalyzer:
             unique_paths: set[str] = set()
             for definitions in results:
                 for defn in definitions:
-                    uri = defn.get("uri", "")
+                    uri = defn.get("targetUri", defn.get("uri", ""))
                     if not uri.startswith("file://"):
                         continue
                     dep_path_obj = uri_to_path(uri)
