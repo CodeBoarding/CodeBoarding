@@ -14,6 +14,7 @@ from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_client import LSPClient
 from static_analyzer.engine.result_converter import convert_to_codeboarding_format
 from static_analyzer.engine.source_inspector import SourceInspector
+from static_analyzer.engine.utils import uri_to_path
 from static_analyzer.git_diff_analyzer import GitDiffAnalyzer
 from static_analyzer.graph import CallGraph
 from static_analyzer.incremental_orchestrator import IncrementalAnalysisOrchestrator
