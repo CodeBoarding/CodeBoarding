@@ -12,12 +12,14 @@ from pathlib import Path
 
 import requests
 from tool_registry import (
+    PINNED_NODE_VERSION,
     TOOL_REGISTRY,
     ProgressCallback,
     ToolKind,
     _acquire_lock,
     get_servers_dir,
     install_archive_tool,
+    install_embedded_node,
     install_native_tools,
     install_node_tools,
     needs_install,
@@ -148,6 +150,79 @@ def is_non_interactive_mode() -> bool:
     (where stdin reports as a TTY but is not actually connected to a user).
     """
     return bool(os.getenv("CI")) or not sys.stdin.isatty() or getattr(sys, "frozen", False)
+
+
+def ensure_node_runtime(
+    target_dir: Path | None = None,
+    auto_install_npm: bool = False,
+) -> bool:
+    """Guarantee a Node.js runtime is available for launching JS-based LSPs.
+
+    Resolution order (matches ``tool_registry.preferred_node_path``):
+        1. ``CODEBOARDING_NODE_PATH`` environment variable.
+        2. ``<target_dir>/nodeenv/bin/node`` from a prior bootstrap.
+        3. ``node`` on the system PATH.
+
+    If none of those resolve, downloads a pinned Node.js prebuilt distribution
+    into ``<target_dir>/nodeenv/`` via ``install_embedded_node()`` — which in
+    turn uses the ``nodeenv`` Python package in prebuilt mode, called in-process
+    so the flow works inside the PyInstaller-frozen wrapper binary.
+
+    Idempotent and cheap when Node is already present (one ``os.path.exists``
+    per candidate), so it is safe to call unconditionally on every install pass.
+    That's important: if the user deletes only ``~/.codeboarding/servers/nodeenv/``,
+    ``needs_install()`` would otherwise return False (tokei and the manifest are
+    still in place) and ``run_install()`` would skip the re-download entirely.
+    Hooking this into ``ensure_tools()`` above the ``needs_install()`` short-circuit
+    means a deleted embedded Node is always repaired.
+
+    In non-interactive mode (CI, piped stdin, frozen wrapper) any failure is
+    logged and this returns False — the same graceful-degradation contract as
+    ``resolve_missing_npm``.  In interactive mode with ``auto_install_npm=False``
+    the user is prompted before the download begins.
+
+    Returns True when a usable Node runtime is present after the call,
+    False when Node could not be acquired.
+    """
+    target = (target_dir or get_servers_dir()).resolve()
+
+    if preferred_node_path(target):
+        return True
+
+    print("Step: Node.js runtime required for TypeScript/JavaScript/PHP/Python language servers")
+
+    if not auto_install_npm and not is_non_interactive_mode():
+        try:
+            choice = (
+                input(
+                    f"Node.js is missing. Download a pinned runtime (v{PINNED_NODE_VERSION}) "
+                    "into ~/.codeboarding/servers/nodeenv/ now? [y/N]: "
+                )
+                .strip()
+                .lower()
+            )
+        except EOFError:
+            choice = "y"
+
+        if choice not in {"y", "yes"}:
+            print(
+                "Warning: skipping Node.js bootstrap. Node-based language servers "
+                "(TypeScript, JavaScript, PHP, Pyright) will be unavailable."
+            )
+            return False
+
+    print(f"Step: Node.js bootstrap started (pinned version {PINNED_NODE_VERSION})")
+    target.mkdir(parents=True, exist_ok=True)
+    installed = install_embedded_node(target)
+
+    if not installed:
+        print("Warning: Node.js bootstrap failed. Node-based language servers will be unavailable.")
+        print("   Install Node.js manually from https://nodejs.org/en/download and retry,")
+        print("   or set CODEBOARDING_NODE_PATH to an existing Node.js binary.")
+        return False
+
+    print("Step: Node.js bootstrap finished: success")
+    return True
 
 
 def resolve_missing_npm(auto_install_npm: bool = False, target_dir: Path | None = None) -> bool:
@@ -552,6 +627,16 @@ def ensure_tools(
     with open(lock_path, "w") as lock_fd:
         _acquire_lock(lock_fd)
 
+        # Run the Node bootstrap *before* the needs_install() short-circuit.
+        # If a user deletes only ~/.codeboarding/servers/nodeenv/, tokei and
+        # the fingerprint manifest are still present so needs_install() returns
+        # False and run_install() is skipped — without this unconditional call,
+        # the embedded Node runtime would never be repaired.  The function is
+        # idempotent and fast when Node already resolves via CODEBOARDING_NODE_PATH,
+        # an existing embedded nodeenv, or system PATH, so the hot-path cost is
+        # one os.path.exists call.
+        ensure_node_runtime(target_dir=servers_dir, auto_install_npm=auto_install_npm)
+
         if not needs_install():
             return
 
@@ -582,6 +667,13 @@ def run_install(
     target.mkdir(parents=True, exist_ok=True)
 
     ensure_config_template()
+
+    # Make sure a Node.js runtime exists before anything tries to use npm.
+    # Idempotent and cheap when Node already resolves via CODEBOARDING_NODE_PATH,
+    # an existing embedded nodeenv, or system PATH.  Covers the CLI entry point
+    # (codeboarding-setup -> main() -> run_install), which does not go through
+    # ensure_tools() and would otherwise skip the Node bootstrap.
+    ensure_node_runtime(target_dir=target, auto_install_npm=auto_install_npm)
 
     # Compute a unified total so the caller sees a single progress stream.
     native_count = sum(1 for d in TOOL_REGISTRY if d.kind is ToolKind.NATIVE and d.source)

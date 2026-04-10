@@ -51,6 +51,12 @@ JDTLS_URL_TEMPLATE = (
     "https://download.eclipse.org/jdtls/milestones/{version}/jdt-language-server-{version}-{build}.tar.gz"
 )
 
+# Pinned Node.js runtime used when the user has no system Node. Downloaded on
+# first run into ``<servers_dir>/nodeenv/`` via the ``nodeenv`` Python package
+# (see install_embedded_node()).  Bump deliberately — a version change is
+# folded into _tools_fingerprint() and triggers a full reinstall.
+PINNED_NODE_VERSION = "20.18.1"
+
 _PLATFORM_SUFFIX = {
     "Darwin": "macos",
     "Windows": "windows.exe",
@@ -348,9 +354,11 @@ def _tools_fingerprint() -> str:
     """Deterministic fingerprint of all pinned tool sources.
 
     Changes whenever a tool version or source in TOOL_REGISTRY is updated,
-    causing ``needs_install()`` to trigger a reinstall.
+    causing ``needs_install()`` to trigger a reinstall.  Also incorporates
+    ``PINNED_NODE_VERSION`` so bumping the embedded Node.js runtime invalidates
+    any previously-written manifest and forces the bootstrap to re-run.
     """
-    parts: list[str] = []
+    parts: list[str] = [f"node:{PINNED_NODE_VERSION}"]
     for dep in TOOL_REGISTRY:
         if dep.source:
             if isinstance(dep.source, GitHubToolSource):
@@ -644,6 +652,176 @@ def install_native_tools(
         except Exception:
             logger.exception("  %s: download failed", dep.binary_name)
             binary_path.unlink(missing_ok=True)
+
+
+# Sentinel file written next to the nodeenv install after a successful bootstrap.
+# Contains PINNED_NODE_VERSION. Used on subsequent runs to decide whether an
+# existing install is (a) complete and (b) the version we currently pin.
+# If missing or mismatched, install_embedded_node() wipes and reinstalls.
+_NODEENV_VERSION_STAMP = ".codeboarding-node-version"
+
+
+def _embedded_node_is_healthy(base_dir: Path) -> bool:
+    """Return True only if the embedded Node binary looks genuinely usable.
+
+    Stricter than ``embedded_node_path()`` (which just calls ``exists()``).
+    Catches three real partial-install failure modes that the plain existence
+    check would accept:
+
+        1. Zero-byte ``node`` file — disk full mid-extract, or truncated write.
+        2. Non-executable ``node`` on Unix — ``chmod +x`` step failed.
+        3. Missing sentinel — a prior install crashed after creating the binary
+           but before stamping the version, so we can't trust it's the pin.
+
+    Kept separate from ``embedded_node_path()`` so the rest of the codebase
+    (LSP command resolution, ``has_required_tools``) keeps its simpler
+    "does the path exist" semantics — we only need the stricter check to
+    decide whether ``install_embedded_node`` should reinstall.
+    """
+    node_path_str = embedded_node_path(base_dir)
+    if not node_path_str:
+        return False
+
+    node_path = Path(node_path_str)
+    try:
+        if node_path.stat().st_size == 0:
+            return False
+    except OSError:
+        return False
+
+    # On Unix, the binary must be executable. Windows doesn't use the
+    # executable bit — the .exe suffix is what matters and that's already
+    # baked into embedded_node_path().
+    if platform.system() != "Windows" and not os.access(node_path, os.X_OK):
+        return False
+
+    stamp = nodeenv_root_dir(base_dir) / _NODEENV_VERSION_STAMP
+    try:
+        return stamp.read_text().strip() == PINNED_NODE_VERSION
+    except OSError:
+        return False
+
+
+def install_embedded_node(
+    base_dir: Path,
+    on_progress: ProgressCallback | None = None,
+) -> bool:
+    """Download a pinned Node.js runtime into ``<base_dir>/nodeenv/``.
+
+    Used when the user has no system Node.js and has not set
+    ``CODEBOARDING_NODE_PATH``.  Calls ``nodeenv.create_environment()``
+    in-process — **not** via ``python -m nodeenv`` — so this also works
+    inside the PyInstaller-frozen wrapper binary, where ``sys.executable``
+    points at the frozen binary rather than a Python interpreter.
+
+    Always runs in prebuilt mode so the source-build path (which would
+    shell out to ``python2`` and a C compiler) is never reached.
+
+    Idempotent and recovery-aware: returns ``True`` immediately when an
+    existing install is healthy (non-empty executable binary + matching
+    version stamp).  When an install directory exists but is *unhealthy*
+    (partial download from a previous interrupted run, zero-byte binary,
+    or an older pinned version) the stale directory is wiped and reinstalled.
+    This matters because ``nodeenv.create_environment()`` hard-exits with
+    ``SystemExit(2)`` when its target directory already exists — that
+    ``SystemExit`` would bypass any ``except Exception`` and kill the whole
+    process, including a PyInstaller-frozen wrapper.
+
+    Returns ``True`` when the runtime is available after the call,
+    ``False`` on failure (which callers surface as "Node-based language
+    servers will be unavailable" rather than a hard error).
+    """
+    if _embedded_node_is_healthy(base_dir):
+        return True
+
+    env_dir = nodeenv_root_dir(base_dir)
+
+    # Wipe any partial/stale state before calling create_environment() —
+    # it hard-exits (sys.exit(2)) on a pre-existing directory, which is
+    # not catchable by ``except Exception``.
+    if env_dir.exists():
+        logger.info("Removing stale/partial embedded Node.js install at %s", env_dir)
+        try:
+            shutil.rmtree(env_dir)
+        except OSError:
+            logger.exception("Failed to remove stale embedded Node.js directory; cannot recover")
+            return False
+
+    try:
+        import nodeenv  # local import keeps cold-path imports out of the hot path
+    except ImportError:
+        logger.exception("nodeenv package is not available; cannot bootstrap Node.js runtime")
+        return False
+
+    if on_progress:
+        on_progress(f"node-{PINNED_NODE_VERSION}", 1, 1)
+
+    env_dir.parent.mkdir(parents=True, exist_ok=True)
+
+    try:
+        # Build the argparse Namespace directly from nodeenv's own parser.
+        # We deliberately bypass ``nodeenv.parse_args()`` because that helper
+        # reads ``sys.argv`` rather than accepting an argv list — which would
+        # crash under pytest (args like ``--no-header`` leak in) and is also
+        # unsafe inside the PyInstaller-frozen wrapper where ``sys.argv`` is
+        # the wrapper's own CLI.  ``make_parser()`` gives us the raw parser;
+        # calling ``.parse_args(list)`` on it returns a Namespace without
+        # touching global state.
+        parser = nodeenv.make_parser()
+        args = parser.parse_args(
+            [
+                "--prebuilt",
+                "--node",
+                PINNED_NODE_VERSION,
+                str(env_dir),
+            ]
+        )
+        # nodeenv.parse_args() normally post-processes ``config_file``: when
+        # None, it probes ./tox.ini, ./setup.cfg, and ~/.nodeenvrc.  Those
+        # paths are meaningless in our install directory and actively harmful
+        # in a frozen binary without a real HOME, so we skip config entirely.
+        args.config_file = []
+        # Defensive: these flags are already set by parse_args() from the
+        # argv list above, but if a future nodeenv release changes the
+        # default we want the source-build path to stay unreachable — it
+        # would try to invoke python2 and a C compiler, neither of which we
+        # can rely on inside the frozen wrapper.
+        args.prebuilt = True
+        nodeenv.create_environment(str(env_dir), args)
+    except SystemExit:
+        # create_environment() calls sys.exit(2) when env_dir already exists.
+        # We wipe env_dir above so this *should* be unreachable, but if
+        # something races us into that state (concurrent install without
+        # the file lock), catching SystemExit keeps the wrapper process alive
+        # instead of dying with an uncatchable exit.
+        logger.exception("nodeenv.create_environment() called sys.exit — unexpected pre-existing state")
+        return False
+    except Exception:
+        logger.exception("Failed to install embedded Node.js runtime via nodeenv")
+        return False
+
+    # Verify the install actually produced a usable binary before stamping.
+    # If nodeenv reported success but the binary is missing/empty, we do
+    # *not* write the sentinel — so the next run will detect the broken
+    # state and retry rather than trusting it.
+    node_path_str = embedded_node_path(base_dir)
+    if not node_path_str or Path(node_path_str).stat().st_size == 0:
+        logger.error("nodeenv.create_environment() completed but node binary is missing or empty")
+        return False
+
+    # Stamp the version last so the sentinel only exists when the install
+    # is actually healthy. Written atomically via a temp-file swap to avoid
+    # leaving a partial sentinel if we're interrupted during the write.
+    stamp = env_dir / _NODEENV_VERSION_STAMP
+    tmp_stamp = env_dir / f"{_NODEENV_VERSION_STAMP}.tmp"
+    try:
+        tmp_stamp.write_text(PINNED_NODE_VERSION)
+        os.replace(tmp_stamp, stamp)
+    except OSError:
+        logger.exception("Failed to write Node.js version stamp; next run will reinstall")
+        return False
+
+    return True
 
 
 def install_node_tools(

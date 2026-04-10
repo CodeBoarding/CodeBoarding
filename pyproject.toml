@@ -43,6 +43,7 @@ dependencies = [
     "markdown-it-py>=3.0",
     "markitdown>=0.1",
     "networkx>=3.4",
+    "nodeenv>=1.10.0",
     "pathspec>=0.12",
     "pyyaml>=6.0",
     "regex>=2024.11",

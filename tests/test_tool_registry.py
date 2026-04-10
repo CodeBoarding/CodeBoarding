@@ -7,6 +7,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from tool_registry import (
+    PINNED_NODE_VERSION,
     TOOL_REGISTRY,
     TOOLS_REPO,
     TOOLS_TAG,
@@ -14,14 +15,53 @@ from tool_registry import (
     ToolKind,
     UpstreamToolSource,
     _asset_url,
+    _embedded_node_is_healthy,
+    _NODEENV_VERSION_STAMP,
     _npm_specs_fingerprint,
     _tools_fingerprint,
     download_asset,
+    install_embedded_node,
     install_node_tools,
     needs_install,
     resolve_config,
     write_manifest,
 )
+
+
+def _write_healthy_embedded_node(base_dir: Path, version: str = PINNED_NODE_VERSION) -> Path:
+    """Populate ``base_dir/nodeenv/`` as a fully-healthy embedded Node install.
+
+    Produces the exact layout that ``_embedded_node_is_healthy()`` accepts:
+    a non-empty, executable ``bin/node`` plus a version sentinel matching
+    ``version``.  Returns the path to the fake node binary.
+    """
+    nodeenv_bin = base_dir / "nodeenv" / "bin"
+    nodeenv_bin.mkdir(parents=True, exist_ok=True)
+    node_path = nodeenv_bin / "node"
+    node_path.write_text("#!/bin/sh\necho fake node\n")
+    node_path.chmod(0o755)
+    (base_dir / "nodeenv" / _NODEENV_VERSION_STAMP).write_text(version)
+    return node_path
+
+
+def _make_successful_install_side_effect():
+    """Return a fake ``nodeenv.create_environment`` side effect.
+
+    The side effect simulates a successful install by dropping a non-empty,
+    executable stub ``bin/node`` where ``embedded_node_path()`` will find it.
+    It deliberately does NOT write the version sentinel — that's
+    ``install_embedded_node``'s responsibility, and the tests verify that
+    the sentinel is only written after a successful install.
+    """
+
+    def _side_effect(env_dir: str, _args):
+        bin_dir = Path(env_dir) / "bin"
+        bin_dir.mkdir(parents=True, exist_ok=True)
+        node_path = bin_dir / "node"
+        node_path.write_text("#!/bin/sh\necho fake node\n")
+        node_path.chmod(0o755)
+
+    return _side_effect
 
 
 class TestToolRegistry(unittest.TestCase):
@@ -105,6 +145,216 @@ class TestToolRegistry(unittest.TestCase):
             first_command = mock_run.call_args_list[0].args[0]
             self.assertEqual(first_command[0], "/vscode/node")
             self.assertEqual(first_command[1], str(npm_cli))
+
+
+class TestInstallEmbeddedNode(unittest.TestCase):
+    """Covers the Node.js bootstrap path used when the user has no system Node.
+
+    The suite locks in four guarantees that matter for the PyInstaller-frozen
+    wrapper:
+
+    1. **Idempotency** when a healthy install is already present — avoids
+       re-downloads on every install pass.
+    2. **In-process nodeenv call** with ``prebuilt=True`` — keeps the
+       source-build path (python2, C compiler) unreachable from a frozen binary.
+    3. **Partial-install recovery** — a stale ``nodeenv/`` directory from a
+       previously interrupted run must be wiped and rebuilt, because
+       ``nodeenv.create_environment()`` calls ``sys.exit(2)`` (uncatchable via
+       ``except Exception``) when its target directory already exists.
+    4. **Version upgrade** — bumping ``PINNED_NODE_VERSION`` must replace an
+       older embedded install rather than silently keep using the old one.
+    """
+
+    @patch("platform.system", return_value="Linux")
+    def test_idempotent_when_healthy_install_present(self, mock_system):
+        """Healthy pre-populated install: non-empty executable node + sentinel."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            base_dir = Path(temp_dir)
+            _write_healthy_embedded_node(base_dir)
+
+            # If install_embedded_node ever reaches nodeenv.create_environment,
+            # this mock records the call. Patch the import target, not
+            # tool_registry, because the import is local inside the function.
+            with patch("nodeenv.create_environment") as mock_create:
+                result = install_embedded_node(base_dir)
+
+            self.assertTrue(result)
+            mock_create.assert_not_called()
+
+    @patch("platform.system", return_value="Linux")
+    def test_fresh_install_calls_create_environment_in_process(self, mock_system):
+        """Empty base dir triggers nodeenv.create_environment with prebuilt=True."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            base_dir = Path(temp_dir)
+
+            with patch(
+                "nodeenv.create_environment",
+                side_effect=_make_successful_install_side_effect(),
+            ) as mock_create:
+                result = install_embedded_node(base_dir)
+
+            self.assertTrue(result)
+            mock_create.assert_called_once()
+
+            call_args = mock_create.call_args
+            env_dir_arg = call_args.args[0]
+            self.assertTrue(env_dir_arg.endswith("nodeenv") or "nodeenv" in env_dir_arg)
+
+            # The two invariants that matter for frozen-binary correctness:
+            #   - prebuilt=True   -> source-build path (python2, make) never hit
+            #   - node == pin     -> reproducible, matches what we claim to ship
+            args_arg = call_args.args[1]
+            self.assertTrue(getattr(args_arg, "prebuilt", False))
+            self.assertEqual(getattr(args_arg, "node", None), PINNED_NODE_VERSION)
+
+            # A successful install must leave the version sentinel behind so
+            # subsequent runs can short-circuit.
+            sentinel = base_dir / "nodeenv" / _NODEENV_VERSION_STAMP
+            self.assertTrue(sentinel.exists())
+            self.assertEqual(sentinel.read_text().strip(), PINNED_NODE_VERSION)
+
+    @patch("platform.system", return_value="Linux")
+    def test_recovers_from_partial_install_without_sys_exit(self, mock_system):
+        """Interrupted previous run left an incomplete ``nodeenv/`` dir behind.
+
+        This is the scenario that motivated the partial-install fix: the
+        laptop slept or the user Ctrl-C'd during the previous download, so
+        ``nodeenv/`` exists but ``nodeenv/bin/node`` does not.  Without the
+        wipe step, ``nodeenv.create_environment()`` would call ``sys.exit(2)``
+        — uncatchable via ``except Exception`` — and take down the wrapper.
+        """
+        with tempfile.TemporaryDirectory() as temp_dir:
+            base_dir = Path(temp_dir)
+            # Simulate a partial install: env dir exists, but no node binary
+            # and no version sentinel.
+            (base_dir / "nodeenv" / "src").mkdir(parents=True)
+            (base_dir / "nodeenv" / "src" / "half-downloaded.tar.gz").write_text("garbage")
+
+            with patch(
+                "nodeenv.create_environment",
+                side_effect=_make_successful_install_side_effect(),
+            ) as mock_create:
+                result = install_embedded_node(base_dir)
+
+            self.assertTrue(result)
+            mock_create.assert_called_once()
+            # The stale partial content must be gone — if it survived, nodeenv
+            # would have raised SystemExit before our side_effect ran.
+            self.assertFalse((base_dir / "nodeenv" / "src" / "half-downloaded.tar.gz").exists())
+            # And the sentinel is now in place.
+            self.assertTrue((base_dir / "nodeenv" / _NODEENV_VERSION_STAMP).exists())
+
+    @patch("platform.system", return_value="Linux")
+    def test_does_not_die_on_create_environment_system_exit(self, mock_system):
+        """Defense-in-depth: if create_environment still raises SystemExit for
+        any reason (race with a concurrent install, unexpected nodeenv change)
+        we must return False, not propagate the hard exit.
+        """
+        with tempfile.TemporaryDirectory() as temp_dir:
+            base_dir = Path(temp_dir)
+
+            with patch("nodeenv.create_environment", side_effect=SystemExit(2)):
+                # Must not propagate SystemExit.
+                try:
+                    result = install_embedded_node(base_dir)
+                except SystemExit:
+                    self.fail("install_embedded_node must catch SystemExit from nodeenv")
+
+            self.assertFalse(result)
+
+    @patch("platform.system", return_value="Linux")
+    def test_upgrades_when_pinned_version_changes(self, mock_system):
+        """Existing install with an older version stamp must be wiped and reinstalled.
+
+        Without this, bumping ``PINNED_NODE_VERSION`` in tool_registry would
+        change the manifest fingerprint (triggering ``needs_install()``) but
+        never actually replace the embedded binary, because the idempotent
+        short-circuit in ``install_embedded_node`` would still see a plain
+        ``nodeenv/bin/node`` and return True.
+        """
+        with tempfile.TemporaryDirectory() as temp_dir:
+            base_dir = Path(temp_dir)
+            # Pretend an older version is installed — note the sentinel value.
+            old_node = _write_healthy_embedded_node(base_dir, version="18.0.0")
+            self.assertTrue(old_node.exists())
+
+            with patch(
+                "nodeenv.create_environment",
+                side_effect=_make_successful_install_side_effect(),
+            ) as mock_create:
+                result = install_embedded_node(base_dir)
+
+            self.assertTrue(result)
+            mock_create.assert_called_once()
+            # Sentinel now matches the current pin.
+            sentinel = base_dir / "nodeenv" / _NODEENV_VERSION_STAMP
+            self.assertEqual(sentinel.read_text().strip(), PINNED_NODE_VERSION)
+
+    @patch("platform.system", return_value="Linux")
+    def test_rejects_zero_byte_node_binary(self, mock_system):
+        """A zero-byte ``bin/node`` — e.g. disk filled mid-extract — must be
+        treated as unhealthy so the next run wipes and retries."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            base_dir = Path(temp_dir)
+            bin_dir = base_dir / "nodeenv" / "bin"
+            bin_dir.mkdir(parents=True)
+            (bin_dir / "node").write_text("")  # zero bytes
+            (base_dir / "nodeenv" / _NODEENV_VERSION_STAMP).write_text(PINNED_NODE_VERSION)
+
+            self.assertFalse(_embedded_node_is_healthy(base_dir))
+
+            # install_embedded_node should therefore reinstall.
+            with patch(
+                "nodeenv.create_environment",
+                side_effect=_make_successful_install_side_effect(),
+            ) as mock_create:
+                result = install_embedded_node(base_dir)
+
+            self.assertTrue(result)
+            mock_create.assert_called_once()
+
+    @patch("platform.system", return_value="Linux")
+    def test_rejects_non_executable_node_binary(self, mock_system):
+        """A non-executable ``bin/node`` — chmod step failed on Unix — must be
+        treated as unhealthy so the next run wipes and retries."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            base_dir = Path(temp_dir)
+            _write_healthy_embedded_node(base_dir)
+            # Strip the exec bit.
+            (base_dir / "nodeenv" / "bin" / "node").chmod(0o644)
+
+            self.assertFalse(_embedded_node_is_healthy(base_dir))
+
+    @patch("platform.system", return_value="Linux")
+    def test_rejects_missing_version_sentinel(self, mock_system):
+        """A ``bin/node`` without the sentinel — previous run crashed after
+        dropping the binary but before stamping — must be treated as unhealthy."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            base_dir = Path(temp_dir)
+            _write_healthy_embedded_node(base_dir)
+            (base_dir / "nodeenv" / _NODEENV_VERSION_STAMP).unlink()
+
+            self.assertFalse(_embedded_node_is_healthy(base_dir))
+
+    @patch("platform.system", return_value="Linux")
+    def test_does_not_stamp_sentinel_when_install_produced_empty_binary(self, mock_system):
+        """If nodeenv claims success but leaves a zero-byte binary behind,
+        install_embedded_node must return False and NOT write the sentinel —
+        otherwise the broken install would be cached forever."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            base_dir = Path(temp_dir)
+
+            def broken_side_effect(env_dir: str, _args):
+                bin_dir = Path(env_dir) / "bin"
+                bin_dir.mkdir(parents=True, exist_ok=True)
+                (bin_dir / "node").write_text("")  # zero bytes
+
+            with patch("nodeenv.create_environment", side_effect=broken_side_effect):
+                result = install_embedded_node(base_dir)
+
+            self.assertFalse(result)
+            sentinel = base_dir / "nodeenv" / _NODEENV_VERSION_STAMP
+            self.assertFalse(sentinel.exists())
 
 
 class TestToolSource(unittest.TestCase):
