@@ -12,7 +12,12 @@
     "call_graph_nodes": 9097,
     "call_graph_edges": 12309,
     "source_files_count": 2035,
-    "execution_time_seconds": 253
+    "execution_time_seconds": 147,
+    "execution_time_seconds_by_os": {
+      "Linux": 147,
+      "Darwin": 192,
+      "Windows": 294
+    }
   },
   "sample_references": [
     "dev-docs.src.components.Homepage.index.Feature",

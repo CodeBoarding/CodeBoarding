@@ -41,37 +41,60 @@ on:
     - cron: '0 3 * * 0'  # Every Sunday at 3 AM UTC
 
 jobs:
-  # Resolve the workflow_dispatch language filter into a JSON list that
-  # the matrix job can contains()-check. On push / pull_request / schedule
-  # the filter is empty and the full language list is emitted.
+  # Emit the matrix.include list, event-driven:
+  #   schedule / workflow_dispatch → full 6 langs x 3 OSes (minus mac/go).
+  #   push / pull_request         → all 6 langs on Windows + java on Linux/mac.
+  # workflow_dispatch honors the optional ``language`` input to narrow
+  # the full matrix to a single language.
+  #
+  # mac/go is skipped: free macos-latest is 3 vCPU / 7 GB RAM, and gopls
+  # indexing prometheus blows past 25 min under that memory pressure.
   setup-matrix:
     runs-on: ubuntu-latest
     outputs:
-      languages: ${{ steps.set-languages.outputs.languages }}
+      matrix: ${{ steps.build.outputs.matrix }}
     steps:
-      - name: Set languages matrix
-        id: set-languages
+      - name: Build matrix
+        id: build
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          DISPATCH_LANG: ${{ github.event.inputs.language }}
         run: |
-          if [ "${{ github.event.inputs.language }}" = "" ] || [ "${{ github.event.inputs.language }}" = "null" ]; then
-            echo 'languages=["python", "java", "go", "typescript", "php", "javascript"]' >> $GITHUB_OUTPUT
-          else
-            echo "languages=[\"${{ github.event.inputs.language }}\"]" >> $GITHUB_OUTPUT
-          fi
+          python3 <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          import os
 
-  # Full language x OS matrix (18 jobs). Every language runs on every OS
-  # to exercise codeboarding-setup's Node bootstrap path on all three
-  # platforms. Per-OS steps uninstall the runner image's pre-installed
-  # Node using the same package manager that installed it (apt / brew /
-  # MSI), then let the bootstrap code download its pinned nodeenv runtime.
+          event = os.environ.get("EVENT_NAME", "")
+          dispatch_lang = os.environ.get("DISPATCH_LANG", "").strip()
+
+          all_langs = ["python", "java", "go", "typescript", "php", "javascript"]
+          all_os = ["ubuntu-latest", "macos-latest", "windows-latest"]
+          skip = {("macos-latest", "go")}  # see job-level note above
+
+          if event in ("schedule", "workflow_dispatch"):
+              langs = [dispatch_lang] if dispatch_lang else all_langs
+              include = [
+                  {"os": o, "language": lg}
+                  for o in all_os
+                  for lg in langs
+                  if (o, lg) not in skip
+              ]
+          else:
+              # push / pull_request smoke subset.
+              include = [{"os": "windows-latest", "language": lg} for lg in all_langs]
+              include.append({"os": "ubuntu-latest", "language": "java"})
+              include.append({"os": "macos-latest", "language": "java"})
+
+          print(f"matrix={json.dumps({'include': include})}")
+          PY
+
   integration-tests:
     needs: setup-matrix
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     strategy:
       fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-        language: [python, java, go, typescript, php, javascript]
+      matrix: ${{ fromJson(needs.setup-matrix.outputs.matrix) }}
 
     steps:
       - name: Checkout
@@ -235,7 +258,6 @@ jobs:
           & $nodeExe --version
 
       - name: Run integration tests (${{ matrix.language }})
-        if: contains(fromJson(needs.setup-matrix.outputs.languages), matrix.language)
         run: pytest -m "integration and ${{ matrix.language }}_lang" -v -s --tb=long --log-cli-level=INFO
 
       - name: Upload test artifacts

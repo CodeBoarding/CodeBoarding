@@ -27,6 +27,7 @@ Usage:
 """
 
 import json
+import platform
 import time
 from pathlib import Path
 
@@ -251,14 +252,17 @@ class TestStaticAnalysisConsistency:
             "execution_time_seconds",
         ]
 
+        current_os = platform.system()
         results = []
         for metric_name in metric_names:
             actual = actual_metrics[metric_name]
-            expected_val = expected_metrics[metric_name]
             if metric_name == "execution_time_seconds":
+                by_os = expected_metrics.get("execution_time_seconds_by_os", {})
+                expected_val = by_os.get(current_os, expected_metrics[metric_name])
                 tolerance = EXECUTION_TIME_TOLERANCE
                 min_absolute = MIN_EXECUTION_TIME_TOLERANCE
             else:
+                expected_val = expected_metrics[metric_name]
                 tolerance = METRIC_TOLERANCE
                 min_absolute = MIN_ABSOLUTE_TOLERANCE
             is_pass, diff_info = self._check_metric_within_tolerance(actual, expected_val, tolerance, min_absolute)

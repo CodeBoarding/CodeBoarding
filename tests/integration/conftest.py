@@ -8,8 +8,10 @@ This module provides:
 """
 
 import json
+import os
 import platform
 import shutil
+import stat
 import tempfile
 import time
 from dataclasses import dataclass
@@ -252,12 +254,24 @@ def temp_workspace() -> Generator[Path, None, None]:
         _robust_rmtree(tmp_dir)
 
 
+def _clear_readonly_and_retry(func, path, _exc):
+    """``rmtree`` onexc handler: clear the read-only bit and retry the op.
+
+    Git pack files are read-only on Windows and trip ``shutil.rmtree``.
+    """
+    try:
+        os.chmod(path, stat.S_IWRITE | stat.S_IREAD)
+        func(path)
+    except Exception:
+        pass
+
+
 def _robust_rmtree(path: Path) -> None:
     is_windows = platform.system() == "Windows"
     attempts = 5 if is_windows else 1
     for attempt in range(attempts):
         try:
-            shutil.rmtree(path)
+            shutil.rmtree(path, onexc=_clear_readonly_and_retry)
             return
         except PermissionError:
             if not is_windows or attempt == attempts - 1:

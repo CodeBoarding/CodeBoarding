@@ -12,7 +12,12 @@
     "call_graph_nodes": 25381,
     "call_graph_edges": 90718,
     "source_files_count": 1644,
-    "execution_time_seconds": 257
+    "execution_time_seconds": 261,
+    "execution_time_seconds_by_os": {
+      "Linux": 261,
+      "Darwin": 154,
+      "Windows": 264
+    }
   },
   "sample_references": [
     "index.WP_USE_THEMES",
