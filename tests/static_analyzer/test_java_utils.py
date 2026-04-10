@@ -356,7 +356,7 @@ class TestFindJava21OrLater(unittest.TestCase):
                         self.assertEqual(result, scanned_jdk)
 
     def test_java_home_unset_uses_scan(self):
-        """No JAVA_HOME → existing scan-and-sort behavior is preserved."""
+        """No JAVA_HOME: existing scan-and-sort behavior is preserved."""
         scanned_jdk = Path("/opt/jvm/jdk-21")
 
         with patch.dict("os.environ", {}, clear=True):

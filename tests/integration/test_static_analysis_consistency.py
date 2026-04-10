@@ -51,11 +51,16 @@ SNAPSHOT_DIR = Path(__file__).parent / "snapshots" / "real_projects"
 
 
 def _relative_path(file_path: str, repo_path: Path) -> str:
-    """Return a repo-relative path string, falling back to the original if it's not under repo_path."""
+    """Return a repo-relative path string, falling back to the original if it's not under repo_path.
+
+    Uses as_posix() so snapshots written on Windows are byte-identical to
+    those written on macOS / Linux — otherwise a Windows-authored snapshot
+    would diff against the repo version on every subsequent CI run.
+    """
     if not file_path:
         return ""
     try:
-        return str(Path(file_path).relative_to(repo_path))
+        return Path(file_path).relative_to(repo_path).as_posix()
     except ValueError:
         return file_path
 

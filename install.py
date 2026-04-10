@@ -161,7 +161,11 @@ def ensure_node_runtime(
     Idempotent (cheap when Node already resolves via ``preferred_node_path``),
     so safe to call above the ``needs_install()`` short-circuit — otherwise a
     deleted ``~/.codeboarding/servers/nodeenv/`` would never be repaired.
-    Non-interactive mode mirrors ``resolve_missing_npm``: log + return False.
+
+    In non-interactive mode (CI, frozen binary, piped stdin) or when
+    ``auto_install_npm`` is set, the y/N prompt is skipped and the bootstrap
+    runs automatically. The interactive prompt only gates the download when
+    a human is actually attached.
     """
     target = (target_dir or get_servers_dir()).resolve()
 

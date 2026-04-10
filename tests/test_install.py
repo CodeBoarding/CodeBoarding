@@ -204,7 +204,7 @@ class TestVerifyBinary(unittest.TestCase):
 
 
 class TestMainCliLock(unittest.TestCase):
-    """C1: the bare ``codeboarding-setup`` CLI entry point must hold the
+    """The bare ``codeboarding-setup`` CLI entry point must hold the
     same ``.download.lock`` that ``ensure_tools`` uses, so two concurrent
     CLI invocations (or a CLI invocation racing a VSCode extension startup)
     cannot corrupt the servers directory by downloading into it in parallel.

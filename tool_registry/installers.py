@@ -29,7 +29,10 @@ from .registry import (
     PLATFORM_SUFFIX,
     TOOL_REGISTRY,
     GitHubToolSource,
+    ProgressCallback,
+    ToolDependency,
     ToolKind,
+    ToolSource,
     UpstreamToolSource,
 )
 
@@ -39,7 +42,7 @@ logger = logging.getLogger(__name__)
 # -- Download primitive -------------------------------------------------------
 
 
-def asset_url(source: Any, asset_name: str) -> str:
+def asset_url(source: ToolSource, asset_name: str) -> str:
     """Construct the download URL for a tool asset."""
     if isinstance(source, UpstreamToolSource):
         return source.url_template.format(version=source.tag, build=source.build)
@@ -79,8 +82,8 @@ def download_asset(url: str, destination: Path, expected_sha256: str | None = No
 
 def install_native_tools(
     target_dir: Path,
-    deps: "list",
-    on_progress: Any = None,
+    deps: list[ToolDependency],
+    on_progress: ProgressCallback | None = None,
 ) -> None:
     """Download native binaries from their configured sources."""
     system = platform.system()
@@ -123,8 +126,8 @@ def install_native_tools(
 
 def install_node_tools(
     target_dir: Path,
-    deps: "list",
-    on_progress: Any = None,
+    deps: list[ToolDependency],
+    on_progress: ProgressCallback | None = None,
 ) -> None:
     """Install Node.js tools via npm."""
     npm_command = preferred_npm_command(target_dir)
@@ -169,8 +172,8 @@ def install_node_tools(
 
 def install_archive_tool(
     target_dir: Path,
-    dep: Any,
-    on_progress: Any = None,
+    dep: ToolDependency,
+    on_progress: ProgressCallback | None = None,
 ) -> None:
     """Download and extract an archive tool."""
     assert dep.source, f"{dep.key}: source required for archive tools"
@@ -312,7 +315,7 @@ def nodeenv_needs_unofficial_builds(nodeenv_module: Any) -> bool:
 
 def install_embedded_node(
     base_dir: Path,
-    on_progress: Any = None,
+    on_progress: ProgressCallback | None = None,
 ) -> bool:
     """Download a pinned Node.js runtime into ``<base_dir>/nodeenv/``.
 
