@@ -313,20 +313,46 @@ jobs:
           "$env:VIRTUAL_ENV\Scripts" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
 
       - name: Uninstall pre-installed Node.js
-        # Uses the Windows MSI's own uninstall path (Get-Package ->
-        # Uninstall-Package).  Also reverses the C:\npm\prefix image
-        # customization — that's not part of the MSI, the runner image
-        # adds it separately in Install-NodeJS.ps1.
+        # Uses the Windows MSI's own uninstaller, located via the
+        # Uninstall registry key — the authoritative source for
+        # installed MSI products.  An earlier attempt used
+        # Get-Package / Uninstall-Package but that PackageProvider
+        # returns nothing for Node on pwsh 7 windows-latest, so the
+        # MSI never ran and node.exe stayed put.
         #
-        # If a future image update changes the product name or adds a
-        # new Node location, the `Get-Command node` check will fail the
-        # step — extend the uninstall, do not silently skip.
+        # We also reverse the C:\npm\prefix customization added by
+        # Install-NodeJS.ps1 in actions/runner-images (not part of
+        # the MSI) and clear the npm_config_prefix machine env var
+        # so child shells don't inherit it.
+        #
+        # If a future image update adds a new Node location, the
+        # `Get-Command node` guard below will fail the step — extend
+        # the uninstall, do not paper over it.
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          Get-Package -Name 'Node.js*' -ErrorAction SilentlyContinue | ForEach-Object {
-            Write-Host "Uninstalling $($_.Name) $($_.Version)"
-            $_ | Uninstall-Package -Force -ErrorAction Stop
+          $uninstallKeys = @(
+            'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*',
+            'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*'
+          )
+          $nodeEntries = Get-ItemProperty $uninstallKeys -ErrorAction SilentlyContinue |
+            Where-Object { $_.DisplayName -like 'Node.js*' }
+          if (-not $nodeEntries) {
+            Write-Error "No Node.js entry found in the Uninstall registry. The runner image layout has changed; extend this step."
+            exit 1
+          }
+          foreach ($entry in $nodeEntries) {
+            Write-Host "Uninstalling $($entry.DisplayName) $($entry.DisplayVersion) via $($entry.PSChildName)"
+            $proc = Start-Process -FilePath 'msiexec.exe' `
+              -ArgumentList @('/x', $entry.PSChildName, '/qn', '/norestart') `
+              -Wait -PassThru
+            if ($proc.ExitCode -ne 0 -and $proc.ExitCode -ne 3010) {
+              Write-Error "msiexec /x $($entry.PSChildName) exited with code $($proc.ExitCode)"
+              exit 1
+            }
+          }
+          if (Test-Path 'C:\Program Files\nodejs') {
+            Remove-Item -Recurse -Force 'C:\Program Files\nodejs'
           }
           if (Test-Path 'C:\npm') { Remove-Item -Recurse -Force 'C:\npm' }
           [Environment]::SetEnvironmentVariable('npm_config_prefix', $null, 'Machine')
@@ -335,8 +361,8 @@ jobs:
           if (Test-Path "$env:RUNNER_TOOL_CACHE\node") {
             Remove-Item -Recurse -Force "$env:RUNNER_TOOL_CACHE\node"
           }
-          # Rebuild PATH from the machine+user scopes so the uninstalled
-          # nodejs dir is no longer inherited by the step shell.
+          # Rebuild PATH from the machine+user scopes so the current
+          # shell drops the uninstalled nodejs and C:\npm\prefix dirs.
           $machinePath = [Environment]::GetEnvironmentVariable('Path', 'Machine')
           $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
           $env:Path = "$machinePath;$userPath"
