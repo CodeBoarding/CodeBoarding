@@ -366,7 +366,7 @@ def _sync_component_methods(
     component.file_methods = [
         FileMethodGroup(
             file_path=fp,
-            file_status=entry.file_status if entry else "unchanged",
+            file_status=entry.file_status if entry else ChangeStatus.UNCHANGED,
             methods=[
                 m.model_copy(deep=True) for m in (entry.methods if entry else []) if m.qualified_name in owned_qnames
             ],
