@@ -156,33 +156,12 @@ def ensure_node_runtime(
     target_dir: Path | None = None,
     auto_install_npm: bool = False,
 ) -> bool:
-    """Guarantee a Node.js runtime is available for launching JS-based LSPs.
+    """Ensure a Node.js runtime exists; download a pinned prebuilt if not.
 
-    Resolution order (matches ``tool_registry.preferred_node_path``):
-        1. ``CODEBOARDING_NODE_PATH`` environment variable.
-        2. ``<target_dir>/nodeenv/bin/node`` from a prior bootstrap.
-        3. ``node`` on the system PATH.
-
-    If none of those resolve, downloads a pinned Node.js prebuilt distribution
-    into ``<target_dir>/nodeenv/`` via ``install_embedded_node()`` — which in
-    turn uses the ``nodeenv`` Python package in prebuilt mode, called in-process
-    so the flow works inside the PyInstaller-frozen wrapper binary.
-
-    Idempotent and cheap when Node is already present (one ``os.path.exists``
-    per candidate), so it is safe to call unconditionally on every install pass.
-    That's important: if the user deletes only ``~/.codeboarding/servers/nodeenv/``,
-    ``needs_install()`` would otherwise return False (tokei and the manifest are
-    still in place) and ``run_install()`` would skip the re-download entirely.
-    Hooking this into ``ensure_tools()`` above the ``needs_install()`` short-circuit
-    means a deleted embedded Node is always repaired.
-
-    In non-interactive mode (CI, piped stdin, frozen wrapper) any failure is
-    logged and this returns False — the same graceful-degradation contract as
-    ``resolve_missing_npm``.  In interactive mode with ``auto_install_npm=False``
-    the user is prompted before the download begins.
-
-    Returns True when a usable Node runtime is present after the call,
-    False when Node could not be acquired.
+    Idempotent (cheap when Node already resolves via ``preferred_node_path``),
+    so safe to call above the ``needs_install()`` short-circuit — otherwise a
+    deleted ``~/.codeboarding/servers/nodeenv/`` would never be repaired.
+    Non-interactive mode mirrors ``resolve_missing_npm``: log + return False.
     """
     target = (target_dir or get_servers_dir()).resolve()
 
@@ -627,14 +606,8 @@ def ensure_tools(
     with open(lock_path, "w") as lock_fd:
         acquire_lock(lock_fd)
 
-        # Run the Node bootstrap *before* the needs_install() short-circuit.
-        # If a user deletes only ~/.codeboarding/servers/nodeenv/, tokei and
-        # the fingerprint manifest are still present so needs_install() returns
-        # False and run_install() is skipped — without this unconditional call,
-        # the embedded Node runtime would never be repaired.  The function is
-        # idempotent and fast when Node already resolves via CODEBOARDING_NODE_PATH,
-        # an existing embedded nodeenv, or system PATH, so the hot-path cost is
-        # one os.path.exists call.
+        # Run above needs_install() so a deleted nodeenv/ is always repaired
+        # (fingerprints alone wouldn't detect it).
         ensure_node_runtime(target_dir=servers_dir, auto_install_npm=auto_install_npm)
 
         if not needs_install():
@@ -668,11 +641,7 @@ def run_install(
 
     ensure_config_template()
 
-    # Make sure a Node.js runtime exists before anything tries to use npm.
-    # Idempotent and cheap when Node already resolves via CODEBOARDING_NODE_PATH,
-    # an existing embedded nodeenv, or system PATH.  Covers the CLI entry point
-    # (codeboarding-setup -> main() -> run_install), which does not go through
-    # ensure_tools() and would otherwise skip the Node bootstrap.
+    # Covers the codeboarding-setup -> run_install path, which bypasses ensure_tools().
     ensure_node_runtime(target_dir=target, auto_install_npm=auto_install_npm)
 
     # Compute a unified total so the caller sees a single progress stream.
@@ -712,17 +681,9 @@ def main() -> None:
     print("CodeBoarding Setup")
     print("=" * 40)
 
-    # Hold the same download lock that ensure_tools() uses, so two concurrent
-    # codeboarding-setup invocations (e.g. a user running it in two terminals,
-    # or a VSCode extension startup racing with a manual CLI run) do not
-    # corrupt binaries by downloading into the same servers directory.
-    #
-    # The lock is taken here — not inside run_install() — because ensure_tools()
-    # also calls run_install() *while already holding this lock*, and nesting
-    # lock acquisitions on the same file from the same process is not
-    # guaranteed to be a no-op across platforms (fcntl.flock is advisory and
-    # per-file, msvcrt.locking is per-byte-range).  Keeping the lock at the
-    # entry-point level avoids any reentrancy question.
+    # Lock at the entry point, not inside run_install() — ensure_tools()
+    # calls run_install() while already holding this lock, and same-process
+    # reentrant acquisition isn't portable across fcntl / msvcrt.
     servers_dir = get_servers_dir()
     servers_dir.mkdir(parents=True, exist_ok=True)
     lock_path = servers_dir / ".download.lock"

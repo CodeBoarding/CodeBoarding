@@ -315,16 +315,7 @@ def install_embedded_node(
 ) -> bool:
     """Download a pinned Node.js runtime into ``<base_dir>/nodeenv/``.
 
-    Used when no system Node is available. Calls ``nodeenv.create_environment()``
-    in-process (not via ``python -m nodeenv``) so it also works inside the
-    PyInstaller-frozen wrapper. Always uses ``--prebuilt`` — the source-build
-    path would need python2 + a C compiler.
-
-    Idempotent: returns True immediately on a healthy existing install.
-    Wipes and reinstalls on unhealthy state (partial install, zero-byte binary,
-    older version stamp). This matters because ``create_environment()`` hard-exits
-    with SystemExit(2) on a pre-existing directory — uncatchable via ``except Exception``.
-    Returns False on failure; callers surface as "Node-based LSPs unavailable".
+    Idempotent; wipes and reinstalls on unhealthy state.
     """
     if embedded_node_is_healthy(base_dir):
         return True
@@ -341,6 +332,7 @@ def install_embedded_node(
             return False
 
     try:
+        # Function-level: may be missing in PyInstaller-frozen binaries.
         import nodeenv
     except ImportError:
         logger.exception("nodeenv package is not available; cannot bootstrap Node.js runtime")
