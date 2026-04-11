@@ -85,41 +85,52 @@ def _is_compressed_asset(asset_name: str) -> bool:
 
 
 def _extract_compressed_binary(archive_path: Path, inner_path: str, target: Path) -> None:
-    """Decompress *archive_path* (format inferred from suffix) into *target*.
+    """Atomically decompress *archive_path* (format inferred from suffix) into *target*.
 
     ``.gz`` is a single gzipped binary. ``.zip`` extracts ``inner_path`` if
     set, otherwise the only ``.exe`` member or — failing that — the only
     member. Raises ``ValueError`` for unknown suffixes or ambiguous zips.
+
+    The decompressed bytes are written to a sibling ``<target>.extract``
+    temp file and then ``os.replace``-d into place so a crash mid-extract
+    cannot leave a half-written binary at *target*. The temp file is
+    cleaned up on any exception.
     """
     suffix = archive_path.suffix.lower()
-    if suffix == ".gz":
-        with gzip.open(archive_path, "rb") as src, open(target, "wb") as dst:
-            shutil.copyfileobj(src, dst)
-        return
-    if suffix == ".zip":
-        with zipfile.ZipFile(archive_path) as zf:
-            members = zf.namelist()
-            if inner_path:
-                if inner_path not in members:
-                    raise ValueError(
-                        f"{archive_path.name}: archive_inner_path {inner_path!r} not found (members: {members})"
-                    )
-                chosen = inner_path
-            else:
-                exe_members = [m for m in members if m.lower().endswith(".exe")]
-                if len(exe_members) == 1:
-                    chosen = exe_members[0]
-                elif len(members) == 1:
-                    chosen = members[0]
-                else:
-                    raise ValueError(
-                        f"{archive_path.name}: cannot pick a binary automatically "
-                        f"(set archive_inner_path; members: {members})"
-                    )
-            with zf.open(chosen) as src, open(target, "wb") as dst:
+    if suffix not in (".gz", ".zip"):
+        raise ValueError(f"Unsupported archive suffix: {suffix!r}")
+
+    temp_target = target.with_name(target.name + ".extract")
+    try:
+        if suffix == ".gz":
+            with gzip.open(archive_path, "rb") as src, open(temp_target, "wb") as dst:
                 shutil.copyfileobj(src, dst)
-        return
-    raise ValueError(f"Unsupported archive suffix: {suffix!r}")
+        else:  # ".zip"
+            with zipfile.ZipFile(archive_path) as zf:
+                members = zf.namelist()
+                if inner_path:
+                    if inner_path not in members:
+                        raise ValueError(
+                            f"{archive_path.name}: archive_inner_path {inner_path!r} not found " f"(members: {members})"
+                        )
+                    chosen = inner_path
+                else:
+                    exe_members = [m for m in members if m.lower().endswith(".exe")]
+                    if len(exe_members) == 1:
+                        chosen = exe_members[0]
+                    elif len(members) == 1:
+                        chosen = members[0]
+                    else:
+                        raise ValueError(
+                            f"{archive_path.name}: cannot pick a binary automatically "
+                            f"(set archive_inner_path; members: {members})"
+                        )
+                with zf.open(chosen) as src, open(temp_target, "wb") as dst:
+                    shutil.copyfileobj(src, dst)
+        os.replace(temp_target, target)
+    except Exception:
+        temp_target.unlink(missing_ok=True)
+        raise
 
 
 def download_asset(url: str, destination: Path, expected_sha256: str | None = None) -> bool:
@@ -158,24 +169,24 @@ def install_native_tools(
 ) -> None:
     """Download native binaries from their configured sources.
 
-    Supports both pre-extracted binaries (the default — used by tools we
-    re-publish via ``CodeBoarding/tools``) and compressed-binary assets
-    (``archive_format="gz"`` for Unix gzipped binaries; ``"zip"`` for the
-    Windows zips upstream rust-analyzer ships).
+    Supports both pre-extracted binaries (default, e.g. ``tokei``,
+    ``gopls``) and compressed-binary assets (``rust-analyzer``); the
+    archive format is inferred from the asset filename suffix.
     """
     system = platform.system()
     suffix = PLATFORM_SUFFIX.get(system)
-    if suffix is None:
-        # One clear top-level warning, then fall through: arch-aware tools
-        # (those with ``asset_arch_overrides``) may still resolve a binary;
-        # template-based tools get logged + skipped individually below.
+    try:
+        bin_dir = platform_bin_dir(target_dir)
+    except RuntimeError:
+        # ``platform_bin_dir`` raises on hosts not in ``_PLATFORM_BIN_SUBDIR``
+        # (e.g. FreeBSD). Log once and return — without a target directory
+        # we cannot install anything regardless of arch-override status.
         logger.warning(
-            "Unsupported platform %s/%s; only arch-aware tools with explicit overrides can install.",
+            "Unsupported platform %s/%s; skipping native tool installation.",
             system,
             platform.machine(),
         )
-
-    bin_dir = platform_bin_dir(target_dir)
+        return
     bin_dir.mkdir(parents=True, exist_ok=True)
 
     downloadable = [d for d in deps if isinstance(d.source, GitHubToolSource)]
@@ -199,10 +210,20 @@ def install_native_tools(
             continue
         url = asset_url(source, asset_name)
         compressed = _is_compressed_asset(asset_name)
-        # SHA256 pinning only applies to pre-extracted assets — compressed
-        # ones get republished every release and would force a six-entry
-        # update on every bump.
-        expected_hash = source.sha256.get(suffix or "") if not compressed else None
+        # Hash lookup precedence:
+        #   1. ``sha256[asset_name]`` — exact-asset pin (works for any asset
+        #      including compressed; one entry per arch override).
+        #   2. ``sha256[suffix]`` — per-platform pin used by tools we
+        #      republish ourselves (tokei, gopls); only consulted for
+        #      pre-extracted assets so a stale platform-keyed hash doesn't
+        #      get applied to a freshly compressed binary.
+        #   3. ``None`` — no pin, ``download_asset`` skips verification.
+        if asset_name in source.sha256:
+            expected_hash: str | None = source.sha256[asset_name]
+        elif not compressed:
+            expected_hash = source.sha256.get(suffix or "")
+        else:
+            expected_hash = None
         try:
             if compressed:
                 archive_path = bin_dir / asset_name

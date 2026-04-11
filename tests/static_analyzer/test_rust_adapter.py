@@ -1,5 +1,6 @@
 """Tests for the Rust language adapter."""
 
+import shutil
 from pathlib import Path
 from unittest.mock import patch
 
@@ -64,20 +65,40 @@ class TestGetLspCommandCargoCheck:
     """
 
     def test_raises_when_cargo_missing(self, tmp_path: Path) -> None:
-        with patch("static_analyzer.engine.adapters.rust_adapter.shutil.which", return_value=None):
+        # Selective: only ``cargo`` is missing; other binaries pass through
+        # to the real ``shutil.which`` so the base resolver works normally.
+        real_which = shutil.which
+
+        def selective(name: str) -> str | None:
+            if name == "cargo":
+                return None
+            return real_which(name)
+
+        with patch("static_analyzer.engine.adapters.rust_adapter.shutil.which", side_effect=selective):
             with pytest.raises(RuntimeError, match=r"cargo not found.*rustup\.rs"):
                 RustAdapter().get_lsp_command(tmp_path)
 
     def test_returns_command_when_cargo_present(self, tmp_path: Path) -> None:
-        with patch(
-            "static_analyzer.engine.adapters.rust_adapter.shutil.which",
-            return_value="/usr/local/bin/cargo",
-        ):
+        # Selective patch: ``cargo`` resolves to a fake path, every other
+        # binary lookup (including the ``rust-analyzer`` lookup performed
+        # by ``resolve_config_from_path`` in the base resolver) falls
+        # through to the real ``shutil.which``. A blanket patch would be
+        # global (``shutil.which`` is a module attribute), making the
+        # resolver believe rust-analyzer also lives at the fake cargo
+        # path and producing a misleading absolute command.
+        real_which = shutil.which
+
+        def selective(name: str) -> str | None:
+            if name == "cargo":
+                return "/usr/local/bin/cargo"
+            return real_which(name)
+
+        with patch("static_analyzer.engine.adapters.rust_adapter.shutil.which", side_effect=selective):
             cmd = RustAdapter().get_lsp_command(tmp_path)
-        # The base resolver consults ``get_config('lsp_servers')`` first
-        # and falls back to ``self.lsp_command`` (`["rust-analyzer"]`) if
-        # the registry has no entry. Either way the command must invoke
-        # ``rust-analyzer``.
+        # The base resolver returns whatever ``build_config`` produces:
+        # an absolute ``rust-analyzer`` path if installed, otherwise the
+        # bare ``["rust-analyzer"]`` from ``VSCODE_CONFIG``. Both contain
+        # the substring ``rust-analyzer``.
         assert cmd
         assert any("rust-analyzer" in part for part in cmd)
 

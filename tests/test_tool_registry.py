@@ -1135,6 +1135,48 @@ class TestExtractCompressedBinary(unittest.TestCase):
             with self.assertRaises(ValueError):
                 _extract_compressed_binary(Path(tmp) / "x.rar", "", Path(tmp) / "out")
 
+    def test_extraction_failure_does_not_leave_partial_binary(self):
+        """A failed extraction must NOT publish a half-written file at *target*.
+
+        Atomicity guard: write to a sibling temp file, then ``os.replace``.
+        Without this, a previous run that crashed mid-extract would leave a
+        truncated binary at *target* and the next ``has_required_tools``
+        check would treat it as installed.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            archive = tmp_path / "tool.zip"
+            target = tmp_path / "rust-analyzer"
+            # Build a zip with two ambiguous members so the extractor raises
+            # ValueError BEFORE writing anything.
+            with zipfile.ZipFile(archive, "w") as zf:
+                zf.writestr("foo", b"a")
+                zf.writestr("bar", b"b")
+
+            with self.assertRaises(ValueError):
+                _extract_compressed_binary(archive, "", target)
+
+            # Final binary path must NOT exist.
+            self.assertFalse(target.exists())
+            # Sibling temp file must NOT exist either.
+            self.assertFalse((tmp_path / "rust-analyzer.extract").exists())
+
+    def test_successful_extraction_replaces_existing_target(self):
+        """A repeat install over a stale binary should atomically swap it."""
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            archive = tmp_path / "tool.gz"
+            target = tmp_path / "rust-analyzer"
+            target.write_bytes(b"stale-bytes")
+            payload = b"fresh-binary-bytes" * 50
+            with gzip.open(archive, "wb") as f:
+                f.write(payload)
+
+            _extract_compressed_binary(archive, "", target)
+
+            self.assertEqual(target.read_bytes(), payload)
+            self.assertFalse((tmp_path / "rust-analyzer.extract").exists())
+
 
 class TestInstallNativeToolsCompressed(unittest.TestCase):
     """End-to-end install path for compressed-asset native tools."""
@@ -1190,6 +1232,94 @@ class TestInstallNativeToolsCompressed(unittest.TestCase):
                 # On Unix, the binary should be executable.
                 mode = installed.stat().st_mode & 0o777
                 self.assertEqual(mode & 0o111, 0o111)
+
+    def test_compressed_asset_honors_per_asset_sha256(self):
+        """``sha256[asset_name]`` lets a registry author pin compressed assets."""
+        binary_payload = b"#!/bin/sh\necho rust-analyzer\n" * 10
+        gz_buf = io.BytesIO()
+        with gzip.GzipFile(fileobj=gz_buf, mode="wb") as f:
+            f.write(binary_payload)
+        gz_bytes = gz_buf.getvalue()
+        gz_hash = hashlib.sha256(gz_bytes).hexdigest()
+
+        dep = ToolDependency(
+            key="rust",
+            binary_name="rust-analyzer",
+            kind=ToolKind.NATIVE,
+            config_section=ConfigSection.LSP_SERVERS,
+            source=GitHubToolSource(
+                tag="2026-03-30",
+                repo="rust-lang/rust-analyzer",
+                asset_template="rust-analyzer-{platform_suffix}",
+                sha256={"rust-analyzer-x86_64-unknown-linux-gnu.gz": gz_hash},
+                asset_arch_overrides={
+                    ("Linux", "x86_64"): "rust-analyzer-x86_64-unknown-linux-gnu.gz",
+                },
+            ),
+        )
+
+        def fake_download(url, destination, expected_sha256=None):
+            # Mirror download_asset's verification: write the bytes, then
+            # check the hash matches what the installer passed in.
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes(gz_bytes)
+            if expected_sha256 is not None:
+                actual = hashlib.sha256(destination.read_bytes()).hexdigest()
+                if actual != expected_sha256:
+                    raise ValueError(f"hash mismatch: expected={expected_sha256} got={actual}")
+            return True
+
+        with tempfile.TemporaryDirectory() as tmp:
+            target_dir = Path(tmp)
+            with (
+                patch("tool_registry.installers.platform.system", return_value="Linux"),
+                patch("tool_registry.installers.platform.machine", return_value="x86_64"),
+                patch("tool_registry.installers.download_asset", side_effect=fake_download) as mock_dl,
+            ):
+                install_native_tools(target_dir, [dep])
+            # Verify the installer asked download_asset to verify the hash.
+            call_kwargs = mock_dl.call_args.kwargs
+            self.assertEqual(call_kwargs.get("expected_sha256"), gz_hash)
+
+    def test_compressed_asset_falls_through_when_no_per_asset_pin(self):
+        """Without an exact-asset pin, compressed deps still skip verification.
+
+        The per-suffix sha256 map is meant for tools we re-publish ourselves
+        (tokei, gopls), not for upstream-managed compressed releases.
+        """
+        dep = ToolDependency(
+            key="rust",
+            binary_name="rust-analyzer",
+            kind=ToolKind.NATIVE,
+            config_section=ConfigSection.LSP_SERVERS,
+            source=GitHubToolSource(
+                tag="2026-03-30",
+                repo="rust-lang/rust-analyzer",
+                asset_template="rust-analyzer-{platform_suffix}",
+                # Note: a stale per-suffix entry must NOT be applied to the
+                # compressed asset (it would always mismatch).
+                sha256={"linux": "0" * 64},
+                asset_arch_overrides={
+                    ("Linux", "x86_64"): "rust-analyzer-x86_64-unknown-linux-gnu.gz",
+                },
+            ),
+        )
+
+        def fake_download(url, destination, expected_sha256=None):
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            with gzip.open(destination, "wb") as f:
+                f.write(b"\x7fELFmock")
+            return True
+
+        with tempfile.TemporaryDirectory() as tmp:
+            target_dir = Path(tmp)
+            with (
+                patch("tool_registry.installers.platform.system", return_value="Linux"),
+                patch("tool_registry.installers.platform.machine", return_value="x86_64"),
+                patch("tool_registry.installers.download_asset", side_effect=fake_download) as mock_dl,
+            ):
+                install_native_tools(target_dir, [dep])
+            self.assertIsNone(mock_dl.call_args.kwargs.get("expected_sha256"))
 
     def test_zip_asset_is_extracted(self):
         """Windows zip assets must use the zip extractor, not the gz one.
@@ -1249,10 +1379,12 @@ class TestInstallNativeToolsCompressed(unittest.TestCase):
             installed = platform_bin_dir(target_dir) / "rust-analyzer"
             self.assertFalse(installed.exists())
 
-    def test_unsupported_platform_logs_warning_but_does_not_crash(self):
-        """An unknown ``platform.system()`` (e.g. FreeBSD) logs the top-level
-        warning before ``platform_bin_dir`` raises. Verifies one clear
-        message reaches the user instead of an opaque crash.
+    def test_unsupported_platform_logs_warning_and_returns_cleanly(self):
+        """An unknown ``platform.system()`` (e.g. FreeBSD) is caught up front:
+        ``platform_bin_dir`` raises, the installer logs one clear warning,
+        and returns instead of propagating the RuntimeError to the caller.
+        Without this guard, a single FreeBSD user would see an opaque crash
+        in ``codeboarding-setup``.
         """
         compressed_dep = self._make_compressed_dep("rust-analyzer-x86_64-unknown-linux-gnu.gz")
         with tempfile.TemporaryDirectory() as tmp:
@@ -1261,12 +1393,9 @@ class TestInstallNativeToolsCompressed(unittest.TestCase):
                 patch("tool_registry.installers.platform.system", return_value="FreeBSD"),
                 self.assertLogs("tool_registry.installers", level="WARNING") as logs,
             ):
-                # platform_bin_dir will raise on FreeBSD because the
-                # subdir map doesn't know it. That's expected — we only
-                # care that the top-level "Unsupported platform" warning
-                # was logged before the crash.
-                with self.assertRaises(RuntimeError, msg="platform_bin_dir should reject unknown systems"):
-                    install_native_tools(target_dir, [compressed_dep])
+                # Must not raise — the RuntimeError from platform_bin_dir
+                # is caught and turned into a warning + early return.
+                install_native_tools(target_dir, [compressed_dep])
             warning_text = "\n".join(logs.output)
             self.assertIn("Unsupported platform FreeBSD", warning_text)
 

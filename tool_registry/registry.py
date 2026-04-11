@@ -6,7 +6,7 @@ Adding a new tool:
        ``ToolKind.NATIVE`` and a ``GitHubToolSource`` with ``asset_template``.
        For native binaries shipped as compressed assets (gzipped on Unix or
        zipped on Windows — e.g. upstream rust-analyzer), additionally set
-       ``archive_format`` and, for arch-specific tools, ``asset_arch_overrides``.
+       ``asset_arch_overrides`` (format is inferred from the asset filename suffix).
     2. Add the entry to ``VSCODE_CONFIG`` in ``vscode_constants.py``.
     3. Add to the ``Language`` enum in ``static_analyzer/constants.py``.
 """

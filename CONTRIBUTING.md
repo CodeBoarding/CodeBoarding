@@ -58,14 +58,14 @@ Adding language support requires changes across several files. Use [PR #276 (Rus
 |------|-------------|
 | `static_analyzer/engine/adapters/<lang>_adapter.py` | **New file.** Adapter class extending `LanguageAdapter`. Handles language-specific qualified name construction, reference keys, and any special rules (e.g. `mod.rs` collapsing for Rust). |
 | `static_analyzer/engine/adapters/__init__.py` | Import the adapter and add it to `ADAPTER_REGISTRY`. |
-| `static_analyzer/constants.py` | Add a value to the `Language` enum and an entry in `ClusteringConfig.DELIMITER_MAP` (most languages use `"."`). |
+| `static_analyzer/constants.py` | Add a value to the `Language` enum. Qualified names use the universal `.` delimiter defined in `ClusteringConfig.QUALIFIED_NAME_DELIMITER`. |
 | `static_analyzer/__init__.py` | Add a mapping in `_lang_to_adapter_name()` from the `ProgrammingLanguage` name to the adapter registry key. |
 | `vscode_constants.py` | Add an LSP server config entry to `VSCODE_CONFIG["lsp_servers"]` with the server name, command, languages, file extensions, and install command. |
-| `tool_registry.py` | Add a `ToolDependency` entry to `TOOL_REGISTRY` (see below). |
+| `tool_registry/registry.py` | Add a `ToolDependency` entry to `TOOL_REGISTRY` (see below). |
 
 ### 5b) Registering the LSP server dependency
 
-The LSP server must be registered in `tool_registry.py` so it gets installed automatically. The `ToolDependency` entry depends on how the server is distributed:
+The LSP server must be registered in `tool_registry/registry.py` so it gets installed automatically. The `ToolDependency` entry depends on how the server is distributed:
 
 **npm package** (e.g. pyright, typescript-language-server) — no pipeline update needed:
 ```python
