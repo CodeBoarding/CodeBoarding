@@ -170,12 +170,13 @@ class StaticAnalyzer:
                 engine_client.start()
                 t_lsp_started = time.monotonic()
                 logger.info(f"{adapter.language} LSP start: {t_lsp_started - t_start:.1f}s")
-                started.append((adapter, project_path, engine_client))
 
                 # For Java, wait for JDTLS to finish importing
                 if adapter.language.lower() == "java":
                     engine_client.wait_for_server_ready()
                     logger.info(f"{adapter.language} project import: {time.monotonic() - t_lsp_started:.1f}s")
+
+                started.append((adapter, project_path, engine_client))
 
             except Exception:
                 logger.exception(
