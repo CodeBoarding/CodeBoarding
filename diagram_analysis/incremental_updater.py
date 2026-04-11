@@ -62,20 +62,15 @@ class IncrementalUpdater:
     def _get_previous_active_methods(self, file_path: str) -> dict[str, MethodEntry]:
         return {qn: m for qn, m in self._get_previous_methods(file_path).items() if m.status != ChangeStatus.DELETED}
 
-    def _resolve_component(self, file_path: str, *, register_file: bool = False) -> tuple[str | None, bool]:
+    def _resolve_component(self, file_path: str) -> str | None:
         component_id = self.manifest.get_component_for_file(file_path)
         if component_id is not None:
-            if register_file:
-                self.manifest.add_file(file_path, component_id)
-            return component_id, False
+            return component_id
 
-        if register_file and self._component_resolver is not None:
-            component_id = self._component_resolver(file_path, self.manifest)
-            if component_id is not None:
-                self.manifest.add_file(file_path, component_id)
-                return component_id, False
+        if self._component_resolver is not None:
+            return self._component_resolver(file_path, self.manifest)
 
-        return None, True
+        return None
 
     def _apply_method_diff_statuses(
         self, file_path: str, current_methods: list[MethodEntry], changes: ChangeSet
@@ -105,7 +100,10 @@ class IncrementalUpdater:
         register_file: bool,
         changes: ChangeSet,
     ) -> tuple[FileDelta, bool]:
-        component_id, missing = self._resolve_component(file_path, register_file=register_file)
+        component_id = self._resolve_component(file_path)
+        if register_file and component_id is not None:
+            self.manifest.add_file(file_path, component_id)
+        missing = component_id is None
 
         if file_status == ChangeStatus.ADDED:
             current = self._get_current_methods(file_path)
@@ -198,7 +196,8 @@ class IncrementalUpdater:
         Replaces the stored file state with the current unchanged snapshot,
         removing stale added/deleted/modified statuses from prior incremental updates.
         """
-        component_id, missing = self._resolve_component(file_path)
+        component_id = self._resolve_component(file_path)
+        missing = component_id is None
         current = self._get_current_methods(file_path)
         for m in current:
             m.status = ChangeStatus.UNCHANGED
