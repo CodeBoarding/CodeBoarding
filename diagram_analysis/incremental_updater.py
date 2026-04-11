@@ -18,7 +18,6 @@ from typing import Callable
 from agents.agent_responses import AnalysisInsights, Component, FileEntry, FileMethodGroup, MethodEntry
 from agents.change_status import ChangeStatus
 from diagram_analysis.incremental_types import FileDelta, IncrementalDelta, MethodChange
-from diagram_analysis.manifest import AnalysisManifest
 from repo_utils.change_detector import ChangeSet
 from repo_utils.method_diff import get_method_statuses_for_file
 
@@ -26,7 +25,6 @@ logger = logging.getLogger(__name__)
 
 # Callable that resolves a repo-relative file path to its current MethodEntry list.
 SymbolResolver = Callable[[str], list[MethodEntry]]
-ComponentResolver = Callable[[str, AnalysisManifest], str | None]
 
 
 class IncrementalUpdater:
@@ -36,19 +34,22 @@ class IncrementalUpdater:
     to ensure consistent behavior with the main analysis pipeline.
     """
 
+    # Callable that resolves a new file path to a component_id using
+    # the current file_to_component mapping.
+    ComponentResolver = Callable[[str, dict[str, str]], str | None]
+
     def __init__(
         self,
         analysis: AnalysisInsights,
-        manifest: AnalysisManifest,
         symbol_resolver: SymbolResolver,
         repo_dir: Path,
         component_resolver: ComponentResolver | None = None,
     ):
         self.analysis = analysis
-        self.manifest = manifest
         self._symbol_resolver = symbol_resolver
         self._repo_dir = repo_dir
         self._component_resolver = component_resolver
+        self._file_to_component = analysis.file_to_component()
 
     def _get_current_methods(self, file_path: str) -> list[MethodEntry]:
         return self._symbol_resolver(file_path)
@@ -61,16 +62,6 @@ class IncrementalUpdater:
 
     def _get_previous_active_methods(self, file_path: str) -> dict[str, MethodEntry]:
         return {qn: m for qn, m in self._get_previous_methods(file_path).items() if m.status != ChangeStatus.DELETED}
-
-    def _resolve_component(self, file_path: str) -> str | None:
-        component_id = self.manifest.get_component_for_file(file_path)
-        if component_id is not None:
-            return component_id
-
-        if self._component_resolver is not None:
-            return self._component_resolver(file_path, self.manifest)
-
-        return None
 
     def _apply_method_diff_statuses(
         self, file_path: str, current_methods: list[MethodEntry], changes: ChangeSet
@@ -100,9 +91,11 @@ class IncrementalUpdater:
         register_file: bool,
         changes: ChangeSet,
     ) -> tuple[FileDelta, bool]:
-        component_id = self._resolve_component(file_path)
-        if register_file and component_id is not None:
-            self.manifest.add_file(file_path, component_id)
+        component_id = self._file_to_component.get(file_path)
+        if component_id is None and register_file and self._component_resolver is not None:
+            component_id = self._component_resolver(file_path, self._file_to_component)
+        if component_id is not None and register_file:
+            self._file_to_component[file_path] = component_id
         missing = component_id is None
 
         if file_status == ChangeStatus.ADDED:
@@ -196,7 +189,7 @@ class IncrementalUpdater:
         Replaces the stored file state with the current unchanged snapshot,
         removing stale added/deleted/modified statuses from prior incremental updates.
         """
-        component_id = self._resolve_component(file_path)
+        component_id = self._file_to_component.get(file_path)
         missing = component_id is None
         current = self._get_current_methods(file_path)
         for m in current:
@@ -319,21 +312,19 @@ def _sync_component_methods(
     component: Component,
     files: dict[str, FileEntry],
     deltas_by_path: dict[str, FileDelta],
+    parent_ids: set[str],
 ) -> None:
-    """Rebuild component's file_methods, preserving method boundaries between components.
+    """Rebuild component's file_methods, preserving method boundaries.
 
     Strategy:
     1. Collect the qualified names this component originally owned.
-    2. For files with a delta, only add newly added methods when the delta
-       targets this exact component (``is_primary``).  Child / sibling
-       components that merely share the file keep only their originally-owned
-       methods so that cluster-level boundaries established during full
-       analysis are preserved.
-    3. Deleted methods are removed from ``owned_qnames`` so they disappear
-       from every component that previously owned them.
-    4. Modified methods that the component already owns stay owned; modified
-       methods belonging to a sibling component are NOT absorbed.
-    5. Filter the global files index to only include methods this component owns.
+    2. Remove deleted methods from ownership.
+    3. Absorb newly added methods when the component is the primary owner
+       (``delta.component_id``) OR is an intermediate ancestor of the
+       primary (its ID is a descendant of the primary AND it has its own
+       children in ``parent_ids``).  Leaf components and siblings that
+       don't own the file are unaffected.
+    4. Filter the global files index to only include owned methods.
     """
     owned_qnames: set[str] = set()
 
@@ -347,18 +338,15 @@ def _sync_component_methods(
         if not any(group.file_path == file_path for group in component.file_methods):
             continue
 
-        # Remove deleted methods from this component's ownership.
         for method in delta.deleted_methods:
             owned_qnames.discard(method.qualified_name)
 
-        # Only the component that the manifest mapped the file to (the
-        # "primary owner") should absorb newly added methods.  Child /
-        # sibling components keep only the methods they already owned so
-        # that the cluster-level boundaries from the full analysis are
-        # not destroyed.
-        is_primary = (delta.component_id or "") == component.component_id
+        primary_id = delta.component_id or ""
+        should_absorb = primary_id == component.component_id or (
+            component.component_id.startswith(primary_id + ".") and component.component_id in parent_ids
+        )
 
-        if is_primary:
+        if should_absorb:
             for method in delta.added_methods:
                 owned_qnames.add(method.qualified_name)
 
@@ -386,6 +374,7 @@ def apply_delta(
 
     files = dict(root.files)
     component_lookup = _component_lookup(root, sub_analyses)
+    parent_ids = set(sub_analyses.keys())
 
     deltas_by_path: dict[str, FileDelta] = {}
     for file_delta in delta.file_deltas:
@@ -403,9 +392,9 @@ def apply_delta(
 
     root.files = files
     for component in root.components:
-        _sync_component_methods(component, files, deltas_by_path)
+        _sync_component_methods(component, files, deltas_by_path, parent_ids)
 
     for sub in sub_analyses.values():
         sub.files = files
         for component in sub.components:
-            _sync_component_methods(component, files, deltas_by_path)
+            _sync_component_methods(component, files, deltas_by_path, parent_ids)

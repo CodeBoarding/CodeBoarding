@@ -21,10 +21,6 @@ from diagram_analysis.analysis_json import (
 )
 from diagram_analysis.file_coverage import FileCoverage
 from diagram_analysis.io_utils import save_analysis
-from diagram_analysis.manifest import (
-    build_manifest_from_analysis,
-    save_manifest,
-)
 from diagram_analysis.version import Version
 from health.config import initialize_health_dir, load_health_config
 from health.runner import run_health_checks
@@ -452,30 +448,7 @@ class DiagramGenerator:
             # Write file_coverage.json
             self._write_file_coverage()
 
-            # Save manifest for incremental updates
-            self._save_manifest(analysis, expanded_components)
-
             return analysis_path
-
-    def _save_manifest(self, analysis: AnalysisInsights, expanded_components: list) -> None:
-        """Save the analysis manifest for incremental updates."""
-        try:
-            repo_state_hash = get_repo_state_hash(self.repo_location)
-            base_commit = get_git_commit_hash(self.repo_location)
-
-            expanded_names = [c.component_id for c in expanded_components]
-
-            manifest = build_manifest_from_analysis(
-                analysis=analysis,
-                repo_state_hash=repo_state_hash,
-                base_commit=base_commit,
-                expanded_components=expanded_names,
-            )
-
-            save_manifest(manifest, self.output_dir)
-            logger.info(f"Saved manifest with {len(manifest.file_to_component)} file mappings")
-        except Exception as e:
-            logger.warning(f"Failed to save manifest: {e}")
 
     def generate_analysis_smart(self) -> Path:
         """Run full analysis."""

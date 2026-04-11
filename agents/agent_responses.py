@@ -261,6 +261,10 @@ class AnalysisInsights(LLMBaseModel):
         relations = "\n".join(cr.llm_str() for cr in self.components_relations)
         return title + body + relations
 
+    def file_to_component(self) -> dict[str, str]:
+        """Build file path → component_id mapping from root components."""
+        return {fg.file_path.lstrip("./"): c.component_id for c in self.components for fg in c.file_methods}
+
 
 def assign_component_ids(analysis: AnalysisInsights, parent_id: str = "") -> None:
     """Assign hierarchical component IDs based on sibling index.
