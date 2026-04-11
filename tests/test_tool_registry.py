@@ -44,7 +44,7 @@ from tool_registry import (
     write_manifest,
 )
 from tool_registry.installers import _extract_compressed_binary, resolve_native_asset_name
-from tool_registry.registry import ToolDependency, ConfigSection
+from tool_registry.registry import ConfigSection, ToolDependency, ToolSource
 
 
 def _write_healthy_embedded_node(base_dir: Path, version: str = PINNED_NODE_VERSION) -> Path:
@@ -734,6 +734,74 @@ class TestEnsureNodeOnPath(unittest.TestCase):
             self.assertTrue(extra_env["PATH"].startswith(str(node_path.parent)))
 
 
+class TestIsAvailableOnHost(unittest.TestCase):
+    """``ToolDependency.is_available_on_host`` keeps the installer and
+    ``has_required_tools`` in sync so unsupported hosts (e.g. rust-analyzer
+    on Linux/riscv64) don't trigger an infinite reinstall loop.
+    """
+
+    def _native_dep(self, source: ToolSource | None) -> ToolDependency:
+        return ToolDependency(
+            key="example",
+            binary_name="example",
+            kind=ToolKind.NATIVE,
+            config_section=ConfigSection.LSP_SERVERS,
+            source=source,
+        )
+
+    def test_non_native_kinds_are_always_available(self):
+        node_dep = ToolDependency(
+            key="ts",
+            binary_name="tsserver",
+            kind=ToolKind.NODE,
+            config_section=ConfigSection.LSP_SERVERS,
+        )
+        self.assertTrue(node_dep.is_available_on_host())
+        archive_dep = ToolDependency(
+            key="java",
+            binary_name="java",
+            kind=ToolKind.ARCHIVE,
+            config_section=ConfigSection.LSP_SERVERS,
+        )
+        self.assertTrue(archive_dep.is_available_on_host())
+
+    def test_native_dep_without_arch_overrides_is_available(self):
+        """Templated-asset deps (tokei, gopls) rely on the whole-OS guard."""
+        source = GitHubToolSource(tag="v1", repo="x/y", asset_template="tokei-{platform_suffix}")
+        self.assertTrue(self._native_dep(source).is_available_on_host())
+
+    def test_arch_aware_dep_available_when_host_in_overrides(self):
+        source = GitHubToolSource(
+            tag="v1",
+            repo="x/y",
+            asset_template="ignored-{platform_suffix}",
+            asset_arch_overrides={
+                ("Linux", "x86_64"): "binary-linux-x86_64.gz",
+                ("Darwin", "arm64"): "binary-macos-arm64.gz",
+            },
+        )
+        with (
+            patch("tool_registry.registry.platform.system", return_value="Linux"),
+            patch("tool_registry.registry.platform.machine", return_value="x86_64"),
+        ):
+            self.assertTrue(self._native_dep(source).is_available_on_host())
+
+    def test_arch_aware_dep_unavailable_when_host_missing_from_overrides(self):
+        source = GitHubToolSource(
+            tag="v1",
+            repo="x/y",
+            asset_template="ignored-{platform_suffix}",
+            asset_arch_overrides={
+                ("Linux", "x86_64"): "binary-linux-x86_64.gz",
+            },
+        )
+        with (
+            patch("tool_registry.registry.platform.system", return_value="Linux"),
+            patch("tool_registry.registry.platform.machine", return_value="riscv64"),
+        ):
+            self.assertFalse(self._native_dep(source).is_available_on_host())
+
+
 class TestToolSource(unittest.TestCase):
     def test_asset_url_github_repo(self):
         source = GitHubToolSource(
@@ -971,6 +1039,39 @@ class TestHasRequiredTools(unittest.TestCase):
                         },
                     ):
                         self.assertTrue(needs_install())
+
+    def test_unavailable_native_dep_does_not_block_required_tools(self):
+        """Regression: rust-analyzer missing on Linux/riscv64 must not make
+        ``has_required_tools`` False — that would loop forever via
+        ``needs_install``.
+        """
+        with (
+            patch("tool_registry.registry.platform.system", return_value="Linux"),
+            patch("tool_registry.registry.platform.machine", return_value="riscv64"),
+        ):
+            with tempfile.TemporaryDirectory() as tmp:
+                base_dir = Path(tmp)
+                _populate_complete_servers_dir(base_dir)
+                # Delete the stubbed rust-analyzer to simulate "installer skipped".
+                rust_path = platform_bin_dir(base_dir) / f"rust-analyzer{exe_suffix()}"
+                if rust_path.exists():
+                    rust_path.unlink()
+                self.assertTrue(has_required_tools(base_dir))
+
+    def test_unavailable_native_dep_still_blocks_when_other_tools_missing(self):
+        """Sanity: the skip rule must not mask a missing tokei (always required)."""
+        with (
+            patch("tool_registry.registry.platform.system", return_value="Linux"),
+            patch("tool_registry.registry.platform.machine", return_value="riscv64"),
+        ):
+            with tempfile.TemporaryDirectory() as tmp:
+                base_dir = Path(tmp)
+                _populate_complete_servers_dir(base_dir)
+                rust_path = platform_bin_dir(base_dir) / f"rust-analyzer{exe_suffix()}"
+                if rust_path.exists():
+                    rust_path.unlink()
+                (platform_bin_dir(base_dir) / f"tokei{exe_suffix()}").unlink()
+                self.assertFalse(has_required_tools(base_dir))
 
 
 class TestResolveNativeAssetName(unittest.TestCase):

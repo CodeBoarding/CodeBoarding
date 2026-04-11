@@ -11,6 +11,7 @@ Adding a new tool:
     3. Add to the ``Language`` enum in ``static_analyzer/constants.py``.
 """
 
+import platform
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import StrEnum
@@ -120,6 +121,20 @@ class ToolDependency:
     archive_subdir: str = ""
     js_entry_file: str = ""
     js_entry_parent: str = ""
+
+    def is_available_on_host(self) -> bool:
+        """True unless this is an arch-aware NATIVE dep whose override map
+        excludes the running ``(system, machine)`` (e.g. rust-analyzer on
+        Linux/riscv64). Consulted by both the installer and
+        ``has_required_tools`` to keep them in sync.
+        """
+        if self.kind is not ToolKind.NATIVE:
+            return True
+        if not isinstance(self.source, GitHubToolSource):
+            return True
+        if not self.source.asset_arch_overrides:
+            return True
+        return (platform.system(), platform.machine()) in self.source.asset_arch_overrides
 
 
 TOOL_REGISTRY: list[ToolDependency] = [

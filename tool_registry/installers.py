@@ -193,6 +193,16 @@ def install_native_tools(
     for i, dep in enumerate(downloadable, 1):
         if on_progress:
             on_progress(dep.binary_name, i, len(downloadable))
+        # Mirrored by ``has_required_tools`` so an unsupported host
+        # doesn't loop forever (install skips, check fails, repeat).
+        if not dep.is_available_on_host():
+            logger.warning(
+                "  %s: no release asset for this host (%s/%s); skipping",
+                dep.binary_name,
+                system,
+                platform.machine(),
+            )
+            continue
         binary_path = bin_dir / f"{dep.binary_name}{exe_suffix()}"
         if binary_path.exists():
             logger.info("  %s: already installed, skipping", dep.binary_name)
@@ -201,12 +211,8 @@ def install_native_tools(
         assert isinstance(source, GitHubToolSource)
         asset_name = resolve_native_asset_name(source, suffix or "")
         if asset_name is None:
-            logger.warning(
-                "  %s: no release asset for this host (%s/%s); skipping",
-                dep.binary_name,
-                system,
-                platform.machine(),
-            )
+            # Defensive: should be unreachable via is_available_on_host above.
+            logger.warning("  %s: resolve_native_asset_name returned None", dep.binary_name)
             continue
         url = asset_url(source, asset_name)
         compressed = _is_compressed_asset(asset_name)
