@@ -122,7 +122,6 @@ class StaticAnalyzer:
         self._engine_clients: list[tuple[LanguageAdapter, Path, LSPClient]] = []
         self.collected_diagnostics: dict[str, FileDiagnosticsMap] = {}
         self._clients_started: bool = False
-        self._failed_languages: list[str] = []
         self._cached_results: StaticAnalysisResults | None = None
 
     def __enter__(self) -> "StaticAnalyzer":
@@ -138,8 +137,8 @@ class StaticAnalyzer:
         Call once before invoking analyze() or analyze_with_cluster_changes().
         Idempotent — safe to call even if clients are already running.
 
-        A failing client is skipped and recorded in ``_failed_languages``;
-        ``RuntimeError`` is raised only when every configured client fails.
+        A failing client is skipped and logged; ``RuntimeError`` is raised
+        only when every configured client fails.
         """
         if self._clients_started:
             logger.info(f"Clients already started for {self.repository_path}, skipping start.")
@@ -147,7 +146,7 @@ class StaticAnalyzer:
 
         started: list[tuple[LanguageAdapter, Path, LSPClient]] = []
         attempted: list[str] = []
-        self._failed_languages = []
+        failed_languages: list[str] = []
 
         for adapter, project_path in self._engine_configs:
             attempted.append(adapter.language)
@@ -183,7 +182,7 @@ class StaticAnalyzer:
                     f"Failed to start engine LSP client for {adapter.language}; "
                     f"skipping this language and continuing"
                 )
-                self._failed_languages.append(adapter.language)
+                failed_languages.append(adapter.language)
                 if engine_client is not None:
                     try:
                         engine_client.shutdown()
@@ -196,10 +195,10 @@ class StaticAnalyzer:
             self._clients_started = False
             raise RuntimeError(f"Failed to start any engine LSP client (attempted: {', '.join(attempted) or 'none'})")
 
-        if self._failed_languages:
+        if failed_languages:
             logger.warning(
                 f"Proceeding with partial LSP coverage. "
-                f"Failed: {', '.join(self._failed_languages)}. "
+                f"Failed: {', '.join(failed_languages)}. "
                 f"Started: {', '.join(a.language for a, _, _ in started)}"
             )
 

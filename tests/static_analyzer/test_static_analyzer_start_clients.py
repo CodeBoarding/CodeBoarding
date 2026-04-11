@@ -61,7 +61,6 @@ class TestStartClientsGracefulDegradation:
 
         assert analyzer._clients_started is True
         assert [a.language for a, _, _ in analyzer._engine_clients] == ["Python", "TypeScript"]
-        assert analyzer._failed_languages == ["CSharp"]
         # Healthy clients must NOT be shut down because a sibling failed.
         good_client_py.shutdown.assert_not_called()
         good_client_ts.shutdown.assert_not_called()
@@ -86,7 +85,6 @@ class TestStartClientsGracefulDegradation:
 
         assert analyzer._clients_started is False
         assert analyzer._engine_clients == []
-        assert analyzer._failed_languages == ["Python", "CSharp"]
 
     def test_all_success_records_no_failures(self, analyzer: StaticAnalyzer, tmp_path: Path) -> None:
         py_adapter = _make_adapter("Python")
@@ -97,5 +95,4 @@ class TestStartClientsGracefulDegradation:
             analyzer.start_clients()
 
         assert analyzer._clients_started is True
-        assert analyzer._failed_languages == []
         assert len(analyzer._engine_clients) == 2
