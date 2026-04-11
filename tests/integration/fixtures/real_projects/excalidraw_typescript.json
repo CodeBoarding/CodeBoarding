@@ -7,12 +7,15 @@
     "codeboarding_version": "0.2.0"
   },
   "metrics": {
-    "references_count": 12994,
+    "references_count_by_os": {
+      "Linux": 12994,
+      "Darwin": 12994,
+      "Windows": 12994
+    },
     "packages_count": 56,
     "call_graph_nodes": 9097,
     "call_graph_edges": 12309,
     "source_files_count": 2035,
-    "execution_time_seconds": 147,
     "execution_time_seconds_by_os": {
       "Linux": 147,
       "Darwin": 192,

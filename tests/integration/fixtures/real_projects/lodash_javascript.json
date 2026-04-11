@@ -7,12 +7,20 @@
     "codeboarding_version": "0.2.0"
   },
   "metrics": {
-    "references_count": 1543,
+    "references_count_by_os": {
+      "Linux": 1543,
+      "Darwin": 1543,
+      "Windows": 1543
+    },
     "packages_count": 7,
     "call_graph_nodes": 2968,
     "call_graph_edges": 1474,
     "source_files_count": 19,
-    "execution_time_seconds": 18
+    "execution_time_seconds_by_os": {
+      "Linux": 18,
+      "Darwin": 15,
+      "Windows": 21
+    }
   },
   "sample_references": [
     "fp._baseConvert.<unknown>",

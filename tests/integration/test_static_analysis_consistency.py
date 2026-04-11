@@ -146,8 +146,11 @@ MIN_ABSOLUTE_TOLERANCE = 2
 # Tolerance percentage for execution time comparisons (15% = 0.15)
 EXECUTION_TIME_TOLERANCE = 0.15
 
-# Minimum absolute tolerance for execution time in seconds
-MIN_EXECUTION_TIME_TOLERANCE = 90
+# Minimum absolute tolerance for execution-time comparisons; the larger
+# of this and EXECUTION_TIME_TOLERANCE applies. Set to 150s to absorb
+# JDTLS warm-up variance on shared macOS runners (observed 177s-295s
+# range for the same mockito_java test across consecutive runs).
+MIN_EXECUTION_TIME_TOLERANCE = 150
 
 
 def get_language_marker(language: str):
@@ -253,16 +256,28 @@ class TestStaticAnalysisConsistency:
         ]
 
         current_os = platform.system()
+        # Metrics that vary across OSes (LSP servers report slightly
+        # different reference counts on Windows; execution time tracks
+        # runner hardware) are stored as ``<name>_by_os`` dicts keyed by
+        # ``platform.system()``. All other metrics are flat scalars.
+        per_os_metrics = {"references_count", "execution_time_seconds"}
         results = []
         for metric_name in metric_names:
             actual = actual_metrics[metric_name]
+            if metric_name in per_os_metrics:
+                by_os_key = f"{metric_name}_by_os"
+                try:
+                    expected_val = expected_metrics[by_os_key][current_os]
+                except KeyError as e:
+                    raise AssertionError(
+                        f"Fixture {config.fixture_file} is missing " f"{by_os_key}[{current_os!r}] (got {e})"
+                    ) from None
+            else:
+                expected_val = expected_metrics[metric_name]
             if metric_name == "execution_time_seconds":
-                by_os = expected_metrics.get("execution_time_seconds_by_os", {})
-                expected_val = by_os.get(current_os, expected_metrics[metric_name])
                 tolerance = EXECUTION_TIME_TOLERANCE
                 min_absolute = MIN_EXECUTION_TIME_TOLERANCE
             else:
-                expected_val = expected_metrics[metric_name]
                 tolerance = METRIC_TOLERANCE
                 min_absolute = MIN_ABSOLUTE_TOLERANCE
             is_pass, diff_info = self._check_metric_within_tolerance(actual, expected_val, tolerance, min_absolute)

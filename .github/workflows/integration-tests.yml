@@ -42,13 +42,18 @@ on:
 
 jobs:
   # Emit the matrix.include list, event-driven:
-  #   schedule / workflow_dispatch → full 6 langs x 3 OSes (minus mac/go).
-  #   push / pull_request         → all 6 langs on Windows + java on Linux/mac.
+  #   schedule / workflow_dispatch → full 6 langs x 3 OSes minus skipped pairs.
+  #   push / pull_request         → Windows all langs (except java) + java on
+  #                                 Linux/mac (java's dev platforms).
   # workflow_dispatch honors the optional ``language`` input to narrow
   # the full matrix to a single language.
   #
-  # mac/go is skipped: free macos-latest is 3 vCPU / 7 GB RAM, and gopls
-  # indexing prometheus blows past 25 min under that memory pressure.
+  # Skipped pairs:
+  #   mac/go    — free macos-latest is 3 vCPU / 7 GB RAM; gopls indexing
+  #               prometheus blows past 25 min under that memory pressure.
+  #   win/java  — JDTLS races its own readiness signals on Windows (observed
+  #               85 vs 142 edges on the same commit across runs). Stable on
+  #               Linux/macOS; revisit after the LSP sync path is reworked.
   setup-matrix:
     runs-on: ubuntu-latest
     outputs:
@@ -69,7 +74,7 @@ jobs:
 
           all_langs = ["python", "java", "go", "typescript", "php", "javascript"]
           all_os = ["ubuntu-latest", "macos-latest", "windows-latest"]
-          skip = {("macos-latest", "go")}  # see job-level note above
+          skip = {("macos-latest", "go"), ("windows-latest", "java")}  # see job-level note
 
           if event in ("schedule", "workflow_dispatch"):
               langs = [dispatch_lang] if dispatch_lang else all_langs
@@ -81,7 +86,11 @@ jobs:
               ]
           else:
               # push / pull_request smoke subset.
-              include = [{"os": "windows-latest", "language": lg} for lg in all_langs]
+              include = [
+                  {"os": "windows-latest", "language": lg}
+                  for lg in all_langs
+                  if ("windows-latest", lg) not in skip
+              ]
               include.append({"os": "ubuntu-latest", "language": "java"})
               include.append({"os": "macos-latest", "language": "java"})
 
