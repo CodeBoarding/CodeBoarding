@@ -2,6 +2,11 @@
 
 Adding a new tool:
     1. Add a ``ToolDependency`` entry to ``TOOL_REGISTRY`` below.
+       For native binaries hosted as a single pre-extracted file, set
+       ``ToolKind.NATIVE`` and a ``GitHubToolSource`` with ``asset_template``.
+       For native binaries shipped as compressed assets (gzipped on Unix or
+       zipped on Windows — e.g. upstream rust-analyzer), additionally set
+       ``archive_format`` and, for arch-specific tools, ``asset_arch_overrides``.
     2. Add the entry to ``VSCODE_CONFIG`` in ``vscode_constants.py``.
     3. Add to the ``Language`` enum in ``static_analyzer/constants.py``.
 """
@@ -25,6 +30,12 @@ JDTLS_BUILD = "202501221502"
 JDTLS_URL_TEMPLATE = (
     "https://download.eclipse.org/jdtls/milestones/{version}/jdt-language-server-{version}-{build}.tar.gz"
 )
+
+# rust-analyzer is pulled directly from upstream (weekly releases, ~17MB
+# per platform) rather than mirrored. Bumping the tag triggers a reinstall
+# via ``tools_fingerprint()``.
+RUST_ANALYZER_REPO = "rust-lang/rust-analyzer"
+RUST_ANALYZER_TAG = "2026-03-30"
 
 # Pinned Node.js runtime for users without system Node; downloaded to
 # <servers_dir>/nodeenv/ via install_embedded_node(). A bump is folded into
@@ -65,11 +76,27 @@ class ToolSource:
 
 @dataclass(frozen=True)
 class GitHubToolSource(ToolSource):
-    """Tool binary hosted on a GitHub release built by our pipeline."""
+    """Tool binary hosted on a GitHub release.
+
+    Distribution patterns:
+
+    * **Pre-extracted binary** (default, e.g. ``tokei``, ``gopls``): asset
+      downloaded directly to ``bin/<platform>/<binary_name><exe>``.
+    * **Compressed binary** (e.g. ``rust-analyzer``): the installer infers
+      the format from the asset filename suffix (``.gz`` or ``.zip``) and
+      decompresses after download. ``archive_inner_path`` picks a specific
+      member out of a zip; single-member zips can omit it.
+    * **Architecture-aware**: provide ``asset_arch_overrides`` keyed by
+      ``(platform.system(), platform.machine())`` for tools shipping
+      distinct binaries per CPU; the override wins over the
+      ``asset_template`` + ``PLATFORM_SUFFIX`` lookup.
+    """
 
     repo: str = ""
     asset_template: str = ""  # ``{platform_suffix}`` placeholder
     sha256: dict[str, str] = field(default_factory=dict)  # keyed by platform suffix
+    archive_inner_path: str = ""  # path to the binary inside a zip; default = single member
+    asset_arch_overrides: dict[tuple[str, str], str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -166,5 +193,26 @@ TOOL_REGISTRY: list[ToolDependency] = [
             build=JDTLS_BUILD,
         ),
         archive_subdir="jdtls",
+    ),
+    ToolDependency(
+        key="rust",
+        binary_name="rust-analyzer",
+        kind=ToolKind.NATIVE,
+        config_section=ConfigSection.LSP_SERVERS,
+        source=GitHubToolSource(
+            tag=RUST_ANALYZER_TAG,
+            repo=RUST_ANALYZER_REPO,
+            # ``asset_template`` is unused for arch-aware tools but kept
+            # non-empty so ``tools_fingerprint()`` formatting stays stable.
+            asset_template="rust-analyzer-{platform_suffix}",
+            asset_arch_overrides={
+                ("Linux", "x86_64"): "rust-analyzer-x86_64-unknown-linux-gnu.gz",
+                ("Linux", "aarch64"): "rust-analyzer-aarch64-unknown-linux-gnu.gz",
+                ("Darwin", "x86_64"): "rust-analyzer-x86_64-apple-darwin.gz",
+                ("Darwin", "arm64"): "rust-analyzer-aarch64-apple-darwin.gz",
+                ("Windows", "AMD64"): "rust-analyzer-x86_64-pc-windows-msvc.zip",
+                ("Windows", "ARM64"): "rust-analyzer-aarch64-pc-windows-msvc.zip",
+            },
+        ),
     ),
 ]

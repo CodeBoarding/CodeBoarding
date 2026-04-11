@@ -1,3 +1,4 @@
+import gzip
 import hashlib
 import io
 import json
@@ -7,6 +8,7 @@ import subprocess
 import tarfile
 import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -29,6 +31,7 @@ from tool_registry import (
     has_required_tools,
     initialize_nodeenv_globals,
     install_embedded_node,
+    install_native_tools,
     install_node_tools,
     needs_install,
     node_is_acceptable,
@@ -40,6 +43,8 @@ from tool_registry import (
     tools_fingerprint,
     write_manifest,
 )
+from tool_registry.installers import _extract_compressed_binary, resolve_native_asset_name
+from tool_registry.registry import ToolDependency, ConfigSection
 
 
 def _write_healthy_embedded_node(base_dir: Path, version: str = PINNED_NODE_VERSION) -> Path:
@@ -966,6 +971,336 @@ class TestHasRequiredTools(unittest.TestCase):
                         },
                     ):
                         self.assertTrue(needs_install())
+
+
+class TestResolveNativeAssetName(unittest.TestCase):
+    """Asset-name resolution for both pre-extracted and compressed sources."""
+
+    def test_templated_lookup_uses_platform_suffix(self):
+        """Sources without arch overrides format ``asset_template`` with the suffix."""
+        source = GitHubToolSource(
+            tag="v1.0",
+            repo="example/tool",
+            asset_template="example-{platform_suffix}",
+        )
+        self.assertEqual(resolve_native_asset_name(source, "linux"), "example-linux")
+        self.assertEqual(resolve_native_asset_name(source, "macos"), "example-macos")
+        self.assertEqual(resolve_native_asset_name(source, "windows.exe"), "example-windows.exe")
+
+    def test_empty_platform_suffix_returns_none(self):
+        """Unsupported host falls through cleanly so the caller can log+skip."""
+        source = GitHubToolSource(
+            tag="v1.0",
+            repo="example/tool",
+            asset_template="example-{platform_suffix}",
+        )
+        self.assertIsNone(resolve_native_asset_name(source, ""))
+
+    def test_arch_overrides_win_when_host_matches(self):
+        """``asset_arch_overrides`` is consulted before the templated path."""
+        source = GitHubToolSource(
+            tag="2026-03-30",
+            repo="rust-lang/rust-analyzer",
+            asset_template="rust-analyzer-{platform_suffix}",
+            asset_arch_overrides={
+                ("Linux", "x86_64"): "rust-analyzer-x86_64-unknown-linux-gnu.gz",
+                ("Darwin", "arm64"): "rust-analyzer-aarch64-apple-darwin.gz",
+            },
+        )
+        with (
+            patch("tool_registry.installers.platform.system", return_value="Linux"),
+            patch("tool_registry.installers.platform.machine", return_value="x86_64"),
+        ):
+            self.assertEqual(
+                resolve_native_asset_name(source, "linux"),
+                "rust-analyzer-x86_64-unknown-linux-gnu.gz",
+            )
+        with (
+            patch("tool_registry.installers.platform.system", return_value="Darwin"),
+            patch("tool_registry.installers.platform.machine", return_value="arm64"),
+        ):
+            self.assertEqual(
+                resolve_native_asset_name(source, "macos"),
+                "rust-analyzer-aarch64-apple-darwin.gz",
+            )
+
+    def test_arch_overrides_unsupported_host_returns_none(self):
+        """If ``asset_arch_overrides`` is set but this host is missing, return None.
+
+        This is intentional — falling through to the templated suffix would
+        download the wrong-arch binary instead of cleanly reporting "no
+        release for this host".
+        """
+        source = GitHubToolSource(
+            tag="2026-03-30",
+            repo="rust-lang/rust-analyzer",
+            asset_template="rust-analyzer-{platform_suffix}",
+            asset_arch_overrides={
+                ("Linux", "x86_64"): "rust-analyzer-x86_64-unknown-linux-gnu.gz",
+            },
+        )
+        with (
+            patch("tool_registry.installers.platform.system", return_value="Linux"),
+            patch("tool_registry.installers.platform.machine", return_value="riscv64"),
+        ):
+            self.assertIsNone(resolve_native_asset_name(source, "linux"))
+
+
+class TestExtractCompressedBinary(unittest.TestCase):
+    """Decompression of gzipped and zipped single-binary release assets.
+
+    Format is inferred from the archive filename suffix (``.gz`` or ``.zip``).
+    """
+
+    def test_gz_writes_decompressed_payload(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            archive = tmp_path / "tool.gz"
+            target = tmp_path / "tool"
+            payload = b"#!/bin/sh\necho rust-analyzer-mock\n" * 100
+            with gzip.open(archive, "wb") as f:
+                f.write(payload)
+
+            _extract_compressed_binary(archive, "", target)
+
+            self.assertTrue(target.exists())
+            self.assertEqual(target.read_bytes(), payload)
+
+    def test_zip_with_single_member_extracts_it(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            archive = tmp_path / "tool.zip"
+            target = tmp_path / "tool.exe"
+            payload = b"MZ\x90\x00\x03\x00\x00\x00mock-exe-bytes"
+            with zipfile.ZipFile(archive, "w") as zf:
+                zf.writestr("rust-analyzer.exe", payload)
+
+            _extract_compressed_binary(archive, "", target)
+
+            self.assertEqual(target.read_bytes(), payload)
+
+    def test_zip_picks_only_exe_member_from_mixed_archive(self):
+        """When a zip has multiple members, prefer the unique .exe candidate."""
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            archive = tmp_path / "tool.zip"
+            target = tmp_path / "tool.exe"
+            with zipfile.ZipFile(archive, "w") as zf:
+                zf.writestr("README.txt", b"docs")
+                zf.writestr("LICENSE", b"license")
+                zf.writestr("rust-analyzer.exe", b"binary-bytes")
+
+            _extract_compressed_binary(archive, "", target)
+
+            self.assertEqual(target.read_bytes(), b"binary-bytes")
+
+    def test_zip_with_explicit_inner_path(self):
+        """When ``archive_inner_path`` is set the named member is used verbatim."""
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            archive = tmp_path / "tool.zip"
+            target = tmp_path / "tool"
+            with zipfile.ZipFile(archive, "w") as zf:
+                zf.writestr("nested/dir/binary", b"payload")
+
+            _extract_compressed_binary(archive, "nested/dir/binary", target)
+
+            self.assertEqual(target.read_bytes(), b"payload")
+
+    def test_zip_with_missing_inner_path_raises(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            archive = tmp_path / "tool.zip"
+            with zipfile.ZipFile(archive, "w") as zf:
+                zf.writestr("only-member", b"")
+
+            with self.assertRaises(ValueError) as ctx:
+                _extract_compressed_binary(archive, "missing", tmp_path / "out")
+            self.assertIn("missing", str(ctx.exception))
+
+    def test_zip_ambiguous_members_raises(self):
+        """Multiple non-.exe members with no inner_path is unrecoverable."""
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            archive = tmp_path / "tool.zip"
+            with zipfile.ZipFile(archive, "w") as zf:
+                zf.writestr("foo", b"a")
+                zf.writestr("bar", b"b")
+
+            with self.assertRaises(ValueError):
+                _extract_compressed_binary(archive, "", tmp_path / "out")
+
+    def test_unknown_suffix_raises(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaises(ValueError):
+                _extract_compressed_binary(Path(tmp) / "x.rar", "", Path(tmp) / "out")
+
+
+class TestInstallNativeToolsCompressed(unittest.TestCase):
+    """End-to-end install path for compressed-asset native tools."""
+
+    def _make_compressed_dep(self, asset_name: str) -> ToolDependency:
+        return ToolDependency(
+            key="rust",
+            binary_name="rust-analyzer",
+            kind=ToolKind.NATIVE,
+            config_section=ConfigSection.LSP_SERVERS,
+            source=GitHubToolSource(
+                tag="2026-03-30",
+                repo="rust-lang/rust-analyzer",
+                asset_template="rust-analyzer-{platform_suffix}",
+                asset_arch_overrides={
+                    ("Linux", "x86_64"): asset_name,
+                },
+            ),
+        )
+
+    def test_gz_asset_is_decompressed_and_chmod_set(self):
+        """A gz dep gets downloaded, decompressed, and marked executable."""
+        dep = self._make_compressed_dep("rust-analyzer-x86_64-unknown-linux-gnu.gz")
+        binary_payload = b"\x7fELF" + b"fake-elf-bytes" * 200
+
+        # The fake "download" writes a gzipped payload to the destination path.
+        def fake_download(url, destination, expected_sha256=None):
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            with gzip.open(destination, "wb") as f:
+                f.write(binary_payload)
+            return True
+
+        # ``installers.platform`` and ``paths.platform`` reference the same
+        # global ``platform`` module, so a single patch on ``platform.system``
+        # affects both call sites. The two patch lines below are equivalent
+        # (both set the same attribute) — kept symmetric for readability.
+        with tempfile.TemporaryDirectory() as tmp:
+            target_dir = Path(tmp)
+            with (
+                patch("tool_registry.installers.platform.system", return_value="Linux"),
+                patch("tool_registry.installers.platform.machine", return_value="x86_64"),
+                patch("tool_registry.paths.platform.system", return_value="Linux"),
+                patch("tool_registry.installers.download_asset", side_effect=fake_download),
+            ):
+                install_native_tools(target_dir, [dep])
+
+                installed = platform_bin_dir(target_dir) / "rust-analyzer"
+                self.assertTrue(installed.exists())
+                self.assertEqual(installed.read_bytes(), binary_payload)
+                # Archive temp file must be cleaned up.
+                archive_leftover = platform_bin_dir(target_dir) / "rust-analyzer-x86_64-unknown-linux-gnu.gz"
+                self.assertFalse(archive_leftover.exists())
+                # On Unix, the binary should be executable.
+                mode = installed.stat().st_mode & 0o777
+                self.assertEqual(mode & 0o111, 0o111)
+
+    def test_zip_asset_is_extracted(self):
+        """Windows zip assets must use the zip extractor, not the gz one.
+
+        Regression: an earlier version stored a single ``archive_format``
+        flag on the source, so a rust entry declaring ``"gz"`` would try to
+        gunzip the Windows ``.zip`` asset and fail. Format is now inferred
+        from the asset filename suffix.
+        """
+        dep = ToolDependency(
+            key="rust",
+            binary_name="rust-analyzer",
+            kind=ToolKind.NATIVE,
+            config_section=ConfigSection.LSP_SERVERS,
+            source=GitHubToolSource(
+                tag="2026-03-30",
+                repo="rust-lang/rust-analyzer",
+                asset_template="rust-analyzer-{platform_suffix}",
+                asset_arch_overrides={
+                    ("Windows", "AMD64"): "rust-analyzer-x86_64-pc-windows-msvc.zip",
+                },
+            ),
+        )
+        binary_payload = b"MZ\x90\x00mock-windows-binary"
+
+        def fake_download(url, destination, expected_sha256=None):
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            with zipfile.ZipFile(destination, "w") as zf:
+                zf.writestr("rust-analyzer.exe", binary_payload)
+            return True
+
+        with tempfile.TemporaryDirectory() as tmp:
+            target_dir = Path(tmp)
+            with (
+                patch("tool_registry.installers.platform.system", return_value="Windows"),
+                patch("tool_registry.installers.platform.machine", return_value="AMD64"),
+                patch("tool_registry.paths.platform.system", return_value="Windows"),
+                patch("tool_registry.installers.download_asset", side_effect=fake_download),
+            ):
+                install_native_tools(target_dir, [dep])
+                installed = platform_bin_dir(target_dir) / "rust-analyzer.exe"
+                self.assertTrue(installed.exists())
+                self.assertEqual(installed.read_bytes(), binary_payload)
+
+    def test_unsupported_arch_skips_cleanly(self):
+        """A host with no arch override is reported and skipped, not crashed."""
+        dep = self._make_compressed_dep("rust-analyzer-x86_64-unknown-linux-gnu.gz")
+        with tempfile.TemporaryDirectory() as tmp:
+            target_dir = Path(tmp)
+            with (
+                patch("tool_registry.installers.platform.system", return_value="Linux"),
+                patch("tool_registry.installers.platform.machine", return_value="riscv64"),
+                patch("tool_registry.installers.download_asset") as mock_download,
+            ):
+                install_native_tools(target_dir, [dep])
+                mock_download.assert_not_called()
+            installed = platform_bin_dir(target_dir) / "rust-analyzer"
+            self.assertFalse(installed.exists())
+
+    def test_unsupported_platform_logs_warning_but_does_not_crash(self):
+        """An unknown ``platform.system()`` (e.g. FreeBSD) logs the top-level
+        warning before ``platform_bin_dir`` raises. Verifies one clear
+        message reaches the user instead of an opaque crash.
+        """
+        compressed_dep = self._make_compressed_dep("rust-analyzer-x86_64-unknown-linux-gnu.gz")
+        with tempfile.TemporaryDirectory() as tmp:
+            target_dir = Path(tmp)
+            with (
+                patch("tool_registry.installers.platform.system", return_value="FreeBSD"),
+                self.assertLogs("tool_registry.installers", level="WARNING") as logs,
+            ):
+                # platform_bin_dir will raise on FreeBSD because the
+                # subdir map doesn't know it. That's expected — we only
+                # care that the top-level "Unsupported platform" warning
+                # was logged before the crash.
+                with self.assertRaises(RuntimeError, msg="platform_bin_dir should reject unknown systems"):
+                    install_native_tools(target_dir, [compressed_dep])
+            warning_text = "\n".join(logs.output)
+            self.assertIn("Unsupported platform FreeBSD", warning_text)
+
+
+class TestRustRegistryEntry(unittest.TestCase):
+    """Smoke tests for the rust-analyzer entry in TOOL_REGISTRY."""
+
+    def test_rust_entry_present(self):
+        rust_deps = [d for d in TOOL_REGISTRY if d.key == "rust"]
+        self.assertEqual(len(rust_deps), 1)
+        self.assertEqual(rust_deps[0].binary_name, "rust-analyzer")
+        self.assertEqual(rust_deps[0].kind, ToolKind.NATIVE)
+
+    def test_rust_source_has_arch_overrides_for_all_three_platforms(self):
+        """Sanity: Linux, macOS, Windows are all covered (at least one arch each)."""
+        rust = next(d for d in TOOL_REGISTRY if d.key == "rust")
+        assert isinstance(rust.source, GitHubToolSource)
+        systems = {key[0] for key in rust.source.asset_arch_overrides}
+        self.assertEqual(systems, {"Linux", "Darwin", "Windows"})
+
+    def test_rust_uses_compressed_assets(self):
+        """Every override in the rust entry must end in .gz or .zip so the
+        installer's suffix-based decompression picks the right format.
+        """
+        rust = next(d for d in TOOL_REGISTRY if d.key == "rust")
+        assert isinstance(rust.source, GitHubToolSource)
+        for asset in rust.source.asset_arch_overrides.values():
+            self.assertTrue(asset.endswith(".gz") or asset.endswith(".zip"), asset)
+
+    def test_rust_fingerprint_includes_tag(self):
+        """Bumping ``RUST_ANALYZER_TAG`` must invalidate manifests."""
+        rust = next(d for d in TOOL_REGISTRY if d.key == "rust")
+        assert isinstance(rust.source, GitHubToolSource)
+        self.assertIn(rust.source.tag, tools_fingerprint())
 
 
 if __name__ == "__main__":

@@ -42,17 +42,12 @@ class ClusteringConfig:
     # Display limits
     MAX_DISPLAY_CLUSTERS = 55  # Maximum clusters to show in output (readability limit)
 
-    # Language-specific delimiters for qualified names
-    DEFAULT_DELIMITER = "."  # Works for Python, Java, C#
-    DELIMITER_MAP = {
-        Language.PYTHON: ".",
-        Language.GO: ".",
-        Language.PHP: "\\",  # PHP uses backslash for namespaces
-        Language.TYPESCRIPT: ".",
-        Language.JAVASCRIPT: ".",
-        Language.JAVA: ".",
-        Language.RUST: ".",
-    }
+    # Separator used by every ``LanguageAdapter.build_qualified_name``.
+    # A future per-language switch (e.g. Rust to ``::``) would need both a
+    # per-adapter override and updates to consumers that hardcode
+    # ``.split(".")`` (``language_adapter.extract_package``,
+    # ``cluster_methods_mixin.py``, ``diagnose_relations.py``).
+    QUALIFIED_NAME_DELIMITER = "."
 
     # Deterministic seed for clustering algorithms
     CLUSTERING_SEED = 42

@@ -48,6 +48,7 @@ class LSPClient:
         collect_diagnostics: bool = False,
         extra_env: dict[str, str] | None = None,
         workspace_settings: dict | None = None,
+        extra_client_capabilities: dict | None = None,
     ) -> None:
         self._command = command
         self._project_root = project_root
@@ -56,6 +57,8 @@ class LSPClient:
         self._collect_diagnostics = collect_diagnostics
         self._extra_env = extra_env or {}
         self._workspace_settings = workspace_settings
+        # Adapter-specific keys merged into capabilities at ``initialize`` time.
+        self._extra_client_capabilities = extra_client_capabilities or {}
         self._process: subprocess.Popen | None = None  # type: ignore[type-arg]
         self._stdout_fd: int | None = None
         self._request_id = 0
@@ -123,15 +126,22 @@ class LSPClient:
                 "tagSupport": {"valueSet": [1, 2]},
             }
 
+        capabilities: dict = {"textDocument": text_doc_capabilities}
+        # Shallow-merge adapter extras into the top-level capabilities. On
+        # collision: dicts merge, scalars are overwritten by the adapter.
+        for cap_key, cap_value in self._extra_client_capabilities.items():
+            if cap_key in capabilities and isinstance(capabilities[cap_key], dict) and isinstance(cap_value, dict):
+                capabilities[cap_key] = {**capabilities[cap_key], **cap_value}
+            else:
+                capabilities[cap_key] = cap_value
+
         init_result = self._send_request(
             "initialize",
             {
                 "processId": os.getpid(),
                 "rootUri": root_uri,
                 "rootPath": str(self._project_root),
-                "capabilities": {
-                    "textDocument": text_doc_capabilities,
-                },
+                "capabilities": capabilities,
                 "workspaceFolders": [
                     {"uri": root_uri, "name": self._project_root.name},
                 ],
@@ -662,6 +672,18 @@ class LSPClient:
             elif status_type == "ProjectStatus" and status_message == "OK":
                 self._server_ready.set()
                 logger.info("LSP server: ProjectStatus OK")
+
+        elif method == "experimental/serverStatus":
+            # rust-analyzer's readiness signal. ``quiescent`` flips True once
+            # the initial workspace load completes; we set ready then
+            # regardless of health (a ``warning`` state still has a usable
+            # reference index, just with diagnostics flagged).
+            quiescent = bool(params.get("quiescent", False))
+            health = params.get("health", "")
+            logger.debug("rust-analyzer status: health=%s, quiescent=%s", health, quiescent)
+            if quiescent:
+                self._server_ready.set()
+                logger.info("LSP server: rust-analyzer quiescent (health=%s)", health)
 
     def _read_single_message(self) -> dict | None:
         """Read a single JSON-RPC message from stdout using raw fd I/O."""

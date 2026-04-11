@@ -9,7 +9,6 @@ from static_analyzer.constants import (
     ENTITY_LABELS,
     GRAPH_NODE_TYPES,
     ClusteringConfig,
-    Language,
     NodeType,
 )
 from static_analyzer.node import Node
@@ -65,13 +64,9 @@ class CallGraph:
         self.edges = edges if edges is not None else []
         self._edge_set: set[tuple[str, str]] = set()
         self.language = language.lower()
-        # Set delimiter based on language for qualified name parsing
-        # Convert string language to Language enum for lookup using list comprehension
-        lang_key: Language | None = next((lang for lang in Language if lang.value == self.language), None)
-        if lang_key and lang_key in ClusteringConfig.DELIMITER_MAP:
-            self.delimiter = ClusteringConfig.DELIMITER_MAP[lang_key]
-        else:
-            self.delimiter = ClusteringConfig.DEFAULT_DELIMITER
+        # Every adapter currently emits ``.``-separated qualified names; see
+        # ``constants.QUALIFIED_NAME_DELIMITER`` for the language-switch caveat.
+        self.delimiter = ClusteringConfig.QUALIFIED_NAME_DELIMITER
         # Cache for cluster result
         self._cluster_cache: ClusterResult | None = None
 

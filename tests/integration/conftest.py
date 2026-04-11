@@ -131,6 +131,21 @@ REPOSITORY_CONFIGS = [
             "lsp_server_key": "typescript",
         },
     ),
+    RepositoryTestConfig(
+        name="clap_rust",
+        repo_url="https://github.com/clap-rs/clap",
+        pinned_commit="v4.5.20",
+        language="Rust",
+        fixture_file="clap_rust.json",
+        mock_language={
+            "language": "Rust",
+            "size": 50000,
+            "percentage": 100.0,
+            "suffixes": [".rs"],
+            "server_commands": ["rust-analyzer"],
+            "lsp_server_key": "rust",
+        },
+    ),
 ]
 
 

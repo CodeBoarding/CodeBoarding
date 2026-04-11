@@ -16,6 +16,7 @@ on:
           - typescript
           - php
           - javascript
+          - rust
 
   push:
     branches: [main]
@@ -42,7 +43,7 @@ on:
 
 jobs:
   # Emit the matrix.include list, event-driven:
-  #   schedule / workflow_dispatch → full 6 langs x 3 OSes minus skipped pairs.
+  #   schedule / workflow_dispatch → full 7 langs x 3 OSes minus skipped pairs.
   #   push / pull_request         → Windows all langs (except java) + java on
   #                                 Linux/mac (java's dev platforms).
   # workflow_dispatch honors the optional ``language`` input to narrow
@@ -72,7 +73,7 @@ jobs:
           event = os.environ.get("EVENT_NAME", "")
           dispatch_lang = os.environ.get("DISPATCH_LANG", "").strip()
 
-          all_langs = ["python", "java", "go", "typescript", "php", "javascript"]
+          all_langs = ["python", "java", "go", "typescript", "php", "javascript", "rust"]
           all_os = ["ubuntu-latest", "macos-latest", "windows-latest"]
           skip = {("macos-latest", "go"), ("windows-latest", "java")}  # see job-level note
 
@@ -147,6 +148,17 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '21'
+
+      - name: Install Rust toolchain
+        if: matrix.language == 'rust'
+        # rust-analyzer comes from ``codeboarding-setup`` (tool_registry)
+        # but cargo must be on PATH for ``cargo metadata`` to succeed —
+        # without it, RustAdapter.get_lsp_command raises. Same pattern as
+        # the JDK requirement for Java/JDTLS.
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          components: ''
 
       - name: Install PHP (linux)
         if: matrix.language == 'php' && runner.os == 'Linux'

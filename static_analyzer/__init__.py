@@ -169,6 +169,7 @@ class StaticAnalyzer:
                 # a Node-less host the embedded runtime's dir must be on PATH.
                 ensure_node_on_path(command, extra_env)
                 workspace_settings = adapter.get_workspace_settings()
+                extra_capabilities = getattr(adapter, "extra_client_capabilities", {}) or {}
                 engine_client = LSPClient(
                     command=command,
                     project_root=project_path,
@@ -176,15 +177,20 @@ class StaticAnalyzer:
                     collect_diagnostics=True,
                     extra_env=extra_env,
                     workspace_settings=workspace_settings,
+                    extra_client_capabilities=extra_capabilities,
                 )
                 engine_client.start()
                 t_lsp_started = time.monotonic()
                 logger.info(f"{adapter.language} LSP start: {t_lsp_started - t_start:.1f}s")
 
-                # For Java, wait for JDTLS to finish importing
-                if adapter.language.lower() == "java":
+                # Some LSP servers (JDTLS, rust-analyzer) load workspace
+                # metadata asynchronously and only respond to cross-file
+                # queries once that's complete. Adapters opt in via
+                # ``wait_for_workspace_ready`` so the language-name check
+                # doesn't keep growing.
+                if getattr(adapter, "wait_for_workspace_ready", False):
                     engine_client.wait_for_server_ready()
-                    logger.info(f"{adapter.language} project import: {time.monotonic() - t_lsp_started:.1f}s")
+                    logger.info(f"{adapter.language} workspace ready: {time.monotonic() - t_lsp_started:.1f}s")
 
                 started.append((adapter, project_path, engine_client))
 

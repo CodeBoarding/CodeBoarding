@@ -1,0 +1,87 @@
+{
+  "language": "Rust",
+  "expected_references": [
+    "src.main",
+    "src.models.base.Entity",
+    "src.models.base.Entity.get_id",
+    "src.models.base.Entity.id",
+    "src.models.base.Entity.new",
+    "src.models.base.Speaker",
+    "src.models.base.Speaker.shout",
+    "src.models.base.Speaker.speak",
+    "src.models.entities.Cat",
+    "src.models.entities.Cat.entity",
+    "src.models.entities.Cat.name",
+    "src.models.entities.Cat.new",
+    "src.models.entities.Cat.speak",
+    "src.models.entities.Dog",
+    "src.models.entities.Dog.entity",
+    "src.models.entities.Dog.name",
+    "src.models.entities.Dog.new",
+    "src.models.entities.Dog.speak",
+    "src.models.entities.Task",
+    "src.models.entities.Task.get_label",
+    "src.models.entities.Task.id",
+    "src.models.entities.Task.new",
+    "src.models.entities.Task.title",
+    "src.services.processor.Summary",
+    "src.services.processor.Summary.count",
+    "src.services.processor.Summary.last_label",
+    "src.services.processor.summarize",
+    "src.utils.helpers.add",
+    "src.utils.helpers.format_label"
+  ],
+  "expected_classes": [
+    "src.models.base.Entity",
+    "src.models.base.Speaker",
+    "src.models.entities.Cat",
+    "src.models.entities.Dog",
+    "src.models.entities.Task",
+    "src.services.processor.Summary"
+  ],
+  "expected_hierarchy": {},
+  "expected_edges": [
+    ["src.main", "src.models.entities.Cat.new"],
+    ["src.main", "src.models.entities.Dog.new"],
+    ["src.main", "src.models.entities.Cat.speak"],
+    ["src.main", "src.models.entities.Dog.speak"],
+    ["src.main", "src.models.base.Speaker.speak"],
+    ["src.main", "src.models.entities.Task.new"],
+    ["src.main", "src.models.entities.Task.get_label"],
+    ["src.main", "src.services.processor.summarize"],
+    ["src.main", "src.utils.helpers.add"],
+    ["src.models.base.Speaker.shout", "src.models.base.Speaker.speak"],
+    ["src.models.entities.Cat.new", "src.models.base.Entity.new"],
+    ["src.models.entities.Dog.new", "src.models.base.Entity.new"],
+    ["src.models.entities.Task.get_label", "src.utils.helpers.format_label"],
+    ["src.services.processor.summarize", "src.models.entities.Task.get_label"]
+  ],
+  "expected_package_deps": {
+    "src": {
+      "imports_contain": ["src.models", "src.services", "src.utils"],
+      "imported_by_contain": []
+    },
+    "src.models": {
+      "imports_contain": ["src.utils"],
+      "imported_by_contain": ["src", "src.services"]
+    },
+    "src.services": {
+      "imports_contain": ["src.models"],
+      "imported_by_contain": ["src"]
+    },
+    "src.utils": {
+      "imports_contain": [],
+      "imported_by_contain": ["src", "src.models"]
+    }
+  },
+  "expected_source_files": [
+    "src/main.rs",
+    "src/models/base.rs",
+    "src/models/entities.rs",
+    "src/models/mod.rs",
+    "src/services/mod.rs",
+    "src/services/processor.rs",
+    "src/utils/helpers.rs",
+    "src/utils/mod.rs"
+  ]
+}
