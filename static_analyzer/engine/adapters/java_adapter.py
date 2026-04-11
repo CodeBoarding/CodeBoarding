@@ -42,15 +42,9 @@ class JavaAdapter(LanguageAdapter):
 
     @property
     def wait_for_workspace_ready(self) -> bool:
-        """JDTLS sends ``language/status`` notifications during project import
-        and is not ready to serve cross-file queries until ``ProjectStatus OK``
-        arrives. Block on it before Phase 2.
-
-        Replaces the ``adapter.language.lower() == "java"`` special-case that
-        ``StaticAnalyzer.start_clients`` previously used to drive the same
-        wait — keeping it here lets new adapters with the same need
-        (rust-analyzer, csharp-ls) opt in declaratively instead of growing
-        the language-name string check.
+        """JDTLS finishes project import asynchronously and only signals
+        readiness via ``language/status`` (``ProjectStatus OK``); cross-file
+        queries return empty until then.
         """
         return True
 

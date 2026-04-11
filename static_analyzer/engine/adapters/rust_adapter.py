@@ -13,22 +13,57 @@ from static_analyzer.engine.language_adapter import LanguageAdapter
 _IMPLICIT_MODULE_STEMS = {"mod", "lib", "main"}
 
 
+def _skip_angle_block(s: str, start: int) -> int:
+    """Return the index just past a balanced ``<...>`` block starting at *start*.
+
+    Handles nested generics (``<T: Iterator<Item = u8>>``). Returns *start*
+    unchanged if the block is malformed.
+    """
+    if start >= len(s) or s[start] != "<":
+        return start
+    depth = 0
+    for i in range(start, len(s)):
+        if s[i] == "<":
+            depth += 1
+        elif s[i] == ">":
+            depth -= 1
+            if depth == 0:
+                return i + 1
+    return start
+
+
 def _normalize_parent(name: str) -> str:
-    """Strip the ``impl `` prefix and ``impl X for Y`` wrapper from a
-    rust-analyzer documentSymbol parent name, leaving just the implementing
-    type (e.g. ``"impl Speaker for Cat"`` becomes ``"Cat"``). Generics are
-    stripped so consumers can ``.split(".")``. Non-impl names pass through.
+    """Reduce a rust-analyzer documentSymbol parent to a clean type name.
+
+    Handles every impl header shape rust-analyzer emits:
+    ``impl T``, ``impl<T> Foo<T>``, ``impl<T> Trait for Foo<T>``,
+    ``impl<T: Bound> Foo<T> where ...``. Returns the implementing type
+    with all generics and where clauses stripped so consumers can
+    ``.split(".")``. Non-impl names pass through unchanged.
     """
     name = name.strip()
-    if not name.startswith("impl "):
+    if not name.startswith("impl"):
         return name
-    body = name[len("impl ") :].strip()
+    # ``impl`` must be a standalone token: either followed by whitespace
+    # (``impl Foo``) or by ``<`` for impl-level generics (``impl<T> Foo``).
+    after_impl = name[len("impl") :]
+    if after_impl and after_impl[0] not in (" ", "\t", "<"):
+        return name
+    # Skip the impl-level ``<...>`` block if present, then any whitespace.
+    cursor = len("impl")
+    cursor = _skip_angle_block(name, cursor)
+    while cursor < len(name) and name[cursor].isspace():
+        cursor += 1
+    body = name[cursor:].strip()
+    # Trait impls put the implementing type after ``for``.
     for_idx = body.find(" for ")
     if for_idx != -1:
         body = body[for_idx + len(" for ") :].strip()
-    angle_idx = body.find("<")
-    if angle_idx != -1:
-        body = body[:angle_idx].strip()
+    # Strip type-level generics and where clauses.
+    for terminator in ("<", " where "):
+        idx = body.find(terminator)
+        if idx != -1:
+            body = body[:idx].strip()
     return body or name
 
 
@@ -56,12 +91,8 @@ class RustAdapter(LanguageAdapter):
 
     @property
     def extra_client_capabilities(self) -> dict:
-        """Opt into rust-analyzer's ``experimental/serverStatus`` notifications.
-
-        Required: without this advertisement rust-analyzer never emits the
-        ``quiescent`` notification and ``wait_for_server_ready`` times out
-        (verified empirically). Confined to this adapter so other LSPs
-        don't see vendor-specific keys.
+        """Opt into rust-analyzer's ``experimental/serverStatus`` notifications,
+        which it only emits when the client advertises this capability.
         """
         return {"experimental": {"serverStatusNotification": True}}
 

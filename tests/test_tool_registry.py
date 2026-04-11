@@ -1237,12 +1237,9 @@ class TestExtractCompressedBinary(unittest.TestCase):
                 _extract_compressed_binary(Path(tmp) / "x.rar", "", Path(tmp) / "out")
 
     def test_extraction_failure_does_not_leave_partial_binary(self):
-        """A failed extraction must NOT publish a half-written file at *target*.
-
-        Atomicity guard: write to a sibling temp file, then ``os.replace``.
-        Without this, a previous run that crashed mid-extract would leave a
-        truncated binary at *target* and the next ``has_required_tools``
-        check would treat it as installed.
+        """A failed extraction must not publish a half-written file at *target*
+        — ``has_required_tools`` only checks existence, so a truncated binary
+        would be treated as installed.
         """
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
@@ -1423,12 +1420,8 @@ class TestInstallNativeToolsCompressed(unittest.TestCase):
             self.assertIsNone(mock_dl.call_args.kwargs.get("expected_sha256"))
 
     def test_zip_asset_is_extracted(self):
-        """Windows zip assets must use the zip extractor, not the gz one.
-
-        Regression: an earlier version stored a single ``archive_format``
-        flag on the source, so a rust entry declaring ``"gz"`` would try to
-        gunzip the Windows ``.zip`` asset and fail. Format is now inferred
-        from the asset filename suffix.
+        """Windows ``.zip`` assets must use the zip extractor; the format is
+        inferred from the asset filename suffix per arch override.
         """
         dep = ToolDependency(
             key="rust",
@@ -1481,11 +1474,9 @@ class TestInstallNativeToolsCompressed(unittest.TestCase):
             self.assertFalse(installed.exists())
 
     def test_unsupported_platform_logs_warning_and_returns_cleanly(self):
-        """An unknown ``platform.system()`` (e.g. FreeBSD) is caught up front:
-        ``platform_bin_dir`` raises, the installer logs one clear warning,
-        and returns instead of propagating the RuntimeError to the caller.
-        Without this guard, a single FreeBSD user would see an opaque crash
-        in ``codeboarding-setup``.
+        """An unknown ``platform.system()`` (e.g. FreeBSD) makes
+        ``platform_bin_dir`` raise; the installer must catch it, log one
+        warning, and return rather than propagate the RuntimeError.
         """
         compressed_dep = self._make_compressed_dep("rust-analyzer-x86_64-unknown-linux-gnu.gz")
         with tempfile.TemporaryDirectory() as tmp:
@@ -1494,8 +1485,6 @@ class TestInstallNativeToolsCompressed(unittest.TestCase):
                 patch("tool_registry.installers.platform.system", return_value="FreeBSD"),
                 self.assertLogs("tool_registry.installers", level="WARNING") as logs,
             ):
-                # Must not raise — the RuntimeError from platform_bin_dir
-                # is caught and turned into a warning + early return.
                 install_native_tools(target_dir, [compressed_dep])
             warning_text = "\n".join(logs.output)
             self.assertIn("Unsupported platform FreeBSD", warning_text)

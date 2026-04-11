@@ -31,11 +31,8 @@ class TestRustAdapterProperties:
         assert isinstance(adapter, RustAdapter)
 
     def test_wait_for_workspace_ready_is_true(self):
-        """Rust must opt into the workspace-ready wait so phase 2 references work.
-
-        Without this, ``StaticAnalyzer.start_clients`` skips the
-        ``wait_for_server_ready`` call and ``textDocument/references``
-        queries race the cargo metadata load. Regression guard.
+        """Rust opts into the workspace-ready wait so Phase 2 references queries
+        run after rust-analyzer has loaded the Cargo workspace.
         """
         assert RustAdapter().wait_for_workspace_ready is True
 
@@ -44,12 +41,8 @@ class TestRustAdapterProperties:
         assert RustAdapter().references_per_query_timeout > 0
 
     def test_extra_client_capabilities_advertises_server_status(self):
-        """rust-analyzer requires this capability to send quiescent notifications.
-
-        Verified by direct probing — without ``serverStatusNotification: true``
-        in the initialize request's experimental block, rust-analyzer never
-        emits ``experimental/serverStatus`` and ``wait_for_server_ready``
-        blocks until timeout.
+        """rust-analyzer only emits ``experimental/serverStatus`` notifications
+        when the client advertises this capability in the initialize request.
         """
         caps = RustAdapter().extra_client_capabilities
         assert caps == {"experimental": {"serverStatusNotification": True}}
@@ -286,10 +279,39 @@ class TestNormalizeParent:
         assert _normalize_parent("InnerStruct") == "InnerStruct"
 
     def test_impl_keyword_alone_returns_stripped(self):
-        """Defensive: a malformed ``impl `` with no body falls back to the stripped input."""
-        # ``"impl "`` strips to ``"impl"`` which no longer starts with ``"impl "``
-        # (note the trailing space), so the early-return path applies.
+        """A malformed ``impl `` with no body returns the stripped token."""
         assert _normalize_parent("impl ") == "impl"
+
+    def test_impl_with_inherent_generics(self):
+        """``impl<T> Foo<T>`` — impl-level generics declared before the type."""
+        assert _normalize_parent("impl<T> Repository<T>") == "Repository"
+        assert _normalize_parent("impl<T, U> Map<T, U>") == "Map"
+
+    def test_impl_with_generic_bounds(self):
+        """Trait bounds in the impl-level generics block must be skipped wholesale."""
+        assert _normalize_parent("impl<T: Clone> Vec<T>") == "Vec"
+        assert _normalize_parent("impl<T: Clone + Send> Repository<T>") == "Repository"
+
+    def test_impl_with_nested_generics_in_bounds(self):
+        """Impl-level generics may themselves contain nested generic types."""
+        assert _normalize_parent("impl<T: Iterator<Item = u8>> Foo<T>") == "Foo"
+
+    def test_generic_trait_impl(self):
+        """``impl<T> Trait for Type<T>`` — the implementing type comes after ``for``."""
+        assert _normalize_parent("impl<T> Iterator for MyIter<T>") == "MyIter"
+
+    def test_impl_with_lifetime(self):
+        """Lifetime parameters in the impl block also need to be skipped."""
+        assert _normalize_parent("impl<'a> Borrow<str> for Owned") == "Owned"
+
+    def test_impl_with_where_clause(self):
+        """``where`` clauses are stripped along with type-level generics."""
+        assert _normalize_parent("impl<T> Foo where T: Clone") == "Foo"
+        assert _normalize_parent("impl Foo where T: Clone") == "Foo"
+
+    def test_implementation_word_passes_through(self):
+        """``implementation`` is not an impl block — must not be touched."""
+        assert _normalize_parent("implementation") == "implementation"
 
 
 class TestBuildQualifiedNameWithImplBlocks:

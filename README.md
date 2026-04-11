@@ -16,6 +16,7 @@ Install the extension from Open VSX.
 [![Python](https://img.shields.io/badge/Python-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
 [![Go](https://img.shields.io/badge/Go-00ADD8?style=flat-square&logo=go&logoColor=white)](https://go.dev/)
 [![PHP](https://img.shields.io/badge/PHP-777BB4?style=flat-square&logo=php&logoColor=white)](https://www.php.net/)
+[![Rust](https://img.shields.io/badge/Rust-000000?style=flat-square&logo=rust&logoColor=white)](https://www.rust-lang.org/)
 
 ## Few use cases:
 
@@ -141,7 +142,7 @@ python main.py https://github.com/pytorch/pytorch
 
 ## Supported stack
 
-- Languages: Python, TypeScript, JavaScript, Java, Go, PHP.
+- Languages: Python, TypeScript, JavaScript, Java, Go, PHP, Rust.
 - LLM providers: OpenAI, Anthropic, Google, Vercel AI Gateway, AWS Bedrock, Ollama, OpenRouter, and more.
 
 ## Examples

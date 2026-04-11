@@ -100,13 +100,8 @@ class TestStartClientsGracefulDegradation:
 
 
 class TestStartClientsWorkspaceReadyDispatch:
-    """``start_clients`` must call ``wait_for_server_ready`` exactly when the
+    """``start_clients`` calls ``wait_for_server_ready`` exactly when the
     adapter opts in via ``wait_for_workspace_ready``.
-
-    Replaces the previous ``adapter.language.lower() == "java"`` special case
-    with a property-based dispatch that lets rust-analyzer (and future
-    workspace-loading LSPs like csharp-ls) hook into the same wait without
-    growing a string check.
     """
 
     def test_adapter_opting_in_triggers_wait(self, analyzer: StaticAnalyzer, tmp_path: Path) -> None:
