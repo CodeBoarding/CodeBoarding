@@ -158,7 +158,7 @@
     }
   },
   "expected_edges": [
-    ["src.index.main", "src.index.addTen"],
+    ["src.index.main", "src.index.main.addTen"],
     ["src.index.main", "src.models.base.Disposable.dispose"],
     ["src.index.main", "src.models.base.Serializable.serialize"],
     ["src.index.main", "src.models.entities.Event"],

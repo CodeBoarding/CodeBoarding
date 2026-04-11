@@ -9,7 +9,7 @@
   "metrics": {
     "references_count": 1543,
     "packages_count": 7,
-    "call_graph_nodes": 2968,
+    "call_graph_nodes": 875,
     "call_graph_edges": 1474,
     "source_files_count": 19,
     "execution_time_seconds": 18

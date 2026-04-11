@@ -1,196 +1,40 @@
 {
   "repository_name": "CodeBoarding",
-  "timestamp": "2026-02-06T13:01:09.296310+00:00",
-  "overall_score": 0.9305239179954442,
+  "overall_score": 0.9117740399873057,
   "check_summaries": [
-    {
-      "check_name": "function_size",
-      "description": "Checks that functions/methods do not exceed line count thresholds",
-      "check_type": "standard",
-      "total_entities_checked": 500,
-      "findings_count": 2,
-      "warning_count": 2,
-      "score": 0.996,
-      "finding_groups": [
-        {
-          "severity": "warning",
-          "threshold": 150,
-          "description": "Functions exceeding 150.0 lines",
-          "entities": [
-            {
-              "entity_name": "output_generators.html_template.populate_html_template",
-              "file_path": "output_generators/html_template.py",
-              "line_start": 5,
-              "line_end": 337,
-              "metric_value": 332
-            },
-            {
-              "entity_name": "static_analyzer.lsp_client.client._analyze_single_file",
-              "file_path": "static_analyzer/lsp_client/client.py",
-              "line_start": 548,
-              "line_end": 735,
-              "metric_value": 187
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "check_name": "fan_out",
-      "description": "Checks efferent coupling: how many other functions each function calls",
-      "check_type": "standard",
-      "total_entities_checked": 500,
-      "findings_count": 3,
-      "warning_count": 3,
-      "score": 0.994,
-      "finding_groups": [
-        {
-          "severity": "warning",
-          "threshold": 10,
-          "description": "Functions calling more than 10.0 other functions",
-          "entities": [
-            {
-              "entity_name": "static_analyzer.lsp_client.client._analyze_single_file",
-              "file_path": "static_analyzer/lsp_client/client.py",
-              "line_start": 548,
-              "line_end": 735,
-              "metric_value": 18
-            },
-            {
-              "entity_name": "main.main",
-              "file_path": "main.py",
-              "line_start": 343,
-              "line_end": 445,
-              "metric_value": 15
-            },
-            {
-              "entity_name": "main.process_remote_repository",
-              "file_path": "main.py",
-              "line_start": 173,
-              "line_end": 231,
-              "metric_value": 10
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "check_name": "fan_in",
-      "description": "Checks afferent coupling: how many other functions call each function",
-      "check_type": "standard",
-      "total_entities_checked": 500,
-      "findings_count": 4,
-      "warning_count": 4,
-      "score": 0.992,
-      "finding_groups": [
-        {
-          "severity": "warning",
-          "threshold": 10,
-          "description": "Functions called by more than 10.0 other functions",
-          "entities": [
-            {
-              "entity_name": "agents.agent_responses.llm_str",
-              "file_path": "agents/agent_responses.py",
-              "line_start": 10,
-              "line_end": 12,
-              "metric_value": 17
-            },
-            {
-              "entity_name": "agents.prompts.prompt_factory.get_global_factory",
-              "file_path": "agents/prompts/prompt_factory.py",
-              "line_start": 98,
-              "line_end": 105,
-              "metric_value": 14
-            },
-            {
-              "entity_name": "static_analyzer.lsp_client.client._send_request",
-              "file_path": "static_analyzer/lsp_client/client.py",
-              "line_start": 107,
-              "line_end": 126,
-              "metric_value": 13
-            },
-            {
-              "entity_name": "static_analyzer.lsp_client.client._wait_for_response",
-              "file_path": "static_analyzer/lsp_client/client.py",
-              "line_start": 174,
-              "line_end": 182,
-              "metric_value": 13
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "check_name": "god_class",
-      "description": "Detects classes with too many methods, too much code, or too many outgoing dependencies",
-      "check_type": "standard",
-      "total_entities_checked": 0,
-      "findings_count": 0,
-      "warning_count": 0,
-      "score": 1.0,
-      "finding_groups": []
-    },
-    {
-      "check_name": "inheritance_depth",
-      "description": "Checks that class inheritance hierarchies do not exceed depth thresholds",
-      "check_type": "standard",
-      "total_entities_checked": 111,
-      "findings_count": 0,
-      "warning_count": 0,
-      "score": 1.0,
-      "finding_groups": []
-    },
     {
       "check_name": "circular_dependencies",
       "description": "Detects circular dependencies between packages",
+      "language": "Python",
       "check_type": "circular_dependencies",
       "cycles": [
-        "static_analyzer -> agents -> static_analyzer"
+        "agents -> agents.tools -> static_analyzer -> agents",
+        "agents -> static_analyzer -> agents",
+        "evals -> evals.definitions -> evals",
+        "static_analyzer -> static_analyzer.lsp_client -> static_analyzer"
       ],
-      "packages_checked": 20,
-      "packages_in_cycles": 2
+      "packages_checked": 28,
+      "packages_in_cycles": 6
     },
     {
-      "check_name": "package_instability",
-      "description": "Computes Martin's instability metric (I = Ce / (Ca + Ce)) per package",
+      "check_name": "component_cohesion",
+      "description": "Measures internal vs external edge ratio per component/cluster",
+      "language": "Python",
       "check_type": "standard",
-      "total_entities_checked": 19,
-      "findings_count": 7,
-      "warning_count": 7,
-      "score": 0.631578947368421,
+      "total_entities_checked": 176,
+      "findings_count": 1,
+      "warning_count": 1,
+      "score": 0.9943181818181818,
       "finding_groups": [
         {
           "severity": "warning",
-          "threshold": 0.8,
-          "description": "Packages with instability >= 0.8 that are depended on by others",
+          "threshold": 0.1,
+          "description": "Components with low cohesion (below 0.1)",
           "entities": [
             {
-              "entity_name": "evals",
-              "metric_value": 0.947
-            },
-            {
-              "entity_name": "main",
-              "metric_value": 0.941
-            },
-            {
-              "entity_name": "github_action",
-              "metric_value": 0.909
-            },
-            {
-              "entity_name": "diagram_analysis",
-              "metric_value": 0.882
-            },
-            {
-              "entity_name": "logging_config",
-              "metric_value": 0.833
-            },
-            {
-              "entity_name": "static_analyzer",
-              "metric_value": 0.808
-            },
-            {
-              "entity_name": "duckdb_crud",
-              "metric_value": 0.8
+              "entity_name": "cluster_146",
+              "file_path": "static_analyzer/scanner.py",
+              "metric_value": 0.067
             }
           ]
         }
@@ -199,99 +43,788 @@
     {
       "check_name": "component_cohesion",
       "description": "Measures internal vs external edge ratio per component/cluster",
+      "language": "TypeScript",
       "check_type": "standard",
-      "total_entities_checked": 20,
+      "total_entities_checked": 0,
       "findings_count": 0,
       "warning_count": 0,
       "score": 1.0,
       "finding_groups": []
     },
     {
-      "check_name": "unused_code_diagnostics",
-      "description": "Detects unused imports, variables, functions, and dead code via LSP diagnostics",
+      "check_name": "fan_in",
+      "description": "Checks afferent coupling: how many other functions call each function",
+      "language": "Python",
       "check_type": "standard",
-      "total_entities_checked": 106,
-      "findings_count": 106,
-      "warning_count": 106,
-      "score": 0.0,
+      "total_entities_checked": 1293,
+      "findings_count": 25,
+      "warning_count": 25,
+      "score": 0.9806651198762568,
       "finding_groups": [
         {
           "severity": "warning",
+          "threshold": 10,
+          "description": "Functions called by more than 10.0 other functions",
+          "entities": [
+            {
+              "entity_name": "agents.prompts.prompt_factory.get_global_factory",
+              "file_path": "agents/prompts/prompt_factory.py",
+              "line_start": 99,
+              "line_end": 106,
+              "metric_value": 16
+            },
+            {
+              "entity_name": "duckdb_crud.fetch_job",
+              "file_path": "duckdb_crud.py",
+              "line_start": 80,
+              "line_end": 99,
+              "metric_value": 14
+            },
+            {
+              "entity_name": "duckdb_crud.insert_job",
+              "file_path": "duckdb_crud.py",
+              "line_start": 49,
+              "line_end": 65,
+              "metric_value": 13
+            },
+            {
+              "entity_name": "logging_config.setup_logging",
+              "file_path": "logging_config.py",
+              "line_start": 9,
+              "line_end": 105,
+              "metric_value": 11
+            },
+            {
+              "entity_name": "monitoring.callbacks.MonitoringCallback.stats",
+              "file_path": "monitoring/callbacks.py",
+              "line_start": 38,
+              "line_end": 41,
+              "metric_value": 17
+            },
+            {
+              "entity_name": "output_generators.__init__.sanitize",
+              "file_path": "output_generators/__init__.py",
+              "line_start": 4,
+              "line_end": 6,
+              "metric_value": 14
+            },
+            {
+              "entity_name": "repo_utils.ignore.RepoIgnoreManager.should_ignore",
+              "file_path": "repo_utils/ignore.py",
+              "line_start": 103,
+              "line_end": 135,
+              "metric_value": 16
+            },
+            {
+              "entity_name": "static_analyzer.analysis_result.StaticAnalysisResults.get_cfg",
+              "file_path": "static_analyzer/analysis_result.py",
+              "line_start": 103,
+              "line_end": 112,
+              "metric_value": 13
+            },
+            {
+              "entity_name": "static_analyzer.analysis_result.StaticAnalysisResults.get_languages",
+              "file_path": "static_analyzer/analysis_result.py",
+              "line_start": 185,
+              "line_end": 191,
+              "metric_value": 18
+            },
+            {
+              "entity_name": "static_analyzer.graph.CallGraph.add_edge",
+              "file_path": "static_analyzer/graph.py",
+              "line_start": 137,
+              "line_end": 149,
+              "metric_value": 30
+            },
+            {
+              "entity_name": "static_analyzer.graph.CallGraph.add_node",
+              "file_path": "static_analyzer/graph.py",
+              "line_start": 133,
+              "line_end": 135,
+              "metric_value": 34
+            },
+            {
+              "entity_name": "static_analyzer.graph.CallGraph.cluster",
+              "file_path": "static_analyzer/graph.py",
+              "line_start": 165,
+              "line_end": 230,
+              "metric_value": 12
+            },
+            {
+              "entity_name": "static_analyzer.java_config_scanner.JavaConfigScanner.scan",
+              "file_path": "static_analyzer/java_config_scanner.py",
+              "line_start": 39,
+              "line_end": 83,
+              "metric_value": 20
+            },
+            {
+              "entity_name": "static_analyzer.java_utils.get_java_version",
+              "file_path": "static_analyzer/java_utils.py",
+              "line_start": 12,
+              "line_end": 43,
+              "metric_value": 10
+            },
+            {
+              "entity_name": "static_analyzer.lsp_client.client.LSPClient._analyze_single_file",
+              "file_path": "static_analyzer/lsp_client/client.py",
+              "line_start": 549,
+              "line_end": 736,
+              "metric_value": 10
+            },
+            {
+              "entity_name": "static_analyzer.lsp_client.client.LSPClient._get_document_symbols",
+              "file_path": "static_analyzer/lsp_client/client.py",
+              "line_start": 259,
+              "line_end": 265,
+              "metric_value": 10
+            },
+            {
+              "entity_name": "static_analyzer.lsp_client.client.LSPClient._get_package_name",
+              "file_path": "static_analyzer/lsp_client/client.py",
+              "line_start": 1078,
+              "line_end": 1090,
+              "metric_value": 13
+            },
+            {
+              "entity_name": "static_analyzer.lsp_client.client.LSPClient._send_notification",
+              "file_path": "static_analyzer/lsp_client/client.py",
+              "line_start": 129,
+              "line_end": 141,
+              "metric_value": 28
+            },
+            {
+              "entity_name": "static_analyzer.lsp_client.client.LSPClient._send_request",
+              "file_path": "static_analyzer/lsp_client/client.py",
+              "line_start": 108,
+              "line_end": 127,
+              "metric_value": 24
+            },
+            {
+              "entity_name": "static_analyzer.lsp_client.client.LSPClient._wait_for_response",
+              "file_path": "static_analyzer/lsp_client/client.py",
+              "line_start": 175,
+              "line_end": 183,
+              "metric_value": 37
+            },
+            {
+              "entity_name": "static_analyzer.lsp_client.client.uri_to_path",
+              "file_path": "static_analyzer/lsp_client/client.py",
+              "line_start": 25,
+              "line_end": 40,
+              "metric_value": 12
+            },
+            {
+              "entity_name": "static_analyzer.lsp_client.java_client.JavaClient._validate_project_loaded",
+              "file_path": "static_analyzer/lsp_client/java_client.py",
+              "line_start": 297,
+              "line_end": 347,
+              "metric_value": 10
+            },
+            {
+              "entity_name": "static_analyzer.lsp_client.typescript_client.TypeScriptClient._validate_typescript_project",
+              "file_path": "static_analyzer/lsp_client/typescript_client.py",
+              "line_start": 213,
+              "line_end": 235,
+              "metric_value": 10
+            },
+            {
+              "entity_name": "tests.test_logging_config.TestLoggingConfig._clean_logging_handlers",
+              "file_path": "tests/test_logging_config.py",
+              "line_start": 13,
+              "line_end": 19,
+              "metric_value": 12
+            },
+            {
+              "entity_name": "utils.contains_json",
+              "file_path": "utils.py",
+              "line_start": 50,
+              "line_end": 54,
+              "metric_value": 13
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "check_name": "fan_in",
+      "description": "Checks afferent coupling: how many other functions call each function",
+      "language": "TypeScript",
+      "check_type": "standard",
+      "total_entities_checked": 0,
+      "findings_count": 0,
+      "warning_count": 0,
+      "score": 1.0,
+      "finding_groups": []
+    },
+    {
+      "check_name": "fan_out",
+      "description": "Checks efferent coupling: how many other functions each function calls",
+      "language": "Python",
+      "check_type": "standard",
+      "total_entities_checked": 1293,
+      "findings_count": 12,
+      "warning_count": 12,
+      "score": 0.9907192575406032,
+      "finding_groups": [
+        {
+          "severity": "warning",
+          "threshold": 10,
+          "description": "Functions calling more than 10.0 other functions",
+          "entities": [
+            {
+              "entity_name": "diagram_analysis.diagram_generator.DiagramGenerator.pre_analysis",
+              "file_path": "diagram_analysis/diagram_generator.py",
+              "line_start": 81,
+              "line_end": 156,
+              "metric_value": 15
+            },
+            {
+              "entity_name": "main.main",
+              "file_path": "main.py",
+              "line_start": 344,
+              "line_end": 446,
+              "metric_value": 16
+            },
+            {
+              "entity_name": "main.process_remote_repository",
+              "file_path": "main.py",
+              "line_start": 174,
+              "line_end": 232,
+              "metric_value": 10
+            },
+            {
+              "entity_name": "static_analyzer.lsp_client.client.LSPClient._analyze_single_file",
+              "file_path": "static_analyzer/lsp_client/client.py",
+              "line_start": 549,
+              "line_end": 736,
+              "metric_value": 19
+            },
+            {
+              "entity_name": "static_analyzer.lsp_client.client.LSPClient.build_static_analysis",
+              "file_path": "static_analyzer/lsp_client/client.py",
+              "line_start": 417,
+              "line_end": 547,
+              "metric_value": 10
+            },
+            {
+              "entity_name": "tests.agents.test_agent.TestCodeBoardingAgent.test_tools_initialized",
+              "file_path": "tests/agents/test_agent.py",
+              "line_start": 403,
+              "line_end": 423,
+              "metric_value": 10
+            },
+            {
+              "entity_name": "tests.static_analyzer.lsp_client.test_lsp_client.TestLSPClient.test_analyze_single_file_call_hierarchy_exception",
+              "file_path": "tests/static_analyzer/lsp_client/test_lsp_client.py",
+              "line_start": 1681,
+              "line_end": 1716,
+              "metric_value": 10
+            },
+            {
+              "entity_name": "tests.static_analyzer.lsp_client.test_lsp_client.TestLSPClient.test_analyze_single_file_incoming_calls",
+              "file_path": "tests/static_analyzer/lsp_client/test_lsp_client.py",
+              "line_start": 1643,
+              "line_end": 1678,
+              "metric_value": 10
+            },
+            {
+              "entity_name": "tests.static_analyzer.lsp_client.test_lsp_client.TestLSPClient.test_analyze_single_file_success",
+              "file_path": "tests/static_analyzer/lsp_client/test_lsp_client.py",
+              "line_start": 1352,
+              "line_end": 1415,
+              "metric_value": 11
+            },
+            {
+              "entity_name": "tests.static_analyzer.lsp_client.test_lsp_client.TestLSPClient.test_analyze_single_file_with_body_calls",
+              "file_path": "tests/static_analyzer/lsp_client/test_lsp_client.py",
+              "line_start": 1567,
+              "line_end": 1605,
+              "metric_value": 11
+            },
+            {
+              "entity_name": "tests.static_analyzer.lsp_client.test_lsp_client.TestLSPClient.test_analyze_single_file_with_calls",
+              "file_path": "tests/static_analyzer/lsp_client/test_lsp_client.py",
+              "line_start": 1462,
+              "line_end": 1514,
+              "metric_value": 13
+            },
+            {
+              "entity_name": "tests.static_analyzer.lsp_client.test_lsp_client.TestLSPClient.test_analyze_single_file_with_classes",
+              "file_path": "tests/static_analyzer/lsp_client/test_lsp_client.py",
+              "line_start": 1517,
+              "line_end": 1564,
+              "metric_value": 11
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "check_name": "fan_out",
+      "description": "Checks efferent coupling: how many other functions each function calls",
+      "language": "TypeScript",
+      "check_type": "standard",
+      "total_entities_checked": 0,
+      "findings_count": 0,
+      "warning_count": 0,
+      "score": 1.0,
+      "finding_groups": []
+    },
+    {
+      "check_name": "function_size",
+      "description": "Checks that functions/methods do not exceed line count thresholds",
+      "language": "Python",
+      "check_type": "standard",
+      "total_entities_checked": 0,
+      "findings_count": 0,
+      "warning_count": 0,
+      "score": 1.0,
+      "finding_groups": []
+    },
+    {
+      "check_name": "function_size",
+      "description": "Checks that functions/methods do not exceed line count thresholds",
+      "language": "TypeScript",
+      "check_type": "standard",
+      "total_entities_checked": 0,
+      "findings_count": 0,
+      "warning_count": 0,
+      "score": 1.0,
+      "finding_groups": []
+    },
+    {
+      "check_name": "god_class",
+      "description": "Detects classes with too many methods, too much code, or too many outgoing dependencies",
+      "language": "Python",
+      "check_type": "standard",
+      "total_entities_checked": 141,
+      "findings_count": 18,
+      "warning_count": 18,
+      "score": 0.8723404255319149,
+      "finding_groups": [
+        {
+          "severity": "warning",
+          "threshold": 25,
+          "description": "Classes exceeding god class criteria (methods, LOC, or fan-out)",
+          "entities": [
+            {
+              "entity_name": "agents.agent.CodeBoardingAgent",
+              "file_path": "agents/agent.py",
+              "metric_value": 450.0
+            },
+            {
+              "entity_name": "static_analyzer.graph.CallGraph",
+              "file_path": "static_analyzer/graph.py",
+              "metric_value": 670.0
+            },
+            {
+              "entity_name": "static_analyzer.lsp_client.client.LSPClient",
+              "file_path": "static_analyzer/lsp_client/client.py",
+              "metric_value": 1097.0
+            },
+            {
+              "entity_name": "static_analyzer.lsp_client.java_client.JavaClient",
+              "file_path": "static_analyzer/lsp_client/java_client.py",
+              "metric_value": 484.0
+            },
+            {
+              "entity_name": "tests.agents.test_agent.TestCodeBoardingAgent",
+              "file_path": "tests/agents/test_agent.py",
+              "metric_value": 415.0
+            },
+            {
+              "entity_name": "tests.agents.test_monitoring.TestMonitoringCallback",
+              "file_path": "tests/agents/test_monitoring.py",
+              "metric_value": 30.0
+            },
+            {
+              "entity_name": "tests.agents.test_validation.TestCheckEdgeBetweenClusterSets",
+              "file_path": "tests/agents/test_validation.py",
+              "metric_value": 33.0
+            },
+            {
+              "entity_name": "tests.agents.test_validation.TestValidateComponentRelationships",
+              "file_path": "tests/agents/test_validation.py",
+              "metric_value": 33.0
+            },
+            {
+              "entity_name": "tests.agents.tools.test_cfg_tools.TestCFGTools",
+              "file_path": "tests/agents/tools/test_cfg_tools.py",
+              "metric_value": 33.0
+            },
+            {
+              "entity_name": "tests.diagram_analysis.test_duckdb_crud.TestDuckDBCRUD",
+              "file_path": "tests/diagram_analysis/test_duckdb_crud.py",
+              "metric_value": 33.0
+            },
+            {
+              "entity_name": "tests.output_generators.test_sphinx_output.TestSphinxOutput",
+              "file_path": "tests/output_generators/test_sphinx_output.py",
+              "metric_value": 30.0
+            },
+            {
+              "entity_name": "tests.static_analyzer.lsp_client.test_java_client.TestJavaClient",
+              "file_path": "tests/static_analyzer/lsp_client/test_java_client.py",
+              "metric_value": 795.0
+            },
+            {
+              "entity_name": "tests.static_analyzer.lsp_client.test_lsp_client.TestLSPClient",
+              "file_path": "tests/static_analyzer/lsp_client/test_lsp_client.py",
+              "metric_value": 1676.0
+            },
+            {
+              "entity_name": "tests.static_analyzer.lsp_client.test_typescript_client.TestTypeScriptClient",
+              "file_path": "tests/static_analyzer/lsp_client/test_typescript_client.py",
+              "metric_value": 486.0
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_analysis_result.TestStaticAnalysisResults",
+              "file_path": "tests/static_analyzer/test_analysis_result.py",
+              "metric_value": 43.0
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_graph.TestCallGraph",
+              "file_path": "tests/static_analyzer/test_graph.py",
+              "metric_value": 527.0
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_java_config_scanner.TestJavaConfigScanner",
+              "file_path": "tests/static_analyzer/test_java_config_scanner.py",
+              "metric_value": 50.0
+            },
+            {
+              "entity_name": "tests.static_analyzer.test_reference_resolve_mixin.TestReferenceResolverMixin",
+              "file_path": "tests/static_analyzer/test_reference_resolve_mixin.py",
+              "metric_value": 631.0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "check_name": "god_class",
+      "description": "Detects classes with too many methods, too much code, or too many outgoing dependencies",
+      "language": "TypeScript",
+      "check_type": "standard",
+      "total_entities_checked": 0,
+      "findings_count": 0,
+      "warning_count": 0,
+      "score": 1.0,
+      "finding_groups": []
+    },
+    {
+      "check_name": "package_instability",
+      "description": "Computes Martin's instability metric (I = Ce / (Ca + Ce)) per package",
+      "language": "Python",
+      "check_type": "standard",
+      "total_entities_checked": 27,
+      "findings_count": 1,
+      "warning_count": 1,
+      "score": 0.9629629629629629,
+      "finding_groups": [
+        {
+          "severity": "warning",
+          "threshold": 0.8,
+          "description": "Packages with instability >= 0.8 that are depended on by others",
+          "entities": [
+            {
+              "entity_name": "local_app",
+              "metric_value": 0.8
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "check_name": "unused_code_diagnostics",
+      "description": "Detects unused imports, variables, functions, and dead code via LSP diagnostics",
+      "language": "Python",
+      "check_type": "standard",
+      "total_entities_checked": 221,
+      "findings_count": 221,
+      "warning_count": 64,
+      "score": 0.0,
+      "finding_groups": [
+        {
+          "severity": "info",
+          "threshold": 0,
+          "description": "Code that cannot be reached during execution",
+          "entities": [
+            {
+              "entity_name": "[unreachable_code] Type analysis indicates code is unreachable",
+              "file_path": "repo_utils/__init__.py",
+              "line_start": 77,
+              "line_end": 77,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unreachable_code] Type analysis indicates code is unreachable",
+              "file_path": "static_analyzer/graph.py",
+              "line_start": 93,
+              "line_end": 93,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unreachable_code] Type analysis indicates code is unreachable",
+              "file_path": "agents/prompts/prompt_factory.py",
+              "line_start": 45,
+              "line_end": 45,
+              "metric_value": 0.0
+            }
+          ]
+        },
+        {
+          "severity": "info",
           "threshold": 0,
           "description": "Variables declared but never used",
           "entities": [
             {
-              "entity_name": "[unused_variable] \"dirs\" is not accessed",
-              "file_path": "vscode_constants.py",
-              "line_start": 62,
-              "line_end": 62,
+              "entity_name": "[unused_variable] \"BackgroundTasks\" is not accessed",
+              "file_path": "tests/test_local_app.py",
+              "line_start": 10,
+              "line_end": 10,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] Variable \"dirs\" is not accessed",
-              "file_path": "vscode_constants.py",
-              "line_start": 62,
-              "line_end": 62,
+              "entity_name": "[unused_variable] \"BaseTool\" is not accessed",
+              "file_path": "agents/tools/read_cfg.py",
+              "line_start": 3,
+              "line_end": 3,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"subgraph_cluster_results\" is not accessed",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 65,
-              "line_end": 65,
+              "entity_name": "[unused_variable] \"Callable\" is not accessed",
+              "file_path": "agents/llm_config.py",
+              "line_start": 3,
+              "line_end": 3,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] Variable \"subgraph_cluster_results\" is not accesse...",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 65,
-              "line_end": 65,
+              "entity_name": "[unused_variable] \"CodeReferenceReader\" is not accessed",
+              "file_path": "agents/tools/__init__.py",
+              "line_start": 1,
+              "line_end": 1,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"cluster_results\" is not accessed",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 177,
-              "line_end": 177,
+              "entity_name": "[unused_variable] \"CodeStructureTool\" is not accessed",
+              "file_path": "agents/tools/__init__.py",
+              "line_start": 2,
+              "line_end": 2,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] Variable \"cluster_results\" is not accessed",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 177,
-              "line_end": 177,
+              "entity_name": "[unused_variable] \"Component\" is not accessed",
+              "file_path": "tests/agents/test_cluster_methods_mixin.py",
+              "line_start": 6,
+              "line_end": 6,
               "metric_value": 0.0
             },
             {
               "entity_name": "[unused_variable] \"DiagramGenerator\" is not accessed",
               "file_path": "diagram_analysis/__init__.py",
-              "line_start": 0,
-              "line_end": 0,
+              "line_start": 1,
+              "line_end": 1,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"repo_path\" is not accessed",
-              "file_path": "repo_utils/__init__.py",
-              "line_start": 201,
-              "line_end": 201,
+              "entity_name": "[unused_variable] \"Dict\" is not accessed",
+              "file_path": "output_generators/html_template.py",
+              "line_start": 1,
+              "line_end": 1,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] Variable \"repo_path\" is not accessed",
-              "file_path": "repo_utils/__init__.py",
-              "line_start": 201,
-              "line_end": 201,
+              "entity_name": "[unused_variable] \"Edge\" is not accessed",
+              "file_path": "tests/static_analyzer/test_analysis_result.py",
+              "line_start": 4,
+              "line_end": 4,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"RunStats\" is not accessed",
-              "file_path": "monitoring/__init__.py",
+              "entity_name": "[unused_variable] \"FileStructureTool\" is not accessed",
+              "file_path": "agents/tools/__init__.py",
+              "line_start": 4,
+              "line_end": 4,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"GPTPromptFactory\" is not accessed",
+              "file_path": "agents/prompts/prompt_factory.py",
+              "line_start": 10,
+              "line_end": 10,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"GetCFGTool\" is not accessed",
+              "file_path": "agents/tools/__init__.py",
+              "line_start": 5,
+              "line_end": 5,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"JavaConfig\" is not accessed",
+              "file_path": "tests/static_analyzer/lsp_client/test_java_client.py",
+              "line_start": 12,
+              "line_end": 12,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"LLMType\" is not accessed",
+              "file_path": "agents/agent.py",
+              "line_start": 26,
+              "line_end": 26,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"List\" is not accessed",
+              "file_path": "agents/tools/read_source.py",
+              "line_start": 3,
+              "line_end": 3,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"MagicMock\" is not accessed",
+              "file_path": "tests/test_local_app.py",
               "line_start": 8,
               "line_end": 8,
               "metric_value": 0.0
             },
             {
+              "entity_name": "[unused_variable] \"MagicMock\" is not accessed",
+              "file_path": "tests/agents/test_monitoring.py",
+              "line_start": 4,
+              "line_end": 4,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"MagicMock\" is not accessed",
+              "file_path": "tests/agents/prompts/test_prompts.py",
+              "line_start": 2,
+              "line_end": 2,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"MagicMock\" is not accessed",
+              "file_path": "tests/diagram_analysis/test_diagram_analysis.py",
+              "line_start": 6,
+              "line_end": 6,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"MagicMock\" is not accessed",
+              "file_path": "tests/static_analyzer/test_java_utils.py",
+              "line_start": 9,
+              "line_end": 9,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"MagicMock\" is not accessed",
+              "file_path": "tests/static_analyzer/lsp_client/test_lsp_client.py",
+              "line_start": 8,
+              "line_end": 8,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"MagicMock\" is not accessed",
+              "file_path": "tests/static_analyzer/lsp_client/test_typescript_client.py",
+              "line_start": 5,
+              "line_end": 5,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"MethodInvocationsTool\" is not accessed",
+              "file_path": "agents/tools/__init__.py",
+              "line_start": 6,
+              "line_end": 6,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"Mock\" is not accessed",
+              "file_path": "tests/test_github_action.py",
+              "line_start": 5,
+              "line_end": 5,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"Mock\" is not accessed",
+              "file_path": "tests/agents/test_details_agent.py",
+              "line_start": 4,
+              "line_end": 4,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"Mock\" is not accessed",
+              "file_path": "tests/static_analyzer/test_graph.py",
+              "line_start": 2,
+              "line_end": 2,
+              "metric_value": 0.0
+            },
+            {
               "entity_name": "[unused_variable] \"MonitoringCallback\" is not accessed",
+              "file_path": "monitoring/__init__.py",
+              "line_start": 10,
+              "line_end": 10,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"Optional\" is not accessed",
+              "file_path": "agents/tools/read_cfg.py",
+              "line_start": 2,
+              "line_end": 2,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"Optional\" is not accessed",
+              "file_path": "agents/tools/toolkit.py",
+              "line_start": 2,
+              "line_end": 2,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"PackageRelationsTool\" is not accessed",
+              "file_path": "agents/tools/__init__.py",
+              "line_start": 3,
+              "line_end": 3,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"Path\" is not accessed",
+              "file_path": "agents/tools/external_deps.py",
+              "line_start": 2,
+              "line_end": 2,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"Path\" is not accessed",
+              "file_path": "agents/tools/toolkit.py",
+              "line_start": 3,
+              "line_end": 3,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"Path\" is not accessed",
+              "file_path": "tests/diagram_analysis/test_duckdb_crud.py",
+              "line_start": 5,
+              "line_end": 5,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"ReadDocsTool\" is not accessed",
+              "file_path": "agents/tools/__init__.py",
+              "line_start": 8,
+              "line_end": 8,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"ReadFileTool\" is not accessed",
+              "file_path": "agents/tools/__init__.py",
+              "line_start": 7,
+              "line_end": 7,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"RunStats\" is not accessed",
               "file_path": "monitoring/__init__.py",
               "line_start": 9,
               "line_end": 9,
@@ -300,673 +833,827 @@
             {
               "entity_name": "[unused_variable] \"StreamingStatsWriter\" is not accessed",
               "file_path": "monitoring/__init__.py",
-              "line_start": 10,
-              "line_end": 10,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"monitor_execution\" is not accessed",
-              "file_path": "monitoring/__init__.py",
               "line_start": 11,
               "line_end": 11,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"os\" is not accessed",
-              "file_path": "monitoring/paths.py",
-              "line_start": 0,
-              "line_end": 0,
+              "entity_name": "[unused_variable] \"ValidationInsights\" is not accessed",
+              "file_path": "tests/agents/test_details_agent.py",
+              "line_start": 13,
+              "line_end": 13,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"load_dotenv\" is not accessed",
-              "file_path": "output_generators/mdx.py",
-              "line_start": 3,
-              "line_end": 3,
+              "entity_name": "[unused_variable] \"agent\" is not accessed",
+              "file_path": "tests/agents/test_agent.py",
+              "line_start": 366,
+              "line_end": 366,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"repo_ref\" is not accessed",
-              "file_path": "output_generators/mdx.py",
-              "line_start": 11,
-              "line_end": 11,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"load_dotenv\" is not accessed",
-              "file_path": "output_generators/sphinx.py",
-              "line_start": 4,
-              "line_end": 4,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"kwargs\" is not accessed",
-              "file_path": "monitoring/callbacks.py",
-              "line_start": 42,
-              "line_end": 42,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"input_str\" is not accessed",
-              "file_path": "monitoring/callbacks.py",
-              "line_start": 63,
-              "line_end": 63,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"output\" is not accessed",
-              "file_path": "monitoring/callbacks.py",
-              "line_start": 80,
-              "line_end": 80,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"error\" is not accessed",
-              "file_path": "monitoring/callbacks.py",
-              "line_start": 91,
-              "line_end": 91,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"exc_type\" is not accessed",
-              "file_path": "monitoring/writers.py",
-              "line_start": 53,
-              "line_end": 53,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"name\" is not accessed",
-              "file_path": "monitoring/context.py",
-              "line_start": 32,
-              "line_end": 32,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"self\" is not accessed",
-              "file_path": "monitoring/context.py",
-              "line_start": 78,
-              "line_end": 78,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"load_dotenv\" is not accessed",
-              "file_path": "evals/base.py",
-              "line_start": 12,
-              "line_end": 12,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"Dict\" is not accessed",
-              "file_path": "output_generators/html_template.py",
-              "line_start": 0,
-              "line_end": 0,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"os\" is not accessed",
-              "file_path": "agents/details_agent.py",
-              "line_start": 1,
-              "line_end": 1,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"load_dotenv\" is not accessed",
-              "file_path": "agents/agent.py",
-              "line_start": 7,
-              "line_end": 7,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"LLMType\" is not accessed",
-              "file_path": "agents/agent.py",
-              "line_start": 25,
-              "line_end": 25,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"k\" is not accessed",
-              "file_path": "agents/agent.py",
-              "line_start": 389,
-              "line_end": 389,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] Variable \"k\" is not accessed",
-              "file_path": "agents/agent.py",
-              "line_start": 389,
-              "line_end": 389,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"lang\" is not accessed",
-              "file_path": "agents/agent.py",
-              "line_start": 433,
-              "line_end": 433,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] Variable \"lang\" is not accessed",
-              "file_path": "agents/agent.py",
-              "line_start": 433,
-              "line_end": 433,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"os.path\" is not accessed",
-              "file_path": "agents/abstraction_agent.py",
-              "line_start": 1,
-              "line_end": 1,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"Callable\" is not accessed",
-              "file_path": "agents/llm_config.py",
-              "line_start": 2,
-              "line_end": 2,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"method\" is not accessed",
-              "file_path": "static_analyzer/lsp_client/client.py",
-              "line_start": 203,
-              "line_end": 203,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"file_path\" is not accessed",
-              "file_path": "static_analyzer/lsp_client/client.py",
-              "line_start": 355,
-              "line_end": 355,
+              "entity_name": "[unused_variable] \"agent\" is not accessed",
+              "file_path": "tests/agents/test_agent.py",
+              "line_start": 430,
+              "line_end": 430,
               "metric_value": 0.0
             },
             {
               "entity_name": "[unused_variable] \"all_classes\" is not accessed",
               "file_path": "static_analyzer/lsp_client/client.py",
-              "line_start": 928,
-              "line_end": 928,
+              "line_start": 929,
+              "line_end": 929,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"List\" is not accessed",
-              "file_path": "agents/tools/read_source.py",
+              "entity_name": "[unused_variable] \"analysis_file\" is not accessed",
+              "file_path": "tests/test_main.py",
+              "line_start": 173,
+              "line_end": 173,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"args\" is not accessed",
+              "file_path": "tests/static_analyzer/lsp_client/test_java_client.py",
+              "line_start": 289,
+              "line_end": 289,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"asyncio\" is not accessed",
+              "file_path": "tests/test_local_app.py",
+              "line_start": 1,
+              "line_end": 1,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"call\" is not accessed",
+              "file_path": "tests/test_main.py",
+              "line_start": 5,
+              "line_end": 5,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"cast\" is not accessed",
+              "file_path": "tests/agents/test_details_agent.py",
+              "line_start": 1,
+              "line_end": 1,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"cluster_results\" is not accessed",
+              "file_path": "diagram_analysis/diagram_generator.py",
+              "line_start": 178,
+              "line_end": 178,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"dirs\" is not accessed",
+              "file_path": "vscode_constants.py",
+              "line_start": 63,
+              "line_end": 63,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"e\" is not accessed",
+              "file_path": "install.py",
+              "line_start": 267,
+              "line_end": 267,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"error\" is not accessed",
+              "file_path": "monitoring/callbacks.py",
+              "line_start": 92,
+              "line_end": 92,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"exc_type\" is not accessed",
+              "file_path": "monitoring/writers.py",
+              "line_start": 54,
+              "line_end": 54,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"extra_args\" is not accessed",
+              "file_path": "evals/definitions/static_analysis.py",
+              "line_start": 145,
+              "line_end": 145,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"file_path\" is not accessed",
+              "file_path": "static_analyzer/lsp_client/client.py",
+              "line_start": 356,
+              "line_end": 356,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"input_str\" is not accessed",
+              "file_path": "monitoring/callbacks.py",
+              "line_start": 64,
+              "line_end": 64,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"json\" is not accessed",
+              "file_path": "evals/definitions/static_analysis.py",
+              "line_start": 1,
+              "line_end": 1,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"k\" is not accessed",
+              "file_path": "agents/agent.py",
+              "line_start": 390,
+              "line_end": 390,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"kwargs\" is not accessed",
+              "file_path": "monitoring/callbacks.py",
+              "line_start": 43,
+              "line_end": 43,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"kwargs\" is not accessed",
+              "file_path": "agents/prompts/prompt_factory.py",
+              "line_start": 71,
+              "line_end": 71,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"lang\" is not accessed",
+              "file_path": "agents/agent.py",
+              "line_start": 434,
+              "line_end": 434,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"load_dotenv\" is not accessed",
+              "file_path": "github_action.py",
+              "line_start": 6,
+              "line_end": 6,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"load_dotenv\" is not accessed",
+              "file_path": "agents/agent.py",
+              "line_start": 8,
+              "line_end": 8,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"load_dotenv\" is not accessed",
+              "file_path": "output_generators/mdx.py",
+              "line_start": 4,
+              "line_end": 4,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"load_dotenv\" is not accessed",
+              "file_path": "output_generators/sphinx.py",
+              "line_start": 5,
+              "line_end": 5,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"load_dotenv\" is not accessed",
+              "file_path": "evals/base.py",
+              "line_start": 13,
+              "line_end": 13,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"message\" is not accessed",
+              "file_path": "tests/static_analyzer/test_analysis_result.py",
+              "line_start": 117,
+              "line_end": 117,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"message\" is not accessed",
+              "file_path": "tests/static_analyzer/test_analysis_result.py",
+              "line_start": 127,
+              "line_end": 127,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"message\" is not accessed",
+              "file_path": "tests/static_analyzer/test_analysis_result.py",
+              "line_start": 137,
+              "line_end": 137,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"method\" is not accessed",
+              "file_path": "static_analyzer/lsp_client/client.py",
+              "line_start": 204,
+              "line_end": 204,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"method\" is not accessed",
+              "file_path": "static_analyzer/lsp_client/typescript_client.py",
+              "line_start": 16,
+              "line_end": 16,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"min_cluster_size\" is not accessed",
+              "file_path": "static_analyzer/graph.py",
+              "line_start": 381,
+              "line_end": 381,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"mock_abstraction\" is not accessed",
+              "file_path": "tests/diagram_analysis/test_diagram_analysis.py",
+              "line_start": 302,
+              "line_end": 302,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"mock_checkout\" is not accessed",
+              "file_path": "tests/test_github_action.py",
+              "line_start": 311,
+              "line_end": 311,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"mock_checkout\" is not accessed",
+              "file_path": "tests/test_github_action.py",
+              "line_start": 346,
+              "line_end": 346,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"mock_checkout\" is not accessed",
+              "file_path": "tests/test_github_action.py",
+              "line_start": 381,
+              "line_end": 381,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"mock_checkout\" is not accessed",
+              "file_path": "tests/test_github_action.py",
+              "line_start": 415,
+              "line_end": 415,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"mock_copy_files\" is not accessed",
+              "file_path": "tests/test_main.py",
+              "line_start": 255,
+              "line_end": 255,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"mock_copy_files\" is not accessed",
+              "file_path": "tests/test_main.py",
+              "line_start": 291,
+              "line_end": 291,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"mock_create_temp\" is not accessed",
+              "file_path": "tests/test_main.py",
+              "line_start": 251,
+              "line_end": 251,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"mock_details\" is not accessed",
+              "file_path": "tests/diagram_analysis/test_diagram_analysis.py",
+              "line_start": 303,
+              "line_end": 303,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"mock_detect\" is not accessed",
+              "file_path": "tests/static_analyzer/test_java_utils.py",
+              "line_start": 219,
+              "line_end": 219,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"mock_generate\" is not accessed",
+              "file_path": "tests/test_local_app.py",
+              "line_start": 367,
+              "line_end": 367,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"mock_generate_markdown\" is not accessed",
+              "file_path": "tests/test_main.py",
+              "line_start": 254,
+              "line_end": 254,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"mock_insert\" is not accessed",
+              "file_path": "tests/test_local_app.py",
+              "line_start": 468,
+              "line_end": 468,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"mock_load_dotenv\" is not accessed",
+              "file_path": "tests/agents/test_agent.py",
+              "line_start": 107,
+              "line_end": 107,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"mock_load_dotenv\" is not accessed",
+              "file_path": "tests/agents/test_agent.py",
+              "line_start": 121,
+              "line_end": 121,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"mock_load_dotenv\" is not accessed",
+              "file_path": "tests/agents/test_agent.py",
+              "line_start": 135,
+              "line_end": 135,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"mock_load_dotenv\" is not accessed",
+              "file_path": "tests/agents/test_agent.py",
+              "line_start": 148,
+              "line_end": 148,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"mock_open\" is not accessed",
+              "file_path": "tests/test_github_action.py",
+              "line_start": 51,
+              "line_end": 51,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"mock_open\" is not accessed",
+              "file_path": "tests/test_github_action.py",
+              "line_start": 133,
+              "line_end": 133,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"mock_open\" is not accessed",
+              "file_path": "tests/test_github_action.py",
+              "line_start": 182,
+              "line_end": 182,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"mock_open\" is not accessed",
+              "file_path": "tests/test_github_action.py",
+              "line_start": 231,
+              "line_end": 231,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"mock_planner\" is not accessed",
+              "file_path": "tests/diagram_analysis/test_diagram_analysis.py",
+              "line_start": 301,
+              "line_end": 301,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"mock_process\" is not accessed",
+              "file_path": "tests/test_local_app.py",
+              "line_start": 448,
+              "line_end": 448,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"mock_remove_temp\" is not accessed",
+              "file_path": "tests/test_local_app.py",
+              "line_start": 158,
+              "line_end": 158,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"mock_remove_temp\" is not accessed",
+              "file_path": "tests/test_local_app.py",
+              "line_start": 275,
+              "line_end": 275,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"mock_remove_temp\" is not accessed",
+              "file_path": "tests/test_local_app.py",
+              "line_start": 306,
+              "line_end": 306,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"mock_remove_temp\" is not accessed",
+              "file_path": "tests/test_main.py",
+              "line_start": 252,
+              "line_end": 252,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"mock_run_in_threadpool\" is not accessed",
+              "file_path": "tests/test_local_app.py",
+              "line_start": 154,
+              "line_end": 154,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"mock_run_in_threadpool\" is not accessed",
+              "file_path": "tests/test_local_app.py",
+              "line_start": 303,
+              "line_end": 303,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"mock_sleep\" is not accessed",
+              "file_path": "tests/agents/test_agent.py",
+              "line_start": 230,
+              "line_end": 230,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"mock_sleep\" is not accessed",
+              "file_path": "tests/agents/test_agent.py",
+              "line_start": 377,
+              "line_end": 377,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"mock_sleep\" is not accessed",
+              "file_path": "tests/static_analyzer/lsp_client/test_java_client.py",
+              "line_start": 301,
+              "line_end": 301,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"mock_sleep\" is not accessed",
+              "file_path": "tests/static_analyzer/lsp_client/test_java_client.py",
+              "line_start": 660,
+              "line_end": 660,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"mock_sleep\" is not accessed",
+              "file_path": "tests/static_analyzer/lsp_client/test_java_client.py",
+              "line_start": 686,
+              "line_end": 686,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"mock_sleep\" is not accessed",
+              "file_path": "tests/static_analyzer/lsp_client/test_java_client.py",
+              "line_start": 712,
+              "line_end": 712,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"mock_sleep\" is not accessed",
+              "file_path": "tests/static_analyzer/lsp_client/test_java_client.py",
+              "line_start": 760,
+              "line_end": 760,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"mock_sleep\" is not accessed",
+              "file_path": "tests/static_analyzer/lsp_client/test_java_client.py",
+              "line_start": 789,
+              "line_end": 789,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"mock_sleep\" is not accessed",
+              "file_path": "tests/static_analyzer/lsp_client/test_typescript_client.py",
+              "line_start": 279,
+              "line_end": 279,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"mock_sleep\" is not accessed",
+              "file_path": "tests/static_analyzer/lsp_client/test_typescript_client.py",
+              "line_start": 449,
+              "line_end": 449,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"mock_static\" is not accessed",
+              "file_path": "tests/diagram_analysis/test_diagram_analysis.py",
+              "line_start": 344,
+              "line_end": 344,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"mock_thread\" is not accessed",
+              "file_path": "tests/static_analyzer/lsp_client/test_lsp_client.py",
+              "line_start": 471,
+              "line_end": 471,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"mock_time\" is not accessed",
+              "file_path": "tests/static_analyzer/lsp_client/test_java_client.py",
+              "line_start": 736,
+              "line_end": 736,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"mock_update_job\" is not accessed",
+              "file_path": "tests/test_local_app.py",
+              "line_start": 197,
+              "line_end": 197,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"mock_upload\" is not accessed",
+              "file_path": "tests/test_main.py",
+              "line_start": 256,
+              "line_end": 256,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"mock_upload\" is not accessed",
+              "file_path": "tests/test_main.py",
+              "line_start": 292,
+              "line_end": 292,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"mock_version\" is not accessed",
+              "file_path": "tests/static_analyzer/test_java_utils.py",
+              "line_start": 181,
+              "line_end": 181,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"mock_version\" is not accessed",
+              "file_path": "tests/static_analyzer/lsp_client/test_java_client.py",
+              "line_start": 237,
+              "line_end": 237,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"monitor_execution\" is not accessed",
+              "file_path": "monitoring/__init__.py",
+              "line_start": 12,
+              "line_end": 12,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"name\" is not accessed",
+              "file_path": "monitoring/context.py",
+              "line_start": 33,
+              "line_end": 33,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"os\" is not accessed",
+              "file_path": "agents/details_agent.py",
               "line_start": 2,
               "line_end": 2,
               "metric_value": 0.0
             },
             {
               "entity_name": "[unused_variable] \"os\" is not accessed",
+              "file_path": "monitoring/paths.py",
+              "line_start": 1,
+              "line_end": 1,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"os\" is not accessed",
               "file_path": "agents/tools/read_file_structure.py",
-              "line_start": 1,
-              "line_end": 1,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"Optional\" is not accessed",
-              "file_path": "agents/tools/read_cfg.py",
-              "line_start": 1,
-              "line_end": 1,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"BaseTool\" is not accessed",
-              "file_path": "agents/tools/read_cfg.py",
               "line_start": 2,
               "line_end": 2,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"Path\" is not accessed",
-              "file_path": "agents/tools/external_deps.py",
-              "line_start": 1,
-              "line_end": 1,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"load_dotenv\" is not accessed",
-              "file_path": "github_action.py",
-              "line_start": 5,
-              "line_end": 5,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"output_dir\" is not accessed",
-              "file_path": "github_action.py",
-              "line_start": 42,
-              "line_end": 42,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"e\" is not accessed",
-              "file_path": "install.py",
-              "line_start": 266,
-              "line_end": 266,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] Variable \"e\" is not accessed",
-              "file_path": "install.py",
-              "line_start": 266,
-              "line_end": 266,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"json\" is not accessed",
-              "file_path": "evals/definitions/static_analysis.py",
-              "line_start": 0,
-              "line_end": 0,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"sys\" is not accessed",
-              "file_path": "evals/definitions/static_analysis.py",
-              "line_start": 4,
-              "line_end": 4,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"extra_args\" is not accessed",
-              "file_path": "evals/definitions/static_analysis.py",
-              "line_start": 144,
-              "line_end": 144,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"min_cluster_size\" is not accessed",
-              "file_path": "static_analyzer/graph.py",
-              "line_start": 380,
-              "line_end": 380,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"target_clusters\" is not accessed",
-              "file_path": "static_analyzer/graph.py",
-              "line_start": 464,
-              "line_end": 464,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"method\" is not accessed",
-              "file_path": "static_analyzer/lsp_client/typescript_client.py",
-              "line_start": 15,
-              "line_end": 15,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"Optional\" is not accessed",
-              "file_path": "agents/tools/toolkit.py",
-              "line_start": 1,
-              "line_end": 1,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"Path\" is not accessed",
-              "file_path": "agents/tools/toolkit.py",
-              "line_start": 2,
-              "line_end": 2,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"CodeReferenceReader\" is not accessed",
-              "file_path": "agents/tools/__init__.py",
-              "line_start": 0,
-              "line_end": 0,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"CodeStructureTool\" is not accessed",
-              "file_path": "agents/tools/__init__.py",
-              "line_start": 1,
-              "line_end": 1,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"PackageRelationsTool\" is not accessed",
-              "file_path": "agents/tools/__init__.py",
-              "line_start": 2,
-              "line_end": 2,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"FileStructureTool\" is not accessed",
-              "file_path": "agents/tools/__init__.py",
-              "line_start": 3,
-              "line_end": 3,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"GetCFGTool\" is not accessed",
-              "file_path": "agents/tools/__init__.py",
-              "line_start": 4,
-              "line_end": 4,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"MethodInvocationsTool\" is not accessed",
-              "file_path": "agents/tools/__init__.py",
-              "line_start": 5,
-              "line_end": 5,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"ReadFileTool\" is not accessed",
-              "file_path": "agents/tools/__init__.py",
-              "line_start": 6,
-              "line_end": 6,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"ReadDocsTool\" is not accessed",
-              "file_path": "agents/tools/__init__.py",
-              "line_start": 7,
-              "line_end": 7,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"GPTPromptFactory\" is not accessed",
-              "file_path": "agents/prompts/prompt_factory.py",
-              "line_start": 9,
-              "line_end": 9,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"kwargs\" is not accessed",
-              "file_path": "agents/prompts/prompt_factory.py",
-              "line_start": 70,
-              "line_end": 70,
-              "metric_value": 0.0
-            }
-          ]
-        },
-        {
-          "severity": "warning",
-          "threshold": 0,
-          "description": "Unused import statements that should be removed",
-          "entities": [
-            {
-              "entity_name": "[unused_import] Import \"DiagramGenerator\" is not accessed",
-              "file_path": "diagram_analysis/__init__.py",
-              "line_start": 0,
-              "line_end": 0,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"RunStats\" is not accessed",
-              "file_path": "monitoring/__init__.py",
+              "entity_name": "[unused_variable] \"os\" is not accessed",
+              "file_path": "tests/test_windows_compatibility.py",
               "line_start": 8,
               "line_end": 8,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_import] Import \"MonitoringCallback\" is not accessed",
-              "file_path": "monitoring/__init__.py",
-              "line_start": 9,
-              "line_end": 9,
+              "entity_name": "[unused_variable] \"os\" is not accessed",
+              "file_path": "tests/agents/test_monitoring.py",
+              "line_start": 1,
+              "line_end": 1,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_import] Import \"StreamingStatsWriter\" is not accessed",
-              "file_path": "monitoring/__init__.py",
-              "line_start": 10,
-              "line_end": 10,
+              "entity_name": "[unused_variable] \"os\" is not accessed",
+              "file_path": "tests/diagram_analysis/test_diagram_analysis.py",
+              "line_start": 2,
+              "line_end": 2,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_import] Import \"monitor_execution\" is not accessed",
-              "file_path": "monitoring/__init__.py",
-              "line_start": 11,
-              "line_end": 11,
+              "entity_name": "[unused_variable] \"os\" is not accessed",
+              "file_path": "tests/static_analyzer/test_java_utils.py",
+              "line_start": 185,
+              "line_end": 185,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_import] Import \"os\" is not accessed",
-              "file_path": "monitoring/paths.py",
-              "line_start": 0,
-              "line_end": 0,
+              "entity_name": "[unused_variable] \"os.path\" is not accessed",
+              "file_path": "agents/abstraction_agent.py",
+              "line_start": 2,
+              "line_end": 2,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_import] Import \"load_dotenv\" is not accessed",
+              "entity_name": "[unused_variable] \"output\" is not accessed",
+              "file_path": "monitoring/callbacks.py",
+              "line_start": 81,
+              "line_end": 81,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"output_dir\" is not accessed",
+              "file_path": "github_action.py",
+              "line_start": 43,
+              "line_end": 43,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"patch\" is not accessed",
+              "file_path": "tests/static_analyzer/test_java_config_scanner.py",
+              "line_start": 8,
+              "line_end": 8,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"patch\" is not accessed",
+              "file_path": "tests/static_analyzer/test_reference_resolve_mixin.py",
+              "line_start": 5,
+              "line_end": 5,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"platform\" is not accessed",
+              "file_path": "tests/test_vscode_constants.py",
+              "line_start": 2,
+              "line_end": 2,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"platform\" is not accessed",
+              "file_path": "tests/static_analyzer/test_java_utils.py",
+              "line_start": 5,
+              "line_end": 5,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"repo_path\" is not accessed",
+              "file_path": "repo_utils/__init__.py",
+              "line_start": 202,
+              "line_end": 202,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"repo_path\" is not accessed",
+              "file_path": "tests/test_github_action.py",
+              "line_start": 455,
+              "line_end": 455,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"repo_ref\" is not accessed",
               "file_path": "output_generators/mdx.py",
-              "line_start": 3,
-              "line_end": 3,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"load_dotenv\" is not accessed",
-              "file_path": "output_generators/sphinx.py",
-              "line_start": 4,
-              "line_end": 4,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"load_dotenv\" is not accessed",
-              "file_path": "evals/base.py",
               "line_start": 12,
               "line_end": 12,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_import] Import \"Dict\" is not accessed",
-              "file_path": "output_generators/html_template.py",
-              "line_start": 0,
-              "line_end": 0,
+              "entity_name": "[unused_variable] \"response_msg\" is not accessed",
+              "file_path": "tests/static_analyzer/lsp_client/test_lsp_client.py",
+              "line_start": 613,
+              "line_end": 613,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_import] Import \"os\" is not accessed",
-              "file_path": "agents/details_agent.py",
-              "line_start": 1,
-              "line_end": 1,
+              "entity_name": "[unused_variable] \"result\" is not accessed",
+              "file_path": "tests/agents/test_agent.py",
+              "line_start": 267,
+              "line_end": 267,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_import] Import \"load_dotenv\" is not accessed",
-              "file_path": "agents/agent.py",
-              "line_start": 7,
-              "line_end": 7,
+              "entity_name": "[unused_variable] \"result\" is not accessed",
+              "file_path": "tests/diagram_analysis/test_duckdb_crud.py",
+              "line_start": 58,
+              "line_end": 58,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_import] Import \"LLMType\" is not accessed",
-              "file_path": "agents/agent.py",
-              "line_start": 25,
-              "line_end": 25,
+              "entity_name": "[unused_variable] \"result\" is not accessed",
+              "file_path": "tests/static_analyzer/test_reference_resolve_mixin.py",
+              "line_start": 71,
+              "line_end": 71,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_import] Import \"os.path\" is not accessed",
-              "file_path": "agents/abstraction_agent.py",
-              "line_start": 1,
-              "line_end": 1,
+              "entity_name": "[unused_variable] \"result\" is not accessed",
+              "file_path": "tests/static_analyzer/test_reference_resolve_mixin.py",
+              "line_start": 292,
+              "line_end": 292,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_import] Import \"Callable\" is not accessed",
-              "file_path": "agents/llm_config.py",
-              "line_start": 2,
-              "line_end": 2,
+              "entity_name": "[unused_variable] \"result\" is not accessed",
+              "file_path": "tests/static_analyzer/test_reference_resolve_mixin.py",
+              "line_start": 316,
+              "line_end": 316,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_import] Import \"List\" is not accessed",
-              "file_path": "agents/tools/read_source.py",
-              "line_start": 2,
-              "line_end": 2,
+              "entity_name": "[unused_variable] \"result\" is not accessed",
+              "file_path": "tests/static_analyzer/test_reference_resolve_mixin.py",
+              "line_start": 421,
+              "line_end": 421,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_import] Import \"os\" is not accessed",
-              "file_path": "agents/tools/read_file_structure.py",
-              "line_start": 1,
-              "line_end": 1,
+              "entity_name": "[unused_variable] \"result\" is not accessed",
+              "file_path": "tests/static_analyzer/test_reference_resolve_mixin.py",
+              "line_start": 568,
+              "line_end": 568,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_import] Import \"Optional\" is not accessed",
-              "file_path": "agents/tools/read_cfg.py",
-              "line_start": 1,
-              "line_end": 1,
+              "entity_name": "[unused_variable] \"self\" is not accessed",
+              "file_path": "monitoring/context.py",
+              "line_start": 79,
+              "line_end": 79,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_import] Import \"BaseTool\" is not accessed",
-              "file_path": "agents/tools/read_cfg.py",
-              "line_start": 2,
-              "line_end": 2,
+              "entity_name": "[unused_variable] \"start\" is not accessed",
+              "file_path": "tests/agents/test_abstraction_agent.py",
+              "line_start": 222,
+              "line_end": 222,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_import] Import \"Path\" is not accessed",
-              "file_path": "agents/tools/external_deps.py",
-              "line_start": 1,
-              "line_end": 1,
+              "entity_name": "[unused_variable] \"start\" is not accessed",
+              "file_path": "tests/agents/test_details_agent.py",
+              "line_start": 245,
+              "line_end": 245,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_import] Import \"load_dotenv\" is not accessed",
-              "file_path": "github_action.py",
+              "entity_name": "[unused_variable] \"subgraph_cluster_results\" is not accessed",
+              "file_path": "diagram_analysis/diagram_generator.py",
+              "line_start": 66,
+              "line_end": 66,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"subgraph_cluster_results\" is not accessed",
+              "file_path": "tests/agents/test_details_agent.py",
+              "line_start": 109,
+              "line_end": 109,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"subgraph_results\" is not accessed",
+              "file_path": "tests/agents/test_details_agent.py",
+              "line_start": 202,
+              "line_end": 202,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"sys\" is not accessed",
+              "file_path": "evals/definitions/static_analysis.py",
               "line_start": 5,
               "line_end": 5,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_import] Import \"json\" is not accessed",
-              "file_path": "evals/definitions/static_analysis.py",
-              "line_start": 0,
-              "line_end": 0,
+              "entity_name": "[unused_variable] \"target_clusters\" is not accessed",
+              "file_path": "static_analyzer/graph.py",
+              "line_start": 465,
+              "line_end": 465,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_import] Import \"sys\" is not accessed",
-              "file_path": "evals/definitions/static_analysis.py",
-              "line_start": 4,
-              "line_end": 4,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"Optional\" is not accessed",
-              "file_path": "agents/tools/toolkit.py",
-              "line_start": 1,
-              "line_end": 1,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"Path\" is not accessed",
-              "file_path": "agents/tools/toolkit.py",
+              "entity_name": "[unused_variable] \"time\" is not accessed",
+              "file_path": "tests/static_analyzer/lsp_client/test_typescript_client.py",
               "line_start": 2,
               "line_end": 2,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_import] Import \"CodeReferenceReader\" is not accessed",
-              "file_path": "agents/tools/__init__.py",
-              "line_start": 0,
-              "line_end": 0,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"CodeStructureTool\" is not accessed",
-              "file_path": "agents/tools/__init__.py",
-              "line_start": 1,
-              "line_end": 1,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"PackageRelationsTool\" is not accessed",
-              "file_path": "agents/tools/__init__.py",
-              "line_start": 2,
-              "line_end": 2,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"FileStructureTool\" is not accessed",
-              "file_path": "agents/tools/__init__.py",
-              "line_start": 3,
-              "line_end": 3,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"GetCFGTool\" is not accessed",
-              "file_path": "agents/tools/__init__.py",
-              "line_start": 4,
-              "line_end": 4,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"MethodInvocationsTool\" is not accessed",
-              "file_path": "agents/tools/__init__.py",
-              "line_start": 5,
-              "line_end": 5,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"ReadFileTool\" is not accessed",
-              "file_path": "agents/tools/__init__.py",
-              "line_start": 6,
-              "line_end": 6,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"ReadDocsTool\" is not accessed",
-              "file_path": "agents/tools/__init__.py",
-              "line_start": 7,
-              "line_end": 7,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"GPTPromptFactory\" is not accessed",
-              "file_path": "agents/prompts/prompt_factory.py",
+              "entity_name": "[unused_variable] \"utils\" is not accessed",
+              "file_path": "tests/static_analyzer/test_utils.py",
               "line_start": 9,
               "line_end": 9,
-              "metric_value": 0.0
-            }
-          ]
-        },
-        {
-          "severity": "warning",
-          "threshold": 0,
-          "description": "Code that cannot be reached during execution",
-          "entities": [
-            {
-              "entity_name": "[unreachable_code] Type analysis indicates code is unreachable",
-              "file_path": "repo_utils/__init__.py",
-              "line_start": 76,
-              "line_end": 76,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unreachable_code] Type analysis indicates code is unreachable",
-              "file_path": "repo_utils/__init__.py",
-              "line_start": 76,
-              "line_end": 76,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unreachable_code] Type analysis indicates code is unreachable",
-              "file_path": "static_analyzer/graph.py",
-              "line_start": 92,
-              "line_end": 92,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unreachable_code] Type analysis indicates code is unreachable",
-              "file_path": "static_analyzer/graph.py",
-              "line_start": 92,
-              "line_end": 92,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unreachable_code] Type analysis indicates code is unreachable",
-              "file_path": "agents/prompts/prompt_factory.py",
-              "line_start": 44,
-              "line_end": 44,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unreachable_code] Type analysis indicates code is unreachable",
-              "file_path": "agents/prompts/prompt_factory.py",
-              "line_start": 44,
-              "line_end": 44,
               "metric_value": 0.0
             }
           ]
@@ -979,135 +1666,594 @@
             {
               "entity_name": "[unused_function] Function \"end_step\" is not accessed",
               "file_path": "monitoring/context.py",
-              "line_start": 78,
-              "line_end": 78,
+              "line_start": 79,
+              "line_end": 79,
+              "metric_value": 0.0
+            }
+          ]
+        },
+        {
+          "severity": "warning",
+          "threshold": 0,
+          "description": "Unused import statements that should be removed",
+          "entities": [
+            {
+              "entity_name": "[unused_import] Import \"BackgroundTasks\" is not accessed",
+              "file_path": "tests/test_local_app.py",
+              "line_start": 10,
+              "line_end": 10,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"BaseTool\" is not accessed",
+              "file_path": "agents/tools/read_cfg.py",
+              "line_start": 3,
+              "line_end": 3,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"Callable\" is not accessed",
+              "file_path": "agents/llm_config.py",
+              "line_start": 3,
+              "line_end": 3,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"CodeReferenceReader\" is not accessed",
+              "file_path": "agents/tools/__init__.py",
+              "line_start": 1,
+              "line_end": 1,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"CodeStructureTool\" is not accessed",
+              "file_path": "agents/tools/__init__.py",
+              "line_start": 2,
+              "line_end": 2,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"Component\" is not accessed",
+              "file_path": "tests/agents/test_cluster_methods_mixin.py",
+              "line_start": 6,
+              "line_end": 6,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"DiagramGenerator\" is not accessed",
+              "file_path": "diagram_analysis/__init__.py",
+              "line_start": 1,
+              "line_end": 1,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"Dict\" is not accessed",
+              "file_path": "output_generators/html_template.py",
+              "line_start": 1,
+              "line_end": 1,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"Edge\" is not accessed",
+              "file_path": "tests/static_analyzer/test_analysis_result.py",
+              "line_start": 4,
+              "line_end": 4,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"FileStructureTool\" is not accessed",
+              "file_path": "agents/tools/__init__.py",
+              "line_start": 4,
+              "line_end": 4,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"GPTPromptFactory\" is not accessed",
+              "file_path": "agents/prompts/prompt_factory.py",
+              "line_start": 10,
+              "line_end": 10,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"GetCFGTool\" is not accessed",
+              "file_path": "agents/tools/__init__.py",
+              "line_start": 5,
+              "line_end": 5,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"JavaConfig\" is not accessed",
+              "file_path": "tests/static_analyzer/lsp_client/test_java_client.py",
+              "line_start": 12,
+              "line_end": 12,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"LLMType\" is not accessed",
+              "file_path": "agents/agent.py",
+              "line_start": 26,
+              "line_end": 26,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"List\" is not accessed",
+              "file_path": "agents/tools/read_source.py",
+              "line_start": 3,
+              "line_end": 3,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"MagicMock\" is not accessed",
+              "file_path": "tests/test_local_app.py",
+              "line_start": 8,
+              "line_end": 8,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"MagicMock\" is not accessed",
+              "file_path": "tests/agents/test_monitoring.py",
+              "line_start": 4,
+              "line_end": 4,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"MagicMock\" is not accessed",
+              "file_path": "tests/agents/prompts/test_prompts.py",
+              "line_start": 2,
+              "line_end": 2,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"MagicMock\" is not accessed",
+              "file_path": "tests/diagram_analysis/test_diagram_analysis.py",
+              "line_start": 6,
+              "line_end": 6,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"MagicMock\" is not accessed",
+              "file_path": "tests/static_analyzer/test_java_utils.py",
+              "line_start": 9,
+              "line_end": 9,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"MagicMock\" is not accessed",
+              "file_path": "tests/static_analyzer/lsp_client/test_lsp_client.py",
+              "line_start": 8,
+              "line_end": 8,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"MagicMock\" is not accessed",
+              "file_path": "tests/static_analyzer/lsp_client/test_typescript_client.py",
+              "line_start": 5,
+              "line_end": 5,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"MethodInvocationsTool\" is not accessed",
+              "file_path": "agents/tools/__init__.py",
+              "line_start": 6,
+              "line_end": 6,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"Mock\" is not accessed",
+              "file_path": "tests/test_github_action.py",
+              "line_start": 5,
+              "line_end": 5,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"Mock\" is not accessed",
+              "file_path": "tests/agents/test_details_agent.py",
+              "line_start": 4,
+              "line_end": 4,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"Mock\" is not accessed",
+              "file_path": "tests/static_analyzer/test_graph.py",
+              "line_start": 2,
+              "line_end": 2,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"MonitoringCallback\" is not accessed",
+              "file_path": "monitoring/__init__.py",
+              "line_start": 10,
+              "line_end": 10,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"Optional\" is not accessed",
+              "file_path": "agents/tools/read_cfg.py",
+              "line_start": 2,
+              "line_end": 2,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"Optional\" is not accessed",
+              "file_path": "agents/tools/toolkit.py",
+              "line_start": 2,
+              "line_end": 2,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"PackageRelationsTool\" is not accessed",
+              "file_path": "agents/tools/__init__.py",
+              "line_start": 3,
+              "line_end": 3,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"Path\" is not accessed",
+              "file_path": "agents/tools/external_deps.py",
+              "line_start": 2,
+              "line_end": 2,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"Path\" is not accessed",
+              "file_path": "agents/tools/toolkit.py",
+              "line_start": 3,
+              "line_end": 3,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"Path\" is not accessed",
+              "file_path": "tests/diagram_analysis/test_duckdb_crud.py",
+              "line_start": 5,
+              "line_end": 5,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"ReadDocsTool\" is not accessed",
+              "file_path": "agents/tools/__init__.py",
+              "line_start": 8,
+              "line_end": 8,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"ReadFileTool\" is not accessed",
+              "file_path": "agents/tools/__init__.py",
+              "line_start": 7,
+              "line_end": 7,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"RunStats\" is not accessed",
+              "file_path": "monitoring/__init__.py",
+              "line_start": 9,
+              "line_end": 9,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"StreamingStatsWriter\" is not accessed",
+              "file_path": "monitoring/__init__.py",
+              "line_start": 11,
+              "line_end": 11,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"ValidationInsights\" is not accessed",
+              "file_path": "tests/agents/test_details_agent.py",
+              "line_start": 13,
+              "line_end": 13,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"asyncio\" is not accessed",
+              "file_path": "tests/test_local_app.py",
+              "line_start": 1,
+              "line_end": 1,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"call\" is not accessed",
+              "file_path": "tests/test_main.py",
+              "line_start": 5,
+              "line_end": 5,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"cast\" is not accessed",
+              "file_path": "tests/agents/test_details_agent.py",
+              "line_start": 1,
+              "line_end": 1,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"json\" is not accessed",
+              "file_path": "evals/definitions/static_analysis.py",
+              "line_start": 1,
+              "line_end": 1,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"load_dotenv\" is not accessed",
+              "file_path": "github_action.py",
+              "line_start": 6,
+              "line_end": 6,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"load_dotenv\" is not accessed",
+              "file_path": "agents/agent.py",
+              "line_start": 8,
+              "line_end": 8,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"load_dotenv\" is not accessed",
+              "file_path": "output_generators/mdx.py",
+              "line_start": 4,
+              "line_end": 4,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"load_dotenv\" is not accessed",
+              "file_path": "output_generators/sphinx.py",
+              "line_start": 5,
+              "line_end": 5,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"load_dotenv\" is not accessed",
+              "file_path": "evals/base.py",
+              "line_start": 13,
+              "line_end": 13,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"monitor_execution\" is not accessed",
+              "file_path": "monitoring/__init__.py",
+              "line_start": 12,
+              "line_end": 12,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"os\" is not accessed",
+              "file_path": "agents/details_agent.py",
+              "line_start": 2,
+              "line_end": 2,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"os\" is not accessed",
+              "file_path": "monitoring/paths.py",
+              "line_start": 1,
+              "line_end": 1,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"os\" is not accessed",
+              "file_path": "agents/tools/read_file_structure.py",
+              "line_start": 2,
+              "line_end": 2,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"os\" is not accessed",
+              "file_path": "tests/test_windows_compatibility.py",
+              "line_start": 8,
+              "line_end": 8,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"os\" is not accessed",
+              "file_path": "tests/agents/test_monitoring.py",
+              "line_start": 1,
+              "line_end": 1,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"os\" is not accessed",
+              "file_path": "tests/diagram_analysis/test_diagram_analysis.py",
+              "line_start": 2,
+              "line_end": 2,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"os\" is not accessed",
+              "file_path": "tests/static_analyzer/test_java_utils.py",
+              "line_start": 185,
+              "line_end": 185,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"os.path\" is not accessed",
+              "file_path": "agents/abstraction_agent.py",
+              "line_start": 2,
+              "line_end": 2,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"patch\" is not accessed",
+              "file_path": "tests/static_analyzer/test_java_config_scanner.py",
+              "line_start": 8,
+              "line_end": 8,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"patch\" is not accessed",
+              "file_path": "tests/static_analyzer/test_reference_resolve_mixin.py",
+              "line_start": 5,
+              "line_end": 5,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"platform\" is not accessed",
+              "file_path": "tests/test_vscode_constants.py",
+              "line_start": 2,
+              "line_end": 2,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"platform\" is not accessed",
+              "file_path": "tests/static_analyzer/test_java_utils.py",
+              "line_start": 5,
+              "line_end": 5,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"sys\" is not accessed",
+              "file_path": "evals/definitions/static_analysis.py",
+              "line_start": 5,
+              "line_end": 5,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"time\" is not accessed",
+              "file_path": "tests/static_analyzer/lsp_client/test_typescript_client.py",
+              "line_start": 2,
+              "line_end": 2,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"utils\" is not accessed",
+              "file_path": "tests/static_analyzer/test_utils.py",
+              "line_start": 9,
+              "line_end": 9,
               "metric_value": 0.0
             }
           ]
         }
       ]
+    },
+    {
+      "check_name": "unused_code_diagnostics",
+      "description": "Detects unused imports, variables, functions, and dead code via LSP diagnostics",
+      "language": "TypeScript",
+      "check_type": "standard",
+      "total_entities_checked": 0,
+      "findings_count": 0,
+      "warning_count": 0,
+      "score": 1.0,
+      "finding_groups": []
     }
   ],
   "file_summaries": [
     {
-      "file_path": "agents/tools/__init__.py",
-      "total_findings": 16,
-      "warning_findings": 16,
-      "composite_risk_score": 100.0
-    },
-    {
-      "file_path": "monitoring/__init__.py",
-      "total_findings": 8,
-      "warning_findings": 8,
-      "composite_risk_score": 90.0
-    },
-    {
       "file_path": "agents/agent.py",
-      "total_findings": 8,
-      "warning_findings": 8,
-      "composite_risk_score": 90.0
-    },
-    {
-      "file_path": "static_analyzer/lsp_client/client.py",
       "total_findings": 7,
-      "warning_findings": 7,
-      "composite_risk_score": 85.0
+      "warning_findings": 3,
+      "composite_risk_score": 65.0
     },
     {
       "file_path": "agents/prompts/prompt_factory.py",
-      "total_findings": 6,
-      "warning_findings": 6,
-      "composite_risk_score": 80.0
+      "total_findings": 5,
+      "warning_findings": 2,
+      "composite_risk_score": 60.0
+    },
+    {
+      "file_path": "agents/tools/__init__.py",
+      "total_findings": 16,
+      "warning_findings": 8,
+      "composite_risk_score": 90.0
     },
     {
       "file_path": "evals/definitions/static_analysis.py",
       "total_findings": 5,
-      "warning_findings": 5,
-      "composite_risk_score": 75.0
-    },
-    {
-      "file_path": "diagram_analysis/diagram_generator.py",
-      "total_findings": 4,
-      "warning_findings": 4,
+      "warning_findings": 2,
       "composite_risk_score": 60.0
     },
     {
-      "file_path": "repo_utils/__init__.py",
-      "total_findings": 4,
+      "file_path": "monitoring/__init__.py",
+      "total_findings": 8,
       "warning_findings": 4,
-      "composite_risk_score": 60.0
+      "composite_risk_score": 70.0
     },
     {
       "file_path": "monitoring/callbacks.py",
-      "total_findings": 4,
-      "warning_findings": 4,
-      "composite_risk_score": 60.0
-    },
-    {
-      "file_path": "agents/tools/read_cfg.py",
-      "total_findings": 4,
-      "warning_findings": 4,
-      "composite_risk_score": 60.0
+      "total_findings": 5,
+      "warning_findings": 1,
+      "composite_risk_score": 55.0
     },
     {
       "file_path": "static_analyzer/graph.py",
-      "total_findings": 4,
+      "total_findings": 7,
       "warning_findings": 4,
+      "composite_risk_score": 70.0
+    },
+    {
+      "file_path": "static_analyzer/lsp_client/client.py",
+      "total_findings": 13,
+      "warning_findings": 10,
+      "composite_risk_score": 100.0
+    },
+    {
+      "file_path": "tests/agents/test_agent.py",
+      "total_findings": 11,
+      "warning_findings": 2,
       "composite_risk_score": 60.0
     },
     {
-      "file_path": "agents/tools/toolkit.py",
-      "total_findings": 4,
-      "warning_findings": 4,
+      "file_path": "tests/agents/test_details_agent.py",
+      "total_findings": 9,
+      "warning_findings": 3,
+      "composite_risk_score": 65.0
+    },
+    {
+      "file_path": "tests/agents/test_monitoring.py",
+      "total_findings": 5,
+      "warning_findings": 3,
+      "composite_risk_score": 65.0
+    },
+    {
+      "file_path": "tests/diagram_analysis/test_diagram_analysis.py",
+      "total_findings": 8,
+      "warning_findings": 2,
       "composite_risk_score": 60.0
     },
     {
-      "file_path": "output_generators/html_template.py",
-      "total_findings": 3,
-      "warning_findings": 3,
-      "composite_risk_score": 45.0
-    },
-    {
-      "file_path": "output_generators/mdx.py",
-      "total_findings": 3,
-      "warning_findings": 3,
-      "composite_risk_score": 45.0
-    },
-    {
-      "file_path": "monitoring/context.py",
-      "total_findings": 3,
-      "warning_findings": 3,
-      "composite_risk_score": 45.0
-    },
-    {
-      "file_path": "github_action.py",
-      "total_findings": 3,
-      "warning_findings": 3,
-      "composite_risk_score": 45.0
-    },
-    {
-      "file_path": "main.py",
-      "total_findings": 2,
+      "file_path": "tests/static_analyzer/lsp_client/test_java_client.py",
+      "total_findings": 12,
       "warning_findings": 2,
-      "composite_risk_score": 30.0
+      "composite_risk_score": 60.0
     },
     {
-      "file_path": "vscode_constants.py",
-      "total_findings": 2,
-      "warning_findings": 2,
-      "composite_risk_score": 30.0
+      "file_path": "tests/static_analyzer/lsp_client/test_lsp_client.py",
+      "total_findings": 11,
+      "warning_findings": 8,
+      "composite_risk_score": 90.0
     },
     {
-      "file_path": "diagram_analysis/__init__.py",
-      "total_findings": 2,
-      "warning_findings": 2,
-      "composite_risk_score": 30.0
+      "file_path": "tests/static_analyzer/lsp_client/test_typescript_client.py",
+      "total_findings": 7,
+      "warning_findings": 3,
+      "composite_risk_score": 65.0
     },
     {
-      "file_path": "monitoring/paths.py",
-      "total_findings": 2,
+      "file_path": "tests/static_analyzer/test_analysis_result.py",
+      "total_findings": 6,
       "warning_findings": 2,
-      "composite_risk_score": 30.0
+      "composite_risk_score": 60.0
+    },
+    {
+      "file_path": "tests/static_analyzer/test_java_utils.py",
+      "total_findings": 8,
+      "warning_findings": 3,
+      "composite_risk_score": 65.0
+    },
+    {
+      "file_path": "tests/static_analyzer/test_reference_resolve_mixin.py",
+      "total_findings": 8,
+      "warning_findings": 2,
+      "composite_risk_score": 60.0
+    },
+    {
+      "file_path": "tests/test_github_action.py",
+      "total_findings": 11,
+      "warning_findings": 1,
+      "composite_risk_score": 55.0
+    },
+    {
+      "file_path": "tests/test_local_app.py",
+      "total_findings": 15,
+      "warning_findings": 3,
+      "composite_risk_score": 65.0
     }
   ]
 }

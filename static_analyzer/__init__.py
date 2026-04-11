@@ -304,11 +304,7 @@ class StaticAnalyzer:
             Returns an empty list if no matching client is found or on failure.
         """
         suffix = file_path.suffix
-        client = None
-        for adapter, _, c in self._engine_clients:
-            if suffix in adapter.file_extensions:
-                client = c
-                break
+        client = next((c for adapter, _, c in self._engine_clients if suffix in adapter.file_extensions), None)
         if client is None:
             return []
 

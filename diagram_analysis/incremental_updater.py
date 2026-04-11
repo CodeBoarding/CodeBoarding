@@ -36,7 +36,7 @@ class IncrementalUpdater:
 
     # Callable that resolves a new file path to a component_id using
     # the current file_to_component mapping.
-    ComponentResolver = Callable[[str, dict[str, str]], str | None]
+    ComponentResolver = Callable[[str, dict[str, str]], str]
 
     def __init__(
         self,

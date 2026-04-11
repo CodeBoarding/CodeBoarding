@@ -9,10 +9,10 @@
   "metrics": {
     "references_count": 10198,
     "packages_count": 99,
-    "call_graph_nodes": 5807,
+    "call_graph_nodes": 5460,
     "call_graph_edges": 13584,
     "source_files_count": 316,
-    "execution_time_seconds": 305
+    "execution_time_seconds": 66
   },
   "sample_references": [
     "cmd.prometheus.main.(*flagConfig).setFeatureListOptions",

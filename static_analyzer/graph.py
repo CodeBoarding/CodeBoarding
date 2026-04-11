@@ -17,6 +17,19 @@ from static_analyzer.node import Node
 logger = logging.getLogger(__name__)
 
 
+@dataclass(frozen=True)
+class LocationKey:
+    """Hashable key identifying a symbol's physical location in the source tree."""
+
+    file_path: str
+    line_start: int
+    line_end: int
+    node_type: int
+
+
+logger = logging.getLogger(__name__)
+
+
 @dataclass
 class ClusterResult:
     """Result of clustering a CallGraph. Provides deterministic cluster IDs and file mappings."""
@@ -80,11 +93,11 @@ class CallGraph:
         # ``container.agent-runner.src.index.funcA``), only the most specific
         # (longest) name is kept.  The shorter alias is recorded here so that
         # ``add_edge`` can transparently resolve references to dropped aliases.
-        self._location_index: dict[tuple[str, int, int, int], str] = {}
+        self._location_index: dict[LocationKey, str] = {}
         self._alias_to_canonical: dict[str, str] = {}
 
     def add_node(self, node: Node) -> None:
-        loc_key = (node.file_path, node.line_start, node.line_end, node.type.value)
+        loc_key = LocationKey(node.file_path, node.line_start, node.line_end, node.type.value)
         existing_name = self._location_index.get(loc_key)
 
         if existing_name is not None:
