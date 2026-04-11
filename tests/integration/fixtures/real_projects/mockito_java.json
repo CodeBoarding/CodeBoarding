@@ -7,12 +7,20 @@
     "codeboarding_version": "0.2.0"
   },
   "metrics": {
-    "references_count": 3668,
+    "references_count_by_os": {
+      "Linux": 3668,
+      "Darwin": 3668,
+      "Windows": 3668
+    },
     "packages_count": 70,
     "call_graph_nodes": 3800,
     "call_graph_edges": 5575,
     "source_files_count": 489,
-    "execution_time_seconds": 196
+    "execution_time_seconds_by_os": {
+      "Linux": 190,
+      "Darwin": 236,
+      "Windows": 820
+    }
   },
   "sample_references": [
     "mockito-core.src.main.java.org.mockito.AdditionalAnswers.AdditionalAnswers",

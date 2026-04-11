@@ -1,53 +1,61 @@
-"""
-Tests to verify Windows compatibility fixes for path handling.
-"""
+"""Tests for Windows-sensitive path handling."""
 
 import platform
+import tempfile
 import unittest
 from pathlib import Path
-import os
 
 from static_analyzer.engine.utils import uri_to_path
 
+IS_WINDOWS = platform.system() == "Windows"
+
 
 class TestFileURIParsing(unittest.TestCase):
-    """Test that file:// URI parsing works correctly on all platforms."""
-
     def test_unix_file_uri(self):
-        """Test parsing Unix-style file URIs."""
-        unix_uri = "file:///home/user/project/file.py"
-        result = uri_to_path(unix_uri)
+        self.assertEqual(
+            uri_to_path("file:///home/user/project/file.py"),
+            Path("/home/user/project/file.py"),
+        )
 
-        expected = Path("/home/user/project/file.py")
-        self.assertEqual(result, expected)
+    def test_empty_uri(self):
+        self.assertIsNone(uri_to_path(""))
 
-    def test_windows_file_uri(self):
-        """Test parsing Windows-style file URIs."""
-        windows_uri = "file:///C:/Users/user/project/file.py"
-        result = uri_to_path(windows_uri)
+    def test_non_file_scheme(self):
+        self.assertIsNone(uri_to_path("http://example.com/foo"))
 
-        # Expected result depends on the platform:
-        # On Windows: C:\Users\user\project\file.py (backslashes, but Path handles comparison)
-        # On Unix: /C:/Users/user/project/file.py (url2pathname adds leading slash)
-        if platform.system() == "Windows":
-            expected = Path("C:/Users/user/project/file.py")
-        else:
-            # On Unix systems, url2pathname will convert file:///C:/... to /C:/...
-            # This is expected behavior - the URI format isn't valid for Unix systems
-            expected = Path("/C:/Users/user/project/file.py")
 
-        self.assertEqual(result, expected)
+@unittest.skipUnless(IS_WINDOWS, "drive-letter stripping is Windows-only behavior")
+class TestWindowsDriveLetterStripping(unittest.TestCase):
+    def test_strips_leading_slash(self):
+        self.assertEqual(
+            uri_to_path("file:///C:/Users/user/project/file.py"),
+            Path("C:/Users/user/project/file.py").resolve(),
+        )
 
-    def test_windows_file_uri_with_encoded_spaces(self):
-        """Test parsing Windows file URIs with URL-encoded spaces."""
-        windows_uri = "file:///C:/Users/My%20Documents/project/file.py"
-        result = uri_to_path(windows_uri)
+    def test_encoded_spaces(self):
+        self.assertEqual(
+            uri_to_path("file:///C:/Users/My%20Documents/project/file.py"),
+            Path("C:/Users/My Documents/project/file.py").resolve(),
+        )
 
-        # Expected result depends on the platform
-        if platform.system() == "Windows":
-            expected = Path("C:/Users/My Documents/project/file.py")
-        else:
-            # On Unix systems, url2pathname will convert file:///C:/... to /C:/...
-            expected = Path("/C:/Users/My Documents/project/file.py")
+    def test_percent_encoded_drive(self):
+        self.assertEqual(
+            uri_to_path("file:///d%3A/a/repo/src/index.js"),
+            Path("d:/a/repo/src/index.js").resolve(),
+        )
 
-        self.assertEqual(result, expected)
+
+@unittest.skipUnless(IS_WINDOWS, "case-canonicalization is Windows-only behavior")
+class TestWindowsCaseCanonicalization(unittest.TestCase):
+    def test_lowercase_uri_resolves_to_real_filesystem_case(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            real_dir = Path(tmpdir) / "SrcDir"
+            real_dir.mkdir()
+            real_file = real_dir / "Index.js"
+            real_file.touch()
+
+            uri = real_file.as_uri().lower()
+            result = uri_to_path(uri)
+
+            self.assertIsNotNone(result)
+            self.assertEqual(str(result), str(real_file.resolve()))

@@ -1,7 +1,6 @@
 name: Integration Tests
 
 on:
-  # Manual trigger with optional language filter
   workflow_dispatch:
     inputs:
       language:
@@ -18,39 +17,93 @@ on:
           - php
           - javascript
 
-  # Run on merge to main
   push:
     branches: [main]
 
-  # Scheduled run (weekly, to catch regressions)
+  # PRs that touch install / bootstrap / LSP code. The Node-bootstrap path
+  # only surfaces on Node-less machines, so the per-OS uninstall steps
+  # below simulate that environment and catch regressions before merge.
+  pull_request:
+    branches: [main]
+    paths:
+      - 'install.py'
+      - 'tool_registry/**'
+      - 'vscode_constants.py'
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - 'static_analyzer/**'
+      - 'tests/integration/**'
+      - 'tests/test_install.py'
+      - 'tests/test_tool_registry.py'
+      - '.github/workflows/integration-tests.yml'
+
   schedule:
     - cron: '0 3 * * 0'  # Every Sunday at 3 AM UTC
 
 jobs:
-  # Determine which languages to test based on input
+  # Emit the matrix.include list, event-driven:
+  #   schedule / workflow_dispatch → full 6 langs x 3 OSes minus skipped pairs.
+  #   push / pull_request         → Windows all langs (except java) + java on
+  #                                 Linux/mac (java's dev platforms).
+  # workflow_dispatch honors the optional ``language`` input to narrow
+  # the full matrix to a single language.
+  #
+  # Skipped pairs:
+  #   mac/go    — free macos-latest is 3 vCPU / 7 GB RAM; gopls indexing
+  #               prometheus blows past 25 min under that memory pressure.
+  #   win/java  — JDTLS races its own readiness signals on Windows (observed
+  #               85 vs 142 edges on the same commit across runs). Stable on
+  #               Linux/macOS; revisit after the LSP sync path is reworked.
   setup-matrix:
     runs-on: ubuntu-latest
     outputs:
-      languages: ${{ steps.set-languages.outputs.languages }}
+      matrix: ${{ steps.build.outputs.matrix }}
     steps:
-      - name: Set languages matrix
-        id: set-languages
+      - name: Build matrix
+        id: build
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          DISPATCH_LANG: ${{ github.event.inputs.language }}
         run: |
-          if [ "${{ github.event.inputs.language }}" = "" ] || [ "${{ github.event.inputs.language }}" = "null" ]; then
-            echo 'languages=["python", "java", "go", "typescript", "php", "javascript"]' >> $GITHUB_OUTPUT
-          else
-            echo "languages=[\"${{ github.event.inputs.language }}\"]" >> $GITHUB_OUTPUT
-          fi
+          python3 <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          import os
 
-  # Run integration tests for each language in parallel
+          event = os.environ.get("EVENT_NAME", "")
+          dispatch_lang = os.environ.get("DISPATCH_LANG", "").strip()
+
+          all_langs = ["python", "java", "go", "typescript", "php", "javascript"]
+          all_os = ["ubuntu-latest", "macos-latest", "windows-latest"]
+          skip = {("macos-latest", "go"), ("windows-latest", "java")}  # see job-level note
+
+          if event in ("schedule", "workflow_dispatch"):
+              langs = [dispatch_lang] if dispatch_lang else all_langs
+              include = [
+                  {"os": o, "language": lg}
+                  for o in all_os
+                  for lg in langs
+                  if (o, lg) not in skip
+              ]
+          else:
+              # push / pull_request smoke subset.
+              include = [
+                  {"os": "windows-latest", "language": lg}
+                  for lg in all_langs
+                  if ("windows-latest", lg) not in skip
+              ]
+              include.append({"os": "ubuntu-latest", "language": "java"})
+              include.append({"os": "macos-latest", "language": "java"})
+
+          print(f"matrix={json.dumps({'include': include})}")
+          PY
+
   integration-tests:
     needs: setup-matrix
-    runs-on: ubuntu-latest
-    timeout-minutes: 60  # Integration tests can be slow
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
     strategy:
       fail-fast: false
-      matrix:
-        language: ${{ fromJson(needs.setup-matrix.outputs.languages) }}
+      matrix: ${{ fromJson(needs.setup-matrix.outputs.matrix) }}
 
     steps:
       - name: Checkout
@@ -67,11 +120,20 @@ jobs:
       - name: Install dependencies
         run: uv sync
 
-      - name: Setup virtual environment
+      - name: Setup virtual environment (unix)
+        if: runner.os != 'Windows'
         run: |
           source .venv/bin/activate
           echo "VIRTUAL_ENV=$VIRTUAL_ENV" >> $GITHUB_ENV
           echo "$VIRTUAL_ENV/bin" >> $GITHUB_PATH
+
+      - name: Setup virtual environment (windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          .\.venv\Scripts\Activate.ps1
+          "VIRTUAL_ENV=$env:VIRTUAL_ENV" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "$env:VIRTUAL_ENV\Scripts" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
 
       - name: Install Go
         if: matrix.language == 'go'
@@ -86,14 +148,123 @@ jobs:
           distribution: 'temurin'
           java-version: '21'
 
-      - name: Install system dependencies
-        if: matrix.language == 'php'
+      - name: Install PHP (linux)
+        if: matrix.language == 'php' && runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y php
+          sudo apt-get install -y --no-install-recommends php
+      # PHP is pre-installed on macos-latest (Homebrew) and windows-latest
+      # (C:\tools\php); no install step needed there.
+
+      - name: Uninstall pre-installed Node.js (linux)
+        if: runner.os == 'Linux'
+        # Ubuntu runners install Node via apt (NodeSource). Remove through
+        # the same channel, then drop stragglers and the hostedtoolcache.
+        run: |
+          set -euxo pipefail
+          sudo apt-get remove --purge -y nodejs npm || true
+          sudo apt-get autoremove -y || true
+          sudo rm -rf /usr/local/lib/node_modules
+          sudo rm -f /usr/local/bin/node /usr/local/bin/npm /usr/local/bin/npx
+          sudo rm -rf "${RUNNER_TOOL_CACHE}/node" || true
+          if command -v node >/dev/null 2>&1; then
+            echo "ERROR: node still present at $(command -v node)" >&2
+            exit 1
+          fi
+          if command -v npm >/dev/null 2>&1; then
+            echo "ERROR: npm still present at $(command -v npm)" >&2
+            exit 1
+          fi
+
+      - name: Uninstall pre-installed Node.js (macos)
+        if: runner.os == 'macOS'
+        # The runner image installs Node via `brew install node@N`.
+        # Reverse through brew's own uninstall verb so /opt/homebrew/bin
+        # symlinks are cleaned without hand-editing PATH.
+        run: |
+          set -euxo pipefail
+          brew list --formula | grep -E '^node(@[0-9]+)?$' | xargs -I {} brew uninstall --force --ignore-dependencies {} || true
+          brew list --formula | grep -E '^yarn$' | xargs -I {} brew uninstall --force --ignore-dependencies {} || true
+          rm -rf "${RUNNER_TOOL_CACHE}/node" || true
+          if command -v node >/dev/null 2>&1; then
+            echo "ERROR: node still present at $(command -v node)" >&2
+            exit 1
+          fi
+          if command -v npm >/dev/null 2>&1; then
+            echo "ERROR: npm still present at $(command -v npm)" >&2
+            exit 1
+          fi
+
+      - name: Uninstall pre-installed Node.js (windows)
+        if: runner.os == 'Windows'
+        # Uses the MSI's own uninstaller located via the Uninstall
+        # registry key. Also reverses the C:\npm\prefix customization
+        # the runner image adds separately in Install-NodeJS.ps1.
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $uninstallKeys = @(
+            'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*',
+            'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*'
+          )
+          $nodeEntries = Get-ItemProperty $uninstallKeys -ErrorAction SilentlyContinue |
+            Where-Object { $_.DisplayName -like 'Node.js*' }
+          if (-not $nodeEntries) {
+            Write-Error "No Node.js entry in Uninstall registry; runner image layout changed."
+            exit 1
+          }
+          foreach ($entry in $nodeEntries) {
+            Write-Host "Uninstalling $($entry.DisplayName) $($entry.DisplayVersion)"
+            $proc = Start-Process -FilePath 'msiexec.exe' `
+              -ArgumentList @('/x', $entry.PSChildName, '/qn', '/norestart') `
+              -Wait -PassThru
+            if ($proc.ExitCode -ne 0 -and $proc.ExitCode -ne 3010) {
+              Write-Error "msiexec /x $($entry.PSChildName) exited with code $($proc.ExitCode)"
+              exit 1
+            }
+          }
+          if (Test-Path 'C:\Program Files\nodejs') {
+            Remove-Item -Recurse -Force 'C:\Program Files\nodejs'
+          }
+          if (Test-Path 'C:\npm') { Remove-Item -Recurse -Force 'C:\npm' }
+          [Environment]::SetEnvironmentVariable('npm_config_prefix', $null, 'Machine')
+          [Environment]::SetEnvironmentVariable('npm_config_prefix', $null, 'User')
+          Remove-Item Env:\npm_config_prefix -ErrorAction SilentlyContinue
+          if (Test-Path "$env:RUNNER_TOOL_CACHE\node") {
+            Remove-Item -Recurse -Force "$env:RUNNER_TOOL_CACHE\node"
+          }
+          $machinePath = [Environment]::GetEnvironmentVariable('Path', 'Machine')
+          $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
+          $env:Path = "$machinePath;$userPath"
+          "PATH=$env:Path" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          if (Get-Command node -ErrorAction SilentlyContinue) {
+            Write-Error "node still present at $((Get-Command node).Source)"
+            exit 1
+          }
+          if (Get-Command npm -ErrorAction SilentlyContinue) {
+            Write-Error "npm still present at $((Get-Command npm).Source)"
+            exit 1
+          }
 
       - name: Setup LSP servers
         run: codeboarding-setup --auto-install-npm
+
+      - name: Verify embedded Node was installed (unix)
+        if: runner.os != 'Windows'
+        run: |
+          test -x ~/.codeboarding/servers/nodeenv/bin/node
+          ~/.codeboarding/servers/nodeenv/bin/node --version
+
+      - name: Verify embedded Node was installed (windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $nodeExe = "$env:USERPROFILE\.codeboarding\servers\nodeenv\Scripts\node.exe"
+          if (-not (Test-Path $nodeExe)) {
+            Write-Error "Embedded node not found at $nodeExe"
+            exit 1
+          }
+          & $nodeExe --version
 
       - name: Run integration tests (${{ matrix.language }})
         run: pytest -m "integration and ${{ matrix.language }}_lang" -v -s --tb=long --log-cli-level=INFO
@@ -102,8 +273,9 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: integration-test-results-${{ matrix.language }}
+          name: integration-test-results-${{ matrix.os }}-${{ matrix.language }}
           path: |
             /tmp/actual_*.json
+            ${{ runner.temp }}/actual_*.json
           retention-days: 7
           if-no-files-found: ignore

@@ -285,7 +285,10 @@ class TestEdgeCases:
     def test_source_files(self, analysis: AnalysisRunData):
         language = analysis.fixture["language"]
         source_files = analysis.all_results[0].get_source_files(language)
-        source_files_rel = {str(Path(f).relative_to(analysis.project_path.resolve())) for f in source_files}
+        # as_posix() keeps the fixture comparison platform-independent —
+        # str() on a WindowsPath emits backslashes that don't match the
+        # POSIX-formatted expected_source_files list.
+        source_files_rel = {Path(f).relative_to(analysis.project_path.resolve()).as_posix() for f in source_files}
         expected = set(analysis.fixture.get("expected_source_files", []))
         missing = sorted(expected - source_files_rel)
         unexpected = sorted(source_files_rel - expected)

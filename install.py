@@ -12,12 +12,14 @@ from pathlib import Path
 
 import requests
 from tool_registry import (
+    PINNED_NODE_VERSION,
     TOOL_REGISTRY,
     ProgressCallback,
     ToolKind,
-    _acquire_lock,
+    acquire_lock,
     get_servers_dir,
     install_archive_tool,
+    install_embedded_node,
     install_native_tools,
     install_node_tools,
     needs_install,
@@ -148,6 +150,62 @@ def is_non_interactive_mode() -> bool:
     (where stdin reports as a TTY but is not actually connected to a user).
     """
     return bool(os.getenv("CI")) or not sys.stdin.isatty() or getattr(sys, "frozen", False)
+
+
+def ensure_node_runtime(
+    target_dir: Path | None = None,
+    auto_install_npm: bool = False,
+) -> bool:
+    """Ensure a Node.js runtime exists; download a pinned prebuilt if not.
+
+    Idempotent (cheap when Node already resolves via ``preferred_node_path``),
+    so safe to call above the ``needs_install()`` short-circuit — otherwise a
+    deleted ``~/.codeboarding/servers/nodeenv/`` would never be repaired.
+
+    In non-interactive mode (CI, frozen binary, piped stdin) or when
+    ``auto_install_npm`` is set, the y/N prompt is skipped and the bootstrap
+    runs automatically. The interactive prompt only gates the download when
+    a human is actually attached.
+    """
+    target = (target_dir or get_servers_dir()).resolve()
+
+    if preferred_node_path(target):
+        return True
+
+    print("Step: Node.js runtime required for TypeScript/JavaScript/PHP/Python language servers")
+
+    if not auto_install_npm and not is_non_interactive_mode():
+        try:
+            choice = (
+                input(
+                    f"Node.js is missing. Download a pinned runtime (v{PINNED_NODE_VERSION}) "
+                    "into ~/.codeboarding/servers/nodeenv/ now? [y/N]: "
+                )
+                .strip()
+                .lower()
+            )
+        except EOFError:
+            choice = "y"
+
+        if choice not in {"y", "yes"}:
+            print(
+                "Warning: skipping Node.js bootstrap. Node-based language servers "
+                "(TypeScript, JavaScript, PHP, Pyright) will be unavailable."
+            )
+            return False
+
+    print(f"Step: Node.js bootstrap started (pinned version {PINNED_NODE_VERSION})")
+    target.mkdir(parents=True, exist_ok=True)
+    installed = install_embedded_node(target)
+
+    if not installed:
+        print("Warning: Node.js bootstrap failed. Node-based language servers will be unavailable.")
+        print("   Install Node.js manually from https://nodejs.org/en/download and retry,")
+        print("   or set CODEBOARDING_NODE_PATH to an existing Node.js binary.")
+        return False
+
+    print("Step: Node.js bootstrap finished: success")
+    return True
 
 
 def resolve_missing_npm(auto_install_npm: bool = False, target_dir: Path | None = None) -> bool:
@@ -550,7 +608,11 @@ def ensure_tools(
     lock_path = servers_dir / ".download.lock"
 
     with open(lock_path, "w") as lock_fd:
-        _acquire_lock(lock_fd)
+        acquire_lock(lock_fd)
+
+        # Run above needs_install() so a deleted nodeenv/ is always repaired
+        # (fingerprints alone wouldn't detect it).
+        ensure_node_runtime(target_dir=servers_dir, auto_install_npm=auto_install_npm)
 
         if not needs_install():
             return
@@ -582,6 +644,9 @@ def run_install(
     target.mkdir(parents=True, exist_ok=True)
 
     ensure_config_template()
+
+    # Covers the codeboarding-setup -> run_install path, which bypasses ensure_tools().
+    ensure_node_runtime(target_dir=target, auto_install_npm=auto_install_npm)
 
     # Compute a unified total so the caller sees a single progress stream.
     native_count = sum(1 for d in TOOL_REGISTRY if d.kind is ToolKind.NATIVE and d.source)
@@ -620,9 +685,16 @@ def main() -> None:
     print("CodeBoarding Setup")
     print("=" * 40)
 
-    run_install(auto_install_npm=args.auto_install_npm, auto_install_vcpp=args.auto_install_vcpp)
-
-    write_manifest()
+    # Lock at the entry point, not inside run_install() — ensure_tools()
+    # calls run_install() while already holding this lock, and same-process
+    # reentrant acquisition isn't portable across fcntl / msvcrt.
+    servers_dir = get_servers_dir()
+    servers_dir.mkdir(parents=True, exist_ok=True)
+    lock_path = servers_dir / ".download.lock"
+    with open(lock_path, "w") as lock_fd:
+        acquire_lock(lock_fd)
+        run_install(auto_install_npm=args.auto_install_npm, auto_install_vcpp=args.auto_install_vcpp)
+        write_manifest()
 
     print("\n" + "=" * 40)
     print("Setup complete!")

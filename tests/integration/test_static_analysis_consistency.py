@@ -27,6 +27,7 @@ Usage:
 """
 
 import json
+import platform
 import time
 from pathlib import Path
 
@@ -51,11 +52,16 @@ SNAPSHOT_DIR = Path(__file__).parent / "snapshots" / "real_projects"
 
 
 def _relative_path(file_path: str, repo_path: Path) -> str:
-    """Return a repo-relative path string, falling back to the original if it's not under repo_path."""
+    """Return a repo-relative path string, falling back to the original if it's not under repo_path.
+
+    Uses as_posix() so snapshots written on Windows are byte-identical to
+    those written on macOS / Linux — otherwise a Windows-authored snapshot
+    would diff against the repo version on every subsequent CI run.
+    """
     if not file_path:
         return ""
     try:
-        return str(Path(file_path).relative_to(repo_path))
+        return Path(file_path).relative_to(repo_path).as_posix()
     except ValueError:
         return file_path
 
@@ -140,8 +146,11 @@ MIN_ABSOLUTE_TOLERANCE = 2
 # Tolerance percentage for execution time comparisons (15% = 0.15)
 EXECUTION_TIME_TOLERANCE = 0.15
 
-# Minimum absolute tolerance for execution time in seconds
-MIN_EXECUTION_TIME_TOLERANCE = 90
+# Minimum absolute tolerance for execution-time comparisons; the larger
+# of this and EXECUTION_TIME_TOLERANCE applies. Set to 150s to absorb
+# JDTLS warm-up variance on shared macOS runners (observed 177s-295s
+# range for the same mockito_java test across consecutive runs).
+MIN_EXECUTION_TIME_TOLERANCE = 150
 
 
 def get_language_marker(language: str):
@@ -246,10 +255,25 @@ class TestStaticAnalysisConsistency:
             "execution_time_seconds",
         ]
 
+        current_os = platform.system()
+        # Metrics that vary across OSes (LSP servers report slightly
+        # different reference counts on Windows; execution time tracks
+        # runner hardware) are stored as ``<name>_by_os`` dicts keyed by
+        # ``platform.system()``. All other metrics are flat scalars.
+        per_os_metrics = {"references_count", "execution_time_seconds"}
         results = []
         for metric_name in metric_names:
             actual = actual_metrics[metric_name]
-            expected_val = expected_metrics[metric_name]
+            if metric_name in per_os_metrics:
+                by_os_key = f"{metric_name}_by_os"
+                try:
+                    expected_val = expected_metrics[by_os_key][current_os]
+                except KeyError as e:
+                    raise AssertionError(
+                        f"Fixture {config.fixture_file} is missing " f"{by_os_key}[{current_os!r}] (got {e})"
+                    ) from None
+            else:
+                expected_val = expected_metrics[metric_name]
             if metric_name == "execution_time_seconds":
                 tolerance = EXECUTION_TIME_TOLERANCE
                 min_absolute = MIN_EXECUTION_TIME_TOLERANCE

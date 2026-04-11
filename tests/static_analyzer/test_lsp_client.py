@@ -11,7 +11,11 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from static_analyzer.engine.lsp_client import LSP_METHOD_NOT_FOUND, LSPClient, MethodNotFoundError
+from static_analyzer.engine.lsp_client import (
+    LSP_METHOD_NOT_FOUND,
+    LSPClient,
+    MethodNotFoundError,
+)
 
 
 class TestLSPClientInit:

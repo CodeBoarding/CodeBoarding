@@ -21,6 +21,7 @@ from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
 from static_analyzer.programming_language import ProgrammingLanguage
 from static_analyzer.scanner import ProjectScanner
 from static_analyzer.typescript_config_scanner import TypeScriptConfigScanner
+from tool_registry import ensure_node_on_path
 from utils import get_cache_dir
 
 logger = logging.getLogger(__name__)
@@ -149,6 +150,9 @@ class StaticAnalyzer:
                 command = adapter.get_lsp_command(project_path)
                 init_options = adapter.get_lsp_init_options(self.ignore_manager)
                 extra_env = adapter.get_lsp_env()
+                # Node-based LSPs spawn child ``node`` processes by name; on
+                # a Node-less host the embedded runtime's dir must be on PATH.
+                ensure_node_on_path(command, extra_env)
                 workspace_settings = adapter.get_workspace_settings()
                 engine_client = LSPClient(
                     command=command,
