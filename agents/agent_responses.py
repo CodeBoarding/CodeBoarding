@@ -263,7 +263,7 @@ class AnalysisInsights(LLMBaseModel):
         return title + body + relations
 
     def file_to_component(self) -> dict[str, str]:
-        """Build file path → component_id mapping from root components."""
+        """Build file path -> component_id mapping from root components."""
         return {str(PurePosixPath(fg.file_path)): c.component_id for c in self.components for fg in c.file_methods}
 
 
