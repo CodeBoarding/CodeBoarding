@@ -17,29 +17,32 @@ class TestFileURIParsing(unittest.TestCase):
             Path("/home/user/project/file.py"),
         )
 
-    def test_windows_file_uri_strips_leading_slash(self):
-        self.assertEqual(
-            uri_to_path("file:///C:/Users/user/project/file.py"),
-            Path("C:/Users/user/project/file.py"),
-        )
-
-    def test_windows_file_uri_with_encoded_spaces(self):
-        self.assertEqual(
-            uri_to_path("file:///C:/Users/My%20Documents/project/file.py"),
-            Path("C:/Users/My Documents/project/file.py"),
-        )
-
-    def test_windows_file_uri_with_percent_encoded_drive(self):
-        self.assertEqual(
-            uri_to_path("file:///d%3A/a/repo/src/index.js"),
-            Path("d:/a/repo/src/index.js"),
-        )
-
     def test_empty_uri(self):
         self.assertIsNone(uri_to_path(""))
 
     def test_non_file_scheme(self):
         self.assertIsNone(uri_to_path("http://example.com/foo"))
+
+
+@unittest.skipUnless(IS_WINDOWS, "drive-letter stripping is Windows-only behavior")
+class TestWindowsDriveLetterStripping(unittest.TestCase):
+    def test_strips_leading_slash(self):
+        self.assertEqual(
+            uri_to_path("file:///C:/Users/user/project/file.py"),
+            Path("C:/Users/user/project/file.py").resolve(),
+        )
+
+    def test_encoded_spaces(self):
+        self.assertEqual(
+            uri_to_path("file:///C:/Users/My%20Documents/project/file.py"),
+            Path("C:/Users/My Documents/project/file.py").resolve(),
+        )
+
+    def test_percent_encoded_drive(self):
+        self.assertEqual(
+            uri_to_path("file:///d%3A/a/repo/src/index.js"),
+            Path("d:/a/repo/src/index.js").resolve(),
+        )
 
 
 @unittest.skipUnless(IS_WINDOWS, "case-canonicalization is Windows-only behavior")

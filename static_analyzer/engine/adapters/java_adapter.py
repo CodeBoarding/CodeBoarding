@@ -118,10 +118,9 @@ class JavaAdapter(LanguageAdapter):
         # Cap at 50% of available physical memory.
         ram_gb = total_ram_gb()
         if ram_gb is not None:
-            max_heap_gb = max(1, int(ram_gb * 0.5))
-            desired_gb = min(desired_gb, max_heap_gb)
+            desired_gb = min(desired_gb, int(ram_gb * 0.5))
 
-        return f"{desired_gb}G"
+        return f"{max(1, desired_gb)}G"
 
     def build_qualified_name(
         self,

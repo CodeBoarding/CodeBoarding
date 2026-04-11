@@ -22,10 +22,10 @@ def uri_to_path(uri: str) -> Path | None:
         if parsed.scheme != "file":
             return None
         path = unquote(parsed.path)
-        # Strip the leading slash on Windows-style URIs (``/C:/foo`` -> ``C:/foo``).
-        if len(path) >= 3 and path[0] == "/" and path[2] == ":":
-            path = path[1:]
         if _IS_WINDOWS:
+            # Strip the leading slash on ``/C:/foo`` -> ``C:/foo``.
+            if len(path) >= 3 and path[0] == "/" and path[2] == ":":
+                path = path[1:]
             return Path(path).resolve()
         return Path(path)
     except Exception:
