@@ -8,7 +8,7 @@ from static_analyzer import StaticAnalyzer
 class TestDiscoverFileDependencies(unittest.TestCase):
     """Tests for StaticAnalyzer.discover_file_dependencies handling both Location and LocationLink LSP formats."""
 
-    def _make_analyzer(self, file_ext: str = ".py") -> StaticAnalyzer:
+    def _make_analyzer(self, file_ext: str = ".py") -> tuple[StaticAnalyzer, MagicMock]:
         analyzer = object.__new__(StaticAnalyzer)
         adapter = MagicMock()
         adapter.file_extensions = {file_ext}
