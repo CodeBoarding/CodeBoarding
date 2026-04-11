@@ -144,6 +144,12 @@ class StaticAnalyzer:
             logger.info(f"Clients already started for {self.repository_path}, skipping start.")
             return
 
+        if not self._engine_configs:
+            logger.info(f"No supported languages detected in {self.repository_path}; no LSP clients to start.")
+            self._engine_clients = []
+            self._clients_started = True
+            return
+
         started: list[tuple[LanguageAdapter, Path, LSPClient]] = []
         attempted: list[str] = []
         failed_languages: list[str] = []
