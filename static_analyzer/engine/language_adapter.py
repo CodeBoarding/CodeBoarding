@@ -8,6 +8,7 @@ from pathlib import Path
 
 from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.constants import NodeType
+from static_analyzer.engine.lsp_client import LSPClient
 from static_analyzer.engine.lsp_constants import (
     CALLABLE_KINDS,
     CLASS_LIKE_KINDS,
@@ -177,9 +178,36 @@ class LanguageAdapter(ABC):
         """
         return 0
 
+    def wait_for_diagnostics(self, client: LSPClient) -> None:
+        """Block until the LSP server is done publishing diagnostics for didOpen'd files.
+
+        Default no-op: most LSPs (pyright, gopls, intelephense, JDTLS,
+        TypeScript) publish diagnostics synchronously during didOpen
+        handling, so by the time Phase 1/2 finishes everything is in the
+        queue. Adapters whose servers publish *asynchronously* override
+        this to either:
+          (a) re-use ``wait_for_server_ready`` after ``reset_ready_signal``
+              when the LSP has a real readiness signal that flips around
+              didOpen processing (rust-analyzer's ``quiescent``); or
+          (b) call ``client.wait_for_diagnostics_quiesce`` to debounce on
+              publishDiagnostics activity when there is no signal at all
+              (csharp-ls).
+        """
+        return None
+
     def get_lsp_env(self) -> dict[str, str]:
         """Return extra environment variables for the LSP server process."""
         return {}
+
+    def prepare_project(self, project_root: Path) -> None:
+        """Run any pre-LSP project preparation (e.g. dependency restore).
+
+        Default no-op. C# overrides to run ``dotnet restore`` so csharp-ls
+        sees a populated ``obj/project.assets.json`` and can resolve
+        framework references; otherwise it floods diagnostics with
+        ``CS0518: Predefined type System.X is not defined``.
+        """
+        return None
 
     def discover_source_files(self, project_root: Path, ignore_manager: RepoIgnoreManager) -> list[Path]:
         """Discover source files for this adapter under a project root.
@@ -248,14 +276,6 @@ class LanguageAdapter(ABC):
         languages where references queries are too slow (e.g. Java/JDTLS).
         """
         return EdgeStrategy.REFERENCES
-
-    @property
-    def wait_for_workspace_ready(self) -> bool:
-        """Override to ``True`` for LSPs (JDTLS, rust-analyzer) that load
-        project metadata async and return empty results until ready. Per-file
-        indexers (pyright, gopls, tsserver, intelephense) keep the default.
-        """
-        return False
 
     @property
     def extra_client_capabilities(self) -> dict:

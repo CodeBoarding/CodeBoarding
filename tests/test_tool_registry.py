@@ -898,8 +898,12 @@ class TestManifest(unittest.TestCase):
         self.assertTrue(needs_install())
 
     def test_registry_native_tools_have_source(self):
+        # Tools resolved externally (e.g. csharp-ls via `dotnet tool install`)
+        # intentionally declare no ``source`` — the installer skips them and
+        # the adapter resolves the binary from PATH / a known install location.
+        externally_installed = {"csharp"}
         for dep in TOOL_REGISTRY:
-            if dep.kind is ToolKind.NATIVE:
+            if dep.kind is ToolKind.NATIVE and dep.key not in externally_installed:
                 self.assertIsNotNone(dep.source, f"{dep.key} should have a source")
 
     def test_registry_archive_tools_have_source(self):

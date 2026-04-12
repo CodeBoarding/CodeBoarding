@@ -261,6 +261,11 @@ def has_required_tools(base_dir: Path) -> bool:
 
     for dep in TOOL_REGISTRY:
         if dep.kind is ToolKind.NATIVE:
+            # Native tools with no source are installed externally (e.g. csharp-ls
+            # via ``dotnet tool install``) — the adapter resolves them from PATH,
+            # so there's nothing to verify inside ``base_dir``.
+            if dep.source is None:
+                continue
             # Skip the check when the installer would also skip the download,
             # otherwise ``needs_install`` loops forever on unsupported hosts.
             if not dep.is_available_on_host():

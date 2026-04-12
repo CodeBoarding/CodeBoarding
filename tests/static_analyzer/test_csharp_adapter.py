@@ -1,6 +1,8 @@
 """Tests for the C# language adapter."""
 
+import subprocess
 from pathlib import Path
+from unittest.mock import MagicMock
 
 from static_analyzer.engine.adapters.csharp_adapter import CSharpAdapter
 from static_analyzer.constants import NodeType
@@ -232,3 +234,116 @@ class TestReferenceTracking:
     def test_method_is_reference_worthy(self):
         adapter = CSharpAdapter()
         assert adapter.is_reference_worthy(NodeType.METHOD) is True
+
+
+class TestWaitForDiagnostics:
+    """csharp-ls publishes diagnostics asynchronously with no readiness signal,
+    so the adapter falls back to debouncing on the publishDiagnostics stream."""
+
+    def test_calls_quiesce_on_client(self):
+        adapter = CSharpAdapter()
+        called = {}
+
+        class FakeClient:
+            def wait_for_diagnostics_quiesce(self, idle_seconds, max_wait):
+                called["idle"] = idle_seconds
+                called["max"] = max_wait
+
+        adapter.wait_for_diagnostics(FakeClient())  # type: ignore[arg-type]
+        assert called.get("idle", 0) > 0, "csharp-ls needs an idle wait or diagnostics will be missed"
+        assert called.get("max", 0) >= called.get("idle", 0)
+
+
+class TestPrepareProject:
+    """``prepare_project`` runs ``dotnet restore`` so csharp-ls sees framework
+    references; without it diagnostics are flooded with bogus CS0518."""
+
+    def test_runs_dotnet_restore_when_csproj_present(self, tmp_path, monkeypatch):
+        (tmp_path / "Foo.csproj").write_text("<Project />")
+        monkeypatch.setattr("shutil.which", lambda name: "/usr/bin/dotnet" if name == "dotnet" else None)
+
+        called = {}
+
+        def fake_run(cmd, **kwargs):
+            called["cmd"] = cmd
+            called["cwd"] = kwargs.get("cwd")
+            return MagicMock(returncode=0, stdout="", stderr="")
+
+        monkeypatch.setattr(
+            "static_analyzer.engine.adapters.csharp_adapter.subprocess.run",
+            fake_run,
+        )
+        CSharpAdapter().prepare_project(tmp_path)
+        assert called["cmd"][:2] == ["dotnet", "restore"]
+        assert called["cmd"][2] == "Foo.csproj"
+        assert called["cwd"] == str(tmp_path)
+
+    def test_prefers_solution_over_csproj(self, tmp_path, monkeypatch):
+        (tmp_path / "Foo.sln").write_text("")
+        (tmp_path / "Foo.csproj").write_text("<Project />")
+        monkeypatch.setattr("shutil.which", lambda name: "/usr/bin/dotnet" if name == "dotnet" else None)
+
+        called = {}
+
+        def fake_run(cmd, **kwargs):
+            called["cmd"] = cmd
+            return MagicMock(returncode=0, stdout="", stderr="")
+
+        monkeypatch.setattr(
+            "static_analyzer.engine.adapters.csharp_adapter.subprocess.run",
+            fake_run,
+        )
+        CSharpAdapter().prepare_project(tmp_path)
+        assert called["cmd"][2] == "Foo.sln"
+
+    def test_skips_when_no_project_file(self, tmp_path, monkeypatch):
+        monkeypatch.setattr("shutil.which", lambda name: "/usr/bin/dotnet" if name == "dotnet" else None)
+
+        def fake_run(*_args, **_kwargs):
+            raise AssertionError("subprocess.run should not be called")
+
+        monkeypatch.setattr(
+            "static_analyzer.engine.adapters.csharp_adapter.subprocess.run",
+            fake_run,
+        )
+        CSharpAdapter().prepare_project(tmp_path)  # no exception
+
+    def test_skips_when_dotnet_not_on_path(self, tmp_path, monkeypatch):
+        (tmp_path / "Foo.csproj").write_text("<Project />")
+        monkeypatch.setattr("shutil.which", lambda _: None)
+
+        def fake_run(*_args, **_kwargs):
+            raise AssertionError("subprocess.run should not be called")
+
+        monkeypatch.setattr(
+            "static_analyzer.engine.adapters.csharp_adapter.subprocess.run",
+            fake_run,
+        )
+        CSharpAdapter().prepare_project(tmp_path)
+
+    def test_swallows_restore_failure(self, tmp_path, monkeypatch):
+        (tmp_path / "Foo.csproj").write_text("<Project />")
+        monkeypatch.setattr("shutil.which", lambda name: "/usr/bin/dotnet" if name == "dotnet" else None)
+
+        def fake_run(cmd, **kwargs):
+            return MagicMock(returncode=1, stdout="", stderr="boom")
+
+        monkeypatch.setattr(
+            "static_analyzer.engine.adapters.csharp_adapter.subprocess.run",
+            fake_run,
+        )
+        # Should not raise — restore failures are warnings, not aborts.
+        CSharpAdapter().prepare_project(tmp_path)
+
+    def test_handles_subprocess_timeout(self, tmp_path, monkeypatch):
+        (tmp_path / "Foo.csproj").write_text("<Project />")
+        monkeypatch.setattr("shutil.which", lambda name: "/usr/bin/dotnet" if name == "dotnet" else None)
+
+        def fake_run(cmd, **kwargs):
+            raise subprocess.TimeoutExpired(cmd=cmd, timeout=1)
+
+        monkeypatch.setattr(
+            "static_analyzer.engine.adapters.csharp_adapter.subprocess.run",
+            fake_run,
+        )
+        CSharpAdapter().prepare_project(tmp_path)  # no exception

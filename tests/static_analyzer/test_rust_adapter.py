@@ -104,13 +104,37 @@ class TestLspInitOptions:
         assert options["cargo"]["buildScripts"]["enable"] is True
         assert options["procMacro"]["enable"] is True
 
-    def test_disables_check_on_save(self):
-        # cargo check during indexing significantly slows rust-analyzer
-        # and we don't consume its diagnostics for static analysis.
-        assert RustAdapter().get_lsp_init_options()["checkOnSave"] is False
+    def test_enables_check_on_save_for_diagnostics(self):
+        # cargo check is what surfaces unused_imports / unused_variables /
+        # dead_code diagnostics — without it the unused-code health check
+        # has nothing to categorize for Rust.
+        options = RustAdapter().get_lsp_init_options()
+        assert options["checkOnSave"] is True
+        assert options["check"]["command"] == "check"
 
     def test_enables_all_cargo_targets(self):
         assert RustAdapter().get_lsp_init_options()["cargo"]["allTargets"] is True
+
+
+class TestWaitForDiagnostics:
+    """Rust reuses ``wait_for_server_ready`` after resetting the ready signal,
+    relying on rust-analyzer's ``experimental/serverStatus.quiescent`` flag."""
+
+    def test_resets_ready_then_waits(self):
+        adapter = RustAdapter()
+        events: list = []
+
+        class FakeClient:
+            def reset_ready_signal(self):
+                events.append(("reset",))
+
+            def wait_for_server_ready(self, timeout):
+                events.append(("wait", timeout))
+
+        adapter.wait_for_diagnostics(FakeClient())  # type: ignore[arg-type]
+        assert events[0][0] == "reset", "must reset the ready signal before waiting"
+        assert events[1][0] == "wait"
+        assert events[1][1] > 0
 
 
 class TestBuildQualifiedName:

@@ -146,6 +146,21 @@ REPOSITORY_CONFIGS = [
             "lsp_server_key": "rust",
         },
     ),
+    RepositoryTestConfig(
+        name="serilog_csharp",
+        repo_url="https://github.com/serilog/serilog",
+        pinned_commit="v4.2.0",
+        language="CSharp",
+        fixture_file="serilog_csharp.json",
+        mock_language={
+            "language": "CSharp",
+            "size": 100000,
+            "percentage": 100.0,
+            "suffixes": [".cs"],
+            "server_commands": ["csharp-ls"],
+            "lsp_server_key": "csharp",
+        },
+    ),
 ]
 
 

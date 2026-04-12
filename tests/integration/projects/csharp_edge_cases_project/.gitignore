@@ -1,0 +1,7 @@
+# .NET build artifacts — produced by `dotnet restore` / `dotnet build` /
+# the analyzer's prepare_project hook. None of these should be committed.
+bin/
+obj/
+
+# CodeBoarding analysis cache produced when running the integration test.
+.codeboarding/

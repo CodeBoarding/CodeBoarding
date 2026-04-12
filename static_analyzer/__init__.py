@@ -179,6 +179,9 @@ class StaticAnalyzer:
             try:
                 logger.info(f"Starting engine LSP client for {adapter.language} at {project_path}")
                 t_start = time.monotonic()
+                # Allow adapters to prepare the project before LSP startup
+                # (e.g. ``dotnet restore`` so csharp-ls sees framework refs).
+                adapter.prepare_project(project_path)
                 command = adapter.get_lsp_command(project_path)
                 init_options = adapter.get_lsp_init_options(self.ignore_manager)
                 extra_env = adapter.get_lsp_env()
@@ -430,6 +433,16 @@ class StaticAnalyzer:
                 cache_diags: dict = analysis.get("diagnostics") or {}
                 if cache_diags:
                     logger.info(f"Loaded {len(cache_diags)} files with diagnostics from cache for {adapter.language}")
+
+                # Some servers (rust-analyzer, csharp-ls) publish diagnostics
+                # asynchronously after didOpen and we'd snapshot an empty
+                # ``collected_diagnostics`` if we harvested immediately. Each
+                # adapter knows what to wait for: rust-analyzer reuses its
+                # ``experimental/serverStatus`` quiescent signal; csharp-ls
+                # has no signal and falls back to debouncing. Default no-op.
+                t_wait = time.monotonic()
+                adapter.wait_for_diagnostics(engine_client)
+                logger.debug(f"wait_for_diagnostics for {adapter.language}: " f"{time.monotonic() - t_wait:.1f}s")
 
                 live_diags = engine_client.get_collected_diagnostics()
 

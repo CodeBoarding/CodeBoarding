@@ -17,6 +17,7 @@ on:
           - php
           - javascript
           - rust
+          - csharp
 
   push:
     branches: [main]
@@ -73,7 +74,7 @@ jobs:
           event = os.environ.get("EVENT_NAME", "")
           dispatch_lang = os.environ.get("DISPATCH_LANG", "").strip()
 
-          all_langs = ["python", "java", "go", "typescript", "php", "javascript", "rust"]
+          all_langs = ["python", "java", "go", "typescript", "php", "javascript", "rust", "csharp"]
           all_os = ["ubuntu-latest", "macos-latest", "windows-latest"]
           skip = {("macos-latest", "go"), ("windows-latest", "java")}  # see job-level note
 
@@ -159,6 +160,29 @@ jobs:
         with:
           toolchain: stable
           components: ''
+
+      - name: Install .NET SDK
+        if: matrix.language == 'csharp'
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Install csharp-ls
+        if: matrix.language == 'csharp'
+        # csharp-ls 0.21.0+ ships a malformed NuGet package
+        # (DotnetToolSettings.xml missing); pin to 0.20.0 until upstream
+        # publishes a fixed release.
+        run: dotnet tool install --global csharp-ls --version 0.20.0
+
+      - name: Add dotnet tools to PATH (unix)
+        if: matrix.language == 'csharp' && runner.os != 'Windows'
+        run: echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
+
+      - name: Add dotnet tools to PATH (windows)
+        if: matrix.language == 'csharp' && runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          "$env:USERPROFILE\.dotnet\tools" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
 
       - name: Install PHP (linux)
         if: matrix.language == 'php' && runner.os == 'Linux'

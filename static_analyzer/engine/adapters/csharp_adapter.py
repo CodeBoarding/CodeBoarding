@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import shutil
+import subprocess
 from pathlib import Path
 
 from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.constants import NodeType
 from static_analyzer.engine.language_adapter import LanguageAdapter
+from static_analyzer.engine.lsp_client import LSPClient
+
+logger = logging.getLogger(__name__)
 
 
 class CSharpAdapter(LanguageAdapter):
@@ -129,6 +134,69 @@ class CSharpAdapter(LanguageAdapter):
     def get_probe_timeout_minimum(self) -> int:
         """Roslyn workspace loading for large .NET solutions can exceed 5 minutes."""
         return 600
+
+    def wait_for_diagnostics(self, client: LSPClient) -> None:
+        """csharp-ls publishes diagnostics asynchronously after didOpen with
+        no enclosing readiness signal — no ``$/progress`` end, no
+        ``language/status``, just a burst of ``publishDiagnostics`` and
+        then silence. The only correct synchronization is to debounce on
+        the publishDiagnostics stream itself.
+
+        Empirically 2s idle / 30s max covers both the edge-case fixture
+        (8 files, ~1s of publishes) and large repos like Polly (~500 files,
+        several seconds of publishes).
+        """
+        client.wait_for_diagnostics_quiesce(idle_seconds=2.0, max_wait=30.0)
+
+    def prepare_project(self, project_root: Path) -> None:
+        """Run ``dotnet restore`` so csharp-ls can resolve framework references.
+
+        Why: csharp-ls relies on Roslyn / MSBuild to load the project, and
+        MSBuild needs ``obj/project.assets.json`` (produced by restore) to
+        find the .NET runtime reference assemblies. Without it, csharp-ls
+        emits a flood of bogus ``CS0518: Predefined type System.X is not
+        defined`` diagnostics for every file. Restore is idempotent and
+        only writes under ``obj/`` (which we already gitignore).
+        """
+        if shutil.which("dotnet") is None:
+            logger.info("Skipping dotnet restore: dotnet not on PATH")
+            return
+        # Find solution or csproj/fsproj at the project_root level
+        target = next(iter(project_root.glob("*.sln")), None)
+        if target is None:
+            target = next(iter(project_root.glob("*.slnx")), None)
+        if target is None:
+            target = next(iter(project_root.glob("*.csproj")), None)
+        if target is None:
+            target = next(iter(project_root.glob("*.fsproj")), None)
+        if target is None:
+            logger.debug("No solution/project file found at %s; skipping restore", project_root)
+            return
+
+        env = os.environ.copy()
+        env.update(self.get_lsp_env())
+        try:
+            result = subprocess.run(
+                ["dotnet", "restore", str(target.name), "--nologo", "--verbosity", "minimal"],
+                cwd=str(project_root),
+                env=env,
+                capture_output=True,
+                text=True,
+                timeout=600,
+            )
+            if result.returncode != 0:
+                logger.warning(
+                    "dotnet restore failed for %s (exit %d): %s",
+                    target.name,
+                    result.returncode,
+                    (result.stderr or result.stdout)[-500:],
+                )
+            else:
+                logger.info("dotnet restore completed for %s", target.name)
+        except subprocess.TimeoutExpired:
+            logger.warning("dotnet restore timed out after 600s for %s", target.name)
+        except OSError as exc:
+            logger.warning("dotnet restore could not be invoked: %s", exc)
 
     def get_lsp_env(self) -> dict[str, str]:
         """Set DOTNET_ROOT when not already in the environment.

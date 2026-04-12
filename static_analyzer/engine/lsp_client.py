@@ -78,6 +78,11 @@ class LSPClient:
 
         # JDTLS import tracking
         self._server_ready = threading.Event()
+        # Set when ``initialize`` returned an error response. ``wait_for_server_ready``
+        # bails out immediately when this is set so callers don't burn 5 minutes
+        # waiting on an LSP that already reported a fatal startup error
+        # (e.g. csharp-ls failing to locate the .NET SDK).
+        self._init_failed: bool = False
 
     def __enter__(self) -> LSPClient:
         self.start()
@@ -397,6 +402,32 @@ class LSPClient:
         with self._diagnostics_lock:
             return self._diagnostics_generation
 
+    def wait_for_diagnostics_quiesce(self, idle_seconds: float, max_wait: float) -> None:
+        """Block until ``publishDiagnostics`` stops arriving for ``idle_seconds`` (or ``max_wait`` elapses).
+
+        Why: csharp-ls (and similar batching servers) emit diagnostics
+        asynchronously after didOpen/load, often *after* the analysis pipeline
+        has already snapshotted them. Other LSPs (pyright, gopls) publish
+        eagerly and don't need this. Adapters opt in via
+        ``diagnostics_quiesce_seconds``.
+        """
+        if idle_seconds <= 0 or max_wait <= 0:
+            return
+        deadline = time.monotonic() + max_wait
+        last_gen = self.get_diagnostics_generation()
+        last_change = time.monotonic()
+        poll_interval = 0.1
+        while time.monotonic() < deadline:
+            time.sleep(poll_interval)
+            gen = self.get_diagnostics_generation()
+            now = time.monotonic()
+            if gen != last_gen:
+                last_gen = gen
+                last_change = now
+                continue
+            if now - last_change >= idle_seconds:
+                return
+
     # ---- JDTLS server-ready wait ----
 
     def wait_for_server_ready(self, timeout: int = 300) -> None:
@@ -408,11 +439,27 @@ class LSPClient:
         Args:
             timeout: Maximum time to wait in seconds (default: 5 minutes)
         """
+        if self._init_failed:
+            logger.warning(
+                "Skipping ready-wait: LSP initialize errored. Subsequent requests will return empty results."
+            )
+            return
         logger.info("Waiting for LSP server to be ready...")
         if self._server_ready.wait(timeout=timeout):
             logger.info("Server ready")
         else:
             logger.warning("Server ready timeout after %ds. Proceeding with analysis anyway.", timeout)
+
+    def reset_ready_signal(self) -> None:
+        """Clear the server-ready flag so the next ``wait_for_server_ready``
+        blocks until the LSP server emits its readiness notification again.
+
+        Used by adapters whose LSP transitions out of the ready state during
+        post-didOpen processing (e.g. rust-analyzer flips ``quiescent`` back
+        to ``False`` while ``cargo check`` runs, then back to ``True`` once
+        diagnostics are flushed).
+        """
+        self._server_ready.clear()
 
     # ---- Internal protocol implementation ----
 
@@ -496,7 +543,12 @@ class LSPClient:
                 error = msg["error"]
                 if isinstance(error, dict) and error.get("code") == LSP_METHOD_NOT_FOUND:
                     raise MethodNotFoundError(error.get("message", "Method not found"))
-                logger.warning("LSP error for request %d: %s", req_id, error)
+                logger.warning("LSP error for request %d (%s): %s", req_id, method, error)
+                if method == "initialize":
+                    # Initialize errored — the server is not in a usable state.
+                    # Mark so wait_for_server_ready() bails out fast instead of
+                    # blocking for the full 300s readiness timeout.
+                    self._init_failed = True
                 return None
             return msg.get("result")
 
@@ -701,6 +753,17 @@ class LSPClient:
             if "Finished loading solution" in message_text:
                 self._server_ready.set()
                 logger.info("LSP server: solution loaded (%s)", message_text)
+
+        elif method == "$/progress":
+            # csharp-ls reports csproj-based workspace load completion via
+            # work-done progress (not logMessage). The "End" message looks
+            # like ``OK, N project file(s) loaded``.
+            value = params.get("value", {}) or {}
+            kind = value.get("kind")
+            message_text = value.get("message", "") or ""
+            if kind == "end" and "project file(s) loaded" in message_text:
+                self._server_ready.set()
+                logger.info("LSP server: project files loaded (%s)", message_text)
 
     def _read_single_message(self) -> dict | None:
         """Read a single JSON-RPC message from stdout using raw fd I/O."""
