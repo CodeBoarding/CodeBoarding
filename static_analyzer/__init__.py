@@ -8,6 +8,7 @@ from static_analyzer.analysis_cache import AnalysisCacheManager
 from static_analyzer.analysis_result import StaticAnalysisCache, StaticAnalysisResults
 from static_analyzer.cluster_change_analyzer import ChangeClassification
 from static_analyzer.constants import Language
+from static_analyzer.csharp_config_scanner import CSharpConfigScanner
 from static_analyzer.engine.adapters import get_adapter
 from static_analyzer.engine.call_graph_builder import CallGraphBuilder
 from static_analyzer.engine.language_adapter import LanguageAdapter
@@ -88,6 +89,20 @@ def _create_engine_configs(
                 else:
                     logger.info("No Java projects detected")
 
+            elif lang_lower in (Language.CSHARP, "c#"):
+                csharp_scanner = CSharpConfigScanner(repository_path, ignore_manager=ignore_manager)
+                csharp_projects = csharp_scanner.scan()
+
+                if csharp_projects:
+                    for csharp_config in csharp_projects:
+                        logger.info(
+                            f"Creating engine config for CSharp ({csharp_config.project_type}) at: "
+                            f"{csharp_config.root.relative_to(repository_path)}"
+                        )
+                        configs.append((adapter, csharp_config.root))
+                else:
+                    logger.info("No C# projects detected")
+
             else:
                 configs.append((adapter, repository_path))
 
@@ -105,6 +120,8 @@ def _lang_to_adapter_name(language: str) -> str | None:
         "javascript": "JavaScript",
         "tsx": "TypeScript",
         "jsx": "JavaScript",
+        "c#": "CSharp",
+        "csharp": "CSharp",
         "go": "Go",
         "java": "Java",
         "php": "PHP",
@@ -162,6 +179,9 @@ class StaticAnalyzer:
             try:
                 logger.info(f"Starting engine LSP client for {adapter.language} at {project_path}")
                 t_start = time.monotonic()
+                # Allow adapters to prepare the project before LSP startup
+                # (e.g. ``dotnet restore`` so csharp-ls sees framework refs).
+                adapter.prepare_project(project_path)
                 command = adapter.get_lsp_command(project_path)
                 init_options = adapter.get_lsp_init_options(self.ignore_manager)
                 extra_env = adapter.get_lsp_env()
@@ -174,6 +194,7 @@ class StaticAnalyzer:
                     command=command,
                     project_root=project_path,
                     init_options=init_options,
+                    default_timeout=adapter.get_lsp_default_timeout(),
                     collect_diagnostics=True,
                     extra_env=extra_env,
                     workspace_settings=workspace_settings,
@@ -183,12 +204,12 @@ class StaticAnalyzer:
                 t_lsp_started = time.monotonic()
                 logger.info(f"{adapter.language} LSP start: {t_lsp_started - t_start:.1f}s")
 
-                # Some LSP servers (JDTLS, rust-analyzer) load workspace
-                # metadata asynchronously and only respond to cross-file
-                # queries once that's complete. Adapters opt in via
-                # ``wait_for_workspace_ready`` so the language-name check
-                # doesn't keep growing.
-                if getattr(adapter, "wait_for_workspace_ready", False):
+                # Some LSP servers (JDTLS, rust-analyzer, csharp-ls) load
+                # workspace metadata asynchronously and only respond to
+                # cross-file queries once that's complete. Adapters opt in
+                # via ``wait_for_workspace_ready`` so the language-name
+                # check doesn't keep growing.
+                if adapter.wait_for_workspace_ready:
                     engine_client.wait_for_server_ready()
                     logger.info(f"{adapter.language} workspace ready: {time.monotonic() - t_lsp_started:.1f}s")
 
@@ -412,6 +433,16 @@ class StaticAnalyzer:
                 cache_diags: dict = analysis.get("diagnostics") or {}
                 if cache_diags:
                     logger.info(f"Loaded {len(cache_diags)} files with diagnostics from cache for {adapter.language}")
+
+                # Some servers (rust-analyzer, csharp-ls) publish diagnostics
+                # asynchronously after didOpen and we'd snapshot an empty
+                # ``collected_diagnostics`` if we harvested immediately. Each
+                # adapter knows what to wait for: rust-analyzer reuses its
+                # ``experimental/serverStatus`` quiescent signal; csharp-ls
+                # has no signal and falls back to debouncing. Default no-op.
+                t_wait = time.monotonic()
+                adapter.wait_for_diagnostics(engine_client)
+                logger.debug(f"wait_for_diagnostics for {adapter.language}: " f"{time.monotonic() - t_wait:.1f}s")
 
                 live_diags = engine_client.get_collected_diagnostics()
 

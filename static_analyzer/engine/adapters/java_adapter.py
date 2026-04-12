@@ -25,6 +25,14 @@ logger = logging.getLogger(__name__)
 class JavaAdapter(LanguageAdapter):
 
     @property
+    def wait_for_workspace_ready(self) -> bool:
+        """JDTLS finishes project import asynchronously and only signals
+        readiness via ``language/status`` (``ProjectStatus OK``); cross-file
+        queries return empty until then.
+        """
+        return True
+
+    @property
     def language(self) -> str:
         return "Java"
 
@@ -39,14 +47,6 @@ class JavaAdapter(LanguageAdapter):
     @property
     def language_id(self) -> str:
         return "java"
-
-    @property
-    def wait_for_workspace_ready(self) -> bool:
-        """JDTLS finishes project import asynchronously and only signals
-        readiness via ``language/status`` (``ProjectStatus OK``); cross-file
-        queries return empty until then.
-        """
-        return True
 
     def get_lsp_command(self, project_root: Path) -> list[str]:
         """Build the full JDTLS launch command.

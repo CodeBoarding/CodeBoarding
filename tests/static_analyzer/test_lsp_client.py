@@ -163,24 +163,26 @@ class TestNextResponse:
         result = client._next_response(time.monotonic() - 1)
         assert result is None
 
-    def test_handles_server_initiated_request(self):
-        client = LSPClient(["cmd"], Path("/root"))
-        mock_stdin = MagicMock()
-        mock_process = MagicMock()
-        mock_process.stdin = mock_stdin
-        mock_process.poll.return_value = None
-        client._process = mock_process
+    def test_server_requests_pass_through_next_response(self):
+        """Server-initiated requests are no longer intercepted by _next_response.
 
-        # Server-initiated request (has both 'method' and 'id')
+        Replaces test_handles_server_initiated_request — that test verified
+        _next_response handled server requests and returned None.  Handling
+        moved to _reader_loop (csharp-ls blocks on registerCapability until
+        the client responds; deferring to _next_response caused a deadlock).
+        """
+        client = LSPClient(["cmd"], Path("/root"))
+        client._process = MagicMock()
+        client._process.poll.return_value = None
+
         server_req = {"jsonrpc": "2.0", "id": 99, "method": "workspace/configuration", "params": {}}
         client._msg_queue.put(server_req)
 
         import time
 
         result = client._next_response(time.monotonic() + 5)
-        # Should respond to server and return None
-        assert result is None
-        mock_stdin.write.assert_called_once()
+        assert result is not None
+        assert result["id"] == 99
 
     def test_skips_notifications(self):
         client = LSPClient(["cmd"], Path("/root"))
@@ -587,6 +589,36 @@ class TestHandleNotification:
 
         assert not client._server_ready.is_set()
 
+    def test_csharp_ls_solution_loaded_signals_ready(self):
+        client = LSPClient(["cmd"], Path("/root"))
+        assert not client._server_ready.is_set()
+        client._handle_notification(
+            "window/logMessage",
+            {"type": 3, "message": 'csharp-ls: Finished loading solution "/foo/Bar.sln"'},
+        )
+        assert client._server_ready.is_set()
+
+    def test_csharp_ls_progress_end_signals_ready(self):
+        # csharp-ls reports csproj-based load completion via $/progress, not logMessage
+        client = LSPClient(["cmd"], Path("/root"))
+        assert not client._server_ready.is_set()
+        client._handle_notification(
+            "$/progress",
+            {
+                "token": "abc",
+                "value": {"kind": "end", "message": "OK, 1 project file(s) loaded"},
+            },
+        )
+        assert client._server_ready.is_set()
+
+    def test_progress_begin_does_not_signal_ready(self):
+        client = LSPClient(["cmd"], Path("/root"))
+        client._handle_notification(
+            "$/progress",
+            {"token": "abc", "value": {"kind": "begin", "title": "Loading", "message": "0/1"}},
+        )
+        assert not client._server_ready.is_set()
+
 
 class TestWaitForServerReady:
     def test_returns_immediately_when_already_ready(self):
@@ -602,6 +634,138 @@ class TestWaitForServerReady:
         # Should not raise, just log warning
         client.wait_for_server_ready(timeout=1)
         assert not client._server_ready.is_set()
+
+    def test_bails_out_fast_when_init_failed(self):
+        # When initialize errored, waiting 5 minutes for a ready signal that
+        # will never come is wasted time. The wait must return immediately.
+        import time
+
+        client = LSPClient(["cmd"], Path("/root"))
+        client._init_failed = True
+        t0 = time.monotonic()
+        client.wait_for_server_ready(timeout=10)
+        elapsed = time.monotonic() - t0
+        assert elapsed < 0.5, f"wait_for_server_ready should return fast on init failure (took {elapsed:.2f}s)"
+
+
+class TestSendRequestInitFailed:
+    """Initialize-error bookkeeping so wait_for_server_ready can bail fast."""
+
+    def test_initialize_error_marks_init_failed(self):
+        client = LSPClient(["cmd"], Path("/root"))
+        client._process = MagicMock()
+        client._process.poll.return_value = None
+        client._process.stdin = MagicMock()
+        # csharp-ls signature: error response to initialize
+        err = {"jsonrpc": "2.0", "id": 1, "error": {"code": -32602, "message": "boom"}}
+        client._msg_queue.put(err)
+
+        client._send_request("initialize", {}, timeout=5)
+        assert client._init_failed is True
+
+    def test_non_initialize_error_does_not_mark_init_failed(self):
+        client = LSPClient(["cmd"], Path("/root"))
+        client._process = MagicMock()
+        client._process.poll.return_value = None
+        client._process.stdin = MagicMock()
+        err = {"jsonrpc": "2.0", "id": 1, "error": {"code": -32000, "message": "x"}}
+        client._msg_queue.put(err)
+
+        client._send_request("textDocument/references", {}, timeout=5)
+        assert client._init_failed is False
+
+
+class TestWaitForDiagnosticsQuiesce:
+    """csharp-ls and other batching servers publish diagnostics asynchronously
+    after didOpen. The analyzer must wait for the stream to settle before
+    snapshotting, otherwise the live diagnostics map is empty."""
+
+    def test_zero_args_returns_immediately(self):
+        import time
+
+        client = LSPClient(["cmd"], Path("/root"))
+        t0 = time.monotonic()
+        client.wait_for_diagnostics_quiesce(0, 0)
+        assert time.monotonic() - t0 < 0.1
+
+    def test_returns_after_idle_seconds_with_no_traffic(self):
+        import time
+
+        client = LSPClient(["cmd"], Path("/root"))
+        t0 = time.monotonic()
+        client.wait_for_diagnostics_quiesce(idle_seconds=0.3, max_wait=2.0)
+        elapsed = time.monotonic() - t0
+        assert 0.3 <= elapsed < 1.5
+
+    def test_extends_wait_when_diagnostics_keep_arriving(self):
+        import threading
+        import time
+
+        client = LSPClient(["cmd"], Path("/root"), collect_diagnostics=True)
+
+        def burst():
+            for i in range(5):
+                time.sleep(0.1)
+                params = {
+                    "uri": Path(f"/root/f{i}.cs").as_uri(),
+                    "diagnostics": [
+                        {
+                            "range": {
+                                "start": {"line": 0, "character": 0},
+                                "end": {"line": 0, "character": 1},
+                            },
+                            "message": "x",
+                            "severity": 1,
+                        }
+                    ],
+                }
+                client._handle_notification("textDocument/publishDiagnostics", params)
+
+        threading.Thread(target=burst, daemon=True).start()
+        t0 = time.monotonic()
+        client.wait_for_diagnostics_quiesce(idle_seconds=0.3, max_wait=3.0)
+        elapsed = time.monotonic() - t0
+        # Burst lasts ~0.5s, then we wait 0.3s idle = ~0.8s total
+        assert 0.6 <= elapsed < 1.5
+        assert client.get_diagnostics_generation() == 5
+
+    def test_max_wait_is_a_hard_ceiling(self):
+        import threading
+        import time
+
+        client = LSPClient(["cmd"], Path("/root"), collect_diagnostics=True)
+        stop = threading.Event()
+
+        def flood():
+            i = 0
+            while not stop.is_set():
+                params = {
+                    "uri": Path(f"/root/f{i}.cs").as_uri(),
+                    "diagnostics": [
+                        {
+                            "range": {
+                                "start": {"line": 0, "character": 0},
+                                "end": {"line": 0, "character": 1},
+                            },
+                            "message": "x",
+                            "severity": 1,
+                        }
+                    ],
+                }
+                client._handle_notification("textDocument/publishDiagnostics", params)
+                time.sleep(0.05)
+                i += 1
+
+        t = threading.Thread(target=flood, daemon=True)
+        t.start()
+        try:
+            t0 = time.monotonic()
+            client.wait_for_diagnostics_quiesce(idle_seconds=1.0, max_wait=0.8)
+            elapsed = time.monotonic() - t0
+            assert 0.7 <= elapsed < 1.5
+        finally:
+            stop.set()
+            t.join(timeout=1)
 
 
 class TestReadSingleMessage:

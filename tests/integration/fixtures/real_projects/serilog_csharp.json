@@ -1,0 +1,34 @@
+{
+  "metadata": {
+    "repo_url": "https://github.com/serilog/serilog",
+    "pinned_commit": "v4.2.0",
+    "language": "CSharp",
+    "generated_at": "2026-04-11T17:00:00+00:00",
+    "codeboarding_version": "0.2.0"
+  },
+  "metrics": {
+    "references_count_by_os": {
+      "Linux": 1128,
+      "Darwin": 1128,
+      "Windows": 1128
+    },
+    "packages_count": 26,
+    "call_graph_nodes": 849,
+    "call_graph_edges": 2412,
+    "source_files_count": 112,
+    "execution_time_seconds_by_os": {
+      "Linux": 60,
+      "Darwin": 30,
+      "Windows": 120
+    }
+  },
+  "sample_references": [
+    "Serilog",
+    "Serilog.Capturing.DepthLimiter.PropertyValueConverter",
+    "Serilog.Core.Logger",
+    "Serilog.Events.LogEvent",
+    "Serilog.Events.LogEventLevel",
+    "Serilog.LoggerConfiguration",
+    "Serilog.Parsing.MessageTemplateParser"
+  ]
+}

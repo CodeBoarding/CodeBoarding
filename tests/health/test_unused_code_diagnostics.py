@@ -368,6 +368,19 @@ class TestMultiLanguageDiagnosticCodes:
             ("no-unused-vars", DeadCodeCategory.UNUSED_VARIABLE),
             ("unused-imports/no-unused-imports", DeadCodeCategory.UNUSED_IMPORT),
             ("@typescript-eslint/no-unused-vars", DeadCodeCategory.UNUSED_VARIABLE),
+            # csharp-ls / Roslyn (C#)
+            ("CS8019", DeadCodeCategory.UNUSED_IMPORT),
+            ("CS0168", DeadCodeCategory.UNUSED_VARIABLE),
+            ("CS0219", DeadCodeCategory.UNUSED_VARIABLE),
+            ("CS0169", DeadCodeCategory.DEAD_CODE),
+            ("CS0414", DeadCodeCategory.DEAD_CODE),
+            ("CS0649", DeadCodeCategory.DEAD_CODE),
+            ("CS0162", DeadCodeCategory.UNREACHABLE_CODE),
+            ("CS8321", DeadCodeCategory.UNUSED_FUNCTION),
+            ("IDE0051", DeadCodeCategory.UNUSED_FUNCTION),
+            ("IDE0052", DeadCodeCategory.DEAD_CODE),
+            ("IDE0059", DeadCodeCategory.UNUSED_VARIABLE),
+            ("IDE0060", DeadCodeCategory.UNUSED_PARAMETER),
         ],
     )
     def test_code_maps_to_correct_category(self, code, expected_category):

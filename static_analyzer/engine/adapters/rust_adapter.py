@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 import shutil
 from pathlib import Path
 
 from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.engine.language_adapter import LanguageAdapter
+from static_analyzer.engine.lsp_client import LSPClient
+
+logger = logging.getLogger(__name__)
 
 # File stems implicit in the module path: ``mod.rs`` (directory module
 # entry), ``lib.rs`` (library crate root), ``main.rs`` (binary crate root).
@@ -96,6 +100,20 @@ class RustAdapter(LanguageAdapter):
         """
         return {"experimental": {"serverStatusNotification": True}}
 
+    def wait_for_diagnostics(self, client: LSPClient) -> None:
+        """Wait for rust-analyzer to flush diagnostics.
+
+        Strategy: reset the ready signal and wait briefly for
+        ``quiescent=True`` (the precise fence). If no signal arrives
+        within 10s (e.g. rust-analyzer stayed quiescent for a tiny
+        project), fall back to debouncing on publishDiagnostics so we
+        don't block for the full 120s on a no-op.
+        """
+        client.reset_ready_signal()
+        if not client.wait_for_server_ready(timeout=10):
+            # No quiescent transition observed; debounce instead.
+            client.wait_for_diagnostics_quiesce(idle_seconds=3.0, max_wait=60.0)
+
     @property
     def file_extensions(self) -> tuple[str, ...]:
         return (".rs",)
@@ -125,8 +143,14 @@ class RustAdapter(LanguageAdapter):
 
     def get_lsp_init_options(self, ignore_manager: RepoIgnoreManager | None = None) -> dict:
         """Tune rust-analyzer for batch analysis: enable build scripts and
-        proc macros (so generated code is indexed) and the full target graph;
-        disable ``checkOnSave`` (slow and unused).
+        proc macros (so generated code is indexed) and the full target graph.
+
+        ``checkOnSave`` runs ``cargo check`` after didOpen and is what
+        surfaces ``unused_imports`` / ``unused_variables`` / ``dead_code``
+        diagnostics — without it the unused-code health check sees nothing
+        for Rust. The cost is one ``cargo check`` per analysis run; on
+        large workspaces this can dominate the analyzer wall time, but
+        skipping it would silently break diagnostic collection.
         """
         return {
             "cargo": {
@@ -134,7 +158,8 @@ class RustAdapter(LanguageAdapter):
                 "allTargets": True,
             },
             "procMacro": {"enable": True},
-            "checkOnSave": False,
+            "checkOnSave": True,
+            "check": {"command": "check"},
         }
 
     def build_qualified_name(

@@ -36,6 +36,9 @@ target/
 bin/
 out/
 
+# .NET / C# build output
+obj/
+
 # Go
 vendor/
 testdata/
