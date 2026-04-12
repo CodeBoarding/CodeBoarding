@@ -132,7 +132,7 @@ jobs:
           REPO_ROOT: ${{ github.workspace }}/codeboarding-engine/repos
           STATIC_ANALYSIS_CONFIG: ${{ github.workspace }}/codeboarding-engine/static_analysis_config.yml
           PROJECT_ROOT: ${{ github.workspace }}/codeboarding-engine
-          DIAGRAM_DEPTH_LEVEL: '1'
+          DIAGRAM_DEPTH_LEVEL: '2'
           CACHING_DOCUMENTATION: 'false'
           ENABLE_MONITORING: 'false'
         run: |
