@@ -16,11 +16,13 @@ class Node:
         file_path: str,
         line_start: int,
         line_end: int,
+        col_start: int = 0,
     ) -> None:
         self.fully_qualified_name = fully_qualified_name
         self.file_path = file_path
         self.line_start = line_start
         self.line_end = line_end
+        self.col_start = col_start
         self.type: NodeType = NodeType(node_type)
         self.methods_called_by_me: set[str] = set()
 

@@ -106,6 +106,7 @@
     "src.utils.helpers.add",
     "src.utils.helpers.clamp",
     "src.utils.helpers.compose",
+    "src.utils.helpers.compose.<function>",
     "src.utils.helpers.compose.<function>.fns.reduce() callback",
     "src.utils.helpers.createMultiplier",
     "src.utils.helpers.createMultiplier.multiplier",

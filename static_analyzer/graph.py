@@ -24,9 +24,7 @@ class LocationKey:
     line_start: int
     line_end: int
     node_type: int
-
-
-logger = logging.getLogger(__name__)
+    col_start: int = 0
 
 
 @dataclass
@@ -92,7 +90,7 @@ class CallGraph:
         self._alias_to_canonical: dict[str, str] = {}
 
     def add_node(self, node: Node) -> None:
-        loc_key = LocationKey(node.file_path, node.line_start, node.line_end, node.type.value)
+        loc_key = LocationKey(node.file_path, node.line_start, node.line_end, node.type.value, node.col_start)
         existing_name = self._location_index.get(loc_key)
 
         if existing_name is not None:
