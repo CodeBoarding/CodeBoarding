@@ -471,116 +471,6 @@ def download_binaries(target_dir: Path, auto_install_vcpp: bool = False, on_prog
     print("Step: Binary download finished")
 
 
-def _adoptium_url(os_name: str, arch: str) -> str:
-    """Build the Adoptium API URL for downloading JDK 21."""
-    return f"https://api.adoptium.net/v3/binary/latest/21/ga/{os_name}/{arch}/jdk/hotspot/normal/eclipse"
-
-
-def _adoptium_platform() -> tuple[str, str]:
-    """Return (os, arch) values for the Adoptium API."""
-    system = platform.system()
-    machine = platform.machine().lower()
-
-    if system == "Darwin":
-        os_name = "mac"
-    elif system == "Linux":
-        os_name = "linux"
-    elif system == "Windows":
-        os_name = "windows"
-    else:
-        raise RuntimeError(f"Unsupported platform: {system}")
-
-    if machine in ("x86_64", "amd64"):
-        arch = "x64"
-    elif machine in ("aarch64", "arm64"):
-        arch = "aarch64"
-    else:
-        raise RuntimeError(f"Unsupported architecture: {machine}")
-
-    return os_name, arch
-
-
-def download_jdk(target_dir: Path, on_progress: ProgressCallback | None = None) -> bool:
-    """Download Adoptium Temurin JDK 21 if no Java 21+ is available on the system."""
-    from static_analyzer.java_utils import find_java_21_or_later
-
-    print("Step: JDK 21 check started")
-
-    if find_java_21_or_later() is not None:
-        print("Step: JDK 21 check finished: Java 21+ already available")
-        return True
-
-    print("Step: JDK 21 not found, downloading Adoptium Temurin JDK 21...")
-    if on_progress:
-        on_progress("jdk-21", 1, 1)
-
-    jdk_dir = target_dir / "jdk"
-    if jdk_dir.exists() and any(jdk_dir.iterdir()):
-        print("Step: JDK 21 download finished: already present")
-        return True
-
-    jdk_dir.mkdir(parents=True, exist_ok=True)
-
-    try:
-        os_name, arch = _adoptium_platform()
-    except RuntimeError as e:
-        print(f"Step: JDK 21 download finished: failure - {e}")
-        return False
-
-    url = _adoptium_url(os_name, arch)
-    archive_suffix = ".zip" if os_name == "windows" else ".tar.gz"
-    archive_path = target_dir / f"jdk-21{archive_suffix}"
-
-    try:
-        print(f"  Downloading from Adoptium API ({os_name}/{arch})...")
-        response = requests.get(url, stream=True, timeout=600, allow_redirects=True)
-        response.raise_for_status()
-
-        with open(archive_path, "wb") as f:
-            for chunk in response.iter_content(chunk_size=32768):
-                if chunk:
-                    f.write(chunk)
-
-        if archive_path.stat().st_size == 0:
-            archive_path.unlink(missing_ok=True)
-            print("Step: JDK 21 download finished: failure - empty file")
-            return False
-
-        print("  Extracting JDK...")
-        if archive_suffix == ".zip":
-            import zipfile
-
-            with zipfile.ZipFile(archive_path, "r") as zf:
-                zf.extractall(jdk_dir)
-        else:
-            with tarfile.open(archive_path, "r:gz") as tar:
-                tar.extractall(path=jdk_dir, filter="tar")
-
-        archive_path.unlink(missing_ok=True)
-
-        # Adoptium extracts into a versioned subdirectory (e.g. jdk-21.0.5+11).
-        # If there's exactly one subdirectory, hoist its contents up to jdk_dir.
-        subdirs = [d for d in jdk_dir.iterdir() if d.is_dir()]
-        if len(subdirs) == 1:
-            nested = subdirs[0]
-            # On macOS the JDK is nested inside Contents/Home
-            contents_home = nested / "Contents" / "Home"
-            source = contents_home if contents_home.is_dir() else nested
-            for item in list(source.iterdir()):
-                shutil.move(str(item), str(jdk_dir / item.name))
-            shutil.rmtree(nested)
-
-        print("Step: JDK 21 download finished: success")
-        return True
-
-    except Exception as e:
-        archive_path.unlink(missing_ok=True)
-        shutil.rmtree(jdk_dir, ignore_errors=True)
-        print(f"Step: JDK 21 download finished: failure - {e}")
-        print("  Install JDK 21+ manually from: https://adoptium.net/temurin/releases/")
-        return False
-
-
 def download_jdtls(target_dir: Path, on_progress: ProgressCallback | None = None):
     """Download and extract JDTLS from the latest GitHub release."""
     print("Step: JDTLS download started")
@@ -645,7 +535,6 @@ def print_language_support_summary(npm_available: bool, target_dir: Path):
     py_env_path = shutil.which("pyright-langserver") or shutil.which("pyright-python-langserver")
     go_path = platform_bin_dir / ("gopls.exe" if is_win else "gopls")
     java_path = target_dir / "bin" / "jdtls"
-    jdk_path = target_dir / "jdk" / "bin" / ("java.exe" if is_win else "java")
 
     npm_missing = "npm not available"
     pyright_missing = "pyright-langserver not found in node_modules or active environment"
@@ -781,7 +670,6 @@ def run_install(
         install_node_servers(target, on_progress=tracker)
 
     download_binaries(target, auto_install_vcpp=auto_install_vcpp, on_progress=tracker)
-    download_jdk(target, on_progress=tracker)
     download_jdtls(target, on_progress=tracker)
     install_pre_commit_hooks()
     print_language_support_summary(npm_available, target)

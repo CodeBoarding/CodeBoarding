@@ -92,30 +92,28 @@ def detect_java_installations() -> list[Path]:
     return unique_jdks
 
 
-def _codeboarding_jdk_home() -> Path:
-    """Return the path where CodeBoarding installs its bundled JDK."""
-    return Path.home() / ".codeboarding" / "servers" / "jdk"
-
-
 def find_java_21_or_later() -> Path | None:
     """
     Find a Java 21+ installation.
 
-    Checks the CodeBoarding-bundled JDK first, then system installations,
-    and finally the system PATH as a fallback.
+    Checks JAVA_HOME first, then system installations, and finally the
+    system PATH as a fallback.
 
     Returns:
         Path to JDK home, or None if not found
     """
-    # 1. Check CodeBoarding-bundled JDK
-    bundled = _codeboarding_jdk_home()
     java_suffix = "java.exe" if platform.system() == "Windows" else "java"
-    bundled_java = bundled / "bin" / java_suffix
-    if bundled_java.exists():
-        version = get_java_version(str(bundled_java))
-        if version >= 21:
-            logger.info(f"Using CodeBoarding-bundled Java {version} at {bundled}")
-            return bundled
+
+    # 1. Check JAVA_HOME environment variable
+    java_home_env = os.environ.get("JAVA_HOME")
+    if java_home_env:
+        java_home_path = Path(java_home_env)
+        java_home_java = java_home_path / "bin" / java_suffix
+        if java_home_java.exists():
+            version = get_java_version(str(java_home_java))
+            if version >= 21:
+                logger.info(f"Using JAVA_HOME Java {version} at {java_home_path}")
+                return java_home_path
 
     # 2. Check system JDK installations
     jdks = detect_java_installations()
