@@ -126,42 +126,33 @@ class CallGraphBuilder:
     def _discover_symbols(self, source_files: list[Path]) -> None:
         """Phase 0+1: Open files, wait for indexing, then extract all symbols."""
         total = len(source_files)
-        t_open_start = time.monotonic()
-
-        # Phase 0: open files for the LSP server to index
-        pbar = ProgressLogger("Phase 0 (open)", total, unit="file")
-        for i in range(0, total, DID_OPEN_BATCH_SIZE):
-            batch = source_files[i : i + DID_OPEN_BATCH_SIZE]
-            for file_path in batch:
-                self._lsp.did_open(file_path, self._adapter.language_id)
-            pbar.update(len(batch))
-            time.sleep(0.1)
-        pbar.finish()
-        logger.info("did_open %d files: %.1fs", total, time.monotonic() - t_open_start)
 
         # Synchronization probe — blocks until the LSP server has indexed
         # the project. Scales linearly with file count (no OS branching);
         # the per-file ceiling is picked conservatively to cover gopls on
         # AV-heavy Windows and APFS macOS without being loose enough to
-        # let a hung LSP waste CI minutes.
+        # let a hung LSP waste CI minutes. Adapters can raise the floor via
+        # ``get_probe_timeout_minimum()`` (e.g. csharp-ls needs extra time
+        # to load a Roslyn workspace).
         _PROBE_STARTUP_BASE = 60  # seconds — LSP startup independent of file count
         _PROBE_PER_FILE = 2.0  # seconds — ceiling across OSes (Linux observed ~0.35s/file)
         _PROBE_MAX_TIMEOUT = 1800  # seconds — hard cap
         probe_timeout = int(min(_PROBE_STARTUP_BASE + total * _PROBE_PER_FILE, _PROBE_MAX_TIMEOUT))
+        probe_timeout = max(probe_timeout, self._adapter.get_probe_timeout_minimum())
 
-        probe_result: list[dict] | None = None
-        logger.info("Waiting for LSP server indexing (timeout=%ds)...", probe_timeout)
-        t_probe = time.monotonic()
-        if source_files:
-            probe_result = self._lsp.document_symbol(source_files[0], timeout=probe_timeout)
-        logger.info(
-            "Sync probe: %.1fs (%d symbols)",
-            time.monotonic() - t_probe,
-            len(probe_result) if probe_result else 0,
-        )
+        # Phase 0 (didOpen) and the sync probe were originally inline here.
+        # Extracted to _bulk_did_open / _send_sync_probe so the order can
+        # flip: workspace-based servers (e.g., csharp-ls) need the probe
+        # BEFORE didOpen because bulk notifications overwhelm them during
+        # workspace loading.
+        if self._adapter.probe_before_open:
+            probe_result = self._send_sync_probe(source_files, probe_timeout)
+            self._bulk_did_open(source_files)
+        else:
+            self._bulk_did_open(source_files)
+            probe_result = self._send_sync_probe(source_files, probe_timeout)
 
         # Phase 1: extract symbols from each file
-        total = len(source_files)
         pbar = ProgressLogger("Phase 1 (symbols)", total, unit="file")
         for idx, file_path in enumerate(source_files, 1):
             # Reuse the sync probe result for the first file to avoid a
@@ -178,6 +169,34 @@ class CallGraphBuilder:
         logger.info("Discovered %d symbols across %d files", len(self._symbol_table.symbols), len(source_files))
 
         self._warmup_references(source_files)
+
+    def _bulk_did_open(self, source_files: list[Path]) -> None:
+        """Phase 0: Send didOpen for all files so the LSP server can index them."""
+        total = len(source_files)
+        t_open_start = time.monotonic()
+        pbar = ProgressLogger("Phase 0 (open)", total, unit="file")
+        for i in range(0, total, DID_OPEN_BATCH_SIZE):
+            batch = source_files[i : i + DID_OPEN_BATCH_SIZE]
+            for file_path in batch:
+                self._lsp.did_open(file_path, self._adapter.language_id)
+            pbar.update(len(batch))
+            time.sleep(0.1)
+        pbar.finish()
+        logger.info("did_open %d files: %.1fs", total, time.monotonic() - t_open_start)
+
+    def _send_sync_probe(self, source_files: list[Path], probe_timeout: int) -> list[dict] | None:
+        """Send a documentSymbol probe to wait for the LSP server to finish indexing."""
+        probe_result: list[dict] | None = None
+        logger.info("Waiting for LSP server indexing (timeout=%ds)...", probe_timeout)
+        t_probe = time.monotonic()
+        if source_files:
+            probe_result = self._lsp.document_symbol(source_files[0], timeout=probe_timeout)
+        logger.info(
+            "Sync probe: %.1fs (%d symbols)",
+            time.monotonic() - t_probe,
+            len(probe_result) if probe_result else 0,
+        )
+        return probe_result
 
     def _warmup_references(self, source_files: list[Path]) -> None:
         """Trigger the LSP server's cross-reference index build.

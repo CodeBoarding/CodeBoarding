@@ -104,13 +104,65 @@ class TestLspInitOptions:
         assert options["cargo"]["buildScripts"]["enable"] is True
         assert options["procMacro"]["enable"] is True
 
-    def test_disables_check_on_save(self):
-        # cargo check during indexing significantly slows rust-analyzer
-        # and we don't consume its diagnostics for static analysis.
-        assert RustAdapter().get_lsp_init_options()["checkOnSave"] is False
+    def test_enables_check_on_save_for_diagnostics(self):
+        # cargo check is what surfaces unused_imports / unused_variables /
+        # dead_code diagnostics — without it the unused-code health check
+        # has nothing to categorize for Rust.
+        options = RustAdapter().get_lsp_init_options()
+        assert options["checkOnSave"] is True
+        assert options["check"]["command"] == "check"
 
     def test_enables_all_cargo_targets(self):
         assert RustAdapter().get_lsp_init_options()["cargo"]["allTargets"] is True
+
+
+class TestWaitForDiagnostics:
+    """Rust reuses ``wait_for_server_ready`` after resetting the ready signal,
+    relying on rust-analyzer's ``experimental/serverStatus.quiescent`` flag.
+    Falls back to debouncing if no signal arrives quickly."""
+
+    def test_uses_ready_signal_when_available(self):
+        """When rust-analyzer transitions to quiescent within 10s, the
+        signal-based path is taken (no debounce fallback)."""
+        adapter = RustAdapter()
+        events: list = []
+
+        class FakeClient:
+            def reset_ready_signal(self):
+                events.append("reset")
+
+            def wait_for_server_ready(self, timeout: int = 300) -> bool:
+                events.append("wait")
+                return True  # signal arrived
+
+            def wait_for_diagnostics_quiesce(self, idle_seconds, max_wait):
+                events.append("quiesce")
+
+        adapter.wait_for_diagnostics(FakeClient())  # type: ignore[arg-type]
+        assert "reset" in events
+        assert "wait" in events
+        assert "quiesce" not in events, "should NOT fall back to debounce when signal fires"
+
+    def test_falls_back_to_debounce_when_no_signal(self):
+        """When rust-analyzer stays quiescent (no transition), falls back
+        to debouncing instead of blocking 120s."""
+        adapter = RustAdapter()
+        events: list = []
+
+        class FakeClient:
+            def reset_ready_signal(self):
+                events.append("reset")
+
+            def wait_for_server_ready(self, timeout: int = 300) -> bool:
+                events.append("wait")
+                return False  # timed out
+
+            def wait_for_diagnostics_quiesce(self, idle_seconds, max_wait):
+                events.append("quiesce")
+
+        adapter.wait_for_diagnostics(FakeClient())  # type: ignore[arg-type]
+        assert "reset" in events
+        assert "quiesce" in events, "should fall back to debounce when no signal arrives"
 
 
 class TestBuildQualifiedName:

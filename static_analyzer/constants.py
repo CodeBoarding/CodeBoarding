@@ -22,6 +22,7 @@ class Language(StrEnum):
     JAVA = "java"
     PHP = "php"
     RUST = "rust"
+    CSHARP = "csharp"
     CPP = "cpp"
 
 

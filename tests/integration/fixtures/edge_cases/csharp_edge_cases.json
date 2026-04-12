@@ -1,0 +1,245 @@
+{
+  "language": "CSharp",
+  "expected_references": [
+    "EdgeCases",
+    "EdgeCases.Models",
+    "EdgeCases.Services",
+    "EdgeCases.Unused",
+    "EdgeCases.Utils",
+    "Models.Animal",
+    "Models.Animal.Animal(string name)",
+    "Models.Animal.Cat",
+    "Models.Animal.Cat.Cat(string name, bool indoor)",
+    "Models.Animal.Cat.Indoor",
+    "Models.Animal.Cat.Speak()",
+    "Models.Animal.Describe()",
+    "Models.Animal.Dog",
+    "Models.Animal.Dog.Breed",
+    "Models.Animal.Dog.Dog(string name, string breed)",
+    "Models.Animal.Dog.Speak()",
+    "Models.Animal.Name",
+    "Models.Animal.Speak()",
+    "Models.Repository.Repository<T>",
+    "Models.Repository.Repository<T>.Add(T item)",
+    "Models.Repository.Repository<T>.Count()",
+    "Models.Repository.Repository<T>.GetAll()",
+    "Models.Repository.Repository<T>.Repository()",
+    "Models.Repository.Repository<T>.items",
+    "Models.Task",
+    "Models.Task.GetLabel()",
+    "Models.Task.IsHighPriority()",
+    "Models.Task.Priority",
+    "Models.Task.Priority.High",
+    "Models.Task.Priority.Low",
+    "Models.Task.Priority.Medium",
+    "Models.Task.Task(string title, Priority priority)",
+    "Models.Task.Title",
+    "Program",
+    "Program.Main(string[] args)",
+    "Services.QueryBuilder",
+    "Services.QueryBuilder.Build()",
+    "Services.QueryBuilder.Limit(int value)",
+    "Services.QueryBuilder.QueryBuilder()",
+    "Services.QueryBuilder.Where(string condition)",
+    "Services.QueryBuilder.conditions",
+    "Services.QueryBuilder.max",
+    "Services.TaskService",
+    "Services.TaskService.Dispatch(Task task)",
+    "Services.TaskService.ProcessTask(Task task)",
+    "Services.TaskService.SummarizeTasks(Task[] tasks)",
+    "Unused.Orphan",
+    "Unused.Orphan.Orphan(int value)",
+    "Unused.Orphan.OrphanMethod()",
+    "Unused.Orphan.Value",
+    "Utils.Formatter",
+    "Utils.Formatter.Clamp(int value, int min, int max)",
+    "Utils.Formatter.FormatLabel(string label)"
+  ],
+  "expected_classes": [],
+  "expected_hierarchy": {},
+  "expected_edges": [
+    [
+      "Models.Animal.Describe()",
+      "Models.Animal.Cat.Speak()"
+    ],
+    [
+      "Models.Animal.Describe()",
+      "Models.Animal.Dog.Speak()"
+    ],
+    [
+      "Models.Animal.Describe()",
+      "Models.Animal.Speak()"
+    ],
+    [
+      "Program.Main(string[] args)",
+      "Models.Animal.Cat"
+    ],
+    [
+      "Program.Main(string[] args)",
+      "Models.Animal.Cat(string name, bool indoor)"
+    ],
+    [
+      "Program.Main(string[] args)",
+      "Models.Animal.Cat.Cat(string name, bool indoor)"
+    ],
+    [
+      "Program.Main(string[] args)",
+      "Models.Animal.Cat.Speak()"
+    ],
+    [
+      "Program.Main(string[] args)",
+      "Models.Animal.Dog"
+    ],
+    [
+      "Program.Main(string[] args)",
+      "Models.Animal.Dog(string name, string breed)"
+    ],
+    [
+      "Program.Main(string[] args)",
+      "Models.Animal.Dog.Dog(string name, string breed)"
+    ],
+    [
+      "Program.Main(string[] args)",
+      "Models.Animal.Dog.Speak()"
+    ],
+    [
+      "Program.Main(string[] args)",
+      "Models.Animal.Speak()"
+    ],
+    [
+      "Program.Main(string[] args)",
+      "Models.Repository.Repository<T>"
+    ],
+    [
+      "Program.Main(string[] args)",
+      "Models.Repository.Repository<T>.Add(T item)"
+    ],
+    [
+      "Program.Main(string[] args)",
+      "Models.Repository.Repository<T>.Count()"
+    ],
+    [
+      "Program.Main(string[] args)",
+      "Models.Repository.Repository<T>.Repository()"
+    ],
+    [
+      "Program.Main(string[] args)",
+      "Models.Task"
+    ],
+    [
+      "Program.Main(string[] args)",
+      "Models.Task.Task(string title, Priority priority)"
+    ],
+    [
+      "Program.Main(string[] args)",
+      "Services.QueryBuilder"
+    ],
+    [
+      "Program.Main(string[] args)",
+      "Services.QueryBuilder.Build()"
+    ],
+    [
+      "Program.Main(string[] args)",
+      "Services.QueryBuilder.Limit(int value)"
+    ],
+    [
+      "Program.Main(string[] args)",
+      "Services.QueryBuilder.QueryBuilder()"
+    ],
+    [
+      "Program.Main(string[] args)",
+      "Services.QueryBuilder.Where(string condition)"
+    ],
+    [
+      "Program.Main(string[] args)",
+      "Services.TaskService"
+    ],
+    [
+      "Program.Main(string[] args)",
+      "Services.TaskService.Dispatch(Task task)"
+    ],
+    [
+      "Program.Main(string[] args)",
+      "Services.TaskService.ProcessTask(Task task)"
+    ],
+    [
+      "Program.Main(string[] args)",
+      "Services.TaskService.SummarizeTasks(Task[] tasks)"
+    ],
+    [
+      "Program.Main(string[] args)",
+      "Utils.Formatter.Clamp(int value, int min, int max)"
+    ],
+    [
+      "Program.Main(string[] args)",
+      "Utils.Formatter.FormatLabel(string label)"
+    ],
+    [
+      "Services.TaskService.Dispatch(Task task)",
+      "Models.Task.GetLabel()"
+    ],
+    [
+      "Services.TaskService.Dispatch(Task task)",
+      "Utils.Formatter.FormatLabel(string label)"
+    ],
+    [
+      "Services.TaskService.ProcessTask(Task task)",
+      "Models.Task.GetLabel()"
+    ],
+    [
+      "Services.TaskService.ProcessTask(Task task)",
+      "Models.Task.IsHighPriority()"
+    ],
+    [
+      "Services.TaskService.ProcessTask(Task task)",
+      "Utils.Formatter.FormatLabel(string label)"
+    ],
+    [
+      "Services.TaskService.SummarizeTasks(Task[] tasks)",
+      "Models.Task.IsHighPriority()"
+    ],
+    [
+      "Services.TaskService.SummarizeTasks(Task[] tasks)",
+      "Utils.Formatter.Clamp(int value, int min, int max)"
+    ]
+  ],
+  "expected_package_deps": {
+    "Models": {
+      "imports": [],
+      "imported_by": [
+        "Program",
+        "Services"
+      ]
+    },
+    "Services": {
+      "imports": [
+        "Models",
+        "Utils"
+      ],
+      "imported_by": [
+        "Program"
+      ]
+    },
+    "Unused": {
+      "imports": [],
+      "imported_by": []
+    },
+    "Utils": {
+      "imports": [],
+      "imported_by": [
+        "Program",
+        "Services"
+      ]
+    }
+  },
+  "expected_source_files": [
+    "Models/Animal.cs",
+    "Models/Repository.cs",
+    "Models/Task.cs",
+    "Program.cs",
+    "Services/QueryBuilder.cs",
+    "Services/TaskService.cs",
+    "Unused/Orphan.cs",
+    "Utils/Formatter.cs"
+  ]
+}

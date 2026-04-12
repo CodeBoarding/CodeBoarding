@@ -1,0 +1,7 @@
+# Cargo build artifacts — created by `cargo metadata` / `cargo build`.
+target/
+# Library crates don't commit Cargo.lock; the test fixture is a lib.
+Cargo.lock
+
+# CodeBoarding analysis cache produced when running the integration test.
+.codeboarding/

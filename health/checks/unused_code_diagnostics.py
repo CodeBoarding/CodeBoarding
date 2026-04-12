@@ -95,6 +95,19 @@ DIAGNOSTIC_CODE_MAPPINGS: dict[str, DeadCodeCategory] = {
     "no-unused-vars": DeadCodeCategory.UNUSED_VARIABLE,
     "unused-imports/no-unused-imports": DeadCodeCategory.UNUSED_IMPORT,
     "@typescript-eslint/no-unused-vars": DeadCodeCategory.UNUSED_VARIABLE,
+    # csharp-ls / Roslyn (C#)
+    "CS8019": DeadCodeCategory.UNUSED_IMPORT,  # Unnecessary using directive
+    "CS0168": DeadCodeCategory.UNUSED_VARIABLE,  # Variable declared but never used
+    "CS0219": DeadCodeCategory.UNUSED_VARIABLE,  # Variable assigned but its value is never used
+    "CS0169": DeadCodeCategory.DEAD_CODE,  # Field is never used
+    "CS0414": DeadCodeCategory.DEAD_CODE,  # Field is assigned but its value is never used
+    "CS0649": DeadCodeCategory.DEAD_CODE,  # Field is never assigned and will always have its default value
+    "CS0162": DeadCodeCategory.UNREACHABLE_CODE,  # Unreachable code detected
+    "CS8321": DeadCodeCategory.UNUSED_FUNCTION,  # Local function is declared but never used
+    "IDE0051": DeadCodeCategory.UNUSED_FUNCTION,  # Private member is unused
+    "IDE0052": DeadCodeCategory.DEAD_CODE,  # Private member can be removed
+    "IDE0059": DeadCodeCategory.UNUSED_VARIABLE,  # Unnecessary value assignment
+    "IDE0060": DeadCodeCategory.UNUSED_PARAMETER,  # Remove unused parameter
 }
 
 # Keywords that indicate unused/dead code in diagnostic messages
