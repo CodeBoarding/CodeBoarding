@@ -687,6 +687,22 @@ class TestCallGraph(unittest.TestCase):
         graph.add_edge("src.index.funcA", "index.funcB")
         self.assertEqual(len(graph.edges), 1)
 
+    def test_target_promotion_updates_methods_called_by_me(self):
+        graph = CallGraph()
+        caller = Node("mod.caller", NodeType.FUNCTION, "/a.py", 1, 10)
+        target = Node("funcB", NodeType.FUNCTION, "/b.py", 1, 10)
+        graph.add_node(caller)
+        graph.add_node(target)
+        graph.add_edge("mod.caller", "funcB")
+
+        self.assertIn("funcB", graph.nodes["mod.caller"].methods_called_by_me)
+
+        # Promote the target to a longer canonical name
+        graph.add_node(Node("pkg.mod.funcB", NodeType.FUNCTION, "/b.py", 1, 10))
+
+        self.assertIn("pkg.mod.funcB", graph.nodes["mod.caller"].methods_called_by_me)
+        self.assertNotIn("funcB", graph.nodes["mod.caller"].methods_called_by_me)
+
     def test_alias_resolution_and_has_node(self):
         """Aliases must resolve to canonical in both add order directions, and has_node must find them."""
         graph = CallGraph()

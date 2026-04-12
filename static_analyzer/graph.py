@@ -108,10 +108,17 @@ class CallGraph:
                         self._alias_to_canonical[alias] = canonical
                 self._alias_to_canonical[existing_name] = canonical
                 # Rewrite _edge_set so dedup works under the new canonical name
-                self._edge_set = {
-                    (canonical if s == existing_name else s, canonical if d == existing_name else d)
-                    for s, d in self._edge_set
-                }
+                new_edge_set: set[tuple[str, str]] = set()
+                for s, d in self._edge_set:
+                    new_s = canonical if s == existing_name else s
+                    new_d = canonical if d == existing_name else d
+                    new_edge_set.add((new_s, new_d))
+                    # Update methods_called_by_me on source nodes
+                    if d == existing_name and new_s in self.nodes:
+                        src_node = self.nodes[new_s]
+                        src_node.methods_called_by_me.discard(existing_name)
+                        src_node.methods_called_by_me.add(canonical)
+                self._edge_set = new_edge_set
             else:
                 # Existing name is already the most specific — record alias.
                 self._alias_to_canonical[node.fully_qualified_name] = existing_name

@@ -374,7 +374,7 @@ def apply_delta(
 
     files = dict(root.files)
     component_lookup = _component_lookup(root, sub_analyses)
-    parent_ids = set(sub_analyses.keys())
+    parent_ids = {c.component_id for sub in sub_analyses.values() for c in sub.components}
 
     deltas_by_path: dict[str, FileDelta] = {}
     for file_delta in delta.file_deltas:

@@ -431,7 +431,7 @@ class TestEntityTypeFiltering(unittest.TestCase):
         graph = CallGraph()
         graph.add_node(_make_node("mod.MyClass", "/f.py", 0, 100, node_type=NodeType.CLASS))
         graph.add_node(_make_node("mod.func1", "/f.py", 0, 10, node_type=NodeType.FUNCTION))
-        graph.add_node(_make_node("mod.func2", "/f.py", 0, 10, node_type=NodeType.FUNCTION))
+        graph.add_node(_make_node("mod.func2", "/f.py", 11, 20, node_type=NodeType.FUNCTION))
         graph.add_edge("mod.func1", "mod.MyClass")
         graph.add_edge("mod.func2", "mod.MyClass")
         config = HealthCheckConfig(
