@@ -634,7 +634,7 @@ def _language_checks_from_registry(target_dir: Path) -> list[LanguageSupportChec
         for lang in languages:
             checks.append(
                 LanguageSupportCheck(
-                    language=Language(lang).display_label,
+                    language=Language(lang).value,
                     paths=list(paths),
                     requires_npm=requires_npm,
                     fallback_available=fallback_available,
