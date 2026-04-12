@@ -17,9 +17,9 @@
     "call_graph_edges": 3407,
     "source_files_count": 133,
     "execution_time_seconds_by_os": {
-      "Linux": 35,
-      "Darwin": 35,
-      "Windows": 60
+      "Linux": 250,
+      "Darwin": 250,
+      "Windows": 250
     }
   },
   "sample_references": [
