@@ -43,6 +43,7 @@ dependencies = [
     "markdown-it-py>=3.0",
     "markitdown>=0.1",
     "networkx>=3.4",
+    "nodeenv>=1.10.0",
     "pathspec>=0.12",
     "pyyaml>=6.0",
     "regex>=2024.11",
@@ -62,8 +63,8 @@ all = [
 ]
 
 [tool.setuptools]
-packages = ["agents", "agents.prompts", "agents.tools", "core", "diagram_analysis", "health", "health.checks", "monitoring", "output_generators", "repo_utils", "static_analyzer", "static_analyzer.engine", "static_analyzer.engine.adapters", "static_analyzer.lsp_client", "caching"]
-py-modules = ["constants", "utils", "vscode_constants", "logging_config", "duckdb_crud", "github_action", "tool_registry", "user_config", "main", "install"]
+packages = ["agents", "agents.prompts", "agents.tools", "core", "diagram_analysis", "health", "health.checks", "monitoring", "output_generators", "repo_utils", "static_analyzer", "static_analyzer.engine", "static_analyzer.engine.adapters", "static_analyzer.lsp_client", "caching", "tool_registry"]
+py-modules = ["constants", "utils", "vscode_constants", "logging_config", "duckdb_crud", "github_action", "user_config", "main", "install"]
 include-package-data = true
 
 [project.scripts]
@@ -118,4 +119,5 @@ markers = [
     "typescript_lang: marks tests for TypeScript language",
     "php_lang: marks tests for PHP language",
     "javascript_lang: marks tests for JavaScript language",
+    "rust_lang: marks tests for Rust language",
 ]

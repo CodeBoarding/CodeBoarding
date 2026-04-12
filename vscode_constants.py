@@ -111,6 +111,16 @@ VSCODE_CONFIG = {
             "file_extensions": [".java"],
             "install_commands": "null",
         },
+        "rust": {
+            "name": "rust-analyzer",
+            "command": ["rust-analyzer"],
+            "languages": ["rust"],
+            "file_extensions": [".rs"],
+            # rust-analyzer is downloaded from rust-lang/rust-analyzer releases
+            # by tool_registry; the install_commands string is informational only
+            # and surfaces in error messages when the binary cannot be located.
+            "install_commands": "codeboarding-setup (downloads rust-analyzer automatically)",
+        },
     },
     "tools": {
         "tokei": {

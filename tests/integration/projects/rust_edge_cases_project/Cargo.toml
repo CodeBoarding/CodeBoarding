@@ -1,0 +1,8 @@
+[package]
+name = "rust_edge_cases"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "rust_edge_cases"
+path = "src/main.rs"

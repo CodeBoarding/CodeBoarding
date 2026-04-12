@@ -11,7 +11,11 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from static_analyzer.engine.lsp_client import LSP_METHOD_NOT_FOUND, LSPClient, MethodNotFoundError
+from static_analyzer.engine.lsp_client import (
+    LSP_METHOD_NOT_FOUND,
+    LSPClient,
+    MethodNotFoundError,
+)
 
 
 class TestLSPClientInit:
@@ -29,6 +33,78 @@ class TestLSPClientInit:
     def test_diagnostics_collection_flag(self):
         client = LSPClient(["cmd"], Path("/root"), collect_diagnostics=True)
         assert client._collect_diagnostics is True
+
+    def test_extra_client_capabilities_default_empty(self):
+        client = LSPClient(["cmd"], Path("/root"))
+        assert client._extra_client_capabilities == {}
+
+    def test_extra_client_capabilities_stored(self):
+        caps = {"experimental": {"serverStatusNotification": True}}
+        client = LSPClient(["cmd"], Path("/root"), extra_client_capabilities=caps)
+        assert client._extra_client_capabilities == caps
+
+
+class TestExtraClientCapabilitiesMerge:
+    """Verify ``start()`` merges adapter-supplied capabilities into the
+    initialize request. Adapters that don't supply any keep the bare
+    base capabilities (no vendor-specific fields leak to other LSPs).
+    """
+
+    def _capture_init_request(self, extra_caps: dict | None) -> dict:
+        """Spawn an LSPClient with a fake process and capture the initialize params."""
+        client = LSPClient(["cmd"], Path("/root"), extra_client_capabilities=extra_caps)
+        captured: dict = {}
+
+        def fake_send_request(method, params, timeout=None):
+            if method == "initialize":
+                captured["params"] = params
+            return {}
+
+        # Patch _send_request and _send_notification on the instance so the
+        # real start() body runs the merge logic but doesn't actually spawn a
+        # subprocess. The reader thread is also stubbed.
+        with (
+            patch.object(client, "_send_request", side_effect=fake_send_request),
+            patch.object(client, "_send_notification"),
+            patch("subprocess.Popen") as mock_popen,
+            patch("os.dup", return_value=99),
+            patch("threading.Thread"),
+        ):
+            mock_proc = MagicMock()
+            mock_proc.stdout.fileno.return_value = 5
+            mock_popen.return_value = mock_proc
+            client.start()
+        return captured.get("params", {})
+
+    def test_no_extra_caps_produces_only_text_document(self):
+        params = self._capture_init_request(None)
+        caps = params.get("capabilities", {})
+        assert "textDocument" in caps
+        # No experimental, no window, no vendor-specific fields.
+        assert "experimental" not in caps
+
+    def test_experimental_block_is_merged_at_top_level(self):
+        params = self._capture_init_request({"experimental": {"serverStatusNotification": True}})
+        caps = params.get("capabilities", {})
+        assert caps["experimental"] == {"serverStatusNotification": True}
+        # Base text-document capabilities still present.
+        assert "documentSymbol" in caps["textDocument"]
+
+    def test_overlapping_top_level_dict_keys_are_shallow_merged(self):
+        """If an adapter adds keys under ``textDocument`` they merge with the base."""
+        params = self._capture_init_request({"textDocument": {"semanticTokens": {"requests": {"full": True}}}})
+        caps = params.get("capabilities", {})
+        # Both base and adapter keys are present.
+        assert "documentSymbol" in caps["textDocument"]
+        assert caps["textDocument"]["semanticTokens"] == {"requests": {"full": True}}
+
+    def test_adapter_value_wins_on_scalar_collision(self):
+        """A scalar override (rare) replaces the base value rather than crashing."""
+        params = self._capture_init_request({"textDocument": "broken"})
+        caps = params.get("capabilities", {})
+        # Adapter intentionally clobbered the dict — merge logic falls
+        # back to assignment when types don't match.
+        assert caps["textDocument"] == "broken"
 
 
 class TestWriteMessage:
@@ -474,6 +550,40 @@ class TestHandleNotification:
         client = LSPClient(["cmd"], Path("/root"))
 
         client._handle_notification("language/status", {"type": "Starting", "message": "loading..."})
+
+        assert not client._server_ready.is_set()
+
+    def test_rust_analyzer_quiescent_ok_marks_ready(self):
+        """rust-analyzer's ``experimental/serverStatus`` with ``quiescent=true`` is the ready signal."""
+        client = LSPClient(["cmd"], Path("/root"))
+        assert not client._server_ready.is_set()
+
+        client._handle_notification(
+            "experimental/serverStatus",
+            {"health": "ok", "quiescent": True},
+        )
+
+        assert client._server_ready.is_set()
+
+    def test_rust_analyzer_quiescent_warning_marks_ready(self):
+        """A ``warning`` health is still ready — it just means diagnostics found something."""
+        client = LSPClient(["cmd"], Path("/root"))
+
+        client._handle_notification(
+            "experimental/serverStatus",
+            {"health": "warning", "quiescent": True},
+        )
+
+        assert client._server_ready.is_set()
+
+    def test_rust_analyzer_non_quiescent_does_not_mark_ready(self):
+        """Status updates during indexing should not unblock waiters."""
+        client = LSPClient(["cmd"], Path("/root"))
+
+        client._handle_notification(
+            "experimental/serverStatus",
+            {"health": "ok", "quiescent": False},
+        )
 
         assert not client._server_ready.is_set()
 

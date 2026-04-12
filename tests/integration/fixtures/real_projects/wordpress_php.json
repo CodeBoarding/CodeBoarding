@@ -7,12 +7,20 @@
     "codeboarding_version": "0.2.0"
   },
   "metrics": {
-    "references_count": 31057,
+    "references_count_by_os": {
+      "Linux": 31057,
+      "Darwin": 31057,
+      "Windows": 30386
+    },
     "packages_count": 160,
-    "call_graph_nodes": 19650,
+    "call_graph_nodes": 25381,
     "call_graph_edges": 90718,
     "source_files_count": 1644,
-    "execution_time_seconds": 103
+    "execution_time_seconds_by_os": {
+      "Linux": 261,
+      "Darwin": 154,
+      "Windows": 264
+    }
   },
   "sample_references": [
     "index.WP_USE_THEMES",

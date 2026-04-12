@@ -28,7 +28,10 @@ venv/
 env/
 *.egg-info/
 
-# Java (Maven/Gradle) build output
+# Java (Maven/Gradle) and Rust (Cargo) build output. Both ecosystems
+# produce a top-level ``target/`` directory full of compiled artifacts —
+# kept here as well as in ``_ALWAYS_IGNORED_DIRS`` so users who customize
+# their ``.codeboardingignore`` continue to skip it even after edits.
 target/
 bin/
 out/
@@ -145,11 +148,12 @@ _ALWAYS_IGNORED_DIRS = {
     ".codeboarding",
     # Dependency installs
     "node_modules",
-    # Compiled / build output
+    # Compiled / build output (universal across ecosystems — never source)
     "__pycache__",
     "build",
     "dist",
     "coverage",
+    "target",  # Java (Maven), Rust (Cargo)
 }
 
 

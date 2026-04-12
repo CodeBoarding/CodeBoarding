@@ -23,6 +23,7 @@ from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
 from static_analyzer.programming_language import ProgrammingLanguage
 from static_analyzer.scanner import ProjectScanner
 from static_analyzer.typescript_config_scanner import TypeScriptConfigScanner
+from tool_registry import ensure_node_on_path
 from utils import get_cache_dir
 
 logger = logging.getLogger(__name__)
@@ -109,6 +110,7 @@ def _lang_to_adapter_name(language: str) -> str | None:
         "go": "Go",
         "java": "Java",
         "php": "PHP",
+        "rust": "Rust",
     }
     return mapping.get(language.lower())
 
@@ -138,20 +140,38 @@ class StaticAnalyzer:
 
         Call once before invoking analyze() or analyze_with_cluster_changes().
         Idempotent — safe to call even if clients are already running.
+
+        A failing client is skipped and logged; ``RuntimeError`` is raised
+        only when every configured client fails.
         """
         if self._clients_started:
             logger.info(f"Clients already started for {self.repository_path}, skipping start.")
             return
 
+        if not self._engine_configs:
+            logger.info(f"No supported languages detected in {self.repository_path}; no LSP clients to start.")
+            self._engine_clients = []
+            self._clients_started = True
+            return
+
         started: list[tuple[LanguageAdapter, Path, LSPClient]] = []
+        attempted: list[str] = []
+        failed_languages: list[str] = []
+
         for adapter, project_path in self._engine_configs:
+            attempted.append(adapter.language)
+            engine_client: LSPClient | None = None
             try:
                 logger.info(f"Starting engine LSP client for {adapter.language} at {project_path}")
                 t_start = time.monotonic()
                 command = adapter.get_lsp_command(project_path)
                 init_options = adapter.get_lsp_init_options(self.ignore_manager)
                 extra_env = adapter.get_lsp_env()
+                # Node-based LSPs spawn child ``node`` processes by name; on
+                # a Node-less host the embedded runtime's dir must be on PATH.
+                ensure_node_on_path(command, extra_env)
                 workspace_settings = adapter.get_workspace_settings()
+                extra_capabilities = getattr(adapter, "extra_client_capabilities", {}) or {}
                 engine_client = LSPClient(
                     command=command,
                     project_root=project_path,
@@ -159,26 +179,47 @@ class StaticAnalyzer:
                     collect_diagnostics=True,
                     extra_env=extra_env,
                     workspace_settings=workspace_settings,
+                    extra_client_capabilities=extra_capabilities,
                 )
                 engine_client.start()
                 t_lsp_started = time.monotonic()
                 logger.info(f"{adapter.language} LSP start: {t_lsp_started - t_start:.1f}s")
+
+                # Some LSP servers (JDTLS, rust-analyzer) load workspace
+                # metadata asynchronously and only respond to cross-file
+                # queries once that's complete. Adapters opt in via
+                # ``wait_for_workspace_ready`` so the language-name check
+                # doesn't keep growing.
+                if getattr(adapter, "wait_for_workspace_ready", False):
+                    engine_client.wait_for_server_ready()
+                    logger.info(f"{adapter.language} workspace ready: {time.monotonic() - t_lsp_started:.1f}s")
+
                 started.append((adapter, project_path, engine_client))
 
-                # For Java, wait for JDTLS to finish importing
-                if adapter.language.lower() == "java":
-                    engine_client.wait_for_server_ready()
-                    logger.info(f"{adapter.language} project import: {time.monotonic() - t_lsp_started:.1f}s")
-
-            except Exception as e:
-                logger.exception(f"Failed to start engine LSP client for {adapter.language}")
-                for _, _, client in reversed(started):
+            except Exception:
+                logger.exception(
+                    f"Failed to start engine LSP client for {adapter.language}; "
+                    f"skipping this language and continuing"
+                )
+                failed_languages.append(adapter.language)
+                if engine_client is not None:
                     try:
-                        client.shutdown()
+                        engine_client.shutdown()
                     except Exception:
-                        logger.exception("Error shutting down engine client during cleanup")
-                self._clients_started = False
-                raise RuntimeError(f"Failed to start engine LSP client for {adapter.language}") from e
+                        logger.exception(
+                            f"Error shutting down partially-started {adapter.language} client during cleanup"
+                        )
+
+        if not started:
+            self._clients_started = False
+            raise RuntimeError(f"Failed to start any engine LSP client (attempted: {', '.join(attempted) or 'none'})")
+
+        if failed_languages:
+            logger.warning(
+                f"Proceeding with partial LSP coverage. "
+                f"Failed: {', '.join(failed_languages)}. "
+                f"Started: {', '.join(a.language for a, _, _ in started)}"
+            )
 
         self._engine_clients = started
         self._clients_started = True

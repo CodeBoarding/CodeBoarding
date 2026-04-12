@@ -16,6 +16,9 @@
 - **Format and lint before commits**: Run `uv run black .` (line length: 120) and `uv run mypy .` to ensure code quality. These are enforced in pre-commit hooks and GitHub CI/CD workflows.
 - **Respect project structure**: Code is organized by functional domain (e.g., `agents/`, `static_analyzer/`, `output_generators/`, `monitoring/`). Place new code in the appropriate directory and follow existing module patterns.
 - **Add imports at the top of the file**: avoid function or class level imports - only consider them if they have significant impact on the execution.
+- **Keep comments and docstrings terse**: write a one-line summary. Add a short `Why:` line only when the rationale is non-obvious. Do NOT narrate diff history (`"Previously X did Y"`), name internal bug tickets (`"V4 reproducer"`, `"Bug C"`), reference line numbers in third-party files (they rot), or re-state what type hints already say. If the prose is longer than the code it documents, delete the prose. See `REVIEW.md` §10 "Comment & Docstring Bloat" for the full checklist.
+- **Don't re-paste module docstrings across submodules**: a package-layout explanation belongs once in `__init__.py`, not copied into every sibling file.
+- **Test docstrings should add information**: if a test is named `test_rejects_none`, the docstring `"""Test that None is rejected."""` is pure noise — delete it. Only add a docstring when there's a non-obvious *reason* the test exists.
 
 ### 4. Execution Flow and Tool Patterns
 - **Understand the analysis pipeline**: CodeBoarding processes repositories in stages: ProjectScanner → StaticAnalyzer (via LSP clients) → DiagramGenerator (LLM agents) → Output generators. When investigating issues, trace through this pipeline in order.

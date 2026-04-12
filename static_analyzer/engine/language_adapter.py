@@ -207,6 +207,22 @@ class LanguageAdapter(ABC):
         return EdgeStrategy.REFERENCES
 
     @property
+    def wait_for_workspace_ready(self) -> bool:
+        """Override to ``True`` for LSPs (JDTLS, rust-analyzer) that load
+        project metadata async and return empty results until ready. Per-file
+        indexers (pyright, gopls, tsserver, intelephense) keep the default.
+        """
+        return False
+
+    @property
+    def extra_client_capabilities(self) -> dict:
+        """Vendor-specific keys to shallow-merge into the LSP ``initialize``
+        capabilities (e.g. ``{"experimental": {...}}``). Default ``{}`` keeps
+        the shared client free of language-specific opt-ins.
+        """
+        return {}
+
+    @property
     def references_batch_size(self) -> int:
         """Max number of references requests to send in a single batch."""
         return 50
