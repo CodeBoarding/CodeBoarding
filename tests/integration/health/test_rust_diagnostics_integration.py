@@ -38,7 +38,7 @@ class TestRustDiagnosticsEndToEnd:
         assert PROJECT_DIR.is_dir(), f"Project missing: {PROJECT_DIR}"
 
         with StaticAnalyzer(PROJECT_DIR) as analyzer:
-            analyzer.analyze(cache_dir=None)
+            analyzer.analyze(cache_dir=None, skip_cache=True)
             diagnostics_by_file = analyzer.collected_diagnostics.get("Rust", {})
 
         assert diagnostics_by_file, (

@@ -101,19 +101,18 @@ class RustAdapter(LanguageAdapter):
         return {"experimental": {"serverStatusNotification": True}}
 
     def wait_for_diagnostics(self, client: LSPClient) -> None:
-        """rust-analyzer flips ``experimental/serverStatus.quiescent`` to
-        ``False`` while it processes didOpen'd files (running ``cargo check``,
-        building the ``ide_db::search`` index, etc.) and back to ``True`` when
-        it's done. We reset the ready event and wait for the next quiescent
-        signal — that's the precise "all diagnostics flushed" fence.
+        """Wait for rust-analyzer to flush diagnostics.
 
-        On a small project rust-analyzer may already be quiescent and stay
-        that way (no transition will happen). The ``timeout`` therefore
-        doubles as a soft upper bound: if no signal arrives we proceed with
-        whatever's been collected so far.
+        Strategy: reset the ready signal and wait briefly for
+        ``quiescent=True`` (the precise fence). If no signal arrives
+        within 10s (e.g. rust-analyzer stayed quiescent for a tiny
+        project), fall back to debouncing on publishDiagnostics so we
+        don't block for the full 120s on a no-op.
         """
         client.reset_ready_signal()
-        client.wait_for_server_ready(timeout=120)
+        if not client._server_ready.wait(timeout=10):
+            # No quiescent transition observed; debounce instead.
+            client.wait_for_diagnostics_quiesce(idle_seconds=3.0, max_wait=60.0)
 
     @property
     def file_extensions(self) -> tuple[str, ...]:

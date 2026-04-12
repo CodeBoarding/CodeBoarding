@@ -118,23 +118,61 @@ class TestLspInitOptions:
 
 class TestWaitForDiagnostics:
     """Rust reuses ``wait_for_server_ready`` after resetting the ready signal,
-    relying on rust-analyzer's ``experimental/serverStatus.quiescent`` flag."""
+    relying on rust-analyzer's ``experimental/serverStatus.quiescent`` flag.
+    Falls back to debouncing if no signal arrives quickly."""
 
-    def test_resets_ready_then_waits(self):
+    def test_uses_ready_signal_when_available(self):
+        """When rust-analyzer transitions to quiescent within 10s, the
+        signal-based path is taken (no debounce fallback)."""
+        import threading
+        import time
+
         adapter = RustAdapter()
         events: list = []
 
         class FakeClient:
+            _server_ready = threading.Event()
+
             def reset_ready_signal(self):
-                events.append(("reset",))
+                self._server_ready.clear()
+                events.append("reset")
 
-            def wait_for_server_ready(self, timeout):
-                events.append(("wait", timeout))
+            def wait_for_diagnostics_quiesce(self, idle_seconds, max_wait):
+                events.append("quiesce")
 
-        adapter.wait_for_diagnostics(FakeClient())  # type: ignore[arg-type]
-        assert events[0][0] == "reset", "must reset the ready signal before waiting"
-        assert events[1][0] == "wait"
-        assert events[1][1] > 0
+        fake = FakeClient()
+        # Signal arrives 0.5s after reset (simulating quiescent transition)
+        threading.Timer(0.5, fake._server_ready.set).start()
+        t0 = time.monotonic()
+        adapter.wait_for_diagnostics(fake)  # type: ignore[arg-type]
+        elapsed = time.monotonic() - t0
+        assert "reset" in events
+        assert "quiesce" not in events, "should NOT fall back to debounce when signal fires"
+        assert elapsed < 5, f"should return quickly after signal, not wait full timeout (took {elapsed:.1f}s)"
+
+    def test_falls_back_to_debounce_when_no_signal(self):
+        """When rust-analyzer stays quiescent (no transition), falls back
+        to debouncing instead of blocking 120s."""
+        import threading
+
+        adapter = RustAdapter()
+        events: list = []
+
+        class FakeClient:
+            _server_ready = threading.Event()
+
+            def reset_ready_signal(self):
+                self._server_ready.clear()
+                events.append("reset")
+
+            def wait_for_diagnostics_quiesce(self, idle_seconds, max_wait):
+                events.append("quiesce")
+
+        fake = FakeClient()
+        # _server_ready stays cleared — no quiescent signal
+        adapter.wait_for_diagnostics(fake)  # type: ignore[arg-type]
+        assert "reset" in events
+        assert "quiesce" in events, "should fall back to debounce when no signal arrives"
 
 
 class TestBuildQualifiedName:
