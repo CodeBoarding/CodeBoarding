@@ -31,6 +31,7 @@ from .registry import (
     PLATFORM_SUFFIX,
     TOOL_REGISTRY,
     GitHubToolSource,
+    PackageManagerToolSource,
     ProgressCallback,
     ToolDependency,
     ToolKind,
@@ -254,6 +255,84 @@ def install_native_tools(
             binary_path.unlink(missing_ok=True)
 
 
+# -- Package-manager installer (dotnet tool, cargo install, ...) --------------
+
+
+def package_manager_tool_dir(target_dir: Path, dep: ToolDependency) -> Path:
+    """Managed install directory for a PACKAGE_MANAGER tool.
+
+    Layout: ``<target_dir>/bin/<platform>/pm-tools/<subdir>/``. Using a
+    per-tool subdir keeps multiple pm-tools from clobbering each other.
+    """
+    subdir = dep.archive_subdir or dep.key
+    return platform_bin_dir(target_dir) / "pm-tools" / subdir
+
+
+def install_package_manager_tools(
+    target_dir: Path,
+    deps: list[ToolDependency],
+    on_progress: ProgressCallback | None = None,
+) -> None:
+    """Install each dep by invoking its declared package manager.
+
+    Warn-and-skip when the package manager binary is absent — the LSP
+    adapter's ``get_lsp_command`` surfaces the actionable error at
+    analysis time (mirrors the ``install_node_tools`` npm-missing path).
+    """
+    pm_deps = [d for d in deps if isinstance(d.source, PackageManagerToolSource)]
+    for i, dep in enumerate(pm_deps, 1):
+        if on_progress:
+            on_progress(dep.binary_name, i, len(pm_deps))
+        source = dep.source
+        assert isinstance(source, PackageManagerToolSource)
+        if not shutil.which(source.manager_binary):
+            logger.warning(
+                "  %s: %s not found on PATH; skipping install. " "Users must install it before running analysis.",
+                dep.binary_name,
+                source.manager_binary,
+            )
+            continue
+        install_dir = package_manager_tool_dir(target_dir, dep)
+        binary_path = install_dir / f"{dep.binary_name}{exe_suffix()}"
+        if binary_path.exists():
+            logger.info("  %s: already installed, skipping", dep.binary_name)
+            continue
+        install_dir.mkdir(parents=True, exist_ok=True)
+        args = [arg.format(tool_path=str(install_dir)) for arg in source.install_args]
+        try:
+            result = subprocess.run(
+                [source.manager_binary, *args],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=600,
+            )
+            if result.returncode != 0:
+                logger.warning(
+                    "  %s: %s install failed (exit %d): %s",
+                    dep.binary_name,
+                    source.manager_binary,
+                    result.returncode,
+                    (result.stderr or result.stdout)[-500:],
+                )
+                continue
+            if not binary_path.exists():
+                logger.warning(
+                    "  %s: %s install reported success but %s is missing",
+                    dep.binary_name,
+                    source.manager_binary,
+                    binary_path,
+                )
+                continue
+            if platform.system() != "Windows":
+                os.chmod(binary_path, 0o755)
+            logger.info("  %s: installed via %s", dep.binary_name, source.manager_binary)
+        except subprocess.TimeoutExpired:
+            logger.warning("  %s: %s install timed out after 600s", dep.binary_name, source.manager_binary)
+        except OSError:
+            logger.exception("  %s: %s install could not be invoked", dep.binary_name, source.manager_binary)
+
+
 # -- Node / npm installer -----------------------------------------------------
 
 
@@ -356,6 +435,7 @@ def install_tools(target_dir: Path) -> None:
     native_deps = [d for d in TOOL_REGISTRY if d.kind is ToolKind.NATIVE]
     node_deps = [d for d in TOOL_REGISTRY if d.kind is ToolKind.NODE]
     archive_deps = [d for d in TOOL_REGISTRY if d.kind is ToolKind.ARCHIVE]
+    pm_deps = [d for d in TOOL_REGISTRY if d.kind is ToolKind.PACKAGE_MANAGER]
 
     if native_deps:
         install_native_tools(target_dir, native_deps)
@@ -363,6 +443,8 @@ def install_tools(target_dir: Path) -> None:
         install_node_tools(target_dir, node_deps)
     for dep in archive_deps:
         install_archive_tool(target_dir, dep)
+    if pm_deps:
+        install_package_manager_tools(target_dir, pm_deps)
 
 
 # -- Embedded Node.js runtime bootstrap ---------------------------------------

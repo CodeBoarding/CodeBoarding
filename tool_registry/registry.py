@@ -59,6 +59,9 @@ class ToolKind(StrEnum):
     NATIVE = "native"  # Pre-built binary downloaded from GitHub releases
     NODE = "node"  # npm package installed via `npm install`
     ARCHIVE = "archive"  # Tarball downloaded and extracted from GitHub releases
+    PACKAGE_MANAGER = (
+        "package_manager"  # Installed by invoking a user-provided package manager (e.g. `dotnet tool install`)
+    )
 
 
 class ConfigSection(StrEnum):
@@ -106,6 +109,25 @@ class UpstreamToolSource(ToolSource):
 
     url_template: str = ""  # with ``{version}`` / optional ``{build}``
     build: str = ""
+
+
+@dataclass(frozen=True)
+class PackageManagerToolSource(ToolSource):
+    """Tool installed by invoking a user-provided package manager.
+
+    Why: some LSPs (e.g. csharp-ls) are distributed only through a
+    language package manager (``dotnet tool``, ``cargo install``) and
+    ship no standalone binaries. We run the package manager at setup
+    time into a CodeBoarding-owned directory so the install is
+    self-contained and version-pinned. ``manager_binary`` absence at
+    install time is a non-fatal skip (mirrors ``install_node_tools``
+    when npm is missing); the LSP adapter surfaces the meaningful
+    error at analysis time (mirrors ``RustAdapter``).
+    """
+
+    manager_binary: str = ""  # e.g. "dotnet"
+    # Placeholder ``{tool_path}`` in any arg is substituted with the managed install dir.
+    install_args: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -197,14 +219,30 @@ TOOL_REGISTRY: list[ToolDependency] = [
         js_entry_file="intelephense.js",
         js_entry_parent="intelephense",
     ),
-    # No source: csharp-ls is resolved from PATH or
-    # ~/.dotnet/tools (see CSharpAdapter.get_lsp_command fallback).
-    # Install: dotnet tool install --global csharp-ls
+    # csharp-ls ships no prebuilt binaries (upstream release assets are
+    # empty), only a NuGet dotnet-tool package. We install it via
+    # ``dotnet tool install --tool-path <managed-dir>`` at setup time.
+    # The .NET SDK is a user prerequisite — CSharpAdapter raises a
+    # meaningful error when ``dotnet`` is missing at analysis time.
     ToolDependency(
         key="csharp",
         binary_name="csharp-ls",
-        kind=ToolKind.NATIVE,
+        kind=ToolKind.PACKAGE_MANAGER,
         config_section=ConfigSection.LSP_SERVERS,
+        source=PackageManagerToolSource(
+            tag="0.20.0",
+            manager_binary="dotnet",
+            install_args=(
+                "tool",
+                "install",
+                "csharp-ls",
+                "--version",
+                "0.20.0",
+                "--tool-path",
+                "{tool_path}",
+            ),
+        ),
+        archive_subdir="csharp-ls",
     ),
     ToolDependency(
         key="java",

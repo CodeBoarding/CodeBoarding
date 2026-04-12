@@ -14,6 +14,7 @@ from .registry import (  # noqa: F401
     TOOLS_TAG,
     ConfigSection,
     GitHubToolSource,
+    PackageManagerToolSource,
     ProgressCallback,
     ToolDependency,
     ToolKind,
