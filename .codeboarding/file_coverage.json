@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generated_at": "2026-04-11T19:13:07.460444+00:00",
+  "generated_at": "2026-04-12T22:20:05.222107+00:00",
   "analyzed_files": [
     "agents/__init__.py",
     "agents/abstraction_agent.py",
@@ -101,12 +101,15 @@
     "static_analyzer/cluster_helpers.py",
     "static_analyzer/cluster_relations.py",
     "static_analyzer/constants.py",
+    "static_analyzer/csharp_config_scanner.py",
     "static_analyzer/engine/__init__.py",
     "static_analyzer/engine/adapters/__init__.py",
+    "static_analyzer/engine/adapters/csharp_adapter.py",
     "static_analyzer/engine/adapters/go_adapter.py",
     "static_analyzer/engine/adapters/java_adapter.py",
     "static_analyzer/engine/adapters/php_adapter.py",
     "static_analyzer/engine/adapters/python_adapter.py",
+    "static_analyzer/engine/adapters/rust_adapter.py",
     "static_analyzer/engine/adapters/typescript_adapter.py",
     "static_analyzer/engine/call_graph_builder.py",
     "static_analyzer/engine/edge_build_context.py",
@@ -134,7 +137,11 @@
     "static_analyzer/reference_resolve_mixin.py",
     "static_analyzer/scanner.py",
     "static_analyzer/typescript_config_scanner.py",
-    "tool_registry.py",
+    "tool_registry/__init__.py",
+    "tool_registry/installers.py",
+    "tool_registry/manifest.py",
+    "tool_registry/paths.py",
+    "tool_registry/registry.py",
     "user_config.py",
     "utils.py",
     "vscode_constants.py"
@@ -521,6 +528,10 @@
       "reason": "codeboardingignore"
     },
     {
+      "path": "tests/integration/fixtures/edge_cases/csharp_edge_cases.json",
+      "reason": "codeboardingignore"
+    },
+    {
       "path": "tests/integration/fixtures/edge_cases/go_edge_cases.json",
       "reason": "codeboardingignore"
     },
@@ -541,6 +552,10 @@
       "reason": "codeboardingignore"
     },
     {
+      "path": "tests/integration/fixtures/edge_cases/rust_edge_cases.json",
+      "reason": "codeboardingignore"
+    },
+    {
       "path": "tests/integration/fixtures/edge_cases/scaled/javascript_scaled.json",
       "reason": "codeboardingignore"
     },
@@ -554,6 +569,10 @@
     },
     {
       "path": "tests/integration/fixtures/edge_cases/typescript_edge_cases.json",
+      "reason": "codeboardingignore"
+    },
+    {
+      "path": "tests/integration/fixtures/real_projects/clap_rust.json",
       "reason": "codeboardingignore"
     },
     {
@@ -577,6 +596,10 @@
       "reason": "codeboardingignore"
     },
     {
+      "path": "tests/integration/fixtures/real_projects/serilog_csharp.json",
+      "reason": "codeboardingignore"
+    },
+    {
       "path": "tests/integration/fixtures/real_projects/wordpress_php.json",
       "reason": "codeboardingignore"
     },
@@ -593,7 +616,59 @@
       "reason": "codeboardingignore"
     },
     {
+      "path": "tests/integration/health/test_csharp_diagnostics_integration.py",
+      "reason": "codeboardingignore"
+    },
+    {
       "path": "tests/integration/health/test_health_integration.py",
+      "reason": "codeboardingignore"
+    },
+    {
+      "path": "tests/integration/health/test_rust_diagnostics_integration.py",
+      "reason": "codeboardingignore"
+    },
+    {
+      "path": "tests/integration/projects/csharp_edge_cases_project/EdgeCases.csproj",
+      "reason": "codeboardingignore"
+    },
+    {
+      "path": "tests/integration/projects/csharp_edge_cases_project/Models/Animal.cs",
+      "reason": "codeboardingignore"
+    },
+    {
+      "path": "tests/integration/projects/csharp_edge_cases_project/Models/Repository.cs",
+      "reason": "codeboardingignore"
+    },
+    {
+      "path": "tests/integration/projects/csharp_edge_cases_project/Models/Task.cs",
+      "reason": "codeboardingignore"
+    },
+    {
+      "path": "tests/integration/projects/csharp_edge_cases_project/Program.cs",
+      "reason": "codeboardingignore"
+    },
+    {
+      "path": "tests/integration/projects/csharp_edge_cases_project/Services/QueryBuilder.cs",
+      "reason": "codeboardingignore"
+    },
+    {
+      "path": "tests/integration/projects/csharp_edge_cases_project/Services/TaskService.cs",
+      "reason": "codeboardingignore"
+    },
+    {
+      "path": "tests/integration/projects/csharp_edge_cases_project/Unused/Orphan.cs",
+      "reason": "codeboardingignore"
+    },
+    {
+      "path": "tests/integration/projects/csharp_edge_cases_project/Utils/Formatter.cs",
+      "reason": "codeboardingignore"
+    },
+    {
+      "path": "tests/integration/projects/csharp_unused_code_project/Sample.cs",
+      "reason": "codeboardingignore"
+    },
+    {
+      "path": "tests/integration/projects/csharp_unused_code_project/UnusedCode.csproj",
       "reason": "codeboardingignore"
     },
     {
@@ -821,6 +896,50 @@
       "reason": "codeboardingignore"
     },
     {
+      "path": "tests/integration/projects/rust_edge_cases_project/Cargo.toml",
+      "reason": "codeboardingignore"
+    },
+    {
+      "path": "tests/integration/projects/rust_edge_cases_project/src/main.rs",
+      "reason": "codeboardingignore"
+    },
+    {
+      "path": "tests/integration/projects/rust_edge_cases_project/src/models/base.rs",
+      "reason": "codeboardingignore"
+    },
+    {
+      "path": "tests/integration/projects/rust_edge_cases_project/src/models/entities.rs",
+      "reason": "codeboardingignore"
+    },
+    {
+      "path": "tests/integration/projects/rust_edge_cases_project/src/models/mod.rs",
+      "reason": "codeboardingignore"
+    },
+    {
+      "path": "tests/integration/projects/rust_edge_cases_project/src/services/mod.rs",
+      "reason": "codeboardingignore"
+    },
+    {
+      "path": "tests/integration/projects/rust_edge_cases_project/src/services/processor.rs",
+      "reason": "codeboardingignore"
+    },
+    {
+      "path": "tests/integration/projects/rust_edge_cases_project/src/utils/helpers.rs",
+      "reason": "codeboardingignore"
+    },
+    {
+      "path": "tests/integration/projects/rust_edge_cases_project/src/utils/mod.rs",
+      "reason": "codeboardingignore"
+    },
+    {
+      "path": "tests/integration/projects/rust_unused_code_project/Cargo.toml",
+      "reason": "codeboardingignore"
+    },
+    {
+      "path": "tests/integration/projects/rust_unused_code_project/src/lib.rs",
+      "reason": "codeboardingignore"
+    },
+    {
       "path": "tests/integration/projects/typescript_edge_cases_project/node_modules/typescript/LICENSE.txt",
       "reason": "ignored_directory"
     },
@@ -1005,6 +1124,14 @@
       "reason": "codeboardingignore"
     },
     {
+      "path": "tests/static_analyzer/test_csharp_adapter.py",
+      "reason": "codeboardingignore"
+    },
+    {
+      "path": "tests/static_analyzer/test_csharp_config_scanner.py",
+      "reason": "codeboardingignore"
+    },
+    {
       "path": "tests/static_analyzer/test_discover_file_dependencies.py",
       "reason": "codeboardingignore"
     },
@@ -1065,7 +1192,15 @@
       "reason": "codeboardingignore"
     },
     {
+      "path": "tests/static_analyzer/test_rust_adapter.py",
+      "reason": "codeboardingignore"
+    },
+    {
       "path": "tests/static_analyzer/test_source_inspector.py",
+      "reason": "codeboardingignore"
+    },
+    {
+      "path": "tests/static_analyzer/test_static_analyzer_start_clients.py",
       "reason": "codeboardingignore"
     },
     {
@@ -1118,12 +1253,12 @@
     }
   ],
   "summary": {
-    "total_files": 380,
-    "analyzed": 136,
-    "not_analyzed": 244,
+    "total_files": 419,
+    "analyzed": 143,
+    "not_analyzed": 276,
     "not_analyzed_by_reason": {
       "other": 12,
-      "codeboardingignore": 227,
+      "codeboardingignore": 259,
       "ignored_directory": 5
     }
   }

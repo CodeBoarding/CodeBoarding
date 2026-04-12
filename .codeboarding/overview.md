@@ -1,5 +1,3 @@
-
-
 ```mermaid
 graph LR
     Orchestration_Lifecycle["Orchestration & Lifecycle"]
