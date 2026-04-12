@@ -14,6 +14,8 @@ from static_analyzer.engine.call_graph_builder import CallGraphBuilder
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_client import LSPClient
 from static_analyzer.engine.result_converter import convert_to_codeboarding_format
+from static_analyzer.engine.source_inspector import SourceInspector
+from static_analyzer.engine.utils import uri_to_path
 from static_analyzer.git_diff_analyzer import GitDiffAnalyzer
 from static_analyzer.graph import CallGraph
 from static_analyzer.incremental_orchestrator import IncrementalAnalysisOrchestrator
@@ -346,6 +348,55 @@ class StaticAnalyzer:
             if suffix in adapter.file_extensions:
                 return adapter, project_path
         return None
+
+    def discover_file_dependencies(self, file_path: Path) -> list[str]:
+        """Discover files that a source file depends on via call-site resolution.
+
+        Uses ``SourceInspector`` to find call sites in the file, then resolves
+        each call site to its definition location using the LSP server.
+
+        The file must have been opened previously (via ``notify_file_changed``
+        or during the initial analysis) so the LSP server has indexed it.
+
+        Args:
+            file_path: Absolute path to the source file.
+
+        Returns:
+            Deduplicated list of absolute file paths that the file depends on.
+            Returns an empty list if no matching client is found or on failure.
+        """
+        suffix = file_path.suffix
+        client = next((c for adapter, _, c in self._engine_clients if suffix in adapter.file_extensions), None)
+        if client is None:
+            return []
+
+        try:
+            call_sites = SourceInspector().find_call_sites(file_path)
+            if not call_sites:
+                return []
+
+            queries = [(file_path, line, char) for line, char in call_sites]
+            results, _ = client.send_definition_batch(queries)
+
+            resolved = file_path.resolve()
+            unique_paths: set[str] = set()
+            for definitions in results:
+                for defn in definitions:
+                    uri = defn.get("targetUri", defn.get("uri", ""))
+                    if not uri.startswith("file://"):
+                        continue
+                    dep_path_obj = uri_to_path(uri)
+                    if dep_path_obj is None:
+                        continue
+                    dep_path = str(dep_path_obj)
+                    if dep_path != str(resolved):
+                        unique_paths.add(dep_path)
+
+            logger.debug(f"Discovered {len(unique_paths)} dependencies for {file_path}")
+            return list(unique_paths)
+        except Exception:
+            logger.warning(f"Failed to discover dependencies for {file_path}", exc_info=True)
+            return []
 
     def analyze(self, cache_dir: Path | None = None, skip_cache: bool = False) -> StaticAnalysisResults:
         """Analyze the repository using the engine LSP pipeline.

@@ -52,6 +52,7 @@ def convert_to_codeboarding_format(
             file_path=str(sym.file_path),
             line_start=sym.start_line + 1,
             line_end=sym.end_line + 1,
+            col_start=sym.start_char,
         )
         symbol_nodes[qname] = node
         call_graph.add_node(node)
@@ -62,7 +63,7 @@ def convert_to_codeboarding_format(
     for edge in result.cfg.edges:
         src = edge.source
         dst = edge.destination
-        if src in call_graph.nodes and dst in call_graph.nodes:
+        if call_graph.has_node(src) and call_graph.has_node(dst):
             try:
                 call_graph.add_edge(src, dst)
                 edges_added += 1

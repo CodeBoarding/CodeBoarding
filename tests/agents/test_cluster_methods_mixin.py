@@ -80,8 +80,8 @@ class TestFindNearestCluster(unittest.TestCase):
     def _make_call_graph(self) -> CallGraph:
         """Build a small CallGraph: A->B->C->D, C->E."""
         cfg = CallGraph(language="python")
-        for name in ("A", "B", "C", "D", "E"):
-            cfg.add_node(Node(name, NodeType.FUNCTION, "/src/mod.py", 1, 10))
+        for i, name in enumerate(("A", "B", "C", "D", "E")):
+            cfg.add_node(Node(name, NodeType.FUNCTION, "/src/mod.py", i * 10 + 1, i * 10 + 10))
         cfg.add_edge("A", "B")
         cfg.add_edge("B", "C")
         cfg.add_edge("C", "D")
@@ -158,8 +158,8 @@ class TestFindNearestCluster(unittest.TestCase):
         and test from W: W is distance-1 from X (cluster 10), distance-3 from Z (cluster 20).
         """
         cfg = CallGraph(language="python")
-        for name in ("W", "X", "Y", "Z"):
-            cfg.add_node(Node(name, NodeType.FUNCTION, "/src/mod.py", 1, 10))
+        for i, name in enumerate(("W", "X", "Y", "Z")):
+            cfg.add_node(Node(name, NodeType.FUNCTION, "/src/mod.py", i * 10 + 1, i * 10 + 10))
         cfg.add_edge("W", "X")
         cfg.add_edge("X", "Y")
         cfg.add_edge("Y", "Z")

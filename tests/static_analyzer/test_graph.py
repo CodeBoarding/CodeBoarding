@@ -655,6 +655,87 @@ class TestCallGraph(unittest.TestCase):
         for cid in result1.clusters:
             self.assertEqual(result1.clusters[cid], result2.clusters[cid])
 
+    def test_node_promotion_with_existing_edges(self):
+        """Promoting a node (longer name replaces shorter) after edges exist must not break the graph.
+
+        Simulates the monorepo merge path where nodes from a second subproject are
+        added to a CFG that already has edges from the first subproject.
+        """
+        graph = CallGraph()
+
+        short = Node("index.funcA", NodeType.FUNCTION, "/src/index.py", 1, 10)
+        other = Node("index.funcB", NodeType.FUNCTION, "/src/index.py", 20, 30)
+        graph.add_node(short)
+        graph.add_node(other)
+        graph.add_edge("index.funcA", "index.funcB")
+
+        # Longer qualified name for the same symbol arrives
+        graph.add_node(Node("src.index.funcA", NodeType.FUNCTION, "/src/index.py", 1, 10))
+
+        self.assertIn("src.index.funcA", graph.nodes)
+        self.assertNotIn("index.funcA", graph.nodes)
+
+        # Edge objects must reflect the promoted name (in-place mutation)
+        nx_graph = graph.to_networkx()
+        self.assertEqual(nx_graph.number_of_edges(), 1)
+
+        # filter_by_files must not KeyError on stale edge names
+        sub = graph.filter_by_files({"/src/index.py"})
+        self.assertGreaterEqual(len(sub.edges), 1)
+
+        # _edge_set must have been rewritten so dedup still works
+        graph.add_edge("src.index.funcA", "index.funcB")
+        self.assertEqual(len(graph.edges), 1)
+
+    def test_target_promotion_updates_methods_called_by_me(self):
+        graph = CallGraph()
+        caller = Node("mod.caller", NodeType.FUNCTION, "/a.py", 1, 10)
+        target = Node("funcB", NodeType.FUNCTION, "/b.py", 1, 10)
+        graph.add_node(caller)
+        graph.add_node(target)
+        graph.add_edge("mod.caller", "funcB")
+
+        self.assertIn("funcB", graph.nodes["mod.caller"].methods_called_by_me)
+
+        # Promote the target to a longer canonical name
+        graph.add_node(Node("pkg.mod.funcB", NodeType.FUNCTION, "/b.py", 1, 10))
+
+        self.assertIn("pkg.mod.funcB", graph.nodes["mod.caller"].methods_called_by_me)
+        self.assertNotIn("funcB", graph.nodes["mod.caller"].methods_called_by_me)
+
+    def test_alias_resolution_and_has_node(self):
+        """Aliases must resolve to canonical in both add order directions, and has_node must find them."""
+        graph = CallGraph()
+
+        # Shortest-first: 3 names for the same symbol
+        graph.add_node(Node("funcA", NodeType.FUNCTION, "/src/index.py", 1, 10))
+        graph.add_node(Node("src.index.funcA", NodeType.FUNCTION, "/src/index.py", 1, 10))
+        graph.add_node(Node("container.src.index.funcA", NodeType.FUNCTION, "/src/index.py", 1, 10))
+
+        self.assertEqual(len(graph.nodes), 1)
+        self.assertIn("container.src.index.funcA", graph.nodes)
+
+        # has_node must find all aliases
+        self.assertTrue(graph.has_node("funcA"))
+        self.assertTrue(graph.has_node("src.index.funcA"))
+
+        # Edges via any alias must resolve to canonical
+        graph.add_node(Node("other.func", NodeType.FUNCTION, "/src/other.py", 1, 10))
+        graph.add_edge("funcA", "other.func")
+        self.assertEqual(graph.edges[0].get_source(), "container.src.index.funcA")
+        graph.add_edge("src.index.funcA", "other.func")
+        self.assertEqual(len(graph.edges), 1)  # deduped
+
+        # Longest-first: separate symbol
+        graph2 = CallGraph()
+        graph2.add_node(Node("pkg.mod.bar", NodeType.FUNCTION, "/bar.py", 1, 10))
+        graph2.add_node(Node("mod.bar", NodeType.FUNCTION, "/bar.py", 1, 10))
+        graph2.add_node(Node("bar", NodeType.FUNCTION, "/bar.py", 1, 10))
+
+        self.assertEqual(len(graph2.nodes), 1)
+        self.assertIn("pkg.mod.bar", graph2.nodes)
+        self.assertTrue(graph2.has_node("bar"))
+
 
 if __name__ == "__main__":
     unittest.main()

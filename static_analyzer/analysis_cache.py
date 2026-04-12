@@ -493,6 +493,7 @@ class AnalysisCacheManager:
                 "file_path": self._to_relative_path(node.file_path),
                 "line_start": node.line_start,
                 "line_end": node.line_end,
+                "col_start": node.col_start,
                 "type": node.type,
             }
 
@@ -515,6 +516,7 @@ class AnalysisCacheManager:
                 file_path=file_path,
                 line_start=node_data["line_start"],
                 line_end=node_data["line_end"],
+                col_start=node_data.get("col_start", 0),
             )
             call_graph.add_node(node)
 

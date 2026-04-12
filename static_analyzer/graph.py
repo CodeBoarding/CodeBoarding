@@ -16,6 +16,17 @@ from static_analyzer.node import Node
 logger = logging.getLogger(__name__)
 
 
+@dataclass(frozen=True)
+class LocationKey:
+    """Hashable key identifying a symbol's physical location in the source tree."""
+
+    file_path: str
+    line_start: int
+    line_end: int
+    node_type: int
+    col_start: int = 0
+
+
 @dataclass
 class ClusterResult:
     """Result of clustering a CallGraph. Provides deterministic cluster IDs and file mappings."""
@@ -69,12 +80,66 @@ class CallGraph:
         self.delimiter = ClusteringConfig.QUALIFIED_NAME_DELIMITER
         # Cache for cluster result
         self._cluster_cache: ClusterResult | None = None
+        # Location-based dedup: (file_path, line_start, line_end, type) -> canonical qualified name.
+        # When the LSP produces multiple qualified-name aliases for the same
+        # physical symbol (e.g. ``src.index.funcA`` vs
+        # ``container.agent-runner.src.index.funcA``), only the most specific
+        # (longest) name is kept.  The shorter alias is recorded here so that
+        # ``add_edge`` can transparently resolve references to dropped aliases.
+        self._location_index: dict[LocationKey, str] = {}
+        self._alias_to_canonical: dict[str, str] = {}
 
     def add_node(self, node: Node) -> None:
+        loc_key = LocationKey(node.file_path, node.line_start, node.line_end, node.type.value, node.col_start)
+        existing_name = self._location_index.get(loc_key)
+
+        if existing_name is not None:
+            if len(node.fully_qualified_name) > len(existing_name):
+                # New name is more specific — promote the existing node in-place
+                # so that Edge objects referencing it automatically see the new name.
+                canonical = node.fully_qualified_name
+                old_node = self.nodes.pop(existing_name)
+                old_node.fully_qualified_name = canonical
+                self.nodes[canonical] = old_node
+                self._location_index[loc_key] = canonical
+                # Flatten alias chain: repoint any alias that targeted the old name
+                for alias, target in self._alias_to_canonical.items():
+                    if target == existing_name:
+                        self._alias_to_canonical[alias] = canonical
+                self._alias_to_canonical[existing_name] = canonical
+                # Rewrite _edge_set so dedup works under the new canonical name
+                new_edge_set: set[tuple[str, str]] = set()
+                for s, d in self._edge_set:
+                    new_s = canonical if s == existing_name else s
+                    new_d = canonical if d == existing_name else d
+                    new_edge_set.add((new_s, new_d))
+                    # Update methods_called_by_me on source nodes
+                    if d == existing_name and new_s in self.nodes:
+                        src_node = self.nodes[new_s]
+                        src_node.methods_called_by_me.discard(existing_name)
+                        src_node.methods_called_by_me.add(canonical)
+                self._edge_set = new_edge_set
+            else:
+                # Existing name is already the most specific — record alias.
+                self._alias_to_canonical[node.fully_qualified_name] = existing_name
+            return
+
         if node.fully_qualified_name not in self.nodes:
             self.nodes[node.fully_qualified_name] = node
+            self._location_index[loc_key] = node.fully_qualified_name
+
+    def has_node(self, name: str) -> bool:
+        """Check if a name (or any of its aliases) maps to a node in the graph."""
+        return self._resolve_name(name) in self.nodes
+
+    def _resolve_name(self, name: str) -> str:
+        """Resolve a possibly-aliased name to the canonical name in the graph."""
+        return self._alias_to_canonical.get(name, name)
 
     def add_edge(self, src_name: str, dst_name: str) -> None:
+        src_name = self._resolve_name(src_name)
+        dst_name = self._resolve_name(dst_name)
+
         if src_name not in self.nodes or dst_name not in self.nodes:
             raise ValueError("Both source and destination nodes must exist in the graph.")
 

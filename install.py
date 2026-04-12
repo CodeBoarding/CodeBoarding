@@ -11,6 +11,7 @@ from enum import StrEnum
 from pathlib import Path
 
 import requests
+from static_analyzer.java_utils import find_java_21_or_later
 from tool_registry import (
     PINNED_NODE_VERSION,
     TOOL_REGISTRY,
@@ -578,8 +579,9 @@ def print_language_support_summary(npm_available: bool, target_dir: Path):
         LanguageSupportCheck(
             language="Java",
             paths=[java_path],
+            fallback_available=bool(find_java_21_or_later()),
             reason_if_requirement_missing="jdtls installation not found",
-            reason_if_binary_missing="jdtls installation not found",
+            reason_if_binary_missing="jdtls or Java 21+ not found",
         ),
     ]
 

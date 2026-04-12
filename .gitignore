@@ -198,3 +198,6 @@ static_analyzer/servers/*
 
 # Evaluation artifacts
 evals/artifacts/
+
+# Static analysis cache in integration test projects
+tests/integration/projects/**/*.pkl

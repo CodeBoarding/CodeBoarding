@@ -18,7 +18,6 @@ from typing import Callable
 from agents.agent_responses import AnalysisInsights, Component, FileEntry, FileMethodGroup, MethodEntry
 from agents.change_status import ChangeStatus
 from diagram_analysis.incremental_types import FileDelta, IncrementalDelta, MethodChange
-from diagram_analysis.manifest import AnalysisManifest
 from repo_utils.change_detector import ChangeSet
 from repo_utils.method_diff import get_method_statuses_for_file
 
@@ -35,17 +34,22 @@ class IncrementalUpdater:
     to ensure consistent behavior with the main analysis pipeline.
     """
 
+    # Callable that resolves a new file path to a component_id using
+    # the current file_to_component mapping.
+    ComponentResolver = Callable[[str, dict[str, str]], str]
+
     def __init__(
         self,
         analysis: AnalysisInsights,
-        manifest: AnalysisManifest,
         symbol_resolver: SymbolResolver,
         repo_dir: Path,
+        component_resolver: ComponentResolver | None = None,
     ):
         self.analysis = analysis
-        self.manifest = manifest
         self._symbol_resolver = symbol_resolver
         self._repo_dir = repo_dir
+        self._component_resolver = component_resolver
+        self._file_to_component = analysis.file_to_component()
 
     def _get_current_methods(self, file_path: str) -> list[MethodEntry]:
         return self._symbol_resolver(file_path)
@@ -58,14 +62,6 @@ class IncrementalUpdater:
 
     def _get_previous_active_methods(self, file_path: str) -> dict[str, MethodEntry]:
         return {qn: m for qn, m in self._get_previous_methods(file_path).items() if m.status != ChangeStatus.DELETED}
-
-    def _resolve_component(self, file_path: str, *, register_file: bool = False) -> tuple[str | None, bool]:
-        component_id = self.manifest.get_component_for_file(file_path)
-        if component_id is None:
-            return None, True
-        if register_file:
-            self.manifest.add_file(file_path, component_id)
-        return component_id, False
 
     def _apply_method_diff_statuses(
         self, file_path: str, current_methods: list[MethodEntry], changes: ChangeSet
@@ -95,7 +91,12 @@ class IncrementalUpdater:
         register_file: bool,
         changes: ChangeSet,
     ) -> tuple[FileDelta, bool]:
-        component_id, missing = self._resolve_component(file_path, register_file=register_file)
+        component_id = self._file_to_component.get(file_path)
+        if component_id is None and register_file and self._component_resolver is not None:
+            component_id = self._component_resolver(file_path, self._file_to_component)
+        if component_id is not None and register_file:
+            self._file_to_component[file_path] = component_id
+        missing = component_id is None
 
         if file_status == ChangeStatus.ADDED:
             current = self._get_current_methods(file_path)
@@ -105,7 +106,9 @@ class IncrementalUpdater:
                     file_path=file_path,
                     file_status=ChangeStatus.ADDED,
                     component_id=component_id,
-                    added_methods=[self._to_method_change(file_path, m) for m in current],
+                    added_methods=[
+                        self._to_method_change(file_path, m, change_type=ChangeStatus.ADDED) for m in current
+                    ],
                 ),
                 missing,
             )
@@ -186,7 +189,8 @@ class IncrementalUpdater:
         Replaces the stored file state with the current unchanged snapshot,
         removing stale added/deleted/modified statuses from prior incremental updates.
         """
-        component_id, missing = self._resolve_component(file_path)
+        component_id = self._file_to_component.get(file_path)
+        missing = component_id is None
         current = self._get_current_methods(file_path)
         for m in current:
             m.status = ChangeStatus.UNCHANGED
@@ -304,12 +308,66 @@ def _apply_file_delta_to_index(files: dict[str, FileEntry], file_delta: FileDelt
     existing.methods = _sorted_methods(methods_by_name)
 
 
-def _sync_component_methods(component: Component, files: dict[str, FileEntry]) -> None:
+def _sync_component_methods(
+    component: Component,
+    files: dict[str, FileEntry],
+    deltas_by_path: dict[str, FileDelta],
+    parent_ids: set[str],
+) -> None:
+    """Rebuild component's file_methods, preserving method boundaries.
+
+    Strategy:
+    1. Collect the qualified names this component originally owned.
+    2. Remove deleted methods from ownership.
+    3. Absorb newly added methods when the component is the primary owner
+       (``delta.component_id``) OR is an intermediate ancestor of the
+       primary (its ID is a descendant of the primary AND it has its own
+       children in ``parent_ids``).  Leaf components and siblings that
+       don't own the file are unaffected.
+    4. Filter the global files index to only include owned methods.
+    """
+    owned_qnames: set[str] = set()
+
+    for group in component.file_methods:
+        for method in group.methods:
+            owned_qnames.add(method.qualified_name)
+
+    for file_path, delta in deltas_by_path.items():
+        if not component.file_methods:
+            continue
+        if not any(group.file_path == file_path for group in component.file_methods):
+            continue
+
+        for method in delta.deleted_methods:
+            owned_qnames.discard(method.qualified_name)
+
+        primary_id = delta.component_id or ""
+        should_absorb = primary_id == component.component_id or (
+            component.component_id.startswith(primary_id + ".") and component.component_id in parent_ids
+        )
+
+        # A component that owned every pre-existing method in the file is a
+        # superset owner (e.g. a root component whose children partition its
+        # methods).  It must absorb new methods so it stays a superset.
+        if not should_absorb and delta.added_methods:
+            file_entry = files.get(file_path)
+            if file_entry is not None:
+                added_qnames = {m.qualified_name for m in delta.added_methods}
+                pre_existing = {m.qualified_name for m in file_entry.methods} - added_qnames
+                if pre_existing and pre_existing <= owned_qnames:
+                    should_absorb = True
+
+        if should_absorb:
+            for method in delta.added_methods:
+                owned_qnames.add(method.qualified_name)
+
     component.file_methods = [
         FileMethodGroup(
             file_path=fp,
-            file_status=entry.file_status,
-            methods=[m.model_copy(deep=True) for m in entry.methods],
+            file_status=entry.file_status if entry else ChangeStatus.UNCHANGED,
+            methods=[
+                m.model_copy(deep=True) for m in (entry.methods if entry else []) if m.qualified_name in owned_qnames
+            ],
         )
         for fp in sorted({g.file_path for g in component.file_methods})
         if (entry := files.get(fp)) is not None
@@ -327,8 +385,11 @@ def apply_delta(
 
     files = dict(root.files)
     component_lookup = _component_lookup(root, sub_analyses)
+    parent_ids = set(sub_analyses.keys())
 
+    deltas_by_path: dict[str, FileDelta] = {}
     for file_delta in delta.file_deltas:
+        deltas_by_path[file_delta.file_path] = file_delta
         _apply_file_delta_to_index(files, file_delta)
 
         component = component_lookup.get(file_delta.component_id or "")
@@ -342,9 +403,9 @@ def apply_delta(
 
     root.files = files
     for component in root.components:
-        _sync_component_methods(component, files)
+        _sync_component_methods(component, files, deltas_by_path, parent_ids)
 
     for sub in sub_analyses.values():
         sub.files = files
         for component in sub.components:
-            _sync_component_methods(component, files)
+            _sync_component_methods(component, files, deltas_by_path, parent_ids)

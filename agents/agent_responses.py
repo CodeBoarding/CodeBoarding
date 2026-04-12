@@ -1,6 +1,7 @@
 import abc
 import logging
 from abc import abstractmethod
+from pathlib import PurePosixPath
 from typing import get_origin, Optional
 
 from pydantic import BaseModel, Field
@@ -260,6 +261,10 @@ class AnalysisInsights(LLMBaseModel):
         body = "\n".join(ac.llm_str() for ac in self.components)
         relations = "\n".join(cr.llm_str() for cr in self.components_relations)
         return title + body + relations
+
+    def file_to_component(self) -> dict[str, str]:
+        """Build file path -> component_id mapping from root components."""
+        return {str(PurePosixPath(fg.file_path)): c.component_id for c in self.components for fg in c.file_methods}
 
 
 def assign_component_ids(analysis: AnalysisInsights, parent_id: str = "") -> None:

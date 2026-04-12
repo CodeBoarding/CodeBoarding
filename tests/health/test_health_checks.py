@@ -125,7 +125,7 @@ class TestFanIn(unittest.TestCase):
         target = _make_node("mod.target", "/f.py", 0, 10)
         graph.add_node(target)
         for i in range(5):
-            caller = _make_node(f"mod.caller{i}", "/f.py", 0, 10)
+            caller = _make_node(f"mod.caller{i}", "/f.py", 20 + i * 10, 29 + i * 10)
             graph.add_node(caller)
             graph.add_edge(f"mod.caller{i}", "mod.target")
 
@@ -415,8 +415,8 @@ class TestEntityTypeFiltering(unittest.TestCase):
     def test_fan_out_skips_classes(self):
         graph = CallGraph()
         graph.add_node(_make_node("mod.MyClass", "/f.py", 0, 100, node_type=NodeType.CLASS))
-        graph.add_node(_make_node("mod.func", "/f.py", 0, 10, node_type=NodeType.FUNCTION))
-        graph.add_node(_make_node("mod.other", "/f.py", 0, 10, node_type=NodeType.FUNCTION))
+        graph.add_node(_make_node("mod.func", "/f.py", 101, 110, node_type=NodeType.FUNCTION))
+        graph.add_node(_make_node("mod.other", "/f.py", 111, 120, node_type=NodeType.FUNCTION))
         graph.add_edge("mod.MyClass", "mod.other")
         graph.add_edge("mod.func", "mod.other")
         config = HealthCheckConfig(
@@ -431,7 +431,7 @@ class TestEntityTypeFiltering(unittest.TestCase):
         graph = CallGraph()
         graph.add_node(_make_node("mod.MyClass", "/f.py", 0, 100, node_type=NodeType.CLASS))
         graph.add_node(_make_node("mod.func1", "/f.py", 0, 10, node_type=NodeType.FUNCTION))
-        graph.add_node(_make_node("mod.func2", "/f.py", 0, 10, node_type=NodeType.FUNCTION))
+        graph.add_node(_make_node("mod.func2", "/f.py", 11, 20, node_type=NodeType.FUNCTION))
         graph.add_edge("mod.func1", "mod.MyClass")
         graph.add_edge("mod.func2", "mod.MyClass")
         config = HealthCheckConfig(
