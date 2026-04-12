@@ -261,6 +261,11 @@ def has_required_tools(base_dir: Path) -> bool:
 
     for dep in TOOL_REGISTRY:
         if dep.kind is ToolKind.NATIVE:
+            # Skip the check when the installer would also skip the download,
+            # otherwise ``needs_install`` loops forever on unsupported hosts.
+            if not dep.is_available_on_host():
+                logger.info("has_required_tools: %s unavailable on this host; skipping check", dep.key)
+                continue
             binary_path = platform_bin_dir(base_dir) / f"{dep.binary_name}{exe_suffix()}"
             if not binary_path.exists():
                 logger.info("has_required_tools: %s missing at %s", dep.key, binary_path)

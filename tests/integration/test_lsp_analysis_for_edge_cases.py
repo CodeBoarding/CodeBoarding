@@ -96,6 +96,12 @@ EDGE_CASE_PROJECTS = [
         language="PHP",
         fixture_file="php_edge_cases.json",
     ),
+    EdgeCaseProject(
+        name="rust_edge_cases",
+        project_dir="rust_edge_cases_project",
+        language="Rust",
+        fixture_file="rust_edge_cases.json",
+    ),
 ]
 
 
@@ -111,6 +117,7 @@ _LANGUAGE_MARKERS = {
     "TypeScript": pytest.mark.typescript_lang,
     "PHP": pytest.mark.php_lang,
     "JavaScript": pytest.mark.javascript_lang,
+    "Rust": pytest.mark.rust_lang,
 }
 
 

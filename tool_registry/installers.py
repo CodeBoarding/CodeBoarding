@@ -3,6 +3,7 @@
 The only module in the package with filesystem side effects.
 """
 
+import gzip
 import hashlib
 import logging
 import os
@@ -10,6 +11,7 @@ import platform
 import shutil
 import subprocess
 import tarfile
+import zipfile
 from pathlib import Path
 from typing import Any
 
@@ -51,6 +53,86 @@ def asset_url(source: ToolSource, asset_name: str) -> str:
     raise TypeError(f"Unknown source type: {type(source)}")
 
 
+def resolve_native_asset_name(source: GitHubToolSource, platform_suffix: str) -> str | None:
+    """Pick the correct release asset filename for this host's (OS, arch).
+
+    Architecture-aware sources (e.g. rust-analyzer) carry an
+    ``asset_arch_overrides`` dict keyed by ``(platform.system(), platform.machine())``;
+    when the current host has an entry there it wins over the templated name.
+
+    Returns ``None`` when the host is unsupported (no override and no
+    ``platform_suffix``) so the caller can log+skip rather than crash.
+    """
+    if source.asset_arch_overrides:
+        key = (platform.system(), platform.machine())
+        override = source.asset_arch_overrides.get(key)
+        if override:
+            return override
+        # Architecture-aware tool but this host's (system, machine) isn't
+        # listed — return None and let install_native_tools log a clear
+        # "unsupported architecture" warning instead of falling through to
+        # the templated name and downloading the wrong binary.
+        return None
+    if not platform_suffix:
+        return None
+    return source.asset_template.format(platform_suffix=platform_suffix)
+
+
+def _is_compressed_asset(asset_name: str) -> bool:
+    """True if the asset filename indicates it needs decompression."""
+    lower = asset_name.lower()
+    return lower.endswith(".gz") or lower.endswith(".zip")
+
+
+def _extract_compressed_binary(archive_path: Path, inner_path: str, target: Path) -> None:
+    """Atomically decompress *archive_path* (format inferred from suffix) into *target*.
+
+    ``.gz`` is a single gzipped binary. ``.zip`` extracts ``inner_path`` if
+    set, otherwise the only ``.exe`` member or — failing that — the only
+    member. Raises ``ValueError`` for unknown suffixes or ambiguous zips.
+
+    The decompressed bytes are written to a sibling ``<target>.extract``
+    temp file and then ``os.replace``-d into place so a crash mid-extract
+    cannot leave a half-written binary at *target*. The temp file is
+    cleaned up on any exception.
+    """
+    suffix = archive_path.suffix.lower()
+    if suffix not in (".gz", ".zip"):
+        raise ValueError(f"Unsupported archive suffix: {suffix!r}")
+
+    temp_target = target.with_name(target.name + ".extract")
+    try:
+        if suffix == ".gz":
+            with gzip.open(archive_path, "rb") as src, open(temp_target, "wb") as dst:
+                shutil.copyfileobj(src, dst)
+        else:  # ".zip"
+            with zipfile.ZipFile(archive_path) as zf:
+                members = zf.namelist()
+                if inner_path:
+                    if inner_path not in members:
+                        raise ValueError(
+                            f"{archive_path.name}: archive_inner_path {inner_path!r} not found " f"(members: {members})"
+                        )
+                    chosen = inner_path
+                else:
+                    exe_members = [m for m in members if m.lower().endswith(".exe")]
+                    if len(exe_members) == 1:
+                        chosen = exe_members[0]
+                    elif len(members) == 1:
+                        chosen = members[0]
+                    else:
+                        raise ValueError(
+                            f"{archive_path.name}: cannot pick a binary automatically "
+                            f"(set archive_inner_path; members: {members})"
+                        )
+                with zf.open(chosen) as src, open(temp_target, "wb") as dst:
+                    shutil.copyfileobj(src, dst)
+        os.replace(temp_target, target)
+    except Exception:
+        temp_target.unlink(missing_ok=True)
+        raise
+
+
 def download_asset(url: str, destination: Path, expected_sha256: str | None = None) -> bool:
     """Download *url* to *destination* via temp-file + rename. Verifies SHA256 if provided."""
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -85,37 +167,88 @@ def install_native_tools(
     deps: list[ToolDependency],
     on_progress: ProgressCallback | None = None,
 ) -> None:
-    """Download native binaries from their configured sources."""
+    """Download native binaries from their configured sources.
+
+    Supports both pre-extracted binaries (default, e.g. ``tokei``,
+    ``gopls``) and compressed-binary assets (``rust-analyzer``); the
+    archive format is inferred from the asset filename suffix.
+    """
     system = platform.system()
     suffix = PLATFORM_SUFFIX.get(system)
-    if suffix is None:
-        logger.error("Unsupported platform: %s", system)
+    try:
+        bin_dir = platform_bin_dir(target_dir)
+    except RuntimeError:
+        # ``platform_bin_dir`` raises on hosts not in ``_PLATFORM_BIN_SUBDIR``
+        # (e.g. FreeBSD). Log once and return — without a target directory
+        # we cannot install anything regardless of arch-override status.
+        logger.warning(
+            "Unsupported platform %s/%s; skipping native tool installation.",
+            system,
+            platform.machine(),
+        )
         return
-
-    bin_dir = platform_bin_dir(target_dir)
     bin_dir.mkdir(parents=True, exist_ok=True)
 
     downloadable = [d for d in deps if isinstance(d.source, GitHubToolSource)]
     for i, dep in enumerate(downloadable, 1):
         if on_progress:
             on_progress(dep.binary_name, i, len(downloadable))
+        # Mirrored by ``has_required_tools`` so an unsupported host
+        # doesn't loop forever (install skips, check fails, repeat).
+        if not dep.is_available_on_host():
+            logger.warning(
+                "  %s: no release asset for this host (%s/%s); skipping",
+                dep.binary_name,
+                system,
+                platform.machine(),
+            )
+            continue
         binary_path = bin_dir / f"{dep.binary_name}{exe_suffix()}"
         if binary_path.exists():
             logger.info("  %s: already installed, skipping", dep.binary_name)
             continue
         source = dep.source
         assert isinstance(source, GitHubToolSource)
-        asset_name = source.asset_template.format(platform_suffix=suffix)
+        asset_name = resolve_native_asset_name(source, suffix or "")
+        if asset_name is None:
+            # Defensive: should be unreachable via is_available_on_host above.
+            logger.warning("  %s: resolve_native_asset_name returned None", dep.binary_name)
+            continue
         url = asset_url(source, asset_name)
-        expected_hash = source.sha256.get(suffix)
+        compressed = _is_compressed_asset(asset_name)
+        # Hash lookup precedence:
+        #   1. ``sha256[asset_name]`` — exact-asset pin (works for any asset
+        #      including compressed; one entry per arch override).
+        #   2. ``sha256[suffix]`` — per-platform pin used by tools we
+        #      republish ourselves (tokei, gopls); only consulted for
+        #      pre-extracted assets so a stale platform-keyed hash doesn't
+        #      get applied to a freshly compressed binary.
+        #   3. ``None`` — no pin, ``download_asset`` skips verification.
+        if asset_name in source.sha256:
+            expected_hash: str | None = source.sha256[asset_name]
+        elif not compressed:
+            expected_hash = source.sha256.get(suffix or "")
+        else:
+            expected_hash = None
         try:
-            if download_asset(url, binary_path, expected_sha256=expected_hash):
-                if system != "Windows":
-                    os.chmod(binary_path, 0o755)
-                logger.info("  %s: downloaded successfully", dep.binary_name)
+            if compressed:
+                archive_path = bin_dir / asset_name
+                if not download_asset(url, archive_path, expected_sha256=expected_hash):
+                    logger.warning("  %s: download failed (empty file)", dep.binary_name)
+                    archive_path.unlink(missing_ok=True)
+                    continue
+                try:
+                    _extract_compressed_binary(archive_path, source.archive_inner_path, binary_path)
+                finally:
+                    archive_path.unlink(missing_ok=True)
             else:
-                logger.warning("  %s: download failed (empty file)", dep.binary_name)
-                binary_path.unlink(missing_ok=True)
+                if not download_asset(url, binary_path, expected_sha256=expected_hash):
+                    logger.warning("  %s: download failed (empty file)", dep.binary_name)
+                    binary_path.unlink(missing_ok=True)
+                    continue
+            if system != "Windows":
+                os.chmod(binary_path, 0o755)
+            logger.info("  %s: downloaded successfully", dep.binary_name)
         except Exception:
             logger.exception("  %s: download failed", dep.binary_name)
             binary_path.unlink(missing_ok=True)

@@ -1,0 +1,32 @@
+{
+  "metadata": {
+    "repo_url": "https://github.com/clap-rs/clap",
+    "pinned_commit": "v4.5.20",
+    "language": "Rust",
+    "generated_at": "2026-04-11T13:45:00+00:00",
+    "codeboarding_version": "0.2.0"
+  },
+  "metrics": {
+    "references_count_by_os": {
+      "Linux": 2242,
+      "Darwin": 2242,
+      "Windows": 2242
+    },
+    "packages_count": 28,
+    "call_graph_nodes": 2930,
+    "call_graph_edges": 3407,
+    "source_files_count": 133,
+    "execution_time_seconds_by_os": {
+      "Linux": 35,
+      "Darwin": 35,
+      "Windows": 60
+    }
+  },
+  "sample_references": [
+    "clap_bench.benches.complex.Args",
+    "clap_bench.benches.complex.Args.args",
+    "clap_bench.benches.complex.Args.fmt",
+    "clap_bench.benches.complex.Args.name",
+    "clap_bench.benches.complex.COMPLEX_ARGS"
+  ]
+}

@@ -119,4 +119,5 @@ markers = [
     "typescript_lang: marks tests for TypeScript language",
     "php_lang: marks tests for PHP language",
     "javascript_lang: marks tests for JavaScript language",
+    "rust_lang: marks tests for Rust language",
 ]
