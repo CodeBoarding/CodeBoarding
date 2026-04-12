@@ -66,8 +66,8 @@ jobs:
         id: set-branches
         run: |
           if [ "${{ github.event_name }}" = "push" ]; then
-            echo "source_branch=${{ github.ref_name }}" >> $GITHUB_OUTPUT
-            echo "target_branch=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+            echo "source_branch=main" >> $GITHUB_OUTPUT
+            echo "target_branch=main" >> $GITHUB_OUTPUT
             echo "repository_url=https://github.com/${{ github.repository }}" >> $GITHUB_OUTPUT
           elif [ "${{ github.event.inputs.source_branch }}" != "" ] && [ "${{ github.event.inputs.target_branch }}" != "" ]; then
             echo "source_branch=${{ github.event.inputs.source_branch }}" >> $GITHUB_OUTPUT
