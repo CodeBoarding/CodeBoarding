@@ -7,8 +7,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from static_analyzer.engine.adapters.csharp_adapter import CSharpAdapter
 from static_analyzer.constants import NodeType
+from static_analyzer.engine.adapters.csharp_adapter import CSharpAdapter
 
 
 class TestGetLspCommandDotnetCheck:
@@ -40,10 +40,15 @@ class TestGetLspCommandDotnetCheck:
                 return "/usr/local/bin/dotnet"
             return real_which(name)
 
-        with patch("static_analyzer.engine.adapters.csharp_adapter.shutil.which", side_effect=selective):
+        resolved = "/opt/codeboarding/pm-tools/csharp/csharp-ls"
+        lsp_servers = {"csharp": {"command": [resolved]}}
+
+        with (
+            patch("static_analyzer.engine.adapters.csharp_adapter.shutil.which", side_effect=selective),
+            patch("static_analyzer.engine.language_adapter.get_config", return_value=lsp_servers),
+        ):
             cmd = CSharpAdapter().get_lsp_command(tmp_path)
-        assert cmd
-        assert any("csharp-ls" in part for part in cmd)
+        assert cmd[0] == resolved
 
 
 class TestCSharpAdapterProperties:

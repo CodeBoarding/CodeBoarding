@@ -316,6 +316,10 @@ def install_package_manager_tools(
                 timeout=600,
             )
             if result.returncode != 0:
+                # A failed install can leave partial files that would
+                # make the next run skip install and report a
+                # stale binary as healthy.
+                shutil.rmtree(install_dir, ignore_errors=True)
                 logger.warning(
                     "  %s: %s install failed (exit %d): %s",
                     dep.binary_name,
@@ -325,6 +329,7 @@ def install_package_manager_tools(
                 )
                 continue
             if not binary_path.exists():
+                shutil.rmtree(install_dir, ignore_errors=True)
                 logger.warning(
                     "  %s: %s install reported success but %s is missing",
                     dep.binary_name,

@@ -186,9 +186,18 @@ def build_config() -> dict[str, Any]:
     return config
 
 
-def package_manager_tool_path(base_dir: Path, dep: ToolDependency) -> Path:
-    """Absolute path to a PACKAGE_MANAGER tool's installed binary."""
-    return package_manager_tool_dir(base_dir, dep) / f"{dep.binary_name}{exe_suffix()}"
+def package_manager_tool_path(base_dir: Path, dep: ToolDependency) -> Path | None:
+    """Absolute path to a PACKAGE_MANAGER tool's installed binary.
+
+    Returns ``None`` on hosts where ``platform_bin_dir`` has no layout —
+    the native installer path already skips unsupported OSes, so the
+    summary and config resolution need a matching signal rather than a
+    hard crash.
+    """
+    try:
+        return package_manager_tool_dir(base_dir, dep) / f"{dep.binary_name}{exe_suffix()}"
+    except RuntimeError:
+        return None
 
 
 def resolve_config(base_dir: Path) -> dict[str, Any]:
@@ -211,7 +220,7 @@ def resolve_config(base_dir: Path) -> dict[str, Any]:
 
         elif dep.kind is ToolKind.PACKAGE_MANAGER:
             binary_path = package_manager_tool_path(base_dir, dep)
-            if binary_path.exists():
+            if binary_path is not None and binary_path.exists():
                 cmd = cast(list[str], config[dep.config_section][dep.key]["command"])
                 cmd[0] = str(binary_path)
 
@@ -304,6 +313,9 @@ def has_required_tools(base_dir: Path) -> bool:
                 )
                 continue
             binary_path = package_manager_tool_path(base_dir, dep)
+            if binary_path is None:
+                logger.info("has_required_tools: %s unsupported on this host; skipping check", dep.key)
+                continue
             if not binary_path.exists():
                 logger.info("has_required_tools: %s missing at %s", dep.key, binary_path)
                 return False

@@ -501,6 +501,9 @@ def install_package_manager_lsp_servers(target_dir: Path, on_progress: ProgressC
     install_package_manager_tools(target_dir, pm_deps, on_progress=on_progress)
     for dep in pm_deps:
         binary_path = package_manager_tool_path(target_dir, dep)
+        if binary_path is None:
+            print(f"  {dep.binary_name}: not installed (unsupported platform)")
+            continue
         if binary_path.exists():
             print(f"  {dep.binary_name}: installed")
         else:
@@ -558,7 +561,13 @@ def _language_checks_from_registry(target_dir: Path) -> list[LanguageSupportChec
     ``typescript`` entry covers both TypeScript and JavaScript).
     """
     target_dir = target_dir.resolve()
-    platform_bin_dir = get_platform_bin_dir(target_dir)
+    # native/package-manager installers already warn-and-skip on unsupported
+    # hosts; the summary should mirror that instead of crashing when the host has
+    # no ``platform_bin_dir`` layout.
+    try:
+        platform_bin_dir: Path | None = get_platform_bin_dir(target_dir)
+    except RuntimeError:
+        platform_bin_dir = None
     is_win = platform.system() == "Windows"
     node_ext = ".cmd" if is_win else ""
     native_ext = ".exe" if is_win else ""
@@ -582,7 +591,11 @@ def _language_checks_from_registry(target_dir: Path) -> list[LanguageSupportChec
         reason_binary = f"{dep.binary_name} binary not found"
 
         if dep.kind is ToolKind.NATIVE:
-            paths.append(platform_bin_dir / f"{dep.binary_name}{native_ext}")
+            if platform_bin_dir is not None:
+                paths.append(platform_bin_dir / f"{dep.binary_name}{native_ext}")
+            else:
+                reason_requirement = f"{dep.binary_name} unavailable on this platform"
+                reason_binary = reason_requirement
         elif dep.kind is ToolKind.NODE:
             requires_npm = True
             reason_requirement = npm_missing
@@ -606,11 +619,16 @@ def _language_checks_from_registry(target_dir: Path) -> list[LanguageSupportChec
                 fallback_available = bool(find_java_21_or_later())
                 reason_binary = "jdtls or Java 21+ not found"
         elif dep.kind is ToolKind.PACKAGE_MANAGER:
-            paths.append(package_manager_tool_path(target_dir, dep))
+            pm_path = package_manager_tool_path(target_dir, dep)
+            if pm_path is not None:
+                paths.append(pm_path)
             manager = (
                 dep.source.manager_binary if isinstance(dep.source, PackageManagerToolSource) else "package manager"
             )
-            reason_requirement = f"{dep.binary_name} not installed ({manager} unavailable or install failed)"
+            if pm_path is None:
+                reason_requirement = f"{dep.binary_name} unavailable on this platform"
+            else:
+                reason_requirement = f"{dep.binary_name} not installed ({manager} unavailable or install failed)"
             reason_binary = reason_requirement
 
         for lang in languages:
