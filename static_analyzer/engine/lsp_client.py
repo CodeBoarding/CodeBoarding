@@ -249,6 +249,15 @@ class LSPClient:
             },
         )
 
+    def did_save(self, file_path: Path) -> None:
+        """Notify the server that a document was saved.
+
+        Triggers ``checkOnSave`` in servers like rust-analyzer that only
+        run ``cargo check`` on save events.
+        """
+        uri = file_path.resolve().as_uri()
+        self._send_notification("textDocument/didSave", {"textDocument": {"uri": uri}})
+
     def did_close(self, file_path: Path) -> None:
         """Notify the server that a document was closed."""
         uri = file_path.resolve().as_uri()
@@ -389,6 +398,11 @@ class LSPClient:
         if isinstance(result, list):
             return result
         return []
+
+    @property
+    def opened_uris(self) -> set[str]:
+        """URIs of documents currently open on the server."""
+        return set(self._opened_uris)
 
     # ---- Diagnostics collection ----
 

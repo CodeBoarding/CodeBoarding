@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import shutil
 from pathlib import Path
+from urllib.parse import unquote, urlparse
 
 from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.engine.language_adapter import LanguageAdapter
@@ -103,15 +104,20 @@ class RustAdapter(LanguageAdapter):
     def wait_for_diagnostics(self, client: LSPClient) -> None:
         """Wait for rust-analyzer to flush diagnostics.
 
-        Strategy: reset the ready signal and wait briefly for
-        ``quiescent=True`` (the precise fence). If no signal arrives
-        within 10s (e.g. rust-analyzer stayed quiescent for a tiny
-        project), fall back to debouncing on publishDiagnostics so we
-        don't block for the full 120s on a no-op.
+        ``checkOnSave`` only triggers ``cargo check`` on ``didSave``, not
+        ``didOpen``.  We send a single ``didSave`` for an already-open
+        file so the flycheck fires, then wait for the quiescent signal
+        (or fall back to debouncing).
         """
+        opened = client.opened_uris
+        if opened:
+            uri = next(iter(opened))
+            path = Path(unquote(urlparse(uri).path))
+            client.did_save(path)
+            logger.debug("Sent didSave for %s to trigger cargo check", path)
+
         client.reset_ready_signal()
-        if not client.wait_for_server_ready(timeout=10):
-            # No quiescent transition observed; debounce instead.
+        if not client.wait_for_server_ready(timeout=120):
             client.wait_for_diagnostics_quiesce(idle_seconds=3.0, max_wait=60.0)
 
     @property
@@ -145,7 +151,7 @@ class RustAdapter(LanguageAdapter):
         """Tune rust-analyzer for batch analysis: enable build scripts and
         proc macros (so generated code is indexed) and the full target graph.
 
-        ``checkOnSave`` runs ``cargo check`` after didOpen and is what
+        ``checkOnSave`` runs ``cargo check`` after ``didSave`` and is what
         surfaces ``unused_imports`` / ``unused_variables`` / ``dead_code``
         diagnostics — without it the unused-code health check sees nothing
         for Rust. The cost is one ``cargo check`` per analysis run; on
