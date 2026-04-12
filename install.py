@@ -11,6 +11,7 @@ from enum import StrEnum
 from pathlib import Path
 
 import requests
+from static_analyzer.java_utils import find_java_21_or_later
 from tool_registry import (
     PINNED_NODE_VERSION,
     TOOL_REGISTRY,
