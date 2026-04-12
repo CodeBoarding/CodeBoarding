@@ -578,7 +578,7 @@ def print_language_support_summary(npm_available: bool, target_dir: Path):
         LanguageSupportCheck(
             language="Java",
             paths=[java_path],
-            fallback_available=bool(shutil.which("java")),
+            fallback_available=bool(find_java_21_or_later()),
             reason_if_requirement_missing="jdtls installation not found",
             reason_if_binary_missing="jdtls or Java 21+ not found",
         ),
