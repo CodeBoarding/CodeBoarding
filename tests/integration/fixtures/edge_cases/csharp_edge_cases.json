@@ -76,10 +76,6 @@
     ],
     [
       "Program.Main(string[] args)",
-      "Models.Animal.Cat(string name, bool indoor)"
-    ],
-    [
-      "Program.Main(string[] args)",
       "Models.Animal.Cat.Cat(string name, bool indoor)"
     ],
     [
@@ -89,10 +85,6 @@
     [
       "Program.Main(string[] args)",
       "Models.Animal.Dog"
-    ],
-    [
-      "Program.Main(string[] args)",
-      "Models.Animal.Dog(string name, string breed)"
     ],
     [
       "Program.Main(string[] args)",
