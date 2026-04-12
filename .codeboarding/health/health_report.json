@@ -1,6 +1,6 @@
 {
   "repository_name": "CodeBoarding",
-  "timestamp": "2026-04-12T22:18:40.689719+00:00",
+  "timestamp": "2026-04-12T23:48:17.066886+00:00",
   "overall_score": 0.8981117230527144,
   "check_summaries": [
     {
@@ -316,14 +316,14 @@
       "description": "Detects circular dependencies between packages",
       "check_type": "circular_dependencies",
       "cycles": [
-        "health -> health.checks -> health",
-        "agents.tools -> agents -> agents.tools",
-        "agents.tools -> static_analyzer -> agents -> agents.tools",
+        "health.checks -> health -> health.checks",
         "static_analyzer.engine -> static_analyzer -> static_analyzer.engine",
         "static_analyzer.engine -> static_analyzer -> static_analyzer.engine.adapters -> static_analyzer.engine",
-        "static_analyzer -> agents -> static_analyzer",
-        "static_analyzer -> static_analyzer.engine.adapters -> static_analyzer",
-        "agents -> caching -> agents"
+        "agents -> agents.tools -> agents",
+        "agents -> agents.tools -> static_analyzer -> agents",
+        "agents -> caching -> agents",
+        "agents -> static_analyzer -> agents",
+        "static_analyzer.engine.adapters -> static_analyzer -> static_analyzer.engine.adapters"
       ],
       "packages_checked": 26,
       "packages_in_cycles": 8
