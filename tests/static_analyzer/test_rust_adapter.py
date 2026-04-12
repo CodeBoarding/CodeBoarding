@@ -128,11 +128,6 @@ class TestWaitForDiagnostics:
         events: list = []
 
         class FakeClient:
-            opened_uris: set[str] = set()
-
-            def did_save(self, file_path):
-                events.append("save")
-
             def reset_ready_signal(self):
                 events.append("reset")
 
@@ -155,11 +150,6 @@ class TestWaitForDiagnostics:
         events: list = []
 
         class FakeClient:
-            opened_uris: set[str] = set()
-
-            def did_save(self, file_path):
-                events.append("save")
-
             def reset_ready_signal(self):
                 events.append("reset")
 
