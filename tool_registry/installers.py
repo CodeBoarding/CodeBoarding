@@ -341,8 +341,10 @@ def install_package_manager_tools(
                 os.chmod(binary_path, 0o755)
             logger.info("  %s: installed via %s", dep.binary_name, source.manager_binary)
         except subprocess.TimeoutExpired:
+            shutil.rmtree(install_dir, ignore_errors=True)
             logger.warning("  %s: %s install timed out after 600s", dep.binary_name, source.manager_binary)
         except OSError:
+            shutil.rmtree(install_dir, ignore_errors=True)
             logger.exception("  %s: %s install could not be invoked", dep.binary_name, source.manager_binary)
 
 
