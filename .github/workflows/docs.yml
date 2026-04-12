@@ -36,6 +36,7 @@ on:
     branches:
       - master
       - main
+      - fix-action-request
 
 jobs:
   update-docs:
@@ -122,7 +123,7 @@ jobs:
 
       - name: Run CodeBoarding analysis
         working-directory: codeboarding-engine
-        timeout-minutes: 30
+        timeout-minutes: 60
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
