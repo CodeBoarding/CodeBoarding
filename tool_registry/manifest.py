@@ -19,6 +19,7 @@ else:
 
 from vscode_constants import VSCODE_CONFIG, find_runnable
 
+from .installers import package_manager_tool_dir
 from .paths import exe_suffix, get_servers_dir, platform_bin_dir, preferred_node_path
 from .registry import (
     PINNED_NODE_VERSION,
@@ -83,7 +84,10 @@ def tools_fingerprint() -> str:
             elif isinstance(dep.source, UpstreamToolSource):
                 parts.append(f"{dep.key}::{dep.source.tag}-{dep.source.build}")
             elif isinstance(dep.source, PackageManagerToolSource):
-                parts.append(f"{dep.key}:{dep.source.manager_binary}:{dep.source.tag}")
+                # ``install_args`` is included: flag changes (pinned version, channel) must invalidate the manifest.
+                parts.append(
+                    f"{dep.key}:{dep.source.manager_binary}:{dep.source.tag}:{'|'.join(dep.source.install_args)}"
+                )
     return ",".join(sorted(parts))
 
 
@@ -183,12 +187,8 @@ def build_config() -> dict[str, Any]:
 
 
 def package_manager_tool_path(base_dir: Path, dep: ToolDependency) -> Path:
-    """Absolute path to a PACKAGE_MANAGER tool's installed binary.
-
-    Kept in sync with ``installers.package_manager_tool_dir``.
-    """
-    subdir = dep.archive_subdir or dep.key
-    return platform_bin_dir(base_dir) / "pm-tools" / subdir / f"{dep.binary_name}{exe_suffix()}"
+    """Absolute path to a PACKAGE_MANAGER tool's installed binary."""
+    return package_manager_tool_dir(base_dir, dep) / f"{dep.binary_name}{exe_suffix()}"
 
 
 def resolve_config(base_dir: Path) -> dict[str, Any]:

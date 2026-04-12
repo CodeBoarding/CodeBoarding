@@ -35,16 +35,11 @@ class CSharpAdapter(LanguageAdapter):
         return "csharp"
 
     def get_lsp_command(self, project_root: Path) -> list[str]:
-        """Fail fast if the .NET SDK is missing.
-
-        csharp-ls is a ``dotnet tool`` and needs the .NET runtime + MSBuild
-        to load the Roslyn workspace. We mirror Rust's pattern of requiring
-        a user-installed toolchain rather than bundling a ~200MB runtime.
-        """
+        """Fail fast if the .NET SDK is missing — csharp-ls needs dotnet+MSBuild to load Roslyn."""
         if shutil.which("dotnet") is None:
             raise RuntimeError(
                 ".NET SDK not found on PATH. csharp-ls requires the .NET SDK "
-                "(9.0 or later) to index C# projects. Install it from "
+                "to index C# projects. Install it from "
                 "https://dotnet.microsoft.com/download and re-run the analysis."
             )
         return super().get_lsp_command(project_root)

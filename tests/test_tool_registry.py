@@ -1552,7 +1552,7 @@ class TestInstallPackageManagerTools(unittest.TestCase):
             source=PackageManagerToolSource(
                 tag="0.20.0",
                 manager_binary="dotnet",
-                install_args=("tool", "install", "csharp-ls", "--tool-path", "{tool_path}"),
+                install_args=("tool", "install", "csharp-ls", "--version", "{tag}", "--tool-path", "{tool_path}"),
             ),
             archive_subdir="csharp-ls",
         )
@@ -1593,9 +1593,11 @@ class TestInstallPackageManagerTools(unittest.TestCase):
             self.assertEqual(mock_run.call_count, 1)
             invoked_cmd = mock_run.call_args.args[0]
             self.assertEqual(invoked_cmd[0], "dotnet")
-            # --tool-path placeholder must be substituted with the real install dir.
+            # Placeholders must be substituted: {tool_path} -> install dir, {tag} -> source.tag.
             self.assertIn(str(install_dir), invoked_cmd)
+            self.assertIn("0.20.0", invoked_cmd)
             self.assertNotIn("{tool_path}", invoked_cmd)
+            self.assertNotIn("{tag}", invoked_cmd)
             self.assertTrue(binary_path.exists())
 
     def test_idempotent_when_binary_already_present(self):

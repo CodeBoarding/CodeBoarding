@@ -13,7 +13,7 @@ import subprocess
 import tarfile
 import zipfile
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import requests
 
@@ -280,25 +280,33 @@ def install_package_manager_tools(
     analysis time (mirrors the ``install_node_tools`` npm-missing path).
     """
     pm_deps = [d for d in deps if isinstance(d.source, PackageManagerToolSource)]
+    try:
+        pm_root = platform_bin_dir(target_dir) / "pm-tools"
+    except RuntimeError:
+        logger.warning(
+            "Unsupported platform %s/%s; skipping package-manager tool installation.",
+            platform.system(),
+            platform.machine(),
+        )
+        return
     for i, dep in enumerate(pm_deps, 1):
         if on_progress:
             on_progress(dep.binary_name, i, len(pm_deps))
-        source = dep.source
-        assert isinstance(source, PackageManagerToolSource)
+        source = cast(PackageManagerToolSource, dep.source)
         if not shutil.which(source.manager_binary):
             logger.warning(
-                "  %s: %s not found on PATH; skipping install. " "Users must install it before running analysis.",
+                "  %s: %s not found on PATH; skipping install. Users must install it before running analysis.",
                 dep.binary_name,
                 source.manager_binary,
             )
             continue
-        install_dir = package_manager_tool_dir(target_dir, dep)
+        install_dir = pm_root / (dep.archive_subdir or dep.key)
         binary_path = install_dir / f"{dep.binary_name}{exe_suffix()}"
         if binary_path.exists():
             logger.info("  %s: already installed, skipping", dep.binary_name)
             continue
         install_dir.mkdir(parents=True, exist_ok=True)
-        args = [arg.format(tool_path=str(install_dir)) for arg in source.install_args]
+        args = [arg.format(tool_path=str(install_dir), tag=source.tag) for arg in source.install_args]
         try:
             result = subprocess.run(
                 [source.manager_binary, *args],

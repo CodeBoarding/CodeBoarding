@@ -113,20 +113,13 @@ class UpstreamToolSource(ToolSource):
 
 @dataclass(frozen=True)
 class PackageManagerToolSource(ToolSource):
-    """Tool installed by invoking a user-provided package manager.
+    """Tool installed by invoking a user-provided package manager (e.g. ``dotnet tool install``).
 
-    Why: some LSPs (e.g. csharp-ls) are distributed only through a
-    language package manager (``dotnet tool``, ``cargo install``) and
-    ship no standalone binaries. We run the package manager at setup
-    time into a CodeBoarding-owned directory so the install is
-    self-contained and version-pinned. ``manager_binary`` absence at
-    install time is a non-fatal skip (mirrors ``install_node_tools``
-    when npm is missing); the LSP adapter surfaces the meaningful
-    error at analysis time (mirrors ``RustAdapter``).
+    Why: some LSPs ship only as language-package-manager packages, not as standalone binaries.
     """
 
     manager_binary: str = ""  # e.g. "dotnet"
-    # Placeholder ``{tool_path}`` in any arg is substituted with the managed install dir.
+    # Placeholders substituted at install time: ``{tool_path}`` -> managed install dir; ``{tag}`` -> source.tag.
     install_args: tuple[str, ...] = ()
 
 
@@ -219,11 +212,10 @@ TOOL_REGISTRY: list[ToolDependency] = [
         js_entry_file="intelephense.js",
         js_entry_parent="intelephense",
     ),
-    # csharp-ls ships no prebuilt binaries (upstream release assets are
-    # empty), only a NuGet dotnet-tool package. We install it via
-    # ``dotnet tool install --tool-path <managed-dir>`` at setup time.
-    # The .NET SDK is a user prerequisite — CSharpAdapter raises a
-    # meaningful error when ``dotnet`` is missing at analysis time.
+    # csharp-ls ships only as a NuGet dotnet-tool; installed via ``dotnet tool install``.
+    # Pinned 0.20.0: 0.21.0+ has a malformed NuGet upstream.
+    # ``--framework net9.0`` is required — 0.20.0 ships only a net9.0 target, and without
+    # the flag ``--tool-path`` emits a misleading "DotnetToolSettings.xml not found" error.
     ToolDependency(
         key="csharp",
         binary_name="csharp-ls",
@@ -237,7 +229,9 @@ TOOL_REGISTRY: list[ToolDependency] = [
                 "install",
                 "csharp-ls",
                 "--version",
-                "0.20.0",
+                "{tag}",
+                "--framework",
+                "net9.0",
                 "--tool-path",
                 "{tool_path}",
             ),
