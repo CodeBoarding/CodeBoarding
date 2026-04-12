@@ -430,7 +430,7 @@ class LSPClient:
 
     # ---- JDTLS server-ready wait ----
 
-    def wait_for_server_ready(self, timeout: int = 300) -> None:
+    def wait_for_server_ready(self, timeout: int = 300) -> bool:
         """Wait for the LSP server to signal readiness (e.g., JDTLS project import).
 
         Blocks until a language/status notification with type 'ServiceReady' or
@@ -438,17 +438,22 @@ class LSPClient:
 
         Args:
             timeout: Maximum time to wait in seconds (default: 5 minutes)
+
+        Returns:
+            ``True`` if the server signalled readiness, ``False`` on timeout
+            or if initialization had already failed.
         """
         if self._init_failed:
             logger.warning(
                 "Skipping ready-wait: LSP initialize errored. Subsequent requests will return empty results."
             )
-            return
+            return False
         logger.info("Waiting for LSP server to be ready...")
         if self._server_ready.wait(timeout=timeout):
             logger.info("Server ready")
-        else:
-            logger.warning("Server ready timeout after %ds. Proceeding with analysis anyway.", timeout)
+            return True
+        logger.warning("Server ready timeout after %ds. Proceeding with analysis anyway.", timeout)
+        return False
 
     def reset_ready_signal(self) -> None:
         """Clear the server-ready flag so the next ``wait_for_server_ready``

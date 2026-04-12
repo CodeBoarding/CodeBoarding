@@ -110,7 +110,7 @@ class RustAdapter(LanguageAdapter):
         don't block for the full 120s on a no-op.
         """
         client.reset_ready_signal()
-        if not client._server_ready.wait(timeout=10):
+        if not client.wait_for_server_ready(timeout=10):
             # No quiescent transition observed; debounce instead.
             client.wait_for_diagnostics_quiesce(idle_seconds=3.0, max_wait=60.0)
 
