@@ -346,6 +346,17 @@ def _sync_component_methods(
             component.component_id.startswith(primary_id + ".") and component.component_id in parent_ids
         )
 
+        # A component that owned every pre-existing method in the file is a
+        # superset owner (e.g. a root component whose children partition its
+        # methods).  It must absorb new methods so it stays a superset.
+        if not should_absorb and delta.added_methods:
+            file_entry = files.get(file_path)
+            if file_entry is not None:
+                added_qnames = {m.qualified_name for m in delta.added_methods}
+                pre_existing = {m.qualified_name for m in file_entry.methods} - added_qnames
+                if pre_existing and pre_existing <= owned_qnames:
+                    should_absorb = True
+
         if should_absorb:
             for method in delta.added_methods:
                 owned_qnames.add(method.qualified_name)
@@ -374,7 +385,7 @@ def apply_delta(
 
     files = dict(root.files)
     component_lookup = _component_lookup(root, sub_analyses)
-    parent_ids = {c.component_id for sub in sub_analyses.values() for c in sub.components}
+    parent_ids = set(sub_analyses.keys())
 
     deltas_by_path: dict[str, FileDelta] = {}
     for file_delta in delta.file_deltas:

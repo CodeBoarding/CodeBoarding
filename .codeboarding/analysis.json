@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "generated_at": "2026-04-12T02:14:00.704333+00:00",
+    "generated_at": "2026-04-12T03:22:37.607522+00:00",
     "commit_hash": "",
     "repo_name": "CodeBoarding",
     "depth_level": 3,
@@ -1504,6 +1504,13 @@
           "status": "unchanged"
         },
         {
+          "qualified_name": "install.ensure_node_runtime",
+          "start_line": 155,
+          "end_line": 208,
+          "node_type": "FUNCTION",
+          "status": "added"
+        },
+        {
           "qualified_name": "install.resolve_npm_availability",
           "start_line": 181,
           "end_line": 188,
@@ -1571,7 +1578,7 @@
           "start_line": 416,
           "end_line": 420,
           "node_type": "FUNCTION",
-          "status": "added"
+          "status": "deleted"
         },
         {
           "qualified_name": "install.download_jdtls",
@@ -1585,7 +1592,7 @@
           "start_line": 423,
           "end_line": 444,
           "node_type": "FUNCTION",
-          "status": "added"
+          "status": "deleted"
         },
         {
           "qualified_name": "install.install_pre_commit_hooks",
@@ -1599,7 +1606,14 @@
           "start_line": 447,
           "end_line": 525,
           "node_type": "FUNCTION",
-          "status": "added"
+          "status": "deleted"
+        },
+        {
+          "qualified_name": "install.print_language_support_summary",
+          "start_line": 523,
+          "end_line": 591,
+          "node_type": "FUNCTION",
+          "status": "modified"
         },
         {
           "qualified_name": "install.ensure_tools",
@@ -1607,13 +1621,6 @@
           "end_line": 564,
           "node_type": "FUNCTION",
           "status": "unchanged"
-        },
-        {
-          "qualified_name": "install.print_language_support_summary",
-          "start_line": 577,
-          "end_line": 646,
-          "node_type": "FUNCTION",
-          "status": "modified"
         },
         {
           "qualified_name": "install.run_install.unified_progress",
@@ -1631,8 +1638,8 @@
         },
         {
           "qualified_name": "install.run_install",
-          "start_line": 681,
-          "end_line": 724,
+          "start_line": 630,
+          "end_line": 675,
           "node_type": "FUNCTION",
           "status": "modified"
         }
@@ -5890,12 +5897,12 @@
           "start_line": 95,
           "end_line": 97,
           "node_type": "FUNCTION",
-          "status": "added"
+          "status": "deleted"
         },
         {
           "qualified_name": "static_analyzer.java_utils.find_java_21_or_later",
-          "start_line": 100,
-          "end_line": 139,
+          "start_line": 95,
+          "end_line": 137,
           "node_type": "FUNCTION",
           "status": "modified"
         },
@@ -9118,6 +9125,319 @@
           "status": "unchanged"
         }
       ]
+    },
+    "tests/static_analyzer/test_java_utils.py": {
+      "file_status": "unchanged",
+      "methods": [
+        {
+          "qualified_name": "tests.static_analyzer.test_java_utils.TestGetJavaVersion",
+          "start_line": 22,
+          "end_line": 101,
+          "node_type": "CLASS",
+          "status": "unchanged"
+        },
+        {
+          "qualified_name": "tests.static_analyzer.test_java_utils.TestGetJavaVersion.test_get_java_version_modern",
+          "start_line": 26,
+          "end_line": 35,
+          "node_type": "METHOD",
+          "status": "unchanged"
+        },
+        {
+          "qualified_name": "tests.static_analyzer.test_java_utils.TestGetJavaVersion.test_get_java_version_legacy",
+          "start_line": 38,
+          "end_line": 47,
+          "node_type": "METHOD",
+          "status": "unchanged"
+        },
+        {
+          "qualified_name": "tests.static_analyzer.test_java_utils.TestGetJavaVersion.test_get_java_version_java_17",
+          "start_line": 50,
+          "end_line": 59,
+          "node_type": "METHOD",
+          "status": "unchanged"
+        },
+        {
+          "qualified_name": "tests.static_analyzer.test_java_utils.TestGetJavaVersion.test_get_java_version_not_found",
+          "start_line": 62,
+          "end_line": 67,
+          "node_type": "METHOD",
+          "status": "unchanged"
+        },
+        {
+          "qualified_name": "tests.static_analyzer.test_java_utils.TestGetJavaVersion.test_get_java_version_timeout",
+          "start_line": 70,
+          "end_line": 75,
+          "node_type": "METHOD",
+          "status": "unchanged"
+        },
+        {
+          "qualified_name": "tests.static_analyzer.test_java_utils.TestGetJavaVersion.test_get_java_version_no_match",
+          "start_line": 78,
+          "end_line": 87,
+          "node_type": "METHOD",
+          "status": "unchanged"
+        },
+        {
+          "qualified_name": "tests.static_analyzer.test_java_utils.TestGetJavaVersion.test_get_java_version_custom_command",
+          "start_line": 90,
+          "end_line": 101,
+          "node_type": "METHOD",
+          "status": "unchanged"
+        },
+        {
+          "qualified_name": "tests.static_analyzer.test_java_utils.TestDetectJavaInstallations",
+          "start_line": 104,
+          "end_line": 227,
+          "node_type": "CLASS",
+          "status": "unchanged"
+        },
+        {
+          "qualified_name": "tests.static_analyzer.test_java_utils.TestDetectJavaInstallations.test_detect_from_java_home",
+          "start_line": 111,
+          "end_line": 120,
+          "node_type": "METHOD",
+          "status": "unchanged"
+        },
+        {
+          "qualified_name": "tests.static_analyzer.test_java_utils.TestDetectJavaInstallations.test_detect_on_macos",
+          "start_line": 127,
+          "end_line": 141,
+          "node_type": "METHOD",
+          "status": "unchanged"
+        },
+        {
+          "qualified_name": "tests.static_analyzer.test_java_utils.TestDetectJavaInstallations.test_detect_on_linux",
+          "start_line": 148,
+          "end_line": 165,
+          "node_type": "METHOD",
+          "status": "unchanged"
+        },
+        {
+          "qualified_name": "tests.static_analyzer.test_java_utils.TestDetectJavaInstallations.test_detect_on_linux.glob_side_effect",
+          "start_line": 155,
+          "end_line": 158,
+          "node_type": "FUNCTION",
+          "status": "unchanged"
+        },
+        {
+          "qualified_name": "tests.static_analyzer.test_java_utils.TestDetectJavaInstallations.test_detect_no_installations",
+          "start_line": 171,
+          "end_line": 179,
+          "node_type": "METHOD",
+          "status": "unchanged"
+        },
+        {
+          "qualified_name": "tests.static_analyzer.test_java_utils.TestDetectJavaInstallations.test_detect_validates_java_executable",
+          "start_line": 182,
+          "end_line": 227,
+          "node_type": "METHOD",
+          "status": "unchanged"
+        },
+        {
+          "qualified_name": "tests.static_analyzer.test_java_utils.TestDetectJavaInstallations.test_detect_validates_java_executable.glob_side_effect",
+          "start_line": 199,
+          "end_line": 202,
+          "node_type": "FUNCTION",
+          "status": "unchanged"
+        },
+        {
+          "qualified_name": "tests.static_analyzer.test_java_utils.TestDetectJavaInstallations.test_detect_validates_java_executable.exists_wrapper",
+          "start_line": 209,
+          "end_line": 212,
+          "node_type": "FUNCTION",
+          "status": "unchanged"
+        },
+        {
+          "qualified_name": "tests.static_analyzer.test_java_utils.TestFindJava21OrLater",
+          "start_line": 230,
+          "end_line": 351,
+          "node_type": "CLASS",
+          "status": "unchanged"
+        },
+        {
+          "qualified_name": "tests.static_analyzer.test_java_utils.TestFindJava21OrLater.test_find_java_21_from_installations",
+          "start_line": 236,
+          "end_line": 246,
+          "node_type": "METHOD",
+          "status": "unchanged"
+        },
+        {
+          "qualified_name": "tests.static_analyzer.test_java_utils.TestFindJava21OrLater.test_find_java_23_from_installations",
+          "start_line": 251,
+          "end_line": 258,
+          "node_type": "METHOD",
+          "status": "unchanged"
+        },
+        {
+          "qualified_name": "tests.static_analyzer.test_java_utils.TestFindJava21OrLater.test_find_java_only_old_versions",
+          "start_line": 263,
+          "end_line": 273,
+          "node_type": "METHOD",
+          "status": "unchanged"
+        },
+        {
+          "qualified_name": "tests.static_analyzer.test_java_utils.TestFindJava21OrLater.test_find_java_from_system",
+          "start_line": 279,
+          "end_line": 289,
+          "node_type": "METHOD",
+          "status": "unchanged"
+        },
+        {
+          "qualified_name": "tests.static_analyzer.test_java_utils.TestFindJava21OrLater.test_find_java_none_available",
+          "start_line": 294,
+          "end_line": 301,
+          "node_type": "METHOD",
+          "status": "unchanged"
+        },
+        {
+          "qualified_name": "tests.static_analyzer.test_java_utils.TestFindJava21OrLater.test_java_home_wins_over_newer_jdk_on_disk",
+          "start_line": 303,
+          "end_line": 316,
+          "node_type": "METHOD",
+          "status": "unchanged"
+        },
+        {
+          "qualified_name": "tests.static_analyzer.test_java_utils.TestFindJava21OrLater.test_java_home_too_old_falls_through_to_scan",
+          "start_line": 318,
+          "end_line": 337,
+          "node_type": "METHOD",
+          "status": "unchanged"
+        },
+        {
+          "qualified_name": "tests.static_analyzer.test_java_utils.TestFindJava21OrLater.test_java_home_unset_uses_scan",
+          "start_line": 339,
+          "end_line": 351,
+          "node_type": "METHOD",
+          "status": "unchanged"
+        },
+        {
+          "qualified_name": "tests.static_analyzer.test_java_utils.TestGetJdtlsConfigDir",
+          "start_line": 354,
+          "end_line": 396,
+          "node_type": "CLASS",
+          "status": "unchanged"
+        },
+        {
+          "qualified_name": "tests.static_analyzer.test_java_utils.TestGetJdtlsConfigDir.test_get_config_dir_linux",
+          "start_line": 358,
+          "end_line": 365,
+          "node_type": "METHOD",
+          "status": "unchanged"
+        },
+        {
+          "qualified_name": "tests.static_analyzer.test_java_utils.TestGetJdtlsConfigDir.test_get_config_dir_macos",
+          "start_line": 368,
+          "end_line": 375,
+          "node_type": "METHOD",
+          "status": "unchanged"
+        },
+        {
+          "qualified_name": "tests.static_analyzer.test_java_utils.TestGetJdtlsConfigDir.test_get_config_dir_windows",
+          "start_line": 378,
+          "end_line": 385,
+          "node_type": "METHOD",
+          "status": "unchanged"
+        },
+        {
+          "qualified_name": "tests.static_analyzer.test_java_utils.TestGetJdtlsConfigDir.test_get_config_dir_unsupported",
+          "start_line": 388,
+          "end_line": 396,
+          "node_type": "METHOD",
+          "status": "unchanged"
+        },
+        {
+          "qualified_name": "tests.static_analyzer.test_java_utils.TestFindLauncherJar",
+          "start_line": 399,
+          "end_line": 452,
+          "node_type": "CLASS",
+          "status": "unchanged"
+        },
+        {
+          "qualified_name": "tests.static_analyzer.test_java_utils.TestFindLauncherJar.test_find_launcher_jar_success",
+          "start_line": 404,
+          "end_line": 413,
+          "node_type": "METHOD",
+          "status": "unchanged"
+        },
+        {
+          "qualified_name": "tests.static_analyzer.test_java_utils.TestFindLauncherJar.test_find_launcher_jar_no_plugins_dir",
+          "start_line": 416,
+          "end_line": 423,
+          "node_type": "METHOD",
+          "status": "unchanged"
+        },
+        {
+          "qualified_name": "tests.static_analyzer.test_java_utils.TestFindLauncherJar.test_find_launcher_jar_not_found",
+          "start_line": 427,
+          "end_line": 435,
+          "node_type": "METHOD",
+          "status": "unchanged"
+        },
+        {
+          "qualified_name": "tests.static_analyzer.test_java_utils.TestFindLauncherJar.test_find_launcher_jar_multiple_versions",
+          "start_line": 439,
+          "end_line": 452,
+          "node_type": "METHOD",
+          "status": "unchanged"
+        },
+        {
+          "qualified_name": "tests.static_analyzer.test_java_utils.TestCreateJdtlsCommand",
+          "start_line": 455,
+          "end_line": 594,
+          "node_type": "CLASS",
+          "status": "unchanged"
+        },
+        {
+          "qualified_name": "tests.static_analyzer.test_java_utils.TestCreateJdtlsCommand.test_create_command_success",
+          "start_line": 463,
+          "end_line": 482,
+          "node_type": "METHOD",
+          "status": "unchanged"
+        },
+        {
+          "qualified_name": "tests.static_analyzer.test_java_utils.TestCreateJdtlsCommand.test_create_command_custom_heap_size",
+          "start_line": 489,
+          "end_line": 503,
+          "node_type": "METHOD",
+          "status": "unchanged"
+        },
+        {
+          "qualified_name": "tests.static_analyzer.test_java_utils.TestCreateJdtlsCommand.test_create_command_custom_java_home",
+          "start_line": 510,
+          "end_line": 526,
+          "node_type": "METHOD",
+          "status": "unchanged"
+        },
+        {
+          "qualified_name": "tests.static_analyzer.test_java_utils.TestCreateJdtlsCommand.test_create_command_no_java",
+          "start_line": 529,
+          "end_line": 539,
+          "node_type": "METHOD",
+          "status": "unchanged"
+        },
+        {
+          "qualified_name": "tests.static_analyzer.test_java_utils.TestCreateJdtlsCommand.test_create_command_no_launcher",
+          "start_line": 543,
+          "end_line": 554,
+          "node_type": "METHOD",
+          "status": "unchanged"
+        },
+        {
+          "qualified_name": "tests.static_analyzer.test_java_utils.TestCreateJdtlsCommand.test_create_command_no_config_dir",
+          "start_line": 560,
+          "end_line": 573,
+          "node_type": "METHOD",
+          "status": "unchanged"
+        },
+        {
+          "qualified_name": "tests.static_analyzer.test_java_utils.TestCreateJdtlsCommand.test_create_command_windows",
+          "start_line": 580,
+          "end_line": 594,
+          "node_type": "METHOD",
+          "status": "unchanged"
+        }
+      ]
     }
   },
   "methods_index": {
@@ -10673,6 +10993,14 @@
       "type": "FUNCTION",
       "status": "unchanged"
     },
+    "install.py|install.ensure_node_runtime": {
+      "file_path": "install.py",
+      "qualified_name": "install.ensure_node_runtime",
+      "start_line": 155,
+      "end_line": 208,
+      "type": "FUNCTION",
+      "status": "added"
+    },
     "install.py|install.resolve_npm_availability": {
       "file_path": "install.py",
       "qualified_name": "install.resolve_npm_availability",
@@ -10751,7 +11079,7 @@
       "start_line": 416,
       "end_line": 420,
       "type": "FUNCTION",
-      "status": "added"
+      "status": "deleted"
     },
     "install.py|install.download_jdtls": {
       "file_path": "install.py",
@@ -10767,7 +11095,7 @@
       "start_line": 423,
       "end_line": 444,
       "type": "FUNCTION",
-      "status": "added"
+      "status": "deleted"
     },
     "install.py|install.install_pre_commit_hooks": {
       "file_path": "install.py",
@@ -10783,7 +11111,15 @@
       "start_line": 447,
       "end_line": 525,
       "type": "FUNCTION",
-      "status": "added"
+      "status": "deleted"
+    },
+    "install.py|install.print_language_support_summary": {
+      "file_path": "install.py",
+      "qualified_name": "install.print_language_support_summary",
+      "start_line": 523,
+      "end_line": 591,
+      "type": "FUNCTION",
+      "status": "modified"
     },
     "install.py|install.ensure_tools": {
       "file_path": "install.py",
@@ -10792,14 +11128,6 @@
       "end_line": 564,
       "type": "FUNCTION",
       "status": "unchanged"
-    },
-    "install.py|install.print_language_support_summary": {
-      "file_path": "install.py",
-      "qualified_name": "install.print_language_support_summary",
-      "start_line": 577,
-      "end_line": 646,
-      "type": "FUNCTION",
-      "status": "modified"
     },
     "install.py|install.run_install.unified_progress": {
       "file_path": "install.py",
@@ -10820,8 +11148,8 @@
     "install.py|install.run_install": {
       "file_path": "install.py",
       "qualified_name": "install.run_install",
-      "start_line": 681,
-      "end_line": 724,
+      "start_line": 630,
+      "end_line": 675,
       "type": "FUNCTION",
       "status": "modified"
     },
@@ -15407,13 +15735,13 @@
       "start_line": 95,
       "end_line": 97,
       "type": "FUNCTION",
-      "status": "added"
+      "status": "deleted"
     },
     "static_analyzer/java_utils.py|static_analyzer.java_utils.find_java_21_or_later": {
       "file_path": "static_analyzer/java_utils.py",
       "qualified_name": "static_analyzer.java_utils.find_java_21_or_later",
-      "start_line": 100,
-      "end_line": 139,
+      "start_line": 95,
+      "end_line": 137,
       "type": "FUNCTION",
       "status": "modified"
     },
@@ -18808,6 +19136,358 @@
       "end_line": 46,
       "type": "METHOD",
       "status": "unchanged"
+    },
+    "tests/static_analyzer/test_java_utils.py|tests.static_analyzer.test_java_utils.TestGetJavaVersion": {
+      "file_path": "tests/static_analyzer/test_java_utils.py",
+      "qualified_name": "tests.static_analyzer.test_java_utils.TestGetJavaVersion",
+      "start_line": 22,
+      "end_line": 101,
+      "type": "CLASS",
+      "status": "unchanged"
+    },
+    "tests/static_analyzer/test_java_utils.py|tests.static_analyzer.test_java_utils.TestGetJavaVersion.test_get_java_version_modern": {
+      "file_path": "tests/static_analyzer/test_java_utils.py",
+      "qualified_name": "tests.static_analyzer.test_java_utils.TestGetJavaVersion.test_get_java_version_modern",
+      "start_line": 26,
+      "end_line": 35,
+      "type": "METHOD",
+      "status": "unchanged"
+    },
+    "tests/static_analyzer/test_java_utils.py|tests.static_analyzer.test_java_utils.TestGetJavaVersion.test_get_java_version_legacy": {
+      "file_path": "tests/static_analyzer/test_java_utils.py",
+      "qualified_name": "tests.static_analyzer.test_java_utils.TestGetJavaVersion.test_get_java_version_legacy",
+      "start_line": 38,
+      "end_line": 47,
+      "type": "METHOD",
+      "status": "unchanged"
+    },
+    "tests/static_analyzer/test_java_utils.py|tests.static_analyzer.test_java_utils.TestGetJavaVersion.test_get_java_version_java_17": {
+      "file_path": "tests/static_analyzer/test_java_utils.py",
+      "qualified_name": "tests.static_analyzer.test_java_utils.TestGetJavaVersion.test_get_java_version_java_17",
+      "start_line": 50,
+      "end_line": 59,
+      "type": "METHOD",
+      "status": "unchanged"
+    },
+    "tests/static_analyzer/test_java_utils.py|tests.static_analyzer.test_java_utils.TestGetJavaVersion.test_get_java_version_not_found": {
+      "file_path": "tests/static_analyzer/test_java_utils.py",
+      "qualified_name": "tests.static_analyzer.test_java_utils.TestGetJavaVersion.test_get_java_version_not_found",
+      "start_line": 62,
+      "end_line": 67,
+      "type": "METHOD",
+      "status": "unchanged"
+    },
+    "tests/static_analyzer/test_java_utils.py|tests.static_analyzer.test_java_utils.TestGetJavaVersion.test_get_java_version_timeout": {
+      "file_path": "tests/static_analyzer/test_java_utils.py",
+      "qualified_name": "tests.static_analyzer.test_java_utils.TestGetJavaVersion.test_get_java_version_timeout",
+      "start_line": 70,
+      "end_line": 75,
+      "type": "METHOD",
+      "status": "unchanged"
+    },
+    "tests/static_analyzer/test_java_utils.py|tests.static_analyzer.test_java_utils.TestGetJavaVersion.test_get_java_version_no_match": {
+      "file_path": "tests/static_analyzer/test_java_utils.py",
+      "qualified_name": "tests.static_analyzer.test_java_utils.TestGetJavaVersion.test_get_java_version_no_match",
+      "start_line": 78,
+      "end_line": 87,
+      "type": "METHOD",
+      "status": "unchanged"
+    },
+    "tests/static_analyzer/test_java_utils.py|tests.static_analyzer.test_java_utils.TestGetJavaVersion.test_get_java_version_custom_command": {
+      "file_path": "tests/static_analyzer/test_java_utils.py",
+      "qualified_name": "tests.static_analyzer.test_java_utils.TestGetJavaVersion.test_get_java_version_custom_command",
+      "start_line": 90,
+      "end_line": 101,
+      "type": "METHOD",
+      "status": "unchanged"
+    },
+    "tests/static_analyzer/test_java_utils.py|tests.static_analyzer.test_java_utils.TestDetectJavaInstallations": {
+      "file_path": "tests/static_analyzer/test_java_utils.py",
+      "qualified_name": "tests.static_analyzer.test_java_utils.TestDetectJavaInstallations",
+      "start_line": 104,
+      "end_line": 227,
+      "type": "CLASS",
+      "status": "unchanged"
+    },
+    "tests/static_analyzer/test_java_utils.py|tests.static_analyzer.test_java_utils.TestDetectJavaInstallations.test_detect_from_java_home": {
+      "file_path": "tests/static_analyzer/test_java_utils.py",
+      "qualified_name": "tests.static_analyzer.test_java_utils.TestDetectJavaInstallations.test_detect_from_java_home",
+      "start_line": 111,
+      "end_line": 120,
+      "type": "METHOD",
+      "status": "unchanged"
+    },
+    "tests/static_analyzer/test_java_utils.py|tests.static_analyzer.test_java_utils.TestDetectJavaInstallations.test_detect_on_macos": {
+      "file_path": "tests/static_analyzer/test_java_utils.py",
+      "qualified_name": "tests.static_analyzer.test_java_utils.TestDetectJavaInstallations.test_detect_on_macos",
+      "start_line": 127,
+      "end_line": 141,
+      "type": "METHOD",
+      "status": "unchanged"
+    },
+    "tests/static_analyzer/test_java_utils.py|tests.static_analyzer.test_java_utils.TestDetectJavaInstallations.test_detect_on_linux": {
+      "file_path": "tests/static_analyzer/test_java_utils.py",
+      "qualified_name": "tests.static_analyzer.test_java_utils.TestDetectJavaInstallations.test_detect_on_linux",
+      "start_line": 148,
+      "end_line": 165,
+      "type": "METHOD",
+      "status": "unchanged"
+    },
+    "tests/static_analyzer/test_java_utils.py|tests.static_analyzer.test_java_utils.TestDetectJavaInstallations.test_detect_on_linux.glob_side_effect": {
+      "file_path": "tests/static_analyzer/test_java_utils.py",
+      "qualified_name": "tests.static_analyzer.test_java_utils.TestDetectJavaInstallations.test_detect_on_linux.glob_side_effect",
+      "start_line": 155,
+      "end_line": 158,
+      "type": "FUNCTION",
+      "status": "unchanged"
+    },
+    "tests/static_analyzer/test_java_utils.py|tests.static_analyzer.test_java_utils.TestDetectJavaInstallations.test_detect_no_installations": {
+      "file_path": "tests/static_analyzer/test_java_utils.py",
+      "qualified_name": "tests.static_analyzer.test_java_utils.TestDetectJavaInstallations.test_detect_no_installations",
+      "start_line": 171,
+      "end_line": 179,
+      "type": "METHOD",
+      "status": "unchanged"
+    },
+    "tests/static_analyzer/test_java_utils.py|tests.static_analyzer.test_java_utils.TestDetectJavaInstallations.test_detect_validates_java_executable": {
+      "file_path": "tests/static_analyzer/test_java_utils.py",
+      "qualified_name": "tests.static_analyzer.test_java_utils.TestDetectJavaInstallations.test_detect_validates_java_executable",
+      "start_line": 182,
+      "end_line": 227,
+      "type": "METHOD",
+      "status": "unchanged"
+    },
+    "tests/static_analyzer/test_java_utils.py|tests.static_analyzer.test_java_utils.TestDetectJavaInstallations.test_detect_validates_java_executable.glob_side_effect": {
+      "file_path": "tests/static_analyzer/test_java_utils.py",
+      "qualified_name": "tests.static_analyzer.test_java_utils.TestDetectJavaInstallations.test_detect_validates_java_executable.glob_side_effect",
+      "start_line": 199,
+      "end_line": 202,
+      "type": "FUNCTION",
+      "status": "unchanged"
+    },
+    "tests/static_analyzer/test_java_utils.py|tests.static_analyzer.test_java_utils.TestDetectJavaInstallations.test_detect_validates_java_executable.exists_wrapper": {
+      "file_path": "tests/static_analyzer/test_java_utils.py",
+      "qualified_name": "tests.static_analyzer.test_java_utils.TestDetectJavaInstallations.test_detect_validates_java_executable.exists_wrapper",
+      "start_line": 209,
+      "end_line": 212,
+      "type": "FUNCTION",
+      "status": "unchanged"
+    },
+    "tests/static_analyzer/test_java_utils.py|tests.static_analyzer.test_java_utils.TestFindJava21OrLater": {
+      "file_path": "tests/static_analyzer/test_java_utils.py",
+      "qualified_name": "tests.static_analyzer.test_java_utils.TestFindJava21OrLater",
+      "start_line": 230,
+      "end_line": 351,
+      "type": "CLASS",
+      "status": "unchanged"
+    },
+    "tests/static_analyzer/test_java_utils.py|tests.static_analyzer.test_java_utils.TestFindJava21OrLater.test_find_java_21_from_installations": {
+      "file_path": "tests/static_analyzer/test_java_utils.py",
+      "qualified_name": "tests.static_analyzer.test_java_utils.TestFindJava21OrLater.test_find_java_21_from_installations",
+      "start_line": 236,
+      "end_line": 246,
+      "type": "METHOD",
+      "status": "unchanged"
+    },
+    "tests/static_analyzer/test_java_utils.py|tests.static_analyzer.test_java_utils.TestFindJava21OrLater.test_find_java_23_from_installations": {
+      "file_path": "tests/static_analyzer/test_java_utils.py",
+      "qualified_name": "tests.static_analyzer.test_java_utils.TestFindJava21OrLater.test_find_java_23_from_installations",
+      "start_line": 251,
+      "end_line": 258,
+      "type": "METHOD",
+      "status": "unchanged"
+    },
+    "tests/static_analyzer/test_java_utils.py|tests.static_analyzer.test_java_utils.TestFindJava21OrLater.test_find_java_only_old_versions": {
+      "file_path": "tests/static_analyzer/test_java_utils.py",
+      "qualified_name": "tests.static_analyzer.test_java_utils.TestFindJava21OrLater.test_find_java_only_old_versions",
+      "start_line": 263,
+      "end_line": 273,
+      "type": "METHOD",
+      "status": "unchanged"
+    },
+    "tests/static_analyzer/test_java_utils.py|tests.static_analyzer.test_java_utils.TestFindJava21OrLater.test_find_java_from_system": {
+      "file_path": "tests/static_analyzer/test_java_utils.py",
+      "qualified_name": "tests.static_analyzer.test_java_utils.TestFindJava21OrLater.test_find_java_from_system",
+      "start_line": 279,
+      "end_line": 289,
+      "type": "METHOD",
+      "status": "unchanged"
+    },
+    "tests/static_analyzer/test_java_utils.py|tests.static_analyzer.test_java_utils.TestFindJava21OrLater.test_find_java_none_available": {
+      "file_path": "tests/static_analyzer/test_java_utils.py",
+      "qualified_name": "tests.static_analyzer.test_java_utils.TestFindJava21OrLater.test_find_java_none_available",
+      "start_line": 294,
+      "end_line": 301,
+      "type": "METHOD",
+      "status": "unchanged"
+    },
+    "tests/static_analyzer/test_java_utils.py|tests.static_analyzer.test_java_utils.TestFindJava21OrLater.test_java_home_wins_over_newer_jdk_on_disk": {
+      "file_path": "tests/static_analyzer/test_java_utils.py",
+      "qualified_name": "tests.static_analyzer.test_java_utils.TestFindJava21OrLater.test_java_home_wins_over_newer_jdk_on_disk",
+      "start_line": 303,
+      "end_line": 316,
+      "type": "METHOD",
+      "status": "unchanged"
+    },
+    "tests/static_analyzer/test_java_utils.py|tests.static_analyzer.test_java_utils.TestFindJava21OrLater.test_java_home_too_old_falls_through_to_scan": {
+      "file_path": "tests/static_analyzer/test_java_utils.py",
+      "qualified_name": "tests.static_analyzer.test_java_utils.TestFindJava21OrLater.test_java_home_too_old_falls_through_to_scan",
+      "start_line": 318,
+      "end_line": 337,
+      "type": "METHOD",
+      "status": "unchanged"
+    },
+    "tests/static_analyzer/test_java_utils.py|tests.static_analyzer.test_java_utils.TestFindJava21OrLater.test_java_home_unset_uses_scan": {
+      "file_path": "tests/static_analyzer/test_java_utils.py",
+      "qualified_name": "tests.static_analyzer.test_java_utils.TestFindJava21OrLater.test_java_home_unset_uses_scan",
+      "start_line": 339,
+      "end_line": 351,
+      "type": "METHOD",
+      "status": "unchanged"
+    },
+    "tests/static_analyzer/test_java_utils.py|tests.static_analyzer.test_java_utils.TestGetJdtlsConfigDir": {
+      "file_path": "tests/static_analyzer/test_java_utils.py",
+      "qualified_name": "tests.static_analyzer.test_java_utils.TestGetJdtlsConfigDir",
+      "start_line": 354,
+      "end_line": 396,
+      "type": "CLASS",
+      "status": "unchanged"
+    },
+    "tests/static_analyzer/test_java_utils.py|tests.static_analyzer.test_java_utils.TestGetJdtlsConfigDir.test_get_config_dir_linux": {
+      "file_path": "tests/static_analyzer/test_java_utils.py",
+      "qualified_name": "tests.static_analyzer.test_java_utils.TestGetJdtlsConfigDir.test_get_config_dir_linux",
+      "start_line": 358,
+      "end_line": 365,
+      "type": "METHOD",
+      "status": "unchanged"
+    },
+    "tests/static_analyzer/test_java_utils.py|tests.static_analyzer.test_java_utils.TestGetJdtlsConfigDir.test_get_config_dir_macos": {
+      "file_path": "tests/static_analyzer/test_java_utils.py",
+      "qualified_name": "tests.static_analyzer.test_java_utils.TestGetJdtlsConfigDir.test_get_config_dir_macos",
+      "start_line": 368,
+      "end_line": 375,
+      "type": "METHOD",
+      "status": "unchanged"
+    },
+    "tests/static_analyzer/test_java_utils.py|tests.static_analyzer.test_java_utils.TestGetJdtlsConfigDir.test_get_config_dir_windows": {
+      "file_path": "tests/static_analyzer/test_java_utils.py",
+      "qualified_name": "tests.static_analyzer.test_java_utils.TestGetJdtlsConfigDir.test_get_config_dir_windows",
+      "start_line": 378,
+      "end_line": 385,
+      "type": "METHOD",
+      "status": "unchanged"
+    },
+    "tests/static_analyzer/test_java_utils.py|tests.static_analyzer.test_java_utils.TestGetJdtlsConfigDir.test_get_config_dir_unsupported": {
+      "file_path": "tests/static_analyzer/test_java_utils.py",
+      "qualified_name": "tests.static_analyzer.test_java_utils.TestGetJdtlsConfigDir.test_get_config_dir_unsupported",
+      "start_line": 388,
+      "end_line": 396,
+      "type": "METHOD",
+      "status": "unchanged"
+    },
+    "tests/static_analyzer/test_java_utils.py|tests.static_analyzer.test_java_utils.TestFindLauncherJar": {
+      "file_path": "tests/static_analyzer/test_java_utils.py",
+      "qualified_name": "tests.static_analyzer.test_java_utils.TestFindLauncherJar",
+      "start_line": 399,
+      "end_line": 452,
+      "type": "CLASS",
+      "status": "unchanged"
+    },
+    "tests/static_analyzer/test_java_utils.py|tests.static_analyzer.test_java_utils.TestFindLauncherJar.test_find_launcher_jar_success": {
+      "file_path": "tests/static_analyzer/test_java_utils.py",
+      "qualified_name": "tests.static_analyzer.test_java_utils.TestFindLauncherJar.test_find_launcher_jar_success",
+      "start_line": 404,
+      "end_line": 413,
+      "type": "METHOD",
+      "status": "unchanged"
+    },
+    "tests/static_analyzer/test_java_utils.py|tests.static_analyzer.test_java_utils.TestFindLauncherJar.test_find_launcher_jar_no_plugins_dir": {
+      "file_path": "tests/static_analyzer/test_java_utils.py",
+      "qualified_name": "tests.static_analyzer.test_java_utils.TestFindLauncherJar.test_find_launcher_jar_no_plugins_dir",
+      "start_line": 416,
+      "end_line": 423,
+      "type": "METHOD",
+      "status": "unchanged"
+    },
+    "tests/static_analyzer/test_java_utils.py|tests.static_analyzer.test_java_utils.TestFindLauncherJar.test_find_launcher_jar_not_found": {
+      "file_path": "tests/static_analyzer/test_java_utils.py",
+      "qualified_name": "tests.static_analyzer.test_java_utils.TestFindLauncherJar.test_find_launcher_jar_not_found",
+      "start_line": 427,
+      "end_line": 435,
+      "type": "METHOD",
+      "status": "unchanged"
+    },
+    "tests/static_analyzer/test_java_utils.py|tests.static_analyzer.test_java_utils.TestFindLauncherJar.test_find_launcher_jar_multiple_versions": {
+      "file_path": "tests/static_analyzer/test_java_utils.py",
+      "qualified_name": "tests.static_analyzer.test_java_utils.TestFindLauncherJar.test_find_launcher_jar_multiple_versions",
+      "start_line": 439,
+      "end_line": 452,
+      "type": "METHOD",
+      "status": "unchanged"
+    },
+    "tests/static_analyzer/test_java_utils.py|tests.static_analyzer.test_java_utils.TestCreateJdtlsCommand": {
+      "file_path": "tests/static_analyzer/test_java_utils.py",
+      "qualified_name": "tests.static_analyzer.test_java_utils.TestCreateJdtlsCommand",
+      "start_line": 455,
+      "end_line": 594,
+      "type": "CLASS",
+      "status": "unchanged"
+    },
+    "tests/static_analyzer/test_java_utils.py|tests.static_analyzer.test_java_utils.TestCreateJdtlsCommand.test_create_command_success": {
+      "file_path": "tests/static_analyzer/test_java_utils.py",
+      "qualified_name": "tests.static_analyzer.test_java_utils.TestCreateJdtlsCommand.test_create_command_success",
+      "start_line": 463,
+      "end_line": 482,
+      "type": "METHOD",
+      "status": "unchanged"
+    },
+    "tests/static_analyzer/test_java_utils.py|tests.static_analyzer.test_java_utils.TestCreateJdtlsCommand.test_create_command_custom_heap_size": {
+      "file_path": "tests/static_analyzer/test_java_utils.py",
+      "qualified_name": "tests.static_analyzer.test_java_utils.TestCreateJdtlsCommand.test_create_command_custom_heap_size",
+      "start_line": 489,
+      "end_line": 503,
+      "type": "METHOD",
+      "status": "unchanged"
+    },
+    "tests/static_analyzer/test_java_utils.py|tests.static_analyzer.test_java_utils.TestCreateJdtlsCommand.test_create_command_custom_java_home": {
+      "file_path": "tests/static_analyzer/test_java_utils.py",
+      "qualified_name": "tests.static_analyzer.test_java_utils.TestCreateJdtlsCommand.test_create_command_custom_java_home",
+      "start_line": 510,
+      "end_line": 526,
+      "type": "METHOD",
+      "status": "unchanged"
+    },
+    "tests/static_analyzer/test_java_utils.py|tests.static_analyzer.test_java_utils.TestCreateJdtlsCommand.test_create_command_no_java": {
+      "file_path": "tests/static_analyzer/test_java_utils.py",
+      "qualified_name": "tests.static_analyzer.test_java_utils.TestCreateJdtlsCommand.test_create_command_no_java",
+      "start_line": 529,
+      "end_line": 539,
+      "type": "METHOD",
+      "status": "unchanged"
+    },
+    "tests/static_analyzer/test_java_utils.py|tests.static_analyzer.test_java_utils.TestCreateJdtlsCommand.test_create_command_no_launcher": {
+      "file_path": "tests/static_analyzer/test_java_utils.py",
+      "qualified_name": "tests.static_analyzer.test_java_utils.TestCreateJdtlsCommand.test_create_command_no_launcher",
+      "start_line": 543,
+      "end_line": 554,
+      "type": "METHOD",
+      "status": "unchanged"
+    },
+    "tests/static_analyzer/test_java_utils.py|tests.static_analyzer.test_java_utils.TestCreateJdtlsCommand.test_create_command_no_config_dir": {
+      "file_path": "tests/static_analyzer/test_java_utils.py",
+      "qualified_name": "tests.static_analyzer.test_java_utils.TestCreateJdtlsCommand.test_create_command_no_config_dir",
+      "start_line": 560,
+      "end_line": 573,
+      "type": "METHOD",
+      "status": "unchanged"
+    },
+    "tests/static_analyzer/test_java_utils.py|tests.static_analyzer.test_java_utils.TestCreateJdtlsCommand.test_create_command_windows": {
+      "file_path": "tests/static_analyzer/test_java_utils.py",
+      "qualified_name": "tests.static_analyzer.test_java_utils.TestCreateJdtlsCommand.test_create_command_windows",
+      "start_line": 580,
+      "end_line": 594,
+      "type": "METHOD",
+      "status": "unchanged"
     }
   },
   "components": [
@@ -19095,6 +19775,7 @@
             "install.bootstrap_npm",
             "install.is_non_interactive_mode",
             "install.resolve_missing_npm",
+            "install.ensure_node_runtime",
             "install.resolve_npm_availability",
             "install.parse_args",
             "install.get_platform_bin_dir",
@@ -19104,13 +19785,10 @@
             "install.install_vcpp_redistributable",
             "install.resolve_missing_vcpp",
             "install.download_binaries",
-            "install._adoptium_url",
             "install.download_jdtls",
-            "install._adoptium_platform",
             "install.install_pre_commit_hooks",
-            "install.download_jdk",
-            "install.ensure_tools",
             "install.print_language_support_summary",
+            "install.ensure_tools",
             "install.run_install.unified_progress",
             "install.main",
             "install.run_install"
@@ -20360,6 +21038,7 @@
                 "install.bootstrap_npm",
                 "install.is_non_interactive_mode",
                 "install.resolve_missing_npm",
+                "install.ensure_node_runtime",
                 "install.resolve_npm_availability",
                 "install.parse_args",
                 "install.get_platform_bin_dir",
@@ -20369,13 +21048,10 @@
                 "install.install_vcpp_redistributable",
                 "install.resolve_missing_vcpp",
                 "install.download_binaries",
-                "install._adoptium_url",
                 "install.download_jdtls",
-                "install._adoptium_platform",
                 "install.install_pre_commit_hooks",
-                "install.download_jdk",
-                "install.ensure_tools",
                 "install.print_language_support_summary",
+                "install.ensure_tools",
                 "install.run_install.unified_progress",
                 "install.main",
                 "install.run_install"
@@ -20496,8 +21172,8 @@
                     "install.parse_args",
                     "install.download_jdtls",
                     "install.install_pre_commit_hooks",
-                    "install.ensure_tools",
                     "install.print_language_support_summary",
+                    "install.ensure_tools",
                     "install.run_install.unified_progress",
                     "install.main",
                     "install.run_install"
@@ -23433,7 +24109,6 @@
           "methods": [
             "static_analyzer.java_utils.get_java_version",
             "static_analyzer.java_utils.detect_java_installations",
-            "static_analyzer.java_utils._codeboarding_jdk_home",
             "static_analyzer.java_utils.find_java_21_or_later",
             "static_analyzer.java_utils.get_jdtls_config_dir",
             "static_analyzer.java_utils.find_launcher_jar",
@@ -24760,7 +25435,6 @@
               "methods": [
                 "static_analyzer.java_utils.get_java_version",
                 "static_analyzer.java_utils.detect_java_installations",
-                "static_analyzer.java_utils._codeboarding_jdk_home",
                 "static_analyzer.java_utils.find_java_21_or_later",
                 "static_analyzer.java_utils.get_jdtls_config_dir",
                 "static_analyzer.java_utils.find_launcher_jar",
