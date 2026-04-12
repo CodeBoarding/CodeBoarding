@@ -29,8 +29,8 @@ class Language(StrEnum):
     def display_label(self) -> str:
         """Human-readable label for UI / setup summary output.
 
-        Defaults to ``value.capitalize()``; overridden for acronyms
-        (PHP) and mixed-case names (CSharp, TypeScript, JavaScript)
+        Defaults to ``value.capitalize()``; overridden for acronyms (PHP),
+        punctuated names (C#), and mixed-case names (TypeScript, JavaScript)
         that ``capitalize()`` would mangle.
         """
         return _LANGUAGE_DISPLAY_LABELS.get(self, self.value.capitalize())
@@ -39,7 +39,7 @@ class Language(StrEnum):
 # Populated after the class body because values reference Language members.
 _LANGUAGE_DISPLAY_LABELS: dict["Language", str] = {
     Language.PHP: "PHP",
-    Language.CSHARP: "CSharp",
+    Language.CSHARP: "C#",
     Language.TYPESCRIPT: "TypeScript",
     Language.JAVASCRIPT: "JavaScript",
 }
