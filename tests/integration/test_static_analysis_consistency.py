@@ -143,7 +143,8 @@ METRIC_TOLERANCE = 0.025
 # Minimum absolute tolerance for small numbers (e.g., 20 vs 19 is 5% diff, but only 1 unit)
 MIN_ABSOLUTE_TOLERANCE = 2
 
-# Tolerance percentage for execution time comparisons (15% = 0.15)
+# Upper-bound tolerance for execution time (15% slower than baseline is still a pass).
+# Faster runs never fail; hardware gets quicker, so we only gate on slowdowns.
 EXECUTION_TIME_TOLERANCE = 0.15
 
 # Minimum absolute tolerance for execution-time comparisons; the larger
@@ -279,10 +280,16 @@ class TestStaticAnalysisConsistency:
             if metric_name == "execution_time_seconds":
                 tolerance = EXECUTION_TIME_TOLERANCE
                 min_absolute = MIN_EXECUTION_TIME_TOLERANCE
+                # Faster-than-baseline runs are a win, not a regression — only
+                # flag when ``actual`` exceeds the upper tolerance bound.
+                upper_only = True
             else:
                 tolerance = METRIC_TOLERANCE
                 min_absolute = MIN_ABSOLUTE_TOLERANCE
-            is_pass, diff_info = self._check_metric_within_tolerance(actual, expected_val, tolerance, min_absolute)
+                upper_only = False
+            is_pass, diff_info = self._check_metric_within_tolerance(
+                actual, expected_val, tolerance, min_absolute, upper_only=upper_only
+            )
             results.append(
                 {
                     "metric": metric_name,
@@ -320,8 +327,13 @@ class TestStaticAnalysisConsistency:
         expected: int | float,
         tolerance: float,
         min_absolute: int | float = MIN_ABSOLUTE_TOLERANCE,
+        upper_only: bool = False,
     ) -> tuple[bool, str]:
         """Check if actual value is within tolerance of expected.
+
+        When ``upper_only`` is True, ``actual < expected`` is always a pass —
+        used for metrics (e.g. execution time) where beating the baseline
+        is a win rather than a regression.
 
         Returns:
             Tuple of (is_pass, diff_info_string)
@@ -329,10 +341,16 @@ class TestStaticAnalysisConsistency:
         if expected == 0:
             if actual == 0:
                 return True, "match"
+            if upper_only and actual < 0:
+                return True, f"faster than baseline ({actual})"
             return False, f"expected 0, got {actual}"
 
-        relative_diff = abs(actual - expected) / expected
-        absolute_diff = abs(actual - expected)
+        diff = actual - expected
+        absolute_diff = abs(diff)
+        relative_diff = absolute_diff / expected
+
+        if upper_only and actual < expected:
+            return True, f"faster than baseline (-{relative_diff * 100:.1f}%)"
 
         # For small numbers, use absolute tolerance; for large numbers, use percentage
         # Whichever is more generous
@@ -342,7 +360,6 @@ class TestStaticAnalysisConsistency:
         if relative_diff <= tolerance:
             return True, f"±{relative_diff * 100:.1f}%"
 
-        diff = actual - expected
         diff_str = f"{diff:+.0f}" if isinstance(diff, int) or diff == int(diff) else f"{diff:+.2f}"
         return (
             False,

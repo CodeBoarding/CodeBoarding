@@ -43,7 +43,13 @@ from tool_registry import (
     tools_fingerprint,
     write_manifest,
 )
-from tool_registry.installers import _extract_compressed_binary, resolve_native_asset_name
+from tool_registry import PackageManagerToolSource
+from tool_registry.installers import (
+    _extract_compressed_binary,
+    install_package_manager_tools,
+    package_manager_tool_dir,
+    resolve_native_asset_name,
+)
 from tool_registry.registry import ConfigSection, ToolDependency, ToolSource
 
 
@@ -955,7 +961,8 @@ def _populate_complete_servers_dir(base_dir: Path) -> None:
     NATIVE -> platform_bin_dir/<name><exe>;
     NODE -> node_modules/<js_entry_parent>/lib/<js_entry_file>
     (find_runnable does a substring match on parent dir);
-    ARCHIVE -> bin/<archive_subdir>/plugins/
+    ARCHIVE -> bin/<archive_subdir>/plugins/;
+    PACKAGE_MANAGER -> platform_bin_dir/pm-tools/<subdir>/<name><exe>
     """
     bin_dir = platform_bin_dir(base_dir)
     bin_dir.mkdir(parents=True, exist_ok=True)
@@ -968,6 +975,11 @@ def _populate_complete_servers_dir(base_dir: Path) -> None:
             (entry_dir / dep.js_entry_file).write_text("// stub\n")
         elif dep.kind is ToolKind.ARCHIVE and dep.archive_subdir:
             (base_dir / "bin" / dep.archive_subdir / "plugins").mkdir(parents=True, exist_ok=True)
+        elif dep.kind is ToolKind.PACKAGE_MANAGER:
+            subdir = dep.archive_subdir or dep.key
+            pm_dir = bin_dir / "pm-tools" / subdir
+            pm_dir.mkdir(parents=True, exist_ok=True)
+            (pm_dir / f"{dep.binary_name}{exe_suffix()}").write_text("#!/bin/sh\n")
 
 
 class TestHasRequiredTools(unittest.TestCase):
@@ -1524,6 +1536,111 @@ class TestRustRegistryEntry(unittest.TestCase):
         rust = next(d for d in TOOL_REGISTRY if d.key == "rust")
         assert isinstance(rust.source, GitHubToolSource)
         self.assertIn(rust.source.tag, tools_fingerprint())
+
+
+class TestInstallPackageManagerTools(unittest.TestCase):
+    """``install_package_manager_tools`` invokes a user-provided package
+    manager (e.g. ``dotnet tool install``) and must degrade gracefully
+    when the manager itself is missing."""
+
+    def _csharp_dep(self) -> ToolDependency:
+        return ToolDependency(
+            key="csharp",
+            binary_name="csharp-ls",
+            kind=ToolKind.PACKAGE_MANAGER,
+            config_section=ConfigSection.LSP_SERVERS,
+            source=PackageManagerToolSource(
+                tag="0.20.0",
+                manager_binary="dotnet",
+                install_args=("tool", "install", "csharp-ls", "--version", "{tag}", "--tool-path", "{tool_path}"),
+            ),
+            archive_subdir="csharp-ls",
+        )
+
+    def test_skips_when_manager_binary_missing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            with (
+                patch("tool_registry.installers.shutil.which", return_value=None),
+                patch("tool_registry.installers.subprocess.run") as mock_run,
+            ):
+                install_package_manager_tools(base, [self._csharp_dep()])
+            mock_run.assert_not_called()
+
+    def test_invokes_manager_with_substituted_tool_path(self):
+        dep = self._csharp_dep()
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            install_dir = package_manager_tool_dir(base, dep)
+            binary_path = install_dir / f"csharp-ls{exe_suffix()}"
+
+            def fake_run(cmd, **_kwargs):
+                # Simulate ``dotnet tool install`` dropping the binary.
+                binary_path.parent.mkdir(parents=True, exist_ok=True)
+                binary_path.write_text("fake csharp-ls")
+                result = MagicMock()
+                result.returncode = 0
+                result.stdout = ""
+                result.stderr = ""
+                return result
+
+            with (
+                patch("tool_registry.installers.shutil.which", return_value="/usr/bin/dotnet"),
+                patch("tool_registry.installers.subprocess.run", side_effect=fake_run) as mock_run,
+            ):
+                install_package_manager_tools(base, [dep])
+
+            self.assertEqual(mock_run.call_count, 1)
+            invoked_cmd = mock_run.call_args.args[0]
+            self.assertEqual(invoked_cmd[0], "dotnet")
+            # Placeholders must be substituted: {tool_path} -> install dir, {tag} -> source.tag.
+            self.assertIn(str(install_dir), invoked_cmd)
+            self.assertIn("0.20.0", invoked_cmd)
+            self.assertNotIn("{tool_path}", invoked_cmd)
+            self.assertNotIn("{tag}", invoked_cmd)
+            self.assertTrue(binary_path.exists())
+
+    def test_idempotent_when_binary_already_present(self):
+        dep = self._csharp_dep()
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            install_dir = package_manager_tool_dir(base, dep)
+            install_dir.mkdir(parents=True, exist_ok=True)
+            (install_dir / f"csharp-ls{exe_suffix()}").write_text("pre-existing")
+
+            with (
+                patch("tool_registry.installers.shutil.which", return_value="/usr/bin/dotnet"),
+                patch("tool_registry.installers.subprocess.run") as mock_run,
+            ):
+                install_package_manager_tools(base, [dep])
+            mock_run.assert_not_called()
+
+    def test_reports_failure_when_manager_exits_nonzero(self):
+        dep = self._csharp_dep()
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            install_dir = package_manager_tool_dir(base, dep)
+
+            failed = MagicMock()
+            failed.returncode = 1
+            failed.stdout = ""
+            failed.stderr = "boom"
+
+            with (
+                patch("tool_registry.installers.shutil.which", return_value="/usr/bin/dotnet"),
+                patch("tool_registry.installers.subprocess.run", return_value=failed),
+            ):
+                install_package_manager_tools(base, [dep])
+
+            self.assertFalse((install_dir / f"csharp-ls{exe_suffix()}").exists())
+
+    def test_fingerprint_changes_with_version_tag(self):
+        """Bumping the pinned tag must invalidate manifests (same guarantee
+        as GitHub-sourced tools).
+        """
+        csharp = next(d for d in TOOL_REGISTRY if d.key == "csharp")
+        assert isinstance(csharp.source, PackageManagerToolSource)
+        self.assertIn(csharp.source.tag, tools_fingerprint())
 
 
 if __name__ == "__main__":

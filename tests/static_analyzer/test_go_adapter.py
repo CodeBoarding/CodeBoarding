@@ -1,10 +1,48 @@
 """Tests for the Go language adapter."""
 
+import shutil
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 from static_analyzer.engine.adapters.go_adapter import GoAdapter, _directory_filters_from_ignore_manager
 from repo_utils.ignore import RepoIgnoreManager
+
+
+class TestGetLspCommandGoCheck:
+    """``get_lsp_command`` must reject hosts without the Go toolchain.
+
+    gopls silently indexes nothing when ``go`` is missing — symbol and
+    reference queries return empty, producing a zero-edge call graph.
+    We surface that as a clear RuntimeError at LSP-launch, mirroring
+    ``RustAdapter``'s cargo check.
+    """
+
+    def test_raises_when_go_missing(self, tmp_path: Path) -> None:
+        real_which = shutil.which
+
+        def selective(name: str) -> str | None:
+            if name == "go":
+                return None
+            return real_which(name)
+
+        with patch("static_analyzer.engine.adapters.go_adapter.shutil.which", side_effect=selective):
+            with pytest.raises(RuntimeError, match=r"Go toolchain not found.*go\.dev/dl"):
+                GoAdapter().get_lsp_command(tmp_path)
+
+    def test_returns_command_when_go_present(self, tmp_path: Path) -> None:
+        real_which = shutil.which
+
+        def selective(name: str) -> str | None:
+            if name == "go":
+                return "/usr/local/bin/go"
+            return real_which(name)
+
+        with patch("static_analyzer.engine.adapters.go_adapter.shutil.which", side_effect=selective):
+            cmd = GoAdapter().get_lsp_command(tmp_path)
+        assert cmd
+        assert any("gopls" in part for part in cmd)
 
 
 class TestBuildTagFiltering:

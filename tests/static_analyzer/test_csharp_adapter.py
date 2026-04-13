@@ -1,11 +1,54 @@
 """Tests for the C# language adapter."""
 
+import shutil
 import subprocess
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
-from static_analyzer.engine.adapters.csharp_adapter import CSharpAdapter
+import pytest
+
 from static_analyzer.constants import NodeType
+from static_analyzer.engine.adapters.csharp_adapter import CSharpAdapter
+
+
+class TestGetLspCommandDotnetCheck:
+    """``get_lsp_command`` must reject hosts without the .NET SDK.
+
+    csharp-ls is a ``dotnet tool`` and cannot run without the runtime,
+    so a missing ``dotnet`` produces a silently broken analysis. We
+    surface that as a clear RuntimeError at LSP-launch, mirroring how
+    ``RustAdapter`` enforces a cargo toolchain.
+    """
+
+    def test_raises_when_dotnet_missing(self, tmp_path: Path) -> None:
+        real_which = shutil.which
+
+        def selective(name: str) -> str | None:
+            if name == "dotnet":
+                return None
+            return real_which(name)
+
+        with patch("static_analyzer.engine.adapters.csharp_adapter.shutil.which", side_effect=selective):
+            with pytest.raises(RuntimeError, match=r"\.NET SDK not found.*dotnet\.microsoft\.com"):
+                CSharpAdapter().get_lsp_command(tmp_path)
+
+    def test_returns_command_when_dotnet_present(self, tmp_path: Path) -> None:
+        real_which = shutil.which
+
+        def selective(name: str) -> str | None:
+            if name == "dotnet":
+                return "/usr/local/bin/dotnet"
+            return real_which(name)
+
+        resolved = "/opt/codeboarding/pm-tools/csharp/csharp-ls"
+        lsp_servers = {"csharp": {"command": [resolved]}}
+
+        with (
+            patch("static_analyzer.engine.adapters.csharp_adapter.shutil.which", side_effect=selective),
+            patch("static_analyzer.engine.language_adapter.get_config", return_value=lsp_servers),
+        ):
+            cmd = CSharpAdapter().get_lsp_command(tmp_path)
+        assert cmd[0] == resolved
 
 
 class TestCSharpAdapterProperties:

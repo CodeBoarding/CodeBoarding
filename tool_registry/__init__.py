@@ -14,6 +14,7 @@ from .registry import (  # noqa: F401
     TOOLS_TAG,
     ConfigSection,
     GitHubToolSource,
+    PackageManagerToolSource,
     ProgressCallback,
     ToolDependency,
     ToolKind,
@@ -63,6 +64,9 @@ from .installers import (  # noqa: F401
     install_embedded_node,
     install_native_tools,
     install_node_tools,
+    install_package_manager_tools,
     install_tools,
     nodeenv_needs_unofficial_builds,
+    package_manager_tool_dir,
 )
+from .manifest import package_manager_tool_path  # noqa: F401

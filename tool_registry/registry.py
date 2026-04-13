@@ -59,6 +59,9 @@ class ToolKind(StrEnum):
     NATIVE = "native"  # Pre-built binary downloaded from GitHub releases
     NODE = "node"  # npm package installed via `npm install`
     ARCHIVE = "archive"  # Tarball downloaded and extracted from GitHub releases
+    PACKAGE_MANAGER = (
+        "package_manager"  # Installed by invoking a user-provided package manager (e.g. `dotnet tool install`)
+    )
 
 
 class ConfigSection(StrEnum):
@@ -106,6 +109,18 @@ class UpstreamToolSource(ToolSource):
 
     url_template: str = ""  # with ``{version}`` / optional ``{build}``
     build: str = ""
+
+
+@dataclass(frozen=True)
+class PackageManagerToolSource(ToolSource):
+    """Tool installed by invoking a user-provided package manager (e.g. ``dotnet tool install``).
+
+    Why: some LSPs ship only as language-package-manager packages, not as standalone binaries.
+    """
+
+    manager_binary: str = ""  # e.g. "dotnet"
+    # Placeholders substituted at install time: ``{tool_path}`` -> managed install dir; ``{tag}`` -> source.tag.
+    install_args: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -197,14 +212,31 @@ TOOL_REGISTRY: list[ToolDependency] = [
         js_entry_file="intelephense.js",
         js_entry_parent="intelephense",
     ),
-    # No source: csharp-ls is resolved from PATH or
-    # ~/.dotnet/tools (see CSharpAdapter.get_lsp_command fallback).
-    # Install: dotnet tool install --global csharp-ls
+    # csharp-ls ships only as a NuGet dotnet-tool; installed via ``dotnet tool install``.
+    # Pinned 0.20.0: 0.21.0+ has a malformed NuGet upstream.
+    # ``--framework net9.0`` is required — 0.20.0 ships only a net9.0 target, and without
+    # the flag ``--tool-path`` emits a misleading "DotnetToolSettings.xml not found" error.
     ToolDependency(
         key="csharp",
         binary_name="csharp-ls",
-        kind=ToolKind.NATIVE,
+        kind=ToolKind.PACKAGE_MANAGER,
         config_section=ConfigSection.LSP_SERVERS,
+        source=PackageManagerToolSource(
+            tag="0.20.0",
+            manager_binary="dotnet",
+            install_args=(
+                "tool",
+                "install",
+                "csharp-ls",
+                "--version",
+                "{tag}",
+                "--framework",
+                "net9.0",
+                "--tool-path",
+                "{tool_path}",
+            ),
+        ),
+        archive_subdir="csharp-ls",
     ),
     ToolDependency(
         key="java",

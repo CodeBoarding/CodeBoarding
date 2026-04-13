@@ -35,17 +35,14 @@ class CSharpAdapter(LanguageAdapter):
         return "csharp"
 
     def get_lsp_command(self, project_root: Path) -> list[str]:
-        """Resolve csharp-ls, checking ~/.dotnet/tools if not on PATH."""
-        cmd = super().get_lsp_command(project_root)
-        binary = cmd[0]
-        # If the binary resolves on PATH, use as-is
-        if shutil.which(binary):
-            return cmd
-        # Fallback: dotnet global tools directory
-        home_tool = Path.home() / ".dotnet" / "tools" / binary
-        if home_tool.is_file():
-            return [str(home_tool)] + cmd[1:]
-        return cmd
+        """Fail fast if the .NET SDK is missing — csharp-ls needs dotnet+MSBuild to load Roslyn."""
+        if shutil.which("dotnet") is None:
+            raise RuntimeError(
+                ".NET SDK not found on PATH. csharp-ls requires the .NET SDK "
+                "to index C# projects. Install it from "
+                "https://dotnet.microsoft.com/download and re-run the analysis."
+            )
+        return super().get_lsp_command(project_root)
 
     def build_qualified_name(
         self,

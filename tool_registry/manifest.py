@@ -19,11 +19,14 @@ else:
 
 from vscode_constants import VSCODE_CONFIG, find_runnable
 
+from .installers import package_manager_tool_dir
 from .paths import exe_suffix, get_servers_dir, platform_bin_dir, preferred_node_path
 from .registry import (
     PINNED_NODE_VERSION,
     TOOL_REGISTRY,
     GitHubToolSource,
+    PackageManagerToolSource,
+    ToolDependency,
     ToolKind,
     UpstreamToolSource,
 )
@@ -80,6 +83,11 @@ def tools_fingerprint() -> str:
                 parts.append(f"{dep.key}:{dep.source.repo}:{dep.source.tag}")
             elif isinstance(dep.source, UpstreamToolSource):
                 parts.append(f"{dep.key}::{dep.source.tag}-{dep.source.build}")
+            elif isinstance(dep.source, PackageManagerToolSource):
+                # ``install_args`` is included: flag changes (pinned version, channel) must invalidate the manifest.
+                parts.append(
+                    f"{dep.key}:{dep.source.manager_binary}:{dep.source.tag}:{'|'.join(dep.source.install_args)}"
+                )
     return ",".join(sorted(parts))
 
 
@@ -178,6 +186,20 @@ def build_config() -> dict[str, Any]:
     return config
 
 
+def package_manager_tool_path(base_dir: Path, dep: ToolDependency) -> Path | None:
+    """Absolute path to a PACKAGE_MANAGER tool's installed binary.
+
+    Returns ``None`` on hosts where ``platform_bin_dir`` has no layout —
+    the native installer path already skips unsupported OSes, so the
+    summary and config resolution need a matching signal rather than a
+    hard crash.
+    """
+    try:
+        return package_manager_tool_dir(base_dir, dep) / f"{dep.binary_name}{exe_suffix()}"
+    except RuntimeError:
+        return None
+
+
 def resolve_config(base_dir: Path) -> dict[str, Any]:
     """Scan base_dir for installed tools and return a config dict.
 
@@ -193,6 +215,12 @@ def resolve_config(base_dir: Path) -> dict[str, Any]:
         if dep.kind is ToolKind.NATIVE:
             binary_path = bin_dir / f"{dep.binary_name}{native_ext}"
             if binary_path.exists():
+                cmd = cast(list[str], config[dep.config_section][dep.key]["command"])
+                cmd[0] = str(binary_path)
+
+        elif dep.kind is ToolKind.PACKAGE_MANAGER:
+            binary_path = package_manager_tool_path(base_dir, dep)
+            if binary_path is not None and binary_path.exists():
                 cmd = cast(list[str], config[dep.config_section][dep.key]["command"])
                 cmd[0] = str(binary_path)
 
@@ -227,7 +255,7 @@ def resolve_config_from_path() -> dict[str, Any]:
 
     for dep in TOOL_REGISTRY:
         path = None
-        if dep.kind in (ToolKind.NATIVE, ToolKind.NODE):
+        if dep.kind in (ToolKind.NATIVE, ToolKind.NODE, ToolKind.PACKAGE_MANAGER):
             path = shutil.which(dep.binary_name)
         if path:
             cmd = cast(list[str], config[dep.config_section][dep.key]["command"])
@@ -261,17 +289,33 @@ def has_required_tools(base_dir: Path) -> bool:
 
     for dep in TOOL_REGISTRY:
         if dep.kind is ToolKind.NATIVE:
-            # Native tools with no source are installed externally (e.g. csharp-ls
-            # via ``dotnet tool install``) — the adapter resolves them from PATH,
-            # so there's nothing to verify inside ``base_dir``.
-            if dep.source is None:
-                continue
             # Skip the check when the installer would also skip the download,
             # otherwise ``needs_install`` loops forever on unsupported hosts.
             if not dep.is_available_on_host():
                 logger.info("has_required_tools: %s unavailable on this host; skipping check", dep.key)
                 continue
             binary_path = platform_bin_dir(base_dir) / f"{dep.binary_name}{exe_suffix()}"
+            if not binary_path.exists():
+                logger.info("has_required_tools: %s missing at %s", dep.key, binary_path)
+                return False
+
+        elif dep.kind is ToolKind.PACKAGE_MANAGER:
+            # Skip when the package manager itself is missing — the installer
+            # also skips, and the adapter raises a meaningful error at
+            # analysis time. Without this skip, ``needs_install`` loops on
+            # machines without the user-provided toolchain.
+            source = dep.source
+            if isinstance(source, PackageManagerToolSource) and not shutil.which(source.manager_binary):
+                logger.info(
+                    "has_required_tools: %s unavailable (%s missing); skipping check",
+                    dep.key,
+                    source.manager_binary,
+                )
+                continue
+            binary_path = package_manager_tool_path(base_dir, dep)
+            if binary_path is None:
+                logger.info("has_required_tools: %s unsupported on this host; skipping check", dep.key)
+                continue
             if not binary_path.exists():
                 logger.info("has_required_tools: %s missing at %s", dep.key, binary_path)
                 return False

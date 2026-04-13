@@ -109,7 +109,9 @@ VSCODE_CONFIG = {
             "command": ["csharp-ls"],
             "languages": ["csharp"],
             "file_extensions": [".cs"],
-            "install_commands": "dotnet tool install --global csharp-ls",
+            # csharp-ls is installed via `dotnet tool install --tool-path` by
+            # tool_registry; requires the .NET SDK 9.0+ on PATH.
+            "install_commands": "codeboarding-setup (installs csharp-ls automatically; requires .NET SDK 9.0+)",
         },
         "java": {
             "name": "Eclipse JDT Language Server",
