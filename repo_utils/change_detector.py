@@ -7,7 +7,8 @@ This module provides enhanced change detection that properly tracks:
 - Added/deleted files
 - Copy detection
 
-Uses `git diff --name-status -M -C` for accurate rename tracking.
+Uses a shared `git diff --raw -U3 -M -C` parse for accurate rename tracking
+and downstream hunk reuse.
 """
 
 import logging
@@ -15,6 +16,8 @@ import subprocess
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
+
+from repo_utils.parsed_diff import ParsedDiffFile, ParsedGitDiff, load_parsed_git_diff
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +63,7 @@ class ChangeSet:
     changes: list[DetectedChange] = field(default_factory=list)
     base_ref: str = ""
     target_ref: str = "HEAD"
+    parsed_diff: ParsedGitDiff | None = None
 
     @property
     def renames(self) -> dict[str, str]:
@@ -109,6 +113,7 @@ def detect_changes(
     target_ref: str = "HEAD",
     exclude_patterns: list[str] | None = None,
     fetch_missing_refs: bool = True,
+    parsed_diff: ParsedGitDiff | None = None,
 ) -> ChangeSet:
     """
     Detect file changes between two refs using rename-aware git diff.
@@ -130,83 +135,42 @@ def detect_changes(
         for rename_old, rename_new in changes.renames.items():
             logger.info(f"Renamed: {rename_old} -> {rename_new}")
     """
-    changes: list[DetectedChange] = []
     target_ref_value = target_ref
 
     # Default exclusions for analysis output directories
     if exclude_patterns is None:
         exclude_patterns = [".codeboarding/", ".codeboarding\\"]
 
-    cmd = [
-        "git",
-        "diff",
-        "--name-status",
-        "-M",
-        "-C",
-        "--find-renames=50%",
+    diff_data = parsed_diff or load_parsed_git_diff(
+        repo_dir,
         base_ref,
-    ]
-    if target_ref:
-        cmd.append(target_ref)
+        target_ref,
+        fetch_missing_refs=fetch_missing_refs,
+    )
 
-    def _run_diff() -> subprocess.CompletedProcess:
-        return subprocess.run(
-            cmd,
-            cwd=repo_dir,
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-
-    try:
-        result = _run_diff()
-    except subprocess.CalledProcessError as e:
-        stderr_lower = (e.stderr or "").lower()
-        if fetch_missing_refs and "bad object" in stderr_lower:
-            logger.warning("Git diff failed due to missing ref (%s); fetching refs and retrying once", e.stderr.strip())
-            try:
-                subprocess.run(
-                    ["git", "fetch", "--all", "--prune", "--tags"],
-                    cwd=repo_dir,
-                    capture_output=True,
-                    text=True,
-                    check=True,
-                )
-                result = _run_diff()
-            except subprocess.CalledProcessError as fetch_err:
-                logger.error(f"Git fetch/diff retry failed: {fetch_err.stderr}")
-                return ChangeSet(changes=changes, base_ref=base_ref, target_ref=target_ref_value)
-        else:
-            logger.error(f"Git diff failed: {e.stderr}")
-            return ChangeSet(changes=changes, base_ref=base_ref, target_ref=target_ref_value)
-    except FileNotFoundError:
-        logger.error("Git not found in PATH")
-        return ChangeSet(changes=changes, base_ref=base_ref, target_ref=target_ref_value)
-
-    for line in result.stdout.strip().split("\n"):
-        if not line:
+    changes: list[DetectedChange] = []
+    for file_diff in diff_data.files:
+        change = _detected_change_from_parsed_diff(file_diff)
+        if change is None:
             continue
 
-        change = _parse_status_line(line)
-        if change:
-            # Skip excluded patterns
-            should_skip = False
-            for pattern in exclude_patterns:
-                if change.file_path.startswith(pattern):
-                    should_skip = True
-                    break
-                if change.old_path and change.old_path.startswith(pattern):
-                    should_skip = True
-                    break
+        should_skip = False
+        for pattern in exclude_patterns:
+            if change.file_path.startswith(pattern):
+                should_skip = True
+                break
+            if change.old_path and change.old_path.startswith(pattern):
+                should_skip = True
+                break
 
-            if should_skip:
-                logger.debug(f"Skipping excluded path: {change.file_path}")
-                continue
+        if should_skip:
+            logger.debug(f"Skipping excluded path: {change.file_path}")
+            continue
 
-            changes.append(change)
-            logger.debug(f"Detected change: {change.change_type.name} {change.file_path}")
+        changes.append(change)
+        logger.debug(f"Detected change: {change.change_type.name} {change.file_path}")
 
-    return ChangeSet(changes=changes, base_ref=base_ref, target_ref=target_ref_value)
+    return ChangeSet(changes=changes, base_ref=base_ref, target_ref=target_ref_value, parsed_diff=diff_data)
 
 
 def detect_changes_from_commit(repo_dir: Path, base_commit: str) -> ChangeSet:
@@ -276,6 +240,21 @@ def _parse_status_line(line: str) -> DetectedChange | None:
     return DetectedChange(
         change_type=change_type,
         file_path=parts[1],
+    )
+
+
+def _detected_change_from_parsed_diff(file_diff: ParsedDiffFile) -> DetectedChange | None:
+    status = file_diff.status_code.upper()
+    if status not in {change.value for change in ChangeType}:
+        logger.warning("Unknown git status: %s", status)
+        return None
+
+    change_type = ChangeType(status)
+    return DetectedChange(
+        change_type=change_type,
+        file_path=file_diff.file_path,
+        old_path=file_diff.old_path,
+        similarity=file_diff.similarity,
     )
 
 
