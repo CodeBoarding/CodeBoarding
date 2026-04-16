@@ -556,7 +556,7 @@ class ClusterMethodsMixin:
             for fmg in component.file_methods:
                 entry = files.get(fmg.file_path)
                 if entry is None:
-                    entry = FileEntry(file_status=fmg.file_status, methods=[])
+                    entry = FileEntry(methods=[])
                     files[fmg.file_path] = entry
 
                 methods_by_qname = {m.qualified_name: m for m in entry.methods}

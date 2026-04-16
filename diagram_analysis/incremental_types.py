@@ -68,3 +68,67 @@ class IncrementalDelta:
             "needs_reanalysis": self.needs_reanalysis,
             "timestamp": self.timestamp,
         }
+
+
+@dataclass
+class StatusIndex:
+    """In-memory status cache owned by the wrapper session.
+
+    Status is never persisted to analysis.json — it lives only in this index
+    (wrapper side) and its wire-format twin ``IncrementalDelta`` (sent to the
+    extension). Both ``.file_statuses`` and ``.method_statuses`` default to
+    ``UNCHANGED`` on miss.
+    """
+
+    file_statuses: dict[str, ChangeStatus] = field(default_factory=dict)
+    method_statuses: dict[str, ChangeStatus] = field(default_factory=dict)
+
+    @staticmethod
+    def method_key(file_path: str, qualified_name: str) -> str:
+        return f"{file_path}|{qualified_name}"
+
+    def get_file_status(self, file_path: str) -> ChangeStatus:
+        return self.file_statuses.get(file_path, ChangeStatus.UNCHANGED)
+
+    def get_method_status(self, file_path: str, qualified_name: str) -> ChangeStatus:
+        return self.method_statuses.get(self.method_key(file_path, qualified_name), ChangeStatus.UNCHANGED)
+
+    def set_file_status(self, file_path: str, status: ChangeStatus) -> None:
+        if status == ChangeStatus.UNCHANGED:
+            self.file_statuses.pop(file_path, None)
+        else:
+            self.file_statuses[file_path] = status
+
+    def set_method_status(self, file_path: str, qualified_name: str, status: ChangeStatus) -> None:
+        key = self.method_key(file_path, qualified_name)
+        if status == ChangeStatus.UNCHANGED:
+            self.method_statuses.pop(key, None)
+        else:
+            self.method_statuses[key] = status
+
+    def clear_file(self, file_path: str) -> None:
+        self.file_statuses.pop(file_path, None)
+        prefix = f"{file_path}|"
+        for key in [k for k in self.method_statuses if k.startswith(prefix)]:
+            del self.method_statuses[key]
+
+    def apply_delta(self, delta: "IncrementalDelta") -> None:
+        """Merge a delta into this index in place."""
+        for fd in delta.file_deltas:
+            if fd.is_reset:
+                self.clear_file(fd.file_path)
+                continue
+            if fd.file_status == ChangeStatus.DELETED:
+                self.clear_file(fd.file_path)
+                self.set_file_status(fd.file_path, ChangeStatus.DELETED)
+                for m in fd.deleted_methods:
+                    self.set_method_status(fd.file_path, m.qualified_name, ChangeStatus.DELETED)
+                continue
+            self.set_file_status(fd.file_path, fd.file_status)
+            for m in fd.added_methods:
+                self.set_method_status(fd.file_path, m.qualified_name, ChangeStatus.ADDED)
+            for m in fd.modified_methods:
+                self.set_method_status(fd.file_path, m.qualified_name, ChangeStatus.MODIFIED)
+            for m in fd.deleted_methods:
+                # File-level modified with a deleted method — record the deletion under that file.
+                self.set_method_status(fd.file_path, m.qualified_name, ChangeStatus.DELETED)
