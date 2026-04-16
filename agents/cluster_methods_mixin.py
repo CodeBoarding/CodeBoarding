@@ -247,11 +247,11 @@ class ClusterMethodsMixin:
             logger.warning(f"Component {component.name} has no assigned files")
             return "No assigned files found for this component.", {}, {}
 
-        # Convert files to absolute paths for comparison
-        assigned_file_set = set()
-        for f in component_files:
-            abs_path = os.path.join(self.repo_dir, f) if not os.path.isabs(f) else f
-            assigned_file_set.add(abs_path)
+        # Collect qualified names for method-level filtering
+        assigned_qnames: set[str] = set()
+        for group in component.file_methods:
+            for method in group.methods:
+                assigned_qnames.add(method.qualified_name)
 
         cluster_results: dict[str, ClusterResult] = {}
         subgraph_cfgs: dict[str, CallGraph] = {}
@@ -259,8 +259,8 @@ class ClusterMethodsMixin:
         for lang in self.static_analysis.get_languages():
             cfg = self.static_analysis.get_cfg(lang)
 
-            # Use strict filtering logic
-            sub_cfg = cfg.filter_by_files(assigned_file_set)
+            # Filter by exact method set to prevent scope leakage
+            sub_cfg = cfg.filter_by_nodes(assigned_qnames)
 
             if sub_cfg.nodes:
                 subgraph_cfgs[lang] = sub_cfg
@@ -299,7 +299,7 @@ class ClusterMethodsMixin:
         result = "".join(result_parts)
 
         if not result.strip():
-            logger.warning(f"No CFG found for component {component.name} with {len(component_files)} files")
+            logger.warning(f"No CFG found for component {component.name} with {len(assigned_qnames)} methods")
             return "No relevant CFG clusters found for this component.", cluster_results, subgraph_cfgs
 
         return result, cluster_results, subgraph_cfgs

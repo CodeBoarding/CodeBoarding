@@ -258,6 +258,23 @@ class CallGraph:
 
         return sub_graph
 
+    def filter_by_nodes(self, qualified_names: set[str]) -> "CallGraph":
+        """Create a new CallGraph containing only the specified nodes (by qualified name).
+
+        Only includes edges where both source and target are in the allowed set.
+        """
+        relevant_nodes = {nid: node for nid, node in self.nodes.items() if nid in qualified_names}
+
+        filtered_edges = []
+        for edge in self.edges:
+            if edge.get_source() in relevant_nodes and edge.get_destination() in relevant_nodes:
+                filtered_edges.append(Edge(self.nodes[edge.get_source()], self.nodes[edge.get_destination()]))
+
+        sub_graph = CallGraph(language=self.language)
+        sub_graph.nodes = relevant_nodes
+        sub_graph.edges = filtered_edges
+        return sub_graph
+
     def to_cluster_string(
         self,
         cluster_ids: set[int] | None = None,
