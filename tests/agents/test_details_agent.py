@@ -57,8 +57,18 @@ class TestDetailsAgent(unittest.TestCase):
             description="Test component",
             key_entities=[ref],
             file_methods=[
-                FileMethodGroup(file_path="test.py"),
-                FileMethodGroup(file_path="test_utils.py"),
+                FileMethodGroup(
+                    file_path="test.py",
+                    methods=[
+                        MethodEntry(qualified_name="test.func", start_line=1, end_line=10, node_type="FUNCTION"),
+                    ],
+                ),
+                FileMethodGroup(
+                    file_path="test_utils.py",
+                    methods=[
+                        MethodEntry(qualified_name="test_utils.helper", start_line=1, end_line=5, node_type="FUNCTION"),
+                    ],
+                ),
             ],
         )
 
@@ -98,8 +108,8 @@ class TestDetailsAgent(unittest.TestCase):
             parsing_llm=mock_parsing_llm,
             run_id="test-run-id",
         )
-        # Mock StaticAnalysis and CFG behavior
-        abs_assigned = {str(self.repo_dir / fg.file_path) for fg in self.test_component.file_methods}
+        # Build the expected set of qualified names from component's file_methods
+        expected_qnames = {"test.func", "test_utils.helper"}
 
         # Create a mock node with proper attributes for method-level expansion check
         mock_node = MagicMock()
@@ -121,8 +131,7 @@ class TestDetailsAgent(unittest.TestCase):
         mock_subgraph.to_cluster_string.return_value = "Component CFG String"
 
         mock_cfg = MagicMock()
-        # Ensure filter_by_files returns our mock subgraph
-        mock_cfg.filter_by_files.return_value = mock_subgraph
+        mock_cfg.filter_by_nodes.return_value = mock_subgraph
 
         self.mock_static_analysis.get_languages.return_value = ["python"]
         self.mock_static_analysis.get_cfg.return_value = mock_cfg
@@ -135,7 +144,7 @@ class TestDetailsAgent(unittest.TestCase):
         self.assertIn("python", subgraph_cfgs)
         self.assertIs(subgraph_cfgs["python"], mock_subgraph)
         self.mock_static_analysis.get_cfg.assert_called_with("python")
-        mock_cfg.filter_by_files.assert_called_with(abs_assigned)
+        mock_cfg.filter_by_nodes.assert_called_with(expected_qnames)
         mock_subgraph.cluster.assert_called_once()
 
     @patch("agents.details_agent.DetailsAgent._validation_invoke")
@@ -313,7 +322,7 @@ class TestDetailsAgent(unittest.TestCase):
 
         mock_cfg = MagicMock()
         mock_cfg.cluster.return_value = mock_cluster_result
-        mock_cfg.filter_by_files.return_value = mock_subgraph
+        mock_cfg.filter_by_nodes.return_value = mock_subgraph
         # _build_cluster_string calls cfg.to_cluster_string on the original cfg
         mock_cfg.to_cluster_string.return_value = "Cluster 1: method_a, method_b"
 
