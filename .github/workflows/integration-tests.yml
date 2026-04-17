@@ -78,28 +78,23 @@ jobs:
           all_os = ["ubuntu-latest", "macos-latest", "windows-latest"]
           skip = {("macos-latest", "go"), ("windows-latest", "java")}  # see job-level note
 
-          def entries_for(os_name: str, lang: str):
-              if lang == "csharp":
-                  return [{"os": os_name, "language": "csharp", "dotnet_version": "10.0.x"}]
-              return [{"os": os_name, "language": lang}]
-
           if event in ("schedule", "workflow_dispatch"):
               langs = [dispatch_lang] if dispatch_lang else all_langs
-              include = []
-              for o in all_os:
-                  for lg in langs:
-                      if (o, lg) in skip:
-                          continue
-                      include.extend(entries_for(o, lg))
+              include = [
+                  {"os": o, "language": lg}
+                  for o in all_os
+                  for lg in langs
+                  if (o, lg) not in skip
+              ]
           else:
               # push / pull_request smoke subset.
-              include = []
-              for lg in all_langs:
-                  if ("windows-latest", lg) in skip:
-                      continue
-                  include.extend(entries_for("windows-latest", lg))
-              include.extend(entries_for("ubuntu-latest", "java"))
-              include.extend(entries_for("macos-latest", "java"))
+              include = [
+                  {"os": "windows-latest", "language": lg}
+                  for lg in all_langs
+                  if ("windows-latest", lg) not in skip
+              ]
+              include.append({"os": "ubuntu-latest", "language": "java"})
+              include.append({"os": "macos-latest", "language": "java"})
 
           print(f"matrix={json.dumps({'include': include})}")
           PY
@@ -170,7 +165,7 @@ jobs:
         if: matrix.language == 'csharp'
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: ${{ matrix.dotnet_version || '10.0.x' }}
+          dotnet-version: '10.0.x'
 
       - name: Install PHP (linux)
         if: matrix.language == 'php' && runner.os == 'Linux'
@@ -297,7 +292,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: integration-test-results-${{ matrix.os }}-${{ matrix.language }}-${{ matrix.dotnet_version || 'default' }}
+          name: integration-test-results-${{ matrix.os }}-${{ matrix.language }}
           path: |
             /tmp/actual_*.json
             ${{ runner.temp }}/actual_*.json
