@@ -110,8 +110,7 @@ VSCODE_CONFIG = {
             "languages": ["csharp"],
             "file_extensions": [".cs"],
             # csharp-ls is installed via `dotnet tool install --tool-path` by
-            # tool_registry; CI baseline is .NET SDK 10.0+ (with temporary
-            # fallback validation on 9.0.x during migration).
+            # tool_registry. Full migration mode targets .NET 10.
             "install_commands": "codeboarding-setup (installs csharp-ls automatically; requires .NET SDK 10.0+)",
         },
         "java": {

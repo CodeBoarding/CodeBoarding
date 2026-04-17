@@ -214,8 +214,9 @@ TOOL_REGISTRY: list[ToolDependency] = [
     ),
     # csharp-ls ships only as a NuGet dotnet-tool; installed via ``dotnet tool install``.
     # Pinned 0.20.0: 0.21.0+ has a malformed NuGet upstream.
-    # ``--framework net9.0`` is required — 0.20.0 ships only a net9.0 target, and without
-    # the flag ``--tool-path`` emits a misleading "DotnetToolSettings.xml not found" error.
+    # During .NET 10 migration we request ``--framework net10.0``; ``--tool-path``
+    # avoids a misleading "DotnetToolSettings.xml not found" error when no local
+    # manifest is present.
     ToolDependency(
         key="csharp",
         binary_name="csharp-ls",
@@ -231,7 +232,7 @@ TOOL_REGISTRY: list[ToolDependency] = [
                 "--version",
                 "{tag}",
                 "--framework",
-                "net9.0",
+                "net10.0",
                 "--tool-path",
                 "{tool_path}",
             ),

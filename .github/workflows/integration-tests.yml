@@ -79,23 +79,9 @@ jobs:
           skip = {("macos-latest", "go"), ("windows-latest", "java")}  # see job-level note
 
           def entries_for(os_name: str, lang: str):
-              # During migration, run C# on both .NET 10 (default) and .NET 9 fallback.
               if lang == "csharp":
-                  return [
-                      {
-                          "os": os_name,
-                          "language": "csharp",
-                          "dotnet_version": "10.0.x",
-                          "fallback_dotnet9": "false",
-                      },
-                      {
-                          "os": os_name,
-                          "language": "csharp",
-                          "dotnet_version": "9.0.x",
-                          "fallback_dotnet9": "true",
-                      },
-                  ]
-              return [{"os": os_name, "language": lang, "fallback_dotnet9": "false"}]
+                  return [{"os": os_name, "language": "csharp", "dotnet_version": "10.0.x"}]
+              return [{"os": os_name, "language": lang}]
 
           if event in ("schedule", "workflow_dispatch"):
               langs = [dispatch_lang] if dispatch_lang else all_langs
@@ -121,9 +107,6 @@ jobs:
   integration-tests:
     needs: setup-matrix
     runs-on: ${{ matrix.os }}
-    # Keep .NET 9 as temporary compatibility lane while .NET 10 is the
-    # default C# baseline. Remove this once .NET 10 proves stable.
-    continue-on-error: ${{ matrix.fallback_dotnet9 == 'true' }}
     timeout-minutes: 60
     strategy:
       fail-fast: false
