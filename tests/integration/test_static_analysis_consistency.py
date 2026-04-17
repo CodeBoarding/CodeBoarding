@@ -137,9 +137,7 @@ def _write_snapshot(static_analysis: StaticAnalysisResults, language: str, confi
     return snapshot_path
 
 
-# Tolerance for metric vs fixture (relative diff). Raised from 2% so large PHP
-# graphs (e.g. wordpress_php call_graph_nodes) stay stable on Windows where
-# intelephense/LSP variance can reach ~2.5–2.6% (e.g. 499/19646 ≈ 2.54%).
+# Tolerance for metric vs fixture (relative diff) to account for LSP variance on Windows.
 METRIC_TOLERANCE = 0.026
 
 # Minimum absolute tolerance for small numbers (e.g., 20 vs 19 is 5% diff, but only 1 unit)
