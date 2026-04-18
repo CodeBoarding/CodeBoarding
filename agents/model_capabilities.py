@@ -160,7 +160,7 @@ def _load(source: str) -> dict:
     try:
         # Why: models.dev rejects urllib's default UA with 403.
         req = urllib.request.Request(ModelCapabilities.SOURCES[source], headers={"User-Agent": "codeboarding/1.0"})
-        with urllib.request.urlopen(req, timeout=5) as r:
+        with urllib.request.urlopen(req, timeout=2) as r:
             raw = json.load(r)
         data = _normalize(source, raw)
         path.parent.mkdir(parents=True, exist_ok=True)
