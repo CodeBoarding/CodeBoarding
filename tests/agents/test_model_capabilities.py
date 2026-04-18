@@ -69,13 +69,13 @@ class TestResolverPriority:
     def test_env_override_single_value_uses_fallback_output(self, fake_catalogs, monkeypatch):
         monkeypatch.setenv("CB_CTX_OPENAI_GPT_5", "500000")
         cw = get_context_window("openai", "gpt-5")
-        assert cw.input == 500_000
-        assert cw.output == 64_000
+        assert cw.input_tokens == 500_000
+        assert cw.output_tokens == 64_000
 
     def test_malformed_env_override_falls_through_to_catalog(self, fake_catalogs, monkeypatch):
         # Regression: a typo like `500k` used to raise ValueError out of get_context_window.
         monkeypatch.setenv("CB_CTX_OPENAI_GPT_5", "500k")
-        assert get_context_window("openai", "gpt-5").input == 272_000
+        assert get_context_window("openai", "gpt-5").input_tokens == 272_000
 
     def test_fallback_when_nothing_matches(self, fake_catalogs):
         assert get_context_window("mystery", "nonexistent") == ContextWindow(256_000, 64_000)
@@ -84,20 +84,20 @@ class TestResolverPriority:
 class TestModelsdevResolution:
     def test_prefers_input_over_context(self, fake_catalogs):
         # Why: GPT-5 ships with context=400K but input=272K; we must honor the tighter cap.
-        assert get_context_window("openai", "gpt-5").input == 272_000
+        assert get_context_window("openai", "gpt-5").input_tokens == 272_000
 
     def test_falls_back_to_context_when_input_absent(self, fake_catalogs):
-        assert get_context_window("openai", "gpt-4o").input == 128_000
+        assert get_context_window("openai", "gpt-4o").input_tokens == 128_000
 
     def test_bedrock_regional_prefix_matched_directly(self, fake_catalogs):
         cw = get_context_window("aws", "us.anthropic.claude-sonnet-4-5-20250929-v1:0")
-        assert cw.input == 200_000
+        assert cw.input_tokens == 200_000
 
     def test_slug_mapping_glm_zai(self, fake_catalogs):
-        assert get_context_window("glm", "glm-4.6").input == 204_800
+        assert get_context_window("glm", "glm-4.6").input_tokens == 204_800
 
     def test_slug_mapping_kimi_moonshotai(self, fake_catalogs):
-        assert get_context_window("kimi", "kimi-k2.5").input == 262_144
+        assert get_context_window("kimi", "kimi-k2.5").input_tokens == 262_144
 
 
 class TestLitellmResolution:
@@ -105,14 +105,14 @@ class TestLitellmResolution:
         # LiteLLM holds the stripped key `anthropic.claude-3-haiku-…-v1:0`;
         # resolver must strip `us.` before looking up.
         cw = get_context_window("aws", "us.anthropic.claude-3-haiku-20240307-v1:0")
-        assert cw.input == 200_000
+        assert cw.input_tokens == 200_000
 
 
 class TestOpenrouterResolution:
     def test_resolves_via_aggregator_id(self, fake_catalogs):
         cw = get_context_window("anthropic", "claude-opus-4-7")
-        assert cw.input == 1_000_000
-        assert cw.output == 128_000
+        assert cw.input_tokens == 1_000_000
+        assert cw.output_tokens == 128_000
 
 
 class TestOllamaResolver:

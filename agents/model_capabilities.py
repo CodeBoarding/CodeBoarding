@@ -27,8 +27,8 @@ _OLLAMA_CACHE: dict[tuple[str, str], tuple[int, int]] = {}
 
 @dataclass(frozen=True)
 class ContextWindow:
-    input: int
-    output: int
+    input_tokens: int
+    output_tokens: int
 
 
 def get_context_window(provider: str, model_name: str) -> ContextWindow:

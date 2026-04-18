@@ -116,14 +116,14 @@ _POPULAR_PAIRS = [
 @pytest.mark.parametrize("provider,model,min_input", _TRICKY_CASES)
 def test_tricky_case_meets_minimum(provider, model, min_input):
     cw = get_context_window(provider, model)
-    assert cw.input >= min_input, f"{provider}/{model} returned {cw.input}, expected >= {min_input}"
+    assert cw.input_tokens >= min_input, f"{provider}/{model} returned {cw.input_tokens}, expected >= {min_input}"
     assert _resolved(provider, model), f"{provider}/{model} hit the generic fallback"
 
 
 @pytest.mark.parametrize("provider,model", _POPULAR_PAIRS)
 def test_popular_pair_resolves(provider, model):
     cw = get_context_window(provider, model)
-    assert cw.input >= _MIN_MODERN_INPUT, f"{provider}/{model} returned implausible input={cw.input}"
+    assert cw.input_tokens >= _MIN_MODERN_INPUT, f"{provider}/{model} returned implausible input={cw.input_tokens}"
 
 
 def test_total_coverage_across_tricky_and_popular():
