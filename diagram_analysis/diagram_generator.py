@@ -376,10 +376,6 @@ class DiagramGenerator:
                     not_analyzed_by_reason=s["not_analyzed_by_reason"],
                 )
 
-            # Final write of unified analysis.json — status-free architecture only.
-            # Per-method change status is computed by the wrapper at session init
-            # via IncrementalUpdater + StatusIndex and transported to the extension
-            # as $/initialStatus notifications (never persisted to disk).
             analysis_path = save_analysis(
                 analysis=analysis,
                 output_dir=Path(self.output_dir),

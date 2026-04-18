@@ -83,18 +83,6 @@ class _AnalysisFileStore:
                     data = json.load(f)
 
                 root_analysis, sub_analyses = parse_unified_analysis(data)
-
-                # BACKWARDS COMPAT — delete after 2026-05-17.
-                # One-time migration: rewrite old-format files to new schema.
-                if _is_legacy_format(data):
-                    logger.info("Migrating analysis.json from legacy to new format")
-                    self._write_with_lock_held(
-                        root_analysis,
-                        sub_analyses=sub_analyses,
-                        repo_name=data.get("metadata", {}).get("repo_name", ""),
-                        commit_hash=data.get("metadata", {}).get("commit_hash", ""),
-                    )
-
                 return (root_analysis, sub_analyses, data)
             except Exception as e:
                 logger.error(f"Failed to load unified analysis: {e}")
@@ -242,20 +230,6 @@ class _AnalysisFileStore:
             )
 
         return self._analysis_path
-
-
-# ---------------------------------------------------------------------------
-# Legacy format detection — BACKWARDS COMPAT, delete after 2026-05-17.
-# ---------------------------------------------------------------------------
-
-
-def _is_legacy_format(data: dict) -> bool:
-    """True when the on-disk analysis.json uses the old schema (inline methods on file entries)."""
-    files = data.get("files", {})
-    if not files:
-        return False
-    sample = next(iter(files.values()))
-    return isinstance(sample, dict) and "methods" in sample and "method_keys" not in sample
 
 
 # ---------------------------------------------------------------------------

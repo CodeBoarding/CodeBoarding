@@ -3,8 +3,7 @@ Method-level diff analysis.
 
 Cross-references git diff line ranges with ``MethodEntry`` positions to determine
 which methods were added, modified, or deleted. Pure functions: callers receive
-the computed statuses and decide how to store them (wrapper keeps a
-``StatusIndex``; nothing is mutated on the architecture models).
+the computed statuses and decide how to store them.
 """
 
 import logging
@@ -107,8 +106,8 @@ def compute_method_statuses_for_file(
     """Compute per-method statuses for one file.
 
     Returns ``(file_status, {qualified_name: status})``. Does not mutate the
-    input ``methods`` list — status is returned by value so the caller (the
-    wrapper session's ``StatusIndex``) decides where to store it.
+    input ``methods`` list — status is returned by value so the caller decides
+    where to store it.
     """
     file_status = resolve_file_status(file_path, changes)
     method_statuses: dict[str, ChangeStatus] = {}

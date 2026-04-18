@@ -430,44 +430,24 @@ def _reconstruct_files_index(
     files_raw: dict,
     methods_index: dict[str, "MethodIndexEntry"],
 ) -> dict[str, FileEntry]:
-    """Rebuild in-memory ``FileEntry`` objects from persisted ``method_keys``.
-
-    Supports the new persisted schema (``{"method_keys": [...]}``). For legacy
-    files still carrying inline ``{"methods": [...]}`` we fall back to parsing
-    those entries directly, so reading existing analyses keeps working.
-    """
+    """Rebuild in-memory ``FileEntry`` objects from persisted ``method_keys``."""
     files_index: dict[str, FileEntry] = {}
     for file_path, entry_raw in files_raw.items():
-        if isinstance(entry_raw, dict) and "method_keys" in entry_raw:
-            methods: list[MethodEntry] = []
-            for key in entry_raw["method_keys"]:
-                indexed = methods_index.get(key)
-                if indexed is None:
-                    logger.warning("Missing methods_index entry for key %s (file %s)", key, file_path)
-                    continue
-                methods.append(
-                    MethodEntry(
-                        qualified_name=indexed.qualified_name,
-                        start_line=indexed.start_line,
-                        end_line=indexed.end_line,
-                        node_type=indexed.type,
-                    )
-                )
-            files_index[file_path] = FileEntry(methods=methods)
-            continue
-        else:
-            # BACKWARDS COMPAT — delete after 2026-05-17.
-            # Legacy shape: inline methods list on the file entry.
-            legacy_methods = [
+        methods: list[MethodEntry] = []
+        for key in entry_raw["method_keys"]:
+            indexed = methods_index.get(key)
+            if indexed is None:
+                logger.warning("Missing methods_index entry for key %s (file %s)", key, file_path)
+                continue
+            methods.append(
                 MethodEntry(
-                    qualified_name=m["qualified_name"],
-                    start_line=m.get("start_line", 0),
-                    end_line=m.get("end_line", 0),
-                    node_type=m.get("node_type", "METHOD"),
+                    qualified_name=indexed.qualified_name,
+                    start_line=indexed.start_line,
+                    end_line=indexed.end_line,
+                    node_type=indexed.type,
                 )
-                for m in (entry_raw.get("methods", []) if isinstance(entry_raw, dict) else [])
-            ]
-            files_index[file_path] = FileEntry(methods=legacy_methods)
+            )
+        files_index[file_path] = FileEntry(methods=methods)
     return files_index
 
 

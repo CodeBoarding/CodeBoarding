@@ -134,11 +134,7 @@ class ClusterAnalysis(LLMBaseModel):
 
 
 class MethodEntry(BaseModel):
-    """A single method/function within a file, with its location and identity.
-
-    Pure architecture — no change status. Status lives in the wrapper session's
-    ``StatusIndex`` and is transported via ``IncrementalDelta`` notifications.
-    """
+    """A single method/function within a file, with its location and identity."""
 
     qualified_name: str = Field(description="Fully qualified name of the method or function.")
     start_line: int = Field(description="Starting line number in the file.")

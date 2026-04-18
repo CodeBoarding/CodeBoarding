@@ -4,11 +4,7 @@ Flow:
 1. Collect changed files from the monitor.
 2. Compare current file symbols with methods stored in analysis.files.
 3. Use git diff line ranges to determine per-method statuses (via ``repo_utils.method_diff``).
-4. Return an ``IncrementalDelta`` — pure, no mutation of architecture models.
-
-Status storage is the caller's responsibility. The wrapper keeps a
-``StatusIndex`` and merges each returned delta into it; the core architecture
-models (``AnalysisInsights``/``FileEntry``/``MethodEntry``) never carry status.
+4. Return an ``IncrementalDelta``. Status storage is the caller's responsibility.
 """
 
 import logging
@@ -18,14 +14,22 @@ from typing import Callable
 
 from agents.agent_responses import AnalysisInsights, Component, FileEntry, FileMethodGroup, MethodEntry
 from agents.change_status import ChangeStatus
-from diagram_analysis.incremental_types import FileDelta, IncrementalDelta, MethodChange, StatusIndex
+from diagram_analysis.incremental_types import FileDelta, IncrementalDelta, MethodChange
 from repo_utils.change_detector import ChangeSet
 from repo_utils.method_diff import compute_method_statuses_for_file
 
 logger = logging.getLogger(__name__)
 
-# Callable that resolves a repo-relative file path to its current MethodEntry list.
+# Resolves a repo-relative file path to its current MethodEntry list.
 SymbolResolver = Callable[[str], list[MethodEntry]]
+
+# Returns the caller's last-known status for ``(file_path, qualified_name)``.
+# ``UNCHANGED`` is the neutral default when the caller holds no record.
+MethodStatusLookup = Callable[[str, str], ChangeStatus]
+
+
+def _always_unchanged(_file_path: str, _qualified_name: str) -> ChangeStatus:
+    return ChangeStatus.UNCHANGED
 
 
 class IncrementalUpdater:
@@ -44,13 +48,13 @@ class IncrementalUpdater:
         analysis: AnalysisInsights,
         symbol_resolver: SymbolResolver,
         repo_dir: Path,
-        status_index: StatusIndex,
+        method_status_lookup: MethodStatusLookup | None = None,
         component_resolver: ComponentResolver | None = None,
     ):
         self.analysis = analysis
         self._symbol_resolver = symbol_resolver
         self._repo_dir = repo_dir
-        self._status_index = status_index
+        self._method_status_lookup = method_status_lookup or _always_unchanged
         self._component_resolver = component_resolver
         self._file_to_component = analysis.file_to_component()
 
@@ -68,7 +72,7 @@ class IncrementalUpdater:
         return {
             qn: m
             for qn, m in self._get_previous_methods(file_path).items()
-            if self._status_index.get_method_status(file_path, qn) != ChangeStatus.DELETED
+            if self._method_status_lookup(file_path, qn) != ChangeStatus.DELETED
         }
 
     @staticmethod
@@ -367,7 +371,7 @@ def apply_delta(
     """Apply ``IncrementalDelta`` architectural changes in place.
 
     Only architectural facts are mutated here — added/removed methods and
-    files. Status is the caller's responsibility (see ``StatusIndex.apply_delta``).
+    files. Status tracking is the caller's responsibility.
     """
     if not delta.has_changes:
         return

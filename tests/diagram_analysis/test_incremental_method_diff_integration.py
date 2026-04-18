@@ -14,7 +14,6 @@ from agents.agent_responses import (
     MethodEntry,
     assign_component_ids,
 )
-from diagram_analysis.incremental_types import StatusIndex
 from diagram_analysis.incremental_updater import IncrementalUpdater
 from repo_utils.change_detector import detect_uncommitted_changes
 
@@ -109,7 +108,6 @@ def test_incremental_delta_reports_added_modified_deleted_in_single_file():
             analysis,
             symbol_resolver=resolver,
             repo_dir=repo,
-            status_index=StatusIndex(),
         )
         delta = updater.compute_delta(
             added_files=changes.added_files,
