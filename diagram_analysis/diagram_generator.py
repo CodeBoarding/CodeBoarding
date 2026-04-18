@@ -11,7 +11,7 @@ from typing import Any
 from agents.abstraction_agent import AbstractionAgent
 from agents.agent_responses import AnalysisInsights, Component
 from agents.details_agent import DetailsAgent
-from agents.llm_config import initialize_llms
+from agents.llm_config import MONITORING_CALLBACK, initialize_llms
 from agents.meta_agent import MetaAgent
 from agents.planner_agent import get_expandable_components
 from diagram_analysis.analysis_json import (
@@ -77,6 +77,7 @@ class DiagramGenerator:
 
         self._monitoring_agents: dict[str, MonitoringMixin] = {}
         self.stats_writer: StreamingStatsWriter | None = None
+        self.last_token_usage: dict | None = None
         self._cached_method_changes = ChangeSet()
         self._method_change_resolution_attempted = False
 
@@ -448,6 +449,12 @@ class DiagramGenerator:
             # Write file_coverage.json
             self._write_file_coverage()
 
+            if self.stats_writer:
+                self.last_token_usage = self.stats_writer.snapshot_usage()
+                if self.last_token_usage.get("model_name") in (None, "unknown") and MONITORING_CALLBACK.model_name:
+                    self.last_token_usage["model_name"] = MONITORING_CALLBACK.model_name
+            else:
+                self.last_token_usage = None
             return analysis_path
 
     def generate_analysis_smart(self) -> Path:

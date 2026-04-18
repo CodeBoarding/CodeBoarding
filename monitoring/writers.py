@@ -87,7 +87,11 @@ class StreamingStatsWriter:
             self._stream_token_usage()
             self._stop_event.wait(self.interval)
 
-    def _stream_token_usage(self):
+    def snapshot_usage(self) -> dict:
+        """Return cumulative token usage across all monitored agents.
+
+        Live in-memory read — safe to call from inside the `with` block.
+        """
         total_input = 0
         total_output = 0
         total_tokens = 0
@@ -102,15 +106,23 @@ class StreamingStatsWriter:
             if res.get("model_name"):
                 model_name = str(res.get("model_name"))
 
-        payload = {
-            "token_usage": {
-                "input_tokens": total_input,
-                "output_tokens": total_output,
-                "total_tokens": total_tokens,
-            },
+        return {
+            "input_tokens": total_input,
+            "output_tokens": total_output,
+            "total_tokens": total_tokens,
             "model_name": model_name,
         }
-        # Print as a log message
+
+    def _stream_token_usage(self):
+        usage = self.snapshot_usage()
+        payload = {
+            "token_usage": {
+                "input_tokens": usage["input_tokens"],
+                "output_tokens": usage["output_tokens"],
+                "total_tokens": usage["total_tokens"],
+            },
+            "model_name": usage["model_name"],
+        }
         self._logger.info(f"Cumulative Token Usage: {json.dumps(payload)}")
 
     def _save_llm_usage(self):
