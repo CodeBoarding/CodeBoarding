@@ -152,7 +152,10 @@ def _openrouter_id(provider: str, model_name: str) -> str:
     return f"{ModelCapabilities.OPENROUTER_PREFIX.get(provider, provider)}/{model_name}"
 
 
+@lru_cache(maxsize=4)
 def _load(source: str) -> dict:
+    # Why: each resolver calls _load on every lookup; without memoization, 100 models = ~300
+    # parses of the same multi-MB JSON. On-disk TTL still applies on first hit per process.
     path = get_cache_dir(Path.cwd()) / f"{source}.json"
     if path.exists() and time.time() - path.stat().st_mtime < ModelCapabilities.CACHE_TTL_SECONDS:
         return json.loads(path.read_text())
