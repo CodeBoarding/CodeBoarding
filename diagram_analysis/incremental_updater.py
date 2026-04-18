@@ -28,10 +28,6 @@ SymbolResolver = Callable[[str], list[MethodEntry]]
 MethodStatusLookup = Callable[[str, str], ChangeStatus]
 
 
-def _always_unchanged(_file_path: str, _qualified_name: str) -> ChangeStatus:
-    return ChangeStatus.UNCHANGED
-
-
 class IncrementalUpdater:
     """Computes file-level incremental deltas from file changes.
 
@@ -54,7 +50,7 @@ class IncrementalUpdater:
         self.analysis = analysis
         self._symbol_resolver = symbol_resolver
         self._repo_dir = repo_dir
-        self._method_status_lookup = method_status_lookup or _always_unchanged
+        self._method_status_lookup = method_status_lookup
         self._component_resolver = component_resolver
         self._file_to_component = analysis.file_to_component()
 
@@ -69,11 +65,11 @@ class IncrementalUpdater:
 
     def _get_previous_active_methods(self, file_path: str) -> dict[str, MethodEntry]:
         """Previously-known methods excluding ones currently marked DELETED."""
-        return {
-            qn: m
-            for qn, m in self._get_previous_methods(file_path).items()
-            if self._method_status_lookup(file_path, qn) != ChangeStatus.DELETED
-        }
+        previous = self._get_previous_methods(file_path)
+        if self._method_status_lookup is None:
+            return previous
+        lookup = self._method_status_lookup
+        return {qn: m for qn, m in previous.items() if lookup(file_path, qn) != ChangeStatus.DELETED}
 
     @staticmethod
     def _to_method_change(
