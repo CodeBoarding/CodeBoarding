@@ -14,7 +14,6 @@ from agents.agent_responses import (
     MethodEntry,
     assign_component_ids,
 )
-from agents.change_status import ChangeStatus
 from diagram_analysis.incremental_updater import IncrementalUpdater
 from repo_utils.change_detector import detect_uncommitted_changes
 
@@ -28,8 +27,8 @@ def _build_analysis(methods_by_file: dict[str, list[MethodEntry]]) -> AnalysisIn
     groups: list[FileMethodGroup] = []
     for file_path, methods in methods_by_file.items():
         ordered = sorted(methods, key=lambda m: (m.start_line, m.end_line, m.qualified_name))
-        files[file_path] = FileEntry(file_status=ChangeStatus.UNCHANGED, methods=ordered)
-        groups.append(FileMethodGroup(file_path=file_path, file_status=ChangeStatus.UNCHANGED, methods=ordered))
+        files[file_path] = FileEntry(methods=ordered)
+        groups.append(FileMethodGroup(file_path=file_path, methods=ordered))
 
     component = Component(name="Core", description="Core component", key_entities=[], file_methods=groups)
     analysis = AnalysisInsights(description="integration", components=[component], components_relations=[], files=files)
@@ -105,7 +104,11 @@ def test_incremental_delta_reports_added_modified_deleted_in_single_file():
             return current_methods.get(rel_path, [])
 
         changes = detect_uncommitted_changes(repo)
-        updater = IncrementalUpdater(analysis, symbol_resolver=resolver, repo_dir=repo)
+        updater = IncrementalUpdater(
+            analysis,
+            symbol_resolver=resolver,
+            repo_dir=repo,
+        )
         delta = updater.compute_delta(
             added_files=changes.added_files,
             modified_files=changes.modified_files,

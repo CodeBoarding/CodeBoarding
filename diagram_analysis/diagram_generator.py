@@ -28,9 +28,7 @@ from monitoring import StreamingStatsWriter
 from monitoring.mixin import MonitoringMixin
 from monitoring.paths import get_monitoring_run_dir
 from repo_utils import get_git_commit_hash, get_repo_state_hash
-from repo_utils.change_detector import ChangeSet, detect_uncommitted_changes
 from repo_utils.ignore import RepoIgnoreManager
-from repo_utils.method_diff import apply_method_diffs_to_file_index
 from static_analyzer import StaticAnalyzer, get_static_analysis
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.scanner import ProjectScanner
@@ -77,60 +75,6 @@ class DiagramGenerator:
 
         self._monitoring_agents: dict[str, MonitoringMixin] = {}
         self.stats_writer: StreamingStatsWriter | None = None
-        self._cached_method_changes = ChangeSet()
-        self._method_change_resolution_attempted = False
-
-    def _resolve_method_level_changes(self) -> ChangeSet:
-        """Resolve method-level changes by detecting uncommitted changes (staged + unstaged).
-
-        This diffs HEAD against the working tree to find files with uncommitted modifications,
-        which is the source of truth for method status assignment during analysis.
-        """
-        if self._method_change_resolution_attempted:
-            return self._cached_method_changes
-
-        self._method_change_resolution_attempted = True
-
-        changes = detect_uncommitted_changes(self.repo_location)
-        if changes.is_empty():
-            logger.debug("No uncommitted changes detected; method statuses remain unchanged")
-            return self._cached_method_changes
-
-        self._cached_method_changes = changes
-        return changes
-
-    def _apply_method_diff_statuses(
-        self,
-        root_analysis: AnalysisInsights,
-        sub_analyses: dict[str, AnalysisInsights],
-    ) -> None:
-        """Annotate file/method status fields using working-tree git diffs."""
-        changes = self._resolve_method_level_changes()
-        if changes.is_empty():
-            return
-
-        apply_method_diffs_to_file_index(root_analysis.files, changes, self.repo_location)
-        self._sync_component_statuses_from_files_index(root_analysis)
-
-        for sub_analysis in sub_analyses.values():
-            apply_method_diffs_to_file_index(sub_analysis.files, changes, self.repo_location)
-            self._sync_component_statuses_from_files_index(sub_analysis)
-
-    @staticmethod
-    def _sync_component_statuses_from_files_index(analysis: AnalysisInsights) -> None:
-        """Copy file/method statuses from analysis.files into component.file_methods."""
-        for component in analysis.components:
-            for file_group in component.file_methods:
-                file_entry = analysis.files.get(file_group.file_path)
-                if file_entry is None:
-                    continue
-
-                file_group.file_status = file_entry.file_status
-                method_statuses = {method.qualified_name: method.status for method in file_entry.methods}
-                for method in file_group.methods:
-                    status = method_statuses.get(method.qualified_name)
-                    if status is not None:
-                        method.status = status
 
     def process_component(
         self, component: Component
@@ -431,9 +375,6 @@ class DiagramGenerator:
                     not_analyzed=s["not_analyzed"],
                     not_analyzed_by_reason=s["not_analyzed_by_reason"],
                 )
-
-            # Final write of unified analysis.json
-            self._apply_method_diff_statuses(analysis, sub_analyses)
 
             analysis_path = save_analysis(
                 analysis=analysis,

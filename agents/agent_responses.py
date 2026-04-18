@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import abc
 import logging
 from abc import abstractmethod
@@ -5,8 +7,6 @@ from pathlib import PurePosixPath
 from typing import get_origin, Optional
 
 from pydantic import BaseModel, Field
-
-from agents.change_status import ChangeStatus
 
 logger = logging.getLogger(__name__)
 
@@ -142,10 +142,6 @@ class MethodEntry(BaseModel):
     start_line: int = Field(description="Starting line number in the file.")
     end_line: int = Field(description="Ending line number in the file.")
     node_type: str = Field(description="Node type name matching NodeType enum (e.g. METHOD, FUNCTION, CLASS).")
-    status: ChangeStatus = Field(
-        default=ChangeStatus.UNCHANGED,
-        description="Diff status of this method: added, modified, deleted, or unchanged.",
-    )
 
     def __hash__(self) -> int:
         return hash(self.qualified_name)
@@ -156,13 +152,12 @@ class MethodEntry(BaseModel):
         return self.qualified_name == other.qualified_name
 
     @classmethod
-    def from_method_change(cls, method_change, *, status_override: ChangeStatus | None = None) -> "MethodEntry":
+    def from_method_change(cls, method_change) -> MethodEntry:
         return cls(
             qualified_name=method_change.qualified_name,
             start_line=method_change.start_line,
             end_line=method_change.end_line,
             node_type=method_change.node_type,
-            status=status_override or method_change.change_type,
         )
 
 
@@ -170,10 +165,6 @@ class FileMethodGroup(BaseModel):
     """All methods/functions belonging to a component within a single file."""
 
     file_path: str = Field(description="Relative path to the source file.")
-    file_status: ChangeStatus = Field(
-        default=ChangeStatus.UNCHANGED,
-        description="Diff status of this file: added, modified, deleted, renamed, or unchanged.",
-    )
     methods: list[MethodEntry] = Field(
         default_factory=list,
         description="Methods and functions in this file that belong to the component, sorted by start_line.",
@@ -183,10 +174,6 @@ class FileMethodGroup(BaseModel):
 class FileEntry(BaseModel):
     """Single source of truth for methods in one file."""
 
-    file_status: ChangeStatus = Field(
-        default=ChangeStatus.UNCHANGED,
-        description="Diff status of this file: added, modified, deleted, renamed, or unchanged.",
-    )
     methods: list[MethodEntry] = Field(
         default_factory=list,
         description="Methods and functions in this file, sorted by start line.",
