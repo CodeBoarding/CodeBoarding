@@ -102,12 +102,11 @@ def compute_method_statuses_for_file(
     file_path: str,
     changes: ChangeSet,
     repo_dir: Path,
-) -> tuple[ChangeStatus, dict[str, ChangeStatus]]:
+) -> dict[str, ChangeStatus]:
     """Compute per-method statuses for one file.
 
-    Returns ``(file_status, {qualified_name: status})``. Does not mutate the
-    input ``methods`` list — status is returned by value so the caller decides
-    where to store it.
+    Callers that also need the file-level status should call
+    :func:`resolve_file_status` directly with the same ``changes``.
     """
     file_status = resolve_file_status(file_path, changes)
     method_statuses: dict[str, ChangeStatus] = {}
@@ -115,12 +114,12 @@ def compute_method_statuses_for_file(
     if file_status == ChangeStatus.ADDED:
         for method in methods:
             method_statuses[method.qualified_name] = ChangeStatus.ADDED
-        return file_status, method_statuses
+        return method_statuses
 
     if file_status == ChangeStatus.DELETED:
         for method in methods:
             method_statuses[method.qualified_name] = ChangeStatus.DELETED
-        return file_status, method_statuses
+        return method_statuses
 
     if file_status == ChangeStatus.MODIFIED:
         hunks = _parse_diff_hunks(repo_dir, changes.base_ref, file_path)
@@ -128,7 +127,7 @@ def compute_method_statuses_for_file(
             # Binary file or diff failure — cannot determine per-method status.
             for method in methods:
                 method_statuses[method.qualified_name] = ChangeStatus.UNCHANGED
-            return file_status, method_statuses
+            return method_statuses
 
         added_ranges: list[tuple[int, int]] = []
         changed_ranges: list[tuple[int, int]] = []
@@ -155,9 +154,9 @@ def compute_method_statuses_for_file(
                 method_statuses[method.qualified_name] = ChangeStatus.MODIFIED
             else:
                 method_statuses[method.qualified_name] = ChangeStatus.UNCHANGED
-        return file_status, method_statuses
+        return method_statuses
 
     # UNCHANGED / RENAMED: every method is UNCHANGED relative to the diff.
     for method in methods:
         method_statuses[method.qualified_name] = ChangeStatus.UNCHANGED
-    return file_status, method_statuses
+    return method_statuses

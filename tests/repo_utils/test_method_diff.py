@@ -74,7 +74,7 @@ class TestNewFunctionInMixedHunk:
     def test_new_function_in_mixed_hunk_is_added(self, mock_parse, methods, file_path, changes, hunks):
         mock_parse.return_value = hunks
 
-        _, by_name = compute_method_statuses_for_file(methods, file_path, changes, Path("/fake/repo"))
+        by_name = compute_method_statuses_for_file(methods, file_path, changes, Path("/fake/repo"))
 
         # merge_clusters is entirely new code – it should be ADDED
         assert by_name["cluster_helpers.merge_clusters"] == ChangeStatus.ADDED
@@ -83,7 +83,7 @@ class TestNewFunctionInMixedHunk:
     def test_modified_function_in_mixed_hunk_is_modified(self, mock_parse, methods, file_path, changes, hunks):
         mock_parse.return_value = hunks
 
-        _, by_name = compute_method_statuses_for_file(methods, file_path, changes, Path("/fake/repo"))
+        by_name = compute_method_statuses_for_file(methods, file_path, changes, Path("/fake/repo"))
 
         # build_all_cluster_results overlaps the replaced portion – should be MODIFIED
         assert by_name["cluster_helpers.build_all_cluster_results"] == ChangeStatus.MODIFIED
@@ -92,6 +92,6 @@ class TestNewFunctionInMixedHunk:
     def test_unchanged_function_outside_hunk(self, mock_parse, methods, file_path, changes, hunks):
         mock_parse.return_value = hunks
 
-        _, by_name = compute_method_statuses_for_file(methods, file_path, changes, Path("/fake/repo"))
+        by_name = compute_method_statuses_for_file(methods, file_path, changes, Path("/fake/repo"))
 
         assert by_name["cluster_helpers.get_all_cluster_ids"] == ChangeStatus.UNCHANGED

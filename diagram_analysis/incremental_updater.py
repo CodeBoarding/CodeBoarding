@@ -160,7 +160,7 @@ class IncrementalUpdater:
         prev_keys = set(prev_active.keys())
         current_keys = set(current_by_name.keys())
 
-        _, method_statuses = compute_method_statuses_for_file(current, file_path, changes, self._repo_dir)
+        method_statuses = compute_method_statuses_for_file(current, file_path, changes, self._repo_dir)
 
         return (
             FileDelta(

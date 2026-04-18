@@ -17,103 +17,6 @@ from agents.agent_responses import (
 logger = logging.getLogger(__name__)
 
 
-def _build_files_index_from_analysis(analysis: AnalysisInsights) -> dict[str, FileEntry]:
-    """Build a top-level files index from analysis."""
-    return {file_path: entry.model_copy(deep=True) for file_path, entry in analysis.files.items()}
-
-
-def _method_key(file_path: str, qualified_name: str) -> str:
-    return f"{file_path}|{qualified_name}"
-
-
-def _to_method_qualified_name(method: MethodEntry) -> str:
-    return method.qualified_name
-
-
-def _to_component_file_method_refs(file_methods: list[FileMethodGroup]) -> list["ComponentFileMethodGroupJson"]:
-    refs: list[ComponentFileMethodGroupJson] = []
-    for group in file_methods:
-        qnames: list[str] = []
-        seen: set[str] = set()
-        for method in group.methods:
-            qname = _to_method_qualified_name(method)
-            if qname in seen:
-                continue
-            seen.add(qname)
-            qnames.append(qname)
-        refs.append(ComponentFileMethodGroupJson(file_path=group.file_path, methods=qnames))
-    return refs
-
-
-def _method_refs_to_placeholders(method_names: list[str]) -> list[MethodEntry]:
-    return [
-        MethodEntry(
-            qualified_name=method_name,
-            start_line=0,
-            end_line=0,
-            node_type="METHOD",
-        )
-        for method_name in method_names
-    ]
-
-
-def _build_methods_index_from_files(files_index: dict[str, FileEntry]) -> dict[str, "MethodIndexEntry"]:
-    methods_index: dict[str, MethodIndexEntry] = {}
-    for file_path, entry in files_index.items():
-        for method in entry.methods:
-            methods_index[_method_key(file_path, method.qualified_name)] = MethodIndexEntry(
-                file_path=file_path,
-                qualified_name=method.qualified_name,
-                start_line=method.start_line,
-                end_line=method.end_line,
-                type=method.node_type,
-            )
-    return methods_index
-
-
-def _build_file_entry_json_from_files(files_index: dict[str, FileEntry]) -> dict[str, "FileEntryJson"]:
-    return {
-        file_path: FileEntryJson(
-            method_keys=[_method_key(file_path, m.qualified_name) for m in entry.methods],
-        )
-        for file_path, entry in files_index.items()
-    }
-
-
-def _hydrate_component_methods_from_refs(
-    analysis: AnalysisInsights,
-    methods_index: dict[str, "MethodIndexEntry"],
-) -> None:
-    missing: list[str] = []
-    for component in analysis.components:
-        rebuilt: list[FileMethodGroup] = []
-        for group in component.file_methods:
-            file_path = group.file_path
-            methods: list[MethodEntry] = []
-            for method in group.methods:
-                qname = _to_method_qualified_name(method)
-                indexed = methods_index.get(_method_key(file_path, qname))
-                if indexed is None:
-                    missing.append(f"{file_path}|{qname}")
-                    continue
-                methods.append(
-                    MethodEntry(
-                        qualified_name=indexed.qualified_name,
-                        start_line=indexed.start_line,
-                        end_line=indexed.end_line,
-                        node_type=indexed.type,
-                    )
-                )
-
-            methods = sorted(methods, key=lambda m: (m.start_line, m.end_line, m.qualified_name))
-            rebuilt.append(FileMethodGroup(file_path=file_path, methods=methods))
-
-        component.file_methods = rebuilt
-
-    if missing:
-        logger.warning("Missing method index entry for %d ref(s): %s", len(missing), missing)
-
-
 class RelationJson(Relation):
     """Relation subclass that includes src_id/dst_id and static analysis evidence in JSON serialization."""
 
@@ -228,6 +131,103 @@ class UnifiedAnalysisJson(BaseModel):
     )
     components: list[ComponentJson] = Field(description="List of the components identified in the project.")
     components_relations: list[RelationJson] = Field(description="List of relations among the components.")
+
+
+def _build_files_index_from_analysis(analysis: AnalysisInsights) -> dict[str, FileEntry]:
+    """Build a top-level files index from analysis."""
+    return {file_path: entry.model_copy(deep=True) for file_path, entry in analysis.files.items()}
+
+
+def _method_key(file_path: str, qualified_name: str) -> str:
+    return f"{file_path}|{qualified_name}"
+
+
+def _to_method_qualified_name(method: MethodEntry) -> str:
+    return method.qualified_name
+
+
+def _to_component_file_method_refs(file_methods: list[FileMethodGroup]) -> list[ComponentFileMethodGroupJson]:
+    refs: list[ComponentFileMethodGroupJson] = []
+    for group in file_methods:
+        qnames: list[str] = []
+        seen: set[str] = set()
+        for method in group.methods:
+            qname = _to_method_qualified_name(method)
+            if qname in seen:
+                continue
+            seen.add(qname)
+            qnames.append(qname)
+        refs.append(ComponentFileMethodGroupJson(file_path=group.file_path, methods=qnames))
+    return refs
+
+
+def _method_refs_to_placeholders(method_names: list[str]) -> list[MethodEntry]:
+    return [
+        MethodEntry(
+            qualified_name=method_name,
+            start_line=0,
+            end_line=0,
+            node_type="METHOD",
+        )
+        for method_name in method_names
+    ]
+
+
+def _build_methods_index_from_files(files_index: dict[str, FileEntry]) -> dict[str, MethodIndexEntry]:
+    methods_index: dict[str, MethodIndexEntry] = {}
+    for file_path, entry in files_index.items():
+        for method in entry.methods:
+            methods_index[_method_key(file_path, method.qualified_name)] = MethodIndexEntry(
+                file_path=file_path,
+                qualified_name=method.qualified_name,
+                start_line=method.start_line,
+                end_line=method.end_line,
+                type=method.node_type,
+            )
+    return methods_index
+
+
+def _build_file_entry_json_from_files(files_index: dict[str, FileEntry]) -> dict[str, FileEntryJson]:
+    return {
+        file_path: FileEntryJson(
+            method_keys=[_method_key(file_path, m.qualified_name) for m in entry.methods],
+        )
+        for file_path, entry in files_index.items()
+    }
+
+
+def _hydrate_component_methods_from_refs(
+    analysis: AnalysisInsights,
+    methods_index: dict[str, MethodIndexEntry],
+) -> None:
+    missing: list[str] = []
+    for component in analysis.components:
+        rebuilt: list[FileMethodGroup] = []
+        for group in component.file_methods:
+            file_path = group.file_path
+            methods: list[MethodEntry] = []
+            for method in group.methods:
+                qname = _to_method_qualified_name(method)
+                indexed = methods_index.get(_method_key(file_path, qname))
+                if indexed is None:
+                    missing.append(f"{file_path}|{qname}")
+                    continue
+                methods.append(
+                    MethodEntry(
+                        qualified_name=indexed.qualified_name,
+                        start_line=indexed.start_line,
+                        end_line=indexed.end_line,
+                        node_type=indexed.type,
+                    )
+                )
+
+            methods = sorted(methods, key=lambda m: (m.start_line, m.end_line, m.qualified_name))
+            rebuilt.append(FileMethodGroup(file_path=file_path, methods=methods))
+
+        component.file_methods = rebuilt
+
+    if missing:
+        logger.warning("Missing method index entry for %d ref(s): %s", len(missing), missing)
 
 
 def _relation_to_json(r: Relation) -> RelationJson:
@@ -428,7 +428,7 @@ def parse_unified_analysis(
 
 def _reconstruct_files_index(
     files_raw: dict,
-    methods_index: dict[str, "MethodIndexEntry"],
+    methods_index: dict[str, MethodIndexEntry],
 ) -> dict[str, FileEntry]:
     """Rebuild in-memory ``FileEntry`` objects from persisted ``method_keys``."""
     files_index: dict[str, FileEntry] = {}
