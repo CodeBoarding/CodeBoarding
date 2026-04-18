@@ -14,8 +14,8 @@ class FileStructureConfig:
 
 
 class ModelCapabilities:
-    FALLBACK_INPUT = 128_000
-    FALLBACK_OUTPUT = 8_192
+    FALLBACK_INPUT = 256_000
+    FALLBACK_OUTPUT = 64_000
     CACHE_TTL_SECONDS = 24 * 3600
 
     SOURCES = {

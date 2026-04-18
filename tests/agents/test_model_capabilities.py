@@ -70,10 +70,10 @@ class TestResolverPriority:
         monkeypatch.setenv("CB_CTX_OPENAI_GPT_5", "500000")
         cw = get_context_window("openai", "gpt-5")
         assert cw.input == 500_000
-        assert cw.output == 8_192
+        assert cw.output == 64_000
 
     def test_fallback_when_nothing_matches(self, fake_catalogs):
-        assert get_context_window("mystery", "nonexistent") == ContextWindow(128_000, 8_192)
+        assert get_context_window("mystery", "nonexistent") == ContextWindow(256_000, 64_000)
 
 
 class TestModelsdevResolution:
@@ -129,7 +129,7 @@ class TestOllamaResolver:
 
         monkeypatch.setattr("agents.model_capabilities.urllib.request.urlopen", fake_urlopen)
         result = _resolve_ollama("ollama", "qwen3:30b")
-        assert result == (4096, 8192)
+        assert result == (4096, 64_000)
 
     def test_arch_max_used_when_num_ctx_absent(self, monkeypatch):
         monkeypatch.setenv("OLLAMA_BASE_URL", "http://fake:11434")
@@ -140,7 +140,7 @@ class TestOllamaResolver:
             return io.BytesIO(json.dumps(payload).encode())
 
         monkeypatch.setattr("agents.model_capabilities.urllib.request.urlopen", fake_urlopen)
-        assert _resolve_ollama("ollama", "llama3:8b") == (131072, 8192)
+        assert _resolve_ollama("ollama", "llama3:8b") == (131072, 64_000)
 
 
 class TestParseNumCtx:
