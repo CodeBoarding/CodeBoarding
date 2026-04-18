@@ -12,13 +12,13 @@ from agents.model_capabilities import (
     _resolve_modelsdev,
     _resolve_ollama,
     _resolve_openrouter,
-    _resolve_override,
+    _resolve_user_config,
     get_context_window,
 )
 
 _RESOLVERS = (
     _resolve_env,
-    _resolve_override,
+    _resolve_user_config,
     _resolve_ollama,
     _resolve_modelsdev,
     _resolve_litellm,

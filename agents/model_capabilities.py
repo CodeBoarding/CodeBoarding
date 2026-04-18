@@ -13,11 +13,6 @@ from utils import get_cache_dir
 
 logger = logging.getLogger(__name__)
 
-# Escape hatch for catalog bugs or private IDs no catalog covers. Empty by design —
-# models.dev resolves the previously-suspected overrides (gpt-5, kimi-k2.5, glm-4.6,
-# gpt-oss-120b) correctly when we prefer limit.input over limit.context.
-_OVERRIDES: dict[tuple[str, str], tuple[int, int]] = {}
-
 _BEDROCK_REGION = re.compile(r"^(us|eu|apac|global|au|ca|us-gov)\.")
 
 # Why: cached by hand (not via @lru_cache) so a transient Ollama outage -- user starts the
@@ -34,7 +29,7 @@ class ContextWindow:
 def get_context_window(provider: str, model_name: str) -> ContextWindow:
     resolvers = (
         _resolve_env,
-        _resolve_override,
+        _resolve_user_config,
         _resolve_ollama,
         _resolve_modelsdev,
         _resolve_litellm,
@@ -65,8 +60,22 @@ def _resolve_env(provider: str, model_name: str) -> tuple[int, int] | None:
     return inp, out
 
 
-def _resolve_override(provider: str, model_name: str) -> tuple[int, int] | None:
-    return _OVERRIDES.get((provider, model_name))
+def _resolve_user_config(provider: str, model_name: str) -> tuple[int, int] | None:
+    # Why: lets users pin a window via `[llm] context_window = N` in ~/.codeboarding/config.toml
+    # when catalogs are wrong or a model is private. Global scalar — applies to every provider/model.
+    cw = _user_context_window_override()
+    if cw is None:
+        return None
+    return cw, ModelCapabilities.FALLBACK_OUTPUT
+
+
+@lru_cache(maxsize=1)
+def _user_context_window_override() -> int | None:
+    # Why: delayed import avoids a module-load cycle; lru_cache avoids re-parsing
+    # config.toml on every get_context_window call.
+    from user_config import load_user_config
+
+    return load_user_config().llm.context_window
 
 
 def _resolve_ollama(provider: str, model_name: str) -> tuple[int, int] | None:

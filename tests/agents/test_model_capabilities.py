@@ -58,6 +58,9 @@ def fake_catalogs(monkeypatch):
         return catalogs.get(source, {})
 
     monkeypatch.setattr("agents.model_capabilities._load", fake_load)
+    # Why: isolate from ~/.codeboarding/config.toml so a developer's local override
+    # doesn't shadow the catalog under test.
+    monkeypatch.setattr("agents.model_capabilities._user_context_window_override", lambda: None)
     _OLLAMA_CACHE.clear()
 
 
