@@ -1317,7 +1317,7 @@ class TestInstallNativeToolsCompressed(unittest.TestCase):
         binary_payload = b"\x7fELF" + b"fake-elf-bytes" * 200
 
         # The fake "download" writes a gzipped payload to the destination path.
-        def fake_download(url, destination, expected_sha256=None):
+        def fake_download(url: str, destination: Path, expected_sha256: str | None = None) -> bool:
             destination.parent.mkdir(parents=True, exist_ok=True)
             with gzip.open(destination, "wb") as f:
                 f.write(binary_payload)
@@ -1419,7 +1419,7 @@ class TestInstallNativeToolsCompressed(unittest.TestCase):
             ),
         )
 
-        def fake_download(url, destination, expected_sha256=None):
+        def fake_download(url: str, destination: Path, expected_sha256: str | None = None) -> bool:
             destination.parent.mkdir(parents=True, exist_ok=True)
             with gzip.open(destination, "wb") as f:
                 f.write(b"\x7fELFmock")

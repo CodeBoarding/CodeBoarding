@@ -505,7 +505,7 @@ class CallGraph:
                 node_type = node_data.get("type")
                 files_in_cluster.add(file_path)
 
-                type_label = ENTITY_LABELS.get(node_type, "Function")
+                type_label = ENTITY_LABELS.get(node_type, "Function") if isinstance(node_type, NodeType) else "Function"
                 parts = node_name.split(".")
 
                 if node_type == NodeType.CLASS:

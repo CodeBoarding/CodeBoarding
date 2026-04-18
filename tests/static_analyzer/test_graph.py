@@ -425,6 +425,23 @@ class TestCallGraph(unittest.TestCase):
         self.assertIn("Cluster 1", result)
         self.assertIn("Cluster 2", result)
 
+    def test_cluster_str_handles_missing_node_type(self):
+        # Why: nx_graph node data may lack "type" (returns None) for synthetic or
+        # unresolved nodes; __cluster_str must fall back to "Function" instead of
+        # crashing on ENTITY_LABELS.get(None, ...).
+        graph = CallGraph()
+        nx_graph = nx.DiGraph()
+        nx_graph.add_node("module.mystery_func", file_path="/file.py")  # no "type" key
+        nx_graph.add_node("module.known_func", file_path="/file.py", type=NodeType.FUNCTION)
+        nx_graph.add_edge("module.mystery_func", "module.known_func")
+
+        communities = [["module.mystery_func", "module.known_func"]]
+
+        result = graph._CallGraph__cluster_str(communities, nx_graph)  # type: ignore[attr-defined]
+
+        self.assertIn("module.mystery_func [Function]", result)
+        self.assertIn("module.known_func [Function]", result)
+
     def test_non_cluster_str_static_method(self):
         # Test __non_cluster_str static method
         graph = CallGraph()
