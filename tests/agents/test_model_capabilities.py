@@ -48,12 +48,14 @@ _FAKE_OPENROUTER = {
 
 @pytest.fixture
 def fake_catalogs(monkeypatch):
+    catalogs: dict[str, dict] = {
+        "modelsdev": _FAKE_MODELSDEV,
+        "litellm": _FAKE_LITELLM,
+        "openrouter": _FAKE_OPENROUTER,
+    }
+
     def fake_load(source: str) -> dict:
-        return {
-            "modelsdev": _FAKE_MODELSDEV,
-            "litellm": _FAKE_LITELLM,
-            "openrouter": _FAKE_OPENROUTER,
-        }.get(source, {})
+        return catalogs.get(source, {})
 
     monkeypatch.setattr("agents.model_capabilities._load", fake_load)
     _ollama_show.cache_clear()
