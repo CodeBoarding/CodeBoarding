@@ -20,6 +20,10 @@ _OVERRIDES: dict[tuple[str, str], tuple[int, int]] = {}
 
 _BEDROCK_REGION = re.compile(r"^(us|eu|apac|global|au|ca|us-gov)\.")
 
+# Why: cached by hand (not via @lru_cache) so a transient Ollama outage -- user starts the
+# app before `ollama serve` is up -- doesn't memoize None for the rest of the process.
+_OLLAMA_CACHE: dict[tuple[str, str], tuple[int, int]] = {}
+
 
 @dataclass(frozen=True)
 class ContextWindow:
@@ -50,8 +54,14 @@ def _resolve_env(provider: str, model_name: str) -> tuple[int, int] | None:
     if not val:
         return None
     parts = val.split(",")
-    inp = int(parts[0])
-    out = int(parts[1]) if len(parts) > 1 else ModelCapabilities.FALLBACK_OUTPUT
+    try:
+        inp = int(parts[0])
+        out = int(parts[1]) if len(parts) > 1 else ModelCapabilities.FALLBACK_OUTPUT
+    except ValueError as e:
+        # Why: env layer is an escape hatch; a typo like `500k` must fall through
+        # to the next resolver, not crash the whole call out of get_context_window.
+        logger.warning(f"Ignoring malformed {key}={val!r} ({e})")
+        return None
     return inp, out
 
 
@@ -68,8 +78,11 @@ def _resolve_ollama(provider: str, model_name: str) -> tuple[int, int] | None:
     return _ollama_show(model_name, base.rstrip("/"))
 
 
-@lru_cache(maxsize=64)
 def _ollama_show(model_name: str, base_url: str) -> tuple[int, int] | None:
+    key = (model_name, base_url)
+    cached = _OLLAMA_CACHE.get(key)
+    if cached is not None:
+        return cached
     try:
         req = urllib.request.Request(
             f"{base_url}/api/show",
@@ -93,7 +106,9 @@ def _ollama_show(model_name: str, base_url: str) -> tuple[int, int] | None:
     # Tell the user so they can bump PARAMETER num_ctx in their Modelfile.
     if num_ctx and arch_max and num_ctx < arch_max:
         logger.info(f"{model_name}: num_ctx={num_ctx} < arch_max={arch_max}; Ollama will truncate")
-    return ctx, ModelCapabilities.FALLBACK_OUTPUT
+    result = (ctx, ModelCapabilities.FALLBACK_OUTPUT)
+    _OLLAMA_CACHE[key] = result
+    return result
 
 
 def _parse_num_ctx(params: str) -> int | None:
@@ -158,7 +173,9 @@ def _load(source: str) -> dict:
     # parses of the same multi-MB JSON. On-disk TTL still applies on first hit per process.
     path = get_cache_dir(Path.cwd()) / f"{source}.json"
     if path.exists() and time.time() - path.stat().st_mtime < ModelCapabilities.CACHE_TTL_SECONDS:
-        return json.loads(path.read_text())
+        cached = _read_cache(path)
+        if cached is not None:
+            return cached
     try:
         # Why: models.dev rejects urllib's default UA with 403.
         req = urllib.request.Request(ModelCapabilities.SOURCES[source], headers={"User-Agent": "codeboarding/1.0"})
@@ -170,7 +187,17 @@ def _load(source: str) -> dict:
         return data
     except Exception as e:
         logger.warning(f"{source} fetch failed ({e}); using stale cache or skipping")
-        return json.loads(path.read_text()) if path.exists() else {}
+        return _read_cache(path) or {}
+
+
+def _read_cache(path: Path) -> dict | None:
+    # Why: a half-written or disk-full cache file must not crash the resolver
+    # on every startup. Treat unreadable cache as "no cache" -- next call refetches.
+    try:
+        return json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError) as e:
+        logger.warning(f"Cache read failed for {path.name} ({e}); treating as missing")
+        return None
 
 
 def _normalize(source: str, raw: dict) -> dict:

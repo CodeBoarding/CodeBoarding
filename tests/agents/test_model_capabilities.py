@@ -6,8 +6,8 @@ import json
 import pytest
 
 from agents.model_capabilities import (
+    _OLLAMA_CACHE,
     ContextWindow,
-    _ollama_show,
     _parse_num_ctx,
     _resolve_ollama,
     get_context_window,
@@ -58,7 +58,7 @@ def fake_catalogs(monkeypatch):
         return catalogs.get(source, {})
 
     monkeypatch.setattr("agents.model_capabilities._load", fake_load)
-    _ollama_show.cache_clear()
+    _OLLAMA_CACHE.clear()
 
 
 class TestResolverPriority:
@@ -71,6 +71,11 @@ class TestResolverPriority:
         cw = get_context_window("openai", "gpt-5")
         assert cw.input == 500_000
         assert cw.output == 64_000
+
+    def test_malformed_env_override_falls_through_to_catalog(self, fake_catalogs, monkeypatch):
+        # Regression: a typo like `500k` used to raise ValueError out of get_context_window.
+        monkeypatch.setenv("CB_CTX_OPENAI_GPT_5", "500k")
+        assert get_context_window("openai", "gpt-5").input == 272_000
 
     def test_fallback_when_nothing_matches(self, fake_catalogs):
         assert get_context_window("mystery", "nonexistent") == ContextWindow(256_000, 64_000)
@@ -113,7 +118,7 @@ class TestOpenrouterResolution:
 class TestOllamaResolver:
     def test_short_circuits_without_base_url(self, monkeypatch):
         monkeypatch.delenv("OLLAMA_BASE_URL", raising=False)
-        _ollama_show.cache_clear()
+        _OLLAMA_CACHE.clear()
         assert _resolve_ollama("ollama", "qwen3:30b") is None
 
     def test_short_circuits_for_non_ollama_provider(self):
@@ -121,7 +126,7 @@ class TestOllamaResolver:
 
     def test_num_ctx_wins_over_arch_max(self, monkeypatch):
         monkeypatch.setenv("OLLAMA_BASE_URL", "http://fake:11434")
-        _ollama_show.cache_clear()
+        _OLLAMA_CACHE.clear()
         payload = {"parameters": 'stop "<|eot|>"\nnum_ctx 4096', "model_info": {"qwen3.context_length": 131072}}
 
         def fake_urlopen(req, timeout=None):
@@ -133,7 +138,7 @@ class TestOllamaResolver:
 
     def test_arch_max_used_when_num_ctx_absent(self, monkeypatch):
         monkeypatch.setenv("OLLAMA_BASE_URL", "http://fake:11434")
-        _ollama_show.cache_clear()
+        _OLLAMA_CACHE.clear()
         payload = {"parameters": 'stop "<|eot|>"', "model_info": {"llama.context_length": 131072}}
 
         def fake_urlopen(req, timeout=None):
@@ -141,6 +146,50 @@ class TestOllamaResolver:
 
         monkeypatch.setattr("agents.model_capabilities.urllib.request.urlopen", fake_urlopen)
         assert _resolve_ollama("ollama", "llama3:8b") == (131072, 64_000)
+
+    def test_transient_failure_is_retried_not_cached(self, monkeypatch):
+        # Why: @lru_cache used to memoize None here, so a brief Ollama outage
+        # silently pinned the resolver to the generic fallback for the process lifetime.
+        monkeypatch.setenv("OLLAMA_BASE_URL", "http://fake:11434")
+        _OLLAMA_CACHE.clear()
+        calls = {"n": 0}
+        payload = {"parameters": "", "model_info": {"llama.context_length": 8192}}
+
+        def fake_urlopen(req, timeout=None):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise ConnectionRefusedError("ollama not up yet")
+            return io.BytesIO(json.dumps(payload).encode())
+
+        monkeypatch.setattr("agents.model_capabilities.urllib.request.urlopen", fake_urlopen)
+        assert _resolve_ollama("ollama", "llama3:8b") is None
+        assert _resolve_ollama("ollama", "llama3:8b") == (8192, 64_000)
+
+
+class TestCorruptCache:
+    def test_corrupt_cache_file_triggers_refetch_instead_of_crashing(self, tmp_path, monkeypatch):
+        # Regression: a half-written cache file used to crash the first resolver call
+        # with a JSONDecodeError, turning a transient disk issue into a startup failure.
+        from agents import model_capabilities
+
+        # Why: clear before AND after so we don't poison the lru_cache for sibling tests.
+        model_capabilities._load.cache_clear()
+        try:
+            cache_dir = tmp_path / ".codeboarding" / "cache"
+            cache_dir.mkdir(parents=True)
+            (cache_dir / "openrouter.json").write_text("{ not json ")
+            monkeypatch.setattr(model_capabilities, "get_cache_dir", lambda _repo: cache_dir)
+
+            valid_body = json.dumps({"data": [{"id": "openai/gpt-4o", "context_length": 128_000}]}).encode()
+
+            def fake_urlopen(req, timeout=None):
+                return io.BytesIO(valid_body)
+
+            monkeypatch.setattr("agents.model_capabilities.urllib.request.urlopen", fake_urlopen)
+            data = model_capabilities._load("openrouter")
+            assert data["openai/gpt-4o"]["context_length"] == 128_000
+        finally:
+            model_capabilities._load.cache_clear()
 
 
 class TestParseNumCtx:
