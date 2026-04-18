@@ -311,6 +311,25 @@ def initialize_agent_llm(model_override: str | None = None) -> BaseChatModel:
     return model
 
 
+def get_current_agent_context_window():
+    """Context window for the currently configured agent LLM.
+
+    Resolves the first active provider (same rule as ``_initialize_llm``) and
+    the effective agent model name, then delegates to ``get_context_window``.
+    Returns a ``ContextWindow`` with fallback values when no provider is active
+    (which would only happen if this is called before any LLM is initialized).
+    """
+    from agents.constants import ModelCapabilities
+    from agents.model_capabilities import ContextWindow, get_context_window
+
+    for name, config in LLM_PROVIDERS.items():
+        if not config.is_active():
+            continue
+        model_name = _agent_model_override or os.getenv("AGENT_MODEL") or config.agent_model
+        return get_context_window(name, model_name)
+    return ContextWindow(ModelCapabilities.FALLBACK_INPUT, ModelCapabilities.FALLBACK_OUTPUT)
+
+
 def initialize_parsing_llm(model_override: str | None = None) -> BaseChatModel:
     model, _ = _initialize_llm(model_override, "parsing_model", "parsing_temperature", "Extractor ")
     return model

@@ -13,8 +13,10 @@ from agents.agent_responses import (
     FileMethodGroup,
     MethodEntry,
 )
+from agents.llm_config import get_current_agent_context_window
 from constants import MIN_CLUSTERS_THRESHOLD
 from static_analyzer.analysis_result import StaticAnalysisResults
+from static_analyzer.cfg_skip_planner import CHARS_PER_TOKEN, plan_skip_set
 from static_analyzer.cluster_helpers import (
     MAX_LLM_CLUSTERS,
     enforce_cross_language_budget,
@@ -30,6 +32,14 @@ from static_analyzer.cluster_relations import (
 from static_analyzer.constants import CALLABLE_TYPES, CLASS_TYPES, NodeType
 from static_analyzer.graph import CallGraph, ClusterResult
 from static_analyzer.node import Node
+
+# Minimum tokens reserved for the model's output (matches Anthropic's default
+# max_tokens=8192 for Sonnet-class models). Tool round-trips, validation
+# retries, and chars-to-tokens variance are absorbed by CONTEXT_MARGIN. The
+# rest of the prompt (system message + rendered template) is measured by the
+# caller and passed in as ``prompt_overhead_chars``.
+OUTPUT_HEADROOM_TOKENS = 8_000
+CONTEXT_MARGIN = 0.9
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +71,7 @@ class ClusterMethodsMixin:
         programming_langs: list[str],
         cluster_results: dict[str, ClusterResult],
         cluster_ids: set[int] | None = None,
+        prompt_overhead_chars: int = 0,
     ) -> str:
         """
         Build a cluster string for LLM consumption using pre-computed cluster results.
@@ -69,6 +80,11 @@ class ClusterMethodsMixin:
             programming_langs: List of languages to include
             cluster_results: Pre-computed cluster results mapping language -> ClusterResult
             cluster_ids: Optional set of cluster IDs to filter by
+            prompt_overhead_chars: Characters used by everything else in the
+                prompt (system message + rendered template with an empty
+                ``cfg_clusters`` slot). The skip planner subtracts this from
+                the model's input window before computing the char budget for
+                the cluster string.
 
         Returns:
             Formatted cluster string with headers per language
@@ -76,11 +92,17 @@ class ClusterMethodsMixin:
         cluster_lines = []
         all_cluster_ids: set[int] = set()
 
+        # Plan per-language skip sets for full-graph rendering only. DetailsAgent
+        # subgraphs (cluster_ids != None) are already scoped and rarely need pruning.
+        per_lang_skip = (
+            self._plan_skip_sets(programming_langs, cluster_results, prompt_overhead_chars) if not cluster_ids else {}
+        )
+
         for lang in programming_langs:
             cfg = self.static_analysis.get_cfg(lang)
             # Get cluster result for this language
             cluster_result = cluster_results.get(lang)
-            cluster_str = cfg.to_cluster_string(cluster_ids, cluster_result)
+            cluster_str = cfg.to_cluster_string(cluster_ids, cluster_result, skip_nodes=per_lang_skip.get(lang))
 
             if cluster_str.strip() and cluster_str not in ("empty", "none", "No clusters found."):
                 header = "Component CFG" if cluster_ids else "Clusters"
@@ -100,6 +122,40 @@ class ClusterMethodsMixin:
             )
 
         return "".join(cluster_lines)
+
+    def _plan_skip_sets(
+        self,
+        programming_langs: list[str],
+        cluster_results: dict[str, ClusterResult],
+        prompt_overhead_chars: int,
+    ) -> dict[str, set[str]]:
+        """Compute per-language skip sets so the combined cluster string fits the agent's input window.
+
+        Splits the available char budget evenly across languages. Returns an
+        empty dict when nothing needs pruning.
+        """
+        ctx = get_current_agent_context_window()
+        prompt_overhead_tokens = prompt_overhead_chars / CHARS_PER_TOKEN
+        available_tokens = (ctx.input_tokens - OUTPUT_HEADROOM_TOKENS - prompt_overhead_tokens) * CONTEXT_MARGIN
+        if available_tokens <= 0:
+            return {}
+        char_budget = int(available_tokens * CHARS_PER_TOKEN)
+        if char_budget <= 0:
+            return {}
+
+        langs_with_clusters = [l for l in programming_langs if cluster_results.get(l)]
+        if not langs_with_clusters:
+            return {}
+
+        per_lang_budget = char_budget // len(langs_with_clusters)
+        skip_sets: dict[str, set[str]] = {}
+        for lang in langs_with_clusters:
+            cfg = self.static_analysis.get_cfg(lang)
+            cluster_result = cluster_results[lang]
+            skip = plan_skip_set(cfg, cluster_result, per_lang_budget)
+            if skip:
+                skip_sets[lang] = skip
+        return skip_sets
 
     def _ensure_unique_key_entities(self, analysis: AnalysisInsights):
         """

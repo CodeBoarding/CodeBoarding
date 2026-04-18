@@ -279,6 +279,7 @@ class CallGraph:
         self,
         cluster_ids: set[int] | None = None,
         cluster_result: ClusterResult | None = None,
+        skip_nodes: set[str] | None = None,
     ) -> str:
         """
         Generate a human-readable string representation of clusters.
@@ -289,6 +290,10 @@ class CallGraph:
         Args:
             cluster_ids: Optional set of cluster IDs to include. If None, includes all.
             cluster_result: Optional pre-computed ClusterResult. If None, calls cluster().
+            skip_nodes: Optional set of qualified names to omit from the rendered
+                output (both cluster members and edges). The graph itself is not
+                mutated; this is a serialization-layer filter used by
+                ``cfg_skip_planner`` to keep the LLM prompt under budget.
 
         Returns:
             Formatted string with cluster definitions and inter-cluster connections
@@ -300,6 +305,7 @@ class CallGraph:
             return cluster_result.strategy if cluster_result.strategy in ("empty", "none") else "No clusters found."
 
         cfg_graph_x = self.to_networkx()
+        skip = skip_nodes or set()
 
         # Filter clusters if specific IDs requested
         if cluster_ids:
@@ -312,10 +318,13 @@ class CallGraph:
             # Use all clusters, sorted by ID for consistent output
             communities = [cluster_result.clusters[cid] for cid in sorted(cluster_result.clusters.keys())]
 
+        if skip:
+            communities = [c - skip for c in communities]
+
         top_nodes = set().union(*communities) if communities else set()
 
-        cluster_str = self.__cluster_str(communities, cfg_graph_x)
-        non_cluster_str = self.__non_cluster_str(cfg_graph_x, top_nodes)
+        cluster_str = self.__cluster_str(communities, cfg_graph_x, skip)
+        non_cluster_str = self.__non_cluster_str(cfg_graph_x, top_nodes, skip)
         return cluster_str + non_cluster_str
 
     def _get_abstract_node_name(self, node_name: str, level: str) -> str:
@@ -489,7 +498,8 @@ class CallGraph:
         )
 
     @staticmethod
-    def __cluster_str(communities: list[set[str]], cfg_graph_x: nx.DiGraph) -> str:
+    def __cluster_str(communities: list[set[str]], cfg_graph_x: nx.DiGraph, skip: set[str] | None = None) -> str:
+        skip = skip or set()
         valid_communities = [c for c in communities if len(c) >= 2]
         top_communities = sorted(valid_communities, key=len, reverse=True)
         communities_str = f"Cluster Definitions ({len(top_communities)} clusters):\n\n"
@@ -542,6 +552,8 @@ class CallGraph:
         # Aggregate inter-cluster edges: (src_cluster, dst_cluster) -> count + sample edges
         inter_cluster_summary: dict[tuple[int, int], list[str]] = defaultdict(list)
         for src, dst in cfg_graph_x.edges():
+            if src in skip or dst in skip:
+                continue
             src_cluster = node_to_cluster.get(src)
             dst_cluster = node_to_cluster.get(dst)
             if src_cluster is not None and dst_cluster is not None and src_cluster != dst_cluster:
@@ -567,10 +579,13 @@ class CallGraph:
         return communities_str + inter_cluster_str
 
     @staticmethod
-    def __non_cluster_str(graph_x: nx.DiGraph, top_nodes: set[str]) -> str:
+    def __non_cluster_str(graph_x: nx.DiGraph, top_nodes: set[str], skip: set[str] | None = None) -> str:
+        skip = skip or set()
         # Count unclustered edges rather than listing them all
         non_cluster_edges: list[tuple[str, str]] = []
         for src, dst in graph_x.edges():
+            if src in skip or dst in skip:
+                continue
             if src not in top_nodes or dst not in top_nodes:
                 non_cluster_edges.append((src, dst))
 
