@@ -57,8 +57,9 @@ CONFIG_TEMPLATE = """\
 # Optional: override the default models chosen by the active provider.
 # If omitted, each provider's built-in defaults are used.
 [llm]
-# agent_model   = "gemini-3-flash"
-# parsing_model = "gemini-3-flash"
+# agent_model    = "gemini-3-flash"
+# parsing_model  = "gemini-3-flash"
+# context_window = 272000   # override if needed
 """
 
 
@@ -83,6 +84,7 @@ class ProviderUserConfig:
 class LLMUserConfig:
     agent_model: str | None = None
     parsing_model: str | None = None
+    context_window: int | None = None
 
 
 @dataclass
@@ -126,6 +128,7 @@ def load_user_config(path: Path = CONFIG_PATH) -> UserConfig:
         llm=LLMUserConfig(
             agent_model=llm_data.get("agent_model") or None,
             parsing_model=llm_data.get("parsing_model") or None,
+            context_window=llm_data.get("context_window"),
         ),
     )
 
