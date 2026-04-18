@@ -4,30 +4,17 @@ The planner never mutates the graph: it returns a set of qualified names that
 ``CallGraph.to_cluster_string`` should drop from its output so the rendered
 text fits a character budget derived from the agent's context window.
 
-Three-stage graceful degradation when the full rendering is over budget:
-
-Stage 1 — per-cluster floor + fraction
-    Keep at least ``max(min_keep_per_cluster, ceil(size * retain_fraction))``
-    methods per cluster. Small clusters stay recognizable; large clusters
-    shed their lowest-degree tails first.
-
-Stage 2 — floor only
-    Drop the fraction, keep just the hard floor of ``min_keep_per_cluster``
-    per cluster. Used when stage 1 can't free enough characters.
-
-Stage 3 — give up
-    Return the best-effort skip set even if it still exceeds budget.
-    Caller logs a warning; the LLM or downstream truncation handles it.
-
 Node selection follows an iterative leaf-peel order on the undirected graph,
 so every skipped node is safe to remove without disconnecting the rest of
-the graph. Nodes in the 2-core are never candidates.
+the graph. Nodes in the 2-core are never candidates. A per-cluster floor
+keeps each cluster recognizable (at least ``min_keep_per_cluster`` members
+remain rendered), and a global cap prevents extreme pruning. Binary search
+over the allowed peel-order prefix picks the smallest skip set that fits.
 """
 
 from __future__ import annotations
 
 import logging
-import math
 from typing import TYPE_CHECKING, Callable
 
 import networkx as nx
@@ -61,23 +48,6 @@ def _compute_peel_order(cfg_nx: nx.DiGraph) -> list[str]:
             order.append(n)
             live.remove_node(n)
     return order
-
-
-def _required_keep(size: int, min_keep: int, retain_fraction: float) -> int:
-    """Stage-1 minimum: ``max(min_keep, ceil(size * retain_fraction))``, clamped to size."""
-    return min(size, max(min_keep, math.ceil(size * retain_fraction)))
-
-
-def _stage1_max_skip_per_cluster(
-    clusters: dict[int, set[str]], min_keep: int, retain_fraction: float
-) -> dict[int, int]:
-    return {
-        cid: len(members) - _required_keep(len(members), min_keep, retain_fraction) for cid, members in clusters.items()
-    }
-
-
-def _stage2_max_skip_per_cluster(clusters: dict[int, set[str]], min_keep: int) -> dict[int, int]:
-    return {cid: max(0, len(members) - min(min_keep, len(members))) for cid, members in clusters.items()}
 
 
 def _build_allowed_skip_list(
@@ -139,15 +109,14 @@ def plan_skip_set(
     char_budget: int,
     max_peel_frac: float = 0.5,
     min_keep_per_cluster: int = 5,
-    retain_fraction: float = 0.5,
 ) -> set[str]:
     """Decide which nodes ``cfg.to_cluster_string`` should omit to fit ``char_budget``.
 
     Returns an empty set when the unfiltered rendering already fits. Otherwise
     returns the smallest prefix of the peel order (subject to per-cluster
-    constraints) whose rendering is within budget. If even the maximum allowed
-    skip set does not fit, returns the best-effort set and logs a warning — the
-    caller still uses it but the prompt will be oversized.
+    floor + global cap) whose rendering is within budget. If even the maximum
+    allowed skip set does not fit, returns the best-effort set and logs a
+    warning — the caller still uses it but the prompt will be oversized.
     """
     full_str = cfg.to_cluster_string(cluster_result=cluster_result)
     if len(full_str) <= char_budget:
@@ -156,9 +125,8 @@ def plan_skip_set(
     cfg_nx = cfg.to_networkx()
     peel_order = _compute_peel_order(cfg_nx)
 
-    # Restrict peel candidates to nodes that are actually rendered (i.e. members
-    # of some cluster). Non-cluster nodes aren't part of the output; skipping
-    # them yields no character savings.
+    # Restrict peel candidates to nodes that are actually rendered (cluster
+    # members). Non-cluster nodes yield no character savings.
     node_to_cluster: dict[str, int] = {
         name: cid for cid, members in cluster_result.clusters.items() for name in members
     }
@@ -173,44 +141,32 @@ def plan_skip_set(
         )
         return set()
 
+    max_skip_per_cluster = {
+        cid: max(0, len(members) - min(min_keep_per_cluster, len(members)))
+        for cid, members in cluster_result.clusters.items()
+    }
     total_nodes = len(node_to_cluster)
     global_cap = int(total_nodes * max_peel_frac)
+    allowed = _build_allowed_skip_list(peel_order, node_to_cluster, max_skip_per_cluster, global_cap)
 
     def render(skip: set[str]) -> int:
         return len(cfg.to_cluster_string(cluster_result=cluster_result, skip_nodes=skip))
 
-    stage1_caps = _stage1_max_skip_per_cluster(cluster_result.clusters, min_keep_per_cluster, retain_fraction)
-    stage1_allowed = _build_allowed_skip_list(peel_order, node_to_cluster, stage1_caps, global_cap)
-    stage1_skip, stage1_fits = _binary_search_smallest_fit(stage1_allowed, render, char_budget)
-    if stage1_fits:
+    skip, fits = _binary_search_smallest_fit(allowed, render, char_budget)
+
+    if fits:
         logger.info(
-            "[CFG skip planner] Stage 1 (floor=%d, retain=%.2f): skipping %d/%d nodes",
+            "[CFG skip planner] skipping %d/%d nodes (floor=%d per cluster)",
+            len(skip),
+            total_nodes,
             min_keep_per_cluster,
-            retain_fraction,
-            len(stage1_skip),
+        )
+    else:
+        logger.warning(
+            "[CFG skip planner] Method-level filtering cannot fit budget (%d chars). "
+            "Returning best-effort skip of %d/%d nodes; prompt will exceed budget.",
+            char_budget,
+            len(skip),
             total_nodes,
         )
-        return stage1_skip
-
-    stage2_caps = _stage2_max_skip_per_cluster(cluster_result.clusters, min_keep_per_cluster)
-    stage2_allowed = _build_allowed_skip_list(peel_order, node_to_cluster, stage2_caps, global_cap)
-    stage2_skip, stage2_fits = _binary_search_smallest_fit(stage2_allowed, render, char_budget)
-    if stage2_fits:
-        logger.info(
-            "[CFG skip planner] Stage 2 (floor=%d only): skipping %d/%d nodes",
-            min_keep_per_cluster,
-            len(stage2_skip),
-            total_nodes,
-        )
-        return stage2_skip
-
-    # Stage 3: exhausted method-level options. Return the largest allowed stage-2 set
-    # (gets us as close as possible) and warn that the render will be over budget.
-    logger.warning(
-        "[CFG skip planner] Method-level filtering cannot fit budget (%d chars). "
-        "Returning best-effort skip of %d/%d nodes; prompt will exceed budget.",
-        char_budget,
-        len(stage2_skip),
-        total_nodes,
-    )
-    return stage2_skip
+    return skip
