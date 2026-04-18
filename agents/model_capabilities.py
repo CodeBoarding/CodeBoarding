@@ -9,10 +9,9 @@ from functools import lru_cache
 from pathlib import Path
 
 from agents.constants import ModelCapabilities
+from utils import get_cache_dir
 
 logger = logging.getLogger(__name__)
-
-_CACHE_DIR = Path.home() / ".codeboarding" / "cache"
 
 # Escape hatch for catalog bugs or private IDs no catalog covers. Empty by design —
 # models.dev resolves the previously-suspected overrides (gpt-5, kimi-k2.5, glm-4.6,
@@ -154,7 +153,7 @@ def _openrouter_id(provider: str, model_name: str) -> str:
 
 
 def _load(source: str) -> dict:
-    path = _CACHE_DIR / f"{source}.json"
+    path = get_cache_dir(Path.cwd()) / f"{source}.json"
     if path.exists() and time.time() - path.stat().st_mtime < ModelCapabilities.CACHE_TTL_SECONDS:
         return json.loads(path.read_text())
     try:
