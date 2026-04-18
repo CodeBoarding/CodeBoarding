@@ -11,3 +11,27 @@ class FileStructureConfig:
     MAX_LINES = 500
     DEFAULT_MAX_DEPTH = 10
     FALLBACK_MAX_LINES = 50000
+
+
+class ModelCapabilities:
+    FALLBACK_INPUT = 128_000
+    FALLBACK_OUTPUT = 8_192
+    CACHE_TTL_SECONDS = 24 * 3600
+
+    SOURCES = {
+        "litellm": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
+        "modelsdev": "https://models.dev/api.json",
+        "openrouter": "https://openrouter.ai/api/v1/models",
+    }
+
+    # models.dev uses slugs that diverge from our internal provider names.
+    MODELSDEV_SLUG = {
+        "aws": "amazon-bedrock",
+        "kimi": "moonshotai",
+        "glm": "zai",
+    }
+
+    OPENROUTER_PREFIX = {
+        "kimi": "moonshotai",
+        "glm": "z-ai",
+    }

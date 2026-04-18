@@ -8,37 +8,18 @@ from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
+from agents.constants import ModelCapabilities
+
 logger = logging.getLogger(__name__)
 
 _CACHE_DIR = Path.home() / ".codeboarding" / "cache"
-_TTL_SECONDS = 24 * 3600
-_FALLBACK_INPUT = 128_000
-_FALLBACK_OUTPUT = 8_192
-
-_SOURCES = {
-    "litellm": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
-    "modelsdev": "https://models.dev/api.json",
-    "openrouter": "https://openrouter.ai/api/v1/models",
-}
 
 # Escape hatch for catalog bugs or private IDs no catalog covers. Empty by design —
 # models.dev resolves the previously-suspected overrides (gpt-5, kimi-k2.5, glm-4.6,
 # gpt-oss-120b) correctly when we prefer limit.input over limit.context.
 _OVERRIDES: dict[tuple[str, str], tuple[int, int]] = {}
 
-# models.dev uses slugs that diverge from our internal provider names.
-_MODELSDEV_SLUG = {
-    "aws": "amazon-bedrock",
-    "kimi": "moonshotai",
-    "glm": "zai",
-}
-
 _BEDROCK_REGION = re.compile(r"^(us|eu|apac|global|au|ca|us-gov)\.")
-
-_OPENROUTER_PREFIX = {
-    "kimi": "moonshotai",
-    "glm": "z-ai",
-}
 
 
 @dataclass(frozen=True)
@@ -60,8 +41,8 @@ def get_context_window(provider: str, model_name: str) -> ContextWindow:
         hit = resolver(provider, model_name)
         if hit is not None:
             return ContextWindow(*hit)
-    logger.warning(f"No context window for {provider}/{model_name}; using fallback {_FALLBACK_INPUT}")
-    return ContextWindow(_FALLBACK_INPUT, _FALLBACK_OUTPUT)
+    logger.warning(f"No context window for {provider}/{model_name}; using fallback {ModelCapabilities.FALLBACK_INPUT}")
+    return ContextWindow(ModelCapabilities.FALLBACK_INPUT, ModelCapabilities.FALLBACK_OUTPUT)
 
 
 def _resolve_env(provider: str, model_name: str) -> tuple[int, int] | None:
@@ -71,7 +52,7 @@ def _resolve_env(provider: str, model_name: str) -> tuple[int, int] | None:
         return None
     parts = val.split(",")
     inp = int(parts[0])
-    out = int(parts[1]) if len(parts) > 1 else _FALLBACK_OUTPUT
+    out = int(parts[1]) if len(parts) > 1 else ModelCapabilities.FALLBACK_OUTPUT
     return inp, out
 
 
@@ -113,17 +94,18 @@ def _ollama_show(model_name: str, base_url: str) -> tuple[int, int] | None:
     # Tell the user so they can bump PARAMETER num_ctx in their Modelfile.
     if num_ctx and arch_max and num_ctx < arch_max:
         logger.info(f"{model_name}: num_ctx={num_ctx} < arch_max={arch_max}; Ollama will truncate")
-    return ctx, _FALLBACK_OUTPUT
+    return ctx, ModelCapabilities.FALLBACK_OUTPUT
 
 
 def _parse_num_ctx(params: str) -> int | None:
+    # Extracts the `num_ctx N` runtime cap from an Ollama Modelfile parameters blob.
     m = re.search(r"^num_ctx\s+(\d+)", params, re.MULTILINE)
     return int(m.group(1)) if m else None
 
 
 def _resolve_modelsdev(provider: str, model_name: str) -> tuple[int, int] | None:
     data = _load("modelsdev")
-    slug = _MODELSDEV_SLUG.get(provider, provider)
+    slug = ModelCapabilities.MODELSDEV_SLUG.get(provider, provider)
     entry = data.get(slug, {}).get("models", {}).get(model_name)
     if not entry:
         return None
@@ -133,7 +115,7 @@ def _resolve_modelsdev(provider: str, model_name: str) -> tuple[int, int] | None
     inp = limit.get("input") or limit.get("context")
     if not inp:
         return None
-    return int(inp), int(limit.get("output") or _FALLBACK_OUTPUT)
+    return int(inp), int(limit.get("output") or ModelCapabilities.FALLBACK_OUTPUT)
 
 
 def _resolve_litellm(provider: str, model_name: str) -> tuple[int, int] | None:
@@ -146,7 +128,7 @@ def _resolve_litellm(provider: str, model_name: str) -> tuple[int, int] | None:
         inp = entry.get("max_input_tokens") or entry.get("max_tokens")
         out = entry.get("max_output_tokens") or entry.get("max_tokens")
         if inp:
-            return int(inp), int(out or _FALLBACK_OUTPUT)
+            return int(inp), int(out or ModelCapabilities.FALLBACK_OUTPUT)
     return None
 
 
@@ -159,7 +141,7 @@ def _resolve_openrouter(provider: str, model_name: str) -> tuple[int, int] | Non
     if not ctx:
         return None
     out = (entry.get("top_provider") or {}).get("max_completion_tokens")
-    return int(ctx), int(out or _FALLBACK_OUTPUT)
+    return int(ctx), int(out or ModelCapabilities.FALLBACK_OUTPUT)
 
 
 def _openrouter_id(provider: str, model_name: str) -> str:
@@ -168,16 +150,16 @@ def _openrouter_id(provider: str, model_name: str) -> str:
         return f"anthropic/{stripped}"
     if "/" in model_name:
         return model_name
-    return f"{_OPENROUTER_PREFIX.get(provider, provider)}/{model_name}"
+    return f"{ModelCapabilities.OPENROUTER_PREFIX.get(provider, provider)}/{model_name}"
 
 
 def _load(source: str) -> dict:
     path = _CACHE_DIR / f"{source}.json"
-    if path.exists() and time.time() - path.stat().st_mtime < _TTL_SECONDS:
+    if path.exists() and time.time() - path.stat().st_mtime < ModelCapabilities.CACHE_TTL_SECONDS:
         return json.loads(path.read_text())
     try:
         # Why: models.dev rejects urllib's default UA with 403.
-        req = urllib.request.Request(_SOURCES[source], headers={"User-Agent": "codeboarding/1.0"})
+        req = urllib.request.Request(ModelCapabilities.SOURCES[source], headers={"User-Agent": "codeboarding/1.0"})
         with urllib.request.urlopen(req, timeout=5) as r:
             raw = json.load(r)
         data = _normalize(source, raw)
