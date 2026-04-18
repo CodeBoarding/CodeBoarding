@@ -489,6 +489,22 @@ class CallGraph:
         )
 
     @staticmethod
+    def _common_dot_prefix(names: list[str]) -> str:
+        """Longest dotted-segment prefix shared by all names, leaving at least one trailing segment per name."""
+        if len(names) < 2:
+            return ""
+        parts_list = [n.split(".") for n in names]
+        min_len = min(len(p) for p in parts_list)
+        common: list[str] = []
+        for i in range(min_len - 1):
+            seg = parts_list[0][i]
+            if all(p[i] == seg for p in parts_list):
+                common.append(seg)
+            else:
+                break
+        return ".".join(common)
+
+    @staticmethod
     def __cluster_str(communities: list[set[str]], cfg_graph_x: nx.DiGraph) -> str:
         valid_communities = [c for c in communities if len(c) >= 2]
         top_communities = sorted(valid_communities, key=len, reverse=True)
@@ -523,15 +539,29 @@ class CallGraph:
             communities_str += f"Cluster {idx} ({len(community)} nodes, {len(files_in_cluster)} files):\n"
 
             for file_path in sorted(files_in_cluster):
-                communities_str += f"  {file_path}:\n"
-                # Render class groups
-                for class_name in sorted(file_groups.get(file_path, {})):
+                classes_in_file = sorted(file_groups.get(file_path, {}))
+                funcs_in_file = sorted(standalone_nodes.get(file_path, []))
+                func_fqns = [f.rsplit(" [", 1)[0] for f in funcs_in_file]
+                prefix = CallGraph._common_dot_prefix(classes_in_file + func_fqns)
+
+                if prefix and prefix.count(".") >= 1 and len(classes_in_file) + len(funcs_in_file) >= 2:
+                    communities_str += f'  {file_path} (identifiers below prefixed with "{prefix}."):\n'
+                    strip = f"{prefix}."
+                else:
+                    communities_str += f"  {file_path}:\n"
+                    strip = ""
+
+                for class_name in classes_in_file:
                     methods = file_groups[file_path][class_name]
-                    communities_str += f"    {class_name} [Class]\n"
+                    display_class = class_name[len(strip) :] if strip and class_name.startswith(strip) else class_name
+                    communities_str += f"    {display_class} [Class]\n"
                     for method in sorted(methods):
                         communities_str += f"      {method}\n"
-                # Render standalone functions
-                for func in sorted(standalone_nodes.get(file_path, [])):
+                for func in funcs_in_file:
+                    if strip:
+                        fqn_part, sep, label_part = func.partition(" [")
+                        if fqn_part.startswith(strip):
+                            func = fqn_part[len(strip) :] + sep + label_part
                     communities_str += f"    {func}\n"
 
             communities_str += "\n"
