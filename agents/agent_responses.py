@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import abc
 import logging
 from abc import abstractmethod
@@ -150,7 +152,7 @@ class MethodEntry(BaseModel):
         return self.qualified_name == other.qualified_name
 
     @classmethod
-    def from_method_change(cls, method_change) -> "MethodEntry":
+    def from_method_change(cls, method_change) -> MethodEntry:
         return cls(
             qualified_name=method_change.qualified_name,
             start_line=method_change.start_line,
