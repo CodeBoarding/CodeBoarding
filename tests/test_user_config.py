@@ -1,6 +1,6 @@
 import os
 
-from user_config import ProviderUserConfig, UserConfig
+from user_config import ProviderUserConfig, UserConfig, ensure_config_template
 
 
 class TestUserConfigApplyToEnv:
@@ -63,3 +63,36 @@ class TestUserConfigApplyToEnv:
         finally:
             os.environ.clear()
             os.environ.update(original)
+
+
+class TestEnsureConfigTemplate:
+    def test_appends_context_window_under_llm_when_missing(self, tmp_path):
+        path = tmp_path / "config.toml"
+        path.write_text('[provider]\n# openai_api_key = "sk-..."\n\n[llm]\n# agent_model = "x"\n')
+
+        ensure_config_template(path)
+
+        text = path.read_text()
+        assert "context_window" in text
+        # Landed inside [llm], before agent_model (which is fine — it's a comment).
+        llm_idx = text.index("[llm]")
+        assert text.index("context_window") > llm_idx
+
+    def test_noop_when_key_already_present(self, tmp_path):
+        path = tmp_path / "config.toml"
+        original = "[llm]\n# context_window = 42  # already here\n"
+        path.write_text(original)
+
+        ensure_config_template(path)
+
+        assert path.read_text() == original
+
+    def test_adds_llm_section_if_absent(self, tmp_path):
+        path = tmp_path / "config.toml"
+        path.write_text('[provider]\n# openai_api_key = "sk-..."\n')
+
+        ensure_config_template(path)
+
+        text = path.read_text()
+        assert "[llm]" in text
+        assert "context_window" in text

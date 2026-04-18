@@ -9,6 +9,7 @@ Environment variables already set in the shell always take precedence.
 """
 
 import os
+import re
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -57,8 +58,9 @@ CONFIG_TEMPLATE = """\
 # Optional: override the default models chosen by the active provider.
 # If omitted, each provider's built-in defaults are used.
 [llm]
-# agent_model   = "gemini-3-flash"
-# parsing_model = "gemini-3-flash"
+# agent_model    = "gemini-3-flash"
+# parsing_model  = "gemini-3-flash"
+# context_window = 272000   # override if needed
 """
 
 
@@ -83,6 +85,7 @@ class ProviderUserConfig:
 class LLMUserConfig:
     agent_model: str | None = None
     parsing_model: str | None = None
+    context_window: int | None = None
 
 
 @dataclass
@@ -126,13 +129,27 @@ def load_user_config(path: Path = CONFIG_PATH) -> UserConfig:
         llm=LLMUserConfig(
             agent_model=llm_data.get("agent_model") or None,
             parsing_model=llm_data.get("parsing_model") or None,
+            context_window=llm_data.get("context_window"),
         ),
     )
 
 
 def ensure_config_template(path: Path = CONFIG_PATH) -> None:
-    """Write the config template if the file does not yet exist."""
-    if path.exists():
+    """Write the template on first install; otherwise top up with any keys added since."""
+    if not path.exists():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(CONFIG_TEMPLATE)
         return
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(CONFIG_TEMPLATE)
+    _append_commented_key(path, "context_window", "# context_window = 272000   # override if needed")
+
+
+def _append_commented_key(path: Path, key: str, commented_line: str) -> None:
+    """Insert `commented_line` under [llm] if `key` is missing anywhere in the file."""
+    text = path.read_text()
+    if key in text:
+        return
+    injected, n = re.subn(r"(^\[llm\]\s*\n)", r"\1" + commented_line + "\n", text, count=1, flags=re.MULTILINE)
+    if n == 0:
+        # Why: no [llm] section yet -- append a fresh one so the key lands in the right table.
+        injected = text.rstrip() + "\n\n[llm]\n" + commented_line + "\n"
+    path.write_text(injected)
