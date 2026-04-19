@@ -489,11 +489,11 @@ class CallGraph:
         )
 
     @staticmethod
-    def _common_dot_prefix(names: list[str]) -> str:
-        """Longest dotted-segment prefix shared by all names, leaving at least one trailing segment per name."""
-        if len(names) < 2:
+    def _common_dot_prefix(qualified_names: list[str]) -> str:
+        """Longest dotted-segment prefix shared by all qualified names, leaving at least one trailing segment each."""
+        if len(qualified_names) < 2:
             return ""
-        parts_list = [n.split(".") for n in names]
+        parts_list = [n.split(".") for n in qualified_names]
         min_len = min(len(p) for p in parts_list)
         common: list[str] = []
         for i in range(min_len - 1):
