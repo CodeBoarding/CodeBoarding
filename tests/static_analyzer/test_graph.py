@@ -425,6 +425,39 @@ class TestCallGraph(unittest.TestCase):
         self.assertIn("Cluster 1", result)
         self.assertIn("Cluster 2", result)
 
+    def test_cluster_str_prefix_factoring(self):
+        graph = CallGraph()
+
+        nodes = [
+            Node("pkg.sub.module.ClassA", NodeType.CLASS, "/pkg/sub/module.py", 1, 5),
+            Node("pkg.sub.module.ClassA.method_one", NodeType.METHOD, "/pkg/sub/module.py", 6, 10),
+            Node("pkg.sub.module.ClassA.method_two", NodeType.METHOD, "/pkg/sub/module.py", 11, 15),
+            Node("pkg.sub.module.helper_func", NodeType.FUNCTION, "/pkg/sub/module.py", 16, 20),
+            Node("other.Outside", NodeType.CLASS, "/other.py", 1, 5),
+        ]
+        for n in nodes:
+            graph.add_node(n)
+        graph.add_edge("pkg.sub.module.ClassA.method_one", "pkg.sub.module.helper_func")
+
+        nx_graph = graph.to_networkx()
+        communities = [{n.fully_qualified_name for n in nodes[:4]}, {"other.Outside"}]
+
+        result = graph._CallGraph__cluster_str(communities, nx_graph)  # type: ignore[attr-defined]
+
+        self.assertIn('(identifiers below prefixed with "pkg.sub.module.")', result)
+        self.assertIn("ClassA [Class]", result)
+        self.assertIn("helper_func [Function]", result)
+        # Full FQN must not appear inside the factored file block
+        self.assertNotIn("    pkg.sub.module.ClassA [Class]", result)
+
+    def test_common_dot_prefix(self):
+        self.assertEqual(CallGraph._common_dot_prefix([]), "")
+        self.assertEqual(CallGraph._common_dot_prefix(["a.b.c"]), "")
+        self.assertEqual(CallGraph._common_dot_prefix(["a.b.c", "a.b.d"]), "a.b")
+        self.assertEqual(CallGraph._common_dot_prefix(["a.b.c", "x.y.z"]), "")
+        # Prevents collapsing identical names to empty short form
+        self.assertEqual(CallGraph._common_dot_prefix(["a.b", "a.b"]), "a")
+
     def test_non_cluster_str_static_method(self):
         # Test __non_cluster_str static method
         graph = CallGraph()
