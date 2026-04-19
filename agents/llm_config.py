@@ -11,7 +11,8 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_ollama import ChatOllama
 from langchain_openai import ChatOpenAI
 
-from agents.constants import LLMDefaults
+from agents.constants import LLMDefaults, ModelCapabilities
+from agents.model_capabilities import ContextWindow, get_context_window
 from agents.prompts.prompt_factory import LLMType, initialize_global_factory
 from monitoring.callbacks import MonitoringCallback
 
@@ -311,17 +312,13 @@ def initialize_agent_llm(model_override: str | None = None) -> BaseChatModel:
     return model
 
 
-def get_current_agent_context_window():
-    """Context window for the currently configured agent LLM.
+def get_current_agent_context_window() -> ContextWindow:
+    """Context window for the currently active agent provider/model.
 
-    Resolves the first active provider (same rule as ``_initialize_llm``) and
-    the effective agent model name, then delegates to ``get_context_window``.
-    Returns a ``ContextWindow`` with fallback values when no provider is active
-    (which would only happen if this is called before any LLM is initialized).
+    Resolves the first active provider (same rule as ``_initialize_llm``) on
+    every call. ``get_context_window`` handles its own caching, so this is
+    cheap enough to call without a module-level cache.
     """
-    from agents.constants import ModelCapabilities
-    from agents.model_capabilities import ContextWindow, get_context_window
-
     for name, config in LLM_PROVIDERS.items():
         if not config.is_active():
             continue

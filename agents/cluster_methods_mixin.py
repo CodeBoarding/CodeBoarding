@@ -13,10 +13,11 @@ from agents.agent_responses import (
     FileMethodGroup,
     MethodEntry,
 )
+from agents.constants import ModelCapabilities
 from agents.llm_config import get_current_agent_context_window
 from constants import MIN_CLUSTERS_THRESHOLD
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.cfg_skip_planner import CHARS_PER_TOKEN, plan_skip_set
+from static_analyzer.cfg_skip_planner import ContextBudgetExceededError, plan_skip_set
 from static_analyzer.cluster_helpers import (
     MAX_LLM_CLUSTERS,
     enforce_cross_language_budget,
@@ -102,7 +103,9 @@ class ClusterMethodsMixin:
             cfg = self.static_analysis.get_cfg(lang)
             # Get cluster result for this language
             cluster_result = cluster_results.get(lang)
-            cluster_str = cfg.to_cluster_string(cluster_ids, cluster_result, skip_nodes=per_lang_skip.get(lang))
+            cluster_str = cfg.to_cluster_string(
+                cluster_ids or set(), cluster_result, skip_nodes=per_lang_skip.get(lang, set())
+            )
 
             if cluster_str.strip() and cluster_str not in ("empty", "none", "No clusters found."):
                 header = "Component CFG" if cluster_ids else "Clusters"
@@ -132,16 +135,23 @@ class ClusterMethodsMixin:
         """Compute per-language skip sets so the combined cluster string fits the agent's input window.
 
         Splits the available char budget evenly across languages. Returns an
-        empty dict when nothing needs pruning.
+        empty dict when no language needs pruning.
+
+        Raises:
+            ContextBudgetExceededError: Prompt overhead alone exceeds the
+                input window, or a per-language trim cannot fit its share.
         """
         ctx = get_current_agent_context_window()
-        prompt_overhead_tokens = prompt_overhead_chars / CHARS_PER_TOKEN
+        prompt_overhead_tokens = prompt_overhead_chars / ModelCapabilities.CHARS_PER_TOKEN
         available_tokens = (ctx.input_tokens - OUTPUT_HEADROOM_TOKENS - prompt_overhead_tokens) * CONTEXT_MARGIN
-        if available_tokens <= 0:
-            return {}
-        char_budget = int(available_tokens * CHARS_PER_TOKEN)
+        char_budget = int(available_tokens * ModelCapabilities.CHARS_PER_TOKEN)
         if char_budget <= 0:
-            return {}
+            msg = (
+                f"Prompt overhead ({prompt_overhead_chars} chars) consumes the entire agent input "
+                f"window ({ctx.input_tokens} tokens); no room for cluster renderings."
+            )
+            logger.error("[CFG skip planner] %s", msg)
+            raise ContextBudgetExceededError(msg)
 
         langs_with_clusters = [l for l in programming_langs if cluster_results.get(l)]
         if not langs_with_clusters:

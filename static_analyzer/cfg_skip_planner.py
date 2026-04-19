@@ -15,18 +15,22 @@ over the allowed peel-order prefix picks the smallest skip set that fits.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Callable
+from typing import Callable
 
 import networkx as nx
 
-if TYPE_CHECKING:
-    from static_analyzer.graph import CallGraph, ClusterResult
+from static_analyzer.graph import CallGraph, ClusterResult
 
 logger = logging.getLogger(__name__)
 
-# Community consensus middle ground: prose ≈ 4 chars/token, code ≈ 3 chars/token.
-# 3.5 keeps us conservative without leaving too much slack.
-CHARS_PER_TOKEN = 3.5
+
+class ContextBudgetExceededError(RuntimeError):
+    """Cluster-string render cannot fit the agent's context window.
+
+    Raised when the pre-planning overhead already exceeds the input window,
+    or when the most aggressive safe trim (per ``max_peel_frac`` and
+    ``min_keep_per_cluster``) still overflows the remaining budget.
+    """
 
 
 def _compute_peel_order(cfg_nx: nx.DiGraph) -> list[str]:
@@ -39,11 +43,10 @@ def _compute_peel_order(cfg_nx: nx.DiGraph) -> list[str]:
     """
     live = cfg_nx.to_undirected()
     order: list[str] = []
-    while True:
-        leaves = [n for n in live.nodes if live.degree(n) <= 1]
-        if not leaves:
-            break
-        leaves.sort(key=lambda n: live.degree(n))
+    while leaves := sorted(
+        (n for n in live.nodes if live.degree(n) <= 1),
+        key=lambda n: live.degree(n),
+    ):
         for n in leaves:
             order.append(n)
             live.remove_node(n)
@@ -78,18 +81,10 @@ def _binary_search_smallest_fit(
     allowed: list[str],
     render: Callable[[set[str]], int],
     char_budget: int,
-) -> tuple[set[str], bool]:
-    """Binary-search the smallest prefix of ``allowed`` whose render fits budget.
-
-    Returns (skip_set, fits). If even the full prefix doesn't fit, returns the
-    full prefix with fits=False so the caller can decide what to do.
-    """
-    if not allowed:
-        return set(), False
-
-    full_skip = set(allowed)
-    if render(full_skip) > char_budget:
-        return full_skip, False
+) -> set[str] | None:
+    """Smallest prefix of ``allowed`` whose render fits ``char_budget``, or None if none does."""
+    if not allowed or render(set(allowed)) > char_budget:
+        return None
 
     lo, hi = 1, len(allowed)
     result_k = len(allowed)
@@ -100,7 +95,7 @@ def _binary_search_smallest_fit(
             hi = mid - 1
         else:
             lo = mid + 1
-    return set(allowed[:result_k]), True
+    return set(allowed[:result_k])
 
 
 def plan_skip_set(
@@ -114,9 +109,13 @@ def plan_skip_set(
 
     Returns an empty set when the unfiltered rendering already fits. Otherwise
     returns the smallest prefix of the peel order (subject to per-cluster
-    floor + global cap) whose rendering is within budget. If even the maximum
-    allowed skip set does not fit, returns the best-effort set and logs a
-    warning — the caller still uses it but the prompt will be oversized.
+    floor + global cap) whose rendering is within budget.
+
+    Raises:
+        ContextBudgetExceededError: No peel-safe candidates exist, or the
+            maximum allowed trim still exceeds ``char_budget``. Fail-loud is
+            intentional: providers reject oversize input, so silently
+            returning an over-budget render just defers the failure.
     """
     full_str = cfg.to_cluster_string(cluster_result=cluster_result)
     if len(full_str) <= char_budget:
@@ -133,13 +132,12 @@ def plan_skip_set(
     peel_order = [n for n in peel_order if n in node_to_cluster]
 
     if not peel_order:
-        logger.warning(
-            "[CFG skip planner] Full rendering is %d chars (budget %d) but no peel-safe cluster members; "
-            "rendering will exceed budget.",
-            len(full_str),
-            char_budget,
+        msg = (
+            f"No peel-safe cluster members to prune; full render "
+            f"{len(full_str)} chars exceeds budget {char_budget}."
         )
-        return set()
+        logger.error("[CFG skip planner] %s", msg)
+        raise ContextBudgetExceededError(msg)
 
     max_skip_per_cluster = {
         cid: max(0, len(members) - min(min_keep_per_cluster, len(members)))
@@ -152,21 +150,20 @@ def plan_skip_set(
     def render(skip: set[str]) -> int:
         return len(cfg.to_cluster_string(cluster_result=cluster_result, skip_nodes=skip))
 
-    skip, fits = _binary_search_smallest_fit(allowed, render, char_budget)
+    skip = _binary_search_smallest_fit(allowed, render, char_budget)
 
-    if fits:
-        logger.info(
-            "[CFG skip planner] skipping %d/%d nodes (floor=%d per cluster)",
-            len(skip),
-            total_nodes,
-            min_keep_per_cluster,
+    if skip is None:
+        msg = (
+            f"No allowed skip prefix fits budget {char_budget} chars "
+            f"(full render {len(full_str)}, {len(allowed)}/{total_nodes} nodes prunable)."
         )
-    else:
-        logger.warning(
-            "[CFG skip planner] Method-level filtering cannot fit budget (%d chars). "
-            "Returning best-effort skip of %d/%d nodes; prompt will exceed budget.",
-            char_budget,
-            len(skip),
-            total_nodes,
-        )
+        logger.error("[CFG skip planner] %s", msg)
+        raise ContextBudgetExceededError(msg)
+
+    logger.info(
+        "[CFG skip planner] skipping %d/%d nodes (floor=%d per cluster)",
+        len(skip),
+        total_nodes,
+        min_keep_per_cluster,
+    )
     return skip

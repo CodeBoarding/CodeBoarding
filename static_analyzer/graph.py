@@ -309,19 +309,19 @@ class CallGraph:
 
         # Filter clusters if specific IDs requested
         if cluster_ids:
-            communities = [
-                cluster_result.clusters[cid] for cid in sorted(cluster_ids) if cid in cluster_result.clusters
-            ]
-            if not communities:
+            selected_ids = [cid for cid in sorted(cluster_ids) if cid in cluster_result.clusters]
+            if not selected_ids:
                 return f"No clusters found for IDs: {cluster_ids}"
         else:
-            # Use all clusters, sorted by ID for consistent output
-            communities = [cluster_result.clusters[cid] for cid in sorted(cluster_result.clusters.keys())]
+            selected_ids = sorted(cluster_result.clusters.keys())
 
-        if skip:
-            communities = [c - skip for c in communities]
+        # Carry original cluster IDs through rendering so skip-induced size shifts
+        # or cluster_ids filtering can't relabel clusters.
+        communities = [(cid, cluster_result.clusters[cid] - skip) for cid in selected_ids]
 
-        top_nodes = set().union(*communities) if communities else set()
+        top_nodes: set[str] = set()
+        for _, members in communities:
+            top_nodes |= members
 
         cluster_str = self.__cluster_str(communities, cfg_graph_x, skip)
         non_cluster_str = self.__non_cluster_str(cfg_graph_x, top_nodes, skip)
@@ -498,12 +498,11 @@ class CallGraph:
         )
 
     @staticmethod
-    def __cluster_str(communities: list[set[str]], cfg_graph_x: nx.DiGraph, skip: set[str] | None = None) -> str:
-        skip = skip or set()
-        valid_communities = [c for c in communities if len(c) >= 2]
-        top_communities = sorted(valid_communities, key=len, reverse=True)
+    def __cluster_str(communities: list[tuple[int, set[str]]], cfg_graph_x: nx.DiGraph, skip: set[str]) -> str:
+        valid_communities = [(cid, members) for cid, members in communities if len(members) >= 2]
+        top_communities = sorted(valid_communities, key=lambda item: len(item[1]), reverse=True)
         communities_str = f"Cluster Definitions ({len(top_communities)} clusters):\n\n"
-        for idx, community in enumerate(top_communities, start=1):
+        for cluster_id, community in top_communities:
             # Group nodes by file, then by class hierarchy within each file
             file_groups: dict[str, dict[str, list[str]]] = defaultdict(lambda: defaultdict(list))
             standalone_nodes: dict[str, list[str]] = defaultdict(list)
@@ -530,7 +529,7 @@ class CallGraph:
                     # Standalone function or unresolvable
                     standalone_nodes[file_path].append(f"{node_name} [{type_label}]")
 
-            communities_str += f"Cluster {idx} ({len(community)} nodes, {len(files_in_cluster)} files):\n"
+            communities_str += f"Cluster {cluster_id} ({len(community)} nodes, {len(files_in_cluster)} files):\n"
 
             for file_path in sorted(files_in_cluster):
                 communities_str += f"  {file_path}:\n"
@@ -546,10 +545,10 @@ class CallGraph:
 
             communities_str += "\n"
 
-        # Build summarized inter-cluster connections
-        node_to_cluster = {node: idx for idx, community in enumerate(top_communities) for node in community}
+        # Build summarized inter-cluster connections keyed by real cluster IDs
+        node_to_cluster = {node: cid for cid, members in top_communities for node in members}
 
-        # Aggregate inter-cluster edges: (src_cluster, dst_cluster) -> count + sample edges
+        # Aggregate inter-cluster edges: (src_cluster_id, dst_cluster_id) -> count + sample edges
         inter_cluster_summary: dict[tuple[int, int], list[str]] = defaultdict(list)
         for src, dst in cfg_graph_x.edges():
             if src in skip or dst in skip:
@@ -563,11 +562,9 @@ class CallGraph:
         if inter_cluster_summary:
             for src_cid, dst_cid in sorted(inter_cluster_summary.keys()):
                 calls = inter_cluster_summary[(src_cid, dst_cid)]
-                src_display = src_cid + 1
-                dst_display = dst_cid + 1
                 # Show count and up to 3 representative edges
                 max_examples = 3
-                inter_cluster_str += f"Cluster {src_display} -> Cluster {dst_display} ({len(calls)} calls):\n"
+                inter_cluster_str += f"Cluster {src_cid} -> Cluster {dst_cid} ({len(calls)} calls):\n"
                 for call in calls[:max_examples]:
                     inter_cluster_str += f"  - {call}\n"
                 if len(calls) > max_examples:
@@ -579,8 +576,7 @@ class CallGraph:
         return communities_str + inter_cluster_str
 
     @staticmethod
-    def __non_cluster_str(graph_x: nx.DiGraph, top_nodes: set[str], skip: set[str] | None = None) -> str:
-        skip = skip or set()
+    def __non_cluster_str(graph_x: nx.DiGraph, top_nodes: set[str], skip: set[str]) -> str:
         # Count unclustered edges rather than listing them all
         non_cluster_edges: list[tuple[str, str]] = []
         for src, dst in graph_x.edges():
