@@ -524,8 +524,7 @@ class CallGraph:
             files_in_cluster: set[str] = set()
 
             for node_name in sorted(community):
-                # Communities may reference nodes no longer in the graph when an
-                # externally supplied ClusterResult is passed in.
+                # Externally supplied ClusterResults can reference stale nodes.
                 if node_name not in cfg_graph_x.nodes:
                     continue
                 node_data = cfg_graph_x.nodes[node_name]
@@ -533,8 +532,6 @@ class CallGraph:
                 node_type = node_data.get("type")
                 files_in_cluster.add(file_path)
 
-                # ``isinstance`` narrows ``Any`` from networkx attribute stubs; it is
-                # not defending against missing data (the guard above handles that).
                 type_label = node_type.label() if isinstance(node_type, NodeType) else "Function"
                 parts = node_name.split(".")
 

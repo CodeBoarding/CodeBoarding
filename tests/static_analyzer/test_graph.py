@@ -426,10 +426,6 @@ class TestCallGraph(unittest.TestCase):
         self.assertIn("Cluster 2", result)
 
     def test_cluster_str_falls_back_to_function_label_when_type_attr_missing(self):
-        # Why: networkx attribute stubs declare node data as ``Any``. Even when a
-        # node IS in the graph, its ``"type"`` entry may be missing (e.g. nodes
-        # inserted by tests or synthetic paths). __cluster_str must fall back to
-        # the "Function" label instead of crashing on ENTITY_LABELS/label lookup.
         graph = CallGraph()
         nx_graph = nx.DiGraph()
         nx_graph.add_node("module.mystery_func", file_path="/file.py")  # no "type" key
@@ -444,10 +440,6 @@ class TestCallGraph(unittest.TestCase):
         self.assertIn("module.known_func [Function]", result)
 
     def test_cluster_str_skips_nodes_not_in_graph(self):
-        # Why: ClusterResult may be supplied externally and reference nodes that
-        # no longer exist in the current nx graph (same edge case as the
-        # ``if node_name in nx_graph.nodes`` guard in _build_result). Those nodes
-        # must be silently skipped rather than rendered with placeholder data.
         graph = CallGraph()
         nx_graph = nx.DiGraph()
         nx_graph.add_node("module.present", file_path="/file.py", type=NodeType.FUNCTION)
