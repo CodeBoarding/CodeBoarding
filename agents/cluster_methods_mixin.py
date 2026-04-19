@@ -1,7 +1,9 @@
 import logging
 import os
 from collections import defaultdict
+from dataclasses import dataclass
 from pathlib import Path
+from typing import NoReturn
 
 import networkx as nx
 
@@ -13,8 +15,11 @@ from agents.agent_responses import (
     FileMethodGroup,
     MethodEntry,
 )
+from agents.cluster_budget import ClusterPromptBudget
+from agents.llm_config import get_current_agent_context_window
 from constants import MIN_CLUSTERS_THRESHOLD
 from static_analyzer.analysis_result import StaticAnalysisResults
+from static_analyzer.cfg_skip_planner import ContextBudgetExceededError, plan_skip_set
 from static_analyzer.cluster_helpers import (
     MAX_LLM_CLUSTERS,
     enforce_cross_language_budget,
@@ -32,6 +37,13 @@ from static_analyzer.graph import CallGraph, ClusterResult
 from static_analyzer.node import Node
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class _RenderedClusterString:
+    text: str
+    by_language: dict[str, str]
+    cluster_ids: set[int]
 
 
 class ClusterMethodsMixin:
@@ -61,6 +73,7 @@ class ClusterMethodsMixin:
         programming_langs: list[str],
         cluster_results: dict[str, ClusterResult],
         cluster_ids: set[int] | None = None,
+        prompt_overhead_chars: int = 0,
     ) -> str:
         """
         Build a cluster string for LLM consumption using pre-computed cluster results.
@@ -69,29 +82,59 @@ class ClusterMethodsMixin:
             programming_langs: List of languages to include
             cluster_results: Pre-computed cluster results mapping language -> ClusterResult
             cluster_ids: Optional set of cluster IDs to filter by
+            prompt_overhead_chars: Characters used by everything else in the
+                prompt (system message + rendered template with an empty
+                ``cfg_clusters`` slot). The skip planner subtracts this from
+                the model's input window before computing the char budget for
+                the cluster string.
 
         Returns:
             Formatted cluster string with headers per language
         """
-        cluster_lines = []
+        rendered = self._render_cluster_string(programming_langs, cluster_results, cluster_ids, {})
+        if cluster_ids:
+            return rendered.text
+
+        char_budget = self._cluster_prompt_budget(prompt_overhead_chars)
+        if len(rendered.text) <= char_budget:
+            return rendered.text
+
+        per_lang_skip = self._plan_skip_sets(programming_langs, cluster_results, prompt_overhead_chars)
+        rendered_with_skips = self._render_cluster_string(
+            programming_langs, cluster_results, cluster_ids, per_lang_skip
+        )
+        if len(rendered_with_skips.text) > char_budget:
+            self._raise_cluster_budget_error(char_budget, rendered_with_skips, per_lang_skip)
+
+        return rendered_with_skips.text
+
+    def _render_cluster_string(
+        self,
+        programming_langs: list[str],
+        cluster_results: dict[str, ClusterResult],
+        cluster_ids: set[int] | None,
+        skip_sets: dict[str, set[str]],
+    ) -> _RenderedClusterString:
+        cluster_lines: list[str] = []
+        by_language: dict[str, str] = {}
         all_cluster_ids: set[int] = set()
 
         for lang in programming_langs:
             cfg = self.static_analysis.get_cfg(lang)
-            # Get cluster result for this language
             cluster_result = cluster_results.get(lang)
-            cluster_str = cfg.to_cluster_string(cluster_ids, cluster_result)
+            cluster_str = cfg.to_cluster_string(
+                cluster_ids or set(), cluster_result, skip_nodes=skip_sets.get(lang, set())
+            )
 
             if cluster_str.strip() and cluster_str not in ("empty", "none", "No clusters found."):
                 header = "Component CFG" if cluster_ids else "Clusters"
-                cluster_lines.append(f"\n## {lang.capitalize()} - {header}\n")
-                cluster_lines.append(cluster_str)
-                cluster_lines.append("\n")
+                lang_text = f"\n## {lang.capitalize()} - {header}\n{cluster_str}\n"
+                cluster_lines.append(lang_text)
+                by_language[lang] = lang_text
                 if cluster_result:
                     lang_ids = cluster_ids if cluster_ids else cluster_result.get_cluster_ids()
                     all_cluster_ids.update(lang_ids)
 
-        # Add explicit ID checklist so the LLM knows exactly which IDs to assign
         if all_cluster_ids and not cluster_ids:
             sorted_cluster_ids = sorted(all_cluster_ids)
             cluster_lines.append(
@@ -99,7 +142,117 @@ class ClusterMethodsMixin:
                 f"Every one of these IDs: {sorted_cluster_ids} must appear in exactly one group."
             )
 
-        return "".join(cluster_lines)
+        return _RenderedClusterString(text="".join(cluster_lines), by_language=by_language, cluster_ids=all_cluster_ids)
+
+    def _plan_skip_sets(
+        self,
+        programming_langs: list[str],
+        cluster_results: dict[str, ClusterResult],
+        prompt_overhead_chars: int,
+    ) -> dict[str, set[str]]:
+        """Compute per-language skip sets so the final combined cluster string fits."""
+        char_budget = self._cluster_prompt_budget(prompt_overhead_chars)
+        if char_budget <= 0:
+            ctx = get_current_agent_context_window()
+            msg = (
+                f"Prompt overhead ({prompt_overhead_chars} chars) consumes the entire agent input "
+                f"window ({ctx.input_tokens} tokens); no room for cluster renderings."
+            )
+            logger.error("[CFG skip planner] %s", msg)
+            raise ContextBudgetExceededError(msg)
+
+        langs_with_clusters = [l for l in programming_langs if cluster_results.get(l)]
+        if not langs_with_clusters:
+            return {}
+
+        skip_sets: dict[str, set[str]] = {}
+        rendered = self._render_cluster_string(programming_langs, cluster_results, None, skip_sets)
+        if len(rendered.text) <= char_budget:
+            return skip_sets
+
+        max_iterations = max(1, len(langs_with_clusters) * 5)
+        for _ in range(max_iterations):
+            deficit = len(rendered.text) - char_budget
+            ordered_langs = sorted(
+                langs_with_clusters,
+                key=lambda lang: len(rendered.by_language.get(lang, "")),
+                reverse=True,
+            )
+            progressed = False
+
+            for lang in ordered_langs:
+                lang_text = rendered.by_language.get(lang, "")
+                current_len = len(lang_text)
+                if current_len == 0:
+                    continue
+
+                for target in self._language_budget_targets(current_len, deficit):
+                    try:
+                        skip = plan_skip_set(self.static_analysis.get_cfg(lang), cluster_results[lang], target)
+                    except ContextBudgetExceededError:
+                        continue
+
+                    if skip == skip_sets.get(lang, set()):
+                        continue
+
+                    trial_skip_sets = dict(skip_sets)
+                    if skip:
+                        trial_skip_sets[lang] = skip
+                    else:
+                        trial_skip_sets.pop(lang, None)
+
+                    trial_rendered = self._render_cluster_string(
+                        programming_langs, cluster_results, None, trial_skip_sets
+                    )
+                    if len(trial_rendered.text) >= len(rendered.text):
+                        continue
+
+                    skip_sets = trial_skip_sets
+                    rendered = trial_rendered
+                    progressed = True
+                    break
+
+                if progressed:
+                    break
+
+            if len(rendered.text) <= char_budget:
+                return skip_sets
+            if not progressed:
+                break
+
+        self._raise_cluster_budget_error(char_budget, rendered, skip_sets)
+
+    @staticmethod
+    def _language_budget_targets(current_len: int, deficit: int) -> list[int]:
+        exact_target = max(0, current_len - deficit)
+        targets = {
+            exact_target,
+            int(current_len * 0.9),
+            int(current_len * 0.75),
+            int(current_len * 0.5),
+            0,
+        }
+        return sorted((target for target in targets if target < current_len), reverse=True)
+
+    @staticmethod
+    def _raise_cluster_budget_error(
+        char_budget: int,
+        rendered: _RenderedClusterString,
+        skip_sets: dict[str, set[str]],
+    ) -> NoReturn:
+        per_lang_sizes = {lang: len(text) for lang, text in rendered.by_language.items()}
+        skipped_counts = {lang: len(skip) for lang, skip in skip_sets.items() if skip}
+        msg = (
+            f"Cluster render {len(rendered.text)} chars exceeds budget {char_budget}. "
+            f"Per-language sizes: {per_lang_sizes}; skipped nodes: {skipped_counts}."
+        )
+        logger.error("[CFG skip planner] %s", msg)
+        raise ContextBudgetExceededError(msg)
+
+    @staticmethod
+    def _cluster_prompt_budget(prompt_overhead_chars: int) -> int:
+        ctx = get_current_agent_context_window()
+        return ClusterPromptBudget(input_tokens=ctx.input_tokens).available_chars(prompt_overhead_chars)
 
     def _ensure_unique_key_entities(self, analysis: AnalysisInsights):
         """

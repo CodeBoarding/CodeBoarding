@@ -411,14 +411,14 @@ class TestCallGraph(unittest.TestCase):
 
         nx_graph = graph.to_networkx()
 
-        # Define communities
+        # Define communities as (cluster_id, members) pairs
         communities = [
-            ["module.func0", "module.func1"],
-            ["module.func2", "module.func3"],
+            (1, {"module.func0", "module.func1"}),
+            (2, {"module.func2", "module.func3"}),
         ]
 
         graph_instance = CallGraph()
-        result = graph_instance._CallGraph__cluster_str(communities, nx_graph)  # type: ignore[attr-defined]
+        result = graph_instance._CallGraph__cluster_str(communities, nx_graph, set())  # type: ignore[attr-defined]
 
         self.assertIn("Cluster Definitions", result)
         self.assertIn("Inter-Cluster Connections", result)
@@ -440,9 +440,9 @@ class TestCallGraph(unittest.TestCase):
         graph.add_edge("pkg.sub.module.ClassA.method_one", "pkg.sub.module.helper_func")
 
         nx_graph = graph.to_networkx()
-        communities = [{n.fully_qualified_name for n in nodes[:4]}, {"other.Outside"}]
+        communities = [(1, {n.fully_qualified_name for n in nodes[:4]}), (2, {"other.Outside"})]
 
-        result = graph._CallGraph__cluster_str(communities, nx_graph)  # type: ignore[attr-defined]
+        result = graph._CallGraph__cluster_str(communities, nx_graph, set())  # type: ignore[attr-defined]
 
         self.assertIn('(identifiers below prefixed with "pkg.sub.module.")', result)
         self.assertIn("ClassA [Class]", result)
@@ -476,7 +476,7 @@ class TestCallGraph(unittest.TestCase):
         top_nodes = {"module.func0", "module.func1"}
 
         graph_instance = CallGraph()
-        result = graph_instance._CallGraph__non_cluster_str(nx_graph, top_nodes)  # type: ignore[attr-defined]
+        result = graph_instance._CallGraph__non_cluster_str(nx_graph, top_nodes, set())  # type: ignore[attr-defined]
 
         # Should show edges involving func2 and func3
         self.assertIn("module.func2", result)

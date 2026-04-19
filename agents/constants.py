@@ -17,6 +17,7 @@ class ModelCapabilities:
     FALLBACK_INPUT = 256_000
     FALLBACK_OUTPUT = 64_000
     CACHE_TTL_SECONDS = 24 * 3600
+    CHARS_PER_TOKEN = 3.5  # community consensus conversion is around 3 or 4 chars/token.
 
     SOURCES = {
         "litellm": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
