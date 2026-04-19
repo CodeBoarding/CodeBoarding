@@ -259,41 +259,53 @@ def _initialize_llm(
     log_prefix: str,
     init_factory: bool = False,
 ) -> tuple[BaseChatModel, str]:
+    resolved = _resolve_active_provider(model_override, model_attr)
+    if resolved is None:
+        required_vars = []
+        for config in LLM_PROVIDERS.values():
+            required_vars.append(config.api_key_env)
+            required_vars.extend(config.alt_env_vars)
+
+        raise ValueError(
+            f"No valid LLM configuration found. Please set one of: {', '.join(sorted(set(required_vars)))}"
+        )
+
+    name, config, model_name = resolved
+
+    if init_factory:
+        detected_llm_type = LLMType.from_model_name(model_name)
+        initialize_global_factory(detected_llm_type)
+        logger.info(
+            f"Initialized prompt factory for {name} provider with model '{model_name}' "
+            f"-> {detected_llm_type.value} prompt factory"
+        )
+
+    logger.info(f"Using {name.title()} {log_prefix}LLM with model: {model_name}")
+
+    kwargs = {
+        "model": model_name,
+        "temperature": getattr(config, temperature_attr),
+    }
+    kwargs.update(config.get_resolved_extra_args())
+
+    if name not in ["aws", "ollama"]:
+        api_key = config.get_api_key()
+        kwargs["api_key"] = api_key or "no-key-required"
+
+    model = config.chat_class(**kwargs)  # type: ignore[call-arg, arg-type]
+    return model, model_name
+
+
+def _resolve_active_provider(
+    model_override: str | None,
+    model_attr: str,
+) -> tuple[str, LLMConfig, str] | None:
+    """Return the active provider, config, and resolved model name."""
     for name, config in LLM_PROVIDERS.items():
         if not config.is_active():
             continue
-
-        model_name = model_override or getattr(config, model_attr)
-
-        if init_factory:
-            detected_llm_type = LLMType.from_model_name(model_name)
-            initialize_global_factory(detected_llm_type)
-            logger.info(
-                f"Initialized prompt factory for {name} provider with model '{model_name}' "
-                f"-> {detected_llm_type.value} prompt factory"
-            )
-
-        logger.info(f"Using {name.title()} {log_prefix}LLM with model: {model_name}")
-
-        kwargs = {
-            "model": model_name,
-            "temperature": getattr(config, temperature_attr),
-        }
-        kwargs.update(config.get_resolved_extra_args())
-
-        if name not in ["aws", "ollama"]:
-            api_key = config.get_api_key()
-            kwargs["api_key"] = api_key or "no-key-required"
-
-        model = config.chat_class(**kwargs)  # type: ignore[call-arg, arg-type]
-        return model, model_name
-
-    required_vars = []
-    for config in LLM_PROVIDERS.values():
-        required_vars.append(config.api_key_env)
-        required_vars.extend(config.alt_env_vars)
-
-    raise ValueError(f"No valid LLM configuration found. Please set one of: {', '.join(sorted(set(required_vars)))}")
+        return name, config, model_override or getattr(config, model_attr)
+    return None
 
 
 def validate_api_key_provided() -> None:
@@ -319,10 +331,9 @@ def get_current_agent_context_window() -> ContextWindow:
     every call. ``get_context_window`` handles its own caching, so this is
     cheap enough to call without a module-level cache.
     """
-    for name, config in LLM_PROVIDERS.items():
-        if not config.is_active():
-            continue
-        model_name = _agent_model_override or os.getenv("AGENT_MODEL") or config.agent_model
+    resolved = _resolve_active_provider(_agent_model_override or os.getenv("AGENT_MODEL"), "agent_model")
+    if resolved is not None:
+        name, _config, model_name = resolved
         return get_context_window(name, model_name)
     return ContextWindow(ModelCapabilities.FALLBACK_INPUT, ModelCapabilities.FALLBACK_OUTPUT)
 
