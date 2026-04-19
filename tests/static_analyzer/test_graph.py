@@ -411,14 +411,14 @@ class TestCallGraph(unittest.TestCase):
 
         nx_graph = graph.to_networkx()
 
-        # Define communities
+        # Define communities as (cluster_id, members) pairs
         communities = [
-            ["module.func0", "module.func1"],
-            ["module.func2", "module.func3"],
+            (1, {"module.func0", "module.func1"}),
+            (2, {"module.func2", "module.func3"}),
         ]
 
         graph_instance = CallGraph()
-        result = graph_instance._CallGraph__cluster_str(communities, nx_graph)  # type: ignore[attr-defined]
+        result = graph_instance._CallGraph__cluster_str(communities, nx_graph, set())  # type: ignore[attr-defined]
 
         self.assertIn("Cluster Definitions", result)
         self.assertIn("Inter-Cluster Connections", result)
@@ -459,6 +459,39 @@ class TestCallGraph(unittest.TestCase):
         self.assertIn("module.present [Function]", result)
         self.assertNotIn("module.stale_ref", result)
 
+    def test_cluster_str_prefix_factoring(self):
+        graph = CallGraph()
+
+        nodes = [
+            Node("pkg.sub.module.ClassA", NodeType.CLASS, "/pkg/sub/module.py", 1, 5),
+            Node("pkg.sub.module.ClassA.method_one", NodeType.METHOD, "/pkg/sub/module.py", 6, 10),
+            Node("pkg.sub.module.ClassA.method_two", NodeType.METHOD, "/pkg/sub/module.py", 11, 15),
+            Node("pkg.sub.module.helper_func", NodeType.FUNCTION, "/pkg/sub/module.py", 16, 20),
+            Node("other.Outside", NodeType.CLASS, "/other.py", 1, 5),
+        ]
+        for n in nodes:
+            graph.add_node(n)
+        graph.add_edge("pkg.sub.module.ClassA.method_one", "pkg.sub.module.helper_func")
+
+        nx_graph = graph.to_networkx()
+        communities = [(1, {n.fully_qualified_name for n in nodes[:4]}), (2, {"other.Outside"})]
+
+        result = graph._CallGraph__cluster_str(communities, nx_graph, set())  # type: ignore[attr-defined]
+
+        self.assertIn('(identifiers below prefixed with "pkg.sub.module.")', result)
+        self.assertIn("ClassA [Class]", result)
+        self.assertIn("helper_func [Function]", result)
+        # Full FQN must not appear inside the factored file block
+        self.assertNotIn("    pkg.sub.module.ClassA [Class]", result)
+
+    def test_common_dot_prefix(self):
+        self.assertEqual(CallGraph._common_dot_prefix([]), "")
+        self.assertEqual(CallGraph._common_dot_prefix(["a.b.c"]), "")
+        self.assertEqual(CallGraph._common_dot_prefix(["a.b.c", "a.b.d"]), "a.b")
+        self.assertEqual(CallGraph._common_dot_prefix(["a.b.c", "x.y.z"]), "")
+        # Prevents collapsing identical names to empty short form
+        self.assertEqual(CallGraph._common_dot_prefix(["a.b", "a.b"]), "a")
+
     def test_non_cluster_str_static_method(self):
         # Test __non_cluster_str static method
         graph = CallGraph()
@@ -477,7 +510,7 @@ class TestCallGraph(unittest.TestCase):
         top_nodes = {"module.func0", "module.func1"}
 
         graph_instance = CallGraph()
-        result = graph_instance._CallGraph__non_cluster_str(nx_graph, top_nodes)  # type: ignore[attr-defined]
+        result = graph_instance._CallGraph__non_cluster_str(nx_graph, top_nodes, set())  # type: ignore[attr-defined]
 
         # Should show edges involving func2 and func3
         self.assertIn("module.func2", result)

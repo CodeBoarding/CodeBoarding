@@ -70,8 +70,20 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
 
         programming_langs = self.static_analysis.get_languages()
 
-        # Build cluster string using the pre-computed cluster results
-        cluster_str = self._build_cluster_string(programming_langs, cluster_results)
+        # Measure everything that wraps cfg_clusters (system message + rendered
+        # template with an empty slot) so the skip planner can back it out of
+        # the input window before budgeting the cluster string.
+        overhead_chars = len(str(self.system_message.content)) + len(
+            self.prompts["group_clusters"].format(
+                project_name=self.project_name,
+                cfg_clusters="",
+                meta_context=meta_context_str,
+                project_type=project_type,
+            )
+        )
+        cluster_str = self._build_cluster_string(
+            programming_langs, cluster_results, prompt_overhead_chars=overhead_chars
+        )
 
         prompt = self.prompts["group_clusters"].format(
             project_name=self.project_name,
