@@ -436,9 +436,9 @@ class TestCallGraph(unittest.TestCase):
         nx_graph.add_node("module.known_func", file_path="/file.py", type=NodeType.FUNCTION)
         nx_graph.add_edge("module.mystery_func", "module.known_func")
 
-        communities = [["module.mystery_func", "module.known_func"]]
+        communities = [(1, {"module.mystery_func", "module.known_func"})]
 
-        result = graph._CallGraph__cluster_str(communities, nx_graph)  # type: ignore[attr-defined]
+        result = graph._CallGraph__cluster_str(communities, nx_graph, set())  # type: ignore[attr-defined]
 
         self.assertIn("module.mystery_func [Function]", result)
         self.assertIn("module.known_func [Function]", result)
@@ -452,9 +452,9 @@ class TestCallGraph(unittest.TestCase):
         nx_graph = nx.DiGraph()
         nx_graph.add_node("module.present", file_path="/file.py", type=NodeType.FUNCTION)
 
-        communities = [["module.present", "module.stale_ref"]]
+        communities = [(1, {"module.present", "module.stale_ref"})]
 
-        result = graph._CallGraph__cluster_str(communities, nx_graph)  # type: ignore[attr-defined]
+        result = graph._CallGraph__cluster_str(communities, nx_graph, set())  # type: ignore[attr-defined]
 
         self.assertIn("module.present [Function]", result)
         self.assertNotIn("module.stale_ref", result)
