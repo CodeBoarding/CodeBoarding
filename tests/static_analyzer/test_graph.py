@@ -425,6 +425,32 @@ class TestCallGraph(unittest.TestCase):
         self.assertIn("Cluster 1", result)
         self.assertIn("Cluster 2", result)
 
+    def test_cluster_str_falls_back_to_function_label_when_type_attr_missing(self):
+        graph = CallGraph()
+        nx_graph = nx.DiGraph()
+        nx_graph.add_node("module.mystery_func", file_path="/file.py")  # no "type" key
+        nx_graph.add_node("module.known_func", file_path="/file.py", type=NodeType.FUNCTION)
+        nx_graph.add_edge("module.mystery_func", "module.known_func")
+
+        communities = [(1, {"module.mystery_func", "module.known_func"})]
+
+        result = graph._CallGraph__cluster_str(communities, nx_graph, set())  # type: ignore[attr-defined]
+
+        self.assertIn("module.mystery_func [Function]", result)
+        self.assertIn("module.known_func [Function]", result)
+
+    def test_cluster_str_skips_nodes_not_in_graph(self):
+        graph = CallGraph()
+        nx_graph = nx.DiGraph()
+        nx_graph.add_node("module.present", file_path="/file.py", type=NodeType.FUNCTION)
+
+        communities = [(1, {"module.present", "module.stale_ref"})]
+
+        result = graph._CallGraph__cluster_str(communities, nx_graph, set())  # type: ignore[attr-defined]
+
+        self.assertIn("module.present [Function]", result)
+        self.assertNotIn("module.stale_ref", result)
+
     def test_cluster_str_prefix_factoring(self):
         graph = CallGraph()
 

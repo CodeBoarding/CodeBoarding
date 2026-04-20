@@ -6,7 +6,6 @@ import networkx as nx
 import networkx.algorithms.community as nx_comm
 
 from static_analyzer.constants import (
-    ENTITY_LABELS,
     GRAPH_NODE_TYPES,
     ClusteringConfig,
     NodeType,
@@ -525,12 +524,15 @@ class CallGraph:
             files_in_cluster: set[str] = set()
 
             for node_name in sorted(community):
-                node_data = cfg_graph_x.nodes.get(node_name, {})
+                # Externally supplied ClusterResults can reference stale nodes.
+                if node_name not in cfg_graph_x.nodes:
+                    continue
+                node_data = cfg_graph_x.nodes[node_name]
                 file_path = node_data.get("file_path", "unknown")
                 node_type = node_data.get("type")
                 files_in_cluster.add(file_path)
 
-                type_label = ENTITY_LABELS.get(node_type, "Function")
+                type_label = node_type.label() if isinstance(node_type, NodeType) else "Function"
                 parts = node_name.split(".")
 
                 if node_type == NodeType.CLASS:
