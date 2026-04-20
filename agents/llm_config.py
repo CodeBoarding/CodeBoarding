@@ -124,7 +124,7 @@ LLM_PROVIDERS = {
         chat_class=ChatOpenAI,
         api_key_env="VERCEL_API_KEY",
         agent_model="google/gemini-3-flash",
-        parsing_model="openai/gpt-5-mini",  # Use OpenAI model for parsing to avoid trustcall compatibility issues with Gemini
+        parsing_model="google/gemini-3.1-flash-lite-preview",
         llm_type=LLMType.GEMINI_FLASH,
         alt_env_vars=["VERCEL_BASE_URL"],
         extra_args={
@@ -137,8 +137,8 @@ LLM_PROVIDERS = {
     "anthropic": LLMConfig(
         chat_class=ChatAnthropic,
         api_key_env="ANTHROPIC_API_KEY",
-        agent_model="claude-sonnet-4-5-20250929",
-        parsing_model="claude-3-haiku-20240307",
+        agent_model="claude-sonnet-4-6",
+        parsing_model="claude-haiku-4-5",
         llm_type=LLMType.CLAUDE,
         extra_args={
             "max_tokens": 8192,
@@ -150,7 +150,7 @@ LLM_PROVIDERS = {
         chat_class=ChatGoogleGenerativeAI,
         api_key_env="GOOGLE_API_KEY",
         agent_model="gemini-3-flash",
-        parsing_model="gemini-3-flash",
+        parsing_model="gemini-3.1-flash-lite-preview",
         llm_type=LLMType.GEMINI_FLASH,
         extra_args={
             "max_tokens": None,
@@ -161,9 +161,9 @@ LLM_PROVIDERS = {
     "aws": LLMConfig(
         chat_class=ChatBedrockConverse,
         api_key_env="AWS_BEARER_TOKEN_BEDROCK",  # Used for existence check
-        agent_model="us.anthropic.claude-sonnet-4-5-20250929-v1:0",
-        parsing_model="us.anthropic.claude-3-haiku-20240307-v1:0",
-        llm_type=LLMType.CLAUDE,
+        agent_model="anthropic.claude-sonnet-4-6",
+        parsing_model="claude-haiku-4-5",
+        llm_type=LLMType.CLAUDE_SONNET,
         extra_args={
             "max_tokens": 4096,
             "region_name": lambda: os.getenv("AWS_DEFAULT_REGION", "us-east-1"),
@@ -173,9 +173,9 @@ LLM_PROVIDERS = {
     "cerebras": LLMConfig(
         chat_class=ChatCerebras,
         api_key_env="CEREBRAS_API_KEY",
-        agent_model="gpt-oss-120b",
-        parsing_model="llama3.1-8b",
-        llm_type=LLMType.GPT4,
+        agent_model="zai-glm-4.7",
+        parsing_model="gpt-oss-120b",
+        llm_type=LLMType.KIMI,
         extra_args={
             "max_tokens": None,
             "timeout": None,
@@ -239,8 +239,8 @@ LLM_PROVIDERS = {
     "openrouter": LLMConfig(
         chat_class=ChatOpenAI,
         api_key_env="OPENROUTER_API_KEY",
-        agent_model="google/gemini-2.5-flash",
-        parsing_model="google/gemini-2.5-flash",
+        agent_model="google/gemini-3-flash",
+        parsing_model="google/gemini-3.1-flash-lite-preview",
         llm_type=LLMType.GEMINI_FLASH,
         extra_args={
             "base_url": lambda: os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"),
