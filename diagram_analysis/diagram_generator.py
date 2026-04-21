@@ -2,7 +2,7 @@ import json
 import logging
 import os
 import time
-from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, as_completed, wait
 from contextlib import nullcontext
 from datetime import datetime, timezone
 from pathlib import Path
@@ -19,9 +19,23 @@ from diagram_analysis.analysis_json import (
     FileCoverageSummary,
     NotAnalyzedFile,
 )
+from diagram_analysis.analysis_patcher import merge_patched_sub_analyses, patch_sub_analysis
 from diagram_analysis.file_coverage import FileCoverage
-from diagram_analysis.io_utils import save_analysis
+from diagram_analysis.incremental_models import (
+    IncrementalRunResult,
+    IncrementalSummary,
+    IncrementalSummaryKind,
+    TraceConfig,
+    TraceResult,
+    TraceStopReason,
+)
+from diagram_analysis.incremental_tracer import classify_scope, run_trace
+from diagram_analysis.incremental_types import IncrementalDelta
+from diagram_analysis.incremental_updater import apply_delta
+from diagram_analysis.io_utils import load_full_analysis, save_analysis
 from diagram_analysis.version import Version
+from repo_utils.parsed_diff import ParsedGitDiff
+from static_analyzer.graph import CallGraph
 from health.config import initialize_health_dir, load_health_config
 from health.runner import run_health_checks
 from monitoring import StreamingStatsWriter
@@ -72,6 +86,8 @@ class DiagramGenerator:
         self.meta_agent: MetaAgent | None = None
         self.meta_context: Any | None = None
         self.file_coverage_data: dict | None = None
+        self.agent_llm: Any | None = None
+        self.parsing_llm: Any | None = None
 
         self._monitoring_agents: dict[str, MonitoringMixin] = {}
         self.stats_writer: StreamingStatsWriter | None = None
@@ -160,6 +176,8 @@ class DiagramGenerator:
 
         # Initialize LLMs before spawning threads so both share the same instances
         agent_llm, parsing_llm = initialize_llms()
+        self.agent_llm = agent_llm
+        self.parsing_llm = parsing_llm
 
         self.meta_agent = MetaAgent(
             repo_dir=self.repo_location,
@@ -394,3 +412,208 @@ class DiagramGenerator:
     def generate_analysis_smart(self) -> Path:
         """Run full analysis."""
         return self.generate_analysis()
+
+    # ------------------------------------------------------------------
+    # Semantic incremental pass
+    # ------------------------------------------------------------------
+    def _collect_cfgs(self) -> dict[str, CallGraph]:
+        assert self.static_analysis is not None
+        cfgs: dict[str, CallGraph] = {}
+        for lang in self.static_analysis.get_languages():
+            try:
+                cfgs[lang] = self.static_analysis.get_cfg(lang)
+            except ValueError:
+                continue
+        return cfgs
+
+    def _run_component_patches(
+        self,
+        sub_analyses: dict[str, AnalysisInsights],
+        trace_result: TraceResult,
+        parsing_llm: Any,
+    ) -> tuple[dict[str, AnalysisInsights], list[str]]:
+        """Patch impacted sub-analyses in parallel. Returns (patched, failed_ids)."""
+        patched: dict[str, AnalysisInsights] = {}
+        failed: list[str] = []
+
+        impact_targets = [ic for ic in trace_result.impacted_components if ic.component_id in sub_analyses]
+        if not impact_targets:
+            return patched, failed
+
+        max_workers = min(len(impact_targets), 4)
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {
+                executor.submit(
+                    patch_sub_analysis,
+                    sub_analyses[ic.component_id],
+                    ic.component_id,
+                    ic,
+                    parsing_llm,
+                ): ic.component_id
+                for ic in impact_targets
+            }
+            for future in as_completed(futures):
+                comp_id = futures[future]
+                try:
+                    result = future.result()
+                except Exception as exc:
+                    logger.error("Patch failed for %s: %s", comp_id, exc)
+                    failed.append(comp_id)
+                    continue
+                if result is None:
+                    failed.append(comp_id)
+                else:
+                    patched[comp_id] = result
+        return patched, failed
+
+    def generate_analysis_incremental(
+        self,
+        delta: IncrementalDelta,
+        base_ref: str,
+        parsed_diff: ParsedGitDiff | None = None,
+        baseline_cfgs: dict[str, CallGraph] | None = None,
+        config: TraceConfig | None = None,
+    ) -> IncrementalRunResult:
+        """Run a semantic incremental update pass.
+
+        Applies the architectural delta in place, traces semantic impact of
+        changed methods through the call graph, patches the affected
+        sub-analyses via EASE-encoded JSON Patch, and saves the result.
+
+        The caller owns mode selection (cosmetic-only fast paths live in the
+        wrapper); this method handles the semantic-tracing path and its
+        deterministic fallbacks.
+        """
+        if self.details_agent is None or self.abstraction_agent is None:
+            self.pre_analysis()
+        assert self.static_analysis is not None
+
+        existing = load_full_analysis(Path(self.output_dir))
+        if existing is None:
+            return IncrementalRunResult(
+                summary=IncrementalSummary(
+                    kind=IncrementalSummaryKind.REQUIRES_FULL_ANALYSIS,
+                    message="No existing analysis.json; full analysis required.",
+                    requires_full_analysis=True,
+                ),
+            )
+        root_analysis, sub_analyses = existing
+
+        if not delta.has_changes:
+            return IncrementalRunResult(
+                summary=IncrementalSummary(
+                    kind=IncrementalSummaryKind.NO_CHANGES,
+                    message="No file changes detected.",
+                ),
+                analysis_path=(Path(self.output_dir) / "analysis.json").resolve(),
+            )
+
+        if delta.needs_reanalysis:
+            return IncrementalRunResult(
+                summary=IncrementalSummary(
+                    kind=IncrementalSummaryKind.REQUIRES_FULL_ANALYSIS,
+                    message="Delta references files without a known component; full analysis required.",
+                    requires_full_analysis=True,
+                ),
+            )
+
+        apply_delta(root_analysis, sub_analyses, delta)
+
+        if delta.is_purely_additive:
+            analysis_path = save_analysis(
+                analysis=root_analysis,
+                output_dir=Path(self.output_dir),
+                sub_analyses=sub_analyses,
+                repo_name=self.repo_name,
+            ).resolve()
+            return IncrementalRunResult(
+                summary=IncrementalSummary(
+                    kind=IncrementalSummaryKind.ADDITIVE_ONLY,
+                    message="Changes are purely additive; no semantic patching needed.",
+                ),
+                analysis_path=analysis_path,
+            )
+
+        assert self.agent_llm is not None and self.parsing_llm is not None
+        agent_llm = self.agent_llm
+        parsing_llm = self.parsing_llm
+
+        trace_result = run_trace(
+            delta=delta,
+            cfgs=self._collect_cfgs(),
+            static_analysis=self.static_analysis,
+            repo_dir=self.repo_location,
+            base_ref=base_ref,
+            agent_llm=agent_llm,
+            parsing_llm=parsing_llm,
+            config=config,
+            baseline_cfgs=baseline_cfgs,
+            parsed_diff=parsed_diff,
+        )
+
+        if trace_result.stop_reason == TraceStopReason.SYNTAX_ERROR:
+            return IncrementalRunResult(
+                summary=IncrementalSummary(
+                    kind=IncrementalSummaryKind.REQUIRES_FULL_ANALYSIS,
+                    message="Syntax errors detected; aborting incremental trace.",
+                    used_llm=False,
+                    trace_stop_reason=trace_result.stop_reason,
+                    requires_full_analysis=True,
+                ),
+                trace_result=trace_result,
+            )
+
+        if not trace_result.all_impacted_methods:
+            analysis_path = save_analysis(
+                analysis=root_analysis,
+                output_dir=Path(self.output_dir),
+                sub_analyses=sub_analyses,
+                repo_name=self.repo_name,
+            ).resolve()
+            return IncrementalRunResult(
+                summary=IncrementalSummary(
+                    kind=IncrementalSummaryKind.NO_MATERIAL_IMPACT,
+                    message="No methods have semantically impacted descriptions.",
+                    used_llm=True,
+                    trace_stop_reason=trace_result.stop_reason,
+                ),
+                trace_result=trace_result,
+                analysis_path=analysis_path,
+            )
+
+        classify_scope(
+            trace_result,
+            root_analysis.file_to_component(),
+            self.static_analysis,
+            self.repo_location,
+        )
+
+        patched, failed = self._run_component_patches(sub_analyses, trace_result, parsing_llm)
+        merge_patched_sub_analyses(sub_analyses, patched)
+
+        analysis_path = save_analysis(
+            analysis=root_analysis,
+            output_dir=Path(self.output_dir),
+            sub_analyses=sub_analyses,
+            repo_name=self.repo_name,
+        ).resolve()
+
+        if trace_result.stop_reason == TraceStopReason.UNCERTAIN:
+            kind = IncrementalSummaryKind.SCOPED_REANALYSIS
+            message = "Impact trace inconclusive; patched the components we could identify."
+        else:
+            kind = IncrementalSummaryKind.MATERIAL_IMPACT
+            message = trace_result.semantic_impact_summary or "Patched impacted sub-analyses."
+
+        return IncrementalRunResult(
+            summary=IncrementalSummary(
+                kind=kind,
+                message=message,
+                used_llm=True,
+                trace_stop_reason=trace_result.stop_reason,
+            ),
+            trace_result=trace_result,
+            patched_component_ids=sorted(patched.keys()),
+            failed_component_ids=sorted(failed),
+            analysis_path=analysis_path,
+        )

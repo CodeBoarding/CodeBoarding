@@ -16,6 +16,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 
+from repo_utils.parsed_diff import ParsedDiffFile, ParsedGitDiff
+
 logger = logging.getLogger(__name__)
 
 
@@ -277,6 +279,53 @@ def _parse_status_line(line: str) -> DetectedChange | None:
         change_type=change_type,
         file_path=parts[1],
     )
+
+
+def _detected_change_from_parsed_diff(file_diff: ParsedDiffFile) -> DetectedChange | None:
+    """Convert one ``ParsedDiffFile`` into a ``DetectedChange``."""
+    status = file_diff.status_code.upper()
+    try:
+        change_type = ChangeType(status)
+    except ValueError:
+        logger.warning("Unknown git status: %s", status)
+        return None
+
+    return DetectedChange(
+        change_type=change_type,
+        file_path=file_diff.file_path,
+        old_path=file_diff.old_path,
+        similarity=file_diff.similarity,
+    )
+
+
+def detect_changes_from_parsed_diff(
+    parsed_diff: ParsedGitDiff,
+    exclude_patterns: list[str] | None = None,
+) -> ChangeSet:
+    """Build a ``ChangeSet`` from an already-loaded ``ParsedGitDiff``.
+
+    Allows callers that need both file-level status and per-file hunks to share
+    a single ``git diff`` invocation instead of running two.
+    """
+    if exclude_patterns is None:
+        exclude_patterns = [".codeboarding/", ".codeboarding\\"]
+
+    changes: list[DetectedChange] = []
+    for file_diff in parsed_diff.files:
+        change = _detected_change_from_parsed_diff(file_diff)
+        if change is None:
+            continue
+
+        should_skip = any(
+            change.file_path.startswith(p) or (change.old_path and change.old_path.startswith(p))
+            for p in exclude_patterns
+        )
+        if should_skip:
+            continue
+
+        changes.append(change)
+
+    return ChangeSet(changes=changes, base_ref=parsed_diff.base_ref, target_ref=parsed_diff.target_ref)
 
 
 def get_current_commit(repo_dir: Path) -> str | None:
