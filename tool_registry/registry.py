@@ -38,6 +38,12 @@ JDTLS_URL_TEMPLATE = (
 RUST_ANALYZER_REPO = "rust-lang/rust-analyzer"
 RUST_ANALYZER_TAG = "2026-03-30"
 
+# clangd ships as a full directory archive (binary + ``lib/clang/<ver>/include/``
+# builtin headers it loads at runtime). Archive members live under a
+# ``clangd_<ver>/`` top-level directory which ``archive_strip_root`` removes.
+CLANGD_REPO = "clangd/clangd"
+CLANGD_TAG = "22.1.0"
+
 # Pinned Node.js runtime for users without system Node; downloaded to
 # <servers_dir>/nodeenv/ via install_embedded_node(). A bump is folded into
 # tools_fingerprint() and triggers a full reinstall.
@@ -136,14 +142,28 @@ class ToolDependency:
     archive_subdir: str = ""
     js_entry_file: str = ""
     js_entry_parent: str = ""
+    # ARCHIVE-kind fields. ``archive_marker`` is the relative path inside
+    # ``bin/<archive_subdir>/`` that must exist for the install to be
+    # considered complete; default "plugins" preserves JDTLS's historical
+    # contract. ``archive_strip_root`` drops the single top-level directory
+    # from an archive during extraction (needed for releases that wrap
+    # everything in ``<tool>_<version>/``). ``archive_binary_path`` is the
+    # relative path to the LSP binary inside the extracted directory; when
+    # set, ``resolve_config`` rewrites ``command[0]`` to that absolute path
+    # (JDTLS leaves this empty because JavaClient constructs the command
+    # dynamically from ``jdtls_root``).
+    archive_marker: str = "plugins"
+    archive_strip_root: bool = False
+    archive_binary_path: str = ""
 
     def is_available_on_host(self) -> bool:
-        """True unless this is an arch-aware NATIVE dep whose override map
-        excludes the running ``(system, machine)`` (e.g. rust-analyzer on
-        Linux/riscv64). Consulted by both the installer and
-        ``has_required_tools`` to keep them in sync.
+        """True unless this is an arch-aware dep whose override map excludes
+        the running ``(system, machine)`` (e.g. rust-analyzer on Linux/riscv64,
+        clangd on Linux/aarch64). Consulted by both the installer and
+        ``has_required_tools`` to keep them in sync. Applies to NATIVE and
+        ARCHIVE deps sourced from GitHub; other kinds always return True.
         """
-        if self.kind is not ToolKind.NATIVE:
+        if self.kind not in (ToolKind.NATIVE, ToolKind.ARCHIVE):
             return True
         if not isinstance(self.source, GitHubToolSource):
             return True
@@ -271,5 +291,43 @@ TOOL_REGISTRY: list[ToolDependency] = [
                 ("Windows", "ARM64"): "rust-analyzer-aarch64-pc-windows-msvc.zip",
             },
         ),
+    ),
+    # clangd ships as a .zip containing a ``clangd_<ver>/`` directory with the
+    # binary, libs, and bundled clang builtin headers (``lib/clang/<ver>/include/``).
+    # The builtins are loaded at runtime so we extract the whole tree, not just
+    # the binary. Upstream publishes only x86_64 Linux, a universal-binary mac
+    # build, and x86_64 Windows; hosts outside that matrix fall through to
+    # ``is_available_on_host`` and are warned-and-skipped.
+    ToolDependency(
+        key="cpp",
+        binary_name="clangd",
+        kind=ToolKind.ARCHIVE,
+        config_section=ConfigSection.LSP_SERVERS,
+        source=GitHubToolSource(
+            tag=CLANGD_TAG,
+            repo=CLANGD_REPO,
+            # ``asset_template`` is unused (every supported host has an
+            # arch override) but kept non-empty so ``tools_fingerprint``
+            # formatting remains stable. clangd's upstream naming uses
+            # ``mac`` not ``macos``, so a fall-through here would 404 —
+            # ``is_available_on_host`` prevents that by requiring the
+            # override map to match the running (system, machine).
+            asset_template="clangd-{platform_suffix}-" + CLANGD_TAG + ".zip",
+            asset_arch_overrides={
+                ("Linux", "x86_64"): f"clangd-linux-{CLANGD_TAG}.zip",
+                ("Darwin", "x86_64"): f"clangd-mac-{CLANGD_TAG}.zip",
+                ("Darwin", "arm64"): f"clangd-mac-{CLANGD_TAG}.zip",
+                ("Windows", "AMD64"): f"clangd-windows-{CLANGD_TAG}.zip",
+            },
+            sha256={
+                f"clangd-linux-{CLANGD_TAG}.zip": "c54e57dbff3ccc9e8352367ddb7030ad3f624073ec58c7477424e7919f578572",
+                f"clangd-mac-{CLANGD_TAG}.zip": "71eddc5303da9a5bc5e8b509488b5b2c5acf45f20e33b8394e71a12a56d67198",
+                f"clangd-windows-{CLANGD_TAG}.zip": "e31e271fe11f6dcd7cf87ca74be4a12788ff8ce5a0b07762583e335c058e939a",
+            },
+        ),
+        archive_subdir="clangd",
+        archive_marker="bin/clangd",
+        archive_strip_root=True,
+        archive_binary_path="bin/clangd",
     ),
 ]

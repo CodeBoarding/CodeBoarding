@@ -36,6 +36,12 @@ class RepositoryTestConfig:
     language: str
     fixture_file: str
     mock_language: dict
+    # Files to write into the cloned repo root BEFORE running analysis.
+    # Needed for languages whose LSPs require project-local config that
+    # isn't shipped in the upstream repo — e.g. clangd needs a
+    # ``compile_flags.txt`` or ``compile_commands.json`` to resolve
+    # include paths. Mapping is {relative_path: file_contents}.
+    pre_analysis_files: tuple[tuple[str, str], ...] = ()
 
 
 # Repository configurations for all supported languages
@@ -160,6 +166,79 @@ REPOSITORY_CONFIGS = [
             "server_commands": ["csharp-ls"],
             "lsp_server_key": "csharp",
         },
+    ),
+    RepositoryTestConfig(
+        name="poco_cpp",
+        repo_url="https://github.com/pocoproject/poco",
+        pinned_commit="poco-1.15.2-release",
+        language="Cpp",
+        fixture_file="poco_cpp.json",
+        mock_language={
+            "language": "C++",
+            "size": 200000,
+            "percentage": 100.0,
+            "suffixes": [".cpp", ".h"],
+            "server_commands": ["clangd"],
+            "lsp_server_key": "cpp",
+        },
+        # POCO builds via CMake, which would generate ``compile_commands.json``
+        # — but running cmake on CI requires installing it and its output is
+        # host-specific. A minimal ``compile_flags.txt`` feeds clangd the
+        # include paths it needs for the Foundation+Net subset. The scoped
+        # ``.codeboardingignore`` keeps analysis to those two modules (plus
+        # their dependencies); without it, the whole POCO monorepo
+        # (~3000 files with vendored third-party in ``dependencies/``)
+        # pulls in noise from C-only code we don't want.
+        pre_analysis_files=(
+            ("compile_flags.txt", "-std=c++17\n-IFoundation/include\n-INet/include\n"),
+            (
+                ".codeboarding/.codeboardingignore",
+                "\n".join(
+                    [
+                        # Scope to Foundation + Net — everything else in the POCO
+                        # monorepo is optional subsystems or vendored third-party.
+                        "ActiveRecord/",
+                        "ApacheConnector/",
+                        "Benchmark/",
+                        "CppParser/",
+                        "CppUnit/",
+                        "Crypto/",
+                        "DNSSD/",
+                        "Data/",
+                        "Encodings/",
+                        "JSON/",
+                        "JWT/",
+                        "MongoDB/",
+                        "NetSSL_OpenSSL/",
+                        "NetSSL_Win/",
+                        "PDF/",
+                        "PageCompiler/",
+                        "PocoDoc/",
+                        "Prometheus/",
+                        "Redis/",
+                        "SevenZip/",
+                        "Util/",
+                        "XML/",
+                        "Zip/",
+                        "build/",
+                        "ci/",
+                        "cmake/",
+                        "contrib/",
+                        "dependencies/",
+                        "doc/",
+                        "libversion/",
+                        "modules/",
+                        "packaging/",
+                        "patches/",
+                        "release/",
+                        "samples/",
+                        "testsuite/",
+                        "tests/",
+                        "",
+                    ]
+                ),
+            ),
+        ),
     ),
 ]
 

@@ -111,7 +111,20 @@ def _create_engine_configs(
         except RuntimeError as e:
             logger.error(f"Failed to create engine config for {pl.language}: {e}")
 
-    return configs
+    # Dedup by (adapter class, project_path): tokei can report related
+    # variants as separate ``ProgrammingLanguage`` entries (e.g. "C++" and
+    # "C++ Header") that route to the same adapter. Without dedup the
+    # pipeline spins up one LSP + one analysis per variant, leading to
+    # duplicated source_files entries and redundant work.
+    deduped: list[tuple[LanguageAdapter, Path]] = []
+    seen: set[tuple[type[LanguageAdapter], Path]] = set()
+    for adapter_instance, project_path in configs:
+        key = (type(adapter_instance), project_path)
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append((adapter_instance, project_path))
+    return deduped
 
 
 def _lang_to_adapter_name(language: str) -> str | None:
@@ -128,6 +141,11 @@ def _lang_to_adapter_name(language: str) -> str | None:
         "java": "Java",
         "php": "PHP",
         "rust": "Rust",
+        "c++": "Cpp",
+        "cpp": "Cpp",
+        # tokei reports ``.hpp``/``.h`` under "C++ Header" separately from
+        # "C++" source files; both route to the same adapter.
+        "c++ header": "Cpp",
     }
     return mapping.get(language.lower())
 

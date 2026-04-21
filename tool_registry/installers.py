@@ -394,7 +394,119 @@ def install_node_tools(
         logger.exception("Node.js package installation failed")
 
 
-# -- Archive installer (JDTLS) ------------------------------------------------
+# -- Archive installer (JDTLS, clangd) ----------------------------------------
+
+
+def _resolve_archive_asset(dep: ToolDependency) -> tuple[str, str, str | None]:
+    """Return ``(download_url, local_archive_filename, expected_sha256)`` for an archive dep.
+
+    Supports two source types: ``UpstreamToolSource`` (JDTLS — single URL
+    template, format inferred from its suffix) and ``GitHubToolSource``
+    (clangd — platform-specific asset picked via arch overrides or
+    ``asset_template``, same suffix-based format detection). Raises
+    ``RuntimeError`` when a GitHub dep has no matching asset for this host.
+    """
+    source = dep.source
+    assert source is not None  # guarded by caller
+    if isinstance(source, UpstreamToolSource):
+        url = asset_url(source, "")
+        filename = Path(url).name or f"{dep.archive_subdir}.tar.gz"
+        return url, filename, None
+    if isinstance(source, GitHubToolSource):
+        suffix = PLATFORM_SUFFIX.get(platform.system(), "")
+        asset_name = resolve_native_asset_name(source, suffix)
+        if asset_name is None:
+            raise RuntimeError(f"{dep.key}: no archive asset for this host ({platform.system()}/{platform.machine()})")
+        url = asset_url(source, asset_name)
+        expected = source.sha256.get(asset_name) or source.sha256.get(suffix or "")
+        return url, asset_name, expected
+    raise TypeError(f"{dep.key}: unsupported archive source type {type(source).__name__}")
+
+
+def _extract_archive(archive_path: Path, extract_dir: Path, strip_root: bool) -> None:
+    """Extract a .tar.gz or .zip into *extract_dir*, optionally stripping the top-level dir.
+
+    Format is inferred from the archive filename suffix. When ``strip_root``
+    is True, all members are expected to share a single top-level directory
+    prefix (e.g. ``clangd_22.1.0/``) which is removed during extraction so
+    ``<extract_dir>/bin/clangd`` is the final layout rather than
+    ``<extract_dir>/clangd_22.1.0/bin/clangd``. Raises ``ValueError`` when
+    strip_root is requested but members don't share a single root.
+    """
+    name_lower = archive_path.name.lower()
+    if name_lower.endswith(".tar.gz") or name_lower.endswith(".tgz"):
+        with tarfile.open(archive_path, "r:gz") as tar:
+            if strip_root:
+                members = _tar_members_stripped_root(tar)
+                tar.extractall(path=extract_dir, members=members, filter="tar")
+            else:
+                tar.extractall(path=extract_dir, filter="tar")
+        return
+    if name_lower.endswith(".zip"):
+        with zipfile.ZipFile(archive_path) as zf:
+            if strip_root:
+                _zip_extractall_stripped_root(zf, extract_dir)
+            else:
+                zf.extractall(path=extract_dir)
+        return
+    raise ValueError(f"Unsupported archive format: {archive_path.name}")
+
+
+def _single_root_prefix(names: list[str]) -> str:
+    """Return the common top-level directory prefix (with trailing '/') shared by *names*.
+
+    Raises ``ValueError`` if names don't share a single root or the archive
+    is empty — callers relying on ``archive_strip_root`` need the precondition
+    to hold or the result layout is unpredictable.
+    """
+    if not names:
+        raise ValueError("empty archive; cannot strip root")
+    first_part = names[0].split("/", 1)[0]
+    if not first_part:
+        raise ValueError(f"archive member has no top-level directory: {names[0]!r}")
+    prefix = first_part + "/"
+    for name in names:
+        if not name.startswith(prefix):
+            raise ValueError(
+                f"archive members do not share a single top-level directory (saw {first_part!r} and {name!r})"
+            )
+    return prefix
+
+
+def _tar_members_stripped_root(tar: tarfile.TarFile) -> list[tarfile.TarInfo]:
+    """Yield tar members with their leading directory component stripped."""
+    infos = tar.getmembers()
+    prefix = _single_root_prefix([m.name for m in infos])
+    kept: list[tarfile.TarInfo] = []
+    for info in infos:
+        stripped = info.name[len(prefix) :]
+        if not stripped:
+            continue  # drop the root dir entry itself
+        info.name = stripped
+        kept.append(info)
+    return kept
+
+
+def _zip_extractall_stripped_root(zf: zipfile.ZipFile, extract_dir: Path) -> None:
+    """Extract every member of *zf* into *extract_dir* with its leading dir stripped."""
+    names = zf.namelist()
+    prefix = _single_root_prefix(names)
+    for info in zf.infolist():
+        stripped_name = info.filename[len(prefix) :]
+        if not stripped_name:
+            continue
+        target = extract_dir / stripped_name
+        if info.is_dir():
+            target.mkdir(parents=True, exist_ok=True)
+            continue
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with zf.open(info) as src, open(target, "wb") as dst:
+            shutil.copyfileobj(src, dst)
+        # zipfile drops the Unix permission bits; restore the executable bit
+        # so extracted binaries remain runnable (clangd ships as mode 0o755).
+        perm = (info.external_attr >> 16) & 0o777
+        if perm:
+            os.chmod(target, perm)
 
 
 def install_archive_tool(
@@ -402,31 +514,56 @@ def install_archive_tool(
     dep: ToolDependency,
     on_progress: ProgressCallback | None = None,
 ) -> None:
-    """Download and extract an archive tool."""
+    """Download and extract an archive tool.
+
+    Supports ``.tar.gz`` and ``.zip`` archives from either
+    ``UpstreamToolSource`` (single URL, e.g. JDTLS) or ``GitHubToolSource``
+    (per-platform asset, e.g. clangd). ``dep.archive_marker`` names the
+    relative path inside ``bin/<archive_subdir>/`` that must exist after a
+    successful install (validated both to skip reinstall and by
+    ``has_required_tools``). ``dep.archive_strip_root=True`` removes the
+    single top-level directory during extraction.
+    """
     assert dep.source, f"{dep.key}: source required for archive tools"
     assert dep.archive_subdir, f"{dep.key}: archive_subdir required for archive tools"
 
     if on_progress:
         on_progress(dep.key, 1, 1)
 
+    # Mirror ``install_native_tools``: skip hosts with no matching asset so
+    # ``needs_install`` doesn't loop on unsupported architectures (e.g.
+    # clangd on Linux/aarch64 — upstream only publishes x86_64).
+    if not dep.is_available_on_host():
+        logger.warning(
+            "  %s: no release asset for this host (%s/%s); skipping",
+            dep.binary_name,
+            platform.system(),
+            platform.machine(),
+        )
+        return
+
     extract_dir = target_dir / "bin" / dep.archive_subdir
-    if extract_dir.exists() and (extract_dir / "plugins").is_dir():
+    marker_path = extract_dir / dep.archive_marker
+    if extract_dir.exists() and marker_path.exists():
         logger.info("%s already installed", dep.key)
+        return
+
+    try:
+        url, asset_filename, expected_hash = _resolve_archive_asset(dep)
+    except RuntimeError as exc:
+        logger.warning("%s", exc)
         return
 
     logger.info("Downloading %s...", dep.key)
     extract_dir.mkdir(parents=True, exist_ok=True)
-    archive_path = target_dir / "bin" / f"{dep.archive_subdir}.tar.gz"
+    archive_path = target_dir / "bin" / asset_filename
 
-    url = asset_url(dep.source, "")
-    expected_hash = dep.source.sha256.get("") if isinstance(dep.source, GitHubToolSource) else None
     try:
         if not download_asset(url, archive_path, expected_sha256=expected_hash):
             logger.warning("%s download failed (empty file)", dep.key)
             return
 
-        with tarfile.open(archive_path, "r:gz") as tar:
-            tar.extractall(path=extract_dir, filter="tar")
+        _extract_archive(archive_path, extract_dir, strip_root=dep.archive_strip_root)
         archive_path.unlink()
         logger.info("%s installed successfully", dep.key)
     except Exception:
