@@ -110,6 +110,12 @@ EDGE_CASE_PROJECTS = [
         language="CSharp",
         fixture_file="csharp_edge_cases.json",
     ),
+    EdgeCaseProject(
+        name="cpp_edge_cases",
+        project_dir="cpp_edge_cases_project",
+        language="Cpp",
+        fixture_file="cpp_edge_cases.json",
+    ),
 ]
 
 
@@ -127,6 +133,7 @@ _LANGUAGE_MARKERS = {
     "JavaScript": pytest.mark.javascript_lang,
     "Rust": pytest.mark.rust_lang,
     "CSharp": pytest.mark.csharp_lang,
+    "Cpp": pytest.mark.cpp_lang,
 }
 
 

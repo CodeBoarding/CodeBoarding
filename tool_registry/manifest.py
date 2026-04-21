@@ -243,8 +243,20 @@ def resolve_config(base_dir: Path) -> dict[str, Any]:
 
         elif dep.kind is ToolKind.ARCHIVE and dep.archive_subdir:
             archive_dir = base_dir / "bin" / dep.archive_subdir
-            if archive_dir.is_dir() and (archive_dir / "plugins").is_dir():
-                config[dep.config_section][dep.key]["jdtls_root"] = str(archive_dir)
+            if archive_dir.is_dir() and (archive_dir / dep.archive_marker).exists():
+                # JDTLS needs ``jdtls_root`` because JavaClient builds the
+                # full command (JAR + config dir + workspace) dynamically.
+                # Other archive LSPs (clangd) declare ``archive_binary_path``
+                # and get their command[0] rewritten in place like NATIVE deps.
+                if dep.archive_binary_path:
+                    binary_path = archive_dir / dep.archive_binary_path
+                    if platform.system() == "Windows" and binary_path.suffix == "":
+                        binary_path = binary_path.with_suffix(".exe")
+                    if binary_path.exists():
+                        cmd = cast(list[str], config[dep.config_section][dep.key]["command"])
+                        cmd[0] = str(binary_path)
+                else:
+                    config[dep.config_section][dep.key]["jdtls_root"] = str(archive_dir)
 
     return config
 
@@ -282,7 +294,7 @@ def has_required_tools(base_dir: Path) -> bool:
     NATIVE -> ``platform_bin_dir/<binary><exe>`` exists;
     NODE -> ``find_runnable`` locates ``js_entry_file`` (``.bin/`` wrapper is
     skipped because Windows AV strips it first, and the resolver bypasses it too);
-    ARCHIVE -> ``bin/<archive_subdir>/plugins/`` exists.
+    ARCHIVE -> ``bin/<archive_subdir>/<archive_marker>`` exists (default marker is ``plugins/`` for JDTLS).
     """
     if not base_dir.exists():
         return False
@@ -335,8 +347,13 @@ def has_required_tools(base_dir: Path) -> bool:
                 return False
 
         elif dep.kind is ToolKind.ARCHIVE and dep.archive_subdir:
+            # Skip hosts where the installer also skipped (unsupported arch);
+            # otherwise ``needs_install`` loops forever.
+            if not dep.is_available_on_host():
+                logger.info("has_required_tools: %s unavailable on this host; skipping check", dep.key)
+                continue
             archive_dir = base_dir / "bin" / dep.archive_subdir
-            if not (archive_dir.is_dir() and (archive_dir / "plugins").is_dir()):
+            if not (archive_dir.is_dir() and (archive_dir / dep.archive_marker).exists()):
                 logger.info(
                     "has_required_tools: %s archive missing or incomplete at %s",
                     dep.key,

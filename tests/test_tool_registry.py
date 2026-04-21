@@ -961,20 +961,33 @@ def _populate_complete_servers_dir(base_dir: Path) -> None:
     NATIVE -> platform_bin_dir/<name><exe>;
     NODE -> node_modules/<js_entry_parent>/lib/<js_entry_file>
     (find_runnable does a substring match on parent dir);
-    ARCHIVE -> bin/<archive_subdir>/plugins/;
+    ARCHIVE -> bin/<archive_subdir>/<archive_marker> (default "plugins");
     PACKAGE_MANAGER -> platform_bin_dir/pm-tools/<subdir>/<name><exe>
     """
     bin_dir = platform_bin_dir(base_dir)
     bin_dir.mkdir(parents=True, exist_ok=True)
     for dep in TOOL_REGISTRY:
         if dep.kind is ToolKind.NATIVE:
+            if not dep.is_available_on_host():
+                continue
             (bin_dir / f"{dep.binary_name}{exe_suffix()}").write_text("#!/bin/sh\n")
         elif dep.kind is ToolKind.NODE and dep.js_entry_file:
             entry_dir = base_dir / "node_modules" / dep.js_entry_parent / "lib"
             entry_dir.mkdir(parents=True, exist_ok=True)
             (entry_dir / dep.js_entry_file).write_text("// stub\n")
         elif dep.kind is ToolKind.ARCHIVE and dep.archive_subdir:
-            (base_dir / "bin" / dep.archive_subdir / "plugins").mkdir(parents=True, exist_ok=True)
+            if not dep.is_available_on_host():
+                continue
+            archive_dir = base_dir / "bin" / dep.archive_subdir
+            marker = archive_dir / dep.archive_marker
+            # archive_marker names a dir (JDTLS's ``plugins/``) or a file
+            # (clangd's ``bin/clangd``). When ``archive_binary_path`` is set
+            # and matches the marker, it's a file; otherwise a directory.
+            if dep.archive_binary_path and dep.archive_binary_path == dep.archive_marker:
+                marker.parent.mkdir(parents=True, exist_ok=True)
+                marker.write_text("#!/bin/sh\n")
+            else:
+                marker.mkdir(parents=True, exist_ok=True)
         elif dep.kind is ToolKind.PACKAGE_MANAGER:
             subdir = dep.archive_subdir or dep.key
             pm_dir = bin_dir / "pm-tools" / subdir

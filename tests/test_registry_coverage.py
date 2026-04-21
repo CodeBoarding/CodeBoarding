@@ -288,6 +288,7 @@ class TestLspAdapterAndLanguageEnumParity(unittest.TestCase):
         "csharp": "CSharp",
         "java": "Java",
         "rust": "Rust",
+        "cpp": "Cpp",
     }
 
     def test_every_lsp_tool_has_an_adapter_per_supported_language(self):

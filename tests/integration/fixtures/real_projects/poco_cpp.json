@@ -1,0 +1,39 @@
+{
+  "metadata": {
+    "repo_url": "https://github.com/pocoproject/poco",
+    "pinned_commit": "poco-1.15.2-release",
+    "language": "Cpp",
+    "generated_at": "2026-04-20T00:00:00+00:00",
+    "codeboarding_version": "0.2.0",
+    "notes": "Scoped to Foundation + Net via pre_analysis_files .codeboardingignore. POCO is a multi-module monorepo; analyzing the whole thing would pull in vendored third-party C code under dependencies/ that isn't representative of the C++ library."
+  },
+  "metrics": {
+    "references_count_by_os": {
+      "Linux": 10087,
+      "Darwin": 10087,
+      "Windows": 10087
+    },
+    "packages_count": 7,
+    "call_graph_nodes": 12655,
+    "call_graph_edges": 13327,
+    "source_files_count": 805,
+    "execution_time_seconds_by_os": {
+      "Linux": 120,
+      "Darwin": 120,
+      "Windows": 420
+    }
+  },
+  "sample_references": [
+    "(anonymous namespace)",
+    "(anonymous namespace).MatchData",
+    "(anonymous namespace).MatchData.MatchData",
+    "(anonymous namespace).MatchData.count",
+    "(anonymous namespace).MatchData.data",
+    "(anonymous namespace).MatchData.~MatchData",
+    "(anonymous namespace).ParseIter",
+    "(anonymous namespace).SignalBlocker",
+    "(anonymous namespace).SignalBlocker.SignalBlocker",
+    "(anonymous namespace).SignalBlocker.~SignalBlocker"
+  ],
+  "sample_classes": []
+}
