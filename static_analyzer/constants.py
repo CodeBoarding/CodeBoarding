@@ -38,7 +38,7 @@ LANGUAGE_EXTENSIONS: dict[Language, tuple[str, ...]] = {
     Language.PHP: (".php",),
     Language.RUST: (".rs",),
     Language.CSHARP: (".cs",),
-    Language.CPP: (".cpp", ".cc", ".cxx", ".hpp", ".hh", ".hxx", ".h"),
+    Language.CPP: (".cpp", ".cc", ".cxx", ".c++", ".ipp", ".tpp", ".hpp", ".hh", ".hxx", ".h++", ".h"),
 }
 
 # Import-time invariant: every language has an extension list. Cheap check that
