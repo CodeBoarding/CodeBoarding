@@ -40,6 +40,14 @@ class TestCppAdapterProperties:
         """
         assert CppAdapter().references_per_query_timeout > 0
 
+    def test_phase1_request_timeout_uses_probe_timeout(self):
+        """Phase 1 per-file ``document_symbol`` must use ``probe_timeout`` —
+        Windows clangd can block a single request for minutes during index
+        warm-up and the 60s default would false-fail the analysis.
+        """
+        probe = 1670
+        assert CppAdapter().phase1_request_timeout(probe) == probe
+
     def test_namespaces_are_reference_worthy(self):
         """Namespaces should appear in the reference map (mirrors C#/PHP)."""
         assert CppAdapter().is_reference_worthy(NodeType.NAMESPACE) is True

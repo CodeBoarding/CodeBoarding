@@ -427,11 +427,28 @@ def _safe_extract_target(extract_dir: Path, member_name: str) -> Path:
     return target
 
 
+def _write_zip_member(zf: zipfile.ZipFile, info: zipfile.ZipInfo, target: Path) -> None:
+    """Write *info* to *target*, preserving Unix permission bits.
+
+    zipfile drops the exec bit by default, which breaks extracted binaries
+    (clangd ships as 0o755).
+    """
+    if info.is_dir():
+        target.mkdir(parents=True, exist_ok=True)
+        return
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with zf.open(info) as src, open(target, "wb") as dst:
+        shutil.copyfileobj(src, dst)
+    perm = (info.external_attr >> 16) & 0o777
+    if perm:
+        os.chmod(target, perm)
+
+
 def _extract_archive(archive_path: Path, extract_dir: Path, strip_root: bool) -> None:
     """Extract a .tar.gz or .zip into *extract_dir* with optional root-stripping.
 
-    ``filter="data"`` on tar rejects symlinks/device files. For zip, each
-    member is validated via ``_safe_extract_target`` to block ``..`` traversal.
+    ``filter="data"`` on tar rejects symlinks/device files. Zip members are
+    validated via ``_safe_extract_target`` to block ``..`` traversal.
     """
     name_lower = archive_path.name.lower()
     if name_lower.endswith(".tar.gz") or name_lower.endswith(".tgz"):
@@ -449,25 +466,26 @@ def _extract_archive(archive_path: Path, extract_dir: Path, strip_root: bool) ->
             else:
                 for info in zf.infolist():
                     target = _safe_extract_target(extract_dir, info.filename)
-                    if info.is_dir():
-                        target.mkdir(parents=True, exist_ok=True)
-                        continue
-                    target.parent.mkdir(parents=True, exist_ok=True)
-                    with zf.open(info) as src, open(target, "wb") as dst:
-                        shutil.copyfileobj(src, dst)
+                    _write_zip_member(zf, info, target)
         return
     raise ValueError(f"Unsupported archive format: {archive_path.name}")
 
 
 def _single_root_prefix(names: list[str]) -> str:
-    """Return the shared top-level directory prefix (trailing ``/``) of *names*. Raises on mismatch."""
+    """Return the shared top-level directory prefix (trailing ``/``) of *names*.
+
+    Tolerates an explicit bare-root entry (``root`` or ``root/``) alongside the
+    usual ``root/...`` members — zip and tar creators sometimes emit either.
+    """
     if not names:
         raise ValueError("empty archive; cannot strip root")
-    first_part = names[0].split("/", 1)[0]
+    first_part = next((n.split("/", 1)[0] for n in names if n.split("/", 1)[0]), "")
     if not first_part:
         raise ValueError(f"archive member has no top-level directory: {names[0]!r}")
     prefix = first_part + "/"
     for name in names:
+        if name == first_part or name == prefix:
+            continue  # bare root dir entry
         if not name.startswith(prefix):
             raise ValueError(
                 f"archive members do not share a single top-level directory (saw {first_part!r} and {name!r})"
@@ -491,22 +509,13 @@ def _tar_members_stripped_root(tar: tarfile.TarFile) -> list[tarfile.TarInfo]:
 
 def _zip_extractall_stripped_root(zf: zipfile.ZipFile, extract_dir: Path) -> None:
     """Extract zip members with leading dir stripped; zip-slip-safe; preserves Unix exec bit."""
-    names = zf.namelist()
-    prefix = _single_root_prefix(names)
+    prefix = _single_root_prefix(zf.namelist())
     for info in zf.infolist():
         stripped_name = info.filename[len(prefix) :]
         if not stripped_name:
             continue
         target = _safe_extract_target(extract_dir, stripped_name)
-        if info.is_dir():
-            target.mkdir(parents=True, exist_ok=True)
-            continue
-        target.parent.mkdir(parents=True, exist_ok=True)
-        with zf.open(info) as src, open(target, "wb") as dst:
-            shutil.copyfileobj(src, dst)
-        perm = (info.external_attr >> 16) & 0o777
-        if perm:
-            os.chmod(target, perm)
+        _write_zip_member(zf, info, target)
 
 
 def install_archive_tool(

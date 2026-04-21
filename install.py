@@ -607,10 +607,8 @@ def _language_checks_from_registry(target_dir: Path) -> list[LanguageSupportChec
                 reason_requirement = "pyright-langserver not found in node_modules or active environment"
                 reason_binary = reason_requirement
         elif dep.kind is ToolKind.ARCHIVE:
-            # Validated by presence of the dep's ``archive_marker`` inside
-            # ``bin/<subdir>/`` (``plugins/`` for JDTLS, ``bin/`` for
-            # clangd), mirroring has_required_tools.
-            subdir = dep.archive_subdir or dep.key
+            # Mirrors installer/has_required_tools: check ``bin/<subdir>/<archive_marker>``.
+            subdir = dep.archive_subdir
             paths.append(target_dir / "bin" / subdir / dep.archive_marker)
             reason_requirement = f"{subdir} installation not found"
             reason_binary = reason_requirement
