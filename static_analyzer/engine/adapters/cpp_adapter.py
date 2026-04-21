@@ -95,9 +95,14 @@ class CppAdapter(LanguageAdapter):
         """Gates the Phase-1.5 warmup probe so clangd finishes indexing before Phase 2."""
         return 60
 
-    def get_lsp_default_timeout(self) -> int:
-        """180s per request — Windows runners need headroom over the 60s default during index warm-up."""
-        return 180
+    def phase1_request_timeout(self, probe_timeout: int) -> int | None:
+        """Use the per-project probe_timeout for Phase 1 ``document_symbol`` calls.
+
+        Why: on Windows, clangd continues background-indexing during Phase 1
+        and a single request can block for minutes — the 60s default
+        false-fails POCO-sized projects.
+        """
+        return probe_timeout
 
     def get_lsp_command(self, project_root: Path) -> list[str]:
         """Fail fast without a compilation database — clangd silently returns empty refs otherwise."""

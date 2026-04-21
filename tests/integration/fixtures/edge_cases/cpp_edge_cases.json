@@ -35,7 +35,11 @@
   ],
   "expected_hierarchy": {},
   "expected_edges": [
+    ["main", "Cat.Cat"],
+    ["main", "Dog.Dog"],
     ["main", "Processor.process"],
+    ["main", "models.Cat.Cat"],
+    ["main", "models.Dog.Dog"],
     ["main", "services.Processor.process"],
     ["models.Cat.describe", "Entity.name"],
     ["models.Cat.describe", "models.Entity.name"],
