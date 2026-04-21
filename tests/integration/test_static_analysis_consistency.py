@@ -228,10 +228,7 @@ class TestStaticAnalysisConsistency:
         ignore_file.unlink(missing_ok=True)
         initialize_codeboardingignore(codeboarding_dir)
 
-        # Write any per-config files the analyzer needs before running (e.g.
-        # ``compile_flags.txt`` for clangd on C++ projects — the upstream
-        # repo ships CMake build scripts but running CMake on CI would
-        # require installing it, and its output is host-specific).
+        # Materialize per-config files (e.g. ``compile_flags.txt`` for clangd).
         for rel_path, contents in config.pre_analysis_files:
             target = repo_path / rel_path
             target.parent.mkdir(parents=True, exist_ok=True)

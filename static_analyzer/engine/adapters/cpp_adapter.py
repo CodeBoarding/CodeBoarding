@@ -12,21 +12,42 @@ from static_analyzer.engine.lsp_client import LSPClient
 
 logger = logging.getLogger(__name__)
 
+_OPERATOR_SYMBOL_CHARS = "<>=!+-*/%&|^~?,[]"
+
 
 def _strip_template_args(name: str) -> str:
-    """Strip balanced ``<...>`` template argument blocks from a C++ symbol name.
+    """Strip balanced ``<...>`` template-arg blocks, preserving ``operator`` tokens.
 
-    ``std::vector<int>`` becomes ``std::vector``; ``Foo<T, U<V>>::bar`` becomes
-    ``Foo::bar``. Unbalanced inputs pass through unchanged so a malformed
-    parent chain can't silently drop characters. The same routine handles
-    the leading ``operator<<`` and ``operator<=>`` tokens by only stripping
-    ``<`` that follows an identifier character.
+    Why: ``operator<=>`` would otherwise collapse to ``operator`` via the
+    balanced-bracket rule, merging distinct C++20 operator symbols.
+    Unbalanced inputs return unchanged.
     """
     out: list[str] = []
     depth = 0
     i = 0
-    while i < len(name):
+    n = len(name)
+    while i < n:
         ch = name[i]
+        if (
+            depth == 0
+            and ch == "o"
+            and name.startswith("operator", i)
+            and (i == 0 or not (name[i - 1].isalnum() or name[i - 1] == "_"))
+        ):
+            j = i + len("operator")
+            while j < n and name[j] == " ":
+                j += 1
+            if j < n and (name[j].isalpha() or name[j] == "_"):
+                # Keyword operator: ``operator new``, ``operator delete``.
+                while j < n and (name[j].isalnum() or name[j] == "_"):
+                    j += 1
+            else:
+                # Symbolic operator: consume adjacent punctuation.
+                while j < n and name[j] in _OPERATOR_SYMBOL_CHARS:
+                    j += 1
+            out.extend(name[i:j])
+            i = j
+            continue
         if ch == "<" and out and (out[-1].isalnum() or out[-1] == "_"):
             depth += 1
             i += 1
@@ -44,15 +65,8 @@ def _strip_template_args(name: str) -> str:
 
 
 def _normalize_cpp_parent(name: str) -> str:
-    """Reduce a clangd documentSymbol parent to a clean C++ scope name.
-
-    clangd sometimes emits parents with inline qualifiers (``foo::Bar``) or
-    template arguments (``Foo<T>``). Flatten ``::`` to ``.`` (our universal
-    delimiter) and drop template arguments so downstream ``.split(".")``
-    consumers get clean identifiers.
-    """
-    stripped = _strip_template_args(name).strip()
-    return stripped.replace("::", ".")
+    """Flatten ``foo::Bar<T>`` to ``foo.Bar`` for qualified-name consumption."""
+    return _strip_template_args(name).strip().replace("::", ".")
 
 
 class CppAdapter(LanguageAdapter):
@@ -64,22 +78,9 @@ class CppAdapter(LanguageAdapter):
 
     @property
     def file_extensions(self) -> tuple[str, ...]:
-        # Plain-C headers (``.h``) are included because C++ projects commonly
-        # use them for declarations; clangd handles both C and C++ in one
-        # process and we don't know per-file whether a .h is C or C++.
-        return (
-            ".cpp",
-            ".cc",
-            ".cxx",
-            ".c++",
-            ".ipp",
-            ".tpp",
-            ".hpp",
-            ".hh",
-            ".hxx",
-            ".h++",
-            ".h",
-        )
+        # ``.h`` is included: clangd treats both C and C++ in one process
+        # and we can't know per-file which dialect a header is.
+        return (".cpp", ".cc", ".cxx", ".c++", ".ipp", ".tpp", ".hpp", ".hh", ".hxx", ".h++", ".h")
 
     @property
     def lsp_command(self) -> list[str]:
@@ -91,40 +92,26 @@ class CppAdapter(LanguageAdapter):
 
     @property
     def references_per_query_timeout(self) -> int:
-        """Non-zero gates the Phase-1.5 warmup probe so clangd builds its
-        background index (and cross-TU references become non-empty) before
-        Phase 2 fans out queries.
-        """
+        """Gates the Phase-1.5 warmup probe so clangd finishes indexing before Phase 2."""
         return 60
 
-    def get_lsp_command(self, project_root: Path) -> list[str]:
-        """Fail fast if clangd has no compilation database.
+    def get_lsp_default_timeout(self) -> int:
+        """180s per request — Windows runners need headroom over the 60s default during index warm-up."""
+        return 180
 
-        clangd needs a ``compile_commands.json`` (or a ``compile_flags.txt``)
-        to resolve include paths and language-dialect flags; without one it
-        silently returns empty cross-file references. CMake projects can
-        generate the DB by passing ``-DCMAKE_EXPORT_COMPILE_COMMANDS=ON``.
-        """
+    def get_lsp_command(self, project_root: Path) -> list[str]:
+        """Fail fast without a compilation database — clangd silently returns empty refs otherwise."""
         if not self._has_compilation_database(project_root):
             raise RuntimeError(
-                f"No compile_commands.json or compile_flags.txt found under "
-                f"{project_root}. clangd requires a compilation database to "
-                f"resolve C++ include paths. For CMake projects, regenerate "
-                f"with -DCMAKE_EXPORT_COMPILE_COMMANDS=ON. For Bazel, use "
-                f"hedronvision/bazel-compile-commands-extractor. For simple "
-                f"projects, a compile_flags.txt at the project root also works."
+                f"No compile_commands.json or compile_flags.txt under {project_root}. "
+                f"For CMake: regenerate with -DCMAKE_EXPORT_COMPILE_COMMANDS=ON. "
+                f"For Bazel: hedronvision/bazel-compile-commands-extractor. "
+                f"Simple projects: a compile_flags.txt at the root works."
             )
         return super().get_lsp_command(project_root)
 
     @staticmethod
     def _has_compilation_database(project_root: Path) -> bool:
-        """True when a compile_commands.json or compile_flags.txt lives at
-        the project root or a conventional build directory under it.
-
-        Checks the root plus ``build/``, ``build/Debug``, ``build/Release``,
-        ``cmake-build-debug``, ``cmake-build-release`` — the layouts CMake,
-        meson, and clion emit by default.
-        """
         roots = [
             project_root,
             project_root / "build",
@@ -133,35 +120,14 @@ class CppAdapter(LanguageAdapter):
             project_root / "cmake-build-debug",
             project_root / "cmake-build-release",
         ]
-        for root in roots:
-            if (root / "compile_commands.json").is_file():
-                return True
-            if (root / "compile_flags.txt").is_file():
-                return True
-        return False
+        return any((r / "compile_commands.json").is_file() or (r / "compile_flags.txt").is_file() for r in roots)
 
     def get_lsp_init_options(self, ignore_manager: RepoIgnoreManager | None = None) -> dict:
-        """Default to C++20 for files not covered by the compile database.
-
-        Files without a matching entry in ``compile_commands.json`` (or
-        projects that only have a ``compile_flags.txt``) fall back to
-        these flags. ``-std=c++20`` avoids clangd tripping on modern
-        syntax (concepts, modules) in fixture-style projects that don't
-        ship an explicit standard flag.
-        """
-        return {
-            "clangd": {
-                "fallbackFlags": ["-std=c++20"],
-            },
-        }
+        """``fallbackFlags`` is top-level — nesting under ``"clangd"`` is an editor convention clangd ignores."""
+        return {"fallbackFlags": ["-std=c++20"]}
 
     def wait_for_diagnostics(self, client: LSPClient) -> None:
-        """Debounce on the publishDiagnostics stream.
-
-        clangd processes files asynchronously and we'd snapshot an empty
-        diagnostics map if harvested immediately after phase 2. It does
-        not emit a distinct quiescence signal, so debounce on activity.
-        """
+        """Debounce — clangd publishes diagnostics asynchronously with no quiescence signal."""
         client.wait_for_diagnostics_quiesce(idle_seconds=2.0, max_wait=60.0)
 
     def build_qualified_name(
@@ -173,54 +139,26 @@ class CppAdapter(LanguageAdapter):
         project_root: Path,
         detail: str = "",
     ) -> str:
-        """Build C++ qualified names from the namespace/class chain, not the file path.
+        """Build names from namespace/class chain, not file path.
 
-        C++ commonly splits declarations across ``.hpp`` / ``.cpp`` files;
-        using the file path as module prefix would give the same method two
-        different qualified names in its header vs source, breaking cross-
-        file references. Instead we use the clangd ``documentSymbol`` parent
-        chain, which reports the actual C++ scope (``namespace foo::bar``,
-        ``class Baz``) identically from both files. Template arguments are
-        stripped from class parents so specializations collapse to the
-        template name (matching how LSP references resolve).
-
-        Free top-level symbols (no namespace/class parent) return the bare
-        symbol name. This also applies to the dual-registration alias form
-        (empty chain even for namespaced members) — keeping the alias
-        strictly shorter than the canonical scoped name so the CallGraph's
-        longest-wins location dedup picks the scoped entry.
+        Why: ``.hpp``/``.cpp`` split would otherwise give the same method
+        two distinct qualified names, breaking cross-file references.
+        No-parent case returns bare name — keeps dual-registration aliases
+        shorter than the scoped canonical so CallGraph's longest-wins dedup
+        picks the scoped entry.
         """
         sym = _strip_template_args(symbol_name).replace("::", ".").strip()
 
         if parent_chain:
-            # Drop ``kind=STRING`` parents. clangd emits namespace-wrapper
-            # macros (``FMT_BEGIN_NAMESPACE``, ``BOOST_NAMESPACE_BEGIN``, …)
-            # as SymbolKind=15 entries with the nested namespaces as
-            # children — keeping the macro identifier in qualified names
-            # would prefix every symbol with ``FMT_BEGIN_NAMESPACE.fmt.v11.…``
-            # and shift the real namespace out of the first position.
+            # Drop ``kind=STRING`` parents: clangd surfaces namespace-wrapper
+            # macros (``FMT_BEGIN_NAMESPACE``, ``BOOST_NAMESPACE_BEGIN``) as
+            # SymbolKind=15 and they'd prefix every qualified name.
             parents = [_normalize_cpp_parent(name) for name, kind in parent_chain if kind != int(NodeType.STRING)]
             parents = [p for p in parents if p]
             if parents:
                 return ".".join(parents) + "." + sym
-
-        # No parent chain. Two sources reach this branch:
-        #   1. ``register_symbols`` dual-registration for an alias form — the
-        #      adapter receives the original ``name`` (which may already
-        #      carry ``Processor::process``-style scope) with an empty chain.
-        #      Returning just the bare name keeps the alias STRICTLY shorter
-        #      than the properly-scoped canonical name, so the graph's
-        #      location-based "longest wins" dedup picks the canonical one.
-        #   2. A genuinely free top-level symbol (no namespace, no class).
-        #      The bare ``sym`` is still the right answer — file-path
-        #      prefixing would cause the same free function to collide with
-        #      itself between header and source files.
         return sym
 
     def is_reference_worthy(self, symbol_kind: int) -> bool:
-        """Include namespaces so package-dependency tracking sees them.
-
-        C++ organises code primarily by namespace, so the namespace symbol
-        itself should appear in the reference map (mirrors C#/PHP).
-        """
+        """Include namespaces so package-dependency tracking sees them (mirrors C#/PHP)."""
         return super().is_reference_worthy(symbol_kind) or symbol_kind == NodeType.NAMESPACE

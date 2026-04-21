@@ -134,9 +134,8 @@ VSCODE_CONFIG = {
             "name": "clangd",
             "command": ["clangd"],
             "languages": ["cpp"],
-            # Plain-C headers (``.h``) are included because C++ projects
-            # commonly use them for declarations; clangd handles both C and
-            # C++ in the same server process. See CppAdapter.file_extensions.
+            # ``.h`` included: clangd handles C+C++ in one process; can't
+            # distinguish dialects per-file.
             "file_extensions": [
                 ".cpp",
                 ".cc",
@@ -150,8 +149,6 @@ VSCODE_CONFIG = {
                 ".h++",
                 ".h",
             ],
-            # clangd is downloaded from clangd/clangd releases by tool_registry;
-            # the install_commands string is informational only.
             "install_commands": "codeboarding-setup (downloads clangd automatically)",
         },
     },

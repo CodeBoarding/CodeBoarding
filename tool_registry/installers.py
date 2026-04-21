@@ -398,14 +398,7 @@ def install_node_tools(
 
 
 def _resolve_archive_asset(dep: ToolDependency) -> tuple[str, str, str | None]:
-    """Return ``(download_url, local_archive_filename, expected_sha256)`` for an archive dep.
-
-    Supports two source types: ``UpstreamToolSource`` (JDTLS — single URL
-    template, format inferred from its suffix) and ``GitHubToolSource``
-    (clangd — platform-specific asset picked via arch overrides or
-    ``asset_template``, same suffix-based format detection). Raises
-    ``RuntimeError`` when a GitHub dep has no matching asset for this host.
-    """
+    """Return ``(url, filename, sha256)`` for an archive dep (Upstream or GitHub source)."""
     source = dep.source
     assert source is not None  # guarded by caller
     if isinstance(source, UpstreamToolSource):
@@ -423,42 +416,51 @@ def _resolve_archive_asset(dep: ToolDependency) -> tuple[str, str, str | None]:
     raise TypeError(f"{dep.key}: unsupported archive source type {type(source).__name__}")
 
 
-def _extract_archive(archive_path: Path, extract_dir: Path, strip_root: bool) -> None:
-    """Extract a .tar.gz or .zip into *extract_dir*, optionally stripping the top-level dir.
+def _safe_extract_target(extract_dir: Path, member_name: str) -> Path:
+    """Resolve *member_name* under *extract_dir*, rejecting zip-slip escapes."""
+    root = extract_dir.resolve()
+    target = (extract_dir / member_name).resolve()
+    try:
+        target.relative_to(root)
+    except ValueError as exc:
+        raise ValueError(f"Archive member escapes extraction directory: {member_name!r}") from exc
+    return target
 
-    Format is inferred from the archive filename suffix. When ``strip_root``
-    is True, all members are expected to share a single top-level directory
-    prefix (e.g. ``clangd_22.1.0/``) which is removed during extraction so
-    ``<extract_dir>/bin/clangd`` is the final layout rather than
-    ``<extract_dir>/clangd_22.1.0/bin/clangd``. Raises ``ValueError`` when
-    strip_root is requested but members don't share a single root.
+
+def _extract_archive(archive_path: Path, extract_dir: Path, strip_root: bool) -> None:
+    """Extract a .tar.gz or .zip into *extract_dir* with optional root-stripping.
+
+    ``filter="data"`` on tar rejects symlinks/device files. For zip, each
+    member is validated via ``_safe_extract_target`` to block ``..`` traversal.
     """
     name_lower = archive_path.name.lower()
     if name_lower.endswith(".tar.gz") or name_lower.endswith(".tgz"):
         with tarfile.open(archive_path, "r:gz") as tar:
             if strip_root:
                 members = _tar_members_stripped_root(tar)
-                tar.extractall(path=extract_dir, members=members, filter="tar")
+                tar.extractall(path=extract_dir, members=members, filter="data")
             else:
-                tar.extractall(path=extract_dir, filter="tar")
+                tar.extractall(path=extract_dir, filter="data")
         return
     if name_lower.endswith(".zip"):
         with zipfile.ZipFile(archive_path) as zf:
             if strip_root:
                 _zip_extractall_stripped_root(zf, extract_dir)
             else:
-                zf.extractall(path=extract_dir)
+                for info in zf.infolist():
+                    target = _safe_extract_target(extract_dir, info.filename)
+                    if info.is_dir():
+                        target.mkdir(parents=True, exist_ok=True)
+                        continue
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    with zf.open(info) as src, open(target, "wb") as dst:
+                        shutil.copyfileobj(src, dst)
         return
     raise ValueError(f"Unsupported archive format: {archive_path.name}")
 
 
 def _single_root_prefix(names: list[str]) -> str:
-    """Return the common top-level directory prefix (with trailing '/') shared by *names*.
-
-    Raises ``ValueError`` if names don't share a single root or the archive
-    is empty — callers relying on ``archive_strip_root`` need the precondition
-    to hold or the result layout is unpredictable.
-    """
+    """Return the shared top-level directory prefix (trailing ``/``) of *names*. Raises on mismatch."""
     if not names:
         raise ValueError("empty archive; cannot strip root")
     first_part = names[0].split("/", 1)[0]
@@ -488,22 +490,20 @@ def _tar_members_stripped_root(tar: tarfile.TarFile) -> list[tarfile.TarInfo]:
 
 
 def _zip_extractall_stripped_root(zf: zipfile.ZipFile, extract_dir: Path) -> None:
-    """Extract every member of *zf* into *extract_dir* with its leading dir stripped."""
+    """Extract zip members with leading dir stripped; zip-slip-safe; preserves Unix exec bit."""
     names = zf.namelist()
     prefix = _single_root_prefix(names)
     for info in zf.infolist():
         stripped_name = info.filename[len(prefix) :]
         if not stripped_name:
             continue
-        target = extract_dir / stripped_name
+        target = _safe_extract_target(extract_dir, stripped_name)
         if info.is_dir():
             target.mkdir(parents=True, exist_ok=True)
             continue
         target.parent.mkdir(parents=True, exist_ok=True)
         with zf.open(info) as src, open(target, "wb") as dst:
             shutil.copyfileobj(src, dst)
-        # zipfile drops the Unix permission bits; restore the executable bit
-        # so extracted binaries remain runnable (clangd ships as mode 0o755).
         perm = (info.external_attr >> 16) & 0o777
         if perm:
             os.chmod(target, perm)
@@ -516,13 +516,9 @@ def install_archive_tool(
 ) -> None:
     """Download and extract an archive tool.
 
-    Supports ``.tar.gz`` and ``.zip`` archives from either
-    ``UpstreamToolSource`` (single URL, e.g. JDTLS) or ``GitHubToolSource``
-    (per-platform asset, e.g. clangd). ``dep.archive_marker`` names the
-    relative path inside ``bin/<archive_subdir>/`` that must exist after a
-    successful install (validated both to skip reinstall and by
-    ``has_required_tools``). ``dep.archive_strip_root=True`` removes the
-    single top-level directory during extraction.
+    Supports .tar.gz/.zip from Upstream or GitHub sources; ``archive_marker``
+    gates the reinstall-skip check, ``archive_strip_root`` drops a
+    top-level wrapper dir during extraction.
     """
     assert dep.source, f"{dep.key}: source required for archive tools"
     assert dep.archive_subdir, f"{dep.key}: archive_subdir required for archive tools"
@@ -530,9 +526,7 @@ def install_archive_tool(
     if on_progress:
         on_progress(dep.key, 1, 1)
 
-    # Mirror ``install_native_tools``: skip hosts with no matching asset so
-    # ``needs_install`` doesn't loop on unsupported architectures (e.g.
-    # clangd on Linux/aarch64 — upstream only publishes x86_64).
+    # Skip hosts without a matching asset so needs_install doesn't loop.
     if not dep.is_available_on_host():
         logger.warning(
             "  %s: no release asset for this host (%s/%s); skipping",

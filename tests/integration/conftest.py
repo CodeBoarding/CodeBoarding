@@ -36,11 +36,9 @@ class RepositoryTestConfig:
     language: str
     fixture_file: str
     mock_language: dict
-    # Files to write into the cloned repo root BEFORE running analysis.
-    # Needed for languages whose LSPs require project-local config that
-    # isn't shipped in the upstream repo — e.g. clangd needs a
-    # ``compile_flags.txt`` or ``compile_commands.json`` to resolve
-    # include paths. Mapping is {relative_path: file_contents}.
+    # (relative_path, contents) pairs materialized after clone, before analysis.
+    # For LSPs that need project-local config not in the upstream repo (e.g.
+    # clangd's compile_flags.txt).
     pre_analysis_files: tuple[tuple[str, str], ...] = ()
 
 
@@ -181,22 +179,15 @@ REPOSITORY_CONFIGS = [
             "server_commands": ["clangd"],
             "lsp_server_key": "cpp",
         },
-        # POCO builds via CMake, which would generate ``compile_commands.json``
-        # — but running cmake on CI requires installing it and its output is
-        # host-specific. A minimal ``compile_flags.txt`` feeds clangd the
-        # include paths it needs for the Foundation+Net subset. The scoped
-        # ``.codeboardingignore`` keeps analysis to those two modules (plus
-        # their dependencies); without it, the whole POCO monorepo
-        # (~3000 files with vendored third-party in ``dependencies/``)
-        # pulls in noise from C-only code we don't want.
+        # compile_flags.txt instead of running CMake (needs cmake on CI,
+        # host-specific output). Ignore list scopes to Foundation+Net;
+        # without it the ~3000-file monorepo + vendored deps dominate.
         pre_analysis_files=(
             ("compile_flags.txt", "-std=c++17\n-IFoundation/include\n-INet/include\n"),
             (
                 ".codeboarding/.codeboardingignore",
                 "\n".join(
                     [
-                        # Scope to Foundation + Net — everything else in the POCO
-                        # monorepo is optional subsystems or vendored third-party.
                         "ActiveRecord/",
                         "ApacheConnector/",
                         "Benchmark/",
