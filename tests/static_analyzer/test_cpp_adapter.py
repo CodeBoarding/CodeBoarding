@@ -54,7 +54,7 @@ class TestCompilationDatabaseGuard:
     """
 
     def test_raises_when_no_compilation_database(self, tmp_path: Path) -> None:
-        with pytest.raises(RuntimeError, match="compile_commands.json"):
+        with pytest.raises(RuntimeError, match=r"compile_commands\.json"):
             CppAdapter().get_lsp_command(tmp_path)
 
     def test_accepts_compile_flags_txt_at_root(self, tmp_path: Path) -> None:
@@ -103,6 +103,32 @@ class TestStripTemplateArgs:
 
     def test_preserves_operator_shift(self):
         assert _strip_template_args("operator<<") == "operator<<"
+
+    def test_preserves_three_way_comparison(self):
+        """C++20 ``operator<=>`` must NOT have its ``<=>`` treated as a
+        template-arg block — the old balanced-bracket check erroneously
+        stripped it to ``operator``.
+        """
+        assert _strip_template_args("operator<=>") == "operator<=>"
+
+    def test_preserves_qualified_operator(self):
+        """``Foo::operator<=>`` keeps the operator even with scope prefix."""
+        assert _strip_template_args("Foo::operator<=>") == "Foo::operator<=>"
+
+    def test_preserves_operator_with_template_class_parent(self):
+        """The operator-preservation must not mask real template stripping.
+        ``Foo<T>::operator<=>`` keeps the operator AND strips the class template args.
+        """
+        assert _strip_template_args("Foo<T>::operator<=>") == "Foo::operator<=>"
+
+    def test_preserves_operator_equals(self):
+        assert _strip_template_args("operator==") == "operator=="
+
+    def test_preserves_operator_new(self):
+        """Keyword operators (``new``, ``delete``) are preserved by the
+        same path — don't let the identifier run into adjacent tokens.
+        """
+        assert _strip_template_args("operator new") == "operator new"
 
     def test_unbalanced_input_passes_through(self):
         """Malformed inputs shouldn't silently lose characters."""

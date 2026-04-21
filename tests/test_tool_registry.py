@@ -980,14 +980,19 @@ def _populate_complete_servers_dir(base_dir: Path) -> None:
                 continue
             archive_dir = base_dir / "bin" / dep.archive_subdir
             marker = archive_dir / dep.archive_marker
-            # archive_marker names a dir (JDTLS's ``plugins/``) or a file
-            # (clangd's ``bin/clangd``). When ``archive_binary_path`` is set
-            # and matches the marker, it's a file; otherwise a directory.
-            if dep.archive_binary_path and dep.archive_binary_path == dep.archive_marker:
-                marker.parent.mkdir(parents=True, exist_ok=True)
-                marker.write_text("#!/bin/sh\n")
-            else:
-                marker.mkdir(parents=True, exist_ok=True)
+            # archive_marker always names a directory (e.g. JDTLS's
+            # ``plugins/``, clangd's ``bin/``); file-level markers would
+            # fail the ``.exists`` check on Windows where binaries carry
+            # an ``.exe`` suffix.
+            marker.mkdir(parents=True, exist_ok=True)
+            # For deps with ``archive_binary_path`` also materialize the
+            # binary itself so ``resolve_config`` can point ``command[0]``
+            # at it — otherwise the cmd branch in the resolver wouldn't
+            # trigger during tests.
+            if dep.archive_binary_path:
+                binary = archive_dir / dep.archive_binary_path
+                binary.parent.mkdir(parents=True, exist_ok=True)
+                binary.write_text("#!/bin/sh\n")
         elif dep.kind is ToolKind.PACKAGE_MANAGER:
             subdir = dep.archive_subdir or dep.key
             pm_dir = bin_dir / "pm-tools" / subdir

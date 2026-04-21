@@ -608,7 +608,7 @@ def _language_checks_from_registry(target_dir: Path) -> list[LanguageSupportChec
                 reason_binary = reason_requirement
         elif dep.kind is ToolKind.ARCHIVE:
             # Validated by presence of the dep's ``archive_marker`` inside
-            # ``bin/<subdir>/`` (default ``plugins`` for JDTLS, ``bin`` for
+            # ``bin/<subdir>/`` (``plugins/`` for JDTLS, ``bin/`` for
             # clangd), mirroring has_required_tools.
             subdir = dep.archive_subdir or dep.key
             paths.append(target_dir / "bin" / subdir / dep.archive_marker)

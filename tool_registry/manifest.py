@@ -244,10 +244,9 @@ def resolve_config(base_dir: Path) -> dict[str, Any]:
         elif dep.kind is ToolKind.ARCHIVE and dep.archive_subdir:
             archive_dir = base_dir / "bin" / dep.archive_subdir
             if archive_dir.is_dir() and (archive_dir / dep.archive_marker).exists():
-                # JDTLS needs ``jdtls_root`` because JavaClient builds the
-                # full command (JAR + config dir + workspace) dynamically.
-                # Other archive LSPs (clangd) declare ``archive_binary_path``
-                # and get their command[0] rewritten in place like NATIVE deps.
+                # ``archive_binary_path``: rewrite command[0] (clangd).
+                # Else: JDTLS — export ``jdtls_root`` (JavaClient builds the
+                # full command from it dynamically).
                 if dep.archive_binary_path:
                     binary_path = archive_dir / dep.archive_binary_path
                     if platform.system() == "Windows" and binary_path.suffix == "":
