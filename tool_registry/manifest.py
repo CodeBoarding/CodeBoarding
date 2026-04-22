@@ -200,6 +200,49 @@ def package_manager_tool_path(base_dir: Path, dep: ToolDependency) -> Path | Non
         return None
 
 
+def archive_binary_path(dep: ToolDependency, base_dir: Path) -> Path | None:
+    """Absolute path to an ARCHIVE tool's binary, with Windows ``.exe`` applied.
+
+    Returns ``None`` when the dep has no ``archive_binary_path`` (e.g.
+    JDTLS, which is driven via ``jdtls_root``) — there's no single
+    executable to point at in that case.
+    """
+    if dep.kind is not ToolKind.ARCHIVE or not dep.archive_subdir or not dep.archive_binary_path:
+        return None
+    binary = base_dir / "bin" / dep.archive_subdir / dep.archive_binary_path
+    if platform.system() == "Windows" and binary.suffix == "":
+        binary = binary.with_suffix(".exe")
+    return binary
+
+
+def archive_is_complete(dep: ToolDependency, base_dir: Path) -> bool:
+    """True when an ARCHIVE dep is fully installed.
+
+    "Fully installed" means:
+      * ``bin/<archive_subdir>/`` exists,
+      * the ``archive_marker`` file is present inside it, AND
+      * if the dep has an ``archive_binary_path``, that binary exists too
+        (with Windows ``.exe`` suffix applied).
+
+    The binary check is what distinguishes a half-extracted clangd
+    (``bin/`` dir present but missing ``bin/clangd``) from a good one —
+    relying on the marker alone falsely reports "installed" after a
+    crashed extraction, and ``resolve_config`` then emits a command line
+    pointing at a file that doesn't exist.
+    """
+    if dep.kind is not ToolKind.ARCHIVE or not dep.archive_subdir:
+        return True
+    archive_dir = base_dir / "bin" / dep.archive_subdir
+    if not archive_dir.is_dir():
+        return False
+    if not (archive_dir / dep.archive_marker).exists():
+        return False
+    binary = archive_binary_path(dep, base_dir)
+    if binary is not None and not binary.exists():
+        return False
+    return True
+
+
 def resolve_config(base_dir: Path) -> dict[str, Any]:
     """Scan base_dir for installed tools and return a config dict.
 
@@ -242,20 +285,19 @@ def resolve_config(base_dir: Path) -> dict[str, Any]:
                     cmd[0] = str(binary_path)
 
         elif dep.kind is ToolKind.ARCHIVE and dep.archive_subdir:
+            if not archive_is_complete(dep, base_dir):
+                continue
             archive_dir = base_dir / "bin" / dep.archive_subdir
-            if archive_dir.is_dir() and (archive_dir / dep.archive_marker).exists():
-                # ``archive_binary_path``: rewrite command[0] (clangd).
-                # Else: JDTLS — export ``jdtls_root`` (JavaClient builds the
-                # full command from it dynamically).
-                if dep.archive_binary_path:
-                    binary_path = archive_dir / dep.archive_binary_path
-                    if platform.system() == "Windows" and binary_path.suffix == "":
-                        binary_path = binary_path.with_suffix(".exe")
-                    if binary_path.exists():
-                        cmd = cast(list[str], config[dep.config_section][dep.key]["command"])
-                        cmd[0] = str(binary_path)
-                else:
-                    config[dep.config_section][dep.key]["jdtls_root"] = str(archive_dir)
+            # ``archive_binary_path``: rewrite command[0] (clangd).
+            # Else: JDTLS — export ``jdtls_root`` (JavaClient builds the
+            # full command from it dynamically).
+            if dep.archive_binary_path:
+                binary_path = archive_binary_path(dep, base_dir)
+                if binary_path is not None:
+                    cmd = cast(list[str], config[dep.config_section][dep.key]["command"])
+                    cmd[0] = str(binary_path)
+            else:
+                config[dep.config_section][dep.key]["jdtls_root"] = str(archive_dir)
 
     return config
 
@@ -351,12 +393,11 @@ def has_required_tools(base_dir: Path) -> bool:
             if not dep.is_available_on_host():
                 logger.info("has_required_tools: %s unavailable on this host; skipping check", dep.key)
                 continue
-            archive_dir = base_dir / "bin" / dep.archive_subdir
-            if not (archive_dir.is_dir() and (archive_dir / dep.archive_marker).exists()):
+            if not archive_is_complete(dep, base_dir):
                 logger.info(
                     "has_required_tools: %s archive missing or incomplete at %s",
                     dep.key,
-                    archive_dir,
+                    base_dir / "bin" / dep.archive_subdir,
                 )
                 return False
 

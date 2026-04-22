@@ -87,6 +87,7 @@ packages = [
     "static_analyzer",
     "static_analyzer.engine",
     "static_analyzer.engine.adapters",
+    "static_analyzer.engine.adapters.cpp_cdb",
     "static_analyzer.lsp_client",
     "caching",
     "tool_registry",

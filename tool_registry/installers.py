@@ -546,8 +546,13 @@ def install_archive_tool(
         return
 
     extract_dir = target_dir / "bin" / dep.archive_subdir
-    marker_path = extract_dir / dep.archive_marker
-    if extract_dir.exists() and marker_path.exists():
+    # A half-extracted archive must re-install, not skip — the marker-only
+    # check would otherwise falsely report "already installed" when the
+    # binary is missing. archive_is_complete also verifies the binary
+    # (with Windows .exe suffix) when the dep declares one.
+    from .manifest import archive_is_complete  # local import avoids a cycle
+
+    if archive_is_complete(dep, target_dir):
         logger.info("%s already installed", dep.key)
         return
 

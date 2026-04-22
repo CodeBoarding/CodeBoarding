@@ -1055,6 +1055,26 @@ class TestHasRequiredTools(unittest.TestCase):
             shutil.rmtree(base_dir / "bin" / "jdtls" / "plugins")
             self.assertFalse(has_required_tools(base_dir))
 
+    def test_archive_with_missing_binary_returns_false(self):
+        """A half-extracted clangd (bin dir + marker but no bin/clangd) must
+        count as *not* installed. The old marker-only check falsely
+        reported "installed" and resolve_config then pointed ``command[0]``
+        at a file that didn't exist.
+        """
+        from tool_registry.registry import TOOL_REGISTRY
+
+        clangd_dep = next((d for d in TOOL_REGISTRY if d.key == "cpp"), None)
+        if clangd_dep is None or not clangd_dep.archive_binary_path:
+            self.skipTest("clangd dep not in registry (nothing to regression-test)")
+        if not clangd_dep.is_available_on_host():
+            self.skipTest("clangd unavailable on this host")
+        with tempfile.TemporaryDirectory() as tmp:
+            base_dir = Path(tmp)
+            _populate_complete_servers_dir(base_dir)
+            binary = base_dir / "bin" / clangd_dep.archive_subdir / clangd_dep.archive_binary_path
+            binary.unlink()
+            self.assertFalse(has_required_tools(base_dir))
+
     def test_needs_install_triggers_on_missing_node_install(self):
         """Integration: matching fingerprints but missing node_modules/pyright/ -> needs_install."""
         with tempfile.TemporaryDirectory() as tmp:

@@ -8,6 +8,7 @@ from static_analyzer.constants import NodeType
 from static_analyzer.engine.adapters import get_adapter
 from static_analyzer.engine.adapters.cpp_adapter import (
     CppAdapter,
+    _extract_signature,
     _normalize_cpp_parent,
     _strip_template_args,
 )
@@ -87,6 +88,187 @@ class TestCompilationDatabaseGuard:
         (tmp_path / "cmake-build-debug" / "compile_commands.json").write_text("[]")
         cmd = CppAdapter().get_lsp_command(tmp_path)
         assert cmd
+
+    def test_accepts_generated_cdb_under_codeboarding_dir(self, tmp_path: Path) -> None:
+        """A CDB written to .codeboarding/cdb/ (typically by a generator)
+        must be detected so subsequent runs don't regenerate unnecessarily.
+        """
+        cdb_dir = tmp_path / ".codeboarding" / "cdb"
+        cdb_dir.mkdir(parents=True)
+        (cdb_dir / "compile_commands.json").write_text('[{"directory": ".", "file": "x.cc", "command": "c++ -c x.cc"}]')
+        cmd = CppAdapter().get_lsp_command(tmp_path)
+        assert any("--compile-commands-dir" in part for part in cmd), (
+            "clangd's walk-up search would miss the hidden .codeboarding/cdb/ sibling; "
+            "the adapter must pass --compile-commands-dir explicitly."
+        )
+
+    def test_rejects_empty_generated_cdb(self, tmp_path: Path) -> None:
+        cdb_dir = tmp_path / ".codeboarding" / "cdb"
+        cdb_dir.mkdir(parents=True)
+        (cdb_dir / "compile_commands.json").write_text("[]")
+        with pytest.raises(RuntimeError, match=r"compile_commands\.json"):
+            CppAdapter().get_lsp_command(tmp_path)
+
+    def test_no_compile_commands_dir_when_cdb_at_root(self, tmp_path: Path) -> None:
+        """When the CDB lives at the project root (or build/) clangd finds
+        it on its own — don't clutter the command line with a redundant flag.
+        """
+        (tmp_path / "compile_commands.json").write_text("[]")
+        cmd = CppAdapter().get_lsp_command(tmp_path)
+        assert not any("--compile-commands-dir" in part for part in cmd)
+
+    def test_error_message_names_detected_build_system(self, tmp_path: Path) -> None:
+        """CMake users get a CMake-specific hint, not the generic one."""
+        (tmp_path / "CMakeLists.txt").write_text("project(x)")
+        with pytest.raises(RuntimeError, match=r"CMAKE_EXPORT_COMPILE_COMMANDS"):
+            CppAdapter().get_lsp_command(tmp_path)
+
+    def test_error_message_names_bazel_when_detected(self, tmp_path: Path) -> None:
+        (tmp_path / "MODULE.bazel").write_text("module(name='x')")
+        with pytest.raises(RuntimeError, match=r"CODEBOARDING_CPP_GENERATE_CDB"):
+            CppAdapter().get_lsp_command(tmp_path)
+
+
+class TestCdbLocationSplit:
+    """User-owned vs. generated CDB locations must be distinguishable so
+    ``prepare_project`` can skip generation for the first but always defer
+    to the generator's fingerprint cache for the second.
+    """
+
+    def test_find_user_cdb_at_root(self, tmp_path: Path) -> None:
+        (tmp_path / "compile_commands.json").write_text("[]")
+        assert CppAdapter._find_user_cdb(tmp_path) == tmp_path
+
+    def test_find_user_cdb_in_build(self, tmp_path: Path) -> None:
+        (tmp_path / "build").mkdir()
+        (tmp_path / "build" / "compile_commands.json").write_text("[]")
+        assert CppAdapter._find_user_cdb(tmp_path) == tmp_path / "build"
+
+    def test_user_cdb_does_not_match_generated_dir(self, tmp_path: Path) -> None:
+        """A CDB under ``.codeboarding/cdb/`` is *not* user-owned — the
+        generator wrote it, and we're allowed to rebuild it.
+        """
+        cdb_dir = tmp_path / ".codeboarding" / "cdb"
+        cdb_dir.mkdir(parents=True)
+        (cdb_dir / "compile_commands.json").write_text('[{"directory": ".", "file": "x.cc", "command": "c++ -c x.cc"}]')
+        assert CppAdapter._find_user_cdb(tmp_path) is None
+
+    def test_find_generated_cdb_requires_validity(self, tmp_path: Path) -> None:
+        cdb_dir = tmp_path / ".codeboarding" / "cdb"
+        cdb_dir.mkdir(parents=True)
+        (cdb_dir / "compile_commands.json").write_text("[]")  # invalid: empty
+        assert CppAdapter._find_generated_cdb(tmp_path) is None
+
+
+class TestExtractSignature:
+    """Signature extraction for overload disambiguation.
+
+    Must produce ``None`` for callables without params so that bare
+    ``greet()`` methods don't all gain a needless ``()`` suffix — the
+    fixture churn would be enormous for a gain that only materialises
+    when overloads actually exist.
+    """
+
+    def test_empty_detail_returns_none(self) -> None:
+        assert _extract_signature("") is None
+
+    def test_no_paren_returns_none(self) -> None:
+        assert _extract_signature("int") is None
+
+    def test_empty_params_returns_none(self) -> None:
+        """``() const -> void`` must produce None — no params, no overload risk."""
+        assert _extract_signature("() const -> void") is None
+
+    def test_single_param(self) -> None:
+        assert _extract_signature("(int) -> void") == "(int)"
+
+    def test_multiple_params(self) -> None:
+        assert _extract_signature("(int, const std::string &) -> bool") == "(int, const std.string&)"
+
+    def test_strips_whitespace_before_ref_and_pointer(self) -> None:
+        """``const Entity &`` → ``const Entity&`` — canonical C++ reference form."""
+        assert _extract_signature("(const Entity &) const") == "(const Entity&)"
+
+    def test_collapses_double_spaces(self) -> None:
+        assert _extract_signature("(int   x,   int  y)") == "(int x, int y)"
+
+    def test_nested_template_args(self) -> None:
+        """The outer ``(...)`` must balance despite ``<``/``>`` inside; we
+        don't strip template args from the signature body — that's the
+        adapter's job on the symbol name, not the detail.
+        """
+        assert _extract_signature("(std::vector<int> &)") == "(std.vector<int>&)"
+
+    def test_unbalanced_returns_none(self) -> None:
+        assert _extract_signature("(int, missing_close") is None
+
+
+class TestBuildQualifiedNameOverloads:
+    """build_qualified_name should gain a signature suffix for *callables*
+    with a non-empty param list, and only for those.
+    """
+
+    def test_callable_with_params_gets_suffix(self, tmp_path: Path) -> None:
+        adapter = CppAdapter()
+        qname = adapter.build_qualified_name(
+            file_path=tmp_path / "src" / "processor.cpp",
+            symbol_name="process",
+            symbol_kind=NodeType.METHOD,
+            parent_chain=[("services", NodeType.NAMESPACE), ("Processor", NodeType.CLASS)],
+            project_root=tmp_path,
+            detail="(const Entity &) -> void",
+        )
+        assert qname == "services.Processor.process(const Entity&)"
+
+    def test_callable_without_params_has_no_suffix(self, tmp_path: Path) -> None:
+        adapter = CppAdapter()
+        qname = adapter.build_qualified_name(
+            file_path=tmp_path / "src" / "greeter.cpp",
+            symbol_name="greet",
+            symbol_kind=NodeType.METHOD,
+            parent_chain=[("Greeter", NodeType.CLASS)],
+            project_root=tmp_path,
+            detail="() const -> void",
+        )
+        assert qname == "Greeter.greet"
+
+    def test_non_callable_never_gets_suffix(self, tmp_path: Path) -> None:
+        """A field / variable with a ``(`` accidentally in its detail (e.g.
+        a function-pointer type) must not be treated as an overload.
+        """
+        adapter = CppAdapter()
+        qname = adapter.build_qualified_name(
+            file_path=tmp_path / "src" / "x.cpp",
+            symbol_name="callback",
+            symbol_kind=NodeType.FIELD,
+            parent_chain=[("Foo", NodeType.CLASS)],
+            project_root=tmp_path,
+            detail="void(*)(int)",
+        )
+        assert qname == "Foo.callback"
+
+    def test_constructor_overloads_distinguish(self, tmp_path: Path) -> None:
+        """Two constructors with different signatures must produce different keys."""
+        adapter = CppAdapter()
+        default_ctor = adapter.build_qualified_name(
+            file_path=tmp_path / "src" / "e.cpp",
+            symbol_name="Entity",
+            symbol_kind=NodeType.CONSTRUCTOR,
+            parent_chain=[("models", NodeType.NAMESPACE), ("Entity", NodeType.CLASS)],
+            project_root=tmp_path,
+            detail="() -> void",
+        )
+        param_ctor = adapter.build_qualified_name(
+            file_path=tmp_path / "src" / "e.cpp",
+            symbol_name="Entity",
+            symbol_kind=NodeType.CONSTRUCTOR,
+            parent_chain=[("models", NodeType.NAMESPACE), ("Entity", NodeType.CLASS)],
+            project_root=tmp_path,
+            detail="(const std::string &) -> void",
+        )
+        assert default_ctor == "models.Entity.Entity"
+        assert param_ctor == "models.Entity.Entity(const std.string&)"
+        assert default_ctor != param_ctor
 
 
 class TestStripTemplateArgs:

@@ -1,0 +1,261 @@
+"""Compilation-database generator backed by Bear for Make and Autotools.
+
+Bear (https://github.com/rizsotto/Bear) intercepts the compiler invocations
+a build system issues and writes them to ``compile_commands.json`` without
+requiring the build system to support CDBs natively. This is the standard
+path for bare Makefiles and Autotools projects.
+
+Design notes:
+  * Bear 3.x only. The 2.x CLI (``bear make``) is incompatible with 3.x
+    (``bear -- make``) and 2.x has been obsolete since 2020.
+  * Make runs in-source (standard Makefiles expect it). Autotools runs
+    out-of-tree under ``.codeboarding/cdb/_build`` so the source tree
+    stays clean — Autotools explicitly supports this.
+  * Every run force-rebuilds (``make clean all``) because Bear only
+    records commands it actually intercepts; a warm object tree produces
+    a near-empty CDB. The fingerprint cache prevents re-invocation when
+    nothing has changed.
+"""
+
+from __future__ import annotations
+
+import logging
+import re
+import shutil
+import subprocess
+from pathlib import Path
+
+from static_analyzer.engine.adapters.cpp_cdb import config
+from static_analyzer.engine.adapters.cpp_cdb.base import (
+    CDB_SUBDIR,
+    CPP_SOURCE_EXTENSIONS,
+    BuildSystemKind,
+    CdbGenerator,
+)
+from static_analyzer.engine.adapters.cpp_cdb.cdb_io import (
+    clear_generated_compile_commands,
+    is_valid_compile_commands,
+    read_compile_commands,
+    temp_compile_commands_path,
+    write_compile_commands_atomic,
+)
+from static_analyzer.engine.adapters.cpp_cdb.fingerprint import (
+    collect_project_sources,
+    compute_fingerprint,
+    delete_cached_fingerprint,
+    read_cached_fingerprint,
+    write_cached_fingerprint,
+)
+
+logger = logging.getLogger(__name__)
+
+_BEAR_VERSION_RE = re.compile(r"bear\s+(\d+)", re.IGNORECASE)
+_MIN_BEAR_MAJOR = 3
+
+
+class BearGenerator(CdbGenerator):
+    """Drives Bear over Make or Autotools to produce a ``compile_commands.json``.
+
+    One instance handles one kind — Make or Autotools. Callers pick which
+    via the ``kind`` constructor argument (the dispatcher does this from a
+    :func:`detect_build_system` result).
+    """
+
+    def __init__(self, kind: BuildSystemKind) -> None:
+        if kind not in (BuildSystemKind.MAKE, BuildSystemKind.AUTOTOOLS):
+            raise ValueError(f"BearGenerator cannot handle {kind}")
+        self._kind = kind
+
+    @property
+    def kind(self) -> BuildSystemKind:
+        return self._kind
+
+    def describe_install(self) -> str:
+        return (
+            "Install Bear 3.x (https://github.com/rizsotto/Bear): "
+            "'brew install bear' on macOS, 'apt install bear' on Debian/Ubuntu."
+        )
+
+    def generate(self, project_root: Path) -> Path:
+        cdb_dir = project_root / CDB_SUBDIR
+        cdb_path = cdb_dir / "compile_commands.json"
+
+        fingerprint_inputs = self._fingerprint_inputs(project_root)
+        new_fp = compute_fingerprint(fingerprint_inputs)
+        if (
+            not config.force_regenerate()
+            and cdb_path.is_file()
+            and read_cached_fingerprint(cdb_dir) == new_fp
+            and is_valid_compile_commands(cdb_path)
+        ):
+            logger.info("Bear CDB cache hit at %s (fingerprint %s)", cdb_path, new_fp[:8])
+            return cdb_path
+
+        cdb_dir.mkdir(parents=True, exist_ok=True)
+        clear_generated_compile_commands(cdb_dir)
+        delete_cached_fingerprint(cdb_dir)
+
+        # Only probe the toolchain when we'll actually shell out.
+        self._require_bear()
+        self._require_build_tool()
+
+        temp_cdb_path = temp_compile_commands_path(cdb_dir)
+        try:
+            if self._kind is BuildSystemKind.MAKE:
+                self._run_make(project_root, temp_cdb_path)
+            else:
+                self._run_autotools(project_root, temp_cdb_path)
+
+            if not temp_cdb_path.is_file():
+                raise RuntimeError(
+                    f"Bear ran but produced no compile_commands.json at {cdb_path}. "
+                    "Likely causes: the build had nothing to do (try 'make clean' first) "
+                    "or the Makefile invokes the compiler through a wrapper Bear can't trace."
+                )
+            entries = read_compile_commands(temp_cdb_path)
+            write_compile_commands_atomic(cdb_path, entries)
+            write_cached_fingerprint(cdb_dir, new_fp)
+            return cdb_path
+        except (OSError, ValueError) as exc:
+            raise RuntimeError(f"Bear produced invalid compile_commands.json: {exc}") from exc
+        finally:
+            temp_cdb_path.unlink(missing_ok=True)
+
+    # --- internals ----------------------------------------------------
+
+    def _fingerprint_inputs(self, project_root: Path) -> list[Path]:
+        """Files whose content changing should invalidate the cached CDB.
+
+        Build markers (Makefile / configure.ac / Makefile.am) *and* every
+        C/C++ source under the project — editing a Makefile is one way to
+        bust the cache, but adding ``src/new.cc`` must do it too so Bear
+        re-runs and captures the new compile command.
+
+        Dedupes by ``(st_dev, st_ino)`` so a case-insensitive filesystem
+        (APFS, NTFS) doesn't hash the same physical file twice under two
+        different spellings (``Makefile`` + ``makefile``).
+        """
+        if self._kind is BuildSystemKind.MAKE:
+            candidates = ("Makefile", "GNUmakefile", "makefile")
+        else:
+            candidates = ("configure.ac", "configure.in", "Makefile.am", "configure")
+        seen_ids: set[tuple[int, int]] = set()
+        out: list[Path] = []
+
+        def _add(path: Path) -> None:
+            try:
+                st = path.stat()
+            except OSError:
+                return
+            file_id = (st.st_dev, st.st_ino)
+            if file_id in seen_ids:
+                return
+            seen_ids.add(file_id)
+            out.append(path)
+
+        for name in candidates:
+            _add(project_root / name)
+        for source in collect_project_sources(project_root, CPP_SOURCE_EXTENSIONS):
+            _add(source)
+        return out
+
+    def _run_make(self, project_root: Path, cdb_path: Path) -> None:
+        argv = [
+            "bear",
+            "--output",
+            str(cdb_path),
+            "--",
+            "make",
+            *config.make_target(),
+        ]
+        logger.info("Bear: running %s in %s", " ".join(argv), project_root)
+        self._subprocess_run(argv, cwd=project_root, step="bear make")
+
+    def _run_autotools(self, project_root: Path, cdb_path: Path) -> None:
+        if not (project_root / "configure").is_file():
+            if shutil.which("autoreconf") is None:
+                raise RuntimeError(
+                    "Autotools project has no ./configure script and 'autoreconf' is not on PATH. "
+                    "Install autoconf/automake/libtool and retry."
+                )
+            self._subprocess_run(
+                ["autoreconf", "-i"],
+                cwd=project_root,
+                step="autoreconf",
+            )
+
+        build_dir = project_root / CDB_SUBDIR / "_build"
+        build_dir.mkdir(parents=True, exist_ok=True)
+        configure_cmd = [str(project_root / "configure"), *config.configure_args()]
+        self._subprocess_run(configure_cmd, cwd=build_dir, step="./configure")
+
+        argv = [
+            "bear",
+            "--output",
+            str(cdb_path),
+            "--",
+            "make",
+            *config.make_target(),
+        ]
+        self._subprocess_run(argv, cwd=build_dir, step="bear make")
+
+    @staticmethod
+    def _subprocess_run(argv: list[str], *, cwd: Path, step: str) -> None:
+        """Run a subprocess, surface stderr tail on failure, enforce the timeout."""
+        try:
+            result = subprocess.run(
+                argv,
+                cwd=str(cwd),
+                capture_output=True,
+                text=True,
+                timeout=config.generator_timeout_seconds(),
+            )
+        except FileNotFoundError as exc:
+            raise RuntimeError(f"{step}: command not found ({argv[0]})") from exc
+        except OSError as exc:
+            raise RuntimeError(f"{step}: could not run {argv[0]} ({exc})") from exc
+        except subprocess.TimeoutExpired as exc:
+            raise RuntimeError(
+                f"{step} timed out after {config.generator_timeout_seconds()}s in {cwd}. "
+                f"Raise {config.ENV_TIMEOUT} to allow more time."
+            ) from exc
+
+        if result.returncode != 0:
+            # stderr tail only — a full build log would swamp the message.
+            tail = (result.stderr or result.stdout or "").strip().splitlines()[-30:]
+            raise RuntimeError(f"{step} failed with exit {result.returncode} in {cwd}:\n" + "\n".join(tail))
+
+    @staticmethod
+    def _require_bear() -> None:
+        if shutil.which("bear") is None:
+            raise RuntimeError(
+                "'bear' is not on PATH. "
+                "Install Bear 3.x (https://github.com/rizsotto/Bear) — "
+                "'brew install bear' on macOS, 'apt install bear' on Debian/Ubuntu."
+            )
+        try:
+            result = subprocess.run(
+                ["bear", "--version"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise RuntimeError(f"Could not probe Bear version: {exc}") from exc
+        if result.returncode != 0:
+            raise RuntimeError(f"'bear --version' exited {result.returncode}: {result.stderr.strip()}")
+        match = _BEAR_VERSION_RE.search(result.stdout) or _BEAR_VERSION_RE.search(result.stderr)
+        if not match:
+            # Some distros print an unusual banner; warn but let the run proceed.
+            logger.warning("Could not parse Bear version from %r", (result.stdout + result.stderr).strip())
+            return
+        major = int(match.group(1))
+        if major < _MIN_BEAR_MAJOR:
+            raise RuntimeError(
+                f"Bear {major}.x is too old — CodeBoarding requires Bear 3.x or later. "
+                "Upgrade via your package manager."
+            )
+
+    def _require_build_tool(self) -> None:
+        if shutil.which("make") is None:
+            raise RuntimeError("'make' is not on PATH; install GNU Make and retry.")

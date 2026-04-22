@@ -19,7 +19,7 @@ template <typename Iter>
 std::size_t count_unique_descriptions(Iter begin, Iter end) {
     std::vector<std::string> seen;
     for (Iter it = begin; it != end; ++it) {
-        const std::string desc = (*it).describe();
+        const std::string desc = (*it)->describe();
         if (std::find(seen.begin(), seen.end(), desc) == seen.end()) {
             seen.push_back(desc);
         }

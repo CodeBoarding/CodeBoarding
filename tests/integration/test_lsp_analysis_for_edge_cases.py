@@ -5,6 +5,10 @@ purpose-built project that exercises language-specific corner cases.
 Results are validated against a fixture JSON that pins expected references,
 class hierarchy, call graph edges, package dependencies, and source files.
 
+The C++ fixture specifically exercises the live clangd path: cross-translation
+unit declarations/definitions, namespace-qualified symbols, virtual dispatch,
+and a called header-only template helper.
+
 The fixture describes what a CORRECT analyzer should find — if the LSP
 disagrees, the test fails, surfacing a real bug.
 

@@ -1,0 +1,15 @@
+# Autoreconf-generated files — never commit; a pristine checkout must
+# trigger `autoreconf -i` so the test exercises the full generation path.
+configure
+Makefile.in
+aclocal.m4
+autom4te.cache/
+config.log
+config.status
+depcomp
+install-sh
+missing
+compile
+
+# CodeBoarding CDB scratch dir
+.codeboarding/
