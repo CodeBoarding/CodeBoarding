@@ -84,6 +84,7 @@ class TestLoadExistingRunId(unittest.TestCase):
         self.temp_dir = tempfile.mkdtemp()
         self.repo_dir = Path(self.temp_dir) / "repo"
         self.repo_dir.mkdir(parents=True, exist_ok=True)
+        (self.repo_dir / ".git").mkdir()
         self.model_settings = ModelSettings(provider="test", chat_class="TestChat", model_name="test-model")
 
     def tearDown(self):

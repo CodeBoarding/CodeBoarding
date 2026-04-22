@@ -42,6 +42,9 @@ class RunContext:
 
 def _load_existing_run_id(repo_dir: Path) -> str | None:
     """Check details caches for the most recent run_id."""
+    if not (repo_dir / ".git").exists():
+        logger.info("Repo not yet cloned at %s; skipping run_id cache lookup", repo_dir)
+        return None
     final_cache = FinalAnalysisCache(repo_dir)
     cluster_cache = ClusterCache(repo_dir)
     final_latest = final_cache.load_most_recent_run()
