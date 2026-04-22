@@ -13,8 +13,9 @@ from agents.agent_responses import (
     MethodEntry,
     assign_component_ids,
 )
-from analysis_workflows import process_local_repository, run_incremental_analysis
 from codeboarding_cli.parser import build_parser, main as cli_main
+from codeboarding_workflows.full import process_local_repository
+from codeboarding_workflows.incremental import run_incremental_analysis
 from diagram_analysis.incremental_models import IncrementalRunResult, IncrementalSummary, IncrementalSummaryKind
 from diagram_analysis.run_metadata import last_successful_commit, worktree_has_changes, write_last_run_metadata
 from static_analyzer.analysis_result import StaticAnalysisResults
@@ -128,7 +129,9 @@ def test_process_local_repository_legacy_incremental_flag_uses_monitoring_keywor
     output_dir = repo / ".codeboarding"
     output_dir.mkdir(parents=True)
 
-    with patch("analysis_workflows.run_incremental_analysis", return_value={"mode": "incremental"}) as run_incremental:
+    with patch(
+        "codeboarding_workflows.full.run_incremental_analysis", return_value={"mode": "incremental"}
+    ) as run_incremental:
         process_local_repository(
             repo_path=repo,
             output_dir=output_dir,
@@ -202,7 +205,7 @@ def test_run_incremental_analysis_uses_explicit_base_ref(tmp_path: Path) -> None
     mock_generator.pre_analysis.side_effect = _pre_analysis
     mock_generator.generate_analysis_incremental.return_value = fake_result
 
-    with patch("analysis_workflows.DiagramGenerator", return_value=mock_generator):
+    with patch("codeboarding_workflows.incremental.DiagramGenerator", return_value=mock_generator):
         payload = run_incremental_analysis(
             repo_path=repo,
             output_dir=output_dir,
@@ -296,7 +299,7 @@ def test_incremental_generator_fallback_sets_top_level_full_required_flag(tmp_pa
         )
     )
 
-    with patch("analysis_workflows.DiagramGenerator", return_value=mock_generator):
+    with patch("codeboarding_workflows.incremental.DiagramGenerator", return_value=mock_generator):
         payload = run_incremental_analysis(
             repo_path=repo,
             output_dir=output_dir,
@@ -342,6 +345,160 @@ def test_incremental_mode_api_key_missing_payload(tmp_path: Path, capsys) -> Non
         "error": "No API key configured",
         "kind": "api_key_missing",
     }
+
+
+def test_run_incremental_analysis_requires_full_on_rename(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init")
+    _git(repo, "config", "user.email", "test@example.com")
+    _git(repo, "config", "user.name", "Test User")
+
+    source_file = repo / "src" / "utils.py"
+    source_file.parent.mkdir(parents=True, exist_ok=True)
+    source_file.write_text("def alpha():\n    return 1\n", encoding="utf-8")
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-m", "baseline")
+    baseline_commit = subprocess.run(
+        ["git", "-C", str(repo), "rev-parse", "HEAD"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+
+    output_dir = repo / ".codeboarding"
+    output_dir.mkdir()
+    method = MethodEntry(
+        qualified_name="src.utils.alpha",
+        start_line=1,
+        end_line=2,
+        node_type="FUNCTION",
+    )
+    save_analysis(
+        analysis=_make_analysis("src/utils.py", method),
+        output_dir=output_dir,
+        repo_name="repo",
+        commit_hash=baseline_commit,
+    )
+
+    _git(repo, "mv", "src/utils.py", "src/helpers.py")
+
+    payload = run_incremental_analysis(
+        repo_path=repo,
+        output_dir=output_dir,
+        base_ref=baseline_commit,
+    )
+
+    assert payload["requiresFullAnalysis"] is True
+    assert payload["summary"]["kind"] == "requires_full_analysis"
+    assert "rename" in payload["summary"]["message"].lower()
+    assert not (output_dir / "incremental_run_metadata.json").exists()
+
+
+def test_run_incremental_analysis_rejects_target_ref_not_checked_out(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init")
+    _git(repo, "config", "user.email", "test@example.com")
+    _git(repo, "config", "user.name", "Test User")
+
+    source_file = repo / "src" / "utils.py"
+    source_file.parent.mkdir(parents=True, exist_ok=True)
+    source_file.write_text("def alpha():\n    return 1\n", encoding="utf-8")
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-m", "baseline")
+    baseline_commit = subprocess.run(
+        ["git", "-C", str(repo), "rev-parse", "HEAD"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+
+    source_file.write_text("def alpha():\n    return 2\n", encoding="utf-8")
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-m", "v2")
+    head_commit = subprocess.run(
+        ["git", "-C", str(repo), "rev-parse", "HEAD"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    assert head_commit != baseline_commit
+
+    output_dir = repo / ".codeboarding"
+    output_dir.mkdir()
+    method = MethodEntry(
+        qualified_name="src.utils.alpha",
+        start_line=1,
+        end_line=2,
+        node_type="FUNCTION",
+    )
+    save_analysis(
+        analysis=_make_analysis("src/utils.py", method),
+        output_dir=output_dir,
+        repo_name="repo",
+        commit_hash=baseline_commit,
+    )
+
+    payload = run_incremental_analysis(
+        repo_path=repo,
+        output_dir=output_dir,
+        base_ref=baseline_commit,
+        target_ref=baseline_commit,  # HEAD is at v2, not baseline
+    )
+
+    assert payload["requiresFullAnalysis"] is True
+    assert "does not match the current checkout" in payload["summary"]["message"]
+    assert not (output_dir / "incremental_run_metadata.json").exists()
+
+
+def test_run_incremental_analysis_rejects_target_ref_with_dirty_worktree(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init")
+    _git(repo, "config", "user.email", "test@example.com")
+    _git(repo, "config", "user.name", "Test User")
+
+    source_file = repo / "src" / "utils.py"
+    source_file.parent.mkdir(parents=True, exist_ok=True)
+    source_file.write_text("def alpha():\n    return 1\n", encoding="utf-8")
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-m", "baseline")
+    head_commit = subprocess.run(
+        ["git", "-C", str(repo), "rev-parse", "HEAD"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+
+    # Dirty the worktree after committing.
+    source_file.write_text("def alpha():\n    return 99\n", encoding="utf-8")
+
+    output_dir = repo / ".codeboarding"
+    output_dir.mkdir()
+    method = MethodEntry(
+        qualified_name="src.utils.alpha",
+        start_line=1,
+        end_line=2,
+        node_type="FUNCTION",
+    )
+    save_analysis(
+        analysis=_make_analysis("src/utils.py", method),
+        output_dir=output_dir,
+        repo_name="repo",
+        commit_hash=head_commit,
+    )
+
+    payload = run_incremental_analysis(
+        repo_path=repo,
+        output_dir=output_dir,
+        base_ref=head_commit,
+        target_ref=head_commit,  # HEAD matches, but worktree is dirty
+    )
+
+    assert payload["requiresFullAnalysis"] is True
+    assert "dirty worktree" in payload["summary"]["message"]
+    assert not (output_dir / "incremental_run_metadata.json").exists()
 
 
 def test_incremental_cli_parser_uses_incremental_naming() -> None:

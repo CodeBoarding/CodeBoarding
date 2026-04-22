@@ -4,20 +4,16 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, Mock, call, patch, ANY
 
-from analysis_workflows import (
-    copy_files,
-    generate_analysis,
-    generate_markdown_docs,
-    onboarding_materials_exist,
-    partial_update,
-    process_local_repository,
-    process_remote_repository,
-)
-from codeboarding_cli.commands.full import validate_arguments
+from codeboarding_workflows.files import copy_files
+from codeboarding_workflows.full import generate_analysis, process_local_repository
+from codeboarding_workflows.markdown import generate_markdown_docs
+from codeboarding_workflows.partial import partial_update
+from codeboarding_workflows.remote import onboarding_materials_exist, process_remote_repository
+from codeboarding_cli.commands.full import run_from_args, validate_arguments
 
 
 class TestOnboardingMaterialsExist(unittest.TestCase):
-    @patch("analysis_workflows.requests.get")
+    @patch("codeboarding_workflows.remote.requests.get")
     def test_onboarding_materials_exist_true(self, mock_get):
         # Test when materials exist (status 200)
         mock_response = Mock()
@@ -31,7 +27,7 @@ class TestOnboardingMaterialsExist(unittest.TestCase):
         call_args = mock_get.call_args[0][0]
         self.assertIn("test_project", call_args)
 
-    @patch("analysis_workflows.requests.get")
+    @patch("codeboarding_workflows.remote.requests.get")
     def test_onboarding_materials_exist_false(self, mock_get):
         # Test when materials don't exist (status 404)
         mock_response = Mock()
@@ -44,7 +40,7 @@ class TestOnboardingMaterialsExist(unittest.TestCase):
 
 
 class TestGenerateAnalysis(unittest.TestCase):
-    @patch("analysis_workflows.DiagramGenerator")
+    @patch("codeboarding_workflows.full.DiagramGenerator")
     def test_generate_analysis(self, mock_generator_class):
         # Test generate_analysis function
         mock_generator = MagicMock()
@@ -79,7 +75,7 @@ class TestGenerateAnalysis(unittest.TestCase):
             )
             mock_generator.generate_analysis.assert_called_once()
 
-    @patch("analysis_workflows.DiagramGenerator")
+    @patch("codeboarding_workflows.full.DiagramGenerator")
     def test_generate_analysis_with_force_full(self, mock_generator_class):
         mock_generator = MagicMock()
         mock_generator.generate_analysis.return_value = [Path("analysis.json")]
@@ -104,8 +100,8 @@ class TestGenerateAnalysis(unittest.TestCase):
 
 
 class TestGenerateMarkdownDocs(unittest.TestCase):
-    @patch("analysis_workflows.generate_markdown_file")
-    @patch("analysis_workflows.get_branch")
+    @patch("codeboarding_workflows.markdown.generate_markdown_file")
+    @patch("codeboarding_workflows.markdown.get_branch")
     @patch("builtins.open", create=True)
     def test_generate_markdown_docs(self, mock_open, mock_get_branch, mock_generate_markdown):
         # Test generate_markdown_docs function
@@ -141,9 +137,9 @@ class TestGenerateMarkdownDocs(unittest.TestCase):
 
 
 class TestPartialUpdate(unittest.TestCase):
-    @patch("analysis_workflows.save_sub_analysis")
-    @patch("analysis_workflows.load_full_analysis")
-    @patch("analysis_workflows.DiagramGenerator")
+    @patch("codeboarding_workflows.partial.save_sub_analysis")
+    @patch("codeboarding_workflows.partial.load_full_analysis")
+    @patch("codeboarding_workflows.partial.DiagramGenerator")
     def test_partial_update_success(self, mock_generator_class, mock_load_full, mock_save_sub_analysis):
         # Test successful partial update for a root-level component
         from agents.agent_responses import AnalysisInsights, Component
@@ -201,9 +197,9 @@ class TestPartialUpdate(unittest.TestCase):
             mock_generator.process_component.assert_called_once()
             mock_save_sub_analysis.assert_called_once_with(mock_sub_analysis, output_dir, "test_comp_id")
 
-    @patch("analysis_workflows.save_sub_analysis")
-    @patch("analysis_workflows.load_full_analysis")
-    @patch("analysis_workflows.DiagramGenerator")
+    @patch("codeboarding_workflows.partial.save_sub_analysis")
+    @patch("codeboarding_workflows.partial.load_full_analysis")
+    @patch("codeboarding_workflows.partial.DiagramGenerator")
     def test_partial_update_nested_component_success(
         self, mock_generator_class, mock_load_full, mock_save_sub_analysis
     ):
@@ -268,7 +264,7 @@ class TestPartialUpdate(unittest.TestCase):
             mock_generator.process_component.assert_called_once_with(nested_component)
             mock_save_sub_analysis.assert_called_once_with(mock_sub_analysis_result, output_dir, "nested_comp_id")
 
-    @patch("analysis_workflows.DiagramGenerator")
+    @patch("codeboarding_workflows.partial.DiagramGenerator")
     def test_partial_update_file_not_found(self, mock_generator_class):
         # Test when analysis.json doesn't exist
         mock_generator = MagicMock()
@@ -297,15 +293,15 @@ class TestPartialUpdate(unittest.TestCase):
 
 
 class TestProcessRemoteRepository(unittest.TestCase):
-    @patch("analysis_workflows.upload_onboarding_materials")
-    @patch("analysis_workflows.copy_files")
-    @patch("analysis_workflows.generate_markdown_docs")
-    @patch("analysis_workflows.generate_analysis")
-    @patch("analysis_workflows.remove_temp_repo_folder")
-    @patch("analysis_workflows.create_temp_repo_folder")
-    @patch("analysis_workflows.clone_repository")
-    @patch("analysis_workflows.get_repo_name")
-    @patch("analysis_workflows.onboarding_materials_exist")
+    @patch("codeboarding_workflows.remote.upload_onboarding_materials")
+    @patch("codeboarding_workflows.remote.copy_files")
+    @patch("codeboarding_workflows.remote.generate_markdown_docs")
+    @patch("codeboarding_workflows.remote.generate_analysis")
+    @patch("codeboarding_workflows.remote.remove_temp_repo_folder")
+    @patch("codeboarding_workflows.remote.create_temp_repo_folder")
+    @patch("codeboarding_workflows.remote.clone_repository")
+    @patch("codeboarding_workflows.remote.get_repo_name")
+    @patch("codeboarding_workflows.remote.onboarding_materials_exist")
     def test_process_remote_repository_with_cache_hit(
         self,
         mock_materials_exist,
@@ -333,14 +329,14 @@ class TestProcessRemoteRepository(unittest.TestCase):
         mock_clone.assert_not_called()
         mock_generate_analysis.assert_not_called()
 
-    @patch("analysis_workflows.upload_onboarding_materials")
-    @patch("analysis_workflows.copy_files")
-    @patch("analysis_workflows.generate_markdown_docs")
-    @patch("analysis_workflows.generate_analysis")
-    @patch("analysis_workflows.remove_temp_repo_folder")
-    @patch("analysis_workflows.create_temp_repo_folder")
-    @patch("analysis_workflows.clone_repository")
-    @patch("analysis_workflows.get_repo_name")
+    @patch("codeboarding_workflows.remote.upload_onboarding_materials")
+    @patch("codeboarding_workflows.remote.copy_files")
+    @patch("codeboarding_workflows.remote.generate_markdown_docs")
+    @patch("codeboarding_workflows.remote.generate_analysis")
+    @patch("codeboarding_workflows.remote.remove_temp_repo_folder")
+    @patch("codeboarding_workflows.remote.create_temp_repo_folder")
+    @patch("codeboarding_workflows.remote.clone_repository")
+    @patch("codeboarding_workflows.remote.get_repo_name")
     def test_process_remote_repository_success(
         self,
         mock_get_repo_name,
@@ -380,7 +376,7 @@ class TestProcessRemoteRepository(unittest.TestCase):
 
 
 class TestProcessLocalRepository(unittest.TestCase):
-    @patch("analysis_workflows.generate_analysis")
+    @patch("codeboarding_workflows.full.generate_analysis")
     def test_process_local_repository_full_analysis(self, mock_generate_analysis):
         # Test full analysis (no partial update)
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -410,7 +406,7 @@ class TestProcessLocalRepository(unittest.TestCase):
             )
             self.assertTrue(output_dir.exists())
 
-    @patch("analysis_workflows.partial_update")
+    @patch("codeboarding_workflows.full.partial_update")
     def test_process_local_repository_partial_update(self, mock_partial_update):
         # Test partial update
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -437,6 +433,35 @@ class TestProcessLocalRepository(unittest.TestCase):
                 log_path="test_project/test-run-log",
                 depth_level=2,
             )
+
+
+class TestFullCliForceFull(unittest.TestCase):
+    @patch("codeboarding_cli.commands.full.RunContext")
+    @patch("codeboarding_cli.commands.full.bootstrap_environment")
+    @patch("codeboarding_cli.commands.full.process_local_repository")
+    def test_full_flag_propagates_force_full(self, mock_process, _mock_bootstrap, mock_run_context):
+        mock_run_context.resolve.return_value = MagicMock(run_id="r", log_path="l", finalize=lambda: None)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_path = Path(temp_dir) / "repo"
+            repo_path.mkdir()
+
+            args = MagicMock()
+            args.local = repo_path
+            args.repositories = []
+            args.output_dir = None
+            args.project_name = None
+            args.partial_component_id = None
+            args.binary_location = None
+            args.depth_level = 1
+            args.upload = False
+            args.enable_monitoring = False
+            args.full = True
+
+            run_from_args(args, MagicMock())
+
+        mock_process.assert_called_once()
+        self.assertTrue(mock_process.call_args.kwargs["force_full"])
 
 
 class TestCopyFiles(unittest.TestCase):

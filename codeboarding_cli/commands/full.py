@@ -4,8 +4,9 @@ from pathlib import Path
 
 from tqdm import tqdm
 
-from analysis_workflows import process_local_repository, process_remote_repository
 from codeboarding_cli.bootstrap import bootstrap_environment
+from codeboarding_workflows.full import process_local_repository
+from codeboarding_workflows.remote import process_remote_repository
 from diagram_analysis import RunContext
 from monitoring import monitor_execution
 from monitoring.paths import get_monitoring_run_dir
@@ -50,6 +51,11 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
         help="Upload onboarding materials to GeneratedOnBoardings repo (remote repos only)",
     )
     parser.add_argument("--enable-monitoring", action="store_true", help="Enable monitoring")
+    parser.add_argument(
+        "--full",
+        action="store_true",
+        help="Force full reanalysis, skipping incremental detection and cached static analysis",
+    )
 
 
 def validate_arguments(args: argparse.Namespace, parser: argparse.ArgumentParser, is_local: bool) -> None:
@@ -108,7 +114,7 @@ def run_from_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> 
                 component_id=args.partial_component_id,
                 monitoring_enabled=should_monitor,
                 incremental=False,
-                force_full=False,
+                force_full=args.full,
                 run_id=run_context.run_id,
                 log_path=run_context.log_path,
             )

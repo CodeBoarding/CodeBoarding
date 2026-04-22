@@ -589,6 +589,22 @@ class DiagramGenerator:
         )
 
         patched, failed = self._run_component_patches(sub_analyses, trace_result, parsing_llm)
+
+        # If every component patch failed, leave analysis.json untouched so the
+        # incremental baseline does not advance past docs that never updated.
+        if failed and not patched:
+            return IncrementalRunResult(
+                summary=IncrementalSummary(
+                    kind=IncrementalSummaryKind.REQUIRES_FULL_ANALYSIS,
+                    message=f"All component patches failed ({len(failed)}); full analysis required.",
+                    used_llm=True,
+                    trace_stop_reason=trace_result.stop_reason,
+                    requires_full_analysis=True,
+                ),
+                trace_result=trace_result,
+                failed_component_ids=sorted(failed),
+            )
+
         merge_patched_sub_analyses(sub_analyses, patched)
 
         analysis_path = save_analysis(
@@ -597,6 +613,24 @@ class DiagramGenerator:
             sub_analyses=sub_analyses,
             repo_name=self.repo_name,
         ).resolve()
+
+        # Partial failure: keep the patched portion on disk for user-visible
+        # progress, but flag the run as requiring a full reanalysis so the
+        # pipeline does not advance the baseline past unpatched components.
+        if failed:
+            return IncrementalRunResult(
+                summary=IncrementalSummary(
+                    kind=IncrementalSummaryKind.SCOPED_REANALYSIS,
+                    message=(f"Patched {len(patched)} component(s); {len(failed)} failed — full analysis required."),
+                    used_llm=True,
+                    trace_stop_reason=trace_result.stop_reason,
+                    requires_full_analysis=True,
+                ),
+                trace_result=trace_result,
+                patched_component_ids=sorted(patched.keys()),
+                failed_component_ids=sorted(failed),
+                analysis_path=analysis_path,
+            )
 
         if trace_result.stop_reason == TraceStopReason.UNCERTAIN:
             kind = IncrementalSummaryKind.SCOPED_REANALYSIS

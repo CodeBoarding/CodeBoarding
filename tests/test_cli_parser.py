@@ -1,6 +1,6 @@
 from unittest.mock import patch
 
-from codeboarding_cli.parser import main
+from codeboarding_cli.parser import build_parser, main
 
 
 def test_cli_dispatches_incremental_mode() -> None:
@@ -23,3 +23,13 @@ def test_cli_dispatches_full_by_default() -> None:
 
     run_full.assert_called_once()
     run_incremental.assert_not_called()
+
+
+def test_full_flag_registered_and_defaults_false() -> None:
+    args = build_parser().parse_args(["--local", "/tmp/repo"])
+    assert args.full is False
+
+
+def test_full_flag_sets_true_when_passed() -> None:
+    args = build_parser().parse_args(["--local", "/tmp/repo", "--full"])
+    assert args.full is True

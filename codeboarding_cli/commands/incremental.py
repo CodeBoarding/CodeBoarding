@@ -2,8 +2,8 @@ import argparse
 import json
 import logging
 
-from analysis_workflows import run_incremental_analysis
 from codeboarding_cli.bootstrap import bootstrap_environment
+from codeboarding_workflows.incremental import run_incremental_analysis
 from diagram_analysis import RunContext
 from diagram_analysis.incremental_models import IncrementalSummary, IncrementalSummaryKind
 from utils import monitoring_enabled
@@ -14,7 +14,14 @@ logger = logging.getLogger(__name__)
 def add_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--incremental", action="store_true", help="Use incremental analysis")
     parser.add_argument("--base-ref", type=str, help="Base git ref/tree. Defaults to the last successful run.")
-    parser.add_argument("--target-ref", type=str, help="Target git ref/tree. Defaults to the current working tree.")
+    parser.add_argument(
+        "--target-ref",
+        type=str,
+        help=(
+            "Target git ref/tree. Must match the current checkout with a clean worktree; "
+            "defaults to the current working tree."
+        ),
+    )
     parser.add_argument("--json", action="store_true", help="Emit structured JSON on stdout")
 
 

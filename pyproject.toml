@@ -92,6 +92,7 @@ packages = [
     "tool_registry",
     "codeboarding_cli",
     "codeboarding_cli.commands",
+    "codeboarding_workflows",
 ]
 py-modules = [
     "constants",
@@ -101,14 +102,12 @@ py-modules = [
     "duckdb_crud",
     "github_action",
     "user_config",
-    "main",
     "install",
-    "analysis_workflows",
 ]
 include-package-data = true
 
 [project.scripts]
-codeboarding = "main:main"
+codeboarding = "codeboarding_cli.parser:main"
 codeboarding-setup = "install:main"
 
 [project.urls]

@@ -29,7 +29,7 @@ from diagram_analysis.incremental_tracer import TraceConfig
 from diagram_analysis.incremental_updater import IncrementalUpdater, SymbolResolver
 from diagram_analysis.io_utils import load_full_analysis
 from diagram_analysis.run_metadata import last_successful_commit, worktree_has_changes, write_last_run_metadata
-from repo_utils.change_detector import detect_changes_from_parsed_diff
+from repo_utils.change_detector import ChangeType, detect_changes_from_parsed_diff
 from repo_utils.ignore import initialize_codeboardingignore
 from repo_utils.parsed_diff import load_parsed_git_diff
 from repo_utils import get_git_commit_hash, get_repo_state_hash
@@ -123,6 +123,33 @@ def _diff_base_for_successful_target(repo_dir: Path, target_ref: str | None, sou
     return None if worktree_has_changes(repo_dir) else source_identity
 
 
+def _target_ref_matches_checkout(repo_dir: Path, target_ref: str) -> bool:
+    """Whether ``target_ref`` resolves to the worktree's current HEAD.
+
+    Why: the static analysis and source reads always run against the worktree,
+    so if the caller pins a target ref that isn't checked out, the patch would
+    be built from the wrong sources.
+    """
+    try:
+        head = subprocess.run(
+            ["git", "rev-parse", "--verify", "HEAD"],
+            cwd=repo_dir,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        target = subprocess.run(
+            ["git", "rev-parse", "--verify", target_ref],
+            cwd=repo_dir,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        return False
+    return bool(head) and head == target
+
+
 def _full_required_payload(message: str) -> dict[str, Any]:
     result = IncrementalRunResult(
         summary=IncrementalSummary(
@@ -171,11 +198,26 @@ def run_incremental_pipeline(
         )
 
     resolved_target_ref = target_ref or ""
+    if resolved_target_ref:
+        if not _target_ref_matches_checkout(repo_path, resolved_target_ref):
+            return _full_required_payload(
+                f"--target-ref {resolved_target_ref!r} does not match the current checkout; "
+                "check out the target ref or omit --target-ref."
+            )
+        if worktree_has_changes(repo_path):
+            return _full_required_payload(
+                "--target-ref cannot be combined with a dirty worktree; "
+                "commit or stash local changes, or omit --target-ref."
+            )
     parsed_diff = load_parsed_git_diff(repo_path, resolved_base_ref, resolved_target_ref)
     if parsed_diff.error:
         return _full_required_payload(f"Git diff failed for incremental analysis: {parsed_diff.error}")
 
     changes = detect_changes_from_parsed_diff(parsed_diff)
+    if any(c.change_type in (ChangeType.RENAMED, ChangeType.COPIED) for c in changes.changes):
+        return _full_required_payload(
+            "Rename/copy changes detected; full analysis required until rename handling is implemented."
+        )
     analysis_path = output_dir / "analysis.json"
     if changes.is_empty():
         source_identity = _resolve_source_identity(repo_path, resolved_target_ref)
