@@ -391,11 +391,6 @@ def define_cli_arguments(parser: argparse.ArgumentParser):
         help="Upload onboarding materials to GeneratedOnBoardings repo (remote repos only)",
     )
     parser.add_argument("--enable-monitoring", action="store_true", help="Enable monitoring")
-    parser.add_argument(
-        "--no-cache-check",
-        action="store_true",
-        help="Skip the GeneratedOnBoardings cache check and regenerate docs for remote repos",
-    )
 
     # Incremental update options
     parser.add_argument(
@@ -557,7 +552,6 @@ Examples:
                             output_dir=repo_output_dir,
                             depth_level=args.depth_level,
                             upload=args.upload,
-                            cache_check=not args.no_cache_check,
                             monitoring_enabled=should_monitor,
                         )
                     except Exception as e:

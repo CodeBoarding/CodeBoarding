@@ -41,12 +41,7 @@ class RunContext:
 
 
 def _load_existing_run_id(repo_dir: Path) -> str | None:
-    """Check details caches for the most recent run_id.
-
-    Why: instantiating the caches creates sqlite files under ``repo_dir/.codeboarding/cache/``.
-    For remote runs that side-effect pre-populates the clone destination and makes the
-    subsequent ``git clone`` fail with ``Invalid Git repository``. Skip when no repo is there yet.
-    """
+    """Check details caches for the most recent run_id."""
     if not (repo_dir / ".git").exists():
         logger.info("Repo not yet cloned at %s; skipping run_id cache lookup", repo_dir)
         return None
