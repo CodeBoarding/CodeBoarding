@@ -3,7 +3,7 @@ import json
 import logging
 
 from agents.llm_config import LLMConfigError
-from codeboarding_cli.bootstrap import bootstrap_environment
+from codeboarding_cli.bootstrap import bootstrap_environment, resolve_local_run_paths
 from codeboarding_workflows.incremental import run_incremental_analysis
 from diagram_analysis import RunContext
 from diagram_analysis.incremental.models import IncrementalSummary, IncrementalSummaryKind
@@ -67,8 +67,7 @@ def validate_arguments(args: argparse.Namespace, parser: argparse.ArgumentParser
 def run_from_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
     validate_arguments(args, parser)
 
-    repo_path = args.local.resolve()
-    output_dir = args.output_dir.resolve() if args.output_dir else repo_path / ".codeboarding"
+    repo_path, output_dir, project_name = resolve_local_run_paths(args)
     output_dir.mkdir(parents=True, exist_ok=True)
 
     try:
@@ -82,7 +81,6 @@ def run_from_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> 
         _emit_payload(incremental_error_payload(str(exc)))
         return
 
-    project_name = args.project_name or repo_path.name
     try:
         run_context = RunContext.resolve(
             repo_dir=repo_path,

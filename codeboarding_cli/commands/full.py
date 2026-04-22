@@ -2,7 +2,7 @@ import argparse
 import logging
 
 from agents.llm_config import LLMConfigError
-from codeboarding_cli.bootstrap import bootstrap_environment
+from codeboarding_cli.bootstrap import bootstrap_environment, resolve_local_run_paths
 from codeboarding_cli.commands import remote
 from codeboarding_workflows.local import process_local_repository
 from diagram_analysis import RunContext
@@ -65,8 +65,7 @@ def run_from_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> 
         remote.run_from_args(args, parser)
         return
 
-    local_repo_path = args.local.resolve()
-    output_dir = args.output_dir.resolve() if args.output_dir else local_repo_path / ".codeboarding"
+    local_repo_path, output_dir, project_name = resolve_local_run_paths(args)
 
     try:
         bootstrap_environment(output_dir, args.binary_location)
@@ -79,8 +78,6 @@ def run_from_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> 
 
     output_dir.mkdir(parents=True, exist_ok=True)
     initialize_codeboardingignore(output_dir)
-
-    project_name = args.project_name or local_repo_path.name
     run_context = RunContext.resolve(
         repo_dir=local_repo_path,
         project_name=project_name,

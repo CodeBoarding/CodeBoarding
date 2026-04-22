@@ -1,7 +1,10 @@
 import argparse
+import sys
 from pathlib import Path
 
 from codeboarding_cli.commands import full, incremental
+
+_SUBCOMMANDS = {"full", "incremental"}
 
 
 def _build_shared_parser() -> argparse.ArgumentParser:
@@ -30,24 +33,27 @@ def build_parser() -> argparse.ArgumentParser:
         description="Generate onboarding documentation for Git repositories",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
+`full` is the default command: when the first argument is not `full` or
+`incremental`, `full` is inserted automatically.
+
 Examples:
-  # Local full analysis (output to <repo>/.codeboarding/)
-  codeboarding full --local /path/to/repo
+  # Local full analysis (output to <repo>/.codeboarding/); `full` is implied
+  codeboarding --local /path/to/repo
 
   # Local full analysis with custom depth level
-  codeboarding full --local /path/to/repo --depth-level 2
+  codeboarding --local /path/to/repo --depth-level 2
 
-  # Incremental update on a local repository
+  # Incremental update on a local repository (explicit subcommand required)
   codeboarding incremental --local /path/to/repo
 
-  # Remote repository (cloned to cwd/<repo_name>/)
-  codeboarding full https://github.com/user/repo
+  # Remote repository (cloned to cwd/<repo_name>/); `full` is implied
+  codeboarding https://github.com/user/repo
 
   # Partial update (single component by ID)
-  codeboarding full --local /path/to/repo --partial-component-id "1.2"
+  codeboarding --local /path/to/repo --partial-component-id "1.2"
 
   # Custom binary location (e.g. VS Code extension)
-  codeboarding full --local /path/to/repo --binary-location /path/to/binaries
+  codeboarding --local /path/to/repo --binary-location /path/to/binaries
         """,
     )
     shared = _build_shared_parser()
@@ -57,7 +63,26 @@ Examples:
     return parser
 
 
+def _inject_default_subcommand(argv: list[str]) -> list[str]:
+    """Default to the ``full`` subcommand when the first arg isn't a subcommand or top-level help.
+
+    Why: argparse has no first-class "default subcommand" and ``full`` takes a
+    ``nargs="*"`` positional for remote repos, so a naive default would parse
+    ``codeboarding incremental`` as a repo URL. Subcommand flags like ``--local``
+    live on the subparser, not the top parser, so they also need ``full`` prepended.
+    """
+    if not argv:
+        return argv
+    first = argv[0]
+    if first in _SUBCOMMANDS or first in {"-h", "--help"}:
+        return argv
+    return ["full", *argv]
+
+
 def main(argv: list[str] | None = None) -> None:
+    if argv is None:
+        argv = sys.argv[1:]
+    argv = _inject_default_subcommand(list(argv))
     parser = build_parser()
     args = parser.parse_args(argv)
     if args.command == "incremental":
