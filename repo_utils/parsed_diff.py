@@ -47,6 +47,7 @@ class ParsedGitDiff:
     base_ref: str
     target_ref: str
     files: list[ParsedDiffFile] = field(default_factory=list)
+    error: str | None = None
 
     def get_file(self, file_path: str) -> ParsedDiffFile | None:
         for file_diff in self.files:
@@ -168,9 +169,12 @@ def load_parsed_git_diff(
     target_ref: str = "HEAD",
     context_lines: int = 3,
     fetch_missing_refs: bool = True,
+    exclude_patterns: list[str] | None = None,
 ) -> ParsedGitDiff:
     """Load a parsed diff with both raw status data and patch hunks."""
     target_ref_value = target_ref
+    if exclude_patterns is None:
+        exclude_patterns = [".codeboarding/"]
     cmd = [
         "git",
         "diff",
@@ -183,6 +187,9 @@ def load_parsed_git_diff(
     ]
     if target_ref:
         cmd.append(target_ref)
+    if exclude_patterns:
+        cmd.extend(["--", "."])
+        cmd.extend(f":!{pattern}" for pattern in exclude_patterns)
 
     def _run_diff() -> subprocess.CompletedProcess[str]:
         return subprocess.run(
@@ -212,15 +219,57 @@ def load_parsed_git_diff(
                 result = _run_diff()
             except subprocess.CalledProcessError as fetch_err:
                 logger.error("Git fetch/diff retry failed: %s", fetch_err.stderr)
-                return ParsedGitDiff(base_ref=base_ref, target_ref=target_ref_value)
+                return ParsedGitDiff(
+                    base_ref=base_ref,
+                    target_ref=target_ref_value,
+                    error=(fetch_err.stderr or str(fetch_err)).strip(),
+                )
         else:
             logger.error("Git diff failed: %s", exc.stderr)
-            return ParsedGitDiff(base_ref=base_ref, target_ref=target_ref_value)
+            return ParsedGitDiff(
+                base_ref=base_ref,
+                target_ref=target_ref_value,
+                error=(exc.stderr or str(exc)).strip(),
+            )
     except FileNotFoundError:
         logger.error("Git not found in PATH")
-        return ParsedGitDiff(base_ref=base_ref, target_ref=target_ref_value)
+        return ParsedGitDiff(base_ref=base_ref, target_ref=target_ref_value, error="Git not found in PATH")
 
-    return _parse_diff_output(result.stdout, base_ref, target_ref_value)
+    parsed = _parse_diff_output(result.stdout, base_ref, target_ref_value)
+
+    if not target_ref_value:
+        _append_untracked_files(parsed, repo_dir, exclude_patterns)
+
+    return parsed
+
+
+def _append_untracked_files(
+    parsed: ParsedGitDiff,
+    repo_dir: Path,
+    exclude_patterns: list[str],
+) -> None:
+    """Inject untracked worktree files as ADDED entries.
+
+    `git diff` does not list files unknown to the index, so a user editing
+    against the current worktree would otherwise get ``no_changes`` for a
+    freshly created file until they ``git add`` it. Only applied for
+    worktree diffs (empty target_ref).
+    """
+    cmd = ["git", "ls-files", "--others", "--exclude-standard", "-z", "--", "."]
+    cmd.extend(f":!{pattern}" for pattern in exclude_patterns)
+    try:
+        result = subprocess.run(cmd, cwd=repo_dir, capture_output=True, text=True, check=True)
+    except (subprocess.CalledProcessError, FileNotFoundError) as exc:
+        stderr = getattr(exc, "stderr", "") or str(exc)
+        logger.warning("Could not enumerate untracked files: %s", stderr.strip() if stderr else exc)
+        return
+
+    existing = {file_diff.file_path for file_diff in parsed.files}
+    for path in result.stdout.split("\0"):
+        if not path or path in existing:
+            continue
+        parsed.files.append(ParsedDiffFile(status_code="A", file_path=path))
+        existing.add(path)
 
 
 def classify_new_file_ranges(

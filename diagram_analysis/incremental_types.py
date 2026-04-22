@@ -21,7 +21,7 @@ class MethodChange:
             "file_path": self.file_path,
             "start_line": self.start_line,
             "end_line": self.end_line,
-            "change_type": self.change_type,
+            "change_type": self.change_type.value,
             "node_type": self.node_type,
         }
 
@@ -42,7 +42,7 @@ class FileDelta:
     def to_dict(self) -> dict[str, Any]:
         d: dict[str, Any] = {
             "file_path": self.file_path,
-            "file_status": self.file_status,
+            "file_status": self.file_status.value,
             "component_id": self.component_id,
             "old_file_path": self.old_file_path,
             "added_methods": [m.to_dict() for m in self.added_methods],

@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, Mock, call, patch, ANY
 
-from main import (
+from analysis_workflows import (
     copy_files,
     generate_analysis,
     generate_markdown_docs,
@@ -12,12 +12,12 @@ from main import (
     partial_update,
     process_local_repository,
     process_remote_repository,
-    validate_arguments,
 )
+from codeboarding_cli.commands.full import validate_arguments
 
 
 class TestOnboardingMaterialsExist(unittest.TestCase):
-    @patch("main.requests.get")
+    @patch("analysis_workflows.requests.get")
     def test_onboarding_materials_exist_true(self, mock_get):
         # Test when materials exist (status 200)
         mock_response = Mock()
@@ -31,7 +31,7 @@ class TestOnboardingMaterialsExist(unittest.TestCase):
         call_args = mock_get.call_args[0][0]
         self.assertIn("test_project", call_args)
 
-    @patch("main.requests.get")
+    @patch("analysis_workflows.requests.get")
     def test_onboarding_materials_exist_false(self, mock_get):
         # Test when materials don't exist (status 404)
         mock_response = Mock()
@@ -44,7 +44,7 @@ class TestOnboardingMaterialsExist(unittest.TestCase):
 
 
 class TestGenerateAnalysis(unittest.TestCase):
-    @patch("main.DiagramGenerator")
+    @patch("analysis_workflows.DiagramGenerator")
     def test_generate_analysis(self, mock_generator_class):
         # Test generate_analysis function
         mock_generator = MagicMock()
@@ -79,7 +79,7 @@ class TestGenerateAnalysis(unittest.TestCase):
             )
             mock_generator.generate_analysis.assert_called_once()
 
-    @patch("main.DiagramGenerator")
+    @patch("analysis_workflows.DiagramGenerator")
     def test_generate_analysis_with_force_full(self, mock_generator_class):
         mock_generator = MagicMock()
         mock_generator.generate_analysis.return_value = [Path("analysis.json")]
@@ -104,8 +104,8 @@ class TestGenerateAnalysis(unittest.TestCase):
 
 
 class TestGenerateMarkdownDocs(unittest.TestCase):
-    @patch("main.generate_markdown_file")
-    @patch("main.get_branch")
+    @patch("analysis_workflows.generate_markdown_file")
+    @patch("analysis_workflows.get_branch")
     @patch("builtins.open", create=True)
     def test_generate_markdown_docs(self, mock_open, mock_get_branch, mock_generate_markdown):
         # Test generate_markdown_docs function
@@ -141,9 +141,9 @@ class TestGenerateMarkdownDocs(unittest.TestCase):
 
 
 class TestPartialUpdate(unittest.TestCase):
-    @patch("main.save_sub_analysis")
-    @patch("main.load_full_analysis")
-    @patch("main.DiagramGenerator")
+    @patch("analysis_workflows.save_sub_analysis")
+    @patch("analysis_workflows.load_full_analysis")
+    @patch("analysis_workflows.DiagramGenerator")
     def test_partial_update_success(self, mock_generator_class, mock_load_full, mock_save_sub_analysis):
         # Test successful partial update for a root-level component
         from agents.agent_responses import AnalysisInsights, Component
@@ -201,9 +201,9 @@ class TestPartialUpdate(unittest.TestCase):
             mock_generator.process_component.assert_called_once()
             mock_save_sub_analysis.assert_called_once_with(mock_sub_analysis, output_dir, "test_comp_id")
 
-    @patch("main.save_sub_analysis")
-    @patch("main.load_full_analysis")
-    @patch("main.DiagramGenerator")
+    @patch("analysis_workflows.save_sub_analysis")
+    @patch("analysis_workflows.load_full_analysis")
+    @patch("analysis_workflows.DiagramGenerator")
     def test_partial_update_nested_component_success(
         self, mock_generator_class, mock_load_full, mock_save_sub_analysis
     ):
@@ -268,7 +268,7 @@ class TestPartialUpdate(unittest.TestCase):
             mock_generator.process_component.assert_called_once_with(nested_component)
             mock_save_sub_analysis.assert_called_once_with(mock_sub_analysis_result, output_dir, "nested_comp_id")
 
-    @patch("main.DiagramGenerator")
+    @patch("analysis_workflows.DiagramGenerator")
     def test_partial_update_file_not_found(self, mock_generator_class):
         # Test when analysis.json doesn't exist
         mock_generator = MagicMock()
@@ -297,15 +297,15 @@ class TestPartialUpdate(unittest.TestCase):
 
 
 class TestProcessRemoteRepository(unittest.TestCase):
-    @patch("main.upload_onboarding_materials")
-    @patch("main.copy_files")
-    @patch("main.generate_markdown_docs")
-    @patch("main.generate_analysis")
-    @patch("main.remove_temp_repo_folder")
-    @patch("main.create_temp_repo_folder")
-    @patch("main.clone_repository")
-    @patch("main.get_repo_name")
-    @patch("main.onboarding_materials_exist")
+    @patch("analysis_workflows.upload_onboarding_materials")
+    @patch("analysis_workflows.copy_files")
+    @patch("analysis_workflows.generate_markdown_docs")
+    @patch("analysis_workflows.generate_analysis")
+    @patch("analysis_workflows.remove_temp_repo_folder")
+    @patch("analysis_workflows.create_temp_repo_folder")
+    @patch("analysis_workflows.clone_repository")
+    @patch("analysis_workflows.get_repo_name")
+    @patch("analysis_workflows.onboarding_materials_exist")
     def test_process_remote_repository_with_cache_hit(
         self,
         mock_materials_exist,
@@ -333,14 +333,14 @@ class TestProcessRemoteRepository(unittest.TestCase):
         mock_clone.assert_not_called()
         mock_generate_analysis.assert_not_called()
 
-    @patch("main.upload_onboarding_materials")
-    @patch("main.copy_files")
-    @patch("main.generate_markdown_docs")
-    @patch("main.generate_analysis")
-    @patch("main.remove_temp_repo_folder")
-    @patch("main.create_temp_repo_folder")
-    @patch("main.clone_repository")
-    @patch("main.get_repo_name")
+    @patch("analysis_workflows.upload_onboarding_materials")
+    @patch("analysis_workflows.copy_files")
+    @patch("analysis_workflows.generate_markdown_docs")
+    @patch("analysis_workflows.generate_analysis")
+    @patch("analysis_workflows.remove_temp_repo_folder")
+    @patch("analysis_workflows.create_temp_repo_folder")
+    @patch("analysis_workflows.clone_repository")
+    @patch("analysis_workflows.get_repo_name")
     def test_process_remote_repository_success(
         self,
         mock_get_repo_name,
@@ -380,7 +380,7 @@ class TestProcessRemoteRepository(unittest.TestCase):
 
 
 class TestProcessLocalRepository(unittest.TestCase):
-    @patch("main.generate_analysis")
+    @patch("analysis_workflows.generate_analysis")
     def test_process_local_repository_full_analysis(self, mock_generate_analysis):
         # Test full analysis (no partial update)
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -410,7 +410,7 @@ class TestProcessLocalRepository(unittest.TestCase):
             )
             self.assertTrue(output_dir.exists())
 
-    @patch("main.partial_update")
+    @patch("analysis_workflows.partial_update")
     def test_process_local_repository_partial_update(self, mock_partial_update):
         # Test partial update
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -469,6 +469,8 @@ class TestValidateArguments(unittest.TestCase):
         args.repositories = ["https://github.com/test/repo"]
         args.local = None
         args.partial_component_id = "test_comp_id"
+        args.output_dir = None
+        args.project_name = None
 
         validate_arguments(args, parser, is_local=False)
         parser.error.assert_called_once()
@@ -480,6 +482,8 @@ class TestValidateArguments(unittest.TestCase):
         args.repositories = None
         args.local = "/path/to/repo"
         args.partial_component_id = None
+        args.output_dir = None
+        args.project_name = None
 
         validate_arguments(args, parser, is_local=True)
         parser.error.assert_not_called()
@@ -491,6 +495,8 @@ class TestValidateArguments(unittest.TestCase):
         args.repositories = ["https://github.com/test/repo"]
         args.local = None
         args.partial_component_id = None
+        args.output_dir = None
+        args.project_name = None
 
         validate_arguments(args, parser, is_local=False)
         parser.error.assert_not_called()
@@ -502,6 +508,8 @@ class TestValidateArguments(unittest.TestCase):
         args.repositories = ["https://github.com/test/repo"]
         args.local = "/path/to/repo"
         args.partial_component_id = None
+        args.output_dir = None
+        args.project_name = None
 
         validate_arguments(args, parser, is_local=True)
         parser.error.assert_called_once()

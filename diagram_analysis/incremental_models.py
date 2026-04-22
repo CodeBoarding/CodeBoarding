@@ -146,11 +146,11 @@ class IncrementalSummary:
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "kind": self.kind,
+            "kind": self.kind.value,
             "message": self.message,
             "usedLlm": self.used_llm,
-            "traceStopReason": self.trace_stop_reason,
-            "escalationLevel": self.escalation_level,
+            "traceStopReason": None if self.trace_stop_reason is None else self.trace_stop_reason.value,
+            "escalationLevel": None if self.escalation_level is None else self.escalation_level.value,
             "requiresFullAnalysis": self.requires_full_analysis,
         }
 
@@ -175,7 +175,7 @@ class IncrementalRunResult:
                 None
                 if self.trace_result is None
                 else {
-                    "stopReason": self.trace_result.stop_reason,
+                    "stopReason": self.trace_result.stop_reason.value,
                     "hopsUsed": self.trace_result.hops_used,
                     "impactedMethods": list(self.trace_result.all_impacted_methods),
                     "impactedComponents": [

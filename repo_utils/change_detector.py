@@ -54,6 +54,14 @@ class DetectedChange:
         """Returns True if this affects file existence (add/delete)."""
         return self.change_type in (ChangeType.ADDED, ChangeType.DELETED)
 
+    def to_dict(self) -> dict[str, str | int | None]:
+        return {
+            "change_type": self.change_type.value,
+            "file_path": self.file_path,
+            "old_path": self.old_path,
+            "similarity": self.similarity,
+        }
+
 
 @dataclass
 class ChangeSet:
@@ -103,6 +111,13 @@ class ChangeSet:
     def has_only_renames(self) -> bool:
         """Returns True if all changes are pure renames."""
         return all(c.is_rename() for c in self.changes) and len(self.changes) > 0
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "changes": [change.to_dict() for change in self.changes],
+            "base_ref": self.base_ref,
+            "target_ref": self.target_ref,
+        }
 
 
 def detect_changes(

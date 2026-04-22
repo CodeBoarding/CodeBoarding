@@ -73,8 +73,38 @@ all = [
 ]
 
 [tool.setuptools]
-packages = ["agents", "agents.prompts", "agents.tools", "core", "diagram_analysis", "health", "health.checks", "monitoring", "output_generators", "repo_utils", "static_analyzer", "static_analyzer.engine", "static_analyzer.engine.adapters", "static_analyzer.lsp_client", "caching", "tool_registry"]
-py-modules = ["constants", "utils", "vscode_constants", "logging_config", "duckdb_crud", "github_action", "user_config", "main", "install"]
+packages = [
+    "agents",
+    "agents.prompts",
+    "agents.tools",
+    "core",
+    "diagram_analysis",
+    "health",
+    "health.checks",
+    "monitoring",
+    "output_generators",
+    "repo_utils",
+    "static_analyzer",
+    "static_analyzer.engine",
+    "static_analyzer.engine.adapters",
+    "static_analyzer.lsp_client",
+    "caching",
+    "tool_registry",
+    "codeboarding_cli",
+    "codeboarding_cli.commands",
+]
+py-modules = [
+    "constants",
+    "utils",
+    "vscode_constants",
+    "logging_config",
+    "duckdb_crud",
+    "github_action",
+    "user_config",
+    "main",
+    "install",
+    "analysis_workflows",
+]
 include-package-data = true
 
 [project.scripts]

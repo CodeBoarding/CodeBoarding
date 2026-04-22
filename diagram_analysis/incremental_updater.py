@@ -9,7 +9,7 @@ Flow:
 
 import logging
 import time
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Callable
 
 from agents.agent_responses import AnalysisInsights, Component, FileEntry, FileMethodGroup, MethodEntry
@@ -26,6 +26,33 @@ SymbolResolver = Callable[[str], list[MethodEntry]]
 # Returns the caller's last-known status for ``(file_path, qualified_name)``.
 # ``UNCHANGED`` is the neutral default when the caller holds no record.
 MethodStatusLookup = Callable[[str, str], ChangeStatus]
+
+
+def resolve_component_id_by_path_prefix(file_path: str, file_to_component: dict[str, str]) -> str | None:
+    """Default component resolver: pick the component whose tracked files share
+    the longest path prefix. Used when a newly added file has no direct
+    mapping — we assume it belongs to whichever component already owns the
+    deepest common directory.
+    """
+    if file_path in file_to_component:
+        return file_to_component[file_path]
+
+    query_parts = PurePosixPath(file_path).parts
+    best_component_id: str | None = None
+    best_prefix_len = 0
+
+    for existing_path, component_id in file_to_component.items():
+        existing_parts = PurePosixPath(existing_path).parts
+        prefix_len = 0
+        for query_part, existing_part in zip(query_parts, existing_parts, strict=False):
+            if query_part != existing_part:
+                break
+            prefix_len += 1
+        if prefix_len > best_prefix_len:
+            best_prefix_len = prefix_len
+            best_component_id = component_id
+
+    return best_component_id
 
 
 class IncrementalUpdater:
@@ -51,7 +78,7 @@ class IncrementalUpdater:
         self._symbol_resolver = symbol_resolver
         self._repo_dir = repo_dir
         self._method_status_lookup = method_status_lookup
-        self._component_resolver = component_resolver
+        self._component_resolver = component_resolver or resolve_component_id_by_path_prefix
         self._file_to_component = analysis.file_to_component()
 
     def _get_current_methods(self, file_path: str) -> list[MethodEntry]:
