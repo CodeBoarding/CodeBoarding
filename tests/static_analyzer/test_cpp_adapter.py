@@ -138,9 +138,67 @@ class TestStripTemplateArgs:
         """
         assert _strip_template_args("operator new") == "operator new"
 
-    def test_unbalanced_input_passes_through(self):
-        """Malformed inputs shouldn't silently lose characters."""
+    def test_preserves_operator_parens(self):
+        assert _strip_template_args("operator()") == "operator()"
+
+    def test_preserves_operator_brackets(self):
+        assert _strip_template_args("operator[]") == "operator[]"
+
+    def test_preserves_operator_arrow(self):
+        assert _strip_template_args("operator->") == "operator->"
+
+    def test_preserves_operator_arrow_star(self):
+        assert _strip_template_args("operator->*") == "operator->*"
+
+    def test_preserves_operator_delete_array(self):
+        assert _strip_template_args("operator delete[]") == "operator delete[]"
+
+    def test_preserves_operator_comma(self):
+        assert _strip_template_args("operator,") == "operator,"
+
+    def test_preserves_conversion_operator_int(self):
+        assert _strip_template_args("operator int") == "operator int"
+
+    def test_preserves_conversion_operator_bool(self):
+        """Conversion operators return a type, not a symbolic operator."""
+        assert _strip_template_args("operator bool") == "operator bool"
+
+    def test_cooperator_is_not_operator(self):
+        """``cooperator<T>`` must strip templates — ``cooperator`` contains
+        ``operator`` as a substring but is NOT an operator token.
+        """
+        assert _strip_template_args("cooperator<int>") == "cooperator"
+
+    def test_empty_string_passes_through(self):
+        assert _strip_template_args("") == ""
+
+    def test_no_template_passes_through(self):
+        assert _strip_template_args("plain_name") == "plain_name"
+
+    def test_deeply_nested_templates(self):
+        assert _strip_template_args("Foo<A<B<C<D>>>>") == "Foo"
+
+    def test_adjacent_closing_angles(self):
+        """C++11 ``A<B<C>>`` has two adjacent ``>`` — not a ``>>`` shift operator."""
+        assert _strip_template_args("A<B<C>>") == "A"
+
+    def test_unbalanced_open_only_passes_through(self):
         assert _strip_template_args("foo<bar") == "foo<bar"
+
+    def test_unbalanced_extra_close_passes_through(self):
+        assert _strip_template_args("foo>") == "foo>"
+
+    def test_operator_at_start_of_name(self):
+        """``operator+`` at position 0 — ``i == 0`` branch."""
+        assert _strip_template_args("operator+") == "operator+"
+
+    def test_operator_after_scope(self):
+        """``std::operator==`` — operator after ``::`` delimiter."""
+        assert _strip_template_args("std::operator==") == "std::operator=="
+
+    def test_operator_call_with_template_parent(self):
+        """``Foo<T>::operator()`` strips template args from parent, keeps operator."""
+        assert _strip_template_args("Foo<T>::operator()") == "Foo::operator()"
 
 
 class TestNormalizeCppParent:
@@ -155,6 +213,24 @@ class TestNormalizeCppParent:
 
     def test_handles_template_and_scope_together(self):
         assert _normalize_cpp_parent("std::vector<int>") == "std.vector"
+
+    def test_empty_string_passes_through(self):
+        assert _normalize_cpp_parent("") == ""
+
+    def test_whitespace_only_becomes_empty(self):
+        assert _normalize_cpp_parent("   ") == ""
+
+    def test_leading_trailing_whitespace_stripped(self):
+        assert _normalize_cpp_parent("  foo::bar  ") == "foo.bar"
+
+    def test_deeply_nested_scope_and_template(self):
+        assert _normalize_cpp_parent("A::B<C>::D<E>::F") == "A.B.D.F"
+
+    def test_anonymous_namespace(self):
+        assert _normalize_cpp_parent("(anonymous namespace)::Foo") == "(anonymous namespace).Foo"
+
+    def test_global_scope_prefix(self):
+        assert _normalize_cpp_parent("::Foo::Bar") == ".Foo.Bar"
 
 
 class TestBuildQualifiedName:
@@ -278,3 +354,116 @@ class TestBuildQualifiedName:
             tmp_path,
         )
         assert result == "fmt.v11.format"
+
+    def test_anonymous_namespace_parent(self, tmp_path: Path) -> None:
+        """clangd emits ``(anonymous namespace)`` as a parent; must preserve it."""
+        src = tmp_path / "a.cpp"
+        src.touch()
+        result = self._call(
+            src,
+            "helper",
+            [("(anonymous namespace)", int(NodeType.NAMESPACE)), ("Svc", int(NodeType.CLASS))],
+            tmp_path,
+        )
+        assert result == "(anonymous namespace).Svc.helper"
+
+    def test_destructor_symbol(self, tmp_path: Path) -> None:
+        """``~Entity`` in a namespace must keep the tilde."""
+        src = tmp_path / "a.cpp"
+        src.touch()
+        result = self._call(
+            src,
+            "~Entity",
+            [("models", int(NodeType.NAMESPACE)), ("Entity", int(NodeType.CLASS))],
+            tmp_path,
+        )
+        assert result == "models.Entity.~Entity"
+
+    def test_all_string_parents_drops_all(self, tmp_path: Path) -> None:
+        """When every parent is STRING kind, all are dropped — bare name."""
+        src = tmp_path / "a.cpp"
+        src.touch()
+        result = self._call(
+            src,
+            "format",
+            [
+                ("FMT_BEGIN_NAMESPACE", int(NodeType.STRING)),
+                ("FMT_END_NAMESPACE", int(NodeType.STRING)),
+            ],
+            tmp_path,
+        )
+        assert result == "format"
+
+    def test_symbol_with_scope_in_name_no_parents(self, tmp_path: Path) -> None:
+        """A free-function symbol containing ``::`` is flattened to ``.``."""
+        src = tmp_path / "a.cpp"
+        src.touch()
+        result = self._call(src, "std::move", [], tmp_path)
+        assert result == "std.move"
+
+    def test_template_symbol_no_parents(self, tmp_path: Path) -> None:
+        """A template free function like ``swap<T>`` has args stripped."""
+        src = tmp_path / "a.cpp"
+        src.touch()
+        result = self._call(src, "swap<T>", [], tmp_path)
+        assert result == "swap"
+
+    def test_enum_parent(self, tmp_path: Path) -> None:
+        """Enums appear as parents for enum members."""
+        src = tmp_path / "a.cpp"
+        src.touch()
+        result = self._call(
+            src,
+            "Red",
+            [("colors", int(NodeType.NAMESPACE)), ("Color", int(NodeType.ENUM))],
+            tmp_path,
+        )
+        assert result == "colors.Color.Red"
+
+    def test_struct_parent(self, tmp_path: Path) -> None:
+        src = tmp_path / "a.cpp"
+        src.touch()
+        result = self._call(
+            src,
+            "x",
+            [("math", int(NodeType.NAMESPACE)), ("Vec2", int(NodeType.STRUCT))],
+            tmp_path,
+        )
+        assert result == "math.Vec2.x"
+
+    def test_build_release_subdir(self, tmp_path: Path) -> None:
+        (tmp_path / "build" / "Release").mkdir(parents=True)
+        (tmp_path / "build" / "Release" / "compile_commands.json").write_text("[]")
+        cmd = CppAdapter().get_lsp_command(tmp_path)
+        assert cmd
+
+    def test_cmake_build_release(self, tmp_path: Path) -> None:
+        (tmp_path / "cmake-build-release").mkdir()
+        (tmp_path / "cmake-build-release" / "compile_commands.json").write_text("[]")
+        cmd = CppAdapter().get_lsp_command(tmp_path)
+        assert cmd
+
+    def test_both_compile_db_and_flags(self, tmp_path: Path) -> None:
+        """When both exist, either one is sufficient."""
+        (tmp_path / "compile_commands.json").write_text("[]")
+        (tmp_path / "compile_flags.txt").write_text("-std=c++20\n")
+        cmd = CppAdapter().get_lsp_command(tmp_path)
+        assert cmd
+
+    def test_compile_flags_in_build_debug(self, tmp_path: Path) -> None:
+        (tmp_path / "build" / "Debug").mkdir(parents=True)
+        (tmp_path / "build" / "Debug" / "compile_flags.txt").write_text("-std=c++17\n")
+        cmd = CppAdapter().get_lsp_command(tmp_path)
+        assert cmd
+
+    def test_empty_parent_chain_entry_skipped(self, tmp_path: Path) -> None:
+        """A parent that normalizes to empty (e.g. whitespace-only) is dropped."""
+        src = tmp_path / "a.cpp"
+        src.touch()
+        result = self._call(
+            src,
+            "method",
+            [("  ", int(NodeType.NAMESPACE)), ("Foo", int(NodeType.CLASS))],
+            tmp_path,
+        )
+        assert result == "Foo.method"

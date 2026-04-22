@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from functools import lru_cache
 from pathlib import Path
 
 from repo_utils.ignore import RepoIgnoreManager
@@ -12,7 +13,7 @@ from static_analyzer.engine.lsp_client import LSPClient
 
 logger = logging.getLogger(__name__)
 
-_OPERATOR_SYMBOL_CHARS = "<>=!+-*/%&|^~?,[]"
+_OPERATOR_SYMBOL_CHARS = frozenset("<>=!+-*/%&|^~?,[]")
 
 
 def _strip_template_args(name: str) -> str:
@@ -22,6 +23,9 @@ def _strip_template_args(name: str) -> str:
     balanced-bracket rule, merging distinct C++20 operator symbols.
     Unbalanced inputs return unchanged.
     """
+    if "<" not in name:
+        return name
+
     out: list[str] = []
     depth = 0
     i = 0
@@ -38,11 +42,9 @@ def _strip_template_args(name: str) -> str:
             while j < n and name[j] == " ":
                 j += 1
             if j < n and (name[j].isalpha() or name[j] == "_"):
-                # Keyword operator: ``operator new``, ``operator delete``.
                 while j < n and (name[j].isalnum() or name[j] == "_"):
                     j += 1
             else:
-                # Symbolic operator: consume adjacent punctuation.
                 while j < n and name[j] in _OPERATOR_SYMBOL_CHARS:
                     j += 1
             out.extend(name[i:j])
@@ -64,9 +66,22 @@ def _strip_template_args(name: str) -> str:
     return "".join(out)
 
 
+@lru_cache(maxsize=4096)
+def _normalize_cpp_parent_cached(name: str) -> str:
+    """Flatten ``foo::Bar<T>`` to ``foo.Bar`` for qualified-name consumption.
+
+    Why: parent names repeat heavily across symbols in large C++ projects
+    (e.g. POCO's ~10K symbols share ~500 distinct parents). LRU cache
+    eliminates redundant template-stripping and string allocation.
+    """
+    stripped = _strip_template_args(name)
+    if not stripped or not stripped.strip():
+        return ""
+    return stripped.strip().replace("::", ".")
+
+
 def _normalize_cpp_parent(name: str) -> str:
-    """Flatten ``foo::Bar<T>`` to ``foo.Bar`` for qualified-name consumption."""
-    return _strip_template_args(name).strip().replace("::", ".")
+    return _normalize_cpp_parent_cached(name)
 
 
 class CppAdapter(LanguageAdapter):

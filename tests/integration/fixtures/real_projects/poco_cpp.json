@@ -30,10 +30,7 @@
     "(anonymous namespace).MatchData.count",
     "(anonymous namespace).MatchData.data",
     "(anonymous namespace).MatchData.~MatchData",
-    "(anonymous namespace).ParseIter",
-    "(anonymous namespace).SignalBlocker",
-    "(anonymous namespace).SignalBlocker.SignalBlocker",
-    "(anonymous namespace).SignalBlocker.~SignalBlocker"
+    "(anonymous namespace).ParseIter"
   ],
   "sample_classes": []
 }
