@@ -1,0 +1,31 @@
+{
+  "language": "Cpp",
+  "description": "End-to-end fixture for the Make+Bear CDB-generation path. Proves that when CODEBOARDING_CPP_GENERATE_CDB=1 is set and the project has only a bare Makefile, CodeBoarding drives 'bear -- make clean all', writes compile_commands.json to .codeboarding/cdb/, and clangd analyzes the result correctly. Values were captured empirically from a live run.",
+  "expected_references": [
+    "demo",
+    "demo.Greeter",
+    "demo.Greeter.Greeter(std.string)",
+    "demo.Greeter.greet",
+    "demo.Greeter.name_",
+    "main"
+  ],
+  "expected_classes": [
+    "demo.Greeter"
+  ],
+  "expected_hierarchy": {},
+  "expected_edges": [
+    ["main", "Greeter.Greeter(std.string)"],
+    ["main", "Greeter.greet"],
+    ["main", "demo.Greeter.Greeter(std.string)"],
+    ["main", "demo.Greeter.greet"]
+  ],
+  "expected_package_deps": {
+    "include": {"imports_contain": [], "imported_by_contain": ["src"]},
+    "src": {"imports_contain": ["include"], "imported_by_contain": []}
+  },
+  "expected_source_files": [
+    "include/greeter.hpp",
+    "src/greeter.cpp",
+    "src/main.cpp"
+  ]
+}

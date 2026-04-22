@@ -32,6 +32,7 @@ from tool_registry import (
     preferred_npm_command,
     write_manifest,
 )
+from tool_registry.manifest import archive_binary_path, archive_is_complete
 from tool_registry.registry import ConfigSection, PackageManagerToolSource
 from vscode_constants import VSCODE_CONFIG
 from static_analyzer.constants import Language
@@ -46,10 +47,18 @@ class LanguageSupportCheck:
     fallback_available: bool = False
     reason_if_requirement_missing: str = ""
     reason_if_binary_missing: str = ""
+    # When True, every entry in ``paths`` must exist (AND semantics).
+    # Used for ARCHIVE deps where the marker file *and* the binary must
+    # both be on disk — the default ``any`` semantics would falsely
+    # report success when only the marker is present.
+    require_all_paths: bool = False
 
     def evaluate(self, npm_available: bool) -> tuple[bool, str | None]:
         requirement_ok = (not self.requires_npm) or npm_available
-        path_exists = any(path.exists() for path in self.paths)
+        if self.require_all_paths:
+            path_exists = bool(self.paths) and all(p.exists() for p in self.paths)
+        else:
+            path_exists = any(p.exists() for p in self.paths)
         is_available = (path_exists and requirement_ok) or self.fallback_available
         if is_available:
             return True, None
@@ -607,9 +616,16 @@ def _language_checks_from_registry(target_dir: Path) -> list[LanguageSupportChec
                 reason_requirement = "pyright-langserver not found in node_modules or active environment"
                 reason_binary = reason_requirement
         elif dep.kind is ToolKind.ARCHIVE:
-            # Mirrors installer/has_required_tools: check ``bin/<subdir>/<archive_marker>``.
+            # Mirrors installer/has_required_tools via ``archive_is_complete``:
+            # the archive counts as installed only when the marker *and* the
+            # binary (when declared) are both present. Without this, a
+            # half-extracted clangd (bin/ dir exists but bin/clangd missing)
+            # falsely reports "yes" in the summary.
             subdir = dep.archive_subdir
             paths.append(target_dir / "bin" / subdir / dep.archive_marker)
+            binary = archive_binary_path(dep, target_dir)
+            if binary is not None:
+                paths.append(binary)
             reason_requirement = f"{subdir} installation not found"
             reason_binary = reason_requirement
             # Java analysis can still proceed when a system Java 21+ is available
@@ -630,6 +646,11 @@ def _language_checks_from_registry(target_dir: Path) -> list[LanguageSupportChec
                 reason_requirement = f"{dep.binary_name} not installed ({manager} unavailable or install failed)"
             reason_binary = reason_requirement
 
+        # ARCHIVE deps whose ``archive_binary_path`` is set need the marker
+        # AND the binary — ``any``-semantics would falsely report "yes"
+        # when only the marker survived a crashed extraction.
+        require_all_paths = dep.kind is ToolKind.ARCHIVE and bool(dep.archive_binary_path)
+
         for lang in languages:
             checks.append(
                 LanguageSupportCheck(
@@ -639,6 +660,7 @@ def _language_checks_from_registry(target_dir: Path) -> list[LanguageSupportChec
                     fallback_available=fallback_available,
                     reason_if_requirement_missing=reason_requirement,
                     reason_if_binary_missing=reason_binary,
+                    require_all_paths=require_all_paths,
                 )
             )
     return checks

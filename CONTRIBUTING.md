@@ -159,6 +159,42 @@ If the LSP server doesn't publish pre-built binaries (like gopls or tokei), you 
 
 ---
 
+## 5e) C++ compilation-database generation (opt-in)
+
+Clangd needs a `compile_commands.json` (or a `compile_flags.txt`) to index a C++ project. CMake/Meson/Ninja emit one with a single flag, but `Make`, `Autotools`, and `Bazel` don't — you either hand-write a CDB or use a helper tool.
+
+CodeBoarding can drive those helpers for you, but only when you explicitly opt in:
+
+```sh
+export CODEBOARDING_CPP_GENERATE_CDB=1
+```
+
+With that set, `CppAdapter.prepare_project` runs the right generator based on marker files:
+
+| Marker | Generator | Tools required on PATH |
+|---|---|---|
+| `Makefile` / `GNUmakefile` | Bear (wraps `make clean all`) | `bear` (3.x), `make` |
+| `configure.ac` / `Makefile.am` | Bear with a preconfigure step (`autoreconf` → `./configure` out-of-tree → `bear -- make`) | `bear`, `make`, `autoreconf` if no `./configure` |
+| `MODULE.bazel` / `WORKSPACE` | `bazel aquery` + JSON transform | `bazel` (6+) |
+
+Generated `compile_commands.json` is written to `<repo>/.codeboarding/cdb/compile_commands.json`. The adapter passes `--compile-commands-dir` to clangd so this hidden location is found. A fingerprint file next to it caches the result — rerunning doesn't re-invoke the build unless the workspace/Makefile/configure inputs change.
+
+Env vars (all optional):
+
+| Var | Default | Meaning |
+|---|---|---|
+| `CODEBOARDING_CPP_GENERATE_CDB` | `0` | Master switch. Unset = no auto-generation. |
+| `CODEBOARDING_CPP_GENERATOR_TIMEOUT` | `900` | Seconds before the build is killed. |
+| `CODEBOARDING_CPP_MAKE_TARGET` | `clean all` | Targets passed after `--` to Bear. `clean` is in the default so Bear actually sees compile invocations (a warm tree emits an empty CDB). |
+| `CODEBOARDING_CPP_CONFIGURE_ARGS` | empty | Shell-lexed flags forwarded to `./configure`. |
+| `CODEBOARDING_CPP_BAZEL_QUERY` | `deps(//...)` | Scope for `bazel aquery 'mnemonic("CppCompile", …)'`. Narrow to skip vendored code. |
+
+Explicitly **not** supported: MSBuild / Visual Studio solutions, Xcode project files. Convert to CMake first. C++20 modules work only to the extent clangd's experimental modules support works — expect rough edges.
+
+Security note: the generators invoke real build systems, which execute arbitrary code defined by the project. The env-var opt-in is the consent point; never flip it on a repo you don't trust.
+
+---
+
 ## 6) How to PR
 - Fork the repo.
 - Create a branch: `feat/...`, `fix/...`, or `docs/...`.
