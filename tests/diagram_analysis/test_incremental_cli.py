@@ -14,9 +14,8 @@ from agents.agent_responses import (
     assign_component_ids,
 )
 from codeboarding_cli.parser import build_parser, main as cli_main
-from codeboarding_workflows.full import process_local_repository
 from codeboarding_workflows.incremental import run_incremental_analysis
-from diagram_analysis.incremental_models import IncrementalRunResult, IncrementalSummary, IncrementalSummaryKind
+from diagram_analysis.incremental.models import IncrementalRunResult, IncrementalSummary, IncrementalSummaryKind
 from diagram_analysis.run_metadata import last_successful_commit, worktree_has_changes, write_last_run_metadata
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import NodeType
@@ -124,29 +123,6 @@ def test_run_incremental_analysis_returns_full_required_without_baseline(tmp_pat
     assert payload["summary"]["requiresFullAnalysis"] is True
 
 
-def test_process_local_repository_legacy_incremental_flag_uses_monitoring_keyword(tmp_path: Path) -> None:
-    repo = tmp_path / "repo"
-    output_dir = repo / ".codeboarding"
-    output_dir.mkdir(parents=True)
-
-    with patch(
-        "codeboarding_workflows.full.run_incremental_analysis", return_value={"mode": "incremental"}
-    ) as run_incremental:
-        process_local_repository(
-            repo_path=repo,
-            output_dir=output_dir,
-            project_name="repo",
-            run_id="run-id",
-            log_path="log-path",
-            incremental=True,
-            monitoring_enabled=True,
-        )
-
-    run_incremental.assert_called_once()
-    assert run_incremental.call_args.kwargs["enable_monitoring"] is True
-    assert "monitoring_enabled" not in run_incremental.call_args.kwargs
-
-
 def test_run_incremental_analysis_uses_explicit_base_ref(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     repo.mkdir()
@@ -237,7 +213,7 @@ def test_run_incremental_analysis_requires_full_when_git_diff_fails(tmp_path: Pa
     )
 
     with patch(
-        "diagram_analysis.incremental_pipeline.load_parsed_git_diff",
+        "diagram_analysis.incremental.pipeline.get_parsed_git_diff",
         return_value=ParsedGitDiff(base_ref="base", target_ref="", error="bad object base"),
     ):
         payload = run_incremental_analysis(repo_path=repo, output_dir=output_dir, base_ref="base")
@@ -322,7 +298,7 @@ def test_incremental_main_emits_stable_json_stdout(tmp_path: Path, capsys) -> No
         patch("codeboarding_cli.commands.incremental.RunContext") as run_context_cls,
     ):
         run_context_cls.resolve.return_value = run_context_instance
-        cli_main(["--local", str(repo), "--incremental", "--json"])
+        cli_main(["incremental", "--local", str(repo)])
 
     stdout = capsys.readouterr().out
     assert stdout.index('"a"') < stdout.index('"b"')
@@ -331,13 +307,15 @@ def test_incremental_main_emits_stable_json_stdout(tmp_path: Path, capsys) -> No
 
 
 def test_incremental_mode_api_key_missing_payload(tmp_path: Path, capsys) -> None:
+    from agents.llm_config import LLMConfigError
+
     repo = tmp_path / "repo"
     repo.mkdir()
     with patch(
         "codeboarding_cli.commands.incremental.bootstrap_environment",
-        side_effect=ValueError("No API key configured"),
+        side_effect=LLMConfigError("No API key configured"),
     ):
-        cli_main(["--local", str(repo), "--incremental", "--json"])
+        cli_main(["incremental", "--local", str(repo)])
     stdout = capsys.readouterr().out
     payload = json.loads(stdout)
     assert payload == {
@@ -501,18 +479,30 @@ def test_run_incremental_analysis_rejects_target_ref_with_dirty_worktree(tmp_pat
     assert not (output_dir / "incremental_run_metadata.json").exists()
 
 
-def test_incremental_cli_parser_uses_incremental_naming() -> None:
+def test_incremental_subcommand_exposes_expected_flags() -> None:
     parser = build_parser()
-    option_flags = {action.option_strings[0] for action in parser._actions if action.option_strings}
-    assert {
-        "--incremental",
-        "--local",
-        "--output-dir",
-        "--project-name",
-        "--depth-level",
-        "--base-ref",
-        "--target-ref",
-        "--binary-location",
-        "--enable-monitoring",
-        "--json",
-    }.issubset(option_flags)
+    args = parser.parse_args(
+        [
+            "incremental",
+            "--local",
+            "/tmp/repo",
+            "--output-dir",
+            "/tmp/out",
+            "--project-name",
+            "repo",
+            "--depth-level",
+            "2",
+            "--base-ref",
+            "HEAD~1",
+            "--target-ref",
+            "HEAD",
+            "--binary-location",
+            "/tmp/bin",
+            "--enable-monitoring",
+        ]
+    )
+    assert args.command == "incremental"
+    assert args.base_ref == "HEAD~1"
+    assert args.target_ref == "HEAD"
+    assert args.depth_level == 2
+    assert args.enable_monitoring is True

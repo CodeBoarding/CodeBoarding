@@ -2,61 +2,18 @@
 Method-level diff analysis.
 
 Cross-references git diff line ranges with ``MethodEntry`` positions to determine
-which methods were added, modified, or deleted. Pure functions: callers receive
-the computed statuses and decide how to store them.
+which methods were added, modified, or deleted. Consumes the hunks already parsed
+by ``repo_utils.parsed_diff`` so we don't re-run ``git diff`` per file.
 """
 
 import logging
-import re
-import subprocess
-from pathlib import Path
 
 from agents.agent_responses import MethodEntry
 from agents.change_status import ChangeStatus
 from repo_utils.change_detector import ChangeSet
+from repo_utils.parsed_diff import ParsedGitDiff, classify_hunk_ranges
 
 logger = logging.getLogger(__name__)
-
-
-def _parse_hunk_side(side: str) -> tuple[int, int]:
-    """Parse one hunk side like ``+12,3`` or ``-8`` into (start, count)."""
-    m = re.match(r"^[+-](\d+)(?:,(\d+))?$", side)
-    if m is None:
-        return 0, 0
-    start = int(m.group(1))
-    count = int(m.group(2) or "1")
-    return start, count
-
-
-def _parse_diff_hunks(repo_dir: Path, base_ref: str, file_path: str) -> list[tuple[int, int, int, int]]:
-    """Return parsed hunk tuples: (old_start, old_count, new_start, new_count).
-
-    Uses ``git diff -U0`` to get exact changed line ranges without context lines.
-    """
-    try:
-        result = subprocess.run(
-            ["git", "diff", "-U0", base_ref, "--", file_path],
-            cwd=repo_dir,
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        return []
-
-    hunks: list[tuple[int, int, int, int]] = []
-    for line in result.stdout.splitlines():
-        if not line.startswith("@@"):
-            continue
-        parts = line.split()
-        if len(parts) < 3:
-            continue
-        old_start, old_count = _parse_hunk_side(parts[1])
-        new_start, new_count = _parse_hunk_side(parts[2])
-        if old_start == 0 and new_start == 0:
-            continue
-        hunks.append((old_start, old_count, new_start, new_count))
-    return hunks
 
 
 def _method_overlaps_ranges(method: MethodEntry, changed_ranges: list[tuple[int, int]]) -> bool:
@@ -101,7 +58,7 @@ def compute_method_statuses_for_file(
     methods: list[MethodEntry],
     file_path: str,
     changes: ChangeSet,
-    repo_dir: Path,
+    parsed_diff: ParsedGitDiff,
 ) -> dict[str, ChangeStatus]:
     """Compute per-method statuses for one file.
 
@@ -122,26 +79,15 @@ def compute_method_statuses_for_file(
         return method_statuses
 
     if file_status == ChangeStatus.MODIFIED:
-        hunks = _parse_diff_hunks(repo_dir, changes.base_ref, file_path)
+        file_diff = parsed_diff.get_file(file_path)
+        hunks = file_diff.hunks if file_diff else []
         if not hunks:
-            # Binary file or diff failure — cannot determine per-method status.
+            # Binary file or missing from the parsed diff — cannot determine per-method status.
             for method in methods:
                 method_statuses[method.qualified_name] = ChangeStatus.UNCHANGED
             return method_statuses
 
-        added_ranges: list[tuple[int, int]] = []
-        changed_ranges: list[tuple[int, int]] = []
-        deletion_points: list[tuple[int, int]] = []
-        for _old_start, old_count, new_start, new_count in hunks:
-            if new_count <= 0:
-                if new_start > 0:
-                    deletion_points.append((new_start, new_start))
-                continue
-            new_range = (new_start, new_start + new_count - 1)
-            if old_count == 0:
-                added_ranges.append(new_range)
-            else:
-                changed_ranges.append(new_range)
+        added_ranges, changed_ranges, deletion_points = classify_hunk_ranges(hunks)
 
         for method in methods:
             if _method_overlaps_ranges(method, changed_ranges):

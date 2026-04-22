@@ -50,10 +50,10 @@ codeboarding-setup
 
 ```bash
 # Analyze a local repository (output goes to /path/to/repo/.codeboarding/)
-codeboarding --local /path/to/repo
+codeboarding full --local /path/to/repo
 
 # Analyze a remote GitHub repository (cloned to cwd/repo_name/, output to cwd/repo_name/.codeboarding/)
-codeboarding https://github.com/user/repo
+codeboarding full https://github.com/user/repo
 ```
 
 ### Python API
@@ -128,19 +128,20 @@ Shell environment variables (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, etc.) always
 ## CLI Reference
 
 ```
-codeboarding [REPO_URL ...]           # remote: clone + analyze
-codeboarding --local PATH             # local: analyze in-place
+codeboarding full [REPO_URL ...]           # remote: clone + analyze
+codeboarding full --local PATH             # local: analyze in-place
+codeboarding incremental --local PATH      # re-analyze only changed parts
 ```
 
 | Option | Description |
 |---|---|
 | `--local PATH` | Analyze a local repository (output: `PATH/.codeboarding/`) |
 | `--depth-level INT` | Diagram depth (default: 1) |
-| `--incremental` | Smart incremental update (only re-analyze changed files) |
-| `--full` | Force full reanalysis, skip incremental detection |
-| `--partial-component-id ID` | Update a single component by its ID |
+| `--force` | (full only) Force full reanalysis, skip cached static analysis |
+| `--base-ref REF` / `--target-ref REF` | (incremental only) Git refs to diff |
+| `--partial-component-id ID` | (full only) Update a single component by its ID |
 | `--binary-location PATH` | Custom path to language server binaries (overrides `~/.codeboarding/servers/`) |
-| `--upload` | Upload results to GeneratedOnBoardings repo (remote only) |
+| `--upload` | (full, remote only) Upload results to GeneratedOnBoardings repo |
 | `--enable-monitoring` | Enable run monitoring |
 
 ---

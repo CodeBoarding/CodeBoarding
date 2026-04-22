@@ -154,8 +154,7 @@ def generate_analysis(
         log_path=run_context.log_path,
     )
 
-    # Use smart analysis: tries incremental first, falls back to full
-    analysis_path = generator.generate_analysis_smart()
+    analysis_path = generator.generate_analysis()
 
     # Now generate the output docs:
     match extension:

@@ -13,7 +13,7 @@ from agents.agent_responses import (
     SourceCodeReference,
     assign_component_ids,
 )
-from diagram_analysis.analysis_patcher import (
+from agents.analysis_patcher import (
     _apply_patches,
     _decode_sub_analysis,
     _encode_sub_analysis,

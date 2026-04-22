@@ -19,9 +19,9 @@ from diagram_analysis.analysis_json import (
     FileCoverageSummary,
     NotAnalyzedFile,
 )
-from diagram_analysis.analysis_patcher import merge_patched_sub_analyses, patch_sub_analysis
+from agents.analysis_patcher import merge_patched_sub_analyses, patch_sub_analysis
 from diagram_analysis.file_coverage import FileCoverage
-from diagram_analysis.incremental_models import (
+from diagram_analysis.incremental.models import (
     IncrementalRunResult,
     IncrementalSummary,
     IncrementalSummaryKind,
@@ -29,9 +29,9 @@ from diagram_analysis.incremental_models import (
     TraceResult,
     TraceStopReason,
 )
-from diagram_analysis.incremental_tracer import classify_scope, run_trace
-from diagram_analysis.incremental_types import IncrementalDelta
-from diagram_analysis.incremental_updater import apply_delta
+from diagram_analysis.incremental.tracer import classify_scope, run_trace
+from diagram_analysis.incremental.delta import IncrementalDelta
+from diagram_analysis.incremental.updater import apply_delta
 from diagram_analysis.io_utils import load_full_analysis, save_analysis
 from diagram_analysis.version import Version
 from repo_utils.parsed_diff import ParsedGitDiff
@@ -409,10 +409,6 @@ class DiagramGenerator:
 
             return analysis_path
 
-    def generate_analysis_smart(self) -> Path:
-        """Run full analysis."""
-        return self.generate_analysis()
-
     # ------------------------------------------------------------------
     # Semantic incremental pass
     # ------------------------------------------------------------------
@@ -470,8 +466,7 @@ class DiagramGenerator:
         self,
         delta: IncrementalDelta,
         base_ref: str,
-        parsed_diff: ParsedGitDiff | None = None,
-        baseline_cfgs: dict[str, CallGraph] | None = None,
+        parsed_diff: ParsedGitDiff,
         config: TraceConfig | None = None,
     ) -> IncrementalRunResult:
         """Run a semantic incremental update pass.
@@ -547,7 +542,6 @@ class DiagramGenerator:
             agent_llm=agent_llm,
             parsing_llm=parsing_llm,
             config=config,
-            baseline_cfgs=baseline_cfgs,
             parsed_diff=parsed_diff,
         )
 

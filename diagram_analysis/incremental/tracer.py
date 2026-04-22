@@ -19,16 +19,16 @@ import networkx as nx
 from langchain_core.language_models import BaseChatModel
 
 from agents.change_status import ChangeStatus
-from diagram_analysis.incremental_models import (
+from diagram_analysis.incremental.models import (
     ImpactedComponent,
     TraceConfig,
     TraceResponse,
     TraceResult,
     TraceStopReason,
 )
-from diagram_analysis.incremental_types import IncrementalDelta
-from diagram_analysis.semantic_diff import (
-    EXTENSION_TO_LANGUAGE,
+from diagram_analysis.incremental.delta import IncrementalDelta
+from static_analyzer.constants import SOURCE_EXTENSION_TO_LANGUAGE
+from static_analyzer.semantic_diff import (
     check_syntax_errors,
     fingerprint_method_signature,
     fingerprint_source_text,
@@ -398,8 +398,10 @@ def _build_trace_plan(
     for file_delta in delta.file_deltas:
         fp = file_delta.file_path
 
+        # Defense in depth: parsed_diff already filters unsupported extensions,
+        # but synthetic deltas in tests may still include them.
         ext = Path(fp).suffix.lower()
-        if ext not in EXTENSION_TO_LANGUAGE:
+        if ext not in SOURCE_EXTENSION_TO_LANGUAGE:
             extension_skipped += 1
             continue
 
@@ -492,14 +494,10 @@ def build_trace_plan(
     cfgs: dict[str, CallGraph],
     repo_dir: Path,
     base_ref: str,
-    baseline_cfgs: dict[str, CallGraph] | None = None,
     parsed_diff: ParsedGitDiff | None = None,
 ) -> TracePlan:
-    """Build a trace plan from the current and optional baseline call graphs."""
-    index_args: list[dict[str, CallGraph]] = [cfgs]
-    if baseline_cfgs is not None:
-        index_args.append(baseline_cfgs)
-    upstream_idx, downstream_idx = _build_neighbor_indexes(*index_args)
+    """Build a trace plan from the current call graphs."""
+    upstream_idx, downstream_idx = _build_neighbor_indexes(cfgs)
     return _build_trace_plan(delta, upstream_idx, downstream_idx, repo_dir, base_ref, parsed_diff)
 
 
@@ -796,7 +794,6 @@ def run_trace(
     agent_llm: BaseChatModel,
     parsing_llm: BaseChatModel,
     config: TraceConfig | None = None,
-    baseline_cfgs: dict[str, CallGraph] | None = None,
     parsed_diff: ParsedGitDiff | None = None,
 ) -> TraceResult:
     """Run the semantic tracing loop over changed methods.
@@ -811,8 +808,9 @@ def run_trace(
     for file_delta in delta.file_deltas:
         if file_delta.file_status == ChangeStatus.DELETED:
             continue
+        # Defense in depth: parsed_diff filters unsupported extensions upstream.
         ext = Path(file_delta.file_path).suffix.lower()
-        if ext not in EXTENSION_TO_LANGUAGE:
+        if ext not in SOURCE_EXTENSION_TO_LANGUAGE:
             continue
         errors = check_syntax_errors(repo_dir, file_delta.file_path)
         if errors:
@@ -829,7 +827,6 @@ def run_trace(
         cfgs=cfgs,
         repo_dir=repo_dir,
         base_ref=base_ref,
-        baseline_cfgs=baseline_cfgs,
         parsed_diff=parsed_diff,
     )
     if trace_plan.fast_path_impacted_methods:

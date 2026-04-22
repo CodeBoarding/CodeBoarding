@@ -18,7 +18,16 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from static_analyzer.constants import Language
+import tree_sitter_go
+import tree_sitter_java
+import tree_sitter_javascript
+import tree_sitter_php
+import tree_sitter_python
+import tree_sitter_typescript
+from tree_sitter import Language as TSLanguage
+from tree_sitter import Parser
+
+from static_analyzer.constants import Language, SOURCE_EXTENSION_TO_LANGUAGE
 
 logger = logging.getLogger(__name__)
 
@@ -39,21 +48,6 @@ class _LangConfig:
     identifier_types: frozenset[str]  # leaf nodes that carry local names
     binding_parent_types: frozenset[str]  # parent nodes whose child id is a binding
 
-
-EXTENSION_TO_LANGUAGE: dict[str, Language] = {
-    ".py": Language.PYTHON,
-    ".ts": Language.TYPESCRIPT,
-    ".tsx": Language.TYPESCRIPT,
-    ".mts": Language.TYPESCRIPT,
-    ".cts": Language.TYPESCRIPT,
-    ".js": Language.JAVASCRIPT,
-    ".jsx": Language.JAVASCRIPT,
-    ".mjs": Language.JAVASCRIPT,
-    ".cjs": Language.JAVASCRIPT,
-    ".go": Language.GO,
-    ".java": Language.JAVA,
-    ".php": Language.PHP,
-}
 
 _LANG_CONFIGS: dict[Language, _LangConfig] = {
     Language.PYTHON: _LangConfig(
@@ -164,8 +158,6 @@ def _get_parser(language: Language, file_ext: str) -> Any | None:
         return _parser_cache[cache_key]
 
     try:
-        from tree_sitter import Language as TSLanguage, Parser
-
         lang_obj = _load_ts_language(language, file_ext)
         if lang_obj is None:
             return None
@@ -179,36 +171,21 @@ def _get_parser(language: Language, file_ext: str) -> Any | None:
 
 
 def _load_ts_language(language: Language, file_ext: str) -> Any | None:
-    """Dynamically import the tree-sitter grammar for *language*."""
-    try:
-        if language == Language.PYTHON:
-            import tree_sitter_python
-
-            return tree_sitter_python.language()
-        if language == Language.JAVASCRIPT:
-            import tree_sitter_javascript
-
-            return tree_sitter_javascript.language()
-        if language == Language.TYPESCRIPT:
-            import tree_sitter_typescript
-
-            if file_ext in (".tsx", ".jsx"):
-                return tree_sitter_typescript.language_tsx()
-            return tree_sitter_typescript.language_typescript()
-        if language == Language.GO:
-            import tree_sitter_go
-
-            return tree_sitter_go.language()
-        if language == Language.JAVA:
-            import tree_sitter_java
-
-            return tree_sitter_java.language()
-        if language == Language.PHP:
-            import tree_sitter_php
-
-            return tree_sitter_php.language_php()
-    except Exception:
-        logger.debug("Could not load tree-sitter grammar for %s", language, exc_info=True)
+    """Return the tree-sitter grammar capsule for *language*."""
+    if language == Language.PYTHON:
+        return tree_sitter_python.language()
+    if language == Language.JAVASCRIPT:
+        return tree_sitter_javascript.language()
+    if language == Language.TYPESCRIPT:
+        if file_ext in (".tsx", ".jsx"):
+            return tree_sitter_typescript.language_tsx()
+        return tree_sitter_typescript.language_typescript()
+    if language == Language.GO:
+        return tree_sitter_go.language()
+    if language == Language.JAVA:
+        return tree_sitter_java.language()
+    if language == Language.PHP:
+        return tree_sitter_php.language_php()
     return None
 
 
@@ -346,7 +323,7 @@ def check_syntax_errors(repo_dir: Path, file_path: str) -> list[tuple[int, int]]
     or when tree-sitter is unavailable.
     """
     ext = Path(file_path).suffix.lower()
-    language = EXTENSION_TO_LANGUAGE.get(ext)
+    language = SOURCE_EXTENSION_TO_LANGUAGE.get(ext)
     if language is None:
         return []
 
@@ -380,7 +357,7 @@ def is_file_cosmetic(repo_dir: Path, base_ref: str, file_path: str) -> bool:
     (tier 1).  Returns False (assume semantic) on any error.
     """
     ext = Path(file_path).suffix.lower()
-    language = EXTENSION_TO_LANGUAGE.get(ext)
+    language = SOURCE_EXTENSION_TO_LANGUAGE.get(ext)
     if language is None:
         return False
 
@@ -501,7 +478,7 @@ def strip_comments_from_source(file_path: str, source: str) -> str:
     Newlines from removed ranges are preserved to keep the remaining text readable.
     """
     ext = Path(file_path).suffix.lower()
-    language = EXTENSION_TO_LANGUAGE.get(ext)
+    language = SOURCE_EXTENSION_TO_LANGUAGE.get(ext)
     if language is None:
         return source
 

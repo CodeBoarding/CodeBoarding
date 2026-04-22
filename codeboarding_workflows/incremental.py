@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import Any
 
 from diagram_analysis import DiagramGenerator
-from diagram_analysis.incremental_pipeline import run_incremental_pipeline
+from diagram_analysis.incremental.pipeline import run_incremental_pipeline
 from monitoring.paths import generate_log_path
 from utils import generate_run_id
 

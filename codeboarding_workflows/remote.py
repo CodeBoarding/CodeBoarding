@@ -4,8 +4,8 @@ from pathlib import Path
 
 import requests
 
-from codeboarding_workflows.files import copy_files
-from codeboarding_workflows.full import generate_analysis
+from codeboarding_workflows.artifact_copy import copy_analysis_artifacts
+from codeboarding_workflows.full_analysis import generate_analysis
 from codeboarding_workflows.markdown import generate_markdown_docs
 from diagram_analysis import RunContext
 from repo_utils import clone_repository, get_repo_name, upload_onboarding_materials
@@ -16,7 +16,11 @@ logger = logging.getLogger(__name__)
 
 def onboarding_materials_exist(project_name: str) -> bool:
     generated_repo_url = f"https://github.com/CodeBoarding/GeneratedOnBoardings/tree/main/{project_name}"
-    response = requests.get(generated_repo_url)
+    try:
+        response = requests.get(generated_repo_url, timeout=10)
+    except requests.RequestException as exc:
+        logger.warning("Cache probe failed for '%s' (%s); proceeding with generation.", project_name, exc)
+        return False
     if response.status_code == 200:
         logger.info(f"Repository has already been generated, please check {generated_repo_url}")
         return True
@@ -88,7 +92,7 @@ def process_remote_repository(
         )
 
         if output_dir:
-            copy_files(temp_folder, output_dir)
+            copy_analysis_artifacts(temp_folder, output_dir)
 
         if upload:
             upload_onboarding_materials(repo_name, temp_folder, "results")

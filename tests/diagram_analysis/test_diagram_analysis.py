@@ -26,6 +26,7 @@ from diagram_analysis.analysis_json import (
 )
 from diagram_analysis.diagram_generator import DiagramGenerator
 from diagram_analysis.version import Version
+from repo_utils.parsed_diff import ParsedGitDiff
 from static_analyzer.analysis_result import StaticAnalysisResults
 
 
@@ -712,7 +713,7 @@ class TestGenerateAnalysisIncrementalFailedPatches(unittest.TestCase):
 
     def _build_delta(self):
         from agents.change_status import ChangeStatus
-        from diagram_analysis.incremental_types import FileDelta, IncrementalDelta, MethodChange
+        from diagram_analysis.incremental.delta import FileDelta, IncrementalDelta, MethodChange
 
         modified = MethodChange(
             qualified_name="src.utils.alpha",
@@ -731,7 +732,7 @@ class TestGenerateAnalysisIncrementalFailedPatches(unittest.TestCase):
         return IncrementalDelta(file_deltas=[file_delta])
 
     def _trace_result_with_impact(self):
-        from diagram_analysis.incremental_models import ImpactedComponent, TraceResult, TraceStopReason
+        from diagram_analysis.incremental.models import ImpactedComponent, TraceResult, TraceStopReason
 
         return TraceResult(
             impacted_components=[
@@ -745,13 +746,17 @@ class TestGenerateAnalysisIncrementalFailedPatches(unittest.TestCase):
     @patch("diagram_analysis.diagram_generator.classify_scope")
     @patch("diagram_analysis.diagram_generator.run_trace")
     def test_all_patches_failed_does_not_overwrite_analysis(self, mock_run_trace, _mock_classify):
-        from diagram_analysis.incremental_models import IncrementalSummaryKind
+        from diagram_analysis.incremental.models import IncrementalSummaryKind
 
         mock_run_trace.return_value = self._trace_result_with_impact()
 
         gen = self._build_generator()
         with patch.object(gen, "_run_component_patches", return_value=({}, [self.component_id])):
-            result = gen.generate_analysis_incremental(delta=self._build_delta(), base_ref="baseline")
+            result = gen.generate_analysis_incremental(
+                delta=self._build_delta(),
+                base_ref="baseline",
+                parsed_diff=ParsedGitDiff(base_ref="baseline", target_ref=""),
+            )
 
         self.assertEqual(result.summary.kind, IncrementalSummaryKind.REQUIRES_FULL_ANALYSIS)
         self.assertTrue(result.summary.requires_full_analysis)
@@ -762,7 +767,7 @@ class TestGenerateAnalysisIncrementalFailedPatches(unittest.TestCase):
     @patch("diagram_analysis.diagram_generator.classify_scope")
     @patch("diagram_analysis.diagram_generator.run_trace")
     def test_partial_patch_failure_requires_full_analysis(self, mock_run_trace, _mock_classify):
-        from diagram_analysis.incremental_models import (
+        from diagram_analysis.incremental.models import (
             ImpactedComponent,
             IncrementalSummaryKind,
             TraceResult,
@@ -784,7 +789,11 @@ class TestGenerateAnalysisIncrementalFailedPatches(unittest.TestCase):
 
         gen = self._build_generator()
         with patch.object(gen, "_run_component_patches", return_value=({patched_id: fake_patched}, [failed_id])):
-            result = gen.generate_analysis_incremental(delta=self._build_delta(), base_ref="baseline")
+            result = gen.generate_analysis_incremental(
+                delta=self._build_delta(),
+                base_ref="baseline",
+                parsed_diff=ParsedGitDiff(base_ref="baseline", target_ref=""),
+            )
 
         self.assertEqual(result.summary.kind, IncrementalSummaryKind.SCOPED_REANALYSIS)
         self.assertTrue(result.summary.requires_full_analysis)

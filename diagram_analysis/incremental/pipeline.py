@@ -20,18 +20,18 @@ from typing import Any
 
 from agents.agent_responses import MethodEntry
 from diagram_analysis.diagram_generator import DiagramGenerator
-from diagram_analysis.incremental_models import (
+from diagram_analysis.incremental.models import (
     IncrementalRunResult,
     IncrementalSummary,
     IncrementalSummaryKind,
 )
-from diagram_analysis.incremental_tracer import TraceConfig
-from diagram_analysis.incremental_updater import IncrementalUpdater, SymbolResolver
+from diagram_analysis.incremental.tracer import TraceConfig
+from diagram_analysis.incremental.updater import IncrementalUpdater, SymbolResolver
 from diagram_analysis.io_utils import load_full_analysis
 from diagram_analysis.run_metadata import last_successful_commit, worktree_has_changes, write_last_run_metadata
 from repo_utils.change_detector import ChangeType, detect_changes_from_parsed_diff
 from repo_utils.ignore import initialize_codeboardingignore
-from repo_utils.parsed_diff import load_parsed_git_diff
+from repo_utils.parsed_diff import get_parsed_git_diff
 from repo_utils import get_git_commit_hash, get_repo_state_hash
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.node import Node
@@ -209,7 +209,7 @@ def run_incremental_pipeline(
                 "--target-ref cannot be combined with a dirty worktree; "
                 "commit or stash local changes, or omit --target-ref."
             )
-    parsed_diff = load_parsed_git_diff(repo_path, resolved_base_ref, resolved_target_ref)
+    parsed_diff = get_parsed_git_diff(repo_path, resolved_base_ref, resolved_target_ref)
     if parsed_diff.error:
         return _full_required_payload(f"Git diff failed for incremental analysis: {parsed_diff.error}")
 
@@ -266,7 +266,7 @@ def run_incremental_pipeline(
     updater = IncrementalUpdater(
         root_analysis,
         symbol_resolver=symbol_resolver,
-        repo_dir=repo_path,
+        parsed_diff=parsed_diff,
     )
     delta = updater.compute_delta(
         added_files=changes.added_files,

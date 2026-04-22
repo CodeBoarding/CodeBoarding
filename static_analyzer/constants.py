@@ -26,6 +26,25 @@ class Language(StrEnum):
     CPP = "cpp"
 
 
+# Source file extensions CodeBoarding analyzes. Authoritative set used by the
+# diff boundary (repo_utils/parsed_diff.py) to filter out non-source changes,
+# and by semantic_diff / incremental_tracer to route files to the right parser.
+SOURCE_EXTENSION_TO_LANGUAGE: dict[str, Language] = {
+    ".py": Language.PYTHON,
+    ".ts": Language.TYPESCRIPT,
+    ".tsx": Language.TYPESCRIPT,
+    ".mts": Language.TYPESCRIPT,
+    ".cts": Language.TYPESCRIPT,
+    ".js": Language.JAVASCRIPT,
+    ".jsx": Language.JAVASCRIPT,
+    ".mjs": Language.JAVASCRIPT,
+    ".cjs": Language.JAVASCRIPT,
+    ".go": Language.GO,
+    ".java": Language.JAVA,
+    ".php": Language.PHP,
+}
+
+
 class ClusteringConfig:
     """Configuration constants for graph clustering algorithms.
 

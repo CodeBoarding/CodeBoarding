@@ -13,12 +13,12 @@ from textwrap import dedent
 import pytest
 
 from agents.change_status import ChangeStatus
-from diagram_analysis.incremental_tracer import (
+from diagram_analysis.incremental.tracer import (
     ChangeGroup,
     _collapse_fallback_groups,
     build_trace_plan,
 )
-from diagram_analysis.incremental_types import FileDelta, IncrementalDelta, MethodChange
+from diagram_analysis.incremental.delta import FileDelta, IncrementalDelta, MethodChange
 from static_analyzer.constants import NodeType
 from static_analyzer.graph import CallGraph
 from static_analyzer.node import Node

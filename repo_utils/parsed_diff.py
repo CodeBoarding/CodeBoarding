@@ -1,6 +1,6 @@
 """Shared git diff parsing for incremental analysis.
 
-Loads a single rename-aware patch diff and exposes both file-level metadata and
+Runs a single rename-aware `git diff` and exposes both file-level metadata and
 parsed hunk content for downstream consumers.
 """
 
@@ -10,11 +10,36 @@ import logging
 import re
 import subprocess
 from dataclasses import dataclass, field
+from enum import Enum
 from pathlib import Path
+
+from static_analyzer.constants import SOURCE_EXTENSION_TO_LANGUAGE
 
 logger = logging.getLogger(__name__)
 
 _HUNK_SIDE_RE = re.compile(r"^[+-](\d+)(?:,(\d+))?$")
+_DIFF_CONTEXT_LINES = 3
+_EXCLUDE_PATTERNS: tuple[str, ...] = (".codeboarding/",)
+
+
+class ChangeType(Enum):
+    """Git diff status codes."""
+
+    ADDED = "A"
+    COPIED = "C"
+    DELETED = "D"
+    MODIFIED = "M"
+    RENAMED = "R"
+    TYPE_CHANGED = "T"
+    UNMERGED = "U"
+    UNKNOWN = "X"
+
+    @classmethod
+    def from_status_code(cls, code: str) -> "ChangeType":
+        try:
+            return cls(code.upper())
+        except ValueError:
+            return cls.UNKNOWN
 
 
 @dataclass
@@ -39,6 +64,21 @@ class ParsedDiffFile:
     patch_text: str = ""
     hunks: list[ParsedDiffHunk] = field(default_factory=list)
 
+    @property
+    def change_type(self) -> ChangeType:
+        return ChangeType.from_status_code(self.status_code)
+
+    def is_rename(self) -> bool:
+        return self.change_type == ChangeType.RENAMED
+
+    def is_content_change(self) -> bool:
+        """True if file content was modified (not just metadata/rename)."""
+        return self.change_type in (ChangeType.MODIFIED, ChangeType.ADDED)
+
+    def is_structural(self) -> bool:
+        """True if this affects file existence (add/delete)."""
+        return self.change_type in (ChangeType.ADDED, ChangeType.DELETED)
+
 
 @dataclass
 class ParsedGitDiff:
@@ -54,6 +94,20 @@ class ParsedGitDiff:
             if file_diff.file_path == file_path:
                 return file_diff
         return None
+
+
+def _is_source_path(path: str) -> bool:
+    """Return True if *path* has an extension CodeBoarding analyzes."""
+    return Path(path).suffix.lower() in SOURCE_EXTENSION_TO_LANGUAGE
+
+
+def _file_is_relevant(file_diff: ParsedDiffFile) -> bool:
+    """Return True if *file_diff* references a source file on either side of a rename."""
+    if _is_source_path(file_diff.file_path):
+        return True
+    if file_diff.old_path and _is_source_path(file_diff.old_path):
+        return True
+    return False
 
 
 def _parse_hunk_side(side: str) -> tuple[int, int]:
@@ -146,7 +200,7 @@ def _parse_diff_output(output: str, base_ref: str, target_ref: str) -> ParsedGit
     for line in output.splitlines():
         if line.startswith(":"):
             finalized = _finalize_file_diff(current_file, patch_lines)
-            if finalized is not None:
+            if finalized is not None and _file_is_relevant(finalized):
                 files.append(finalized)
 
             current_file = _parse_raw_line(line)
@@ -157,29 +211,26 @@ def _parse_diff_output(output: str, base_ref: str, target_ref: str) -> ParsedGit
             patch_lines.append(line)
 
     finalized = _finalize_file_diff(current_file, patch_lines)
-    if finalized is not None:
+    if finalized is not None and _file_is_relevant(finalized):
         files.append(finalized)
 
     return ParsedGitDiff(base_ref=base_ref, target_ref=target_ref, files=files)
 
 
-def load_parsed_git_diff(
+def get_parsed_git_diff(
     repo_dir: Path,
     base_ref: str,
     target_ref: str = "HEAD",
-    context_lines: int = 3,
-    fetch_missing_refs: bool = True,
-    exclude_patterns: list[str] | None = None,
 ) -> ParsedGitDiff:
-    """Load a parsed diff with both raw status data and patch hunks."""
-    target_ref_value = target_ref
-    if exclude_patterns is None:
-        exclude_patterns = [".codeboarding/"]
+    """Run ``git diff`` and return parsed file-level metadata plus hunk content.
+
+    On a ``bad object`` error for the base ref, fetches all refs once and retries.
+    """
     cmd = [
         "git",
         "diff",
         "--raw",
-        f"-U{context_lines}",
+        f"-U{_DIFF_CONTEXT_LINES}",
         "-M",
         "-C",
         "--find-renames=50%",
@@ -187,76 +238,60 @@ def load_parsed_git_diff(
     ]
     if target_ref:
         cmd.append(target_ref)
-    if exclude_patterns:
-        cmd.extend(["--", "."])
-        cmd.extend(f":!{pattern}" for pattern in exclude_patterns)
+    cmd.extend(["--", "."])
+    cmd.extend(f":!{pattern}" for pattern in _EXCLUDE_PATTERNS)
 
     def _run_diff() -> subprocess.CompletedProcess[str]:
-        return subprocess.run(
-            cmd,
-            cwd=repo_dir,
-            capture_output=True,
-            text=True,
-            check=True,
-        )
+        return subprocess.run(cmd, cwd=repo_dir, capture_output=True, text=True, check=True)
 
     try:
         result = _run_diff()
     except subprocess.CalledProcessError as exc:
         stderr_lower = (exc.stderr or "").lower()
-        if fetch_missing_refs and "bad object" in stderr_lower:
-            logger.warning(
-                "Git diff failed due to missing ref (%s); fetching refs and retrying once", exc.stderr.strip()
-            )
-            try:
-                subprocess.run(
-                    ["git", "fetch", "--all", "--prune", "--tags"],
-                    cwd=repo_dir,
-                    capture_output=True,
-                    text=True,
-                    check=True,
-                )
-                result = _run_diff()
-            except subprocess.CalledProcessError as fetch_err:
-                logger.error("Git fetch/diff retry failed: %s", fetch_err.stderr)
-                return ParsedGitDiff(
-                    base_ref=base_ref,
-                    target_ref=target_ref_value,
-                    error=(fetch_err.stderr or str(fetch_err)).strip(),
-                )
-        else:
+        if "bad object" not in stderr_lower:
             logger.error("Git diff failed: %s", exc.stderr)
+            return ParsedGitDiff(base_ref=base_ref, target_ref=target_ref, error=(exc.stderr or str(exc)).strip())
+
+        logger.warning("Git diff failed due to missing ref (%s); fetching refs and retrying once", exc.stderr.strip())
+        try:
+            subprocess.run(
+                ["git", "fetch", "--all", "--prune", "--tags"],
+                cwd=repo_dir,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            result = _run_diff()
+        except subprocess.CalledProcessError as fetch_err:
+            logger.error("Git fetch/diff retry failed: %s", fetch_err.stderr)
             return ParsedGitDiff(
                 base_ref=base_ref,
-                target_ref=target_ref_value,
-                error=(exc.stderr or str(exc)).strip(),
+                target_ref=target_ref,
+                error=(fetch_err.stderr or str(fetch_err)).strip(),
             )
     except FileNotFoundError:
         logger.error("Git not found in PATH")
-        return ParsedGitDiff(base_ref=base_ref, target_ref=target_ref_value, error="Git not found in PATH")
+        return ParsedGitDiff(base_ref=base_ref, target_ref=target_ref, error="Git not found in PATH")
 
-    parsed = _parse_diff_output(result.stdout, base_ref, target_ref_value)
+    parsed = _parse_diff_output(result.stdout, base_ref, target_ref)
 
-    if not target_ref_value:
-        _append_untracked_files(parsed, repo_dir, exclude_patterns)
+    if not target_ref:
+        _append_untracked_files(parsed, repo_dir)
 
     return parsed
 
 
-def _append_untracked_files(
-    parsed: ParsedGitDiff,
-    repo_dir: Path,
-    exclude_patterns: list[str],
-) -> None:
+def _append_untracked_files(parsed: ParsedGitDiff, repo_dir: Path) -> None:
     """Inject untracked worktree files as ADDED entries.
 
     `git diff` does not list files unknown to the index, so a user editing
     against the current worktree would otherwise get ``no_changes`` for a
     freshly created file until they ``git add`` it. Only applied for
-    worktree diffs (empty target_ref).
+    worktree diffs (empty target_ref). Entries without a source extension
+    that CodeBoarding analyzes are filtered out, matching ``_parse_diff_output``.
     """
     cmd = ["git", "ls-files", "--others", "--exclude-standard", "-z", "--", "."]
-    cmd.extend(f":!{pattern}" for pattern in exclude_patterns)
+    cmd.extend(f":!{pattern}" for pattern in _EXCLUDE_PATTERNS)
     try:
         result = subprocess.run(cmd, cwd=repo_dir, capture_output=True, text=True, check=True)
     except (subprocess.CalledProcessError, FileNotFoundError) as exc:
@@ -266,16 +301,21 @@ def _append_untracked_files(
 
     existing = {file_diff.file_path for file_diff in parsed.files}
     for path in result.stdout.split("\0"):
-        if not path or path in existing:
+        if not path or path in existing or not _is_source_path(path):
             continue
         parsed.files.append(ParsedDiffFile(status_code="A", file_path=path))
         existing.add(path)
 
 
-def classify_new_file_ranges(
+def classify_hunk_ranges(
     hunks: list[ParsedDiffHunk],
 ) -> tuple[list[tuple[int, int]], list[tuple[int, int]], list[tuple[int, int]]]:
-    """Return exact new-file line ranges for additions, modifications, and deletions."""
+    """Walk hunk bodies and return exact new-file ranges: (added, changed, deletion_points).
+
+    Why: header counts (``new_count``) include context lines around changes, so a single
+    hunk spanning two change islands over-reports the touched range. Walking +/-/space
+    lines flushes a segment on every context line, yielding the true changed ranges.
+    """
     added_ranges: list[tuple[int, int]] = []
     changed_ranges: list[tuple[int, int]] = []
     deletion_points: list[tuple[int, int]] = []

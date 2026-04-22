@@ -8,7 +8,7 @@ def test_cli_dispatches_incremental_mode() -> None:
         patch("codeboarding_cli.parser.incremental.run_from_args") as run_incremental,
         patch("codeboarding_cli.parser.full.run_from_args") as run_full,
     ):
-        main(["--local", "/tmp/repo", "--incremental"])
+        main(["incremental", "--local", "/tmp/repo"])
 
     run_incremental.assert_called_once()
     run_full.assert_not_called()
@@ -19,17 +19,17 @@ def test_cli_dispatches_full_by_default() -> None:
         patch("codeboarding_cli.parser.incremental.run_from_args") as run_incremental,
         patch("codeboarding_cli.parser.full.run_from_args") as run_full,
     ):
-        main(["--local", "/tmp/repo"])
+        main(["full", "--local", "/tmp/repo"])
 
     run_full.assert_called_once()
     run_incremental.assert_not_called()
 
 
-def test_full_flag_registered_and_defaults_false() -> None:
-    args = build_parser().parse_args(["--local", "/tmp/repo"])
-    assert args.full is False
+def test_force_flag_registered_and_defaults_false() -> None:
+    args = build_parser().parse_args(["full", "--local", "/tmp/repo"])
+    assert args.force is False
 
 
-def test_full_flag_sets_true_when_passed() -> None:
-    args = build_parser().parse_args(["--local", "/tmp/repo", "--full"])
-    assert args.full is True
+def test_force_flag_sets_true_when_passed() -> None:
+    args = build_parser().parse_args(["full", "--local", "/tmp/repo", "--force"])
+    assert args.force is True

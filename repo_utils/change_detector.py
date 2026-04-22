@@ -1,350 +1,93 @@
-"""
-Rename-aware change detection using git.
+"""Rename-aware change detection built on top of a parsed git diff.
 
-This module provides enhanced change detection that properly tracks:
-- File renames (with similarity percentage)
-- File modifications
-- Added/deleted files
-- Copy detection
-
-Uses `git diff --name-status -M -C` for accurate rename tracking.
+Exposes :class:`ChangeSet` — a view over ``ParsedGitDiff.files`` with
+analysis-friendly accessors (renames, added/modified/deleted file lists,
+structural-change predicates) — plus :func:`get_current_commit`.
 """
 
 import logging
 import subprocess
 from dataclasses import dataclass, field
-from enum import Enum
 from pathlib import Path
 
-from repo_utils.parsed_diff import ParsedDiffFile, ParsedGitDiff
+from repo_utils.parsed_diff import ChangeType, ParsedDiffFile, ParsedGitDiff
 
 logger = logging.getLogger(__name__)
 
 
-class ChangeType(Enum):
-    """Git change status types."""
-
-    ADDED = "A"
-    COPIED = "C"
-    DELETED = "D"
-    MODIFIED = "M"
-    RENAMED = "R"
-    TYPE_CHANGED = "T"
-    UNMERGED = "U"
-    UNKNOWN = "X"
-
-
-@dataclass
-class DetectedChange:
-    """A detected file change with rename tracking."""
-
-    change_type: ChangeType
-    file_path: str  # Current/new path
-    old_path: str | None = None  # For renames/copies: the original path
-    similarity: int | None = None  # For renames/copies: 0-100%
-
-    def is_rename(self) -> bool:
-        return self.change_type == ChangeType.RENAMED
-
-    def is_content_change(self) -> bool:
-        """Returns True if file content was modified (not just metadata/rename)."""
-        return self.change_type in (ChangeType.MODIFIED, ChangeType.ADDED)
-
-    def is_structural(self) -> bool:
-        """Returns True if this affects file existence (add/delete)."""
-        return self.change_type in (ChangeType.ADDED, ChangeType.DELETED)
-
-    def to_dict(self) -> dict[str, str | int | None]:
-        return {
-            "change_type": self.change_type.value,
-            "file_path": self.file_path,
-            "old_path": self.old_path,
-            "similarity": self.similarity,
-        }
-
-
 @dataclass
 class ChangeSet:
-    """Collection of detected changes with helper methods."""
+    """Collection of diff entries with helper accessors."""
 
-    changes: list[DetectedChange] = field(default_factory=list)
+    changes: list[ParsedDiffFile] = field(default_factory=list)
     base_ref: str = ""
     target_ref: str = "HEAD"
 
     @property
     def renames(self) -> dict[str, str]:
-        """Get rename mapping: old_path -> new_path."""
+        """old_path -> new_path for rename entries."""
         return {c.old_path: c.file_path for c in self.changes if c.is_rename() and c.old_path}
 
     @property
     def modified_files(self) -> list[str]:
-        """Get list of modified file paths."""
         return [c.file_path for c in self.changes if c.change_type == ChangeType.MODIFIED]
 
     @property
     def added_files(self) -> list[str]:
-        """Get list of added file paths."""
         return [c.file_path for c in self.changes if c.change_type == ChangeType.ADDED]
 
     @property
     def deleted_files(self) -> list[str]:
-        """Get list of deleted file paths."""
         return [c.file_path for c in self.changes if c.change_type == ChangeType.DELETED]
 
     @property
     def all_affected_files(self) -> set[str]:
-        """Get all files that were affected (current paths)."""
         return {c.file_path for c in self.changes}
 
     @property
     def all_old_paths(self) -> set[str]:
-        """Get all old paths (for renames)."""
         return {c.old_path for c in self.changes if c.old_path}
 
     def is_empty(self) -> bool:
         return len(self.changes) == 0
 
     def has_structural_changes(self) -> bool:
-        """Returns True if any files were added or deleted."""
         return any(c.is_structural() for c in self.changes)
 
     def has_only_renames(self) -> bool:
-        """Returns True if all changes are pure renames."""
-        return all(c.is_rename() for c in self.changes) and len(self.changes) > 0
+        return len(self.changes) > 0 and all(c.is_rename() for c in self.changes)
 
     def to_dict(self) -> dict[str, object]:
         return {
-            "changes": [change.to_dict() for change in self.changes],
+            "changes": [
+                {
+                    "change_type": c.status_code,
+                    "file_path": c.file_path,
+                    "old_path": c.old_path,
+                    "similarity": c.similarity,
+                }
+                for c in self.changes
+            ],
             "base_ref": self.base_ref,
             "target_ref": self.target_ref,
         }
 
 
-def detect_changes(
-    repo_dir: Path,
-    base_ref: str,
-    target_ref: str = "HEAD",
-    exclude_patterns: list[str] | None = None,
-    fetch_missing_refs: bool = True,
-) -> ChangeSet:
+def detect_changes_from_parsed_diff(parsed_diff: ParsedGitDiff) -> ChangeSet:
+    """Wrap a ``ParsedGitDiff`` as a ``ChangeSet`` for analysis-side access.
+
+    Path exclusion already happens inside ``get_parsed_git_diff`` via git
+    pathspecs, so no further filtering is needed here.
     """
-    Detect file changes between two refs using rename-aware git diff.
-
-    Args:
-        repo_dir: Path to the git repository
-        base_ref: Base reference (commit hash, tag, or branch)
-        target_ref: Optional target reference. If provided, compares
-            ``base_ref`` to ``target_ref``. If empty, compares
-            ``base_ref`` to the current working tree (including uncommitted
-            changes).
-        exclude_patterns: List of path patterns to exclude (e.g., [".codeboarding/"])
-
-    Returns:
-        ChangeSet with all detected changes
-
-    Example:
-        changes = detect_changes(repo_path, "abc1234")
-        for rename_old, rename_new in changes.renames.items():
-            logger.info(f"Renamed: {rename_old} -> {rename_new}")
-    """
-    changes: list[DetectedChange] = []
-    target_ref_value = target_ref
-
-    # Default exclusions for analysis output directories
-    if exclude_patterns is None:
-        exclude_patterns = [".codeboarding/", ".codeboarding\\"]
-
-    cmd = [
-        "git",
-        "diff",
-        "--name-status",
-        "-M",
-        "-C",
-        "--find-renames=50%",
-        base_ref,
-    ]
-    if target_ref:
-        cmd.append(target_ref)
-
-    def _run_diff() -> subprocess.CompletedProcess:
-        return subprocess.run(
-            cmd,
-            cwd=repo_dir,
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-
-    try:
-        result = _run_diff()
-    except subprocess.CalledProcessError as e:
-        stderr_lower = (e.stderr or "").lower()
-        if fetch_missing_refs and "bad object" in stderr_lower:
-            logger.warning("Git diff failed due to missing ref (%s); fetching refs and retrying once", e.stderr.strip())
-            try:
-                subprocess.run(
-                    ["git", "fetch", "--all", "--prune", "--tags"],
-                    cwd=repo_dir,
-                    capture_output=True,
-                    text=True,
-                    check=True,
-                )
-                result = _run_diff()
-            except subprocess.CalledProcessError as fetch_err:
-                logger.error(f"Git fetch/diff retry failed: {fetch_err.stderr}")
-                return ChangeSet(changes=changes, base_ref=base_ref, target_ref=target_ref_value)
-        else:
-            logger.error(f"Git diff failed: {e.stderr}")
-            return ChangeSet(changes=changes, base_ref=base_ref, target_ref=target_ref_value)
-    except FileNotFoundError:
-        logger.error("Git not found in PATH")
-        return ChangeSet(changes=changes, base_ref=base_ref, target_ref=target_ref_value)
-
-    for line in result.stdout.strip().split("\n"):
-        if not line:
-            continue
-
-        change = _parse_status_line(line)
-        if change:
-            # Skip excluded patterns
-            should_skip = False
-            for pattern in exclude_patterns:
-                if change.file_path.startswith(pattern):
-                    should_skip = True
-                    break
-                if change.old_path and change.old_path.startswith(pattern):
-                    should_skip = True
-                    break
-
-            if should_skip:
-                logger.debug(f"Skipping excluded path: {change.file_path}")
-                continue
-
-            changes.append(change)
-            logger.debug(f"Detected change: {change.change_type.name} {change.file_path}")
-
-    return ChangeSet(changes=changes, base_ref=base_ref, target_ref=target_ref_value)
-
-
-def detect_changes_from_commit(repo_dir: Path, base_commit: str) -> ChangeSet:
-    """
-    Detect changes from a specific commit to current working tree.
-
-    This includes both committed and uncommitted changes.
-    """
-    return detect_changes(repo_dir, base_commit, "")
-
-
-def detect_uncommitted_changes(repo_dir: Path) -> ChangeSet:
-    """
-    Detect only uncommitted changes (staged + unstaged).
-    """
-    return detect_changes(repo_dir, "HEAD", "")
-
-
-def _parse_status_line(line: str) -> DetectedChange | None:
-    """
-    Parse a git diff --name-status line.
-
-    Format examples:
-        M       file.py                     # Modified
-        A       newfile.py                  # Added
-        D       oldfile.py                  # Deleted
-        R100    old.py  new.py              # Renamed (100% similar)
-        R075    old.py  new.py              # Renamed (75% similar)
-        C100    src.py  copy.py             # Copied
-
-    Returns DetectedChange or None if parsing fails.
-    """
-    parts = line.split("\t")
-    if len(parts) < 2:
-        return None
-
-    status = parts[0]
-    status_char = status[0].upper()
-
-    try:
-        change_type = ChangeType(status_char)
-    except ValueError:
-        logger.warning(f"Unknown git status: {status_char}")
-        return None
-
-    # Handle renames and copies (have similarity percentage and two paths)
-    if change_type in (ChangeType.RENAMED, ChangeType.COPIED):
-        if len(parts) < 3:
-            return None
-
-        # Extract similarity percentage (e.g., "R100" -> 100)
-        similarity = None
-        if len(status) > 1:
-            try:
-                similarity = int(status[1:])
-            except ValueError:
-                pass
-
-        return DetectedChange(
-            change_type=change_type,
-            file_path=parts[2],  # New path
-            old_path=parts[1],  # Old path
-            similarity=similarity,
-        )
-
-    # Simple change (A, M, D, T)
-    return DetectedChange(
-        change_type=change_type,
-        file_path=parts[1],
+    return ChangeSet(
+        changes=list(parsed_diff.files),
+        base_ref=parsed_diff.base_ref,
+        target_ref=parsed_diff.target_ref,
     )
-
-
-def _detected_change_from_parsed_diff(file_diff: ParsedDiffFile) -> DetectedChange | None:
-    """Convert one ``ParsedDiffFile`` into a ``DetectedChange``."""
-    status = file_diff.status_code.upper()
-    try:
-        change_type = ChangeType(status)
-    except ValueError:
-        logger.warning("Unknown git status: %s", status)
-        return None
-
-    return DetectedChange(
-        change_type=change_type,
-        file_path=file_diff.file_path,
-        old_path=file_diff.old_path,
-        similarity=file_diff.similarity,
-    )
-
-
-def detect_changes_from_parsed_diff(
-    parsed_diff: ParsedGitDiff,
-    exclude_patterns: list[str] | None = None,
-) -> ChangeSet:
-    """Build a ``ChangeSet`` from an already-loaded ``ParsedGitDiff``.
-
-    Allows callers that need both file-level status and per-file hunks to share
-    a single ``git diff`` invocation instead of running two.
-    """
-    if exclude_patterns is None:
-        exclude_patterns = [".codeboarding/", ".codeboarding\\"]
-
-    changes: list[DetectedChange] = []
-    for file_diff in parsed_diff.files:
-        change = _detected_change_from_parsed_diff(file_diff)
-        if change is None:
-            continue
-
-        should_skip = any(
-            change.file_path.startswith(p) or (change.old_path and change.old_path.startswith(p))
-            for p in exclude_patterns
-        )
-        if should_skip:
-            continue
-
-        changes.append(change)
-
-    return ChangeSet(changes=changes, base_ref=parsed_diff.base_ref, target_ref=parsed_diff.target_ref)
 
 
 def get_current_commit(repo_dir: Path) -> str | None:
-    """Get the current HEAD commit hash."""
+    """Get the current HEAD commit hash, or None if git fails."""
     try:
         result = subprocess.run(
             ["git", "rev-parse", "HEAD"],

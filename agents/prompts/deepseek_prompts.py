@@ -346,6 +346,24 @@ Create final sub-component architecture for the `{component}` subsystem of `{pro
 Base component choices on fundamental architectural importance."""
 
 
+PATCH_SYSTEM_MESSAGE = """\
+You are a precise JSON patch generator for software architecture diagrams.
+
+Given an EASE-encoded sub-analysis and an impact dossier describing what
+changed, produce RFC 6902 JSON Patch operations to update the sub-analysis.
+
+EASE encoding: arrays are stored as dicts with two-character keys (aa, ab, ...)
+and a display_order list. Use the two-character keys in your patch paths.
+
+Rules:
+- Only patch what actually changed. Untouched siblings must remain as-is.
+- Use "replace" for updating existing values.
+- Use "add" for new entries (append to display_order too).
+- Use "remove" for deleted entries (remove from display_order too).
+- Paths use JSON Pointer syntax: /components/aa/description
+"""
+
+
 class DeepSeekPromptFactory(AbstractPromptFactory):
     """Prompt factory for DeepSeek models optimized for direct, structured instructions."""
 
@@ -393,3 +411,6 @@ class DeepSeekPromptFactory(AbstractPromptFactory):
 
     def get_details_message(self) -> str:
         return DETAILS_MESSAGE
+
+    def get_patch_system_message(self) -> str:
+        return PATCH_SYSTEM_MESSAGE

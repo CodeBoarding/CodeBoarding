@@ -3,6 +3,11 @@
 Given impacted components from the tracer, extracts the parent sub-analysis,
 EASE-encodes it, asks the LLM for RFC 6902 patches, applies them, validates
 the result, and merges back into the full analysis.
+
+Structured output uses trustcall's ``create_extractor`` — the same pattern
+``agents/agent.py`` uses for parsing LLM responses into Pydantic models. The
+extractor binds ``AnalysisPatch`` as the tool schema and forces the LLM to emit
+a tool call matching it, so ``result["responses"][0]`` is already schema-valid.
 """
 
 import json
@@ -15,8 +20,9 @@ from pydantic import ValidationError
 from trustcall import create_extractor
 
 from agents.agent_responses import AnalysisInsights
+from agents.prompts.prompt_factory import get_patch_system_message
 from diagram_analysis.ease import ease_decode, ease_encode
-from diagram_analysis.incremental_models import AnalysisPatch, ImpactedComponent
+from diagram_analysis.incremental.models import AnalysisPatch, ImpactedComponent
 
 logger = logging.getLogger(__name__)
 
@@ -73,22 +79,6 @@ def _decode_sub_analysis(encoded: dict[str, Any]) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 # Prompt construction
 # ---------------------------------------------------------------------------
-_PATCH_SYSTEM = """\
-You are a precise JSON patch generator for software architecture diagrams.
-
-Given an EASE-encoded sub-analysis and an impact dossier describing what
-changed, produce RFC 6902 JSON Patch operations to update the sub-analysis.
-
-EASE encoding: arrays are stored as dicts with two-character keys (aa, ab, ...)
-and a display_order list. Use the two-character keys in your patch paths.
-
-Rules:
-- Only patch what actually changed. Untouched siblings must remain as-is.
-- Use "replace" for updating existing values.
-- Use "add" for new entries (append to display_order too).
-- Use "remove" for deleted entries (remove from display_order too).
-- Paths use JSON Pointer syntax: /components/aa/description
-"""
 
 
 def _build_patch_prompt(
@@ -163,7 +153,7 @@ def patch_sub_analysis(
     last_error = ""
     for attempt in range(MAX_PATCH_RETRIES):
         try:
-            full_prompt = _PATCH_SYSTEM + "\n\n" + prompt
+            full_prompt = get_patch_system_message() + "\n\n" + prompt
             if last_error:
                 full_prompt += f"\n\nPrevious attempt failed validation: {last_error}\nPlease fix the patch."
 

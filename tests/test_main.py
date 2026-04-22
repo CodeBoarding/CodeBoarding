@@ -4,8 +4,9 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, Mock, call, patch, ANY
 
-from codeboarding_workflows.files import copy_files
-from codeboarding_workflows.full import generate_analysis, process_local_repository
+from codeboarding_workflows.artifact_copy import copy_analysis_artifacts
+from codeboarding_workflows.full_analysis import generate_analysis
+from codeboarding_workflows.local import process_local_repository
 from codeboarding_workflows.markdown import generate_markdown_docs
 from codeboarding_workflows.partial import partial_update
 from codeboarding_workflows.remote import onboarding_materials_exist, process_remote_repository
@@ -40,7 +41,7 @@ class TestOnboardingMaterialsExist(unittest.TestCase):
 
 
 class TestGenerateAnalysis(unittest.TestCase):
-    @patch("codeboarding_workflows.full.DiagramGenerator")
+    @patch("codeboarding_workflows.full_analysis.DiagramGenerator")
     def test_generate_analysis(self, mock_generator_class):
         # Test generate_analysis function
         mock_generator = MagicMock()
@@ -75,7 +76,7 @@ class TestGenerateAnalysis(unittest.TestCase):
             )
             mock_generator.generate_analysis.assert_called_once()
 
-    @patch("codeboarding_workflows.full.DiagramGenerator")
+    @patch("codeboarding_workflows.full_analysis.DiagramGenerator")
     def test_generate_analysis_with_force_full(self, mock_generator_class):
         mock_generator = MagicMock()
         mock_generator.generate_analysis.return_value = [Path("analysis.json")]
@@ -294,7 +295,7 @@ class TestPartialUpdate(unittest.TestCase):
 
 class TestProcessRemoteRepository(unittest.TestCase):
     @patch("codeboarding_workflows.remote.upload_onboarding_materials")
-    @patch("codeboarding_workflows.remote.copy_files")
+    @patch("codeboarding_workflows.remote.copy_analysis_artifacts")
     @patch("codeboarding_workflows.remote.generate_markdown_docs")
     @patch("codeboarding_workflows.remote.generate_analysis")
     @patch("codeboarding_workflows.remote.remove_temp_repo_folder")
@@ -311,7 +312,7 @@ class TestProcessRemoteRepository(unittest.TestCase):
         mock_remove_temp,
         mock_generate_analysis,
         mock_generate_markdown,
-        mock_copy_files,
+        mock_copy_artifacts,
         mock_upload,
     ):
         # Test with cache hit
@@ -330,7 +331,7 @@ class TestProcessRemoteRepository(unittest.TestCase):
         mock_generate_analysis.assert_not_called()
 
     @patch("codeboarding_workflows.remote.upload_onboarding_materials")
-    @patch("codeboarding_workflows.remote.copy_files")
+    @patch("codeboarding_workflows.remote.copy_analysis_artifacts")
     @patch("codeboarding_workflows.remote.generate_markdown_docs")
     @patch("codeboarding_workflows.remote.generate_analysis")
     @patch("codeboarding_workflows.remote.remove_temp_repo_folder")
@@ -345,7 +346,7 @@ class TestProcessRemoteRepository(unittest.TestCase):
         mock_remove_temp,
         mock_generate_analysis,
         mock_generate_markdown,
-        mock_copy_files,
+        mock_copy_artifacts,
         mock_upload,
     ):
         # Test successful processing
@@ -376,7 +377,7 @@ class TestProcessRemoteRepository(unittest.TestCase):
 
 
 class TestProcessLocalRepository(unittest.TestCase):
-    @patch("codeboarding_workflows.full.generate_analysis")
+    @patch("codeboarding_workflows.local.generate_analysis")
     def test_process_local_repository_full_analysis(self, mock_generate_analysis):
         # Test full analysis (no partial update)
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -406,7 +407,7 @@ class TestProcessLocalRepository(unittest.TestCase):
             )
             self.assertTrue(output_dir.exists())
 
-    @patch("codeboarding_workflows.full.partial_update")
+    @patch("codeboarding_workflows.local.partial_update")
     def test_process_local_repository_partial_update(self, mock_partial_update):
         # Test partial update
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -439,7 +440,7 @@ class TestFullCliForceFull(unittest.TestCase):
     @patch("codeboarding_cli.commands.full.RunContext")
     @patch("codeboarding_cli.commands.full.bootstrap_environment")
     @patch("codeboarding_cli.commands.full.process_local_repository")
-    def test_full_flag_propagates_force_full(self, mock_process, _mock_bootstrap, mock_run_context):
+    def test_force_flag_propagates_force_full(self, mock_process, _mock_bootstrap, mock_run_context):
         mock_run_context.resolve.return_value = MagicMock(run_id="r", log_path="l", finalize=lambda: None)
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -456,7 +457,7 @@ class TestFullCliForceFull(unittest.TestCase):
             args.depth_level = 1
             args.upload = False
             args.enable_monitoring = False
-            args.full = True
+            args.force = True
 
             run_from_args(args, MagicMock())
 
@@ -464,21 +465,19 @@ class TestFullCliForceFull(unittest.TestCase):
         self.assertTrue(mock_process.call_args.kwargs["force_full"])
 
 
-class TestCopyFiles(unittest.TestCase):
-    def test_copy_files_success(self):
-        # Test copying markdown and JSON files
+class TestCopyAnalysisArtifacts(unittest.TestCase):
+    def test_copy_analysis_artifacts_success(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_folder = Path(temp_dir) / "temp"
             temp_folder.mkdir()
             output_dir = Path(temp_dir) / "output"
             output_dir.mkdir(parents=True, exist_ok=True)
 
-            # Create test files
             (temp_folder / "test.md").write_text("# Test")
             (temp_folder / "data.json").write_text('{"key": "value"}')
             (temp_folder / "ignore.txt").write_text("ignore me")
 
-            copy_files(temp_folder, output_dir)
+            copy_analysis_artifacts(temp_folder, output_dir)
 
             # Check that only .md and .json files were copied
             self.assertTrue((output_dir / "test.md").exists())
@@ -487,8 +486,7 @@ class TestCopyFiles(unittest.TestCase):
 
 
 class TestValidateArguments(unittest.TestCase):
-    def test_validate_arguments_partial_without_local(self):
-        # Test partial update without local mode
+    def test_partial_without_local_errors(self):
         parser = MagicMock()
         args = MagicMock()
         args.repositories = ["https://github.com/test/repo"]
@@ -496,12 +494,12 @@ class TestValidateArguments(unittest.TestCase):
         args.partial_component_id = "test_comp_id"
         args.output_dir = None
         args.project_name = None
+        args.upload = False
 
-        validate_arguments(args, parser, is_local=False)
+        validate_arguments(args, parser)
         parser.error.assert_called_once()
 
-    def test_validate_arguments_valid_local(self):
-        # Test with valid local arguments
+    def test_valid_local(self):
         parser = MagicMock()
         args = MagicMock()
         args.repositories = None
@@ -509,12 +507,12 @@ class TestValidateArguments(unittest.TestCase):
         args.partial_component_id = None
         args.output_dir = None
         args.project_name = None
+        args.upload = False
 
-        validate_arguments(args, parser, is_local=True)
+        validate_arguments(args, parser)
         parser.error.assert_not_called()
 
-    def test_validate_arguments_valid_remote(self):
-        # Test valid remote arguments (no output-dir requirement anymore)
+    def test_valid_remote(self):
         parser = MagicMock()
         args = MagicMock()
         args.repositories = ["https://github.com/test/repo"]
@@ -522,12 +520,12 @@ class TestValidateArguments(unittest.TestCase):
         args.partial_component_id = None
         args.output_dir = None
         args.project_name = None
+        args.upload = False
 
-        validate_arguments(args, parser, is_local=False)
+        validate_arguments(args, parser)
         parser.error.assert_not_called()
 
-    def test_validate_arguments_both_local_and_remote(self):
-        # Test that providing both local and remote raises an error
+    def test_both_local_and_remote_errors(self):
         parser = MagicMock()
         args = MagicMock()
         args.repositories = ["https://github.com/test/repo"]
@@ -535,8 +533,22 @@ class TestValidateArguments(unittest.TestCase):
         args.partial_component_id = None
         args.output_dir = None
         args.project_name = None
+        args.upload = False
 
-        validate_arguments(args, parser, is_local=True)
+        validate_arguments(args, parser)
+        parser.error.assert_called_once()
+
+    def test_upload_with_local_errors(self):
+        parser = MagicMock()
+        args = MagicMock()
+        args.repositories = None
+        args.local = "/path/to/repo"
+        args.partial_component_id = None
+        args.output_dir = None
+        args.project_name = None
+        args.upload = True
+
+        validate_arguments(args, parser)
         parser.error.assert_called_once()
 
 

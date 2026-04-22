@@ -5,8 +5,8 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 
-def copy_files(temp_folder: Path, output_dir: Path) -> None:
-    """Copy markdown and JSON files from temp folder to output directory."""
+def copy_analysis_artifacts(temp_folder: Path, output_dir: Path) -> None:
+    """Copy generated markdown and JSON analysis artifacts from temp folder to output directory."""
     markdown_files = list(temp_folder.glob("*.md"))
     json_files = list(temp_folder.glob("*.json"))
 
