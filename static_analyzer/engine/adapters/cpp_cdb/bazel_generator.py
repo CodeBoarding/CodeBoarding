@@ -39,6 +39,7 @@ from static_analyzer.engine.adapters.cpp_cdb.base import (
     CdbGenerator,
 )
 from static_analyzer.engine.adapters.cpp_cdb.cdb_io import (
+    cdb_generation_lock,
     clear_generated_compile_commands,
     is_valid_compile_commands,
     write_compile_commands_atomic,
@@ -84,42 +85,43 @@ class BazelAqueryGenerator(CdbGenerator):
     def generate(self, project_root: Path) -> Path:
         cdb_dir = project_root / CDB_SUBDIR
         cdb_path = cdb_dir / "compile_commands.json"
-
-        fingerprint_inputs = self._fingerprint_inputs(project_root)
-        new_fp = compute_fingerprint(fingerprint_inputs)
-        if (
-            not config.force_regenerate()
-            and cdb_path.is_file()
-            and read_cached_fingerprint(cdb_dir) == new_fp
-            and is_valid_compile_commands(cdb_path)
-        ):
-            logger.info("Bazel CDB cache hit at %s (fingerprint %s)", cdb_path, new_fp[:8])
-            return cdb_path
-
         cdb_dir.mkdir(parents=True, exist_ok=True)
-        clear_generated_compile_commands(cdb_dir)
-        delete_cached_fingerprint(cdb_dir)
 
-        self._require_bazel()
+        with cdb_generation_lock(cdb_dir):
+            fingerprint_inputs = self._fingerprint_inputs(project_root)
+            new_fp = compute_fingerprint(fingerprint_inputs)
+            if (
+                not config.force_regenerate()
+                and cdb_path.is_file()
+                and read_cached_fingerprint(cdb_dir) == new_fp
+                and is_valid_compile_commands(cdb_path)
+            ):
+                logger.info("Bazel CDB cache hit at %s (fingerprint %s)", cdb_path, new_fp[:8])
+                return cdb_path
 
-        exec_root = self._bazel_info(project_root, "execution_root")
-        aquery_json = self._run_aquery(project_root)
-        entries = self._actions_to_cdb(aquery_json, exec_root)
+            clear_generated_compile_commands(cdb_dir)
+            delete_cached_fingerprint(cdb_dir)
 
-        if not entries:
-            raise RuntimeError(
-                "bazel aquery returned no CppCompile actions. "
-                f"Check that {config.ENV_BAZEL_QUERY!s} ({config.bazel_query_scope()!r}) matches "
-                "real targets; the default deps(//...) fails on workspaces with no C++ code."
-            )
+            self._require_bazel()
 
-        try:
-            write_compile_commands_atomic(cdb_path, entries)
-        except (OSError, ValueError) as exc:
-            raise RuntimeError(f"Could not write Bazel compile_commands.json: {exc}") from exc
-        write_cached_fingerprint(cdb_dir, new_fp)
-        logger.info("Wrote %d CppCompile entries to %s", len(entries), cdb_path)
-        return cdb_path
+            exec_root = self._bazel_info(project_root, "execution_root")
+            aquery_json = self._run_aquery(project_root)
+            entries = self._actions_to_cdb(aquery_json, exec_root)
+
+            if not entries:
+                raise RuntimeError(
+                    "bazel aquery returned no CppCompile actions. "
+                    f"Check that {config.ENV_BAZEL_QUERY!s} ({config.bazel_query_scope()!r}) matches "
+                    "real targets; the default deps(//...) fails on workspaces with no C++ code."
+                )
+
+            try:
+                write_compile_commands_atomic(cdb_path, entries)
+            except (OSError, ValueError) as exc:
+                raise RuntimeError(f"Could not write Bazel compile_commands.json: {exc}") from exc
+            write_cached_fingerprint(cdb_dir, new_fp)
+            logger.info("Wrote %d CppCompile entries to %s", len(entries), cdb_path)
+            return cdb_path
 
     # --- internals ----------------------------------------------------
 
@@ -224,7 +226,7 @@ class BazelAqueryGenerator(CdbGenerator):
         entries: list[dict] = []
         for action in aquery.get("actions", []):
             mnemonic = action.get("mnemonic") or action.get("mnemonicId")
-            if isinstance(mnemonic, str) and not mnemonic.endswith("Compile"):
+            if not isinstance(mnemonic, str) or not mnemonic.endswith("Compile"):
                 continue
             args = action.get("arguments") or []
             if not args:

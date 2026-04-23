@@ -33,6 +33,7 @@ from static_analyzer.engine.adapters.cpp_cdb.base import (
     CdbGenerator,
 )
 from static_analyzer.engine.adapters.cpp_cdb.cdb_io import (
+    cdb_generation_lock,
     clear_generated_compile_commands,
     is_valid_compile_commands,
     read_compile_commands,
@@ -79,47 +80,48 @@ class BearGenerator(CdbGenerator):
     def generate(self, project_root: Path) -> Path:
         cdb_dir = project_root / CDB_SUBDIR
         cdb_path = cdb_dir / "compile_commands.json"
-
-        fingerprint_inputs = self._fingerprint_inputs(project_root)
-        new_fp = compute_fingerprint(fingerprint_inputs)
-        if (
-            not config.force_regenerate()
-            and cdb_path.is_file()
-            and read_cached_fingerprint(cdb_dir) == new_fp
-            and is_valid_compile_commands(cdb_path)
-        ):
-            logger.info("Bear CDB cache hit at %s (fingerprint %s)", cdb_path, new_fp[:8])
-            return cdb_path
-
         cdb_dir.mkdir(parents=True, exist_ok=True)
-        clear_generated_compile_commands(cdb_dir)
-        delete_cached_fingerprint(cdb_dir)
 
-        # Only probe the toolchain when we'll actually shell out.
-        self._require_bear()
-        self._require_build_tool()
+        with cdb_generation_lock(cdb_dir):
+            fingerprint_inputs = self._fingerprint_inputs(project_root)
+            new_fp = compute_fingerprint(fingerprint_inputs)
+            if (
+                not config.force_regenerate()
+                and cdb_path.is_file()
+                and read_cached_fingerprint(cdb_dir) == new_fp
+                and is_valid_compile_commands(cdb_path)
+            ):
+                logger.info("Bear CDB cache hit at %s (fingerprint %s)", cdb_path, new_fp[:8])
+                return cdb_path
 
-        temp_cdb_path = temp_compile_commands_path(cdb_dir)
-        try:
-            if self._kind is BuildSystemKind.MAKE:
-                self._run_make(project_root, temp_cdb_path)
-            else:
-                self._run_autotools(project_root, temp_cdb_path)
+            clear_generated_compile_commands(cdb_dir)
+            delete_cached_fingerprint(cdb_dir)
 
-            if not temp_cdb_path.is_file():
-                raise RuntimeError(
-                    f"Bear ran but produced no compile_commands.json at {cdb_path}. "
-                    "Likely causes: the build had nothing to do (try 'make clean' first) "
-                    "or the Makefile invokes the compiler through a wrapper Bear can't trace."
-                )
-            entries = read_compile_commands(temp_cdb_path)
-            write_compile_commands_atomic(cdb_path, entries)
-            write_cached_fingerprint(cdb_dir, new_fp)
-            return cdb_path
-        except (OSError, ValueError) as exc:
-            raise RuntimeError(f"Bear produced invalid compile_commands.json: {exc}") from exc
-        finally:
-            temp_cdb_path.unlink(missing_ok=True)
+            # Only probe the toolchain when we'll actually shell out.
+            self._require_bear()
+            self._require_build_tool()
+
+            temp_cdb_path = temp_compile_commands_path(cdb_dir)
+            try:
+                if self._kind is BuildSystemKind.MAKE:
+                    self._run_make(project_root, temp_cdb_path)
+                else:
+                    self._run_autotools(project_root, temp_cdb_path)
+
+                if not temp_cdb_path.is_file():
+                    raise RuntimeError(
+                        f"Bear ran but produced no compile_commands.json at {cdb_path}. "
+                        "Likely causes: the build had nothing to do (try 'make clean' first) "
+                        "or the Makefile invokes the compiler through a wrapper Bear can't trace."
+                    )
+                entries = read_compile_commands(temp_cdb_path)
+                write_compile_commands_atomic(cdb_path, entries)
+                write_cached_fingerprint(cdb_dir, new_fp)
+                return cdb_path
+            except (OSError, ValueError) as exc:
+                raise RuntimeError(f"Bear produced invalid compile_commands.json: {exc}") from exc
+            finally:
+                temp_cdb_path.unlink(missing_ok=True)
 
     # --- internals ----------------------------------------------------
 
@@ -130,33 +132,13 @@ class BearGenerator(CdbGenerator):
         C/C++ source under the project — editing a Makefile is one way to
         bust the cache, but adding ``src/new.cc`` must do it too so Bear
         re-runs and captures the new compile command.
-
-        Dedupes by ``(st_dev, st_ino)`` so a case-insensitive filesystem
-        (APFS, NTFS) doesn't hash the same physical file twice under two
-        different spellings (``Makefile`` + ``makefile``).
         """
         if self._kind is BuildSystemKind.MAKE:
             candidates = ("Makefile", "GNUmakefile", "makefile")
         else:
             candidates = ("configure.ac", "configure.in", "Makefile.am", "configure")
-        seen_ids: set[tuple[int, int]] = set()
-        out: list[Path] = []
-
-        def _add(path: Path) -> None:
-            try:
-                st = path.stat()
-            except OSError:
-                return
-            file_id = (st.st_dev, st.st_ino)
-            if file_id in seen_ids:
-                return
-            seen_ids.add(file_id)
-            out.append(path)
-
-        for name in candidates:
-            _add(project_root / name)
-        for source in collect_project_sources(project_root, CPP_SOURCE_EXTENSIONS):
-            _add(source)
+        out: list[Path] = [project_root / name for name in candidates]
+        out.extend(collect_project_sources(project_root, CPP_SOURCE_EXTENSIONS))
         return out
 
     def _run_make(self, project_root: Path, cdb_path: Path) -> None:

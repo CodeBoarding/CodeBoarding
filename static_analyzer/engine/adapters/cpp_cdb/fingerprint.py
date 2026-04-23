@@ -65,14 +65,25 @@ def collect_project_sources(
 def compute_fingerprint(paths: Iterable[Path]) -> str:
     """SHA-256 over the sorted (path, content) pairs of the given files.
 
-    Missing files contribute a sentinel so deleting an input invalidates
-    the cache. Directories are skipped (the caller is expected to enumerate
-    files explicitly — we don't walk recursively here to avoid surprising
-    the caller when a deep tree hashes slowly).
+    Dedupes by ``(st_dev, st_ino)`` so case-insensitive filesystems (APFS,
+    NTFS) and symlinks don't hash the same physical file twice. Missing
+    files contribute a sentinel so deleting an input invalidates the cache.
+    Directories are skipped (the caller is expected to enumerate files
+    explicitly — we don't walk recursively here to avoid surprising the
+    caller when a deep tree hashes slowly).
     """
+    unique: dict[object, Path] = {}
+    for path in paths:
+        try:
+            st = path.stat()
+            key: object = (st.st_dev, st.st_ino)
+        except OSError:
+            key = os.path.normcase(str(path))
+        if key not in unique:
+            unique[key] = path
+
     hasher = hashlib.sha256()
-    # Sort canonically so the hash is independent of iteration order.
-    for path in sorted(set(paths), key=lambda p: str(p)):
+    for path in sorted(unique.values(), key=lambda p: str(p)):
         hasher.update(str(path).encode("utf-8"))
         hasher.update(b"\0")
         try:
