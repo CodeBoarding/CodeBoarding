@@ -6,16 +6,19 @@ from __future__ import annotations
 
 import json
 import subprocess
+import sys
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
 from static_analyzer.engine.adapters.cpp_cdb import BuildSystemKind, generator_for
+from static_analyzer.engine.adapters.cpp_cdb.base import CdbGenerator
 from static_analyzer.engine.adapters.cpp_cdb.bazel_generator import (
     BazelAqueryGenerator,
     _find_source_argument,
 )
+from static_analyzer.engine.adapters.cpp_cdb.bear_generator import BearGenerator
 from static_analyzer.engine.adapters.cpp_cdb.fingerprint import compute_fingerprint, write_cached_fingerprint
 
 
@@ -428,3 +431,24 @@ class TestGeneratorForDispatch:
     def test_bazel_kind_routes_to_bazel_generator(self) -> None:
         gen = generator_for(BuildSystemKind.BAZEL)
         assert isinstance(gen, BazelAqueryGenerator)
+
+    @pytest.mark.parametrize("kind", [BuildSystemKind.MAKE, BuildSystemKind.AUTOTOOLS])
+    def test_windows_skips_bear_generator(self, kind: BuildSystemKind, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Bear uses LD_PRELOAD and cannot run on Windows — the dispatcher
+        must return ``None`` rather than yielding a generator that would
+        fail with an opaque error later.
+        """
+        monkeypatch.setattr(sys, "platform", "win32")
+        assert generator_for(kind) is None
+
+    @pytest.mark.parametrize("kind", [BuildSystemKind.MAKE, BuildSystemKind.AUTOTOOLS])
+    def test_linux_routes_make_autotools_to_bear(self, kind: BuildSystemKind, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(sys, "platform", "linux")
+        gen = generator_for(kind)
+        assert isinstance(gen, BearGenerator)
+        assert isinstance(gen, CdbGenerator)
+
+    def test_windows_still_routes_bazel(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Bazel itself works on Windows — only Bear is skipped."""
+        monkeypatch.setattr(sys, "platform", "win32")
+        assert isinstance(generator_for(BuildSystemKind.BAZEL), BazelAqueryGenerator)

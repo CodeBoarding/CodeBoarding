@@ -14,6 +14,7 @@ slow and has real blast radius.
 from __future__ import annotations
 
 import logging
+import sys
 from pathlib import Path
 
 from static_analyzer.engine.adapters.cpp_cdb.base import BuildSystemKind, CdbGenerator
@@ -42,8 +43,11 @@ def generator_for(kind: BuildSystemKind) -> CdbGenerator | None:
     CMake, Meson, and Ninja are deliberately ``None`` — their CDB-export
     commands are trivial one-liners and auto-running them would configure
     the user's repo without asking. The error hint already tells the user
-    exactly what to type.
+    exactly what to type. On Windows, Make/Autotools also return ``None``
+    because Bear relies on ``LD_PRELOAD`` and is Unix-only.
     """
+    if sys.platform == "win32" and kind in (BuildSystemKind.MAKE, BuildSystemKind.AUTOTOOLS):
+        return None
     if kind in (BuildSystemKind.MAKE, BuildSystemKind.AUTOTOOLS):
         return BearGenerator(kind)
     if kind is BuildSystemKind.BAZEL:

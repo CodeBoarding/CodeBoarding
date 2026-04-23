@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
+
+import pytest
 
 from static_analyzer.engine.adapters.cpp_cdb import (
     BuildSystemKind,
@@ -118,3 +121,24 @@ class TestInstallHintFor:
 
     def test_unknown_hint_suggests_compile_flags_txt(self) -> None:
         assert "compile_flags.txt" in install_hint_for(BuildSystemKind.UNKNOWN)
+
+
+class TestInstallHintForWindows:
+    """Bear is Unix-only; the Windows branch must redirect users away from it."""
+
+    @pytest.mark.parametrize("kind", [BuildSystemKind.MAKE, BuildSystemKind.AUTOTOOLS])
+    def test_windows_hint_redirects_away_from_bear(
+        self, kind: BuildSystemKind, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(sys, "platform", "win32")
+        hint = install_hint_for(kind)
+        assert "Windows" in hint
+        assert "CMAKE_EXPORT_COMPILE_COMMANDS" in hint or "compile_flags.txt" in hint
+
+    def test_linux_make_hint_still_mentions_bear(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(sys, "platform", "linux")
+        assert "bear" in install_hint_for(BuildSystemKind.MAKE).lower()
+
+    def test_linux_autotools_hint_still_mentions_configure(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(sys, "platform", "linux")
+        assert "configure" in install_hint_for(BuildSystemKind.AUTOTOOLS).lower()

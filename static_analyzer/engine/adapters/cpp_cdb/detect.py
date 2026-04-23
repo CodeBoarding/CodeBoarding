@@ -8,6 +8,7 @@ the one whose ``compile_commands.json`` we'd actually want.
 from __future__ import annotations
 
 import logging
+import sys
 from pathlib import Path
 
 from static_analyzer.engine.adapters.cpp_cdb.base import CDB_SUBDIR, BuildSystemKind
@@ -124,6 +125,12 @@ def install_hint_for(kind: BuildSystemKind) -> str:
             "CODEBOARDING_CPP_GENERATE_CDB=1 to let CodeBoarding run 'bazel aquery' "
             "on your behalf, or generate manually with "
             "hedronvision/bazel-compile-commands-extractor."
+        )
+    if sys.platform == "win32" and kind in (BuildSystemKind.MAKE, BuildSystemKind.AUTOTOOLS):
+        return (
+            "Bear (the Make/Autotools CDB generator CodeBoarding uses on Unix) "
+            "is not available on Windows. Use CMake with "
+            "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON, or hand-author a compile_flags.txt."
         )
     if kind is BuildSystemKind.MAKE:
         return (

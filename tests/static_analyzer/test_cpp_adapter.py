@@ -27,10 +27,11 @@ class TestCppAdapterProperties:
     def test_lsp_command(self):
         assert CppAdapter().lsp_command == ["clangd"]
 
-    def test_file_extensions_cover_cpp_and_headers(self):
+    def test_file_extensions_cover_cpp_c_and_headers(self):
         exts = set(CppAdapter().file_extensions)
         assert {".cpp", ".cc", ".cxx"}.issubset(exts)
         assert {".hpp", ".hh", ".h"}.issubset(exts)
+        assert ".c" in exts, "C sources must be indexed — clangd handles both dialects"
 
     def test_registry_returns_cpp_adapter(self):
         adapter = get_adapter("Cpp")
