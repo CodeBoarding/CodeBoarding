@@ -13,7 +13,7 @@ from agents.agent_responses import LLMBaseModel
 # ---------------------------------------------------------------------------
 # Tracing configuration
 # ---------------------------------------------------------------------------
-@dataclass
+@dataclass(frozen=True)
 class TraceConfig:
     """Budget constraints for the semantic tracing loop."""
 
@@ -25,6 +25,9 @@ class TraceConfig:
     llm_max_retries: int = 2
     llm_initial_backoff_s: float = 1.0
     llm_backoff_multiplier: float = 2.0
+
+
+DEFAULT_TRACE_CONFIG = TraceConfig()
 
 
 # ---------------------------------------------------------------------------

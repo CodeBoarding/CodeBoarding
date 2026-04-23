@@ -3,8 +3,8 @@ import logging
 
 from agents.llm_config import LLMConfigError
 from codeboarding_cli.bootstrap import bootstrap_environment, resolve_local_run_paths
-from codeboarding_cli.commands import remote
-from codeboarding_workflows.local import process_local_repository
+from codeboarding_cli.commands import remote_analysis
+from codeboarding_workflows.local_analysis import process_local_repository
 from diagram_analysis import RunContext
 from repo_utils.ignore import initialize_codeboardingignore
 from utils import monitoring_enabled
@@ -62,13 +62,13 @@ def run_from_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> 
     validate_arguments(args, parser)
 
     if args.local is None:
-        remote.run_from_args(args, parser)
+        remote_analysis.run_from_args(args, parser)
         return
 
-    local_repo_path, output_dir, project_name = resolve_local_run_paths(args)
+    run_paths = resolve_local_run_paths(args)
 
     try:
-        bootstrap_environment(output_dir, args.binary_location)
+        bootstrap_environment(run_paths.output_dir, args.binary_location)
     except LLMConfigError as exc:
         logger.error("LLM provider not configured: %s", exc)
         raise SystemExit(1) from exc
@@ -76,18 +76,18 @@ def run_from_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> 
 
     should_monitor = args.enable_monitoring or monitoring_enabled()
 
-    output_dir.mkdir(parents=True, exist_ok=True)
-    initialize_codeboardingignore(output_dir)
+    run_paths.output_dir.mkdir(parents=True, exist_ok=True)
+    initialize_codeboardingignore(run_paths.output_dir)
     run_context = RunContext.resolve(
-        repo_dir=local_repo_path,
-        project_name=project_name,
+        repo_dir=run_paths.repo_path,
+        project_name=run_paths.project_name,
         reuse_latest_run_id=args.partial_component_id is not None,
     )
     try:
         process_local_repository(
-            repo_path=local_repo_path,
-            output_dir=output_dir,
-            project_name=project_name,
+            repo_path=run_paths.repo_path,
+            output_dir=run_paths.output_dir,
+            project_name=run_paths.project_name,
             depth_level=args.depth_level,
             component_id=args.partial_component_id,
             monitoring_enabled=should_monitor,
@@ -97,4 +97,4 @@ def run_from_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> 
         )
     finally:
         run_context.finalize()
-    logger.info(f"Documentation generated successfully in {output_dir}")
+    logger.info(f"Documentation generated successfully in {run_paths.output_dir}")

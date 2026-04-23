@@ -331,15 +331,15 @@ def _sync_component_methods(
     ]
 
 
-def apply_delta(
+def apply_method_delta(
     root: AnalysisInsights,
     sub_analyses: dict[str, AnalysisInsights],
     delta: IncrementalDelta,
 ) -> None:
-    """Apply ``IncrementalDelta`` architectural changes in place.
+    """Apply the method-level portion of ``IncrementalDelta`` in place.
 
-    Only architectural facts are mutated here — added/removed methods and
-    files. Status tracking is the caller's responsibility.
+    Only method-level facts are mutated here — added/removed methods and the
+    per-file method index. Status tracking is the caller's responsibility.
     """
     if not delta.has_changes:
         return

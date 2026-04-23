@@ -2,7 +2,7 @@ import logging
 from pathlib import Path
 
 from codeboarding_workflows.full_analysis import generate_analysis
-from codeboarding_workflows.partial import partial_update
+from codeboarding_workflows.partial_analysis import partial_update
 
 logger = logging.getLogger(__name__)
 

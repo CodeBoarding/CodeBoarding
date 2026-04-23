@@ -8,8 +8,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from langchain_core.language_models import BaseChatModel
+
 from agents.abstraction_agent import AbstractionAgent
-from agents.agent_responses import AnalysisInsights, Component
+from agents.agent_responses import AnalysisInsights, Component, MetaAnalysisInsights
 from agents.details_agent import DetailsAgent
 from agents.llm_config import initialize_llms
 from agents.meta_agent import MetaAgent
@@ -22,6 +24,7 @@ from diagram_analysis.analysis_json import (
 from agents.analysis_patcher import merge_patched_sub_analyses, patch_sub_analysis
 from diagram_analysis.file_coverage import FileCoverage
 from diagram_analysis.incremental.models import (
+    DEFAULT_TRACE_CONFIG,
     IncrementalRunResult,
     IncrementalSummary,
     IncrementalSummaryKind,
@@ -31,7 +34,7 @@ from diagram_analysis.incremental.models import (
 )
 from diagram_analysis.incremental.tracer import classify_scope, run_trace
 from diagram_analysis.incremental.delta import IncrementalDelta
-from diagram_analysis.incremental.updater import apply_delta
+from diagram_analysis.incremental.updater import apply_method_delta
 from diagram_analysis.io_utils import load_full_analysis, save_analysis
 from diagram_analysis.version import Version
 from repo_utils.parsed_diff import ParsedGitDiff
@@ -41,7 +44,7 @@ from health.runner import run_health_checks
 from monitoring import StreamingStatsWriter
 from monitoring.mixin import MonitoringMixin
 from monitoring.paths import get_monitoring_run_dir
-from repo_utils import get_git_commit_hash, get_repo_state_hash
+from repo_utils import get_git_commit_hash
 from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer import StaticAnalyzer, get_static_analysis
 from static_analyzer.analysis_result import StaticAnalysisResults
@@ -84,10 +87,10 @@ class DiagramGenerator:
         self.static_analysis: StaticAnalysisResults | None = None  # Cache static analysis for reuse
         self.abstraction_agent: AbstractionAgent | None = None
         self.meta_agent: MetaAgent | None = None
-        self.meta_context: Any | None = None
-        self.file_coverage_data: dict | None = None
-        self.agent_llm: Any | None = None
-        self.parsing_llm: Any | None = None
+        self.meta_context: MetaAnalysisInsights | None = None
+        self.file_coverage_data: dict[str, Any] | None = None
+        self.agent_llm: BaseChatModel | None = None
+        self.parsing_llm: BaseChatModel | None = None
 
         self._monitoring_agents: dict[str, MonitoringMixin] = {}
         self.stats_writer: StreamingStatsWriter | None = None
@@ -426,7 +429,7 @@ class DiagramGenerator:
         self,
         sub_analyses: dict[str, AnalysisInsights],
         trace_result: TraceResult,
-        parsing_llm: Any,
+        parsing_llm: BaseChatModel,
     ) -> tuple[dict[str, AnalysisInsights], list[str]]:
         """Patch impacted sub-analyses in parallel. Returns (patched, failed_ids)."""
         patched: dict[str, AnalysisInsights] = {}
@@ -467,7 +470,7 @@ class DiagramGenerator:
         delta: IncrementalDelta,
         base_ref: str,
         parsed_diff: ParsedGitDiff,
-        config: TraceConfig | None = None,
+        config: TraceConfig = DEFAULT_TRACE_CONFIG,
     ) -> IncrementalRunResult:
         """Run a semantic incremental update pass.
 
@@ -479,9 +482,13 @@ class DiagramGenerator:
         wrapper); this method handles the semantic-tracing path and its
         deterministic fallbacks.
         """
-        if self.details_agent is None or self.abstraction_agent is None:
-            self.pre_analysis()
-        assert self.static_analysis is not None
+        assert (
+            self.details_agent is not None
+            and self.abstraction_agent is not None
+            and self.static_analysis is not None
+            and self.agent_llm is not None
+            and self.parsing_llm is not None
+        ), "pre_analysis() must be called before generate_analysis_incremental()"
 
         existing = load_full_analysis(Path(self.output_dir))
         if existing is None:
@@ -512,7 +519,7 @@ class DiagramGenerator:
                 ),
             )
 
-        apply_delta(root_analysis, sub_analyses, delta)
+        apply_method_delta(root_analysis, sub_analyses, delta)
 
         if delta.is_purely_additive:
             analysis_path = save_analysis(
@@ -529,18 +536,13 @@ class DiagramGenerator:
                 analysis_path=analysis_path,
             )
 
-        assert self.agent_llm is not None and self.parsing_llm is not None
-        agent_llm = self.agent_llm
-        parsing_llm = self.parsing_llm
-
         trace_result = run_trace(
             delta=delta,
             cfgs=self._collect_cfgs(),
             static_analysis=self.static_analysis,
             repo_dir=self.repo_location,
             base_ref=base_ref,
-            agent_llm=agent_llm,
-            parsing_llm=parsing_llm,
+            parsing_llm=self.parsing_llm,
             config=config,
             parsed_diff=parsed_diff,
         )
@@ -582,7 +584,7 @@ class DiagramGenerator:
             self.repo_location,
         )
 
-        patched, failed = self._run_component_patches(sub_analyses, trace_result, parsing_llm)
+        patched, failed = self._run_component_patches(sub_analyses, trace_result, self.parsing_llm)
 
         # If every component patch failed, leave analysis.json untouched so the
         # incremental baseline does not advance past docs that never updated.

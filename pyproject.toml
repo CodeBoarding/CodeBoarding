@@ -108,7 +108,7 @@ py-modules = [
 include-package-data = true
 
 [project.scripts]
-codeboarding = "codeboarding_cli.parser:main"
+codeboarding = "main:main"
 codeboarding-setup = "install:main"
 
 [project.urls]

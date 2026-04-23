@@ -1,12 +1,12 @@
 from unittest.mock import patch
 
-from codeboarding_cli.parser import build_parser, main
+from main import build_parser, main
 
 
 def test_cli_dispatches_incremental_mode() -> None:
     with (
-        patch("codeboarding_cli.parser.incremental.run_from_args") as run_incremental,
-        patch("codeboarding_cli.parser.full.run_from_args") as run_full,
+        patch("main.incremental_analysis.run_from_args") as run_incremental,
+        patch("main.full_analysis.run_from_args") as run_full,
     ):
         main(["incremental", "--local", "/tmp/repo"])
 
@@ -16,8 +16,8 @@ def test_cli_dispatches_incremental_mode() -> None:
 
 def test_cli_dispatches_full_by_default() -> None:
     with (
-        patch("codeboarding_cli.parser.incremental.run_from_args") as run_incremental,
-        patch("codeboarding_cli.parser.full.run_from_args") as run_full,
+        patch("main.incremental_analysis.run_from_args") as run_incremental,
+        patch("main.full_analysis.run_from_args") as run_full,
     ):
         main(["full", "--local", "/tmp/repo"])
 
@@ -27,8 +27,8 @@ def test_cli_dispatches_full_by_default() -> None:
 
 def test_cli_defaults_to_full_when_leading_arg_is_a_flag() -> None:
     with (
-        patch("codeboarding_cli.parser.incremental.run_from_args") as run_incremental,
-        patch("codeboarding_cli.parser.full.run_from_args") as run_full,
+        patch("main.incremental_analysis.run_from_args") as run_incremental,
+        patch("main.full_analysis.run_from_args") as run_full,
     ):
         main(["--local", "/tmp/repo"])
 
@@ -38,8 +38,8 @@ def test_cli_defaults_to_full_when_leading_arg_is_a_flag() -> None:
 
 def test_cli_defaults_to_full_when_leading_arg_is_a_repo_url() -> None:
     with (
-        patch("codeboarding_cli.parser.incremental.run_from_args") as run_incremental,
-        patch("codeboarding_cli.parser.full.run_from_args") as run_full,
+        patch("main.incremental_analysis.run_from_args") as run_incremental,
+        patch("main.full_analysis.run_from_args") as run_full,
     ):
         main(["https://github.com/user/repo"])
 
@@ -51,8 +51,8 @@ def test_cli_defaults_to_full_when_leading_arg_is_a_repo_url() -> None:
 
 def test_cli_incremental_subcommand_is_not_swallowed_as_positional() -> None:
     with (
-        patch("codeboarding_cli.parser.incremental.run_from_args") as run_incremental,
-        patch("codeboarding_cli.parser.full.run_from_args") as run_full,
+        patch("main.incremental_analysis.run_from_args") as run_incremental,
+        patch("main.full_analysis.run_from_args") as run_full,
     ):
         main(["incremental", "--local", "/tmp/repo"])
 

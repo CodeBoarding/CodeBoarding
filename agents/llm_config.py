@@ -351,3 +351,12 @@ def initialize_llms() -> tuple[BaseChatModel, BaseChatModel]:
     agent_llm = initialize_agent_llm(_agent_model_override or os.getenv("AGENT_MODEL"))
     parsing_llm = initialize_parsing_llm(_parsing_model_override or os.getenv("PARSING_MODEL"))
     return agent_llm, parsing_llm
+
+
+def supports_prompt_caching(llm: BaseChatModel) -> bool:
+    """Return True when *llm* supports ephemeral prompt caching.
+
+    Only Anthropic's langchain integration exposes ``cache_control`` blocks
+    today; other providers either cache transparently or not at all.
+    """
+    return llm.__class__.__module__.startswith("langchain_anthropic")

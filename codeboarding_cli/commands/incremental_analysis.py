@@ -1,12 +1,13 @@
 import argparse
 import json
 import logging
+import sys
 
 from agents.llm_config import LLMConfigError
 from codeboarding_cli.bootstrap import bootstrap_environment, resolve_local_run_paths
-from codeboarding_workflows.incremental import run_incremental_analysis
+from codeboarding_workflows.incremental_analysis import run_incremental_analysis
 from diagram_analysis import RunContext
-from diagram_analysis.incremental.models import IncrementalSummary, IncrementalSummaryKind
+from diagram_analysis.incremental.payload import FullAnalysisRequiredPayload, IncrementalRunPayload
 from utils import monitoring_enabled
 
 logger = logging.getLogger(__name__)
@@ -22,9 +23,10 @@ def add_arguments(subparsers: argparse._SubParsersAction, parents: list[argparse
         "--base-ref",
         type=str,
         help=(
-            "Base git ref (commit, branch, or tag) to diff against. "
-            "Defaults to the commit of the previous successful CodeBoarding run "
-            "stored in <output-dir>/.codeboarding; if none exists, a full analysis is required."
+            "Git ref (commit SHA, branch, or tag) to diff against when computing the incremental update. "
+            "Defaults to the commit that produced the last successful analysis "
+            "(recorded in <output-dir>/incremental_run_metadata.json); "
+            "if no prior run is recorded, incremental mode falls back to a full analysis."
         ),
     )
     parser.add_argument(
@@ -37,21 +39,13 @@ def add_arguments(subparsers: argparse._SubParsersAction, parents: list[argparse
     )
 
 
-def incremental_error_payload(message: str) -> dict:
-    summary = IncrementalSummary(
-        kind=IncrementalSummaryKind.REQUIRES_FULL_ANALYSIS,
-        message=message,
-        requires_full_analysis=True,
-    ).to_dict()
-    return {
-        "mode": "incremental",
-        "error": message,
-        "requiresFullAnalysis": True,
-        "summary": summary,
-    }
+def _error_payload(message: str) -> FullAnalysisRequiredPayload:
+    """Build a ``REQUIRES_FULL_ANALYSIS`` payload for a CLI-level error."""
+    return FullAnalysisRequiredPayload(message=message, error=message)
 
 
-def api_key_missing_payload(message: str) -> dict:
+def _api_key_missing_dict(message: str) -> dict:
+    """Distinct wire shape — the wrapper detects ``kind=api_key_missing`` to prompt the user."""
     return {
         "mode": "incremental",
         "error": message,
@@ -67,35 +61,35 @@ def validate_arguments(args: argparse.Namespace, parser: argparse.ArgumentParser
 def run_from_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
     validate_arguments(args, parser)
 
-    repo_path, output_dir, project_name = resolve_local_run_paths(args)
-    output_dir.mkdir(parents=True, exist_ok=True)
+    run_paths = resolve_local_run_paths(args)
+    run_paths.output_dir.mkdir(parents=True, exist_ok=True)
 
     try:
-        bootstrap_environment(output_dir, args.binary_location)
+        bootstrap_environment(run_paths.output_dir, args.binary_location)
     except LLMConfigError as exc:
         logger.warning("Incremental bootstrap failed: LLM provider not configured: %s", exc)
-        _emit_payload(api_key_missing_payload(str(exc)))
+        _emit_dict(_api_key_missing_dict(str(exc)))
         return
     except ValueError as exc:
         logger.exception("Incremental bootstrap failed")
-        _emit_payload(incremental_error_payload(str(exc)))
+        _emit_payload(_error_payload(str(exc)))
         return
 
     try:
         run_context = RunContext.resolve(
-            repo_dir=repo_path,
-            project_name=project_name,
+            repo_dir=run_paths.repo_path,
+            project_name=run_paths.project_name,
             reuse_latest_run_id=True,
         )
     except Exception as exc:
         logger.exception("RunContext resolution failed")
-        payload = incremental_error_payload(str(exc))
+        payload = _error_payload(str(exc))
     else:
         try:
             payload = run_incremental_analysis(
-                repo_path=repo_path,
-                output_dir=output_dir,
-                project_name=project_name,
+                repo_path=run_paths.repo_path,
+                output_dir=run_paths.output_dir,
+                project_name=run_paths.project_name,
                 depth_level=args.depth_level,
                 base_ref=args.base_ref,
                 target_ref=args.target_ref,
@@ -105,12 +99,23 @@ def run_from_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> 
             )
         except Exception as exc:
             logger.exception("Incremental analysis failed")
-            payload = incremental_error_payload(str(exc))
+            payload = _error_payload(str(exc))
         finally:
             run_context.finalize()
 
     _emit_payload(payload)
 
 
-def _emit_payload(payload: dict) -> None:
-    print(json.dumps(payload, default=str, indent=2, sort_keys=True))
+def _emit_payload(payload: IncrementalRunPayload) -> None:
+    """Serialize *payload* as JSON on stdout (the CLI's wire contract)."""
+    _emit_dict(payload.to_dict())
+
+
+def _emit_dict(payload: dict) -> None:
+    """Write a pre-built wire dict as JSON to stdout.
+
+    Why: the wrapper / IDE integration reads stdout as JSON. This is the
+    incremental command's API contract, not a diagnostic log line.
+    """
+    sys.stdout.write(json.dumps(payload, default=str, indent=2, sort_keys=True) + "\n")
+    sys.stdout.flush()

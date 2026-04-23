@@ -5,19 +5,19 @@ from pathlib import Path
 from tqdm import tqdm
 
 from codeboarding_cli.bootstrap import bootstrap_environment
-from codeboarding_workflows.remote import process_remote_repository
+from codeboarding_workflows.remote_analysis import process_remote_repository
 from diagram_analysis import RunContext
 from monitoring import monitor_execution
 from monitoring.paths import get_monitoring_run_dir
 from repo_utils import get_repo_name, store_token
 from repo_utils.ignore import initialize_codeboardingignore
-from utils import monitoring_enabled
+from utils import CODEBOARDING_DIR_NAME, monitoring_enabled
 
 logger = logging.getLogger(__name__)
 
 
 def run_from_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
-    output_dir = Path.cwd() / ".codeboarding"
+    output_dir = Path.cwd() / CODEBOARDING_DIR_NAME
     output_dir.mkdir(parents=True, exist_ok=True)
 
     try:
@@ -44,7 +44,7 @@ def run_from_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> 
 
     for repo in tqdm(args.repositories, desc="Generating docs for repos"):
         repo_name = get_repo_name(repo)
-        repo_output_dir = workspace_root / repo_name / ".codeboarding"
+        repo_output_dir = workspace_root / repo_name / CODEBOARDING_DIR_NAME
         repo_output_dir.mkdir(parents=True, exist_ok=True)
         initialize_codeboardingignore(repo_output_dir)
 

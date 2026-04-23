@@ -10,6 +10,7 @@ from typing import Any
 
 from repo_utils import get_repo_state_hash
 from repo_utils.change_detector import get_current_commit
+from utils import CODEBOARDING_DIR_NAME
 
 METADATA_FILENAME = "incremental_run_metadata.json"
 
@@ -32,7 +33,7 @@ def load_last_run_metadata(output_dir: Path) -> dict[str, Any] | None:
 def worktree_has_changes(repo_dir: Path) -> bool:
     try:
         result = subprocess.run(
-            ["git", "status", "--porcelain", "--untracked-files=all", "--", ".", ":!.codeboarding"],
+            ["git", "status", "--porcelain", "--untracked-files=all", "--", ".", f":!{CODEBOARDING_DIR_NAME}"],
             cwd=repo_dir,
             capture_output=True,
             text=True,

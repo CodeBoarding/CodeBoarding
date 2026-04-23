@@ -13,15 +13,40 @@ from agents.agent_responses import (
     MethodEntry,
     assign_component_ids,
 )
-from codeboarding_cli.parser import build_parser, main as cli_main
-from codeboarding_workflows.incremental import run_incremental_analysis
-from diagram_analysis.incremental.models import IncrementalRunResult, IncrementalSummary, IncrementalSummaryKind
+from main import build_parser, main as cli_main
+from diagram_analysis.incremental.models import (
+    IncrementalRunResult,
+    IncrementalSummary,
+    IncrementalSummaryKind,
+)
+from diagram_analysis.incremental.payload import (
+    FullAnalysisRequiredPayload,
+    IncrementalCompletedPayload,
+    NoChangesPayload,
+)
+from diagram_analysis.incremental.pipeline import run_incremental_pipeline
 from diagram_analysis.run_metadata import last_successful_commit, worktree_has_changes, write_last_run_metadata
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import NodeType
 from static_analyzer.node import Node
 from diagram_analysis.io_utils import save_analysis
+from repo_utils.change_detector import detect_changes_from_parsed_diff
 from repo_utils.parsed_diff import ParsedGitDiff
+
+
+def _make_generator(repo_path: Path, output_dir: Path) -> MagicMock:
+    """Build a ``DiagramGenerator`` stand-in for pipeline tests.
+
+    Pipeline reads only ``repo_location``, ``output_dir``, ``static_analysis``,
+    ``pre_analysis``, and ``generate_analysis_incremental`` — plus the attrs
+    the payload code doesn't touch. Using MagicMock sidesteps the full
+    constructor (LLM init, etc.).
+    """
+    generator = MagicMock()
+    generator.repo_location = repo_path
+    generator.output_dir = output_dir
+    generator.static_analysis = None
+    return generator
 
 
 def _git(repo: Path, *args: str) -> None:
@@ -110,17 +135,17 @@ def test_worktree_dirty_check_ignores_codeboarding_output(tmp_path: Path) -> Non
     assert worktree_has_changes(repo) is False
 
 
-def test_run_incremental_analysis_returns_full_required_without_baseline(tmp_path: Path) -> None:
+def test_run_incremental_pipeline_returns_full_required_without_baseline(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     repo.mkdir()
     output_dir = repo / ".codeboarding"
     output_dir.mkdir()
 
-    payload = run_incremental_analysis(repo_path=repo, output_dir=output_dir)
+    payload = run_incremental_pipeline(_make_generator(repo, output_dir))
 
-    assert payload["mode"] == "incremental"
-    assert payload["summary"]["kind"] == "requires_full_analysis"
-    assert payload["summary"]["requiresFullAnalysis"] is True
+    assert isinstance(payload, FullAnalysisRequiredPayload)
+    assert payload.requires_full_analysis is True
+    assert "No existing analysis.json" in payload.message
 
 
 def test_run_incremental_analysis_uses_explicit_base_ref(tmp_path: Path) -> None:
@@ -171,9 +196,7 @@ def test_run_incremental_analysis_uses_explicit_base_ref(tmp_path: Path) -> None
         analysis_path=output_dir / "analysis.json",
     )
 
-    mock_generator = MagicMock()
-    mock_generator.repo_location = repo
-    mock_generator.output_dir = output_dir
+    mock_generator = _make_generator(repo, output_dir)
 
     def _pre_analysis() -> None:
         mock_generator.static_analysis = fake_static
@@ -181,20 +204,16 @@ def test_run_incremental_analysis_uses_explicit_base_ref(tmp_path: Path) -> None
     mock_generator.pre_analysis.side_effect = _pre_analysis
     mock_generator.generate_analysis_incremental.return_value = fake_result
 
-    with patch("codeboarding_workflows.incremental.DiagramGenerator", return_value=mock_generator):
-        payload = run_incremental_analysis(
-            repo_path=repo,
-            output_dir=output_dir,
-            base_ref=baseline_commit,
-        )
+    payload = run_incremental_pipeline(mock_generator, base_ref=baseline_commit)
 
-    assert payload["baseRef"] == baseline_commit
-    assert payload["requiresFullAnalysis"] is False
-    assert payload["incrementalDelta"]["file_deltas"]
+    assert isinstance(payload, IncrementalCompletedPayload)
+    assert payload.base_ref == baseline_commit
+    assert payload.requires_full_analysis is False
+    assert payload.incremental_delta.file_deltas
     assert mock_generator.generate_analysis_incremental.call_args.kwargs["base_ref"] == baseline_commit
 
 
-def test_run_incremental_analysis_requires_full_when_git_diff_fails(tmp_path: Path) -> None:
+def test_run_incremental_pipeline_requires_full_when_git_diff_fails(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     repo.mkdir()
     output_dir = repo / ".codeboarding"
@@ -216,10 +235,11 @@ def test_run_incremental_analysis_requires_full_when_git_diff_fails(tmp_path: Pa
         "diagram_analysis.incremental.pipeline.get_parsed_git_diff",
         return_value=ParsedGitDiff(base_ref="base", target_ref="", error="bad object base"),
     ):
-        payload = run_incremental_analysis(repo_path=repo, output_dir=output_dir, base_ref="base")
+        payload = run_incremental_pipeline(_make_generator(repo, output_dir), base_ref="base")
 
-    assert payload["requiresFullAnalysis"] is True
-    assert "Git diff failed" in payload["summary"]["message"]
+    assert isinstance(payload, FullAnalysisRequiredPayload)
+    assert payload.requires_full_analysis is True
+    assert "Git diff failed" in payload.message
     assert not (output_dir / "incremental_run_metadata.json").exists()
 
 
@@ -259,9 +279,7 @@ def test_incremental_generator_fallback_sets_top_level_full_required_flag(tmp_pa
 
     source_file.write_text("def alpha():\n    return 2\n", encoding="utf-8")
 
-    mock_generator = MagicMock()
-    mock_generator.repo_location = repo
-    mock_generator.output_dir = output_dir
+    mock_generator = _make_generator(repo, output_dir)
     mock_generator.pre_analysis.side_effect = lambda: setattr(
         mock_generator,
         "static_analysis",
@@ -275,15 +293,11 @@ def test_incremental_generator_fallback_sets_top_level_full_required_flag(tmp_pa
         )
     )
 
-    with patch("codeboarding_workflows.incremental.DiagramGenerator", return_value=mock_generator):
-        payload = run_incremental_analysis(
-            repo_path=repo,
-            output_dir=output_dir,
-            base_ref=baseline_commit,
-        )
+    payload = run_incremental_pipeline(mock_generator, base_ref=baseline_commit)
 
-    assert payload["requiresFullAnalysis"] is True
-    assert payload["summary"]["requiresFullAnalysis"] is True
+    assert isinstance(payload, IncrementalCompletedPayload)
+    assert payload.requires_full_analysis is True
+    assert payload.result.summary.requires_full_analysis is True
     assert not (output_dir / "incremental_run_metadata.json").exists()
 
 
@@ -291,18 +305,41 @@ def test_incremental_main_emits_stable_json_stdout(tmp_path: Path, capsys) -> No
     repo = tmp_path / "repo"
     repo.mkdir()
 
+    output_dir = tmp_path / "out"
+    output_dir.mkdir()
+    analysis_path = output_dir / "analysis.json"
+    analysis_path.write_text("{}", encoding="utf-8")
+
+    fake_payload = NoChangesPayload(
+        base_ref="abc",
+        target_ref="",
+        resolved_target_commit="abc",
+        change_set=detect_changes_from_parsed_diff(ParsedGitDiff(base_ref="abc", target_ref="")),
+        metadata_path=output_dir / "incremental_run_metadata.json",
+        analysis_path=analysis_path,
+    )
+
     run_context_instance = MagicMock(run_id="test", log_path="test.log")
     with (
-        patch("codeboarding_cli.commands.incremental.bootstrap_environment"),
-        patch("codeboarding_cli.commands.incremental.run_incremental_analysis", return_value={"b": 2, "a": 1}),
-        patch("codeboarding_cli.commands.incremental.RunContext") as run_context_cls,
+        patch("codeboarding_cli.commands.incremental_analysis.bootstrap_environment"),
+        patch(
+            "codeboarding_cli.commands.incremental_analysis.run_incremental_analysis",
+            return_value=fake_payload,
+        ),
+        patch("codeboarding_cli.commands.incremental_analysis.RunContext") as run_context_cls,
     ):
         run_context_cls.resolve.return_value = run_context_instance
         cli_main(["incremental", "--local", str(repo)])
 
     stdout = capsys.readouterr().out
-    assert stdout.index('"a"') < stdout.index('"b"')
-    assert json.loads(stdout) == {"a": 1, "b": 2}
+    emitted = json.loads(stdout)
+    # Keys are emitted sort_keys=True, so we assert lexicographic ordering
+    assert list(emitted.keys()) == sorted(emitted.keys())
+    assert emitted["mode"] == "incremental"
+    assert emitted["baseRef"] == "abc"
+    assert emitted["targetRef"] == "WORKTREE"
+    assert emitted["requiresFullAnalysis"] is False
+    assert emitted["summary"]["kind"] == IncrementalSummaryKind.NO_CHANGES.value
     run_context_instance.finalize.assert_called_once()
 
 
@@ -312,7 +349,7 @@ def test_incremental_mode_api_key_missing_payload(tmp_path: Path, capsys) -> Non
     repo = tmp_path / "repo"
     repo.mkdir()
     with patch(
-        "codeboarding_cli.commands.incremental.bootstrap_environment",
+        "codeboarding_cli.commands.incremental_analysis.bootstrap_environment",
         side_effect=LLMConfigError("No API key configured"),
     ):
         cli_main(["incremental", "--local", str(repo)])
@@ -361,19 +398,15 @@ def test_run_incremental_analysis_requires_full_on_rename(tmp_path: Path) -> Non
 
     _git(repo, "mv", "src/utils.py", "src/helpers.py")
 
-    payload = run_incremental_analysis(
-        repo_path=repo,
-        output_dir=output_dir,
-        base_ref=baseline_commit,
-    )
+    payload = run_incremental_pipeline(_make_generator(repo, output_dir), base_ref=baseline_commit)
 
-    assert payload["requiresFullAnalysis"] is True
-    assert payload["summary"]["kind"] == "requires_full_analysis"
-    assert "rename" in payload["summary"]["message"].lower()
+    assert isinstance(payload, FullAnalysisRequiredPayload)
+    assert payload.requires_full_analysis is True
+    assert "rename" in payload.message.lower()
     assert not (output_dir / "incremental_run_metadata.json").exists()
 
 
-def test_run_incremental_analysis_rejects_target_ref_not_checked_out(tmp_path: Path) -> None:
+def test_run_incremental_pipeline_rejects_target_ref_not_checked_out(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     repo.mkdir()
     _git(repo, "init")
@@ -418,19 +451,19 @@ def test_run_incremental_analysis_rejects_target_ref_not_checked_out(tmp_path: P
         commit_hash=baseline_commit,
     )
 
-    payload = run_incremental_analysis(
-        repo_path=repo,
-        output_dir=output_dir,
+    payload = run_incremental_pipeline(
+        _make_generator(repo, output_dir),
         base_ref=baseline_commit,
         target_ref=baseline_commit,  # HEAD is at v2, not baseline
     )
 
-    assert payload["requiresFullAnalysis"] is True
-    assert "does not match the current checkout" in payload["summary"]["message"]
+    assert isinstance(payload, FullAnalysisRequiredPayload)
+    assert payload.requires_full_analysis is True
+    assert "does not match the current checkout" in payload.message
     assert not (output_dir / "incremental_run_metadata.json").exists()
 
 
-def test_run_incremental_analysis_rejects_target_ref_with_dirty_worktree(tmp_path: Path) -> None:
+def test_run_incremental_pipeline_rejects_target_ref_with_dirty_worktree(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     repo.mkdir()
     _git(repo, "init")
@@ -467,15 +500,15 @@ def test_run_incremental_analysis_rejects_target_ref_with_dirty_worktree(tmp_pat
         commit_hash=head_commit,
     )
 
-    payload = run_incremental_analysis(
-        repo_path=repo,
-        output_dir=output_dir,
+    payload = run_incremental_pipeline(
+        _make_generator(repo, output_dir),
         base_ref=head_commit,
         target_ref=head_commit,  # HEAD matches, but worktree is dirty
     )
 
-    assert payload["requiresFullAnalysis"] is True
-    assert "dirty worktree" in payload["summary"]["message"]
+    assert isinstance(payload, FullAnalysisRequiredPayload)
+    assert payload.requires_full_analysis is True
+    assert "dirty worktree" in payload.message
     assert not (output_dir / "incremental_run_metadata.json").exists()
 
 

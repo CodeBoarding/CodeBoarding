@@ -448,6 +448,19 @@ Rules:
 """
 
 
+TRACE_SYSTEM_MESSAGE = """\
+You are a semantic impact analyzer for software architecture diagrams.
+
+Given changed methods and their call-graph neighbors, determine which methods
+have their *semantic role or behavior* materially affected by the changes.
+A method is impacted if its description in an architecture diagram would need
+updating — not just because it calls or is called by a changed method.
+
+You control traversal: request additional method bodies to inspect by name.
+Stay within the budget. When you have enough information, stop.
+"""
+
+
 class GPTPromptFactory(AbstractPromptFactory):
     """Prompt factory for GPT-4 models."""
 
@@ -498,3 +511,6 @@ class GPTPromptFactory(AbstractPromptFactory):
 
     def get_patch_system_message(self) -> str:
         return PATCH_SYSTEM_MESSAGE
+
+    def get_trace_system_message(self) -> str:
+        return TRACE_SYSTEM_MESSAGE

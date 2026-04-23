@@ -17,16 +17,20 @@ from typing import Any
 
 import networkx as nx
 from langchain_core.language_models import BaseChatModel
+from trustcall import create_extractor
 
 from agents.change_status import ChangeStatus
+from agents.llm_config import supports_prompt_caching
+from agents.prompts.prompt_factory import get_trace_system_message
 from diagram_analysis.incremental.models import (
+    DEFAULT_TRACE_CONFIG,
     ImpactedComponent,
     TraceConfig,
     TraceResponse,
     TraceResult,
     TraceStopReason,
 )
-from diagram_analysis.incremental.delta import IncrementalDelta
+from diagram_analysis.incremental.delta import FileDelta, IncrementalDelta
 from static_analyzer.constants import SOURCE_EXTENSION_TO_LANGUAGE
 from static_analyzer.semantic_diff import (
     check_syntax_errors,
@@ -127,7 +131,6 @@ class TracePlan:
 
     groups: list[ChangeGroup] = field(default_factory=list)
     fast_path_impacted_methods: list[str] = field(default_factory=list)
-    parallel_safe: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -288,6 +291,7 @@ def _determine_region_key(
     """Return a region key for a method and whether it is graph-backed."""
     region_id = graph_metadata.method_to_region.get(qualified_name)
     if region_id is None:
+        logger.debug("No call-graph region for %s in %s; using file-level fallback", qualified_name, file_path)
         return f"file:{file_path}", False
     return f"region:{region_id}", True
 
@@ -309,6 +313,28 @@ def _compare_modified_method_versions(
     if old_sig is None or new_sig is None:
         return False, True
     return False, old_sig != new_sig
+
+
+def _is_fast_path_candidate(
+    file_delta: FileDelta,
+    signature_changed: bool,
+    upstream_callers: list[str],
+) -> bool:
+    """Return True if a modified method can skip the LLM trace and be marked impacted directly.
+
+    Why: when a method body changes but its signature is stable AND nothing
+    calls it (no upstream edges in the call graph), there is no way for the
+    change to propagate outward — so we can record it as impacted without
+    asking the LLM. The name "fast path" refers to this LLM-skip shortcut;
+    it is not about downstream propagation (hence ``downstream`` is not checked).
+    """
+    return (
+        file_delta.file_status == ChangeStatus.MODIFIED
+        and not file_delta.added_methods
+        and not file_delta.deleted_methods
+        and not signature_changed
+        and not upstream_callers
+    )
 
 
 def _append_method_to_group(
@@ -424,49 +450,43 @@ def _build_trace_plan(
             _get_diff_hunks(repo_dir, base_ref, fp, parsed_diff) if file_delta.file_status != ChangeStatus.ADDED else ""
         )
 
-        for mc in all_methods:
-            body = _read_method_body(repo_dir, fp, mc.start_line, mc.end_line)
+        for method in all_methods:
+            body = _read_method_body(repo_dir, fp, method.start_line, method.end_line)
             if body is not None:
                 body = strip_comments_from_source(fp, body)
-            up, down = _get_neighbors(upstream_index, downstream_index, mc.qualified_name)
+            up, down = _get_neighbors(upstream_index, downstream_index, method.qualified_name)
 
-            if mc.change_type == ChangeStatus.MODIFIED:
-                old_body = _read_method_body_at_ref(repo_dir, base_ref, fp, mc.start_line, mc.end_line)
+            if method.change_type == ChangeStatus.MODIFIED:
+                old_body = _read_method_body_at_ref(repo_dir, base_ref, fp, method.start_line, method.end_line)
                 if old_body is not None:
                     old_body = strip_comments_from_source(fp, old_body)
                 semantically_unchanged, signature_changed = _compare_modified_method_versions(fp, old_body, body)
                 if semantically_unchanged:
                     continue
-                if (
-                    file_delta.file_status == ChangeStatus.MODIFIED
-                    and not file_delta.added_methods
-                    and not file_delta.deleted_methods
-                    and not signature_changed
-                    and not up
-                ):
-                    fast_path_impacted_methods.add(mc.qualified_name)
+                if _is_fast_path_candidate(file_delta, signature_changed, up):
+                    fast_path_impacted_methods.add(method.qualified_name)
                     continue
 
             ctx = ChangedMethodContext(
-                qualified_name=mc.qualified_name,
+                qualified_name=method.qualified_name,
                 file_path=fp,
-                change_type=mc.change_type,
+                change_type=method.change_type,
                 new_body=body,
             )
-            region_key, graph_backed = _determine_region_key(mc.qualified_name, fp, graph_metadata)
+            region_key, graph_backed = _determine_region_key(method.qualified_name, fp, graph_metadata)
             if not graph_backed:
                 saw_fallback_region = True
             _append_method_to_group(groups, region_key, graph_backed, fp, diff_text, ctx, up, down)
 
-        for mc in file_delta.deleted_methods:
+        for method in file_delta.deleted_methods:
             ctx = ChangedMethodContext(
-                qualified_name=mc.qualified_name,
+                qualified_name=method.qualified_name,
                 file_path=fp,
                 change_type=ChangeStatus.DELETED,
                 new_body=None,
             )
-            up, down = _get_neighbors(upstream_index, downstream_index, mc.qualified_name)
-            region_key, graph_backed = _determine_region_key(mc.qualified_name, fp, graph_metadata)
+            up, down = _get_neighbors(upstream_index, downstream_index, method.qualified_name)
+            region_key, graph_backed = _determine_region_key(method.qualified_name, fp, graph_metadata)
             if not graph_backed:
                 saw_fallback_region = True
             _append_method_to_group(groups, region_key, graph_backed, fp, diff_text, ctx, up, down)
@@ -480,12 +500,10 @@ def _build_trace_plan(
     if saw_fallback_region:
         logger.info("Graph coverage incomplete for some changed methods; collapsing fallback regions only")
         finalized_groups = _collapse_fallback_groups(finalized_groups)
-    parallel_safe = len(finalized_groups) > 1
 
     return TracePlan(
         groups=finalized_groups,
         fast_path_impacted_methods=sorted(fast_path_impacted_methods),
-        parallel_safe=parallel_safe,
     )
 
 
@@ -504,22 +522,6 @@ def build_trace_plan(
 # ---------------------------------------------------------------------------
 # Prompt construction
 # ---------------------------------------------------------------------------
-_TRACE_SYSTEM = """\
-You are a semantic impact analyzer for software architecture diagrams.
-
-Given changed methods and their call-graph neighbors, determine which methods
-have their *semantic role or behavior* materially affected by the changes.
-A method is impacted if its description in an architecture diagram would need
-updating — not just because it calls or is called by a changed method.
-
-You control traversal: request additional method bodies to inspect by name.
-Stay within the budget. When you have enough information, stop.
-"""
-
-
-def _supports_anthropic_prompt_caching(llm: BaseChatModel) -> bool:
-    """Return True when *llm* is a langchain Anthropic chat model."""
-    return llm.__class__.__module__.startswith("langchain_anthropic")
 
 
 def _trace_message_content(
@@ -529,7 +531,7 @@ def _trace_message_content(
     enable_cache: bool = False,
 ) -> str | list[dict[str, Any]]:
     """Return message content, adding Anthropic cache metadata when enabled."""
-    if not enable_cache or not _supports_anthropic_prompt_caching(llm):
+    if not enable_cache or not supports_prompt_caching(llm):
         return text
     return [{"type": "text", "text": text, "cache_control": {"type": "ephemeral"}}]
 
@@ -644,16 +646,14 @@ def _trace_single_group(
     config: TraceConfig,
 ) -> TraceResult:
     """Run the semantic tracing loop for a single change region."""
-    from trustcall import create_extractor
-
     resolver = MethodResolver(static_analysis, repo_dir)
     extractor = create_extractor(parsing_llm, tools=[TraceResponse], tool_choice=TraceResponse.__name__)
 
     prompt = _build_initial_prompt([group], config.max_neighbor_preview)
-    caching_supported = _supports_anthropic_prompt_caching(parsing_llm)
+    caching_supported = supports_prompt_caching(parsing_llm)
     cached_turns = 1 if caching_supported else 0
     messages: list[dict[str, Any]] = [
-        {"role": "system", "content": _TRACE_SYSTEM},
+        {"role": "system", "content": get_trace_system_message()},
         {"role": "user", "content": _trace_message_content(prompt, parsing_llm, enable_cache=caching_supported)},
     ]
 
@@ -791,9 +791,8 @@ def run_trace(
     static_analysis: StaticAnalysisResults,
     repo_dir: Path,
     base_ref: str,
-    agent_llm: BaseChatModel,
     parsing_llm: BaseChatModel,
-    config: TraceConfig | None = None,
+    config: TraceConfig = DEFAULT_TRACE_CONFIG,
     parsed_diff: ParsedGitDiff | None = None,
 ) -> TraceResult:
     """Run the semantic tracing loop over changed methods.
@@ -801,10 +800,6 @@ def run_trace(
     Returns a TraceResult with impacted methods. Scope classification
     (impacted_components) happens in the orchestrator via ``classify_scope``.
     """
-    del agent_llm  # reserved for future routing; tracing currently uses parsing_llm
-
-    cfg = config or TraceConfig()
-
     for file_delta in delta.file_deltas:
         if file_delta.file_status == ChangeStatus.DELETED:
             continue
@@ -844,8 +839,8 @@ def run_trace(
         logger.info("No traceable changed methods; skipping trace")
         return TraceResult()
 
-    if trace_plan.parallel_safe:
-        max_workers = min(len(trace_plan.groups), cfg.max_parallel_regions)
+    if len(trace_plan.groups) > 1:
+        max_workers = min(len(trace_plan.groups), config.max_parallel_regions)
         logger.info(
             "Tracing %d independent change regions in parallel (workers=%d)", len(trace_plan.groups), max_workers
         )
@@ -853,7 +848,7 @@ def run_trace(
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = {
                 executor.submit(
-                    _trace_single_group, group, static_analysis, repo_dir, parsing_llm, cfg
+                    _trace_single_group, group, static_analysis, repo_dir, parsing_llm, config
                 ): group.group_key
                 for group in trace_plan.groups
             }
@@ -866,7 +861,7 @@ def run_trace(
                     trace_results.append(TraceResult(stop_reason=TraceStopReason.UNCERTAIN))
     else:
         trace_results = [
-            _trace_single_group(group, static_analysis, repo_dir, parsing_llm, cfg) for group in trace_plan.groups
+            _trace_single_group(group, static_analysis, repo_dir, parsing_llm, config) for group in trace_plan.groups
         ]
 
     return _merge_trace_results(trace_results, trace_plan.fast_path_impacted_methods)

@@ -14,12 +14,13 @@ from enum import Enum
 from pathlib import Path
 
 from static_analyzer.constants import SOURCE_EXTENSION_TO_LANGUAGE
+from utils import CODEBOARDING_DIR_NAME
 
 logger = logging.getLogger(__name__)
 
 _HUNK_SIDE_RE = re.compile(r"^[+-](\d+)(?:,(\d+))?$")
 _DIFF_CONTEXT_LINES = 3
-_EXCLUDE_PATTERNS: tuple[str, ...] = (".codeboarding/",)
+_EXCLUDE_PATTERNS: tuple[str, ...] = (f"{CODEBOARDING_DIR_NAME}/",)
 
 
 class ChangeType(Enum):
