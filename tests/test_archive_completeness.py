@@ -7,14 +7,14 @@ binary that didn't exist. These tests pin the completeness contract.
 
 from __future__ import annotations
 
-import platform
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from tool_registry.manifest import archive_binary_path, archive_is_complete
+from tool_registry.manifest import archive_binary_path, archive_is_complete, archive_layout_spec
 from tool_registry.registry import (
+    ArchiveLayout,
     ConfigSection,
     GitHubToolSource,
     ToolDependency,
@@ -26,8 +26,7 @@ def _make_archive_dep(
     key: str = "cpp",
     binary_name: str = "clangd",
     archive_subdir: str = "clangd",
-    archive_marker: str = "bin",
-    archive_binary_path: str = "bin/clangd",
+    archive_layout: ArchiveLayout = ArchiveLayout.STRIPPED_BIN_DIR,
 ) -> ToolDependency:
     return ToolDependency(
         key=key,
@@ -36,19 +35,19 @@ def _make_archive_dep(
         config_section=ConfigSection.LSP_SERVERS,
         source=GitHubToolSource(repo="example/example", tag="v1", asset_template="asset.zip"),
         archive_subdir=archive_subdir,
-        archive_marker=archive_marker,
-        archive_binary_path=archive_binary_path,
+        archive_layout=archive_layout,
     )
 
 
 class TestArchiveIsComplete(unittest.TestCase):
     def test_returns_true_when_marker_and_binary_both_present(self):
         dep = _make_archive_dep()
+        marker, _strip, rel = archive_layout_spec(dep)
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)
             archive_dir = base / "bin" / dep.archive_subdir
-            (archive_dir / dep.archive_marker).mkdir(parents=True)
-            binary = archive_dir / dep.archive_binary_path
+            (archive_dir / marker).mkdir(parents=True)
+            binary = archive_dir / rel
             binary.parent.mkdir(parents=True, exist_ok=True)
             binary.write_text("#!/bin/sh\n")
             self.assertTrue(archive_is_complete(dep, base))
@@ -70,20 +69,22 @@ class TestArchiveIsComplete(unittest.TestCase):
     def test_returns_false_when_binary_missing(self):
         """Regression: the half-extracted case the marker-only check got wrong."""
         dep = _make_archive_dep()
+        marker, _strip, _rel = archive_layout_spec(dep)
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)
             archive_dir = base / "bin" / dep.archive_subdir
-            (archive_dir / dep.archive_marker).mkdir(parents=True)
+            (archive_dir / marker).mkdir(parents=True)
             # Marker exists, binary does NOT.
             self.assertFalse(archive_is_complete(dep, base))
 
-    def test_returns_true_when_binary_not_declared(self):
-        """JDTLS has no ``archive_binary_path`` — marker alone is enough."""
-        dep = _make_archive_dep(archive_binary_path="", archive_marker="plugins")
+    def test_returns_true_when_layout_has_no_binary(self):
+        """NESTED_PLUGINS (JDTLS) has no binary rewrite — marker alone is enough."""
+        dep = _make_archive_dep(archive_layout=ArchiveLayout.NESTED_PLUGINS)
+        marker, _strip, _rel = archive_layout_spec(dep)
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)
             archive_dir = base / "bin" / dep.archive_subdir
-            (archive_dir / dep.archive_marker).mkdir(parents=True)
+            (archive_dir / marker).mkdir(parents=True)
             self.assertTrue(archive_is_complete(dep, base))
 
     def test_non_archive_dep_always_complete(self):
@@ -100,12 +101,12 @@ class TestArchiveIsComplete(unittest.TestCase):
 
 
 class TestArchiveBinaryPath(unittest.TestCase):
-    def test_returns_none_when_no_binary_path(self):
-        dep = _make_archive_dep(archive_binary_path="")
+    def test_returns_none_for_nested_plugins_layout(self):
+        dep = _make_archive_dep(archive_layout=ArchiveLayout.NESTED_PLUGINS)
         self.assertIsNone(archive_binary_path(dep, Path("/base")))
 
     def test_windows_exe_suffix_applied(self):
-        dep = _make_archive_dep(archive_binary_path="bin/clangd")
+        dep = _make_archive_dep()
         with patch("tool_registry.manifest.platform.system", return_value="Windows"):
             resolved = archive_binary_path(dep, Path("/base"))
         self.assertIsNotNone(resolved)
@@ -113,22 +114,28 @@ class TestArchiveBinaryPath(unittest.TestCase):
         self.assertTrue(resolved.name.endswith(".exe"))
 
     def test_non_windows_no_exe_suffix(self):
-        dep = _make_archive_dep(archive_binary_path="bin/clangd")
+        dep = _make_archive_dep()
         with patch("tool_registry.manifest.platform.system", return_value="Darwin"):
             resolved = archive_binary_path(dep, Path("/base"))
         self.assertIsNotNone(resolved)
         assert resolved is not None
         self.assertEqual(resolved.name, "clangd")
 
-    def test_honors_explicit_suffix(self):
-        """Devs sometimes embed ``.exe`` in the archive_binary_path itself —
-        the helper must not stack a second ``.exe``."""
-        dep = _make_archive_dep(archive_binary_path="bin/clangd.exe")
-        with patch("tool_registry.manifest.platform.system", return_value="Windows"):
-            resolved = archive_binary_path(dep, Path("/base"))
-        self.assertIsNotNone(resolved)
-        assert resolved is not None
-        self.assertEqual(resolved.name, "clangd.exe")
+
+class TestArchiveLayoutSpec(unittest.TestCase):
+    def test_nested_plugins_spec(self):
+        dep = _make_archive_dep(archive_layout=ArchiveLayout.NESTED_PLUGINS)
+        marker, strip_root, binary = archive_layout_spec(dep)
+        self.assertEqual(marker, "plugins")
+        self.assertFalse(strip_root)
+        self.assertEqual(binary, "")
+
+    def test_stripped_bin_dir_spec_derives_binary_from_dep(self):
+        dep = _make_archive_dep(binary_name="clangd", archive_layout=ArchiveLayout.STRIPPED_BIN_DIR)
+        marker, strip_root, binary = archive_layout_spec(dep)
+        self.assertEqual(marker, "bin")
+        self.assertTrue(strip_root)
+        self.assertEqual(binary, "bin/clangd")
 
 
 if __name__ == "__main__":
