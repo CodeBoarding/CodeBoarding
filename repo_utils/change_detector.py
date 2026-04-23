@@ -5,7 +5,7 @@ consumed by the incremental analysis pipeline:
 
 - file-level accessors: ``added_files``, ``modified_files``, ``deleted_files``,
   ``renames``, ``file_status(path)``
-- per-file drill-down: ``get_file(path)`` → :class:`FileChange` with hunks, and
+- per-file drill-down: ``get_file(path)`` -> :class:`FileChange` with hunks, and
   ``FileChange.classify_method_statuses(methods)`` for method-level status.
 """
 

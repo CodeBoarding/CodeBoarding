@@ -1,4 +1,4 @@
-"""Git diff → :class:`ChangeSet` parser.
+"""Git diff -> :class:`ChangeSet` parser.
 
 Orchestrates the git I/O primitives in :mod:`repo_utils.git_ops` and parses
 the raw output into a :class:`ChangeSet`. Non-source entries and the
