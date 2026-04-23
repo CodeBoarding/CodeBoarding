@@ -10,7 +10,8 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from static_analyzer.engine.adapters.cpp_cdb.base import BuildSystemKind
+from static_analyzer.engine.adapters.cpp_cdb.base import CDB_SUBDIR, BuildSystemKind
+from static_analyzer.engine.adapters.cpp_cdb.cdb_io import is_valid_compile_commands
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +59,43 @@ def detect_build_system(project_root: Path) -> BuildSystemKind:
 
 def _any_exists(root: Path, names: tuple[str, ...]) -> bool:
     return any((root / name).is_file() for name in names)
+
+
+_USER_CDB_SUBDIRS = (
+    Path(""),
+    Path("build"),
+    Path("build") / "Debug",
+    Path("build") / "Release",
+    Path("cmake-build-debug"),
+    Path("cmake-build-release"),
+)
+
+
+def locate_user_cdb(project_root: Path) -> Path | None:
+    """Return the first user-owned CDB directory found, or ``None``.
+
+    A hit here must short-circuit generation — we never rebuild on top of
+    a CDB the user committed or emitted from their own build. The search
+    intentionally excludes ``.codeboarding/cdb`` (that's our output).
+    """
+    for rel in _USER_CDB_SUBDIRS:
+        root = project_root / rel
+        if (root / "compile_flags.txt").is_file():
+            return root
+        if (root / "compile_commands.json").is_file():
+            return root
+    return None
+
+
+def locate_generated_cdb(project_root: Path) -> Path | None:
+    """Return the generated CDB path when it exists and passes validation.
+
+    An empty / malformed ``.codeboarding/cdb/compile_commands.json``
+    returns ``None`` so the caller re-triggers generation instead of
+    feeding clangd a broken CDB.
+    """
+    cdb = project_root / CDB_SUBDIR / "compile_commands.json"
+    return cdb if is_valid_compile_commands(cdb) else None
 
 
 def install_hint_for(kind: BuildSystemKind) -> str:

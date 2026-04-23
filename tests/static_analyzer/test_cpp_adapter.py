@@ -12,6 +12,7 @@ from static_analyzer.engine.adapters.cpp_adapter import (
     _normalize_cpp_parent,
     _strip_template_args,
 )
+from static_analyzer.engine.adapters.cpp_cdb import locate_generated_cdb, locate_user_cdb
 
 
 class TestCppAdapterProperties:
@@ -137,12 +138,12 @@ class TestCdbLocationSplit:
 
     def test_find_user_cdb_at_root(self, tmp_path: Path) -> None:
         (tmp_path / "compile_commands.json").write_text("[]")
-        assert CppAdapter._find_user_cdb(tmp_path) == tmp_path
+        assert locate_user_cdb(tmp_path) == tmp_path
 
     def test_find_user_cdb_in_build(self, tmp_path: Path) -> None:
         (tmp_path / "build").mkdir()
         (tmp_path / "build" / "compile_commands.json").write_text("[]")
-        assert CppAdapter._find_user_cdb(tmp_path) == tmp_path / "build"
+        assert locate_user_cdb(tmp_path) == tmp_path / "build"
 
     def test_user_cdb_does_not_match_generated_dir(self, tmp_path: Path) -> None:
         """A CDB under ``.codeboarding/cdb/`` is *not* user-owned — the
@@ -151,13 +152,13 @@ class TestCdbLocationSplit:
         cdb_dir = tmp_path / ".codeboarding" / "cdb"
         cdb_dir.mkdir(parents=True)
         (cdb_dir / "compile_commands.json").write_text('[{"directory": ".", "file": "x.cc", "command": "c++ -c x.cc"}]')
-        assert CppAdapter._find_user_cdb(tmp_path) is None
+        assert locate_user_cdb(tmp_path) is None
 
     def test_find_generated_cdb_requires_validity(self, tmp_path: Path) -> None:
         cdb_dir = tmp_path / ".codeboarding" / "cdb"
         cdb_dir.mkdir(parents=True)
         (cdb_dir / "compile_commands.json").write_text("[]")  # invalid: empty
-        assert CppAdapter._find_generated_cdb(tmp_path) is None
+        assert locate_generated_cdb(tmp_path) is None
 
 
 class TestExtractSignature:

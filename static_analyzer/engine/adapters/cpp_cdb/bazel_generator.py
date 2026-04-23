@@ -33,24 +33,11 @@ from pathlib import Path
 from static_analyzer.engine.adapters.cpp_cdb import config
 from static_analyzer.engine.adapters.cpp_cdb.base import (
     CDB_SKIP_DIRS,
-    CDB_SUBDIR,
     CPP_SOURCE_EXTENSIONS,
     BuildSystemKind,
     CdbGenerator,
 )
-from static_analyzer.engine.adapters.cpp_cdb.cdb_io import (
-    cdb_generation_lock,
-    clear_generated_compile_commands,
-    is_valid_compile_commands,
-    write_compile_commands_atomic,
-)
-from static_analyzer.engine.adapters.cpp_cdb.fingerprint import (
-    collect_project_sources,
-    compute_fingerprint,
-    delete_cached_fingerprint,
-    read_cached_fingerprint,
-    write_cached_fingerprint,
-)
+from static_analyzer.engine.adapters.cpp_cdb.fingerprint import collect_project_sources
 
 logger = logging.getLogger(__name__)
 
@@ -76,52 +63,19 @@ class BazelAqueryGenerator(CdbGenerator):
     def kind(self) -> BuildSystemKind:
         return BuildSystemKind.BAZEL
 
-    def describe_install(self) -> str:
-        return (
-            "Install Bazel 6 or later (https://bazel.build/install). "
-            "CodeBoarding uses 'bazel aquery' — no WORKSPACE edits are needed."
-        )
-
-    def generate(self, project_root: Path) -> Path:
-        cdb_dir = project_root / CDB_SUBDIR
-        cdb_path = cdb_dir / "compile_commands.json"
-        cdb_dir.mkdir(parents=True, exist_ok=True)
-
-        with cdb_generation_lock(cdb_dir):
-            fingerprint_inputs = self._fingerprint_inputs(project_root)
-            new_fp = compute_fingerprint(fingerprint_inputs)
-            if (
-                not config.force_regenerate()
-                and cdb_path.is_file()
-                and read_cached_fingerprint(cdb_dir) == new_fp
-                and is_valid_compile_commands(cdb_path)
-            ):
-                logger.info("Bazel CDB cache hit at %s (fingerprint %s)", cdb_path, new_fp[:8])
-                return cdb_path
-
-            clear_generated_compile_commands(cdb_dir)
-            delete_cached_fingerprint(cdb_dir)
-
-            self._require_bazel()
-
-            exec_root = self._bazel_info(project_root, "execution_root")
-            aquery_json = self._run_aquery(project_root)
-            entries = self._actions_to_cdb(aquery_json, exec_root)
-
-            if not entries:
-                raise RuntimeError(
-                    "bazel aquery returned no CppCompile actions. "
-                    f"Check that {config.ENV_BAZEL_QUERY!s} ({config.bazel_query_scope()!r}) matches "
-                    "real targets; the default deps(//...) fails on workspaces with no C++ code."
-                )
-
-            try:
-                write_compile_commands_atomic(cdb_path, entries)
-            except (OSError, ValueError) as exc:
-                raise RuntimeError(f"Could not write Bazel compile_commands.json: {exc}") from exc
-            write_cached_fingerprint(cdb_dir, new_fp)
-            logger.info("Wrote %d CppCompile entries to %s", len(entries), cdb_path)
-            return cdb_path
+    def _build_entries(self, project_root: Path) -> list[dict]:
+        self._require_bazel()
+        exec_root = self._bazel_info(project_root, "execution_root")
+        aquery_json = self._run_aquery(project_root)
+        entries = self._actions_to_cdb(aquery_json, exec_root)
+        if not entries:
+            raise RuntimeError(
+                "bazel aquery returned no CppCompile actions. "
+                f"Check that {config.ENV_BAZEL_QUERY!s} ({config.bazel_query_scope()!r}) matches "
+                "real targets; the default deps(//...) fails on workspaces with no C++ code."
+            )
+        logger.info("Collected %d CppCompile entries from bazel aquery", len(entries))
+        return entries
 
     # --- internals ----------------------------------------------------
 
