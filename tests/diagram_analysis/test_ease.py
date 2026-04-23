@@ -37,7 +37,7 @@ def test_decode_respects_display_order_even_when_reordered():
 
 
 def test_decode_tolerates_empty_arrays():
-    original = {"items": []}
+    original: dict = {"items": []}
     encoded = ease_encode(original, ["items"])
     assert encoded["items"] == {"display_order": []}
     decoded = ease_decode(encoded, ["items"])
