@@ -525,8 +525,8 @@ def install_archive_tool(
 ) -> None:
     """Download and extract an archive tool.
 
-    Supports .tar.gz/.zip from Upstream or GitHub sources; ``archive_marker``
-    gates the reinstall-skip check, ``archive_strip_root`` drops a
+    Supports .tar.gz/.zip from Upstream or GitHub sources; ``archive_layout``
+    picks the marker for the reinstall-skip check and whether to drop a
     top-level wrapper dir during extraction.
     """
     assert dep.source, f"{dep.key}: source required for archive tools"
@@ -549,8 +549,8 @@ def install_archive_tool(
     # A half-extracted archive must re-install, not skip — the marker-only
     # check would otherwise falsely report "already installed" when the
     # binary is missing. archive_is_complete also verifies the binary
-    # (with Windows .exe suffix) when the dep declares one.
-    from .manifest import archive_is_complete  # local import avoids a cycle
+    # (with Windows .exe suffix) when the layout declares one.
+    from .manifest import archive_is_complete, archive_layout_spec  # local import avoids a cycle
 
     if archive_is_complete(dep, target_dir):
         logger.info("%s already installed", dep.key)
@@ -571,7 +571,8 @@ def install_archive_tool(
             logger.warning("%s download failed (empty file)", dep.key)
             return
 
-        _extract_archive(archive_path, extract_dir, strip_root=dep.archive_strip_root)
+        _marker, strip_root, _binary = archive_layout_spec(dep)
+        _extract_archive(archive_path, extract_dir, strip_root=strip_root)
         archive_path.unlink()
         logger.info("%s installed successfully", dep.key)
     except Exception:

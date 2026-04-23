@@ -961,9 +961,11 @@ def _populate_complete_servers_dir(base_dir: Path) -> None:
     NATIVE -> platform_bin_dir/<name><exe>;
     NODE -> node_modules/<js_entry_parent>/lib/<js_entry_file>
     (find_runnable does a substring match on parent dir);
-    ARCHIVE -> bin/<archive_subdir>/<archive_marker> (default "plugins");
+    ARCHIVE -> bin/<archive_subdir>/<layout marker> (+ layout's binary if declared);
     PACKAGE_MANAGER -> platform_bin_dir/pm-tools/<subdir>/<name><exe>
     """
+    from tool_registry.manifest import archive_layout_spec
+
     bin_dir = platform_bin_dir(base_dir)
     bin_dir.mkdir(parents=True, exist_ok=True)
     for dep in TOOL_REGISTRY:
@@ -979,18 +981,17 @@ def _populate_complete_servers_dir(base_dir: Path) -> None:
             if not dep.is_available_on_host():
                 continue
             archive_dir = base_dir / "bin" / dep.archive_subdir
-            marker = archive_dir / dep.archive_marker
-            # archive_marker always names a directory (e.g. JDTLS's
-            # ``plugins/``, clangd's ``bin/``); file-level markers would
-            # fail the ``.exists`` check on Windows where binaries carry
-            # an ``.exe`` suffix.
-            marker.mkdir(parents=True, exist_ok=True)
-            # For deps with ``archive_binary_path`` also materialize the
+            marker_name, _strip, binary_rel = archive_layout_spec(dep)
+            # Marker always names a directory (JDTLS's ``plugins/``,
+            # clangd's ``bin/``); file-level markers would fail ``.exists``
+            # on Windows where binaries carry a ``.exe`` suffix.
+            (archive_dir / marker_name).mkdir(parents=True, exist_ok=True)
+            # For layouts with a binary rewrite also materialize the
             # binary itself so ``resolve_config`` can point ``command[0]``
             # at it — otherwise the cmd branch in the resolver wouldn't
             # trigger during tests.
-            if dep.archive_binary_path:
-                binary = archive_dir / dep.archive_binary_path
+            if binary_rel:
+                binary = archive_dir / binary_rel
                 binary.parent.mkdir(parents=True, exist_ok=True)
                 binary.write_text("#!/bin/sh\n")
         elif dep.kind is ToolKind.PACKAGE_MANAGER:
@@ -1061,17 +1062,21 @@ class TestHasRequiredTools(unittest.TestCase):
         reported "installed" and resolve_config then pointed ``command[0]``
         at a file that didn't exist.
         """
+        from tool_registry.manifest import archive_layout_spec
         from tool_registry.registry import TOOL_REGISTRY
 
         clangd_dep = next((d for d in TOOL_REGISTRY if d.key == "cpp"), None)
-        if clangd_dep is None or not clangd_dep.archive_binary_path:
+        if clangd_dep is None:
             self.skipTest("clangd dep not in registry (nothing to regression-test)")
+        _marker, _strip, rel = archive_layout_spec(clangd_dep)
+        if not rel:
+            self.skipTest("clangd layout has no binary rewrite")
         if not clangd_dep.is_available_on_host():
             self.skipTest("clangd unavailable on this host")
         with tempfile.TemporaryDirectory() as tmp:
             base_dir = Path(tmp)
             _populate_complete_servers_dir(base_dir)
-            binary = base_dir / "bin" / clangd_dep.archive_subdir / clangd_dep.archive_binary_path
+            binary = base_dir / "bin" / clangd_dep.archive_subdir / rel
             binary.unlink()
             self.assertFalse(has_required_tools(base_dir))
 

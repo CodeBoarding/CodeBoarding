@@ -39,7 +39,7 @@ RUST_ANALYZER_REPO = "rust-lang/rust-analyzer"
 RUST_ANALYZER_TAG = "2026-03-30"
 
 # clangd ships as a dir archive (binary + clang builtin headers loaded at
-# runtime) under a ``clangd_<ver>/`` wrapper that ``archive_strip_root`` drops.
+# runtime) under a ``clangd_<ver>/`` wrapper that ``STRIPPED_BIN_DIR`` drops.
 CLANGD_REPO = "clangd/clangd"
 CLANGD_TAG = "22.1.0"
 
@@ -74,6 +74,15 @@ class ConfigSection(StrEnum):
 
     TOOLS = "tools"
     LSP_SERVERS = "lsp_servers"
+
+
+class ArchiveLayout(StrEnum):
+    """Shape of an ARCHIVE-kind tool's extracted directory tree."""
+
+    # JDTLS-shaped: wrapped in archive_subdir, post-install marker "plugins".
+    NESTED_PLUGINS = "nested_plugins"
+    # clangd-shaped: drop top-level wrapper dir, marker "bin", LSP binary at bin/<name>.
+    STRIPPED_BIN_DIR = "stripped_bin_dir"
 
 
 @dataclass(frozen=True)
@@ -141,15 +150,9 @@ class ToolDependency:
     archive_subdir: str = ""
     js_entry_file: str = ""
     js_entry_parent: str = ""
-    # ARCHIVE-kind fields (no-op for other kinds):
-    #   archive_marker       path inside bin/<subdir>/ that must exist post-install
-    #                        (default ``plugins`` preserves JDTLS's contract).
-    #   archive_strip_root   drop a single top-level dir from the archive during extract.
-    #   archive_binary_path  rel path to the LSP binary; when set, ``resolve_config``
-    #                        rewrites command[0] to its absolute path.
-    archive_marker: str = "plugins"
-    archive_strip_root: bool = False
-    archive_binary_path: str = ""
+    # ARCHIVE-kind discriminator (no-op for other kinds). Default preserves
+    # the JDTLS contract; see ``ArchiveLayout`` for per-variant semantics.
+    archive_layout: ArchiveLayout = ArchiveLayout.NESTED_PLUGINS
 
     def is_available_on_host(self) -> bool:
         """True unless an arch-aware dep's override map excludes the current (system, machine).
@@ -314,9 +317,6 @@ TOOL_REGISTRY: list[ToolDependency] = [
             },
         ),
         archive_subdir="clangd",
-        # Dir marker (file-level ``bin/clangd`` would miss Windows ``.exe``).
-        archive_marker="bin",
-        archive_strip_root=True,
-        archive_binary_path="bin/clangd",
+        archive_layout=ArchiveLayout.STRIPPED_BIN_DIR,
     ),
 ]

@@ -32,7 +32,7 @@ from tool_registry import (
     preferred_npm_command,
     write_manifest,
 )
-from tool_registry.manifest import archive_binary_path, archive_is_complete
+from tool_registry.manifest import archive_binary_path, archive_is_complete, archive_layout_spec
 from tool_registry.registry import ConfigSection, PackageManagerToolSource
 from vscode_constants import VSCODE_CONFIG
 from static_analyzer.constants import Language
@@ -618,11 +618,12 @@ def _language_checks_from_registry(target_dir: Path) -> list[LanguageSupportChec
         elif dep.kind is ToolKind.ARCHIVE:
             # Mirrors installer/has_required_tools via ``archive_is_complete``:
             # the archive counts as installed only when the marker *and* the
-            # binary (when declared) are both present. Without this, a
-            # half-extracted clangd (bin/ dir exists but bin/clangd missing)
-            # falsely reports "yes" in the summary.
+            # binary (when the layout declares one) are both present.
+            # Without this, a half-extracted clangd (bin/ dir present but
+            # bin/clangd missing) falsely reports "yes" in the summary.
             subdir = dep.archive_subdir
-            paths.append(target_dir / "bin" / subdir / dep.archive_marker)
+            marker, _strip, _rel = archive_layout_spec(dep)
+            paths.append(target_dir / "bin" / subdir / marker)
             binary = archive_binary_path(dep, target_dir)
             if binary is not None:
                 paths.append(binary)
@@ -646,10 +647,10 @@ def _language_checks_from_registry(target_dir: Path) -> list[LanguageSupportChec
                 reason_requirement = f"{dep.binary_name} not installed ({manager} unavailable or install failed)"
             reason_binary = reason_requirement
 
-        # ARCHIVE deps whose ``archive_binary_path`` is set need the marker
-        # AND the binary — ``any``-semantics would falsely report "yes"
-        # when only the marker survived a crashed extraction.
-        require_all_paths = dep.kind is ToolKind.ARCHIVE and bool(dep.archive_binary_path)
+        # ARCHIVE layouts with a binary rewrite need the marker AND the
+        # binary — ``any``-semantics would falsely report "yes" when only
+        # the marker survived a crashed extraction.
+        require_all_paths = dep.kind is ToolKind.ARCHIVE and archive_binary_path(dep, target_dir) is not None
 
         for lang in languages:
             checks.append(

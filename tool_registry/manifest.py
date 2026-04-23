@@ -24,12 +24,34 @@ from .paths import exe_suffix, get_servers_dir, platform_bin_dir, preferred_node
 from .registry import (
     PINNED_NODE_VERSION,
     TOOL_REGISTRY,
+    ArchiveLayout,
     GitHubToolSource,
     PackageManagerToolSource,
     ToolDependency,
     ToolKind,
     UpstreamToolSource,
 )
+
+# Per-layout specs: (marker, strip_root, has_binary_rewrite). One table
+# lookup replaces three parallel field reads across installers + manifest.
+# ``binary_path`` is always ``bin/<binary_name>`` when has_binary_rewrite
+# is True — derived from the dep, not stored here.
+_LAYOUT_SPECS: dict[ArchiveLayout, tuple[str, bool, bool]] = {
+    ArchiveLayout.NESTED_PLUGINS: ("plugins", False, False),
+    ArchiveLayout.STRIPPED_BIN_DIR: ("bin", True, True),
+}
+
+
+def archive_layout_spec(dep: ToolDependency) -> tuple[str, bool, str]:
+    """Return ``(marker, strip_root, binary_path)`` for an ARCHIVE dep.
+
+    ``binary_path`` is a non-empty relative path (``bin/<binary_name>``)
+    when the layout rewrites ``command[0]``, empty otherwise.
+    """
+    marker, strip_root, has_binary = _LAYOUT_SPECS[dep.archive_layout]
+    binary_path = f"bin/{dep.binary_name}" if has_binary else ""
+    return marker, strip_root, binary_path
+
 
 logger = logging.getLogger(__name__)
 
@@ -203,13 +225,15 @@ def package_manager_tool_path(base_dir: Path, dep: ToolDependency) -> Path | Non
 def archive_binary_path(dep: ToolDependency, base_dir: Path) -> Path | None:
     """Absolute path to an ARCHIVE tool's binary, with Windows ``.exe`` applied.
 
-    Returns ``None`` when the dep has no ``archive_binary_path`` (e.g.
-    JDTLS, which is driven via ``jdtls_root``) — there's no single
-    executable to point at in that case.
+    Returns ``None`` when the layout doesn't rewrite ``command[0]`` (e.g.
+    NESTED_PLUGINS / JDTLS, driven via ``jdtls_root``).
     """
-    if dep.kind is not ToolKind.ARCHIVE or not dep.archive_subdir or not dep.archive_binary_path:
+    if dep.kind is not ToolKind.ARCHIVE or not dep.archive_subdir:
         return None
-    binary = base_dir / "bin" / dep.archive_subdir / dep.archive_binary_path
+    _marker, _strip, rel = archive_layout_spec(dep)
+    if not rel:
+        return None
+    binary = base_dir / "bin" / dep.archive_subdir / rel
     if platform.system() == "Windows" and binary.suffix == "":
         binary = binary.with_suffix(".exe")
     return binary
@@ -220,22 +244,21 @@ def archive_is_complete(dep: ToolDependency, base_dir: Path) -> bool:
 
     "Fully installed" means:
       * ``bin/<archive_subdir>/`` exists,
-      * the ``archive_marker`` file is present inside it, AND
-      * if the dep has an ``archive_binary_path``, that binary exists too
+      * the layout's marker is present inside it, AND
+      * if the layout declares a binary rewrite, that binary exists too
         (with Windows ``.exe`` suffix applied).
 
-    The binary check is what distinguishes a half-extracted clangd
-    (``bin/`` dir present but missing ``bin/clangd``) from a good one —
-    relying on the marker alone falsely reports "installed" after a
-    crashed extraction, and ``resolve_config`` then emits a command line
-    pointing at a file that doesn't exist.
+    Why: the binary check distinguishes a half-extracted clangd
+    (``bin/`` present but ``bin/clangd`` missing) from a good one —
+    marker-only would falsely report "installed" after a crashed extraction.
     """
     if dep.kind is not ToolKind.ARCHIVE or not dep.archive_subdir:
         return True
     archive_dir = base_dir / "bin" / dep.archive_subdir
     if not archive_dir.is_dir():
         return False
-    if not (archive_dir / dep.archive_marker).exists():
+    marker, _strip, _rel = archive_layout_spec(dep)
+    if not (archive_dir / marker).exists():
         return False
     binary = archive_binary_path(dep, base_dir)
     if binary is not None and not binary.exists():
@@ -288,14 +311,13 @@ def resolve_config(base_dir: Path) -> dict[str, Any]:
             if not archive_is_complete(dep, base_dir):
                 continue
             archive_dir = base_dir / "bin" / dep.archive_subdir
-            # ``archive_binary_path``: rewrite command[0] (clangd).
-            # Else: JDTLS — export ``jdtls_root`` (JavaClient builds the
+            # STRIPPED_BIN_DIR: rewrite command[0] (clangd).
+            # NESTED_PLUGINS: export ``jdtls_root`` (JavaClient builds the
             # full command from it dynamically).
-            if dep.archive_binary_path:
-                binary_path = archive_binary_path(dep, base_dir)
-                if binary_path is not None:
-                    cmd = cast(list[str], config[dep.config_section][dep.key]["command"])
-                    cmd[0] = str(binary_path)
+            binary_path = archive_binary_path(dep, base_dir)
+            if binary_path is not None:
+                cmd = cast(list[str], config[dep.config_section][dep.key]["command"])
+                cmd[0] = str(binary_path)
             else:
                 config[dep.config_section][dep.key]["jdtls_root"] = str(archive_dir)
 
@@ -335,7 +357,7 @@ def has_required_tools(base_dir: Path) -> bool:
     NATIVE -> ``platform_bin_dir/<binary><exe>`` exists;
     NODE -> ``find_runnable`` locates ``js_entry_file`` (``.bin/`` wrapper is
     skipped because Windows AV strips it first, and the resolver bypasses it too);
-    ARCHIVE -> ``bin/<archive_subdir>/<archive_marker>`` exists (default marker is ``plugins/`` for JDTLS).
+    ARCHIVE -> ``bin/<archive_subdir>/<layout marker>`` exists (``plugins/`` for NESTED_PLUGINS, ``bin/`` for STRIPPED_BIN_DIR).
     """
     if not base_dir.exists():
         return False
