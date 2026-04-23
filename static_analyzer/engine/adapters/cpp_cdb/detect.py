@@ -1,9 +1,4 @@
-"""Detect a C/C++ project's build system from marker files.
-
-Precedence is ordered so that a mixed repo (e.g. CMake that wraps a
-vendored Autotools library) resolves to the outer build system — which is
-the one whose ``compile_commands.json`` we'd actually want.
-"""
+"""Detect a C/C++ project's build system from marker files."""
 
 from __future__ import annotations
 
@@ -28,10 +23,8 @@ _MAKE_MARKERS = ("Makefile", "GNUmakefile", "makefile")
 def detect_build_system(project_root: Path) -> BuildSystemKind:
     """Identify the build system at ``project_root`` by marker file.
 
-    Returns :attr:`BuildSystemKind.UNKNOWN` when no recognised marker is
-    found at the root (we never walk into subdirectories — a nested
-    ``CMakeLists.txt`` two levels down belongs to a vendored dep, not the
-    outer project).
+    Why: root-only; a nested ``CMakeLists.txt`` belongs to a vendored dep,
+    not the outer project.
     """
     if not project_root.is_dir():
         return BuildSystemKind.UNKNOWN
@@ -75,9 +68,8 @@ _USER_CDB_SUBDIRS = (
 def locate_user_cdb(project_root: Path) -> Path | None:
     """Return the first user-owned CDB directory found, or ``None``.
 
-    A hit here must short-circuit generation — we never rebuild on top of
-    a CDB the user committed or emitted from their own build. The search
-    intentionally excludes ``.codeboarding/cdb`` (that's our output).
+    Why: a hit must short-circuit generation so we never rebuild on top
+    of a CDB the user emitted. Excludes ``.codeboarding/cdb`` (our output).
     """
     for rel in _USER_CDB_SUBDIRS:
         root = project_root / rel
@@ -89,23 +81,13 @@ def locate_user_cdb(project_root: Path) -> Path | None:
 
 
 def locate_generated_cdb(project_root: Path) -> Path | None:
-    """Return the generated CDB path when it exists and passes validation.
-
-    An empty / malformed ``.codeboarding/cdb/compile_commands.json``
-    returns ``None`` so the caller re-triggers generation instead of
-    feeding clangd a broken CDB.
-    """
+    """Return the generated CDB path when it exists and passes validation."""
     cdb = project_root / CDB_SUBDIR / "compile_commands.json"
     return cdb if is_valid_compile_commands(cdb) else None
 
 
 def install_hint_for(kind: BuildSystemKind) -> str:
-    """Return a one-paragraph user-facing hint for how to get a CDB.
-
-    Used in ``CppAdapter``'s startup error when no CDB is present. Each
-    branch names the concrete command the user would run — generic advice
-    like "generate a compilation database" is worthless to a newbie.
-    """
+    """Return a user-facing hint for how to get a CDB for ``kind``."""
     if kind is BuildSystemKind.CMAKE:
         return (
             "Detected CMake (CMakeLists.txt). Regenerate with "

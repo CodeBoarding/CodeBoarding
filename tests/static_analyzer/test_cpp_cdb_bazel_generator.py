@@ -1,6 +1,4 @@
-"""Unit tests for BazelAqueryGenerator — subprocess is mocked with canned
-aquery jsonproto output.
-"""
+"""Unit tests for BazelAqueryGenerator (subprocess mocked)."""
 
 from __future__ import annotations
 
@@ -96,9 +94,6 @@ class TestFindSourceArgument:
         assert _find_source_argument(args) == "src/x.cc"
 
     def test_falls_back_to_last_source_suffixed(self) -> None:
-        """Bazel toolchains sometimes emit ``--compile src/x.cc`` or similar
-        — no ``-c`` pair, but a source file is still in there.
-        """
         args = ["clang", "--compile", "src/x.cc", "-o", "x.o"]
         assert _find_source_argument(args) == "src/x.cc"
 
@@ -106,9 +101,7 @@ class TestFindSourceArgument:
         assert _find_source_argument(["clang", "--version"]) is None
 
     def test_ignores_dash_prefixed_args(self) -> None:
-        """A flag like ``--foo.c`` must not be misread as a source file."""
         args = ["clang", "-c", "src/x.cc", "-o", "foo.c.d"]
-        # `-o foo.c.d` ends in `.d`, not a source suffix — still matches src/x.cc
         assert _find_source_argument(args) == "src/x.cc"
 
     def test_fallback_ignores_dash_o_output(self) -> None:

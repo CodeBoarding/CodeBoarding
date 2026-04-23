@@ -80,18 +80,8 @@ _SIGNATURE_SCOPE_RE = re.compile(r"::")
 def _extract_signature(detail: str) -> str | None:
     """Extract a normalized ``(param_types)`` suffix from a clangd ``detail``.
 
-    clangd's ``DocumentSymbol.detail`` for callables takes forms like
-    ``() const -> void`` or ``(const Entity &) -> void`` or
-    ``void(int, int)``. We want just the parenthesised param list,
-    whitespace-normalised, so ``Processor::process(const Entity &)`` and
-    ``Processor::process(const Task &)`` resolve to distinct qualified
-    names instead of colliding on ``Processor.process``.
-
-    Returns ``None`` in three cases where a suffix would add no
-    disambiguation value:
-      * ``detail`` has no ``(``
-      * The ``(...)`` body is empty (``()`` → no params → no overload risk)
-      * Parentheses are unbalanced (malformed input; leave the bare name)
+    Returns ``None`` when a suffix would add no disambiguation value (no
+    ``(``, empty parens, unbalanced parens).
     """
     if not detail:
         return None
@@ -124,21 +114,16 @@ def _extract_signature(detail: str) -> str | None:
 
 
 @lru_cache(maxsize=4096)
-def _normalize_cpp_parent_cached(name: str) -> str:
+def _normalize_cpp_parent(name: str) -> str:
     """Flatten ``foo::Bar<T>`` to ``foo.Bar`` for qualified-name consumption.
 
-    Why: parent names repeat heavily across symbols in large C++ projects
-    (e.g. POCO's ~10K symbols share ~500 distinct parents). LRU cache
-    eliminates redundant template-stripping and string allocation.
+    Why: parent names repeat heavily across symbols in large C++ projects;
+    an LRU cache eliminates redundant template-stripping and allocation.
     """
     stripped = _strip_template_args(name)
     if not stripped or not stripped.strip():
         return ""
     return stripped.strip().replace("::", ".")
-
-
-def _normalize_cpp_parent(name: str) -> str:
-    return _normalize_cpp_parent_cached(name)
 
 
 class CppAdapter(LanguageAdapter):
@@ -166,21 +151,19 @@ class CppAdapter(LanguageAdapter):
         return 60
 
     def phase1_request_timeout(self, probe_timeout: int) -> int | None:
-        """Use the per-project probe_timeout for Phase 1 ``document_symbol`` calls.
+        """Use probe_timeout for Phase 1 document_symbol calls.
 
-        Why: on Windows, clangd continues background-indexing during Phase 1
-        and a single request can block for minutes — the 60s default
-        false-fails POCO-sized projects.
+        Why: on Windows, clangd background-indexes during Phase 1 and a
+        single request can block for minutes — the 60s default false-fails
+        POCO-sized projects.
         """
         return probe_timeout
 
     def get_lsp_command(self, project_root: Path) -> list[str]:
-        """Fail fast without a compilation database — clangd silently returns empty refs otherwise.
+        """Fail fast without a CDB; add --compile-commands-dir for generated ones.
 
-        When the CDB lives under ``.codeboarding/cdb/`` (typically because a
-        generator put it there on our behalf), append
-        ``--compile-commands-dir`` so clangd picks it up — its walk-up
-        search would otherwise miss a hidden sibling dir.
+        Why: clangd silently returns empty refs with no CDB, and its walk-up
+        search misses the hidden ``.codeboarding/cdb/`` sibling.
         """
         if not self._has_compilation_database(project_root):
             kind = detect_build_system(project_root)
@@ -219,17 +202,11 @@ class CppAdapter(LanguageAdapter):
     ) -> str:
         """Build names from namespace/class chain, not file path.
 
-        Why: ``.hpp``/``.cpp`` split would otherwise give the same method
-        two distinct qualified names, breaking cross-file references.
-        No-parent case returns bare name — keeps dual-registration aliases
-        shorter than the scoped canonical so CallGraph's longest-wins dedup
-        picks the scoped entry.
-
-        Callable symbols (functions, methods, constructors) gain a
-        ``(param_types)`` suffix when clangd's ``detail`` has a non-empty
-        parameter list, so overloads with the same name don't collide. A
-        zero-arg callable (``()``) produces no suffix — nothing to
-        disambiguate.
+        Why: the .hpp/.cpp split would otherwise give the same method two
+        distinct qualified names, breaking cross-file references. The
+        no-parent case returns the bare name so dual-registration aliases
+        stay strictly shorter than the canonical scoped entry (CallGraph
+        picks longest-wins).
         """
         sym = _strip_template_args(symbol_name).replace("::", ".").strip()
 
