@@ -23,7 +23,7 @@ class TestPrepareProjectSkipConditions:
         """
         monkeypatch.setenv("CODEBOARDING_CPP_GENERATE_CDB", "1")
         (tmp_path / "compile_commands.json").write_text("[]")
-        with patch("static_analyzer.engine.adapters.cpp_adapter.generator_for") as gen_for:
+        with patch("static_analyzer.engine.adapters.cpp_cdb.generator_for") as gen_for:
             CppAdapter().prepare_project(tmp_path)
         gen_for.assert_not_called()
 
@@ -45,7 +45,7 @@ class TestPrepareProjectSkipConditions:
         fake_generator = MagicMock()
         fake_generator.generate.return_value = cdb_dir / "compile_commands.json"
         fake_generator.kind = BuildSystemKind.MAKE
-        with patch("static_analyzer.engine.adapters.cpp_adapter.generator_for", return_value=fake_generator):
+        with patch("static_analyzer.engine.adapters.cpp_cdb.generator_for", return_value=fake_generator):
             CppAdapter().prepare_project(tmp_path)
         fake_generator.generate.assert_called_once_with(tmp_path)
 
@@ -55,7 +55,7 @@ class TestPrepareProjectSkipConditions:
         """
         monkeypatch.delenv("CODEBOARDING_CPP_GENERATE_CDB", raising=False)
         (tmp_path / "Makefile").write_text("all:\n")
-        with patch("static_analyzer.engine.adapters.cpp_adapter.generator_for") as gen_for:
+        with patch("static_analyzer.engine.adapters.cpp_cdb.generator_for") as gen_for:
             CppAdapter().prepare_project(tmp_path)
         gen_for.assert_not_called()
 
@@ -79,7 +79,7 @@ class TestPrepareProjectInvokesBearForMake:
         fake_generator = MagicMock()
         fake_generator.generate.return_value = tmp_path / ".codeboarding" / "cdb" / "compile_commands.json"
         fake_generator.kind = BuildSystemKind.MAKE
-        with patch("static_analyzer.engine.adapters.cpp_adapter.generator_for", return_value=fake_generator):
+        with patch("static_analyzer.engine.adapters.cpp_cdb.generator_for", return_value=fake_generator):
             CppAdapter().prepare_project(tmp_path)
         fake_generator.generate.assert_called_once_with(tmp_path)
 
@@ -96,6 +96,6 @@ class TestPrepareProjectInvokesBearForMake:
         fake_generator = MagicMock()
         fake_generator.generate.side_effect = RuntimeError("make exploded")
         fake_generator.kind = BuildSystemKind.MAKE
-        with patch("static_analyzer.engine.adapters.cpp_adapter.generator_for", return_value=fake_generator):
+        with patch("static_analyzer.engine.adapters.cpp_cdb.generator_for", return_value=fake_generator):
             CppAdapter().prepare_project(tmp_path)  # Must NOT raise
         assert "CDB generation failed" in caplog.text
