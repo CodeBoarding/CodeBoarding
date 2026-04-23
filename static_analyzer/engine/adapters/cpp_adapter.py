@@ -15,7 +15,7 @@ from static_analyzer.engine.adapters.cpp_cdb import (
     locate_generated_cdb,
     locate_user_cdb,
 )
-from static_analyzer.engine.adapters.cpp_cdb.base import CDB_SUBDIR
+from static_analyzer.engine.adapters.cpp_cdb.base import CDB_SUBDIR, CPP_SOURCE_EXTENSIONS
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_client import LSPClient
 from static_analyzer.engine.lsp_constants import CALLABLE_KINDS
@@ -150,9 +150,7 @@ class CppAdapter(LanguageAdapter):
 
     @property
     def file_extensions(self) -> tuple[str, ...]:
-        # ``.h`` is included: clangd treats both C and C++ in one process
-        # and we can't know per-file which dialect a header is.
-        return (".cpp", ".cc", ".cxx", ".c++", ".ipp", ".tpp", ".hpp", ".hh", ".hxx", ".h++", ".h")
+        return tuple(sorted(CPP_SOURCE_EXTENSIONS))
 
     @property
     def lsp_command(self) -> list[str]:
