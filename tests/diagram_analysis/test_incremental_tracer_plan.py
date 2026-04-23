@@ -188,7 +188,7 @@ def test_plan_builds_groups_for_modified_method_with_callers():
         )
 
         plan = build_trace_plan(delta=delta, cfgs={"python": cfg}, repo_dir=repo, base_ref=base_ref)
-        # Helper was modified (with a real body change), has an upstream caller → should NOT be fast-path
+        # Helper was modified (with a real body change), has an upstream caller -> should NOT be fast-path
         assert plan.fast_path_impacted_methods == []
         assert len(plan.groups) == 1
         group = plan.groups[0]
@@ -239,7 +239,7 @@ def test_plan_fast_path_used_for_leaf_modification_with_no_callers():
         )
 
         plan = build_trace_plan(delta=delta, cfgs={"python": cfg}, repo_dir=repo, base_ref=base_ref)
-        # No callers, signature unchanged, body-only change → fast path
+        # No callers, signature unchanged, body-only change -> fast path
         assert plan.fast_path_impacted_methods == ["src.utils.isolated"]
         assert plan.groups == []
     finally:

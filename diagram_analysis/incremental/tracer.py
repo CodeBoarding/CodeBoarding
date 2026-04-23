@@ -876,7 +876,7 @@ def classify_scope(
     static_analysis: StaticAnalysisResults,
     repo_dir: Path,
 ) -> TraceResult:
-    """Deterministically map impacted methods to components using a file→component map.
+    """Deterministically map impacted methods to components using a file->component map.
 
     Rework 4: drop FileComponentIndex in favor of a plain ``dict[str, str]``
     (produced by ``AnalysisInsights.file_to_component()``).
