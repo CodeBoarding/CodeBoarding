@@ -4,11 +4,20 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import tempfile
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
+
+if sys.platform == "win32":
+    import msvcrt
+else:
+    import fcntl
 
 
 _CDB_FILENAME = "compile_commands.json"
+_LOCK_FILENAME = ".lock"
 
 
 def validate_compile_commands(payload: object, *, require_non_empty: bool = True) -> list[dict]:
@@ -74,10 +83,40 @@ def clear_generated_compile_commands(cdb_dir: Path) -> None:
 def temp_compile_commands_path(cdb_dir: Path) -> Path:
     cdb_dir.mkdir(parents=True, exist_ok=True)
     fd, tmp_name = tempfile.mkstemp(prefix=f".{_CDB_FILENAME}.", suffix=".build", dir=str(cdb_dir))
+    # Leave the empty file in place to reserve the name against concurrent mkstemp callers;
+    # Bear's ``--output`` overwrites it, and callers unlink it in a ``finally``.
     os.close(fd)
-    tmp_path = Path(tmp_name)
-    tmp_path.unlink(missing_ok=True)
-    return tmp_path
+    return Path(tmp_name)
+
+
+@contextmanager
+def cdb_generation_lock(cdb_dir: Path) -> Iterator[None]:
+    """Exclusive blocking lock on ``<cdb_dir>/.lock`` for CDB generation.
+
+    Why: two concurrent analyses of the same repo must not both run Bear/Bazel
+    into the same directory. Mirrors ``install.py``'s ``.download.lock``
+    convention — the lock file is created on first use and intentionally not
+    deleted on release.
+    """
+    cdb_dir.mkdir(parents=True, exist_ok=True)
+    lock_path = cdb_dir / _LOCK_FILENAME
+    with open(lock_path, "w") as lock_fd:
+        if sys.platform == "win32":
+            msvcrt.locking(lock_fd.fileno(), msvcrt.LK_LOCK, 1)
+            try:
+                yield
+            finally:
+                try:
+                    lock_fd.seek(0)
+                    msvcrt.locking(lock_fd.fileno(), msvcrt.LK_UNLCK, 1)
+                except OSError:
+                    pass
+        else:
+            fcntl.flock(lock_fd, fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(lock_fd, fcntl.LOCK_UN)
 
 
 def _non_empty_string(value: object) -> bool:

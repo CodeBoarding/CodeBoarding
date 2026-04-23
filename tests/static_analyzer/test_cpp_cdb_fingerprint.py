@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
+
+import pytest
 
 from static_analyzer.engine.adapters.cpp_cdb.fingerprint import (
     compute_fingerprint,
@@ -52,6 +55,19 @@ class TestComputeFingerprint:
         a.write_text("same")
         b.write_text("same")
         assert compute_fingerprint([a]) != compute_fingerprint([b])
+
+    def test_symlink_dedupes_with_real_path(self, tmp_path: Path) -> None:
+        """A symlink and its target share (st_dev, st_ino) — hashing both
+        would double-count the file and diverge from the real-only hash.
+        """
+        real = tmp_path / "real.mk"
+        real.write_text("contents")
+        link = tmp_path / "link.mk"
+        try:
+            os.symlink(real, link)
+        except (OSError, NotImplementedError) as exc:
+            pytest.skip(f"symlinks unavailable on this platform: {exc}")
+        assert compute_fingerprint([real, link]) == compute_fingerprint([real])
 
 
 class TestCachedFingerprintRoundTrip:

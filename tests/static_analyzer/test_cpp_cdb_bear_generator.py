@@ -121,8 +121,9 @@ class TestBearGeneratorMake:
         cdb_dir.mkdir(parents=True)
         cdb_path = cdb_dir / "compile_commands.json"
         cdb_path.write_text(VALID_CDB_JSON)
+        generator = BearGenerator(BuildSystemKind.MAKE)
         # Prime the cache
-        write_cached_fingerprint(cdb_dir, compute_fingerprint([makefile]))
+        write_cached_fingerprint(cdb_dir, compute_fingerprint(generator._fingerprint_inputs(tmp_path)))
 
         runs: list[list[str]] = []
 
@@ -134,7 +135,7 @@ class TestBearGeneratorMake:
             patch("static_analyzer.engine.adapters.cpp_cdb.bear_generator.shutil.which", side_effect=self._all_present),
             patch("static_analyzer.engine.adapters.cpp_cdb.bear_generator.subprocess.run", side_effect=recording_run),
         ):
-            out = BearGenerator(BuildSystemKind.MAKE).generate(tmp_path)
+            out = generator.generate(tmp_path)
 
         assert out == cdb_path
         # Cache hit short-circuits before we even probe bear.
@@ -186,7 +187,8 @@ class TestBearGeneratorMake:
         cdb_dir.mkdir(parents=True)
         cdb_path = cdb_dir / "compile_commands.json"
         cdb_path.write_text(VALID_CDB_JSON)
-        write_cached_fingerprint(cdb_dir, compute_fingerprint([makefile]))
+        generator = BearGenerator(BuildSystemKind.MAKE)
+        write_cached_fingerprint(cdb_dir, compute_fingerprint(generator._fingerprint_inputs(tmp_path)))
         makefile.write_text("all:\n\techo different\n")
 
         runs: list[list[str]] = []
@@ -201,7 +203,7 @@ class TestBearGeneratorMake:
             patch("static_analyzer.engine.adapters.cpp_cdb.bear_generator.shutil.which", side_effect=self._all_present),
             patch("static_analyzer.engine.adapters.cpp_cdb.bear_generator.subprocess.run", side_effect=fake_run),
         ):
-            BearGenerator(BuildSystemKind.MAKE).generate(tmp_path)
+            generator.generate(tmp_path)
 
         assert any(r[:1] == ["bear"] and "--output" in r for r in runs), "stale cache should force a rebuild"
 
@@ -244,6 +246,10 @@ class TestBearGeneratorMake:
     def test_empty_output_raises(self, tmp_path: Path) -> None:
         """Bear succeeded but captured no commands — treat as failure so the
         user sees a message instead of clangd silently producing zero refs.
+
+        ``temp_compile_commands_path`` leaves the reserved file in place to
+        close a TOCTOU window, so the failure surfaces as an invalid-JSON
+        parse rather than a missing-file error.
         """
         (tmp_path / "Makefile").write_text("all:\n\t@echo up-to-date\n")
 
@@ -256,7 +262,7 @@ class TestBearGeneratorMake:
             patch("static_analyzer.engine.adapters.cpp_cdb.bear_generator.shutil.which", side_effect=self._all_present),
             patch("static_analyzer.engine.adapters.cpp_cdb.bear_generator.subprocess.run", side_effect=fake_run),
         ):
-            with pytest.raises(RuntimeError, match=r"produced no compile_commands"):
+            with pytest.raises(RuntimeError, match=r"invalid compile_commands"):
                 BearGenerator(BuildSystemKind.MAKE).generate(tmp_path)
 
     def test_invalid_output_deletes_stale_generated_cache(self, tmp_path: Path) -> None:

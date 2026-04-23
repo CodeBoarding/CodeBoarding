@@ -279,6 +279,29 @@ class TestBazelAqueryGeneratorHappyPath:
                 BazelAqueryGenerator().generate(tmp_path)
 
 
+class TestActionsToCdbMnemonicFiltering:
+    """Non-compile actions must be dropped even when the mnemonic field is
+    missing, None, or a non-string — failing open would produce nonsense CDB
+    entries from link/test actions.
+    """
+
+    def test_mnemonic_none_is_skipped(self) -> None:
+        aquery = {
+            "actions": [
+                {"mnemonic": None, "arguments": ["clang", "-c", "src/x.cc"]},
+            ]
+        }
+        assert BazelAqueryGenerator._actions_to_cdb(aquery, "/exec") == []
+
+    def test_missing_mnemonic_keys_skipped(self) -> None:
+        aquery = {
+            "actions": [
+                {"arguments": ["clang", "-c", "src/x.cc"]},
+            ]
+        }
+        assert BazelAqueryGenerator._actions_to_cdb(aquery, "/exec") == []
+
+
 class TestBazelAqueryGeneratorFingerprint:
     """Bazel's ``cc_library`` typically uses ``glob()`` — adding a source
     file changes the build graph without editing any BUILD file, so the
