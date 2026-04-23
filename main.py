@@ -2,9 +2,9 @@ import argparse
 import sys
 from pathlib import Path
 
-from codeboarding_cli.commands import full_analysis, incremental_analysis
+from codeboarding_cli.commands import full_analysis, incremental_analysis, partial_analysis
 
-_SUBCOMMANDS = {"full", "incremental"}
+_SUBCOMMANDS = {"full", "incremental", "partial"}
 
 
 def _build_shared_parser() -> argparse.ArgumentParser:
@@ -33,8 +33,8 @@ def build_parser() -> argparse.ArgumentParser:
         description="Generate onboarding documentation for Git repositories",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-`full` is the default command: when the first argument is not `full` or
-`incremental`, `full` is inserted automatically.
+`full` is the default command: when the first argument is not `full`,
+`incremental`, or `partial`, `full` is inserted automatically.
 
 Examples:
   # Local full analysis (output to <repo>/.codeboarding/); `full` is implied
@@ -50,7 +50,7 @@ Examples:
   codeboarding https://github.com/user/repo
 
   # Partial update (single component by ID)
-  codeboarding --local /path/to/repo --partial-component-id "1.2"
+  codeboarding partial --local /path/to/repo --component-id "1.2"
 
   # Custom binary location (e.g. VS Code extension)
   codeboarding --local /path/to/repo --binary-location /path/to/binaries
@@ -60,6 +60,7 @@ Examples:
     subparsers = parser.add_subparsers(dest="command", required=True, metavar="COMMAND")
     full_analysis.add_arguments(subparsers, parents=[shared])
     incremental_analysis.add_arguments(subparsers, parents=[shared])
+    partial_analysis.add_arguments(subparsers, parents=[shared])
     return parser
 
 
@@ -87,6 +88,9 @@ def main(argv: list[str] | None = None) -> None:
     args = parser.parse_args(argv)
     if args.command == "incremental":
         incremental_analysis.run_from_args(args, parser)
+        return
+    if args.command == "partial":
+        partial_analysis.run_from_args(args, parser)
         return
     full_analysis.run_from_args(args, parser)
 

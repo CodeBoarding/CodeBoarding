@@ -129,7 +129,7 @@ python main.py full --local ./my-project --depth-level 2
 python main.py incremental --local ./my-project
 
 # Update a single component by ID
-python main.py full --local ./my-project --partial-component-id "1.2"
+python main.py partial --local ./my-project --component-id "1.2"
 
 # Analyze a remote GitHub repository
 python main.py full https://github.com/pytorch/pytorch

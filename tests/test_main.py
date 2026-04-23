@@ -337,7 +337,6 @@ class TestFullCliLocal(unittest.TestCase):
         args.repositories = []
         args.output_dir = None
         args.project_name = None
-        args.partial_component_id = None
         args.binary_location = None
         args.depth_level = 1
         args.upload = False
@@ -350,7 +349,7 @@ class TestFullCliLocal(unittest.TestCase):
     @patch("codeboarding_cli.commands.full_analysis.run_full")
     @patch("codeboarding_workflows.orchestration.RunContext")
     @patch("codeboarding_cli.commands.full_analysis.bootstrap_environment")
-    def test_local_full_calls_generate_analysis(self, _mock_bootstrap, mock_run_context, mock_generate):
+    def test_local_full_calls_run_full(self, _mock_bootstrap, mock_run_context, mock_run_full):
         mock_run_context.resolve.return_value = MagicMock(run_id="r", log_path="l", finalize=lambda: None)
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -359,32 +358,15 @@ class TestFullCliLocal(unittest.TestCase):
 
             run_from_args(self._make_args(repo_path), MagicMock())
 
-        mock_generate.assert_called_once()
-        kwargs = mock_generate.call_args.kwargs
+        mock_run_full.assert_called_once()
+        kwargs = mock_run_full.call_args.kwargs
         self.assertEqual(kwargs["repo_path"], repo_path.resolve())
         self.assertFalse(kwargs["force_full"])
 
-    @patch("codeboarding_cli.commands.full_analysis.run_partial")
     @patch("codeboarding_cli.commands.full_analysis.run_full")
     @patch("codeboarding_workflows.orchestration.RunContext")
     @patch("codeboarding_cli.commands.full_analysis.bootstrap_environment")
-    def test_local_partial_calls_partial_update(self, _mock_bootstrap, mock_run_context, mock_generate, mock_partial):
-        mock_run_context.resolve.return_value = MagicMock(run_id="r", log_path="l", finalize=lambda: None)
-
-        with tempfile.TemporaryDirectory() as temp_dir:
-            repo_path = Path(temp_dir) / "repo"
-            repo_path.mkdir()
-
-            run_from_args(self._make_args(repo_path, partial_component_id="c1"), MagicMock())
-
-        mock_partial.assert_called_once()
-        self.assertEqual(mock_partial.call_args.kwargs["component_id"], "c1")
-        mock_generate.assert_not_called()
-
-    @patch("codeboarding_cli.commands.full_analysis.run_full")
-    @patch("codeboarding_workflows.orchestration.RunContext")
-    @patch("codeboarding_cli.commands.full_analysis.bootstrap_environment")
-    def test_force_flag_propagates(self, _mock_bootstrap, mock_run_context, mock_generate):
+    def test_force_flag_propagates(self, _mock_bootstrap, mock_run_context, mock_run_full):
         mock_run_context.resolve.return_value = MagicMock(run_id="r", log_path="l", finalize=lambda: None)
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -393,7 +375,47 @@ class TestFullCliLocal(unittest.TestCase):
 
             run_from_args(self._make_args(repo_path, force=True), MagicMock())
 
-        self.assertTrue(mock_generate.call_args.kwargs["force_full"])
+        self.assertTrue(mock_run_full.call_args.kwargs["force_full"])
+
+
+class TestPartialCliLocal(unittest.TestCase):
+    """CLI-level composition: `partial` dispatches to run_partial with the component id."""
+
+    @patch("codeboarding_cli.commands.partial_analysis.run_partial")
+    @patch("codeboarding_workflows.orchestration.RunContext")
+    @patch("codeboarding_cli.commands.partial_analysis.bootstrap_environment")
+    def test_dispatch(self, _mock_bootstrap, mock_run_context, mock_run_partial):
+        from codeboarding_cli.commands.partial_analysis import run_from_args as partial_run
+
+        mock_run_context.resolve.return_value = MagicMock(run_id="r", log_path="l", finalize=lambda: None)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_path = Path(temp_dir) / "repo"
+            repo_path.mkdir()
+
+            args = MagicMock()
+            args.local = repo_path
+            args.output_dir = None
+            args.project_name = None
+            args.binary_location = None
+            args.depth_level = 1
+            args.component_id = "c1"
+            args.enable_monitoring = False
+
+            partial_run(args, MagicMock())
+
+        mock_run_partial.assert_called_once()
+        self.assertEqual(mock_run_partial.call_args.kwargs["component_id"], "c1")
+
+    def test_requires_local(self):
+        from codeboarding_cli.commands.partial_analysis import validate_arguments as partial_validate
+
+        parser = MagicMock()
+        args = MagicMock()
+        args.local = None
+
+        partial_validate(args, parser)
+        parser.error.assert_called_once()
 
 
 class TestCopyFiles(unittest.TestCase):
@@ -430,25 +452,11 @@ class TestCopyFiles(unittest.TestCase):
 
 
 class TestValidateArguments(unittest.TestCase):
-    def test_partial_without_local_errors(self):
-        parser = MagicMock()
-        args = MagicMock()
-        args.repositories = ["https://github.com/test/repo"]
-        args.local = None
-        args.partial_component_id = "test_comp_id"
-        args.output_dir = None
-        args.project_name = None
-        args.upload = False
-
-        validate_arguments(args, parser)
-        parser.error.assert_called_once()
-
     def test_valid_local(self):
         parser = MagicMock()
         args = MagicMock()
         args.repositories = None
         args.local = "/path/to/repo"
-        args.partial_component_id = None
         args.output_dir = None
         args.project_name = None
         args.upload = False
@@ -461,7 +469,6 @@ class TestValidateArguments(unittest.TestCase):
         args = MagicMock()
         args.repositories = ["https://github.com/test/repo"]
         args.local = None
-        args.partial_component_id = None
         args.output_dir = None
         args.project_name = None
         args.upload = False
@@ -474,7 +481,6 @@ class TestValidateArguments(unittest.TestCase):
         args = MagicMock()
         args.repositories = ["https://github.com/test/repo"]
         args.local = "/path/to/repo"
-        args.partial_component_id = None
         args.output_dir = None
         args.project_name = None
         args.upload = False
@@ -487,7 +493,6 @@ class TestValidateArguments(unittest.TestCase):
         args = MagicMock()
         args.repositories = None
         args.local = "/path/to/repo"
-        args.partial_component_id = None
         args.output_dir = None
         args.project_name = None
         args.upload = True

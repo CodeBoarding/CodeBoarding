@@ -131,6 +131,7 @@ Shell environment variables (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, etc.) always
 codeboarding full [REPO_URL ...]           # remote: clone + analyze
 codeboarding full --local PATH             # local: analyze in-place
 codeboarding incremental --local PATH      # re-analyze only changed parts
+codeboarding partial --local PATH --component-id ID   # update one component
 ```
 
 | Option | Description |
@@ -139,7 +140,7 @@ codeboarding incremental --local PATH      # re-analyze only changed parts
 | `--depth-level INT` | Diagram depth (default: 1) |
 | `--force` | (full only) Force full reanalysis, skip cached static analysis |
 | `--base-ref REF` / `--target-ref REF` | (incremental only) Git refs to diff |
-| `--partial-component-id ID` | (full only) Update a single component by its ID |
+| `--component-id ID` | (partial only) ID of the component to update |
 | `--binary-location PATH` | Custom path to language server binaries (overrides `~/.codeboarding/servers/`) |
 | `--upload` | (full, remote only) Upload results to GeneratedOnBoardings repo |
 | `--enable-monitoring` | Enable run monitoring |

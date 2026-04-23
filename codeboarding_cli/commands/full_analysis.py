@@ -6,7 +6,7 @@ from tqdm import tqdm
 
 from agents.llm_config import LLMConfigError
 from codeboarding_cli.bootstrap import bootstrap_environment, resolve_local_run_paths
-from codeboarding_workflows.analysis import run_full, run_partial
+from codeboarding_workflows.analysis import run_full
 from codeboarding_workflows.orchestration import run_analysis_pipeline
 from codeboarding_workflows.rendering import render_docs
 from codeboarding_workflows.sources import SourceContext, local_source, remote_source
@@ -32,11 +32,6 @@ def add_arguments(subparsers: argparse._SubParsersAction, parents: list[argparse
         help="One or more Git repository URLs to generate documentation for (remote mode)",
     )
     parser.add_argument(
-        "--partial-component-id",
-        type=str,
-        help="Component ID to update (for partial updates only; requires --local)",
-    )
-    parser.add_argument(
         "--upload",
         action="store_true",
         help="Upload onboarding materials to GeneratedOnBoardings repo (remote only)",
@@ -56,8 +51,6 @@ def validate_arguments(args: argparse.Namespace, parser: argparse.ArgumentParser
         parser.error("Provide either one or more remote repositories or --local, but not both.")
 
     if not has_local_repo:
-        if args.partial_component_id:
-            parser.error("--partial-component-id only works with --local")
         if args.output_dir:
             parser.error("--output-dir only works with --local")
         if args.project_name:
@@ -90,27 +83,16 @@ def _run_local(args: argparse.Namespace) -> None:
     initialize_codeboardingignore(run_paths.output_dir)
 
     def scope(src: SourceContext, run_context: RunContext) -> None:
-        if args.partial_component_id:
-            run_partial(
-                repo_path=src.repo_path,
-                output_dir=src.artifact_dir,
-                project_name=src.project_name,
-                component_id=args.partial_component_id,
-                depth_level=args.depth_level,
-                run_id=run_context.run_id,
-                log_path=run_context.log_path,
-            )
-        else:
-            run_full(
-                repo_name=src.project_name,
-                repo_path=src.repo_path,
-                output_dir=src.artifact_dir,
-                depth_level=args.depth_level,
-                run_id=run_context.run_id,
-                log_path=run_context.log_path,
-                monitoring_enabled=should_monitor,
-                force_full=args.force,
-            )
+        run_full(
+            repo_name=src.project_name,
+            repo_path=src.repo_path,
+            output_dir=src.artifact_dir,
+            depth_level=args.depth_level,
+            run_id=run_context.run_id,
+            log_path=run_context.log_path,
+            monitoring_enabled=should_monitor,
+            force_full=args.force,
+        )
 
     run_analysis_pipeline(
         source=local_source(
@@ -119,7 +101,6 @@ def _run_local(args: argparse.Namespace) -> None:
             artifact_dir=run_paths.output_dir,
         ),
         scope=scope,
-        reuse_latest_run_id=args.partial_component_id is not None,
     )
     logger.info(f"Documentation generated successfully in {run_paths.output_dir}")
 
