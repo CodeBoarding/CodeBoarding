@@ -322,7 +322,7 @@ def test_incremental_main_emits_stable_json_stdout(tmp_path: Path, capsys) -> No
     with (
         patch("codeboarding_cli.commands.incremental_analysis.bootstrap_environment"),
         patch(
-            "codeboarding_cli.commands.incremental_analysis.run_incremental_analysis",
+            "codeboarding_cli.commands.incremental_analysis.run_incremental",
             return_value=fake_payload,
         ),
         patch("codeboarding_cli.commands.incremental_analysis.RunContext") as run_context_cls,
@@ -352,7 +352,7 @@ def test_incremental_cli_bails_out_when_no_base_ref_and_no_metadata(tmp_path: Pa
 
     with (
         patch("codeboarding_cli.commands.incremental_analysis.bootstrap_environment"),
-        patch("codeboarding_cli.commands.incremental_analysis.run_incremental_analysis") as run_mock,
+        patch("codeboarding_cli.commands.incremental_analysis.run_incremental") as run_mock,
         patch("codeboarding_cli.commands.incremental_analysis.RunContext"),
     ):
         cli_main(["incremental", "--local", str(repo)])

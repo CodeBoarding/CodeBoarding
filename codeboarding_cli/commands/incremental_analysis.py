@@ -5,7 +5,7 @@ import sys
 
 from agents.llm_config import LLMConfigError
 from codeboarding_cli.bootstrap import bootstrap_environment, resolve_local_run_paths
-from codeboarding_workflows.incremental_analysis import run_incremental_analysis
+from codeboarding_workflows.analysis import run_incremental
 from diagram_analysis import RunContext
 from diagram_analysis.incremental.payload import FullAnalysisRequiredPayload, IncrementalRunPayload
 from diagram_analysis.run_metadata import last_successful_commit
@@ -100,7 +100,7 @@ def run_from_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> 
         payload = _error_payload(str(exc))
     else:
         try:
-            payload = run_incremental_analysis(
+            payload = run_incremental(
                 repo_path=run_paths.repo_path,
                 output_dir=run_paths.output_dir,
                 project_name=run_paths.project_name,
@@ -109,7 +109,7 @@ def run_from_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> 
                 target_ref=target_ref,
                 run_id=run_context.run_id,
                 log_path=run_context.log_path,
-                enable_monitoring=args.enable_monitoring or monitoring_enabled(),
+                monitoring_enabled=args.enable_monitoring or monitoring_enabled(),
             )
         except Exception as exc:
             logger.exception("Incremental analysis failed")

@@ -6,14 +6,14 @@ from tqdm import tqdm
 
 from agents.llm_config import LLMConfigError
 from codeboarding_cli.bootstrap import bootstrap_environment, resolve_local_run_paths
-from codeboarding_workflows.full_analysis import generate_analysis
-from codeboarding_workflows.markdown import generate_markdown_docs
-from codeboarding_workflows.partial_analysis import partial_update
-from codeboarding_workflows.sources import local_source, remote_source
+from codeboarding_workflows.analysis import run_full, run_partial
+from codeboarding_workflows.orchestration import run_analysis_pipeline
+from codeboarding_workflows.rendering import render_docs
+from codeboarding_workflows.sources import SourceContext, local_source, remote_source
 from diagram_analysis import RunContext
 from monitoring import monitor_execution
 from monitoring.paths import get_monitoring_run_dir
-from repo_utils import store_token
+from repo_utils import get_branch, store_token
 from repo_utils.ignore import initialize_codeboardingignore
 from utils import CODEBOARDING_DIR_NAME, copy_files, monitoring_enabled
 
@@ -71,9 +71,8 @@ def run_from_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> 
 
     if args.local is None:
         _run_remote(args)
-        return
-
-    _run_local(args)
+    else:
+        _run_local(args)
 
 
 def _run_local(args: argparse.Namespace) -> None:
@@ -87,43 +86,41 @@ def _run_local(args: argparse.Namespace) -> None:
     logger.info("Starting CodeBoarding documentation generation...")
 
     should_monitor = args.enable_monitoring or monitoring_enabled()
-
     run_paths.output_dir.mkdir(parents=True, exist_ok=True)
     initialize_codeboardingignore(run_paths.output_dir)
-    run_context = RunContext.resolve(
-        repo_dir=run_paths.repo_path,
-        project_name=run_paths.project_name,
-        reuse_latest_run_id=args.partial_component_id is not None,
-    )
-    try:
-        with local_source(
+
+    def scope(src: SourceContext, run_context: RunContext) -> None:
+        if args.partial_component_id:
+            run_partial(
+                repo_path=src.repo_path,
+                output_dir=src.artifact_dir,
+                project_name=src.project_name,
+                component_id=args.partial_component_id,
+                depth_level=args.depth_level,
+                run_id=run_context.run_id,
+                log_path=run_context.log_path,
+            )
+        else:
+            run_full(
+                repo_name=src.project_name,
+                repo_path=src.repo_path,
+                output_dir=src.artifact_dir,
+                depth_level=args.depth_level,
+                run_id=run_context.run_id,
+                log_path=run_context.log_path,
+                monitoring_enabled=should_monitor,
+                force_full=args.force,
+            )
+
+    run_analysis_pipeline(
+        source=local_source(
             repo_path=run_paths.repo_path,
             project_name=run_paths.project_name,
             artifact_dir=run_paths.output_dir,
-        ) as src:
-            if args.partial_component_id:
-                partial_update(
-                    repo_path=src.repo_path,
-                    output_dir=src.artifact_dir,
-                    project_name=src.project_name,
-                    component_id=args.partial_component_id,
-                    depth_level=args.depth_level,
-                    run_id=run_context.run_id,
-                    log_path=run_context.log_path,
-                )
-            else:
-                generate_analysis(
-                    repo_name=src.project_name,
-                    repo_path=src.repo_path,
-                    output_dir=src.artifact_dir,
-                    depth_level=args.depth_level,
-                    run_id=run_context.run_id,
-                    log_path=run_context.log_path,
-                    monitoring_enabled=should_monitor,
-                    force_full=args.force,
-                )
-    finally:
-        run_context.finalize()
+        ),
+        scope=scope,
+        reuse_latest_run_id=args.partial_component_id is not None,
+    )
     logger.info(f"Documentation generated successfully in {run_paths.output_dir}")
 
 
@@ -175,53 +172,45 @@ def _process_one_remote(
     upload: bool,
     should_monitor: bool,
 ) -> None:
-    # Pre-compute the destination dir from the repo URL so remote_source can
-    # copy artifacts there on exit. We don't know the cloned name until the
-    # source enters, so we mirror get_repo_name's output path inside the CM.
-    with remote_source(repo_url, upload=upload) as src:
-        if src is None:
-            return
-
+    def scope(src: SourceContext, run_context: RunContext) -> None:
         repo_output_dir = workspace_root / src.project_name / CODEBOARDING_DIR_NAME
         repo_output_dir.mkdir(parents=True, exist_ok=True)
         initialize_codeboardingignore(repo_output_dir)
 
-        run_context = RunContext.resolve(
-            repo_dir=src.repo_path,
-            project_name=src.project_name,
-            reuse_latest_run_id=True,
-        )
         monitoring_dir = get_monitoring_run_dir(run_context.log_path, create=should_monitor)
-
         with monitor_execution(
             run_id=run_context.run_id,
             output_dir=str(monitoring_dir),
             enabled=should_monitor,
         ) as mon:
             mon.step(f"processing_{src.project_name}")
-            try:
-                analysis_path = generate_analysis(
-                    repo_name=src.project_name,
-                    repo_path=src.repo_path,
-                    output_dir=src.artifact_dir,
-                    depth_level=depth_level,
-                    run_id=run_context.run_id,
-                    log_path=run_context.log_path,
-                    monitoring_enabled=should_monitor,
-                )
-                generate_markdown_docs(
-                    repo_name=src.project_name,
-                    repo_path=src.repo_path,
-                    repo_url=repo_url,
-                    analysis_path=analysis_path,
-                    output_dir=src.artifact_dir,
-                    demo_mode=True,
-                )
+            analysis_path = run_full(
+                repo_name=src.project_name,
+                repo_path=src.repo_path,
+                output_dir=src.artifact_dir,
+                depth_level=depth_level,
+                run_id=run_context.run_id,
+                log_path=run_context.log_path,
+                monitoring_enabled=should_monitor,
+            )
+            render_docs(
+                analysis_path=analysis_path,
+                repo_name=src.project_name,
+                repo_ref=f"{repo_url}/blob/{get_branch(src.repo_path)}/",
+                temp_dir=src.artifact_dir,
+                format=".md",
+                root_name="on_boarding",
+                demo_mode=True,
+            )
 
-                artifacts = [*src.artifact_dir.glob("*.md"), *src.artifact_dir.glob("*.json")]
-                if artifacts:
-                    copy_files(artifacts, repo_output_dir)
-                else:
-                    logger.warning("No markdown or JSON files found in %s", src.artifact_dir)
-            finally:
-                run_context.finalize()
+            artifacts = [*src.artifact_dir.glob("*.md"), *src.artifact_dir.glob("*.json")]
+            if artifacts:
+                copy_files(artifacts, repo_output_dir)
+            else:
+                logger.warning("No markdown or JSON files found in %s", src.artifact_dir)
+
+    run_analysis_pipeline(
+        source=remote_source(repo_url, upload=upload),
+        scope=scope,
+        reuse_latest_run_id=True,
+    )
