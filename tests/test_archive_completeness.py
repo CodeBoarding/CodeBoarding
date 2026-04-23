@@ -1,9 +1,4 @@
-"""Unit tests for the ``archive_is_complete`` helper + binary-path resolution.
-
-The old marker-only check treated a half-extracted archive as "installed",
-which caused ``resolve_config`` to emit ``command[0]`` pointing at a
-binary that didn't exist. These tests pin the completeness contract.
-"""
+"""Unit tests for ``archive_is_complete`` and binary-path resolution."""
 
 from __future__ import annotations
 

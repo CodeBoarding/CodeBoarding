@@ -1,23 +1,8 @@
 """Compilation-database generator for Bazel workspaces via ``bazel aquery``.
 
-We deliberately do *not* require the user to install the community
-``hedronvision/bazel-compile-commands-extractor`` rule into their
-WORKSPACE — that's invasive and editing someone's BUILD files without
-asking is not a thing we do. Instead this generator shells out to
-``bazel aquery`` directly, parses the JSON action graph, and synthesises
-a ``compile_commands.json``.
-
-Scope of support:
-  * Bazel 6+ (aquery jsonproto format). 5.x has a different schema;
-    we version-check and fail loudly.
-  * ``CppCompile`` actions only — C, C++, Objective-C/C++.
-  * Best-effort source-file extraction from compile ``arguments``: the
-    first ``-c <file>`` pair or any positional ``.cc``/``.cpp``/``.c``
-    wins. Actions without a clear source are skipped.
-
-Follow-ups kept out of scope: remote-cache action stubs, Starlark
-toolchains that wrap the real compiler in a script (clangd can't follow
-those anyway), and module-map flags for C++20 modules.
+Shells out to ``bazel aquery`` and reshapes the JSON action graph into a
+``compile_commands.json``. Scope: Bazel 6+ (aquery jsonproto), CppCompile
+actions only.
 """
 
 from __future__ import annotations
@@ -83,10 +68,9 @@ class BazelAqueryGenerator(CdbGenerator):
     def _fingerprint_inputs(project_root: Path) -> list[Path]:
         """Workspace markers + BUILD/.bzl files + C/C++ sources.
 
-        Bazel's ``cc_library`` and ``cc_binary`` rules typically use
-        ``glob(["*.cc", "*.hpp"])`` — adding a new source file changes the
-        build graph without editing any BUILD file, so the fingerprint
-        must include sources or the cached CDB would silently miss them.
+        Why: ``cc_library`` rules typically use ``glob()`` so adding a
+        source file changes the build graph without editing any BUILD
+        file — the fingerprint must include sources to catch that.
         """
         inputs = [project_root / name for name in _BAZEL_ROOT_INPUTS if (project_root / name).is_file()]
         for dirpath, dirnames, filenames in os.walk(project_root):
@@ -171,11 +155,8 @@ class BazelAqueryGenerator(CdbGenerator):
     def _actions_to_cdb(aquery: dict, exec_root: str) -> list[dict]:
         """Translate aquery actions into compile_commands.json entries.
 
-        We accept both ``CppCompile`` and its dialect variants
-        (``ObjcCompile``, ``CppModuleCompile``) because the aquery query
-        filter may return any of them when the user customises the scope.
-        Actions without an obviously-a-source-file argument are dropped —
-        clangd can't consume entries that lack a ``file`` field.
+        Accepts any ``*Compile`` mnemonic (``CppCompile``, ``ObjcCompile``,
+        ``CppModuleCompile``); drops actions without a recognisable source.
         """
         entries: list[dict] = []
         for action in aquery.get("actions", []):
@@ -227,13 +208,7 @@ class BazelAqueryGenerator(CdbGenerator):
 
 
 def _find_source_argument(args: list[str]) -> str | None:
-    """First ``-c <file>`` pair wins; fall back to any positional source.
-
-    Bazel's C++ compile args usually look like:
-      ['external/.../clang', '-c', 'src/foo.cc', '-o', 'bazel-out/...', ...]
-    but user toolchains can rearrange — so if ``-c`` isn't present we
-    take the last source-suffixed arg as a heuristic.
-    """
+    """First ``-c <file>`` pair wins; fall back to last positional source."""
     for i, arg in enumerate(args):
         if arg == "-c" and i + 1 < len(args):
             candidate = args[i + 1]

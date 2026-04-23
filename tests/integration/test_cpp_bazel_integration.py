@@ -16,15 +16,14 @@ from __future__ import annotations
 
 import json
 import logging
-import re
 import shutil
-import subprocess
 from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
 
 from static_analyzer import StaticAnalyzer
+from static_analyzer.engine.adapters.cpp_cdb.bazel_generator import BazelAqueryGenerator
 
 logger = logging.getLogger(__name__)
 
@@ -32,21 +31,6 @@ PROJECT_DIR = Path(__file__).parent / "projects" / "cpp_bazel_edge_cases_project
 FIXTURE_PATH = Path(__file__).parent / "fixtures" / "edge_cases" / "cpp_bazel_edge_cases.json"
 
 pytestmark = [pytest.mark.integration, pytest.mark.cpp_lang]
-
-
-def _bazel_major_version() -> int | None:
-    """Return the Bazel major version, or ``None`` if it can't be probed."""
-    try:
-        result = subprocess.run(
-            ["bazel", "--version"],
-            capture_output=True,
-            text=True,
-            timeout=60,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        return None
-    match = re.search(r"bazel\s+(\d+)\.", result.stdout + result.stderr, re.IGNORECASE)
-    return int(match.group(1)) if match else None
 
 
 def _cleanup_bazel_artifacts(project_root: Path) -> None:
@@ -88,11 +72,11 @@ def bazel_project(monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
 
 
 @pytest.mark.skipif(shutil.which("bazel") is None, reason="bazel not installed")
-@pytest.mark.skipif(
-    (_bazel_major_version() or 0) < 6,
-    reason="Bazel < 6 (aquery jsonproto schema incompatible)",
-)
 def test_bazel_cdb_generation_and_analysis(bazel_project: Path) -> None:
+    try:
+        BazelAqueryGenerator._require_bazel()
+    except RuntimeError as exc:
+        pytest.skip(str(exc))
     """Run the analyzer with Bazel auto-CDB enabled; validate the fixture."""
     fixture = json.loads(FIXTURE_PATH.read_text())
 

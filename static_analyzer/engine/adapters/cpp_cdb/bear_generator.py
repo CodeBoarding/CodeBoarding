@@ -1,20 +1,7 @@
 """Compilation-database generator backed by Bear for Make and Autotools.
 
-Bear (https://github.com/rizsotto/Bear) intercepts the compiler invocations
-a build system issues and writes them to ``compile_commands.json`` without
-requiring the build system to support CDBs natively. This is the standard
-path for bare Makefiles and Autotools projects.
-
-Design notes:
-  * Bear 3.x only. The 2.x CLI (``bear make``) is incompatible with 3.x
-    (``bear -- make``) and 2.x has been obsolete since 2020.
-  * Make runs in-source (standard Makefiles expect it). Autotools runs
-    out-of-tree under ``.codeboarding/cdb/_build`` so the source tree
-    stays clean — Autotools explicitly supports this.
-  * Every run force-rebuilds (``make clean all``) because Bear only
-    records commands it actually intercepts; a warm object tree produces
-    a near-empty CDB. The fingerprint cache prevents re-invocation when
-    nothing has changed.
+Bear intercepts compiler invocations and writes them to
+``compile_commands.json``. Bear 3.x only (2.x CLI is incompatible).
 """
 
 from __future__ import annotations
@@ -45,12 +32,7 @@ _MIN_BEAR_MAJOR = 3
 
 
 class BearGenerator(CdbGenerator):
-    """Drives Bear over Make or Autotools to produce a ``compile_commands.json``.
-
-    One instance handles one kind — Make or Autotools. Callers pick which
-    via the ``kind`` constructor argument (the dispatcher does this from a
-    :func:`detect_build_system` result).
-    """
+    """Drives Bear over Make or Autotools to produce a ``compile_commands.json``."""
 
     def __init__(self, kind: BuildSystemKind) -> None:
         if kind not in (BuildSystemKind.MAKE, BuildSystemKind.AUTOTOOLS):
@@ -81,12 +63,10 @@ class BearGenerator(CdbGenerator):
     # --- internals ----------------------------------------------------
 
     def _fingerprint_inputs(self, project_root: Path) -> list[Path]:
-        """Files whose content changing should invalidate the cached CDB.
+        """Build markers + every C/C++ source under the project.
 
-        Build markers (Makefile / configure.ac / Makefile.am) *and* every
-        C/C++ source under the project — editing a Makefile is one way to
-        bust the cache, but adding ``src/new.cc`` must do it too so Bear
-        re-runs and captures the new compile command.
+        Why: adding a new source must bust the cache so Bear re-runs and
+        captures the compile command for it.
         """
         if self._kind is BuildSystemKind.MAKE:
             candidates = ("Makefile", "GNUmakefile", "makefile")

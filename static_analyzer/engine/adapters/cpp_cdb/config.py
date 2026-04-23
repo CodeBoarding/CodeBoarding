@@ -1,9 +1,4 @@
-"""Runtime configuration surface for CDB generation.
-
-Every knob here has a conservative default: generation is off unless the
-user explicitly opts in, because invoking ``make`` / ``bazel build`` is
-slow and has real blast radius (writes into the repo, may hit the network).
-"""
+"""Runtime configuration surface for CDB generation."""
 
 from __future__ import annotations
 
@@ -26,9 +21,9 @@ _DEFAULT_BAZEL_QUERY = "deps(//...)"
 def is_generation_enabled() -> bool:
     """True when the user has explicitly opted in to auto-generation.
 
-    Accepts the usual truthy strings (``1``, ``true``, ``yes``, ``on``,
-    case-insensitive). Anything else — including the var being unset —
-    keeps generation disabled.
+    Why: fail-closed — invoking ``make``/``bazel build`` writes into the
+    user's repo and may hit the network, so an unset or garbage value
+    keeps generation off.
     """
     return _env_truthy(ENV_ENABLE)
 
@@ -50,10 +45,7 @@ def generator_timeout_seconds() -> int:
 
 
 def configure_args() -> list[str]:
-    """User-supplied flags forwarded to ``./configure`` for Autotools projects.
-
-    Shell-lexed so quoted values like ``--prefix="/opt/x y"`` survive intact.
-    """
+    """Shell-lexed ``./configure`` flags for Autotools projects."""
     raw = os.environ.get(ENV_CONFIGURE_ARGS, "").strip()
     if not raw:
         return []
@@ -61,10 +53,7 @@ def configure_args() -> list[str]:
 
 
 def make_target() -> list[str]:
-    """Make targets passed after ``--`` to bear. Default forces a full rebuild
-    (``clean all``) so bear actually sees compile invocations — a warm tree
-    would otherwise return a near-empty CDB.
-    """
+    """Make targets passed after ``--`` to bear; default ``clean all``."""
     raw = os.environ.get(ENV_MAKE_TARGET, "").strip()
     if not raw:
         return shlex.split(_DEFAULT_MAKE_TARGET)
@@ -72,11 +61,7 @@ def make_target() -> list[str]:
 
 
 def bazel_query_scope() -> str:
-    """Bazel query used in ``bazel aquery 'mnemonic("CppCompile", <scope>)'``.
-
-    Defaults to every target in the workspace; narrow via env var to skip
-    vendored third-party code.
-    """
+    """Scope for ``bazel aquery 'mnemonic("CppCompile", <scope>)'``."""
     raw = os.environ.get(ENV_BAZEL_QUERY, "").strip()
     return raw or _DEFAULT_BAZEL_QUERY
 

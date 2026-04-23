@@ -1057,11 +1057,6 @@ class TestHasRequiredTools(unittest.TestCase):
             self.assertFalse(has_required_tools(base_dir))
 
     def test_archive_with_missing_binary_returns_false(self):
-        """A half-extracted clangd (bin dir + marker but no bin/clangd) must
-        count as *not* installed. The old marker-only check falsely
-        reported "installed" and resolve_config then pointed ``command[0]``
-        at a file that didn't exist.
-        """
         from tool_registry.manifest import archive_layout_spec
         from tool_registry.registry import TOOL_REGISTRY
 
@@ -1100,9 +1095,9 @@ class TestHasRequiredTools(unittest.TestCase):
                         self.assertTrue(needs_install())
 
     def test_unavailable_native_dep_does_not_block_required_tools(self):
-        """Regression: rust-analyzer missing on Linux/riscv64 must not make
-        ``has_required_tools`` False — that would loop forever via
-        ``needs_install``.
+        """An unavailable native dep (e.g. rust-analyzer on unsupported arch)
+        must not make ``has_required_tools`` False — that would loop forever
+        via ``needs_install``.
         """
         with (
             patch("tool_registry.registry.platform.system", return_value="Linux"),

@@ -93,32 +93,6 @@ ToolDependency(
         build=JDTLS_BUILD,
     ),
     archive_subdir="jdtls",
-    # archive_marker="plugins" (default) — directory that must exist post-install
-)
-```
-
-**GitHub .zip archive with full directory tree** (e.g. clangd — binary plus runtime headers):
-```python
-ToolDependency(
-    key="cpp",
-    binary_name="clangd",
-    kind=ToolKind.ARCHIVE,
-    config_section=ConfigSection.LSP_SERVERS,
-    source=GitHubToolSource(
-        tag=CLANGD_TAG,
-        repo=CLANGD_REPO,
-        asset_arch_overrides={
-            ("Linux", "x86_64"): f"clangd-linux-{CLANGD_TAG}.zip",
-            ("Darwin", "arm64"): f"clangd-mac-{CLANGD_TAG}.zip",
-            # ... other arches
-        },
-        sha256={...},
-    ),
-    archive_subdir="clangd",
-    archive_marker="bin",             # directory that must exist post-install
-                                      # (dir-level: file-level ``bin/clangd`` would miss Windows ``.exe``)
-    archive_strip_root=True,          # drop the ``clangd_<ver>/`` wrapper dir
-    archive_binary_path="bin/clangd", # resolve_config rewrites command[0] here (handles Windows ``.exe``)
 )
 ```
 
@@ -155,7 +129,6 @@ If the LSP server doesn't publish pre-built binaries (like gopls or tokei), you 
 - Add integration test fixtures:
   - **Edge cases** (`tests/integration/fixtures/edge_cases/<lang>_edge_cases.json`): A hand-crafted small project that exercises language-specific features (interfaces, generics, inheritance, etc.). Lists `expected_references` that the static analysis must find. See `go_edge_cases.json` or `python_edge_cases.json` for the format.
   - **Real project** (`tests/integration/fixtures/real_projects/<project>_<lang>.json`): A well-known open-source repo pinned to a specific commit, with expected metric counts (references, packages, call graph nodes/edges, source files). See `prometheus_go.json` or `mockito_java.json` for the format.
-  - If the LSP needs project-local config that isn't in the upstream repo (e.g. clangd needs `compile_flags.txt` or `compile_commands.json`), use `RepositoryTestConfig.pre_analysis_files` to materialise those files after clone — see `poco_cpp` in `tests/integration/conftest.py`.
 
 ---
 

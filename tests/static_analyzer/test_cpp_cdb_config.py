@@ -8,11 +8,6 @@ from static_analyzer.engine.adapters.cpp_cdb import config
 
 
 class TestIsGenerationEnabled:
-    """The opt-in switch must fail closed — an unset or garbage value keeps
-    generation off, because we don't want to invoke 'make' on a user's repo
-    without explicit consent.
-    """
-
     def test_unset_is_false(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv(config.ENV_ENABLE, raising=False)
         assert config.is_generation_enabled() is False
@@ -35,7 +30,6 @@ class TestIsGenerationEnabled:
         assert config.is_generation_enabled() is True
 
     def test_garbage_string_is_false(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Typos like 'ture' must not accidentally enable generation."""
         monkeypatch.setenv(config.ENV_ENABLE, "ture")
         assert config.is_generation_enabled() is False
 
@@ -65,9 +59,7 @@ class TestGeneratorTimeoutSeconds:
         assert config.generator_timeout_seconds() == 900
 
     def test_nonpositive_falls_back_to_default(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """A zero/negative timeout would instantly fail every build — treat
-        as misconfiguration and use the default.
-        """
+        """Zero/negative would instantly fail every build — treat as misconfigured."""
         monkeypatch.setenv(config.ENV_TIMEOUT, "0")
         assert config.generator_timeout_seconds() == 900
         monkeypatch.setenv(config.ENV_TIMEOUT, "-1")
@@ -80,18 +72,13 @@ class TestConfigureArgs:
         assert config.configure_args() == []
 
     def test_shell_lexed(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Quoted values survive the split — a ``--prefix="/opt/x y"`` flag
-        must not be torn apart on the internal space.
-        """
         monkeypatch.setenv(config.ENV_CONFIGURE_ARGS, '--prefix="/opt/x y" --disable-shared')
         assert config.configure_args() == ["--prefix=/opt/x y", "--disable-shared"]
 
 
 class TestMakeTarget:
     def test_default_forces_full_rebuild(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Bear only records commands it actually intercepts — a warm tree
-        produces an empty CDB. Default must run ``clean`` first.
-        """
+        """Default runs ``clean`` first — a warm tree would otherwise emit an empty CDB."""
         monkeypatch.delenv(config.ENV_MAKE_TARGET, raising=False)
         assert config.make_target() == ["clean", "all"]
 

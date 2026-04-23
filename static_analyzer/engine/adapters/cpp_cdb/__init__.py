@@ -1,15 +1,4 @@
-"""Compilation-database generation helpers for the C++ adapter.
-
-The adapter itself only needs clangd to find a ``compile_commands.json`` or
-``compile_flags.txt``. Everything under this package exists to bridge the gap
-for projects whose build system doesn't emit one natively — detection
-(``detect.py``), fingerprint-based caching (``fingerprint.py``), and the
-per-build-system generators (``bear_generator.py``, ``bazel_generator.py``).
-
-Generation never runs implicitly: the dispatcher consults an explicit opt-in
-(env var / config key) because invoking ``make`` or ``bazel build`` is
-slow and has real blast radius.
-"""
+"""Compilation-database generation for the C++ adapter. See ``ensure_cdb``."""
 
 from __future__ import annotations
 
@@ -27,24 +16,16 @@ from static_analyzer.engine.adapters.cpp_cdb.detect import (
     locate_generated_cdb,
     locate_user_cdb,
 )
-from static_analyzer.engine.adapters.cpp_cdb.fingerprint import (
-    compute_fingerprint,
-    read_cached_fingerprint,
-    write_cached_fingerprint,
-)
 
 logger = logging.getLogger(__name__)
 
 
 def generator_for(kind: BuildSystemKind) -> CdbGenerator | None:
-    """Map a detected build system to its generator, or ``None`` if we don't
-    auto-drive it.
+    """Map a detected build system to its generator, or ``None``.
 
-    CMake, Meson, and Ninja are deliberately ``None`` — their CDB-export
-    commands are trivial one-liners and auto-running them would configure
-    the user's repo without asking. The error hint already tells the user
-    exactly what to type. On Windows, Make/Autotools also return ``None``
-    because Bear relies on ``LD_PRELOAD`` and is Unix-only.
+    Why: CMake/Meson/Ninja return ``None`` because their CDB-export is a
+    trivial one-liner we'd rather let the user run. On Windows Bear is
+    unavailable (``LD_PRELOAD``), so Make/Autotools also return ``None``.
     """
     if sys.platform == "win32" and kind in (BuildSystemKind.MAKE, BuildSystemKind.AUTOTOOLS):
         return None
@@ -88,13 +69,10 @@ __all__ = [
     "BearGenerator",
     "BuildSystemKind",
     "CdbGenerator",
-    "compute_fingerprint",
     "detect_build_system",
     "ensure_cdb",
     "generator_for",
     "install_hint_for",
     "locate_generated_cdb",
     "locate_user_cdb",
-    "read_cached_fingerprint",
-    "write_cached_fingerprint",
 ]
