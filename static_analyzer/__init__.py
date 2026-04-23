@@ -3,6 +3,7 @@ import time
 from pathlib import Path
 
 from repo_utils import get_git_commit_hash
+from repo_utils.git_ops import require_current_commit
 from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.analysis_cache import AnalysisCacheManager
 from static_analyzer.analysis_result import StaticAnalysisCache, StaticAnalysisResults
@@ -16,7 +17,6 @@ from static_analyzer.engine.lsp_client import LSPClient
 from static_analyzer.engine.result_converter import convert_to_codeboarding_format
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.utils import uri_to_path
-from static_analyzer.git_diff_analyzer import GitDiffAnalyzer
 from static_analyzer.graph import CallGraph
 from static_analyzer.incremental_orchestrator import IncrementalAnalysisOrchestrator
 from static_analyzer.java_config_scanner import JavaConfigScanner
@@ -569,7 +569,7 @@ class StaticAnalyzer:
         Lightweight save without expensive cluster computation.
         """
         try:
-            commit_hash = GitDiffAnalyzer(project_path).get_current_commit()
+            commit_hash = require_current_commit(project_path)
             cache_manager = AnalysisCacheManager(self.repository_path)
             cache_manager.save_cache(
                 cache_path=cache_path,

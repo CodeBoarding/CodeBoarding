@@ -16,8 +16,6 @@ from agents.agent_responses import AnalysisInsights, Component, FileEntry, FileM
 from agents.change_status import ChangeStatus
 from diagram_analysis.incremental.delta import FileDelta, IncrementalDelta, MethodChange
 from repo_utils.change_detector import ChangeSet
-from repo_utils.method_diff import compute_method_statuses_for_file
-from repo_utils.parsed_diff import ParsedGitDiff
 
 logger = logging.getLogger(__name__)
 
@@ -55,19 +53,18 @@ def resolve_component_id_by_path_prefix(file_path: str, file_to_component: dict[
 class IncrementalUpdater:
     """Computes file-level incremental deltas from file changes.
 
-    Delegates method status assignment to ``repo_utils.method_diff`` to ensure
-    consistent behavior with the main analysis pipeline.
+    Delegates per-method status classification to ``FileChange.classify_method_statuses``.
     """
 
     def __init__(
         self,
         analysis: AnalysisInsights,
         symbol_resolver: SymbolResolver,
-        parsed_diff: ParsedGitDiff,
+        change_set: ChangeSet,
     ):
         self.analysis = analysis
         self._symbol_resolver = symbol_resolver
-        self._parsed_diff = parsed_diff
+        self._change_set = change_set
         self._file_to_component = analysis.file_to_component()
 
     def _get_current_methods(self, file_path: str) -> list[MethodEntry]:
@@ -99,7 +96,6 @@ class IncrementalUpdater:
         file_path: str,
         file_status: ChangeStatus,
         register_file: bool,
-        changes: ChangeSet,
     ) -> tuple[FileDelta, bool]:
         component_id = self._file_to_component.get(file_path)
         if component_id is None and register_file:
@@ -164,7 +160,8 @@ class IncrementalUpdater:
         prev_keys = set(prev_active.keys())
         current_keys = set(current_by_name.keys())
 
-        method_statuses = compute_method_statuses_for_file(current, file_path, changes, self._parsed_diff)
+        file_change = self._change_set.get_file(file_path)
+        method_statuses = file_change.classify_method_statuses(current) if file_change else {}
 
         return (
             FileDelta(
@@ -190,29 +187,23 @@ class IncrementalUpdater:
             missing,
         )
 
-    def compute_delta(
-        self,
-        added_files: list[str],
-        modified_files: list[str],
-        deleted_files: list[str],
-        changes: ChangeSet,
-    ) -> IncrementalDelta:
-        """Compute delta from file changes."""
+    def compute_delta(self) -> IncrementalDelta:
+        """Compute delta from file changes in ``self._change_set``."""
         needs_reanalysis = False
         file_deltas: list[FileDelta] = []
 
-        for file_path in added_files:
-            delta, missing = self._compute_file_delta(file_path, ChangeStatus.ADDED, True, changes)
+        for file_path in self._change_set.added_files:
+            delta, missing = self._compute_file_delta(file_path, ChangeStatus.ADDED, register_file=True)
             file_deltas.append(delta)
             needs_reanalysis = needs_reanalysis or missing
 
-        for file_path in modified_files:
-            delta, missing = self._compute_file_delta(file_path, ChangeStatus.MODIFIED, False, changes)
+        for file_path in self._change_set.modified_files:
+            delta, missing = self._compute_file_delta(file_path, ChangeStatus.MODIFIED, register_file=False)
             file_deltas.append(delta)
             needs_reanalysis = needs_reanalysis or missing
 
-        for file_path in deleted_files:
-            delta, missing = self._compute_file_delta(file_path, ChangeStatus.DELETED, False, changes)
+        for file_path in self._change_set.deleted_files:
+            delta, missing = self._compute_file_delta(file_path, ChangeStatus.DELETED, register_file=False)
             file_deltas.append(delta)
             needs_reanalysis = needs_reanalysis or missing
 

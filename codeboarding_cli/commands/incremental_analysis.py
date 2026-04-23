@@ -8,6 +8,7 @@ from codeboarding_cli.bootstrap import bootstrap_environment, resolve_local_run_
 from codeboarding_workflows.incremental_analysis import run_incremental_analysis
 from diagram_analysis import RunContext
 from diagram_analysis.incremental.payload import FullAnalysisRequiredPayload, IncrementalRunPayload
+from diagram_analysis.run_metadata import last_successful_commit
 from utils import monitoring_enabled
 
 logger = logging.getLogger(__name__)
@@ -75,6 +76,19 @@ def run_from_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> 
         _emit_payload(_error_payload(str(exc)))
         return
 
+    # Resolve base_ref up-front so every layer below sees a concrete str.
+    base_ref = args.base_ref or last_successful_commit(run_paths.output_dir)
+    if not base_ref:
+        _emit_payload(
+            FullAnalysisRequiredPayload(
+                message=("No prior incremental metadata found; " "full analysis required before running incremental."),
+                target_ref=args.target_ref or "",
+            )
+        )
+        return
+
+    target_ref = args.target_ref or ""
+
     try:
         run_context = RunContext.resolve(
             repo_dir=run_paths.repo_path,
@@ -91,8 +105,8 @@ def run_from_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> 
                 output_dir=run_paths.output_dir,
                 project_name=run_paths.project_name,
                 depth_level=args.depth_level,
-                base_ref=args.base_ref,
-                target_ref=args.target_ref,
+                base_ref=base_ref,
+                target_ref=target_ref,
                 run_id=run_context.run_id,
                 log_path=run_context.log_path,
                 enable_monitoring=args.enable_monitoring or monitoring_enabled(),

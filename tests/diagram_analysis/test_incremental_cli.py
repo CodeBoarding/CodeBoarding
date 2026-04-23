@@ -30,8 +30,7 @@ from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import NodeType
 from static_analyzer.node import Node
 from diagram_analysis.io_utils import save_analysis
-from repo_utils.change_detector import detect_changes_from_parsed_diff
-from repo_utils.parsed_diff import ParsedGitDiff
+from repo_utils.change_detector import ChangeSet
 
 
 def _make_generator(repo_path: Path, output_dir: Path) -> MagicMock:
@@ -141,7 +140,7 @@ def test_run_incremental_pipeline_returns_full_required_without_baseline(tmp_pat
     output_dir = repo / ".codeboarding"
     output_dir.mkdir()
 
-    payload = run_incremental_pipeline(_make_generator(repo, output_dir))
+    payload = run_incremental_pipeline(_make_generator(repo, output_dir), base_ref="", target_ref="")
 
     assert isinstance(payload, FullAnalysisRequiredPayload)
     assert payload.requires_full_analysis is True
@@ -204,7 +203,7 @@ def test_run_incremental_analysis_uses_explicit_base_ref(tmp_path: Path) -> None
     mock_generator.pre_analysis.side_effect = _pre_analysis
     mock_generator.generate_analysis_incremental.return_value = fake_result
 
-    payload = run_incremental_pipeline(mock_generator, base_ref=baseline_commit)
+    payload = run_incremental_pipeline(mock_generator, base_ref=baseline_commit, target_ref="")
 
     assert isinstance(payload, IncrementalCompletedPayload)
     assert payload.base_ref == baseline_commit
@@ -232,10 +231,10 @@ def test_run_incremental_pipeline_requires_full_when_git_diff_fails(tmp_path: Pa
     )
 
     with patch(
-        "diagram_analysis.incremental.pipeline.get_parsed_git_diff",
-        return_value=ParsedGitDiff(base_ref="base", target_ref="", error="bad object base"),
+        "diagram_analysis.incremental.pipeline.detect_changes",
+        return_value=ChangeSet(base_ref="base", target_ref="", error="bad object base"),
     ):
-        payload = run_incremental_pipeline(_make_generator(repo, output_dir), base_ref="base")
+        payload = run_incremental_pipeline(_make_generator(repo, output_dir), base_ref="base", target_ref="")
 
     assert isinstance(payload, FullAnalysisRequiredPayload)
     assert payload.requires_full_analysis is True
@@ -293,7 +292,7 @@ def test_incremental_generator_fallback_sets_top_level_full_required_flag(tmp_pa
         )
     )
 
-    payload = run_incremental_pipeline(mock_generator, base_ref=baseline_commit)
+    payload = run_incremental_pipeline(mock_generator, base_ref=baseline_commit, target_ref="")
 
     assert isinstance(payload, IncrementalCompletedPayload)
     assert payload.requires_full_analysis is True
@@ -314,7 +313,7 @@ def test_incremental_main_emits_stable_json_stdout(tmp_path: Path, capsys) -> No
         base_ref="abc",
         target_ref="",
         resolved_target_commit="abc",
-        change_set=detect_changes_from_parsed_diff(ParsedGitDiff(base_ref="abc", target_ref="")),
+        change_set=ChangeSet(base_ref="abc", target_ref=""),
         metadata_path=output_dir / "incremental_run_metadata.json",
         analysis_path=analysis_path,
     )
@@ -329,7 +328,8 @@ def test_incremental_main_emits_stable_json_stdout(tmp_path: Path, capsys) -> No
         patch("codeboarding_cli.commands.incremental_analysis.RunContext") as run_context_cls,
     ):
         run_context_cls.resolve.return_value = run_context_instance
-        cli_main(["incremental", "--local", str(repo)])
+        # --base-ref keeps the CLI out of the last_successful_commit fallback
+        cli_main(["incremental", "--local", str(repo), "--base-ref", "abc"])
 
     stdout = capsys.readouterr().out
     emitted = json.loads(stdout)
@@ -341,6 +341,26 @@ def test_incremental_main_emits_stable_json_stdout(tmp_path: Path, capsys) -> No
     assert emitted["requiresFullAnalysis"] is False
     assert emitted["summary"]["kind"] == IncrementalSummaryKind.NO_CHANGES.value
     run_context_instance.finalize.assert_called_once()
+
+
+def test_incremental_cli_bails_out_when_no_base_ref_and_no_metadata(tmp_path: Path, capsys) -> None:
+    """The CLI resolves base_ref before invoking the workflow; with no prior
+    metadata and no ``--base-ref`` it must emit REQUIRES_FULL_ANALYSIS directly
+    (workflow is never called)."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+
+    with (
+        patch("codeboarding_cli.commands.incremental_analysis.bootstrap_environment"),
+        patch("codeboarding_cli.commands.incremental_analysis.run_incremental_analysis") as run_mock,
+        patch("codeboarding_cli.commands.incremental_analysis.RunContext"),
+    ):
+        cli_main(["incremental", "--local", str(repo)])
+
+    run_mock.assert_not_called()
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["requiresFullAnalysis"] is True
+    assert "No prior incremental metadata" in payload["summary"]["message"]
 
 
 def test_incremental_mode_api_key_missing_payload(tmp_path: Path, capsys) -> None:
@@ -398,7 +418,7 @@ def test_run_incremental_analysis_requires_full_on_rename(tmp_path: Path) -> Non
 
     _git(repo, "mv", "src/utils.py", "src/helpers.py")
 
-    payload = run_incremental_pipeline(_make_generator(repo, output_dir), base_ref=baseline_commit)
+    payload = run_incremental_pipeline(_make_generator(repo, output_dir), base_ref=baseline_commit, target_ref="")
 
     assert isinstance(payload, FullAnalysisRequiredPayload)
     assert payload.requires_full_analysis is True

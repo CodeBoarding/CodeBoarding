@@ -22,6 +22,7 @@ from trustcall import create_extractor
 from agents.change_status import ChangeStatus
 from agents.llm_config import supports_prompt_caching
 from agents.prompts.prompt_factory import get_trace_system_message
+from diagram_analysis.incremental.delta import FileDelta, IncrementalDelta
 from diagram_analysis.incremental.models import (
     DEFAULT_TRACE_CONFIG,
     ImpactedComponent,
@@ -30,8 +31,11 @@ from diagram_analysis.incremental.models import (
     TraceResult,
     TraceStopReason,
 )
-from diagram_analysis.incremental.delta import FileDelta, IncrementalDelta
+from repo_utils.change_detector import ChangeSet
+from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import SOURCE_EXTENSION_TO_LANGUAGE
+from static_analyzer.graph import CallGraph
+from static_analyzer.node import Node
 from static_analyzer.semantic_diff import (
     check_syntax_errors,
     fingerprint_method_signature,
@@ -39,10 +43,6 @@ from static_analyzer.semantic_diff import (
     is_file_cosmetic,
     strip_comments_from_source,
 )
-from repo_utils.parsed_diff import ParsedGitDiff
-from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.graph import CallGraph
-from static_analyzer.node import Node
 
 logger = logging.getLogger(__name__)
 
@@ -64,28 +64,10 @@ def _read_method_body(repo_dir: Path, file_path: str, start_line: int, end_line:
         return None
 
 
-def _get_diff_hunks(
-    repo_dir: Path,
-    base_ref: str,
-    file_path: str,
-    parsed_diff: ParsedGitDiff | None = None,
-) -> str:
-    """Return unified diff hunks for a single file."""
-    if parsed_diff is not None:
-        file_diff = parsed_diff.get_file(file_path)
-        return file_diff.patch_text if file_diff is not None else ""
-
-    try:
-        result = subprocess.run(
-            ["git", "diff", "-U3", base_ref, "--", file_path],
-            cwd=repo_dir,
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        return result.stdout
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        return ""
+def _get_diff_hunks(change_set: ChangeSet, file_path: str) -> str:
+    """Return unified diff hunks for a single file from *change_set*."""
+    file_diff = change_set.get_file(file_path)
+    return file_diff.patch_text if file_diff is not None else ""
 
 
 # ---------------------------------------------------------------------------
@@ -315,6 +297,21 @@ def _compare_modified_method_versions(
     return False, old_sig != new_sig
 
 
+def _is_pure_in_place_edit(file_delta: FileDelta) -> bool:
+    """True when *file_delta* contains only body edits to existing methods.
+
+    Structural precondition for both the cosmetic-file skip and the LLM-skip
+    fast path: no added/deleted methods at the file level, just modifications
+    of methods that already existed at the base ref.
+    """
+    return (
+        file_delta.file_status == ChangeStatus.MODIFIED
+        and bool(file_delta.modified_methods)
+        and not file_delta.added_methods
+        and not file_delta.deleted_methods
+    )
+
+
 def _is_fast_path_candidate(
     file_delta: FileDelta,
     signature_changed: bool,
@@ -328,13 +325,7 @@ def _is_fast_path_candidate(
     asking the LLM. The name "fast path" refers to this LLM-skip shortcut;
     it is not about downstream propagation (hence ``downstream`` is not checked).
     """
-    return (
-        file_delta.file_status == ChangeStatus.MODIFIED
-        and not file_delta.added_methods
-        and not file_delta.deleted_methods
-        and not signature_changed
-        and not upstream_callers
-    )
+    return _is_pure_in_place_edit(file_delta) and not signature_changed and not upstream_callers
 
 
 def _append_method_to_group(
@@ -410,7 +401,7 @@ def _build_trace_plan(
     downstream_index: dict[str, list[str]],
     repo_dir: Path,
     base_ref: str,
-    parsed_diff: ParsedGitDiff | None = None,
+    change_set: ChangeSet,
 ) -> TracePlan:
     """Build grouped trace regions plus deterministic fast-path impact decisions."""
     groups: dict[str, ChangeGroup] = {}
@@ -424,7 +415,7 @@ def _build_trace_plan(
     for file_delta in delta.file_deltas:
         fp = file_delta.file_path
 
-        # Defense in depth: parsed_diff already filters unsupported extensions,
+        # Defense in depth: change_set already filters unsupported extensions,
         # but synthetic deltas in tests may still include them.
         ext = Path(fp).suffix.lower()
         if ext not in SOURCE_EXTENSION_TO_LANGUAGE:
@@ -432,23 +423,15 @@ def _build_trace_plan(
             continue
 
         all_methods = file_delta.added_methods + file_delta.modified_methods
-        if not all_methods and file_delta.file_status != ChangeStatus.DELETED:
+        if not all_methods and not file_delta.deleted_methods and file_delta.file_status != ChangeStatus.DELETED:
             continue
 
-        if (
-            file_delta.file_status == ChangeStatus.MODIFIED
-            and file_delta.modified_methods
-            and not file_delta.added_methods
-            and not file_delta.deleted_methods
-            and is_file_cosmetic(repo_dir, base_ref, fp)
-        ):
+        if _is_pure_in_place_edit(file_delta) and is_file_cosmetic(repo_dir, base_ref, fp):
             cosmetic_skipped += 1
             logger.info("Skipping cosmetic-only file: %s", fp)
             continue
 
-        diff_text = (
-            _get_diff_hunks(repo_dir, base_ref, fp, parsed_diff) if file_delta.file_status != ChangeStatus.ADDED else ""
-        )
+        diff_text = _get_diff_hunks(change_set, fp) if file_delta.file_status != ChangeStatus.ADDED else ""
 
         for method in all_methods:
             body = _read_method_body(repo_dir, fp, method.start_line, method.end_line)
@@ -512,11 +495,11 @@ def build_trace_plan(
     cfgs: dict[str, CallGraph],
     repo_dir: Path,
     base_ref: str,
-    parsed_diff: ParsedGitDiff | None = None,
+    change_set: ChangeSet,
 ) -> TracePlan:
     """Build a trace plan from the current call graphs."""
     upstream_idx, downstream_idx = _build_neighbor_indexes(cfgs)
-    return _build_trace_plan(delta, upstream_idx, downstream_idx, repo_dir, base_ref, parsed_diff)
+    return _build_trace_plan(delta, upstream_idx, downstream_idx, repo_dir, base_ref, change_set)
 
 
 # ---------------------------------------------------------------------------
@@ -792,8 +775,8 @@ def run_trace(
     repo_dir: Path,
     base_ref: str,
     parsing_llm: BaseChatModel,
+    change_set: ChangeSet,
     config: TraceConfig = DEFAULT_TRACE_CONFIG,
-    parsed_diff: ParsedGitDiff | None = None,
 ) -> TraceResult:
     """Run the semantic tracing loop over changed methods.
 
@@ -803,7 +786,7 @@ def run_trace(
     for file_delta in delta.file_deltas:
         if file_delta.file_status == ChangeStatus.DELETED:
             continue
-        # Defense in depth: parsed_diff filters unsupported extensions upstream.
+        # Defense in depth: change_set filters unsupported extensions upstream.
         ext = Path(file_delta.file_path).suffix.lower()
         if ext not in SOURCE_EXTENSION_TO_LANGUAGE:
             continue
@@ -822,7 +805,7 @@ def run_trace(
         cfgs=cfgs,
         repo_dir=repo_dir,
         base_ref=base_ref,
-        parsed_diff=parsed_diff,
+        change_set=change_set,
     )
     if trace_plan.fast_path_impacted_methods:
         logger.info(

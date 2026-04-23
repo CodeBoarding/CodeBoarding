@@ -11,18 +11,12 @@ def run_incremental_analysis(
     project_name: str,
     run_id: str,
     log_path: str,
+    base_ref: str,
+    target_ref: str,
     depth_level: int = 1,
-    base_ref: str | None = None,
-    target_ref: str | None = None,
     enable_monitoring: bool = False,
 ) -> IncrementalRunPayload:
-    """Construct a generator and run the semantic incremental pipeline.
-
-    All path/name/run-id arguments are required and must already be resolved
-    by the caller (``resolve_local_run_paths`` + ``RunContext.resolve``).
-    ``base_ref`` and ``target_ref`` stay optional because the pipeline
-    derives them from metadata or the worktree when not supplied.
-    """
+    """Construct a generator and run the semantic incremental pipeline."""
     generator = DiagramGenerator(
         repo_location=repo_path,
         temp_folder=output_dir,

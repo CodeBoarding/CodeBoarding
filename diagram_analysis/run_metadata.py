@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from repo_utils import get_repo_state_hash
-from repo_utils.change_detector import get_current_commit
+from repo_utils.git_ops import get_current_commit
 from utils import CODEBOARDING_DIR_NAME
 
 METADATA_FILENAME = "incremental_run_metadata.json"

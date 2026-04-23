@@ -1,25 +1,14 @@
-"""Tests for repo_utils.method_diff - method-level diff status classification."""
+"""Tests for ``FileChange.classify_method_statuses``."""
 
 import pytest
 
 from agents.agent_responses import MethodEntry
 from agents.change_status import ChangeStatus
-from repo_utils.change_detector import ChangeSet
-from repo_utils.method_diff import compute_method_statuses_for_file
-from repo_utils.parsed_diff import ParsedDiffFile, ParsedDiffHunk, ParsedGitDiff
+from repo_utils.change_detector import DiffHunk, FileChange
 
 
-def _make_changeset(*, modified: list[str] | None = None, base_ref: str = "HEAD~1") -> ChangeSet:
-    changes = [ParsedDiffFile(status_code="M", file_path=f) for f in modified or []]
-    return ChangeSet(changes=changes, base_ref=base_ref)
-
-
-def _make_parsed_diff(file_path: str, hunks: list[ParsedDiffHunk]) -> ParsedGitDiff:
-    return ParsedGitDiff(
-        base_ref="HEAD~1",
-        target_ref="",
-        files=[ParsedDiffFile(status_code="M", file_path=file_path, hunks=hunks)],
-    )
+def _make_file_change(file_path: str, hunks: list[DiffHunk]) -> FileChange:
+    return FileChange(status_code="M", file_path=file_path, hunks=hunks)
 
 
 class TestNewFunctionInMixedHunk:
@@ -39,11 +28,7 @@ class TestNewFunctionInMixedHunk:
         return "static_analyzer/cluster_helpers.py"
 
     @pytest.fixture
-    def changes(self, file_path: str) -> ChangeSet:
-        return _make_changeset(modified=[file_path])
-
-    @pytest.fixture
-    def mixed_hunk(self) -> ParsedDiffHunk:
+    def mixed_hunk(self) -> DiffHunk:
         # Lines 69-78 replace the old 42-51 window; lines 79-435 are brand-new.
         lines: list[str] = []
         for _ in range(10):
@@ -52,7 +37,7 @@ class TestNewFunctionInMixedHunk:
             lines.append("+replacement line")
         for _ in range(357):
             lines.append("+brand new line")
-        return ParsedDiffHunk(old_start=42, old_count=10, new_start=69, new_count=367, lines=lines)
+        return DiffHunk(old_start=42, old_count=10, new_start=69, new_count=367, lines=lines)
 
     @pytest.fixture
     def methods(self) -> list[MethodEntry]:
@@ -78,23 +63,14 @@ class TestNewFunctionInMixedHunk:
         ]
 
     @pytest.mark.skip(reason="Temporarily ignored until mixed-hunk method classification is fixed")
-    def test_new_function_in_mixed_hunk_is_added(self, methods, file_path, changes, mixed_hunk):
-        parsed = _make_parsed_diff(file_path, [mixed_hunk])
-
-        by_name = compute_method_statuses_for_file(methods, file_path, changes, parsed)
-
+    def test_new_function_in_mixed_hunk_is_added(self, methods, file_path, mixed_hunk):
+        by_name = _make_file_change(file_path, [mixed_hunk]).classify_method_statuses(methods)
         assert by_name["cluster_helpers.merge_clusters"] == ChangeStatus.ADDED
 
-    def test_modified_function_in_mixed_hunk_is_modified(self, methods, file_path, changes, mixed_hunk):
-        parsed = _make_parsed_diff(file_path, [mixed_hunk])
-
-        by_name = compute_method_statuses_for_file(methods, file_path, changes, parsed)
-
+    def test_modified_function_in_mixed_hunk_is_modified(self, methods, file_path, mixed_hunk):
+        by_name = _make_file_change(file_path, [mixed_hunk]).classify_method_statuses(methods)
         assert by_name["cluster_helpers.build_all_cluster_results"] == ChangeStatus.MODIFIED
 
-    def test_unchanged_function_outside_hunk(self, methods, file_path, changes, mixed_hunk):
-        parsed = _make_parsed_diff(file_path, [mixed_hunk])
-
-        by_name = compute_method_statuses_for_file(methods, file_path, changes, parsed)
-
+    def test_unchanged_function_outside_hunk(self, methods, file_path, mixed_hunk):
+        by_name = _make_file_change(file_path, [mixed_hunk]).classify_method_statuses(methods)
         assert by_name["cluster_helpers.get_all_cluster_ids"] == ChangeStatus.UNCHANGED

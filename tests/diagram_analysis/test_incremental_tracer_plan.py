@@ -19,6 +19,7 @@ from diagram_analysis.incremental.tracer import (
     build_trace_plan,
 )
 from diagram_analysis.incremental.delta import FileDelta, IncrementalDelta, MethodChange
+from repo_utils.change_detector import ChangeSet
 from static_analyzer.constants import NodeType
 from static_analyzer.graph import CallGraph
 from static_analyzer.node import Node
@@ -100,6 +101,7 @@ def test_cosmetic_only_modification_is_skipped_from_plan():
             cfgs={},
             repo_dir=repo,
             base_ref=base_ref,
+            change_set=ChangeSet(base_ref=base_ref, target_ref=""),
         )
         # Cosmetic-only file should contribute no groups
         assert plan.groups == []
@@ -187,7 +189,13 @@ def test_plan_builds_groups_for_modified_method_with_callers():
             ]
         )
 
-        plan = build_trace_plan(delta=delta, cfgs={"python": cfg}, repo_dir=repo, base_ref=base_ref)
+        plan = build_trace_plan(
+            delta=delta,
+            cfgs={"python": cfg},
+            repo_dir=repo,
+            base_ref=base_ref,
+            change_set=ChangeSet(base_ref=base_ref, target_ref=""),
+        )
         # Helper was modified (with a real body change), has an upstream caller -> should NOT be fast-path
         assert plan.fast_path_impacted_methods == []
         assert len(plan.groups) == 1
@@ -238,7 +246,13 @@ def test_plan_fast_path_used_for_leaf_modification_with_no_callers():
             ]
         )
 
-        plan = build_trace_plan(delta=delta, cfgs={"python": cfg}, repo_dir=repo, base_ref=base_ref)
+        plan = build_trace_plan(
+            delta=delta,
+            cfgs={"python": cfg},
+            repo_dir=repo,
+            base_ref=base_ref,
+            change_set=ChangeSet(base_ref=base_ref, target_ref=""),
+        )
         # No callers, signature unchanged, body-only change -> fast path
         assert plan.fast_path_impacted_methods == ["src.utils.isolated"]
         assert plan.groups == []

@@ -37,7 +37,7 @@ from diagram_analysis.incremental.delta import IncrementalDelta
 from diagram_analysis.incremental.updater import apply_method_delta
 from diagram_analysis.io_utils import load_full_analysis, save_analysis
 from diagram_analysis.version import Version
-from repo_utils.parsed_diff import ParsedGitDiff
+from repo_utils.change_detector import ChangeSet
 from static_analyzer.graph import CallGraph
 from health.config import initialize_health_dir, load_health_config
 from health.runner import run_health_checks
@@ -469,7 +469,7 @@ class DiagramGenerator:
         self,
         delta: IncrementalDelta,
         base_ref: str,
-        parsed_diff: ParsedGitDiff,
+        change_set: ChangeSet,
         config: TraceConfig = DEFAULT_TRACE_CONFIG,
     ) -> IncrementalRunResult:
         """Run a semantic incremental update pass.
@@ -543,8 +543,8 @@ class DiagramGenerator:
             repo_dir=self.repo_location,
             base_ref=base_ref,
             parsing_llm=self.parsing_llm,
+            change_set=change_set,
             config=config,
-            parsed_diff=parsed_diff,
         )
 
         if trace_result.stop_reason == TraceStopReason.SYNTAX_ERROR:

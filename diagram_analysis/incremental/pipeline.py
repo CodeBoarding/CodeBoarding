@@ -27,10 +27,9 @@ from diagram_analysis.incremental.payload import (
 )
 from diagram_analysis.incremental.updater import IncrementalUpdater
 from diagram_analysis.io_utils import load_full_analysis
-from diagram_analysis.run_metadata import last_successful_commit, worktree_has_changes, write_last_run_metadata
-from repo_utils.change_detector import ChangeType, detect_changes_from_parsed_diff
+from diagram_analysis.run_metadata import worktree_has_changes, write_last_run_metadata
+from repo_utils.diff_parser import detect_changes
 from repo_utils.ignore import initialize_codeboardingignore
-from repo_utils.parsed_diff import get_parsed_git_diff
 from repo_utils import get_git_commit_hash, get_repo_state_hash
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.node import Node
@@ -179,16 +178,15 @@ def _validate_target_ref(repo_path: Path, resolved_target_ref: str) -> str | Non
 
 def run_incremental_pipeline(
     generator: DiagramGenerator,
-    base_ref: str | None = None,
-    target_ref: str | None = None,
+    base_ref: str,
+    target_ref: str,
 ) -> IncrementalRunPayload:
     """Run a semantic incremental analysis against a prepared ``DiagramGenerator``.
 
-    ``generator.repo_location`` and ``generator.output_dir`` must already be
-    absolute paths (the CLI's ``resolve_local_run_paths`` handles this). The
-    function owns the orchestration: loads the prior analysis, resolves refs,
-    runs the updater, invokes ``generator.generate_analysis_incremental``, and
-    writes ``incremental_run_metadata.json`` on success.
+    Preconditions: ``generator.repo_location`` / ``generator.output_dir`` are
+    absolute (caller's ``resolve_local_run_paths``); ``base_ref`` resolves to
+    a commit the caller already validated (e.g. from ``last_successful_commit``);
+    ``target_ref`` is ``""`` for the worktree or a concrete ref.
 
     Returns an ``IncrementalRunPayload`` variant. Callers that need the
     wire-format JSON (CLI stdout, wrapper JSON-RPC) call ``.to_dict()`` at
@@ -199,60 +197,48 @@ def run_incremental_pipeline(
     output_dir.mkdir(parents=True, exist_ok=True)
     initialize_codeboardingignore(output_dir)
 
-    resolved_target_ref = target_ref or ""
-
     existing = load_full_analysis(output_dir)
     if existing is None:
         return FullAnalysisRequiredPayload(
             message="No existing analysis.json; full analysis required.",
-            base_ref=base_ref or "",
-            target_ref=resolved_target_ref,
+            base_ref=base_ref,
+            target_ref=target_ref,
         )
 
-    resolved_base_ref = base_ref or last_successful_commit(output_dir)
-    if not resolved_base_ref:
-        return FullAnalysisRequiredPayload(
-            message="No prior incremental metadata found; full analysis required before running incremental.",
-            target_ref=resolved_target_ref,
-        )
-
-    target_ref_error = _validate_target_ref(repo_path, resolved_target_ref)
+    target_ref_error = _validate_target_ref(repo_path, target_ref)
     if target_ref_error is not None:
+        return FullAnalysisRequiredPayload(message=target_ref_error, base_ref=base_ref, target_ref=target_ref)
+
+    change_set = detect_changes(repo_path, base_ref, target_ref)
+    if change_set.error:
         return FullAnalysisRequiredPayload(
-            message=target_ref_error, base_ref=resolved_base_ref, target_ref=resolved_target_ref
+            message=f"Git diff failed for incremental analysis: {change_set.error}",
+            base_ref=base_ref,
+            target_ref=target_ref,
         )
 
-    parsed_diff = get_parsed_git_diff(repo_path, resolved_base_ref, resolved_target_ref)
-    if parsed_diff.error:
-        return FullAnalysisRequiredPayload(
-            message=f"Git diff failed for incremental analysis: {parsed_diff.error}",
-            base_ref=resolved_base_ref,
-            target_ref=resolved_target_ref,
-        )
-
-    changes = detect_changes_from_parsed_diff(parsed_diff)
-    if any(c.change_type in (ChangeType.RENAMED, ChangeType.COPIED) for c in changes.changes):
+    if change_set.has_renames_or_copies():
         return FullAnalysisRequiredPayload(
             message="Rename/copy changes detected; full analysis required until rename handling is implemented.",
-            base_ref=resolved_base_ref,
-            target_ref=resolved_target_ref,
+            base_ref=base_ref,
+            target_ref=target_ref,
         )
     analysis_path = output_dir / "analysis.json"
-    if changes.is_empty():
-        source_identity = _resolve_source_identity(repo_path, resolved_target_ref)
+    if change_set.is_empty():
+        source_identity = _resolve_source_identity(repo_path, target_ref)
         write_last_run_metadata(
             output_dir,
             repo_path,
             mode="incremental",
             analysis_path=analysis_path,
             source_identity=source_identity,
-            diff_base_ref=_diff_base_for_successful_target(repo_path, resolved_target_ref, source_identity),
+            diff_base_ref=_diff_base_for_successful_target(repo_path, target_ref, source_identity),
         )
         return NoChangesPayload(
-            base_ref=resolved_base_ref,
-            target_ref=resolved_target_ref,
+            base_ref=base_ref,
+            target_ref=target_ref,
             resolved_target_commit=source_identity,
-            change_set=changes,
+            change_set=change_set,
             metadata_path=output_dir / "incremental_run_metadata.json",
             analysis_path=analysis_path,
         )
@@ -265,8 +251,8 @@ def run_incremental_pipeline(
     if generator.static_analysis is None:
         return FullAnalysisRequiredPayload(
             message="Static analysis could not be initialized; full analysis required.",
-            base_ref=resolved_base_ref,
-            target_ref=resolved_target_ref,
+            base_ref=base_ref,
+            target_ref=target_ref,
         )
 
     symbol_resolver = StaticAnalysisSymbolResolver(generator.static_analysis, repo_path)
@@ -274,23 +260,18 @@ def run_incremental_pipeline(
     updater = IncrementalUpdater(
         root_analysis,
         symbol_resolver=symbol_resolver,
-        parsed_diff=parsed_diff,
+        change_set=change_set,
     )
-    delta = updater.compute_delta(
-        added_files=changes.added_files,
-        modified_files=changes.modified_files,
-        deleted_files=changes.deleted_files,
-        changes=changes,
-    )
+    delta = updater.compute_delta()
 
     with contextlib.redirect_stdout(io.StringIO()):
         incremental_result = generator.generate_analysis_incremental(
             delta=delta,
-            base_ref=resolved_base_ref,
-            parsed_diff=parsed_diff,
+            base_ref=base_ref,
+            change_set=change_set,
         )
 
-    source_identity = _resolve_source_identity(repo_path, resolved_target_ref)
+    source_identity = _resolve_source_identity(repo_path, target_ref)
     metadata_path: Path | None = None
     if not incremental_result.summary.requires_full_analysis and incremental_result.analysis_path is not None:
         write_last_run_metadata(
@@ -299,16 +280,16 @@ def run_incremental_pipeline(
             mode="incremental",
             analysis_path=incremental_result.analysis_path,
             source_identity=source_identity,
-            diff_base_ref=_diff_base_for_successful_target(repo_path, resolved_target_ref, source_identity),
+            diff_base_ref=_diff_base_for_successful_target(repo_path, target_ref, source_identity),
         )
         metadata_path = output_dir / "incremental_run_metadata.json"
 
     return IncrementalCompletedPayload(
         result=incremental_result,
-        base_ref=resolved_base_ref,
-        target_ref=resolved_target_ref,
+        base_ref=base_ref,
+        target_ref=target_ref,
         resolved_target_commit=source_identity,
-        change_set=changes,
+        change_set=change_set,
         incremental_delta=delta,
         metadata_path=metadata_path,
     )

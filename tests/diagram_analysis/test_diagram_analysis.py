@@ -26,7 +26,7 @@ from diagram_analysis.analysis_json import (
 )
 from diagram_analysis.diagram_generator import DiagramGenerator
 from diagram_analysis.version import Version
-from repo_utils.parsed_diff import ParsedGitDiff
+from repo_utils.change_detector import ChangeSet
 from static_analyzer.analysis_result import StaticAnalysisResults
 
 
@@ -755,7 +755,7 @@ class TestGenerateAnalysisIncrementalFailedPatches(unittest.TestCase):
             result = gen.generate_analysis_incremental(
                 delta=self._build_delta(),
                 base_ref="baseline",
-                parsed_diff=ParsedGitDiff(base_ref="baseline", target_ref=""),
+                change_set=ChangeSet(base_ref="baseline", target_ref=""),
             )
 
         self.assertEqual(result.summary.kind, IncrementalSummaryKind.REQUIRES_FULL_ANALYSIS)
@@ -792,7 +792,7 @@ class TestGenerateAnalysisIncrementalFailedPatches(unittest.TestCase):
             result = gen.generate_analysis_incremental(
                 delta=self._build_delta(),
                 base_ref="baseline",
-                parsed_diff=ParsedGitDiff(base_ref="baseline", target_ref=""),
+                change_set=ChangeSet(base_ref="baseline", target_ref=""),
             )
 
         self.assertEqual(result.summary.kind, IncrementalSummaryKind.SCOPED_REANALYSIS)
