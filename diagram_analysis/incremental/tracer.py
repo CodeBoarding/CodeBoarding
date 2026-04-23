@@ -368,7 +368,7 @@ def _finalize_groups(groups: list[ChangeGroup]) -> list[ChangeGroup]:
 
 
 def _collapse_fallback_groups(groups: list[ChangeGroup]) -> list[ChangeGroup]:
-    """Rework 2: collapse ONLY the fallback (non-graph-backed) groups into one
+    """Collapse ONLY the fallback (non-graph-backed) groups into one
     conservative combined region, keeping graph-backed groups independent.
 
     This preserves parallelism for well-understood regions while keeping
@@ -595,7 +595,7 @@ def _invoke_extractor_with_retry(
     *,
     hop: int,
 ) -> dict[str, Any] | None:
-    """Rework 3: invoke the extractor with bounded retry/backoff.
+    """Invoke the extractor with bounded retry/backoff.
 
     Returns the extractor result or None if all retries fail.
     """
@@ -643,8 +643,7 @@ def _trace_single_group(
     all_impacted: set[str] = set()
     total_fetched = 0
 
-    # Rework 4: single-source hop accounting. `hop` is the loop index and is the
-    # single authoritative value reported on return.
+    # `hop` is the loop index and the single authoritative value reported on return.
     for hop in range(config.max_hops + 1):
         result = _invoke_extractor_with_retry(extractor, messages, config, hop=hop)
         if result is None:
@@ -861,8 +860,7 @@ def classify_scope(
 ) -> TraceResult:
     """Deterministically map impacted methods to components using a file->component map.
 
-    Rework 4: drop FileComponentIndex in favor of a plain ``dict[str, str]``
-    (produced by ``AnalysisInsights.file_to_component()``).
+    Uses a plain ``dict[str, str]`` (produced by ``AnalysisInsights.file_to_component()``).
 
     Mutates trace_result.impacted_components and returns it.
     """

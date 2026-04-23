@@ -94,6 +94,7 @@ packages = [
     "codeboarding_cli",
     "codeboarding_cli.commands",
     "codeboarding_workflows",
+    "codeboarding_workflows.sources",
 ]
 py-modules = [
     "constants",
@@ -103,6 +104,7 @@ py-modules = [
     "duckdb_crud",
     "github_action",
     "user_config",
+    "main",
     "install",
 ]
 include-package-data = true

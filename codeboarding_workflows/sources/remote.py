@@ -1,11 +1,11 @@
 import logging
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 import requests
 
-from codeboarding_workflows.full_analysis import generate_analysis
-from codeboarding_workflows.markdown import generate_markdown_docs
-from diagram_analysis import RunContext
+from codeboarding_workflows.sources.local import SourceContext
 from repo_utils import clone_repository, get_repo_name, upload_onboarding_materials
 from utils import copy_files, create_temp_repo_folder, remove_temp_repo_folder
 
@@ -28,48 +28,35 @@ def onboarding_materials_exist(project_name: str) -> bool:
     return False
 
 
-def process_remote_repository(
+@contextmanager
+def remote_source(
     repo_url: str,
-    run_id: str,
-    log_path: str,
     output_dir: Path | None = None,
-    depth_level: int = 1,
-    upload: bool = False,
     cache_check: bool = True,
-    monitoring_enabled: bool = False,
-) -> None:
-    """Process a remote repository by cloning and generating documentation."""
-    repo_root = Path("repos")
+    upload: bool = False,
+) -> Iterator[SourceContext | None]:
+    """Clone *repo_url*, yield a :class:`SourceContext`, then cleanup.
+
+    Yields ``None`` when the cache probe indicates a prior run already exists
+    — callers should skip analysis in that case. The temp artifact folder is
+    removed on exit; if *output_dir* is given, markdown/JSON artifacts are
+    copied out before cleanup. When *upload* is true, artifacts are uploaded
+    to the GeneratedOnBoardings repo on successful exit.
+    """
     repo_name = get_repo_name(repo_url)
 
     if cache_check and onboarding_materials_exist(repo_name):
         logger.info(f"Cache hit for '{repo_name}', skipping documentation generation.")
+        yield None
         return
 
-    repo_name = clone_repository(repo_url, repo_root)
-    repo_path = repo_root / repo_name
-
+    repo_root = Path("repos")
+    cloned_name = clone_repository(repo_url, repo_root)
+    repo_path = repo_root / cloned_name
     temp_folder = create_temp_repo_folder()
 
     try:
-        analysis_path = generate_analysis(
-            repo_name=repo_name,
-            repo_path=repo_path,
-            output_dir=temp_folder,
-            depth_level=depth_level,
-            run_id=run_id,
-            log_path=log_path,
-            monitoring_enabled=monitoring_enabled,
-        )
-
-        generate_markdown_docs(
-            repo_name=repo_name,
-            repo_path=repo_path,
-            repo_url=repo_url,
-            analysis_path=analysis_path,
-            output_dir=temp_folder,
-            demo_mode=True,
-        )
+        yield SourceContext(repo_path=repo_path, project_name=cloned_name, artifact_dir=temp_folder)
 
         if output_dir:
             artifacts = [*temp_folder.glob("*.md"), *temp_folder.glob("*.json")]
@@ -79,7 +66,6 @@ def process_remote_repository(
                 logger.warning("No markdown or JSON files found in %s", temp_folder)
 
         if upload:
-            upload_onboarding_materials(repo_name, temp_folder, _UPLOAD_RESULTS_DIR)
+            upload_onboarding_materials(cloned_name, temp_folder, _UPLOAD_RESULTS_DIR)
     finally:
-        RunContext(run_id=run_id, log_path=log_path, repo_dir=repo_path).finalize()
         remove_temp_repo_folder(str(temp_folder))
