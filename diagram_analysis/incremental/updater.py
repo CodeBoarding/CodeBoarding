@@ -161,7 +161,9 @@ class IncrementalUpdater:
         current_keys = set(current_by_name.keys())
 
         file_change = self._change_set.get_file(file_path)
-        method_statuses = file_change.classify_method_statuses(current) if file_change else {}
+        method_statuses = (
+            file_change.classify_method_statuses(current, list(prev_active.values())) if file_change else {}
+        )
 
         return (
             FileDelta(

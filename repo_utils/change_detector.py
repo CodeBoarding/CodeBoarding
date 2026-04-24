@@ -6,7 +6,7 @@ consumed by the incremental analysis pipeline:
 - file-level accessors: ``added_files``, ``modified_files``, ``deleted_files``,
   ``renames``, ``file_status(path)``
 - per-file drill-down: ``get_file(path)`` -> :class:`FileChange` with hunks, and
-  ``FileChange.classify_method_statuses(methods)`` for method-level status.
+  ``FileChange.classify_method_statuses(methods, prev_methods)`` for method-level status.
 """
 
 from __future__ import annotations
@@ -51,7 +51,12 @@ class DiffHunk:
 
 @dataclass
 class ChangedLineRanges:
-    """Line-range classification for one file's diff, in new-file coordinates."""
+    """Line-range classification for one file's diff.
+
+    ``added`` and ``changed`` are in new-file coordinates; ``deletions``
+    are in **old-file** coordinates (pure-deletion lines don't exist in the
+    new file, so there is no correct new-file position for them).
+    """
 
     added: list[tuple[int, int]] = field(default_factory=list)
     changed: list[tuple[int, int]] = field(default_factory=list)
@@ -90,7 +95,13 @@ class FileChange:
         Why: a hunk header's ``new_count`` includes context lines, so a single
         hunk spanning two change islands over-reports the touched range.
         Walking +/-/space lines flushes a segment on every context line,
-        yielding the true changed ranges in new-file coordinates.
+        yielding the true changed ranges.
+
+        ``added`` and ``changed`` are in new-file coordinates; ``deletions``
+        are in old-file coordinates.  Mixed segments (both ``+`` and ``-``
+        lines without an intervening context line) are split: the first
+        ``minus_count`` new-file lines become ``changed`` (replacement) and
+        any excess become ``added`` (pure addition).
         """
         added: list[tuple[int, int]] = []
         changed: list[tuple[int, int]] = []
@@ -98,18 +109,38 @@ class FileChange:
 
         for hunk in self.hunks:
             new_line = hunk.new_start
+            old_line = hunk.old_start
             segment_new_start: int | None = None
+            segment_old_start: int | None = None
             plus_count = 0
             minus_count = 0
 
             def _flush() -> None:
-                nonlocal segment_new_start, plus_count, minus_count
+                nonlocal segment_new_start, segment_old_start, plus_count, minus_count
                 if plus_count and segment_new_start is not None:
-                    new_range = (segment_new_start, segment_new_start + plus_count - 1)
-                    (changed if minus_count else added).append(new_range)
-                elif minus_count and new_line > 0:
-                    deletions.append((new_line, new_line))
+                    if minus_count:
+                        replace_count = min(plus_count, minus_count)
+                        changed.append((segment_new_start, segment_new_start + replace_count - 1))
+                        if plus_count > replace_count:
+                            added.append(
+                                (
+                                    segment_new_start + replace_count,
+                                    segment_new_start + plus_count - 1,
+                                )
+                            )
+                        if minus_count > replace_count and segment_old_start is not None:
+                            deletions.append(
+                                (
+                                    segment_old_start + replace_count,
+                                    segment_old_start + minus_count - 1,
+                                )
+                            )
+                    else:
+                        added.append((segment_new_start, segment_new_start + plus_count - 1))
+                elif minus_count and segment_old_start is not None:
+                    deletions.append((segment_old_start, segment_old_start + minus_count - 1))
                 segment_new_start = None
+                segment_old_start = None
                 plus_count = 0
                 minus_count = 0
 
@@ -121,8 +152,12 @@ class FileChange:
                 if prefix == " ":
                     _flush()
                     new_line += 1
+                    old_line += 1
                 elif prefix == "-":
+                    if segment_old_start is None:
+                        segment_old_start = old_line
                     minus_count += 1
+                    old_line += 1
                 elif prefix == "+":
                     if segment_new_start is None:
                         segment_new_start = new_line
@@ -137,15 +172,23 @@ class FileChange:
 
         return ChangedLineRanges(added=added, changed=changed, deletions=deletions)
 
-    def classify_method_statuses(self, methods: list[MethodEntry]) -> dict[str, ChangeStatus]:
+    def classify_method_statuses(
+        self,
+        methods: list[MethodEntry],
+        prev_methods: list[MethodEntry] | None = None,
+    ) -> dict[str, ChangeStatus]:
         """Per-method ``ChangeStatus`` for *methods*, given this file's hunks.
 
         Called after :meth:`ChangeSet.file_status` says the file is MODIFIED.
         For ADDED / DELETED files the caller marks all methods wholesale
         without needing hunks.
+
+        *prev_methods*, when provided, carry old-file line numbers and are
+        checked against old-file ``deletions`` ranges: a surviving method
+        whose previous position overlaps pure-deletion lines is promoted
+        from UNCHANGED to MODIFIED.
         """
         if not self.hunks:
-            # Binary file or missing from the parsed diff — cannot determine.
             return {m.qualified_name: ChangeStatus.UNCHANGED for m in methods}
 
         ranges = self.changed_line_ranges()
@@ -155,10 +198,21 @@ class FileChange:
                 statuses[method.qualified_name] = ChangeStatus.MODIFIED
             elif _fully_inside(method, ranges.added):
                 statuses[method.qualified_name] = ChangeStatus.ADDED
-            elif _overlaps(method, ranges.added) or _overlaps(method, ranges.deletions):
+            elif _overlaps(method, ranges.added):
                 statuses[method.qualified_name] = ChangeStatus.MODIFIED
             else:
                 statuses[method.qualified_name] = ChangeStatus.UNCHANGED
+
+        if prev_methods and ranges.deletions:
+            current_names = {m.qualified_name for m in methods}
+            for prev in prev_methods:
+                if (
+                    prev.qualified_name in current_names
+                    and statuses.get(prev.qualified_name) == ChangeStatus.UNCHANGED
+                    and _overlaps(prev, ranges.deletions)
+                ):
+                    statuses[prev.qualified_name] = ChangeStatus.MODIFIED
+
         return statuses
 
 

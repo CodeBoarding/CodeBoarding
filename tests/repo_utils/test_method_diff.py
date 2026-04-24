@@ -62,7 +62,6 @@ class TestNewFunctionInMixedHunk:
             ),
         ]
 
-    @pytest.mark.skip(reason="Temporarily ignored until mixed-hunk method classification is fixed")
     def test_new_function_in_mixed_hunk_is_added(self, methods, file_path, mixed_hunk):
         by_name = _make_file_change(file_path, [mixed_hunk]).classify_method_statuses(methods)
         assert by_name["cluster_helpers.merge_clusters"] == ChangeStatus.ADDED
