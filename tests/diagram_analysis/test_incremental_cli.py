@@ -20,12 +20,13 @@ from diagram_analysis.incremental.models import (
     IncrementalSummaryKind,
 )
 from diagram_analysis.incremental.payload import (
-    FullAnalysisRequiredPayload,
+    RequiresFullAnalysisPayload,
     IncrementalCompletedPayload,
     NoChangesPayload,
 )
 from diagram_analysis.incremental.pipeline import run_incremental_pipeline
-from diagram_analysis.run_metadata import last_successful_commit, worktree_has_changes, write_last_run_metadata
+from diagram_analysis.run_metadata import RunMode, last_successful_commit, write_last_run_metadata
+from repo_utils.git_ops import worktree_has_changes
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import NodeType
 from static_analyzer.node import Node
@@ -111,7 +112,7 @@ def test_last_successful_commit_rejects_dirty_full_run_metadata(tmp_path: Path) 
 
     source_file.write_text("print('v2')\n", encoding="utf-8")
     output_dir = repo / ".codeboarding"
-    write_last_run_metadata(output_dir, repo, mode="full", analysis_path=output_dir / "analysis.json")
+    write_last_run_metadata(output_dir, repo, mode=RunMode.FULL, analysis_path=output_dir / "analysis.json")
 
     assert last_successful_commit(output_dir) is None
 
@@ -131,7 +132,7 @@ def test_worktree_dirty_check_ignores_codeboarding_output(tmp_path: Path) -> Non
     output_dir.mkdir()
     (output_dir / "analysis.json").write_text("{}", encoding="utf-8")
 
-    assert worktree_has_changes(repo) is False
+    assert worktree_has_changes(repo, exclude_patterns=(".codeboarding",)) is False
 
 
 def test_run_incremental_pipeline_returns_full_required_without_baseline(tmp_path: Path) -> None:
@@ -142,7 +143,7 @@ def test_run_incremental_pipeline_returns_full_required_without_baseline(tmp_pat
 
     payload = run_incremental_pipeline(_make_generator(repo, output_dir), base_ref="", target_ref="")
 
-    assert isinstance(payload, FullAnalysisRequiredPayload)
+    assert isinstance(payload, RequiresFullAnalysisPayload)
     assert payload.requires_full_analysis is True
     assert "No existing analysis.json" in payload.message
 
@@ -236,7 +237,7 @@ def test_run_incremental_pipeline_requires_full_when_git_diff_fails(tmp_path: Pa
     ):
         payload = run_incremental_pipeline(_make_generator(repo, output_dir), base_ref="base", target_ref="")
 
-    assert isinstance(payload, FullAnalysisRequiredPayload)
+    assert isinstance(payload, RequiresFullAnalysisPayload)
     assert payload.requires_full_analysis is True
     assert "Git diff failed" in payload.message
     assert not (output_dir / "incremental_run_metadata.json").exists()
@@ -420,7 +421,7 @@ def test_run_incremental_analysis_requires_full_on_rename(tmp_path: Path) -> Non
 
     payload = run_incremental_pipeline(_make_generator(repo, output_dir), base_ref=baseline_commit, target_ref="")
 
-    assert isinstance(payload, FullAnalysisRequiredPayload)
+    assert isinstance(payload, RequiresFullAnalysisPayload)
     assert payload.requires_full_analysis is True
     assert "rename" in payload.message.lower()
     assert not (output_dir / "incremental_run_metadata.json").exists()
@@ -477,7 +478,7 @@ def test_run_incremental_pipeline_rejects_target_ref_not_checked_out(tmp_path: P
         target_ref=baseline_commit,  # HEAD is at v2, not baseline
     )
 
-    assert isinstance(payload, FullAnalysisRequiredPayload)
+    assert isinstance(payload, RequiresFullAnalysisPayload)
     assert payload.requires_full_analysis is True
     assert "does not match the current checkout" in payload.message
     assert not (output_dir / "incremental_run_metadata.json").exists()
@@ -526,7 +527,7 @@ def test_run_incremental_pipeline_rejects_target_ref_with_dirty_worktree(tmp_pat
         target_ref=head_commit,  # HEAD matches, but worktree is dirty
     )
 
-    assert isinstance(payload, FullAnalysisRequiredPayload)
+    assert isinstance(payload, RequiresFullAnalysisPayload)
     assert payload.requires_full_analysis is True
     assert "dirty worktree" in payload.message
     assert not (output_dir / "incremental_run_metadata.json").exists()

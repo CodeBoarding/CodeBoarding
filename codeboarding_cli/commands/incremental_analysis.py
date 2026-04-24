@@ -7,7 +7,8 @@ from agents.llm_config import LLMConfigError
 from codeboarding_cli.bootstrap import bootstrap_environment, resolve_local_run_paths
 from codeboarding_workflows.analysis import run_incremental
 from diagram_analysis import RunContext
-from diagram_analysis.incremental.payload import FullAnalysisRequiredPayload, IncrementalRunPayload
+from diagram_analysis.incremental.payload import RequiresFullAnalysisPayload, IncrementalRunPayload
+from diagram_analysis.run_metadata import RunMode
 from diagram_analysis.run_metadata import last_successful_commit
 from utils import monitoring_enabled
 
@@ -40,15 +41,15 @@ def add_arguments(subparsers: argparse._SubParsersAction, parents: list[argparse
     )
 
 
-def _error_payload(message: str) -> FullAnalysisRequiredPayload:
+def _error_payload(message: str) -> RequiresFullAnalysisPayload:
     """Build a ``REQUIRES_FULL_ANALYSIS`` payload for a CLI-level error."""
-    return FullAnalysisRequiredPayload(message=message, error=message)
+    return RequiresFullAnalysisPayload(message=message, error=message)
 
 
 def _api_key_missing_dict(message: str) -> dict:
     """Distinct wire shape — the wrapper detects ``kind=api_key_missing`` to prompt the user."""
     return {
-        "mode": "incremental",
+        "mode": RunMode.INCREMENTAL,
         "error": message,
         "kind": "api_key_missing",
     }
@@ -79,12 +80,13 @@ def run_from_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> 
     # Resolve base_ref up-front so every layer below sees a concrete str.
     base_ref = args.base_ref or last_successful_commit(run_paths.output_dir)
     if not base_ref:
-        _emit_payload(
-            FullAnalysisRequiredPayload(
-                message=("No prior incremental metadata found; " "full analysis required before running incremental."),
-                target_ref=args.target_ref or "",
-            )
+        msg = "No prior incremental metadata found; full analysis required before running incremental."
+        logger.info(
+            "Incremental aborted (base_ref=<unresolved> target_ref=%s): %s",
+            args.target_ref or "WORKTREE",
+            msg,
         )
+        _emit_payload(RequiresFullAnalysisPayload(message=msg))
         return
 
     target_ref = args.target_ref or ""

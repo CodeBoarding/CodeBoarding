@@ -13,27 +13,26 @@ the CLI envelope and JSON emission stay at the caller's edge.
 import contextlib
 import io
 import logging
-import subprocess
 from collections import defaultdict
 from pathlib import Path
 
 from agents.agent_responses import MethodEntry
 from diagram_analysis.diagram_generator import DiagramGenerator
 from diagram_analysis.incremental.payload import (
-    FullAnalysisRequiredPayload,
+    RequiresFullAnalysisPayload,
     IncrementalCompletedPayload,
     IncrementalRunPayload,
     NoChangesPayload,
 )
 from diagram_analysis.incremental.updater import IncrementalUpdater
 from diagram_analysis.io_utils import load_full_analysis
-from diagram_analysis.run_metadata import worktree_has_changes, write_last_run_metadata
+from diagram_analysis.run_metadata import METADATA_FILENAME, RunMode, write_last_run_metadata
 from repo_utils.diff_parser import detect_changes
 from repo_utils.ignore import initialize_codeboardingignore
 from repo_utils import get_git_commit_hash, get_repo_state_hash
+from repo_utils.git_ops import resolve_ref, worktree_has_changes
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.node import Node
-from utils import to_relative_path
+from utils import ANALYSIS_FILENAME, CODEBOARDING_DIR_NAME, to_relative_path
 
 logger = logging.getLogger(__name__)
 
@@ -45,37 +44,16 @@ def normalize_repo_path(path: str, repo_dir: Path) -> str:
 def collect_method_entries(static_analysis: StaticAnalysisResults, repo_dir: Path) -> dict[str, list[MethodEntry]]:
     methods_by_file: dict[str, list[MethodEntry]] = defaultdict(list)
 
-    for language in static_analysis.get_languages():
-        lang_data = static_analysis.results.get(language, {})
-        references = lang_data.get("references", {})
-        if isinstance(references, dict):
-            ref_values = references.values()
-        elif isinstance(references, list):
-            ref_values = references
-        else:
+    for node in static_analysis.iter_reference_nodes():
+        if node.is_callback_or_anonymous():
             continue
+        if not (node.is_callable() or node.is_class()):
+            continue
+        file_path = normalize_repo_path(str(node.file_path), repo_dir)
+        methods_by_file[file_path].append(MethodEntry.from_node(node))
 
-        for node in ref_values:
-            if not isinstance(node, Node):
-                continue
-            if node.is_callback_or_anonymous():
-                continue
-            if not (node.is_callable() or node.is_class()):
-                continue
-
-            file_path = normalize_repo_path(str(node.file_path), repo_dir)
-            methods_by_file[file_path].append(
-                MethodEntry(
-                    qualified_name=node.fully_qualified_name,
-                    start_line=node.line_start,
-                    end_line=node.line_end,
-                    node_type=node.type.name,
-                )
-            )
-
-    for file_path in list(methods_by_file.keys()):
-        methods_by_file[file_path] = sorted(
-            methods_by_file[file_path],
+    for file_path in methods_by_file:
+        methods_by_file[file_path].sort(
             key=lambda method: (method.start_line, method.end_line, method.qualified_name),
         )
 
@@ -83,7 +61,16 @@ def collect_method_entries(static_analysis: StaticAnalysisResults, repo_dir: Pat
 
 
 class StaticAnalysisSymbolResolver:
-    """Resolve file paths to their current ``MethodEntry`` list from a static analysis snapshot."""
+    """Resolve file paths to their *current-on-disk* ``MethodEntry`` list.
+
+    Why from ``static_analysis`` and not ``analysis.files``: the incremental
+    updater needs the *post-change* view of each file to diff against the
+    *pre-change* view stored on ``AnalysisInsights.files``. ``pre_analysis()``
+    populates ``static_analysis`` from a fresh worktree scan immediately
+    before this resolver is built — that is the "current" side of the diff.
+    Collapsing both sides to ``analysis.files`` would always report "no
+    changes" and silently break incremental analysis.
+    """
 
     def __init__(self, static_analysis: StaticAnalysisResults, repo_dir: Path) -> None:
         self._repo_dir = repo_dir
@@ -110,26 +97,23 @@ def _resolve_source_identity(repo_dir: Path, ref: str | None) -> str:
     When *ref* is given, we resolve it to its commit SHA.
     """
     if not ref:
-        return get_repo_state_hash(repo_dir) if worktree_has_changes(repo_dir) else get_git_commit_hash(repo_dir)
-
-    try:
-        result = subprocess.run(
-            ["git", "rev-parse", "--verify", ref],
-            cwd=repo_dir,
-            capture_output=True,
-            text=True,
-            check=True,
+        return (
+            get_repo_state_hash(repo_dir)
+            if worktree_has_changes(repo_dir, exclude_patterns=(CODEBOARDING_DIR_NAME,))
+            else get_git_commit_hash(repo_dir)
         )
-        return result.stdout.strip() or ref
-    except subprocess.CalledProcessError:
+
+    resolved = resolve_ref(repo_dir, ref)
+    if resolved is None:
         logger.warning("Could not resolve source ref '%s'; preserving original value", ref)
         return ref
+    return resolved
 
 
 def _diff_base_for_successful_target(repo_dir: Path, target_ref: str | None, source_identity: str) -> str | None:
     if target_ref:
         return source_identity
-    return None if worktree_has_changes(repo_dir) else source_identity
+    return None if worktree_has_changes(repo_dir, exclude_patterns=(CODEBOARDING_DIR_NAME,)) else source_identity
 
 
 def _target_ref_matches_checkout(repo_dir: Path, target_ref: str) -> bool:
@@ -139,24 +123,11 @@ def _target_ref_matches_checkout(repo_dir: Path, target_ref: str) -> bool:
     so if the caller pins a target ref that isn't checked out, the patch would
     be built from the wrong sources.
     """
-    try:
-        head = subprocess.run(
-            ["git", "rev-parse", "--verify", "HEAD"],
-            cwd=repo_dir,
-            capture_output=True,
-            text=True,
-            check=True,
-        ).stdout.strip()
-        target = subprocess.run(
-            ["git", "rev-parse", "--verify", target_ref],
-            cwd=repo_dir,
-            capture_output=True,
-            text=True,
-            check=True,
-        ).stdout.strip()
-    except (OSError, subprocess.CalledProcessError):
+    head = resolve_ref(repo_dir, "HEAD")
+    target = resolve_ref(repo_dir, target_ref)
+    if head is None or target is None:
         return False
-    return bool(head) and head == target
+    return head == target
 
 
 def _validate_target_ref(repo_path: Path, resolved_target_ref: str) -> str | None:
@@ -168,7 +139,7 @@ def _validate_target_ref(repo_path: Path, resolved_target_ref: str) -> str | Non
             f"--target-ref {resolved_target_ref!r} does not match the current checkout; "
             "check out the target ref or omit --target-ref."
         )
-    if worktree_has_changes(repo_path):
+    if worktree_has_changes(repo_path, exclude_patterns=(CODEBOARDING_DIR_NAME,)):
         return (
             "--target-ref cannot be combined with a dirty worktree; "
             "commit or stash local changes, or omit --target-ref."
@@ -197,39 +168,31 @@ def run_incremental_pipeline(
     output_dir.mkdir(parents=True, exist_ok=True)
     initialize_codeboardingignore(output_dir)
 
+    def _abort(msg: str) -> RequiresFullAnalysisPayload:
+        logger.info("Incremental aborted (base_ref=%s target_ref=%s): %s", base_ref, target_ref or "WORKTREE", msg)
+        return RequiresFullAnalysisPayload(message=msg)
+
     existing = load_full_analysis(output_dir)
     if existing is None:
-        return FullAnalysisRequiredPayload(
-            message="No existing analysis.json; full analysis required.",
-            base_ref=base_ref,
-            target_ref=target_ref,
-        )
+        return _abort("No existing analysis.json; full analysis required.")
 
     target_ref_error = _validate_target_ref(repo_path, target_ref)
     if target_ref_error is not None:
-        return FullAnalysisRequiredPayload(message=target_ref_error, base_ref=base_ref, target_ref=target_ref)
+        return _abort(target_ref_error)
 
     change_set = detect_changes(repo_path, base_ref, target_ref)
     if change_set.error:
-        return FullAnalysisRequiredPayload(
-            message=f"Git diff failed for incremental analysis: {change_set.error}",
-            base_ref=base_ref,
-            target_ref=target_ref,
-        )
+        return _abort(f"Git diff failed for incremental analysis: {change_set.error}")
 
     if change_set.has_renames_or_copies():
-        return FullAnalysisRequiredPayload(
-            message="Rename/copy changes detected; full analysis required until rename handling is implemented.",
-            base_ref=base_ref,
-            target_ref=target_ref,
-        )
-    analysis_path = output_dir / "analysis.json"
+        return _abort("Rename/copy changes detected; full analysis required until rename handling is implemented.")
+    analysis_path = output_dir / ANALYSIS_FILENAME
     if change_set.is_empty():
         source_identity = _resolve_source_identity(repo_path, target_ref)
         write_last_run_metadata(
             output_dir,
             repo_path,
-            mode="incremental",
+            mode=RunMode.INCREMENTAL,
             analysis_path=analysis_path,
             source_identity=source_identity,
             diff_base_ref=_diff_base_for_successful_target(repo_path, target_ref, source_identity),
@@ -239,7 +202,7 @@ def run_incremental_pipeline(
             target_ref=target_ref,
             resolved_target_commit=source_identity,
             change_set=change_set,
-            metadata_path=output_dir / "incremental_run_metadata.json",
+            metadata_path=output_dir / METADATA_FILENAME,
             analysis_path=analysis_path,
         )
 
@@ -249,11 +212,7 @@ def run_incremental_pipeline(
         generator.pre_analysis()
 
     if generator.static_analysis is None:
-        return FullAnalysisRequiredPayload(
-            message="Static analysis could not be initialized; full analysis required.",
-            base_ref=base_ref,
-            target_ref=target_ref,
-        )
+        return _abort("Static analysis could not be initialized; full analysis required.")
 
     symbol_resolver = StaticAnalysisSymbolResolver(generator.static_analysis, repo_path)
 
@@ -277,12 +236,12 @@ def run_incremental_pipeline(
         write_last_run_metadata(
             output_dir,
             repo_path,
-            mode="incremental",
+            mode=RunMode.INCREMENTAL,
             analysis_path=incremental_result.analysis_path,
             source_identity=source_identity,
             diff_base_ref=_diff_base_for_successful_target(repo_path, target_ref, source_identity),
         )
-        metadata_path = output_dir / "incremental_run_metadata.json"
+        metadata_path = output_dir / METADATA_FILENAME
 
     return IncrementalCompletedPayload(
         result=incremental_result,

@@ -3,16 +3,27 @@
 from __future__ import annotations
 
 import json
-import subprocess
 from datetime import datetime, timezone
+from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
 from repo_utils import get_repo_state_hash
-from repo_utils.git_ops import get_current_commit
-from utils import CODEBOARDING_DIR_NAME
+from repo_utils.git_ops import get_current_commit, worktree_has_changes
+from utils import ANALYSIS_FILENAME, CODEBOARDING_DIR_NAME
 
 METADATA_FILENAME = "incremental_run_metadata.json"
+
+
+class RunMode(StrEnum):
+    """Mode written into ``lastSuccessfulRun.mode`` and wire payloads.
+
+    Only scopes that persist metadata are represented. ``partial`` doesn't
+    call ``write_last_run_metadata`` today, so there is no ``PARTIAL`` value.
+    """
+
+    FULL = "full"
+    INCREMENTAL = "incremental"
 
 
 def metadata_path(output_dir: Path) -> Path:
@@ -30,25 +41,11 @@ def load_last_run_metadata(output_dir: Path) -> dict[str, Any] | None:
     return payload if isinstance(payload, dict) else None
 
 
-def worktree_has_changes(repo_dir: Path) -> bool:
-    try:
-        result = subprocess.run(
-            ["git", "status", "--porcelain", "--untracked-files=all", "--", ".", f":!{CODEBOARDING_DIR_NAME}"],
-            cwd=repo_dir,
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-    except (OSError, subprocess.CalledProcessError):
-        return True
-    return bool(result.stdout.strip())
-
-
 def write_last_run_metadata(
     output_dir: Path,
     repo_dir: Path,
     *,
-    mode: str,
+    mode: RunMode,
     analysis_path: Path | str | None,
     commit_hash: str | None = None,
     source_identity: str | None = None,
@@ -62,7 +59,7 @@ def write_last_run_metadata(
     current_commit = get_current_commit(repo_dir)
 
     if commit_hash is None and source_identity is None and diff_base_ref is None:
-        if worktree_has_changes(repo_dir):
+        if worktree_has_changes(repo_dir, exclude_patterns=(CODEBOARDING_DIR_NAME,)):
             source_identity = get_repo_state_hash(repo_dir)
             diff_base_ref = None
             use_source_as_diff_base = False
@@ -93,7 +90,7 @@ def write_last_run_metadata(
 def last_successful_commit(output_dir: Path) -> str | None:
     payload = load_last_run_metadata(output_dir)
     if payload is None:
-        analysis_path = Path(output_dir) / "analysis.json"
+        analysis_path = Path(output_dir) / ANALYSIS_FILENAME
         if not analysis_path.exists():
             return None
         try:

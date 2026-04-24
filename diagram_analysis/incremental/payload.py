@@ -20,6 +20,7 @@ from diagram_analysis.incremental.models import (
     IncrementalSummary,
     IncrementalSummaryKind,
 )
+from diagram_analysis.run_metadata import RunMode
 from repo_utils.change_detector import ChangeSet
 
 
@@ -29,18 +30,10 @@ def _target_ref_wire(target_ref: str) -> str:
 
 
 @dataclass
-class FullAnalysisRequiredPayload:
-    """Incremental failed / refused — caller must fall back to a full analysis.
-
-    Covers every branch that sets ``summary.requires_full_analysis = True``:
-    missing baseline, rename/copy detected, git diff failed, target-ref
-    rejected, patch-all-failed, etc. ``error`` is populated when the cause was
-    an exception rather than an expected precondition failure.
-    """
+class RequiresFullAnalysisPayload:
+    """Incremental was attempted but cannot proceed — caller must run full analysis."""
 
     message: str
-    base_ref: str = ""
-    target_ref: str = ""
     error: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
@@ -52,10 +45,8 @@ class FullAnalysisRequiredPayload:
             )
         )
         payload = result.to_dict()
-        payload["mode"] = "incremental"
+        payload["mode"] = RunMode.INCREMENTAL
         payload["requiresFullAnalysis"] = True
-        payload["baseRef"] = self.base_ref
-        payload["targetRef"] = _target_ref_wire(self.target_ref)
         if self.error is not None:
             payload["error"] = self.error
         return payload
@@ -85,7 +76,7 @@ class NoChangesPayload:
             analysis_path=self.analysis_path,
         )
         payload = result.to_dict()
-        payload["mode"] = "incremental"
+        payload["mode"] = RunMode.INCREMENTAL
         payload["requiresFullAnalysis"] = False
         payload["baseRef"] = self.base_ref
         payload["targetRef"] = _target_ref_wire(self.target_ref)
@@ -119,7 +110,7 @@ class IncrementalCompletedPayload:
 
     def to_dict(self) -> dict[str, Any]:
         payload = self.result.to_dict()
-        payload["mode"] = "incremental"
+        payload["mode"] = RunMode.INCREMENTAL
         payload["requiresFullAnalysis"] = self.requires_full_analysis
         payload["baseRef"] = self.base_ref
         payload["targetRef"] = _target_ref_wire(self.target_ref)
@@ -135,4 +126,4 @@ class IncrementalCompletedPayload:
         return self.result.summary.requires_full_analysis
 
 
-IncrementalRunPayload = Union[FullAnalysisRequiredPayload, NoChangesPayload, IncrementalCompletedPayload]
+IncrementalRunPayload = Union[RequiresFullAnalysisPayload, NoChangesPayload, IncrementalCompletedPayload]

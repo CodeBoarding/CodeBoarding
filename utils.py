@@ -10,6 +10,7 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 CODEBOARDING_DIR_NAME = ".codeboarding"
+ANALYSIS_FILENAME = "analysis.json"
 
 
 class CFGGenerationError(Exception):

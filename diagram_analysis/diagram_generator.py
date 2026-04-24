@@ -49,7 +49,7 @@ from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer import StaticAnalyzer, get_static_analysis
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.scanner import ProjectScanner
-from utils import get_cache_dir
+from utils import ANALYSIS_FILENAME, get_cache_dir
 
 logger = logging.getLogger(__name__)
 
@@ -507,7 +507,7 @@ class DiagramGenerator:
                     kind=IncrementalSummaryKind.NO_CHANGES,
                     message="No file changes detected.",
                 ),
-                analysis_path=(Path(self.output_dir) / "analysis.json").resolve(),
+                analysis_path=(Path(self.output_dir) / ANALYSIS_FILENAME).resolve(),
             )
 
         if delta.needs_reanalysis:

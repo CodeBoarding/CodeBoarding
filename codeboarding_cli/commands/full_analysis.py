@@ -111,8 +111,8 @@ def _run_remote(args: argparse.Namespace) -> None:
 
     try:
         bootstrap_environment(output_dir, args.binary_location)
-    except ValueError as exc:
-        logger.error(str(exc))
+    except LLMConfigError as exc:
+        logger.error("LLM provider not configured: %s", exc)
         raise SystemExit(1) from exc
     logger.info("Starting CodeBoarding documentation generation...")
 

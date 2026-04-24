@@ -13,7 +13,7 @@ from textwrap import dedent
 import pytest
 
 from agents.change_status import ChangeStatus
-from diagram_analysis.incremental.tracer import (
+from diagram_analysis.incremental.trace_planner import (
     ChangeGroup,
     _collapse_fallback_groups,
     build_trace_plan,

@@ -13,7 +13,6 @@ import ast
 import hashlib
 import logging
 import re
-import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -27,6 +26,7 @@ import tree_sitter_typescript
 from tree_sitter import Language as TSLanguage
 from tree_sitter import Parser
 
+from repo_utils.git_ops import read_file_at_ref
 from static_analyzer.constants import Language, SOURCE_EXTENSION_TO_LANGUAGE
 
 logger = logging.getLogger(__name__)
@@ -195,16 +195,7 @@ def _load_ts_language(language: Language, file_ext: str) -> Any | None:
 
 
 def _get_old_content(repo_dir: Path, base_ref: str, file_path: str) -> str | None:
-    try:
-        result = subprocess.run(
-            ["git", "show", f"{base_ref}:{file_path}"],
-            cwd=repo_dir,
-            capture_output=True,
-            check=True,
-        )
-        return result.stdout.decode("utf-8", errors="replace")
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        return None
+    return read_file_at_ref(repo_dir, base_ref, file_path)
 
 
 def _get_new_content(repo_dir: Path, file_path: str) -> str | None:
