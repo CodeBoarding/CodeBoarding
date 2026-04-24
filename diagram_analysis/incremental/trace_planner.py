@@ -19,7 +19,7 @@ from repo_utils.change_detector import ChangeSet
 from repo_utils.git_ops import read_file_at_ref
 from static_analyzer.constants import SOURCE_EXTENSION_TO_LANGUAGE
 from static_analyzer.graph import CallGraph
-from static_analyzer.semantic_diff import (
+from diagram_analysis.incremental.semantic_diff import (
     fingerprint_method_signature,
     fingerprint_source_text,
     is_file_cosmetic,

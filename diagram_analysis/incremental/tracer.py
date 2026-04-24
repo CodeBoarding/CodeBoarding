@@ -40,7 +40,7 @@ from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import SOURCE_EXTENSION_TO_LANGUAGE
 from static_analyzer.graph import CallGraph
 from static_analyzer.node import Node
-from static_analyzer.semantic_diff import (
+from diagram_analysis.incremental.semantic_diff import (
     check_syntax_errors,
     strip_comments_from_source,
 )

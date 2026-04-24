@@ -49,8 +49,9 @@ assert set(LANGUAGE_EXTENSIONS) == set(
 
 # Flattened reverse lookup: extension -> language. Used by the diff boundary
 # (``repo_utils/diff_parser.py``) to filter non-source changes and by
-# ``semantic_diff`` / ``incremental_tracer`` to route files to the right parser.
-# Derived from ``LANGUAGE_EXTENSIONS`` so adding a language in one place updates both.
+# ``diagram_analysis.incremental.semantic_diff`` / ``incremental.tracer`` to
+# route files to the right parser. Derived from ``LANGUAGE_EXTENSIONS`` so
+# adding a language in one place updates both.
 SOURCE_EXTENSION_TO_LANGUAGE: dict[str, Language] = {
     ext: language for language, exts in LANGUAGE_EXTENSIONS.items() for ext in exts
 }
