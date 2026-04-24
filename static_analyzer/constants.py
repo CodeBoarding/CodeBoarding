@@ -26,22 +26,33 @@ class Language(StrEnum):
     CPP = "cpp"
 
 
-# Source file extensions CodeBoarding analyzes. Authoritative set used by the
-# diff boundary (repo_utils/parsed_diff.py) to filter out non-source changes,
-# and by semantic_diff / incremental_tracer to route files to the right parser.
+# File extensions per language. Every ``Language`` member appears here — keep
+# it that way so adding a new language forces you to list its extensions in
+# the same edit. ``mypy`` enforces total coverage via the assertion below.
+LANGUAGE_EXTENSIONS: dict[Language, tuple[str, ...]] = {
+    Language.PYTHON: (".py",),
+    Language.TYPESCRIPT: (".ts", ".tsx", ".mts", ".cts"),
+    Language.JAVASCRIPT: (".js", ".jsx", ".mjs", ".cjs"),
+    Language.GO: (".go",),
+    Language.JAVA: (".java",),
+    Language.PHP: (".php",),
+    Language.RUST: (".rs",),
+    Language.CSHARP: (".cs",),
+    Language.CPP: (".cpp", ".cc", ".cxx", ".hpp", ".hh", ".hxx", ".h"),
+}
+
+# Import-time invariant: every language has an extension list. Cheap check that
+# catches drift when the enum grows without a matching ``LANGUAGE_EXTENSIONS`` entry.
+assert set(LANGUAGE_EXTENSIONS) == set(
+    Language
+), f"LANGUAGE_EXTENSIONS missing: {set(Language) - set(LANGUAGE_EXTENSIONS)}"
+
+# Flattened reverse lookup: extension -> language. Used by the diff boundary
+# (``repo_utils/diff_parser.py``) to filter non-source changes and by
+# ``semantic_diff`` / ``incremental_tracer`` to route files to the right parser.
+# Derived from ``LANGUAGE_EXTENSIONS`` so adding a language in one place updates both.
 SOURCE_EXTENSION_TO_LANGUAGE: dict[str, Language] = {
-    ".py": Language.PYTHON,
-    ".ts": Language.TYPESCRIPT,
-    ".tsx": Language.TYPESCRIPT,
-    ".mts": Language.TYPESCRIPT,
-    ".cts": Language.TYPESCRIPT,
-    ".js": Language.JAVASCRIPT,
-    ".jsx": Language.JAVASCRIPT,
-    ".mjs": Language.JAVASCRIPT,
-    ".cjs": Language.JAVASCRIPT,
-    ".go": Language.GO,
-    ".java": Language.JAVA,
-    ".php": Language.PHP,
+    ext: language for language, exts in LANGUAGE_EXTENSIONS.items() for ext in exts
 }
 
 
