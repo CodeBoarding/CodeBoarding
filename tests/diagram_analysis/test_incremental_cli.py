@@ -25,7 +25,7 @@ from diagram_analysis.incremental.payload import (
     NoChangesPayload,
 )
 from diagram_analysis.incremental.pipeline import run_incremental_pipeline
-from diagram_analysis.run_metadata import RunMode, last_successful_commit, write_last_run_metadata
+from diagram_analysis.run_metadata import last_successful_commit, write_full_run_metadata
 from repo_utils.git_ops import worktree_has_changes
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import NodeType
@@ -112,7 +112,7 @@ def test_last_successful_commit_rejects_dirty_full_run_metadata(tmp_path: Path) 
 
     source_file.write_text("print('v2')\n", encoding="utf-8")
     output_dir = repo / ".codeboarding"
-    write_last_run_metadata(output_dir, repo, mode=RunMode.FULL, analysis_path=output_dir / "analysis.json")
+    write_full_run_metadata(output_dir, repo, analysis_path=output_dir / "analysis.json")
 
     assert last_successful_commit(output_dir) is None
 

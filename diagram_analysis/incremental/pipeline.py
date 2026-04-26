@@ -26,7 +26,7 @@ from diagram_analysis.incremental.payload import (
 )
 from diagram_analysis.incremental.updater import IncrementalUpdater
 from diagram_analysis.io_utils import load_full_analysis
-from diagram_analysis.run_metadata import METADATA_FILENAME, RunMode, write_last_run_metadata
+from diagram_analysis.run_metadata import METADATA_FILENAME, write_incremental_run_metadata
 from repo_utils.diff_parser import detect_changes
 from repo_utils.ignore import initialize_codeboardingignore
 from repo_utils import get_git_commit_hash, get_repo_state_hash
@@ -189,10 +189,9 @@ def run_incremental_pipeline(
     analysis_path = output_dir / ANALYSIS_FILENAME
     if change_set.is_empty():
         source_identity = _resolve_source_identity(repo_path, target_ref)
-        write_last_run_metadata(
+        write_incremental_run_metadata(
             output_dir,
             repo_path,
-            mode=RunMode.INCREMENTAL,
             analysis_path=analysis_path,
             source_identity=source_identity,
             diff_base_ref=_diff_base_for_successful_target(repo_path, target_ref, source_identity),
@@ -233,10 +232,9 @@ def run_incremental_pipeline(
     source_identity = _resolve_source_identity(repo_path, target_ref)
     metadata_path: Path | None = None
     if not incremental_result.summary.requires_full_analysis and incremental_result.analysis_path is not None:
-        write_last_run_metadata(
+        write_incremental_run_metadata(
             output_dir,
             repo_path,
-            mode=RunMode.INCREMENTAL,
             analysis_path=incremental_result.analysis_path,
             source_identity=source_identity,
             diff_base_ref=_diff_base_for_successful_target(repo_path, target_ref, source_identity),

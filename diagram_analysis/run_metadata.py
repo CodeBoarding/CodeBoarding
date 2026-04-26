@@ -19,7 +19,7 @@ class RunMode(StrEnum):
     """Mode written into ``lastSuccessfulRun.mode`` and wire payloads.
 
     Only scopes that persist metadata are represented. ``partial`` doesn't
-    call ``write_last_run_metadata`` today, so there is no ``PARTIAL`` value.
+    write metadata today, so there is no ``PARTIAL`` value.
     """
 
     FULL = "full"
@@ -41,50 +41,85 @@ def load_last_run_metadata(output_dir: Path) -> dict[str, Any] | None:
     return payload if isinstance(payload, dict) else None
 
 
-def write_last_run_metadata(
-    output_dir: Path,
-    repo_dir: Path,
+def _build_payload(
     *,
     mode: RunMode,
-    analysis_path: Path | str | None,
-    commit_hash: str | None = None,
-    source_identity: str | None = None,
-    diff_base_ref: str | None = None,
-    use_source_as_diff_base: bool | None = None,
+    commit: str | None,
+    source_identity: str | None,
+    diff_base_ref: str | None,
+    analysis_path: Path,
 ) -> dict[str, Any]:
-    """Persist the source identity that produced the latest successful analysis."""
-    output_dir = Path(output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
-    repo_dir = Path(repo_dir)
-    current_commit = get_current_commit(repo_dir)
+    """Build the wire-format metadata payload.
 
-    if commit_hash is None and source_identity is None and diff_base_ref is None:
-        if worktree_has_changes(repo_dir, exclude_patterns=(CODEBOARDING_DIR_NAME,)):
-            source_identity = get_repo_state_hash(repo_dir)
-            diff_base_ref = None
-            use_source_as_diff_base = False
-        else:
-            source_identity = current_commit
-            diff_base_ref = current_commit
-            use_source_as_diff_base = True
-
-    resolved_source_identity = source_identity or commit_hash or current_commit
-    resolved_diff_base_ref = diff_base_ref
-    if resolved_diff_base_ref is None and use_source_as_diff_base:
-        resolved_diff_base_ref = resolved_source_identity
-
-    payload: dict[str, Any] = {
+    The shape is identical for both modes — readers (``last_successful_commit``)
+    branch on ``diffBaseRef`` presence/value, not on ``mode``. ``mode`` is
+    informational on the wire.
+    """
+    return {
         "lastSuccessfulRun": {
-            "commit": commit_hash or current_commit,
-            "sourceIdentity": resolved_source_identity,
-            "diffBaseRef": resolved_diff_base_ref,
-            "analysisPath": None if analysis_path is None else str(analysis_path),
+            "commit": commit,
+            "sourceIdentity": source_identity,
+            "diffBaseRef": diff_base_ref,
+            "analysisPath": str(analysis_path),  # Path -> str at the JSON boundary
             "completedAt": datetime.now(timezone.utc).isoformat(),
             "mode": mode,
         }
     }
+
+
+def _write_metadata(output_dir: Path, payload: dict[str, Any]) -> dict[str, Any]:
+    """Serialize *payload* to ``METADATA_FILENAME`` under *output_dir*."""
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
     metadata_path(output_dir).write_text(json.dumps(payload, indent=2), encoding="utf-8")
     return payload
+
+
+def write_full_run_metadata(
+    output_dir: Path,
+    repo_dir: Path,
+    *,
+    analysis_path: Path,
+) -> dict[str, Any]:
+    """Persist metadata after a successful FULL analysis."""
+    repo_dir = Path(repo_dir)
+    current_commit = get_current_commit(repo_dir)
+
+    if worktree_has_changes(repo_dir, exclude_patterns=(CODEBOARDING_DIR_NAME,)):
+        source_identity: str | None = get_repo_state_hash(repo_dir)
+        diff_base_ref: str | None = None
+    else:
+        source_identity = current_commit
+        diff_base_ref = current_commit
+
+    payload = _build_payload(
+        mode=RunMode.FULL,
+        commit=current_commit,
+        source_identity=source_identity,
+        diff_base_ref=diff_base_ref,
+        analysis_path=analysis_path,
+    )
+    return _write_metadata(Path(output_dir), payload)
+
+
+def write_incremental_run_metadata(
+    output_dir: Path,
+    repo_dir: Path,
+    *,
+    analysis_path: Path,
+    source_identity: str,
+    diff_base_ref: str | None,
+) -> dict[str, Any]:
+    """Persist metadata after a successful INCREMENTAL analysis."""
+    repo_dir = Path(repo_dir)
+    payload = _build_payload(
+        mode=RunMode.INCREMENTAL,
+        commit=get_current_commit(repo_dir),
+        source_identity=source_identity,
+        diff_base_ref=diff_base_ref,
+        analysis_path=analysis_path,
+    )
+    return _write_metadata(Path(output_dir), payload)
 
 
 def last_successful_commit(output_dir: Path) -> str | None:

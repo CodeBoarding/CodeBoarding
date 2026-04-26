@@ -12,7 +12,7 @@ from diagram_analysis import DiagramGenerator
 from diagram_analysis.incremental.payload import IncrementalRunPayload
 from diagram_analysis.incremental.pipeline import run_incremental_pipeline
 from diagram_analysis.io_utils import load_full_analysis, save_sub_analysis
-from diagram_analysis.run_metadata import RunMode, write_last_run_metadata
+from diagram_analysis.run_metadata import write_full_run_metadata
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +60,7 @@ def run_full(
     )
     generator.force_full_analysis = force_full
     analysis_path = generator.generate_analysis()
-    write_last_run_metadata(output_dir, repo_path, mode=RunMode.FULL, analysis_path=analysis_path)
+    write_full_run_metadata(output_dir, repo_path, analysis_path=analysis_path)
     return analysis_path
 
 
