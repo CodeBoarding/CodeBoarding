@@ -19,6 +19,7 @@ from monitoring import monitor_execution
 from monitoring.paths import get_monitoring_run_dir
 from install import ensure_tools
 from tool_registry import needs_install
+from output_generators.agents_md_install import has_install_marker, install_codeboarding_md
 from output_generators.markdown import generate_markdown_file
 from repo_utils import (
     clone_repository,
@@ -252,6 +253,9 @@ def process_remote_repository(
             demo_mode=True,
         )
 
+        if has_install_marker(repo_path):
+            install_codeboarding_md(analysis_path, repo_path, temp_folder, repo_name)
+
         # Copy files to output directory if specified
         if output_dir:
             copy_files(temp_folder, output_dir)
@@ -309,7 +313,7 @@ def process_local_repository(
         return
 
     # Full analysis (local repo - no markdown generation)
-    generate_analysis(
+    analysis_path = generate_analysis(
         repo_name=project_name,
         repo_path=repo_path,
         output_dir=output_dir,
@@ -319,6 +323,9 @@ def process_local_repository(
         monitoring_enabled=monitoring_enabled,
         force_full=force_full,
     )
+
+    if has_install_marker(repo_path):
+        install_codeboarding_md(analysis_path, repo_path, output_dir, project_name)
 
 
 def copy_files(temp_folder: Path, output_dir: Path):

@@ -34,3 +34,7 @@
 - **Logging is centralized**: Review `logging_config.py` for logging configuration. Structured logging is used throughout the project; integrate logs into this system rather than using ad-hoc print statements.
 - **Multiple output formats supported**: The project generates Markdown, HTML, MDX, and Sphinx documentation. When adding features, consider all output generators if they are affected.
 - **Monitor execution stats**: The `monitoring/` directory provides `StreamingStatsWriter` for tracking LLM usage and performance metrics. Use this for tracking long-running operations.
+
+<!-- codeboarding:begin -->
+@CODEBOARDING.md
+<!-- codeboarding:end -->
