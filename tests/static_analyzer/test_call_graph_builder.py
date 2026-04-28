@@ -52,6 +52,7 @@ def _make_adapter() -> MagicMock:
     adapter.get_package_for_file.return_value = "pkg"
     adapter.build_edges.return_value = set()
     adapter.get_probe_timeout_minimum.return_value = 0
+    adapter.phase1_request_timeout.return_value = None
     adapter.probe_before_open = False
     return adapter
 
@@ -167,6 +168,37 @@ class TestDiscoverSymbols:
 
         probe_call = lsp.document_symbol.call_args_list[0]
         assert probe_call.kwargs.get("timeout") == 1800
+
+    def test_phase1_request_timeout_default_is_none(self):
+        """Default adapter returns None — Phase 1 per-file calls keep the
+        client's 60s default (unchanged legacy behavior).
+        """
+        lsp = _make_lsp()
+        adapter = _make_adapter()
+        builder = CallGraphBuilder(lsp, adapter, Path("/project"))
+
+        builder._discover_symbols([Path("/project/a.py"), Path("/project/b.py")])
+
+        # Index 0 is the sync probe (explicit timeout); index 1 is Phase 1
+        # file #2 (file #1 reused the probe result).
+        phase1_call = lsp.document_symbol.call_args_list[1]
+        assert phase1_call.kwargs.get("timeout") is None
+
+    def test_phase1_request_timeout_override_passes_probe_timeout(self):
+        """When the adapter overrides ``phase1_request_timeout``, the returned
+        value is forwarded to every Phase 1 per-file query.
+        """
+        lsp = _make_lsp()
+        adapter = _make_adapter()
+        adapter.phase1_request_timeout.side_effect = lambda probe_timeout: probe_timeout
+        builder = CallGraphBuilder(lsp, adapter, Path("/project"))
+
+        builder._discover_symbols([Path("/project/a.py"), Path("/project/b.py")])
+
+        # 60 base + 2 * 2.0 = 64
+        probe_timeout = 64
+        phase1_call = lsp.document_symbol.call_args_list[1]
+        assert phase1_call.kwargs.get("timeout") == probe_timeout
 
 
 class TestBuild:

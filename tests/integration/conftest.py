@@ -36,6 +36,10 @@ class RepositoryTestConfig:
     language: str
     fixture_file: str
     mock_language: dict
+    # (relative_path, contents) pairs materialized after clone, before analysis.
+    # For LSPs that need project-local config not in the upstream repo (e.g.
+    # clangd's compile_flags.txt).
+    pre_analysis_files: tuple[tuple[str, str], ...] = ()
 
 
 # Repository configurations for all supported languages
@@ -160,6 +164,72 @@ REPOSITORY_CONFIGS = [
             "server_commands": ["csharp-ls"],
             "lsp_server_key": "csharp",
         },
+    ),
+    RepositoryTestConfig(
+        name="poco_cpp",
+        repo_url="https://github.com/pocoproject/poco",
+        pinned_commit="poco-1.15.2-release",
+        language="Cpp",
+        fixture_file="poco_cpp.json",
+        mock_language={
+            "language": "C++",
+            "size": 200000,
+            "percentage": 100.0,
+            "suffixes": [".cpp", ".h"],
+            "server_commands": ["clangd"],
+            "lsp_server_key": "cpp",
+        },
+        # compile_flags.txt instead of running CMake (needs cmake on CI,
+        # host-specific output). Ignore list scopes to Foundation+Net;
+        # without it the ~3000-file monorepo + vendored deps dominate.
+        pre_analysis_files=(
+            ("compile_flags.txt", "-std=c++17\n-IFoundation/include\n-INet/include\n"),
+            (
+                ".codeboarding/.codeboardingignore",
+                "\n".join(
+                    [
+                        "ActiveRecord/",
+                        "ApacheConnector/",
+                        "Benchmark/",
+                        "CppParser/",
+                        "CppUnit/",
+                        "Crypto/",
+                        "DNSSD/",
+                        "Data/",
+                        "Encodings/",
+                        "JSON/",
+                        "JWT/",
+                        "MongoDB/",
+                        "NetSSL_OpenSSL/",
+                        "NetSSL_Win/",
+                        "PDF/",
+                        "PageCompiler/",
+                        "PocoDoc/",
+                        "Prometheus/",
+                        "Redis/",
+                        "SevenZip/",
+                        "Util/",
+                        "XML/",
+                        "Zip/",
+                        "build/",
+                        "ci/",
+                        "cmake/",
+                        "contrib/",
+                        "dependencies/",
+                        "doc/",
+                        "libversion/",
+                        "modules/",
+                        "packaging/",
+                        "patches/",
+                        "release/",
+                        "samples/",
+                        "testsuite/",
+                        "tests/",
+                        "",
+                    ]
+                ),
+            ),
+        ),
     ),
 ]
 

@@ -63,7 +63,7 @@ all = [
 ]
 
 [tool.setuptools]
-packages = ["agents", "agents.prompts", "agents.tools", "core", "diagram_analysis", "health", "health.checks", "monitoring", "output_generators", "repo_utils", "static_analyzer", "static_analyzer.engine", "static_analyzer.engine.adapters", "static_analyzer.lsp_client", "caching", "tool_registry"]
+packages = ["agents", "agents.prompts", "agents.tools", "core", "diagram_analysis", "health", "health.checks", "monitoring", "output_generators", "repo_utils", "static_analyzer", "static_analyzer.engine", "static_analyzer.engine.adapters", "static_analyzer.engine.adapters.cpp_cdb", "static_analyzer.lsp_client", "caching", "tool_registry"]
 py-modules = ["constants", "utils", "vscode_constants", "logging_config", "duckdb_crud", "github_action", "user_config", "main", "install"]
 include-package-data = true
 
@@ -121,4 +121,5 @@ markers = [
     "javascript_lang: marks tests for JavaScript language",
     "rust_lang: marks tests for Rust language",
     "csharp_lang: marks tests for C# language",
+    "cpp_lang: marks tests for C++ language",
 ]

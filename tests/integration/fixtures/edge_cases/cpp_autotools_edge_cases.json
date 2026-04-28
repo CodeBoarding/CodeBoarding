@@ -1,0 +1,32 @@
+{
+  "language": "Cpp",
+  "description": "End-to-end fixture for the Autotools CDB-generation path: a pristine GNU Autotools project (no ./configure committed) that forces BearGenerator._run_autotools to invoke autoreconf -i -> configure -> bear -- make clean all, then feeds the resulting compile_commands.json to clangd.",
+  "_notes": "All fields below were pinned from an empirical run of StaticAnalyzer against this project on macOS (autoconf 2.73, automake 1.18.1, bear 4.1.1, clangd via Homebrew). expected_hierarchy is intentionally empty: CallGraphBuilder currently runs with skip_hierarchy=True, so the hierarchy tests are skipped upstream; we keep the key so the fixture shape matches its siblings.",
+  "expected_references": [
+    "demo",
+    "demo.Greeter",
+    "demo.Greeter.Greeter(std.string)",
+    "demo.Greeter.greet",
+    "demo.Greeter.name_",
+    "main"
+  ],
+  "expected_classes": [
+    "demo.Greeter"
+  ],
+  "expected_hierarchy": {},
+  "expected_edges": [
+    ["main", "Greeter.Greeter(std.string)"],
+    ["main", "Greeter.greet"],
+    ["main", "demo.Greeter.Greeter(std.string)"],
+    ["main", "demo.Greeter.greet"]
+  ],
+  "expected_package_deps": {
+    "include": {"imports_contain": [], "imported_by_contain": ["src"]},
+    "src": {"imports_contain": ["include"], "imported_by_contain": []}
+  },
+  "expected_source_files": [
+    "include/greeter.hpp",
+    "src/greeter.cpp",
+    "src/main.cpp"
+  ]
+}

@@ -394,7 +394,128 @@ def install_node_tools(
         logger.exception("Node.js package installation failed")
 
 
-# -- Archive installer (JDTLS) ------------------------------------------------
+# -- Archive installer (JDTLS, clangd) ----------------------------------------
+
+
+def _resolve_archive_asset(dep: ToolDependency) -> tuple[str, str, str | None]:
+    """Return ``(url, filename, sha256)`` for an archive dep (Upstream or GitHub source)."""
+    source = dep.source
+    assert source is not None  # guarded by caller
+    if isinstance(source, UpstreamToolSource):
+        url = asset_url(source, "")
+        filename = Path(url).name or f"{dep.archive_subdir}.tar.gz"
+        return url, filename, None
+    if isinstance(source, GitHubToolSource):
+        suffix = PLATFORM_SUFFIX.get(platform.system(), "")
+        asset_name = resolve_native_asset_name(source, suffix)
+        if asset_name is None:
+            raise RuntimeError(f"{dep.key}: no archive asset for this host ({platform.system()}/{platform.machine()})")
+        url = asset_url(source, asset_name)
+        expected = source.sha256.get(asset_name) or source.sha256.get(suffix or "")
+        return url, asset_name, expected
+    raise TypeError(f"{dep.key}: unsupported archive source type {type(source).__name__}")
+
+
+def _safe_extract_target(extract_dir: Path, member_name: str) -> Path:
+    """Resolve *member_name* under *extract_dir*, rejecting zip-slip escapes."""
+    root = extract_dir.resolve()
+    target = (extract_dir / member_name).resolve()
+    try:
+        target.relative_to(root)
+    except ValueError as exc:
+        raise ValueError(f"Archive member escapes extraction directory: {member_name!r}") from exc
+    return target
+
+
+def _write_zip_member(zf: zipfile.ZipFile, info: zipfile.ZipInfo, target: Path) -> None:
+    """Write *info* to *target*, preserving Unix permission bits.
+
+    zipfile drops the exec bit by default, which breaks extracted binaries
+    (clangd ships as 0o755).
+    """
+    if info.is_dir():
+        target.mkdir(parents=True, exist_ok=True)
+        return
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with zf.open(info) as src, open(target, "wb") as dst:
+        shutil.copyfileobj(src, dst)
+    perm = (info.external_attr >> 16) & 0o777
+    if perm:
+        os.chmod(target, perm)
+
+
+def _extract_archive(archive_path: Path, extract_dir: Path, strip_root: bool) -> None:
+    """Extract a .tar.gz or .zip into *extract_dir* with optional root-stripping.
+
+    ``filter="data"`` on tar rejects symlinks/device files. Zip members are
+    validated via ``_safe_extract_target`` to block ``..`` traversal.
+    """
+    name_lower = archive_path.name.lower()
+    if name_lower.endswith(".tar.gz") or name_lower.endswith(".tgz"):
+        with tarfile.open(archive_path, "r:gz") as tar:
+            if strip_root:
+                members = _tar_members_stripped_root(tar)
+                tar.extractall(path=extract_dir, members=members, filter="data")
+            else:
+                tar.extractall(path=extract_dir, filter="data")
+        return
+    if name_lower.endswith(".zip"):
+        with zipfile.ZipFile(archive_path) as zf:
+            if strip_root:
+                _zip_extractall_stripped_root(zf, extract_dir)
+            else:
+                for info in zf.infolist():
+                    target = _safe_extract_target(extract_dir, info.filename)
+                    _write_zip_member(zf, info, target)
+        return
+    raise ValueError(f"Unsupported archive format: {archive_path.name}")
+
+
+def _single_root_prefix(names: list[str]) -> str:
+    """Return the shared top-level directory prefix (trailing ``/``) of *names*.
+
+    Tolerates an explicit bare-root entry (``root`` or ``root/``) alongside the
+    usual ``root/...`` members — zip and tar creators sometimes emit either.
+    """
+    if not names:
+        raise ValueError("empty archive; cannot strip root")
+    first_part = next((n.split("/", 1)[0] for n in names if n.split("/", 1)[0]), "")
+    if not first_part:
+        raise ValueError(f"archive member has no top-level directory: {names[0]!r}")
+    prefix = first_part + "/"
+    for name in names:
+        if name == first_part or name == prefix:
+            continue  # bare root dir entry
+        if not name.startswith(prefix):
+            raise ValueError(
+                f"archive members do not share a single top-level directory (saw {first_part!r} and {name!r})"
+            )
+    return prefix
+
+
+def _tar_members_stripped_root(tar: tarfile.TarFile) -> list[tarfile.TarInfo]:
+    """Yield tar members with their leading directory component stripped."""
+    infos = tar.getmembers()
+    prefix = _single_root_prefix([m.name for m in infos])
+    kept: list[tarfile.TarInfo] = []
+    for info in infos:
+        stripped = info.name[len(prefix) :]
+        if not stripped:
+            continue  # drop the root dir entry itself
+        info.name = stripped
+        kept.append(info)
+    return kept
+
+
+def _zip_extractall_stripped_root(zf: zipfile.ZipFile, extract_dir: Path) -> None:
+    """Extract zip members with leading dir stripped; zip-slip-safe; preserves Unix exec bit."""
+    prefix = _single_root_prefix(zf.namelist())
+    for info in zf.infolist():
+        stripped_name = info.filename[len(prefix) :]
+        if not stripped_name:
+            continue
+        target = _safe_extract_target(extract_dir, stripped_name)
+        _write_zip_member(zf, info, target)
 
 
 def install_archive_tool(
@@ -402,31 +523,56 @@ def install_archive_tool(
     dep: ToolDependency,
     on_progress: ProgressCallback | None = None,
 ) -> None:
-    """Download and extract an archive tool."""
+    """Download and extract an archive tool.
+
+    Supports .tar.gz/.zip from Upstream or GitHub sources; ``archive_layout``
+    picks the marker for the reinstall-skip check and whether to drop a
+    top-level wrapper dir during extraction.
+    """
     assert dep.source, f"{dep.key}: source required for archive tools"
     assert dep.archive_subdir, f"{dep.key}: archive_subdir required for archive tools"
 
     if on_progress:
         on_progress(dep.key, 1, 1)
 
+    # Skip hosts without a matching asset so needs_install doesn't loop.
+    if not dep.is_available_on_host():
+        logger.warning(
+            "  %s: no release asset for this host (%s/%s); skipping",
+            dep.binary_name,
+            platform.system(),
+            platform.machine(),
+        )
+        return
+
     extract_dir = target_dir / "bin" / dep.archive_subdir
-    if extract_dir.exists() and (extract_dir / "plugins").is_dir():
+    # A half-extracted archive must re-install, not skip — the marker-only
+    # check would otherwise falsely report "already installed" when the
+    # binary is missing. archive_is_complete also verifies the binary
+    # (with Windows .exe suffix) when the layout declares one.
+    from .manifest import archive_is_complete, archive_layout_spec  # local import avoids a cycle
+
+    if archive_is_complete(dep, target_dir):
         logger.info("%s already installed", dep.key)
+        return
+
+    try:
+        url, asset_filename, expected_hash = _resolve_archive_asset(dep)
+    except RuntimeError as exc:
+        logger.warning("%s", exc)
         return
 
     logger.info("Downloading %s...", dep.key)
     extract_dir.mkdir(parents=True, exist_ok=True)
-    archive_path = target_dir / "bin" / f"{dep.archive_subdir}.tar.gz"
+    archive_path = target_dir / "bin" / asset_filename
 
-    url = asset_url(dep.source, "")
-    expected_hash = dep.source.sha256.get("") if isinstance(dep.source, GitHubToolSource) else None
     try:
         if not download_asset(url, archive_path, expected_sha256=expected_hash):
             logger.warning("%s download failed (empty file)", dep.key)
             return
 
-        with tarfile.open(archive_path, "r:gz") as tar:
-            tar.extractall(path=extract_dir, filter="tar")
+        _marker, strip_root, _binary = archive_layout_spec(dep)
+        _extract_archive(archive_path, extract_dir, strip_root=strip_root)
         archive_path.unlink()
         logger.info("%s installed successfully", dep.key)
     except Exception:

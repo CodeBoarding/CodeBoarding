@@ -165,6 +165,7 @@ def get_language_marker(language: str):
         "JavaScript": pytest.mark.javascript_lang,
         "Rust": pytest.mark.rust_lang,
         "CSharp": pytest.mark.csharp_lang,
+        "Cpp": pytest.mark.cpp_lang,
     }
     return marker_map.get(language)
 
@@ -226,6 +227,12 @@ class TestStaticAnalysisConsistency:
         ignore_file = codeboarding_dir / ".codeboardingignore"
         ignore_file.unlink(missing_ok=True)
         initialize_codeboardingignore(codeboarding_dir)
+
+        # Materialize per-config files (e.g. ``compile_flags.txt`` for clangd).
+        for rel_path, contents in config.pre_analysis_files:
+            target = repo_path / rel_path
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(contents)
 
         # Load expected fixture
         expected = load_fixture(config.fixture_file)

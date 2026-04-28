@@ -202,5 +202,8 @@ evals/artifacts/
 # Static analysis cache in integration test projects
 tests/integration/projects/**/*.pkl
 
+# Local benchmark clones
+tests/integration/benchmark_repos/
+
 # CodeBoarding local analysis cache (sqlite DBs, pickles, lock files)
 .codeboarding/cache/

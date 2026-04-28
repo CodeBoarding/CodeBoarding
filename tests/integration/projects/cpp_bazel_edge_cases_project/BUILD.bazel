@@ -1,0 +1,10 @@
+cc_binary(
+    name = "greeter_app",
+    srcs = [
+        "greeter.cpp",
+        "greeter.hpp",
+        "main.cpp",
+    ],
+    copts = ["-std=c++17"],
+    visibility = ["//visibility:public"],
+)

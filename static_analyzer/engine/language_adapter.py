@@ -178,6 +178,17 @@ class LanguageAdapter(ABC):
         """
         return 0
 
+    def phase1_request_timeout(self, probe_timeout: int) -> int | None:
+        """Return a per-request timeout for Phase 1 ``document_symbol`` calls.
+
+        Default ``None`` keeps the client's per-request default (60s) —
+        correct for LSPs that idle after the sync probe. Override to return
+        ``probe_timeout`` for servers that continue background-indexing
+        during Phase 1 and can block a single query for minutes
+        (clangd on Windows).
+        """
+        return None
+
     def wait_for_diagnostics(self, client: LSPClient) -> None:
         """Block until the LSP server is done publishing diagnostics for didOpen'd files.
 

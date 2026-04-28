@@ -5,6 +5,10 @@ purpose-built project that exercises language-specific corner cases.
 Results are validated against a fixture JSON that pins expected references,
 class hierarchy, call graph edges, package dependencies, and source files.
 
+The C++ fixture specifically exercises the live clangd path: cross-translation
+unit declarations/definitions, namespace-qualified symbols, virtual dispatch,
+and a called header-only template helper.
+
 The fixture describes what a CORRECT analyzer should find — if the LSP
 disagrees, the test fails, surfacing a real bug.
 
@@ -108,6 +112,12 @@ EDGE_CASE_PROJECTS = [
         language="CSharp",
         fixture_file="csharp_edge_cases.json",
     ),
+    EdgeCaseProject(
+        name="cpp_edge_cases",
+        project_dir="cpp_edge_cases_project",
+        language="Cpp",
+        fixture_file="cpp_edge_cases.json",
+    ),
 ]
 
 
@@ -125,6 +135,7 @@ _LANGUAGE_MARKERS = {
     "JavaScript": pytest.mark.javascript_lang,
     "Rust": pytest.mark.rust_lang,
     "CSharp": pytest.mark.csharp_lang,
+    "Cpp": pytest.mark.cpp_lang,
 }
 
 
