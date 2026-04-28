@@ -34,7 +34,11 @@ from diagram_analysis.incremental.models import (
 )
 from diagram_analysis.incremental.tracer import classify_scope, run_trace
 from diagram_analysis.incremental.delta import IncrementalDelta
-from diagram_analysis.incremental.updater import apply_method_delta
+from diagram_analysis.incremental.updater import (
+    apply_method_delta,
+    drop_deltas_for_pruned_components,
+    prune_empty_components,
+)
 from diagram_analysis.io_utils import load_full_analysis, save_analysis
 from diagram_analysis.version import Version
 from repo_utils.change_detector import ChangeSet
@@ -520,6 +524,8 @@ class DiagramGenerator:
             )
 
         apply_method_delta(root_analysis, sub_analyses, delta)
+        removed_component_ids = prune_empty_components(root_analysis, sub_analyses)
+        drop_deltas_for_pruned_components(delta, removed_component_ids)
 
         if delta.is_purely_additive:
             analysis_path = save_analysis(
@@ -531,7 +537,31 @@ class DiagramGenerator:
             return IncrementalRunResult(
                 summary=IncrementalSummary(
                     kind=IncrementalSummaryKind.ADDITIVE_ONLY,
-                    message="Changes are purely additive; no semantic patching needed.",
+                    message=(
+                        f"Pruned {len(removed_component_ids)} empty component(s); " "no semantic patching needed."
+                        if removed_component_ids
+                        else "Changes are purely additive; no semantic patching needed."
+                    ),
+                ),
+                analysis_path=analysis_path,
+            )
+
+        if not delta.needs_semantic_trace:
+            analysis_path = save_analysis(
+                analysis=root_analysis,
+                output_dir=Path(self.output_dir),
+                sub_analyses=sub_analyses,
+                repo_name=self.repo_name,
+            ).resolve()
+            return IncrementalRunResult(
+                summary=IncrementalSummary(
+                    kind=IncrementalSummaryKind.NO_MATERIAL_IMPACT,
+                    message=(
+                        f"Pruned {len(removed_component_ids)} empty component(s); structural updates applied."
+                        if removed_component_ids
+                        else "Deletion-only delta; structural updates applied, prose deferred."
+                    ),
+                    used_llm=False,
                 ),
                 analysis_path=analysis_path,
             )

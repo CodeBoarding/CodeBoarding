@@ -177,33 +177,79 @@ def _finalize_file_diff(file_diff: FileChange, patch_lines: list[str]) -> FileCh
     return file_diff
 
 
-def _parse_diff_output(output: str, base_ref: str, target_ref: str) -> ChangeSet:
-    """Walk ``git diff --raw`` output, grouping each ``:``-header with its patch body.
+_DIFF_HEADER_RE = re.compile(r'^diff --git "?a/(.+?)"? "?b/(.+?)"?$')
 
-    The output is a sequence of blocks: each begins with a ``:`` header line
-    (parsed into a ``FileChange``) followed by that file's patch text until
-    the next header. Lines before the first header are ignored.
+
+def _split_patch_bodies(lines: list[str]) -> dict[str, list[str]]:
+    """Index patch bodies by their target path.
+
+    ``git diff --raw -U<n>`` emits all ``:``-headers first, then a sequence of
+    ``diff --git a/<old> b/<new>`` blocks. Group lines by the new path so
+    callers can attach each patch back to the matching :class:`FileChange`.
+    Renames and copies are keyed by the new path (matching how raw lines are
+    parsed in :func:`_parse_raw_line`).
     """
-    files: list[FileChange] = []
-    current_file: FileChange | None = None
-    patch_lines: list[str] = []
+    bodies: dict[str, list[str]] = {}
+    current_path: str | None = None
+    current_lines: list[str] = []
 
-    def _commit_current() -> None:
-        if current_file is None:
-            return
-        finalized = _finalize_file_diff(current_file, patch_lines)
+    def _flush() -> None:
+        if current_path is not None:
+            bodies[current_path] = current_lines
+
+    for line in lines:
+        match = _DIFF_HEADER_RE.match(line)
+        if match is not None:
+            _flush()
+            current_path = match.group(2)
+            current_lines = [line]
+            continue
+        if current_path is not None:
+            current_lines.append(line)
+
+    _flush()
+    return bodies
+
+
+def _parse_diff_output(output: str, base_ref: str, target_ref: str) -> ChangeSet:
+    """Parse ``git diff --raw -U<n>`` into a :class:`ChangeSet`.
+
+    The format is two concatenated sections:
+
+    1. A run of ``:``-headers — one per changed file, in order.
+    2. A run of ``diff --git a/... b/...`` blocks containing each file's
+       unified-diff body, in the same order.
+
+    We walk the output once: the leading ``:``-headers populate ``FileChange``
+    entries; the trailing ``diff --git`` blocks are indexed by path and
+    attached as patch bodies. This is robust to multi-file diffs where the
+    older "header followed by body" parsing accidentally lumped every body
+    under the last raw header.
+    """
+    raw_files: list[FileChange] = []
+    body_lines: list[str] = []
+    seen_diff_header = False
+
+    for line in output.splitlines():
+        if not seen_diff_header and line.startswith(":"):
+            parsed = _parse_raw_line(line)
+            if parsed is not None:
+                raw_files.append(parsed)
+            continue
+        if line.startswith("diff --git "):
+            seen_diff_header = True
+        if seen_diff_header:
+            body_lines.append(line)
+
+    bodies = _split_patch_bodies(body_lines)
+
+    files: list[FileChange] = []
+    for raw in raw_files:
+        patch_lines = bodies.get(raw.file_path, [])
+        finalized = _finalize_file_diff(raw, patch_lines)
         if _file_is_relevant(finalized):
             files.append(finalized)
 
-    for line in output.splitlines():
-        if line.startswith(":"):
-            _commit_current()
-            current_file = _parse_raw_line(line)
-            patch_lines = []
-        elif current_file is not None:
-            patch_lines.append(line)
-
-    _commit_current()
     return ChangeSet(base_ref=base_ref, target_ref=target_ref, files=files)
 
 
