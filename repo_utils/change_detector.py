@@ -19,6 +19,10 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 
+class ChangeDetectionError(RuntimeError):
+    """Raised when git-based change detection cannot produce a trustworthy diff."""
+
+
 class ChangeType(Enum):
     """Git change status types."""
 
@@ -109,6 +113,7 @@ def detect_changes(
     target_ref: str = "HEAD",
     exclude_patterns: list[str] | None = None,
     fetch_missing_refs: bool = True,
+    raise_on_error: bool = False,
 ) -> ChangeSet:
     """
     Detect file changes between two refs using rename-aware git diff.
@@ -174,12 +179,23 @@ def detect_changes(
                 )
                 result = _run_diff()
             except subprocess.CalledProcessError as fetch_err:
+                message = (
+                    "Git fetch/diff retry failed while detecting incremental changes: "
+                    f"{(fetch_err.stderr or str(fetch_err)).strip()}"
+                )
+                if raise_on_error:
+                    raise ChangeDetectionError(message) from fetch_err
                 logger.error(f"Git fetch/diff retry failed: {fetch_err.stderr}")
                 return ChangeSet(changes=changes, base_ref=base_ref, target_ref=target_ref_value)
         else:
+            message = f"Git diff failed while detecting incremental changes: {(e.stderr or str(e)).strip()}"
+            if raise_on_error:
+                raise ChangeDetectionError(message) from e
             logger.error(f"Git diff failed: {e.stderr}")
             return ChangeSet(changes=changes, base_ref=base_ref, target_ref=target_ref_value)
     except FileNotFoundError:
+        if raise_on_error:
+            raise ChangeDetectionError("Git not found in PATH while detecting incremental changes")
         logger.error("Git not found in PATH")
         return ChangeSet(changes=changes, base_ref=base_ref, target_ref=target_ref_value)
 

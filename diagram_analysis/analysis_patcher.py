@@ -10,6 +10,8 @@ from agents.agent_responses import AnalysisInsights, LLMBaseModel, Relation, Sou
 
 logger = logging.getLogger(__name__)
 
+_PATCH_MAX_ATTEMPTS = 3
+
 
 @dataclass(frozen=True)
 class PatchScope:
@@ -62,6 +64,10 @@ def _relation_key_from_ids(src_id: str, dst_id: str) -> str:
 
 def _relation_key(relation: Relation) -> str:
     return _relation_key_from_ids(relation.src_id, relation.dst_id)
+
+
+def _touches_target_component_ids(src_id: str, dst_id: str, target_component_ids: set[str]) -> bool:
+    return src_id in target_component_ids or dst_id in target_component_ids
 
 
 def _scope_snapshot(analysis: AnalysisInsights, patch_scope: PatchScope) -> dict:
@@ -145,7 +151,7 @@ def apply_scope_patch(
     }
     untouched_relations: list[Relation] = []
     for relation in patched.components_relations:
-        touches_target = relation.src_id in target_component_ids or relation.dst_id in target_component_ids
+        touches_target = _touches_target_component_ids(relation.src_id, relation.dst_id, target_component_ids)
         if not touches_target:
             untouched_relations.append(relation)
             continue
@@ -164,6 +170,8 @@ def apply_scope_patch(
         )
 
     for relation_patch in returned_relations.values():
+        if not _touches_target_component_ids(relation_patch.src_id, relation_patch.dst_id, target_component_ids):
+            continue
         if relation_patch.src_id not in components_by_id or relation_patch.dst_id not in components_by_id:
             continue
         untouched_relations.append(
@@ -193,17 +201,30 @@ def patch_analysis_scope(
         tool_choice=AnalysisScopePatch.__name__,
     )
     invoke_config: RunnableConfig = {"callbacks": callbacks} if callbacks else {}
+    prompt = _build_patch_prompt(analysis, patch_scope)
 
-    try:
-        result = extractor.invoke(_build_patch_prompt(analysis, patch_scope), config=invoke_config)
-    except Exception as exc:
-        logger.warning("Scope patch generation failed for %s: %s", patch_scope.scope_id or "root", exc)
-        return None
+    for attempt in range(1, _PATCH_MAX_ATTEMPTS + 1):
+        try:
+            result = extractor.invoke(prompt, config=invoke_config)
+            responses = result.get("responses", [])
+            if not responses:
+                logger.warning(
+                    "Scope patch extractor returned no responses for %s (attempt %d/%d)",
+                    patch_scope.scope_id or "root",
+                    attempt,
+                    _PATCH_MAX_ATTEMPTS,
+                )
+                continue
 
-    responses = result.get("responses", [])
-    if not responses:
-        logger.warning("Scope patch extractor returned no responses for %s", patch_scope.scope_id or "root")
-        return None
+            scope_patch = AnalysisScopePatch.model_validate(responses[0])
+            return apply_scope_patch(analysis, patch_scope, scope_patch)
+        except Exception as exc:
+            logger.warning(
+                "Scope patch generation failed for %s (attempt %d/%d): %s",
+                patch_scope.scope_id or "root",
+                attempt,
+                _PATCH_MAX_ATTEMPTS,
+                exc,
+            )
 
-    scope_patch = AnalysisScopePatch.model_validate(responses[0])
-    return apply_scope_patch(analysis, patch_scope, scope_patch)
+    return None

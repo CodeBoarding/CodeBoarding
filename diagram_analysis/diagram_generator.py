@@ -473,6 +473,7 @@ class DiagramGenerator:
         )
 
         root_analysis, sub_analyses = apply_delta(root_analysis, sub_analyses, delta)
+        post_delta_ownership_index = build_ownership_index(root_analysis, sub_analyses)
 
         _, parsing_llm = initialize_llms()
         callbacks = [MONITORING_CALLBACK]
@@ -492,7 +493,13 @@ class DiagramGenerator:
             callbacks=callbacks,
         )
 
-        patch_scopes = derive_patch_scopes(trace_result, root_analysis, sub_analyses, ownership_index, rename_map)
+        patch_scopes = derive_patch_scopes(
+            trace_result,
+            root_analysis,
+            sub_analyses,
+            post_delta_ownership_index,
+            rename_map,
+        )
         if patch_scopes:
             root_analysis, sub_analyses = apply_patch_scopes(
                 root_analysis, sub_analyses, patch_scopes, parsing_llm, callbacks

@@ -26,7 +26,7 @@ def run_incremental_workflow(generator: DiagramGenerator) -> Path:
 
     root_analysis, sub_analyses = existing
     target_ref = get_git_commit_hash(generator.repo_location)
-    changes = detect_changes(generator.repo_location, base_ref, target_ref)
+    changes = detect_changes(generator.repo_location, base_ref, target_ref, raise_on_error=True)
 
     if changes.is_empty():
         return generator.output_dir.joinpath("analysis.json").resolve()

@@ -18,14 +18,21 @@ def build_ownership_index(
     component_to_files: dict[str, set[str]] = defaultdict(set)
     method_to_component: dict[str, str] = {}
 
-    scopes: list[tuple[str | None, AnalysisInsights]] = [(None, root_analysis)]
-    scopes.extend((scope_id, sub_analysis) for scope_id, sub_analysis in sub_analyses.items())
+    for component in root_analysis.components:
+        component_to_scope[component.component_id] = None
+        for group in component.file_methods:
+            file_to_components[group.file_path].add(component.component_id)
+            component_to_files[component.component_id].add(group.file_path)
+            for method in group.methods:
+                existing = method_to_component.get(method.qualified_name)
+                if existing is None or component.component_id.count(".") >= existing.count("."):
+                    method_to_component[method.qualified_name] = component.component_id
 
-    for scope_id, analysis in scopes:
+    for scope_id, analysis in sorted(sub_analyses.items(), key=lambda item: item[0].count(".")):
+        # Route subtree patching to the nested scope when a component has a dedicated sub-analysis.
+        component_to_scope[scope_id] = scope_id
         for component in analysis.components:
-            # Why: root iterates first; sub-analyses that repeat a component_id must not
-            # redirect patches away from the root scope.
-            component_to_scope.setdefault(component.component_id, scope_id)
+            component_to_scope[component.component_id] = scope_id
             for group in component.file_methods:
                 file_to_components[group.file_path].add(component.component_id)
                 component_to_files[component.component_id].add(group.file_path)
@@ -49,6 +56,10 @@ def build_ownership_index(
         "method_to_component": method_to_component,
         "component_to_descendants": component_to_descendants,
     }
+
+
+def _scope_component_ids(analysis: AnalysisInsights) -> set[str]:
+    return {component.component_id for component in analysis.components}
 
 
 def lowest_common_ancestor(component_ids: list[str]) -> str | None:
@@ -139,6 +150,7 @@ def derive_patch_scopes(
     rename_map: dict[str, str] | None = None,
 ) -> list[PatchScope]:
     component_to_scope: dict[str, str | None] = ownership_index["component_to_scope"]
+    component_to_descendants: dict[str, set[str]] = ownership_index["component_to_descendants"]
     method_to_component: dict[str, str] = ownership_index["method_to_component"]
 
     target_component_ids: set[str] = {
@@ -173,12 +185,22 @@ def derive_patch_scopes(
             continue
 
         selected_ids = set(component_ids)
+        scope_component_ids = _scope_component_ids(scope_analysis)
         if should_widen:
             lca = lowest_common_ancestor(sorted(component_ids))
-            scope_component_ids = {component.component_id for component in scope_analysis.components}
-            if lca and lca in scope_component_ids:
-                selected_ids = {lca}
-            elif lca is None or lca not in scope_component_ids:
+            if lca:
+                descendant_ids = {
+                    component_id
+                    for component_id in component_to_descendants.get(lca, {lca})
+                    if component_id in scope_component_ids
+                }
+                if descendant_ids:
+                    selected_ids = descendant_ids
+                elif lca in scope_component_ids:
+                    selected_ids = {lca}
+                else:
+                    selected_ids = scope_component_ids
+            else:
                 selected_ids = scope_component_ids
 
         patch_scopes.append(
@@ -218,10 +240,10 @@ def apply_patch_scopes(
     for patch_scope in patch_scopes:
         current_scope = patched_root if patch_scope.scope_id is None else patched_sub_analyses.get(patch_scope.scope_id)
         if current_scope is None:
-            continue
+            raise RuntimeError(f"Patch scope '{patch_scope.scope_id}' could not be resolved")
         patched_scope = patch_analysis_scope(current_scope, patch_scope, parsing_llm, callbacks)
         if patched_scope is None:
-            continue
+            raise RuntimeError(f"Patch generation failed for scope '{patch_scope.scope_id or 'root'}' after 3 attempts")
         if patch_scope.scope_id is None:
             patched_root = patched_scope
         else:
