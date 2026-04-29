@@ -36,6 +36,8 @@ class FileDelta:
     modified_methods: list[MethodChange] = field(default_factory=list)
     deleted_methods: list[MethodChange] = field(default_factory=list)
     renamed_qualified_names: dict[str, str] = field(default_factory=dict)
+    # Why: produced by the wrapper on revert so the IDE can drop stale overlays.
+    reset_methods: list[MethodChange] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -47,6 +49,7 @@ class FileDelta:
             "modified_methods": [m.to_dict() for m in self.modified_methods],
             "deleted_methods": [m.to_dict() for m in self.deleted_methods],
             "renamed_qualified_names": self.renamed_qualified_names,
+            "reset_methods": [m.to_dict() for m in self.reset_methods],
         }
 
 
@@ -67,6 +70,11 @@ class IncrementalDelta:
             fd.file_status != ChangeStatus.DELETED and not fd.modified_methods and not fd.deleted_methods
             for fd in self.file_deltas
         )
+
+    @property
+    def needs_semantic_trace(self) -> bool:
+        """True when modifications or additions remain."""
+        return any(fd.modified_methods or fd.added_methods for fd in self.file_deltas)
 
     def to_dict(self) -> dict[str, Any]:
         return {

@@ -210,6 +210,26 @@ def resolve_ref(repo_dir: Path, ref: str) -> str | None:
     return result.stdout.strip() or None
 
 
+def git_object_type(repo_dir: Path, ref: str) -> str | None:
+    """Return ``commit``/``tree``/``blob``/``tag`` for *ref*, or ``None``.
+
+    Why: incremental callers may pass a tree SHA (or a ``<commit>^{tree}``
+    revspec) as a base/target ref. Validation paths that only make sense for
+    commit-ish refs (HEAD-match, dirty-worktree) need to skip on tree refs.
+    """
+    try:
+        result = subprocess.run(
+            ["git", "cat-file", "-t", ref],
+            cwd=repo_dir,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    return result.stdout.strip() or None
+
+
 def worktree_has_changes(repo_dir: Path, *, exclude_patterns: Sequence[str] = ()) -> bool:
     """Return True if the worktree has any tracked/untracked changes.
 

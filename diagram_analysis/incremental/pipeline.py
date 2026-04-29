@@ -30,7 +30,7 @@ from diagram_analysis.run_metadata import METADATA_FILENAME, write_incremental_r
 from repo_utils.diff_parser import detect_changes
 from repo_utils.ignore import initialize_codeboardingignore
 from repo_utils import get_git_commit_hash, get_repo_state_hash
-from repo_utils.git_ops import resolve_ref, worktree_has_changes
+from repo_utils.git_ops import git_object_type, resolve_ref, worktree_has_changes
 from static_analyzer.analysis_result import StaticAnalysisResults
 from utils import ANALYSIS_FILENAME, CODEBOARDING_DIR_NAME, to_relative_path
 
@@ -94,7 +94,8 @@ def _resolve_source_identity(repo_dir: Path, ref: str | None) -> str:
 
     Why: a dirty worktree has no commit hash, so we fall back to a content
     hash (``get_repo_state_hash``) so later incremental runs can still match.
-    When *ref* is given, we resolve it to its commit SHA.
+    When *ref* is given, we resolve it to its commit SHA — or pass a tree-ish
+    ref through unchanged, since a tree SHA is already a stable identity.
     """
     if not ref:
         return (
@@ -102,6 +103,9 @@ def _resolve_source_identity(repo_dir: Path, ref: str | None) -> str:
             if worktree_has_changes(repo_dir, exclude_patterns=(CODEBOARDING_DIR_NAME,))
             else get_git_commit_hash(repo_dir)
         )
+
+    if git_object_type(repo_dir, ref) == "tree":
+        return resolve_ref(repo_dir, ref) or ref
 
     resolved = resolve_ref(repo_dir, ref)
     if resolved is None:
@@ -131,8 +135,16 @@ def _target_ref_matches_checkout(repo_dir: Path, target_ref: str) -> bool:
 
 
 def _validate_target_ref(repo_path: Path, resolved_target_ref: str) -> str | None:
-    """Return an error message if *resolved_target_ref* is incompatible with the current checkout."""
+    """Return an error message if *resolved_target_ref* is incompatible with the current checkout.
+
+    A tree-ish ref is content-addressed and independent of the worktree's
+    checkout state, so the HEAD-match and dirty-worktree checks are skipped
+    for trees. Wrapper-driven snapshot runs rely on this — they pass a
+    pre-staged ``git write-tree`` SHA as the target.
+    """
     if not resolved_target_ref:
+        return None
+    if git_object_type(repo_path, resolved_target_ref) == "tree":
         return None
     if not _target_ref_matches_checkout(repo_path, resolved_target_ref):
         return (

@@ -12,7 +12,13 @@ import time
 from pathlib import PurePosixPath
 from typing import Callable
 
-from agents.agent_responses import AnalysisInsights, Component, FileEntry, FileMethodGroup, MethodEntry
+from agents.agent_responses import (
+    AnalysisInsights,
+    Component,
+    FileEntry,
+    FileMethodGroup,
+    MethodEntry,
+)
 from agents.change_status import ChangeStatus
 from diagram_analysis.incremental.delta import FileDelta, IncrementalDelta, MethodChange
 from repo_utils.change_detector import ChangeSet
@@ -206,8 +212,12 @@ class IncrementalUpdater:
 
         for file_path in self._change_set.deleted_files:
             delta, missing = self._compute_file_delta(file_path, ChangeStatus.DELETED, register_file=False)
+            # A deleted file the prior analysis never tracked is a no-op:
+            # there are no methods, no component, and no relations to clean
+            # up. Skip it instead of forcing full reanalysis.
+            if missing:
+                continue
             file_deltas.append(delta)
-            needs_reanalysis = needs_reanalysis or missing
 
         return IncrementalDelta(
             file_deltas=file_deltas,
@@ -363,3 +373,88 @@ def apply_method_delta(
         sub.files = files
         for component in sub.components:
             _sync_component_methods(component, files, deltas_by_path, parent_ids)
+
+
+def _component_is_empty(component: Component) -> bool:
+    """A component is empty when it owns zero methods across all its files."""
+    return not any(group.methods for group in component.file_methods)
+
+
+def _drop_relations(analysis: AnalysisInsights, removed_ids: set[str], removed_names: set[str]) -> None:
+    analysis.components_relations = [
+        rel
+        for rel in analysis.components_relations
+        if rel.src_id not in removed_ids
+        and rel.dst_id not in removed_ids
+        and rel.src_name not in removed_names
+        and rel.dst_name not in removed_names
+    ]
+
+
+def prune_empty_components(
+    root: AnalysisInsights,
+    sub_analyses: dict[str, AnalysisInsights],
+) -> set[str]:
+    """Remove components whose every file group is empty (no methods left).
+
+    Cascades to descendant sub-analyses and drops relations that reference
+    a removed component. Component IDs of survivors are preserved as-is —
+    re-numbering would invalidate persisted ``component_id`` references in
+    sub-analyses, metadata, and external consumers.
+
+    Returns the set of removed component IDs.
+    """
+    all_components: list[Component] = list(root.components)
+    for sub in sub_analyses.values():
+        all_components.extend(sub.components)
+
+    candidate_ids = {c.component_id for c in all_components if c.component_id and _component_is_empty(c)}
+    if not candidate_ids:
+        return set()
+
+    non_empty_ids = {c.component_id for c in all_components if c.component_id and not _component_is_empty(c)}
+
+    # If a parent component goes empty while a descendant still has methods,
+    # the parent - children invariant has drifted. Skip the prune so we don't
+    # orphan the descendant; the warning surfaces the drift for investigation.
+    removed_ids: set[str] = set()
+    for cid in candidate_ids:
+        prefix = cid + "."
+        if any(other.startswith(prefix) for other in non_empty_ids):
+            logger.warning(
+                "Skipping prune of empty component %s: has non-empty descendants",
+                cid,
+            )
+            continue
+        removed_ids.add(cid)
+
+    if not removed_ids:
+        return set()
+
+    removed_names = {c.name for c in all_components if c.component_id in removed_ids}
+
+    root.components = [c for c in root.components if c.component_id not in removed_ids]
+    _drop_relations(root, removed_ids, removed_names)
+
+    for sub in sub_analyses.values():
+        sub.components = [c for c in sub.components if c.component_id not in removed_ids]
+        _drop_relations(sub, removed_ids, removed_names)
+
+    for cid in list(sub_analyses.keys()):
+        if cid in removed_ids:
+            del sub_analyses[cid]
+
+    return removed_ids
+
+
+def drop_deltas_for_pruned_components(delta: IncrementalDelta, removed_ids: set[str]) -> None:
+    """Strip ``file_deltas`` whose component was deterministically pruned.
+
+    A pruned component is gone from the analysis tree along with its files and
+    relations — there is nothing semantic left for the LLM tracer to patch.
+    Leaving the delta in place would force a wasted impact trace and
+    description rewrite for components that no longer exist.
+    """
+    if not removed_ids:
+        return
+    delta.file_deltas = [fd for fd in delta.file_deltas if fd.component_id not in removed_ids]
