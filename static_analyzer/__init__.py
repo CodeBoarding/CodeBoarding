@@ -2,11 +2,9 @@ import logging
 import time
 from pathlib import Path
 
-from repo_utils import get_git_commit_hash
 from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.analysis_cache import AnalysisCacheManager
 from static_analyzer.analysis_result import StaticAnalysisCache, StaticAnalysisResults
-from static_analyzer.cluster_change_analyzer import ChangeClassification
 from static_analyzer.constants import Language
 from static_analyzer.csharp_config_scanner import CSharpConfigScanner
 from static_analyzer.engine.adapters import get_adapter
@@ -155,11 +153,9 @@ class StaticAnalyzer:
     def start_clients(self) -> None:
         """Start all engine LSP server processes.
 
-        Call once before invoking analyze() or analyze_with_cluster_changes().
-        Idempotent — safe to call even if clients are already running.
-
-        A failing client is skipped and logged; ``RuntimeError`` is raised
-        only when every configured client fails.
+        Call once before invoking analyze(). Idempotent — safe to call even if
+        clients are already running. A failing client is skipped and logged;
+        ``RuntimeError`` is raised only when every configured client fails.
         """
         if self._clients_started:
             logger.info(f"Clients already started for {self.repository_path}, skipping start.")
@@ -461,9 +457,7 @@ class StaticAnalyzer:
                 # Use incremental orchestrator only when a cache file already exists
                 if cache_path is not None and cache_path.exists():
                     orchestrator = IncrementalAnalysisOrchestrator(self.ignore_manager)
-                    analysis = orchestrator.run_incremental_analysis(
-                        adapter, project_path, engine_client, cache_path, analyze_cluster_changes=False
-                    )
+                    analysis = orchestrator.run_incremental_analysis(adapter, project_path, engine_client, cache_path)
                 else:
                     analysis = self._run_full_analysis(adapter, project_path, engine_client)
                     # Save cache for future incremental runs (without expensive clustering)
@@ -580,85 +574,6 @@ class StaticAnalyzer:
             logger.info(f"Saved initial cache to {cache_path}")
         except Exception as e:
             logger.warning(f"Failed to save initial cache: {e}")
-
-    def analyze_with_cluster_changes(self, cache_dir: Path | None = None) -> dict:
-        """Analyze the repository with cluster change detection.
-
-        Args:
-            cache_dir: Optional cache directory for incremental analysis.
-
-        Returns:
-            Dictionary containing:
-            - 'analysis_result': StaticAnalysisResults
-            - 'cluster_change_result': ClusterChangeResult with detailed metrics
-            - 'change_classification': ChangeClassification (SMALL, MEDIUM, BIG)
-        """
-        if not self._engine_clients:
-            return {
-                "analysis_result": StaticAnalysisResults(),
-                "cluster_change_result": None,
-                "change_classification": ChangeClassification.SMALL,
-            }
-
-        adapter, project_path, engine_client = self._engine_clients[0]
-        language = adapter.language
-
-        try:
-            logger.info(f"Starting cluster change analysis for {language} in {project_path}")
-
-            cache_path = None
-            if cache_dir is not None:
-                cache_dir.mkdir(parents=True, exist_ok=True)
-                client_id = language.lower()
-                cache_path = cache_dir / f"incremental_cache_{client_id}.json"
-                if cache_path.exists():
-                    logger.info(f"Using incremental cache: {cache_path}")
-                else:
-                    logger.info(f"Cache path configured but no cache exists at: {cache_path}")
-
-            if cache_path is not None:
-                orchestrator = IncrementalAnalysisOrchestrator(self.ignore_manager)
-                result = orchestrator.run_incremental_analysis(
-                    adapter, project_path, engine_client, cache_path, analyze_cluster_changes=True
-                )
-                if isinstance(result, dict) and "analysis_result" in result:
-                    dict_analysis = result["analysis_result"]
-                    if isinstance(dict_analysis, dict):
-                        result["analysis_result"] = self._dict_to_static_results(dict_analysis, language)
-                        if "commit_hash" not in result:
-                            result["commit_hash"] = get_git_commit_hash(self.repository_path)
-                return result
-            else:
-                analysis = self._run_full_analysis(adapter, project_path, engine_client)
-                static_results = self._dict_to_static_results(analysis, language)
-                return {
-                    "analysis_result": static_results,
-                    "cluster_change_result": None,
-                    "change_classification": ChangeClassification.BIG,
-                    "commit_hash": get_git_commit_hash(self.repository_path),
-                }
-
-        except Exception as e:
-            logger.error(f"Error during cluster change analysis: {e}")
-            return {
-                "analysis_result": StaticAnalysisResults(),
-                "cluster_change_result": None,
-                "change_classification": ChangeClassification.BIG,
-            }
-
-    def _dict_to_static_results(self, analysis_dict: dict, language: str) -> StaticAnalysisResults:
-        """Convert analysis dictionary to StaticAnalysisResults."""
-        results = StaticAnalysisResults()
-        results.add_references(language, analysis_dict.get("references", []))
-        call_graph = analysis_dict.get("call_graph")
-        if call_graph is None:
-            call_graph = CallGraph()
-        results.add_cfg(language, call_graph)
-        results.add_class_hierarchy(language, analysis_dict.get("class_hierarchies", {}))
-        results.add_package_dependencies(language, analysis_dict.get("package_relations", {}))
-        source_files = analysis_dict.get("source_files", [])
-        results.add_source_files(language, [str(f) for f in source_files])
-        return results
 
 
 def get_static_analysis(

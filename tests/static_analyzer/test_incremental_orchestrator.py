@@ -5,11 +5,6 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
 
-from static_analyzer.cluster_change_analyzer import (
-    ChangeClassification,
-    ClusterChangeAnalyzer,
-    ClusterChangeResult,
-)
 from static_analyzer.graph import CallGraph, ClusterResult
 from static_analyzer.node import Node
 from static_analyzer.incremental_orchestrator import IncrementalAnalysisOrchestrator
@@ -110,12 +105,6 @@ class TestIncrementalAnalysisOrchestratorInit(unittest.TestCase):
         self.assertIsNotNone(orchestrator.cache_manager)
         self.assertEqual(orchestrator.cache_manager.repo_root, ignore_manager.repo_root)
 
-    def test_init_creates_cluster_analyzer(self):
-        """Test that __init__ creates a ClusterChangeAnalyzer."""
-        orchestrator = IncrementalAnalysisOrchestrator(_make_ignore_manager())
-        self.assertIsNotNone(orchestrator.cluster_analyzer)
-        self.assertIsInstance(orchestrator.cluster_analyzer, ClusterChangeAnalyzer)
-
 
 class TestRunIncrementalAnalysisNoCache(unittest.TestCase):
     """Tests for run_incremental_analysis when no cache exists."""
@@ -127,24 +116,22 @@ class TestRunIncrementalAnalysisNoCache(unittest.TestCase):
     @patch("static_analyzer.incremental_orchestrator.GitDiffAnalyzer")
     def test_no_cache_performs_full_analysis(self, mock_git_analyzer_class):
         """Test that no cache triggers full analysis."""
-        # Setup mocks
         mock_git_analyzer = Mock()
         mock_git_analyzer.get_current_commit.return_value = "commit123"
         mock_git_analyzer_class.return_value = mock_git_analyzer
 
         with patch.object(self.orchestrator.cache_manager, "load_cache_with_clusters") as mock_load:
-            mock_load.return_value = None  # No cache
+            mock_load.return_value = None
 
             with patch.object(self.orchestrator, "_perform_full_analysis_and_cache") as mock_full:
                 expected_result = create_test_analysis_result()
                 mock_full.return_value = expected_result
 
-                result = self.orchestrator.run_incremental_analysis(
+                self.orchestrator.run_incremental_analysis(
                     self.mock_adapter,
                     self.project_path,
                     self.mock_engine_client,
                     self.cache_path,
-                    analyze_cluster_changes=False,
                 )
 
                 mock_full.assert_called_once_with(
@@ -154,30 +141,6 @@ class TestRunIncrementalAnalysisNoCache(unittest.TestCase):
                     self.cache_path,
                     "commit123",
                 )
-
-    @patch("static_analyzer.incremental_orchestrator.GitDiffAnalyzer")
-    def test_no_cache_returns_big_classification(self, mock_git_analyzer_class):
-        """Test that no cache returns BIG classification when cluster changes enabled."""
-        mock_git_analyzer = Mock()
-        mock_git_analyzer.get_current_commit.return_value = "commit123"
-        mock_git_analyzer_class.return_value = mock_git_analyzer
-
-        with patch.object(self.orchestrator.cache_manager, "load_cache_with_clusters") as mock_load:
-            mock_load.return_value = None
-
-            with patch.object(self.orchestrator, "_perform_full_analysis_and_cache") as mock_full:
-                mock_full.return_value = create_test_analysis_result()
-
-                result = self.orchestrator.run_incremental_analysis(
-                    self.mock_adapter,
-                    self.project_path,
-                    self.mock_engine_client,
-                    self.cache_path,
-                    analyze_cluster_changes=True,
-                )
-
-                self.assertIsInstance(result, dict)
-                self.assertEqual(result["change_classification"], ChangeClassification.BIG)
 
 
 class TestRunIncrementalAnalysisCachedNoChanges(unittest.TestCase):
@@ -206,35 +169,9 @@ class TestRunIncrementalAnalysisCachedNoChanges(unittest.TestCase):
                 self.project_path,
                 self.mock_engine_client,
                 self.cache_path,
-                analyze_cluster_changes=False,
             )
 
             self.assertEqual(result, cached_analysis)
-
-    @patch("static_analyzer.incremental_orchestrator.GitDiffAnalyzer")
-    def test_cached_no_changes_returns_small_classification(self, mock_git_analyzer_class):
-        """Test that matching commit returns SMALL classification."""
-        mock_git_analyzer = Mock()
-        mock_git_analyzer.get_current_commit.return_value = "cached_commit"
-        mock_git_analyzer.has_uncommitted_changes.return_value = False
-        mock_git_analyzer_class.return_value = mock_git_analyzer
-
-        cached_analysis = create_test_analysis_result()
-        cached_clusters = create_test_cluster_result()
-
-        with patch.object(self.orchestrator.cache_manager, "load_cache_with_clusters") as mock_load:
-            mock_load.return_value = (cached_analysis, cached_clusters, "cached_commit", 1)
-
-            result = self.orchestrator.run_incremental_analysis(
-                self.mock_adapter,
-                self.project_path,
-                self.mock_engine_client,
-                self.cache_path,
-                analyze_cluster_changes=True,
-            )
-
-            self.assertIsInstance(result, dict)
-            self.assertEqual(result["change_classification"], ChangeClassification.SMALL)
 
 
 class TestRunIncrementalAnalysisWithChanges(unittest.TestCase):
@@ -332,7 +269,6 @@ class TestRunIncrementalAnalysisExceptionHandling(unittest.TestCase):
                     self.mock_engine_client,
                     self.cache_path,
                     "commit123",
-                    True,
                 )
 
     @patch("static_analyzer.incremental_orchestrator.GitDiffAnalyzer")
@@ -358,7 +294,6 @@ class TestRunIncrementalAnalysisExceptionHandling(unittest.TestCase):
                 self.mock_engine_client,
                 self.cache_path,
                 "unknown",
-                True,
             )
 
 
@@ -383,14 +318,13 @@ class TestPerformFullAnalysisAndCache(unittest.TestCase):
 
         mock_convert.return_value = expected_result
 
-        with patch.object(self.orchestrator.cache_manager, "save_cache"):
+        with patch.object(self.orchestrator.cache_manager, "save_cache_with_clusters"):
             result = self.orchestrator._perform_full_analysis_and_cache(
                 self.mock_adapter,
                 self.project_path,
                 self.mock_engine_client,
                 self.cache_path,
                 "commit123",
-                False,
             )
 
             self.mock_adapter.discover_source_files.assert_called_once()
@@ -398,32 +332,6 @@ class TestPerformFullAnalysisAndCache(unittest.TestCase):
             mock_builder.build.assert_called_once()
             mock_convert.assert_called_once()
             self.assertEqual(result, expected_result)
-
-    @patch("static_analyzer.incremental_orchestrator.convert_to_codeboarding_format")
-    @patch("static_analyzer.incremental_orchestrator.CallGraphBuilder")
-    def test_computes_cluster_results_when_enabled(self, mock_builder_class, mock_convert):
-        """Test that cluster results are computed when analyze_clusters=True."""
-        expected_result = create_test_analysis_result()
-
-        mock_builder = Mock()
-        mock_builder.build.return_value = Mock()
-        mock_builder_class.return_value = mock_builder
-        mock_convert.return_value = expected_result
-
-        with patch.object(self.orchestrator.cache_manager, "save_cache_with_clusters"):
-            with patch.object(self.orchestrator, "_compute_cluster_results") as mock_cluster:
-                mock_cluster.return_value = create_test_cluster_result()
-
-                self.orchestrator._perform_full_analysis_and_cache(
-                    self.mock_adapter,
-                    self.project_path,
-                    self.mock_engine_client,
-                    self.cache_path,
-                    "commit123",
-                    True,
-                )
-
-                mock_cluster.assert_called_once()
 
     @patch("static_analyzer.incremental_orchestrator.convert_to_codeboarding_format")
     @patch("static_analyzer.incremental_orchestrator.CallGraphBuilder")
@@ -446,33 +354,9 @@ class TestPerformFullAnalysisAndCache(unittest.TestCase):
                     self.mock_engine_client,
                     self.cache_path,
                     "commit123",
-                    True,
                 )
 
                 mock_save.assert_called_once()
-
-    @patch("static_analyzer.incremental_orchestrator.convert_to_codeboarding_format")
-    @patch("static_analyzer.incremental_orchestrator.CallGraphBuilder")
-    def test_saves_cache_without_clusters_when_disabled(self, mock_builder_class, mock_convert):
-        """Test that cache is saved without clusters when disabled."""
-        expected_result = create_test_analysis_result()
-
-        mock_builder = Mock()
-        mock_builder.build.return_value = Mock()
-        mock_builder_class.return_value = mock_builder
-        mock_convert.return_value = expected_result
-
-        with patch.object(self.orchestrator.cache_manager, "save_cache") as mock_save:
-            self.orchestrator._perform_full_analysis_and_cache(
-                self.mock_adapter,
-                self.project_path,
-                self.mock_engine_client,
-                self.cache_path,
-                "commit123",
-                False,
-            )
-
-            mock_save.assert_called_once()
 
     @patch("static_analyzer.incremental_orchestrator.convert_to_codeboarding_format")
     @patch("static_analyzer.incremental_orchestrator.CallGraphBuilder")
@@ -485,7 +369,7 @@ class TestPerformFullAnalysisAndCache(unittest.TestCase):
         mock_builder_class.return_value = mock_builder
         mock_convert.return_value = expected_result
 
-        with patch.object(self.orchestrator.cache_manager, "save_cache") as mock_save:
+        with patch.object(self.orchestrator.cache_manager, "save_cache_with_clusters") as mock_save:
             mock_save.side_effect = Exception("Save failed")
 
             result = self.orchestrator._perform_full_analysis_and_cache(
@@ -494,7 +378,6 @@ class TestPerformFullAnalysisAndCache(unittest.TestCase):
                 self.mock_engine_client,
                 self.cache_path,
                 "commit123",
-                False,
             )
 
             self.assertEqual(result, expected_result)
@@ -525,31 +408,9 @@ class TestPerformIncrementalUpdate(unittest.TestCase):
             1,
             "new_commit",
             self.mock_git_analyzer,
-            False,
         )
 
         self.assertEqual(result, self.cached_analysis)
-
-    def test_no_changed_files_returns_small_classification(self):
-        """Test that no changed files returns SMALL classification."""
-        self.mock_git_analyzer.get_changed_files.return_value = set()
-
-        result = self.orchestrator._perform_incremental_update(
-            self.mock_adapter,
-            self.project_path,
-            self.mock_engine_client,
-            self.cache_path,
-            self.cached_analysis,
-            self.cached_cluster_results,
-            "old_commit",
-            1,
-            "new_commit",
-            self.mock_git_analyzer,
-            True,
-        )
-
-        self.assertIsInstance(result, dict)
-        self.assertEqual(result["change_classification"], ChangeClassification.SMALL)
 
     @patch("static_analyzer.incremental_orchestrator.convert_to_codeboarding_format")
     @patch("static_analyzer.incremental_orchestrator.CallGraphBuilder")
@@ -629,94 +490,6 @@ class TestPerformIncrementalUpdate(unittest.TestCase):
                         )
 
                         mock_merge.assert_called_once()
-
-    @patch("static_analyzer.incremental_orchestrator.get_overall_classification")
-    @patch("static_analyzer.incremental_orchestrator.analyze_cluster_changes_for_languages")
-    @patch("static_analyzer.incremental_orchestrator.convert_to_codeboarding_format")
-    @patch("static_analyzer.incremental_orchestrator.CallGraphBuilder")
-    def test_analyzes_cluster_changes_when_enabled(
-        self, mock_builder_class, mock_convert, mock_analyze_changes, mock_get_classification
-    ):
-        """Test cluster change analysis when enabled."""
-        changed_file = MagicMock(spec=Path)
-        changed_file.exists.return_value = True
-        changed_file.suffix = ".py"
-        changed_file.__str__ = lambda x: "/test/changed.py"  # type: ignore[misc]
-
-        self.mock_git_analyzer.get_changed_files.return_value = {changed_file}
-
-        mock_builder = Mock()
-        mock_builder.build.return_value = Mock()
-        mock_builder_class.return_value = mock_builder
-        mock_convert.return_value = create_test_analysis_result(1)
-
-        mock_analyze_changes.return_value = {"python": Mock(spec=ClusterChangeResult)}
-        mock_get_classification.return_value = ChangeClassification.MEDIUM
-
-        with patch.object(self.orchestrator.cache_manager, "invalidate_files") as mock_invalidate:
-            mock_invalidate.return_value = self.cached_analysis
-            with patch.object(self.orchestrator.cache_manager, "merge_results") as mock_merge:
-                mock_merge.return_value = create_test_analysis_result()
-                with patch.object(self.orchestrator, "_compute_cluster_results") as mock_cluster:
-                    mock_cluster.return_value = create_test_cluster_result()
-                    with patch.object(self.orchestrator.cache_manager, "save_cache_with_clusters"):
-                        result = self.orchestrator._perform_incremental_update(
-                            self.mock_adapter,
-                            self.project_path,
-                            self.mock_engine_client,
-                            self.cache_path,
-                            self.cached_analysis,
-                            self.cached_cluster_results,
-                            "old_commit",
-                            1,
-                            "new_commit",
-                            self.mock_git_analyzer,
-                            True,
-                        )
-
-                        mock_analyze_changes.assert_called_once()
-                        self.assertEqual(result["change_classification"], ChangeClassification.MEDIUM)
-
-    @patch("static_analyzer.incremental_orchestrator.convert_to_codeboarding_format")
-    @patch("static_analyzer.incremental_orchestrator.CallGraphBuilder")
-    def test_returns_dict_format_when_analyze_cluster_changes_true(self, mock_builder_class, mock_convert):
-        """Test that result is dict with required keys when cluster changes enabled."""
-        changed_file = MagicMock(spec=Path)
-        changed_file.exists.return_value = True
-        changed_file.suffix = ".py"
-        changed_file.__str__ = lambda x: "/test/changed.py"  # type: ignore[misc]
-
-        self.mock_git_analyzer.get_changed_files.return_value = {changed_file}
-
-        mock_builder = Mock()
-        mock_builder.build.return_value = Mock()
-        mock_builder_class.return_value = mock_builder
-        mock_convert.return_value = create_test_analysis_result(1)
-
-        with patch.object(self.orchestrator.cache_manager, "invalidate_files") as mock_invalidate:
-            mock_invalidate.return_value = self.cached_analysis
-            with patch.object(self.orchestrator.cache_manager, "merge_results") as mock_merge:
-                mock_merge.return_value = create_test_analysis_result()
-                with patch.object(self.orchestrator, "_compute_cluster_results") as mock_cluster:
-                    mock_cluster.return_value = create_test_cluster_result()
-                    with patch.object(self.orchestrator.cache_manager, "save_cache_with_clusters"):
-                        result = self.orchestrator._perform_incremental_update(
-                            self.mock_adapter,
-                            self.project_path,
-                            self.mock_engine_client,
-                            self.cache_path,
-                            self.cached_analysis,
-                            self.cached_cluster_results,
-                            "old_commit",
-                            1,
-                            "new_commit",
-                            self.mock_git_analyzer,
-                            True,
-                        )
-
-                        self.assertIn("analysis_result", result)
-                        self.assertIn("cluster_change_result", result)
-                        self.assertIn("change_classification", result)
 
 
 class TestComputeClusterResults(unittest.TestCase):
