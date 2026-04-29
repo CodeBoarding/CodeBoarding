@@ -9,6 +9,7 @@ Public surface:
 """
 
 from codeboarding_workflows.analysis import run_full, run_incremental, run_partial
+from codeboarding_workflows.incremental import run_incremental_workflow
 from codeboarding_workflows.orchestration import run_analysis_pipeline
 
-__all__ = ["run_analysis_pipeline", "run_full", "run_incremental", "run_partial"]
+__all__ = ["run_analysis_pipeline", "run_full", "run_incremental", "run_incremental_workflow", "run_partial"]

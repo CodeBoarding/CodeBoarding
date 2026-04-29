@@ -3,6 +3,7 @@ import os
 import shutil
 from pathlib import Path
 
+from codeboarding_workflows.incremental import run_incremental_workflow
 from codeboarding_workflows.rendering import render_docs
 from diagram_analysis import DiagramGenerator, RunContext
 from repo_utils import checkout_repo, clone_repository
@@ -112,7 +113,7 @@ def generate_analysis(
         log_path=run_context.log_path,
     )
 
-    analysis_path = generator.generate_analysis()
+    analysis_path = run_incremental_workflow(generator)
 
     match extension:
         case ".md":

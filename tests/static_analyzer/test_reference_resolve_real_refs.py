@@ -42,7 +42,7 @@ ANALYSIS_KEY_ENTITIES: list[tuple[str, str]] = [
     ("caching.meta_cache.MetaCache", "caching/meta_cache.py"),
     ("agents.dependency_discovery.DependencyDiscovery", "agents/dependency_discovery.py"),
     ("agents.tools.read_cfg.ReadCFG", "agents/tools/read_cfg.py"),
-    ("diagram_analysis.incremental.impact_analyzer.ImpactAnalyzer", "diagram_analysis/incremental/impact_analyzer.py"),
+    ("diagram_analysis.incremental_tracer.MethodResolver", "diagram_analysis/incremental_tracer.py"),
     ("agents.abstraction_agent.AbstractionAgent", "agents/abstraction_agent.py"),
     ("agents.cluster_methods_mixin.ClusterMethodsMixin", "agents/cluster_methods_mixin.py"),
     ("agents.meta_agent.MetaAgent", "agents/meta_agent.py"),
@@ -50,7 +50,7 @@ ANALYSIS_KEY_ENTITIES: list[tuple[str, str]] = [
     ("diagram_analysis.analysis_json.UnifiedAnalysisJson", "diagram_analysis/analysis_json.py"),
     ("diagram_analysis.diagram_generator.DiagramGenerator", "diagram_analysis/diagram_generator.py"),
     ("diagram_analysis.manifest.Manifest", "diagram_analysis/manifest.py"),
-    ("diagram_analysis.incremental.io_utils.IOUtils", "diagram_analysis/incremental/io_utils.py"),
+    ("diagram_analysis.io_utils._AnalysisFileStore", "diagram_analysis/io_utils.py"),
     ("github_action.main", "github_action.py"),
     ("core.registry.Registries", "core/registry.py"),
 ]
@@ -211,11 +211,11 @@ class TestResolveFromQualifiedNameOnly(unittest.TestCase):
     def test_deep_nested_qname_resolves(self):
         """Deeply nested qualified names should resolve.
 
-        e.g. diagram_analysis.incremental.impact_analyzer.ImpactAnalyzer
-             -> diagram_analysis/incremental/impact_analyzer.py
+        e.g. diagram_analysis.incremental_tracer.MethodResolver
+             -> diagram_analysis/incremental_tracer.py
         """
-        qname = "diagram_analysis.incremental.impact_analyzer.ImpactAnalyzer"
-        expected_file = "diagram_analysis/incremental/impact_analyzer.py"
+        qname = "diagram_analysis.incremental_tracer.MethodResolver"
+        expected_file = "diagram_analysis/incremental_tracer.py"
 
         self.sa.get_reference.side_effect = ValueError("not found")
         self.sa.get_loose_reference.side_effect = Exception("not found")
@@ -375,8 +375,8 @@ class TestMultiComponentAnalysis(unittest.TestCase):
                 ("agents.dependency_discovery.DependencyDiscovery", "agents/dependency_discovery.py"),
                 ("agents.tools.read_cfg.ReadCFG", "agents/tools/read_cfg.py"),
                 (
-                    "diagram_analysis.incremental.impact_analyzer.ImpactAnalyzer",
-                    "diagram_analysis/incremental/impact_analyzer.py",
+                    "diagram_analysis.incremental_tracer.MethodResolver",
+                    "diagram_analysis/incremental_tracer.py",
                 ),
             ],
             "AI Agentic Layer": [
@@ -389,7 +389,7 @@ class TestMultiComponentAnalysis(unittest.TestCase):
                 ("diagram_analysis.analysis_json.UnifiedAnalysisJson", "diagram_analysis/analysis_json.py"),
                 ("diagram_analysis.diagram_generator.DiagramGenerator", "diagram_analysis/diagram_generator.py"),
                 ("diagram_analysis.manifest.Manifest", "diagram_analysis/manifest.py"),
-                ("diagram_analysis.incremental.io_utils.IOUtils", "diagram_analysis/incremental/io_utils.py"),
+                ("diagram_analysis.io_utils._AnalysisFileStore", "diagram_analysis/io_utils.py"),
             ],
             "CLI & Integration Layer": [
                 ("github_action.main", "github_action.py"),

@@ -18,13 +18,18 @@ from pathlib import Path
 
 from agents.agent_responses import MethodEntry
 from diagram_analysis.diagram_generator import DiagramGenerator
-from diagram_analysis.incremental.payload import (
+from diagram_analysis.incremental_models import (
+    IncrementalRunResult,
+    IncrementalSummary,
+    IncrementalSummaryKind,
+)
+from diagram_analysis.incremental_payload import (
     RequiresFullAnalysisPayload,
     IncrementalCompletedPayload,
     IncrementalRunPayload,
     NoChangesPayload,
 )
-from diagram_analysis.incremental.updater import IncrementalUpdater
+from diagram_analysis.incremental_updater import IncrementalUpdater
 from diagram_analysis.io_utils import load_full_analysis
 from diagram_analysis.run_metadata import METADATA_FILENAME, write_incremental_run_metadata
 from repo_utils.diff_parser import detect_changes
@@ -217,7 +222,7 @@ def run_incremental_pipeline(
             analysis_path=analysis_path,
         )
 
-    root_analysis, _ = existing
+    root_analysis, sub_analyses = existing
 
     with contextlib.redirect_stdout(io.StringIO()):
         generator.pre_analysis()
@@ -227,31 +232,47 @@ def run_incremental_pipeline(
 
     symbol_resolver = StaticAnalysisSymbolResolver(generator.static_analysis, repo_path)
 
+    # Build the delta for the wire-format payload (the generator computes its
+    # own internally — this one is just so the wrapper / IDE can show which
+    # methods changed).
     updater = IncrementalUpdater(
-        root_analysis,
+        analysis=root_analysis,
         symbol_resolver=symbol_resolver,
-        change_set=change_set,
+        repo_dir=repo_path,
     )
-    delta = updater.compute_delta()
+    delta = updater.compute_delta(
+        added_files=list(change_set.added_files),
+        modified_files=list(change_set.modified_files),
+        deleted_files=list(change_set.deleted_files),
+        changes=change_set,
+    )
 
     with contextlib.redirect_stdout(io.StringIO()):
-        incremental_result = generator.generate_analysis_incremental(
-            delta=delta,
+        analysis_path = generator.generate_analysis_incremental(
+            root_analysis=root_analysis,
+            sub_analyses=sub_analyses,
             base_ref=base_ref,
-            change_set=change_set,
+            changes=change_set,
         )
 
+    incremental_result = IncrementalRunResult(
+        summary=IncrementalSummary(
+            kind=IncrementalSummaryKind.MATERIAL_IMPACT,
+            message="Incremental analysis complete.",
+            used_llm=True,
+        ),
+        analysis_path=analysis_path,
+    )
+
     source_identity = _resolve_source_identity(repo_path, target_ref)
-    metadata_path: Path | None = None
-    if not incremental_result.summary.requires_full_analysis and incremental_result.analysis_path is not None:
-        write_incremental_run_metadata(
-            output_dir,
-            repo_path,
-            analysis_path=incremental_result.analysis_path,
-            source_identity=source_identity,
-            diff_base_ref=_diff_base_for_successful_target(repo_path, target_ref, source_identity),
-        )
-        metadata_path = output_dir / METADATA_FILENAME
+    write_incremental_run_metadata(
+        output_dir,
+        repo_path,
+        analysis_path=analysis_path,
+        source_identity=source_identity,
+        diff_base_ref=_diff_base_for_successful_target(repo_path, target_ref, source_identity),
+    )
+    metadata_path = output_dir / METADATA_FILENAME
 
     return IncrementalCompletedPayload(
         result=incremental_result,

@@ -271,6 +271,14 @@ def load_full_analysis(output_dir: Path) -> tuple[AnalysisInsights, dict[str, An
     return root_analysis, sub_analyses
 
 
+def load_analysis_metadata(output_dir: Path) -> dict | None:
+    """Load raw metadata from the unified analysis file."""
+    result = _get_store(output_dir).read()
+    if result is None:
+        return None
+    return result[2].get("metadata")
+
+
 def save_analysis(
     analysis: AnalysisInsights,
     output_dir: Path,

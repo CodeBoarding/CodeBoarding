@@ -18,6 +18,10 @@ from agents.agent_responses import MethodEntry
 from agents.change_status import ChangeStatus
 
 
+class ChangeDetectionError(RuntimeError):
+    """Raised when git-based change detection cannot produce a trustworthy diff."""
+
+
 class ChangeType(Enum):
     """Git diff status codes."""
 
