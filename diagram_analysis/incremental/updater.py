@@ -12,7 +12,13 @@ import time
 from pathlib import PurePosixPath
 from typing import Callable
 
-from agents.agent_responses import AnalysisInsights, Component, FileEntry, FileMethodGroup, MethodEntry
+from agents.agent_responses import (
+    AnalysisInsights,
+    Component,
+    FileEntry,
+    FileMethodGroup,
+    MethodEntry,
+)
 from agents.change_status import ChangeStatus
 from diagram_analysis.incremental.delta import FileDelta, IncrementalDelta, MethodChange
 from repo_utils.change_detector import ChangeSet
@@ -408,10 +414,9 @@ def prune_empty_components(
 
     non_empty_ids = {c.component_id for c in all_components if c.component_id and not _component_is_empty(c)}
 
-    # Safety: never prune a component that has a non-empty descendant. The
-    # `_sync_component_methods` invariant is that a parent owns at least the
-    # union of its children's methods, so this is unreachable if the upstream
-    # data is consistent — but if it ever fires, log and skip.
+    # If a parent component goes empty while a descendant still has methods,
+    # the parent - children invariant has drifted. Skip the prune so we don't
+    # orphan the descendant; the warning surfaces the drift for investigation.
     removed_ids: set[str] = set()
     for cid in candidate_ids:
         prefix = cid + "."
