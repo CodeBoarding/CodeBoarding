@@ -2,13 +2,13 @@ import logging
 import os
 import shutil
 import hashlib
-import subprocess
 from functools import wraps
 from pathlib import Path
 from collections.abc import Collection
 from typing import Callable, Any
 
 from repo_utils.errors import RepoDontExistError, NoGithubTokenFoundError
+from repo_utils.git_ops import approve_https_credentials
 from repo_utils.ignore import RepoIgnoreManager
 
 logger = logging.getLogger(__name__)
@@ -137,10 +137,7 @@ def store_token():
     if not os.environ.get("GITHUB_TOKEN"):  # Using .get() for safer access
         raise NoGithubTokenFoundError()
     logger.info(f"Setting up credentials with token: {os.environ['GITHUB_TOKEN'][:7]}")  # only first 7 for safety
-    cred = (
-        "protocol=https\n" "host=github.com\n" f"username=git\n" f"password={os.environ['GITHUB_TOKEN']}\n" "\n"
-    ).encode()
-    subprocess.run(["git", "credential", "approve"], input=cred)
+    approve_https_credentials(host="github.com", username="git", password=os.environ["GITHUB_TOKEN"])
 
 
 @require_git_import()

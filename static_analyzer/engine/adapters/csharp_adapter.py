@@ -9,7 +9,7 @@ import subprocess
 from pathlib import Path
 
 from repo_utils.ignore import RepoIgnoreManager
-from static_analyzer.constants import NodeType
+from static_analyzer.constants import Language, NodeType
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_client import LSPClient
 
@@ -23,8 +23,8 @@ class CSharpAdapter(LanguageAdapter):
         return "CSharp"
 
     @property
-    def file_extensions(self) -> tuple[str, ...]:
-        return (".cs",)
+    def language_enum(self) -> Language:
+        return Language.CSHARP
 
     @property
     def lsp_command(self) -> list[str]:

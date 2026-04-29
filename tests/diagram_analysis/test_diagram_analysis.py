@@ -26,6 +26,7 @@ from diagram_analysis.analysis_json import (
 )
 from diagram_analysis.diagram_generator import DiagramGenerator
 from diagram_analysis.version import Version
+from repo_utils.change_detector import ChangeSet
 from static_analyzer.analysis_result import StaticAnalysisResults
 
 
@@ -655,6 +656,149 @@ class TestDiagramGenerator(unittest.TestCase):
 
         written = json.loads((self.output_dir / "analysis.json").read_text())
         self.assertEqual([c["can_expand"] for c in written["components"]], [True, True])
+
+
+class TestGenerateAnalysisIncrementalFailedPatches(unittest.TestCase):
+    """P1a: failed component patches must not silently advance the baseline."""
+
+    def setUp(self) -> None:
+        self.temp_dir = tempfile.mkdtemp()
+        self.repo_location = Path(self.temp_dir) / "repo"
+        self.repo_location.mkdir(parents=True)
+        self.output_dir = Path(self.temp_dir) / "output"
+        self.output_dir.mkdir(parents=True)
+
+        # Persist a prior analysis so load_full_analysis succeeds.
+        from agents.agent_responses import FileEntry
+        from diagram_analysis.io_utils import save_analysis
+
+        method = MethodEntry(qualified_name="src.utils.alpha", start_line=1, end_line=2, node_type="FUNCTION")
+        component = Component(
+            name="Core",
+            description="Core",
+            key_entities=[],
+            file_methods=[FileMethodGroup(file_path="src/utils.py", methods=[method])],
+        )
+        root = AnalysisInsights(
+            description="root",
+            components=[component],
+            components_relations=[],
+            files={"src/utils.py": FileEntry(methods=[method])},
+        )
+        assign_component_ids(root)
+        self.component_id = root.components[0].component_id
+        save_analysis(analysis=root, output_dir=self.output_dir, repo_name="repo", commit_hash="baseline")
+
+        self.analysis_before = (self.output_dir / "analysis.json").read_text(encoding="utf-8")
+
+    def tearDown(self) -> None:
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def _build_generator(self) -> DiagramGenerator:
+        gen = DiagramGenerator(
+            repo_location=self.repo_location,
+            temp_folder=self.output_dir,
+            repo_name="repo",
+            output_dir=self.output_dir,
+            depth_level=1,
+            run_id="r",
+            log_path="l",
+        )
+        gen.details_agent = Mock()
+        gen.abstraction_agent = Mock()
+        gen.static_analysis = StaticAnalysisResults()
+        gen.agent_llm = Mock()
+        gen.parsing_llm = Mock()
+        return gen
+
+    def _build_delta(self):
+        from agents.change_status import ChangeStatus
+        from diagram_analysis.incremental.delta import FileDelta, IncrementalDelta, MethodChange
+
+        modified = MethodChange(
+            qualified_name="src.utils.alpha",
+            file_path="src/utils.py",
+            start_line=1,
+            end_line=2,
+            change_type=ChangeStatus.MODIFIED,
+            node_type="FUNCTION",
+        )
+        file_delta = FileDelta(
+            file_path="src/utils.py",
+            file_status=ChangeStatus.MODIFIED,
+            component_id=self.component_id,
+            modified_methods=[modified],
+        )
+        return IncrementalDelta(file_deltas=[file_delta])
+
+    def _trace_result_with_impact(self):
+        from diagram_analysis.incremental.models import ImpactedComponent, TraceResult, TraceStopReason
+
+        return TraceResult(
+            impacted_components=[
+                ImpactedComponent(component_id=self.component_id, impacted_methods=["src.utils.alpha"])
+            ],
+            all_impacted_methods=["src.utils.alpha"],
+            stop_reason=TraceStopReason.CLOSURE_REACHED,
+            semantic_impact_summary="impacted",
+        )
+
+    @patch("diagram_analysis.diagram_generator.classify_scope")
+    @patch("diagram_analysis.diagram_generator.run_trace")
+    def test_all_patches_failed_does_not_overwrite_analysis(self, mock_run_trace, _mock_classify):
+        from diagram_analysis.incremental.models import IncrementalSummaryKind
+
+        mock_run_trace.return_value = self._trace_result_with_impact()
+
+        gen = self._build_generator()
+        with patch.object(gen, "_run_component_patches", return_value=({}, [self.component_id])):
+            result = gen.generate_analysis_incremental(
+                delta=self._build_delta(),
+                base_ref="baseline",
+                change_set=ChangeSet(base_ref="baseline", target_ref=""),
+            )
+
+        self.assertEqual(result.summary.kind, IncrementalSummaryKind.REQUIRES_FULL_ANALYSIS)
+        self.assertTrue(result.summary.requires_full_analysis)
+        self.assertEqual(result.failed_component_ids, [self.component_id])
+        # analysis.json on disk must be unchanged so the baseline does not advance.
+        self.assertEqual((self.output_dir / "analysis.json").read_text(encoding="utf-8"), self.analysis_before)
+
+    @patch("diagram_analysis.diagram_generator.classify_scope")
+    @patch("diagram_analysis.diagram_generator.run_trace")
+    def test_partial_patch_failure_requires_full_analysis(self, mock_run_trace, _mock_classify):
+        from diagram_analysis.incremental.models import (
+            ImpactedComponent,
+            IncrementalSummaryKind,
+            TraceResult,
+            TraceStopReason,
+        )
+
+        patched_id = self.component_id
+        failed_id = "failed-comp"
+        mock_run_trace.return_value = TraceResult(
+            impacted_components=[
+                ImpactedComponent(component_id=patched_id, impacted_methods=["src.utils.alpha"]),
+                ImpactedComponent(component_id=failed_id, impacted_methods=["other"]),
+            ],
+            all_impacted_methods=["src.utils.alpha", "other"],
+            stop_reason=TraceStopReason.CLOSURE_REACHED,
+        )
+
+        fake_patched = AnalysisInsights(description="patched", components=[], components_relations=[])
+
+        gen = self._build_generator()
+        with patch.object(gen, "_run_component_patches", return_value=({patched_id: fake_patched}, [failed_id])):
+            result = gen.generate_analysis_incremental(
+                delta=self._build_delta(),
+                base_ref="baseline",
+                change_set=ChangeSet(base_ref="baseline", target_ref=""),
+            )
+
+        self.assertEqual(result.summary.kind, IncrementalSummaryKind.SCOPED_REANALYSIS)
+        self.assertTrue(result.summary.requires_full_analysis)
+        self.assertEqual(result.patched_component_ids, [patched_id])
+        self.assertEqual(result.failed_component_ids, [failed_id])
 
 
 if __name__ == "__main__":

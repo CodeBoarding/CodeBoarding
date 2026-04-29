@@ -1,6 +1,5 @@
 import json
 import logging
-import time
 from pathlib import Path
 
 from google.api_core.exceptions import ResourceExhausted
@@ -15,6 +14,7 @@ from pydantic import ValidationError
 from trustcall import create_extractor
 
 from agents.prompts import get_validation_feedback_message
+from agents.retry import RetryAction, RetryDecision, default_backoff, with_retries
 from agents.tools.base import RepoContext
 from agents.tools.toolkit import CodeBoardingToolkit
 from agents.validation import ValidationResult, score_validation_results, VALIDATOR_WEIGHTS, DEFAULT_VALIDATOR_WEIGHT
@@ -96,86 +96,69 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
     def _invoke(self, prompt, callbacks: list | None = None) -> str:
         """Unified agent invocation method with timeout and exponential backoff.
 
-        Uses exponential backoff based on total attempts, with different multipliers
-        for different error types. This ensures backoff increases appropriately even
-        when errors alternate between types.
+        Classification applied per exception:
+        - ``TimeoutError``: backoff ``min(10·2^n, 120)``, raise on exhaustion.
+        - ``ResourceExhausted``: backoff ``min(30·2^n, 300)``, raise on exhaustion.
+        - ``status_code == 404``: raise immediately (retired model ID, etc.).
+        - Other exceptions: backoff ``min(10·2^n, 120)``, return fallback string
+          on exhaustion (non-raising — callers treat the fallback as a failed run).
         """
-        max_retries = 5
+        max_attempts = 5
+        # Counter captured by the closure so we can vary the per-attempt timeout
+        # without reaching into the retry helper.
+        attempt_counter = [0]
 
-        for attempt in range(max_retries):
+        def call_once() -> str:
+            attempt = attempt_counter[0]
+            attempt_counter[0] += 1
             timeout_seconds = 300 if attempt == 0 else 600
-            try:
-                callback_list = callbacks or []
-                # Always append monitoring callback - logging config controls output
-                callback_list.append(MONITORING_CALLBACK)
-                callback_list.append(self.agent_monitoring_callback)
+            callback_list = (callbacks or []) + [MONITORING_CALLBACK, self.agent_monitoring_callback]
+            logger.info(
+                f"Starting agent.invoke() [attempt {attempt + 1}/{max_attempts}] with prompt length: {len(prompt)}, timeout: {timeout_seconds}s"
+            )
+            response = self._invoke_with_timeout(
+                timeout_seconds=timeout_seconds, callback_list=callback_list, prompt=prompt
+            )
+            logger.info(
+                f"Completed agent.invoke() - message count: {len(response['messages'])}, last message type: {type(response['messages'][-1])}"
+            )
+            agent_response = response["messages"][-1]
+            assert isinstance(agent_response, AIMessage), f"Expected AIMessage, but got {type(agent_response)}"
+            if isinstance(agent_response.content, str):
+                return agent_response.content
+            if isinstance(agent_response.content, list):
+                return "".join(str(m) if not isinstance(m, str) else m for m in agent_response.content)
+            return ""  # unreachable for AIMessage but satisfies typing
 
-                logger.info(
-                    f"Starting agent.invoke() [attempt {attempt + 1}/{max_retries}] with prompt length: {len(prompt)}, timeout: {timeout_seconds}s"
+        def classify(exc: Exception, attempt: int) -> RetryDecision:
+            if getattr(exc, "status_code", None) == 404:
+                logger.error(f"Permanent HTTP 404 — not retrying: {type(exc).__name__}: {exc}")
+                return RetryDecision(action=RetryAction.GIVE_UP)
+            if isinstance(exc, ResourceExhausted):
+                return RetryDecision(
+                    action=RetryAction.RETRY,
+                    backoff_s=default_backoff(attempt, initial_s=30.0, multiplier=2.0, max_s=300.0),
                 )
+            # TimeoutError + generic Exception share the same backoff.
+            return RetryDecision(
+                action=RetryAction.RETRY,
+                backoff_s=default_backoff(attempt, initial_s=10.0, multiplier=2.0, max_s=120.0),
+            )
 
-                response = self._invoke_with_timeout(
-                    timeout_seconds=timeout_seconds, callback_list=callback_list, prompt=prompt
-                )
+        def on_exhausted(exc: Exception) -> str:
+            # Typed exceptions surface the original error; only generic falls through
+            # to the historic fallback string that callers have long relied on.
+            if isinstance(exc, (TimeoutError, ResourceExhausted)):
+                raise exc
+            return "Could not get response from the agent."
 
-                logger.info(
-                    f"Completed agent.invoke() - message count: {len(response['messages'])}, last message type: {type(response['messages'][-1])}"
-                )
-
-                agent_response = response["messages"][-1]
-                assert isinstance(agent_response, AIMessage), f"Expected AIMessage, but got {type(agent_response)}"
-                if isinstance(agent_response.content, str):
-                    return agent_response.content
-                if isinstance(agent_response.content, list):
-                    return "".join(
-                        [
-                            str(message) if not isinstance(message, str) else message
-                            for message in agent_response.content
-                        ]
-                    )
-
-            except TimeoutError as e:
-                if attempt < max_retries - 1:
-                    # Exponential backoff: 10s * 2^attempt (10s, 20s, 40s, 80s)
-                    delay = min(10 * (2**attempt), 120)
-                    logger.warning(
-                        f"Agent invocation timed out after {timeout_seconds}s, retrying in {delay}s... (attempt {attempt + 1}/{max_retries})"
-                    )
-                    time.sleep(delay)
-                else:
-                    logger.error(f"Agent invocation timed out after {timeout_seconds}s on final attempt")
-                    raise
-
-            except ResourceExhausted as e:
-                if attempt < max_retries - 1:
-                    # Longer backoff for rate limits: 30s * 2^attempt (30s, 60s, 120s, 240s)
-                    delay = min(30 * (2**attempt), 300)
-                    logger.warning(
-                        f"ResourceExhausted (rate limit): {e}\n"
-                        f"Retrying in {delay}s... (attempt {attempt + 1}/{max_retries})"
-                    )
-                    time.sleep(delay)
-                else:
-                    logger.error(f"Max retries ({max_retries}) reached. ResourceExhausted: {e}")
-                    raise
-
-            except Exception as e:
-                # HTTP 404 (e.g. retired model ID) is permanent — retrying won't help.
-                if getattr(e, "status_code", None) == 404:
-                    logger.error(f"Permanent HTTP 404 — not retrying: {type(e).__name__}: {e}")
-                    raise
-
-                # Other errors (network, parsing, etc.) get standard exponential backoff
-                if attempt < max_retries - 1:
-                    delay = min(10 * (2**attempt), 120)
-                    logger.warning(
-                        f"Agent error: {type(e).__name__}: {e}, retrying in {delay}s... (attempt {attempt + 1}/{max_retries})"
-                    )
-                    time.sleep(delay)
-                # On final attempt, fall through to return error message below
-
-        logger.error("Max retries reached. Failed to get response from the agent.")
-        return "Could not get response from the agent."
+        return with_retries(
+            call_once,
+            max_attempts=max_attempts,
+            classify=classify,
+            on_exhausted=on_exhausted,
+            log_prefix="Agent invocation",
+        )
 
     def _invoke_with_timeout(self, timeout_seconds: int, callback_list: list, prompt: str):
         """Invoke agent with a timeout using threading."""
@@ -336,18 +319,27 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         return best_result
 
     def _parse_response(self, prompt, response, return_type, max_retries=5, attempt=0):
-        if attempt >= max_retries:
-            logger.error(f"Max retries ({max_retries}) reached for parsing response: {response}")
-            raise Exception(f"Max retries reached for parsing response: {response}")
-
-        extractor = create_extractor(self.parsing_llm, tools=[return_type], tool_choice=return_type.__name__)
         if response is None or response.strip() == "":
             logger.error(f"Empty response for prompt: {prompt}")
-        try:
-            result = extractor.invoke(
-                return_type.extractor_str() + response,
-                config={"callbacks": [MONITORING_CALLBACK, self.agent_monitoring_callback]},
-            )
+
+        def call_once():
+            # Extractor is rebuilt on every attempt — previous trustcall state
+            # may have corrupted attributes (see the tool_call_id bug below).
+            extractor = create_extractor(self.parsing_llm, tools=[return_type], tool_choice=return_type.__name__)
+            try:
+                result = extractor.invoke(
+                    return_type.extractor_str() + response,
+                    config={"callbacks": [MONITORING_CALLBACK, self.agent_monitoring_callback]},
+                )
+            except AttributeError as e:
+                # Trustcall bug: https://github.com/hinthornw/trustcall/issues/47
+                # 'ExtractionState' object has no attribute 'tool_call_id' during validation retry.
+                # Treat as a non-retriable fallback to the Pydantic parser.
+                if "tool_call_id" in str(e):
+                    logger.warning(f"Trustcall bug encountered, falling back to Pydantic parser: {e}")
+                    parser = PydanticOutputParser(pydantic_object=return_type)
+                    return self._try_parse(response, parser)
+                raise
             if "responses" in result and len(result["responses"]) != 0:
                 return return_type.model_validate(result["responses"][0])
             if "messages" in result and len(result["messages"]) != 0:
@@ -358,38 +350,36 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
                 return self._try_parse(message, parser)
             parser = PydanticOutputParser(pydantic_object=return_type)
             return self._try_parse(response, parser)
-        except EmptyExtractorMessageError as e:
-            logger.warning(f"{e} (attempt {attempt + 1}/{max_retries})")
-            return self._parse_response(prompt, response, return_type, max_retries, attempt + 1)
-        except AttributeError as e:
-            # Workaround for trustcall bug: https://github.com/hinthornw/trustcall/issues/47
-            # 'ExtractionState' object has no attribute 'tool_call_id' occurs during validation retry
-            if "tool_call_id" in str(e):
-                logger.warning(f"Trustcall bug encountered, falling back to Pydantic parser: {e}")
-                parser = PydanticOutputParser(pydantic_object=return_type)
-                return self._try_parse(response, parser)
-            raise
-        except IndexError as e:
-            # try to parse with the json parser if possible
-            logger.warning(f"IndexError while parsing response (attempt {attempt + 1}/{max_retries}): {e}")
-            return self._parse_response(prompt, response, return_type, max_retries, attempt + 1)
-        except (json.JSONDecodeError, ValueError) as e:
-            logger.warning(f"Parse error (attempt {attempt + 1}/{max_retries}): {e}")
-            return self._parse_response(prompt, response, return_type, max_retries, attempt + 1)
-        except ResourceExhausted as e:
-            # Parsing uses exponential backoff for rate limits
-            if attempt < max_retries - 1:
-                # Exponential backoff: 30s * 2^attempt, capped at 300s
-                delay = min(30 * (2**attempt), 300)
-                logger.warning(
-                    f"ResourceExhausted during parsing (rate limit): {e}\n"
-                    f"Retrying in {delay}s... (attempt {attempt + 1}/{max_retries})"
+
+        def classify(exc: Exception, attempt: int) -> RetryDecision:
+            if isinstance(exc, ResourceExhausted):
+                return RetryDecision(
+                    action=RetryAction.RETRY,
+                    backoff_s=default_backoff(attempt, initial_s=30.0, multiplier=2.0, max_s=300.0),
                 )
-                time.sleep(delay)
-                return self._parse_response(prompt, response, return_type, max_retries, attempt + 1)
-            else:
-                logger.error(f"Resource exhausted on final parsing attempt: {e}")
-                raise
+            if isinstance(exc, (EmptyExtractorMessageError, IndexError, json.JSONDecodeError, ValueError)):
+                return RetryDecision(action=RetryAction.RETRY_NOW)
+            # AttributeError (non-tool_call_id) and any other exception: give up.
+            return RetryDecision(action=RetryAction.GIVE_UP)
+
+        def on_exhausted(exc: Exception):
+            # Preserve historic shape: ResourceExhausted surfaces the original exception;
+            # parse-error exhaustion wraps with a descriptive message naming the response.
+            if isinstance(exc, ResourceExhausted):
+                logger.error(f"Resource exhausted on final parsing attempt: {exc}")
+                raise exc
+            logger.error(f"Max retries ({max_retries}) reached for parsing response: {response}")
+            raise Exception(f"Max retries reached for parsing response: {response}")
+
+        # ``attempt`` kwarg kept for backwards-compat with callers that passed it;
+        # the effective attempt count is ``max_retries - attempt``.
+        return with_retries(
+            call_once,
+            max_attempts=max(1, max_retries - attempt),
+            classify=classify,
+            on_exhausted=on_exhausted,
+            log_prefix="Parse response",
+        )
 
     def _try_parse(self, message_content, parser):
         try:

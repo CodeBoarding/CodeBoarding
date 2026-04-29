@@ -7,7 +7,7 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 
 from repo_utils.ignore import RepoIgnoreManager
-from static_analyzer.constants import NodeType
+from static_analyzer.constants import LANGUAGE_EXTENSIONS, Language, NodeType
 from static_analyzer.engine.lsp_client import LSPClient
 from static_analyzer.engine.lsp_constants import (
     CALLABLE_KINDS,
@@ -29,8 +29,21 @@ class LanguageAdapter(ABC):
 
     @property
     @abstractmethod
+    def language_enum(self) -> Language:
+        """The :class:`Language` enum member this adapter handles.
+
+        Drives :attr:`file_extensions` via ``LANGUAGE_EXTENSIONS`` so the
+        per-language extension set lives in exactly one place.
+        """
+
+    @property
     def file_extensions(self) -> tuple[str, ...]:
-        """File extensions for this language (e.g., ('.py',))."""
+        """File extensions for this language.
+
+        Derived from ``LANGUAGE_EXTENSIONS[self.language_enum]`` — override
+        only if a subclass needs a narrower set than the canonical one.
+        """
+        return LANGUAGE_EXTENSIONS[self.language_enum]
 
     @property
     @abstractmethod

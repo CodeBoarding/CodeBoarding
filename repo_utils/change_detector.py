@@ -1,26 +1,25 @@
+"""Domain model for git-diff-derived changes.
+
+Pure data + methods, no I/O. Produced by :func:`repo_utils.diff_parser.detect_changes`,
+consumed by the incremental analysis pipeline:
+
+- file-level accessors: ``added_files``, ``modified_files``, ``deleted_files``,
+  ``renames``, ``file_status(path)``
+- per-file drill-down: ``get_file(path)`` -> :class:`FileChange` with hunks, and
+  ``FileChange.classify_method_statuses(methods, prev_methods)`` for method-level status.
 """
-Rename-aware change detection using git.
 
-This module provides enhanced change detection that properly tracks:
-- File renames (with similarity percentage)
-- File modifications
-- Added/deleted files
-- Copy detection
+from __future__ import annotations
 
-Uses `git diff --name-status -M -C` for accurate rename tracking.
-"""
-
-import logging
-import subprocess
 from dataclasses import dataclass, field
 from enum import Enum
-from pathlib import Path
 
-logger = logging.getLogger(__name__)
+from agents.agent_responses import MethodEntry
+from agents.change_status import ChangeStatus
 
 
 class ChangeType(Enum):
-    """Git change status types."""
+    """Git diff status codes."""
 
     ADDED = "A"
     COPIED = "C"
@@ -31,264 +30,282 @@ class ChangeType(Enum):
     UNMERGED = "U"
     UNKNOWN = "X"
 
+    @classmethod
+    def from_status_code(cls, code: str) -> ChangeType:
+        try:
+            return cls(code.upper())
+        except ValueError:
+            return cls.UNKNOWN
+
 
 @dataclass
-class DetectedChange:
-    """A detected file change with rename tracking."""
+class DiffHunk:
+    """One unified-diff hunk with its body lines."""
 
-    change_type: ChangeType
-    file_path: str  # Current/new path
-    old_path: str | None = None  # For renames/copies: the original path
-    similarity: int | None = None  # For renames/copies: 0-100%
+    old_start: int
+    old_count: int
+    new_start: int
+    new_count: int
+    lines: list[str] = field(default_factory=list)
+
+
+@dataclass
+class ChangedLineRanges:
+    """Line-range classification for one file's diff.
+
+    ``added`` and ``changed`` are in new-file coordinates; ``deletions``
+    are in **old-file** coordinates (pure-deletion lines don't exist in the
+    new file, so there is no correct new-file position for them).
+    """
+
+    added: list[tuple[int, int]] = field(default_factory=list)
+    changed: list[tuple[int, int]] = field(default_factory=list)
+    deletions: list[tuple[int, int]] = field(default_factory=list)
+
+
+@dataclass
+class FileChange:
+    """One file's worth of change data from a git diff."""
+
+    status_code: str
+    file_path: str
+    old_path: str | None = None
+    similarity: int | None = None
+    patch_text: str = ""
+    hunks: list[DiffHunk] = field(default_factory=list)
+
+    @property
+    def change_type(self) -> ChangeType:
+        return ChangeType.from_status_code(self.status_code)
 
     def is_rename(self) -> bool:
         return self.change_type == ChangeType.RENAMED
 
     def is_content_change(self) -> bool:
-        """Returns True if file content was modified (not just metadata/rename)."""
+        """True if file content was modified (not just metadata/rename)."""
         return self.change_type in (ChangeType.MODIFIED, ChangeType.ADDED)
 
     def is_structural(self) -> bool:
-        """Returns True if this affects file existence (add/delete)."""
+        """True if this affects file existence (add/delete)."""
         return self.change_type in (ChangeType.ADDED, ChangeType.DELETED)
+
+    def changed_line_ranges(self) -> ChangedLineRanges:
+        """Classify this file's hunk bodies into added / changed / deletion ranges.
+
+        Why: a hunk header's ``new_count`` includes context lines, so a single
+        hunk spanning two change islands over-reports the touched range.
+        Walking +/-/space lines flushes a segment on every context line,
+        yielding the true changed ranges.
+
+        ``added`` and ``changed`` are in new-file coordinates; ``deletions``
+        are in old-file coordinates.  Mixed segments (both ``+`` and ``-``
+        lines without an intervening context line) are split: the first
+        ``minus_count`` new-file lines become ``changed`` (replacement) and
+        any excess become ``added`` (pure addition).
+        """
+        added: list[tuple[int, int]] = []
+        changed: list[tuple[int, int]] = []
+        deletions: list[tuple[int, int]] = []
+
+        for hunk in self.hunks:
+            new_line = hunk.new_start
+            old_line = hunk.old_start
+            segment_new_start: int | None = None
+            segment_old_start: int | None = None
+            plus_count = 0
+            minus_count = 0
+
+            def _flush() -> None:
+                nonlocal segment_new_start, segment_old_start, plus_count, minus_count
+                if plus_count and segment_new_start is not None:
+                    if minus_count:
+                        replace_count = min(plus_count, minus_count)
+                        changed.append((segment_new_start, segment_new_start + replace_count - 1))
+                        if plus_count > replace_count:
+                            added.append(
+                                (
+                                    segment_new_start + replace_count,
+                                    segment_new_start + plus_count - 1,
+                                )
+                            )
+                        if minus_count > replace_count and segment_old_start is not None:
+                            deletions.append(
+                                (
+                                    segment_old_start + replace_count,
+                                    segment_old_start + minus_count - 1,
+                                )
+                            )
+                    else:
+                        added.append((segment_new_start, segment_new_start + plus_count - 1))
+                elif minus_count and segment_old_start is not None:
+                    deletions.append((segment_old_start, segment_old_start + minus_count - 1))
+                segment_new_start = None
+                segment_old_start = None
+                plus_count = 0
+                minus_count = 0
+
+            for line in hunk.lines:
+                if not line:
+                    _flush()
+                    continue
+                prefix = line[0]
+                if prefix == " ":
+                    _flush()
+                    new_line += 1
+                    old_line += 1
+                elif prefix == "-":
+                    if segment_old_start is None:
+                        segment_old_start = old_line
+                    minus_count += 1
+                    old_line += 1
+                elif prefix == "+":
+                    if segment_new_start is None:
+                        segment_new_start = new_line
+                    plus_count += 1
+                    new_line += 1
+                elif prefix == "\\":
+                    continue
+                else:
+                    _flush()
+
+            _flush()
+
+        return ChangedLineRanges(added=added, changed=changed, deletions=deletions)
+
+    def classify_method_statuses(
+        self,
+        methods: list[MethodEntry],
+        prev_methods: list[MethodEntry] | None = None,
+    ) -> dict[str, ChangeStatus]:
+        """Per-method ``ChangeStatus`` for *methods*, given this file's hunks.
+
+        Called after :meth:`ChangeSet.file_status` says the file is MODIFIED.
+        For ADDED / DELETED files the caller marks all methods wholesale
+        without needing hunks.
+
+        *prev_methods*, when provided, carry old-file line numbers and are
+        checked against old-file ``deletions`` ranges: a surviving method
+        whose previous position overlaps pure-deletion lines is promoted
+        from UNCHANGED to MODIFIED.
+        """
+        if not self.hunks:
+            return {m.qualified_name: ChangeStatus.UNCHANGED for m in methods}
+
+        ranges = self.changed_line_ranges()
+        statuses: dict[str, ChangeStatus] = {}
+        for method in methods:
+            if _overlaps(method, ranges.changed):
+                statuses[method.qualified_name] = ChangeStatus.MODIFIED
+            elif _fully_inside(method, ranges.added):
+                statuses[method.qualified_name] = ChangeStatus.ADDED
+            elif _overlaps(method, ranges.added):
+                statuses[method.qualified_name] = ChangeStatus.MODIFIED
+            else:
+                statuses[method.qualified_name] = ChangeStatus.UNCHANGED
+
+        if prev_methods and ranges.deletions:
+            current_names = {m.qualified_name for m in methods}
+            for prev in prev_methods:
+                if (
+                    prev.qualified_name in current_names
+                    and statuses.get(prev.qualified_name) == ChangeStatus.UNCHANGED
+                    and _overlaps(prev, ranges.deletions)
+                ):
+                    statuses[prev.qualified_name] = ChangeStatus.MODIFIED
+
+        return statuses
 
 
 @dataclass
 class ChangeSet:
-    """Collection of detected changes with helper methods."""
+    """The set of file changes detected between two git refs.
 
-    changes: list[DetectedChange] = field(default_factory=list)
-    base_ref: str = ""
-    target_ref: str = "HEAD"
+    Built from ``git diff --raw`` output by :func:`repo_utils.diff_parser.detect_changes`.
+    Empty ``files`` + non-None ``error`` means the diff invocation failed —
+    callers check ``error`` first.
+    """
 
-    @property
-    def renames(self) -> dict[str, str]:
-        """Get rename mapping: old_path -> new_path."""
-        return {c.old_path: c.file_path for c in self.changes if c.is_rename() and c.old_path}
+    base_ref: str
+    target_ref: str
+    files: list[FileChange] = field(default_factory=list)
+    error: str | None = None
 
-    @property
-    def modified_files(self) -> list[str]:
-        """Get list of modified file paths."""
-        return [c.file_path for c in self.changes if c.change_type == ChangeType.MODIFIED]
+    def get_file(self, file_path: str) -> FileChange | None:
+        for file_diff in self.files:
+            if file_diff.file_path == file_path:
+                return file_diff
+        return None
+
+    def is_empty(self) -> bool:
+        return not self.files
 
     @property
     def added_files(self) -> list[str]:
-        """Get list of added file paths."""
-        return [c.file_path for c in self.changes if c.change_type == ChangeType.ADDED]
+        return [f.file_path for f in self.files if f.change_type == ChangeType.ADDED]
+
+    @property
+    def modified_files(self) -> list[str]:
+        return [f.file_path for f in self.files if f.change_type == ChangeType.MODIFIED]
 
     @property
     def deleted_files(self) -> list[str]:
-        """Get list of deleted file paths."""
-        return [c.file_path for c in self.changes if c.change_type == ChangeType.DELETED]
+        return [f.file_path for f in self.files if f.change_type == ChangeType.DELETED]
 
     @property
-    def all_affected_files(self) -> set[str]:
-        """Get all files that were affected (current paths)."""
-        return {c.file_path for c in self.changes}
+    def renames(self) -> dict[str, str]:
+        """old_path -> new_path for rename entries."""
+        return {f.old_path: f.file_path for f in self.files if f.is_rename() and f.old_path}
 
-    @property
-    def all_old_paths(self) -> set[str]:
-        """Get all old paths (for renames)."""
-        return {c.old_path for c in self.changes if c.old_path}
+    def has_renames_or_copies(self) -> bool:
+        return any(f.change_type in (ChangeType.RENAMED, ChangeType.COPIED) for f in self.files)
 
-    def is_empty(self) -> bool:
-        return len(self.changes) == 0
+    def file_status(self, file_path: str) -> ChangeStatus:
+        """Return the ``ChangeStatus`` for *file_path*, or UNCHANGED if unknown.
 
-    def has_structural_changes(self) -> bool:
-        """Returns True if any files were added or deleted."""
-        return any(c.is_structural() for c in self.changes)
+        Why the ``__members__`` lookup: ``ChangeType`` and ``ChangeStatus`` share
+        member names (``ADDED``, ``MODIFIED``, ``DELETED``, ``RENAMED``) but have
+        disjoint string values (``"A"`` vs ``"added"``). Looking up by ``.name``
+        stays correct if either enum grows a new shared member.
+        """
+        fc = self.get_file(file_path)
+        if fc is None:
+            return ChangeStatus.UNCHANGED
+        return ChangeStatus.__members__.get(fc.change_type.name, ChangeStatus.UNCHANGED)
 
-    def has_only_renames(self) -> bool:
-        """Returns True if all changes are pure renames."""
-        return all(c.is_rename() for c in self.changes) and len(self.changes) > 0
-
-
-def detect_changes(
-    repo_dir: Path,
-    base_ref: str,
-    target_ref: str = "HEAD",
-    exclude_patterns: list[str] | None = None,
-    fetch_missing_refs: bool = True,
-) -> ChangeSet:
-    """
-    Detect file changes between two refs using rename-aware git diff.
-
-    Args:
-        repo_dir: Path to the git repository
-        base_ref: Base reference (commit hash, tag, or branch)
-        target_ref: Optional target reference. If provided, compares
-            ``base_ref`` to ``target_ref``. If empty, compares
-            ``base_ref`` to the current working tree (including uncommitted
-            changes).
-        exclude_patterns: List of path patterns to exclude (e.g., [".codeboarding/"])
-
-    Returns:
-        ChangeSet with all detected changes
-
-    Example:
-        changes = detect_changes(repo_path, "abc1234")
-        for rename_old, rename_new in changes.renames.items():
-            logger.info(f"Renamed: {rename_old} -> {rename_new}")
-    """
-    changes: list[DetectedChange] = []
-    target_ref_value = target_ref
-
-    # Default exclusions for analysis output directories
-    if exclude_patterns is None:
-        exclude_patterns = [".codeboarding/", ".codeboarding\\"]
-
-    cmd = [
-        "git",
-        "diff",
-        "--name-status",
-        "-M",
-        "-C",
-        "--find-renames=50%",
-        base_ref,
-    ]
-    if target_ref:
-        cmd.append(target_ref)
-
-    def _run_diff() -> subprocess.CompletedProcess:
-        return subprocess.run(
-            cmd,
-            cwd=repo_dir,
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-
-    try:
-        result = _run_diff()
-    except subprocess.CalledProcessError as e:
-        stderr_lower = (e.stderr or "").lower()
-        if fetch_missing_refs and "bad object" in stderr_lower:
-            logger.warning("Git diff failed due to missing ref (%s); fetching refs and retrying once", e.stderr.strip())
-            try:
-                subprocess.run(
-                    ["git", "fetch", "--all", "--prune", "--tags"],
-                    cwd=repo_dir,
-                    capture_output=True,
-                    text=True,
-                    check=True,
-                )
-                result = _run_diff()
-            except subprocess.CalledProcessError as fetch_err:
-                logger.error(f"Git fetch/diff retry failed: {fetch_err.stderr}")
-                return ChangeSet(changes=changes, base_ref=base_ref, target_ref=target_ref_value)
-        else:
-            logger.error(f"Git diff failed: {e.stderr}")
-            return ChangeSet(changes=changes, base_ref=base_ref, target_ref=target_ref_value)
-    except FileNotFoundError:
-        logger.error("Git not found in PATH")
-        return ChangeSet(changes=changes, base_ref=base_ref, target_ref=target_ref_value)
-
-    for line in result.stdout.strip().split("\n"):
-        if not line:
-            continue
-
-        change = _parse_status_line(line)
-        if change:
-            # Skip excluded patterns
-            should_skip = False
-            for pattern in exclude_patterns:
-                if change.file_path.startswith(pattern):
-                    should_skip = True
-                    break
-                if change.old_path and change.old_path.startswith(pattern):
-                    should_skip = True
-                    break
-
-            if should_skip:
-                logger.debug(f"Skipping excluded path: {change.file_path}")
-                continue
-
-            changes.append(change)
-            logger.debug(f"Detected change: {change.change_type.name} {change.file_path}")
-
-    return ChangeSet(changes=changes, base_ref=base_ref, target_ref=target_ref_value)
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "changes": [
+                {
+                    "change_type": f.status_code,
+                    "file_path": f.file_path,
+                    "old_path": f.old_path,
+                    "similarity": f.similarity,
+                }
+                for f in self.files
+            ],
+            "base_ref": self.base_ref,
+            "target_ref": self.target_ref,
+        }
 
 
-def detect_changes_from_commit(repo_dir: Path, base_commit: str) -> ChangeSet:
-    """
-    Detect changes from a specific commit to current working tree.
-
-    This includes both committed and uncommitted changes.
-    """
-    return detect_changes(repo_dir, base_commit, "")
-
-
-def detect_uncommitted_changes(repo_dir: Path) -> ChangeSet:
-    """
-    Detect only uncommitted changes (staged + unstaged).
-    """
-    return detect_changes(repo_dir, "HEAD", "")
+# ---------------------------------------------------------------------------
+# Method-range helpers (used by FileChange.classify_method_statuses)
+# ---------------------------------------------------------------------------
+def _overlaps(method: MethodEntry, ranges: list[tuple[int, int]]) -> bool:
+    for start, end in ranges:
+        if method.start_line <= end and method.end_line >= start:
+            return True
+    return False
 
 
-def _parse_status_line(line: str) -> DetectedChange | None:
-    """
-    Parse a git diff --name-status line.
-
-    Format examples:
-        M       file.py                     # Modified
-        A       newfile.py                  # Added
-        D       oldfile.py                  # Deleted
-        R100    old.py  new.py              # Renamed (100% similar)
-        R075    old.py  new.py              # Renamed (75% similar)
-        C100    src.py  copy.py             # Copied
-
-    Returns DetectedChange or None if parsing fails.
-    """
-    parts = line.split("\t")
-    if len(parts) < 2:
-        return None
-
-    status = parts[0]
-    status_char = status[0].upper()
-
-    try:
-        change_type = ChangeType(status_char)
-    except ValueError:
-        logger.warning(f"Unknown git status: {status_char}")
-        return None
-
-    # Handle renames and copies (have similarity percentage and two paths)
-    if change_type in (ChangeType.RENAMED, ChangeType.COPIED):
-        if len(parts) < 3:
-            return None
-
-        # Extract similarity percentage (e.g., "R100" -> 100)
-        similarity = None
-        if len(status) > 1:
-            try:
-                similarity = int(status[1:])
-            except ValueError:
-                pass
-
-        return DetectedChange(
-            change_type=change_type,
-            file_path=parts[2],  # New path
-            old_path=parts[1],  # Old path
-            similarity=similarity,
-        )
-
-    # Simple change (A, M, D, T)
-    return DetectedChange(
-        change_type=change_type,
-        file_path=parts[1],
-    )
-
-
-def get_current_commit(repo_dir: Path) -> str | None:
-    """Get the current HEAD commit hash."""
-    try:
-        result = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
-            cwd=repo_dir,
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        return result.stdout.strip()
-    except subprocess.CalledProcessError:
-        return None
+def _fully_inside(method: MethodEntry, ranges: list[tuple[int, int]]) -> bool:
+    if not ranges:
+        return False
+    covered = 0
+    method_len = method.end_line - method.start_line + 1
+    for start, end in ranges:
+        overlap_start = max(method.start_line, start)
+        overlap_end = min(method.end_line, end)
+        if overlap_start <= overlap_end:
+            covered += overlap_end - overlap_start + 1
+    return covered >= method_len

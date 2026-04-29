@@ -22,8 +22,10 @@ class _TestAdapter(LanguageAdapter):
         return "Python"
 
     @property
-    def file_extensions(self) -> tuple[str, ...]:
-        return (".py",)
+    def language_enum(self):
+        from static_analyzer.constants import Language
+
+        return Language.PYTHON
 
     @property
     def lsp_command(self) -> list[str]:

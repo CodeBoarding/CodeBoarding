@@ -27,6 +27,7 @@ from diagram_analysis.analysis_json import (
     build_unified_analysis_json,
     parse_unified_analysis,
 )
+from utils import ANALYSIS_FILENAME
 
 logger = logging.getLogger(__name__)
 
@@ -65,8 +66,8 @@ class _AnalysisFileStore:
     def __init__(self, output_dir: Path) -> None:
         output_dir.mkdir(parents=True, exist_ok=True)
         self._output_dir = output_dir
-        self._analysis_path = output_dir / "analysis.json"
-        self._lock = FileLock(output_dir / "analysis.json.lock", timeout=10)
+        self._analysis_path = output_dir / ANALYSIS_FILENAME
+        self._lock = FileLock(output_dir / f"{ANALYSIS_FILENAME}.lock", timeout=10)
 
     def read(self) -> tuple[AnalysisInsights, dict[str, AnalysisInsights], dict] | None:
         """Load the unified ``analysis.json`` from disk.

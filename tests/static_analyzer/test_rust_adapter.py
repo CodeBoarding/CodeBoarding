@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
+from static_analyzer.constants import Language
 from static_analyzer.engine.adapters import get_adapter
 from static_analyzer.engine.adapters.rust_adapter import RustAdapter, _normalize_parent
 
@@ -18,6 +19,9 @@ class TestRustAdapterProperties:
 
     def test_file_extensions(self):
         assert RustAdapter().file_extensions == (".rs",)
+
+    def test_language_enum(self):
+        assert RustAdapter().language_enum is Language.RUST
 
     def test_lsp_command(self):
         assert RustAdapter().lsp_command == ["rust-analyzer"]

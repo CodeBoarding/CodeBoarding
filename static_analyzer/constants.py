@@ -26,6 +26,37 @@ class Language(StrEnum):
     CPP = "cpp"
 
 
+# File extensions per language. Every ``Language`` member appears here — keep
+# it that way so adding a new language forces you to list its extensions in
+# the same edit. ``mypy`` enforces total coverage via the assertion below.
+LANGUAGE_EXTENSIONS: dict[Language, tuple[str, ...]] = {
+    Language.PYTHON: (".py",),
+    Language.TYPESCRIPT: (".ts", ".tsx", ".mts", ".cts"),
+    Language.JAVASCRIPT: (".js", ".jsx", ".mjs", ".cjs"),
+    Language.GO: (".go",),
+    Language.JAVA: (".java",),
+    Language.PHP: (".php",),
+    Language.RUST: (".rs",),
+    Language.CSHARP: (".cs",),
+    Language.CPP: (".cpp", ".cc", ".cxx", ".hpp", ".hh", ".hxx", ".h"),
+}
+
+# Import-time invariant: every language has an extension list. Cheap check that
+# catches drift when the enum grows without a matching ``LANGUAGE_EXTENSIONS`` entry.
+assert set(LANGUAGE_EXTENSIONS) == set(
+    Language
+), f"LANGUAGE_EXTENSIONS missing: {set(Language) - set(LANGUAGE_EXTENSIONS)}"
+
+# Flattened reverse lookup: extension -> language. Used by the diff boundary
+# (``repo_utils/diff_parser.py``) to filter non-source changes and by
+# ``diagram_analysis.incremental.semantic_diff`` / ``incremental.tracer`` to
+# route files to the right parser. Derived from ``LANGUAGE_EXTENSIONS`` so
+# adding a language in one place updates both.
+SOURCE_EXTENSION_TO_LANGUAGE: dict[str, Language] = {
+    ext: language for language, exts in LANGUAGE_EXTENSIONS.items() for ext in exts
+}
+
+
 class ClusteringConfig:
     """Configuration constants for graph clustering algorithms.
 

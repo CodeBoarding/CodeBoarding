@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from static_analyzer.constants import Language
 from static_analyzer.engine.language_adapter import LanguageAdapter
 
 
@@ -14,8 +15,8 @@ class TypeScriptAdapter(LanguageAdapter):
         return "TypeScript"
 
     @property
-    def file_extensions(self) -> tuple[str, ...]:
-        return (".ts", ".tsx", ".mts", ".cts")
+    def language_enum(self) -> Language:
+        return Language.TYPESCRIPT
 
     @property
     def lsp_command(self) -> list[str]:
@@ -39,8 +40,8 @@ class JavaScriptAdapter(TypeScriptAdapter):
         return "JavaScript"
 
     @property
-    def file_extensions(self) -> tuple[str, ...]:
-        return (".js", ".jsx", ".mjs", ".cjs")
+    def language_enum(self) -> Language:
+        return Language.JAVASCRIPT
 
     @property
     def language_id(self) -> str:

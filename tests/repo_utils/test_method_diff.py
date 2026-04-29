@@ -1,33 +1,26 @@
-"""Tests for repo_utils.method_diff - method-level diff status classification."""
+"""Tests for ``FileChange.classify_method_statuses``."""
 
 import pytest
-from unittest.mock import patch
 
 from agents.agent_responses import MethodEntry
 from agents.change_status import ChangeStatus
-from repo_utils.change_detector import ChangeSet, ChangeType, DetectedChange
-from repo_utils.method_diff import compute_method_statuses_for_file
-
-from pathlib import Path
+from repo_utils.change_detector import DiffHunk, FileChange
 
 
-def _make_changeset(*, modified: list[str] | None = None, base_ref: str = "HEAD~1") -> ChangeSet:
-    changes: list[DetectedChange] = []
-    for f in modified or []:
-        changes.append(DetectedChange(change_type=ChangeType.MODIFIED, file_path=f))
-    return ChangeSet(changes=changes, base_ref=base_ref)
+def _make_file_change(file_path: str, hunks: list[DiffHunk]) -> FileChange:
+    return FileChange(status_code="M", file_path=file_path, hunks=hunks)
 
 
 class TestNewFunctionInMixedHunk:
-    """Reproduce: a hunk that modifies a few existing lines AND adds many new
-    lines should mark a brand-new function (fully inside the added portion) as
-    ADDED, not MODIFIED.
+    """A hunk that modifies a few existing lines AND adds many new lines should
+    mark a brand-new function (fully inside the added portion) as ADDED, not
+    MODIFIED.
 
     Real-world example: ``static_analyzer/cluster_helpers.py`` had a hunk
     ``@@ -42,10 +69,367 @@`` which modified 10 old lines into 367 new lines.
-    ``merge_clusters`` (lines 385-424) is entirely new code, but the current
-    logic puts the whole 69-435 range into ``changed_ranges`` (because
-    ``old_count=10 > 0``), so the function is classified as MODIFIED.
+    A purely header-based classifier (old_count=10 > 0) puts the whole 69-435
+    range into ``changed_ranges``; walking the body flushes per segment and
+    correctly reports the tail ``+``-only run as ``added_ranges``.
     """
 
     @pytest.fixture
@@ -35,32 +28,32 @@ class TestNewFunctionInMixedHunk:
         return "static_analyzer/cluster_helpers.py"
 
     @pytest.fixture
-    def changes(self, file_path: str) -> ChangeSet:
-        return _make_changeset(modified=[file_path])
-
-    @pytest.fixture
-    def hunks(self) -> list[tuple[int, int, int, int]]:
-        # Mimics @@ -42,10 +69,367 @@
-        return [(42, 10, 69, 367)]
+    def mixed_hunk(self) -> DiffHunk:
+        # Lines 69-78 replace the old 42-51 window; lines 79-435 are brand-new.
+        lines: list[str] = []
+        for _ in range(10):
+            lines.append("-old line")
+        for _ in range(10):
+            lines.append("+replacement line")
+        for _ in range(357):
+            lines.append("+brand new line")
+        return DiffHunk(old_start=42, old_count=10, new_start=69, new_count=367, lines=lines)
 
     @pytest.fixture
     def methods(self) -> list[MethodEntry]:
         return [
-            # Existing function that was modified (overlaps with the old 10 lines)
             MethodEntry(
                 qualified_name="cluster_helpers.build_all_cluster_results",
                 start_line=69,
                 end_line=110,
                 node_type="FUNCTION",
             ),
-            # Brand-new function, fully inside the added portion of the hunk
             MethodEntry(
                 qualified_name="cluster_helpers.merge_clusters",
                 start_line=385,
                 end_line=424,
                 node_type="FUNCTION",
             ),
-            # Unchanged function outside the hunk
             MethodEntry(
                 qualified_name="cluster_helpers.get_all_cluster_ids",
                 start_line=440,
@@ -69,29 +62,14 @@ class TestNewFunctionInMixedHunk:
             ),
         ]
 
-    @patch("repo_utils.method_diff._parse_diff_hunks")
-    @pytest.mark.skip(reason="Temporarily ignored until mixed-hunk method classification is fixed")
-    def test_new_function_in_mixed_hunk_is_added(self, mock_parse, methods, file_path, changes, hunks):
-        mock_parse.return_value = hunks
-
-        by_name = compute_method_statuses_for_file(methods, file_path, changes, Path("/fake/repo"))
-
-        # merge_clusters is entirely new code – it should be ADDED
+    def test_new_function_in_mixed_hunk_is_added(self, methods, file_path, mixed_hunk):
+        by_name = _make_file_change(file_path, [mixed_hunk]).classify_method_statuses(methods)
         assert by_name["cluster_helpers.merge_clusters"] == ChangeStatus.ADDED
 
-    @patch("repo_utils.method_diff._parse_diff_hunks")
-    def test_modified_function_in_mixed_hunk_is_modified(self, mock_parse, methods, file_path, changes, hunks):
-        mock_parse.return_value = hunks
-
-        by_name = compute_method_statuses_for_file(methods, file_path, changes, Path("/fake/repo"))
-
-        # build_all_cluster_results overlaps the replaced portion – should be MODIFIED
+    def test_modified_function_in_mixed_hunk_is_modified(self, methods, file_path, mixed_hunk):
+        by_name = _make_file_change(file_path, [mixed_hunk]).classify_method_statuses(methods)
         assert by_name["cluster_helpers.build_all_cluster_results"] == ChangeStatus.MODIFIED
 
-    @patch("repo_utils.method_diff._parse_diff_hunks")
-    def test_unchanged_function_outside_hunk(self, mock_parse, methods, file_path, changes, hunks):
-        mock_parse.return_value = hunks
-
-        by_name = compute_method_statuses_for_file(methods, file_path, changes, Path("/fake/repo"))
-
+    def test_unchanged_function_outside_hunk(self, methods, file_path, mixed_hunk):
+        by_name = _make_file_change(file_path, [mixed_hunk]).classify_method_statuses(methods)
         assert by_name["cluster_helpers.get_all_cluster_ids"] == ChangeStatus.UNCHANGED

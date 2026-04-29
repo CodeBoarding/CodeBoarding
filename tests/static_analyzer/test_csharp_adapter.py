@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from static_analyzer.constants import NodeType
+from static_analyzer.constants import Language, NodeType
 from static_analyzer.engine.adapters.csharp_adapter import CSharpAdapter
 
 
@@ -61,6 +61,9 @@ class TestCSharpAdapterProperties:
     def test_file_extensions(self):
         adapter = CSharpAdapter()
         assert adapter.file_extensions == (".cs",)
+
+    def test_language_enum(self):
+        assert CSharpAdapter().language_enum is Language.CSHARP
 
     def test_lsp_command(self):
         adapter = CSharpAdapter()

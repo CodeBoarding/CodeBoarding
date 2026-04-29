@@ -5,8 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 
 from repo_utils.ignore import RepoIgnoreManager
+from static_analyzer.constants import Language, NodeType
 from static_analyzer.engine.language_adapter import LanguageAdapter
-from static_analyzer.constants import NodeType
 
 
 class PHPAdapter(LanguageAdapter):
@@ -16,8 +16,8 @@ class PHPAdapter(LanguageAdapter):
         return "PHP"
 
     @property
-    def file_extensions(self) -> tuple[str, ...]:
-        return (".php",)
+    def language_enum(self) -> Language:
+        return Language.PHP
 
     @property
     def lsp_command(self) -> list[str]:

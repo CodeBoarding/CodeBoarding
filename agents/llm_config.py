@@ -308,14 +308,18 @@ def _resolve_active_provider(
     return None
 
 
+class LLMConfigError(ValueError):
+    """Raised when LLM provider keys are missing or ambiguous."""
+
+
 def validate_api_key_provided() -> None:
-    """Raise ValueError if zero or more than one LLM provider key is configured."""
+    """Raise LLMConfigError if zero or more than one LLM provider key is configured."""
     active = [name for name, config in LLM_PROVIDERS.items() if config.is_active()]
     if not active:
         required = sorted({config.api_key_env for config in LLM_PROVIDERS.values()})
-        raise ValueError(f"No LLM provider API key found. Set one of: {', '.join(required)}")
+        raise LLMConfigError(f"No LLM provider API key found. Set one of: {', '.join(required)}")
     if len(active) > 1:
-        raise ValueError(f"Multiple LLM provider keys detected ({', '.join(active)}); please set only one.")
+        raise LLMConfigError(f"Multiple LLM provider keys detected ({', '.join(active)}); please set only one.")
 
 
 def initialize_agent_llm(model_override: str | None = None) -> BaseChatModel:
@@ -347,3 +351,12 @@ def initialize_llms() -> tuple[BaseChatModel, BaseChatModel]:
     agent_llm = initialize_agent_llm(_agent_model_override or os.getenv("AGENT_MODEL"))
     parsing_llm = initialize_parsing_llm(_parsing_model_override or os.getenv("PARSING_MODEL"))
     return agent_llm, parsing_llm
+
+
+def supports_prompt_caching(llm: BaseChatModel) -> bool:
+    """Return True when *llm* supports ephemeral prompt caching.
+
+    Only Anthropic's langchain integration exposes ``cache_control`` blocks
+    today; other providers either cache transparently or not at all.
+    """
+    return llm.__class__.__module__.startswith("langchain_anthropic")

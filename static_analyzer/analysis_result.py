@@ -4,6 +4,7 @@ import pickle
 import re
 import sys
 import tempfile
+from collections.abc import Iterator
 from pathlib import Path
 
 from static_analyzer.graph import CallGraph
@@ -409,6 +410,43 @@ class StaticAnalysisResults:
         :return: A list of programming languages.
         """
         return list(self.results.keys())
+
+    def resolve_across_languages(self, qualified_name: str) -> Node | None:
+        """Resolve *qualified_name* against every stored language.
+
+        Tries ``get_reference`` first, falling back to ``get_loose_reference``
+        within each language before moving on. Returns the first match, or
+        ``None`` if no language knows the name. Hides the common
+        try-exact-then-loose pattern that several callers re-implement.
+        """
+        for lang in self.get_languages():
+            try:
+                return self.get_reference(lang, qualified_name)
+            except (ValueError, FileExistsError):
+                _, node = self.get_loose_reference(lang, qualified_name)
+                if node is not None:
+                    return node
+        return None
+
+    def iter_reference_nodes(self, language: str | None = None) -> Iterator[Node]:
+        """Yield every stored reference as a ``Node``, hiding the storage shape.
+
+        Why: ``add_references`` stores a dict keyed by qualified name, but
+        ``incremental_orchestrator`` can merge caches that use a list. Callers
+        shouldn't have to branch on that; they just want Nodes.
+        """
+        languages = [language] if language is not None else self.get_languages()
+        for lang in languages:
+            references = self.results.get(lang, {}).get("references", {})
+            if isinstance(references, dict):
+                ref_values = references.values()
+            elif isinstance(references, list):
+                ref_values = references
+            else:
+                continue
+            for node in ref_values:
+                if isinstance(node, Node):
+                    yield node
 
     def add_source_files(self, language: str, source_files):
         """

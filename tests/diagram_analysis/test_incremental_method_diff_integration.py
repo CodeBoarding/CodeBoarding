@@ -14,8 +14,8 @@ from agents.agent_responses import (
     MethodEntry,
     assign_component_ids,
 )
-from diagram_analysis.incremental_updater import IncrementalUpdater
-from repo_utils.change_detector import detect_uncommitted_changes
+from diagram_analysis.incremental.updater import IncrementalUpdater
+from repo_utils.diff_parser import detect_changes
 
 
 def _git(repo: Path, *args: str) -> None:
@@ -103,18 +103,13 @@ def test_incremental_delta_reports_added_modified_deleted_in_single_file():
         def resolver(rel_path: str) -> list[MethodEntry]:
             return current_methods.get(rel_path, [])
 
-        changes = detect_uncommitted_changes(repo)
+        change_set = detect_changes(repo, "HEAD", target_ref="")
         updater = IncrementalUpdater(
             analysis,
             symbol_resolver=resolver,
-            repo_dir=repo,
+            change_set=change_set,
         )
-        delta = updater.compute_delta(
-            added_files=changes.added_files,
-            modified_files=changes.modified_files,
-            deleted_files=changes.deleted_files,
-            changes=changes,
-        )
+        delta = updater.compute_delta()
 
         file_delta = next(fd for fd in delta.file_deltas if fd.file_path == "src/utils.py")
         assert file_delta.file_status == "modified"
