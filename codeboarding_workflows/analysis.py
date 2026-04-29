@@ -25,6 +25,7 @@ def _build_generator(
     log_path: str,
     depth_level: int = 1,
     monitoring_enabled: bool = False,
+    static_analyzer=None,
 ) -> DiagramGenerator:
     return DiagramGenerator(
         repo_location=repo_path,
@@ -35,6 +36,7 @@ def _build_generator(
         run_id=run_id,
         log_path=log_path,
         monitoring_enabled=monitoring_enabled,
+        static_analyzer=static_analyzer,
     )
 
 
@@ -130,6 +132,7 @@ def run_incremental(
     target_ref: str,
     depth_level: int = 1,
     monitoring_enabled: bool = False,
+    static_analyzer=None,
 ) -> IncrementalRunPayload:
     """Incremental scope — diff against *base_ref* and propagate only the semantic deltas."""
     generator = _build_generator(
@@ -140,5 +143,6 @@ def run_incremental(
         log_path=log_path,
         depth_level=depth_level,
         monitoring_enabled=monitoring_enabled,
+        static_analyzer=static_analyzer,
     )
     return run_incremental_pipeline(generator, base_ref=base_ref, target_ref=target_ref)
