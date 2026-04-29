@@ -137,11 +137,24 @@ def compute_method_statuses_for_file(
                 if new_start > 0:
                     deletion_points.append((new_start, new_start))
                 continue
-            new_range = (new_start, new_start + new_count - 1)
             if old_count == 0:
+                new_range = (new_start, new_start + new_count - 1)
                 added_ranges.append(new_range)
-            else:
-                changed_ranges.append(new_range)
+                continue
+
+            overlap_count = min(old_count, new_count)
+            if overlap_count > 0:
+                changed_ranges.append((new_start, new_start + overlap_count - 1))
+
+            if new_count > old_count:
+                added_start = new_start + overlap_count
+                added_end = new_start + new_count - 1
+                if added_start <= added_end:
+                    added_ranges.append((added_start, added_end))
+
+            if old_count > new_count:
+                deletion_line = new_start + overlap_count
+                deletion_points.append((deletion_line, deletion_line))
 
         for method in methods:
             if _method_overlaps_ranges(method, changed_ranges):

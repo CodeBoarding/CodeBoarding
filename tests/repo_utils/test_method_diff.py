@@ -70,7 +70,6 @@ class TestNewFunctionInMixedHunk:
         ]
 
     @patch("repo_utils.method_diff._parse_diff_hunks")
-    @pytest.mark.skip(reason="Temporarily ignored until mixed-hunk method classification is fixed")
     def test_new_function_in_mixed_hunk_is_added(self, mock_parse, methods, file_path, changes, hunks):
         mock_parse.return_value = hunks
 

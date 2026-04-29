@@ -5,6 +5,7 @@ import shutil
 from pathlib import Path
 
 from agents.agent_responses import AnalysisInsights
+from codeboarding_workflows.incremental import run_incremental_workflow
 from diagram_analysis import DiagramGenerator
 from diagram_analysis.analysis_json import build_id_to_name_map, parse_unified_analysis
 from output_generators.html import generate_html_file
@@ -155,7 +156,7 @@ def generate_analysis(
     )
 
     # Use smart analysis: tries incremental first, falls back to full
-    analysis_path = generator.generate_analysis_smart()
+    analysis_path = run_incremental_workflow(generator)
 
     # Now generate the output docs:
     match extension:

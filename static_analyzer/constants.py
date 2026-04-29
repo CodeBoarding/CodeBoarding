@@ -26,6 +26,22 @@ class Language(StrEnum):
     CPP = "cpp"
 
 
+SOURCE_EXTENSION_TO_LANGUAGE: dict[str, Language] = {
+    ".py": Language.PYTHON,
+    ".js": Language.JAVASCRIPT,
+    ".jsx": Language.JAVASCRIPT,
+    ".mjs": Language.JAVASCRIPT,
+    ".cjs": Language.JAVASCRIPT,
+    ".ts": Language.TYPESCRIPT,
+    ".tsx": Language.TYPESCRIPT,
+    ".mts": Language.TYPESCRIPT,
+    ".cts": Language.TYPESCRIPT,
+    ".go": Language.GO,
+    ".java": Language.JAVA,
+    ".php": Language.PHP,
+}
+
+
 class ClusteringConfig:
     """Configuration constants for graph clustering algorithms.
 

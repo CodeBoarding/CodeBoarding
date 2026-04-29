@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import time
+from collections import defaultdict
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from contextlib import nullcontext
 from datetime import datetime, timezone
@@ -9,9 +10,9 @@ from pathlib import Path
 from typing import Any
 
 from agents.abstraction_agent import AbstractionAgent
-from agents.agent_responses import AnalysisInsights, Component
+from agents.agent_responses import AnalysisInsights, Component, MethodEntry
 from agents.details_agent import DetailsAgent
-from agents.llm_config import initialize_llms
+from agents.llm_config import MONITORING_CALLBACK, initialize_llms
 from agents.meta_agent import MetaAgent
 from agents.planner_agent import get_expandable_components
 from diagram_analysis.analysis_json import (
@@ -20,14 +21,23 @@ from diagram_analysis.analysis_json import (
     NotAnalyzedFile,
 )
 from diagram_analysis.file_coverage import FileCoverage
+from diagram_analysis.incremental_tracer import run_trace
+from diagram_analysis.incremental_updater import IncrementalUpdater, apply_delta
 from diagram_analysis.io_utils import save_analysis
+from diagram_analysis.scope_planner import (
+    apply_patch_scopes,
+    build_ownership_index,
+    derive_patch_scopes,
+    normalize_changes_for_delta,
+    pick_component_for_file,
+)
 from diagram_analysis.version import Version
 from health.config import initialize_health_dir, load_health_config
 from health.runner import run_health_checks
 from monitoring import StreamingStatsWriter
 from monitoring.mixin import MonitoringMixin
 from monitoring.paths import get_monitoring_run_dir
-from repo_utils import get_git_commit_hash, get_repo_state_hash
+from repo_utils import get_git_commit_hash
 from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer import StaticAnalyzer, get_static_analysis
 from static_analyzer.analysis_result import StaticAnalysisResults
@@ -272,6 +282,7 @@ class DiagramGenerator:
 
         expanded_components: list[Component] = []
         sub_analyses: dict[str, AnalysisInsights] = {}
+        commit_hash = get_git_commit_hash(self.repo_location)
 
         # Group stats to avoid cluttering the local variable scope
         stats = {"submitted": 0, "completed": 0, "saves": 0, "errors": 0}
@@ -316,6 +327,7 @@ class DiagramGenerator:
                                 output_dir=Path(self.output_dir),
                                 sub_analyses=sub_analyses,
                                 repo_name=self.repo_name,
+                                commit_hash=commit_hash,
                             )
 
                         if new_components and level + 1 < self.depth_level:
@@ -382,6 +394,7 @@ class DiagramGenerator:
                 sub_analyses=sub_analyses,
                 repo_name=self.repo_name,
                 file_coverage_summary=file_coverage_summary,
+                commit_hash=get_git_commit_hash(self.repo_location),
             ).resolve()
 
             logger.info(f"Analysis complete. Written unified analysis to {analysis_path}")
@@ -391,6 +404,120 @@ class DiagramGenerator:
 
             return analysis_path
 
-    def generate_analysis_smart(self) -> Path:
-        """Run full analysis."""
-        return self.generate_analysis()
+    @staticmethod
+    def _normalize_repo_path(path: str) -> str:
+        posix = path.replace("\\", "/")
+        while posix.startswith("./"):
+            posix = posix[2:]
+        return posix
+
+    def _collect_method_entries_from_static_analysis(self) -> dict[str, list]:
+        assert self.static_analysis is not None
+        methods_by_file: dict[str, list[MethodEntry]] = defaultdict(list)
+
+        for language in self.static_analysis.get_languages():
+            try:
+                cfg = self.static_analysis.get_cfg(language)
+            except ValueError:
+                continue
+
+            for node in cfg.nodes.values():
+                if node.is_callback_or_anonymous():
+                    continue
+                if not (node.is_callable() or node.is_class()):
+                    continue
+                try:
+                    file_path = Path(node.file_path).resolve().relative_to(self.repo_location.resolve()).as_posix()
+                except ValueError:
+                    file_path = self._normalize_repo_path(node.file_path)
+
+                methods_by_file[file_path].append(
+                    MethodEntry(
+                        qualified_name=node.fully_qualified_name,
+                        start_line=node.line_start,
+                        end_line=node.line_end,
+                        node_type=node.type.name,
+                    )
+                )
+
+        for file_path, methods in methods_by_file.items():
+            methods.sort(key=lambda method: (method.start_line, method.end_line, method.qualified_name))
+            methods_by_file[file_path] = methods
+
+        return methods_by_file
+
+    def _build_file_coverage_summary(self) -> FileCoverageSummary | None:
+        if not self.file_coverage_data:
+            return None
+        summary = self.file_coverage_data["summary"]
+        return FileCoverageSummary(
+            total_files=summary["total_files"],
+            analyzed=summary["analyzed"],
+            not_analyzed=summary["not_analyzed"],
+            not_analyzed_by_reason=summary["not_analyzed_by_reason"],
+        )
+
+    def generate_analysis_incremental(
+        self,
+        root_analysis: AnalysisInsights,
+        sub_analyses: dict[str, AnalysisInsights],
+        base_ref: str,
+        changes,
+    ) -> Path:
+        if self.static_analysis is None:
+            self.pre_analysis()
+        assert self.static_analysis is not None
+
+        ownership_index = build_ownership_index(root_analysis, sub_analyses)
+        added_files, modified_files, deleted_files, rename_map = normalize_changes_for_delta(changes)
+        methods_by_file = self._collect_method_entries_from_static_analysis()
+
+        updater = IncrementalUpdater(
+            analysis=root_analysis,
+            symbol_resolver=lambda file_path: methods_by_file.get(self._normalize_repo_path(file_path), []),
+            repo_dir=self.repo_location,
+            component_resolver=lambda file_path: pick_component_for_file(file_path, ownership_index, rename_map),
+        )
+        delta = updater.compute_delta(
+            added_files=added_files,
+            modified_files=modified_files,
+            deleted_files=deleted_files,
+            changes=changes,
+        )
+
+        root_analysis, sub_analyses = apply_delta(root_analysis, sub_analyses, delta)
+
+        _, parsing_llm = initialize_llms()
+        callbacks = [MONITORING_CALLBACK]
+        cfgs = {
+            language: self.static_analysis.get_cfg(language)
+            for language in self.static_analysis.get_languages()
+            if self.static_analysis.get_source_files(language)
+        }
+        trace_result = run_trace(
+            delta,
+            cfgs,
+            self.static_analysis,
+            self.repo_location,
+            base_ref,
+            parsing_llm,
+            parsed_diff=getattr(changes, "parsed_diff", None),
+            callbacks=callbacks,
+        )
+
+        patch_scopes = derive_patch_scopes(trace_result, root_analysis, sub_analyses, ownership_index, rename_map)
+        if patch_scopes:
+            root_analysis, sub_analyses = apply_patch_scopes(
+                root_analysis, sub_analyses, patch_scopes, parsing_llm, callbacks
+            )
+
+        analysis_path = save_analysis(
+            analysis=root_analysis,
+            output_dir=Path(self.output_dir),
+            sub_analyses=sub_analyses,
+            repo_name=self.repo_name,
+            file_coverage_summary=self._build_file_coverage_summary(),
+            commit_hash=get_git_commit_hash(self.repo_location),
+        ).resolve()
+        self._write_file_coverage()
+        return analysis_path

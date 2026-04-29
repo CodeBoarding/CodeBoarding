@@ -9,6 +9,7 @@ import requests
 from tqdm import tqdm
 
 from agents.llm_config import configure_models, validate_api_key_provided
+from codeboarding_workflows.incremental import run_incremental_workflow
 from user_config import ensure_config_template, load_user_config
 from core import get_registries, load_plugins
 from diagram_analysis import DiagramGenerator, RunContext
@@ -304,7 +305,7 @@ def process_local_repository(
         generator.force_full_analysis = force_full
 
         # Try incremental first, fall back to full
-        result = generator.generate_analysis_smart()
+        result = run_incremental_workflow(generator)
         logger.info(f"Analysis completed: {result}")
         return
 
