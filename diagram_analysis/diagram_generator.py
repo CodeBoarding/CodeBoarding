@@ -179,7 +179,7 @@ class DiagramGenerator:
 
         def get_static_with_injected_analyzer() -> StaticAnalysisResults:
             cache_dir = None if self.force_full_analysis else get_cache_dir(self.repo_location)
-            return self._get_static_from_injected_analyzer(cache_dir, skip_cache=self.force_full_analysis)
+            return self._get_static_from_injected_analyzer(cache_dir, skip_cache=True)
 
         def get_static_with_new_analyzer() -> StaticAnalysisResults:
             skip_cache = self.force_full_analysis
