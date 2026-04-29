@@ -1,9 +1,4 @@
-"""Pure helpers for incremental scope planning.
-
-These functions take ``AnalysisInsights`` + ``ChangeSet`` + ``TraceResult`` data
-and produce ``PatchScope`` lists or apply patches. They have no dependency on
-``DiagramGenerator`` state, which keeps them unit-testable from fixtures.
-"""
+"""Pure helpers for routing trace results into ``PatchScope`` lists."""
 
 from collections import defaultdict
 from pathlib import Path
@@ -28,8 +23,8 @@ def build_ownership_index(
 
     for scope_id, analysis in scopes:
         for component in analysis.components:
-            # Root scope (None) iterates first; preserve its assignment when sub-analyses
-            # repeat the same component_id so patches route to the root scope.
+            # Why: root iterates first; sub-analyses that repeat a component_id must not
+            # redirect patches away from the root scope.
             component_to_scope.setdefault(component.component_id, scope_id)
             for group in component.file_methods:
                 file_to_components[group.file_path].add(component.component_id)
@@ -219,7 +214,6 @@ def apply_patch_scopes(
 ) -> tuple[AnalysisInsights, dict[str, AnalysisInsights]]:
     patched_root = root_analysis
     patched_sub_analyses = dict(sub_analyses)
-    failed_scopes: list[PatchScope] = []
 
     for patch_scope in patch_scopes:
         current_scope = patched_root if patch_scope.scope_id is None else patched_sub_analyses.get(patch_scope.scope_id)
@@ -227,27 +221,10 @@ def apply_patch_scopes(
             continue
         patched_scope = patch_analysis_scope(current_scope, patch_scope, parsing_llm, callbacks)
         if patched_scope is None:
-            failed_scopes.append(patch_scope)
             continue
         if patch_scope.scope_id is None:
             patched_root = patched_scope
         else:
             patched_sub_analyses[patch_scope.scope_id] = patched_scope
-
-    if failed_scopes and root_analysis.components:
-        widened_root_patch = PatchScope(
-            scope_id=None,
-            target_component_ids=[component.component_id for component in patched_root.components],
-            visited_methods=sorted({method for scope in failed_scopes for method in scope.visited_methods}),
-            impacted_methods=sorted({method for scope in failed_scopes for method in scope.impacted_methods}),
-            synthetic_files=sorted({file_path for scope in failed_scopes for file_path in scope.synthetic_files}),
-            semantic_impact_summary=next(
-                (scope.semantic_impact_summary for scope in failed_scopes if scope.semantic_impact_summary),
-                "",
-            ),
-        )
-        widened_root = patch_analysis_scope(patched_root, widened_root_patch, parsing_llm, callbacks)
-        if widened_root is not None:
-            patched_root = widened_root
 
     return patched_root, patched_sub_analyses

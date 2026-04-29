@@ -6,19 +6,6 @@ from pydantic import Field
 from agents.agent_responses import LLMBaseModel
 
 
-@dataclass(frozen=True)
-class TraceConfig:
-    """Budget constraints for the semantic tracing loop."""
-
-    max_hops: int = 3
-    max_fetched_methods: int = 30
-    max_parallel_regions: int = 4
-    max_neighbor_preview: int = 8
-
-
-DEFAULT_TRACE_CONFIG = TraceConfig()
-
-
 class TraceStopReason(StrEnum):
     CONTINUE = "continue"
     NO_MATERIAL_IMPACT = "stop_no_material_semantic_impact"

@@ -3,10 +3,9 @@ from pathlib import Path
 
 import pytest
 
-from static_analyzer.constants import Language
+from static_analyzer.constants import Language, SOURCE_EXTENSION_TO_LANGUAGE
 from static_analyzer.cosmetic_diff import is_file_cosmetic, strip_comments_from_source
 from static_analyzer.tree_sitter_parsers import (
-    EXTENSION_TO_LANGUAGE,
     _LANG_CONFIGS,
     _get_parser,
     _to_normalized_tuple,
@@ -37,32 +36,28 @@ def _parse(language: Language, ext: str, source: bytes):
     return parser.parse(source)
 
 
-class TestExtensionMapping:
-    def test_python(self):
-        assert EXTENSION_TO_LANGUAGE[".py"] == Language.PYTHON
+@pytest.mark.parametrize(
+    "ext,expected",
+    [
+        (".py", Language.PYTHON),
+        (".ts", Language.TYPESCRIPT),
+        (".tsx", Language.TYPESCRIPT),
+        (".mts", Language.TYPESCRIPT),
+        (".js", Language.JAVASCRIPT),
+        (".jsx", Language.JAVASCRIPT),
+        (".mjs", Language.JAVASCRIPT),
+        (".go", Language.GO),
+        (".java", Language.JAVA),
+        (".php", Language.PHP),
+    ],
+)
+def test_extension_to_language(ext, expected):
+    assert SOURCE_EXTENSION_TO_LANGUAGE[ext] == expected
 
-    def test_typescript_variants(self):
-        assert EXTENSION_TO_LANGUAGE[".ts"] == Language.TYPESCRIPT
-        assert EXTENSION_TO_LANGUAGE[".tsx"] == Language.TYPESCRIPT
-        assert EXTENSION_TO_LANGUAGE[".mts"] == Language.TYPESCRIPT
 
-    def test_javascript_variants(self):
-        assert EXTENSION_TO_LANGUAGE[".js"] == Language.JAVASCRIPT
-        assert EXTENSION_TO_LANGUAGE[".jsx"] == Language.JAVASCRIPT
-        assert EXTENSION_TO_LANGUAGE[".mjs"] == Language.JAVASCRIPT
-
-    def test_go(self):
-        assert EXTENSION_TO_LANGUAGE[".go"] == Language.GO
-
-    def test_java(self):
-        assert EXTENSION_TO_LANGUAGE[".java"] == Language.JAVA
-
-    def test_php(self):
-        assert EXTENSION_TO_LANGUAGE[".php"] == Language.PHP
-
-    def test_unsupported(self):
-        assert ".rs" not in EXTENSION_TO_LANGUAGE
-        assert ".rb" not in EXTENSION_TO_LANGUAGE
+@pytest.mark.parametrize("ext", [".rs", ".rb"])
+def test_unsupported_extension(ext):
+    assert ext not in SOURCE_EXTENSION_TO_LANGUAGE
 
 
 class TestParserLoading:
@@ -365,7 +360,6 @@ class TestIsFileCosmetic:
         assert is_file_cosmetic(repo, base, "src/foo.py") is False
 
     def test_non_utf8_old_content_returns_false(self, tmp_path):
-        """Non-UTF-8 files should not crash; conservatively return False."""
         repo = _init_git_repo(tmp_path)
         # Commit a latin-1 encoded file via raw bytes
         src = repo / "src"

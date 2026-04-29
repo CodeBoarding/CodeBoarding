@@ -71,9 +71,6 @@ class DiagramGenerator:
         self.log_path = log_path
         self.monitoring_enabled = monitoring_enabled
         self.force_full_analysis = False  # Set to True to skip incremental updates
-        # Optional pre-started StaticAnalyzer injected by long-lived callers (e.g. the
-        # wrapper). When set, pre_analysis() uses it directly instead of creating a new
-        # one-shot analyzer via get_static_analysis().
         self._static_analyzer = static_analyzer
 
         self.details_agent: DetailsAgent | None = None
@@ -377,23 +374,12 @@ class DiagramGenerator:
             # Process components using a frontier queue: submit children as soon as parent finishes.
             expanded_components, sub_analyses = self._generate_subcomponents(analysis, root_components)
 
-            # Build file coverage summary for metadata
-            file_coverage_summary = None
-            if self.file_coverage_data:
-                s = self.file_coverage_data["summary"]
-                file_coverage_summary = FileCoverageSummary(
-                    total_files=s["total_files"],
-                    analyzed=s["analyzed"],
-                    not_analyzed=s["not_analyzed"],
-                    not_analyzed_by_reason=s["not_analyzed_by_reason"],
-                )
-
             analysis_path = save_analysis(
                 analysis=analysis,
                 output_dir=Path(self.output_dir),
                 sub_analyses=sub_analyses,
                 repo_name=self.repo_name,
-                file_coverage_summary=file_coverage_summary,
+                file_coverage_summary=self._build_file_coverage_summary(),
                 commit_hash=get_git_commit_hash(self.repo_location),
             ).resolve()
 
@@ -404,9 +390,13 @@ class DiagramGenerator:
 
             return analysis_path
 
-    @staticmethod
-    def _normalize_repo_path(path: str) -> str:
+    def _normalize_repo_path(self, path: str) -> str:
         posix = path.replace("\\", "/")
+        if Path(posix).is_absolute():
+            try:
+                return Path(posix).resolve().relative_to(self.repo_location.resolve()).as_posix()
+            except ValueError:
+                return posix
         while posix.startswith("./"):
             posix = posix[2:]
         return posix
@@ -426,10 +416,7 @@ class DiagramGenerator:
                     continue
                 if not (node.is_callable() or node.is_class()):
                     continue
-                try:
-                    file_path = Path(node.file_path).resolve().relative_to(self.repo_location.resolve()).as_posix()
-                except ValueError:
-                    file_path = self._normalize_repo_path(node.file_path)
+                file_path = self._normalize_repo_path(node.file_path)
 
                 methods_by_file[file_path].append(
                     MethodEntry(

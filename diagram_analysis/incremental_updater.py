@@ -1,15 +1,8 @@
-"""Incremental analysis updater.
-
-Flow:
-1. Collect changed files from the monitor.
-2. Compare current file symbols with methods stored in analysis.files.
-3. Use git diff line ranges to determine per-method statuses (via ``repo_utils.method_diff``).
-4. Return an ``IncrementalDelta``. Status storage is the caller's responsibility.
-"""
+"""Incremental analysis updater: file changes -> ``IncrementalDelta``."""
 
 import logging
 from dataclasses import dataclass, field
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Callable
 
 from agents.agent_responses import AnalysisInsights, Component, FileEntry, FileMethodGroup, MethodEntry
@@ -20,6 +13,10 @@ from repo_utils.method_diff import compute_method_statuses_for_file
 logger = logging.getLogger(__name__)
 
 
+def _normalize_key(file_path: str) -> str:
+    return str(PurePosixPath(file_path.replace("\\", "/")))
+
+
 @dataclass
 class MethodChange:
     qualified_name: str
@@ -28,6 +25,8 @@ class MethodChange:
     end_line: int
     change_type: ChangeStatus
     node_type: str
+    old_start_line: int | None = None
+    old_end_line: int | None = None
 
 
 @dataclass
@@ -52,20 +51,15 @@ class IncrementalDelta:
 # Resolves a repo-relative file path to its current MethodEntry list.
 SymbolResolver = Callable[[str], list[MethodEntry]]
 
-# Returns the caller's last-known status for ``(file_path, qualified_name)``.
-# ``UNCHANGED`` is the neutral default when the caller holds no record.
+# Returns the caller's last-known status for ``(file_path, qualified_name)``;
+# UNCHANGED is the neutral default when no record is held.
 MethodStatusLookup = Callable[[str, str], ChangeStatus]
+
+ComponentResolver = Callable[[str], str | None]
 
 
 class IncrementalUpdater:
-    """Computes file-level incremental deltas from file changes.
-
-    Delegates method status assignment to ``repo_utils.method_diff`` to ensure
-    consistent behavior with the main analysis pipeline.
-    """
-
-    # Callable that resolves a new file path to a component_id.
-    ComponentResolver = Callable[[str], str | None]
+    """Computes file-level incremental deltas from file changes."""
 
     def __init__(
         self,
@@ -104,6 +98,7 @@ class IncrementalUpdater:
         file_path: str,
         method: MethodEntry,
         change_type: ChangeStatus,
+        previous: MethodEntry | None = None,
     ) -> MethodChange:
         return MethodChange(
             qualified_name=method.qualified_name,
@@ -112,6 +107,8 @@ class IncrementalUpdater:
             end_line=method.end_line,
             change_type=change_type,
             node_type=method.node_type,
+            old_start_line=previous.start_line if previous is not None else None,
+            old_end_line=previous.end_line if previous is not None else None,
         )
 
     def _compute_file_delta(
@@ -121,11 +118,12 @@ class IncrementalUpdater:
         register_file: bool,
         changes: ChangeSet,
     ) -> FileDelta:
-        component_id = self._file_to_component.get(file_path)
+        key = _normalize_key(file_path)
+        component_id = self._file_to_component.get(key)
         if component_id is None and register_file and self._component_resolver is not None:
             component_id = self._component_resolver(file_path)
         if component_id is not None and register_file:
-            self._file_to_component[file_path] = component_id
+            self._file_to_component[key] = component_id
 
         if file_status == ChangeStatus.ADDED:
             current = self._get_current_methods(file_path)
@@ -185,7 +183,7 @@ class IncrementalUpdater:
                 if m.qualified_name in current_keys - prev_keys
             ],
             modified_methods=[
-                self._to_method_change(file_path, m, ChangeStatus.MODIFIED)
+                self._to_method_change(file_path, m, ChangeStatus.MODIFIED, prev_active.get(m.qualified_name))
                 for m in current
                 if m.qualified_name in current_keys & prev_keys
                 and method_statuses.get(m.qualified_name) == ChangeStatus.MODIFIED
@@ -267,18 +265,7 @@ def _sync_component_methods(
     deltas_by_path: dict[str, FileDelta],
     parent_ids: set[str],
 ) -> None:
-    """Rebuild component's file_methods, preserving method boundaries.
-
-    Strategy:
-    1. Collect the qualified names this component originally owned.
-    2. Remove deleted methods from ownership.
-    3. Absorb newly added methods when the component is the primary owner
-       (``delta.component_id``) OR is an intermediate ancestor of the
-       primary (its ID is a descendant of the primary AND it has its own
-       children in ``parent_ids``).  Leaf components and siblings that
-       don't own the file are unaffected.
-    4. Filter the global files index to only include owned methods.
-    """
+    """Rebuild component's file_methods after applying a delta."""
     owned_qnames: set[str] = set()
 
     for group in component.file_methods:
@@ -294,9 +281,11 @@ def _sync_component_methods(
         for method in delta.deleted_methods:
             owned_qnames.discard(method.qualified_name)
 
+        # Absorb new methods when this component is the primary owner OR an
+        # ancestor of the primary that itself has analyzed descendants.
         primary_id = delta.component_id or ""
         should_absorb = primary_id == component.component_id or (
-            component.component_id.startswith(primary_id + ".") and component.component_id in parent_ids
+            primary_id.startswith(component.component_id + ".") and component.component_id in parent_ids
         )
 
         # A component that owned every pre-existing method in the file is a

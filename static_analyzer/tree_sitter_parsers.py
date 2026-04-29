@@ -1,10 +1,4 @@
-"""Tree-sitter parser cache and per-language tuple normalization.
-
-Internal building block for the cosmetic-diff pipeline. Tree-sitter grammars
-are loaded lazily; ``_to_structural_tuple`` / ``_to_normalized_tuple`` convert
-ASTs into hashable tuples so structural and normalized comparisons reduce to
-tuple equality.
-"""
+"""Tree-sitter parser cache and per-language tuple normalization."""
 
 import logging
 import subprocess
@@ -12,11 +6,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from static_analyzer.constants import Language, SOURCE_EXTENSION_TO_LANGUAGE
+from static_analyzer.constants import Language
 
 logger = logging.getLogger(__name__)
-
-EXTENSION_TO_LANGUAGE = SOURCE_EXTENSION_TO_LANGUAGE
 
 
 @dataclass(frozen=True)

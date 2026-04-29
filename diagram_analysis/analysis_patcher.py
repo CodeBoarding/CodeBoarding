@@ -164,6 +164,8 @@ def apply_scope_patch(
         )
 
     for relation_patch in returned_relations.values():
+        if relation_patch.src_id not in components_by_id or relation_patch.dst_id not in components_by_id:
+            continue
         untouched_relations.append(
             Relation(
                 relation=relation_patch.relation,

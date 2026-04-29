@@ -12,41 +12,38 @@ from static_analyzer.node import Node
 
 @dataclass
 class GraphRegionMetadata:
-    """Region metadata derived from SCC condensation of call graphs."""
-
-    method_to_scc: dict[str, int] = field(default_factory=dict)
-    scc_to_methods: dict[int, set[str]] = field(default_factory=dict)
-    scc_to_region: dict[int, int] = field(default_factory=dict)
     method_to_region: dict[str, int] = field(default_factory=dict)
 
 
 def resolve_method_node(static_analysis: StaticAnalysisResults, qualified_name: str) -> Node | None:
-    """Resolve a qualified name across all languages."""
-    for language in static_analysis.get_languages():
+    """Resolve a qualified name across all languages, exact match preferred over loose."""
+    languages = list(static_analysis.get_languages())
+    for language in languages:
         try:
             return static_analysis.get_reference(language, qualified_name)
         except (ValueError, FileExistsError):
-            _, node = static_analysis.get_loose_reference(language, qualified_name)
-            if node is not None:
-                return node
+            continue
+    for language in languages:
+        _, node = static_analysis.get_loose_reference(language, qualified_name)
+        if node is not None:
+            return node
     return None
 
 
 NeighborIndex = tuple[dict[str, list[str]], dict[str, list[str]]]
 
 
-def build_neighbor_indexes(*cfg_dicts: dict[str, CallGraph]) -> NeighborIndex:
-    """Build upstream and downstream adjacency indexes from one or more CFG maps."""
+def build_neighbor_indexes(cfgs: dict[str, CallGraph]) -> NeighborIndex:
+    """Build upstream and downstream adjacency indexes from a CFG map."""
     upstream: dict[str, set[str]] = defaultdict(set)
     downstream: dict[str, set[str]] = defaultdict(set)
 
-    for cfgs in cfg_dicts:
-        for cfg in cfgs.values():
-            for qualified_name, node in cfg.nodes.items():
-                if node.methods_called_by_me:
-                    downstream[qualified_name].update(node.methods_called_by_me)
-            for edge in cfg.edges:
-                upstream[edge.get_destination()].add(edge.get_source())
+    for cfg in cfgs.values():
+        for qualified_name, node in cfg.nodes.items():
+            if node.methods_called_by_me:
+                downstream[qualified_name].update(node.methods_called_by_me)
+        for edge in cfg.edges:
+            upstream[edge.get_destination()].add(edge.get_source())
 
     return (
         {qualified_name: sorted(neighbors) for qualified_name, neighbors in upstream.items()},
@@ -67,53 +64,23 @@ def build_graph_region_metadata(
     upstream_index: dict[str, list[str]],
     downstream_index: dict[str, list[str]],
 ) -> GraphRegionMetadata:
-    """Build SCC and weak-component metadata for region grouping."""
+    """Build weak-component metadata for region grouping."""
     graph = nx.DiGraph()
     all_nodes: set[str] = set(upstream_index) | set(downstream_index)
-
     for neighbors in upstream_index.values():
         all_nodes.update(neighbors)
     for source, neighbors in downstream_index.items():
-        all_nodes.add(source)
         all_nodes.update(neighbors)
         for destination in neighbors:
             graph.add_edge(source, destination)
+    graph.add_nodes_from(all_nodes)
 
-    if all_nodes:
-        graph.add_nodes_from(all_nodes)
-    if graph.number_of_nodes() == 0:
-        return GraphRegionMetadata()
-
-    method_to_scc: dict[str, int] = {}
-    scc_to_methods: dict[int, set[str]] = {}
-    for scc_id, members in enumerate(nx.strongly_connected_components(graph)):
-        member_set = set(members)
-        scc_to_methods[scc_id] = member_set
-        for method in member_set:
-            method_to_scc[method] = scc_id
-
-    condensed = nx.DiGraph()
-    condensed.add_nodes_from(scc_to_methods)
-    for source, destination in graph.edges():
-        source_scc = method_to_scc[source]
-        destination_scc = method_to_scc[destination]
-        if source_scc != destination_scc:
-            condensed.add_edge(source_scc, destination_scc)
-
-    scc_to_region: dict[int, int] = {}
     method_to_region: dict[str, int] = {}
-    for region_id, component in enumerate(nx.weakly_connected_components(condensed)):
-        for scc_id in component:
-            scc_to_region[scc_id] = region_id
-            for method in scc_to_methods[scc_id]:
-                method_to_region[method] = region_id
+    for region_id, component in enumerate(nx.weakly_connected_components(graph)):
+        for method in component:
+            method_to_region[method] = region_id
 
-    return GraphRegionMetadata(
-        method_to_scc=method_to_scc,
-        scc_to_methods=scc_to_methods,
-        scc_to_region=scc_to_region,
-        method_to_region=method_to_region,
-    )
+    return GraphRegionMetadata(method_to_region=method_to_region)
 
 
 def determine_region_key(

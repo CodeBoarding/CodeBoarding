@@ -1,13 +1,12 @@
-"""Cosmetic-diff detection. Tier 0 strips comments and compares ASTs; Tier 1 alpha-renames locals and sorts commutative operands."""
+"""Cosmetic-diff detection: AST equality after stripping comments and (tier 1) alpha-renaming locals."""
 
 import ast
 import logging
 from pathlib import Path
 from typing import Any
 
-from static_analyzer.constants import Language
+from static_analyzer.constants import Language, SOURCE_EXTENSION_TO_LANGUAGE
 from static_analyzer.tree_sitter_parsers import (
-    EXTENSION_TO_LANGUAGE,
     _get_new_content,
     _get_old_content,
     _get_parser,
@@ -41,7 +40,7 @@ def check_syntax_errors(repo_dir: Path, file_path: str) -> list[tuple[int, int]]
     or when tree-sitter is unavailable.
     """
     ext = Path(file_path).suffix.lower()
-    language = EXTENSION_TO_LANGUAGE.get(ext)
+    language = SOURCE_EXTENSION_TO_LANGUAGE.get(ext)
     if language is None:
         return []
 
@@ -68,14 +67,9 @@ def check_syntax_errors(repo_dir: Path, file_path: str) -> list[tuple[int, int]]
 
 
 def is_file_cosmetic(repo_dir: Path, base_ref: str, file_path: str) -> bool:
-    """Return True if the changes to *file_path* are cosmetic-only.
-
-    Cosmetic means the AST is structurally equivalent (tier 0) or
-    normalized-equivalent after alpha-renaming and commutative sorting
-    (tier 1).  Returns False (assume semantic) on any error.
-    """
+    """Return True if the changes to *file_path* are cosmetic-only."""
     ext = Path(file_path).suffix.lower()
-    language = EXTENSION_TO_LANGUAGE.get(ext)
+    language = SOURCE_EXTENSION_TO_LANGUAGE.get(ext)
     if language is None:
         return False
 
@@ -190,13 +184,9 @@ def _collect_python_docstring_ranges(source: str) -> list[tuple[int, int]]:
 
 
 def strip_comments_from_source(file_path: str, source: str) -> str:
-    """Return *source* with comments and Python docstrings removed when supported.
-
-    Falls back to the original source for unsupported languages or parse errors.
-    Newlines from removed ranges are preserved to keep the remaining text readable.
-    """
+    """Return *source* with comments (and Python docstrings) removed; preserves newline count."""
     ext = Path(file_path).suffix.lower()
-    language = EXTENSION_TO_LANGUAGE.get(ext)
+    language = SOURCE_EXTENSION_TO_LANGUAGE.get(ext)
     if language is None:
         return source
 

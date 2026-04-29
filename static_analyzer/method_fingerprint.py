@@ -10,16 +10,12 @@ _WHITESPACE_RE = re.compile(r"\s+")
 
 
 def fingerprint_source_text(file_path: str, source: str) -> str:
-    """Return a stable fingerprint for comment-stripped, whitespace-normalized source."""
     normalized = _WHITESPACE_RE.sub(" ", strip_comments_from_source(file_path, source)).strip()
     return hashlib.blake2b(normalized.encode("utf-8"), digest_size=16).hexdigest()
 
 
 def fingerprint_method_signature(file_path: str, source: str) -> str | None:
-    """Return a stable fingerprint for the signature/header portion of a method source slice.
-
-    Returns ``None`` when a safe signature/header boundary cannot be determined.
-    """
+    """Fingerprint the signature/header of a method slice; ``None`` if no safe boundary."""
     ext = Path(file_path).suffix.lower()
     stripped = strip_comments_from_source(file_path, source)
     signature: str | None = None

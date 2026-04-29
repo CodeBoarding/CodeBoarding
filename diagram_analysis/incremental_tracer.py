@@ -12,8 +12,6 @@ from trustcall import create_extractor
 
 from agents.change_status import ChangeStatus
 from diagram_analysis.incremental_models import (
-    DEFAULT_TRACE_CONFIG,
-    TraceConfig,
     TraceResponse,
     TraceResult,
     TraceStopReason,
@@ -34,10 +32,15 @@ from static_analyzer.cosmetic_diff import (
     is_file_cosmetic,
     strip_comments_from_source,
 )
+from static_analyzer.constants import SOURCE_EXTENSION_TO_LANGUAGE
 from static_analyzer.method_fingerprint import fingerprint_method_signature, fingerprint_source_text
-from static_analyzer.tree_sitter_parsers import EXTENSION_TO_LANGUAGE
 
 logger = logging.getLogger(__name__)
+
+_MAX_HOPS = 3
+_MAX_FETCHED_METHODS = 30
+_MAX_PARALLEL_REGIONS = 4
+_MAX_NEIGHBOR_PREVIEW = 8
 
 
 def _read_method_body(repo_dir: Path, file_path: str, start_line: int, end_line: int) -> str | None:
@@ -220,6 +223,7 @@ def _collapse_groups_to_single_region(groups: list[ChangeGroup]) -> list[ChangeG
         combined.downstream_neighbors.extend(group.downstream_neighbors)
         for file_path, diff_text in group.diff_hunks_by_file.items():
             combined.diff_hunks_by_file.setdefault(file_path, diff_text)
+    combined.diff_hunks = "\n".join(text for text in combined.diff_hunks_by_file.values() if text).strip()
     return _finalize_groups([combined])
 
 
@@ -252,7 +256,7 @@ def _build_trace_plan(
         all_methods = file_delta.added_methods + file_delta.modified_methods
 
         if (
-            Path(file_path).suffix.lower() in EXTENSION_TO_LANGUAGE
+            Path(file_path).suffix.lower() in SOURCE_EXTENSION_TO_LANGUAGE
             and file_delta.file_status == ChangeStatus.MODIFIED
             and file_delta.modified_methods
             and not file_delta.added_methods
@@ -274,12 +278,14 @@ def _build_trace_plan(
             )
 
             if method_change.change_type == ChangeStatus.MODIFIED:
+                old_start = method_change.old_start_line or method_change.start_line
+                old_end = method_change.old_end_line or method_change.end_line
                 old_body = _read_method_body_at_ref(
                     repo_dir,
                     base_ref,
                     file_path,
-                    method_change.start_line,
-                    method_change.end_line,
+                    old_start,
+                    old_end,
                 )
                 if old_body is not None:
                     old_body = strip_comments_from_source(file_path, old_body)
@@ -384,7 +390,7 @@ Stay within the budget. When you have enough information, stop.
 """
 
 
-def _build_initial_prompt(group: ChangeGroup, max_neighbor_preview: int) -> str:
+def _build_initial_prompt(group: ChangeGroup) -> str:
     parts = ["# Changed Methods\n"]
     methods_by_file: dict[str, list[ChangedMethodContext]] = defaultdict(list)
     for method in group.methods:
@@ -408,9 +414,9 @@ def _build_initial_prompt(group: ChangeGroup, max_neighbor_preview: int) -> str:
             parts.append(f"Diff:\n```diff\n{diff_text}\n```")
 
     if group.upstream_neighbors:
-        parts.append(f"Upstream callers: {', '.join(group.upstream_neighbors[:max_neighbor_preview])}")
+        parts.append(f"Upstream callers: {', '.join(group.upstream_neighbors[:_MAX_NEIGHBOR_PREVIEW])}")
     if group.downstream_neighbors:
-        parts.append(f"Downstream callees: {', '.join(group.downstream_neighbors[:max_neighbor_preview])}")
+        parts.append(f"Downstream callees: {', '.join(group.downstream_neighbors[:_MAX_NEIGHBOR_PREVIEW])}")
     parts.append(
         "Respond with:\n"
         "- status: continue or a stop reason\n"
@@ -450,7 +456,6 @@ def _trace_single_group(
     static_analysis: StaticAnalysisResults,
     repo_dir: Path,
     parsing_llm: BaseChatModel,
-    config: TraceConfig,
     callbacks: list | None = None,
 ) -> TraceResult:
     resolver = MethodResolver(static_analysis, repo_dir)
@@ -459,14 +464,14 @@ def _trace_single_group(
 
     messages: list[dict[str, str]] = [
         {"role": "system", "content": _TRACE_SYSTEM},
-        {"role": "user", "content": _build_initial_prompt(group, config.max_neighbor_preview)},
+        {"role": "user", "content": _build_initial_prompt(group)},
     ]
 
     impacted_methods: set[str] = set()
     visited_methods: set[str] = {method.qualified_name for method in group.methods}
     total_fetched = 0
 
-    for hop in range(config.max_hops + 1):
+    for hop in range(_MAX_HOPS + 1):
         try:
             result = extractor.invoke({"messages": messages}, config=invoke_config)
         except Exception as exc:
@@ -501,7 +506,7 @@ def _trace_single_group(
                 semantic_impact_summary=response.semantic_impact_summary,
             )
 
-        remaining_budget = config.max_fetched_methods - total_fetched
+        remaining_budget = _MAX_FETCHED_METHODS - total_fetched
         next_methods = response.next_methods_to_fetch[:remaining_budget]
         if not next_methods:
             return TraceResult(
@@ -540,7 +545,7 @@ def _trace_single_group(
         impacted_methods=sorted(impacted_methods),
         unresolved_frontier=resolver.unresolved,
         stop_reason=TraceStopReason.BUDGET_EXHAUSTED,
-        hops_used=config.max_hops,
+        hops_used=_MAX_HOPS,
     )
 
 
@@ -603,17 +608,14 @@ def run_trace(
     base_ref: str,
     parsing_llm: BaseChatModel,
     *,
-    config: TraceConfig | None = None,
     parsed_diff: Any | None = None,
     callbacks: list | None = None,
 ) -> TraceResult:
-    trace_config = config or DEFAULT_TRACE_CONFIG
-
     non_traceable_files: set[str] = set()
     for file_delta in delta.file_deltas:
         if file_delta.file_status == ChangeStatus.DELETED:
             continue
-        if Path(file_delta.file_path).suffix.lower() not in EXTENSION_TO_LANGUAGE:
+        if Path(file_delta.file_path).suffix.lower() not in SOURCE_EXTENSION_TO_LANGUAGE:
             continue
         if check_syntax_errors(repo_dir, file_delta.file_path):
             non_traceable_files.add(file_delta.file_path)
@@ -637,11 +639,9 @@ def run_trace(
 
     if trace_plan.parallel_safe:
         trace_results: list[TraceResult] = []
-        with ThreadPoolExecutor(max_workers=min(len(trace_plan.groups), trace_config.max_parallel_regions)) as executor:
+        with ThreadPoolExecutor(max_workers=min(len(trace_plan.groups), _MAX_PARALLEL_REGIONS)) as executor:
             futures = {
-                executor.submit(
-                    _trace_single_group, group, static_analysis, repo_dir, parsing_llm, trace_config, callbacks
-                ): group
+                executor.submit(_trace_single_group, group, static_analysis, repo_dir, parsing_llm, callbacks): group
                 for group in trace_plan.groups
             }
             for future in as_completed(futures):
@@ -653,8 +653,7 @@ def run_trace(
                     trace_results.append(TraceResult(stop_reason=TraceStopReason.UNCERTAIN))
     else:
         trace_results = [
-            _trace_single_group(group, static_analysis, repo_dir, parsing_llm, trace_config, callbacks)
-            for group in trace_plan.groups
+            _trace_single_group(group, static_analysis, repo_dir, parsing_llm, callbacks) for group in trace_plan.groups
         ]
 
     return _merge_trace_results(
