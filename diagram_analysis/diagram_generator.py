@@ -2,14 +2,16 @@ import json
 import logging
 import os
 import time
-from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, as_completed, wait
 from contextlib import nullcontext
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from langchain_core.language_models import BaseChatModel
+
 from agents.abstraction_agent import AbstractionAgent
-from agents.agent_responses import AnalysisInsights, Component
+from agents.agent_responses import AnalysisInsights, Component, MetaAnalysisInsights
 from agents.details_agent import DetailsAgent
 from agents.llm_config import initialize_llms
 from agents.meta_agent import MetaAgent
@@ -19,20 +21,39 @@ from diagram_analysis.analysis_json import (
     FileCoverageSummary,
     NotAnalyzedFile,
 )
+from agents.analysis_patcher import merge_patched_sub_analyses, patch_sub_analysis
 from diagram_analysis.file_coverage import FileCoverage
-from diagram_analysis.io_utils import save_analysis
+from diagram_analysis.incremental.models import (
+    DEFAULT_TRACE_CONFIG,
+    IncrementalRunResult,
+    IncrementalSummary,
+    IncrementalSummaryKind,
+    TraceConfig,
+    TraceResult,
+    TraceStopReason,
+)
+from diagram_analysis.incremental.tracer import classify_scope, run_trace
+from diagram_analysis.incremental.delta import IncrementalDelta
+from diagram_analysis.incremental.updater import (
+    apply_method_delta,
+    drop_deltas_for_pruned_components,
+    prune_empty_components,
+)
+from diagram_analysis.io_utils import load_full_analysis, save_analysis
 from diagram_analysis.version import Version
+from repo_utils.change_detector import ChangeSet
+from static_analyzer.graph import CallGraph
 from health.config import initialize_health_dir, load_health_config
 from health.runner import run_health_checks
 from monitoring import StreamingStatsWriter
 from monitoring.mixin import MonitoringMixin
 from monitoring.paths import get_monitoring_run_dir
-from repo_utils import get_git_commit_hash, get_repo_state_hash
+from repo_utils import get_git_commit_hash
 from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer import StaticAnalyzer, get_static_analysis
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.scanner import ProjectScanner
-from utils import get_cache_dir
+from utils import ANALYSIS_FILENAME, get_cache_dir
 
 logger = logging.getLogger(__name__)
 
@@ -70,8 +91,10 @@ class DiagramGenerator:
         self.static_analysis: StaticAnalysisResults | None = None  # Cache static analysis for reuse
         self.abstraction_agent: AbstractionAgent | None = None
         self.meta_agent: MetaAgent | None = None
-        self.meta_context: Any | None = None
-        self.file_coverage_data: dict | None = None
+        self.meta_context: MetaAnalysisInsights | None = None
+        self.file_coverage_data: dict[str, Any] | None = None
+        self.agent_llm: BaseChatModel | None = None
+        self.parsing_llm: BaseChatModel | None = None
 
         self._monitoring_agents: dict[str, MonitoringMixin] = {}
         self.stats_writer: StreamingStatsWriter | None = None
@@ -160,6 +183,8 @@ class DiagramGenerator:
 
         # Initialize LLMs before spawning threads so both share the same instances
         agent_llm, parsing_llm = initialize_llms()
+        self.agent_llm = agent_llm
+        self.parsing_llm = parsing_llm
 
         self.meta_agent = MetaAgent(
             repo_dir=self.repo_location,
@@ -391,6 +416,264 @@ class DiagramGenerator:
 
             return analysis_path
 
-    def generate_analysis_smart(self) -> Path:
-        """Run full analysis."""
-        return self.generate_analysis()
+    # ------------------------------------------------------------------
+    # Semantic incremental pass
+    # ------------------------------------------------------------------
+    def _collect_cfgs(self) -> dict[str, CallGraph]:
+        assert self.static_analysis is not None
+        cfgs: dict[str, CallGraph] = {}
+        for lang in self.static_analysis.get_languages():
+            try:
+                cfgs[lang] = self.static_analysis.get_cfg(lang)
+            except ValueError:
+                continue
+        return cfgs
+
+    def _run_component_patches(
+        self,
+        sub_analyses: dict[str, AnalysisInsights],
+        trace_result: TraceResult,
+        parsing_llm: BaseChatModel,
+    ) -> tuple[dict[str, AnalysisInsights], list[str]]:
+        """Patch impacted sub-analyses in parallel. Returns (patched, failed_ids)."""
+        patched: dict[str, AnalysisInsights] = {}
+        failed: list[str] = []
+
+        impact_targets = [ic for ic in trace_result.impacted_components if ic.component_id in sub_analyses]
+        if not impact_targets:
+            return patched, failed
+
+        max_workers = min(len(impact_targets), 4)
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {
+                executor.submit(
+                    patch_sub_analysis,
+                    sub_analyses[ic.component_id],
+                    ic.component_id,
+                    ic,
+                    parsing_llm,
+                ): ic.component_id
+                for ic in impact_targets
+            }
+            for future in as_completed(futures):
+                comp_id = futures[future]
+                try:
+                    result = future.result()
+                except Exception as exc:
+                    logger.error("Patch failed for %s: %s", comp_id, exc)
+                    failed.append(comp_id)
+                    continue
+                if result is None:
+                    failed.append(comp_id)
+                else:
+                    patched[comp_id] = result
+        return patched, failed
+
+    def generate_analysis_incremental(
+        self,
+        delta: IncrementalDelta,
+        base_ref: str,
+        change_set: ChangeSet,
+        config: TraceConfig = DEFAULT_TRACE_CONFIG,
+    ) -> IncrementalRunResult:
+        """Run a semantic incremental update pass.
+
+        Applies the architectural delta in place, traces semantic impact of
+        changed methods through the call graph, patches the affected
+        sub-analyses via EASE-encoded JSON Patch, and saves the result.
+
+        The caller owns mode selection (cosmetic-only fast paths live in the
+        wrapper); this method handles the semantic-tracing path and its
+        deterministic fallbacks.
+        """
+        assert (
+            self.details_agent is not None
+            and self.abstraction_agent is not None
+            and self.static_analysis is not None
+            and self.agent_llm is not None
+            and self.parsing_llm is not None
+        ), "pre_analysis() must be called before generate_analysis_incremental()"
+
+        existing = load_full_analysis(Path(self.output_dir))
+        if existing is None:
+            return IncrementalRunResult(
+                summary=IncrementalSummary(
+                    kind=IncrementalSummaryKind.REQUIRES_FULL_ANALYSIS,
+                    message="No existing analysis.json; full analysis required.",
+                    requires_full_analysis=True,
+                ),
+            )
+        root_analysis, sub_analyses = existing
+
+        if not delta.has_changes:
+            return IncrementalRunResult(
+                summary=IncrementalSummary(
+                    kind=IncrementalSummaryKind.NO_CHANGES,
+                    message="No file changes detected.",
+                ),
+                analysis_path=(Path(self.output_dir) / ANALYSIS_FILENAME).resolve(),
+            )
+
+        if delta.needs_reanalysis:
+            return IncrementalRunResult(
+                summary=IncrementalSummary(
+                    kind=IncrementalSummaryKind.REQUIRES_FULL_ANALYSIS,
+                    message="Delta references files without a known component; full analysis required.",
+                    requires_full_analysis=True,
+                ),
+            )
+
+        apply_method_delta(root_analysis, sub_analyses, delta)
+        removed_component_ids = prune_empty_components(root_analysis, sub_analyses)
+        drop_deltas_for_pruned_components(delta, removed_component_ids)
+
+        if delta.is_purely_additive:
+            analysis_path = save_analysis(
+                analysis=root_analysis,
+                output_dir=Path(self.output_dir),
+                sub_analyses=sub_analyses,
+                repo_name=self.repo_name,
+            ).resolve()
+            return IncrementalRunResult(
+                summary=IncrementalSummary(
+                    kind=IncrementalSummaryKind.ADDITIVE_ONLY,
+                    message=(
+                        f"Pruned {len(removed_component_ids)} empty component(s); " "no semantic patching needed."
+                        if removed_component_ids
+                        else "Changes are purely additive; no semantic patching needed."
+                    ),
+                ),
+                analysis_path=analysis_path,
+            )
+
+        if not delta.needs_semantic_trace:
+            analysis_path = save_analysis(
+                analysis=root_analysis,
+                output_dir=Path(self.output_dir),
+                sub_analyses=sub_analyses,
+                repo_name=self.repo_name,
+            ).resolve()
+            return IncrementalRunResult(
+                summary=IncrementalSummary(
+                    kind=IncrementalSummaryKind.NO_MATERIAL_IMPACT,
+                    message=(
+                        f"Pruned {len(removed_component_ids)} empty component(s); structural updates applied."
+                        if removed_component_ids
+                        else "Deletion-only delta; structural updates applied, prose deferred."
+                    ),
+                    used_llm=False,
+                ),
+                analysis_path=analysis_path,
+            )
+
+        trace_result = run_trace(
+            delta=delta,
+            cfgs=self._collect_cfgs(),
+            static_analysis=self.static_analysis,
+            repo_dir=self.repo_location,
+            base_ref=base_ref,
+            parsing_llm=self.parsing_llm,
+            change_set=change_set,
+            config=config,
+        )
+
+        if trace_result.stop_reason == TraceStopReason.SYNTAX_ERROR:
+            return IncrementalRunResult(
+                summary=IncrementalSummary(
+                    kind=IncrementalSummaryKind.REQUIRES_FULL_ANALYSIS,
+                    message="Syntax errors detected; aborting incremental trace.",
+                    used_llm=False,
+                    trace_stop_reason=trace_result.stop_reason,
+                    requires_full_analysis=True,
+                ),
+                trace_result=trace_result,
+            )
+
+        if not trace_result.all_impacted_methods:
+            analysis_path = save_analysis(
+                analysis=root_analysis,
+                output_dir=Path(self.output_dir),
+                sub_analyses=sub_analyses,
+                repo_name=self.repo_name,
+            ).resolve()
+            return IncrementalRunResult(
+                summary=IncrementalSummary(
+                    kind=IncrementalSummaryKind.NO_MATERIAL_IMPACT,
+                    message="No methods have semantically impacted descriptions.",
+                    used_llm=True,
+                    trace_stop_reason=trace_result.stop_reason,
+                ),
+                trace_result=trace_result,
+                analysis_path=analysis_path,
+            )
+
+        classify_scope(
+            trace_result,
+            root_analysis.file_to_component(),
+            self.static_analysis,
+            self.repo_location,
+        )
+
+        patched, failed = self._run_component_patches(sub_analyses, trace_result, self.parsing_llm)
+
+        # If every component patch failed, leave analysis.json untouched so the
+        # incremental baseline does not advance past docs that never updated.
+        if failed and not patched:
+            return IncrementalRunResult(
+                summary=IncrementalSummary(
+                    kind=IncrementalSummaryKind.REQUIRES_FULL_ANALYSIS,
+                    message=f"All component patches failed ({len(failed)}); full analysis required.",
+                    used_llm=True,
+                    trace_stop_reason=trace_result.stop_reason,
+                    requires_full_analysis=True,
+                ),
+                trace_result=trace_result,
+                failed_component_ids=sorted(failed),
+            )
+
+        merge_patched_sub_analyses(sub_analyses, patched)
+
+        analysis_path = save_analysis(
+            analysis=root_analysis,
+            output_dir=Path(self.output_dir),
+            sub_analyses=sub_analyses,
+            repo_name=self.repo_name,
+        ).resolve()
+
+        # Partial failure: keep the patched portion on disk for user-visible
+        # progress, but flag the run as requiring a full reanalysis so the
+        # pipeline does not advance the baseline past unpatched components.
+        if failed:
+            return IncrementalRunResult(
+                summary=IncrementalSummary(
+                    kind=IncrementalSummaryKind.SCOPED_REANALYSIS,
+                    message=(f"Patched {len(patched)} component(s); {len(failed)} failed — full analysis required."),
+                    used_llm=True,
+                    trace_stop_reason=trace_result.stop_reason,
+                    requires_full_analysis=True,
+                ),
+                trace_result=trace_result,
+                patched_component_ids=sorted(patched.keys()),
+                failed_component_ids=sorted(failed),
+                analysis_path=analysis_path,
+            )
+
+        if trace_result.stop_reason == TraceStopReason.UNCERTAIN:
+            kind = IncrementalSummaryKind.SCOPED_REANALYSIS
+            message = "Impact trace inconclusive; patched the components we could identify."
+        else:
+            kind = IncrementalSummaryKind.MATERIAL_IMPACT
+            message = trace_result.semantic_impact_summary or "Patched impacted sub-analyses."
+
+        return IncrementalRunResult(
+            summary=IncrementalSummary(
+                kind=kind,
+                message=message,
+                used_llm=True,
+                trace_stop_reason=trace_result.stop_reason,
+            ),
+            trace_result=trace_result,
+            patched_component_ids=sorted(patched.keys()),
+            failed_component_ids=sorted(failed),
+            analysis_path=analysis_path,
+        )

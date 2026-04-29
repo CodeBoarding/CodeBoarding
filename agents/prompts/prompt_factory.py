@@ -173,3 +173,11 @@ def get_cfg_details_message() -> str:
 
 def get_details_message() -> str:
     return get_global_factory()._prompt_factory.get_details_message()
+
+
+def get_patch_system_message() -> str:
+    return get_global_factory()._prompt_factory.get_patch_system_message()
+
+
+def get_trace_system_message() -> str:
+    return get_global_factory()._prompt_factory.get_trace_system_message()

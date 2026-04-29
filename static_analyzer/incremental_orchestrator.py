@@ -16,12 +16,16 @@ from static_analyzer.cluster_change_analyzer import (
     analyze_cluster_changes_for_languages,
     get_overall_classification,
 )
+from repo_utils.git_ops import (
+    get_changed_files_since,
+    has_uncommitted_changes,
+    require_current_commit,
+)
 from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.engine.call_graph_builder import CallGraphBuilder
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_client import LSPClient
 from static_analyzer.engine.result_converter import convert_to_codeboarding_format
-from static_analyzer.git_diff_analyzer import GitDiffAnalyzer
 from static_analyzer.graph import CallGraph, ClusterResult
 
 
@@ -66,8 +70,7 @@ class IncrementalAnalysisOrchestrator:
             Dictionary containing complete analysis results with optional cluster change info.
         """
         try:
-            git_analyzer = GitDiffAnalyzer(project_path)
-            current_commit = git_analyzer.get_current_commit()
+            current_commit = require_current_commit(project_path)
             logger.info(f"Current commit: {current_commit}")
 
             cache_result = self.cache_manager.load_cache_with_clusters(cache_path)
@@ -101,7 +104,8 @@ class IncrementalAnalysisOrchestrator:
                 f"{len(cached_call_graph.edges)} edges"
             )
 
-            if cached_commit == current_commit and not git_analyzer.has_uncommitted_changes():
+            dirty = has_uncommitted_changes(project_path)
+            if cached_commit == current_commit and not dirty:
                 logger.info("No changes detected, using cached results")
                 if analyze_cluster_changes:
                     return {
@@ -111,8 +115,7 @@ class IncrementalAnalysisOrchestrator:
                     }
                 return cached_analysis
 
-            has_uncommitted = git_analyzer.has_uncommitted_changes()
-            if has_uncommitted:
+            if dirty:
                 logger.info("Uncommitted changes detected in working directory")
 
             logger.info(f"Performing incremental update from commit {cached_commit} to {current_commit}")
@@ -126,7 +129,6 @@ class IncrementalAnalysisOrchestrator:
                 cached_commit,
                 cached_iteration,
                 current_commit,
-                git_analyzer,
                 analyze_cluster_changes,
             )
 
@@ -134,8 +136,7 @@ class IncrementalAnalysisOrchestrator:
             logger.error(f"Incremental analysis failed: {e}")
             logger.info("Falling back to full analysis")
             try:
-                git_analyzer = GitDiffAnalyzer(project_path)
-                current_commit = git_analyzer.get_current_commit()
+                current_commit = require_current_commit(project_path)
             except Exception:
                 current_commit = "unknown"
                 logger.warning("Could not determine current commit for fallback analysis")
@@ -230,13 +231,12 @@ class IncrementalAnalysisOrchestrator:
         cached_commit: str,
         cached_iteration: int,
         current_commit: str,
-        git_analyzer: GitDiffAnalyzer,
         analyze_cluster_changes: bool = True,
     ) -> dict:
         """Perform incremental analysis update using the engine pipeline."""
         try:
             logger.info(f"Identifying changed files between {cached_commit} and {current_commit}")
-            changed_files = git_analyzer.get_changed_files(cached_commit)
+            changed_files = get_changed_files_since(project_path, cached_commit)
 
             if not changed_files:
                 logger.info("No files changed, using cached results")

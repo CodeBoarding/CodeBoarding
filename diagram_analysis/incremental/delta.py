@@ -21,7 +21,7 @@ class MethodChange:
             "file_path": self.file_path,
             "start_line": self.start_line,
             "end_line": self.end_line,
-            "change_type": self.change_type,
+            "change_type": self.change_type.value,
             "node_type": self.node_type,
         }
 
@@ -31,25 +31,26 @@ class FileDelta:
     file_path: str
     file_status: ChangeStatus
     component_id: str | None = None
+    old_file_path: str | None = None
     added_methods: list[MethodChange] = field(default_factory=list)
     modified_methods: list[MethodChange] = field(default_factory=list)
     deleted_methods: list[MethodChange] = field(default_factory=list)
-    is_reset: bool = False
-    reset_methods: list[MethodChange] | None = None
+    renamed_qualified_names: dict[str, str] = field(default_factory=dict)
+    # Why: produced by the wrapper on revert so the IDE can drop stale overlays.
+    reset_methods: list[MethodChange] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
-        d: dict[str, Any] = {
+        return {
             "file_path": self.file_path,
-            "file_status": self.file_status,
+            "file_status": self.file_status.value,
             "component_id": self.component_id,
+            "old_file_path": self.old_file_path,
             "added_methods": [m.to_dict() for m in self.added_methods],
             "modified_methods": [m.to_dict() for m in self.modified_methods],
             "deleted_methods": [m.to_dict() for m in self.deleted_methods],
+            "renamed_qualified_names": self.renamed_qualified_names,
+            "reset_methods": [m.to_dict() for m in self.reset_methods],
         }
-        if self.is_reset:
-            d["is_reset"] = True
-            d["reset_methods"] = [m.to_dict() for m in self.reset_methods] if self.reset_methods else []
-        return d
 
 
 @dataclass
@@ -61,6 +62,19 @@ class IncrementalDelta:
     @property
     def has_changes(self) -> bool:
         return bool(self.file_deltas)
+
+    @property
+    def is_purely_additive(self) -> bool:
+        """True when all changes are new files/methods only."""
+        return all(
+            fd.file_status != ChangeStatus.DELETED and not fd.modified_methods and not fd.deleted_methods
+            for fd in self.file_deltas
+        )
+
+    @property
+    def needs_semantic_trace(self) -> bool:
+        """True when modifications or additions remain."""
+        return any(fd.modified_methods or fd.added_methods for fd in self.file_deltas)
 
     def to_dict(self) -> dict[str, Any]:
         return {

@@ -12,7 +12,6 @@ from .read_file import ReadFileTool
 from .read_docs import ReadDocsTool
 from .get_external_deps import ExternalDepsTool
 from core import load_plugin_tools
-from .read_git_diff import ReadDiffTool, FileChange
 
 logger = logging.getLogger(__name__)
 
@@ -80,13 +79,6 @@ class CodeBoardingToolkit:
         if "external_deps" not in self._tools:
             self._tools["external_deps"] = ExternalDepsTool(context=self.context)
         return cast(ExternalDepsTool, self._tools["external_deps"])
-
-    def get_read_diff_tool(self, diffs: list[FileChange]) -> ReadDiffTool:
-        """
-        Creates a ReadDiffTool instance with the provided diffs.
-        Since diffs change per run, we don't cache this tool in the toolkit.
-        """
-        return ReadDiffTool(context=self.context, diffs=diffs)
 
     def get_agent_tools(self) -> list[BaseRepoTool]:
         """

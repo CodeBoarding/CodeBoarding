@@ -9,49 +9,68 @@ Flow:
 
 import logging
 import time
-from pathlib import Path
+from pathlib import PurePosixPath
 from typing import Callable
 
-from agents.agent_responses import AnalysisInsights, Component, FileEntry, FileMethodGroup, MethodEntry
+from agents.agent_responses import (
+    AnalysisInsights,
+    Component,
+    FileEntry,
+    FileMethodGroup,
+    MethodEntry,
+)
 from agents.change_status import ChangeStatus
-from diagram_analysis.incremental_types import FileDelta, IncrementalDelta, MethodChange
+from diagram_analysis.incremental.delta import FileDelta, IncrementalDelta, MethodChange
 from repo_utils.change_detector import ChangeSet
-from repo_utils.method_diff import compute_method_statuses_for_file
 
 logger = logging.getLogger(__name__)
 
 # Resolves a repo-relative file path to its current MethodEntry list.
 SymbolResolver = Callable[[str], list[MethodEntry]]
 
-# Returns the caller's last-known status for ``(file_path, qualified_name)``.
-# ``UNCHANGED`` is the neutral default when the caller holds no record.
-MethodStatusLookup = Callable[[str, str], ChangeStatus]
+
+def resolve_component_id_by_path_prefix(file_path: str, file_to_component: dict[str, str]) -> str | None:
+    """Default component resolver: pick the component whose tracked files share
+    the longest path prefix. Used when a newly added file has no direct
+    mapping — we assume it belongs to whichever component already owns the
+    deepest common directory.
+    """
+    if file_path in file_to_component:
+        return file_to_component[file_path]
+
+    query_parts = PurePosixPath(file_path).parts
+    best_component_id: str | None = None
+    best_prefix_len = 0
+
+    for existing_path, component_id in file_to_component.items():
+        existing_parts = PurePosixPath(existing_path).parts
+        prefix_len = 0
+        for query_part, existing_part in zip(query_parts, existing_parts, strict=False):
+            if query_part != existing_part:
+                break
+            prefix_len += 1
+        if prefix_len > best_prefix_len:
+            best_prefix_len = prefix_len
+            best_component_id = component_id
+
+    return best_component_id
 
 
 class IncrementalUpdater:
     """Computes file-level incremental deltas from file changes.
 
-    Delegates method status assignment to ``repo_utils.method_diff`` to ensure
-    consistent behavior with the main analysis pipeline.
+    Delegates per-method status classification to ``FileChange.classify_method_statuses``.
     """
-
-    # Callable that resolves a new file path to a component_id using
-    # the current file_to_component mapping.
-    ComponentResolver = Callable[[str, dict[str, str]], str]
 
     def __init__(
         self,
         analysis: AnalysisInsights,
         symbol_resolver: SymbolResolver,
-        repo_dir: Path,
-        method_status_lookup: MethodStatusLookup | None = None,
-        component_resolver: ComponentResolver | None = None,
+        change_set: ChangeSet,
     ):
         self.analysis = analysis
         self._symbol_resolver = symbol_resolver
-        self._repo_dir = repo_dir
-        self._method_status_lookup = method_status_lookup
-        self._component_resolver = component_resolver
+        self._change_set = change_set
         self._file_to_component = analysis.file_to_component()
 
     def _get_current_methods(self, file_path: str) -> list[MethodEntry]:
@@ -62,14 +81,6 @@ class IncrementalUpdater:
         if entry is None:
             return {}
         return {m.qualified_name: m for m in entry.methods}
-
-    def _get_previous_active_methods(self, file_path: str) -> dict[str, MethodEntry]:
-        """Previously-known methods excluding ones currently marked DELETED."""
-        previous = self._get_previous_methods(file_path)
-        if self._method_status_lookup is None:
-            return previous
-        lookup = self._method_status_lookup
-        return {qn: m for qn, m in previous.items() if lookup(file_path, qn) != ChangeStatus.DELETED}
 
     @staticmethod
     def _to_method_change(
@@ -91,11 +102,10 @@ class IncrementalUpdater:
         file_path: str,
         file_status: ChangeStatus,
         register_file: bool,
-        changes: ChangeSet,
     ) -> tuple[FileDelta, bool]:
         component_id = self._file_to_component.get(file_path)
-        if component_id is None and register_file and self._component_resolver is not None:
-            component_id = self._component_resolver(file_path, self._file_to_component)
+        if component_id is None and register_file:
+            component_id = resolve_component_id_by_path_prefix(file_path, self._file_to_component)
         if component_id is not None and register_file:
             self._file_to_component[file_path] = component_id
         missing = component_id is None
@@ -113,7 +123,7 @@ class IncrementalUpdater:
             )
 
         if file_status == ChangeStatus.DELETED:
-            prev = self._get_previous_active_methods(file_path)
+            prev = self._get_previous_methods(file_path)
             return (
                 FileDelta(
                     file_path=file_path,
@@ -127,7 +137,7 @@ class IncrementalUpdater:
             )
 
         # Modified
-        prev_active = self._get_previous_active_methods(file_path)
+        prev_active = self._get_previous_methods(file_path)
         try:
             current = self._get_current_methods(file_path)
         except Exception as exc:
@@ -156,7 +166,10 @@ class IncrementalUpdater:
         prev_keys = set(prev_active.keys())
         current_keys = set(current_by_name.keys())
 
-        method_statuses = compute_method_statuses_for_file(current, file_path, changes, self._repo_dir)
+        file_change = self._change_set.get_file(file_path)
+        method_statuses = (
+            file_change.classify_method_statuses(current, list(prev_active.values())) if file_change else {}
+        )
 
         return (
             FileDelta(
@@ -182,58 +195,29 @@ class IncrementalUpdater:
             missing,
         )
 
-    def _compute_reset_delta(self, file_path: str) -> tuple[FileDelta, bool]:
-        """Compute a reset delta for a file that is now clean relative to HEAD.
-
-        Removes stale added/deleted/modified statuses from prior incremental
-        updates and replaces the stored file state with the current snapshot.
-        """
-        component_id = self._file_to_component.get(file_path)
-        missing = component_id is None
-        current = self._get_current_methods(file_path)
-
-        return (
-            FileDelta(
-                file_path=file_path,
-                file_status=ChangeStatus.UNCHANGED,
-                component_id=component_id,
-                is_reset=True,
-                reset_methods=[self._to_method_change(file_path, m, ChangeStatus.UNCHANGED) for m in current],
-            ),
-            missing,
-        )
-
-    def compute_delta(
-        self,
-        added_files: list[str],
-        modified_files: list[str],
-        deleted_files: list[str],
-        changes: ChangeSet,
-        reset_files: list[str] | None = None,
-    ) -> IncrementalDelta:
-        """Compute delta from file changes."""
+    def compute_delta(self) -> IncrementalDelta:
+        """Compute delta from file changes in ``self._change_set``."""
         needs_reanalysis = False
         file_deltas: list[FileDelta] = []
 
-        for file_path in added_files:
-            delta, missing = self._compute_file_delta(file_path, ChangeStatus.ADDED, True, changes)
+        for file_path in self._change_set.added_files:
+            delta, missing = self._compute_file_delta(file_path, ChangeStatus.ADDED, register_file=True)
             file_deltas.append(delta)
             needs_reanalysis = needs_reanalysis or missing
 
-        for file_path in modified_files:
-            delta, missing = self._compute_file_delta(file_path, ChangeStatus.MODIFIED, False, changes)
+        for file_path in self._change_set.modified_files:
+            delta, missing = self._compute_file_delta(file_path, ChangeStatus.MODIFIED, register_file=False)
             file_deltas.append(delta)
             needs_reanalysis = needs_reanalysis or missing
 
-        for file_path in deleted_files:
-            delta, missing = self._compute_file_delta(file_path, ChangeStatus.DELETED, False, changes)
+        for file_path in self._change_set.deleted_files:
+            delta, missing = self._compute_file_delta(file_path, ChangeStatus.DELETED, register_file=False)
+            # A deleted file the prior analysis never tracked is a no-op:
+            # there are no methods, no component, and no relations to clean
+            # up. Skip it instead of forcing full reanalysis.
+            if missing:
+                continue
             file_deltas.append(delta)
-            needs_reanalysis = needs_reanalysis or missing
-
-        for file_path in reset_files or []:
-            delta, missing = self._compute_reset_delta(file_path)
-            file_deltas.append(delta)
-            needs_reanalysis = needs_reanalysis or missing
 
         return IncrementalDelta(
             file_deltas=file_deltas,
@@ -271,21 +255,12 @@ def _sorted_methods(methods_by_name: dict[str, MethodEntry]) -> list[MethodEntry
 
 
 def _apply_file_delta_to_index(files: dict[str, FileEntry], file_delta: FileDelta) -> None:
-    if file_delta.is_reset:
-        methods_by_name: dict[str, MethodEntry] = {
-            m.qualified_name: MethodEntry.from_method_change(m) for m in (file_delta.reset_methods or [])
-        }
-        files[file_delta.file_path] = FileEntry(methods=_sorted_methods(methods_by_name))
-        return
-
     if file_delta.file_status == ChangeStatus.DELETED:
-        # Drop the file entirely from the architecture. Status index keeps
-        # the deletion record for UI purposes until the next commit reset.
         files.pop(file_delta.file_path, None)
         return
 
     existing = _ensure_file_entry(files, file_delta.file_path)
-    methods_by_name = {m.qualified_name: m for m in existing.methods}
+    methods_by_name: dict[str, MethodEntry] = {m.qualified_name: m for m in existing.methods}
 
     for method_change in file_delta.deleted_methods:
         methods_by_name.pop(method_change.qualified_name, None)
@@ -359,15 +334,15 @@ def _sync_component_methods(
     ]
 
 
-def apply_delta(
+def apply_method_delta(
     root: AnalysisInsights,
     sub_analyses: dict[str, AnalysisInsights],
     delta: IncrementalDelta,
 ) -> None:
-    """Apply ``IncrementalDelta`` architectural changes in place.
+    """Apply the method-level portion of ``IncrementalDelta`` in place.
 
-    Only architectural facts are mutated here — added/removed methods and
-    files. Status tracking is the caller's responsibility.
+    Only method-level facts are mutated here — added/removed methods and the
+    per-file method index. Status tracking is the caller's responsibility.
     """
     if not delta.has_changes:
         return
@@ -398,3 +373,88 @@ def apply_delta(
         sub.files = files
         for component in sub.components:
             _sync_component_methods(component, files, deltas_by_path, parent_ids)
+
+
+def _component_is_empty(component: Component) -> bool:
+    """A component is empty when it owns zero methods across all its files."""
+    return not any(group.methods for group in component.file_methods)
+
+
+def _drop_relations(analysis: AnalysisInsights, removed_ids: set[str], removed_names: set[str]) -> None:
+    analysis.components_relations = [
+        rel
+        for rel in analysis.components_relations
+        if rel.src_id not in removed_ids
+        and rel.dst_id not in removed_ids
+        and rel.src_name not in removed_names
+        and rel.dst_name not in removed_names
+    ]
+
+
+def prune_empty_components(
+    root: AnalysisInsights,
+    sub_analyses: dict[str, AnalysisInsights],
+) -> set[str]:
+    """Remove components whose every file group is empty (no methods left).
+
+    Cascades to descendant sub-analyses and drops relations that reference
+    a removed component. Component IDs of survivors are preserved as-is —
+    re-numbering would invalidate persisted ``component_id`` references in
+    sub-analyses, metadata, and external consumers.
+
+    Returns the set of removed component IDs.
+    """
+    all_components: list[Component] = list(root.components)
+    for sub in sub_analyses.values():
+        all_components.extend(sub.components)
+
+    candidate_ids = {c.component_id for c in all_components if c.component_id and _component_is_empty(c)}
+    if not candidate_ids:
+        return set()
+
+    non_empty_ids = {c.component_id for c in all_components if c.component_id and not _component_is_empty(c)}
+
+    # If a parent component goes empty while a descendant still has methods,
+    # the parent - children invariant has drifted. Skip the prune so we don't
+    # orphan the descendant; the warning surfaces the drift for investigation.
+    removed_ids: set[str] = set()
+    for cid in candidate_ids:
+        prefix = cid + "."
+        if any(other.startswith(prefix) for other in non_empty_ids):
+            logger.warning(
+                "Skipping prune of empty component %s: has non-empty descendants",
+                cid,
+            )
+            continue
+        removed_ids.add(cid)
+
+    if not removed_ids:
+        return set()
+
+    removed_names = {c.name for c in all_components if c.component_id in removed_ids}
+
+    root.components = [c for c in root.components if c.component_id not in removed_ids]
+    _drop_relations(root, removed_ids, removed_names)
+
+    for sub in sub_analyses.values():
+        sub.components = [c for c in sub.components if c.component_id not in removed_ids]
+        _drop_relations(sub, removed_ids, removed_names)
+
+    for cid in list(sub_analyses.keys()):
+        if cid in removed_ids:
+            del sub_analyses[cid]
+
+    return removed_ids
+
+
+def drop_deltas_for_pruned_components(delta: IncrementalDelta, removed_ids: set[str]) -> None:
+    """Strip ``file_deltas`` whose component was deterministically pruned.
+
+    A pruned component is gone from the analysis tree along with its files and
+    relations — there is nothing semantic left for the LLM tracer to patch.
+    Leaving the delta in place would force a wasted impact trace and
+    description rewrite for components that no longer exist.
+    """
+    if not removed_ids:
+        return
+    delta.file_deltas = [fd for fd in delta.file_deltas if fd.component_id not in removed_ids]

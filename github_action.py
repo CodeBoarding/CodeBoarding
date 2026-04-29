@@ -1,115 +1,82 @@
-import json
 import logging
 import os
 import shutil
 from pathlib import Path
 
-from agents.agent_responses import AnalysisInsights
-from diagram_analysis import DiagramGenerator
-from diagram_analysis.analysis_json import build_id_to_name_map, parse_unified_analysis
-from output_generators.html import generate_html_file
-from output_generators.markdown import generate_markdown_file
-from output_generators.mdx import generate_mdx_file
-from output_generators.sphinx import generate_rst_file
-from diagram_analysis import RunContext
+from codeboarding_workflows.rendering import render_docs
+from diagram_analysis import DiagramGenerator, RunContext
 from repo_utils import checkout_repo, clone_repository
-from utils import create_temp_repo_folder, sanitize
+from utils import ANALYSIS_FILENAME, create_temp_repo_folder
 
 logger = logging.getLogger(__name__)
 
 
-def _load_all_analyses(analysis_path: Path) -> list[tuple[str, AnalysisInsights, set[str]]]:
-    """Load the unified analysis.json and return a list of (file_name, analysis, expanded_components) tuples.
-
-    Returns the root analysis as 'overview' plus one entry per expanded component.
-    """
-    with open(analysis_path, "r", encoding="utf-8") as f:
-        data = json.load(f)
-
-    root_analysis, sub_analyses = parse_unified_analysis(data)
-
-    # Build a complete id-to-name mapping across all levels
-    id_to_name = build_id_to_name_map(root_analysis, sub_analyses)
-
-    # Root analysis: expanded components are those that have sub-analyses
-    root_expanded = set(sub_analyses.keys())
-    entries: list[tuple[str, AnalysisInsights, set[str]]] = [("overview", root_analysis, root_expanded)]
-
-    # Sub-analyses: determine which of their components are further expanded
-    for comp_id, sub_analysis in sub_analyses.items():
-        sub_expanded = {c.component_id for c in sub_analysis.components if c.component_id in sub_analyses}
-        comp_name = id_to_name.get(comp_id, comp_id)
-        fname = sanitize(comp_name)
-        entries.append((fname, sub_analysis, sub_expanded))
-
-    return entries
-
-
 def generate_markdown(
-    analysis_path: Path, repo_name: str, repo_url: str, target_branch: str, temp_repo_folder: Path, output_dir: str
-):
-    entries = _load_all_analyses(analysis_path)
-    for fname, analysis, expanded_components in entries:
-        logger.info(f"Generating markdown for: {fname}")
-        generate_markdown_file(
-            fname,
-            analysis,
-            repo_name,
-            repo_ref=f"{repo_url}/blob/{target_branch}/{output_dir}",
-            expanded_components=expanded_components,
-            temp_dir=temp_repo_folder,
-        )
+    analysis_path: Path,
+    repo_name: str,
+    repo_url: str,
+    target_branch: str,
+    temp_repo_folder: Path,
+    output_dir: str,
+) -> None:
+    render_docs(
+        analysis_path=analysis_path,
+        repo_name=repo_name,
+        repo_ref=f"{repo_url}/blob/{target_branch}/{output_dir}",
+        temp_dir=temp_repo_folder,
+        format=".md",
+    )
 
 
-def generate_html(analysis_path: Path, repo_name: str, repo_url: str, target_branch: str, temp_repo_folder: Path):
-    entries = _load_all_analyses(analysis_path)
-    for fname, analysis, expanded_components in entries:
-        logger.info(f"Generating HTML for: {fname}")
-        generate_html_file(
-            fname,
-            analysis,
-            repo_name,
-            repo_ref=f"{repo_url}/blob/{target_branch}",
-            expanded_components=expanded_components,
-            temp_dir=temp_repo_folder,
-        )
+def generate_html(
+    analysis_path: Path, repo_name: str, repo_url: str, target_branch: str, temp_repo_folder: Path
+) -> None:
+    render_docs(
+        analysis_path=analysis_path,
+        repo_name=repo_name,
+        repo_ref=f"{repo_url}/blob/{target_branch}",
+        temp_dir=temp_repo_folder,
+        format=".html",
+    )
 
 
 def generate_mdx(
-    analysis_path: Path, repo_name: str, repo_url: str, target_branch: str, temp_repo_folder: Path, output_dir: str
-):
-    entries = _load_all_analyses(analysis_path)
-    for fname, analysis, expanded_components in entries:
-        logger.info(f"Generating MDX for: {fname}")
-        generate_mdx_file(
-            fname,
-            analysis,
-            repo_name,
-            repo_ref=f"{repo_url}/blob/{target_branch}/{output_dir}",
-            expanded_components=expanded_components,
-            temp_dir=temp_repo_folder,
-        )
+    analysis_path: Path,
+    repo_name: str,
+    repo_url: str,
+    target_branch: str,
+    temp_repo_folder: Path,
+    output_dir: str,
+) -> None:
+    render_docs(
+        analysis_path=analysis_path,
+        repo_name=repo_name,
+        repo_ref=f"{repo_url}/blob/{target_branch}/{output_dir}",
+        temp_dir=temp_repo_folder,
+        format=".mdx",
+    )
 
 
 def generate_rst(
-    analysis_path: Path, repo_name: str, repo_url: str, target_branch: str, temp_repo_folder: Path, output_dir: str
-):
-    entries = _load_all_analyses(analysis_path)
-    for fname, analysis, expanded_components in entries:
-        logger.info(f"Generating RST for: {fname}")
-        generate_rst_file(
-            fname,
-            analysis,
-            repo_name,
-            repo_ref=f"{repo_url}/blob/{target_branch}/{output_dir}",
-            expanded_components=expanded_components,
-            temp_dir=temp_repo_folder,
-        )
+    analysis_path: Path,
+    repo_name: str,
+    repo_url: str,
+    target_branch: str,
+    temp_repo_folder: Path,
+    output_dir: str,
+) -> None:
+    render_docs(
+        analysis_path=analysis_path,
+        repo_name=repo_name,
+        repo_ref=f"{repo_url}/blob/{target_branch}/{output_dir}",
+        temp_dir=temp_repo_folder,
+        format=".rst",
+    )
 
 
 def _seed_existing_analysis(existing_analysis_dir: Path, temp_repo_folder: Path) -> None:
     """Copy existing analysis files into the temp folder so incremental analysis can use them."""
-    for filename in ("analysis.json", "analysis_manifest.json"):
+    for filename in (ANALYSIS_FILENAME, "analysis_manifest.json"):
         src = existing_analysis_dir / filename
         if src.is_file():
             shutil.copy2(src, temp_repo_folder / filename)
@@ -123,16 +90,8 @@ def generate_analysis(
     extension: str,
     output_dir: str = ".codeboarding",
     existing_analysis_dir: str | None = None,
-):
-    """
-    Generate analysis for a GitHub repository URL.
-    This function is intended to be used in a GitHub Action context.
-
-    Args:
-        existing_analysis_dir: Path to a directory containing a previous analysis.json
-            and analysis_manifest.json. When provided, incremental analysis is attempted
-            before falling back to a full analysis.
-    """
+) -> Path:
+    """Generate analysis for a GitHub repository URL (GitHub Action entry point)."""
     repo_root = Path(os.getenv("REPO_ROOT", "repos"))
     repo_name = clone_repository(repo_url, repo_root)
     repo_dir = repo_root / repo_name
@@ -140,7 +99,6 @@ def generate_analysis(
     checkout_repo(repo_dir, source_branch)
     temp_repo_folder = create_temp_repo_folder()
 
-    # Seed previous analysis files so incremental update can detect changes
     if existing_analysis_dir:
         _seed_existing_analysis(Path(existing_analysis_dir), temp_repo_folder)
 
@@ -154,10 +112,8 @@ def generate_analysis(
         log_path=run_context.log_path,
     )
 
-    # Use smart analysis: tries incremental first, falls back to full
-    analysis_path = generator.generate_analysis_smart()
+    analysis_path = generator.generate_analysis()
 
-    # Now generate the output docs:
     match extension:
         case ".md":
             generate_markdown(analysis_path, repo_name, repo_url, target_branch, temp_repo_folder, output_dir)

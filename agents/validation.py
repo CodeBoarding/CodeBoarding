@@ -341,21 +341,14 @@ def validate_key_entities(result: AnalysisInsights, context: ValidationContext) 
         for component in result.components:
             for key_entity in component.key_entities:
                 qname = key_entity.qualified_name.replace("/", ".")
-                for lang in context.static_analysis.get_languages():
-                    try:
-                        context.static_analysis.get_reference(lang, qname)
-                        break
-                    except (ValueError, FileExistsError):
-                        pass
-                    _text, loose_node = context.static_analysis.get_loose_reference(lang, qname)
-                    if loose_node is not None:
-                        logger.info(
-                            f"[Validation] Auto-corrected qualified name: "
-                            f"'{key_entity.qualified_name}' -> '{loose_node.fully_qualified_name}'"
-                        )
-                        key_entity.qualified_name = loose_node.fully_qualified_name
-                        auto_corrected += 1
-                        break
+                node = context.static_analysis.resolve_across_languages(qname)
+                if node is not None and node.fully_qualified_name != qname:
+                    logger.info(
+                        f"[Validation] Auto-corrected qualified name: "
+                        f"'{key_entity.qualified_name}' -> '{node.fully_qualified_name}'"
+                    )
+                    key_entity.qualified_name = node.fully_qualified_name
+                    auto_corrected += 1
         if auto_corrected:
             logger.info(f"[Validation] Auto-corrected {auto_corrected} qualified names via loose matching")
 
@@ -388,20 +381,10 @@ def validate_key_entities(result: AnalysisInsights, context: ValidationContext) 
             valid = []
             for key_entity in component.key_entities:
                 qname = key_entity.qualified_name.replace("/", ".")
-                found = False
-                for lang in context.static_analysis.get_languages():
-                    try:
-                        context.static_analysis.get_reference(lang, qname)
-                        found = True
-                        break
-                    except (ValueError, FileExistsError):
-                        pass
-                    _text, loose_node = context.static_analysis.get_loose_reference(lang, qname)
-                    if loose_node is not None:
-                        key_entity.qualified_name = loose_node.fully_qualified_name
-                        found = True
-                        break
-                if found:
+                node = context.static_analysis.resolve_across_languages(qname)
+                if node is not None:
+                    if node.fully_qualified_name != qname:
+                        key_entity.qualified_name = node.fully_qualified_name
                     valid.append(key_entity)
                 else:
                     dropped += 1
