@@ -14,7 +14,7 @@ from agents.agent_responses import (
     MethodEntry,
     assign_component_ids,
 )
-from diagram_analysis.incremental.updater import IncrementalUpdater
+from diagram_analysis.incremental_updater import IncrementalUpdater
 from repo_utils.diff_parser import detect_changes
 
 
@@ -107,9 +107,14 @@ def test_incremental_delta_reports_added_modified_deleted_in_single_file():
         updater = IncrementalUpdater(
             analysis,
             symbol_resolver=resolver,
-            change_set=change_set,
+            repo_dir=repo,
         )
-        delta = updater.compute_delta()
+        delta = updater.compute_delta(
+            added_files=list(change_set.added_files),
+            modified_files=list(change_set.modified_files),
+            deleted_files=list(change_set.deleted_files),
+            changes=change_set,
+        )
 
         file_delta = next(fd for fd in delta.file_deltas if fd.file_path == "src/utils.py")
         assert file_delta.file_status == "modified"

@@ -2,8 +2,8 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from codeboarding_workflows.incremental import run_incremental_workflow
-from diagram_analysis.incremental.models import IncrementalRunResult, IncrementalSummary, IncrementalSummaryKind
-from diagram_analysis.incremental.payload import IncrementalCompletedPayload
+from diagram_analysis.incremental_models import IncrementalRunResult, IncrementalSummary, IncrementalSummaryKind
+from diagram_analysis.incremental_payload import IncrementalCompletedPayload
 from repo_utils.change_detector import ChangeDetectionError
 
 

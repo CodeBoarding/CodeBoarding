@@ -231,7 +231,7 @@ def apply_patch_scopes(
     root_analysis: AnalysisInsights,
     sub_analyses: dict[str, AnalysisInsights],
     patch_scopes: list[PatchScope],
-    parsing_llm,
+    agent_llm,
     callbacks: list | None = None,
 ) -> tuple[AnalysisInsights, dict[str, AnalysisInsights]]:
     patched_root = root_analysis
@@ -241,7 +241,7 @@ def apply_patch_scopes(
         current_scope = patched_root if patch_scope.scope_id is None else patched_sub_analyses.get(patch_scope.scope_id)
         if current_scope is None:
             raise RuntimeError(f"Patch scope '{patch_scope.scope_id}' could not be resolved")
-        patched_scope = patch_analysis_scope(current_scope, patch_scope, parsing_llm, callbacks)
+        patched_scope = patch_analysis_scope(current_scope, patch_scope, agent_llm, callbacks)
         if patched_scope is None:
             raise RuntimeError(f"Patch generation failed for scope '{patch_scope.scope_id or 'root'}' after 3 attempts")
         if patch_scope.scope_id is None:

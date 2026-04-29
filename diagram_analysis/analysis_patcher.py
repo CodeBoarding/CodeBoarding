@@ -191,12 +191,12 @@ def apply_scope_patch(
 def patch_analysis_scope(
     analysis: AnalysisInsights,
     patch_scope: PatchScope,
-    parsing_llm: BaseChatModel,
+    agent_llm: BaseChatModel,
     callbacks: list | None = None,
 ) -> AnalysisInsights | None:
     """Patch a bounded analysis scope with a structured extractor contract."""
     extractor = create_extractor(
-        parsing_llm,
+        agent_llm,
         tools=[AnalysisScopePatch],
         tool_choice=AnalysisScopePatch.__name__,
     )

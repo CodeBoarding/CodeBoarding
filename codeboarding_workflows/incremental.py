@@ -4,8 +4,8 @@ import logging
 from pathlib import Path
 
 from diagram_analysis.diagram_generator import DiagramGenerator
-from diagram_analysis.incremental.payload import IncrementalCompletedPayload, NoChangesPayload
-from diagram_analysis.incremental.pipeline import run_incremental_pipeline
+from diagram_analysis.incremental_payload import IncrementalCompletedPayload, NoChangesPayload
+from diagram_analysis.incremental_pipeline import run_incremental_pipeline
 from diagram_analysis.io_utils import load_analysis_metadata, load_full_analysis
 from repo_utils import get_git_commit_hash
 from repo_utils.change_detector import ChangeDetectionError, ChangeSet

@@ -12,7 +12,7 @@ from agents.agent_responses import (
 )
 from agents.change_status import ChangeStatus
 from diagram_analysis.incremental_models import TraceResult, TraceStopReason
-from diagram_analysis.incremental_updater import FileDelta, IncrementalDelta, MethodChange, apply_delta
+from diagram_analysis.incremental_updater import FileDelta, IncrementalDelta, MethodChange, apply_method_delta
 from diagram_analysis.scope_planner import apply_patch_scopes, build_ownership_index, derive_patch_scopes
 
 
@@ -60,7 +60,9 @@ def test_derive_patch_scopes_maps_new_methods_after_delta_application():
         ]
     )
 
-    updated_root, updated_subs = apply_delta(root, {}, delta)
+    updated_root = root.model_copy(deep=True)
+    updated_subs = {}
+    apply_method_delta(updated_root, updated_subs, delta)
     ownership_index = build_ownership_index(updated_root, updated_subs)
     trace_result = TraceResult(
         visited_methods=["mod.added"],
@@ -131,4 +133,4 @@ def test_apply_patch_scopes_raises_when_patch_generation_fails():
 
     with patch("diagram_analysis.scope_planner.patch_analysis_scope", return_value=None):
         with pytest.raises(RuntimeError, match="Patch generation failed"):
-            apply_patch_scopes(root, {}, patch_scopes, parsing_llm=MagicMock())
+            apply_patch_scopes(root, {}, patch_scopes, agent_llm=MagicMock())

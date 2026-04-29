@@ -55,7 +55,7 @@ def test_extension_to_language(ext, expected):
     assert SOURCE_EXTENSION_TO_LANGUAGE[ext] == expected
 
 
-@pytest.mark.parametrize("ext", [".rs", ".rb"])
+@pytest.mark.parametrize("ext", [".rb", ".swift"])
 def test_unsupported_extension(ext):
     assert ext not in SOURCE_EXTENSION_TO_LANGUAGE
 
