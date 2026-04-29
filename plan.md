@@ -11,7 +11,7 @@ The target behavior is:
 - Tree-sitter removes cosmetic-only edits before any semantic tracing LLM step.
 - The semantic tracer walks CFG neighbors to determine upstream and downstream impact.
 - Patching is scoped to the components/subtrees justified by the trace.
-- Incremental analysis never returns "full analyze", "reexpand", or any equivalent escape hatch once a baseline exists.
+- Incremental analysis never terminates by requesting a broader regeneration pass, whether full-repo or bounded-subtree, once a baseline exists.
 
 ## Guiding Decisions
 
@@ -143,7 +143,7 @@ This code patches `AnalysisInsights`, so it belongs to the diagram domain.
 As part of the move:
 
 - remove the EASE + RFC 6902 JSON Patch design
-- replace it with a simpler structured replacement model
+- replace it with a simpler general extractor/patching model
 
 ### 8. Trim models into `diagram_analysis/incremental_models.py`
 
@@ -173,6 +173,12 @@ The baseline source of truth remains:
 - `analysis.json.metadata.commit_hash`
 
 The incremental path should continue to hang off `DiagramGenerator.generate_analysis_smart()` and the existing CLI seam.
+
+This plan is post-baseline only:
+
+- if `analysis.json` or `metadata.commit_hash` is missing, treat that as a precondition failure for normal incremental
+- do not bootstrap baseline creation inside this workflow
+- an empty change set is the normal `no_changes` outcome, not a separate execution mode
 
 ### 2. Fix baseline persistence first
 
@@ -304,11 +310,11 @@ The tracer must reason about both:
 The tracer output must distinguish:
 
 - `visited_methods`: methods seen during tracing
-- `impacted_methods`: methods judged materially relevant to documentation changes
+- `impacted_methods`: methods judged to be materially involved in the semantic code change
 
 Patch scope is determined from `visited_methods`.
 
-Semantic emphasis inside the patcher can use `impacted_methods`.
+Semantic emphasis inside the patcher can use `impacted_methods`; documentation updates happen later at patch time, not during trace classification.
 
 Fast-path methods and deterministic shortcut cases still count as seen if they were part of the trace.
 
@@ -324,13 +330,12 @@ Start with:
 
 If prompt size becomes a real constraint, SCC condensation can be added later through `static_analyzer/graph_query.py`.
 
-### 13. Replace all full-analysis escape hatches
+### 13. Replace all regeneration escape hatches
 
-The incremental flow must not return:
+The incremental flow must not terminate by requesting:
 
-- `REQUIRES_FULL_ANALYSIS`
-- `SCOPED_REANALYSIS`
-- "reexpand"
+- full-repo regeneration
+- bounded subtree/component regeneration
 - "run full analysis"
 - any equivalent fallback contract
 
@@ -384,11 +389,17 @@ If an added file has no trace-visible CFG edges, it will not naturally produce t
 In that case, infer a synthetic patch scope:
 
 - search analyzed files in the same directory first
-- if none, walk up to parent directories
+- if none, walk up to parent directories until a nearby analyzed package/module area is found
 - choose the nearest analyzed file by directory distance
 - use that file's deepest owning component as the subtree root
 
 This synthetic scope stands in for "methods touched by the trace" when the graph is disconnected.
+
+Treat this as an explicit widening rule:
+
+- same-directory analyzed siblings are the first signal
+- nearest parent-directory/module context is the next fallback
+- only after those fail should scope widen further
 
 ### 18. Widen ambiguous synthetic scope to LCA
 
@@ -422,9 +433,9 @@ The patch target can be:
 
 The patching system must support all three cleanly.
 
-### 3. Use structured replacements, not JSON Patch
+### 3. Use a general extractor/patching model, not JSON Patch
 
-Replace the EASE + RFC 6902 patching scheme with stable-ID structured replacements.
+Replace the EASE + RFC 6902 patching scheme with a stable-ID structured extraction contract that a deterministic patcher applies to the analysis.
 
 Each patch request/response should be keyed by:
 
@@ -554,7 +565,7 @@ The purpose of this phase is to land the flatter architecture first so later log
 
 ### Phase 6. Remove escalation behavior
 
-- delete fallback result kinds and payloads
+- delete fallback result kinds and payloads that request broader regeneration
 - remove additive-only early exits
 - replace syntax-error aborts with scope widening
 - replace rename/copy aborts with conservative patching
@@ -595,7 +606,7 @@ The purpose of this phase is to land the flatter architecture first so later log
 - traced methods patch only the owning components/subtrees
 - root analysis can be selected as a patch target
 - sub-analyses can be selected as patch targets
-- added disconnected file patches the nearest directory subtree
+- added disconnected file patches the nearest same-directory subtree, or the nearest parent-directory subtree when no analyzed siblings exist
 - conflicting nearest owners widen to component LCA
 
 ### Failure-mode contract
@@ -605,7 +616,8 @@ The purpose of this phase is to land the flatter architecture first so later log
 - copy path still patches
 - unresolved symbol path still patches
 - partial patch failure widens scope and still patches
-- no incremental run with a baseline ever requests full analysis or re-expansion
+- missing baseline is treated as a precondition failure outside normal incremental terminal states
+- no incremental run with a baseline ever requests broader regeneration
 
 ## Acceptance Criteria
 
@@ -616,6 +628,7 @@ The purpose of this phase is to land the flatter architecture first so later log
 - Semantic patch scope is based on traced methods, not coarse file-level ownership.
 - Added disconnected files still receive a semantic patch through subtree inference.
 - All uncertainty paths widen scope instead of escalating execution mode.
+- Missing baseline is outside the normal incremental contract.
 - Every incremental run with an existing baseline ends in a patch or empty patch set.
 
 ## Non-Goals

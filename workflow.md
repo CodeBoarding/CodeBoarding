@@ -7,7 +7,7 @@ This document defines the intended normal incremental workflow for semantic incr
 This is the workflow once a baseline `analysis.json` already exists and includes a valid `metadata.commit_hash`.
 
 Bootstrap is outside this contract:
-- No baseline yet: run baseline creation first.
+- No baseline yet: do not run this workflow.
 
 ## Invariants
 
@@ -15,18 +15,18 @@ Bootstrap is outside this contract:
 - Structural updates happen deterministically before semantic patching.
 - Tree-sitter cosmetic filtering happens before any semantic tracer LLM call.
 - Uncertainty widens patch scope.
-- A normal incremental run never ends in `requires_full_analysis`, `scoped_reanalysis`, `reexpand`, or an equivalent fallback.
+- A normal incremental run never terminates by requesting a broader regeneration pass, whether full-repo or bounded-subtree.
 
 ## Workflow
 
 1. Baseline check
 - If `analysis.json` and `metadata.commit_hash` exist, continue.
-- If no baseline exists, exit the normal incremental path and create the baseline first.
+- If no baseline exists, exit the normal incremental path immediately.
 
 2. Git diff
-- Compare the saved baseline commit against the current target.
-- If the diff is empty, write updated incremental metadata and exit with `no_changes`.
-- If the diff is non-empty, continue.
+- Compute the change set between the saved baseline commit and the current target.
+- Downstream stages consume that change set.
+- An empty change set results in `no_changes`.
 
 3. Structural delta
 - Build the deterministic file and method delta from git changes.
@@ -48,7 +48,7 @@ Bootstrap is outside this contract:
 - Continue until closure, frontier exhaustion, or budget exhaustion.
 - Track both:
   - `visited_methods`: methods seen during trace; this defines semantic patch scope.
-  - `impacted_methods`: methods judged to materially affect documentation.
+  - `impacted_methods`: methods judged to be materially involved in the semantic code change; this narrower set is later used as input to patching.
 
 7. Conservative widening
 - If symbol resolution is incomplete, syntax is problematic, graph coverage is incomplete, or the trace budget is exhausted, widen scope conservatively and continue.
@@ -78,13 +78,14 @@ Normal incremental should end in exactly one of these states:
 - `patched_from_trace`
 - `patched_from_conservative_widening`
 
+Missing baseline is a precondition failure and is outside these normal incremental terminal states.
+
 ## Branches That Should Not Exist
 
 These outcomes are not part of the intended normal workflow:
 
-- `requires_full_analysis`
-- `scoped_reanalysis`
-- `reexpand`
+- full-repo regeneration required
+- bounded subtree/component regeneration required
 - syntax-error abort
 - rename or copy abort
 - additive-only early exit without scope inference
@@ -95,7 +96,8 @@ These outcomes are not part of the intended normal workflow:
 
 - These files may produce no semantic trace hits.
 - They still need semantic patching.
-- Their patch scope is inferred from the subtree that the nearest analyzed file belongs to.
+- Their patch scope is inferred from the nearest analyzed subtree in the same directory.
+- If no analyzed siblings exist, widen to the nearest parent-directory/module subtree.
 
 ### Ambiguous nearest ownership
 
