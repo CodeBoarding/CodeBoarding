@@ -79,7 +79,6 @@ packages = [
     "agents.tools",
     "core",
     "diagram_analysis",
-    "diagram_analysis.incremental",
     "health",
     "health.checks",
     "monitoring",

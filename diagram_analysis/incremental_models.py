@@ -1,4 +1,4 @@
-"""Pydantic models for trace-based incremental analysis."""
+"""Pydantic and dataclass models for trace-based incremental analysis."""
 
 from dataclasses import dataclass, field
 from enum import StrEnum
@@ -37,8 +37,13 @@ class TraceStopReason(StrEnum):
     CONTINUE = "continue"
     NO_MATERIAL_IMPACT = "stop_no_material_semantic_impact"
     CLOSURE_REACHED = "stop_material_semantic_impact_closure_reached"
+    FRONTIER_EXHAUSTED = "stop_frontier_exhausted"
+    BUDGET_EXHAUSTED = "stop_budget_exhausted"
     UNCERTAIN = "stop_uncertain"
     SYNTAX_ERROR = "stop_syntax_error"
+    # System-only (not exposed to the LLM). Set when the planner filters every
+    # changed file as cosmetic-only and the LLM is never invoked.
+    COSMETIC_ONLY = "stop_cosmetic_only"
 
 
 class TraceResponse(LLMBaseModel):
@@ -48,7 +53,9 @@ class TraceResponse(LLMBaseModel):
         description=(
             "continue = more methods to inspect; "
             "stop_no_material_semantic_impact = changes are local with no semantic ripple; "
-            "stop_material_semantic_impact_closure_reached = all impacted methods found; "
+            "stop_material_semantic_impact_closure_reached = all impacted methods were found; "
+            "stop_frontier_exhausted = explored all useful neighbors; "
+            "stop_budget_exhausted = more methods would be helpful but the budget is exhausted; "
             "stop_uncertain = cannot determine impact confidently"
         )
     )
@@ -107,8 +114,11 @@ class TraceResult:
     """Output of the full tracing loop."""
 
     impacted_components: list[ImpactedComponent] = field(default_factory=list)
-    all_impacted_methods: list[str] = field(default_factory=list)
+    impacted_methods: list[str] = field(default_factory=list)
+    visited_methods: list[str] = field(default_factory=list)
     unresolved_frontier: list[str] = field(default_factory=list)
+    non_traceable_files: list[str] = field(default_factory=list)
+    disconnected_files: list[str] = field(default_factory=list)
     stop_reason: TraceStopReason = TraceStopReason.NO_MATERIAL_IMPACT
     hops_used: int = 0
     semantic_impact_summary: str = ""
@@ -180,7 +190,7 @@ class IncrementalRunResult:
                 else {
                     "stopReason": self.trace_result.stop_reason.value,
                     "hopsUsed": self.trace_result.hops_used,
-                    "impactedMethods": list(self.trace_result.all_impacted_methods),
+                    "impactedMethods": list(self.trace_result.impacted_methods),
                     "impactedComponents": [
                         {"componentId": c.component_id, "impactedMethods": list(c.impacted_methods)}
                         for c in self.trace_result.impacted_components

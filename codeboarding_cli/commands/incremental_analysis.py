@@ -7,7 +7,7 @@ from agents.llm_config import LLMConfigError
 from codeboarding_cli.bootstrap import bootstrap_environment, resolve_local_run_paths
 from codeboarding_workflows.analysis import run_incremental
 from diagram_analysis import RunContext
-from diagram_analysis.incremental.payload import RequiresFullAnalysisPayload, IncrementalRunPayload
+from diagram_analysis.incremental_payload import RequiresFullAnalysisPayload, IncrementalRunPayload
 from diagram_analysis.run_metadata import RunMode
 from diagram_analysis.run_metadata import last_successful_commit
 from utils import monitoring_enabled

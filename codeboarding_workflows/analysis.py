@@ -9,8 +9,8 @@ import logging
 from pathlib import Path
 
 from diagram_analysis import DiagramGenerator
-from diagram_analysis.incremental.payload import IncrementalRunPayload
-from diagram_analysis.incremental.pipeline import run_incremental_pipeline
+from diagram_analysis.incremental_payload import IncrementalRunPayload
+from diagram_analysis.incremental_pipeline import run_incremental_pipeline
 from diagram_analysis.io_utils import load_full_analysis, save_sub_analysis
 from diagram_analysis.run_metadata import write_full_run_metadata
 

@@ -14,17 +14,17 @@ from agents.agent_responses import (
     assign_component_ids,
 )
 from main import build_parser, main as cli_main
-from diagram_analysis.incremental.models import (
+from diagram_analysis.incremental_models import (
     IncrementalRunResult,
     IncrementalSummary,
     IncrementalSummaryKind,
 )
-from diagram_analysis.incremental.payload import (
+from diagram_analysis.incremental_payload import (
     RequiresFullAnalysisPayload,
     IncrementalCompletedPayload,
     NoChangesPayload,
 )
-from diagram_analysis.incremental.pipeline import run_incremental_pipeline
+from diagram_analysis.incremental_pipeline import run_incremental_pipeline
 from diagram_analysis.run_metadata import last_successful_commit, write_full_run_metadata
 from repo_utils.git_ops import worktree_has_changes
 from static_analyzer.analysis_result import StaticAnalysisResults
@@ -187,14 +187,7 @@ def test_run_incremental_analysis_uses_explicit_base_ref(tmp_path: Path) -> None
     )
 
     fake_static = _make_static_analysis("src/utils.py", "src.utils.alpha", 1, 3)
-    fake_result = IncrementalRunResult(
-        summary=IncrementalSummary(
-            kind=IncrementalSummaryKind.MATERIAL_IMPACT,
-            message="patched",
-            used_llm=False,
-        ),
-        analysis_path=output_dir / "analysis.json",
-    )
+    fake_path = output_dir / "analysis.json"
 
     mock_generator = _make_generator(repo, output_dir)
 
@@ -202,7 +195,7 @@ def test_run_incremental_analysis_uses_explicit_base_ref(tmp_path: Path) -> None
         mock_generator.static_analysis = fake_static
 
     mock_generator.pre_analysis.side_effect = _pre_analysis
-    mock_generator.generate_analysis_incremental.return_value = fake_result
+    mock_generator.generate_analysis_incremental.return_value = fake_path
 
     payload = run_incremental_pipeline(mock_generator, base_ref=baseline_commit, target_ref="")
 
@@ -232,7 +225,7 @@ def test_run_incremental_pipeline_requires_full_when_git_diff_fails(tmp_path: Pa
     )
 
     with patch(
-        "diagram_analysis.incremental.pipeline.detect_changes",
+        "diagram_analysis.incremental_pipeline.detect_changes",
         return_value=ChangeSet(base_ref="base", target_ref="", error="bad object base"),
     ):
         payload = run_incremental_pipeline(_make_generator(repo, output_dir), base_ref="base", target_ref="")
@@ -240,64 +233,6 @@ def test_run_incremental_pipeline_requires_full_when_git_diff_fails(tmp_path: Pa
     assert isinstance(payload, RequiresFullAnalysisPayload)
     assert payload.requires_full_analysis is True
     assert "Git diff failed" in payload.message
-    assert not (output_dir / "incremental_run_metadata.json").exists()
-
-
-def test_incremental_generator_fallback_sets_top_level_full_required_flag(tmp_path: Path) -> None:
-    repo = tmp_path / "repo"
-    repo.mkdir()
-    _git(repo, "init")
-    _git(repo, "config", "user.email", "test@example.com")
-    _git(repo, "config", "user.name", "Test User")
-
-    source_file = repo / "src" / "utils.py"
-    source_file.parent.mkdir(parents=True, exist_ok=True)
-    source_file.write_text("def alpha():\n    return 1\n", encoding="utf-8")
-    _git(repo, "add", ".")
-    _git(repo, "commit", "-m", "baseline")
-    baseline_commit = subprocess.run(
-        ["git", "-C", str(repo), "rev-parse", "HEAD"],
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout.strip()
-
-    output_dir = repo / ".codeboarding"
-    output_dir.mkdir()
-    method = MethodEntry(
-        qualified_name="src.utils.alpha",
-        start_line=1,
-        end_line=2,
-        node_type="FUNCTION",
-    )
-    save_analysis(
-        analysis=_make_analysis("src/utils.py", method),
-        output_dir=output_dir,
-        repo_name="repo",
-        commit_hash=baseline_commit,
-    )
-
-    source_file.write_text("def alpha():\n    return 2\n", encoding="utf-8")
-
-    mock_generator = _make_generator(repo, output_dir)
-    mock_generator.pre_analysis.side_effect = lambda: setattr(
-        mock_generator,
-        "static_analysis",
-        _make_static_analysis("src/utils.py", "src.utils.alpha", 1, 2),
-    )
-    mock_generator.generate_analysis_incremental.return_value = IncrementalRunResult(
-        summary=IncrementalSummary(
-            kind=IncrementalSummaryKind.REQUIRES_FULL_ANALYSIS,
-            message="full required",
-            requires_full_analysis=True,
-        )
-    )
-
-    payload = run_incremental_pipeline(mock_generator, base_ref=baseline_commit, target_ref="")
-
-    assert isinstance(payload, IncrementalCompletedPayload)
-    assert payload.requires_full_analysis is True
-    assert payload.result.summary.requires_full_analysis is True
     assert not (output_dir / "incremental_run_metadata.json").exists()
 
 

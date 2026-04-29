@@ -14,8 +14,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Union
 
-from diagram_analysis.incremental.delta import IncrementalDelta
-from diagram_analysis.incremental.models import (
+from diagram_analysis.incremental_updater import IncrementalDelta
+from diagram_analysis.incremental_models import (
     IncrementalRunResult,
     IncrementalSummary,
     IncrementalSummaryKind,
