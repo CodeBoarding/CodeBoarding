@@ -13,6 +13,7 @@ from agents.agent_responses import (
 from agents.change_status import ChangeStatus
 from diagram_analysis.incremental_models import TraceResult, TraceStopReason
 from diagram_analysis.incremental_updater import FileDelta, IncrementalDelta, MethodChange, apply_method_delta
+from diagram_analysis.analysis_patcher import PatchScope
 from diagram_analysis.scope_planner import apply_patch_scopes, build_ownership_index, derive_patch_scopes
 
 
@@ -61,7 +62,7 @@ def test_derive_patch_scopes_maps_new_methods_after_delta_application():
     )
 
     updated_root = root.model_copy(deep=True)
-    updated_subs = {}
+    updated_subs: dict[str, AnalysisInsights] = {}
     apply_method_delta(updated_root, updated_subs, delta)
     ownership_index = build_ownership_index(updated_root, updated_subs)
     trace_result = TraceResult(
@@ -121,13 +122,11 @@ def test_apply_patch_scopes_raises_when_patch_generation_fails():
         components_relations=[],
     )
     patch_scopes = [
-        MagicMock(
+        PatchScope(
             scope_id=None,
             target_component_ids=["1.1"],
             visited_methods=["auth.login"],
             impacted_methods=["auth.login"],
-            synthetic_files=[],
-            semantic_impact_summary="",
         )
     ]
 
