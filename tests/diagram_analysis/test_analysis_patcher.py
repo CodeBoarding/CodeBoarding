@@ -1,7 +1,14 @@
 from unittest.mock import MagicMock, patch
 
 from agents.agent_responses import AnalysisInsights, Component, Relation, SourceCodeReference
-from diagram_analysis.analysis_patcher import AnalysisScopePatch, PatchScope, apply_scope_patch, patch_analysis_scope
+from diagram_analysis.analysis_patcher import (
+    AnalysisScopePatch,
+    ComponentPatch,
+    PatchScope,
+    RelationPatch,
+    apply_scope_patch,
+    patch_analysis_scope,
+)
 
 
 def _make_analysis() -> AnalysisInsights:
@@ -45,20 +52,20 @@ def test_apply_scope_patch_updates_only_targeted_components_and_relations():
     scope_patch = AnalysisScopePatch(
         scope_description="Updated scope",
         components=[
-            {
-                "component_id": "1.1",
-                "description": "Updated auth description",
-                "key_entities": [{"qualified_name": "auth.refresh"}],
-            }
+            ComponentPatch(
+                component_id="1.1",
+                description="Updated auth description",
+                key_entities=[SourceCodeReference(qualified_name="auth.refresh")],
+            )
         ],
         relations=[
-            {
-                "src_id": "1.1",
-                "dst_id": "1.2",
-                "relation": "depends_on",
-                "src_name": "Auth",
-                "dst_name": "Store",
-            }
+            RelationPatch(
+                src_id="1.1",
+                dst_id="1.2",
+                relation="depends_on",
+                src_name="Auth",
+                dst_name="Store",
+            )
         ],
     )
 
@@ -89,13 +96,13 @@ def test_apply_scope_patch_ignores_out_of_scope_relation_additions():
         scope_description=None,
         components=[],
         relations=[
-            {
-                "src_id": "1.2",
-                "dst_id": "1.3",
-                "relation": "feeds",
-                "src_name": "Store",
-                "dst_name": "Cache",
-            }
+            RelationPatch(
+                src_id="1.2",
+                dst_id="1.3",
+                relation="feeds",
+                src_name="Store",
+                dst_name="Cache",
+            )
         ],
     )
 
