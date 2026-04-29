@@ -389,6 +389,9 @@ def run_trace(
                 all_impacted_methods=trace_plan.fast_path_impacted_methods,
                 stop_reason=TraceStopReason.CLOSURE_REACHED,
             )
+        if trace_plan.cosmetic_skipped:
+            logger.info("All changed files were cosmetic-only; skipping trace")
+            return TraceResult(stop_reason=TraceStopReason.COSMETIC_ONLY)
         logger.info("No traceable changed methods; skipping trace")
         return TraceResult()
 

@@ -106,6 +106,7 @@ def test_cosmetic_only_modification_is_skipped_from_plan():
         # Cosmetic-only file should contribute no groups
         assert plan.groups == []
         assert plan.fast_path_impacted_methods == []
+        assert plan.cosmetic_skipped == 1
     finally:
         shutil.rmtree(repo.parent, ignore_errors=True)
 

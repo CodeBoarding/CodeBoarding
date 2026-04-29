@@ -39,6 +39,9 @@ class TraceStopReason(StrEnum):
     CLOSURE_REACHED = "stop_material_semantic_impact_closure_reached"
     UNCERTAIN = "stop_uncertain"
     SYNTAX_ERROR = "stop_syntax_error"
+    # System-only (not exposed to the LLM). Set when the planner filters every
+    # changed file as cosmetic-only and the LLM is never invoked.
+    COSMETIC_ONLY = "stop_cosmetic_only"
 
 
 class TraceResponse(LLMBaseModel):

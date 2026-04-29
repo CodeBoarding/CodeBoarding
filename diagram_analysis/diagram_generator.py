@@ -596,11 +596,19 @@ class DiagramGenerator:
                 sub_analyses=sub_analyses,
                 repo_name=self.repo_name,
             ).resolve()
+            if trace_result.stop_reason == TraceStopReason.COSMETIC_ONLY:
+                kind = IncrementalSummaryKind.COSMETIC_ONLY
+                message = "Changes are cosmetic-only; no semantic patching needed."
+                used_llm = False
+            else:
+                kind = IncrementalSummaryKind.NO_MATERIAL_IMPACT
+                message = "No methods have semantically impacted descriptions."
+                used_llm = True
             return IncrementalRunResult(
                 summary=IncrementalSummary(
-                    kind=IncrementalSummaryKind.NO_MATERIAL_IMPACT,
-                    message="No methods have semantically impacted descriptions.",
-                    used_llm=True,
+                    kind=kind,
+                    message=message,
+                    used_llm=used_llm,
                     trace_stop_reason=trace_result.stop_reason,
                 ),
                 trace_result=trace_result,

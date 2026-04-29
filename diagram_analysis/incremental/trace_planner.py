@@ -112,6 +112,7 @@ class TracePlan:
 
     groups: list[ChangeGroup] = field(default_factory=list)
     fast_path_impacted_methods: list[str] = field(default_factory=list)
+    cosmetic_skipped: int = 0
 
 
 # ---------------------------------------------------------------------------
@@ -432,4 +433,5 @@ def build_trace_plan(
     return TracePlan(
         groups=finalized_groups,
         fast_path_impacted_methods=sorted(fast_path_impacted_methods),
+        cosmetic_skipped=cosmetic_skipped,
     )
