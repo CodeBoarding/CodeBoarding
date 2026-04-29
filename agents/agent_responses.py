@@ -160,6 +160,16 @@ class MethodEntry(BaseModel):
             node_type=method_change.node_type,
         )
 
+    @classmethod
+    def from_node(cls, node) -> MethodEntry:
+        """Build from a ``static_analyzer.Node``. Accepts ``Any`` to avoid a hard dep."""
+        return cls(
+            qualified_name=node.fully_qualified_name,
+            start_line=node.line_start,
+            end_line=node.line_end,
+            node_type=node.type.name,
+        )
+
 
 class FileMethodGroup(BaseModel):
     """All methods/functions belonging to a component within a single file."""

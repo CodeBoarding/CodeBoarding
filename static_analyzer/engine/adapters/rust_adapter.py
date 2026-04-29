@@ -7,6 +7,7 @@ import shutil
 from pathlib import Path
 
 from repo_utils.ignore import RepoIgnoreManager
+from static_analyzer.constants import Language
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_client import LSPClient
 
@@ -79,6 +80,10 @@ class RustAdapter(LanguageAdapter):
         return "Rust"
 
     @property
+    def language_enum(self) -> Language:
+        return Language.RUST
+
+    @property
     def references_per_query_timeout(self) -> int:
         """Non-zero gates the Phase-1.5 warmup probe so rust-analyzer builds
         its ``ide_db::search`` index before Phase 2 fans out queries."""
@@ -113,10 +118,6 @@ class RustAdapter(LanguageAdapter):
         if not client.wait_for_server_ready(timeout=10):
             # No quiescent transition observed; debounce instead.
             client.wait_for_diagnostics_quiesce(idle_seconds=3.0, max_wait=60.0)
-
-    @property
-    def file_extensions(self) -> tuple[str, ...]:
-        return (".rs",)
 
     @property
     def lsp_command(self) -> list[str]:

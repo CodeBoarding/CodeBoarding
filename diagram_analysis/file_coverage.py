@@ -14,8 +14,8 @@ from typing import TYPE_CHECKING
 from repo_utils import normalize_path, normalize_paths
 
 if TYPE_CHECKING:
-    from repo_utils.change_detector import ChangeSet
     from repo_utils.ignore import RepoIgnoreManager
+    from repo_utils.change_detector import ChangeSet
 
 logger = logging.getLogger(__name__)
 

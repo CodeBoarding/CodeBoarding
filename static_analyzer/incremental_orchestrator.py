@@ -1,15 +1,31 @@
-"""Incremental analysis orchestrator coordinating cache, git diff, and LSP."""
+"""
+Incremental analysis orchestrator for coordinating incremental static analysis workflows.
+
+This module provides the main orchestration logic for incremental analysis,
+coordinating between cache management, git diff analysis, and LSP client operations.
+"""
 
 import logging
 from pathlib import Path
 
-from repo_utils.ignore import RepoIgnoreManager
+from agents.agent_responses import AnalysisInsights
 from static_analyzer.analysis_cache import AnalysisCacheManager
+from static_analyzer.cluster_change_analyzer import (
+    ClusterChangeAnalyzer,
+    ChangeClassification,
+    analyze_cluster_changes_for_languages,
+    get_overall_classification,
+)
+from repo_utils.git_ops import (
+    get_changed_files_since,
+    has_uncommitted_changes,
+    require_current_commit,
+)
+from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.engine.call_graph_builder import CallGraphBuilder
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_client import LSPClient
 from static_analyzer.engine.result_converter import convert_to_codeboarding_format
-from static_analyzer.git_diff_analyzer import GitDiffAnalyzer
 from static_analyzer.graph import CallGraph, ClusterResult
 
 
@@ -17,10 +33,17 @@ logger = logging.getLogger(__name__)
 
 
 class IncrementalAnalysisOrchestrator:
-    """Reuses cached LSP results and reanalyzes only files that changed since the cached commit."""
+    """
+    Orchestrates incremental static analysis workflows.
+
+    Coordinates between cache management, git diff analysis, and LSP client
+    to provide efficient incremental analysis capabilities.
+    """
 
     def __init__(self, ignore_manager: RepoIgnoreManager):
+        """Initialize the incremental analysis orchestrator."""
         self.cache_manager = AnalysisCacheManager(ignore_manager.repo_root)
+        self.cluster_analyzer = ClusterChangeAnalyzer()
         self._ignore_manager = ignore_manager
 
     def run_incremental_analysis(
@@ -29,20 +52,41 @@ class IncrementalAnalysisOrchestrator:
         project_path: Path,
         engine_client: LSPClient,
         cache_path: Path,
+        analyze_cluster_changes: bool = True,
     ) -> dict:
-        """Run incremental static analysis, falling back to full analysis on any failure."""
+        """Run incremental static analysis using the engine pipeline.
+
+        Same logic as run_incremental_analysis but uses the engine adapter/client
+        instead of the old LSPClient.
+
+        Args:
+            adapter: Language adapter for this analysis
+            project_path: Root path of the project
+            engine_client: Engine LSP client instance
+            cache_path: Path to the cache file
+            analyze_cluster_changes: Whether to analyze and classify cluster changes
+
+        Returns:
+            Dictionary containing complete analysis results with optional cluster change info.
+        """
         try:
-            git_analyzer = GitDiffAnalyzer(project_path)
-            current_commit = git_analyzer.get_current_commit()
+            current_commit = require_current_commit(project_path)
             logger.info(f"Current commit: {current_commit}")
 
             cache_result = self.cache_manager.load_cache_with_clusters(cache_path)
 
             if cache_result is None:
                 logger.info("No cache found, performing full analysis")
-                return self._perform_full_analysis_and_cache(
+                analysis_result = self._perform_full_analysis_and_cache(
                     adapter, project_path, engine_client, cache_path, current_commit
                 )
+                if analyze_cluster_changes:
+                    return {
+                        "analysis_result": analysis_result,
+                        "cluster_change_result": None,
+                        "change_classification": ChangeClassification.BIG,
+                    }
+                return analysis_result
 
             cached_analysis, cached_cluster_results, cached_commit, cached_iteration = cache_result
             logger.info(f"Cache loaded successfully: commit {cached_commit}, iteration {cached_iteration}")
@@ -60,11 +104,18 @@ class IncrementalAnalysisOrchestrator:
                 f"{len(cached_call_graph.edges)} edges"
             )
 
-            if cached_commit == current_commit and not git_analyzer.has_uncommitted_changes():
+            dirty = has_uncommitted_changes(project_path)
+            if cached_commit == current_commit and not dirty:
                 logger.info("No changes detected, using cached results")
+                if analyze_cluster_changes:
+                    return {
+                        "analysis_result": cached_analysis,
+                        "cluster_change_result": None,
+                        "change_classification": ChangeClassification.SMALL,
+                    }
                 return cached_analysis
 
-            if git_analyzer.has_uncommitted_changes():
+            if dirty:
                 logger.info("Uncommitted changes detected in working directory")
 
             logger.info(f"Performing incremental update from commit {cached_commit} to {current_commit}")
@@ -78,20 +129,19 @@ class IncrementalAnalysisOrchestrator:
                 cached_commit,
                 cached_iteration,
                 current_commit,
-                git_analyzer,
+                analyze_cluster_changes,
             )
 
         except Exception as e:
             logger.error(f"Incremental analysis failed: {e}")
             logger.info("Falling back to full analysis")
             try:
-                git_analyzer = GitDiffAnalyzer(project_path)
-                current_commit = git_analyzer.get_current_commit()
+                current_commit = require_current_commit(project_path)
             except Exception:
                 current_commit = "unknown"
                 logger.warning("Could not determine current commit for fallback analysis")
             return self._perform_full_analysis_and_cache(
-                adapter, project_path, engine_client, cache_path, current_commit
+                adapter, project_path, engine_client, cache_path, current_commit, analyze_cluster_changes
             )
 
     def _perform_full_analysis_and_cache(
@@ -101,6 +151,7 @@ class IncrementalAnalysisOrchestrator:
         engine_client: LSPClient,
         cache_path: Path,
         commit_hash: str,
+        analyze_clusters: bool = True,
     ) -> dict:
         """Perform full analysis using the engine pipeline and save to cache."""
         logger.info("Starting full engine analysis")
@@ -123,6 +174,7 @@ class IncrementalAnalysisOrchestrator:
             engine_result = builder.build(source_files)
             analysis_result = convert_to_codeboarding_format(builder.symbol_table, engine_result, adapter)
 
+        # Attach diagnostics
         diagnostics = engine_client.get_collected_diagnostics()
         if diagnostics:
             analysis_result["diagnostics"] = diagnostics
@@ -140,7 +192,10 @@ class IncrementalAnalysisOrchestrator:
             f"{len(call_graph.edges)} edges"
         )
 
-        cluster_results = self._compute_cluster_results(analysis_result)
+        cluster_results = None
+        if analyze_clusters:
+            logger.info("Computing cluster results for cache...")
+            cluster_results = self._compute_cluster_results(analysis_result)
 
         try:
             logger.info(f"Saving analysis results to cache: {cache_path}")
@@ -176,15 +231,21 @@ class IncrementalAnalysisOrchestrator:
         cached_commit: str,
         cached_iteration: int,
         current_commit: str,
-        git_analyzer: GitDiffAnalyzer,
+        analyze_cluster_changes: bool = True,
     ) -> dict:
-        """Reanalyze only files changed since the cached commit and merge with cached results."""
+        """Perform incremental analysis update using the engine pipeline."""
         try:
             logger.info(f"Identifying changed files between {cached_commit} and {current_commit}")
-            changed_files = git_analyzer.get_changed_files(cached_commit)
+            changed_files = get_changed_files_since(project_path, cached_commit)
 
             if not changed_files:
                 logger.info("No files changed, using cached results")
+                if analyze_cluster_changes:
+                    return {
+                        "analysis_result": cached_analysis,
+                        "cluster_change_result": None,
+                        "change_classification": ChangeClassification.SMALL,
+                    }
                 return cached_analysis
 
             existing_files = {f for f in changed_files if f.exists()}
@@ -194,9 +255,11 @@ class IncrementalAnalysisOrchestrator:
                 f"Found {len(changed_files)} changed files: {len(existing_files)} existing, {len(deleted_files)} deleted"
             )
 
+            # Invalidate changed files from cache
             logger.info(f"Invalidating {len(changed_files)} changed files from cache")
             updated_cache = self.cache_manager.invalidate_files(cached_analysis, changed_files)
 
+            # Reanalyze existing changed files using engine pipeline
             logger.info(f"Reanalyzing {len(existing_files)} existing changed files")
             changed_source_files = [
                 f
@@ -218,13 +281,16 @@ class IncrementalAnalysisOrchestrator:
                     "diagnostics": {},
                 }
 
+            # Attach fresh diagnostics
             fresh_diagnostics = engine_client.get_collected_diagnostics()
             if fresh_diagnostics:
                 new_analysis["diagnostics"] = fresh_diagnostics
 
+            # Merge results
             logger.info("Merging new analysis with cached results")
             merged_analysis = self.cache_manager.merge_results(updated_cache, new_analysis)
 
+            # Filter to only include existing files
             all_existing = {f for f in merged_analysis.get("source_files", []) if f.exists()}
             existing_file_strs = {str(f) for f in all_existing}
 
@@ -269,13 +335,26 @@ class IncrementalAnalysisOrchestrator:
                 f"{len(cg.nodes)} nodes, {len(cg.edges)} edges"
             )
 
+            # Compute and match clusters
+            logger.info("Computing cluster results for incremental update...")
             new_cluster_results = self._compute_cluster_results(merged_analysis)
-            cluster_mappings = (
-                self._match_clusters_to_original(new_cluster_results, cached_cluster_results)
-                if new_cluster_results and cached_cluster_results
-                else None
-            )
 
+            cluster_mappings = None
+            if new_cluster_results and cached_cluster_results:
+                cluster_mappings = self._match_clusters_to_original(new_cluster_results, cached_cluster_results)
+
+            cluster_change_result = None
+            change_classification = ChangeClassification.SMALL
+
+            if analyze_cluster_changes and new_cluster_results:
+                logger.info("Analyzing cluster changes...")
+                cluster_changes = analyze_cluster_changes_for_languages(cached_cluster_results, new_cluster_results)
+                change_classification = get_overall_classification(cluster_changes)
+                primary_lang = list(cluster_changes.keys())[0] if cluster_changes else ""
+                cluster_change_result = cluster_changes.get(primary_lang)
+                logger.info(f"Cluster change classification: {change_classification.value}")
+
+            # Save updated cache
             try:
                 logger.info(f"Saving updated cache to: {cache_path}")
                 if new_cluster_results:
@@ -300,6 +379,12 @@ class IncrementalAnalysisOrchestrator:
             except Exception as e:
                 logger.warning(f"Failed to save updated cache: {e}")
 
+            if analyze_cluster_changes:
+                return {
+                    "analysis_result": merged_analysis,
+                    "cluster_change_result": cluster_change_result,
+                    "change_classification": change_classification,
+                }
             return merged_analysis
 
         except Exception as e:
@@ -312,8 +397,24 @@ class IncrementalAnalysisOrchestrator:
         old_cluster_results: dict[str, ClusterResult],
         cluster_mappings: dict[str, dict[int, int]] | None,
     ) -> dict[str, ClusterResult]:
-        """Reuse old cluster IDs where new clusters match, assign fresh IDs to genuinely new ones."""
+        """
+        Merge new cluster results with original cluster mappings for stability.
+
+        This creates a merged ClusterResult that:
+        1. Preserves original cluster IDs where clusters match
+        2. Adds new clusters with new IDs for truly new clusters
+        3. Maintains file-to-cluster mappings consistency
+
+        Args:
+            new_cluster_results: Newly computed cluster results
+            old_cluster_results: Original cluster results from full analysis
+            cluster_mappings: Mapping from new cluster IDs to old cluster IDs
+
+        Returns:
+            Merged cluster results with stable IDs
+        """
         if not cluster_mappings:
+            # No mappings, just return new results
             return new_cluster_results
 
         merged_results: dict[str, ClusterResult] = {}
@@ -323,15 +424,21 @@ class IncrementalAnalysisOrchestrator:
             lang_mapping = cluster_mappings.get(lang, {})
 
             if not lang_mapping or lang not in old_cluster_results:
+                # No mapping for this language, use new results as-is
                 merged_results[lang] = new_result
                 continue
 
             old_result = old_cluster_results[lang]
 
+            # Build merged cluster result
             merged_clusters: dict[int, set[str]] = {}
             merged_file_to_clusters: dict[str, set[int]] = {}
             merged_cluster_to_files: dict[int, set[str]] = {}
 
+            # Track which old IDs have been used
+            used_old_ids = set(lang_mapping.values())
+
+            # First, add all mapped clusters (use old IDs)
             for new_id, old_id in lang_mapping.items():
                 new_files = new_result.get_files_for_cluster(new_id)
                 new_nodes = new_result.get_nodes_for_cluster(new_id)
@@ -340,29 +447,37 @@ class IncrementalAnalysisOrchestrator:
                 merged_cluster_to_files[old_id] = new_files
 
                 for file_path in new_files:
-                    merged_file_to_clusters.setdefault(file_path, set()).add(old_id)
+                    if file_path not in merged_file_to_clusters:
+                        merged_file_to_clusters[file_path] = set()
+                    merged_file_to_clusters[file_path].add(old_id)
 
+            # Then, add unmapped new clusters with new IDs
+            # Find the next available ID
             next_id = max(old_result.get_cluster_ids()) + 1 if old_result.get_cluster_ids() else 1
             for new_id in new_result.get_cluster_ids():
-                if new_id in lang_mapping:
-                    continue
-                new_files = new_result.get_files_for_cluster(new_id)
-                new_nodes = new_result.get_nodes_for_cluster(new_id)
+                if new_id not in lang_mapping:
+                    # This is a new cluster, assign a new ID
+                    new_files = new_result.get_files_for_cluster(new_id)
+                    new_nodes = new_result.get_nodes_for_cluster(new_id)
 
-                merged_clusters[next_id] = new_nodes
-                merged_cluster_to_files[next_id] = new_files
+                    merged_clusters[next_id] = new_nodes
+                    merged_cluster_to_files[next_id] = new_files
 
-                for file_path in new_files:
-                    merged_file_to_clusters.setdefault(file_path, set()).add(next_id)
+                    for file_path in new_files:
+                        if file_path not in merged_file_to_clusters:
+                            merged_file_to_clusters[file_path] = set()
+                        merged_file_to_clusters[file_path].add(next_id)
 
-                next_id += 1
+                    next_id += 1
 
-            merged_results[lang] = ClusterResult(
+            # Create merged ClusterResult
+            merged_result = ClusterResult(
                 clusters=merged_clusters,
                 file_to_clusters=merged_file_to_clusters,
                 cluster_to_files=merged_cluster_to_files,
                 strategy=f"incremental_merged({new_result.strategy})",
             )
+            merged_results[lang] = merged_result
 
             logger.info(
                 f"Merged cluster results for {lang}: "
@@ -373,11 +488,21 @@ class IncrementalAnalysisOrchestrator:
         return merged_results
 
     def _compute_cluster_results(self, analysis_result: dict) -> dict[str, ClusterResult]:
-        """Cluster the call graph; returns {language: ClusterResult}."""
+        """
+        Compute cluster results from analysis result.
+
+        Args:
+            analysis_result: Dictionary containing analysis results with call_graph
+
+        Returns:
+            Dictionary mapping language -> ClusterResult
+        """
         cluster_results = {}
         call_graph = analysis_result.get("call_graph", CallGraph())
 
         if call_graph.nodes:
+            # For now, we treat the entire call graph as a single language (python)
+            # In the future, this could be extended to support multiple languages
             cluster_result = call_graph.cluster()
             cluster_results[call_graph.language] = cluster_result
             logger.info(
@@ -393,19 +518,35 @@ class IncrementalAnalysisOrchestrator:
         new_cluster_results: dict[str, ClusterResult],
         old_cluster_results: dict[str, ClusterResult],
     ) -> dict[str, dict[int, int]]:
-        """Map each new cluster to its best-matching old cluster by Jaccard + containment score."""
+        """
+        Match new clusters to original clusters based on file overlap.
+
+        This preserves cluster ID stability during incremental updates by matching
+        new clusters to the most similar old cluster based on Jaccard similarity
+        of their file sets.
+
+        Args:
+            new_cluster_results: Newly computed cluster results
+            old_cluster_results: Original cluster results from full analysis
+
+        Returns:
+            Dictionary mapping language -> {new_cluster_id: old_cluster_id}
+        """
         cluster_mappings: dict[str, dict[int, int]] = {}
 
         for lang in new_cluster_results:
             if lang not in old_cluster_results:
+                # No old clusters for this language, all new clusters get new IDs
                 continue
 
             new_result = new_cluster_results[lang]
             old_result = old_cluster_results[lang]
 
+            # Build mapping from new cluster IDs to old cluster IDs
             lang_mapping: dict[int, int] = {}
             used_old_ids: set[int] = set()
 
+            # For each new cluster, find the best matching old cluster
             for new_id in new_result.get_cluster_ids():
                 new_files = new_result.get_files_for_cluster(new_id)
 
@@ -414,20 +555,26 @@ class IncrementalAnalysisOrchestrator:
 
                 for old_id in old_result.get_cluster_ids():
                     if old_id in used_old_ids:
-                        continue
+                        continue  # Don't reuse old cluster IDs
 
                     old_files = old_result.get_files_for_cluster(old_id)
 
+                    # Calculate Jaccard similarity: |intersection| / |union|
                     intersection = len(new_files & old_files)
                     if intersection == 0:
                         continue
 
                     union = len(new_files | old_files)
                     similarity = intersection / union if union > 0 else 0.0
+
+                    # Also consider the ratio of new files that were in the old cluster
+                    # This helps when files are added/removed
                     containment_ratio = intersection / len(new_files) if len(new_files) > 0 else 0.0
+
+                    # Combined score: weight similarity and containment
                     score = (similarity * 0.6) + (containment_ratio * 0.4)
 
-                    if score > best_similarity and score >= 0.3:
+                    if score > best_similarity and score >= 0.3:  # Minimum threshold
                         best_similarity = score
                         best_match_id = old_id
 
@@ -446,3 +593,52 @@ class IncrementalAnalysisOrchestrator:
             )
 
         return cluster_mappings
+
+    def _remap_cluster_ids_in_analysis(
+        self,
+        analysis: AnalysisInsights,
+        cluster_mappings: dict[str, dict[int, int]],
+    ) -> None:
+        """
+        Remap cluster IDs in components to use original cluster IDs.
+
+        Args:
+            analysis: Analysis insights with components to update
+            cluster_mappings: Mapping from new cluster IDs to old cluster IDs
+        """
+        # Flatten all mappings (assuming single language for now)
+        # id_mapping maps new_cluster_id -> old_cluster_id
+        id_mapping: dict[int, int] = {}
+        for lang_mapping in cluster_mappings.values():
+            id_mapping.update(lang_mapping)
+
+        if not id_mapping:
+            return
+
+        # Components have OLD cluster IDs from the previous analysis.
+        # The new clustering produced NEW cluster IDs.
+        # id_mapping is new_id -> old_id, so reverse_mapping is old_id -> new_id.
+        # We keep old IDs that still have a corresponding new cluster (i.e. exist in reverse_mapping).
+        reverse_mapping: dict[int, int] = {v: k for k, v in id_mapping.items()}
+
+        updated_count = 0
+        for component in analysis.components:
+            if not component.source_cluster_ids:
+                continue
+
+            remapped_ids = []
+            for old_id in component.source_cluster_ids:
+                # If this old cluster was matched to a new cluster,
+                # keep the old ID (it's the stable one)
+                # If not matched, the cluster was deleted
+                if old_id in reverse_mapping:
+                    remapped_ids.append(old_id)
+                else:
+                    logger.debug(f"Cluster {old_id} no longer exists in component {component.name}")
+
+            if remapped_ids != component.source_cluster_ids:
+                component.source_cluster_ids = remapped_ids
+                updated_count += 1
+
+        if updated_count > 0:
+            logger.info(f"Updated cluster IDs for {updated_count} components")

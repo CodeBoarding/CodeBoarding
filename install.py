@@ -766,7 +766,7 @@ def main() -> None:
     print("\n" + "=" * 40)
     print("Setup complete!")
     print("Configure your LLM provider key in ~/.codeboarding/config.toml, then run:")
-    print("  codeboarding --local /path/to/repo")
+    print("  codeboarding full --local /path/to/repo")
 
 
 if __name__ == "__main__":

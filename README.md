@@ -70,7 +70,7 @@ For a deeper architecture walkthrough, see [`.codeboarding/overview.md`](.codebo
 uv sync --frozen
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 python install.py
-python main.py --local /path/to/repo
+python main.py full --local /path/to/repo
 ```
 
 ### Use the packaged CLI
@@ -80,7 +80,7 @@ Requires **Python 3.12 or 3.13**. The recommended install method is [pipx](https
 ```bash
 pipx install codeboarding --python python3.12
 codeboarding-setup
-codeboarding --local /path/to/repo
+codeboarding full --local /path/to/repo
 ```
 
 Or, if you prefer pip, install into a virtual environment (not the global Python):
@@ -88,7 +88,7 @@ Or, if you prefer pip, install into a virtual environment (not the global Python
 ```bash
 pip install codeboarding
 codeboarding-setup
-codeboarding --local /path/to/repo
+codeboarding full --local /path/to/repo
 ```
 
 Output is written to `/path/to/repo/.codeboarding/`.
@@ -120,19 +120,19 @@ Shell environment variables such as `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOG
 
 ```bash
 # Analyze a local repository
-python main.py --local ./my-project
+python main.py full --local ./my-project
 
 # Increase diagram depth
-python main.py --local ./my-project --depth-level 2
+python main.py full --local ./my-project --depth-level 2
 
 # Re-analyze only changed parts when possible
-python main.py --local ./my-project --incremental
+python main.py incremental --local ./my-project
 
 # Update a single component by ID
-python main.py --local ./my-project --partial-component-id "1.2"
+python main.py partial --local ./my-project --component-id "1.2"
 
 # Analyze a remote GitHub repository
-python main.py https://github.com/pytorch/pytorch
+python main.py full https://github.com/pytorch/pytorch
 ```
 
 ## Where to use it

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from repo_utils.ignore import RepoIgnoreManager
+from static_analyzer.constants import Language
 from static_analyzer.engine.language_adapter import LanguageAdapter
 
 
@@ -13,8 +14,8 @@ class PythonAdapter(LanguageAdapter):
         return "Python"
 
     @property
-    def file_extensions(self) -> tuple[str, ...]:
-        return (".py",)
+    def language_enum(self) -> Language:
+        return Language.PYTHON
 
     @property
     def lsp_command(self) -> list[str]:

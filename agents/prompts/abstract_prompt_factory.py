@@ -57,3 +57,11 @@ class AbstractPromptFactory(ABC):
     @abstractmethod
     def get_details_message(self) -> str:
         pass
+
+    @abstractmethod
+    def get_patch_system_message(self) -> str:
+        pass
+
+    @abstractmethod
+    def get_trace_system_message(self) -> str:
+        pass
