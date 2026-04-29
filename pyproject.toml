@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "codeboarding"
-version = "0.10.4"
+version = "0.11.0"
 description = "Interactive Diagrams for Code"
 readme = "PYPI.md"
 license = "MIT"
