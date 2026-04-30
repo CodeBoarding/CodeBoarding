@@ -1,6 +1,6 @@
-"""Wire-format peer for the analysis tree.
+"""Persisted analysis artifact layer.
 
-Owns the on-disk schema (``analysis.json``), the EASE encoding, and the
+Owns the on-disk ``analysis.json`` schema, the EASE encoding, and the
 locked read/write store. Both the engine (``diagram_analysis``) and the
 incremental pipeline depend on this; this package depends on neither.
 """

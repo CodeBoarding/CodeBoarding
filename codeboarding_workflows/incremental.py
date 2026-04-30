@@ -3,7 +3,7 @@
 import logging
 from pathlib import Path
 
-from analysis_format.io_utils import load_analysis_metadata, load_full_analysis
+from analysis_artifact.store import load_analysis_metadata, load_full_analysis
 from diagram_analysis.diagram_generator import DiagramGenerator
 from incremental_analysis.payload import IncrementalCompletedPayload, NoChangesPayload
 from incremental_analysis.pipeline import IncrementalInputs, run_incremental_pipeline

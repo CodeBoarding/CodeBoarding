@@ -47,10 +47,10 @@ ANALYSIS_KEY_ENTITIES: list[tuple[str, str]] = [
     ("agents.cluster_methods_mixin.ClusterMethodsMixin", "agents/cluster_methods_mixin.py"),
     ("agents.meta_agent.MetaAgent", "agents/meta_agent.py"),
     ("agents.validation.ValidationContext", "agents/validation.py"),
-    ("analysis_format.analysis_json_models.UnifiedAnalysisJson", "analysis_format/analysis_json_models.py"),
+    ("analysis_artifact.schema.UnifiedAnalysisJson", "analysis_artifact/schema.py"),
     ("diagram_analysis.diagram_generator.DiagramGenerator", "diagram_analysis/diagram_generator.py"),
     ("diagram_analysis.manifest.Manifest", "diagram_analysis/manifest.py"),
-    ("analysis_format.io_utils._AnalysisFileStore", "analysis_format/io_utils.py"),
+    ("analysis_artifact.store._AnalysisFileStore", "analysis_artifact/store.py"),
     ("github_action.main", "github_action.py"),
     ("core.registry.Registries", "core/registry.py"),
 ]
@@ -386,10 +386,10 @@ class TestMultiComponentAnalysis(unittest.TestCase):
                 ("agents.validation.ValidationContext", "agents/validation.py"),
             ],
             "Output & Visualization Engine": [
-                ("analysis_format.analysis_json_models.UnifiedAnalysisJson", "analysis_format/analysis_json_models.py"),
+                ("analysis_artifact.schema.UnifiedAnalysisJson", "analysis_artifact/schema.py"),
                 ("diagram_analysis.diagram_generator.DiagramGenerator", "diagram_analysis/diagram_generator.py"),
                 ("diagram_analysis.manifest.Manifest", "diagram_analysis/manifest.py"),
-                ("analysis_format.io_utils._AnalysisFileStore", "analysis_format/io_utils.py"),
+                ("analysis_artifact.store._AnalysisFileStore", "analysis_artifact/store.py"),
             ],
             "CLI & Integration Layer": [
                 ("github_action.main", "github_action.py"),

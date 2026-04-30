@@ -15,12 +15,12 @@ from agents.details_agent import DetailsAgent
 from agents.llm_config import initialize_llms
 from agents.meta_agent import MetaAgent
 from agents.planner_agent import get_expandable_components
-from analysis_format.analysis_json_models import (
+from analysis_artifact.schema import (
     FileCoverageReport,
     FileCoverageSummary,
     NotAnalyzedFile,
 )
-from analysis_format.io_utils import save_analysis
+from analysis_artifact.store import save_analysis
 from diagram_analysis.file_coverage import FileCoverage
 from diagram_analysis.version import Version
 from health.config import initialize_health_dir, load_health_config

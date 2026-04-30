@@ -8,7 +8,7 @@ repo path and the minimum context needed to run; they are source-agnostic
 import logging
 from pathlib import Path
 
-from analysis_format.io_utils import load_full_analysis, save_sub_analysis
+from analysis_artifact.store import load_full_analysis, save_sub_analysis
 from diagram_analysis import DiagramGenerator
 from incremental_analysis.payload import IncrementalRunPayload
 from incremental_analysis.pipeline import IncrementalInputs, run_incremental_pipeline

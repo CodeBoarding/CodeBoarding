@@ -18,8 +18,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from agents.llm_config import MONITORING_CALLBACK, initialize_llms
-from analysis_format.analysis_json_models import FileCoverageSummary
-from analysis_format.io_utils import load_full_analysis, save_analysis
+from analysis_artifact.schema import FileCoverageSummary
+from analysis_artifact.store import load_full_analysis, save_analysis
 from incremental_analysis.delta_application import (
     apply_method_delta,
     drop_deltas_for_pruned_components,

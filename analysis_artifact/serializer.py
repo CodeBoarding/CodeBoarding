@@ -12,7 +12,8 @@ from agents.agent_responses import (
     MethodEntry,
     Relation,
 )
-from analysis_format.analysis_json_models import (
+from analysis_artifact.parser import compute_depth_level
+from analysis_artifact.schema import (
     AnalysisMetadata,
     ComponentFileMethodGroupJson,
     ComponentJson,
@@ -23,7 +24,6 @@ from analysis_format.analysis_json_models import (
     UnifiedAnalysisJson,
     method_key,
 )
-from analysis_format.analysis_json_parse import compute_depth_level
 
 logger = logging.getLogger(__name__)
 

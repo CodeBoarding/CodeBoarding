@@ -15,7 +15,7 @@ from agents.agent_responses import (
     Relation,
     SourceCodeReference,
 )
-from analysis_format.analysis_json_models import MethodIndexEntry
+from analysis_artifact.schema import MethodIndexEntry
 
 logger = logging.getLogger(__name__)
 

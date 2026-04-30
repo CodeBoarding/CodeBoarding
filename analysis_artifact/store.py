@@ -1,17 +1,16 @@
-"""
-I/O utilities for incremental analysis.
+"""Coordinated read/write access to the persisted ``analysis.json`` artifact.
 
 This module provides coordinated read/write access to the unified
 ``analysis.json`` file through **free functions** (``save_analysis``,
 ``load_analysis``, etc.).
 
 Internally a singleton ``_AnalysisFileStore`` per ``output_dir`` owns the
-``FileLock`` and in-memory cache.  External code should **never** instantiate
-``_AnalysisFileStore`` directly – always use the free functions which route
+``FileLock`` and in-memory cache. External code should **never** instantiate
+``_AnalysisFileStore`` directly; always use the free functions which route
 through the module-level registry.
 
 The unified format stores all analysis data (root + sub-analyses) in a single
-analysis.json file with nested components.
+``analysis.json`` file with nested components.
 """
 
 import json
@@ -22,9 +21,9 @@ from filelock import FileLock
 
 from agents.agent_responses import AnalysisInsights, Component
 from agents.planner_agent import should_expand_component
-from analysis_format.analysis_json_models import FileCoverageSummary
-from analysis_format.analysis_json_parse import parse_unified_analysis
-from analysis_format.analysis_json_serialize import build_unified_analysis_json
+from analysis_artifact.parser import parse_unified_analysis
+from analysis_artifact.schema import FileCoverageSummary
+from analysis_artifact.serializer import build_unified_analysis_json
 from utils import ANALYSIS_FILENAME
 
 logger = logging.getLogger(__name__)

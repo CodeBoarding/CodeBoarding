@@ -1,6 +1,6 @@
 """Test script to verify depth computation works correctly with deep nesting."""
 
-from analysis_format.analysis_json_parse import compute_depth_level
+from analysis_artifact.parser import compute_depth_level
 from agents.agent_responses import AnalysisInsights, Component, SourceCodeReference, assign_component_ids
 
 

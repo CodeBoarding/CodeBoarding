@@ -77,7 +77,7 @@ packages = [
     "agents",
     "agents.prompts",
     "agents.tools",
-    "analysis_format",
+    "analysis_artifact",
     "core",
     "diagram_analysis",
     "health",

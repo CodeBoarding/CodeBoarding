@@ -30,7 +30,7 @@ from repo_utils.git_ops import worktree_has_changes
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import NodeType
 from static_analyzer.node import Node
-from analysis_format.io_utils import save_analysis
+from analysis_artifact.store import save_analysis
 from repo_utils.change_detector import ChangeSet
 
 
