@@ -448,8 +448,13 @@ class AnalysisCacheManager:
         merged_result["package_relations"].update(new_result["package_relations"])
 
         # Merge references
-        # Get file paths from new result to identify which cached references to replace
-        new_source_files: list[Path] = new_result.get("source_files", [])
+        # Get file paths from new result to identify which cached references to replace.
+        # Engine-side ``source_files`` is ``list[str]`` (engine/models.py:68); cache-load
+        # side is ``list[Path]`` (this module:169). Coerce both to Path here so the
+        # merged result is uniformly typed and downstream consumers can call
+        # ``.exists()`` etc. without crashing on mixed elements
+        # (incremental_orchestrator.py:294 used to AttributeError on the mix).
+        new_source_files: list[Path] = [Path(p) for p in new_result.get("source_files", [])]
         new_file_paths = {str(path) for path in new_source_files}
 
         # Only keep cached references that are NOT from files in the new result
@@ -463,7 +468,7 @@ class AnalysisCacheManager:
 
         # Merge source files
         # Keep cached files that are NOT in the new result (unchanged files)
-        cached_source_files: list[Path] = cached_result["source_files"]
+        cached_source_files: list[Path] = [Path(p) for p in cached_result.get("source_files", [])]
         for file_path in cached_source_files:
             if str(file_path) not in new_file_paths:
                 merged_result["source_files"].append(file_path)

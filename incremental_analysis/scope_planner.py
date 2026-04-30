@@ -161,6 +161,23 @@ def derive_patch_scopes(
     ownership_index: OwnershipIndex,
     rename_map: dict[str, str] | None = None,
 ) -> list[PatchScope]:
+    # Terminal "nothing actually changed" stops should not schedule a
+    # patcher LLM call. The visited-methods routing below would otherwise
+    # turn the seed methods (initialized at the start of every region
+    # trace) into target components and hand them to apply_patch_scopes,
+    # which costs ~10-20s of LLM time for an analysis update that has
+    # nothing to update. Coverage-gap stops (UNCERTAIN /
+    # BUDGET_EXHAUSTED / FRONTIER_EXHAUSTED) and non_traceable /
+    # disconnected files are NOT short-circuited here — those genuinely
+    # need patching even when impacted_methods is empty.
+    if (
+        trace_result.stop_reason in {TraceStopReason.COSMETIC_ONLY, TraceStopReason.NO_MATERIAL_IMPACT}
+        and not trace_result.impacted_methods
+        and not trace_result.non_traceable_files
+        and not trace_result.disconnected_files
+    ):
+        return []
+
     method_to_component = ownership_index.method_to_component
 
     target_component_ids: set[str] = {

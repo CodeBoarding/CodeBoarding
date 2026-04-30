@@ -34,6 +34,94 @@ def _component(
     )
 
 
+def test_derive_patch_scopes_short_circuits_cosmetic_only_with_no_gaps():
+    """Cosmetic-only stops with no impacted methods and no coverage gaps
+    must not schedule a patcher LLM call. Without this gate, the seeded
+    ``visited_methods`` from the trace would be routed into target
+    components, producing a no-op patch run that costs ~10-20s of LLM
+    time per refresh."""
+    method = _method("mod.foo", 1, 2)
+    root = AnalysisInsights(
+        description="root",
+        files={"src/mod.py": FileEntry(methods=[method])},
+        components=[_component("1.1", "Auth", "src/mod.py", [method])],
+        components_relations=[],
+    )
+    ownership_index = build_ownership_index(root, {})
+    trace_result = TraceResult(
+        visited_methods=["mod.foo"],
+        impacted_methods=[],
+        stop_reason=TraceStopReason.COSMETIC_ONLY,
+    )
+
+    patch_scopes = derive_patch_scopes(trace_result, root, {}, ownership_index)
+    assert patch_scopes == []
+
+
+def test_derive_patch_scopes_short_circuits_no_material_impact_with_no_gaps():
+    """Same gate as the cosmetic case, but for the LLM-judged "no
+    material impact" terminal stop."""
+    method = _method("mod.foo", 1, 2)
+    root = AnalysisInsights(
+        description="root",
+        files={"src/mod.py": FileEntry(methods=[method])},
+        components=[_component("1.1", "Auth", "src/mod.py", [method])],
+        components_relations=[],
+    )
+    ownership_index = build_ownership_index(root, {})
+    trace_result = TraceResult(
+        visited_methods=["mod.foo"],
+        impacted_methods=[],
+        stop_reason=TraceStopReason.NO_MATERIAL_IMPACT,
+    )
+
+    assert derive_patch_scopes(trace_result, root, {}, ownership_index) == []
+
+
+def test_derive_patch_scopes_does_not_short_circuit_cosmetic_with_impacted_methods():
+    """``impacted_methods`` populated by the trace means there *is*
+    something to patch even if the stop reason was cosmetic. Don't
+    drop those."""
+    method = _method("mod.foo", 1, 2)
+    root = AnalysisInsights(
+        description="root",
+        files={"src/mod.py": FileEntry(methods=[method])},
+        components=[_component("1.1", "Auth", "src/mod.py", [method])],
+        components_relations=[],
+    )
+    ownership_index = build_ownership_index(root, {})
+    trace_result = TraceResult(
+        visited_methods=["mod.foo"],
+        impacted_methods=["mod.foo"],
+        stop_reason=TraceStopReason.COSMETIC_ONLY,
+    )
+
+    patch_scopes = derive_patch_scopes(trace_result, root, {}, ownership_index)
+    assert len(patch_scopes) == 1
+
+
+def test_derive_patch_scopes_does_not_short_circuit_when_files_disconnected():
+    """Coverage-gap stops (non_traceable_files / disconnected_files)
+    legitimately need patching even when impacted_methods is empty."""
+    method = _method("mod.foo", 1, 2)
+    root = AnalysisInsights(
+        description="root",
+        files={"src/mod.py": FileEntry(methods=[method])},
+        components=[_component("1.1", "Auth", "src/mod.py", [method])],
+        components_relations=[],
+    )
+    ownership_index = build_ownership_index(root, {})
+    trace_result = TraceResult(
+        visited_methods=["mod.foo"],
+        impacted_methods=[],
+        non_traceable_files=["src/mod.py"],
+        stop_reason=TraceStopReason.NO_MATERIAL_IMPACT,
+    )
+
+    patch_scopes = derive_patch_scopes(trace_result, root, {}, ownership_index)
+    assert len(patch_scopes) == 1
+
+
 def test_derive_patch_scopes_maps_new_methods_after_delta_application():
     existing = _method("mod.existing", 1, 2)
     root = AnalysisInsights(
