@@ -5,6 +5,7 @@ import time
 from collections import defaultdict
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from contextlib import nullcontext
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -50,6 +51,26 @@ from static_analyzer.scanner import ProjectScanner
 from utils import get_cache_dir
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class PipelineContext:
+    """Shared state produced by ``DiagramGenerator.pre_analysis``.
+
+    Why: pre_analysis() previously mutated 7 lazily-init'd instance fields
+    on the runtime class, forcing ``assert is not None`` checks throughout.
+    Building this struct first makes the dependency graph explicit; the
+    instance fields are still mirrored for now so the 40+ ``self.X``
+    call sites keep working.
+    """
+
+    meta_agent: MetaAgent
+    abstraction_agent: AbstractionAgent
+    details_agent: DetailsAgent
+    static_analysis: StaticAnalysisResults
+    file_coverage_data: dict
+    monitoring_agents: dict[str, MonitoringMixin]
+    stats_writer: StreamingStatsWriter | None = None
 
 
 class DiagramGenerator:
@@ -168,19 +189,34 @@ class DiagramGenerator:
         return result
 
     def pre_analysis(self):
+        ctx = self._build_pipeline_context()
+        # Mirror context fields to instance attributes so existing call
+        # sites continue to use ``self.X`` without changes. Future PRs
+        # can migrate them to read from a shared context directly.
+        self.meta_agent = ctx.meta_agent
+        self.abstraction_agent = ctx.abstraction_agent
+        self.details_agent = ctx.details_agent
+        self.static_analysis = ctx.static_analysis
+        self.file_coverage_data = ctx.file_coverage_data
+        self._monitoring_agents = ctx.monitoring_agents
+        self.stats_writer = ctx.stats_writer
+
+    def _build_pipeline_context(self) -> PipelineContext:
         analysis_start_time = time.time()
 
         # Initialize LLMs before spawning threads so both share the same instances
         agent_llm, parsing_llm = initialize_llms()
 
-        self.meta_agent = MetaAgent(
+        monitoring_agents: dict[str, MonitoringMixin] = {}
+
+        meta_agent = MetaAgent(
             repo_dir=self.repo_location,
             project_name=self.repo_name,
             agent_llm=agent_llm,
             parsing_llm=parsing_llm,
             run_id=self.run_id,
         )
-        self._monitoring_agents["MetaAgent"] = self.meta_agent
+        monitoring_agents["MetaAgent"] = meta_agent
 
         def get_static_with_injected_analyzer() -> StaticAnalysisResults:
             cache_dir = None if self.force_full_analysis else get_cache_dir(self.repo_location)
@@ -201,14 +237,10 @@ class DiagramGenerator:
             static_callable = get_static_with_new_analyzer
 
         with ThreadPoolExecutor(max_workers=2) as executor:
-            meta_agent = self.meta_agent
-            assert meta_agent is not None
             static_future = executor.submit(static_callable)
             meta_future = executor.submit(meta_agent.analyze_project_metadata, skip_cache=self.force_full_analysis)
             static_analysis = static_future.result()
             meta_context = meta_future.result()
-
-        self.static_analysis = static_analysis
 
         # --- Capture Static Analysis Stats ---
         static_stats: dict[str, Any] = {"repo_name": self.repo_name, "languages": {}}
@@ -222,11 +254,11 @@ class DiagramGenerator:
             }
 
         # Build file coverage data from scanner's all_text_files and analyzed files
-        self.file_coverage_data = self._build_file_coverage(scanner, static_analysis)
+        file_coverage_data = self._build_file_coverage(scanner, static_analysis)
 
         self._run_health_report(static_analysis)
 
-        self.details_agent = DetailsAgent(
+        details_agent = DetailsAgent(
             repo_dir=self.repo_location,
             project_name=self.repo_name,
             static_analysis=static_analysis,
@@ -235,8 +267,8 @@ class DiagramGenerator:
             parsing_llm=parsing_llm,
             run_id=self.run_id,
         )
-        self._monitoring_agents["DetailsAgent"] = self.details_agent
-        self.abstraction_agent = AbstractionAgent(
+        monitoring_agents["DetailsAgent"] = details_agent
+        abstraction_agent = AbstractionAgent(
             repo_dir=self.repo_location,
             project_name=self.repo_name,
             static_analysis=static_analysis,
@@ -244,7 +276,7 @@ class DiagramGenerator:
             agent_llm=agent_llm,
             parsing_llm=parsing_llm,
         )
-        self._monitoring_agents["AbstractionAgent"] = self.abstraction_agent
+        monitoring_agents["AbstractionAgent"] = abstraction_agent
 
         version_file = Path(self.output_dir) / "codeboarding_version.json"
         with open(version_file, "w", encoding="utf-8") as f:
@@ -255,24 +287,33 @@ class DiagramGenerator:
                 ).model_dump_json(indent=2)
             )
 
+        stats_writer: StreamingStatsWriter | None = None
         if self.monitoring_enabled:
             monitoring_dir = get_monitoring_run_dir(self.log_path, create=True)
             logger.debug(f"Monitoring enabled. Writing stats to {monitoring_dir}")
 
-            # Save code_stats.json
             code_stats_file = monitoring_dir / "code_stats.json"
             with open(code_stats_file, "w", encoding="utf-8") as f:
                 json.dump(static_stats, f, indent=2)
             logger.debug(f"Written code_stats.json to {code_stats_file}")
 
-            # Initialize streaming writer (handles timing and run_metadata.json)
-            self.stats_writer = StreamingStatsWriter(
+            stats_writer = StreamingStatsWriter(
                 monitoring_dir=monitoring_dir,
-                agents_dict=self._monitoring_agents,
+                agents_dict=monitoring_agents,
                 repo_name=self.project_name or self.repo_name,
                 output_dir=str(self.output_dir),
                 start_time=analysis_start_time,
             )
+
+        return PipelineContext(
+            meta_agent=meta_agent,
+            abstraction_agent=abstraction_agent,
+            details_agent=details_agent,
+            static_analysis=static_analysis,
+            file_coverage_data=file_coverage_data,
+            monitoring_agents=monitoring_agents,
+            stats_writer=stats_writer,
+        )
 
     def _generate_subcomponents(
         self,

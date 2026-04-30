@@ -182,7 +182,7 @@ class TestGenerateRst(unittest.TestCase):
 class TestGenerateAnalysis(unittest.TestCase):
     @patch("github_action.generate_markdown")
     @patch("github_action.run_incremental_workflow")
-    @patch("github_action.DiagramGenerator")
+    @patch("github_action.build_generator")
     @patch("github_action.create_temp_repo_folder")
     @patch("github_action.checkout_repo")
     @patch("github_action.clone_repository")
@@ -240,7 +240,7 @@ class TestGenerateAnalysis(unittest.TestCase):
 
     @patch("github_action.generate_html")
     @patch("github_action.run_incremental_workflow")
-    @patch("github_action.DiagramGenerator")
+    @patch("github_action.build_generator")
     @patch("github_action.create_temp_repo_folder")
     @patch("github_action.checkout_repo")
     @patch("github_action.clone_repository")
@@ -277,7 +277,7 @@ class TestGenerateAnalysis(unittest.TestCase):
 
     @patch("github_action.generate_mdx")
     @patch("github_action.run_incremental_workflow")
-    @patch("github_action.DiagramGenerator")
+    @patch("github_action.build_generator")
     @patch("github_action.create_temp_repo_folder")
     @patch("github_action.checkout_repo")
     @patch("github_action.clone_repository")
@@ -314,7 +314,7 @@ class TestGenerateAnalysis(unittest.TestCase):
 
     @patch("github_action.generate_rst")
     @patch("github_action.run_incremental_workflow")
-    @patch("github_action.DiagramGenerator")
+    @patch("github_action.build_generator")
     @patch("github_action.create_temp_repo_folder")
     @patch("github_action.checkout_repo")
     @patch("github_action.clone_repository")
@@ -350,7 +350,7 @@ class TestGenerateAnalysis(unittest.TestCase):
             self.assertEqual(result, temp_path)
 
     @patch("github_action.run_incremental_workflow")
-    @patch("github_action.DiagramGenerator")
+    @patch("github_action.build_generator")
     @patch("github_action.create_temp_repo_folder")
     @patch("github_action.checkout_repo")
     @patch("github_action.clone_repository")
@@ -386,7 +386,7 @@ class TestGenerateAnalysis(unittest.TestCase):
 
     @patch("github_action.generate_markdown")
     @patch("github_action.run_incremental_workflow")
-    @patch("github_action.DiagramGenerator")
+    @patch("github_action.build_generator")
     @patch("github_action.create_temp_repo_folder")
     @patch("github_action.checkout_repo")
     @patch("github_action.clone_repository")
