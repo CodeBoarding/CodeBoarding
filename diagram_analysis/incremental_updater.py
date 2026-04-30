@@ -42,8 +42,6 @@ class MethodChange:
     end_line: int
     change_type: ChangeStatus
     node_type: str
-    old_start_line: int | None = None
-    old_end_line: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -53,8 +51,6 @@ class MethodChange:
             "end_line": self.end_line,
             "change_type": self.change_type.value,
             "node_type": self.node_type,
-            "old_start_line": self.old_start_line,
-            "old_end_line": self.old_end_line,
         }
 
 
@@ -63,7 +59,6 @@ class FileDelta:
     file_path: str
     file_status: ChangeStatus
     component_id: str | None = None
-    old_file_path: str | None = None
     added_methods: list[MethodChange] = field(default_factory=list)
     modified_methods: list[MethodChange] = field(default_factory=list)
     deleted_methods: list[MethodChange] = field(default_factory=list)
@@ -76,7 +71,6 @@ class FileDelta:
             "file_path": self.file_path,
             "file_status": self.file_status.value,
             "component_id": self.component_id,
-            "old_file_path": self.old_file_path,
             "added_methods": [m.to_dict() for m in self.added_methods],
             "modified_methods": [m.to_dict() for m in self.modified_methods],
             "deleted_methods": [m.to_dict() for m in self.deleted_methods],
