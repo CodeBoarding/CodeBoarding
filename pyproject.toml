@@ -81,6 +81,7 @@ packages = [
     "core",
     "diagram_analysis",
     "health",
+    "incremental_analysis",
     "health.checks",
     "monitoring",
     "output_generators",

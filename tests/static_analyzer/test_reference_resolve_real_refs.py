@@ -42,7 +42,7 @@ ANALYSIS_KEY_ENTITIES: list[tuple[str, str]] = [
     ("caching.meta_cache.MetaCache", "caching/meta_cache.py"),
     ("agents.dependency_discovery.DependencyDiscovery", "agents/dependency_discovery.py"),
     ("agents.tools.read_cfg.ReadCFG", "agents/tools/read_cfg.py"),
-    ("diagram_analysis.incremental_tracer.MethodResolver", "diagram_analysis/incremental_tracer.py"),
+    ("incremental_analysis.tracer.MethodResolver", "incremental_analysis/tracer.py"),
     ("agents.abstraction_agent.AbstractionAgent", "agents/abstraction_agent.py"),
     ("agents.cluster_methods_mixin.ClusterMethodsMixin", "agents/cluster_methods_mixin.py"),
     ("agents.meta_agent.MetaAgent", "agents/meta_agent.py"),
@@ -211,11 +211,11 @@ class TestResolveFromQualifiedNameOnly(unittest.TestCase):
     def test_deep_nested_qname_resolves(self):
         """Deeply nested qualified names should resolve.
 
-        e.g. diagram_analysis.incremental_tracer.MethodResolver
-             -> diagram_analysis/incremental_tracer.py
+        e.g. incremental_analysis.tracer.MethodResolver
+             -> incremental_analysis/tracer.py
         """
-        qname = "diagram_analysis.incremental_tracer.MethodResolver"
-        expected_file = "diagram_analysis/incremental_tracer.py"
+        qname = "incremental_analysis.tracer.MethodResolver"
+        expected_file = "incremental_analysis/tracer.py"
 
         self.sa.get_reference.side_effect = ValueError("not found")
         self.sa.get_loose_reference.side_effect = Exception("not found")
@@ -375,8 +375,8 @@ class TestMultiComponentAnalysis(unittest.TestCase):
                 ("agents.dependency_discovery.DependencyDiscovery", "agents/dependency_discovery.py"),
                 ("agents.tools.read_cfg.ReadCFG", "agents/tools/read_cfg.py"),
                 (
-                    "diagram_analysis.incremental_tracer.MethodResolver",
-                    "diagram_analysis/incremental_tracer.py",
+                    "incremental_analysis.tracer.MethodResolver",
+                    "incremental_analysis/tracer.py",
                 ),
             ],
             "AI Agentic Layer": [

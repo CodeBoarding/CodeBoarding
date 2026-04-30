@@ -2,8 +2,8 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from codeboarding_workflows.incremental import run_incremental_workflow
-from diagram_analysis.incremental_models import IncrementalRunResult, IncrementalSummary, IncrementalSummaryKind
-from diagram_analysis.incremental_payload import IncrementalCompletedPayload
+from incremental_analysis.models import IncrementalRunResult, IncrementalSummary, IncrementalSummaryKind
+from incremental_analysis.payload import IncrementalCompletedPayload
 from repo_utils.change_detector import ChangeDetectionError
 
 
@@ -68,7 +68,13 @@ def test_run_incremental_workflow_dispatches_incremental_generator(tmp_path: Pat
                         result = run_incremental_workflow(generator)
 
     detect_changes.assert_called_once_with(tmp_path, "abc123", "def456")
-    run_pipeline.assert_called_once_with(generator, base_ref="abc123", target_ref="def456")
+    run_pipeline.assert_called_once()
+    pipeline_kwargs = run_pipeline.call_args.kwargs
+    assert pipeline_kwargs["base_ref"] == "abc123"
+    assert pipeline_kwargs["target_ref"] == "def456"
+    inputs_arg = run_pipeline.call_args.args[0]
+    assert inputs_arg.repo_path == tmp_path
+    assert inputs_arg.output_dir == tmp_path
     assert result == tmp_path / "analysis.json"
 
 

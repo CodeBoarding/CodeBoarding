@@ -12,7 +12,7 @@ from typing import Any
 from agents.abstraction_agent import AbstractionAgent
 from agents.agent_responses import AnalysisInsights, Component
 from agents.details_agent import DetailsAgent
-from agents.llm_config import MONITORING_CALLBACK, initialize_llms
+from agents.llm_config import initialize_llms
 from agents.meta_agent import MetaAgent
 from agents.planner_agent import get_expandable_components
 from analysis_format.analysis_json_models import (
@@ -21,19 +21,7 @@ from analysis_format.analysis_json_models import (
     NotAnalyzedFile,
 )
 from analysis_format.io_utils import save_analysis
-from diagram_analysis.delta_application import (
-    apply_method_delta,
-    drop_deltas_for_pruned_components,
-    prune_empty_components,
-)
 from diagram_analysis.file_coverage import FileCoverage
-from diagram_analysis.incremental_tracer import run_trace
-from diagram_analysis.incremental_updater import IncrementalDelta
-from diagram_analysis.scope_planner import (
-    apply_patch_scopes,
-    build_ownership_index,
-    derive_patch_scopes,
-)
 from diagram_analysis.version import Version
 from health.config import initialize_health_dir, load_health_config
 from health.runner import run_health_checks
@@ -157,7 +145,7 @@ class DiagramGenerator:
 
         return coverage.build(all_files, analyzed_files)
 
-    def _write_file_coverage(self) -> None:
+    def write_file_coverage(self) -> None:
         """Write file_coverage.json to output directory."""
         if not self.file_coverage_data:
             return
@@ -185,11 +173,11 @@ class DiagramGenerator:
         result.diagnostics = self._static_analyzer.collected_diagnostics  # type: ignore[union-attr]
         return result
 
-    def pre_analysis(self):
+    def pre_analysis(self) -> StaticAnalysisResults:
+        """Initialize agents + static analysis. Idempotent — returns the cached result on repeat."""
+        if self.static_analysis is not None:
+            return self.static_analysis
         ctx = self._build_pipeline_context()
-        # Mirror context fields to instance attributes so existing call
-        # sites continue to use ``self.X`` without changes. Future PRs
-        # can migrate them to read from a shared context directly.
         self.meta_agent = ctx.meta_agent
         self.abstraction_agent = ctx.abstraction_agent
         self.details_agent = ctx.details_agent
@@ -197,6 +185,7 @@ class DiagramGenerator:
         self.file_coverage_data = ctx.file_coverage_data
         self._monitoring_agents = ctx.monitoring_agents
         self.stats_writer = ctx.stats_writer
+        return ctx.static_analysis
 
     def _build_pipeline_context(self) -> PipelineContext:
         analysis_start_time = time.time()
@@ -338,13 +327,13 @@ class DiagramGenerator:
                 output_dir=Path(self.output_dir),
                 sub_analyses=sub_analyses,
                 repo_name=self.repo_name,
-                file_coverage_summary=self._build_file_coverage_summary(),
+                file_coverage_summary=self.build_file_coverage_summary(),
                 commit_hash=get_git_commit_hash(self.repo_location),
             ).resolve()
 
             logger.info(f"Analysis complete. Written unified analysis to {analysis_path}")
 
-            self._write_file_coverage()
+            self.write_file_coverage()
             return analysis_path
 
     def _expand_subcomponents(
@@ -425,7 +414,7 @@ class DiagramGenerator:
 
         return expanded_components, sub_analyses
 
-    def _build_file_coverage_summary(self) -> FileCoverageSummary | None:
+    def build_file_coverage_summary(self) -> FileCoverageSummary | None:
         if not self.file_coverage_data:
             return None
         summary = self.file_coverage_data["summary"]
@@ -435,62 +424,3 @@ class DiagramGenerator:
             not_analyzed=summary["not_analyzed"],
             not_analyzed_by_reason=summary["not_analyzed_by_reason"],
         )
-
-    def generate_analysis_incremental(
-        self,
-        root_analysis: AnalysisInsights,
-        sub_analyses: dict[str, AnalysisInsights],
-        base_ref: str,
-        changes,
-        delta: IncrementalDelta,
-        rename_map: dict[str, str],
-    ) -> Path:
-        """Apply a pre-computed incremental delta and re-run semantic trace + patch."""
-        if self.static_analysis is None:
-            self.pre_analysis()
-        assert self.static_analysis is not None
-
-        apply_method_delta(root_analysis, sub_analyses, delta)
-        removed_component_ids = prune_empty_components(root_analysis, sub_analyses)
-        drop_deltas_for_pruned_components(delta, removed_component_ids)
-        post_delta_ownership_index = build_ownership_index(root_analysis, sub_analyses)
-
-        agent_llm, parsing_llm = initialize_llms()
-        callbacks = [MONITORING_CALLBACK]
-        cfgs = {
-            language: self.static_analysis.get_cfg(language)
-            for language in self.static_analysis.get_languages()
-            if self.static_analysis.get_source_files(language)
-        }
-        trace_result = run_trace(
-            delta,
-            cfgs,
-            self.static_analysis,
-            self.repo_location,
-            base_ref,
-            parsing_llm,
-            parsed_diff=changes,
-            callbacks=callbacks,
-        )
-        patch_scopes = derive_patch_scopes(
-            trace_result,
-            root_analysis,
-            sub_analyses,
-            post_delta_ownership_index,
-            rename_map,
-        )
-        if patch_scopes:
-            root_analysis, sub_analyses = apply_patch_scopes(
-                root_analysis, sub_analyses, patch_scopes, agent_llm, callbacks
-            )
-
-        analysis_path = save_analysis(
-            analysis=root_analysis,
-            output_dir=Path(self.output_dir),
-            sub_analyses=sub_analyses,
-            repo_name=self.repo_name,
-            file_coverage_summary=self._build_file_coverage_summary(),
-            commit_hash=get_git_commit_hash(self.repo_location),
-        ).resolve()
-        self._write_file_coverage()
-        return analysis_path

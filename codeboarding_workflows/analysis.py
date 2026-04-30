@@ -8,10 +8,10 @@ repo path and the minimum context needed to run; they are source-agnostic
 import logging
 from pathlib import Path
 
-from diagram_analysis import DiagramGenerator
-from diagram_analysis.incremental_payload import IncrementalRunPayload
-from diagram_analysis.incremental_pipeline import run_incremental_pipeline
 from analysis_format.io_utils import load_full_analysis, save_sub_analysis
+from diagram_analysis import DiagramGenerator
+from incremental_analysis.payload import IncrementalRunPayload
+from incremental_analysis.pipeline import IncrementalInputs, run_incremental_pipeline
 from diagram_analysis.run_metadata import write_full_run_metadata
 
 logger = logging.getLogger(__name__)
@@ -145,4 +145,12 @@ def run_incremental(
         monitoring_enabled=monitoring_enabled,
         static_analyzer=static_analyzer,
     )
-    return run_incremental_pipeline(generator, base_ref=base_ref, target_ref=target_ref)
+    inputs = IncrementalInputs(
+        repo_path=generator.repo_location,
+        output_dir=generator.output_dir,
+        repo_name=generator.repo_name,
+        prepare_static_analysis=generator.pre_analysis,
+        build_file_coverage_summary=generator.build_file_coverage_summary,
+        write_file_coverage=generator.write_file_coverage,
+    )
+    return run_incremental_pipeline(inputs, base_ref=base_ref, target_ref=target_ref)
