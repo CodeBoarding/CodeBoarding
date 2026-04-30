@@ -13,10 +13,8 @@ the CLI envelope and JSON emission stay at the caller's edge.
 import contextlib
 import io
 import logging
-from collections import defaultdict
 from pathlib import Path
 
-from agents.agent_responses import MethodEntry
 from diagram_analysis.diagram_generator import DiagramGenerator
 from diagram_analysis.incremental_models import (
     IncrementalRunResult,
@@ -30,63 +28,20 @@ from diagram_analysis.incremental_payload import (
     NoChangesPayload,
 )
 from diagram_analysis.incremental_updater import IncrementalUpdater
-from diagram_analysis.io_utils import load_full_analysis
+from analysis_format.io_utils import load_full_analysis
 from diagram_analysis.run_metadata import METADATA_FILENAME, write_incremental_run_metadata
+from diagram_analysis.scope_planner import (
+    build_ownership_index,
+    normalize_changes_for_delta,
+)
+from diagram_analysis.symbol_resolver import StaticAnalysisSymbolResolver
 from repo_utils.diff_parser import detect_changes
 from repo_utils.ignore import initialize_codeboardingignore
 from repo_utils import get_git_commit_hash, get_repo_state_hash
 from repo_utils.git_ops import git_object_type, resolve_ref, worktree_has_changes
-from static_analyzer.analysis_result import StaticAnalysisResults
-from utils import ANALYSIS_FILENAME, CODEBOARDING_DIR_NAME, to_relative_path
+from utils import ANALYSIS_FILENAME, CODEBOARDING_DIR_NAME
 
 logger = logging.getLogger(__name__)
-
-
-def normalize_repo_path(path: str, repo_dir: Path) -> str:
-    return to_relative_path(path.replace("\\", "/"), repo_dir)
-
-
-def collect_method_entries(static_analysis: StaticAnalysisResults, repo_dir: Path) -> dict[str, list[MethodEntry]]:
-    methods_by_file: dict[str, list[MethodEntry]] = defaultdict(list)
-
-    for node in static_analysis.iter_reference_nodes():
-        if node.is_callback_or_anonymous():
-            continue
-        if not (node.is_callable() or node.is_class()):
-            continue
-        file_path = normalize_repo_path(str(node.file_path), repo_dir)
-        methods_by_file[file_path].append(MethodEntry.from_node(node))
-
-    for file_path in methods_by_file:
-        methods_by_file[file_path].sort(
-            key=lambda method: (method.start_line, method.end_line, method.qualified_name),
-        )
-
-    return methods_by_file
-
-
-class StaticAnalysisSymbolResolver:
-    """Resolve file paths to their *current-on-disk* ``MethodEntry`` list.
-
-    Why from ``static_analysis`` and not ``analysis.files``: the incremental
-    updater needs the *post-change* view of each file to diff against the
-    *pre-change* view stored on ``AnalysisInsights.files``. ``pre_analysis()``
-    populates ``static_analysis`` from a fresh worktree scan immediately
-    before this resolver is built — that is the "current" side of the diff.
-    Collapsing both sides to ``analysis.files`` would always report "no
-    changes" and silently break incremental analysis.
-    """
-
-    def __init__(self, static_analysis: StaticAnalysisResults, repo_dir: Path) -> None:
-        self._repo_dir = repo_dir
-        self._methods_by_file = collect_method_entries(static_analysis, repo_dir)
-
-    def __call__(self, file_path: str) -> list[MethodEntry]:
-        return self.resolve(file_path)
-
-    def resolve(self, file_path: str) -> list[MethodEntry]:
-        normalized = normalize_repo_path(file_path, self._repo_dir)
-        return self._methods_by_file.get(normalized, [])
 
 
 # ---------------------------------------------------------------------------
@@ -230,20 +185,19 @@ def run_incremental_pipeline(
     if generator.static_analysis is None:
         return _abort("Static analysis could not be initialized; full analysis required.")
 
+    added_files, modified_files, deleted_files, rename_map = normalize_changes_for_delta(change_set)
+    ownership_index = build_ownership_index(root_analysis, sub_analyses)
     symbol_resolver = StaticAnalysisSymbolResolver(generator.static_analysis, repo_path)
-
-    # Build the delta for the wire-format payload (the generator computes its
-    # own internally — this one is just so the wrapper / IDE can show which
-    # methods changed).
     updater = IncrementalUpdater(
         analysis=root_analysis,
         symbol_resolver=symbol_resolver,
         repo_dir=repo_path,
+        component_resolver=lambda file_path: ownership_index.pick_component_for_file(file_path, rename_map),
     )
     delta = updater.compute_delta(
-        added_files=list(change_set.added_files),
-        modified_files=list(change_set.modified_files),
-        deleted_files=list(change_set.deleted_files),
+        added_files=added_files,
+        modified_files=modified_files,
+        deleted_files=deleted_files,
         changes=change_set,
     )
 
@@ -253,6 +207,8 @@ def run_incremental_pipeline(
             sub_analyses=sub_analyses,
             base_ref=base_ref,
             changes=change_set,
+            delta=delta,
+            rename_map=rename_map,
         )
 
     incremental_result = IncrementalRunResult(

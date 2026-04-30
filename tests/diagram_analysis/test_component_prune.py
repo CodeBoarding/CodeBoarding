@@ -8,8 +8,8 @@ from agents.agent_responses import (
     assign_component_ids,
 )
 from agents.change_status import ChangeStatus
+from diagram_analysis.delta_application import apply_method_delta, prune_empty_components
 from diagram_analysis.incremental_updater import FileDelta, IncrementalDelta, MethodChange
-from diagram_analysis.incremental_updater import apply_method_delta, prune_empty_components
 
 
 def _method(qname: str, start: int = 1, end: int = 2) -> MethodEntry:

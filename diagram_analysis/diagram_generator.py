@@ -1,26 +1,39 @@
 import json
 import logging
+import os
 import time
-from collections import defaultdict
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
+from contextlib import nullcontext
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from agents.abstraction_agent import AbstractionAgent
-from agents.agent_responses import AnalysisInsights, Component, MethodEntry
+from agents.agent_responses import AnalysisInsights, Component
 from agents.details_agent import DetailsAgent
-from agents.llm_config import initialize_llms
+from agents.llm_config import MONITORING_CALLBACK, initialize_llms
 from agents.meta_agent import MetaAgent
 from agents.planner_agent import get_expandable_components
-from diagram_analysis.analysis_json import (
+from analysis_format.analysis_json_models import (
     FileCoverageReport,
     FileCoverageSummary,
     NotAnalyzedFile,
 )
+from analysis_format.io_utils import save_analysis
+from diagram_analysis.delta_application import (
+    apply_method_delta,
+    drop_deltas_for_pruned_components,
+    prune_empty_components,
+)
 from diagram_analysis.file_coverage import FileCoverage
-from diagram_analysis.io_utils import save_analysis
+from diagram_analysis.incremental_tracer import run_trace
+from diagram_analysis.incremental_updater import IncrementalDelta
+from diagram_analysis.scope_planner import (
+    apply_patch_scopes,
+    build_ownership_index,
+    derive_patch_scopes,
+)
 from diagram_analysis.version import Version
 from health.config import initialize_health_dir, load_health_config
 from health.runner import run_health_checks
@@ -300,52 +313,117 @@ class DiagramGenerator:
         )
 
     def generate_analysis(self) -> Path:
-        from diagram_analysis.full_analysis_runner import FullAnalysisRunner
+        """Generate the graph analysis for the repository.
 
-        return FullAnalysisRunner(self).run()
+        Components are analyzed in parallel as soon as their parents complete.
+        Output is stored as a single ``analysis.json`` in ``output_dir``.
+        """
+        if self.details_agent is None or self.abstraction_agent is None:
+            self.pre_analysis()
 
-    def _normalize_repo_path(self, path: str) -> str:
-        posix = path.replace("\\", "/")
-        if Path(posix).is_absolute():
-            try:
-                return Path(posix).resolve().relative_to(self.repo_location.resolve()).as_posix()
-            except ValueError:
-                return posix
-        while posix.startswith("./"):
-            posix = posix[2:]
-        return posix
+        monitor = self.stats_writer if self.stats_writer else nullcontext()
+        with monitor:
+            logger.info("Generating initial analysis")
+            assert self.abstraction_agent is not None
 
-    def _collect_method_entries_from_static_analysis(self) -> dict[str, list]:
-        assert self.static_analysis is not None
-        methods_by_file: dict[str, list[MethodEntry]] = defaultdict(list)
+            analysis, _cluster_results = self.abstraction_agent.run()
 
-        for language in self.static_analysis.get_languages():
-            try:
-                cfg = self.static_analysis.get_cfg(language)
-            except ValueError:
-                continue
+            root_components = get_expandable_components(analysis)
+            logger.info(f"Found {len(root_components)} components to analyze at level 1")
 
-            for node in cfg.nodes.values():
-                if node.is_callback_or_anonymous():
-                    continue
-                if not (node.is_callable() or node.is_class()):
-                    continue
-                file_path = self._normalize_repo_path(node.file_path)
+            _expanded, sub_analyses = self._expand_subcomponents(analysis, root_components)
 
-                methods_by_file[file_path].append(
-                    MethodEntry(
-                        qualified_name=node.fully_qualified_name,
-                        start_line=node.line_start,
-                        end_line=node.line_end,
-                        node_type=node.type.name,
-                    )
+            analysis_path = save_analysis(
+                analysis=analysis,
+                output_dir=Path(self.output_dir),
+                sub_analyses=sub_analyses,
+                repo_name=self.repo_name,
+                file_coverage_summary=self._build_file_coverage_summary(),
+                commit_hash=get_git_commit_hash(self.repo_location),
+            ).resolve()
+
+            logger.info(f"Analysis complete. Written unified analysis to {analysis_path}")
+
+            self._write_file_coverage()
+            return analysis_path
+
+    def _expand_subcomponents(
+        self,
+        analysis: AnalysisInsights,
+        root_components: list[Component],
+    ) -> tuple[list[Component], dict[str, AnalysisInsights]]:
+        """Frontier-queue expansion: submit children as soon as parent finishes."""
+        max_workers = min(os.cpu_count() or 4, 8)
+
+        expanded_components: list[Component] = []
+        sub_analyses: dict[str, AnalysisInsights] = {}
+        commit_hash = get_git_commit_hash(self.repo_location)
+
+        stats = {"submitted": 0, "completed": 0, "saves": 0, "errors": 0}
+
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            future_to_task: dict[Future, tuple[Component, int]] = {}
+
+            def submit_component(comp: Component, lvl: int):
+                future = executor.submit(self.process_component, comp)
+                future_to_task[future] = (comp, lvl)
+                stats["submitted"] += 1
+                logger.debug("Submitted component='%s' at level=%d", comp.name, lvl)
+
+            if self.depth_level > 1:
+                for component in root_components:
+                    submit_component(component, 1)
+
+            logger.info(
+                "Subcomponent generation started with %d workers. Initial tasks: %d",
+                max_workers,
+                stats["submitted"],
+            )
+
+            while future_to_task:
+                completed_futures, _ = wait(future_to_task.keys(), return_when=FIRST_COMPLETED)
+
+                for future in completed_futures:
+                    component, level = future_to_task.pop(future)
+                    stats["completed"] += 1
+
+                    try:
+                        comp_name, sub_analysis, new_components = future.result()
+
+                        if comp_name and sub_analysis:
+                            sub_analyses[comp_name] = sub_analysis
+                            expanded_components.append(component)
+                            stats["saves"] += 1
+
+                            logger.debug("Saving intermediate analysis for '%s'", comp_name)
+                            save_analysis(
+                                analysis=analysis,
+                                output_dir=Path(self.output_dir),
+                                sub_analyses=sub_analyses,
+                                repo_name=self.repo_name,
+                                commit_hash=commit_hash,
+                            )
+
+                        if new_components and level + 1 < self.depth_level:
+                            for child in new_components:
+                                submit_component(child, level + 1)
+
+                            logger.info("Expanded '%s' with %d new children.", comp_name, len(new_components))
+
+                    except Exception:
+                        stats["errors"] += 1
+                        logger.exception("Component '%s' generated an exception", component.name)
+
+                logger.info(
+                    "Progress: %d completed, %d in flight, %d errors",
+                    stats["completed"],
+                    len(future_to_task),
+                    stats["errors"],
                 )
 
-        for file_path, methods in methods_by_file.items():
-            methods.sort(key=lambda method: (method.start_line, method.end_line, method.qualified_name))
-            methods_by_file[file_path] = methods
+            logger.info("Subcomponent generation complete: %s", stats)
 
-        return methods_by_file
+        return expanded_components, sub_analyses
 
     def _build_file_coverage_summary(self) -> FileCoverageSummary | None:
         if not self.file_coverage_data:
@@ -364,7 +442,55 @@ class DiagramGenerator:
         sub_analyses: dict[str, AnalysisInsights],
         base_ref: str,
         changes,
+        delta: IncrementalDelta,
+        rename_map: dict[str, str],
     ) -> Path:
-        from diagram_analysis.incremental_runner import IncrementalRunner
+        """Apply a pre-computed incremental delta and re-run semantic trace + patch."""
+        if self.static_analysis is None:
+            self.pre_analysis()
+        assert self.static_analysis is not None
 
-        return IncrementalRunner(self).run(root_analysis, sub_analyses, base_ref, changes)
+        apply_method_delta(root_analysis, sub_analyses, delta)
+        removed_component_ids = prune_empty_components(root_analysis, sub_analyses)
+        drop_deltas_for_pruned_components(delta, removed_component_ids)
+        post_delta_ownership_index = build_ownership_index(root_analysis, sub_analyses)
+
+        agent_llm, parsing_llm = initialize_llms()
+        callbacks = [MONITORING_CALLBACK]
+        cfgs = {
+            language: self.static_analysis.get_cfg(language)
+            for language in self.static_analysis.get_languages()
+            if self.static_analysis.get_source_files(language)
+        }
+        trace_result = run_trace(
+            delta,
+            cfgs,
+            self.static_analysis,
+            self.repo_location,
+            base_ref,
+            parsing_llm,
+            parsed_diff=changes,
+            callbacks=callbacks,
+        )
+        patch_scopes = derive_patch_scopes(
+            trace_result,
+            root_analysis,
+            sub_analyses,
+            post_delta_ownership_index,
+            rename_map,
+        )
+        if patch_scopes:
+            root_analysis, sub_analyses = apply_patch_scopes(
+                root_analysis, sub_analyses, patch_scopes, agent_llm, callbacks
+            )
+
+        analysis_path = save_analysis(
+            analysis=root_analysis,
+            output_dir=Path(self.output_dir),
+            sub_analyses=sub_analyses,
+            repo_name=self.repo_name,
+            file_coverage_summary=self._build_file_coverage_summary(),
+            commit_hash=get_git_commit_hash(self.repo_location),
+        ).resolve()
+        self._write_file_coverage()
+        return analysis_path

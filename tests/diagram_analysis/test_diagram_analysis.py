@@ -16,14 +16,13 @@ from agents.agent_responses import (
     SourceCodeReference,
     assign_component_ids,
 )
-from diagram_analysis.analysis_json import (
+from analysis_format.analysis_json_models import (
     ComponentFileMethodGroupJson,
     ComponentJson,
     RelationJson,
     UnifiedAnalysisJson,
-    from_analysis_to_json,
-    from_component_to_json_component,
 )
+from analysis_format.analysis_json_serialize import from_analysis_to_json, from_component_to_json_component
 from diagram_analysis.diagram_generator import DiagramGenerator
 from diagram_analysis.version import Version
 from repo_utils.change_detector import ChangeSet
@@ -110,7 +109,7 @@ class TestComponentJson(unittest.TestCase):
 class TestUnifiedAnalysisJson(unittest.TestCase):
     def test_unified_analysis_json_creation(self):
         # Test creating a UnifiedAnalysisJson instance
-        from diagram_analysis.analysis_json import AnalysisMetadata
+        from analysis_format.analysis_json_models import AnalysisMetadata
 
         comp1 = ComponentJson(
             name="Comp1",
@@ -140,7 +139,7 @@ class TestUnifiedAnalysisJson(unittest.TestCase):
 
     def test_unified_analysis_json_model_dump(self):
         # Test serialization
-        from diagram_analysis.analysis_json import AnalysisMetadata
+        from analysis_format.analysis_json_models import AnalysisMetadata
 
         comp = ComponentJson(
             name="Comp",
@@ -589,7 +588,7 @@ class TestDiagramGenerator(unittest.TestCase):
 
         with patch("diagram_analysis.diagram_generator.get_expandable_components", return_value=planned):
             with patch(
-                "diagram_analysis.io_utils.build_unified_analysis_json",
+                "analysis_format.io_utils.build_unified_analysis_json",
                 side_effect=_capture_build,
             ):
                 gen.generate_analysis()

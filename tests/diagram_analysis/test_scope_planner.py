@@ -12,7 +12,8 @@ from agents.agent_responses import (
 )
 from agents.change_status import ChangeStatus
 from diagram_analysis.incremental_models import TraceResult, TraceStopReason
-from diagram_analysis.incremental_updater import FileDelta, IncrementalDelta, MethodChange, apply_method_delta
+from diagram_analysis.delta_application import apply_method_delta
+from diagram_analysis.incremental_updater import FileDelta, IncrementalDelta, MethodChange
 from diagram_analysis.analysis_patcher import PatchScope
 from diagram_analysis.scope_planner import apply_patch_scopes, build_ownership_index, derive_patch_scopes
 

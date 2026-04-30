@@ -22,11 +22,9 @@ from filelock import FileLock
 
 from agents.agent_responses import AnalysisInsights, Component
 from agents.planner_agent import should_expand_component
-from diagram_analysis.analysis_json import (
-    FileCoverageSummary,
-    build_unified_analysis_json,
-    parse_unified_analysis,
-)
+from analysis_format.analysis_json_models import FileCoverageSummary
+from analysis_format.analysis_json_parse import parse_unified_analysis
+from analysis_format.analysis_json_serialize import build_unified_analysis_json
 from utils import ANALYSIS_FILENAME
 
 logger = logging.getLogger(__name__)
