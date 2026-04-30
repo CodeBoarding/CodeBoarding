@@ -3,9 +3,10 @@ import os
 import shutil
 from pathlib import Path
 
+from codeboarding_workflows.analysis import build_generator
 from codeboarding_workflows.incremental import run_incremental_workflow
 from codeboarding_workflows.rendering import render_docs
-from diagram_analysis import DiagramGenerator, RunContext
+from diagram_analysis import RunContext
 from repo_utils import checkout_repo, clone_repository
 from utils import ANALYSIS_FILENAME, create_temp_repo_folder
 
@@ -103,14 +104,13 @@ def generate_analysis(
     if existing_analysis_dir:
         _seed_existing_analysis(Path(existing_analysis_dir), temp_repo_folder)
 
-    generator = DiagramGenerator(
-        repo_location=repo_dir,
-        temp_folder=temp_repo_folder,
+    generator = build_generator(
         repo_name=repo_name,
+        repo_path=repo_dir,
         output_dir=temp_repo_folder,
-        depth_level=int(os.getenv("DIAGRAM_DEPTH_LEVEL", "1")),
         run_id=run_context.run_id,
         log_path=run_context.log_path,
+        depth_level=int(os.getenv("DIAGRAM_DEPTH_LEVEL", "1")),
     )
 
     analysis_path = run_incremental_workflow(generator)

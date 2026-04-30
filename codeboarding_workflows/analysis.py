@@ -17,7 +17,7 @@ from diagram_analysis.run_metadata import write_full_run_metadata
 logger = logging.getLogger(__name__)
 
 
-def _build_generator(
+def build_generator(
     repo_name: str,
     repo_path: Path,
     output_dir: Path,
@@ -51,7 +51,7 @@ def run_full(
     force_full: bool = False,
 ) -> Path:
     """Full analysis scope — rebuild the whole diagram from scratch."""
-    generator = _build_generator(
+    generator = build_generator(
         repo_name=repo_name,
         repo_path=repo_path,
         output_dir=output_dir,
@@ -76,7 +76,7 @@ def run_partial(
     depth_level: int = 1,
 ) -> None:
     """Partial scope — regenerate a single component within an existing analysis."""
-    generator = _build_generator(
+    generator = build_generator(
         repo_name=project_name,
         repo_path=repo_path,
         output_dir=output_dir,
@@ -135,7 +135,7 @@ def run_incremental(
     static_analyzer=None,
 ) -> IncrementalRunPayload:
     """Incremental scope — diff against *base_ref* and propagate only the semantic deltas."""
-    generator = _build_generator(
+    generator = build_generator(
         repo_name=project_name,
         repo_path=repo_path,
         output_dir=output_dir,
