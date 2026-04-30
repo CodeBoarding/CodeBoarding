@@ -21,26 +21,31 @@ def update_command_paths(bin_dir):
 
     for section in VSCODE_CONFIG.values():
         for key, value in section.items():
-            cmd: list[str] = value["command"]  # type: ignore[assignment]
+            if "command" not in value:
+                continue
+
+            # Create a new list to avoid in-place modification of the original
+            cmd = list(value["command"])
+
             if key == "typescript":
                 # Scan the bin dir to find the cli.mjs path
-                cmd[0] = (
-                    find_runnable(bin_dir, "cli.mjs", "typescript-language-server")
-                    or find_runnable(bin_dir, "typescript-language-server", "node_modules")
-                    or cmd[0]
+                runnable = find_runnable(bin_dir, "cli.mjs", "typescript-language-server") or find_runnable(
+                    bin_dir, "typescript-language-server", "node_modules"
                 )
+                if runnable:
+                    cmd[0] = runnable
             elif key == "python":
-                cmd[0] = (
-                    find_runnable(bin_dir, "langserver.index.js", "pyright")
-                    or find_runnable(bin_dir, "pyright", "node_modules")
-                    or cmd[0]
+                runnable = find_runnable(bin_dir, "langserver.index.js", "pyright") or find_runnable(
+                    bin_dir, "pyright", "node_modules"
                 )
+                if runnable:
+                    cmd[0] = runnable
             elif key == "php":
-                cmd[0] = (
-                    find_runnable(bin_dir, "intelephense.js", "intelephense")
-                    or find_runnable(bin_dir, "intelephense", "node_modules")
-                    or cmd[0]
+                runnable = find_runnable(bin_dir, "intelephense.js", "intelephense") or find_runnable(
+                    bin_dir, "intelephense", "node_modules"
                 )
+                if runnable:
+                    cmd[0] = runnable
             elif key == "java":
                 # Find JDTLS root directory
                 jdtls_dir = os.path.join(bin_dir, "bin", "jdtls")
@@ -50,22 +55,46 @@ def update_command_paths(bin_dir):
                     value["jdtls_root"] = jdtls_dir
                     # Keep command as "java" - it will be constructed by JavaClient
                     cmd[0] = "java"
-            elif "command" in value:
-                if isinstance(cmd, list) and cmd:
-                    cmd[0] = os.path.join(bin_path, cmd[0])
+            elif cmd:
+                cmd[0] = os.path.join(bin_path, cmd[0])
 
             # Apply Windows-specific node prefix for specified languages
             # Use VSCode's bundled Node.js (passed via CODEBOARDING_NODE_PATH) so users
             # don't need a separate Node.js/npm installation on Windows.
             if is_windows and key in node_languages:
-                node_path = os.environ.get("CODEBOARDING_NODE_PATH", "node")
-                cmd.insert(0, node_path)
+                # Avoid double-prepending if the command already starts with node
+                # or if it's already an absolute path to a node binary.
+                first_cmd_lower = cmd[0].lower()
+                is_node = (
+                    first_cmd_lower == "node"
+                    or first_cmd_lower.endswith("\\node.exe")
+                    or first_cmd_lower.endswith("/node.exe")
+                    or first_cmd_lower.endswith("\\node")
+                    or first_cmd_lower.endswith("/node")
+                )
+                if not is_node:
+                    node_path = os.environ.get("CODEBOARDING_NODE_PATH", "node")
+                    cmd.insert(0, node_path)
+
+            # Update the value with the new command list
+            value["command"] = cmd
 
 
 def find_runnable(bin_dir, search_file, part_of_dir):
+    is_windows = platform.system().lower() == "windows"
+    search_file_lower = search_file.lower() if is_windows else None
+    part_of_dir_lower = part_of_dir.lower() if is_windows else None
+
     for root, _, files in os.walk(bin_dir):
-        if search_file in files and part_of_dir in root:
-            return os.path.join(root, search_file)
+        if is_windows:
+            files_lower = [f.lower() for f in files]
+            if search_file_lower in files_lower and part_of_dir_lower in root.lower():
+                # Find the original filename to preserve casing
+                idx = files_lower.index(search_file_lower)
+                return os.path.join(root, files[idx])
+        else:
+            if search_file in files and part_of_dir in root:
+                return os.path.join(root, search_file)
     return None
 
 

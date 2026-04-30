@@ -227,19 +227,27 @@ def resolve_config(base_dir: Path) -> dict[str, Any]:
         elif dep.kind is ToolKind.NODE:
             binary_path = base_dir / "node_modules" / ".bin" / f"{dep.binary_name}{node_ext}"
             if binary_path.exists():
-                cmd = cast(list[str], config[dep.config_section][dep.key]["command"])
+                section = config[dep.config_section][dep.key]
+                original_cmd = list(section["command"])
                 if dep.js_entry_file:
                     # Prefer [node, <abs/entry.mjs>] so frozen wrapper binaries
                     # can use their embedded Node runtime.
                     js_entry = find_runnable(str(base_dir), dep.js_entry_file, dep.js_entry_parent or dep.binary_name)
                     node_path = preferred_node_path(base_dir)
                     if js_entry and node_path:
-                        cmd[0] = js_entry
-                        cmd.insert(0, node_path)
+                        # Rebuild the command to avoid remnants from half-resolved
+                        # or polluted configs (e.g. ['node', 'old-bin', ...]).
+                        # We keep the flags (everything after the first element).
+                        flags = original_cmd[1:]
+                        if original_cmd[0] == "node" and len(original_cmd) > 1:
+                            # If it was already prefixed with node, flags start at index 2
+                            flags = original_cmd[2:]
+
+                        section["command"] = [node_path, js_entry] + flags
                     else:
-                        cmd[0] = str(binary_path)
+                        section["command"] = [str(binary_path)] + original_cmd[1:]
                 else:
-                    cmd[0] = str(binary_path)
+                    section["command"] = [str(binary_path)] + original_cmd[1:]
 
         elif dep.kind is ToolKind.ARCHIVE and dep.archive_subdir:
             archive_dir = base_dir / "bin" / dep.archive_subdir

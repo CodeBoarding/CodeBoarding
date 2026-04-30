@@ -1,3 +1,4 @@
+import copy
 import os
 import platform
 import tempfile
@@ -15,6 +16,15 @@ from vscode_constants import (
 
 
 class TestVSCodeConstants(unittest.TestCase):
+    def setUp(self):
+        # Capture a deep copy of the global config to restore after each test
+        self._original_config = copy.deepcopy(VSCODE_CONFIG)
+
+    def tearDown(self):
+        # Restore the global config
+        VSCODE_CONFIG.clear()
+        VSCODE_CONFIG.update(self._original_config)
+
     @patch("platform.system")
     def test_get_bin_path_windows(self, mock_system):
         # Test bin path for Windows
