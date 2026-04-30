@@ -68,10 +68,17 @@ def _build_payload(
 
 
 def _write_metadata(output_dir: Path, payload: dict[str, Any]) -> dict[str, Any]:
-    """Serialize *payload* to ``METADATA_FILENAME`` under *output_dir*."""
+    """Serialize *payload* to ``METADATA_FILENAME`` under *output_dir`` atomically.
+
+    Why: a crash mid-write would leave a corrupt JSON file that ``load_last_run_metadata``
+    silently treats as missing, forcing the next run to fall back to full analysis.
+    """
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
-    metadata_path(output_dir).write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    target = metadata_path(output_dir)
+    tmp = target.with_suffix(target.suffix + ".tmp")
+    tmp.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    tmp.replace(target)
     return payload
 
 

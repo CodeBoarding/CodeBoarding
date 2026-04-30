@@ -8,24 +8,11 @@ from diagram_analysis.incremental_payload import IncrementalCompletedPayload, No
 from diagram_analysis.incremental_pipeline import run_incremental_pipeline
 from diagram_analysis.io_utils import load_analysis_metadata, load_full_analysis
 from repo_utils import get_git_commit_hash
-from repo_utils.change_detector import ChangeDetectionError, ChangeSet
-from repo_utils.diff_parser import detect_changes as _detect_changes
+from repo_utils.change_detector import ChangeDetectionError
+from repo_utils.diff_parser import detect_changes
 from utils import ANALYSIS_FILENAME
 
 logger = logging.getLogger(__name__)
-
-
-def detect_changes(
-    repo_dir: Path,
-    base_ref: str,
-    target_ref: str,
-    raise_on_error: bool = False,
-) -> ChangeSet:
-    """Compatibility wrapper around ``repo_utils.diff_parser.detect_changes``."""
-    change_set = _detect_changes(repo_dir, base_ref, target_ref)
-    if change_set.error and raise_on_error:
-        raise ChangeDetectionError(change_set.error)
-    return change_set
 
 
 def run_incremental_workflow(generator: DiagramGenerator) -> Path:
@@ -43,7 +30,9 @@ def run_incremental_workflow(generator: DiagramGenerator) -> Path:
         return generator.generate_analysis()
 
     target_ref = get_git_commit_hash(generator.repo_location)
-    changes = detect_changes(generator.repo_location, base_ref, target_ref, raise_on_error=True)
+    changes = detect_changes(generator.repo_location, base_ref, target_ref)
+    if changes.error:
+        raise ChangeDetectionError(changes.error)
 
     if changes.is_empty():
         return output_dir.joinpath(ANALYSIS_FILENAME).resolve()

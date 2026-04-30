@@ -46,7 +46,7 @@ def test_run_incremental_workflow_dispatches_incremental_generator(tmp_path: Pat
         with patch("codeboarding_workflows.incremental.load_analysis_metadata", return_value={"commit_hash": "abc123"}):
             with patch("codeboarding_workflows.incremental.get_git_commit_hash", return_value="def456"):
                 with patch("codeboarding_workflows.incremental.detect_changes") as detect_changes:
-                    detect_changes.return_value = MagicMock(is_empty=lambda: False)
+                    detect_changes.return_value = MagicMock(is_empty=lambda: False, error=None)
                     with patch("codeboarding_workflows.incremental.run_incremental_pipeline") as run_pipeline:
                         payload = IncrementalCompletedPayload(
                             result=IncrementalRunResult(
@@ -67,7 +67,7 @@ def test_run_incremental_workflow_dispatches_incremental_generator(tmp_path: Pat
 
                         result = run_incremental_workflow(generator)
 
-    detect_changes.assert_called_once_with(tmp_path, "abc123", "def456", raise_on_error=True)
+    detect_changes.assert_called_once_with(tmp_path, "abc123", "def456")
     run_pipeline.assert_called_once_with(generator, base_ref="abc123", target_ref="def456")
     assert result == tmp_path / "analysis.json"
 
@@ -80,10 +80,8 @@ def test_run_incremental_workflow_raises_when_change_detection_fails(tmp_path: P
     with patch("codeboarding_workflows.incremental.load_full_analysis", return_value=("root", {"1": "sub"})):
         with patch("codeboarding_workflows.incremental.load_analysis_metadata", return_value={"commit_hash": "abc123"}):
             with patch("codeboarding_workflows.incremental.get_git_commit_hash", return_value="def456"):
-                with patch(
-                    "codeboarding_workflows.incremental.detect_changes",
-                    side_effect=ChangeDetectionError("bad diff"),
-                ):
+                with patch("codeboarding_workflows.incremental.detect_changes") as detect_changes:
+                    detect_changes.return_value = MagicMock(error="bad diff")
                     try:
                         run_incremental_workflow(generator)
                     except ChangeDetectionError as exc:

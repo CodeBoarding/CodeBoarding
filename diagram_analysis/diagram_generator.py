@@ -22,7 +22,12 @@ from diagram_analysis.analysis_json import (
 )
 from diagram_analysis.file_coverage import FileCoverage
 from diagram_analysis.incremental_tracer import run_trace
-from diagram_analysis.incremental_updater import IncrementalUpdater, apply_method_delta
+from diagram_analysis.incremental_updater import (
+    IncrementalUpdater,
+    apply_method_delta,
+    drop_deltas_for_pruned_components,
+    prune_empty_components,
+)
 from diagram_analysis.io_utils import save_analysis
 from diagram_analysis.scope_planner import (
     apply_patch_scopes,
@@ -473,6 +478,8 @@ class DiagramGenerator:
         )
 
         apply_method_delta(root_analysis, sub_analyses, delta)
+        removed_component_ids = prune_empty_components(root_analysis, sub_analyses)
+        drop_deltas_for_pruned_components(delta, removed_component_ids)
         post_delta_ownership_index = build_ownership_index(root_analysis, sub_analyses)
 
         agent_llm, parsing_llm = initialize_llms()

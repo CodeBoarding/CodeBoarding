@@ -130,7 +130,7 @@ def normalize_changes_for_delta(changes) -> tuple[list[str], list[str], list[str
     deleted_files = set(changes.deleted_files)
     rename_map: dict[str, str] = {}
 
-    for change in changes.changes:
+    for change in changes.files:
         if change.change_type.value == "R":
             if change.old_path:
                 deleted_files.add(change.old_path)
