@@ -28,7 +28,6 @@ class TestRepoIgnoreManagerRealWorldScenario(unittest.TestCase):
         (self.repo_path / "spec").mkdir()
         (self.repo_path / "dist").mkdir()
         (self.repo_path / "node_modules").mkdir()
-        (self.repo_path / ".codeboarding").mkdir()
 
         # Create actual files that should be analyzed
         (self.repo_path / "src" / "main.py").write_text("# Main app code")
@@ -64,7 +63,7 @@ dist/
 *.chunk.js
 *.chunk.js.map
 """
-        (self.repo_path / ".codeboarding" / ".codeboardingignore").write_text(codeboardingignore_content)
+        (self.repo_path / ".codeboardingignore").write_text(codeboardingignore_content)
 
         # Create files matching gitignore patterns
         (self.repo_path / "build.log").write_text("Build log content")

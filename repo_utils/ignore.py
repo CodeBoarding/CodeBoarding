@@ -6,6 +6,8 @@ import pathspec
 logger = logging.getLogger(__name__)
 
 CODEBOARDINGIGNORE_TEMPLATE = """# CodeBoarding Ignore File
+# Place this file at the root of your repository (next to .gitignore).
+#
 # Add patterns here for files and directories that should be excluded from CodeBoarding analysis.
 # Use the same format as .gitignore (gitignore syntax / gitwildmatch patterns).
 #
@@ -16,8 +18,7 @@ CODEBOARDINGIGNORE_TEMPLATE = """# CodeBoarding Ignore File
 #   - .git/, .codeboarding/, node_modules/, __pycache__/
 #   - Build output: build/, dist/, coverage/
 #
-# This file is automatically loaded by CodeBoarding analysis tools to exclude
-# specified paths from code analysis, architecture generation, and other processing.
+# When this file is missing, CodeBoarding falls back to the patterns below.
 
 # ============================================================================
 # Ignored directories (customizable — remove lines to include them)
@@ -163,10 +164,11 @@ _ALWAYS_IGNORED_DIRS = {
 class RepoIgnoreManager:
     """Centralized manager for handling file and directory exclusions across the repository.
 
-    Combines patterns from .gitignore and .codeboardingignore. Default exclusion
-    patterns are defined in the CODEBOARDINGIGNORE_TEMPLATE and written to
-    ``.codeboarding/.codeboardingignore`` on first run — users can then
-    customize which patterns to keep, remove, or add.
+    Combines patterns from ``.gitignore`` and a repo-root ``.codeboardingignore``
+    (loaded the same way ``.gitignore`` is — from the top of the worktree). When
+    no ``.codeboardingignore`` exists, the patterns in
+    ``CODEBOARDINGIGNORE_TEMPLATE`` are used as a fallback so first-run analysis
+    still has sensible exclusions.
     """
 
     def __init__(self, repo_root: Path):
@@ -201,13 +203,8 @@ class RepoIgnoreManager:
         return []
 
     def _load_codeboardingignore_patterns(self) -> list[str]:
-        """Load and parse .codeboardingignore file from .codeboarding directory.
-
-        If the file does not exist, returns the default template patterns so that
-        first-run analysis still has sensible exclusions even before
-        ``initialize_codeboardingignore`` is called.
-        """
-        codeboardingignore_path = self.repo_root / ".codeboarding" / ".codeboardingignore"
+        """Load .codeboardingignore from the repo root, falling back to the default template."""
+        codeboardingignore_path = self.repo_root / ".codeboardingignore"
 
         if codeboardingignore_path.exists():
             try:
@@ -216,7 +213,6 @@ class RepoIgnoreManager:
             except Exception as e:
                 logger.warning(f"Failed to read .codeboardingignore at {codeboardingignore_path}: {e}")
 
-        # Fall back to the default template so analysis works before the file is created
         return list(CODEBOARDINGIGNORE_TEMPLATE.splitlines(keepends=True))
 
     def should_ignore(self, path: Path) -> bool:
@@ -294,19 +290,3 @@ class RepoIgnoreManager:
         except Exception as e:
             logger.error(f"Error categorizing file {path}: {e}")
             return "other"
-
-
-def initialize_codeboardingignore(output_dir: Path) -> None:
-    """Initialize .codeboardingignore file in the .codeboarding directory if it doesn't exist.
-
-    Args:
-        output_dir: Path to the .codeboarding directory
-    """
-    codeboardingignore_path = output_dir / ".codeboardingignore"
-
-    if not codeboardingignore_path.exists():
-        try:
-            codeboardingignore_path.write_text(CODEBOARDINGIGNORE_TEMPLATE, encoding="utf-8")
-            logger.debug(f"Created .codeboardingignore file at {codeboardingignore_path}")
-        except Exception as e:
-            logger.warning(f"Failed to create .codeboardingignore at {codeboardingignore_path}: {e}")

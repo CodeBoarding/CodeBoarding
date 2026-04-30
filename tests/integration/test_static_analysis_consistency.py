@@ -36,7 +36,7 @@ import pytest
 from git import Repo
 
 from repo_utils import clone_repository
-from repo_utils.ignore import initialize_codeboardingignore
+from repo_utils.ignore import CODEBOARDINGIGNORE_TEMPLATE
 from static_analyzer import get_static_analysis
 from static_analyzer.analysis_result import StaticAnalysisResults
 
@@ -221,11 +221,8 @@ class TestStaticAnalysisConsistency:
 
         # Ensure the current .codeboardingignore template is used, not whatever
         # the cloned repo might have from an older version.
-        codeboarding_dir = repo_path / ".codeboarding"
-        codeboarding_dir.mkdir(parents=True, exist_ok=True)
-        ignore_file = codeboarding_dir / ".codeboardingignore"
-        ignore_file.unlink(missing_ok=True)
-        initialize_codeboardingignore(codeboarding_dir)
+        ignore_file = repo_path / ".codeboardingignore"
+        ignore_file.write_text(CODEBOARDINGIGNORE_TEMPLATE, encoding="utf-8")
 
         # Load expected fixture
         expected = load_fixture(config.fixture_file)
