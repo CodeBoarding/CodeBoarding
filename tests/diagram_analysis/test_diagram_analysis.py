@@ -344,7 +344,7 @@ class TestDiagramGenerator(unittest.TestCase):
     @patch("diagram_analysis.diagram_generator.DetailsAgent")
     @patch("diagram_analysis.diagram_generator.AbstractionAgent")
     @patch("diagram_analysis.diagram_generator.get_git_commit_hash")
-    def test_pre_analysis(
+    def test_prepare_full_pipeline(
         self,
         mock_git_hash,
         mock_abstraction,
@@ -354,7 +354,7 @@ class TestDiagramGenerator(unittest.TestCase):
         mock_get_static_analysis,
         mock_scanner,
     ):
-        # Test pre_analysis method
+        # Test prepare_full_pipeline method
         mock_git_hash.return_value = "abc123"
         # Return a proper StaticAnalysisResults object
         mock_analysis_results = StaticAnalysisResults()
@@ -395,7 +395,7 @@ class TestDiagramGenerator(unittest.TestCase):
             log_path="test_repo/test-run-log",
         )
 
-        gen.pre_analysis()
+        gen.prepare_full_pipeline()
 
         # Verify agents were created
         self.assertIsNotNone(gen.meta_agent)
@@ -481,7 +481,7 @@ class TestDiagramGenerator(unittest.TestCase):
 
         gen.abstraction_agent = Mock()
         gen.abstraction_agent.run.return_value = (root_analysis, {})
-        gen.details_agent = Mock()  # pre_analysis is skipped when details/abstraction are already initialized
+        gen.details_agent = Mock()  # prepare_full_pipeline is skipped when details/abstraction are already initialized
         mock_get_expandable_components.return_value = [root_a, root_b]
         mock_save_analysis.return_value = self.output_dir / "analysis.json"
 
@@ -526,7 +526,7 @@ class TestDiagramGenerator(unittest.TestCase):
             log_path="test_repo/test-run-log",
         )
 
-        # Prevent pre_analysis from running.
+        # Prevent prepare_full_pipeline from running.
         gen.abstraction_agent = Mock()
         gen.details_agent = Mock()
 

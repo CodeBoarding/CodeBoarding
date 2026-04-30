@@ -147,7 +147,7 @@ class TestPartialUpdate(unittest.TestCase):
                 depth_level=1,
             )
 
-            mock_generator.pre_analysis.assert_called_once()
+            mock_generator.prepare_full_pipeline.assert_called_once()
             mock_generator.process_component.assert_called_once()
             mock_save_sub_analysis.assert_called_once_with(mock_sub_analysis, output_dir, "test_comp_id")
 
@@ -213,7 +213,7 @@ class TestPartialUpdate(unittest.TestCase):
                 depth_level=1,
             )
 
-            mock_generator.pre_analysis.assert_called_once()
+            mock_generator.prepare_full_pipeline.assert_called_once()
             mock_generator.process_component.assert_called_once_with(nested_component)
             mock_save_sub_analysis.assert_called_once_with(mock_sub_analysis_result, output_dir, "nested_comp_id")
 
@@ -238,7 +238,7 @@ class TestPartialUpdate(unittest.TestCase):
                 depth_level=1,
             )
 
-            mock_generator.pre_analysis.assert_called_once()
+            mock_generator.prepare_full_pipeline.assert_called_once()
             mock_generator.process_component.assert_not_called()
 
 
@@ -326,7 +326,7 @@ class TestLocalSource(unittest.TestCase):
                     log_path="l",
                 )
 
-            mock_generator_class.return_value.pre_analysis.assert_called_once()
+            mock_generator_class.return_value.prepare_full_pipeline.assert_called_once()
 
 
 class TestFullCliLocal(unittest.TestCase):

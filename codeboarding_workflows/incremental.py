@@ -20,7 +20,7 @@ def _inputs_from_generator(generator: DiagramGenerator) -> IncrementalInputs:
         repo_path=generator.repo_location,
         output_dir=generator.output_dir,
         repo_name=generator.repo_name,
-        prepare_static_analysis=generator.pre_analysis,
+        prepare_static_analysis=generator.prepare_static_analysis,
         build_file_coverage_summary=generator.build_file_coverage_summary,
         write_file_coverage=generator.write_file_coverage,
     )

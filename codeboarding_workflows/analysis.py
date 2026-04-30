@@ -84,7 +84,7 @@ def run_partial(
         log_path=log_path,
         depth_level=depth_level,
     )
-    generator.pre_analysis()
+    generator.prepare_full_pipeline()
 
     full_analysis = load_full_analysis(output_dir)
     if full_analysis is None:
@@ -145,11 +145,14 @@ def run_incremental(
         monitoring_enabled=monitoring_enabled,
         static_analyzer=static_analyzer,
     )
+    # Bind the static-only entrypoint: incremental's trace planner needs
+    # static analysis but not the agent stack, so we skip MetaAgent
+    # (~10s) and the health report (~1s).
     inputs = IncrementalInputs(
         repo_path=generator.repo_location,
         output_dir=generator.output_dir,
         repo_name=generator.repo_name,
-        prepare_static_analysis=generator.pre_analysis,
+        prepare_static_analysis=generator.prepare_static_analysis,
         build_file_coverage_summary=generator.build_file_coverage_summary,
         write_file_coverage=generator.write_file_coverage,
     )

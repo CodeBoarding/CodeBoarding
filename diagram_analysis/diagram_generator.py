@@ -40,13 +40,13 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class PipelineContext:
-    """Shared state produced by ``DiagramGenerator.pre_analysis``.
+    """Shared state produced by ``DiagramGenerator.prepare_full_pipeline``.
 
-    Why: pre_analysis() previously mutated 7 lazily-init'd instance fields
-    on the runtime class, forcing ``assert is not None`` checks throughout.
-    Building this struct first makes the dependency graph explicit; the
-    instance fields are still mirrored for now so the 40+ ``self.X``
-    call sites keep working.
+    Why: prepare_full_pipeline() previously mutated 7 lazily-init'd
+    instance fields on the runtime class, forcing ``assert is not None``
+    checks throughout. Building this struct first makes the dependency
+    graph explicit; the instance fields are still mirrored for now so
+    the 40+ ``self.X`` call sites keep working.
     """
 
     meta_agent: MetaAgent
@@ -86,9 +86,9 @@ class DiagramGenerator:
 
         self.details_agent: DetailsAgent | None = None
         self.static_analysis: StaticAnalysisResults | None = None  # Cache static analysis for reuse
+        self.static_stats: dict[str, Any] | None = None
         self.abstraction_agent: AbstractionAgent | None = None
         self.meta_agent: MetaAgent | None = None
-        self.meta_context: Any | None = None
         self.file_coverage_data: dict | None = None
 
         self._monitoring_agents: dict[str, MonitoringMixin] = {}
@@ -173,9 +173,34 @@ class DiagramGenerator:
         result.diagnostics = self._static_analyzer.collected_diagnostics  # type: ignore[union-attr]
         return result
 
-    def pre_analysis(self) -> StaticAnalysisResults:
-        """Initialize agents + static analysis. Idempotent — returns the cached result on repeat."""
+    def prepare_static_analysis(self) -> StaticAnalysisResults:
+        """Run static analysis + scanner-derived artifacts. Idempotent.
+
+        Used by the incremental scope, which needs static analysis but
+        not the agent stack. ``prepare_full_pipeline`` reuses the cache
+        populated here when it later builds the agents.
+
+        Why: incremental's trace planner consumes only static analysis,
+        so the ~10s spent on ``MetaAgent.analyze_project_metadata`` and
+        the ~1s on ``_run_health_report`` are pure overhead on a Refresh.
+        """
         if self.static_analysis is not None:
+            return self.static_analysis
+        static_analysis = self._run_static_analysis()
+        self._finalize_static_artifacts(static_analysis)
+        return static_analysis
+
+    def prepare_full_pipeline(self) -> StaticAnalysisResults:
+        """Initialize agents + static analysis. Idempotent.
+
+        Returns the cached static analysis when both agents are already
+        constructed. The guard is "agents initialized" rather than
+        "static cached" so a prior ``prepare_static_analysis`` call (from
+        the incremental scope) doesn't make this method think the agent
+        setup was already done.
+        """
+        if self.details_agent is not None and self.abstraction_agent is not None:
+            assert self.static_analysis is not None
             return self.static_analysis
         ctx = self._build_pipeline_context()
         self.meta_agent = ctx.meta_agent
@@ -186,6 +211,31 @@ class DiagramGenerator:
         self._monitoring_agents = ctx.monitoring_agents
         self.stats_writer = ctx.stats_writer
         return ctx.static_analysis
+
+    def _run_static_analysis(self) -> StaticAnalysisResults:
+        """Invoke the right static analyzer (injected vs. fresh)."""
+        if self._static_analyzer is not None:
+            logger.info("Using injected StaticAnalyzer (clients already running)")
+            cache_dir = None if self.force_full_analysis else get_cache_dir(self.repo_location)
+            return self._get_static_from_injected_analyzer(cache_dir, skip_cache=True)
+        if self.force_full_analysis:
+            logger.info("Force full analysis: skipping static analysis cache")
+        return get_static_analysis(self.repo_location, skip_cache=self.force_full_analysis)
+
+    def _finalize_static_artifacts(self, static_analysis: StaticAnalysisResults) -> None:
+        """Compute scanner-derived state (LOC stats, file coverage) and stash on self."""
+        static_stats: dict[str, Any] = {"repo_name": self.repo_name, "languages": {}}
+        scanner = ProjectScanner(self.repo_location)
+        loc_by_language = {pl.language: pl.size for pl in scanner.scan()}
+        for language in static_analysis.get_languages():
+            files = static_analysis.get_source_files(language)
+            static_stats["languages"][language] = {
+                "file_count": len(files),
+                "lines_of_code": loc_by_language.get(language, 0),
+            }
+        self.static_analysis = static_analysis
+        self.static_stats = static_stats
+        self.file_coverage_data = self._build_file_coverage(scanner, static_analysis)
 
     def _build_pipeline_context(self) -> PipelineContext:
         analysis_start_time = time.time()
@@ -204,43 +254,25 @@ class DiagramGenerator:
         )
         monitoring_agents["MetaAgent"] = meta_agent
 
-        def get_static_with_injected_analyzer() -> StaticAnalysisResults:
-            cache_dir = None if self.force_full_analysis else get_cache_dir(self.repo_location)
-            return self._get_static_from_injected_analyzer(cache_dir, skip_cache=True)
-
-        def get_static_with_new_analyzer() -> StaticAnalysisResults:
-            skip_cache = self.force_full_analysis
-            if skip_cache:
-                logger.info("Force full analysis: skipping static analysis cache")
-            return get_static_analysis(self.repo_location, skip_cache=skip_cache)
-
-        # Decide how to obtain static analysis results, then run it in parallel
-        # with the meta-context computation so neither blocks the other.
-        if self._static_analyzer is not None:
-            logger.info("Using injected StaticAnalyzer (clients already running)")
-            static_callable = get_static_with_injected_analyzer
+        # Reuse static analysis cached by an earlier ``prepare_static_analysis``
+        # call (e.g. incremental scope that fell through to a full re-analysis).
+        # Otherwise overlap static + meta — they're independent.
+        if self.static_analysis is not None:
+            assert self.static_stats is not None
+            assert self.file_coverage_data is not None
+            meta_context = meta_agent.analyze_project_metadata(skip_cache=self.force_full_analysis)
+            static_analysis = self.static_analysis
         else:
-            static_callable = get_static_with_new_analyzer
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                static_future = executor.submit(self._run_static_analysis)
+                meta_future = executor.submit(meta_agent.analyze_project_metadata, skip_cache=self.force_full_analysis)
+                static_analysis = static_future.result()
+                meta_context = meta_future.result()
+            self._finalize_static_artifacts(static_analysis)
 
-        with ThreadPoolExecutor(max_workers=2) as executor:
-            static_future = executor.submit(static_callable)
-            meta_future = executor.submit(meta_agent.analyze_project_metadata, skip_cache=self.force_full_analysis)
-            static_analysis = static_future.result()
-            meta_context = meta_future.result()
-
-        # --- Capture Static Analysis Stats ---
-        static_stats: dict[str, Any] = {"repo_name": self.repo_name, "languages": {}}
-        scanner = ProjectScanner(self.repo_location)
-        loc_by_language = {pl.language: pl.size for pl in scanner.scan()}
-        for language in static_analysis.get_languages():
-            files = static_analysis.get_source_files(language)
-            static_stats["languages"][language] = {
-                "file_count": len(files),
-                "lines_of_code": loc_by_language.get(language, 0),
-            }
-
-        # Build file coverage data from scanner's all_text_files and analyzed files
-        file_coverage_data = self._build_file_coverage(scanner, static_analysis)
+        static_stats = self.static_stats
+        file_coverage_data = self.file_coverage_data
+        assert static_stats is not None and file_coverage_data is not None  # set by _finalize_static_artifacts
 
         self._run_health_report(static_analysis)
 
@@ -308,7 +340,7 @@ class DiagramGenerator:
         Output is stored as a single ``analysis.json`` in ``output_dir``.
         """
         if self.details_agent is None or self.abstraction_agent is None:
-            self.pre_analysis()
+            self.prepare_full_pipeline()
 
         monitor = self.stats_writer if self.stats_writer else nullcontext()
         with monitor:

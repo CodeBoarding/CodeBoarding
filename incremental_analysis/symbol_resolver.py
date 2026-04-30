@@ -2,9 +2,10 @@
 
 Why from ``static_analysis`` and not ``analysis.files``: the incremental
 updater needs the *post-change* view of each file to diff against the
-*pre-change* view stored on ``AnalysisInsights.files``. ``pre_analysis()``
-populates ``static_analysis`` from a fresh worktree scan immediately
-before this resolver is built — that is the "current" side of the diff.
+*pre-change* view stored on ``AnalysisInsights.files``.
+``prepare_static_analysis()`` populates ``static_analysis`` from a fresh
+worktree scan immediately before this resolver is built — that is the
+"current" side of the diff.
 Collapsing both sides to ``analysis.files`` would always report "no
 changes" and silently break incremental analysis.
 """
