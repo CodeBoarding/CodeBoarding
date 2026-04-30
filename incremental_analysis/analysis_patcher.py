@@ -2,8 +2,10 @@ import json
 import logging
 from dataclasses import dataclass, field
 
+from langchain_core.messages import HumanMessage
 from langchain_core.language_models import BaseChatModel
 from langchain_core.runnables.config import RunnableConfig
+from pydantic import ValidationError
 from trustcall import create_extractor
 
 from agents.agent_responses import AnalysisInsights, LLMBaseModel, Relation, SourceCodeReference
@@ -123,6 +125,69 @@ def _build_patch_prompt(analysis: AnalysisInsights, patch_scope: PatchScope) -> 
     )
 
 
+def _response_to_payload(response: object) -> dict:
+    if isinstance(response, AnalysisScopePatch):
+        return response.model_dump(exclude_none=True)
+    if hasattr(response, "model_dump"):
+        return response.model_dump(exclude_none=True)
+    if isinstance(response, dict):
+        return response
+    raise TypeError(f"Unexpected patch response type: {type(response)!r}")
+
+
+def _salvage_stringified_key_entities(payload: dict) -> dict:
+    fixed = json.loads(json.dumps(payload))
+    for component in fixed.get("components", []):
+        key_entities = component.get("key_entities")
+        if not isinstance(key_entities, list):
+            continue
+        repaired = []
+        for reference in key_entities:
+            if isinstance(reference, str):
+                try:
+                    parsed = json.loads(reference)
+                except json.JSONDecodeError:
+                    parsed = None
+                if isinstance(parsed, dict):
+                    reference = parsed
+            repaired.append(reference)
+        component["key_entities"] = repaired
+    return fixed
+
+
+def _format_validation_error(exc: ValidationError) -> str:
+    lines = []
+    for err in exc.errors(include_url=False):
+        location = ".".join(str(part) for part in err["loc"])
+        lines.append(f"- {location}: {err['msg']}")
+    return "\n".join(lines)
+
+
+def _build_empty_response_feedback() -> HumanMessage:
+    return HumanMessage(
+        content=(
+            "Your previous response did not produce a valid AnalysisScopePatch tool output.\n"
+            "Return the full AnalysisScopePatch and call the tool exactly once."
+        )
+    )
+
+
+def _build_validation_feedback(raw_response: dict, exc: ValidationError) -> HumanMessage:
+    return HumanMessage(
+        content=(
+            "Your previous AnalysisScopePatch output failed validation.\n"
+            "Return the full AnalysisScopePatch again.\n"
+            "Rules:\n"
+            "- Do not change component IDs.\n"
+            "- Do not change relation src_id/dst_id.\n"
+            "- Every components[].key_entities[] item must be an object, never a JSON string.\n\n"
+            f"Validation errors:\n{_format_validation_error(exc)}\n\n"
+            "Previous invalid output:\n"
+            f"```json\n{json.dumps(raw_response, indent=2)}\n```"
+        )
+    )
+
+
 def apply_scope_patch(
     analysis: AnalysisInsights,
     patch_scope: PatchScope,
@@ -201,11 +266,12 @@ def patch_analysis_scope(
         tool_choice=AnalysisScopePatch.__name__,
     )
     invoke_config: RunnableConfig = {"callbacks": callbacks} if callbacks else {}
-    prompt = _build_patch_prompt(analysis, patch_scope)
+    messages = [HumanMessage(content=_build_patch_prompt(analysis, patch_scope))]
 
     for attempt in range(1, _PATCH_MAX_ATTEMPTS + 1):
+        raw_response: dict | None = None
         try:
-            result = extractor.invoke(prompt, config=invoke_config)
+            result = extractor.invoke({"messages": messages}, config=invoke_config)
             responses = result.get("responses", [])
             if not responses:
                 logger.warning(
@@ -214,10 +280,22 @@ def patch_analysis_scope(
                     attempt,
                     _PATCH_MAX_ATTEMPTS,
                 )
+                messages.append(_build_empty_response_feedback())
                 continue
 
-            scope_patch = AnalysisScopePatch.model_validate(responses[0])
+            raw_response = _response_to_payload(responses[0])
+            scope_patch = AnalysisScopePatch.model_validate(_salvage_stringified_key_entities(raw_response))
             return apply_scope_patch(analysis, patch_scope, scope_patch)
+        except ValidationError as exc:
+            logger.warning(
+                "Scope patch generation failed for %s (attempt %d/%d): %s",
+                patch_scope.scope_id or "root",
+                attempt,
+                _PATCH_MAX_ATTEMPTS,
+                exc,
+            )
+            if raw_response is not None:
+                messages.append(_build_validation_feedback(raw_response, exc))
         except Exception as exc:
             logger.warning(
                 "Scope patch generation failed for %s (attempt %d/%d): %s",

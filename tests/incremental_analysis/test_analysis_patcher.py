@@ -157,3 +157,97 @@ def test_patch_analysis_scope_retries_three_times_before_success():
     assert {component.component_id: component.description for component in patched.components}["1.1"] == (
         "Updated auth description"
     )
+
+
+def test_patch_analysis_scope_salvages_stringified_key_entities():
+    analysis = _make_analysis()
+    patch_scope = PatchScope(
+        scope_id=None,
+        target_component_ids=["1.1"],
+        visited_methods=["auth.login"],
+        impacted_methods=["auth.login"],
+    )
+
+    class _Extractor:
+        def invoke(self, _state, config=None):
+            return {
+                "responses": [
+                    {
+                        "scope_description": "Updated scope",
+                        "components": [
+                            {
+                                "component_id": "1.1",
+                                "description": "Updated auth description",
+                                "key_entities": ['{"qualified_name": "auth.refresh"}'],
+                            }
+                        ],
+                        "relations": [],
+                    }
+                ]
+            }
+
+    with patch("incremental_analysis.analysis_patcher.create_extractor", return_value=_Extractor()):
+        patched = patch_analysis_scope(analysis, patch_scope, MagicMock())
+
+    assert patched is not None
+    component = {component.component_id: component for component in patched.components}["1.1"]
+    assert component.key_entities[0].qualified_name == "auth.refresh"
+
+
+def test_patch_analysis_scope_feeds_validation_error_back_into_retry():
+    analysis = _make_analysis()
+    patch_scope = PatchScope(
+        scope_id=None,
+        target_component_ids=["1.1"],
+        visited_methods=["auth.login"],
+        impacted_methods=["auth.login"],
+    )
+
+    class _Extractor:
+        def __init__(self):
+            self.states = []
+
+        def invoke(self, state, config=None):
+            self.states.append(state)
+            if len(self.states) == 1:
+                return {
+                    "responses": [
+                        {
+                            "scope_description": "Updated scope",
+                            "components": [
+                                {
+                                    "component_id": "1.1",
+                                    "description": "Updated auth description",
+                                    "key_entities": ["not valid json"],
+                                }
+                            ],
+                            "relations": [],
+                        }
+                    ]
+                }
+            return {
+                "responses": [
+                    {
+                        "scope_description": "Updated scope",
+                        "components": [
+                            {
+                                "component_id": "1.1",
+                                "description": "Updated auth description",
+                                "key_entities": [{"qualified_name": "auth.refresh"}],
+                            }
+                        ],
+                        "relations": [],
+                    }
+                ]
+            }
+
+    extractor = _Extractor()
+    with patch("incremental_analysis.analysis_patcher.create_extractor", return_value=extractor):
+        patched = patch_analysis_scope(analysis, patch_scope, MagicMock())
+
+    assert patched is not None
+    assert len(extractor.states) == 2
+    retry_messages = extractor.states[1]["messages"]
+    assert len(retry_messages) == 2
+    assert "failed validation" in retry_messages[-1].content
+    assert "components.0.key_entities.0" in retry_messages[-1].content
