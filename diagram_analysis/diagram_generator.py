@@ -1,10 +1,8 @@
 import json
 import logging
-import os
 import time
 from collections import defaultdict
-from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
-from contextlib import nullcontext
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -301,126 +299,10 @@ class DiagramGenerator:
             stats_writer=stats_writer,
         )
 
-    def _generate_subcomponents(
-        self,
-        analysis: AnalysisInsights,
-        root_components: list[Component],
-    ) -> tuple[list[Component], dict[str, AnalysisInsights]]:
-        """Generate subcomponents for the given root-level analysis using a frontier queue."""
-        max_workers = min(os.cpu_count() or 4, 8)
-
-        expanded_components: list[Component] = []
-        sub_analyses: dict[str, AnalysisInsights] = {}
-        commit_hash = get_git_commit_hash(self.repo_location)
-
-        # Group stats to avoid cluttering the local variable scope
-        stats = {"submitted": 0, "completed": 0, "saves": 0, "errors": 0}
-
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            future_to_task: dict[Future, tuple[Component, int]] = {}
-
-            def submit_component(comp: Component, lvl: int):
-                future = executor.submit(self.process_component, comp)
-                future_to_task[future] = (comp, lvl)
-                stats["submitted"] += 1
-                logger.debug("Submitted component='%s' at level=%d", comp.name, lvl)
-
-            # 1. Initial Seeding
-            if self.depth_level > 1:
-                for component in root_components:
-                    submit_component(component, 1)
-
-            logger.info(
-                "Subcomponent generation started with %d workers. Initial tasks: %d", max_workers, stats["submitted"]
-            )
-
-            # 2. Process Queue
-            while future_to_task:
-                completed_futures, _ = wait(future_to_task.keys(), return_when=FIRST_COMPLETED)
-
-                for future in completed_futures:
-                    component, level = future_to_task.pop(future)
-                    stats["completed"] += 1
-
-                    try:
-                        comp_name, sub_analysis, new_components = future.result()
-
-                        if comp_name and sub_analysis:
-                            sub_analyses[comp_name] = sub_analysis
-                            expanded_components.append(component)
-                            stats["saves"] += 1
-
-                            logger.debug("Saving intermediate analysis for '%s'", comp_name)
-                            save_analysis(
-                                analysis=analysis,
-                                output_dir=Path(self.output_dir),
-                                sub_analyses=sub_analyses,
-                                repo_name=self.repo_name,
-                                commit_hash=commit_hash,
-                            )
-
-                        if new_components and level + 1 < self.depth_level:
-                            for child in new_components:
-                                submit_component(child, level + 1)
-
-                            logger.info("Expanded '%s' with %d new children.", comp_name, len(new_components))
-
-                    except Exception:
-                        stats["errors"] += 1
-                        logger.exception("Component '%s' generated an exception", component.name)
-
-                logger.info(
-                    "Progress: %d completed, %d in flight, %d errors",
-                    stats["completed"],
-                    len(future_to_task),
-                    stats["errors"],
-                )
-
-            logger.info("Subcomponent generation complete: %s", stats)
-
-        return expanded_components, sub_analyses
-
     def generate_analysis(self) -> Path:
-        """
-        Generate the graph analysis for the given repository.
-        The output is stored in a single analysis.json file in output_dir.
-        Components are analyzed in parallel as soon as their parents complete.
-        """
-        if self.details_agent is None or self.abstraction_agent is None:
-            self.pre_analysis()
+        from diagram_analysis.full_analysis_runner import FullAnalysisRunner
 
-        # Start monitoring (tracks start time)
-        monitor = self.stats_writer if self.stats_writer else nullcontext()
-        with monitor:
-            # Generate the initial analysis
-            logger.info("Generating initial analysis")
-
-            assert self.abstraction_agent is not None
-
-            analysis, cluster_results = self.abstraction_agent.run()
-
-            # Get the initial components to analyze (deterministic, no LLM)
-            root_components = get_expandable_components(analysis)
-            logger.info(f"Found {len(root_components)} components to analyze at level 1")
-
-            # Process components using a frontier queue: submit children as soon as parent finishes.
-            expanded_components, sub_analyses = self._generate_subcomponents(analysis, root_components)
-
-            analysis_path = save_analysis(
-                analysis=analysis,
-                output_dir=Path(self.output_dir),
-                sub_analyses=sub_analyses,
-                repo_name=self.repo_name,
-                file_coverage_summary=self._build_file_coverage_summary(),
-                commit_hash=get_git_commit_hash(self.repo_location),
-            ).resolve()
-
-            logger.info(f"Analysis complete. Written unified analysis to {analysis_path}")
-
-            # Write file_coverage.json
-            self._write_file_coverage()
-
-            return analysis_path
+        return FullAnalysisRunner(self).run()
 
     def _normalize_repo_path(self, path: str) -> str:
         posix = path.replace("\\", "/")
