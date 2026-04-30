@@ -202,5 +202,8 @@ evals/artifacts/
 # Static analysis cache in integration test projects
 tests/integration/projects/**/*.pkl
 
-# CodeBoarding local analysis cache (sqlite DBs, pickles, lock files)
+# CodeBoarding 
+# - local analysis cache (sqlite DBs, pickles, lock files)
+# - MD files associated with components
 .codeboarding/cache/
+.codeboarding/components/
