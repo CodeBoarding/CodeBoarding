@@ -8,7 +8,7 @@ Flow:
 4. Return an ``IncrementalDelta``. Status storage is the caller's responsibility.
 
 The structural-mutation side (apply, prune, drop) lives in
-``diagram_analysis.delta_application``.
+``incremental_analysis.delta_application``.
 """
 
 import logging

@@ -11,11 +11,11 @@ from agents.agent_responses import (
     SourceCodeReference,
 )
 from agents.change_status import ChangeStatus
-from diagram_analysis.incremental_models import TraceResult, TraceStopReason
-from diagram_analysis.delta_application import apply_method_delta
-from diagram_analysis.incremental_updater import FileDelta, IncrementalDelta, MethodChange
-from diagram_analysis.analysis_patcher import PatchScope
-from diagram_analysis.scope_planner import apply_patch_scopes, build_ownership_index, derive_patch_scopes
+from incremental_analysis.models import TraceResult, TraceStopReason
+from incremental_analysis.delta_application import apply_method_delta
+from incremental_analysis.updater import FileDelta, IncrementalDelta, MethodChange
+from incremental_analysis.analysis_patcher import PatchScope
+from incremental_analysis.scope_planner import apply_patch_scopes, build_ownership_index, derive_patch_scopes
 
 
 def _method(name: str, start: int = 1, end: int = 1) -> MethodEntry:
@@ -131,6 +131,6 @@ def test_apply_patch_scopes_raises_when_patch_generation_fails():
         )
     ]
 
-    with patch("diagram_analysis.scope_planner.patch_analysis_scope", return_value=None):
+    with patch("incremental_analysis.scope_planner.patch_analysis_scope", return_value=None):
         with pytest.raises(RuntimeError, match="Patch generation failed"):
             apply_patch_scopes(root, {}, patch_scopes, agent_llm=MagicMock())

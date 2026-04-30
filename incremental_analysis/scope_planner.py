@@ -5,8 +5,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from agents.agent_responses import AnalysisInsights
-from diagram_analysis.analysis_patcher import PatchScope, patch_analysis_scope
-from diagram_analysis.incremental_models import TraceResult, TraceStopReason
+from incremental_analysis.analysis_patcher import PatchScope, patch_analysis_scope
+from incremental_analysis.models import TraceResult, TraceStopReason
 
 
 @dataclass(frozen=True)

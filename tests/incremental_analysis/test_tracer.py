@@ -2,9 +2,9 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from agents.change_status import ChangeStatus
-from diagram_analysis.incremental_models import TraceStopReason
-from diagram_analysis.incremental_tracer import build_trace_plan, run_trace
-from diagram_analysis.incremental_updater import FileDelta, IncrementalDelta, MethodChange
+from incremental_analysis.models import TraceStopReason
+from incremental_analysis.tracer import build_trace_plan, run_trace
+from incremental_analysis.updater import FileDelta, IncrementalDelta, MethodChange
 from static_analyzer.constants import NodeType
 from static_analyzer.graph import CallGraph
 from static_analyzer.node import Node
@@ -146,7 +146,7 @@ def test_run_trace_tracks_visited_methods(tmp_path: Path):
                 ]
             }
 
-    with patch("diagram_analysis.incremental_tracer.create_extractor", return_value=_Extractor()):
+    with patch("incremental_analysis.tracer.create_extractor", return_value=_Extractor()):
         result = run_trace(delta, {"python": cfg}, static_analysis, tmp_path, "HEAD", MagicMock())
 
     assert result.stop_reason == TraceStopReason.CLOSURE_REACHED

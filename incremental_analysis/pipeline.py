@@ -1,52 +1,77 @@
 """Library-layer incremental pipeline.
 
-Owns the orchestration behind semantic incremental analysis:
-loading the prior analysis, resolving refs, running the updater, invoking
-``DiagramGenerator.generate_analysis_incremental``, and writing metadata.
+Owns the incremental algorithm itself: load prior analysis, detect changes,
+classify per-method statuses, apply the delta, run the semantic trace,
+patch impacted scopes, save, and write run metadata.
 
-Callers (Core's CLI; the wrapper's ``AnalysisController``)
-construct a ``DiagramGenerator`` the same way they would for a full run and
-hand it to :func:`run_incremental_pipeline`. No process boundary involved —
-the CLI envelope and JSON emission stay at the caller's edge.
+Callers hand it an :class:`IncrementalInputs` value — the typed contract
+that replaces the old ``DiagramGenerator``-as-grab-bag dependency. The
+workflow layer (``codeboarding_workflows``) is the only place that knows
+how to bind these inputs to a generator instance.
 """
 
 import contextlib
 import io
 import logging
+from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 
-from diagram_analysis.diagram_generator import DiagramGenerator
-from diagram_analysis.incremental_models import (
+from agents.llm_config import MONITORING_CALLBACK, initialize_llms
+from analysis_format.analysis_json_models import FileCoverageSummary
+from analysis_format.io_utils import load_full_analysis, save_analysis
+from incremental_analysis.delta_application import (
+    apply_method_delta,
+    drop_deltas_for_pruned_components,
+    prune_empty_components,
+)
+from incremental_analysis.models import (
     IncrementalRunResult,
     IncrementalSummary,
     IncrementalSummaryKind,
 )
-from diagram_analysis.incremental_payload import (
-    RequiresFullAnalysisPayload,
+from incremental_analysis.payload import (
     IncrementalCompletedPayload,
     IncrementalRunPayload,
     NoChangesPayload,
+    RequiresFullAnalysisPayload,
 )
-from diagram_analysis.incremental_updater import IncrementalUpdater
-from analysis_format.io_utils import load_full_analysis
+from incremental_analysis.tracer import run_trace
+from incremental_analysis.updater import IncrementalUpdater
 from diagram_analysis.run_metadata import METADATA_FILENAME, write_incremental_run_metadata
-from diagram_analysis.scope_planner import (
+from incremental_analysis.scope_planner import (
+    apply_patch_scopes,
     build_ownership_index,
+    derive_patch_scopes,
     normalize_changes_for_delta,
 )
-from diagram_analysis.symbol_resolver import StaticAnalysisSymbolResolver
-from repo_utils.diff_parser import detect_changes
-from repo_utils.ignore import initialize_codeboardingignore
+from incremental_analysis.symbol_resolver import StaticAnalysisSymbolResolver
 from repo_utils import get_git_commit_hash, get_repo_state_hash
+from repo_utils.diff_parser import detect_changes
 from repo_utils.git_ops import git_object_type, resolve_ref, worktree_has_changes
+from repo_utils.ignore import initialize_codeboardingignore
+from static_analyzer.analysis_result import StaticAnalysisResults
 from utils import ANALYSIS_FILENAME, CODEBOARDING_DIR_NAME
 
 logger = logging.getLogger(__name__)
 
 
-# ---------------------------------------------------------------------------
-# Orchestration entry point
-# ---------------------------------------------------------------------------
+@dataclass(frozen=True)
+class IncrementalInputs:
+    """Narrow contract the incremental pipeline consumes.
+
+    The pipeline does not know about ``DiagramGenerator``; the workflow
+    layer binds the three callables to whichever generator (or test
+    fixture) is appropriate. ``prepare_static_analysis`` is invoked only
+    after the cheap pre-flight checks pass — keeping early aborts free.
+    """
+
+    repo_path: Path
+    output_dir: Path
+    repo_name: str
+    prepare_static_analysis: Callable[[], StaticAnalysisResults | None]
+    build_file_coverage_summary: Callable[[], FileCoverageSummary | None]
+    write_file_coverage: Callable[[], None]
 
 
 def _resolve_source_identity(repo_dir: Path, ref: str | None) -> str:
@@ -120,23 +145,23 @@ def _validate_target_ref(repo_path: Path, resolved_target_ref: str) -> str | Non
 
 
 def run_incremental_pipeline(
-    generator: DiagramGenerator,
+    inputs: IncrementalInputs,
     base_ref: str,
     target_ref: str,
 ) -> IncrementalRunPayload:
-    """Run a semantic incremental analysis against a prepared ``DiagramGenerator``.
+    """Run a semantic incremental analysis against the typed *inputs*.
 
-    Preconditions: ``generator.repo_location`` / ``generator.output_dir`` are
-    absolute (caller's ``resolve_local_run_paths``); ``base_ref`` resolves to
-    a commit the caller already validated (e.g. from ``last_successful_commit``);
+    Preconditions: ``inputs.repo_path`` / ``inputs.output_dir`` are absolute
+    (caller's ``resolve_local_run_paths``); ``base_ref`` resolves to a
+    commit the caller already validated (e.g. from ``last_successful_commit``);
     ``target_ref`` is ``""`` for the worktree or a concrete ref.
 
     Returns an ``IncrementalRunPayload`` variant. Callers that need the
     wire-format JSON (CLI stdout, wrapper JSON-RPC) call ``.to_dict()`` at
     their serialization boundary.
     """
-    repo_path = generator.repo_location
-    output_dir = generator.output_dir
+    repo_path = inputs.repo_path
+    output_dir = inputs.output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
     initialize_codeboardingignore(output_dir)
 
@@ -158,6 +183,7 @@ def run_incremental_pipeline(
 
     if change_set.has_renames_or_copies():
         return _abort("Rename/copy changes detected; full analysis required until rename handling is implemented.")
+
     analysis_path = output_dir / ANALYSIS_FILENAME
     if change_set.is_empty():
         source_identity = _resolve_source_identity(repo_path, target_ref)
@@ -180,19 +206,19 @@ def run_incremental_pipeline(
     root_analysis, sub_analyses = existing
 
     with contextlib.redirect_stdout(io.StringIO()):
-        generator.pre_analysis()
+        static_analysis = inputs.prepare_static_analysis()
 
-    if generator.static_analysis is None:
+    if static_analysis is None:
         return _abort("Static analysis could not be initialized; full analysis required.")
 
     added_files, modified_files, deleted_files, rename_map = normalize_changes_for_delta(change_set)
-    ownership_index = build_ownership_index(root_analysis, sub_analyses)
-    symbol_resolver = StaticAnalysisSymbolResolver(generator.static_analysis, repo_path)
+    pre_delta_index = build_ownership_index(root_analysis, sub_analyses)
+    symbol_resolver = StaticAnalysisSymbolResolver(static_analysis, repo_path)
     updater = IncrementalUpdater(
         analysis=root_analysis,
         symbol_resolver=symbol_resolver,
         repo_dir=repo_path,
-        component_resolver=lambda file_path: ownership_index.pick_component_for_file(file_path, rename_map),
+        component_resolver=lambda file_path: pre_delta_index.pick_component_for_file(file_path, rename_map),
     )
     delta = updater.compute_delta(
         added_files=added_files,
@@ -202,14 +228,54 @@ def run_incremental_pipeline(
     )
 
     with contextlib.redirect_stdout(io.StringIO()):
-        analysis_path = generator.generate_analysis_incremental(
-            root_analysis=root_analysis,
-            sub_analyses=sub_analyses,
-            base_ref=base_ref,
-            changes=change_set,
-            delta=delta,
-            rename_map=rename_map,
+        apply_method_delta(root_analysis, sub_analyses, delta)
+        removed_component_ids = prune_empty_components(root_analysis, sub_analyses)
+        drop_deltas_for_pruned_components(delta, removed_component_ids)
+        post_delta_index = build_ownership_index(root_analysis, sub_analyses)
+
+        agent_llm, parsing_llm = initialize_llms()
+        callbacks = [MONITORING_CALLBACK]
+        cfgs = {}
+        for language in static_analysis.get_languages():
+            if not static_analysis.get_source_files(language):
+                continue
+            try:
+                cfgs[language] = static_analysis.get_cfg(language)
+            except ValueError:
+                # Static-analysis layer raises when a language has source files but
+                # no CFG yet (parser bootstrap failures, language disabled). Skip.
+                continue
+        trace_result = run_trace(
+            delta,
+            cfgs,
+            static_analysis,
+            repo_path,
+            base_ref,
+            parsing_llm,
+            parsed_diff=change_set,
+            callbacks=callbacks,
         )
+        patch_scopes = derive_patch_scopes(
+            trace_result,
+            root_analysis,
+            sub_analyses,
+            post_delta_index,
+            rename_map,
+        )
+        if patch_scopes:
+            root_analysis, sub_analyses = apply_patch_scopes(
+                root_analysis, sub_analyses, patch_scopes, agent_llm, callbacks
+            )
+
+        analysis_path = save_analysis(
+            analysis=root_analysis,
+            output_dir=output_dir,
+            sub_analyses=sub_analyses,
+            repo_name=inputs.repo_name,
+            file_coverage_summary=inputs.build_file_coverage_summary(),
+            commit_hash=get_git_commit_hash(repo_path),
+        ).resolve()
+        inputs.write_file_coverage()
 
     incremental_result = IncrementalRunResult(
         summary=IncrementalSummary(

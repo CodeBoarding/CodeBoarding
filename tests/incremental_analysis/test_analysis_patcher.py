@@ -1,7 +1,7 @@
 from unittest.mock import MagicMock, patch
 
 from agents.agent_responses import AnalysisInsights, Component, Relation, SourceCodeReference
-from diagram_analysis.analysis_patcher import (
+from incremental_analysis.analysis_patcher import (
     AnalysisScopePatch,
     ComponentPatch,
     PatchScope,
@@ -149,7 +149,7 @@ def test_patch_analysis_scope_retries_three_times_before_success():
             }
 
     extractor = _Extractor()
-    with patch("diagram_analysis.analysis_patcher.create_extractor", return_value=extractor):
+    with patch("incremental_analysis.analysis_patcher.create_extractor", return_value=extractor):
         patched = patch_analysis_scope(analysis, patch_scope, MagicMock())
 
     assert extractor.calls == 3

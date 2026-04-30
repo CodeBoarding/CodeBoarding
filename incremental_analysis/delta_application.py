@@ -17,7 +17,7 @@ from agents.agent_responses import (
     MethodEntry,
 )
 from agents.change_status import ChangeStatus
-from diagram_analysis.incremental_updater import FileDelta, IncrementalDelta, MethodChange
+from incremental_analysis.updater import FileDelta, IncrementalDelta, MethodChange
 
 logger = logging.getLogger(__name__)
 

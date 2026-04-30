@@ -25,7 +25,7 @@ from agents.change_status import ChangeStatus
 from agents.llm_config import supports_prompt_caching
 from agents.prompts.prompt_factory import get_trace_system_message
 from agents.retry import RetryAction, RetryDecision, default_backoff, with_retries
-from diagram_analysis.incremental_models import (
+from incremental_analysis.models import (
     DEFAULT_TRACE_CONFIG,
     ImpactedComponent,
     TraceConfig,
@@ -33,7 +33,7 @@ from diagram_analysis.incremental_models import (
     TraceResult,
     TraceStopReason,
 )
-from diagram_analysis.incremental_updater import FileDelta, IncrementalDelta
+from incremental_analysis.updater import FileDelta, IncrementalDelta
 from repo_utils.git_ops import read_file_at_ref
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import SOURCE_EXTENSION_TO_LANGUAGE
