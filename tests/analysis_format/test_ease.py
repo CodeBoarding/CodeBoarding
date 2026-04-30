@@ -1,6 +1,6 @@
 """Round-trip tests for EASE encoding/decoding."""
 
-from diagram_analysis.ease import ease_decode, ease_encode
+from analysis_format.ease import ease_decode, ease_encode
 
 
 def test_encode_decode_roundtrip_preserves_order():
