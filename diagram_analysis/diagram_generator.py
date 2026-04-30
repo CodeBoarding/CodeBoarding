@@ -13,7 +13,7 @@ from typing import Any
 from agents.abstraction_agent import AbstractionAgent
 from agents.agent_responses import AnalysisInsights, Component, MethodEntry
 from agents.details_agent import DetailsAgent
-from agents.llm_config import MONITORING_CALLBACK, initialize_llms
+from agents.llm_config import initialize_llms
 from agents.meta_agent import MetaAgent
 from agents.planner_agent import get_expandable_components
 from diagram_analysis.analysis_json import (
@@ -22,21 +22,7 @@ from diagram_analysis.analysis_json import (
     NotAnalyzedFile,
 )
 from diagram_analysis.file_coverage import FileCoverage
-from diagram_analysis.incremental_tracer import run_trace
-from diagram_analysis.incremental_updater import (
-    IncrementalUpdater,
-    apply_method_delta,
-    drop_deltas_for_pruned_components,
-    prune_empty_components,
-)
 from diagram_analysis.io_utils import save_analysis
-from diagram_analysis.scope_planner import (
-    apply_patch_scopes,
-    build_ownership_index,
-    derive_patch_scopes,
-    normalize_changes_for_delta,
-    pick_component_for_file,
-)
 from diagram_analysis.version import Version
 from health.config import initialize_health_dir, load_health_config
 from health.runner import run_health_checks
@@ -497,69 +483,6 @@ class DiagramGenerator:
         base_ref: str,
         changes,
     ) -> Path:
-        if self.static_analysis is None:
-            self.pre_analysis()
-        assert self.static_analysis is not None
+        from diagram_analysis.incremental_runner import IncrementalRunner
 
-        ownership_index = build_ownership_index(root_analysis, sub_analyses)
-        added_files, modified_files, deleted_files, rename_map = normalize_changes_for_delta(changes)
-        methods_by_file = self._collect_method_entries_from_static_analysis()
-
-        updater = IncrementalUpdater(
-            analysis=root_analysis,
-            symbol_resolver=lambda file_path: methods_by_file.get(self._normalize_repo_path(file_path), []),
-            repo_dir=self.repo_location,
-            component_resolver=lambda file_path: pick_component_for_file(file_path, ownership_index, rename_map),
-        )
-        delta = updater.compute_delta(
-            added_files=added_files,
-            modified_files=modified_files,
-            deleted_files=deleted_files,
-            changes=changes,
-        )
-
-        apply_method_delta(root_analysis, sub_analyses, delta)
-        removed_component_ids = prune_empty_components(root_analysis, sub_analyses)
-        drop_deltas_for_pruned_components(delta, removed_component_ids)
-        post_delta_ownership_index = build_ownership_index(root_analysis, sub_analyses)
-
-        agent_llm, parsing_llm = initialize_llms()
-        callbacks = [MONITORING_CALLBACK]
-        cfgs = {
-            language: self.static_analysis.get_cfg(language)
-            for language in self.static_analysis.get_languages()
-            if self.static_analysis.get_source_files(language)
-        }
-        trace_result = run_trace(
-            delta,
-            cfgs,
-            self.static_analysis,
-            self.repo_location,
-            base_ref,
-            parsing_llm,
-            parsed_diff=getattr(changes, "parsed_diff", None),
-            callbacks=callbacks,
-        )
-
-        patch_scopes = derive_patch_scopes(
-            trace_result,
-            root_analysis,
-            sub_analyses,
-            post_delta_ownership_index,
-            rename_map,
-        )
-        if patch_scopes:
-            root_analysis, sub_analyses = apply_patch_scopes(
-                root_analysis, sub_analyses, patch_scopes, agent_llm, callbacks
-            )
-
-        analysis_path = save_analysis(
-            analysis=root_analysis,
-            output_dir=Path(self.output_dir),
-            sub_analyses=sub_analyses,
-            repo_name=self.repo_name,
-            file_coverage_summary=self._build_file_coverage_summary(),
-            commit_hash=get_git_commit_hash(self.repo_location),
-        ).resolve()
-        self._write_file_coverage()
-        return analysis_path
+        return IncrementalRunner(self).run(root_analysis, sub_analyses, base_ref, changes)
