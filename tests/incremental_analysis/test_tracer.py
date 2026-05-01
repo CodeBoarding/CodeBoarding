@@ -3,8 +3,8 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from agents.change_status import ChangeStatus
-from incremental_analysis.models import TraceStopReason
-from incremental_analysis.tracer import _get_prompt_diff_hunks, build_trace_plan, run_trace
+from incremental_analysis.models import TraceResult, TraceStopReason
+from incremental_analysis.tracer import _get_prompt_diff_hunks, _merge_trace_results, build_trace_plan, run_trace
 from incremental_analysis.updater import FileDelta, IncrementalDelta, MethodChange
 from static_analyzer.constants import NodeType
 from static_analyzer.graph import CallGraph
@@ -158,6 +158,48 @@ def test_run_trace_tracks_visited_methods(tmp_path: Path):
     assert "mod.seed" in result.visited_methods
     assert "mod.helper" in result.visited_methods
     assert set(result.impacted_methods) == {"mod.seed", "mod.helper"}
+
+
+def test_merge_trace_results_deduplicates_identical_semantic_summaries():
+    merged = _merge_trace_results(
+        [
+            TraceResult(
+                visited_methods=["mod.seed"],
+                impacted_methods=["mod.seed"],
+                stop_reason=TraceStopReason.CLOSURE_REACHED,
+                semantic_impact_summary="The request flow changed.",
+            ),
+            TraceResult(
+                visited_methods=["mod.helper"],
+                impacted_methods=["mod.helper"],
+                stop_reason=TraceStopReason.CLOSURE_REACHED,
+                semantic_impact_summary="The request flow changed.",
+            ),
+        ]
+    )
+
+    assert merged.semantic_impact_summary == "The request flow changed."
+
+
+def test_merge_trace_results_preserves_multiple_distinct_semantic_summaries():
+    merged = _merge_trace_results(
+        [
+            TraceResult(
+                visited_methods=["mod.seed"],
+                impacted_methods=["mod.seed"],
+                stop_reason=TraceStopReason.CLOSURE_REACHED,
+                semantic_impact_summary="The request flow changed.",
+            ),
+            TraceResult(
+                visited_methods=["mod.helper"],
+                impacted_methods=["mod.helper"],
+                stop_reason=TraceStopReason.CLOSURE_REACHED,
+                semantic_impact_summary="Persistence behavior changed.",
+            ),
+        ]
+    )
+
+    assert merged.semantic_impact_summary == "The request flow changed. Persistence behavior changed."
 
 
 def test_get_prompt_diff_hunks_omits_comment_only_changes(tmp_path: Path):

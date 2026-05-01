@@ -794,7 +794,7 @@ def _merge_trace_results(
     visited_methods: set[str] = set()
     impacted_methods: set[str] = set(fast_path_impacted_methods or [])
     unresolved_frontier: set[str] = set()
-    semantic_summaries: set[str] = set()
+    semantic_summaries: list[str] = []
     hops_used = 0
     stop_reason = TraceStopReason.NO_MATERIAL_IMPACT
 
@@ -813,8 +813,9 @@ def _merge_trace_results(
         hops_used = max(hops_used, result.hops_used)
         if severity.get(result.stop_reason, 0) > severity.get(stop_reason, 0):
             stop_reason = result.stop_reason
-        if result.semantic_impact_summary:
-            semantic_summaries.add(result.semantic_impact_summary)
+        summary = result.semantic_impact_summary.strip()
+        if summary and summary not in semantic_summaries:
+            semantic_summaries.append(summary)
 
     if impacted_methods and stop_reason == TraceStopReason.NO_MATERIAL_IMPACT:
         stop_reason = TraceStopReason.CLOSURE_REACHED
@@ -833,7 +834,9 @@ def _merge_trace_results(
         disconnected_files=sorted(set(disconnected_files or [])),
         stop_reason=stop_reason,
         hops_used=hops_used,
-        semantic_impact_summary=semantic_summaries.pop() if len(semantic_summaries) == 1 else "",
+        # Preserve distinct region summaries in trace order instead of
+        # dropping them when more than one region reports semantic impact.
+        semantic_impact_summary=" ".join(semantic_summaries),
     )
 
 

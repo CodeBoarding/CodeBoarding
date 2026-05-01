@@ -168,6 +168,28 @@ def test_derive_patch_scopes_maps_new_methods_after_delta_application():
     assert patch_scopes[0].visited_methods == ["mod.added"]
 
 
+def test_derive_patch_scopes_preserves_semantic_impact_summary():
+    method = _method("mod.foo", 1, 2)
+    root = AnalysisInsights(
+        description="root",
+        files={"src/mod.py": FileEntry(methods=[method])},
+        components=[_component("1.1", "Auth", "src/mod.py", [method])],
+        components_relations=[],
+    )
+    ownership_index = build_ownership_index(root, {})
+    trace_result = TraceResult(
+        visited_methods=["mod.foo"],
+        impacted_methods=["mod.foo"],
+        stop_reason=TraceStopReason.CLOSURE_REACHED,
+        semantic_impact_summary="The request flow changed. Persistence behavior changed.",
+    )
+
+    patch_scopes = derive_patch_scopes(trace_result, root, {}, ownership_index)
+
+    assert len(patch_scopes) == 1
+    assert patch_scopes[0].semantic_impact_summary == ("The request flow changed. Persistence behavior changed.")
+
+
 def test_derive_patch_scopes_widens_to_descendants_in_scope():
     child_a = _method("pkg.a.run", 1, 2)
     child_b = _method("pkg.b.run", 1, 2)
