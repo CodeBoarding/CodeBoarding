@@ -1,9 +1,10 @@
+import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from agents.change_status import ChangeStatus
 from incremental_analysis.models import TraceStopReason
-from incremental_analysis.tracer import build_trace_plan, run_trace
+from incremental_analysis.tracer import _get_prompt_diff_hunks, build_trace_plan, run_trace
 from incremental_analysis.updater import FileDelta, IncrementalDelta, MethodChange
 from static_analyzer.constants import NodeType
 from static_analyzer.graph import CallGraph
@@ -12,6 +13,10 @@ from static_analyzer.node import Node
 
 def _make_node(name: str, file_path: str, start_line: int = 1, end_line: int = 4) -> Node:
     return Node(name, NodeType.FUNCTION, file_path, start_line, end_line)
+
+
+def _git(repo: Path, *args: str) -> None:
+    subprocess.run(["git", "-C", str(repo), *args], check=True, capture_output=True, text=True)
 
 
 def test_build_trace_plan_marks_disconnected_added_files(tmp_path: Path):
@@ -153,3 +158,50 @@ def test_run_trace_tracks_visited_methods(tmp_path: Path):
     assert "mod.seed" in result.visited_methods
     assert "mod.helper" in result.visited_methods
     assert set(result.impacted_methods) == {"mod.seed", "mod.helper"}
+
+
+def test_get_prompt_diff_hunks_omits_comment_only_changes(tmp_path: Path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init")
+    _git(repo, "config", "user.email", "test@example.com")
+    _git(repo, "config", "user.name", "Test User")
+
+    source = repo / "src" / "mod.py"
+    source.parent.mkdir(parents=True)
+    source.write_text("def foo():\n    return 1\n", encoding="utf-8")
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-m", "baseline")
+
+    source.write_text("def foo():\n    # cosmetic\n    return 1\n", encoding="utf-8")
+
+    assert _get_prompt_diff_hunks(repo, "HEAD", "src/mod.py") == ""
+
+
+def test_get_prompt_diff_hunks_preserves_code_changes_without_comment_text(tmp_path: Path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init")
+    _git(repo, "config", "user.email", "test@example.com")
+    _git(repo, "config", "user.name", "Test User")
+
+    source = repo / "src" / "mod.py"
+    source.parent.mkdir(parents=True)
+    source.write_text(
+        "def foo():\n" "    # old comment\n" "    return 1\n",
+        encoding="utf-8",
+    )
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-m", "baseline")
+
+    source.write_text(
+        "def foo():\n" "    # new comment\n" "    return 2\n",
+        encoding="utf-8",
+    )
+
+    diff_text = _get_prompt_diff_hunks(repo, "HEAD", "src/mod.py")
+
+    assert "old comment" not in diff_text
+    assert "new comment" not in diff_text
+    assert "-    return 1" in diff_text
+    assert "+    return 2" in diff_text
