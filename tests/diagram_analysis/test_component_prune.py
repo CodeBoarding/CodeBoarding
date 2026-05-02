@@ -8,8 +8,13 @@ from agents.agent_responses import (
     assign_component_ids,
 )
 from agents.change_status import ChangeStatus
-from diagram_analysis.incremental_updater import FileDelta, IncrementalDelta, MethodChange
-from diagram_analysis.incremental_updater import apply_method_delta, prune_empty_components
+from diagram_analysis.incremental_updater import (
+    DeletedMethodChange,
+    FileDelta,
+    IncrementalDelta,
+    apply_method_delta,
+    prune_empty_components,
+)
 
 
 def _method(qname: str, start: int = 1, end: int = 2) -> MethodEntry:
@@ -154,12 +159,13 @@ def test_apply_method_delta_does_not_prune_component_after_deleting_all_files():
                 file_status=ChangeStatus.DELETED,
                 component_id=leaf.component_id,
                 deleted_methods=[
-                    MethodChange(
+                    DeletedMethodChange(
                         qualified_name="leaf.only.fn",
                         file_path="leaf/only.py",
                         start_line=1,
                         end_line=2,
-                        change_type=ChangeStatus.DELETED,
+                        head_start_line=1,
+                        head_end_line=2,
                         node_type="FUNCTION",
                     )
                 ],
