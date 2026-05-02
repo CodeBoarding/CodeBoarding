@@ -1,5 +1,9 @@
 import json
 import logging
+import os
+import pickle
+import time
+import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -346,12 +350,39 @@ def _file_methods_for_paths(
     return groups
 
 
+def _dump_patch_inputs(
+    analysis: AnalysisInsights,
+    patch_scope: PatchScope,
+    scope_patch: AnalysisScopePatch,
+) -> None:
+    """If CB_PATCHER_DUMP_DIR is set, pickle the three inputs so apply_scope_patch can be replayed in isolation."""
+    dump_dir = os.environ.get("CB_PATCHER_DUMP_DIR")
+    if not dump_dir:
+        return
+    try:
+        os.makedirs(dump_dir, exist_ok=True)
+        scope_id = (patch_scope.scope_id or "root").replace("/", "_")
+        path = os.path.join(
+            dump_dir,
+            f"{time.strftime('%Y%m%d_%H%M%S')}_{scope_id}_{uuid.uuid4().hex[:6]}.pkl",
+        )
+        with open(path, "wb") as f:
+            pickle.dump(
+                {"analysis": analysis, "patch_scope": patch_scope, "scope_patch": scope_patch},
+                f,
+            )
+        logger.info("[CB_PATCHER_DUMP] wrote scope-patch inputs to %s", path)
+    except Exception as exc:
+        logger.warning("[CB_PATCHER_DUMP] failed: %s", exc)
+
+
 def apply_scope_patch(
     analysis: AnalysisInsights,
     patch_scope: PatchScope,
     scope_patch: AnalysisScopePatch,
 ) -> AnalysisInsights:
     """Apply a structured patch deterministically by stable IDs."""
+    _dump_patch_inputs(analysis, patch_scope, scope_patch)
     patched = analysis.model_copy(deep=True)
     target_component_ids = set(patch_scope.target_component_ids)
     unallocated_set = set(patch_scope.unallocated_files)
