@@ -1,0 +1,325 @@
+"""Pure helpers for routing trace results into ``PatchScope`` lists."""
+
+from collections import defaultdict
+from dataclasses import dataclass
+from pathlib import Path
+
+from agents.agent_responses import AnalysisInsights
+from incremental_analysis.analysis_patcher import PatchScope, patch_analysis_scope
+from incremental_analysis.models import TraceResult, TraceStopReason
+
+
+@dataclass(frozen=True)
+class OwnershipIndex:
+    """Routes files and methods to their owning components.
+
+    Deeper-nested components win on ties: when a method appears in multiple
+    components, ``method_to_component`` keeps the deepest one.
+    """
+
+    component_to_scope: dict[str, str | None]
+    file_to_components: dict[str, set[str]]
+    component_to_files: dict[str, set[str]]
+    method_to_component: dict[str, str]
+    component_to_descendants: dict[str, set[str]]
+
+    def pick_component_for_file(
+        self,
+        file_path: str,
+        rename_map: dict[str, str] | None = None,
+    ) -> str | None:
+        if file_path in self.file_to_components:
+            candidates = sorted(self.file_to_components[file_path], key=lambda cid: cid.count("."))
+            return candidates[-1] if candidates else None
+
+        inverse_renames = {new_path: old_path for old_path, new_path in (rename_map or {}).items()}
+        old_path = inverse_renames.get(file_path)
+        if old_path and old_path in self.file_to_components:
+            candidates = sorted(self.file_to_components[old_path], key=lambda cid: cid.count("."))
+            return candidates[-1] if candidates else None
+
+        if not self.file_to_components:
+            return None
+
+        distances = {candidate: directory_distance(file_path, candidate) for candidate in self.file_to_components}
+        nearest_distance = min(distances.values())
+        nearest_files = [
+            candidate
+            for candidate, distance in distances.items()
+            if distance == nearest_distance and candidate != file_path
+        ]
+        nearest_components = sorted(
+            {cid for candidate in nearest_files for cid in self.file_to_components.get(candidate, set())}
+        )
+        if not nearest_components:
+            return None
+        if len(nearest_components) == 1:
+            return nearest_components[0]
+        return lowest_common_ancestor(nearest_components)
+
+    def descendants_of(self, component_id: str) -> set[str]:
+        return self.component_to_descendants.get(component_id, {component_id})
+
+
+def build_ownership_index(
+    root_analysis: AnalysisInsights,
+    sub_analyses: dict[str, AnalysisInsights],
+) -> OwnershipIndex:
+    """Build the index used for routing files/methods to their owning components."""
+    component_to_scope: dict[str, str | None] = {}
+    file_to_components: dict[str, set[str]] = defaultdict(set)
+    component_to_files: dict[str, set[str]] = defaultdict(set)
+    method_to_component: dict[str, str] = {}
+
+    def absorb(scope_id: str | None, components) -> None:
+        for component in components:
+            component_to_scope[component.component_id] = scope_id
+            for group in component.file_methods:
+                file_to_components[group.file_path].add(component.component_id)
+                component_to_files[component.component_id].add(group.file_path)
+                for method in group.methods:
+                    existing = method_to_component.get(method.qualified_name)
+                    if existing is None or component.component_id.count(".") >= existing.count("."):
+                        method_to_component[method.qualified_name] = component.component_id
+
+    absorb(None, root_analysis.components)
+
+    for scope_id, analysis in sorted(sub_analyses.items(), key=lambda item: item[0].count(".")):
+        # Route subtree patching to the nested scope when a component has a dedicated sub-analysis.
+        component_to_scope[scope_id] = scope_id
+        absorb(scope_id, analysis.components)
+
+    component_to_descendants: dict[str, set[str]] = {
+        component_id: {
+            other_id
+            for other_id in component_to_scope
+            if other_id == component_id or other_id.startswith(component_id + ".")
+        }
+        for component_id in component_to_scope
+    }
+
+    return OwnershipIndex(
+        component_to_scope=component_to_scope,
+        file_to_components=dict(file_to_components),
+        component_to_files=dict(component_to_files),
+        method_to_component=method_to_component,
+        component_to_descendants=component_to_descendants,
+    )
+
+
+def _scope_component_ids(analysis: AnalysisInsights) -> set[str]:
+    return {component.component_id for component in analysis.components}
+
+
+def lowest_common_ancestor(component_ids: list[str]) -> str | None:
+    if not component_ids:
+        return None
+    split_ids = [component_id.split(".") for component_id in component_ids]
+    prefix: list[str] = []
+    for parts in zip(*split_ids):
+        if len(set(parts)) != 1:
+            break
+        prefix.append(parts[0])
+    if not prefix:
+        return None
+    return ".".join(prefix)
+
+
+def directory_distance(left_path: str, right_path: str) -> int:
+    left_parts = Path(left_path).parts[:-1]
+    right_parts = Path(right_path).parts[:-1]
+    common = 0
+    for left_part, right_part in zip(left_parts, right_parts):
+        if left_part != right_part:
+            break
+        common += 1
+    return (len(left_parts) - common) + (len(right_parts) - common)
+
+
+def normalize_changes_for_delta(changes) -> tuple[list[str], list[str], list[str], dict[str, str]]:
+    added_files = set(changes.added_files)
+    modified_files = set(changes.modified_files)
+    deleted_files = set(changes.deleted_files)
+    rename_map: dict[str, str] = {}
+
+    for change in changes.files:
+        if change.change_type.value == "R":
+            if change.old_path:
+                deleted_files.add(change.old_path)
+                rename_map[change.old_path] = change.file_path
+            added_files.add(change.file_path)
+        elif change.change_type.value == "C":
+            added_files.add(change.file_path)
+
+    return sorted(added_files), sorted(modified_files), sorted(deleted_files), rename_map
+
+
+def _route_unallocated_files(
+    unallocated_files: list[str],
+    sub_analyses: dict[str, AnalysisInsights],
+    ownership_index: OwnershipIndex,
+    rename_map: dict[str, str] | None,
+) -> dict[str | None, list[str]]:
+    """Pick the patch scope each unallocated file should be allocated within.
+
+    Strategy: find each file's closest existing component via path-prefix.
+    If that component has its own sub-analysis (it's been expanded), route
+    the file to its sub-scope so a freshly-minted component lands as a
+    *child* of the closest existing one. Otherwise fall back to the scope
+    where the closest component itself lives (sibling-level mint). Files
+    with no closest component go to the root scope.
+    """
+    grouped: dict[str | None, list[str]] = defaultdict(list)
+    for file_path in unallocated_files:
+        closest = ownership_index.pick_component_for_file(file_path, rename_map)
+        if closest is None:
+            grouped[None].append(file_path)
+        elif closest in sub_analyses:
+            grouped[closest].append(file_path)
+        else:
+            grouped[ownership_index.component_to_scope.get(closest)].append(file_path)
+    return grouped
+
+
+def derive_patch_scopes(
+    trace_result: TraceResult,
+    root_analysis: AnalysisInsights,
+    sub_analyses: dict[str, AnalysisInsights],
+    ownership_index: OwnershipIndex,
+    rename_map: dict[str, str] | None = None,
+    unallocated_files: list[str] | None = None,
+) -> list[PatchScope]:
+    # Terminal "nothing actually changed" stops should not schedule a
+    # patcher LLM call. The visited-methods routing below would otherwise
+    # turn the seed methods (initialized at the start of every region
+    # trace) into target components and hand them to apply_patch_scopes,
+    # which costs ~10-20s of LLM time for an analysis update that has
+    # nothing to update. Coverage-gap stops (UNCERTAIN /
+    # BUDGET_EXHAUSTED / FRONTIER_EXHAUSTED) and non_traceable /
+    # disconnected files are NOT short-circuited here — those genuinely
+    # need patching even when impacted_methods is empty. Unallocated added
+    # files also force a patch round so the LLM can place them.
+    if (
+        trace_result.stop_reason in {TraceStopReason.COSMETIC_ONLY, TraceStopReason.NO_MATERIAL_IMPACT}
+        and not trace_result.impacted_methods
+        and not trace_result.non_traceable_files
+        and not trace_result.disconnected_files
+        and not unallocated_files
+    ):
+        return []
+
+    method_to_component = ownership_index.method_to_component
+
+    target_component_ids: set[str] = {
+        method_to_component[method] for method in trace_result.visited_methods if method in method_to_component
+    }
+
+    for file_path in trace_result.non_traceable_files + trace_result.disconnected_files:
+        component_id = ownership_index.pick_component_for_file(file_path, rename_map)
+        if component_id:
+            target_component_ids.add(component_id)
+
+    if not target_component_ids and trace_result.unresolved_frontier:
+        target_component_ids = {component.component_id for component in root_analysis.components}
+
+    target_by_scope: dict[str | None, set[str]] = defaultdict(set)
+    for component_id in target_component_ids:
+        target_by_scope[ownership_index.component_to_scope.get(component_id)].add(component_id)
+
+    # Route unallocated files to the scope where their closest existing
+    # component lives. Each routed scope must yield a patch_scope so the LLM
+    # can allocate the files — fall back to "all components in the scope" when
+    # the trace produced no targets there.
+    unallocated_by_scope = (
+        _route_unallocated_files(list(unallocated_files), sub_analyses, ownership_index, rename_map)
+        if unallocated_files
+        else {}
+    )
+    for scope_id in unallocated_by_scope:
+        if not target_by_scope[scope_id]:
+            scope_analysis = root_analysis if scope_id is None else sub_analyses.get(scope_id)
+            if scope_analysis is not None:
+                target_by_scope[scope_id] = _scope_component_ids(scope_analysis)
+
+    if not target_by_scope:
+        return []
+
+    should_widen = trace_result.stop_reason in {
+        TraceStopReason.UNCERTAIN,
+        TraceStopReason.BUDGET_EXHAUSTED,
+        TraceStopReason.FRONTIER_EXHAUSTED,
+    } or bool(trace_result.non_traceable_files)
+
+    patch_scopes: list[PatchScope] = []
+    for scope_id, component_ids in target_by_scope.items():
+        scope_analysis = root_analysis if scope_id is None else sub_analyses.get(scope_id)
+        if scope_analysis is None:
+            continue
+
+        selected_ids = set(component_ids)
+        scope_component_ids = _scope_component_ids(scope_analysis)
+        if should_widen:
+            lca = lowest_common_ancestor(sorted(component_ids))
+            if lca:
+                descendant_ids = {
+                    component_id
+                    for component_id in ownership_index.descendants_of(lca)
+                    if component_id in scope_component_ids
+                }
+                if descendant_ids:
+                    selected_ids = descendant_ids
+                elif lca in scope_component_ids:
+                    selected_ids = {lca}
+                else:
+                    selected_ids = scope_component_ids
+            else:
+                selected_ids = scope_component_ids
+
+        patch_scopes.append(
+            PatchScope(
+                scope_id=scope_id,
+                target_component_ids=sorted(selected_ids),
+                visited_methods=[
+                    method for method in trace_result.visited_methods if method_to_component.get(method) in selected_ids
+                ],
+                impacted_methods=[
+                    method
+                    for method in trace_result.impacted_methods
+                    if method_to_component.get(method) in selected_ids
+                ],
+                synthetic_files=[
+                    file_path
+                    for file_path in trace_result.non_traceable_files + trace_result.disconnected_files
+                    if ownership_index.pick_component_for_file(file_path, rename_map) in selected_ids
+                ],
+                unallocated_files=sorted(unallocated_by_scope.get(scope_id, [])),
+                semantic_impact_summary=trace_result.semantic_impact_summary,
+            )
+        )
+
+    return patch_scopes
+
+
+def apply_patch_scopes(
+    root_analysis: AnalysisInsights,
+    sub_analyses: dict[str, AnalysisInsights],
+    patch_scopes: list[PatchScope],
+    agent_llm,
+    callbacks: list | None = None,
+) -> tuple[AnalysisInsights, dict[str, AnalysisInsights]]:
+    patched_root = root_analysis
+    patched_sub_analyses = dict(sub_analyses)
+
+    for patch_scope in patch_scopes:
+        current_scope = patched_root if patch_scope.scope_id is None else patched_sub_analyses.get(patch_scope.scope_id)
+        if current_scope is None:
+            raise RuntimeError(f"Patch scope '{patch_scope.scope_id}' could not be resolved")
+        patched_scope = patch_analysis_scope(current_scope, patch_scope, agent_llm, callbacks)
+        if patched_scope is None:
+            raise RuntimeError(f"Patch generation failed for scope '{patch_scope.scope_id or 'root'}' after 3 attempts")
+        if patch_scope.scope_id is None:
+            patched_root = patched_scope
+        else:
+            patched_sub_analyses[patch_scope.scope_id] = patched_scope
+
+    return patched_root, patched_sub_analyses

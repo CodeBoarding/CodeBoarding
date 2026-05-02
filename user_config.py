@@ -60,6 +60,7 @@ CONFIG_TEMPLATE = """\
 [llm]
 # agent_model    = "gemini-3-flash"
 # parsing_model  = "gemini-3-flash"
+# patching_model = "gemini-3-flash"
 # context_window = 272000   # override if needed
 """
 
@@ -85,6 +86,7 @@ class ProviderUserConfig:
 class LLMUserConfig:
     agent_model: str | None = None
     parsing_model: str | None = None
+    patching_model: str | None = None
     context_window: int | None = None
 
 
@@ -129,6 +131,7 @@ def load_user_config(path: Path = CONFIG_PATH) -> UserConfig:
         llm=LLMUserConfig(
             agent_model=llm_data.get("agent_model") or None,
             parsing_model=llm_data.get("parsing_model") or None,
+            patching_model=llm_data.get("patching_model") or None,
             context_window=llm_data.get("context_window"),
         ),
     )
@@ -140,6 +143,7 @@ def ensure_config_template(path: Path = CONFIG_PATH) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(CONFIG_TEMPLATE)
         return
+    _append_commented_key(path, "patching_model", '# patching_model = "gemini-3-flash"')
     _append_commented_key(path, "context_window", "# context_window = 272000   # override if needed")
 
 

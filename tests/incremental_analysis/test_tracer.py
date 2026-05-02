@@ -1,10 +1,11 @@
+import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from agents.change_status import ChangeStatus
-from diagram_analysis.incremental_models import TraceStopReason
-from diagram_analysis.incremental_tracer import build_trace_plan, run_trace
-from diagram_analysis.incremental_updater import FileDelta, IncrementalDelta, MethodChange
+from incremental_analysis.models import TraceResult, TraceStopReason
+from incremental_analysis.tracer import _get_prompt_diff_hunks, _merge_trace_results, build_trace_plan, run_trace
+from incremental_analysis.updater import FileDelta, IncrementalDelta, MethodChange
 from static_analyzer.constants import NodeType
 from static_analyzer.graph import CallGraph
 from static_analyzer.node import Node
@@ -12,6 +13,10 @@ from static_analyzer.node import Node
 
 def _make_node(name: str, file_path: str, start_line: int = 1, end_line: int = 4) -> Node:
     return Node(name, NodeType.FUNCTION, file_path, start_line, end_line)
+
+
+def _git(repo: Path, *args: str) -> None:
+    subprocess.run(["git", "-C", str(repo), *args], check=True, capture_output=True, text=True)
 
 
 def test_build_trace_plan_marks_disconnected_added_files(tmp_path: Path):
@@ -146,10 +151,99 @@ def test_run_trace_tracks_visited_methods(tmp_path: Path):
                 ]
             }
 
-    with patch("diagram_analysis.incremental_tracer.create_extractor", return_value=_Extractor()):
+    with patch("incremental_analysis.tracer.create_extractor", return_value=_Extractor()):
         result = run_trace(delta, {"python": cfg}, static_analysis, tmp_path, "HEAD", MagicMock())
 
     assert result.stop_reason == TraceStopReason.CLOSURE_REACHED
     assert "mod.seed" in result.visited_methods
     assert "mod.helper" in result.visited_methods
     assert set(result.impacted_methods) == {"mod.seed", "mod.helper"}
+
+
+def test_merge_trace_results_deduplicates_identical_semantic_summaries():
+    merged = _merge_trace_results(
+        [
+            TraceResult(
+                visited_methods=["mod.seed"],
+                impacted_methods=["mod.seed"],
+                stop_reason=TraceStopReason.CLOSURE_REACHED,
+                semantic_impact_summary="The request flow changed.",
+            ),
+            TraceResult(
+                visited_methods=["mod.helper"],
+                impacted_methods=["mod.helper"],
+                stop_reason=TraceStopReason.CLOSURE_REACHED,
+                semantic_impact_summary="The request flow changed.",
+            ),
+        ]
+    )
+
+    assert merged.semantic_impact_summary == "The request flow changed."
+
+
+def test_merge_trace_results_preserves_multiple_distinct_semantic_summaries():
+    merged = _merge_trace_results(
+        [
+            TraceResult(
+                visited_methods=["mod.seed"],
+                impacted_methods=["mod.seed"],
+                stop_reason=TraceStopReason.CLOSURE_REACHED,
+                semantic_impact_summary="The request flow changed.",
+            ),
+            TraceResult(
+                visited_methods=["mod.helper"],
+                impacted_methods=["mod.helper"],
+                stop_reason=TraceStopReason.CLOSURE_REACHED,
+                semantic_impact_summary="Persistence behavior changed.",
+            ),
+        ]
+    )
+
+    assert merged.semantic_impact_summary == "The request flow changed. Persistence behavior changed."
+
+
+def test_get_prompt_diff_hunks_omits_comment_only_changes(tmp_path: Path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init")
+    _git(repo, "config", "user.email", "test@example.com")
+    _git(repo, "config", "user.name", "Test User")
+
+    source = repo / "src" / "mod.py"
+    source.parent.mkdir(parents=True)
+    source.write_text("def foo():\n    return 1\n", encoding="utf-8")
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-m", "baseline")
+
+    source.write_text("def foo():\n    # cosmetic\n    return 1\n", encoding="utf-8")
+
+    assert _get_prompt_diff_hunks(repo, "HEAD", "src/mod.py") == ""
+
+
+def test_get_prompt_diff_hunks_preserves_code_changes_without_comment_text(tmp_path: Path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init")
+    _git(repo, "config", "user.email", "test@example.com")
+    _git(repo, "config", "user.name", "Test User")
+
+    source = repo / "src" / "mod.py"
+    source.parent.mkdir(parents=True)
+    source.write_text(
+        "def foo():\n" "    # old comment\n" "    return 1\n",
+        encoding="utf-8",
+    )
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-m", "baseline")
+
+    source.write_text(
+        "def foo():\n" "    # new comment\n" "    return 2\n",
+        encoding="utf-8",
+    )
+
+    diff_text = _get_prompt_diff_hunks(repo, "HEAD", "src/mod.py")
+
+    assert "old comment" not in diff_text
+    assert "new comment" not in diff_text
+    assert "-    return 1" in diff_text
+    assert "+    return 2" in diff_text

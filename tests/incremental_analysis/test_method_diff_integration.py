@@ -14,7 +14,7 @@ from agents.agent_responses import (
     MethodEntry,
     assign_component_ids,
 )
-from diagram_analysis.incremental_updater import IncrementalUpdater
+from incremental_analysis.updater import IncrementalUpdater
 from repo_utils.diff_parser import detect_changes
 
 

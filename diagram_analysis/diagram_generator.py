@@ -2,35 +2,26 @@ import json
 import logging
 import os
 import time
-from collections import defaultdict
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from contextlib import nullcontext
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from agents.abstraction_agent import AbstractionAgent
-from agents.agent_responses import AnalysisInsights, Component, MethodEntry
+from agents.agent_responses import AnalysisInsights, Component
 from agents.details_agent import DetailsAgent
-from agents.llm_config import MONITORING_CALLBACK, initialize_llms
+from agents.llm_config import initialize_llms
 from agents.meta_agent import MetaAgent
 from agents.planner_agent import get_expandable_components
-from diagram_analysis.analysis_json import (
+from analysis_artifact.schema import (
     FileCoverageReport,
     FileCoverageSummary,
     NotAnalyzedFile,
 )
+from analysis_artifact.store import save_analysis
 from diagram_analysis.file_coverage import FileCoverage
-from diagram_analysis.incremental_tracer import run_trace
-from diagram_analysis.incremental_updater import IncrementalUpdater, apply_method_delta
-from diagram_analysis.io_utils import save_analysis
-from diagram_analysis.scope_planner import (
-    apply_patch_scopes,
-    build_ownership_index,
-    derive_patch_scopes,
-    normalize_changes_for_delta,
-    pick_component_for_file,
-)
 from diagram_analysis.version import Version
 from health.config import initialize_health_dir, load_health_config
 from health.runner import run_health_checks
@@ -45,6 +36,26 @@ from static_analyzer.scanner import ProjectScanner
 from utils import get_cache_dir
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class PipelineContext:
+    """Shared state produced by ``DiagramGenerator.prepare_full_pipeline``.
+
+    Why: prepare_full_pipeline() previously mutated 7 lazily-init'd
+    instance fields on the runtime class, forcing ``assert is not None``
+    checks throughout. Building this struct first makes the dependency
+    graph explicit; the instance fields are still mirrored for now so
+    the 40+ ``self.X`` call sites keep working.
+    """
+
+    meta_agent: MetaAgent
+    abstraction_agent: AbstractionAgent
+    details_agent: DetailsAgent
+    static_analysis: StaticAnalysisResults
+    file_coverage_data: dict
+    monitoring_agents: dict[str, MonitoringMixin]
+    stats_writer: StreamingStatsWriter | None = None
 
 
 class DiagramGenerator:
@@ -75,9 +86,9 @@ class DiagramGenerator:
 
         self.details_agent: DetailsAgent | None = None
         self.static_analysis: StaticAnalysisResults | None = None  # Cache static analysis for reuse
+        self.static_stats: dict[str, Any] | None = None
         self.abstraction_agent: AbstractionAgent | None = None
         self.meta_agent: MetaAgent | None = None
-        self.meta_context: Any | None = None
         self.file_coverage_data: dict | None = None
 
         self._monitoring_agents: dict[str, MonitoringMixin] = {}
@@ -134,7 +145,7 @@ class DiagramGenerator:
 
         return coverage.build(all_files, analyzed_files)
 
-    def _write_file_coverage(self) -> None:
+    def write_file_coverage(self) -> None:
         """Write file_coverage.json to output directory."""
         if not self.file_coverage_data:
             return
@@ -162,50 +173,57 @@ class DiagramGenerator:
         result.diagnostics = self._static_analyzer.collected_diagnostics  # type: ignore[union-attr]
         return result
 
-    def pre_analysis(self):
-        analysis_start_time = time.time()
+    def prepare_static_analysis(self) -> StaticAnalysisResults:
+        """Run static analysis + scanner-derived artifacts. Idempotent.
 
-        # Initialize LLMs before spawning threads so both share the same instances
-        agent_llm, parsing_llm = initialize_llms()
+        Used by the incremental scope, which needs static analysis but
+        not the agent stack. ``prepare_full_pipeline`` reuses the cache
+        populated here when it later builds the agents.
 
-        self.meta_agent = MetaAgent(
-            repo_dir=self.repo_location,
-            project_name=self.repo_name,
-            agent_llm=agent_llm,
-            parsing_llm=parsing_llm,
-            run_id=self.run_id,
-        )
-        self._monitoring_agents["MetaAgent"] = self.meta_agent
+        Why: incremental's trace planner consumes only static analysis,
+        so the ~10s spent on ``MetaAgent.analyze_project_metadata`` and
+        the ~1s on ``_run_health_report`` are pure overhead on a Refresh.
+        """
+        if self.static_analysis is not None:
+            return self.static_analysis
+        static_analysis = self._run_static_analysis()
+        self._finalize_static_artifacts(static_analysis)
+        return static_analysis
 
-        def get_static_with_injected_analyzer() -> StaticAnalysisResults:
-            cache_dir = None if self.force_full_analysis else get_cache_dir(self.repo_location)
-            return self._get_static_from_injected_analyzer(cache_dir, skip_cache=True)
+    def prepare_full_pipeline(self) -> StaticAnalysisResults:
+        """Initialize agents + static analysis. Idempotent.
 
-        def get_static_with_new_analyzer() -> StaticAnalysisResults:
-            skip_cache = self.force_full_analysis
-            if skip_cache:
-                logger.info("Force full analysis: skipping static analysis cache")
-            return get_static_analysis(self.repo_location, skip_cache=skip_cache)
+        Returns the cached static analysis when both agents are already
+        constructed. The guard is "agents initialized" rather than
+        "static cached" so a prior ``prepare_static_analysis`` call (from
+        the incremental scope) doesn't make this method think the agent
+        setup was already done.
+        """
+        if self.details_agent is not None and self.abstraction_agent is not None:
+            assert self.static_analysis is not None
+            return self.static_analysis
+        ctx = self._build_pipeline_context()
+        self.meta_agent = ctx.meta_agent
+        self.abstraction_agent = ctx.abstraction_agent
+        self.details_agent = ctx.details_agent
+        self.static_analysis = ctx.static_analysis
+        self.file_coverage_data = ctx.file_coverage_data
+        self._monitoring_agents = ctx.monitoring_agents
+        self.stats_writer = ctx.stats_writer
+        return ctx.static_analysis
 
-        # Decide how to obtain static analysis results, then run it in parallel
-        # with the meta-context computation so neither blocks the other.
+    def _run_static_analysis(self) -> StaticAnalysisResults:
+        """Invoke the right static analyzer (injected vs. fresh)."""
         if self._static_analyzer is not None:
             logger.info("Using injected StaticAnalyzer (clients already running)")
-            static_callable = get_static_with_injected_analyzer
-        else:
-            static_callable = get_static_with_new_analyzer
+            cache_dir = None if self.force_full_analysis else get_cache_dir(self.repo_location)
+            return self._get_static_from_injected_analyzer(cache_dir, skip_cache=True)
+        if self.force_full_analysis:
+            logger.info("Force full analysis: skipping static analysis cache")
+        return get_static_analysis(self.repo_location, skip_cache=self.force_full_analysis)
 
-        with ThreadPoolExecutor(max_workers=2) as executor:
-            meta_agent = self.meta_agent
-            assert meta_agent is not None
-            static_future = executor.submit(static_callable)
-            meta_future = executor.submit(meta_agent.analyze_project_metadata, skip_cache=self.force_full_analysis)
-            static_analysis = static_future.result()
-            meta_context = meta_future.result()
-
-        self.static_analysis = static_analysis
-
-        # --- Capture Static Analysis Stats ---
+    def _finalize_static_artifacts(self, static_analysis: StaticAnalysisResults) -> None:
+        """Compute scanner-derived state (LOC stats, file coverage) and stash on self."""
         static_stats: dict[str, Any] = {"repo_name": self.repo_name, "languages": {}}
         scanner = ProjectScanner(self.repo_location)
         loc_by_language = {pl.language: pl.size for pl in scanner.scan()}
@@ -215,13 +233,50 @@ class DiagramGenerator:
                 "file_count": len(files),
                 "lines_of_code": loc_by_language.get(language, 0),
             }
-
-        # Build file coverage data from scanner's all_text_files and analyzed files
+        self.static_analysis = static_analysis
+        self.static_stats = static_stats
         self.file_coverage_data = self._build_file_coverage(scanner, static_analysis)
+
+    def _build_pipeline_context(self) -> PipelineContext:
+        analysis_start_time = time.time()
+
+        # Initialize LLMs before spawning threads so both share the same instances
+        agent_llm, parsing_llm = initialize_llms()
+
+        monitoring_agents: dict[str, MonitoringMixin] = {}
+
+        meta_agent = MetaAgent(
+            repo_dir=self.repo_location,
+            project_name=self.repo_name,
+            agent_llm=agent_llm,
+            parsing_llm=parsing_llm,
+            run_id=self.run_id,
+        )
+        monitoring_agents["MetaAgent"] = meta_agent
+
+        # Reuse static analysis cached by an earlier ``prepare_static_analysis``
+        # call (e.g. incremental scope that fell through to a full re-analysis).
+        # Otherwise overlap static + meta — they're independent.
+        if self.static_analysis is not None:
+            assert self.static_stats is not None
+            assert self.file_coverage_data is not None
+            meta_context = meta_agent.analyze_project_metadata(skip_cache=self.force_full_analysis)
+            static_analysis = self.static_analysis
+        else:
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                static_future = executor.submit(self._run_static_analysis)
+                meta_future = executor.submit(meta_agent.analyze_project_metadata, skip_cache=self.force_full_analysis)
+                static_analysis = static_future.result()
+                meta_context = meta_future.result()
+            self._finalize_static_artifacts(static_analysis)
+
+        static_stats = self.static_stats
+        file_coverage_data = self.file_coverage_data
+        assert static_stats is not None and file_coverage_data is not None  # set by _finalize_static_artifacts
 
         self._run_health_report(static_analysis)
 
-        self.details_agent = DetailsAgent(
+        details_agent = DetailsAgent(
             repo_dir=self.repo_location,
             project_name=self.repo_name,
             static_analysis=static_analysis,
@@ -230,8 +285,8 @@ class DiagramGenerator:
             parsing_llm=parsing_llm,
             run_id=self.run_id,
         )
-        self._monitoring_agents["DetailsAgent"] = self.details_agent
-        self.abstraction_agent = AbstractionAgent(
+        monitoring_agents["DetailsAgent"] = details_agent
+        abstraction_agent = AbstractionAgent(
             repo_dir=self.repo_location,
             project_name=self.repo_name,
             static_analysis=static_analysis,
@@ -239,7 +294,7 @@ class DiagramGenerator:
             agent_llm=agent_llm,
             parsing_llm=parsing_llm,
         )
-        self._monitoring_agents["AbstractionAgent"] = self.abstraction_agent
+        monitoring_agents["AbstractionAgent"] = abstraction_agent
 
         version_file = Path(self.output_dir) / "codeboarding_version.json"
         with open(version_file, "w", encoding="utf-8") as f:
@@ -250,38 +305,81 @@ class DiagramGenerator:
                 ).model_dump_json(indent=2)
             )
 
+        stats_writer: StreamingStatsWriter | None = None
         if self.monitoring_enabled:
             monitoring_dir = get_monitoring_run_dir(self.log_path, create=True)
             logger.debug(f"Monitoring enabled. Writing stats to {monitoring_dir}")
 
-            # Save code_stats.json
             code_stats_file = monitoring_dir / "code_stats.json"
             with open(code_stats_file, "w", encoding="utf-8") as f:
                 json.dump(static_stats, f, indent=2)
             logger.debug(f"Written code_stats.json to {code_stats_file}")
 
-            # Initialize streaming writer (handles timing and run_metadata.json)
-            self.stats_writer = StreamingStatsWriter(
+            stats_writer = StreamingStatsWriter(
                 monitoring_dir=monitoring_dir,
-                agents_dict=self._monitoring_agents,
+                agents_dict=monitoring_agents,
                 repo_name=self.project_name or self.repo_name,
                 output_dir=str(self.output_dir),
                 start_time=analysis_start_time,
             )
 
-    def _generate_subcomponents(
+        return PipelineContext(
+            meta_agent=meta_agent,
+            abstraction_agent=abstraction_agent,
+            details_agent=details_agent,
+            static_analysis=static_analysis,
+            file_coverage_data=file_coverage_data,
+            monitoring_agents=monitoring_agents,
+            stats_writer=stats_writer,
+        )
+
+    def generate_analysis(self) -> Path:
+        """Generate the graph analysis for the repository.
+
+        Components are analyzed in parallel as soon as their parents complete.
+        Output is stored as a single ``analysis.json`` in ``output_dir``.
+        """
+        if self.details_agent is None or self.abstraction_agent is None:
+            self.prepare_full_pipeline()
+
+        monitor = self.stats_writer if self.stats_writer else nullcontext()
+        with monitor:
+            logger.info("Generating initial analysis")
+            assert self.abstraction_agent is not None
+
+            analysis, _cluster_results = self.abstraction_agent.run()
+
+            root_components = get_expandable_components(analysis)
+            logger.info(f"Found {len(root_components)} components to analyze at level 1")
+
+            _expanded, sub_analyses = self._expand_subcomponents(analysis, root_components)
+
+            analysis_path = save_analysis(
+                analysis=analysis,
+                output_dir=Path(self.output_dir),
+                sub_analyses=sub_analyses,
+                repo_name=self.repo_name,
+                file_coverage_summary=self.build_file_coverage_summary(),
+                commit_hash=get_git_commit_hash(self.repo_location),
+            ).resolve()
+
+            logger.info(f"Analysis complete. Written unified analysis to {analysis_path}")
+
+            self.write_file_coverage()
+            return analysis_path
+
+    def _expand_subcomponents(
         self,
         analysis: AnalysisInsights,
         root_components: list[Component],
     ) -> tuple[list[Component], dict[str, AnalysisInsights]]:
-        """Generate subcomponents for the given root-level analysis using a frontier queue."""
+        """Frontier-queue expansion: submit children as soon as parent finishes."""
         max_workers = min(os.cpu_count() or 4, 8)
 
         expanded_components: list[Component] = []
         sub_analyses: dict[str, AnalysisInsights] = {}
         commit_hash = get_git_commit_hash(self.repo_location)
 
-        # Group stats to avoid cluttering the local variable scope
         stats = {"submitted": 0, "completed": 0, "saves": 0, "errors": 0}
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -293,16 +391,16 @@ class DiagramGenerator:
                 stats["submitted"] += 1
                 logger.debug("Submitted component='%s' at level=%d", comp.name, lvl)
 
-            # 1. Initial Seeding
             if self.depth_level > 1:
                 for component in root_components:
                     submit_component(component, 1)
 
             logger.info(
-                "Subcomponent generation started with %d workers. Initial tasks: %d", max_workers, stats["submitted"]
+                "Subcomponent generation started with %d workers. Initial tasks: %d",
+                max_workers,
+                stats["submitted"],
             )
 
-            # 2. Process Queue
             while future_to_task:
                 completed_futures, _ = wait(future_to_task.keys(), return_when=FIRST_COMPLETED)
 
@@ -348,92 +446,7 @@ class DiagramGenerator:
 
         return expanded_components, sub_analyses
 
-    def generate_analysis(self) -> Path:
-        """
-        Generate the graph analysis for the given repository.
-        The output is stored in a single analysis.json file in output_dir.
-        Components are analyzed in parallel as soon as their parents complete.
-        """
-        if self.details_agent is None or self.abstraction_agent is None:
-            self.pre_analysis()
-
-        # Start monitoring (tracks start time)
-        monitor = self.stats_writer if self.stats_writer else nullcontext()
-        with monitor:
-            # Generate the initial analysis
-            logger.info("Generating initial analysis")
-
-            assert self.abstraction_agent is not None
-
-            analysis, cluster_results = self.abstraction_agent.run()
-
-            # Get the initial components to analyze (deterministic, no LLM)
-            root_components = get_expandable_components(analysis)
-            logger.info(f"Found {len(root_components)} components to analyze at level 1")
-
-            # Process components using a frontier queue: submit children as soon as parent finishes.
-            expanded_components, sub_analyses = self._generate_subcomponents(analysis, root_components)
-
-            analysis_path = save_analysis(
-                analysis=analysis,
-                output_dir=Path(self.output_dir),
-                sub_analyses=sub_analyses,
-                repo_name=self.repo_name,
-                file_coverage_summary=self._build_file_coverage_summary(),
-                commit_hash=get_git_commit_hash(self.repo_location),
-            ).resolve()
-
-            logger.info(f"Analysis complete. Written unified analysis to {analysis_path}")
-
-            # Write file_coverage.json
-            self._write_file_coverage()
-
-            return analysis_path
-
-    def _normalize_repo_path(self, path: str) -> str:
-        posix = path.replace("\\", "/")
-        if Path(posix).is_absolute():
-            try:
-                return Path(posix).resolve().relative_to(self.repo_location.resolve()).as_posix()
-            except ValueError:
-                return posix
-        while posix.startswith("./"):
-            posix = posix[2:]
-        return posix
-
-    def _collect_method_entries_from_static_analysis(self) -> dict[str, list]:
-        assert self.static_analysis is not None
-        methods_by_file: dict[str, list[MethodEntry]] = defaultdict(list)
-
-        for language in self.static_analysis.get_languages():
-            try:
-                cfg = self.static_analysis.get_cfg(language)
-            except ValueError:
-                continue
-
-            for node in cfg.nodes.values():
-                if node.is_callback_or_anonymous():
-                    continue
-                if not (node.is_callable() or node.is_class()):
-                    continue
-                file_path = self._normalize_repo_path(node.file_path)
-
-                methods_by_file[file_path].append(
-                    MethodEntry(
-                        qualified_name=node.fully_qualified_name,
-                        start_line=node.line_start,
-                        end_line=node.line_end,
-                        node_type=node.type.name,
-                    )
-                )
-
-        for file_path, methods in methods_by_file.items():
-            methods.sort(key=lambda method: (method.start_line, method.end_line, method.qualified_name))
-            methods_by_file[file_path] = methods
-
-        return methods_by_file
-
-    def _build_file_coverage_summary(self) -> FileCoverageSummary | None:
+    def build_file_coverage_summary(self) -> FileCoverageSummary | None:
         if not self.file_coverage_data:
             return None
         summary = self.file_coverage_data["summary"]
@@ -443,75 +456,3 @@ class DiagramGenerator:
             not_analyzed=summary["not_analyzed"],
             not_analyzed_by_reason=summary["not_analyzed_by_reason"],
         )
-
-    def generate_analysis_incremental(
-        self,
-        root_analysis: AnalysisInsights,
-        sub_analyses: dict[str, AnalysisInsights],
-        base_ref: str,
-        changes,
-    ) -> Path:
-        if self.static_analysis is None:
-            self.pre_analysis()
-        assert self.static_analysis is not None
-
-        ownership_index = build_ownership_index(root_analysis, sub_analyses)
-        added_files, modified_files, deleted_files, rename_map = normalize_changes_for_delta(changes)
-        methods_by_file = self._collect_method_entries_from_static_analysis()
-
-        updater = IncrementalUpdater(
-            analysis=root_analysis,
-            symbol_resolver=lambda file_path: methods_by_file.get(self._normalize_repo_path(file_path), []),
-            repo_dir=self.repo_location,
-            component_resolver=lambda file_path: pick_component_for_file(file_path, ownership_index, rename_map),
-        )
-        delta = updater.compute_delta(
-            added_files=added_files,
-            modified_files=modified_files,
-            deleted_files=deleted_files,
-            changes=changes,
-        )
-
-        apply_method_delta(root_analysis, sub_analyses, delta)
-        post_delta_ownership_index = build_ownership_index(root_analysis, sub_analyses)
-
-        agent_llm, parsing_llm = initialize_llms()
-        callbacks = [MONITORING_CALLBACK]
-        cfgs = {
-            language: self.static_analysis.get_cfg(language)
-            for language in self.static_analysis.get_languages()
-            if self.static_analysis.get_source_files(language)
-        }
-        trace_result = run_trace(
-            delta,
-            cfgs,
-            self.static_analysis,
-            self.repo_location,
-            base_ref,
-            parsing_llm,
-            parsed_diff=getattr(changes, "parsed_diff", None),
-            callbacks=callbacks,
-        )
-
-        patch_scopes = derive_patch_scopes(
-            trace_result,
-            root_analysis,
-            sub_analyses,
-            post_delta_ownership_index,
-            rename_map,
-        )
-        if patch_scopes:
-            root_analysis, sub_analyses = apply_patch_scopes(
-                root_analysis, sub_analyses, patch_scopes, agent_llm, callbacks
-            )
-
-        analysis_path = save_analysis(
-            analysis=root_analysis,
-            output_dir=Path(self.output_dir),
-            sub_analyses=sub_analyses,
-            repo_name=self.repo_name,
-            file_coverage_summary=self._build_file_coverage_summary(),
-            commit_hash=get_git_commit_hash(self.repo_location),
-        ).resolve()
-        self._write_file_coverage()
-        return analysis_path

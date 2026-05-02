@@ -248,8 +248,8 @@ class IncrementalAnalysisOrchestrator:
                     }
                 return cached_analysis
 
-            existing_files = {f for f in changed_files if f.exists()}
-            deleted_files = {f for f in changed_files if not f.exists()}
+            existing_files = {Path(f) for f in changed_files if Path(f).exists()}
+            deleted_files = {Path(f) for f in changed_files if not Path(f).exists()}
 
             logger.info(
                 f"Found {len(changed_files)} changed files: {len(existing_files)} existing, {len(deleted_files)} deleted"
@@ -290,8 +290,9 @@ class IncrementalAnalysisOrchestrator:
             logger.info("Merging new analysis with cached results")
             merged_analysis = self.cache_manager.merge_results(updated_cache, new_analysis)
 
-            # Filter to only include existing files
-            all_existing = {f for f in merged_analysis.get("source_files", []) if f.exists()}
+            # Filter to only include existing files. Coerce to Path here so a stale
+            # cache that smuggled a string element through merge_results doesn't crash.
+            all_existing = {p for p in (Path(f) for f in merged_analysis.get("source_files", [])) if p.exists()}
             existing_file_strs = {str(f) for f in all_existing}
 
             merged_analysis["source_files"] = list(all_existing)
@@ -388,7 +389,7 @@ class IncrementalAnalysisOrchestrator:
             return merged_analysis
 
         except Exception as e:
-            logger.error(f"Incremental update failed: {e}")
+            logger.exception("Incremental update failed: %s", e)
             raise
 
     def _merge_cluster_results_with_mappings(

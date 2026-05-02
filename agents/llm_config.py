@@ -29,11 +29,13 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 _agent_model_override: str | None = None
 _parsing_model_override: str | None = None
+_patching_model_override: str | None = None
 
 
 def configure_models(
     agent_model: str | None = None,
     parsing_model: str | None = None,
+    patching_model: str | None = None,
     api_keys: dict[str, str] | None = None,
 ) -> None:
     """Set process-wide model and provider overrides.  Call this once at startup.
@@ -48,12 +50,13 @@ def configure_models(
     Priority (highest to lowest):
       1. Shell environment variables (set before the process starts)
       2. ``api_keys`` passed here  /  values from ~/.codeboarding/config.toml
-      3. AGENT_MODEL / PARSING_MODEL environment variables (for model names)
+      3. AGENT_MODEL / PARSING_MODEL / PATCHING_MODEL environment variables (for model names)
       4. Provider defaults defined in LLM_PROVIDERS
     """
-    global _agent_model_override, _parsing_model_override
+    global _agent_model_override, _parsing_model_override, _patching_model_override
     _agent_model_override = agent_model
     _parsing_model_override = parsing_model
+    _patching_model_override = patching_model
     if api_keys:
         for env_var, value in api_keys.items():
             if value and not os.environ.get(env_var):
@@ -68,6 +71,7 @@ class LLMConfig:
     Attributes:
         agent_model: The "agent" model used for complex reasoning and agentic tasks.
         parsing_model: The "parsing" model used for fast, cost-effective extraction and parsing tasks.
+        patching_model: The structured-output model used for incremental patch generation.
         agent_temperature: Temperature for the agent model. Defaults to 0 for deterministic behavior
                           which is crucial for code understanding and reasoning.
         parsing_temperature: Temperature for the parsing model. Defaults to 0 for deterministic behavior
@@ -80,10 +84,15 @@ class LLMConfig:
     agent_model: str
     parsing_model: str
     llm_type: LLMType
+    patching_model: str | None = None
     agent_temperature: float = LLMDefaults.DEFAULT_AGENT_TEMPERATURE
     parsing_temperature: float = LLMDefaults.DEFAULT_PARSING_TEMPERATURE
     extra_args: dict[str, Any] = field(default_factory=dict)
     alt_env_vars: list[str] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        if self.patching_model is None:
+            self.patching_model = self.agent_model
 
     def get_api_key(self) -> str | None:
         return os.getenv(self.api_key_env)
@@ -343,6 +352,18 @@ def get_current_agent_context_window() -> ContextWindow:
 
 def initialize_parsing_llm(model_override: str | None = None) -> BaseChatModel:
     model, _ = _initialize_llm(model_override, "parsing_model", "parsing_temperature", "Extractor ")
+    return model
+
+
+def initialize_patching_llm(model_override: str | None = None) -> BaseChatModel:
+    resolved_override = (
+        model_override
+        or _patching_model_override
+        or os.getenv("PATCHING_MODEL")
+        or _agent_model_override
+        or os.getenv("AGENT_MODEL")
+    )
+    model, _ = _initialize_llm(resolved_override, "patching_model", "parsing_temperature", "Patcher ")
     return model
 
 

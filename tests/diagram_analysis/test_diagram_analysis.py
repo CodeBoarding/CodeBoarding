@@ -16,14 +16,13 @@ from agents.agent_responses import (
     SourceCodeReference,
     assign_component_ids,
 )
-from diagram_analysis.analysis_json import (
+from analysis_artifact.schema import (
     ComponentFileMethodGroupJson,
     ComponentJson,
     RelationJson,
     UnifiedAnalysisJson,
-    from_analysis_to_json,
-    from_component_to_json_component,
 )
+from analysis_artifact.serializer import from_analysis_to_json, from_component_to_json_component
 from diagram_analysis.diagram_generator import DiagramGenerator
 from diagram_analysis.version import Version
 from repo_utils.change_detector import ChangeSet
@@ -110,7 +109,7 @@ class TestComponentJson(unittest.TestCase):
 class TestUnifiedAnalysisJson(unittest.TestCase):
     def test_unified_analysis_json_creation(self):
         # Test creating a UnifiedAnalysisJson instance
-        from diagram_analysis.analysis_json import AnalysisMetadata
+        from analysis_artifact.schema import AnalysisMetadata
 
         comp1 = ComponentJson(
             name="Comp1",
@@ -140,7 +139,7 @@ class TestUnifiedAnalysisJson(unittest.TestCase):
 
     def test_unified_analysis_json_model_dump(self):
         # Test serialization
-        from diagram_analysis.analysis_json import AnalysisMetadata
+        from analysis_artifact.schema import AnalysisMetadata
 
         comp = ComponentJson(
             name="Comp",
@@ -345,7 +344,7 @@ class TestDiagramGenerator(unittest.TestCase):
     @patch("diagram_analysis.diagram_generator.DetailsAgent")
     @patch("diagram_analysis.diagram_generator.AbstractionAgent")
     @patch("diagram_analysis.diagram_generator.get_git_commit_hash")
-    def test_pre_analysis(
+    def test_prepare_full_pipeline(
         self,
         mock_git_hash,
         mock_abstraction,
@@ -355,7 +354,7 @@ class TestDiagramGenerator(unittest.TestCase):
         mock_get_static_analysis,
         mock_scanner,
     ):
-        # Test pre_analysis method
+        # Test prepare_full_pipeline method
         mock_git_hash.return_value = "abc123"
         # Return a proper StaticAnalysisResults object
         mock_analysis_results = StaticAnalysisResults()
@@ -396,7 +395,7 @@ class TestDiagramGenerator(unittest.TestCase):
             log_path="test_repo/test-run-log",
         )
 
-        gen.pre_analysis()
+        gen.prepare_full_pipeline()
 
         # Verify agents were created
         self.assertIsNotNone(gen.meta_agent)
@@ -482,7 +481,7 @@ class TestDiagramGenerator(unittest.TestCase):
 
         gen.abstraction_agent = Mock()
         gen.abstraction_agent.run.return_value = (root_analysis, {})
-        gen.details_agent = Mock()  # pre_analysis is skipped when details/abstraction are already initialized
+        gen.details_agent = Mock()  # prepare_full_pipeline is skipped when details/abstraction are already initialized
         mock_get_expandable_components.return_value = [root_a, root_b]
         mock_save_analysis.return_value = self.output_dir / "analysis.json"
 
@@ -527,7 +526,7 @@ class TestDiagramGenerator(unittest.TestCase):
             log_path="test_repo/test-run-log",
         )
 
-        # Prevent pre_analysis from running.
+        # Prevent prepare_full_pipeline from running.
         gen.abstraction_agent = Mock()
         gen.details_agent = Mock()
 
@@ -589,7 +588,7 @@ class TestDiagramGenerator(unittest.TestCase):
 
         with patch("diagram_analysis.diagram_generator.get_expandable_components", return_value=planned):
             with patch(
-                "diagram_analysis.io_utils.build_unified_analysis_json",
+                "analysis_artifact.store.build_unified_analysis_json",
                 side_effect=_capture_build,
             ):
                 gen.generate_analysis()

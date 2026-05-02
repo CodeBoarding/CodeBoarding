@@ -13,40 +13,48 @@ from agents.agent_responses import (
     MethodEntry,
     assign_component_ids,
 )
+from agents.change_status import ChangeStatus
 from main import build_parser, main as cli_main
-from diagram_analysis.incremental_models import (
+from incremental_analysis.models import (
     IncrementalRunResult,
     IncrementalSummary,
     IncrementalSummaryKind,
 )
-from diagram_analysis.incremental_payload import (
+from incremental_analysis.updater import FileDelta, IncrementalDelta
+from incremental_analysis.payload import (
     RequiresFullAnalysisPayload,
     IncrementalCompletedPayload,
     NoChangesPayload,
 )
-from diagram_analysis.incremental_pipeline import run_incremental_pipeline
+from incremental_analysis.pipeline import (
+    IncrementalInputs,
+    run_incremental_pipeline,
+)
+from incremental_analysis.scope_planner import build_ownership_index
 from diagram_analysis.run_metadata import last_successful_commit, write_full_run_metadata
 from repo_utils.git_ops import worktree_has_changes
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import NodeType
 from static_analyzer.node import Node
-from diagram_analysis.io_utils import save_analysis
+from analysis_artifact.store import save_analysis
 from repo_utils.change_detector import ChangeSet
 
 
-def _make_generator(repo_path: Path, output_dir: Path) -> MagicMock:
-    """Build a ``DiagramGenerator`` stand-in for pipeline tests.
-
-    Pipeline reads only ``repo_location``, ``output_dir``, ``static_analysis``,
-    ``pre_analysis``, and ``generate_analysis_incremental`` — plus the attrs
-    the payload code doesn't touch. Using MagicMock sidesteps the full
-    constructor (LLM init, etc.).
-    """
-    generator = MagicMock()
-    generator.repo_location = repo_path
-    generator.output_dir = output_dir
-    generator.static_analysis = None
-    return generator
+def _make_inputs(
+    repo_path: Path,
+    output_dir: Path,
+    static_analysis: StaticAnalysisResults | None = None,
+) -> IncrementalInputs:
+    """Build a typed ``IncrementalInputs`` fixture for pipeline tests."""
+    return IncrementalInputs(
+        repo_path=repo_path,
+        output_dir=output_dir,
+        repo_name="repo",
+        run_id="test-run",
+        prepare_static_analysis=lambda: static_analysis,
+        build_file_coverage_summary=lambda: None,
+        write_file_coverage=lambda: None,
+    )
 
 
 def _git(repo: Path, *args: str) -> None:
@@ -141,7 +149,7 @@ def test_run_incremental_pipeline_returns_full_required_without_baseline(tmp_pat
     output_dir = repo / ".codeboarding"
     output_dir.mkdir()
 
-    payload = run_incremental_pipeline(_make_generator(repo, output_dir), base_ref="", target_ref="")
+    payload = run_incremental_pipeline(_make_inputs(repo, output_dir), base_ref="", target_ref="")
 
     assert isinstance(payload, RequiresFullAnalysisPayload)
     assert payload.requires_full_analysis is True
@@ -189,21 +197,28 @@ def test_run_incremental_analysis_uses_explicit_base_ref(tmp_path: Path) -> None
     fake_static = _make_static_analysis("src/utils.py", "src.utils.alpha", 1, 3)
     fake_path = output_dir / "analysis.json"
 
-    mock_generator = _make_generator(repo, output_dir)
+    inputs = _make_inputs(repo, output_dir, static_analysis=fake_static)
 
-    def _pre_analysis() -> None:
-        mock_generator.static_analysis = fake_static
-
-    mock_generator.pre_analysis.side_effect = _pre_analysis
-    mock_generator.generate_analysis_incremental.return_value = fake_path
-
-    payload = run_incremental_pipeline(mock_generator, base_ref=baseline_commit, target_ref="")
+    with (
+        patch("incremental_analysis.pipeline.initialize_llms", return_value=(MagicMock(), MagicMock())),
+        patch("incremental_analysis.pipeline.initialize_patching_llm", return_value=MagicMock()),
+        patch("incremental_analysis.pipeline.run_trace") as run_trace_mock,
+        patch("incremental_analysis.pipeline.derive_patch_scopes", return_value=[]),
+        patch("incremental_analysis.pipeline.save_analysis", return_value=fake_path),
+    ):
+        run_trace_mock.return_value = MagicMock(
+            visited_methods=[],
+            impacted_methods=[],
+            non_traceable_files=[],
+            disconnected_files=[],
+            unresolved_frontier=[],
+        )
+        payload = run_incremental_pipeline(inputs, base_ref=baseline_commit, target_ref="")
 
     assert isinstance(payload, IncrementalCompletedPayload)
     assert payload.base_ref == baseline_commit
     assert payload.requires_full_analysis is False
     assert payload.incremental_delta.file_deltas
-    assert mock_generator.generate_analysis_incremental.call_args.kwargs["base_ref"] == baseline_commit
 
 
 def test_run_incremental_pipeline_requires_full_when_git_diff_fails(tmp_path: Path) -> None:
@@ -225,10 +240,10 @@ def test_run_incremental_pipeline_requires_full_when_git_diff_fails(tmp_path: Pa
     )
 
     with patch(
-        "diagram_analysis.incremental_pipeline.detect_changes",
+        "incremental_analysis.pipeline.detect_changes",
         return_value=ChangeSet(base_ref="base", target_ref="", error="bad object base"),
     ):
-        payload = run_incremental_pipeline(_make_generator(repo, output_dir), base_ref="base", target_ref="")
+        payload = run_incremental_pipeline(_make_inputs(repo, output_dir), base_ref="base", target_ref="")
 
     assert isinstance(payload, RequiresFullAnalysisPayload)
     assert payload.requires_full_analysis is True
@@ -354,7 +369,7 @@ def test_run_incremental_analysis_requires_full_on_rename(tmp_path: Path) -> Non
 
     _git(repo, "mv", "src/utils.py", "src/helpers.py")
 
-    payload = run_incremental_pipeline(_make_generator(repo, output_dir), base_ref=baseline_commit, target_ref="")
+    payload = run_incremental_pipeline(_make_inputs(repo, output_dir), base_ref=baseline_commit, target_ref="")
 
     assert isinstance(payload, RequiresFullAnalysisPayload)
     assert payload.requires_full_analysis is True
@@ -408,7 +423,7 @@ def test_run_incremental_pipeline_rejects_target_ref_not_checked_out(tmp_path: P
     )
 
     payload = run_incremental_pipeline(
-        _make_generator(repo, output_dir),
+        _make_inputs(repo, output_dir),
         base_ref=baseline_commit,
         target_ref=baseline_commit,  # HEAD is at v2, not baseline
     )
@@ -457,7 +472,7 @@ def test_run_incremental_pipeline_rejects_target_ref_with_dirty_worktree(tmp_pat
     )
 
     payload = run_incremental_pipeline(
-        _make_generator(repo, output_dir),
+        _make_inputs(repo, output_dir),
         base_ref=head_commit,
         target_ref=head_commit,  # HEAD matches, but worktree is dirty
     )

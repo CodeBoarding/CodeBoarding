@@ -8,16 +8,16 @@ repo path and the minimum context needed to run; they are source-agnostic
 import logging
 from pathlib import Path
 
+from analysis_artifact.store import load_full_analysis, save_sub_analysis
 from diagram_analysis import DiagramGenerator
-from diagram_analysis.incremental_payload import IncrementalRunPayload
-from diagram_analysis.incremental_pipeline import run_incremental_pipeline
-from diagram_analysis.io_utils import load_full_analysis, save_sub_analysis
+from incremental_analysis.payload import IncrementalRunPayload
+from incremental_analysis.pipeline import IncrementalInputs, run_incremental_pipeline
 from diagram_analysis.run_metadata import write_full_run_metadata
 
 logger = logging.getLogger(__name__)
 
 
-def _build_generator(
+def build_generator(
     repo_name: str,
     repo_path: Path,
     output_dir: Path,
@@ -51,7 +51,7 @@ def run_full(
     force_full: bool = False,
 ) -> Path:
     """Full analysis scope — rebuild the whole diagram from scratch."""
-    generator = _build_generator(
+    generator = build_generator(
         repo_name=repo_name,
         repo_path=repo_path,
         output_dir=output_dir,
@@ -76,7 +76,7 @@ def run_partial(
     depth_level: int = 1,
 ) -> None:
     """Partial scope — regenerate a single component within an existing analysis."""
-    generator = _build_generator(
+    generator = build_generator(
         repo_name=project_name,
         repo_path=repo_path,
         output_dir=output_dir,
@@ -84,7 +84,7 @@ def run_partial(
         log_path=log_path,
         depth_level=depth_level,
     )
-    generator.pre_analysis()
+    generator.prepare_full_pipeline()
 
     full_analysis = load_full_analysis(output_dir)
     if full_analysis is None:
@@ -135,7 +135,7 @@ def run_incremental(
     static_analyzer=None,
 ) -> IncrementalRunPayload:
     """Incremental scope — diff against *base_ref* and propagate only the semantic deltas."""
-    generator = _build_generator(
+    generator = build_generator(
         repo_name=project_name,
         repo_path=repo_path,
         output_dir=output_dir,
@@ -145,4 +145,16 @@ def run_incremental(
         monitoring_enabled=monitoring_enabled,
         static_analyzer=static_analyzer,
     )
-    return run_incremental_pipeline(generator, base_ref=base_ref, target_ref=target_ref)
+    # Bind the static-only entrypoint: incremental's trace planner needs
+    # static analysis but not the agent stack, so we skip MetaAgent
+    # (~10s) and the health report (~1s).
+    inputs = IncrementalInputs(
+        repo_path=generator.repo_location,
+        output_dir=generator.output_dir,
+        repo_name=generator.repo_name,
+        run_id=run_id,
+        prepare_static_analysis=generator.prepare_static_analysis,
+        build_file_coverage_summary=generator.build_file_coverage_summary,
+        write_file_coverage=generator.write_file_coverage,
+    )
+    return run_incremental_pipeline(inputs, base_ref=base_ref, target_ref=target_ref)

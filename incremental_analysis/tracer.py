@@ -13,6 +13,7 @@ import logging
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
+from difflib import unified_diff
 from pathlib import Path
 from typing import Any
 
@@ -25,7 +26,7 @@ from agents.change_status import ChangeStatus
 from agents.llm_config import supports_prompt_caching
 from agents.prompts.prompt_factory import get_trace_system_message
 from agents.retry import RetryAction, RetryDecision, default_backoff, with_retries
-from diagram_analysis.incremental_models import (
+from incremental_analysis.models import (
     DEFAULT_TRACE_CONFIG,
     ImpactedComponent,
     TraceConfig,
@@ -33,7 +34,7 @@ from diagram_analysis.incremental_models import (
     TraceResult,
     TraceStopReason,
 )
-from diagram_analysis.incremental_updater import FileDelta, IncrementalDelta
+from incremental_analysis.updater import FileDelta, IncrementalDelta
 from repo_utils.git_ops import read_file_at_ref
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import SOURCE_EXTENSION_TO_LANGUAGE
@@ -67,36 +68,47 @@ def _read_method_body(repo_dir: Path, file_path: str, start_line: int, end_line:
         return None
 
 
-def _get_diff_hunks(
+def _get_prompt_diff_hunks(
     repo_dir: Path,
     base_ref: str,
     file_path: str,
-    parsed_diff: Any | None = None,
 ) -> str:
-    """Return unified diff hunks for *file_path*.
+    """Return a comment-stripped unified diff for prompt context.
 
-    When *parsed_diff* (a ChangeSet-shaped object exposing ``get_file``) is
-    provided, the patch is read from there. Otherwise we fall back to ``git
-    diff -U3`` for the file. Matching the pre-merge tracer signature so the
-    generator can pass either parsed diffs or rely on git directly.
+    The tracer already strips comments from method bodies before they reach the
+    LLM. Recomputing the diff from stripped file contents keeps the prompt
+    consistent and avoids leaking cosmetic-only comment churn back into the
+    model context via raw git hunks.
     """
-    if parsed_diff is not None:
-        file_diff = parsed_diff.get_file(file_path)
-        return file_diff.patch_text if file_diff is not None else ""
-
-    import subprocess
-
+    old_content = read_file_at_ref(repo_dir, base_ref, file_path)
+    full_path = repo_dir / file_path
     try:
-        result = subprocess.run(
-            ["git", "diff", "-U3", base_ref, "--", file_path],
-            cwd=repo_dir,
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        return result.stdout
-    except (subprocess.CalledProcessError, FileNotFoundError):
+        new_content = full_path.read_text(encoding="utf-8", errors="replace") if full_path.is_file() else ""
+    except OSError:
         return ""
+
+    if old_content is None:
+        old_content = ""
+
+    def _normalize_prompt_source(source: str) -> str:
+        stripped = strip_comments_from_source(file_path, source)
+        lines = [line for line in stripped.splitlines() if line.strip()]
+        return "".join(f"{line}\n" for line in lines)
+
+    old_clean = _normalize_prompt_source(old_content)
+    new_clean = _normalize_prompt_source(new_content)
+    if old_clean == new_clean:
+        return ""
+
+    return "".join(
+        unified_diff(
+            old_clean.splitlines(keepends=True),
+            new_clean.splitlines(keepends=True),
+            fromfile=f"a/{file_path}",
+            tofile=f"b/{file_path}",
+            n=3,
+        )
+    )
 
 
 def _read_method_body_at_ref(
@@ -457,7 +469,7 @@ def build_trace_plan(
             continue
 
         diff_text = (
-            _get_diff_hunks(repo_dir, base_ref, fp, parsed_diff) if file_delta.file_status != ChangeStatus.ADDED else ""
+            _get_prompt_diff_hunks(repo_dir, base_ref, fp) if file_delta.file_status != ChangeStatus.ADDED else ""
         )
 
         for method in all_methods:
@@ -782,7 +794,7 @@ def _merge_trace_results(
     visited_methods: set[str] = set()
     impacted_methods: set[str] = set(fast_path_impacted_methods or [])
     unresolved_frontier: set[str] = set()
-    semantic_summaries: set[str] = set()
+    semantic_summaries: list[str] = []
     hops_used = 0
     stop_reason = TraceStopReason.NO_MATERIAL_IMPACT
 
@@ -801,8 +813,9 @@ def _merge_trace_results(
         hops_used = max(hops_used, result.hops_used)
         if severity.get(result.stop_reason, 0) > severity.get(stop_reason, 0):
             stop_reason = result.stop_reason
-        if result.semantic_impact_summary:
-            semantic_summaries.add(result.semantic_impact_summary)
+        summary = result.semantic_impact_summary.strip()
+        if summary and summary not in semantic_summaries:
+            semantic_summaries.append(summary)
 
     if impacted_methods and stop_reason == TraceStopReason.NO_MATERIAL_IMPACT:
         stop_reason = TraceStopReason.CLOSURE_REACHED
@@ -821,7 +834,9 @@ def _merge_trace_results(
         disconnected_files=sorted(set(disconnected_files or [])),
         stop_reason=stop_reason,
         hops_used=hops_used,
-        semantic_impact_summary=semantic_summaries.pop() if len(semantic_summaries) == 1 else "",
+        # Preserve distinct region summaries in trace order instead of
+        # dropping them when more than one region reports semantic impact.
+        semantic_impact_summary=" ".join(semantic_summaries),
     )
 
 

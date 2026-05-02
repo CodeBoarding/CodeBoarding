@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from agents.agent_responses import AnalysisInsights
-from diagram_analysis.analysis_json import build_id_to_name_map, parse_unified_analysis
+from analysis_artifact.parser import build_id_to_name_map, parse_unified_analysis
 from output_generators.html import generate_html_file
 from output_generators.markdown import generate_markdown_file
 from output_generators.mdx import generate_mdx_file

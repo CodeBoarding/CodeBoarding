@@ -1,6 +1,6 @@
 """Test script to verify depth computation works correctly with deep nesting."""
 
-from diagram_analysis.analysis_json import _compute_depth_level
+from analysis_artifact.parser import compute_depth_level
 from agents.agent_responses import AnalysisInsights, Component, SourceCodeReference, assign_component_ids
 
 
@@ -43,12 +43,12 @@ def test_depth_computation():
     """Test that depth is computed correctly for various nesting levels."""
 
     # Test 1: No sub-analyses (depth 1)
-    result = _compute_depth_level(None)
+    result = compute_depth_level(None)
     assert result == 1, f"Expected depth 1 for None, got {result}"
     print("PASSED: Test 1 passed: No sub-analyses returns depth 1")
 
     # Test 2: Empty sub-analyses (depth 1)
-    result = _compute_depth_level({})
+    result = compute_depth_level({})
     assert result == 1, f"Expected depth 1 for empty dict, got {result}"
     print("PASSED: Test 2 passed: Empty sub-analyses returns depth 1")
 
@@ -58,7 +58,7 @@ def test_depth_computation():
     sub_analyses_2 = {
         "id_A": (sub_a, sub_a.components),  # A expands to B, C
     }
-    result = _compute_depth_level(sub_analyses_2)
+    result = compute_depth_level(sub_analyses_2)
     assert result == 2, f"Expected depth 2 for one level, got {result}"
     print("PASSED: Test 3 passed: One level of sub-analyses returns depth 2")
 
@@ -72,7 +72,7 @@ def test_depth_computation():
         "id_A": (sub_a, sub_a.components),  # A expands to B
         b_id: (sub_b, sub_b.components),  # B expands to C
     }
-    result = _compute_depth_level(sub_analyses_3)
+    result = compute_depth_level(sub_analyses_3)
     assert result == 3, f"Expected depth 3 for two levels, got {result}"
     print("PASSED: Test 4 passed: Two levels of sub-analyses returns depth 3")
 
@@ -88,7 +88,7 @@ def test_depth_computation():
         b_id: (sub_b, sub_b.components),
         c_id: (sub_c, sub_c.components),
     }
-    result = _compute_depth_level(sub_analyses_4)
+    result = compute_depth_level(sub_analyses_4)
     assert result == 4, f"Expected depth 4 for three levels, got {result}"
     print("PASSED: Test 5 passed: Three levels of sub-analyses returns depth 4")
 
@@ -107,7 +107,7 @@ def test_depth_computation():
         c_id: (sub_c, sub_c.components),
         d_id: (sub_d, sub_d.components),
     }
-    result = _compute_depth_level(sub_analyses_5)
+    result = compute_depth_level(sub_analyses_5)
     assert result == 5, f"Expected depth 5 for four levels, got {result}"
     print("PASSED: Test 6 passed: Four levels of sub-analyses returns depth 5")
 
@@ -130,7 +130,7 @@ def test_depth_computation():
         d_id: (sub_d, sub_d.components),
         e_id: (sub_e, sub_e.components),
     }
-    result = _compute_depth_level(sub_analyses_multi)
+    result = compute_depth_level(sub_analyses_multi)
     assert result == 4, f"Expected depth 4 for multiple branches, got {result}"
     print("PASSED: Test 7 passed: Multiple branches returns correct max depth 4")
 
