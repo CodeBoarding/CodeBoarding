@@ -17,7 +17,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from agents.llm_config import MONITORING_CALLBACK, initialize_llms
+from agents.change_status import ChangeStatus
+from agents.llm_config import MONITORING_CALLBACK, initialize_llms, initialize_patching_llm
 from analysis_artifact.schema import FileCoverageSummary
 from analysis_artifact.store import load_full_analysis, save_analysis
 from incremental_analysis.delta_application import (
@@ -72,6 +73,7 @@ class IncrementalInputs:
     prepare_static_analysis: Callable[[], StaticAnalysisResults | None]
     build_file_coverage_summary: Callable[[], FileCoverageSummary | None]
     write_file_coverage: Callable[[], None]
+    run_id: str = "incremental"
 
 
 def _resolve_source_identity(repo_dir: Path, ref: str | None) -> str:
@@ -227,13 +229,30 @@ def run_incremental_pipeline(
         changes=change_set,
     )
 
+    # Gate: for ADDED files whose immediate parent directory has no existing
+    # owner, clear the component_id so the file flows through unallocated.
+    # `IncrementalUpdater.compute_delta`'s path-prefix fallback would otherwise
+    # attribute a brand-new `backend/telemetry/X.ts` to whichever component
+    # owns the longest backend/* prefix (silent fold-in). Clearing the id here
+    # lets the patcher's `unallocated_files` channel surface the file for an
+    # LLM allocation decision (fold-in vs. mint a new component).
+    owned_file_paths = set(pre_delta_index.file_to_components.keys())
+    for fd in delta.file_deltas:
+        if fd.file_status != ChangeStatus.ADDED or fd.component_id is None:
+            continue
+        parent_dir = str(Path(fd.file_path).parent)
+        co_located = any(str(Path(owned).parent) == parent_dir for owned in owned_file_paths)
+        if not co_located:
+            fd.component_id = None
+
     with contextlib.redirect_stdout(io.StringIO()):
         apply_method_delta(root_analysis, sub_analyses, delta)
         removed_component_ids = prune_empty_components(root_analysis, sub_analyses)
         drop_deltas_for_pruned_components(delta, removed_component_ids)
         post_delta_index = build_ownership_index(root_analysis, sub_analyses)
 
-        agent_llm, parsing_llm = initialize_llms()
+        _, parsing_llm = initialize_llms()
+        patching_llm = initialize_patching_llm()
         callbacks = [MONITORING_CALLBACK]
         cfgs = {}
         for language in static_analysis.get_languages():
@@ -255,16 +274,23 @@ def run_incremental_pipeline(
             parsed_diff=change_set,
             callbacks=callbacks,
         )
+        # Files added with no resolved owner — surfaced to the patcher so the
+        # LLM can either fold them into an existing component or mint a new one
+        # (see analysis_controller's resolver gate that produces these).
+        unallocated_files = [
+            fd.file_path for fd in delta.file_deltas if fd.file_status == ChangeStatus.ADDED and fd.component_id is None
+        ]
         patch_scopes = derive_patch_scopes(
             trace_result,
             root_analysis,
             sub_analyses,
             post_delta_index,
             rename_map,
+            unallocated_files=unallocated_files,
         )
         if patch_scopes:
             root_analysis, sub_analyses = apply_patch_scopes(
-                root_analysis, sub_analyses, patch_scopes, agent_llm, callbacks
+                root_analysis, sub_analyses, patch_scopes, patching_llm, callbacks
             )
 
         analysis_path = save_analysis(

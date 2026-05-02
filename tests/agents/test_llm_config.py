@@ -5,7 +5,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from agents.llm_config import initialize_agent_llm, initialize_parsing_llm, validate_api_key_provided
+from agents.llm_config import (
+    initialize_agent_llm,
+    initialize_parsing_llm,
+    initialize_patching_llm,
+    validate_api_key_provided,
+)
 from agents.prompts.prompt_factory import LLMType
 
 
@@ -228,7 +233,7 @@ class TestDetectLLMTypeFromModel:
 
 
 class TestEnvironmentVariables:
-    """Test that AGENT_MODEL and PARSING_MODEL environment variables are respected."""
+    """Test that AGENT_MODEL, PARSING_MODEL, and PATCHING_MODEL are respected."""
 
     @patch("agents.prompts.prompt_factory.initialize_global_factory")
     @patch("agents.agent.MONITORING_CALLBACK")
@@ -362,6 +367,75 @@ class TestEnvironmentVariables:
                     # Second call is for parsing LLM
                     parsing_call_kwargs = mock_chat_class.call_args_list[1][1]
                     assert parsing_call_kwargs["model"] == "gpt-4o-mini"
+
+    @patch("agents.prompts.prompt_factory.initialize_global_factory")
+    @patch("agents.agent.MONITORING_CALLBACK")
+    def test_patching_model_env_var_respected(self, mock_monitoring_callback, mock_init_factory):
+        """Test that PATCHING_MODEL environment variable is used by initialize_patching_llm()."""
+        from agents.llm_config import LLM_PROVIDERS
+
+        with patch.dict(os.environ, {"PATCHING_MODEL": "gpt-4.1-mini", "OPENAI_API_KEY": "test-key"}, clear=True):
+            with patch("agents.llm_config.LLMType.from_model_name", return_value=LLMType.GPT4):
+                original_openai_config = LLM_PROVIDERS["openai"]
+                mock_llm = MagicMock()
+
+                with patch.object(original_openai_config, "chat_class", return_value=mock_llm) as mock_chat_class:
+                    initialize_patching_llm()
+
+                    patching_call_kwargs = mock_chat_class.call_args[1]
+                    assert patching_call_kwargs["model"] == "gpt-4.1-mini"
+
+    @patch("agents.llm_config.LLM_PROVIDERS")
+    def test_patching_model_override_takes_precedence(self, mock_providers):
+        """Test that model_override parameter takes precedence in initialize_patching_llm()."""
+        mock_config = MagicMock()
+        mock_config.is_active.return_value = True
+        mock_config.patching_model = "gpt-4o"
+        mock_config.parsing_temperature = 0
+        mock_config.get_api_key.return_value = "test-key"
+        mock_config.get_resolved_extra_args.return_value = {}
+        mock_config.chat_class = MagicMock(return_value=MagicMock())
+        mock_providers.__getitem__.return_value = mock_config
+        mock_providers.items.return_value = [("openai", mock_config)]
+
+        initialize_patching_llm(model_override="gpt-4.1")
+
+        call_kwargs = mock_config.chat_class.call_args[1]
+        assert call_kwargs["model"] == "gpt-4.1"
+
+    @patch("agents.prompts.prompt_factory.initialize_global_factory")
+    @patch("agents.agent.MONITORING_CALLBACK")
+    def test_patching_model_defaults_to_agent_model_when_no_env_var(self, mock_monitoring_callback, mock_init_factory):
+        """Test that patching defaults to the provider's stronger agent model."""
+        from agents.llm_config import LLM_PROVIDERS
+
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}, clear=True):
+            with patch("agents.llm_config.LLMType.from_model_name", return_value=LLMType.GPT4):
+                original_openai_config = LLM_PROVIDERS["openai"]
+                mock_llm = MagicMock()
+
+                with patch.object(original_openai_config, "chat_class", return_value=mock_llm) as mock_chat_class:
+                    initialize_patching_llm()
+
+                    patching_call_kwargs = mock_chat_class.call_args[1]
+                    assert patching_call_kwargs["model"] == "gpt-4o"
+
+    @patch("agents.prompts.prompt_factory.initialize_global_factory")
+    @patch("agents.agent.MONITORING_CALLBACK")
+    def test_patching_model_inherits_agent_override_when_unset(self, mock_monitoring_callback, mock_init_factory):
+        """Test that patching follows AGENT_MODEL when PATCHING_MODEL is not set."""
+        from agents.llm_config import LLM_PROVIDERS
+
+        with patch.dict(os.environ, {"AGENT_MODEL": "gpt-4.1", "OPENAI_API_KEY": "test-key"}, clear=True):
+            with patch("agents.llm_config.LLMType.from_model_name", return_value=LLMType.GPT4):
+                original_openai_config = LLM_PROVIDERS["openai"]
+                mock_llm = MagicMock()
+
+                with patch.object(original_openai_config, "chat_class", return_value=mock_llm) as mock_chat_class:
+                    initialize_patching_llm()
+
+                    patching_call_kwargs = mock_chat_class.call_args[1]
+                    assert patching_call_kwargs["model"] == "gpt-4.1"
 
 
 class TestMonitoringIntegration:

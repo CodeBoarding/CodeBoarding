@@ -13,18 +13,24 @@ from agents.agent_responses import (
     MethodEntry,
     assign_component_ids,
 )
+from agents.change_status import ChangeStatus
 from main import build_parser, main as cli_main
 from incremental_analysis.models import (
     IncrementalRunResult,
     IncrementalSummary,
     IncrementalSummaryKind,
 )
+from incremental_analysis.updater import FileDelta, IncrementalDelta
 from incremental_analysis.payload import (
     RequiresFullAnalysisPayload,
     IncrementalCompletedPayload,
     NoChangesPayload,
 )
-from incremental_analysis.pipeline import IncrementalInputs, run_incremental_pipeline
+from incremental_analysis.pipeline import (
+    IncrementalInputs,
+    run_incremental_pipeline,
+)
+from incremental_analysis.scope_planner import build_ownership_index
 from diagram_analysis.run_metadata import last_successful_commit, write_full_run_metadata
 from repo_utils.git_ops import worktree_has_changes
 from static_analyzer.analysis_result import StaticAnalysisResults
@@ -44,6 +50,7 @@ def _make_inputs(
         repo_path=repo_path,
         output_dir=output_dir,
         repo_name="repo",
+        run_id="test-run",
         prepare_static_analysis=lambda: static_analysis,
         build_file_coverage_summary=lambda: None,
         write_file_coverage=lambda: None,
@@ -194,6 +201,7 @@ def test_run_incremental_analysis_uses_explicit_base_ref(tmp_path: Path) -> None
 
     with (
         patch("incremental_analysis.pipeline.initialize_llms", return_value=(MagicMock(), MagicMock())),
+        patch("incremental_analysis.pipeline.initialize_patching_llm", return_value=MagicMock()),
         patch("incremental_analysis.pipeline.run_trace") as run_trace_mock,
         patch("incremental_analysis.pipeline.derive_patch_scopes", return_value=[]),
         patch("incremental_analysis.pipeline.save_analysis", return_value=fake_path),

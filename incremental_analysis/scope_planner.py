@@ -154,12 +154,40 @@ def normalize_changes_for_delta(changes) -> tuple[list[str], list[str], list[str
     return sorted(added_files), sorted(modified_files), sorted(deleted_files), rename_map
 
 
+def _route_unallocated_files(
+    unallocated_files: list[str],
+    sub_analyses: dict[str, AnalysisInsights],
+    ownership_index: OwnershipIndex,
+    rename_map: dict[str, str] | None,
+) -> dict[str | None, list[str]]:
+    """Pick the patch scope each unallocated file should be allocated within.
+
+    Strategy: find each file's closest existing component via path-prefix.
+    If that component has its own sub-analysis (it's been expanded), route
+    the file to its sub-scope so a freshly-minted component lands as a
+    *child* of the closest existing one. Otherwise fall back to the scope
+    where the closest component itself lives (sibling-level mint). Files
+    with no closest component go to the root scope.
+    """
+    grouped: dict[str | None, list[str]] = defaultdict(list)
+    for file_path in unallocated_files:
+        closest = ownership_index.pick_component_for_file(file_path, rename_map)
+        if closest is None:
+            grouped[None].append(file_path)
+        elif closest in sub_analyses:
+            grouped[closest].append(file_path)
+        else:
+            grouped[ownership_index.component_to_scope.get(closest)].append(file_path)
+    return grouped
+
+
 def derive_patch_scopes(
     trace_result: TraceResult,
     root_analysis: AnalysisInsights,
     sub_analyses: dict[str, AnalysisInsights],
     ownership_index: OwnershipIndex,
     rename_map: dict[str, str] | None = None,
+    unallocated_files: list[str] | None = None,
 ) -> list[PatchScope]:
     # Terminal "nothing actually changed" stops should not schedule a
     # patcher LLM call. The visited-methods routing below would otherwise
@@ -169,12 +197,14 @@ def derive_patch_scopes(
     # nothing to update. Coverage-gap stops (UNCERTAIN /
     # BUDGET_EXHAUSTED / FRONTIER_EXHAUSTED) and non_traceable /
     # disconnected files are NOT short-circuited here — those genuinely
-    # need patching even when impacted_methods is empty.
+    # need patching even when impacted_methods is empty. Unallocated added
+    # files also force a patch round so the LLM can place them.
     if (
         trace_result.stop_reason in {TraceStopReason.COSMETIC_ONLY, TraceStopReason.NO_MATERIAL_IMPACT}
         and not trace_result.impacted_methods
         and not trace_result.non_traceable_files
         and not trace_result.disconnected_files
+        and not unallocated_files
     ):
         return []
 
@@ -192,12 +222,27 @@ def derive_patch_scopes(
     if not target_component_ids and trace_result.unresolved_frontier:
         target_component_ids = {component.component_id for component in root_analysis.components}
 
-    if not target_component_ids:
-        return []
-
     target_by_scope: dict[str | None, set[str]] = defaultdict(set)
     for component_id in target_component_ids:
         target_by_scope[ownership_index.component_to_scope.get(component_id)].add(component_id)
+
+    # Route unallocated files to the scope where their closest existing
+    # component lives. Each routed scope must yield a patch_scope so the LLM
+    # can allocate the files — fall back to "all components in the scope" when
+    # the trace produced no targets there.
+    unallocated_by_scope = (
+        _route_unallocated_files(list(unallocated_files), sub_analyses, ownership_index, rename_map)
+        if unallocated_files
+        else {}
+    )
+    for scope_id in unallocated_by_scope:
+        if not target_by_scope[scope_id]:
+            scope_analysis = root_analysis if scope_id is None else sub_analyses.get(scope_id)
+            if scope_analysis is not None:
+                target_by_scope[scope_id] = _scope_component_ids(scope_analysis)
+
+    if not target_by_scope:
+        return []
 
     should_widen = trace_result.stop_reason in {
         TraceStopReason.UNCERTAIN,
@@ -247,6 +292,7 @@ def derive_patch_scopes(
                     for file_path in trace_result.non_traceable_files + trace_result.disconnected_files
                     if ownership_index.pick_component_for_file(file_path, rename_map) in selected_ids
                 ],
+                unallocated_files=sorted(unallocated_by_scope.get(scope_id, [])),
                 semantic_impact_summary=trace_result.semantic_impact_summary,
             )
         )

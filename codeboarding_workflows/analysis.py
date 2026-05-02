@@ -152,6 +152,7 @@ def run_incremental(
         repo_path=generator.repo_location,
         output_dir=generator.output_dir,
         repo_name=generator.repo_name,
+        run_id=run_id,
         prepare_static_analysis=generator.prepare_static_analysis,
         build_file_coverage_summary=generator.build_file_coverage_summary,
         write_file_coverage=generator.write_file_coverage,
