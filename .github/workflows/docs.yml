@@ -124,14 +124,13 @@ jobs:
         working-directory: codeboarding-engine
         timeout-minutes: 30
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
-          VERCEL_API_KEY: ${{ secrets.VERCEL_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          AGENT_MODEL: ${{ secrets.AGENT_MODEL }}
+          PARSING_MODEL: ${{ secrets.PARSING_MODEL }}
           REPO_ROOT: ${{ github.workspace }}/codeboarding-engine/repos
           STATIC_ANALYSIS_CONFIG: ${{ github.workspace }}/codeboarding-engine/static_analysis_config.yml
           PROJECT_ROOT: ${{ github.workspace }}/codeboarding-engine
-          DIAGRAM_DEPTH_LEVEL: '5'
+          DIAGRAM_DEPTH_LEVEL: '2'
           CACHING_DOCUMENTATION: 'false'
           ENABLE_MONITORING: 'false'
         run: |
