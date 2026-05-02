@@ -15,8 +15,13 @@ files, scope_patch.new_components=[] and scope_patch.components=[].
 
 import pickle
 from pathlib import Path
+from unittest.mock import MagicMock
 
-from incremental_analysis.analysis_patcher import apply_scope_patch
+from incremental_analysis.analysis_patcher import (
+    AnalysisScopePatch,
+    apply_scope_patch,
+    patch_analysis_scope,
+)
 
 FIXTURE = Path(__file__).parent / "fixtures" / "scope_patch_telemetry_subsystem.pkl"
 
@@ -73,6 +78,56 @@ def test_apply_scope_patch_minted_component_is_brand_new_not_a_fold_in() -> None
         f"owner {owner.name!r} already existed in baseline — patcher folded into an existing component "
         f"instead of minting a new one"
     )
+
+
+def _stub_extractor(scope_patches: list[AnalysisScopePatch]) -> MagicMock:
+    """Build a fake trustcall extractor that returns the given AnalysisScopePatch
+    objects across successive `.invoke()` calls — one patch per call. trustcall's
+    real return shape is ``{"responses": [Pydantic instance, ...]}``."""
+    extractor = MagicMock()
+    extractor.invoke.side_effect = [{"responses": [sp]} for sp in scope_patches]
+    return extractor
+
+
+def test_patch_analysis_scope_retries_when_llm_returns_empty_patch(monkeypatch) -> None:
+    """When the first LLM response is a valid-but-empty AnalysisScopePatch (no
+    new components, no folds), patch_analysis_scope should retry with explicit
+    feedback and accept a complete patch on the next attempt — not silently
+    swallow the empty response and force the deterministic fallback."""
+    captured = _load()
+    analysis = captured["analysis"]
+    patch_scope = captured["patch_scope"]
+
+    empty = AnalysisScopePatch(scope_description="", components=[], new_components=[], relations=[])
+    good = AnalysisScopePatch(
+        scope_description="",
+        components=[],
+        new_components=[
+            {
+                "name": "Telemetry",
+                "description": "Background telemetry subsystem.",
+                "key_entities": [],
+                "owned_files": sorted(TELEMETRY_FILES),
+            }
+        ],
+        relations=[],
+    )
+
+    extractor = _stub_extractor([empty, good])
+    monkeypatch.setattr("incremental_analysis.analysis_patcher.create_extractor", lambda *a, **k: extractor)
+
+    result = patch_analysis_scope(analysis, patch_scope, agent_llm=MagicMock())
+
+    assert result is not None, "patch_analysis_scope should not give up after one empty response"
+    assert extractor.invoke.call_count == 2, f"expected exactly 2 LLM round-trips, got {extractor.invoke.call_count}"
+
+    owners = [c for c in result.components if TELEMETRY_FILES & _component_files(c)]
+    assert len(owners) == 1
+    assert owners[0].name == "Telemetry"
+    assert _component_files(owners[0]) >= TELEMETRY_FILES
+    assert not (owners[0].description or "").startswith(
+        "Auto-grouped fallback"
+    ), "deterministic fallback fired even though the retried LLM allocated correctly"
 
 
 def test_apply_scope_patch_minted_component_lives_under_scope_root() -> None:

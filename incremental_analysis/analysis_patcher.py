@@ -304,6 +304,34 @@ def _build_empty_response_feedback() -> HumanMessage:
     )
 
 
+def _build_unallocated_feedback(raw_response: dict, leftover: list[str]) -> HumanMessage:
+    return HumanMessage(
+        content=(
+            "Your previous AnalysisScopePatch did not allocate every path from `unallocated_files`. "
+            "The patcher contract requires each entry to be claimed exactly once.\n\n"
+            f"Still unallocated ({len(leftover)}):\n"
+            + "\n".join(f"  - {p}" for p in leftover)
+            + "\n\nReturn an updated AnalysisScopePatch where each of these paths appears in either:\n"
+            "  - `components[*].added_files` (folding into an existing target component), or\n"
+            "  - `new_components[*].owned_files` (creating a new component for them).\n\n"
+            "Previous output:\n"
+            f"```json\n{json.dumps(raw_response, indent=2)}\n```"
+        )
+    )
+
+
+def _leftover_unallocated(patch_scope: PatchScope, scope_patch: "AnalysisScopePatch") -> list[str]:
+    unallocated_set = set(patch_scope.unallocated_files)
+    target_ids = set(patch_scope.target_component_ids)
+    allocated: set[str] = set()
+    for cp in scope_patch.components:
+        if cp.component_id in target_ids:
+            allocated.update(p for p in cp.added_files if p in unallocated_set)
+    for spec in scope_patch.new_components:
+        allocated.update(p for p in spec.owned_files if p in unallocated_set)
+    return sorted(unallocated_set - allocated)
+
+
 def _build_validation_feedback(raw_response: dict, exc: ValidationError) -> HumanMessage:
     return HumanMessage(
         content=(
@@ -564,6 +592,17 @@ def patch_analysis_scope(
 
             raw_response = _response_to_payload(responses[0])
             scope_patch = AnalysisScopePatch.model_validate(_salvage_stringified_objects(raw_response))
+            leftover = _leftover_unallocated(patch_scope, scope_patch)
+            if leftover and attempt < _PATCH_MAX_ATTEMPTS:
+                logger.warning(
+                    "Scope patch left %d unallocated file(s) for %s — retrying with feedback (attempt %d/%d)",
+                    len(leftover),
+                    patch_scope.scope_id or "root",
+                    attempt,
+                    _PATCH_MAX_ATTEMPTS,
+                )
+                messages.append(_build_unallocated_feedback(raw_response, leftover))
+                continue
             return apply_scope_patch(analysis, patch_scope, scope_patch)
         except ValidationError as exc:
             logger.warning(
