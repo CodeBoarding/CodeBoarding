@@ -5,6 +5,7 @@ import pickle
 import time
 import uuid
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from langchain_core.messages import HumanMessage
@@ -442,6 +443,48 @@ def apply_scope_patch(
         patched.components.append(new_component)
         components_by_id[new_id] = new_component
         target_component_ids.add(new_id)
+
+    # Deterministic fallback: if the LLM ignored or only partially allocated the
+    # unallocated_files, group the leftovers by parent directory and mint one new
+    # component per group. Without this, an empty/short LLM response leaves files
+    # owned by no component at all — downstream consumers expect every changed
+    # file to land somewhere, and the patcher contract promises every path in
+    # `unallocated_files` is allocated exactly once.
+    leftover = sorted(unallocated_set - allocated_within_patch)
+    if leftover:
+        from collections import defaultdict
+
+        by_dir: dict[str, list[str]] = defaultdict(list)
+        for file_path in leftover:
+            by_dir[str(Path(file_path).parent)].append(file_path)
+        for parent_dir, paths in sorted(by_dir.items()):
+            base = Path(parent_dir).name or "new"
+            fallback_name = f"{base.replace('-', ' ').replace('_', ' ').title()} Subsystem"
+            suffix = 1
+            unique_name = fallback_name
+            while unique_name in existing_names:
+                suffix += 1
+                unique_name = f"{fallback_name} {suffix}"
+            new_id = _assign_new_component_id(patch_scope.scope_id, existing_ids)
+            existing_ids.add(new_id)
+            existing_names.add(unique_name)
+            new_component = Component(
+                name=unique_name,
+                description=f"Auto-grouped fallback for unallocated files under {parent_dir}/.",
+                key_entities=[],
+                file_methods=_file_methods_for_paths(patched, paths, allocated_within_patch),
+                component_id=new_id,
+            )
+            patched.components.append(new_component)
+            components_by_id[new_id] = new_component
+            target_component_ids.add(new_id)
+            logger.info(
+                "[PATCHER] LLM left %d file(s) under %s/ unallocated; minted fallback component '%s' (id=%s)",
+                len(paths),
+                parent_dir,
+                unique_name,
+                new_id,
+            )
 
     returned_relations = {
         _relation_key_from_ids(relation_patch.src_id, relation_patch.dst_id): relation_patch
