@@ -8,9 +8,8 @@ repo path and the minimum context needed to run; they are source-agnostic
 import logging
 from pathlib import Path
 
+from codeboarding_workflows.incremental import run_incremental_workflow
 from diagram_analysis import DiagramGenerator
-from diagram_analysis.incremental_payload import IncrementalRunPayload
-from diagram_analysis.incremental_pipeline import run_incremental_pipeline
 from diagram_analysis.io_utils import load_full_analysis, save_sub_analysis
 from diagram_analysis.run_metadata import write_full_run_metadata
 
@@ -128,13 +127,16 @@ def run_incremental(
     project_name: str,
     run_id: str,
     log_path: str,
-    base_ref: str,
-    target_ref: str,
     depth_level: int = 1,
     monitoring_enabled: bool = False,
     static_analyzer=None,
-) -> IncrementalRunPayload:
-    """Incremental scope — diff against *base_ref* and propagate only the semantic deltas."""
+) -> Path:
+    """Incremental scope — cluster-driven update of an existing ``analysis.json``.
+
+    Returns the path to the (possibly updated) analysis. When no baseline or
+    cluster snapshot exists, falls back to a full run via
+    ``run_incremental_workflow``.
+    """
     generator = _build_generator(
         repo_name=project_name,
         repo_path=repo_path,
@@ -145,4 +147,4 @@ def run_incremental(
         monitoring_enabled=monitoring_enabled,
         static_analyzer=static_analyzer,
     )
-    return run_incremental_pipeline(generator, base_ref=base_ref, target_ref=target_ref)
+    return run_incremental_workflow(generator)

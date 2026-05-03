@@ -114,6 +114,14 @@ class ClustersComponent(LLMBaseModel):
     description: str = Field(
         description="Explanation of what this component does, its main flow, WHY these clusters are grouped together, how it interacts with other cluster groups, and the most important classes/methods (by their exact qualified names from the clusters)"
     )
+    parent_id: str | None = Field(
+        default=None,
+        description=(
+            "Used only by the incremental flow when this name is brand-new: "
+            "the existing component_id under which the new component should attach "
+            "(or null to attach at root). Ignored when the name matches an existing component."
+        ),
+    )
 
     def llm_str(self):
         ids_str = ", ".join(str(cid) for cid in self.cluster_ids)
@@ -150,15 +158,6 @@ class MethodEntry(BaseModel):
         if not isinstance(other, MethodEntry):
             return NotImplemented
         return self.qualified_name == other.qualified_name
-
-    @classmethod
-    def from_method_change(cls, method_change) -> MethodEntry:
-        return cls(
-            qualified_name=method_change.qualified_name,
-            start_line=method_change.start_line,
-            end_line=method_change.end_line,
-            node_type=method_change.node_type,
-        )
 
     @classmethod
     def from_node(cls, node) -> MethodEntry:
@@ -218,6 +217,17 @@ class Component(LLMBaseModel):
         exclude=True,
     )
 
+    cluster_members: dict[int, list[str]] = Field(
+        description=(
+            "Per-cluster member qualified names within this component. "
+            "Keys are entries from source_cluster_ids; values are sorted qnames. "
+            "Used by the incremental pipeline to reconstruct the prior CFG "
+            "clustering without a separate sidecar file."
+        ),
+        default_factory=dict,
+        exclude=True,
+    )
+
     component_id: str = Field(
         default="",
         description="Deterministic unique identifier for this component.",
@@ -264,7 +274,7 @@ class AnalysisInsights(LLMBaseModel):
         return {str(PurePosixPath(fg.file_path)): c.component_id for c in self.components for fg in c.file_methods}
 
 
-def assign_component_ids(analysis: AnalysisInsights, parent_id: str = "") -> None:
+def assign_component_ids(analysis: AnalysisInsights, parent_id: str = "", only_new: bool = False) -> None:
     """Assign hierarchical component IDs based on sibling index.
 
     IDs encode structural position in the component tree:
@@ -272,11 +282,28 @@ def assign_component_ids(analysis: AnalysisInsights, parent_id: str = "") -> Non
     - Under "1" (parent_id="1"): "1.1", "1.2"
     - Under "1.2" (parent_id="1.2"): "1.2.1", "1.2.2"
 
-    These IDs serve as both component identifiers and cluster IDs,
-    enabling hierarchical relationship generalization.
+    With ``only_new=True`` (incremental path), components that already carry a
+    populated ``component_id`` are preserved verbatim and only siblings with an
+    empty id are assigned a fresh slot — used when stitching new components into
+    an existing tree without renumbering survivors.
     """
-    for idx, component in enumerate(analysis.components, start=1):
-        component.component_id = f"{parent_id}.{idx}" if parent_id else str(idx)
+    if only_new:
+        used_indices: set[int] = set()
+        for component in analysis.components:
+            if not component.component_id:
+                continue
+            tail = component.component_id.split(".")[-1]
+            if tail.isdigit():
+                used_indices.add(int(tail))
+        next_idx = max(used_indices, default=0) + 1
+        for component in analysis.components:
+            if component.component_id:
+                continue
+            component.component_id = f"{parent_id}.{next_idx}" if parent_id else str(next_idx)
+            next_idx += 1
+    else:
+        for idx, component in enumerate(analysis.components, start=1):
+            component.component_id = f"{parent_id}.{idx}" if parent_id else str(idx)
 
     # Assign relation IDs by looking up component names (first occurrence wins for duplicates)
     name_to_id: dict[str, str] = {}

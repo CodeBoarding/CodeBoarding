@@ -12,7 +12,14 @@ from typing import Any
 from agents.abstraction_agent import AbstractionAgent
 from agents.agent_responses import AnalysisInsights, Component, MethodEntry
 from agents.details_agent import DetailsAgent
-from agents.llm_config import MONITORING_CALLBACK, initialize_llms
+from agents.incremental_agent import (
+    IncrementalAgent,
+    prune_empty_components,
+    repopulate_touched_scopes,
+    scrub_deleted_files,
+    stitch_delta,
+)
+from agents.llm_config import initialize_llms
 from agents.meta_agent import MetaAgent
 from agents.planner_agent import get_expandable_components
 from diagram_analysis.analysis_json import (
@@ -20,17 +27,10 @@ from diagram_analysis.analysis_json import (
     FileCoverageSummary,
     NotAnalyzedFile,
 )
+from diagram_analysis.cluster_delta import compute_cluster_delta
+from diagram_analysis.cluster_snapshot import snapshot_from_analysis
 from diagram_analysis.file_coverage import FileCoverage
-from diagram_analysis.incremental_tracer import run_trace
-from diagram_analysis.incremental_updater import IncrementalUpdater, apply_method_delta
 from diagram_analysis.io_utils import save_analysis
-from diagram_analysis.scope_planner import (
-    apply_patch_scopes,
-    build_ownership_index,
-    derive_patch_scopes,
-    normalize_changes_for_delta,
-    pick_component_for_file,
-)
 from diagram_analysis.version import Version
 from health.config import initialize_health_dir, load_health_config
 from health.runner import run_health_checks
@@ -374,13 +374,14 @@ class DiagramGenerator:
             # Process components using a frontier queue: submit children as soon as parent finishes.
             expanded_components, sub_analyses = self._generate_subcomponents(analysis, root_components)
 
+            commit_hash = get_git_commit_hash(self.repo_location)
             analysis_path = save_analysis(
                 analysis=analysis,
                 output_dir=Path(self.output_dir),
                 sub_analyses=sub_analyses,
                 repo_name=self.repo_name,
                 file_coverage_summary=self._build_file_coverage_summary(),
-                commit_hash=get_git_commit_hash(self.repo_location),
+                commit_hash=commit_hash,
             ).resolve()
 
             logger.info(f"Analysis complete. Written unified analysis to {analysis_path}")
@@ -448,70 +449,132 @@ class DiagramGenerator:
         self,
         root_analysis: AnalysisInsights,
         sub_analyses: dict[str, AnalysisInsights],
-        base_ref: str,
-        changes,
     ) -> Path:
-        if self.static_analysis is None:
+        """Cluster-driven incremental update of an existing ``analysis.json``.
+
+        Mirrors the full-analysis pipeline: a deterministic cluster delta, one
+        LLM call to route the delta clusters to existing/new components, then
+        the same ``_generate_subcomponents`` frontier queue seeded with only the
+        components whose clusters actually changed. Returns the path to the
+        updated analysis. The prior CFG clustering is reconstructed inline
+        from ``Component.cluster_members`` (no sidecar file); when no
+        baseline cluster info is present, falls back to a full
+        ``generate_analysis()`` run.
+        """
+        if self.details_agent is None or self.abstraction_agent is None:
             self.pre_analysis()
         assert self.static_analysis is not None
+        assert self.abstraction_agent is not None
 
-        ownership_index = build_ownership_index(root_analysis, sub_analyses)
-        added_files, modified_files, deleted_files, rename_map = normalize_changes_for_delta(changes)
-        methods_by_file = self._collect_method_entries_from_static_analysis()
+        # Drop references to deleted files BEFORE any cluster math. Without
+        # this step, components keep stale ``file_methods``/``key_entities``
+        # that point at files no longer on disk; deleted-file scenarios
+        # don't always surface as cluster-id changes (orphan-routed files
+        # were never in any cluster), so the cluster pipeline alone can't
+        # detect them. After scrub, the prune step at the end naturally
+        # removes any component left with no file groups.
+        live_files: set[str] = set()
+        for language in self.static_analysis.get_languages():
+            try:
+                cfg = self.static_analysis.get_cfg(language)
+            except (ValueError, KeyError):
+                continue
+            for node in cfg.nodes.values():
+                if node.file_path:
+                    # CFG node file_paths can be absolute (under a snapshot
+                    # worktree) or repo-relative. Components store the
+                    # repo-relative form, so normalise both.
+                    relative = node.file_path
+                    try:
+                        relative = str(Path(node.file_path).resolve().relative_to(Path(self.repo_location).resolve()))
+                    except (ValueError, OSError):
+                        pass
+                    live_files.add(relative)
+                    live_files.add(node.file_path)
+        scrub_deleted_files(root_analysis, sub_analyses, live_files)
 
-        updater = IncrementalUpdater(
-            analysis=root_analysis,
-            symbol_resolver=lambda file_path: methods_by_file.get(self._normalize_repo_path(file_path), []),
-            repo_dir=self.repo_location,
-            component_resolver=lambda file_path: pick_component_for_file(file_path, ownership_index, rename_map),
-        )
-        delta = updater.compute_delta(
-            added_files=added_files,
-            modified_files=modified_files,
-            deleted_files=deleted_files,
-            changes=changes,
-        )
+        old_snapshot = snapshot_from_analysis(root_analysis, sub_analyses, self.static_analysis)
+        if not old_snapshot.all_cluster_ids():
+            logger.info("Baseline analysis has no cluster_members; falling back to full analysis.")
+            return self.generate_analysis()
 
-        apply_method_delta(root_analysis, sub_analyses, delta)
-        post_delta_ownership_index = build_ownership_index(root_analysis, sub_analyses)
+        delta = compute_cluster_delta(old_snapshot, self.static_analysis)
+        if not delta.has_changes:
+            logger.info("Cluster delta is empty; rewriting current analysis without re-detailing.")
+            commit_hash = get_git_commit_hash(self.repo_location)
+            analysis_path = save_analysis(
+                analysis=root_analysis,
+                output_dir=Path(self.output_dir),
+                sub_analyses=sub_analyses,
+                repo_name=self.repo_name,
+                file_coverage_summary=self._build_file_coverage_summary(),
+                commit_hash=commit_hash,
+            ).resolve()
+            self._write_file_coverage()
+            return analysis_path
 
         agent_llm, parsing_llm = initialize_llms()
-        callbacks = [MONITORING_CALLBACK]
-        cfgs = {
-            language: self.static_analysis.get_cfg(language)
-            for language in self.static_analysis.get_languages()
-            if self.static_analysis.get_source_files(language)
-        }
-        trace_result = run_trace(
-            delta,
-            cfgs,
-            self.static_analysis,
-            self.repo_location,
-            base_ref,
-            parsing_llm,
-            parsed_diff=getattr(changes, "parsed_diff", None),
-            callbacks=callbacks,
+        incremental_agent = IncrementalAgent(
+            repo_dir=self.repo_location,
+            static_analysis=self.static_analysis,
+            project_name=self.repo_name,
+            meta_context=self.meta_context,
+            agent_llm=agent_llm,
+            parsing_llm=parsing_llm,
         )
+        delta_cluster_analysis = incremental_agent.step_group_delta(delta, root_analysis, sub_analyses)
 
-        patch_scopes = derive_patch_scopes(
-            trace_result,
+        redetail_ids = stitch_delta(root_analysis, sub_analyses, delta_cluster_analysis, delta)
+
+        # Refresh file_methods for redetailed components first (per-component
+        # subgraph; siblings stay untouched), then prune anything that ended
+        # up with zero owned methods. Order matters: a component's source
+        # may be deleted but we only know it's truly empty after rebuilding
+        # file_methods from the live CFG.
+        repopulate_touched_scopes(
+            redetail_ids,
             root_analysis,
             sub_analyses,
-            post_delta_ownership_index,
-            rename_map,
+            delta.cluster_results(),
+            self.abstraction_agent,
         )
-        if patch_scopes:
-            root_analysis, sub_analyses = apply_patch_scopes(
-                root_analysis, sub_analyses, patch_scopes, agent_llm, callbacks
-            )
+        removed_ids = prune_empty_components(root_analysis, sub_analyses)
+        if removed_ids:
+            redetail_ids -= removed_ids
 
+        # Seed the frontier queue with the redetail set; the same queue used by
+        # the full path will recurse into newly expandable children.
+        redetail_components = _collect_components_by_id(redetail_ids, root_analysis, sub_analyses)
+        if redetail_components:
+            _, redetailed_subs = self._generate_subcomponents(root_analysis, redetail_components)
+            sub_analyses.update(redetailed_subs)
+
+        commit_hash = get_git_commit_hash(self.repo_location)
         analysis_path = save_analysis(
             analysis=root_analysis,
             output_dir=Path(self.output_dir),
             sub_analyses=sub_analyses,
             repo_name=self.repo_name,
             file_coverage_summary=self._build_file_coverage_summary(),
-            commit_hash=get_git_commit_hash(self.repo_location),
+            commit_hash=commit_hash,
         ).resolve()
         self._write_file_coverage()
         return analysis_path
+
+
+def _collect_components_by_id(
+    component_ids: set[str],
+    root_analysis: AnalysisInsights,
+    sub_analyses: dict[str, AnalysisInsights],
+) -> list[Component]:
+    """Return concrete ``Component`` objects matching the given IDs across root + sub-analyses."""
+    if not component_ids:
+        return []
+    found: list[Component] = []
+    seen: set[str] = set()
+    for analysis in [root_analysis, *sub_analyses.values()]:
+        for component in analysis.components:
+            if component.component_id in component_ids and component.component_id not in seen:
+                found.append(component)
+                seen.add(component.component_id)
+    return found

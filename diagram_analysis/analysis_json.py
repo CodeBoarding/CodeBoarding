@@ -41,6 +41,14 @@ class ComponentJson(Component):
         description="Component method references grouped by file. Each methods entry stores only qualified_name.",
         default_factory=list,
     )
+    cluster_members: dict[int, list[str]] = Field(
+        default_factory=dict,
+        description=(
+            "Per-cluster member qualified names within this component, "
+            "keyed by cluster id. Lets the incremental pipeline reconstruct "
+            "the prior CFG clustering without a separate sidecar file."
+        ),
+    )
     # Exclude intermediate field from JSON output
     source_group_names: list[str] = Field(default_factory=list, exclude=True)
     # Nested sub-analysis for expanded components
@@ -279,6 +287,7 @@ def from_component_to_json_component(
         key_entities=component.key_entities,
         source_cluster_ids=component.source_cluster_ids,
         file_methods=_to_component_file_method_refs(component.file_methods),
+        cluster_members={cid: sorted(set(qnames)) for cid, qnames in component.cluster_members.items()},
         can_expand=can_expand,
         components=nested_components,
         components_relations=nested_relations,
@@ -497,6 +506,8 @@ def _extract_analysis_recursive(
         # Create the component for this level (non-nested)
         legacy_prefix = f"{parent_component_id}_" if parent_component_id else ""
         fallback_component_id = f"legacy_component_{legacy_prefix}{index}"
+        cluster_members_raw = comp_data.get("cluster_members", {}) or {}
+        cluster_members = {int(cid): list(members) for cid, members in cluster_members_raw.items()}
         component = Component(
             name=comp_data.get("name", fallback_component_id),
             component_id=comp_data.get("component_id") or fallback_component_id,
@@ -504,6 +515,7 @@ def _extract_analysis_recursive(
             key_entities=key_entities,
             file_methods=file_methods,
             source_cluster_ids=comp_data.get("source_cluster_ids", []),
+            cluster_members=cluster_members,
         )
         components.append(component)
 

@@ -15,7 +15,7 @@ def test_run_incremental_forwards_static_analyzer_to_generator(tmp_path: Path) -
 
     with (
         patch("codeboarding_workflows.analysis.DiagramGenerator") as gen_cls,
-        patch("codeboarding_workflows.analysis.run_incremental_pipeline", return_value=MagicMock()),
+        patch("codeboarding_workflows.analysis.run_incremental_workflow", return_value=tmp_path / "analysis.json"),
     ):
         run_incremental(
             repo_path=tmp_path,
@@ -23,8 +23,6 @@ def test_run_incremental_forwards_static_analyzer_to_generator(tmp_path: Path) -
             project_name="proj",
             run_id="rid",
             log_path="logs/run.log",
-            base_ref="abc",
-            target_ref="",
             static_analyzer=sentinel_analyzer,
         )
 
