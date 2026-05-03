@@ -7,7 +7,6 @@ from codeboarding_workflows.analysis import run_partial
 from codeboarding_workflows.orchestration import run_analysis_pipeline
 from codeboarding_workflows.sources import SourceContext, local_source
 from diagram_analysis import RunContext
-from repo_utils.ignore import initialize_codeboardingignore
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +43,6 @@ def run_from_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> 
     logger.info("Starting CodeBoarding partial component update...")
 
     run_paths.output_dir.mkdir(parents=True, exist_ok=True)
-    initialize_codeboardingignore(run_paths.output_dir)
 
     def scope(src: SourceContext, run_context: RunContext) -> None:
         run_partial(
