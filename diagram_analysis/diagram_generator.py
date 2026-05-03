@@ -464,47 +464,100 @@ class DiagramGenerator:
         assert self.static_analysis is not None
         assert self.abstraction_agent is not None
 
-        # Drop references to deleted files BEFORE any cluster math. Without
-        # this step, components keep stale ``file_methods``/``key_entities``
-        # that point at files no longer on disk; deleted-file scenarios
-        # don't always surface as cluster-id changes (orphan-routed files
-        # were never in any cluster), so the cluster pipeline alone can't
-        # detect them. After scrub, the prune step at the end naturally
-        # removes any component left with no file groups.
-        live_files: set[str] = set()
-        for language in self.static_analysis.get_languages():
-            try:
-                cfg = self.static_analysis.get_cfg(language)
-            except (ValueError, KeyError):
-                continue
-            for node in cfg.nodes.values():
-                if node.file_path:
-                    # CFG node file_paths can be absolute (under a snapshot
-                    # worktree) or repo-relative. Components store the
-                    # repo-relative form, so normalise both.
-                    relative = node.file_path
-                    try:
-                        relative = str(Path(node.file_path).resolve().relative_to(Path(self.repo_location).resolve()))
-                    except (ValueError, OSError):
-                        pass
-                    live_files.add(relative)
-                    live_files.add(node.file_path)
-        scrub_deleted_files(root_analysis, sub_analyses, live_files)
+        monitor = self.stats_writer if self.stats_writer else nullcontext()
+        with monitor:
+            # Drop references to deleted files BEFORE any cluster math. Without
+            # this step, components keep stale ``file_methods``/``key_entities``
+            # that point at files no longer on disk; deleted-file scenarios
+            # don't always surface as cluster-id changes (orphan-routed files
+            # were never in any cluster), so the cluster pipeline alone can't
+            # detect them. After scrub, the prune step at the end naturally
+            # removes any component left with no file groups.
+            live_files: set[str] = set()
+            for language in self.static_analysis.get_languages():
+                try:
+                    cfg = self.static_analysis.get_cfg(language)
+                except (ValueError, KeyError):
+                    continue
+                for node in cfg.nodes.values():
+                    if node.file_path:
+                        # CFG node file_paths can be absolute (under a snapshot
+                        # worktree) or repo-relative. Components store the
+                        # repo-relative form, so normalise both.
+                        relative = node.file_path
+                        try:
+                            relative = str(
+                                Path(node.file_path).resolve().relative_to(Path(self.repo_location).resolve())
+                            )
+                        except (ValueError, OSError):
+                            pass
+                        live_files.add(relative)
+                        live_files.add(node.file_path)
+            scrub_deleted_files(root_analysis, sub_analyses, live_files)
 
-        old_snapshot = snapshot_from_analysis(root_analysis, sub_analyses, self.static_analysis)
-        if not old_snapshot.all_cluster_ids():
-            logger.info("Baseline analysis has no cluster_members; falling back to full analysis.")
-            return self.generate_analysis()
+            old_snapshot = snapshot_from_analysis(root_analysis, sub_analyses, self.static_analysis)
+            if not old_snapshot.all_cluster_ids():
+                logger.info("Baseline analysis has no cluster_members; falling back to full analysis.")
+                return self.generate_analysis()
 
-        delta = compute_cluster_delta(
-            old_snapshot,
-            self.static_analysis,
-            changes=self.changes,
-            repo_dir=self.repo_location,
-        )
-        if not delta.has_changes:
-            logger.info("Cluster delta is empty; rewriting current analysis without re-detailing.")
-            prune_empty_components(root_analysis, sub_analyses)
+            delta = compute_cluster_delta(
+                old_snapshot,
+                self.static_analysis,
+                changes=self.changes,
+                repo_dir=self.repo_location,
+            )
+            if not delta.has_changes:
+                logger.info("Cluster delta is empty; rewriting current analysis without re-detailing.")
+                prune_empty_components(root_analysis, sub_analyses)
+                commit_hash = get_git_commit_hash(self.repo_location)
+                analysis_path = save_analysis(
+                    analysis=root_analysis,
+                    output_dir=Path(self.output_dir),
+                    sub_analyses=sub_analyses,
+                    repo_name=self.repo_name,
+                    file_coverage_summary=self._build_file_coverage_summary(),
+                    commit_hash=commit_hash,
+                ).resolve()
+                self._write_file_coverage()
+                return analysis_path
+
+            agent_llm, parsing_llm = initialize_llms()
+            incremental_agent = IncrementalAgent(
+                repo_dir=self.repo_location,
+                static_analysis=self.static_analysis,
+                project_name=self.repo_name,
+                meta_context=self.meta_context,
+                agent_llm=agent_llm,
+                parsing_llm=parsing_llm,
+            )
+            self._monitoring_agents["IncrementalAgent"] = incremental_agent
+            delta_cluster_analysis = incremental_agent.step_group_delta(delta, root_analysis, sub_analyses)
+
+            redetail_ids = stitch_delta(root_analysis, sub_analyses, delta_cluster_analysis, delta)
+
+            # Refresh file_methods for redetailed components first (per-component
+            # subgraph; siblings stay untouched), then prune anything that ended
+            # up with zero owned methods. Order matters: a component's source
+            # may be deleted but we only know it's truly empty after rebuilding
+            # file_methods from the live CFG.
+            repopulate_touched_scopes(
+                redetail_ids,
+                root_analysis,
+                sub_analyses,
+                delta.cluster_results(),
+                self.abstraction_agent,
+            )
+            removed_ids = prune_empty_components(root_analysis, sub_analyses)
+            if removed_ids:
+                redetail_ids -= removed_ids
+
+            # Seed the frontier queue with the redetail set; the same queue used by
+            # the full path will recurse into newly expandable children.
+            redetail_components = _collect_components_by_id(redetail_ids, root_analysis, sub_analyses)
+            if redetail_components:
+                _, redetailed_subs = self._generate_subcomponents(root_analysis, redetail_components)
+                sub_analyses.update(redetailed_subs)
+
             commit_hash = get_git_commit_hash(self.repo_location)
             analysis_path = save_analysis(
                 analysis=root_analysis,
@@ -516,54 +569,6 @@ class DiagramGenerator:
             ).resolve()
             self._write_file_coverage()
             return analysis_path
-
-        agent_llm, parsing_llm = initialize_llms()
-        incremental_agent = IncrementalAgent(
-            repo_dir=self.repo_location,
-            static_analysis=self.static_analysis,
-            project_name=self.repo_name,
-            meta_context=self.meta_context,
-            agent_llm=agent_llm,
-            parsing_llm=parsing_llm,
-        )
-        delta_cluster_analysis = incremental_agent.step_group_delta(delta, root_analysis, sub_analyses)
-
-        redetail_ids = stitch_delta(root_analysis, sub_analyses, delta_cluster_analysis, delta)
-
-        # Refresh file_methods for redetailed components first (per-component
-        # subgraph; siblings stay untouched), then prune anything that ended
-        # up with zero owned methods. Order matters: a component's source
-        # may be deleted but we only know it's truly empty after rebuilding
-        # file_methods from the live CFG.
-        repopulate_touched_scopes(
-            redetail_ids,
-            root_analysis,
-            sub_analyses,
-            delta.cluster_results(),
-            self.abstraction_agent,
-        )
-        removed_ids = prune_empty_components(root_analysis, sub_analyses)
-        if removed_ids:
-            redetail_ids -= removed_ids
-
-        # Seed the frontier queue with the redetail set; the same queue used by
-        # the full path will recurse into newly expandable children.
-        redetail_components = _collect_components_by_id(redetail_ids, root_analysis, sub_analyses)
-        if redetail_components:
-            _, redetailed_subs = self._generate_subcomponents(root_analysis, redetail_components)
-            sub_analyses.update(redetailed_subs)
-
-        commit_hash = get_git_commit_hash(self.repo_location)
-        analysis_path = save_analysis(
-            analysis=root_analysis,
-            output_dir=Path(self.output_dir),
-            sub_analyses=sub_analyses,
-            repo_name=self.repo_name,
-            file_coverage_summary=self._build_file_coverage_summary(),
-            commit_hash=commit_hash,
-        ).resolve()
-        self._write_file_coverage()
-        return analysis_path
 
 
 def _collect_components_by_id(
