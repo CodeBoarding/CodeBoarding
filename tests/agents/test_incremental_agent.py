@@ -208,6 +208,58 @@ class TestRepopulateTouchedScopes(unittest.TestCase):
         helpers.build_static_relations.assert_not_called()
 
 
+class TestRefreshComponentFileMethodsPathNormalization(unittest.TestCase):
+    """``_refresh_component_file_methods`` must normalize absolute snapshot-
+    worktree paths before substring-matching against qnames. Without that
+    normalization the absolute prefix poisons the match and every qname
+    falls through to the alphabetical fallback, bucketing 100s of methods
+    under whichever file sorts first (e.g. ``shared/incrementalTypes.ts``
+    in test 04). Reproduces the test 04 misbucketing bug."""
+
+    def test_absolute_paths_in_cluster_to_files_normalize_before_matching(self) -> None:
+        from agents.agent_responses import MethodEntry
+        from agents.incremental_agent import _refresh_component_file_methods
+        from static_analyzer.graph import ClusterResult
+
+        repo_dir = "/tmp/snapshot-worktree"
+        # Mirror what static_analyzer's CFG produces under a snapshot worktree:
+        # every ``cluster_to_files`` entry is an absolute path under repo_dir.
+        cluster_to_files = {
+            1: {
+                f"{repo_dir}/shared/incrementalTypes.ts",
+                f"{repo_dir}/webview-ui/src/components/HealthSummary.tsx",
+            }
+        }
+        clusters = {
+            1: {
+                "shared.incrementalTypes.MethodChange",
+                "webview-ui.src.components.HealthSummary.HealthSummaryProps",
+            }
+        }
+        cluster_results = {"typescript": ClusterResult(clusters=clusters, cluster_to_files=cluster_to_files)}
+        node_lookup = {
+            qname: MethodEntry(qualified_name=qname, start_line=1, end_line=1, node_type="FUNCTION")
+            for qname in clusters[1]
+        }
+
+        comp = _component("UI Bridge", "1", source_cluster_ids=[1])
+        _refresh_component_file_methods(comp, cluster_results, node_lookup, repo_dir)
+
+        by_file = {g.file_path: [m.qualified_name for m in g.methods] for g in comp.file_methods}
+        self.assertIn("shared/incrementalTypes.ts", by_file)
+        self.assertIn("webview-ui/src/components/HealthSummary.tsx", by_file)
+        self.assertEqual(
+            by_file["shared/incrementalTypes.ts"],
+            ["shared.incrementalTypes.MethodChange"],
+            "incrementalTypes qname must NOT pull in HealthSummary qnames via fallback",
+        )
+        self.assertEqual(
+            by_file["webview-ui/src/components/HealthSummary.tsx"],
+            ["webview-ui.src.components.HealthSummary.HealthSummaryProps"],
+            "HealthSummary qname must bucket to its own file via substring match (post-normalization)",
+        )
+
+
 class TestIncrementalAgentToolkit(unittest.TestCase):
     """Constructor wiring: routing should never see the full ReAct toolkit.
 

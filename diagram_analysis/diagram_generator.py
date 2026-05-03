@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from agents.abstraction_agent import AbstractionAgent
-from agents.agent_responses import AnalysisInsights, Component, MethodEntry
+from agents.agent_responses import AnalysisInsights, Component, MetaAnalysisInsights, MethodEntry
 from agents.details_agent import DetailsAgent
 from agents.incremental_agent import (
     IncrementalAgent,
@@ -85,7 +85,7 @@ class DiagramGenerator:
         self.static_analysis: StaticAnalysisResults | None = None  # Cache static analysis for reuse
         self.abstraction_agent: AbstractionAgent | None = None
         self.meta_agent: MetaAgent | None = None
-        self.meta_context: Any | None = None
+        self.meta_context: MetaAnalysisInsights | None = None
         self.file_coverage_data: dict | None = None
 
         self._monitoring_agents: dict[str, MonitoringMixin] = {}
@@ -212,6 +212,7 @@ class DiagramGenerator:
             meta_context = meta_future.result()
 
         self.static_analysis = static_analysis
+        self.meta_context = meta_context
 
         # --- Capture Static Analysis Stats ---
         static_stats: dict[str, Any] = {"repo_name": self.repo_name, "languages": {}}

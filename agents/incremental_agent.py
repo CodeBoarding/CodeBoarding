@@ -440,10 +440,13 @@ def _refresh_component_file_methods(
     # qname -> file_path lookup also lives on node_lookup_files, built
     # alongside node_lookup; we encode it inline by re-deriving from the
     # ClusterResult's cluster_to_files which is the canonical mapping.
+    # Paths are normalized to repo-relative posix here once so the substring
+    # match in ``_pick_file_for_qname`` doesn't get poisoned by absolute
+    # snapshot-worktree prefixes (``/private/var/.../snapshot-worktree/...``).
     qname_to_files: dict[str, set[str]] = {}
     for cr in cluster_results.values():
         for cid, members in cr.clusters.items():
-            files = cr.cluster_to_files.get(cid, set())
+            files = {normalize_repo_path(fp, repo_root) for fp in cr.cluster_to_files.get(cid, set())}
             for qname in members:
                 qname_to_files.setdefault(qname, set()).update(files)
 
@@ -453,15 +456,14 @@ def _refresh_component_file_methods(
             members = cr.clusters.get(cid)
             if not members:
                 continue
+            files_for_cluster = {normalize_repo_path(fp, repo_root) for fp in cr.cluster_to_files.get(cid, set())}
             for qname in members:
                 method = node_lookup.get(qname)
                 if method is None:
                     continue
-                files_for_cluster = cr.cluster_to_files.get(cid, set())
                 file_path = _pick_file_for_qname(qname, files_for_cluster, qname_to_files)
                 if not file_path:
                     continue
-                file_path = normalize_repo_path(file_path, repo_root)
                 by_file.setdefault(file_path, []).append(method)
 
     component.file_methods = [
