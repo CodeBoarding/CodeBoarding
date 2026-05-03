@@ -503,6 +503,7 @@ class DiagramGenerator:
         )
         if not delta.has_changes:
             logger.info("Cluster delta is empty; rewriting current analysis without re-detailing.")
+            prune_empty_components(root_analysis, sub_analyses)
             commit_hash = get_git_commit_hash(self.repo_location)
             analysis_path = save_analysis(
                 analysis=root_analysis,
