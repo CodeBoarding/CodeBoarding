@@ -17,11 +17,14 @@ routing would produce noise.
 
 import logging
 from dataclasses import dataclass, field
+from pathlib import Path
 
 import networkx as nx
 import networkx.algorithms.community as nx_comm
 
 from diagram_analysis.cluster_snapshot import ClusterSnapshot, ClusterSnapshotEntry
+from diagram_analysis.io_utils import normalize_repo_path
+from repo_utils.change_detector import ChangeSet
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cluster_helpers import build_all_cluster_results
 from static_analyzer.graph import ClusterResult
@@ -75,17 +78,52 @@ def compute_cluster_delta(
     old_snapshot: ClusterSnapshot,
     new_static: StaticAnalysisResults,
     threshold: float = FULL_RECLUSTER_THRESHOLD,
+    changes: ChangeSet | None = None,
+    repo_dir: Path | None = None,
 ) -> ClusterDelta:
-    """Compute per-language cluster deltas. See module docstring for flavor details."""
+    """Compute per-language cluster deltas. See module docstring for flavor details.
+
+    When ``changes`` is provided, the cluster delta filters drift noise:
+    qnames whose file is outside the source diff AND outside the prior analysis
+    are dropped, since neither side considers them tracked changes. Qnames in
+    the prior analysis that vanish without their file appearing in the diff
+    are kept (the LLM should reason about the inconsistency) but logged as a
+    warning so drift is visible.
+
+    ``repo_dir`` is used to normalize CFG-absolute paths down to repo-relative
+    posix so they can be compared against the diff's repo-relative paths.
+
+    When ``changes`` is ``None`` (e.g., GitHub Action callers without a diff
+    source), no scoping is applied — current behavior.
+    """
     fresh_clusters = build_all_cluster_results(new_static)
     delta = ClusterDelta()
+    diff_files = _changeset_to_path_set(changes) if changes is not None else None
     for language in new_static.get_languages():
         cfg = new_static.get_cfg(language)
         nx_graph = cfg.to_networkx()
         old_clusters = old_snapshot.get_language(language)
         fresh_for_lang = fresh_clusters.get(language, ClusterResult())
-        delta.by_language[language] = _delta_for_language(language, nx_graph, old_clusters, fresh_for_lang, threshold)
+        delta.by_language[language] = _delta_for_language(
+            language, nx_graph, old_clusters, fresh_for_lang, threshold, diff_files, repo_dir
+        )
     return delta
+
+
+def _changeset_to_path_set(changes: ChangeSet) -> set[str]:
+    """Collect every path mentioned by a ChangeSet — including renames' old paths.
+
+    Renames are an edge case: ``FileChange.file_path`` is the new path,
+    ``FileChange.old_path`` the old. A qname under the old path that
+    survives in the fresh CFG would otherwise look like drift; including
+    both sides keeps that case in the diff scope.
+    """
+    paths: set[str] = set()
+    for fc in changes.files:
+        paths.add(fc.file_path)
+        if fc.old_path:
+            paths.add(fc.old_path)
+    return paths
 
 
 def _delta_for_language(
@@ -94,6 +132,8 @@ def _delta_for_language(
     old_clusters: dict[int, ClusterSnapshotEntry],
     fresh_for_lang: ClusterResult,
     threshold: float,
+    diff_files: set[str] | None = None,
+    repo_dir: Path | None = None,
 ) -> LanguageDelta:
     # Universe is the set of nodes ACTUALLY assigned to a cluster in either
     # the prior snapshot or the fresh clustering. ``cfg.cluster()`` filters
@@ -108,8 +148,50 @@ def _delta_for_language(
     if not universe:
         return LanguageDelta(language=language, cluster_results=fresh_for_lang)
 
-    added_nodes = fresh_member_union - old_member_union
-    removed_nodes = old_member_union - fresh_member_union
+    raw_added = fresh_member_union - old_member_union
+    raw_removed = old_member_union - fresh_member_union
+
+    # Diff scoping: see compute_cluster_delta docstring. We drop only the
+    # quadrant (qname not-in prior analysis AND file not-in diff) — pure
+    # drift on untracked qnames in untracked files. Quadrant (qname
+    # in-prior-analysis AND file not-in diff) is preserved as inconsistent
+    # state (logged as warning).
+    inconsistent_removed: set[str] = set()
+    if diff_files is not None:
+
+        def _fresh_file(qname: str) -> str | None:
+            attrs = nx_graph.nodes.get(qname)
+            if attrs is None:
+                return None
+            file_path = attrs.get("file_path")
+            return normalize_repo_path(file_path, repo_dir) if file_path else None
+
+        def _old_file(qname: str) -> str | None:
+            for entry in old_clusters.values():
+                fp = entry.member_files.get(qname)
+                if fp:
+                    return normalize_repo_path(fp, repo_dir)
+            return None
+
+        scoped_added: set[str] = set()
+        for qname in raw_added:
+            file_path = _fresh_file(qname)
+            if file_path is not None and file_path in diff_files:
+                scoped_added.add(qname)
+            # else: not-in analysis, not-in diff -- drift, drop.
+        added_nodes = scoped_added
+
+        # Removed quadrant: keep all (so Flavor B clears their clusters), but
+        # surface the inconsistent ones in the log.
+        for qname in raw_removed:
+            file_path = _old_file(qname)
+            if file_path is None or file_path not in diff_files:
+                inconsistent_removed.add(qname)
+        removed_nodes = raw_removed
+    else:
+        added_nodes = raw_added
+        removed_nodes = raw_removed
+
     changed_pct = (len(added_nodes) + len(removed_nodes)) / len(universe)
 
     if changed_pct > threshold:
@@ -120,9 +202,34 @@ def _delta_for_language(
         return _flavor_a_fallback(language, fresh_for_lang, old_clusters)
 
     logger.info(
-        f"[cluster_delta] {language}: Flavor B "
-        f"(added={len(added_nodes)}, removed={len(removed_nodes)}, changed_pct={changed_pct:.3f})"
+        "[cluster_delta] %s: Flavor B raw=(added=%d, removed=%d); "
+        "diff-scoped=(added=%d, removed=%d); inconsistent=%d; changed_pct=%.3f",
+        language,
+        len(raw_added),
+        len(raw_removed),
+        len(added_nodes),
+        len(removed_nodes),
+        len(inconsistent_removed),
+        changed_pct,
     )
+    # Sample of the qnames going into / out of the universe — small enough to
+    # log every run, useful for diagnosing "why is the LLM call firing on a
+    # pure deletion" scenarios where added/removed counts disagree with the
+    # user-visible diff.
+    if added_nodes or removed_nodes:
+        logger.info(
+            "[cluster_delta] %s added qnames (first 20): %s; removed qnames (first 20): %s",
+            language,
+            sorted(added_nodes)[:20],
+            sorted(removed_nodes)[:20],
+        )
+    if inconsistent_removed:
+        logger.warning(
+            "[cluster_delta] %s removed qnames outside source diff (inconsistent, %d total, first 10): %s",
+            language,
+            len(inconsistent_removed),
+            sorted(inconsistent_removed)[:10],
+        )
     return _flavor_b_iterative(language, nx_graph, old_clusters, added_nodes, removed_nodes)
 
 

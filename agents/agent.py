@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 from pathlib import Path
 
 from google.api_core.exceptions import ResourceExhausted
@@ -39,7 +40,15 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         system_message: str,
         agent_llm: BaseChatModel,
         parsing_llm: BaseChatModel,
+        tool_names: list[str] | None = None,
     ):
+        """
+        ``tool_names`` lets callers narrow the ReAct toolkit. ``None`` uses
+        ``CodeBoardingToolkit.get_agent_tools()`` (full set). A short list
+        like ``["read_source_reference"]`` keeps the model from speculatively
+        invoking unrelated tools — the incremental routing agent uses this
+        to bound exploration.
+        """
         ReferenceResolverMixin.__init__(self, repo_dir, static_analysis)
         MonitoringMixin.__init__(self)
         self.parsing_llm = parsing_llm
@@ -50,9 +59,14 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         context = RepoContext(repo_dir=repo_dir, ignore_manager=self.ignore_manager, static_analysis=static_analysis)
         self.toolkit = CodeBoardingToolkit(context=context)
 
+        if tool_names is None:
+            tools = self.toolkit.get_agent_tools()
+        else:
+            tools = [getattr(self.toolkit, name) for name in tool_names]
+
         self.agent: CompiledStateGraph = create_agent(
             model=agent_llm,
-            tools=self.toolkit.get_agent_tools(),
+            tools=tools,
         )
         self.static_analysis = static_analysis
         self.system_message = SystemMessage(content=system_message)
@@ -322,6 +336,14 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         if response is None or response.strip() == "":
             logger.error(f"Empty response for prompt: {prompt}")
 
+        # Fast-path: try a no-LLM parse first. The agent often emits valid JSON
+        # for ``return_type`` directly (especially for tightly-shaped outputs
+        # like ClusterAnalysis); when it does, the trustcall extractor's
+        # second LLM round-trip is pure overhead.
+        direct = self._direct_pydantic_parse(response, return_type)
+        if direct is not None:
+            return direct
+
         def call_once():
             # Extractor is rebuilt on every attempt — previous trustcall state
             # may have corrupted attributes (see the tool_call_id bug below).
@@ -405,3 +427,36 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
                 except:
                     pass
         raise ValueError(f"Couldn't parse {message_content}")
+
+    @staticmethod
+    def _direct_pydantic_parse(response: str, return_type: type):
+        """Try to parse ``response`` directly into ``return_type`` without an LLM call.
+
+        Handles two common shapes the agent emits:
+        1. The full response is JSON for ``return_type``.
+        2. The JSON is wrapped in a ```json ... ``` fence with surrounding prose.
+
+        Returns the parsed instance on success, or ``None`` if the response
+        doesn't cleanly match — caller falls back to the LLM-based extractor.
+        """
+        if response is None:
+            return None
+        text = response.strip()
+        if not text:
+            return None
+
+        candidates: list[str] = [text]
+        # ```json ... ``` or ``` ... ``` fenced block
+        fenced = re.findall(r"```(?:json)?\s*(\{.*?\}|\[.*?\])\s*```", text, re.DOTALL)
+        candidates.extend(fenced)
+        # Bare JSON object/array embedded in prose
+        first_obj = re.search(r"\{.*\}", text, re.DOTALL)
+        if first_obj:
+            candidates.append(first_obj.group(0))
+
+        for candidate in candidates:
+            try:
+                return return_type.model_validate_json(candidate)
+            except (ValidationError, json.JSONDecodeError, ValueError):
+                continue
+        return None

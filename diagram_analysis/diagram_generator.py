@@ -30,7 +30,7 @@ from diagram_analysis.analysis_json import (
 from diagram_analysis.cluster_delta import compute_cluster_delta
 from diagram_analysis.cluster_snapshot import snapshot_from_analysis
 from diagram_analysis.file_coverage import FileCoverage
-from diagram_analysis.io_utils import save_analysis
+from diagram_analysis.io_utils import normalize_repo_path, save_analysis
 from diagram_analysis.version import Version
 from health.config import initialize_health_dir, load_health_config
 from health.runner import run_health_checks
@@ -38,6 +38,7 @@ from monitoring import StreamingStatsWriter
 from monitoring.mixin import MonitoringMixin
 from monitoring.paths import get_monitoring_run_dir
 from repo_utils import get_git_commit_hash
+from repo_utils.change_detector import ChangeSet
 from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer import StaticAnalyzer, get_static_analysis
 from static_analyzer.analysis_result import StaticAnalysisResults
@@ -71,6 +72,13 @@ class DiagramGenerator:
         self.log_path = log_path
         self.monitoring_enabled = monitoring_enabled
         self.force_full_analysis = False  # Set to True to skip incremental updates
+        # Optional source-tree changeset for the iterative path. When set,
+        # the cluster delta drops drift qnames whose file is outside the
+        # diff AND outside the prior analysis (see ``compute_cluster_delta``).
+        # Set externally before calling ``generate_analysis_incremental``;
+        # the workflow function ``run_incremental_workflow`` doesn't need
+        # to grow a parameter for it.
+        self.changes: ChangeSet | None = None
         self._static_analyzer = static_analyzer
 
         self.details_agent: DetailsAgent | None = None
@@ -391,17 +399,6 @@ class DiagramGenerator:
 
             return analysis_path
 
-    def _normalize_repo_path(self, path: str) -> str:
-        posix = path.replace("\\", "/")
-        if Path(posix).is_absolute():
-            try:
-                return Path(posix).resolve().relative_to(self.repo_location.resolve()).as_posix()
-            except ValueError:
-                return posix
-        while posix.startswith("./"):
-            posix = posix[2:]
-        return posix
-
     def _collect_method_entries_from_static_analysis(self) -> dict[str, list]:
         assert self.static_analysis is not None
         methods_by_file: dict[str, list[MethodEntry]] = defaultdict(list)
@@ -417,7 +414,7 @@ class DiagramGenerator:
                     continue
                 if not (node.is_callable() or node.is_class()):
                     continue
-                file_path = self._normalize_repo_path(node.file_path)
+                file_path = normalize_repo_path(node.file_path, self.repo_location)
 
                 methods_by_file[file_path].append(
                     MethodEntry(
@@ -498,7 +495,12 @@ class DiagramGenerator:
             logger.info("Baseline analysis has no cluster_members; falling back to full analysis.")
             return self.generate_analysis()
 
-        delta = compute_cluster_delta(old_snapshot, self.static_analysis)
+        delta = compute_cluster_delta(
+            old_snapshot,
+            self.static_analysis,
+            changes=self.changes,
+            repo_dir=self.repo_location,
+        )
         if not delta.has_changes:
             logger.info("Cluster delta is empty; rewriting current analysis without re-detailing.")
             commit_hash = get_git_commit_hash(self.repo_location)

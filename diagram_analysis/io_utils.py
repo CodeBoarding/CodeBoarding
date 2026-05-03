@@ -32,6 +32,29 @@ from utils import ANALYSIS_FILENAME
 logger = logging.getLogger(__name__)
 
 
+def normalize_repo_path(path: str, repo_root: Path | str | None) -> str:
+    """Convert a CFG file path into a posix repo-relative form.
+
+    Both ``DiagramGenerator._collect_method_entries_from_static_analysis``
+    and the incremental agent's ``_refresh_component_file_methods`` need
+    the same normalization. ``analysis.json`` (``files``, ``methods_index``,
+    ``file_methods``) indexes by repo-relative posix paths; the CFG hands
+    us either an absolute path under ``repo_root`` or a path that's
+    already relative. Returning the posix form keeps the downstream
+    indexes consistent.
+    """
+    posix = path.replace("\\", "/")
+    candidate = Path(posix)
+    if candidate.is_absolute() and repo_root is not None:
+        try:
+            return candidate.resolve().relative_to(Path(repo_root).resolve()).as_posix()
+        except ValueError:
+            return posix
+    while posix.startswith("./"):
+        posix = posix[2:]
+    return posix
+
+
 class _AnalysisFileStore:
     """Coordinated reader/writer for ``analysis.json`` with file locking.
 

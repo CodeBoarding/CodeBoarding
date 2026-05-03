@@ -32,6 +32,7 @@ from agents.validation import (
     validate_cluster_coverage,
 )
 from diagram_analysis.cluster_delta import ClusterDelta
+from diagram_analysis.io_utils import normalize_repo_path
 from monitoring import trace
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.graph import ClusterResult
@@ -51,7 +52,19 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
         agent_llm: BaseChatModel,
         parsing_llm: BaseChatModel,
     ):
-        super().__init__(repo_dir, static_analysis, get_system_message(), agent_llm, parsing_llm)
+        # Routing decisions need at most a single representative qname's source
+        # to disambiguate; the rest of the toolkit (read_file, read_packages,
+        # read_structure, read_file_structure) is wide-scope code reading that
+        # the model uses speculatively when given the full set. Constraining
+        # the toolkit here keeps the ReAct loop bounded.
+        super().__init__(
+            repo_dir,
+            static_analysis,
+            get_system_message(),
+            agent_llm,
+            parsing_llm,
+            tool_names=["read_source_reference"],
+        )
         self.project_name = project_name
         self.meta_context = meta_context
         self.prompts = {
@@ -354,12 +367,13 @@ def repopulate_touched_scopes(
         return touched_scopes
 
     node_lookup = _build_node_lookup(helpers.static_analysis, cluster_results)
+    repo_dir = getattr(helpers, "repo_dir", None) or getattr(helpers, "repository_path", None)
 
     if any(c.component_id in redetail_ids for c in root_analysis.components):
         touched_scopes.add("")
         for component in root_analysis.components:
             if component.component_id in redetail_ids:
-                _refresh_component_file_methods(component, cluster_results, node_lookup)
+                _refresh_component_file_methods(component, cluster_results, node_lookup, repo_dir)
         helpers.build_static_relations(root_analysis)
 
     for scope_id, sub in sub_analyses.items():
@@ -367,7 +381,7 @@ def repopulate_touched_scopes(
             touched_scopes.add(scope_id)
             for component in sub.components:
                 if component.component_id in redetail_ids:
-                    _refresh_component_file_methods(component, cluster_results, node_lookup)
+                    _refresh_component_file_methods(component, cluster_results, node_lookup, repo_dir)
             helpers.build_static_relations(sub)
 
     return touched_scopes
@@ -398,6 +412,7 @@ def _refresh_component_file_methods(
     component: Component,
     cluster_results: dict[str, ClusterResult],
     node_lookup: dict[str, MethodEntry],
+    repo_dir: Path | str | None = None,
 ) -> None:
     """Rebuild ``component.file_methods`` from the live cluster_results.
 
@@ -405,12 +420,22 @@ def _refresh_component_file_methods(
     ``ClusterResult``, pulls each cluster's members, looks up each qname's
     file path in the live CFG (via ``node_lookup`` which was built from
     ``static_analysis``), and groups by file. Methods missing from the
-    lookup are dropped (their source was deleted).
+    lookup are dropped (their source was deleted). File paths are
+    normalised to repo-relative form (matching what ``analysis.json``
+    stores in ``files`` and ``methods_index``); without this the wrapper's
+    ``file_to_component`` lookup would silently miss every method on the
+    next incremental cycle.
     """
     owned_cids = set(component.source_cluster_ids)
     if not owned_cids:
         component.file_methods = []
         return
+
+    repo_root: Path | None
+    try:
+        repo_root = Path(repo_dir).resolve() if repo_dir else None
+    except (TypeError, OSError):
+        repo_root = None
 
     # qname -> file_path lookup also lives on node_lookup_files, built
     # alongside node_lookup; we encode it inline by re-deriving from the
@@ -432,19 +457,11 @@ def _refresh_component_file_methods(
                 method = node_lookup.get(qname)
                 if method is None:
                     continue
-                # Pick the file path for this method. ClusterResult tracks
-                # files per cluster but not per node; in practice every node
-                # belongs to exactly one source file, so we just take the
-                # node's own file path from the cached MethodEntry — but
-                # MethodEntry doesn't carry it. Recover it from the CFG-
-                # derived cluster_to_files by intersecting the cluster's
-                # files with the node's home file (heuristic: dotted-path
-                # prefix match). This stays accurate because each cluster's
-                # file set is small (typically 1).
                 files_for_cluster = cr.cluster_to_files.get(cid, set())
                 file_path = _pick_file_for_qname(qname, files_for_cluster, qname_to_files)
                 if not file_path:
                     continue
+                file_path = normalize_repo_path(file_path, repo_root)
                 by_file.setdefault(file_path, []).append(method)
 
     component.file_methods = [

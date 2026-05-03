@@ -14,6 +14,7 @@ from diagram_analysis.cluster_delta import (
     compute_cluster_delta,
 )
 from diagram_analysis.cluster_snapshot import ClusterSnapshot, ClusterSnapshotEntry, snapshot_from_cluster_results
+from repo_utils.change_detector import ChangeSet, FileChange
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import NodeType
 from static_analyzer.graph import CallGraph, ClusterResult
@@ -239,6 +240,133 @@ class TestSnapshotIntegration(unittest.TestCase):
         delta = compute_cluster_delta(snap, _build_static(graph))
 
         self.assertFalse(delta.has_changes)
+
+
+class TestDiffScoping(unittest.TestCase):
+    """Four-quadrant filter on (in_prior_analysis, in_source_diff)."""
+
+    def _changeset(self, paths: list[str]) -> ChangeSet:
+        return ChangeSet(
+            base_ref="prev",
+            target_ref="curr",
+            files=[FileChange(status_code="M", file_path=p) for p in paths],
+        )
+
+    def test_drift_in_unchanged_file_is_dropped(self) -> None:
+        # Two cluster baselines; fresh CFG also has one new qname in an
+        # unchanged file. ``changes`` says only ``a.py`` was modified; the
+        # drift in ``b.py`` should be dropped (not-in analysis, not-in diff).
+        graph = _build_graph(
+            [
+                ("a.foo", "a.py"),
+                ("a.bar", "a.py"),
+                ("b.baz", "b.py"),
+                ("b.qux", "b.py"),
+                ("b.drift", "b.py"),  # new qname in an unchanged file -- drift
+            ],
+            [("a.foo", "a.bar"), ("b.baz", "b.qux"), ("b.drift", "b.baz")],
+        )
+        snap = _snapshot(
+            {
+                "python": {
+                    1: ClusterSnapshotEntry(members={"a.foo", "a.bar"}),
+                    2: ClusterSnapshotEntry(members={"b.baz", "b.qux"}),
+                }
+            }
+        )
+
+        changes = self._changeset(["a.py"])  # only a.py is in the diff
+        delta = compute_cluster_delta(snap, _build_static(graph), changes=changes)
+
+        self.assertFalse(delta.has_changes, "drift in unchanged file must not produce a delta")
+
+    def test_real_addition_in_changed_file_flows_through(self) -> None:
+        # The opposite case: a new qname in a file that IS in the diff
+        # should flow through normally (not-in analysis, in-diff quadrant).
+        graph = _build_graph(
+            [
+                ("a.foo", "a.py"),
+                ("a.bar", "a.py"),
+                ("a.new", "a.py"),  # genuine new qname in a changed file
+                ("b.baz", "b.py"),
+                ("b.qux", "b.py"),
+            ],
+            [("a.foo", "a.bar"), ("a.new", "a.foo"), ("b.baz", "b.qux")],
+        )
+        snap = _snapshot(
+            {
+                "python": {
+                    1: ClusterSnapshotEntry(members={"a.foo", "a.bar"}),
+                    2: ClusterSnapshotEntry(members={"b.baz", "b.qux"}),
+                }
+            }
+        )
+
+        changes = self._changeset(["a.py"])
+        delta = compute_cluster_delta(snap, _build_static(graph), changes=changes)
+
+        ld = delta.by_language["python"]
+        self.assertTrue(delta.has_changes, "real new qname in diff'd file must produce delta")
+        self.assertEqual(ld.changed_cluster_ids, {1}, "a.new should be routed into cluster 1")
+
+    def test_inconsistent_removal_is_kept_and_logged(self) -> None:
+        # Tracked qname disappears without its file being in the diff —
+        # the (in-analysis, not-in-diff) inconsistent quadrant. The qname must
+        # still flow through ``removed_nodes`` so Flavor B clears it from
+        # its cluster, AND a WARNING-level log must record the inconsistency.
+        # Each cluster has >=2 connected fresh members so neither is dropped
+        # as a singleton (would otherwise be filtered before the delta runs).
+        graph = _build_graph(
+            [
+                ("a.foo", "a.py"),
+                ("a.bar", "a.py"),
+                ("b.baz", "b.py"),
+                ("b.qux", "b.py"),
+            ],
+            [("a.foo", "a.bar"), ("b.baz", "b.qux")],
+        )
+        # Snapshot has b.lost in cluster 2 alongside b.baz/b.qux; b.lost
+        # vanishes from the fresh CFG without its file appearing in the diff.
+        snap = _snapshot(
+            {
+                "python": {
+                    1: ClusterSnapshotEntry(
+                        members={"a.foo", "a.bar"}, member_files={"a.foo": "a.py", "a.bar": "a.py"}
+                    ),
+                    2: ClusterSnapshotEntry(
+                        members={"b.baz", "b.qux", "b.lost"},
+                        member_files={"b.baz": "b.py", "b.qux": "b.py", "b.lost": "b.py"},
+                    ),
+                }
+            }
+        )
+
+        changes = self._changeset(["a.py"])  # b.py NOT in diff -> b.lost vanishing is inconsistent
+        with self.assertLogs("diagram_analysis.cluster_delta", level="WARNING") as captured:
+            delta = compute_cluster_delta(snap, _build_static(graph), changes=changes)
+
+        ld = delta.by_language["python"]
+        # Cluster 2 must be marked changed (lost member peeled off), so the
+        # LLM call sees the inconsistency via the existing "affected" path.
+        self.assertIn(2, ld.changed_cluster_ids)
+        # Warning log records the inconsistent removal explicitly.
+        joined = "\n".join(captured.output)
+        self.assertIn("inconsistent", joined.lower())
+        self.assertIn("b.lost", joined)
+
+    def test_changes_none_preserves_unscoped_behavior(self) -> None:
+        # Backwards compat: callers without a diff source (e.g., GitHub
+        # Action) get today's no-scoping behavior.
+        graph = _build_graph(
+            [("a.foo", "a.py"), ("a.bar", "a.py"), ("a.new", "a.py")],
+            [("a.foo", "a.bar"), ("a.new", "a.foo")],
+        )
+        snap = _snapshot({"python": {1: ClusterSnapshotEntry(members={"a.foo", "a.bar"})}})
+
+        delta = compute_cluster_delta(snap, _build_static(graph), changes=None)
+
+        ld = delta.by_language["python"]
+        self.assertEqual(ld.changed_cluster_ids, {1}, "unscoped run still routes a.new normally")
 
 
 class TestInternalHelpersSmoke(unittest.TestCase):

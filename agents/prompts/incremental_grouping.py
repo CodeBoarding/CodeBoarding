@@ -12,6 +12,14 @@ INCREMENTAL_GROUPING_MESSAGE = """\
 Update the architecture of `{project_name}` by routing changed and new CFG \
 clusters to the right components.
 
+Tool usage policy for this routing task:
+For each cluster you're uncertain about, you may read source. Keep each read \
+small and targeted — the source of a single representative qname is usually \
+the right unit. Continue reading further (still in small, focused steps) only \
+while you remain uncertain about that specific cluster's placement, and stop \
+as soon as your confidence is high. Don't broaden the scope of a single read \
+to cover ground you don't yet need.
+
 Project Context:
 {meta_context}
 

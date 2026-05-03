@@ -208,5 +208,41 @@ class TestRepopulateTouchedScopes(unittest.TestCase):
         helpers.build_static_relations.assert_not_called()
 
 
+class TestIncrementalAgentToolkit(unittest.TestCase):
+    """Constructor wiring: routing should never see the full ReAct toolkit.
+
+    The agent shouldn't have ``read_packages`` / ``read_file`` / etc. attached;
+    a ReAct loop with the full kit speculatively wanders for tens of rounds on
+    a routing decision that needs at most a single targeted source read. Only
+    ``read_source_reference`` is appropriate.
+    """
+
+    def test_only_read_source_reference_is_attached(self) -> None:
+        from unittest.mock import patch
+        from pathlib import Path
+
+        from agents.incremental_agent import IncrementalAgent
+        from static_analyzer.analysis_result import StaticAnalysisResults
+
+        static_analysis = MagicMock(spec=StaticAnalysisResults)
+
+        with patch("agents.agent.create_agent") as mock_create_agent:
+            mock_create_agent.return_value = MagicMock()
+            IncrementalAgent(
+                repo_dir=Path("/tmp/fake-repo"),
+                static_analysis=static_analysis,
+                project_name="Test",
+                meta_context=None,
+                agent_llm=MagicMock(),
+                parsing_llm=MagicMock(),
+            )
+
+        mock_create_agent.assert_called_once()
+        tools = mock_create_agent.call_args.kwargs["tools"]
+        # CodeReferenceReader is the BaseRepoTool subclass behind read_source_reference.
+        self.assertEqual(len(tools), 1, f"expected 1 tool, got {len(tools)}: {[type(t).__name__ for t in tools]}")
+        self.assertEqual(type(tools[0]).__name__, "CodeReferenceReader")
+
+
 if __name__ == "__main__":
     unittest.main()
