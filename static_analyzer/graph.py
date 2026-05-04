@@ -16,6 +16,34 @@ from static_analyzer.node import Node
 logger = logging.getLogger(__name__)
 
 
+def detect_communities[T](
+    graph: nx.Graph | nx.DiGraph,
+    *,
+    weight: str | None = None,
+    resolution: float | None = None,
+    seed: int | None = None,
+) -> list[set[T]]:
+    """Run Leiden community detection with Louvain as fallback.
+
+    Why: Leiden guarantees internally-connected communities and handles
+    directed/hub-heavy call graphs better than Louvain. ``leiden_communities``
+    landed in NetworkX 3.5; older runtimes fall back to Louvain (still
+    preferable to label propagation for architecture-decomposition workloads).
+    """
+    kwargs: dict[str, object] = {}
+    if seed is not None:
+        kwargs["seed"] = seed
+    if weight is not None:
+        kwargs["weight"] = weight
+    if resolution is not None:
+        kwargs["resolution"] = resolution
+
+    if hasattr(nx_comm, "leiden_communities"):
+        return list(nx_comm.leiden_communities(graph, **kwargs))
+    logger.debug("leiden_communities unavailable; falling back to louvain_communities.")
+    return list(nx_comm.louvain_communities(graph, **kwargs))
+
+
 @dataclass(frozen=True)
 class LocationKey:
     """Hashable key identifying a symbol's physical location in the source tree."""
@@ -340,22 +368,16 @@ class CallGraph:
             return node_name
 
     def _cluster_with_algorithm(self, graph: nx.DiGraph, algorithm: str) -> list[set[str]]:
-        # Use class-level seed for reproducibility - Louvain/Leiden are non-deterministic without it
-        if algorithm == "louvain":
+        # Use class-level seed for reproducibility - Leiden/Louvain are non-deterministic without it
+        if algorithm == "leiden":
+            return detect_communities(graph, seed=ClusteringConfig.CLUSTERING_SEED)
+        elif algorithm == "louvain":
             return list(nx_comm.louvain_communities(graph, seed=ClusteringConfig.CLUSTERING_SEED))
         elif algorithm == "greedy_modularity":
             return list(nx.community.greedy_modularity_communities(graph))
-        elif algorithm == "leiden":
-            if hasattr(nx_comm, "leiden_communities"):
-                return list(nx_comm.leiden_communities(graph, seed=ClusteringConfig.CLUSTERING_SEED))
-            logger.warning(
-                "leiden_communities not available in this networkx version, "
-                "falling back to asynchronous label propagation"
-            )
-            return list(nx_comm.asyn_lpa_communities(graph, seed=ClusteringConfig.CLUSTERING_SEED))
         else:
-            logger.warning(f"Algorithm {algorithm} not supported, defaulting to greedy_modularity")
-            return list(nx.community.greedy_modularity_communities(graph))
+            logger.warning(f"Algorithm {algorithm} not supported, defaulting to leiden")
+            return detect_communities(graph, seed=ClusteringConfig.CLUSTERING_SEED)
 
     def _score_clustering(
         self,
@@ -418,17 +440,22 @@ class CallGraph:
         min_cluster_size: int,
         total_nodes: int,
     ) -> list[tuple[list[set[str]], str, float]]:
-        """Try all clustering algorithms and return scored candidates."""
-        algorithms = ["louvain", "leiden", "greedy_modularity"]
+        """Run Leiden community detection and return the scored candidate.
+
+        Why: previously this tried louvain/leiden/greedy_modularity and picked
+        the best by score. The codebase is now Leiden-only with Louvain as
+        fallback (handled inside ``_cluster_with_algorithm``); see decisions.md.
+        The list-of-candidates return type is preserved so the caller's
+        cross-level pooling logic in ``cluster()`` is unchanged.
+        """
         candidates: list[tuple[list[set[str]], str, float]] = []
-        for algo in algorithms:
-            try:
-                communities = self._cluster_with_algorithm(graph, algo)
-                score = self._score_clustering(communities, min_cluster_size, total_nodes)
-                candidates.append((communities, algo, score))
-                logger.debug(f"{algo}: score={score:.3f}, clusters={len(communities)}")
-            except Exception as e:
-                logger.debug(f"Algorithm {algo} failed: {e}")
+        try:
+            communities = self._cluster_with_algorithm(graph, "leiden")
+            score = self._score_clustering(communities, min_cluster_size, total_nodes)
+            candidates.append((communities, "leiden", score))
+            logger.debug(f"leiden: score={score:.3f}, clusters={len(communities)}")
+        except Exception as e:
+            logger.debug(f"Algorithm leiden failed: {e}")
         return candidates
 
     def _map_candidates_to_original(

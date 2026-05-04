@@ -5,9 +5,10 @@ Mirrors ``build_all_cluster_results`` for the incremental path: produces a
 which are entirely new, and which dropped — without requiring any LLM call.
 
 Flavor B (default, iterative): drop deleted nodes from each cluster, route
-added nodes to the cluster they share the most CFG edges with, and run Louvain
-on the leftover induced subgraph for any added nodes that don't fit anywhere.
-This preserves cluster identity perfectly when Louvain communities are stable.
+added nodes to the cluster they share the most CFG edges with, and run Leiden
+(Louvain fallback) on the leftover induced subgraph for any added nodes that
+don't fit anywhere. This preserves cluster identity perfectly when the
+underlying communities are stable.
 
 Flavor A (fallback, triggered when ``changed_pct > FULL_RECLUSTER_THRESHOLD``):
 re-run ``build_all_cluster_results`` end-to-end and match by member-Jaccard
@@ -20,14 +21,13 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import networkx as nx
-import networkx.algorithms.community as nx_comm
 
 from diagram_analysis.cluster_snapshot import ClusterSnapshot, ClusterSnapshotEntry
 from diagram_analysis.io_utils import normalize_repo_path
 from repo_utils.change_detector import ChangeSet
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cluster_helpers import build_all_cluster_results
-from static_analyzer.graph import ClusterResult
+from static_analyzer.graph import ClusterResult, detect_communities
 
 logger = logging.getLogger(__name__)
 
@@ -267,7 +267,7 @@ def _flavor_b_iterative(
     new_cluster_ids: set[int] = set()
     if unassigned:
         next_id = max(new_member_sets.keys(), default=0) + 1
-        for community in _louvain_unassigned(undirected.subgraph(unassigned)):
+        for community in _detect_unassigned_communities(undirected.subgraph(unassigned)):
             new_member_sets[next_id] = set(community)
             new_cluster_ids.add(next_id)
             for node in community:
@@ -343,16 +343,19 @@ def _file_overlap_fallback(
     return max(counts.items(), key=lambda kv: kv[1])[0]
 
 
-def _louvain_unassigned(subgraph: nx.Graph) -> list[set[str]]:
+def _detect_unassigned_communities(subgraph: nx.Graph) -> list[set[str]]:
+    """Cluster the leftover unassigned-nodes subgraph with Leiden (Louvain fallback)."""
     if subgraph.number_of_nodes() == 0:
         return []
     if subgraph.number_of_edges() == 0:
         return [{node} for node in subgraph.nodes]
     try:
-        communities = nx_comm.louvain_communities(subgraph, seed=42)
+        communities: list[set[str]] = detect_communities(subgraph, seed=42)
     except Exception as e:
-        logger.warning(f"Louvain on unassigned subgraph failed ({e}); falling back to connected components.")
-        communities = nx.connected_components(subgraph)
+        logger.warning(
+            f"Community detection on unassigned subgraph failed ({e}); falling back to connected components."
+        )
+        communities = [set(c) for c in nx.connected_components(subgraph)]
     return [set(c) for c in communities if c]
 
 

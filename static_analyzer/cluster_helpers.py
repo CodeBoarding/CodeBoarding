@@ -8,7 +8,7 @@ Super-clustering overview
 -------------------------
 When a language produces more clusters than `MAX_LLM_CLUSTERS`, we collapse them
 into *super-clusters* via community detection on a weighted meta-graph of inter-
-cluster call edges (Louvain with resolution tuning).
+cluster call edges (Leiden with resolution tuning, Louvain fallback).
 
 After community detection, there are often leftover singleton / tiny communities
 because many clusters are isolated in the call graph (no inter-cluster edges).
@@ -21,11 +21,10 @@ import logging
 from collections import defaultdict
 
 import networkx as nx
-import networkx.algorithms.community as nx_comm
 
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import ClusteringConfig
-from static_analyzer.graph import ClusterResult
+from static_analyzer.graph import ClusterResult, detect_communities
 
 logger = logging.getLogger(__name__)
 
@@ -185,22 +184,20 @@ def _build_meta_graph(cluster_result: ClusterResult, cfg_graph: nx.DiGraph) -> n
 
 def _detect_communities(meta_graph: nx.Graph, target: int, n_original: int) -> list[set[int]]:
     """
-    Run Louvain community detection with resolution tuning to approach the target count.
+    Run Leiden community detection (Louvain fallback) with resolution tuning to approach the target count.
 
-    Falls back to connected components if Louvain fails or produces no improvement.
+    Falls back to connected components if community detection fails or produces no improvement.
     """
     best_communities: list[set[int]] | None = None
     best_distance = float("inf")
 
     for resolution in [0.5, 0.8, 1.0, 1.2, 1.5, 2.0, 3.0, 5.0]:
         try:
-            communities = list(
-                nx_comm.louvain_communities(
-                    meta_graph,
-                    weight="weight",
-                    resolution=resolution,
-                    seed=ClusteringConfig.CLUSTERING_SEED,
-                )
+            communities: list[set[int]] = detect_communities(
+                meta_graph,
+                weight="weight",
+                resolution=resolution,
+                seed=ClusteringConfig.CLUSTERING_SEED,
             )
             distance = abs(len(communities) - target)
             if distance < best_distance:
