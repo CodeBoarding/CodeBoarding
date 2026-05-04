@@ -141,7 +141,7 @@ class StaticAnalyzer:
         programming_langs = ProjectScanner(self.repository_path).scan()
         self._engine_configs = _create_engine_configs(programming_langs, self.repository_path, self.ignore_manager)
         self._engine_clients: list[tuple[LanguageAdapter, Path, LSPClient]] = []
-        self.collected_diagnostics: dict[str, FileDiagnosticsMap] = {}
+        self.collected_diagnostics: dict[Language, FileDiagnosticsMap] = {}
         self._clients_started: bool = False
         self._cached_results: StaticAnalysisResults | None = None
 
@@ -307,6 +307,22 @@ class StaticAnalyzer:
             self._cached_results = cached_results
             self.collected_diagnostics = cached_results.diagnostics
         return cached_results
+
+    def re_save_with_cluster_cache(self, source_sha: str | None = None) -> None:
+        """Re-persist the on-disk pkl after clustering has populated ``CallGraph._cluster_cache``.
+
+        ``analyze()`` saves the pkl right after LSP, *before* anything calls
+        ``CallGraph.cluster()``. Once a downstream caller (``DiagramGenerator``)
+        runs ``build_all_cluster_results`` and the per-language CFGs warm up
+        their ``_cluster_cache``, this method re-saves so the next process
+        gets a pkl whose CFG already carries the partition — no re-cluster
+        on warm-start.
+        """
+        if self._cached_results is None:
+            logger.warning("re_save_with_cluster_cache: no cached results to save; skipping")
+            return
+        artifact_dir = get_artifact_dir(self.repository_path)
+        StaticAnalysisCache(artifact_dir, self.repository_path).save(self._cached_results, source_sha=source_sha)
 
     def notify_file_changed(self, file_path: Path, content: str) -> None:
         """Notify the LSP server that the editor has saved new content for a file.
@@ -536,7 +552,7 @@ class StaticAnalyzer:
                     )
                 else:
                     logger.debug(f"No diagnostics for {adapter.language}")
-                self.collected_diagnostics[language] = merged_diags
+                self.collected_diagnostics[Language(language)] = merged_diags
 
             except Exception as e:
                 logger.error(f"Error during engine analysis for {adapter.language}: {e}")

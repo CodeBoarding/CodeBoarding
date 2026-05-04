@@ -42,6 +42,7 @@ from repo_utils.change_detector import ChangeSet
 from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer import StaticAnalyzer, get_static_analysis
 from static_analyzer.analysis_result import StaticAnalysisResults
+from static_analyzer.graph import ClusterResult
 from static_analyzer.scanner import ProjectScanner
 from utils import get_cache_dir
 
@@ -179,6 +180,35 @@ class DiagramGenerator:
         )
         result.diagnostics = self._static_analyzer.collected_diagnostics  # type: ignore[union-attr]
         return result
+
+    def _persist_pkl_with_cluster_cache(
+        self,
+        cluster_results: dict[str, ClusterResult] | None = None,
+    ) -> None:
+        """Re-save the pkl after clustering has populated ``CallGraph._cluster_cache``.
+
+        ``analyze()`` saves the pkl right after LSP, before anything calls
+        ``cluster()``. We re-save once the abstraction agent has run (full
+        path) or after the cluster delta is materialised (incremental path)
+        so the next process gets a pkl whose CFG already carries the
+        partition, letting ``cluster_snapshot`` reconstruct prior state
+        without walking ``Component.cluster_members`` from ``analysis.json``.
+
+        On the incremental path the post-delta ``cluster_results`` are
+        explicitly written into each language CFG's ``_cluster_cache``
+        before saving; on the full path the abstraction agent already
+        populated those caches via ``cfg.cluster()``.
+        """
+        if self._static_analyzer is None or self.source_sha is None or self.static_analysis is None:
+            return
+        if cluster_results:
+            for language, cr in cluster_results.items():
+                try:
+                    cfg = self.static_analysis.get_cfg(language)
+                except (ValueError, KeyError):
+                    continue
+                cfg._cluster_cache = cr
+        self._static_analyzer.re_save_with_cluster_cache(source_sha=self.source_sha)
 
     def pre_analysis(self):
         analysis_start_time = time.time()
@@ -393,6 +423,7 @@ class DiagramGenerator:
             assert self.abstraction_agent is not None
 
             analysis, cluster_results = self.abstraction_agent.run()
+            self._persist_pkl_with_cluster_cache()
 
             # Get the initial components to analyze (deterministic, no LLM)
             root_components = get_expandable_components(analysis)
@@ -503,6 +534,7 @@ class DiagramGenerator:
                 changes=self.changes,
                 repo_dir=self.repo_location,
             )
+            self._persist_pkl_with_cluster_cache(delta.cluster_results())
             if not delta.has_changes:
                 logger.info("Cluster delta is empty; rewriting current analysis without re-detailing.")
                 prune_empty_components(root_analysis, sub_analyses)
