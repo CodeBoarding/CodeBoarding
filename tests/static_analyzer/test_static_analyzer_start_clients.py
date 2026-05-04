@@ -12,7 +12,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from static_analyzer import StaticAnalyzer
+from static_analyzer import EngineConfig, StaticAnalyzer
 from static_analyzer.engine.language_adapter import LanguageAdapter
 
 
@@ -44,9 +44,9 @@ class TestStartClientsGracefulDegradation:
         cs_adapter = _make_adapter("CSharp")
         ts_adapter = _make_adapter("TypeScript")
         analyzer._engine_configs = [
-            (py_adapter, tmp_path),
-            (cs_adapter, tmp_path),
-            (ts_adapter, tmp_path),
+            EngineConfig(py_adapter, tmp_path),
+            EngineConfig(cs_adapter, tmp_path),
+            EngineConfig(ts_adapter, tmp_path),
         ]
 
         good_client_py = MagicMock(name="PythonClient")
@@ -61,7 +61,7 @@ class TestStartClientsGracefulDegradation:
             analyzer.start_clients()
 
         assert analyzer._clients_started is True
-        assert [a.language for a, _, _ in analyzer._engine_clients] == ["Python", "TypeScript"]
+        assert [c.adapter.language for c, _ in analyzer._engine_clients] == ["Python", "TypeScript"]
         # Healthy clients must NOT be shut down because a sibling failed.
         good_client_py.shutdown.assert_not_called()
         good_client_ts.shutdown.assert_not_called()
@@ -73,7 +73,7 @@ class TestStartClientsGracefulDegradation:
     ) -> None:
         py_adapter = _make_adapter("Python")
         cs_adapter = _make_adapter("CSharp")
-        analyzer._engine_configs = [(py_adapter, tmp_path), (cs_adapter, tmp_path)]
+        analyzer._engine_configs = [EngineConfig(py_adapter, tmp_path), EngineConfig(cs_adapter, tmp_path)]
 
         bad_py = MagicMock()
         bad_py.start.side_effect = RuntimeError("pyright missing")
@@ -90,7 +90,7 @@ class TestStartClientsGracefulDegradation:
     def test_all_success_records_no_failures(self, analyzer: StaticAnalyzer, tmp_path: Path) -> None:
         py_adapter = _make_adapter("Python")
         ts_adapter = _make_adapter("TypeScript")
-        analyzer._engine_configs = [(py_adapter, tmp_path), (ts_adapter, tmp_path)]
+        analyzer._engine_configs = [EngineConfig(py_adapter, tmp_path), EngineConfig(ts_adapter, tmp_path)]
 
         with patch("static_analyzer.LSPClient", side_effect=[MagicMock(), MagicMock()]):
             analyzer.start_clients()
@@ -106,7 +106,7 @@ class TestStartClientsWorkspaceReadyDispatch:
 
     def test_adapter_opting_in_triggers_wait(self, analyzer: StaticAnalyzer, tmp_path: Path) -> None:
         rust_adapter = _make_adapter("Rust", wait_for_workspace_ready=True)
-        analyzer._engine_configs = [(rust_adapter, tmp_path)]
+        analyzer._engine_configs = [EngineConfig(rust_adapter, tmp_path)]
 
         client = MagicMock(name="RustClient")
         with patch("static_analyzer.LSPClient", return_value=client):
@@ -116,7 +116,7 @@ class TestStartClientsWorkspaceReadyDispatch:
 
     def test_adapter_not_opting_in_skips_wait(self, analyzer: StaticAnalyzer, tmp_path: Path) -> None:
         py_adapter = _make_adapter("Python", wait_for_workspace_ready=False)
-        analyzer._engine_configs = [(py_adapter, tmp_path)]
+        analyzer._engine_configs = [EngineConfig(py_adapter, tmp_path)]
 
         client = MagicMock(name="PythonClient")
         with patch("static_analyzer.LSPClient", return_value=client):
@@ -127,7 +127,7 @@ class TestStartClientsWorkspaceReadyDispatch:
     def test_mixed_adapters_only_waits_on_opting_in_clients(self, analyzer: StaticAnalyzer, tmp_path: Path) -> None:
         rust_adapter = _make_adapter("Rust", wait_for_workspace_ready=True)
         py_adapter = _make_adapter("Python", wait_for_workspace_ready=False)
-        analyzer._engine_configs = [(py_adapter, tmp_path), (rust_adapter, tmp_path)]
+        analyzer._engine_configs = [EngineConfig(py_adapter, tmp_path), EngineConfig(rust_adapter, tmp_path)]
 
         py_client = MagicMock(name="PythonClient")
         rust_client = MagicMock(name="RustClient")

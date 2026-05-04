@@ -1,5 +1,6 @@
 import logging
 import time
+from dataclasses import dataclass
 from pathlib import Path
 
 from repo_utils.git_ops import get_changed_files_since
@@ -28,26 +29,31 @@ from utils import get_artifact_dir
 logger = logging.getLogger(__name__)
 
 
+@dataclass
+class EngineConfig:
+    """One adapter + project root the engine should run.
+
+    ``source_files`` is set only when a scanner has authoritatively resolved
+    file membership (currently TypeScript via ``tsc --showConfig``); otherwise
+    the adapter walks ``project_path`` itself in ``_run_full_analysis``.
+    """
+
+    adapter: LanguageAdapter
+    project_path: Path
+    source_files: list[Path] | None = None
+
+
 def _create_engine_configs(
     programming_languages: list[ProgrammingLanguage],
     repository_path: Path,
     ignore_manager: RepoIgnoreManager,
-) -> tuple[list[tuple[LanguageAdapter, Path]], dict[Path, list[Path]]]:
-    """Create (adapter, project_path) pairs from detected languages.
+) -> list[EngineConfig]:
+    """Create one ``EngineConfig`` per sub-project from the detected languages.
 
-    Returns ``(configs, explicit_source_files)``:
-      - ``configs``: ``(adapter, project_path)`` tuples, one per sub-project.
-      - ``explicit_source_files``: project_path -> file list, populated only
-        when a scanner has authoritatively resolved file membership for that
-        project (currently TypeScript via ``tsc --showConfig``). Other
-        languages aren't listed; their adapters fall back to a filesystem
-        walk in ``_run_full_analysis``.
-
-    Handles mono-repo support: for TypeScript/Java/C#, scans for multiple
-    project configurations and creates one pair per sub-project.
+    Handles monorepo support: for TypeScript/Java/C#, scans for multiple
+    project configurations and emits one entry per sub-project.
     """
-    configs: list[tuple[LanguageAdapter, Path]] = []
-    explicit_source_files: dict[Path, list[Path]] = {}
+    configs: list[EngineConfig] = []
 
     for pl in programming_languages:
         if not pl.is_supported_lang():
@@ -95,11 +101,10 @@ def _create_engine_configs(
                         f"({len(union)} files across {len(typescript_projects)} tsconfig project(s): "
                         f"{project_dirs})"
                     )
-                    configs.append((adapter, repository_path))
-                    explicit_source_files[repository_path] = union
+                    configs.append(EngineConfig(adapter, repository_path, source_files=union))
                 else:
                     logger.info(f"No TypeScript config files found, using repository root for {adapter_name}")
-                    configs.append((adapter, repository_path))
+                    configs.append(EngineConfig(adapter, repository_path))
 
             elif lang_lower == Language.JAVA:
                 java_config_scanner = JavaConfigScanner(repository_path, ignore_manager=ignore_manager)
@@ -111,7 +116,7 @@ def _create_engine_configs(
                             f"Creating engine config for Java ({project_config.build_system}) at: "
                             f"{project_config.root.relative_to(repository_path)}"
                         )
-                        configs.append((adapter, project_config.root))
+                        configs.append(EngineConfig(adapter, project_config.root))
                 else:
                     logger.info("No Java projects detected")
 
@@ -125,17 +130,17 @@ def _create_engine_configs(
                             f"Creating engine config for CSharp ({csharp_config.project_type}) at: "
                             f"{csharp_config.root.relative_to(repository_path)}"
                         )
-                        configs.append((adapter, csharp_config.root))
+                        configs.append(EngineConfig(adapter, csharp_config.root))
                 else:
                     logger.info("No C# projects detected")
 
             else:
-                configs.append((adapter, repository_path))
+                configs.append(EngineConfig(adapter, repository_path))
 
         except RuntimeError as e:
             logger.error(f"Failed to create engine config for {pl.language}: {e}")
 
-    return configs, explicit_source_files
+    return configs
 
 
 def _lang_to_adapter_name(language: str) -> str | None:
@@ -163,10 +168,8 @@ class StaticAnalyzer:
         self.repository_path = repository_path.resolve()
         self.ignore_manager = RepoIgnoreManager(self.repository_path)
         programming_langs = ProjectScanner(self.repository_path).scan()
-        self._engine_configs, self._explicit_source_files = _create_engine_configs(
-            programming_langs, self.repository_path, self.ignore_manager
-        )
-        self._engine_clients: list[tuple[LanguageAdapter, Path, LSPClient]] = []
+        self._engine_configs = _create_engine_configs(programming_langs, self.repository_path, self.ignore_manager)
+        self._engine_clients: list[tuple[EngineConfig, LSPClient]] = []
         self.collected_diagnostics: dict[Language, FileDiagnosticsMap] = {}
         self._clients_started: bool = False
         self._cached_results: StaticAnalysisResults | None = None
@@ -204,11 +207,12 @@ class StaticAnalyzer:
             self._clients_started = True
             return
 
-        started: list[tuple[LanguageAdapter, Path, LSPClient]] = []
+        started: list[tuple[EngineConfig, LSPClient]] = []
         attempted: list[str] = []
         failed_languages: list[str] = []
 
-        for adapter, project_path in self._engine_configs:
+        for cfg in self._engine_configs:
+            adapter, project_path = cfg.adapter, cfg.project_path
             attempted.append(adapter.language)
             engine_client: LSPClient | None = None
             try:
@@ -248,7 +252,7 @@ class StaticAnalyzer:
                     engine_client.wait_for_server_ready()
                     logger.info(f"{adapter.language} workspace ready: {time.monotonic() - t_lsp_started:.1f}s")
 
-                started.append((adapter, project_path, engine_client))
+                started.append((cfg, engine_client))
 
             except Exception:
                 logger.exception(
@@ -272,7 +276,7 @@ class StaticAnalyzer:
             logger.warning(
                 f"Proceeding with partial LSP coverage. "
                 f"Failed: {', '.join(failed_languages)}. "
-                f"Started: {', '.join(a.language for a, _, _ in started)}"
+                f"Started: {', '.join(c.adapter.language for c, _ in started)}"
             )
 
         self._engine_clients = started
@@ -282,11 +286,11 @@ class StaticAnalyzer:
         """Gracefully shut down all engine LSP server processes. Idempotent."""
         if not self._clients_started:
             return
-        for adapter, _, client in self._engine_clients:
+        for cfg, client in self._engine_clients:
             try:
                 client.shutdown()
             except Exception as e:
-                logger.error(f"Error shutting down engine LSP client for {adapter.language}: {e}")
+                logger.error(f"Error shutting down engine LSP client for {cfg.adapter.language}: {e}")
         self._engine_clients = []
         self._clients_started = False
         self._cached_results = None
@@ -299,15 +303,15 @@ class StaticAnalyzer:
         diagnostics without triggering any new analysis work.
         """
         result: dict[Language, FileDiagnosticsMap] = {}
-        for adapter, _, client in self._engine_clients:
+        for cfg, client in self._engine_clients:
             diags = client.get_collected_diagnostics()
             if diags:
-                result[adapter.language_enum] = diags
+                result[cfg.adapter.language_enum] = diags
         return result
 
     def get_diagnostics_generation(self) -> int:
         """Return the sum of diagnostics generation counters across all LSP clients."""
-        return sum(client.get_diagnostics_generation() for _, _, client in self._engine_clients)
+        return sum(client.get_diagnostics_generation() for _, client in self._engine_clients)
 
     def load_from_disk_cache(
         self,
@@ -368,7 +372,8 @@ class StaticAnalyzer:
             content:   Full current text content of the file.
         """
         suffix = file_path.suffix
-        for adapter, _, client in self._engine_clients:
+        for cfg, client in self._engine_clients:
+            adapter = cfg.adapter
             if suffix in adapter.file_extensions:
                 # Open + change to ensure the server has the latest content
                 client.did_open(file_path, adapter.language_id)
@@ -389,8 +394,8 @@ class StaticAnalyzer:
             Returns an empty list if no matching client is found.
         """
         suffix = file_path.suffix
-        for adapter, project_path, client in self._engine_clients:
-            if suffix in adapter.file_extensions:
+        for cfg, client in self._engine_clients:
+            if suffix in cfg.adapter.file_extensions:
                 try:
                     symbols = client.document_symbol(file_path)
                     logger.debug(f"Got {len(symbols)} symbols for {file_path}")
@@ -403,9 +408,9 @@ class StaticAnalyzer:
     def get_adapter_for_file(self, file_path: Path) -> tuple[LanguageAdapter, Path] | None:
         """Return the (adapter, project_root) pair that handles a given file extension."""
         suffix = file_path.suffix
-        for adapter, project_path, _ in self._engine_clients:
-            if suffix in adapter.file_extensions:
-                return adapter, project_path
+        for cfg, _ in self._engine_clients:
+            if suffix in cfg.adapter.file_extensions:
+                return cfg.adapter, cfg.project_path
         return None
 
     def discover_file_dependencies(self, file_path: Path) -> list[str]:
@@ -425,7 +430,7 @@ class StaticAnalyzer:
             Returns an empty list if no matching client is found or on failure.
         """
         suffix = file_path.suffix
-        client = next((c for adapter, _, c in self._engine_clients if suffix in adapter.file_extensions), None)
+        client = next((c for cfg, c in self._engine_clients if suffix in cfg.adapter.file_extensions), None)
         if client is None:
             return []
 
@@ -527,12 +532,13 @@ class StaticAnalyzer:
         explicitly requested ``skip_cache=True``.
         """
         results = StaticAnalysisResults()
-        for adapter, project_path, engine_client in self._engine_clients:
+        for cfg, engine_client in self._engine_clients:
+            adapter, project_path = cfg.adapter, cfg.project_path
             language = adapter.language_enum
             try:
                 t_lang_start = time.monotonic()
                 logger.info(f"Starting engine analysis for {adapter.language} in {project_path}")
-                analysis = self._run_full_analysis(adapter, project_path, engine_client)
+                analysis = self._run_full_analysis(cfg, engine_client)
                 self._absorb_into_results(results, language, analysis)
                 logger.info(
                     f"Engine analysis for {adapter.language} completed in {time.monotonic() - t_lang_start:.1f}s"
@@ -557,7 +563,8 @@ class StaticAnalyzer:
         valid output.
         """
         results = StaticAnalysisResults()
-        for adapter, project_path, engine_client in self._engine_clients:
+        for cfg, engine_client in self._engine_clients:
+            adapter, project_path = cfg.adapter, cfg.project_path
             language = adapter.language_enum
             cached_lang_dict = self._extract_language_dict(cached_results, language)
             try:
@@ -570,7 +577,7 @@ class StaticAnalyzer:
                 changed_files = None
 
             if changed_files is None:
-                analysis = self._run_full_analysis(adapter, project_path, engine_client)
+                analysis = self._run_full_analysis(cfg, engine_client)
             else:
                 logger.info(f"warmstart {adapter.language}: re-LSPing {len(changed_files)} changed file(s)")
                 analysis = update_cfg_for_changed_files(
@@ -639,25 +646,19 @@ class StaticAnalyzer:
             )
         self.collected_diagnostics[adapter.language_enum] = merged_diags
 
-    def _run_full_analysis(
-        self,
-        adapter: LanguageAdapter,
-        project_path: Path,
-        engine_client: LSPClient,
-    ) -> dict:
+    def _run_full_analysis(self, cfg: EngineConfig, engine_client: LSPClient) -> dict:
         """Run a full analysis using the engine pipeline.
 
         Returns the dict shape expected by analyze():
             call_graph, class_hierarchies, package_relations, references, source_files, diagnostics
 
-        If the project's file list was authoritatively resolved during config
-        creation (TypeScript via ``tsc --showConfig``), use it directly so
-        sibling sub-projects don't double-claim files. Otherwise the adapter
-        walks its project root and applies the ignore manager.
+        Uses ``cfg.source_files`` when the scanner authoritatively resolved file
+        membership (currently TypeScript via ``tsc --showConfig``); otherwise the
+        adapter walks ``cfg.project_path`` and applies the ignore manager.
         """
-        explicit = self._explicit_source_files.get(project_path)
-        if explicit is not None:
-            source_files = explicit
+        adapter, project_path = cfg.adapter, cfg.project_path
+        if cfg.source_files is not None:
+            source_files = cfg.source_files
         else:
             source_files = adapter.discover_source_files(project_path, self.ignore_manager)
 

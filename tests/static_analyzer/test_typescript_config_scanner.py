@@ -21,7 +21,7 @@ def _force_fallback_walk(monkeypatch: pytest.MonkeyPatch) -> None:
     ``servers/`` provisioned.
     """
     monkeypatch.setattr(
-        "static_analyzer.typescript_config_scanner._build_tsc_command_prefix",
+        "static_analyzer.typescript_config_scanner._resolve_tsc_command",
         lambda *_a, **_k: None,
     )
 
@@ -83,7 +83,7 @@ class TestSolutionTsconfigDropped:
             return _R()
 
         monkeypatch.setattr(
-            "static_analyzer.typescript_config_scanner._build_tsc_command_prefix",
+            "static_analyzer.typescript_config_scanner._resolve_tsc_command",
             lambda *_a, **_k: ["fake-tsc", "--showConfig"],
         )
         monkeypatch.setattr("static_analyzer.typescript_config_scanner.subprocess.run", fake_run)
@@ -112,7 +112,7 @@ def _stub_tsc(monkeypatch: pytest.MonkeyPatch, payload_for: Callable[[Path], dic
         return _R()
 
     monkeypatch.setattr(
-        "static_analyzer.typescript_config_scanner._build_tsc_command_prefix",
+        "static_analyzer.typescript_config_scanner._resolve_tsc_command",
         lambda *_a, **_k: ["fake-tsc", "--showConfig"],
     )
     monkeypatch.setattr("static_analyzer.typescript_config_scanner.subprocess.run", fake_run)

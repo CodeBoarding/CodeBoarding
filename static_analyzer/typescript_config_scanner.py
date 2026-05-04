@@ -1,12 +1,10 @@
 """TypeScript / JavaScript project discovery.
 
-Resolves each project's owned file list authoritatively via ``tsc --showConfig``
-so that nested ``tsconfig.json`` files in a monorepo don't double-claim files.
-Why: a "solution" tsconfig at the repo root (``files: []`` + ``references: [...]``)
-must contribute zero files itself — otherwise its filesystem walk overlaps with
-the leaf projects it points at, and every overlapping file ends up analyzed
-twice under two different qualified-name roots, inflating reference and
-package counts.
+Resolves each project's owned file list via ``tsc --showConfig`` so that nested
+``tsconfig.json`` files in a monorepo don't double-claim files. Why: a "solution"
+tsconfig at the repo root (``files: []`` + ``references: [...]``) must contribute
+zero files itself, or every overlapping file gets analyzed twice and inflates
+reference / package counts.
 """
 
 import json
@@ -17,6 +15,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from repo_utils.ignore import RepoIgnoreManager
+from static_analyzer.constants import LANGUAGE_EXTENSIONS, Language
 from tool_registry.paths import get_servers_dir, preferred_node_path
 
 logger = logging.getLogger(__name__)
@@ -26,19 +25,15 @@ logger = logging.getLogger(__name__)
 class TypeScriptProject:
     """One TS/JS project the engine should analyze.
 
-    ``files`` holds absolute paths resolved by ``tsc --showConfig`` (or by a
-    filesystem fallback if tsc is unavailable). The engine should send exactly
-    these to the LSP client rooted at ``root`` — anything broader would re-claim
-    files that belong to a sibling project.
+    ``files`` are absolute paths the engine should send to the LSP — anything
+    broader would re-claim files belonging to a sibling project.
     """
 
     root: Path
     files: list[Path] = field(default_factory=list)
 
 
-_TS_EXTENSIONS = (".ts", ".tsx", ".mts", ".cts")
-_JS_EXTENSIONS = (".js", ".jsx", ".mjs", ".cjs")
-_ALL_EXTENSIONS = _TS_EXTENSIONS + _JS_EXTENSIONS
+_ALL_EXTENSIONS = LANGUAGE_EXTENSIONS[Language.TYPESCRIPT] + LANGUAGE_EXTENSIONS[Language.JAVASCRIPT]
 
 
 class TypeScriptConfigScanner:
@@ -53,34 +48,18 @@ class TypeScriptConfigScanner:
     def find_typescript_projects(self) -> list[TypeScriptProject]:
         """Return one project per leaf tsconfig with its authoritative file list.
 
-        Strategy (two-tier resolution + trim):
-        1. ``rglob`` the repo for ``tsconfig.json`` / ``jsconfig.json`` (skipping
-           ignored paths). This is the candidate set.
-        2. **Option A**: ask ``tsc --showConfig`` what files each candidate owns.
-           Authoritative because tsc honours ``files``/``include``/``exclude``
-           semantics. The result is then filtered through ``ignore_manager``
-           so ``.codeboardingignore`` patterns (e.g. ``*.test.*``) apply
-           consistently with Option B.
-        3. **Option B (fallback)**: if tsc is unavailable or fails for a
-           candidate, fall back to a filesystem walk that explicitly excludes
-           any subtree owned by another candidate and applies the ignore
-           manager. Less precise than tsc (no ``include``/``exclude``
-           honour) but each file is still claimed at most once.
-        4. ``_trim_overlap`` then assigns each file to exactly one project —
-           the deepest candidate that claims it. Files that only the root
-           tsconfig sees (e.g. ``excalidraw-app/`` in a monorepo) survive
-           on the root project; files claimed by both root and a leaf go
-           to the leaf. A project whose entire claim is covered by deeper
-           projects (a pure "solution" tsconfig) is dropped.
+        Strategy: discover candidate tsconfigs, resolve each one's file set via
+        ``tsc --showConfig`` (or a disjoint FS walk if tsc is unavailable), then
+        ``_trim_overlap`` so each file ends up in exactly one project — the
+        deepest that claims it. A project whose entire claim is covered by
+        deeper ones (a pure "solution" tsconfig) is dropped.
         """
         candidate_dirs = self._discover_candidates()
         if not candidate_dirs:
             logger.warning(f"No TypeScript configuration files found in {self.repo_location}")
             return []
 
-        node_path = preferred_node_path(get_servers_dir())
-        tsc_js = _resolve_tsc_js()
-        tsc_cmd_prefix = _build_tsc_command_prefix(node_path, tsc_js)
+        tsc_cmd_prefix = _resolve_tsc_command()
         if tsc_cmd_prefix is None:
             logger.warning(
                 "tsc not available (neither bundled tsc.js under servers/ nor system tsc on PATH); "
@@ -92,9 +71,6 @@ class TypeScriptConfigScanner:
         for project_dir in candidate_dirs:
             files = self._resolve_project_files(project_dir, tsc_cmd_prefix, candidate_dirs)
             if not files:
-                # No owned files even before trim — already a solution
-                # tsconfig (or every file ignored). Either way, no work
-                # for this project.
                 logger.debug(f"Skipping tsconfig at {project_dir} (no owned files)")
                 continue
             projects.append(TypeScriptProject(root=project_dir, files=files))
@@ -108,10 +84,6 @@ class TypeScriptConfigScanner:
                 f"({total_files} total files across all projects)"
             )
         return projects
-
-    # ------------------------------------------------------------------ #
-    # Candidate discovery
-    # ------------------------------------------------------------------ #
 
     def _discover_candidates(self) -> list[Path]:
         seen: set[Path] = set()
@@ -130,10 +102,6 @@ class TypeScriptConfigScanner:
                 candidates.append(project_dir)
         return candidates
 
-    # ------------------------------------------------------------------ #
-    # File resolution per project (tsc --showConfig with FS fallback)
-    # ------------------------------------------------------------------ #
-
     def _resolve_project_files(
         self,
         project_dir: Path,
@@ -143,16 +111,19 @@ class TypeScriptConfigScanner:
         if tsc_cmd_prefix is not None:
             config = self._showconfig(project_dir, tsc_cmd_prefix)
             if config is not None:
-                files = [_normalize(project_dir, raw) for raw in config.get("files", []) if isinstance(raw, str)]
-                # Apply ignore_manager too: tsc honours each tsconfig's own
-                # include/exclude, but a permissive root tsconfig can claim
-                # files (e.g. ``*.test.ts`` in packages/) that the user has
-                # asked CodeBoarding to skip via .codeboardingignore. Without
-                # this filter, Option A would re-introduce noise that Option B
-                # already drops via ``_fallback_walk``.
+                files = []
+                for raw in config.get("files", []):
+                    if not isinstance(raw, str):
+                        continue
+                    p = Path(raw)
+                    if not p.is_absolute():
+                        p = project_dir / p
+                    files.append(p.resolve())
+                # Apply ignore_manager: a permissive root tsconfig can claim
+                # files (e.g. ``*.test.ts``) the user has skipped via
+                # .codeboardingignore — keep that consistent with the FS fallback.
                 return [f for f in files if f.suffix in _ALL_EXTENSIONS and not self.ignore_manager.should_ignore(f)]
-            # tsc was available but failed for THIS project — fall through
-            # to a filesystem walk for this one project specifically.
+            # tsc available but failed for this project — try the FS walk.
         return self._fallback_walk(project_dir, all_candidates)
 
     def _showconfig(self, project_dir: Path, tsc_cmd_prefix: list[str]) -> dict | None:
@@ -184,16 +155,9 @@ class TypeScriptConfigScanner:
     def _fallback_walk(self, project_dir: Path, all_candidates: list[Path]) -> list[Path]:
         """Disjoint filesystem walk used when ``tsc --showConfig`` is unavailable.
 
-        Walks ``project_dir`` and skips any subtree owned by another candidate
-        project. Each TS/JS file ends up in exactly one project (the deepest
-        candidate containing it).
-
-        Why disjoint: a naive walk from a parent (e.g. the repo root) would
-        re-claim every file already owned by a child (e.g. ``packages/foo/``).
-        Both projects would then add overlapping ``source_files`` lists,
-        re-introducing the duplicate-counting bug this module exists to fix.
-        Less precise than tsc's resolution (no ``include`` / ``exclude``
-        semantics) but each file is claimed by exactly one project.
+        Walks ``project_dir`` skipping any subtree owned by another candidate so
+        each TS/JS file is claimed exactly once. Less precise than tsc (no
+        ``include``/``exclude`` honour) but avoids the double-counting bug.
         """
         nested = [c for c in all_candidates if c != project_dir and _is_ancestor(project_dir, c)]
         files: list[Path] = []
@@ -210,34 +174,18 @@ class TypeScriptConfigScanner:
         files.sort()
         return files
 
-    # ------------------------------------------------------------------ #
-    # Per-file ownership trim
-    # ------------------------------------------------------------------ #
-
     @staticmethod
     def _trim_overlap(projects: list[TypeScriptProject]) -> list[TypeScriptProject]:
-        """Each file is owned by exactly one project — the deepest that claims it.
+        """Assign each file to the deepest project that claims it.
 
         Why deepest-first: leaf tsconfigs typically have stricter ``exclude``
-        patterns (e.g. ``packages/foo/tsconfig.json`` excludes ``**/*.test.*``)
-        and represent the package author's view of "production code." A root
-        tsconfig that ``include``s the whole repo overlaps with every leaf;
-        attributing shared files to the leaf preserves the leaf's intent.
-
-        A parent that has files NOT claimed by any leaf (e.g. an Excalidraw-
-        style root that ``include``s ``packages`` *and* ``excalidraw-app``,
-        where no leaf covers ``excalidraw-app/``) keeps its leftover. A parent
-        whose entire file set is covered by leaves (a pure solution tsconfig)
-        is dropped.
-
-        Determinism: on equal depth, alphabetical order of the absolute path
-        breaks ties — so two same-depth siblings claiming the same file (rare,
-        weird ``include`` globs) get consistent first-wins behavior across
-        runs.
+        patterns and represent the package author's view of "production code,"
+        so attributing shared files to the leaf preserves that intent. A parent
+        with files no leaf covers keeps its leftover; a parent whose entire set
+        is covered by leaves (pure solution tsconfig) is dropped. Alphabetical
+        path tiebreak on equal depth keeps siblings deterministic across runs.
         """
-        # Track original index so survivors come out in caller's order.
         indexed = list(enumerate(projects))
-        # Deepest first; alphabetical secondary for stable tiebreak.
         indexed.sort(key=lambda ip: (-len(ip[1].root.parts), str(ip[1].root)))
 
         claimed: set[Path] = set()
@@ -256,19 +204,6 @@ class TypeScriptConfigScanner:
         return [p for _, p in survivors]
 
 
-# ---------------------------------------------------------------------- #
-# Module-level helpers
-# ---------------------------------------------------------------------- #
-
-
-def _normalize(project_dir: Path, raw: str) -> Path:
-    """Resolve a tsc-emitted file path (often relative) to an absolute path."""
-    p = Path(raw)
-    if not p.is_absolute():
-        p = project_dir / p
-    return p.resolve()
-
-
 def _is_ancestor(maybe_ancestor: Path, descendant: Path) -> bool:
     try:
         descendant.relative_to(maybe_ancestor)
@@ -277,38 +212,24 @@ def _is_ancestor(maybe_ancestor: Path, descendant: Path) -> bool:
     return descendant != maybe_ancestor
 
 
-def _resolve_tsc_js() -> Path | None:
-    """Return the bundled ``tsc.js`` shipped with typescript-language-server."""
-    candidate = get_servers_dir() / "node_modules" / "typescript" / "lib" / "tsc.js"
-    return candidate if candidate.exists() else None
+def _resolve_system_tsc() -> str | None:
+    """Find ``tsc`` on PATH via ``shutil.which`` so Windows ``PATHEXT`` is honoured
+    (``tsc.cmd``/``tsc.exe``/``tsc.bat`` from various installers all resolve)."""
+    return shutil.which("tsc")
 
 
-def _build_tsc_command_prefix(node_path: str | None, tsc_js: Path | None) -> list[str] | None:
-    """Pick the most reliable way to invoke ``tsc --showConfig`` on this host.
+def _resolve_tsc_command() -> list[str] | None:
+    """Return the prefix for invoking ``tsc --showConfig`` on this host.
 
-    Preference order:
-    1. Embedded ``node`` + bundled ``tsc.js`` (vendored alongside
-       typescript-language-server, no PATH assumptions).
-    2. System ``tsc`` if it's on PATH.
-    Returns ``None`` if neither is available.
-
-    The returned list is the prefix to which the caller appends ``-p <dir>``.
+    Prefers the embedded ``node`` + bundled ``tsc.js`` (vendored alongside
+    typescript-language-server, no PATH assumptions); falls back to ``tsc`` on
+    PATH; returns ``None`` if neither is available. The caller appends ``-p <dir>``.
     """
-    if node_path and tsc_js and tsc_js.exists():
-        return [node_path, str(tsc_js), "--showConfig"]
+    node_path = preferred_node_path(get_servers_dir())
+    bundled_tsc = get_servers_dir() / "node_modules" / "typescript" / "lib" / "tsc.js"
+    if node_path and bundled_tsc.exists():
+        return [node_path, str(bundled_tsc), "--showConfig"]
     system_tsc = _resolve_system_tsc()
     if system_tsc is not None:
         return [system_tsc, "--showConfig"]
     return None
-
-
-def _resolve_system_tsc() -> str | None:
-    """Find a usable ``tsc`` binary on the system PATH.
-
-    Why ``shutil.which`` rather than hand-rolling the loop: on Windows the
-    binary may be ``tsc.cmd`` (npm-global), ``tsc.exe`` (some chocolatey/scoop
-    shims), or ``tsc.bat``. ``shutil.which`` honors ``PATHEXT`` and resolves
-    whichever extension is registered first — matching what a user typing
-    ``tsc`` in their shell would get.
-    """
-    return shutil.which("tsc")
