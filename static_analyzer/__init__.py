@@ -32,13 +32,22 @@ def _create_engine_configs(
     programming_languages: list[ProgrammingLanguage],
     repository_path: Path,
     ignore_manager: RepoIgnoreManager,
-) -> list[tuple[LanguageAdapter, Path]]:
+) -> tuple[list[tuple[LanguageAdapter, Path]], dict[Path, list[Path]]]:
     """Create (adapter, project_path) pairs from detected languages.
 
-    Handles mono-repo support: for TypeScript/Java, scans for multiple
+    Returns ``(configs, explicit_source_files)``:
+      - ``configs``: ``(adapter, project_path)`` tuples, one per sub-project.
+      - ``explicit_source_files``: project_path → file list, populated only
+        when a scanner has authoritatively resolved file membership for that
+        project (currently TypeScript via ``tsc --showConfig``). Other
+        languages aren't listed; their adapters fall back to a filesystem
+        walk in ``_run_full_analysis``.
+
+    Handles mono-repo support: for TypeScript/Java/C#, scans for multiple
     project configurations and creates one pair per sub-project.
     """
     configs: list[tuple[LanguageAdapter, Path]] = []
+    explicit_source_files: dict[Path, list[Path]] = {}
 
     for pl in programming_languages:
         if not pl.is_supported_lang():
@@ -65,12 +74,29 @@ def _create_engine_configs(
                 typescript_projects = ts_config_scanner.find_typescript_projects()
 
                 if typescript_projects:
-                    for project_path in typescript_projects:
-                        logger.info(
-                            f"Creating engine config for {adapter_name} at: "
-                            f"{project_path.relative_to(repository_path)}"
-                        )
-                        configs.append((adapter, project_path))
+                    # One LSP rooted at the repo, fed the union of all
+                    # leaf-tsconfig files. Why: tsserver attaches each
+                    # ``didOpen`` file to its nearest enclosing tsconfig
+                    # (Configured Project), so cross-project navigation
+                    # via ``references`` keeps working — but only when a
+                    # single language-service instance sees both ends of
+                    # the edge. Spawning one LSP per tsconfig partitions
+                    # the workspace and drops cross-project edges.
+                    union: list[Path] = []
+                    seen: set[Path] = set()
+                    for project in typescript_projects:
+                        for f in project.files:
+                            if f not in seen:
+                                seen.add(f)
+                                union.append(f)
+                    project_dirs = ", ".join(str(p.root.relative_to(repository_path)) for p in typescript_projects)
+                    logger.info(
+                        f"Creating engine config for {adapter_name} at repo root "
+                        f"({len(union)} files across {len(typescript_projects)} tsconfig project(s): "
+                        f"{project_dirs})"
+                    )
+                    configs.append((adapter, repository_path))
+                    explicit_source_files[repository_path] = union
                 else:
                     logger.info(f"No TypeScript config files found, using repository root for {adapter_name}")
                     configs.append((adapter, repository_path))
@@ -109,7 +135,7 @@ def _create_engine_configs(
         except RuntimeError as e:
             logger.error(f"Failed to create engine config for {pl.language}: {e}")
 
-    return configs
+    return configs, explicit_source_files
 
 
 def _lang_to_adapter_name(language: str) -> str | None:
@@ -137,7 +163,9 @@ class StaticAnalyzer:
         self.repository_path = repository_path.resolve()
         self.ignore_manager = RepoIgnoreManager(self.repository_path)
         programming_langs = ProjectScanner(self.repository_path).scan()
-        self._engine_configs = _create_engine_configs(programming_langs, self.repository_path, self.ignore_manager)
+        self._engine_configs, self._explicit_source_files = _create_engine_configs(
+            programming_langs, self.repository_path, self.ignore_manager
+        )
         self._engine_clients: list[tuple[LanguageAdapter, Path, LSPClient]] = []
         self.collected_diagnostics: dict[Language, FileDiagnosticsMap] = {}
         self._clients_started: bool = False
@@ -621,8 +649,17 @@ class StaticAnalyzer:
 
         Returns the dict shape expected by analyze():
             call_graph, class_hierarchies, package_relations, references, source_files, diagnostics
+
+        If the project's file list was authoritatively resolved during config
+        creation (TypeScript via ``tsc --showConfig``), use it directly so
+        sibling sub-projects don't double-claim files. Otherwise the adapter
+        walks its project root and applies the ignore manager.
         """
-        source_files = adapter.discover_source_files(project_path, self.ignore_manager)
+        explicit = self._explicit_source_files.get(project_path)
+        if explicit is not None:
+            source_files = explicit
+        else:
+            source_files = adapter.discover_source_files(project_path, self.ignore_manager)
 
         if not source_files:
             logger.warning(f"No source files found for {adapter.language} in {project_path}")
