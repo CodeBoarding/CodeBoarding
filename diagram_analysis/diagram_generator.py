@@ -21,7 +21,9 @@ from agents.incremental_agent import (
 )
 from agents.llm_config import initialize_llms
 from agents.meta_agent import MetaAgent
+from agents.name_arbiter import ArbiterCache, NameArbiterAgent
 from agents.planner_agent import get_expandable_components
+from agents.prior_index_builder import build_prior_index
 from diagram_analysis.analysis_json import (
     FileCoverageReport,
     FileCoverageSummary,
@@ -94,6 +96,13 @@ class DiagramGenerator:
         self.meta_agent: MetaAgent | None = None
         self.meta_context: MetaAnalysisInsights | None = None
         self.file_coverage_data: dict | None = None
+        # Stability arbiter, populated in pre_analysis. The cache lives for the
+        # duration of one analysis run — within-run repeats short-circuit, but
+        # cross-run stability comes from reading the prior analysis.json into
+        # a PriorClusterIndex (built in generate_analysis_incremental), not
+        # from persisting this dict.
+        self.name_arbiter: NameArbiterAgent | None = None
+        self.arbiter_cache: ArbiterCache = {}
 
         self._monitoring_agents: dict[str, MonitoringMixin] = {}
         self.stats_writer: StreamingStatsWriter | None = None
@@ -292,6 +301,16 @@ class DiagramGenerator:
             parsing_llm=parsing_llm,
         )
         self._monitoring_agents["AbstractionAgent"] = self.abstraction_agent
+        # Stability arbiter — only fires on the incremental path once
+        # ``generate_analysis_incremental`` builds and attaches a prior_index
+        # to ``self.details_agent``. Constructed here to share the LLM clients.
+        self.name_arbiter = NameArbiterAgent(
+            repo_dir=self.repo_location,
+            static_analysis=static_analysis,
+            agent_llm=agent_llm,
+            parsing_llm=parsing_llm,
+        )
+        self._monitoring_agents["NameArbiter"] = self.name_arbiter
 
         version_file = Path(self.output_dir) / "codeboarding_version.json"
         with open(version_file, "w", encoding="utf-8") as f:
@@ -517,6 +536,16 @@ class DiagramGenerator:
                     if node.file_path:
                         live_files.add(normalize_repo_path(node.file_path, self.repo_location))
             scrub_deleted_files(root_analysis, sub_analyses, live_files)
+
+            # Build the prior-cluster index from the freshly-scrubbed live tree
+            # so DetailsAgent can gate sub-cluster naming through the arbiter.
+            # Built here (not in pre_analysis) because we need root_analysis
+            # and sub_analyses, which only exist on the incremental path.
+            prior_index = build_prior_index(root_analysis, sub_analyses)
+            assert self.details_agent is not None
+            self.details_agent.prior_index = prior_index
+            self.details_agent.name_arbiter = self.name_arbiter
+            self.details_agent.arbiter_cache = self.arbiter_cache
 
             old_snapshot = snapshot_from_static_analysis(self.static_analysis)
             if not old_snapshot.all_cluster_ids():

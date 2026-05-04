@@ -4,9 +4,9 @@ import abc
 import logging
 from abc import abstractmethod
 from pathlib import PurePosixPath
-from typing import Iterator, get_origin, Optional
+from typing import Iterator, Literal, get_origin, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 logger = logging.getLogger(__name__)
 
@@ -152,6 +152,52 @@ class ClusterAnalysis(LLMBaseModel):
         title = "# Grouped Cluster Components\n"
         body = "\n".join(cc.llm_str() for cc in self.cluster_components)
         return title + body
+
+
+class NameDecision(LLMBaseModel):
+    """Single arbiter call: NOOP-or-UPDATE for one cluster's name.
+
+    Why: stability requires the LLM to either echo the prior name verbatim
+    (NOOP) or commit to an explicit rename (UPDATE). Mixing the two via
+    free-form output is what produces cosmetic name churn across runs.
+    """
+
+    event: Literal["NOOP", "UPDATE"] = Field(
+        description=(
+            "NOOP: keep the prior name verbatim (preferred default). "
+            "UPDATE: propose a new name. Pick UPDATE only when the cluster's "
+            "purpose has clearly shifted, not for stylistic reasons."
+        ),
+    )
+    prior_name: str = Field(
+        description=(
+            "Must echo the input prior_name verbatim. The arbiter MUST NOT "
+            "alter or paraphrase this field — it is used as a structural check."
+        ),
+    )
+    new_name: str | None = Field(
+        default=None,
+        description=("Required when event=UPDATE; must differ from prior_name. " "Must be null when event=NOOP."),
+    )
+    rationale: str = Field(
+        description="One sentence explaining the decision.",
+    )
+
+    @model_validator(mode="after")
+    def _check_event_name_consistency(self) -> "NameDecision":
+        if self.event == "NOOP" and self.new_name is not None:
+            raise ValueError("NOOP must not propose a new_name; set new_name=null")
+        if self.event == "UPDATE":
+            if self.new_name is None:
+                raise ValueError("UPDATE must propose a new_name")
+            if self.new_name == self.prior_name:
+                raise ValueError("UPDATE new_name must differ from prior_name; use NOOP if unchanged")
+        return self
+
+    def llm_str(self):
+        if self.event == "NOOP":
+            return f"NOOP — keep `{self.prior_name}` ({self.rationale})"
+        return f"UPDATE `{self.prior_name}` → `{self.new_name}` ({self.rationale})"
 
 
 class MethodEntry(BaseModel):

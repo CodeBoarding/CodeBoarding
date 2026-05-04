@@ -6,7 +6,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from difflib import SequenceMatcher
 
-from agents.agent_responses import AnalysisInsights, ClusterAnalysis, ComponentFiles
+from agents.agent_responses import AnalysisInsights, ClusterAnalysis, ComponentFiles, NameDecision
 from repo_utils import normalize_path
 from static_analyzer.graph import CallGraph, ClusterResult
 
@@ -24,6 +24,8 @@ VALIDATOR_WEIGHTS: dict[str, float] = {
     "validate_key_entities": 5.0,
     "validate_relation_component_names": 5.0,
     "validate_file_classifications": 5.0,
+    "validate_existing_component_ids": 20.0,  # Hallucinated IDs silently fork components — critical.
+    "validate_name_decision": 20.0,  # Prior-name drift breaks the stability guarantee — critical.
 }
 DEFAULT_VALIDATOR_WEIGHT = 5.0
 
@@ -42,6 +44,7 @@ class ValidationContext:
     expected_files: set[str] = field(default_factory=set)
     valid_component_names: set[str] = field(default_factory=set)  # For file classification validation
     existing_component_ids: set[str] = field(default_factory=set)  # For incremental ID-based routing validation
+    expected_prior_name: str | None = None  # For NameDecision arbiter validation
     repo_dir: str | None = None  # For path normalization
     static_analysis: StaticAnalysisResults | None = None  # For qualified name validation
     llm_cluster_analysis: ClusterAnalysis | None = None  # For group name coverage validation
@@ -177,6 +180,29 @@ def validate_existing_component_ids(result: ClusterAnalysis, context: Validation
             len(feedback_messages),
         )
         return ValidationResult(is_valid=False, feedback_messages=feedback_messages)
+    return ValidationResult(is_valid=True)
+
+
+def validate_name_decision(result: NameDecision, context: ValidationContext) -> ValidationResult:
+    """Reject NameDecision responses that altered the prior name.
+
+    Why structural, not prompt-level: the LLM is told to echo prior_name
+    verbatim, but compliance under naming pressure is unreliable. Schema-
+    level rejection is the only way to make name stability a hard property.
+    """
+    expected = context.expected_prior_name
+    if expected is None:
+        return ValidationResult(is_valid=True)
+    if result.prior_name != expected:
+        feedback = (
+            f"prior_name in your response was {result.prior_name!r} but the "
+            f"input prior_name was {expected!r}. Echo the input prior_name "
+            f"verbatim (character-for-character). If you believe a different "
+            f"name is warranted, set event=UPDATE and put the new name in "
+            f"new_name — do not modify prior_name."
+        )
+        logger.warning("[Validation] NameDecision prior_name drift: %r vs expected %r", result.prior_name, expected)
+        return ValidationResult(is_valid=False, feedback_messages=[feedback])
     return ValidationResult(is_valid=True)
 
 

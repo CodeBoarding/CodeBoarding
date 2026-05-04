@@ -82,6 +82,12 @@ class ClusteringConfig:
     # Deterministic seed for clustering algorithms
     CLUSTERING_SEED = 42
 
+    # Jaccard floor for the name-stability arbiter to consider two clusters
+    # "the same" across runs. Above this, the arbiter decides NOOP vs UPDATE.
+    # Below, naming falls through to fresh re-derivation. Empirically 0.5 is
+    # the typical "same component" floor in the refactoring-detection literature.
+    NAME_ARBITER_JACCARD_THRESHOLD = 0.5
+
 
 class NodeType(IntEnum):
     """LSP SymbolKind constants as an IntEnum.

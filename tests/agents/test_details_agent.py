@@ -466,5 +466,251 @@ class TestDetailsAgent(unittest.TestCase):
         )
 
 
+class TestStepClustersGroupingWithArbiter(unittest.TestCase):
+    """Gate-then-arbitrate-then-LLM-then-merge behaviour in ``step_clusters_grouping``.
+
+    These exercise the incremental path where ``prior_index`` is populated.
+    The ``prior_index is None`` path is covered by the existing
+    ``test_step_clusters_grouping`` test above.
+    """
+
+    def setUp(self) -> None:
+        import tempfile
+
+        from agents.agent_responses import NameDecision
+        from agents.name_arbiter import NameArbiterAgent
+        from agents.prior_index_builder import build_prior_index
+
+        self.NameDecision = NameDecision
+        self.NameArbiterAgent = NameArbiterAgent
+        self.build_prior_index = build_prior_index
+
+        self.temp_dir = tempfile.mkdtemp()
+        self.repo_dir = Path(self.temp_dir) / "repo"
+        self.repo_dir.mkdir(parents=True, exist_ok=True)
+
+        self.mock_static_analysis = MagicMock(spec=StaticAnalysisResults)
+        self.mock_static_analysis.get_languages.return_value = ["python"]
+        self.mock_static_analysis.get_cfg.return_value = MagicMock()
+
+        self.meta_context = MetaAnalysisInsights(
+            project_type="library",
+            domain="software development",
+            architectural_patterns=[],
+            expected_components=[],
+            technology_stack=["Python"],
+            architectural_bias="",
+        )
+
+        self.component = Component(
+            name="HostComponent",
+            description="host",
+            key_entities=[],
+            component_id="1",
+        )
+
+        # Prior tree: one component "Authentication" with three methods.
+        prior_comp = Component(
+            name="Authentication",
+            description="auth",
+            key_entities=[],
+            component_id="1.1",
+            file_methods=[
+                FileMethodGroup(
+                    file_path="auth.py",
+                    methods=[
+                        MethodEntry(qualified_name=q, start_line=1, end_line=1, node_type="FUNCTION")
+                        for q in ("auth.login", "auth.logout", "auth.verify_token")
+                    ],
+                )
+            ],
+        )
+        prior_root = AnalysisInsights(
+            description="prior",
+            components=[prior_comp],
+            components_relations=[],
+        )
+        self.prior_index = self.build_prior_index(prior_root, {})
+
+    def tearDown(self) -> None:
+        if hasattr(self, "temp_dir"):
+            shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def _make_agent(self) -> DetailsAgent:
+        with patch("agents.agent.create_agent") as mock_create_agent:
+            mock_create_agent.return_value = MagicMock()
+            return DetailsAgent(
+                repo_dir=self.repo_dir,
+                static_analysis=self.mock_static_analysis,
+                project_name="proj",
+                meta_context=self.meta_context,
+                agent_llm=MagicMock(),
+                parsing_llm=MagicMock(),
+                run_id="test-run",
+            )
+
+    def _wire_arbiter(self, agent: DetailsAgent, decision_per_call: dict[str, "NameDecision"]) -> MagicMock:
+        """Stub the arbiter to return the decision keyed by prior_name."""
+        mock_arbiter = MagicMock()
+
+        def _arbitrate(prior_name: str, prior_members, new_members, cache=None):
+            return decision_per_call[prior_name]
+
+        mock_arbiter.arbitrate = _arbitrate
+        agent.prior_index = self.prior_index
+        agent.name_arbiter = mock_arbiter
+        agent.arbiter_cache = {}
+        return mock_arbiter
+
+    @patch("agents.details_agent.DetailsAgent._validation_invoke")
+    def test_arbiter_handles_matched_cluster_skipping_llm(self, mock_validation_invoke) -> None:
+        # All clusters near-match a prior → arbiter handles all, LLM never called.
+        agent = self._make_agent()
+        self._wire_arbiter(
+            agent,
+            {"Authentication": self.NameDecision(event="NOOP", prior_name="Authentication", rationale="ok")},
+        )
+
+        from static_analyzer.graph import ClusterResult
+
+        cluster_results = {
+            "python": ClusterResult(
+                clusters={1: {"auth.login", "auth.logout", "auth.verify_token"}},
+                cluster_to_files={1: {"auth.py"}},
+            )
+        }
+
+        result = agent.step_clusters_grouping(self.component, cluster_results)
+
+        self.assertEqual(len(result.cluster_components), 1)
+        self.assertEqual(result.cluster_components[0].name, "Authentication")
+        self.assertEqual(result.cluster_components[0].cluster_ids, [1])
+        mock_validation_invoke.assert_not_called()
+
+    @patch("agents.details_agent.DetailsAgent._validation_invoke")
+    def test_unmatched_cluster_falls_through_to_llm(self, mock_validation_invoke) -> None:
+        # No prior matches → arbiter never invoked, LLM names the cluster as today.
+        agent = self._make_agent()
+        self._wire_arbiter(agent, {})  # arbiter will fail noisily if called.
+
+        from static_analyzer.graph import ClusterResult
+
+        cluster_results = {
+            "python": ClusterResult(
+                clusters={42: {"unrelated.alpha", "unrelated.beta"}},
+                cluster_to_files={42: {"unrelated.py"}},
+            )
+        }
+        mock_validation_invoke.return_value = ClusterAnalysis(
+            cluster_components=[
+                ClustersComponent(name="LLM-Named", cluster_ids=[42], description="from llm"),
+            ]
+        )
+
+        result = agent.step_clusters_grouping(self.component, cluster_results)
+
+        self.assertEqual(len(result.cluster_components), 1)
+        self.assertEqual(result.cluster_components[0].name, "LLM-Named")
+        mock_validation_invoke.assert_called_once()
+
+    @patch("agents.details_agent.DetailsAgent._validation_invoke")
+    def test_mixed_batch_merges_arbiter_and_llm_outputs(self, mock_validation_invoke) -> None:
+        agent = self._make_agent()
+        self._wire_arbiter(
+            agent,
+            {"Authentication": self.NameDecision(event="NOOP", prior_name="Authentication", rationale="ok")},
+        )
+
+        from static_analyzer.graph import ClusterResult
+
+        cluster_results = {
+            "python": ClusterResult(
+                clusters={
+                    1: {"auth.login", "auth.logout", "auth.verify_token"},  # matches Authentication
+                    2: {"unrelated.alpha", "unrelated.beta"},  # no match → LLM
+                },
+                cluster_to_files={1: {"auth.py"}, 2: {"u.py"}},
+            )
+        }
+        mock_validation_invoke.return_value = ClusterAnalysis(
+            cluster_components=[
+                ClustersComponent(name="Other", cluster_ids=[2], description="from llm"),
+            ]
+        )
+
+        result = agent.step_clusters_grouping(self.component, cluster_results)
+
+        names = sorted(cc.name for cc in result.cluster_components)
+        self.assertEqual(names, ["Authentication", "Other"])
+        # The LLM was invoked exactly once and only saw the unmatched cluster.
+        mock_validation_invoke.assert_called_once()
+        invoked_context = mock_validation_invoke.call_args.kwargs.get("context")
+        self.assertEqual(invoked_context.expected_cluster_ids, {2})
+
+    @patch("agents.details_agent.DetailsAgent._validation_invoke")
+    def test_multiple_clusters_matching_same_prior_collapse_into_one_component(self, mock_validation_invoke) -> None:
+        # When two new clusters both NOOP to the same prior name, they merge
+        # into ONE ClustersComponent with cluster_ids=[both]. This preserves
+        # the grouping the LLM would have produced for the same input.
+        agent = self._make_agent()
+        self._wire_arbiter(
+            agent,
+            {"Authentication": self.NameDecision(event="NOOP", prior_name="Authentication", rationale="ok")},
+        )
+
+        from static_analyzer.graph import ClusterResult
+
+        # Both clusters above the 0.5 Jaccard threshold against prior
+        # {auth.login, auth.logout, auth.verify_token}:
+        #   cluster 1: {login, logout} → 2/3 ≈ 0.67
+        #   cluster 2: {login, verify_token} → 2/3 ≈ 0.67
+        cluster_results = {
+            "python": ClusterResult(
+                clusters={
+                    1: {"auth.login", "auth.logout"},
+                    2: {"auth.login", "auth.verify_token"},
+                },
+                cluster_to_files={1: {"auth.py"}, 2: {"auth.py"}},
+            )
+        }
+
+        result = agent.step_clusters_grouping(self.component, cluster_results)
+
+        self.assertEqual(len(result.cluster_components), 1)
+        cc = result.cluster_components[0]
+        self.assertEqual(cc.name, "Authentication")
+        self.assertEqual(sorted(cc.cluster_ids), [1, 2])
+        mock_validation_invoke.assert_not_called()
+
+    @patch("agents.details_agent.DetailsAgent._validation_invoke")
+    def test_no_prior_index_uses_full_legacy_flow(self, mock_validation_invoke) -> None:
+        # prior_index is None → behaviour identical to today: every cluster
+        # goes through the LLM grouping call, no arbiter involved.
+        agent = self._make_agent()
+        agent.prior_index = None
+        agent.name_arbiter = None
+
+        from static_analyzer.graph import ClusterResult
+
+        cluster_results = {
+            "python": ClusterResult(
+                clusters={1: {"auth.login", "auth.logout"}},
+                cluster_to_files={1: {"auth.py"}},
+            )
+        }
+        mock_validation_invoke.return_value = ClusterAnalysis(
+            cluster_components=[
+                ClustersComponent(name="Whatever", cluster_ids=[1], description="legacy"),
+            ]
+        )
+
+        result = agent.step_clusters_grouping(self.component, cluster_results)
+
+        self.assertEqual(result.cluster_components[0].name, "Whatever")
+        mock_validation_invoke.assert_called_once()
+        invoked_context = mock_validation_invoke.call_args.kwargs.get("context")
+        self.assertEqual(invoked_context.expected_cluster_ids, {1})
+
+
 if __name__ == "__main__":
     unittest.main()
