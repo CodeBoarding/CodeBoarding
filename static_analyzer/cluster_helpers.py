@@ -155,7 +155,7 @@ def _build_meta_graph(cluster_result: ClusterResult, cfg_graph: nx.DiGraph) -> n
 
     Each node is a cluster ID. Each edge ``(src_cid, dst_cid)`` carries the
     number of CFG calls from ``src_cid`` members into ``dst_cid`` members.
-    Mutual coupling A↔B becomes two separate edges, each contributing
+    Mutual coupling A<->B becomes two separate edges, each contributing
     independently to directed Leicht-Newman modularity (decision #15).
     """
     node_to_cluster = _build_node_to_cluster_lookup(cluster_result)
