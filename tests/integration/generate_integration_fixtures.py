@@ -33,6 +33,7 @@ from git import Repo
 
 from repo_utils import clone_repository
 from static_analyzer import get_static_analysis
+from static_analyzer.constants import Language
 from tests.integration.conftest import (
     REPOSITORY_CONFIGS,
     RepositoryTestConfig,
@@ -79,12 +80,13 @@ def generate_fixture(config: RepositoryTestConfig, verbose: bool = True) -> dict
         mock_scan = create_mock_scanner(config.mock_language)
         start_time = time.perf_counter()
         with patch("static_analyzer.scanner.ProjectScanner.scan", mock_scan):
-            static_analysis = get_static_analysis(repo_path, cache_dir=cache_dir)
+            static_analysis = get_static_analysis(repo_path)
         end_time = time.perf_counter()
         execution_time = end_time - start_time
 
         # Extract metrics
-        metrics = extract_metrics(static_analysis, config.language)
+        lang_enum = Language(config.language.lower())
+        metrics = extract_metrics(static_analysis, lang_enum)
         metrics["execution_time_seconds"] = execution_time
 
         if verbose:
@@ -92,11 +94,10 @@ def generate_fixture(config: RepositoryTestConfig, verbose: bool = True) -> dict
             print(f"  Execution time: {execution_time:.2f} seconds")
 
         # Extract sample entities (first 10 of each type)
-        references = static_analysis.results.get(config.language, {}).get("references", {})
-        sample_refs = sorted(list(references.keys()))[:10]
+        sample_refs = sorted(n.fully_qualified_name for n in static_analysis.iter_reference_nodes(lang_enum))[:10]
 
         try:
-            hierarchy = static_analysis.get_hierarchy(config.language)
+            hierarchy = static_analysis.get_hierarchy(lang_enum)
             sample_classes = sorted(list(hierarchy.keys()))[:10]
         except ValueError:
             sample_classes = []

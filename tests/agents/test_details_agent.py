@@ -457,7 +457,7 @@ class TestDetailsAgent(unittest.TestCase):
             components_relations=[],
         )
 
-        files_index = agent._build_files_index(analysis)
+        files_index = agent.build_files_index(analysis)
 
         self.assertIn("shared.py", files_index)
         self.assertEqual(

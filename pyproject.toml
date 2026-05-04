@@ -40,6 +40,7 @@ dependencies = [
     "langchain-google-genai>=3.1",
     "langchain-ollama>=1.0",
     "langchain-openai>=1.1",
+    "leidenalg>=0.10",
     "markdown>=3.8",
     "markdown-it-py>=3.0",
     "markitdown>=0.1",

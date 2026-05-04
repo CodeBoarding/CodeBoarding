@@ -25,6 +25,7 @@ from health.models import (
     StandardCheckSummary,
 )
 from static_analyzer.analysis_result import StaticAnalysisResults
+from static_analyzer.constants import Language
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +71,7 @@ def _relativize_path(file_path: str, repo_root: str) -> str:
 
 def _collect_checks_for_language(
     static_analysis: StaticAnalysisResults,
-    language: str,
+    language: Language,
     config: HealthCheckConfig,
 ) -> CheckSummaryList:
     """Run all applicable health checks for a single language and return the summaries."""

@@ -1,3 +1,4 @@
+import os
 from datetime import datetime
 from pathlib import Path
 
@@ -5,6 +6,9 @@ from utils import get_project_root
 
 
 def get_monitoring_base_dir() -> Path:
+    override = os.environ.get("CODEBOARDING_MONITORING_BASE_DIR")
+    if override:
+        return Path(override)
     return get_project_root() / "runs"
 
 

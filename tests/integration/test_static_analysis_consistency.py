@@ -39,6 +39,7 @@ from repo_utils import clone_repository
 from repo_utils.ignore import initialize_codeboardingignore
 from static_analyzer import get_static_analysis
 from static_analyzer.analysis_result import StaticAnalysisResults
+from static_analyzer.constants import Language
 
 from .conftest import (
     REPOSITORY_CONFIGS,
@@ -66,7 +67,9 @@ def _relative_path(file_path: str, repo_path: Path) -> str:
         return file_path
 
 
-def _write_snapshot(static_analysis: StaticAnalysisResults, language: str, config_name: str, repo_path: Path) -> Path:
+def _write_snapshot(
+    static_analysis: StaticAnalysisResults, language: Language, config_name: str, repo_path: Path
+) -> Path:
     """Write a detailed snapshot of the analysis results to a JSON file for manual validation.
 
     The snapshot includes all references, hierarchy, call graph edges, package dependencies,
@@ -76,12 +79,11 @@ def _write_snapshot(static_analysis: StaticAnalysisResults, language: str, confi
     repo_path = repo_path.resolve()
 
     # References: sorted list of fully qualified names with type and location
-    refs = static_analysis.results.get(language, {}).get("references", {})
     references_snapshot = []
-    for fqn, node in sorted(refs.items()):
+    for node in sorted(static_analysis.iter_reference_nodes(language), key=lambda n: n.fully_qualified_name):
         references_snapshot.append(
             {
-                "name": fqn,
+                "name": node.fully_qualified_name,
                 "type": node.entity_label(),
                 "file": _relative_path(node.file_path, repo_path),
                 "lines": f"{node.line_start}-{node.line_end}",
@@ -117,7 +119,7 @@ def _write_snapshot(static_analysis: StaticAnalysisResults, language: str, confi
         "config_name": config_name,
         "language": language,
         "metrics": {
-            "references_count": len(refs),
+            "references_count": len(references_snapshot),
             "packages_count": len(deps),
             "call_graph_nodes": len(nodes_snapshot),
             "call_graph_edges": len(edges_snapshot),
@@ -235,17 +237,17 @@ class TestStaticAnalysisConsistency:
         mock_scan = create_mock_scanner(config.mock_language)
         start_time = time.perf_counter()
         with patch("static_analyzer.scanner.ProjectScanner.scan", mock_scan):
-            static_analysis = get_static_analysis(repo_path, cache_dir=cache_dir)
+            static_analysis = get_static_analysis(repo_path)
         end_time = time.perf_counter()
         actual_execution_time = end_time - start_time
 
         # Write snapshot if requested
         if request.config.getoption("--write-snapshots"):
-            snapshot_path = _write_snapshot(static_analysis, config.language, config.name, repo_path)
+            snapshot_path = _write_snapshot(static_analysis, Language(config.language.lower()), config.name, repo_path)
             print(f"\nSnapshot written to: {snapshot_path}")
 
         # Extract actual metrics
-        actual_metrics = extract_metrics(static_analysis, config.language)
+        actual_metrics = extract_metrics(static_analysis, Language(config.language.lower()))
         actual_metrics["execution_time_seconds"] = actual_execution_time
 
         # Compare all metrics and collect results
@@ -316,7 +318,7 @@ class TestStaticAnalysisConsistency:
         if "sample_references" in expected:
             self._verify_sample_entities_present(
                 static_analysis,
-                config.language,
+                Language(config.language.lower()),
                 expected["sample_references"],
                 "references",
             )
@@ -383,20 +385,12 @@ class TestStaticAnalysisConsistency:
     def _verify_sample_entities_present(
         self,
         static_analysis,
-        language: str,
+        language: Language,
         sample_entities: list[str],
         entity_type: str,
     ):
         """Verify that sample entities are present in the analysis results."""
-        lang_results = static_analysis.results.get(language, {})
-        if not isinstance(lang_results, dict):
-            pytest.fail(f"Expected dict for {language} results, got {type(lang_results).__name__}")
-
-        references = lang_results.get("references", {})
-        if not isinstance(references, dict):
-            pytest.fail(f"Expected dict for references, got {type(references).__name__}")
-
-        reference_keys = {k.lower() for k in references.keys()}
+        reference_keys = {n.fully_qualified_name.lower() for n in static_analysis.iter_reference_nodes(language)}
 
         for entity in sample_entities:
             entity_lower = entity.lower()

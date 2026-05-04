@@ -23,6 +23,7 @@ from health.checks.unused_code_diagnostics import (
 )
 from health.models import HealthCheckConfig
 from static_analyzer import StaticAnalyzer
+from static_analyzer.constants import Language
 
 PROJECT_DIR = Path(__file__).parent.parent / "projects" / "csharp_unused_code_project"
 
@@ -37,8 +38,8 @@ class TestCSharpDiagnosticsEndToEnd:
         assert PROJECT_DIR.is_dir(), f"Project missing: {PROJECT_DIR}"
 
         with StaticAnalyzer(PROJECT_DIR) as analyzer:
-            analyzer.analyze(cache_dir=None, skip_cache=True)
-            diagnostics_by_file = analyzer.collected_diagnostics.get("CSharp", {})
+            analyzer.analyze(skip_cache=True)
+            diagnostics_by_file = analyzer.collected_diagnostics.get(Language.CSHARP, {})
 
         assert diagnostics_by_file, (
             "csharp-ls produced no diagnostics — the diagnostics-quiesce wait "

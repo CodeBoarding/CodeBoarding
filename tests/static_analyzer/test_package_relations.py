@@ -5,6 +5,7 @@ from agents.tools.read_packages import PackageRelationsTool
 from agents.tools.base import RepoContext
 from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.analysis_result import StaticAnalysisResults
+from static_analyzer.constants import Language
 
 
 class TestPackageRelationsTool(unittest.TestCase):
@@ -13,7 +14,7 @@ class TestPackageRelationsTool(unittest.TestCase):
         # Create mock static analysis with package dependencies
         self.static_analysis = StaticAnalysisResults()
         self.static_analysis.add_package_dependencies(
-            "python",
+            Language.PYTHON,
             {
                 "mypackage": {"imports": ["requests", "flask"], "imported_by": ["main"]},
                 "utils": {"imports": ["json", "os"], "imported_by": ["mypackage", "tests"]},
@@ -49,7 +50,7 @@ class TestPackageRelationsTool(unittest.TestCase):
     def test_multiple_languages(self):
         # Test with multiple languages
         self.static_analysis.add_package_dependencies(
-            "typescript",
+            Language.TYPESCRIPT,
             {
                 "src": {"imports": ["express", "axios"], "imported_by": []},
             },

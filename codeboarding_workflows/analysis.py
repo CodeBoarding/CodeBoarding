@@ -8,11 +8,11 @@ repo path and the minimum context needed to run; they are source-agnostic
 import logging
 from pathlib import Path
 
+from codeboarding_workflows.incremental import run_incremental_workflow
 from diagram_analysis import DiagramGenerator
-from diagram_analysis.incremental_payload import IncrementalRunPayload
-from diagram_analysis.incremental_pipeline import run_incremental_pipeline
 from diagram_analysis.io_utils import load_full_analysis, save_sub_analysis
-from diagram_analysis.run_metadata import write_full_run_metadata
+from diagram_analysis.run_metadata import last_successful_commit, write_full_run_metadata
+from repo_utils.diff_parser import detect_changes
 
 logger = logging.getLogger(__name__)
 
@@ -49,8 +49,15 @@ def run_full(
     depth_level: int = 1,
     monitoring_enabled: bool = False,
     force_full: bool = False,
+    static_analyzer=None,
+    source_sha: str | None = None,
 ) -> Path:
-    """Full analysis scope — rebuild the whole diagram from scratch."""
+    """Full analysis scope — rebuild the whole diagram from scratch.
+
+    ``source_sha`` is forwarded to ``StaticAnalyzer.analyze`` so the on-disk
+    static-analysis run artifact (sibling of ``analysis.json``) gets a
+    matching SHA tag — enabling the next run's SHA-gated cache reuse.
+    """
     generator = _build_generator(
         repo_name=repo_name,
         repo_path=repo_path,
@@ -59,8 +66,10 @@ def run_full(
         log_path=log_path,
         depth_level=depth_level,
         monitoring_enabled=monitoring_enabled,
+        static_analyzer=static_analyzer,
     )
     generator.force_full_analysis = force_full
+    generator.source_sha = source_sha
     analysis_path = generator.generate_analysis()
     write_full_run_metadata(output_dir, repo_path, analysis_path=analysis_path)
     return analysis_path
@@ -128,13 +137,25 @@ def run_incremental(
     project_name: str,
     run_id: str,
     log_path: str,
-    base_ref: str,
-    target_ref: str,
     depth_level: int = 1,
     monitoring_enabled: bool = False,
     static_analyzer=None,
-) -> IncrementalRunPayload:
-    """Incremental scope — diff against *base_ref* and propagate only the semantic deltas."""
+    base_ref: str | None = None,
+    target_ref: str | None = None,
+    source_sha: str | None = None,
+) -> Path:
+    """Incremental scope — cluster-driven update of an existing ``analysis.json``.
+
+    Resolves the diff baseline and computes a ``ChangeSet`` to scope the
+    cluster delta. ``base_ref`` defaults to the last successful commit
+    recorded in metadata; ``target_ref`` defaults to ``""`` (working tree
+    plus untracked). Falls back to unscoped (no drift filtering) when no
+    baseline is available or the diff fails.
+
+    Returns the path to the (possibly updated) analysis. When no baseline or
+    cluster snapshot exists, falls back to a full run via
+    ``run_incremental_workflow``.
+    """
     generator = _build_generator(
         repo_name=project_name,
         repo_path=repo_path,
@@ -145,4 +166,18 @@ def run_incremental(
         monitoring_enabled=monitoring_enabled,
         static_analyzer=static_analyzer,
     )
-    return run_incremental_pipeline(generator, base_ref=base_ref, target_ref=target_ref)
+    generator.source_sha = source_sha
+
+    effective_base = base_ref if base_ref is not None else last_successful_commit(output_dir)
+    if effective_base is None:
+        logger.info("No baseline ref available; running unscoped incremental.")
+        generator.changes = None
+    else:
+        changes = detect_changes(repo_path, effective_base, target_ref or "")
+        if changes.error:
+            logger.warning("detect_changes failed (%s); running unscoped incremental.", changes.error)
+            generator.changes = None
+        else:
+            generator.changes = changes
+
+    return run_incremental_workflow(generator)

@@ -6,6 +6,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from static_analyzer.analysis_result import StaticAnalysisResults
+from static_analyzer.constants import Language
 
 if TYPE_CHECKING:
     from agents.tools.base import BaseRepoTool, RepoContext
@@ -18,7 +19,7 @@ if TYPE_CHECKING:
 # A health check function matching the signature of built-in checks in health/runner.py.
 # Receives (static_analysis, language, config) and returns a list of check summaries.
 HealthCheckFunc = Callable[
-    [StaticAnalysisResults, str, "HealthCheckConfig"],
+    [StaticAnalysisResults, Language, "HealthCheckConfig"],
     "list[StandardCheckSummary | CircularDependencyCheck]",
 ]
 

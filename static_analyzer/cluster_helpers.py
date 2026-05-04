@@ -8,7 +8,7 @@ Super-clustering overview
 -------------------------
 When a language produces more clusters than `MAX_LLM_CLUSTERS`, we collapse them
 into *super-clusters* via community detection on a weighted meta-graph of inter-
-cluster call edges (Louvain with resolution tuning).
+cluster call edges (Leiden with resolution tuning, Louvain fallback).
 
 After community detection, there are often leftover singleton / tiny communities
 because many clusters are isolated in the call graph (no inter-cluster edges).
@@ -21,11 +21,10 @@ import logging
 from collections import defaultdict
 
 import networkx as nx
-import networkx.algorithms.community as nx_comm
 
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.constants import ClusteringConfig
-from static_analyzer.graph import ClusterResult
+from static_analyzer.constants import ClusteringConfig, Language
+from static_analyzer.graph import ClusterResult, detect_communities
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +35,7 @@ MAX_LLM_CLUSTERS = 50
 
 
 def build_cluster_results_for_languages(
-    static_analysis: StaticAnalysisResults, languages: list[str]
+    static_analysis: StaticAnalysisResults, languages: list[Language]
 ) -> dict[str, ClusterResult]:
     """
     Build cluster results for specified languages.
@@ -48,7 +47,7 @@ def build_cluster_results_for_languages(
     Returns:
         Dictionary mapping language name -> ClusterResult
     """
-    cluster_results = {}
+    cluster_results: dict[str, ClusterResult] = {}
     for lang in languages:
         cfg = static_analysis.get_cfg(lang)
         cluster_results[lang] = cfg.cluster()
@@ -75,7 +74,7 @@ def build_all_cluster_results(static_analysis: StaticAnalysisResults) -> dict[st
         cr = cluster_results[lang]
         n_clusters = len(cr.clusters)
         if n_clusters > MAX_LLM_CLUSTERS:
-            cfg = static_analysis.get_cfg(lang)
+            cfg = static_analysis.get_cfg(Language(lang))
             logger.info(
                 f"[SuperCluster] {lang}: {n_clusters} clusters exceeds limit of {MAX_LLM_CLUSTERS}, "
                 f"merging into super-clusters"
@@ -88,7 +87,7 @@ def build_all_cluster_results(static_analysis: StaticAnalysisResults) -> dict[st
     # within MAX_LLM_CLUSTERS by proportionally reducing per-language counts,
     # then re-index IDs so they don't overlap across languages.
     if len(cluster_results) > 1:
-        cfg_graphs = {lang: static_analysis.get_cfg(lang).to_networkx() for lang in cluster_results}
+        cfg_graphs = {lang: static_analysis.get_cfg(Language(lang)).to_networkx() for lang in cluster_results}
         enforce_cross_language_budget(cluster_results, cfg_graphs)
 
     return cluster_results
@@ -151,16 +150,17 @@ def _build_node_to_cluster_lookup(cluster_result: ClusterResult) -> dict[str, in
     return node_to_cluster
 
 
-def _build_meta_graph(cluster_result: ClusterResult, cfg_graph: nx.DiGraph) -> nx.Graph:
-    """
-    Build a weighted undirected meta-graph of inter-cluster connectivity.
+def _build_meta_graph(cluster_result: ClusterResult, cfg_graph: nx.DiGraph) -> nx.DiGraph:
+    """Build a weighted directed meta-graph of inter-cluster connectivity.
 
-    Each node is a cluster ID. Edge weights represent the number of cross-cluster
-    calls in the original CFG.
+    Each node is a cluster ID. Each edge ``(src_cid, dst_cid)`` carries the
+    number of CFG calls from ``src_cid`` members into ``dst_cid`` members.
+    Mutual coupling A<->B becomes two separate edges, each contributing
+    independently to directed Leicht-Newman modularity (decision #15).
     """
     node_to_cluster = _build_node_to_cluster_lookup(cluster_result)
 
-    meta_graph = nx.Graph()
+    meta_graph = nx.DiGraph()
     for cid in cluster_result.clusters:
         meta_graph.add_node(cid)
 
@@ -169,8 +169,7 @@ def _build_meta_graph(cluster_result: ClusterResult, cfg_graph: nx.DiGraph) -> n
         src_cid = node_to_cluster.get(src)
         dst_cid = node_to_cluster.get(dst)
         if src_cid is not None and dst_cid is not None and src_cid != dst_cid:
-            key = (min(src_cid, dst_cid), max(src_cid, dst_cid))
-            edge_weights[key] += 1
+            edge_weights[(src_cid, dst_cid)] += 1
 
     for (src_cid, dst_cid), weight in edge_weights.items():
         meta_graph.add_edge(src_cid, dst_cid, weight=weight)
@@ -183,24 +182,22 @@ def _build_meta_graph(cluster_result: ClusterResult, cfg_graph: nx.DiGraph) -> n
 # ---------------------------------------------------------------------------
 
 
-def _detect_communities(meta_graph: nx.Graph, target: int, n_original: int) -> list[set[int]]:
+def _detect_communities(meta_graph: nx.Graph | nx.DiGraph, target: int, n_original: int) -> list[set[int]]:
     """
-    Run Louvain community detection with resolution tuning to approach the target count.
+    Run Leiden community detection (Louvain fallback) with resolution tuning to approach the target count.
 
-    Falls back to connected components if Louvain fails or produces no improvement.
+    Falls back to connected components if community detection fails or produces no improvement.
     """
     best_communities: list[set[int]] | None = None
     best_distance = float("inf")
 
     for resolution in [0.5, 0.8, 1.0, 1.2, 1.5, 2.0, 3.0, 5.0]:
         try:
-            communities = list(
-                nx_comm.louvain_communities(
-                    meta_graph,
-                    weight="weight",
-                    resolution=resolution,
-                    seed=ClusteringConfig.CLUSTERING_SEED,
-                )
+            communities: list[set[int]] = detect_communities(
+                meta_graph,
+                weight="weight",
+                resolution=resolution,
+                seed=ClusteringConfig.CLUSTERING_SEED,
             )
             distance = abs(len(communities) - target)
             if distance < best_distance:
@@ -211,7 +208,15 @@ def _detect_communities(meta_graph: nx.Graph, target: int, n_original: int) -> l
             logger.debug(f"[SuperCluster] resolution={resolution} failed: {e}")
 
     if best_communities is None or len(best_communities) >= n_original:
-        best_communities = [set(c) for c in nx.connected_components(meta_graph)]
+        # Why weakly_connected_components: under directed meta-graphs (decision #15),
+        # nx.connected_components is undefined. Reachability-ignoring-direction is
+        # the right semantic for a structural-isolation safety net.
+        components_iter = (
+            nx.weakly_connected_components(meta_graph)
+            if meta_graph.is_directed()
+            else nx.connected_components(meta_graph)
+        )
+        best_communities = [set(c) for c in components_iter]
         logger.warning(f"[SuperCluster] Falling back to connected components: {len(best_communities)} groups")
 
     return best_communities
@@ -233,7 +238,7 @@ def _community_files(community: set[int], cluster_result: ClusterResult) -> set[
 def _find_nearest_by_graph_distance(
     smallest_idx: int,
     communities: list[set[int]],
-    meta_graph: nx.Graph,
+    meta_graph: nx.Graph | nx.DiGraph,
 ) -> int | None:
     """
     Find the community closest to *smallest_idx* by shortest-path distance
@@ -242,10 +247,17 @@ def _find_nearest_by_graph_distance(
     For each candidate community we take the minimum shortest-path length
     between any cluster in the smallest community and any cluster in the
     candidate. Returns ``None`` when no finite path exists (disconnected).
+
+    Distance is computed on an undirected view: absorption is about
+    topological proximity, not directional reachability — a tiny utility
+    cluster should be absorbable by a nearby cluster regardless of which
+    way the calls flow.
     """
     smallest = communities[smallest_idx]
     best_idx: int | None = None
     best_dist = float("inf")
+
+    distance_graph = meta_graph.to_undirected(as_view=True) if meta_graph.is_directed() else meta_graph
 
     for idx, candidate in enumerate(communities):
         if idx == smallest_idx:
@@ -253,7 +265,7 @@ def _find_nearest_by_graph_distance(
         for src in smallest:
             for dst in candidate:
                 try:
-                    dist = nx.shortest_path_length(meta_graph, src, dst)
+                    dist = nx.shortest_path_length(distance_graph, src, dst)
                 except nx.NetworkXNoPath:
                     continue
                 if dist < best_dist:
@@ -324,7 +336,7 @@ def reindex_cluster_result(cluster_result: ClusterResult, offset: int) -> Cluste
 def _absorb_small_communities(
     communities: list[set[int]],
     cluster_result: ClusterResult,
-    meta_graph: nx.Graph,
+    meta_graph: nx.Graph | nx.DiGraph,
     target: int,
 ) -> list[set[int]]:
     """

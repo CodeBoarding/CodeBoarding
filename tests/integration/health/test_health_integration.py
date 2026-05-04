@@ -154,7 +154,7 @@ class TestHealthCheckIntegration:
         # Mock ProjectScanner.scan() to bypass tokei binary dependency
         with patch("static_analyzer.scanner.ProjectScanner.scan", _mock_project_scanner_scan):
             # Run static analysis (the heavy part)
-            static_analysis = get_static_analysis(repo_path, cache_dir=tmp_path / "cache")
+            static_analysis = get_static_analysis(repo_path)
 
             # Set up health config
             health_config_dir = output_dir / "health"

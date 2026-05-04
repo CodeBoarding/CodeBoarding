@@ -20,7 +20,7 @@ from pathlib import Path
 
 from filelock import FileLock
 
-from agents.agent_responses import AnalysisInsights, Component
+from agents.agent_responses import AnalysisInsights, Component, index_components_by_id
 from agents.planner_agent import should_expand_component
 from diagram_analysis.analysis_json import (
     FileCoverageSummary,
@@ -30,6 +30,25 @@ from diagram_analysis.analysis_json import (
 from utils import ANALYSIS_FILENAME
 
 logger = logging.getLogger(__name__)
+
+
+def normalize_repo_path(path: str, repo_root: Path | str | None) -> str:
+    """Convert a CFG file path into a repo-relative posix form.
+
+    ``analysis.json`` indexes (``files``, ``methods_index``, ``file_methods``)
+    use repo-relative posix paths; CFG nodes carry either an absolute path
+    under ``repo_root`` or an already-relative one.
+    """
+    posix = path.replace("\\", "/")
+    candidate = Path(posix)
+    if candidate.is_absolute() and repo_root is not None:
+        try:
+            return candidate.resolve().relative_to(Path(repo_root).resolve()).as_posix()
+        except ValueError:
+            return posix
+    while posix.startswith("./"):
+        posix = posix[2:]
+    return posix
 
 
 class _AnalysisFileStore:
@@ -48,20 +67,6 @@ class _AnalysisFileStore:
     ) -> list[Component]:
         """Compute expandable components deterministically for one analysis level."""
         return [c for c in analysis.components if should_expand_component(c, parent_had_clusters=parent_had_clusters)]
-
-    @staticmethod
-    def _build_component_lookup(
-        root_analysis: AnalysisInsights,
-        sub_analyses: dict[str, AnalysisInsights],
-    ) -> dict[str, Component]:
-        """Build component_id -> component lookup across root and sub-analyses."""
-        lookup: dict[str, Component] = {}
-        for component in root_analysis.components:
-            lookup[component.component_id] = component
-        for sub_analysis in sub_analyses.values():
-            for component in sub_analysis.components:
-                lookup[component.component_id] = component
-        return lookup
 
     def __init__(self, output_dir: Path) -> None:
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -210,7 +215,7 @@ class _AnalysisFileStore:
         # Convert sub_analyses dict to the format expected by build_unified_analysis_json
         sub_analyses_tuples: dict[str, tuple[AnalysisInsights, list[Component]]] | None = None
         if sub_analyses:
-            component_lookup = self._build_component_lookup(analysis, sub_analyses)
+            component_lookup = index_components_by_id(analysis, sub_analyses)
             sub_analyses_tuples = {}
             for cid, sub in sub_analyses.items():
                 parent_component = component_lookup.get(cid)

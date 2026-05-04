@@ -4,6 +4,7 @@ import unittest
 from health.models import HealthCheckConfig, StandardCheckSummary
 from health.runner import run_health_checks
 from static_analyzer.analysis_result import StaticAnalysisResults
+from static_analyzer.constants import Language
 from static_analyzer.graph import CallGraph
 from static_analyzer.node import Node
 
@@ -22,7 +23,7 @@ class TestHealthRunner(unittest.TestCase):
     def test_full_report_generation(self):
         """Test that the runner produces a valid HealthReport from StaticAnalysisResults."""
         # Build a simple call graph
-        graph = CallGraph(language="python")
+        graph = CallGraph(language=Language.PYTHON)
         graph.add_node(_make_node("mod.small_func", "/src/mod.py", 0, 10))
         graph.add_node(_make_node("mod.large_func", "/src/mod.py", 10, 120))
         graph.add_node(_make_node("mod.caller", "/src/mod.py", 120, 140))
@@ -32,9 +33,9 @@ class TestHealthRunner(unittest.TestCase):
 
         # Build StaticAnalysisResults
         results = StaticAnalysisResults()
-        results.add_cfg("python", graph)
-        results.add_references("python", list(graph.nodes.values()))
-        results.add_source_files("python", ["/src/mod.py", "/src/orphan.py"])
+        results.add_cfg(Language.PYTHON, graph)
+        results.add_references(Language.PYTHON, list(graph.nodes.values()))
+        results.add_source_files(Language.PYTHON, ["/src/mod.py", "/src/orphan.py"])
 
         hierarchy = {
             "mod": {
@@ -45,12 +46,12 @@ class TestHealthRunner(unittest.TestCase):
                 "line_end": 140,
             }
         }
-        results.add_class_hierarchy("python", hierarchy)
+        results.add_class_hierarchy(Language.PYTHON, hierarchy)
 
         pkg_deps = {
             "mod": {"imports": ["os", "sys"], "imported_by": []},
         }
-        results.add_package_dependencies("python", pkg_deps)
+        results.add_package_dependencies(Language.PYTHON, pkg_deps)
 
         # Use fixed thresholds for predictable test results
         config = HealthCheckConfig(
@@ -97,13 +98,13 @@ class TestHealthRunner(unittest.TestCase):
 
     def test_json_serialization(self):
         """Test that the HealthReport can be serialized to JSON."""
-        graph = CallGraph(language="python")
+        graph = CallGraph(language=Language.PYTHON)
         graph.add_node(_make_node("mod.func", "/src/mod.py", 0, 50))
 
         results = StaticAnalysisResults()
-        results.add_cfg("python", graph)
-        results.add_references("python", list(graph.nodes.values()))
-        results.add_source_files("python", ["/src/mod.py"])
+        results.add_cfg(Language.PYTHON, graph)
+        results.add_references(Language.PYTHON, list(graph.nodes.values()))
+        results.add_source_files(Language.PYTHON, ["/src/mod.py"])
 
         report = run_health_checks(results, "test")
         assert report is not None
@@ -129,13 +130,13 @@ class TestHealthRunner(unittest.TestCase):
 
     def test_custom_config(self):
         """Test that custom config thresholds are respected."""
-        graph = CallGraph(language="python")
+        graph = CallGraph(language=Language.PYTHON)
         graph.add_node(_make_node("mod.func", "/f.py", 0, 40))
 
         results = StaticAnalysisResults()
-        results.add_cfg("python", graph)
-        results.add_references("python", list(graph.nodes.values()))
-        results.add_source_files("python", ["/f.py"])
+        results.add_cfg(Language.PYTHON, graph)
+        results.add_references(Language.PYTHON, list(graph.nodes.values()))
+        results.add_source_files(Language.PYTHON, ["/f.py"])
 
         # With default fixed threshold (max=500), no finding
         config_default = HealthCheckConfig(
@@ -159,14 +160,14 @@ class TestHealthRunner(unittest.TestCase):
 
     def test_file_summaries_aggregation(self):
         """Test that file-level summaries aggregate correctly."""
-        graph = CallGraph(language="python")
+        graph = CallGraph(language=Language.PYTHON)
         graph.add_node(_make_node("mod.func1", "/src/mod.py", 0, 120))
         graph.add_node(_make_node("mod.func2", "/src/mod.py", 120, 250))
 
         results = StaticAnalysisResults()
-        results.add_cfg("python", graph)
-        results.add_references("python", list(graph.nodes.values()))
-        results.add_source_files("python", ["/src/mod.py"])
+        results.add_cfg(Language.PYTHON, graph)
+        results.add_references(Language.PYTHON, list(graph.nodes.values()))
+        results.add_source_files(Language.PYTHON, ["/src/mod.py"])
 
         config = HealthCheckConfig(
             function_size_max=100,
@@ -195,16 +196,16 @@ class TestHealthRunner(unittest.TestCase):
             src_mod = "/home/user/project/src/mod.py"
             lib_utils = "/home/user/project/lib/utils.py"
 
-        graph = CallGraph(language="python")
+        graph = CallGraph(language=Language.PYTHON)
         graph.add_node(_make_node("mod.func1", src_mod, 0, 120))
         graph.add_node(_make_node("mod.func2", src_mod, 120, 250))
         graph.add_node(_make_node("utils.helper", lib_utils, 0, 10))
 
         results = StaticAnalysisResults()
-        results.add_cfg("python", graph)
-        results.add_references("python", list(graph.nodes.values()))
+        results.add_cfg(Language.PYTHON, graph)
+        results.add_references(Language.PYTHON, list(graph.nodes.values()))
         results.add_source_files(
-            "python",
+            Language.PYTHON,
             [src_mod, lib_utils],
         )
 
@@ -227,13 +228,13 @@ class TestHealthRunner(unittest.TestCase):
 
     def test_absolute_paths_when_no_repo_path(self):
         """Test that file paths remain absolute when repo_path is not provided."""
-        graph = CallGraph(language="python")
+        graph = CallGraph(language=Language.PYTHON)
         graph.add_node(_make_node("mod.func", "/home/user/project/src/mod.py", 0, 120))
 
         results = StaticAnalysisResults()
-        results.add_cfg("python", graph)
-        results.add_references("python", list(graph.nodes.values()))
-        results.add_source_files("python", ["/home/user/project/src/mod.py"])
+        results.add_cfg(Language.PYTHON, graph)
+        results.add_references(Language.PYTHON, list(graph.nodes.values()))
+        results.add_source_files(Language.PYTHON, ["/home/user/project/src/mod.py"])
 
         config = HealthCheckConfig(
             function_size_max=100,
@@ -254,14 +255,14 @@ class TestHealthRunner(unittest.TestCase):
 
     def test_healthignore_excludes_by_entity_name(self):
         """Test that .healthignore patterns exclude findings by entity name."""
-        graph = CallGraph(language="python")
+        graph = CallGraph(language=Language.PYTHON)
         graph.add_node(_make_node("evals.utils.gen", "/src/evals/utils.py", 0, 200))
         graph.add_node(_make_node("mod.func", "/src/mod.py", 0, 200))
 
         results = StaticAnalysisResults()
-        results.add_cfg("python", graph)
-        results.add_references("python", list(graph.nodes.values()))
-        results.add_source_files("python", ["/src/evals/utils.py", "/src/mod.py"])
+        results.add_cfg(Language.PYTHON, graph)
+        results.add_references(Language.PYTHON, list(graph.nodes.values()))
+        results.add_source_files(Language.PYTHON, ["/src/evals/utils.py", "/src/mod.py"])
 
         config = HealthCheckConfig(
             function_size_max=100,
@@ -278,14 +279,14 @@ class TestHealthRunner(unittest.TestCase):
 
     def test_healthignore_excludes_by_file_path(self):
         """Test that .healthignore patterns exclude findings by file path."""
-        graph = CallGraph(language="python")
+        graph = CallGraph(language=Language.PYTHON)
         graph.add_node(_make_node("evals.gen", "/src/evals/gen.py", 0, 200))
         graph.add_node(_make_node("mod.func", "/src/mod.py", 0, 200))
 
         results = StaticAnalysisResults()
-        results.add_cfg("python", graph)
-        results.add_references("python", list(graph.nodes.values()))
-        results.add_source_files("python", ["/src/evals/gen.py", "/src/mod.py"])
+        results.add_cfg(Language.PYTHON, graph)
+        results.add_references(Language.PYTHON, list(graph.nodes.values()))
+        results.add_source_files(Language.PYTHON, ["/src/evals/gen.py", "/src/mod.py"])
 
         config = HealthCheckConfig(
             function_size_max=100,
@@ -304,17 +305,17 @@ class TestHealthRunner(unittest.TestCase):
         """Test that .healthignore patterns exclude LSP diagnostics by file path."""
         from static_analyzer.lsp_client.diagnostics import LSPDiagnostic
 
-        graph = CallGraph(language="python")
+        graph = CallGraph(language=Language.PYTHON)
         graph.add_node(_make_node("mod.func", "/src/mod.py", 0, 10))
 
         results = StaticAnalysisResults()
-        results.add_cfg("python", graph)
-        results.add_references("python", list(graph.nodes.values()))
-        results.add_source_files("python", ["/src/mod.py", "/src/evals/utils.py"])
+        results.add_cfg(Language.PYTHON, graph)
+        results.add_references(Language.PYTHON, list(graph.nodes.values()))
+        results.add_source_files(Language.PYTHON, ["/src/mod.py", "/src/evals/utils.py"])
 
         # Add diagnostics for both files
         results.diagnostics = {
-            "python": {
+            Language.PYTHON: {
                 "/src/mod.py": [
                     LSPDiagnostic(code="reportUnusedImport", message="'os' is not accessed", severity=2, tags=[1]),
                 ],
