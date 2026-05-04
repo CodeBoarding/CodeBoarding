@@ -11,7 +11,7 @@ from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.prompts import PromptTemplate
 from langchain.agents import create_agent
 from langgraph.graph.state import CompiledStateGraph
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 from trustcall import create_extractor
 
 from agents.prompts import get_validation_feedback_message
@@ -429,7 +429,7 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         raise ValueError(f"Couldn't parse {message_content}")
 
     @staticmethod
-    def _direct_pydantic_parse(response: str, return_type: type):
+    def _direct_pydantic_parse(response: str, return_type: type[BaseModel]):
         """Try to parse ``response`` directly into ``return_type`` without an LLM call.
 
         Handles two common shapes the agent emits:
