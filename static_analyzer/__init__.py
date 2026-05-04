@@ -37,7 +37,7 @@ def _create_engine_configs(
 
     Returns ``(configs, explicit_source_files)``:
       - ``configs``: ``(adapter, project_path)`` tuples, one per sub-project.
-      - ``explicit_source_files``: project_path → file list, populated only
+      - ``explicit_source_files``: project_path -> file list, populated only
         when a scanner has authoritatively resolved file membership for that
         project (currently TypeScript via ``tsc --showConfig``). Other
         languages aren't listed; their adapters fall back to a filesystem
