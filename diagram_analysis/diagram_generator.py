@@ -530,7 +530,6 @@ class DiagramGenerator:
                 changes=self.changes,
                 repo_dir=self.repo_location,
             )
-            self._persist_pkl_with_cluster_cache(delta.cluster_results())
             if not delta.has_changes:
                 logger.info("Cluster delta is empty; rewriting current analysis without re-detailing.")
                 prune_empty_components(root_analysis, sub_analyses)
@@ -600,6 +599,11 @@ class DiagramGenerator:
                 file_coverage_summary=self._build_file_coverage_summary(),
                 commit_hash=commit_hash,
             ).resolve()
+            # Persist the new cluster baseline only after analysis.json is on
+            # disk. Order matters: save_analysis first, pickle second — so a
+            # crash between the two writes leaves the next incremental
+            # re-doing this delta (idempotent) rather than silently missing it.
+            self._persist_pkl_with_cluster_cache(delta.cluster_results())
             self._write_file_coverage()
             return analysis_path
 

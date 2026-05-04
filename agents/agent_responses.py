@@ -114,12 +114,23 @@ class ClustersComponent(LLMBaseModel):
     description: str = Field(
         description="Explanation of what this component does, its main flow, WHY these clusters are grouped together, how it interacts with other cluster groups, and the most important classes/methods (by their exact qualified names from the clusters)"
     )
+    existing_component_id: str | None = Field(
+        default=None,
+        description=(
+            "Incremental routing: the exact component_id of the existing component "
+            "this entry is routing clusters into (e.g. '1.3'). Set to null to create "
+            "a brand-new component. Identity is by ID, not name — leaving this null "
+            "while reusing an existing component's name forks a duplicate component. "
+            "Ignored by the full-analysis flow."
+        ),
+    )
     parent_id: str | None = Field(
         default=None,
         description=(
-            "Used only by the incremental flow when this name is brand-new: "
-            "the existing component_id under which the new component should attach "
-            "(or null to attach at root). Ignored when the name matches an existing component."
+            "Incremental routing: when ``existing_component_id`` is null (brand-new "
+            "component), the existing component_id under which the new component "
+            "should attach (or null to attach at root). Ignored when "
+            "``existing_component_id`` is set, and ignored by the full-analysis flow."
         ),
     )
 

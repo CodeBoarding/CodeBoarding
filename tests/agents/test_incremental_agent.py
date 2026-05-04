@@ -70,6 +70,7 @@ class TestStitchDelta(unittest.TestCase):
                     name="Static Analyzer",
                     cluster_ids=[3],
                     description="ignored for existing component",
+                    existing_component_id="1",
                 )
             ]
         )
@@ -131,17 +132,17 @@ class TestStitchDelta(unittest.TestCase):
         self.assertEqual(redetail, set())
         self.assertEqual(comp.source_cluster_ids, [5])
 
-    def test_existing_name_collision_silently_merges(self) -> None:
-        """LLM unintentionally reusing a name should NOT create a duplicate component."""
-        comp = _component("Existing", "1", source_cluster_ids=[1])
+    def test_routes_by_id_even_when_name_differs(self) -> None:
+        """LLM-renamed component routed by id MUST update the existing component, not fork."""
+        comp = _component("Authentication", "1.3", source_cluster_ids=[1])
         root = AnalysisInsights(description="root", components=[comp], components_relations=[])
         delta_ca = ClusterAnalysis(
             cluster_components=[
                 ClustersComponent(
-                    name="EXISTING",  # case-insensitive collision
+                    name="Auth Service",  # different name; id is what counts
                     cluster_ids=[2],
-                    description="should merge",
-                    parent_id=None,
+                    description="renamed for clarity",
+                    existing_component_id="1.3",
                 )
             ]
         )
@@ -150,6 +151,56 @@ class TestStitchDelta(unittest.TestCase):
 
         self.assertEqual(len(root.components), 1)
         self.assertEqual(comp.source_cluster_ids, [1, 2])
+
+    def test_creates_new_component_when_existing_id_is_null(self) -> None:
+        """Identity is by id. A null existing_component_id forks a new component
+        even when the name collides with an existing one."""
+        comp = _component("Authentication", "1.3", source_cluster_ids=[1])
+        root = AnalysisInsights(description="root", components=[comp], components_relations=[])
+        delta_ca = ClusterAnalysis(
+            cluster_components=[
+                ClustersComponent(
+                    name="Authentication",  # matches existing name
+                    cluster_ids=[2],
+                    description="brand-new component that happens to share the name",
+                    existing_component_id=None,
+                    parent_id=None,
+                )
+            ]
+        )
+
+        stitch_delta(root, {}, delta_ca, _empty_delta())
+
+        self.assertEqual(len(root.components), 2)
+        original = next(c for c in root.components if c.component_id == "1.3")
+        new_one = next(c for c in root.components if c.component_id != "1.3")
+        self.assertEqual(original.source_cluster_ids, [1])
+        self.assertEqual(new_one.source_cluster_ids, [2])
+        self.assertTrue(new_one.component_id, "new component should have an assigned id")
+
+    def test_hallucinated_existing_component_id_is_treated_as_new(self) -> None:
+        """If an unknown existing_component_id slips past the validator, the
+        stitcher must not crash and must not silently lose the cluster_ids."""
+        comp = _component("Existing", "1", source_cluster_ids=[1])
+        root = AnalysisInsights(description="root", components=[comp], components_relations=[])
+        delta_ca = ClusterAnalysis(
+            cluster_components=[
+                ClustersComponent(
+                    name="Hallucinated Routing",
+                    cluster_ids=[42],
+                    description="LLM made up an id",
+                    existing_component_id="9.99",  # does not exist
+                    parent_id=None,
+                )
+            ]
+        )
+
+        stitch_delta(root, {}, delta_ca, _empty_delta())
+
+        self.assertEqual(len(root.components), 2)
+        self.assertEqual(comp.source_cluster_ids, [1])  # untouched
+        new_one = next(c for c in root.components if c.name == "Hallucinated Routing")
+        self.assertEqual(new_one.source_cluster_ids, [42])
 
 
 class TestFormatExistingComponents(unittest.TestCase):

@@ -29,6 +29,7 @@ from agents.prompts.incremental_grouping import get_incremental_grouping_message
 from agents.validation import (
     ValidationContext,
     validate_cluster_coverage,
+    validate_existing_component_ids,
 )
 from diagram_analysis.cluster_delta import ClusterDelta
 from diagram_analysis.io_utils import normalize_repo_path
@@ -123,13 +124,17 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
             cfg_clusters=cluster_str,
         )
 
+        existing_component_ids = {
+            c.component_id for c in iter_components(root_analysis, sub_analyses) if c.component_id
+        }
         result = self._validation_invoke(
             prompt,
             ClusterAnalysis,
-            validators=[validate_cluster_coverage],
+            validators=[validate_cluster_coverage, validate_existing_component_ids],
             context=ValidationContext(
                 cluster_results=cluster_results,
                 expected_cluster_ids=affected_cluster_ids,
+                existing_component_ids=existing_component_ids,
             ),
             max_validation_attempts=3,
         )
@@ -189,11 +194,15 @@ def stitch_delta(
 ) -> set[str]:
     """Apply the delta ClusterAnalysis to the live tree.
 
+    Routing is by ``existing_component_id`` (decision #4). The LLM either
+    sets it to a live component_id (route into that component) or leaves it
+    null (create a new component). Name matching is *not* used — that path
+    silently forks a duplicate component on every rename.
+
     Returns the set of component_ids that need to be redetailed (their
     ``source_cluster_ids`` set changed, or they were newly inserted).
     """
     component_index = index_components_by_id(root_analysis, sub_analyses)
-    name_lookup = {component.name.lower(): component for component in component_index.values()}
 
     cluster_id_remap = delta.merged_cluster_id_remap()
     dropped_cluster_ids = delta.all_dropped_cluster_ids()
@@ -218,17 +227,31 @@ def stitch_delta(
         if component.component_id and remapped & changed_cluster_ids:
             redetail_ids.add(component.component_id)
 
-    # Step 2 — route delta cluster_components to existing or new components.
+    # Step 2 — route delta cluster_components by ID (never by name).
     new_components: list[tuple[Component, str | None]] = []
     for cc in delta_cluster_analysis.cluster_components:
-        existing = name_lookup.get(cc.name.lower())
-        if existing is not None:
-            updated = sorted(set(existing.source_cluster_ids) | set(cc.cluster_ids))
-            if updated != existing.source_cluster_ids:
-                existing.source_cluster_ids = updated
-                if existing.component_id:
-                    redetail_ids.add(existing.component_id)
-            continue
+        if cc.existing_component_id is not None:
+            existing = component_index.get(cc.existing_component_id)
+            if existing is None:
+                # Hallucinated ID: validate_existing_component_ids should
+                # have rejected the response upstream; if we got here, the
+                # validator was bypassed. Don't crash and don't fall back to
+                # name matching — treat as a new component so data is never
+                # silently lost, and log loudly so it surfaces in telemetry.
+                logger.warning(
+                    "[stitch_delta] LLM returned existing_component_id=%r "
+                    "which does not match any live component; treating "
+                    "cluster_components entry %r as a new component.",
+                    cc.existing_component_id,
+                    cc.name,
+                )
+            else:
+                updated = sorted(set(existing.source_cluster_ids) | set(cc.cluster_ids))
+                if updated != existing.source_cluster_ids:
+                    existing.source_cluster_ids = updated
+                    if existing.component_id:
+                        redetail_ids.add(existing.component_id)
+                continue
 
         new_component = Component(
             name=cc.name,

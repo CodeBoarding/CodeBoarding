@@ -29,33 +29,45 @@ The previous analysis established the components below. Most clusters are \
 unchanged and stay where they are; this prompt only shows the slice that \
 changed (new clusters or clusters whose member methods changed).
 
-### Existing components (do NOT invent name variants of these)
+### Existing components (each line shows `component_id "name"`)
 {existing_components}
 
 ### Cluster groups to assign
 {cfg_clusters}
 
 Your task:
-For each cluster id shown above, decide which component it belongs to. There \
-are exactly two options:
-1. Assign the cluster to an existing component by reusing that component's \
-   exact name. Several clusters may share the same component name.
-2. Create a new component when no existing component fits. Provide:
-   - **name**: a short, descriptive name distinct from every existing one
-   - **description**: one paragraph explaining what this new component does \
-     and why these clusters belong together
-   - **parent_id**: the existing component_id under which this new component \
-     should attach, or null to attach at root. Choose the parent whose scope \
-     most naturally encloses the new component.
+For each cluster id shown above, decide which component it belongs to. \
+There are exactly two options:
+
+1. **Route to an existing component.** Set `existing_component_id` to the \
+   exact component_id from the list above (e.g. `"1.3"`). Reuse that \
+   component's `name` and a short `description` verbatim, and put the \
+   cluster ids in `cluster_ids`. Several entries may share the same \
+   `existing_component_id` if multiple groups of clusters route to the \
+   same component.
+
+2. **Create a new component.** Leave `existing_component_id` as null, \
+   provide a fresh `name` (distinct from every existing component), write \
+   a `description` paragraph explaining what this new component does and \
+   why these clusters belong together, and set `parent_id` to the \
+   component_id under which this new component should attach (or null \
+   for root). Choose the parent whose scope most naturally encloses the \
+   new component.
+
+Identity is by component_id, not by name. Reusing an existing \
+component's name without setting `existing_component_id` will fork a \
+duplicate component — that is wrong. If clusters belong in an existing \
+component, you MUST set `existing_component_id`.
 
 Output format:
 Return a `ClusterAnalysis` with `cluster_components`. For every entry, set:
   - `name` (string),
   - `cluster_ids` (list of integers, the cluster ids assigned to this entry),
-  - `description` (string; for existing components reuse a short summary; for \
-    new components write a fresh paragraph),
-  - `parent_id` (string component_id, or null) — required for new components, \
-    ignored for existing ones.
+  - `description` (string),
+  - `existing_component_id` (string component_id, or null) — set when \
+    routing to an existing component; null when creating a new one,
+  - `parent_id` (string component_id, or null) — required when \
+    `existing_component_id` is null; ignored otherwise.
 
 Coverage requirement: every cluster id listed in the "Cluster groups to \
 assign" section must appear in exactly one entry's `cluster_ids`."""
