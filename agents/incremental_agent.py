@@ -1,11 +1,8 @@
-"""Incremental grouping agent: thin clone of ``AbstractionAgent.step_clusters_grouping``.
+"""Incremental grouping agent + deterministic stitching helpers.
 
-Mirrors the full-analysis shape: one LLM call that takes the cluster *delta*
-(``new_cluster_ids + changed_cluster_ids``) plus the existing component tree by
-name, and returns a ``ClusterAnalysis`` whose entries either reuse an existing
-component name (route the cluster there) or invent a new one with a
-``parent_id`` pointing at where to attach. Stitching back into the live analysis
-is deterministic — no second LLM call.
+One LLM call: route the cluster delta to existing components by name, or
+create new ones with a ``parent_id``. Stitching back into the live tree
+(``stitch_delta``) and downstream refresh/prune is deterministic.
 """
 
 import logging
@@ -54,11 +51,8 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
         agent_llm: BaseChatModel,
         parsing_llm: BaseChatModel,
     ):
-        # Routing decisions need at most a single representative qname's source
-        # to disambiguate; the rest of the toolkit (read_file, read_packages,
-        # read_structure, read_file_structure) is wide-scope code reading that
-        # the model uses speculatively when given the full set. Constraining
-        # the toolkit here keeps the ReAct loop bounded.
+        # Constrain the toolkit: routing only needs source disambiguation, not
+        # full code-reading tools — keeps the ReAct loop bounded.
         super().__init__(
             repo_dir,
             static_analysis,
@@ -91,11 +85,9 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
 
         meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
         project_type = self.meta_context.project_type if self.meta_context else "unknown"
-        # Two-tier rendering per the design plan: components whose files
-        # overlap with the affected clusters get full info (name +
-        # description + cluster ids), every other component gets a single
-        # "id (name)" line so the LLM can still pick it as a routing
-        # target without bloating the prompt with full descriptions.
+        # Two-tier rendering: components touching affected files get full info,
+        # the rest get a single "id (name)" line to keep them as routing targets
+        # without bloating the prompt.
         cluster_results = delta.cluster_results()
         affected_files: set[str] = set()
         for cr in cluster_results.values():
@@ -151,15 +143,8 @@ def _format_existing_components(
 ) -> str:
     """Render existing components for the incremental grouping prompt.
 
-    Two-tier rendering driven by the design plan: components that own at
-    least one file in *affected_files* are emitted with their full
-    description (the LLM is most likely to modify these or attach new
-    components under them), every other component gets a single
-    ``id "name"`` line so it remains a valid routing target without
-    bloating the prompt with descriptions the LLM probably won't need.
-
-    When *affected_files* is None, every component gets the full line
-    (legacy / no-scope-known behaviour).
+    Components owning a file in *affected_files* get full info; others get a
+    single ``id "name"`` line. ``affected_files=None`` renders everything full.
     """
     all_components: list[Component] = list(iter_components(root_analysis, sub_analyses))
 
@@ -214,17 +199,16 @@ def stitch_delta(
 
     cluster_id_remap = delta.merged_cluster_id_remap()
     dropped_cluster_ids = delta.all_dropped_cluster_ids()
-    # Clusters whose member set shifted (without changing id) — components
-    # that own them must also be re-detailed: their file_methods reflect the
-    # OLD member set and would otherwise drift away from the live CFG.
+    # Member-set churn (id unchanged) still requires redetail: file_methods
+    # depends on cluster MEMBERS, not just IDs.
     changed_cluster_ids: set[int] = {
         cluster_id_remap.get(cid, cid) for ld in delta.by_language.values() for cid in ld.changed_cluster_ids
     }
 
     redetail_ids: set[str] = set()
 
-    # Step 1 — apply the cluster_id_remap and drop removed clusters across every component.
-    # Run before merging delta ids so we don't accidentally re-add a remapped id below.
+    # Step 1 — remap and drop removed clusters before merging delta ids in,
+    # so a remapped id can't get re-added below.
     for component in component_index.values():
         before = set(component.source_cluster_ids)
         remapped = {cluster_id_remap.get(cid, cid) for cid in before}
@@ -233,10 +217,6 @@ def stitch_delta(
             component.source_cluster_ids = sorted(remapped)
             if component.component_id:
                 redetail_ids.add(component.component_id)
-        # Even when source_cluster_ids stayed numerically the same, mark the
-        # component for redetail if any of its clusters had their member set
-        # mutated by the delta — file_methods is a function of cluster
-        # MEMBERS, not just cluster IDs.
         if component.component_id and remapped & changed_cluster_ids:
             redetail_ids.add(component.component_id)
 
@@ -328,24 +308,12 @@ def repopulate_touched_scopes(
     cluster_results: dict[str, ClusterResult],
     helpers: ClusterMethodsMixin,
 ) -> set[str]:
-    """Refresh ``file_methods`` for components whose clusters changed and rebuild
-    static relations on every scope that contains one of those components.
+    """Refresh ``file_methods`` for redetail components and rebuild static relations.
 
-    Per-component repopulation:
-      - For each component in ``redetail_ids``, recompute its ``file_methods``
-        directly from ``cluster_results``: take every node in every cluster the
-        component declares ownership of and bucket by file. Siblings whose
-        clusters DIDN'T change keep their existing ``file_methods`` exactly as
-        they were so test-style "only-the-target-changed" invariants hold.
-      - The scope-wide ``populate_file_methods`` previously used here would
-        re-route ALL nodes across every component in the scope, which makes
-        the LEAF "fallback" component absorb all orphan nodes globally.
-
-    After per-component refresh, ``build_static_relations`` re-runs at scope
-    level (cheap and order-independent) so component-to-component edges
-    reflect the new ownership.
-
-    Returns the set of scope ids that were touched (``""`` for root).
+    Why per-component (not scope-wide ``populate_file_methods``): the latter
+    re-routes every node and would dump global orphans into the scope's leaf
+    fallback. Siblings whose clusters didn't change keep their old file_methods
+    byte-for-byte. Returns the touched scope ids (``""`` for root).
     """
     touched_scopes: set[str] = set()
     if not redetail_ids:
@@ -373,8 +341,7 @@ def repopulate_touched_scopes(
 
 
 def _build_node_lookup(static_analysis, cluster_results: dict[str, ClusterResult]) -> dict[str, MethodEntry]:
-    """Map every clustered qualified name to a fresh ``MethodEntry`` built from
-    the live CFG so ``file_methods`` carries up-to-date file/line metadata."""
+    """Map qname -> ``MethodEntry`` built from the live CFG (fresh file/line metadata)."""
     lookup: dict[str, MethodEntry] = {}
     for language in cluster_results:
         try:
@@ -399,17 +366,14 @@ def _refresh_component_file_methods(
     node_lookup: dict[str, MethodEntry],
     repo_dir: Path | str | None = None,
 ) -> None:
-    """Rebuild ``component.file_methods`` from the live cluster_results.
+    """Rebuild ``component.file_methods`` from live cluster_results, grouped by file.
 
-    Walks the component's ``source_cluster_ids`` across every language's
-    ``ClusterResult``, pulls each cluster's members, looks up each qname's
-    file path in the live CFG (via ``node_lookup`` which was built from
-    ``static_analysis``), and groups by file. Methods missing from the
-    lookup are dropped (their source was deleted). File paths are
-    normalised to repo-relative form (matching what ``analysis.json``
-    stores in ``files`` and ``methods_index``); without this the wrapper's
-    ``file_to_component`` lookup would silently miss every method on the
-    next incremental cycle.
+    Methods missing from ``node_lookup`` (source deleted) are dropped. Paths
+    are normalised to repo-relative posix to match ``analysis.json`` indexes —
+    without this the wrapper's ``file_to_component`` lookup misses on the
+    next incremental cycle. Dedup is by qname (vs. the mixin's
+    span-keyed most-specific-qname dedup), since the incremental path already
+    has canonical qnames from the cluster snapshot.
     """
     owned_cids = set(component.source_cluster_ids)
     if not owned_cids:
@@ -422,12 +386,8 @@ def _refresh_component_file_methods(
     except (TypeError, OSError):
         repo_root = None
 
-    # qname -> file_path lookup also lives on node_lookup_files, built
-    # alongside node_lookup; we encode it inline by re-deriving from the
-    # ClusterResult's cluster_to_files which is the canonical mapping.
-    # Paths are normalized to repo-relative posix here once so the substring
-    # match in ``_pick_file_for_qname`` doesn't get poisoned by absolute
-    # snapshot-worktree prefixes (``/private/var/.../snapshot-worktree/...``).
+    # Normalize paths once so the substring match in _pick_file_for_qname
+    # isn't poisoned by absolute snapshot-worktree prefixes.
     qname_to_files: dict[str, set[str]] = {}
     for cr in cluster_results.values():
         for cid, members in cr.clusters.items():
@@ -470,19 +430,16 @@ def _pick_file_for_qname(
 ) -> str:
     """Resolve which file in *files_for_cluster* a particular qname lives in.
 
-    Prefers an exact substring match between the file's dotted form and the
-    qname (so ``a/b/foo.py`` matches ``a.b.foo.bar``). Falls back to any
-    file the qname is otherwise associated with, then to the first file in
-    the cluster as a last resort.
+    Prefers a dotted-path substring match (longest wins for specificity).
+    Falls back to any file the qname is associated with, then to the first
+    file in the cluster.
     """
     dotted = lambda fp: fp.replace("/", ".").rsplit(".", 1)[0]
     matches = [fp for fp in files_for_cluster if dotted(fp) and dotted(fp) in qname]
     if matches:
-        # If multiple match, prefer the longest dotted form (most specific).
         return max(matches, key=lambda fp: len(dotted(fp)))
     other = qname_to_files.get(qname, set())
     if other:
-        # Use any file the qname belongs to; deterministic via sort.
         return sorted(other)[0]
     return next(iter(sorted(files_for_cluster)), "")
 
@@ -506,21 +463,13 @@ def scrub_deleted_files(
     sub_analyses: dict[str, AnalysisInsights],
     live_files: set[str],
 ) -> set[str]:
-    """Drop every reference to a file no longer on disk before cluster math.
+    """Drop every reference to a file not in *live_files*; returns the dropped paths.
 
-    Walks every component and the top-level ``files`` index, removing any
-    ``file_methods`` group whose ``file_path`` is not in *live_files*, any
-    ``key_entities`` whose ``reference_file`` is gone, and any
-    ``analysis.files`` entry for a vanished path. After this pass a deleted
-    file simply doesn't exist in the analysis — the cluster pipeline can
-    then operate on a consistent baseline and the prune step naturally
-    sweeps any component whose every file group disappeared.
-
-    This is the right home for delete handling because the LLM-side cluster
-    routing is incidental: a component's "real" home is whatever files its
-    file_methods point at, and the file going away is the unambiguous
-    signal that the component (or part of it) is gone. Returns the set of
-    file paths that were dropped (for logging/telemetry).
+    Why this runs before cluster math: orphan-routed methods (assigned by
+    file co-location, not cluster membership) are invisible to the cluster
+    delta. Without an explicit scrub, deleting a file containing only such
+    methods leaves stale ``file_methods`` / ``key_entities`` /
+    ``analysis.files`` entries forever.
     """
     dropped_files: set[str] = set()
 
@@ -558,16 +507,9 @@ def prune_empty_components(
     root_analysis: AnalysisInsights,
     sub_analyses: dict[str, AnalysisInsights],
 ) -> set[str]:
-    """Remove components whose ``file_methods`` is empty after scrub + repopulation.
+    """Remove components with no methods after scrub+repopulation; cascades into sub-analyses.
 
-    The user-visible criterion for "this component still represents code" is
-    whether it owns any methods at all. With ``scrub_deleted_files`` running
-    first, deleted source files are gone from every component's
-    ``file_methods``; any component left with no file groups (or only empty
-    groups) has nothing to point at and is removed here.
-
-    Cascades into sub-analyses that hung off pruned components and strips
-    relations that reference any removed component (by id or by name).
+    Also strips relations referencing removed components (by id or name).
     """
     removed_ids: set[str] = set()
     removed_names: set[str] = set()

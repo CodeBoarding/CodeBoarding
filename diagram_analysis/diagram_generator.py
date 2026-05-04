@@ -450,14 +450,9 @@ class DiagramGenerator:
     ) -> Path:
         """Cluster-driven incremental update of an existing ``analysis.json``.
 
-        Mirrors the full-analysis pipeline: a deterministic cluster delta, one
-        LLM call to route the delta clusters to existing/new components, then
-        the same ``_generate_subcomponents`` frontier queue seeded with only the
-        components whose clusters actually changed. Returns the path to the
-        updated analysis. The prior CFG clustering is reconstructed inline
-        from ``Component.cluster_members`` (no sidecar file); when no
-        baseline cluster info is present, falls back to a full
-        ``generate_analysis()`` run.
+        Deterministic cluster delta, one LLM call to route delta clusters,
+        then ``_generate_subcomponents`` seeded with the changed components.
+        Falls back to a full run when no baseline cluster info exists.
         """
         if self.details_agent is None or self.abstraction_agent is None:
             self.pre_analysis()
@@ -466,13 +461,8 @@ class DiagramGenerator:
 
         monitor = self.stats_writer if self.stats_writer else nullcontext()
         with monitor:
-            # Drop references to deleted files BEFORE any cluster math. Without
-            # this step, components keep stale ``file_methods``/``key_entities``
-            # that point at files no longer on disk; deleted-file scenarios
-            # don't always surface as cluster-id changes (orphan-routed files
-            # were never in any cluster), so the cluster pipeline alone can't
-            # detect them. After scrub, the prune step at the end naturally
-            # removes any component left with no file groups.
+            # Scrub before cluster math: orphan-routed files never appear in
+            # any cluster, so deletes wouldn't surface via the delta alone.
             live_files: set[str] = set()
             for language in self.static_analysis.get_languages():
                 try:
@@ -524,11 +514,8 @@ class DiagramGenerator:
 
             redetail_ids = stitch_delta(root_analysis, sub_analyses, delta_cluster_analysis, delta)
 
-            # Refresh file_methods for redetailed components first (per-component
-            # subgraph; siblings stay untouched), then prune anything that ended
-            # up with zero owned methods. Order matters: a component's source
-            # may be deleted but we only know it's truly empty after rebuilding
-            # file_methods from the live CFG.
+            # Refresh first (per-component, siblings untouched), then prune —
+            # we only know a component is empty after rebuilding from live CFG.
             repopulate_touched_scopes(
                 redetail_ids,
                 root_analysis,
@@ -540,31 +527,16 @@ class DiagramGenerator:
             if removed_ids:
                 redetail_ids -= removed_ids
 
-            # Seed the frontier queue with the redetail set; the same queue used by
-            # the full path will recurse into newly expandable children.
             redetail_components = _collect_components_by_id(redetail_ids, root_analysis, sub_analyses)
             if redetail_components:
                 _, redetailed_subs = self._generate_subcomponents(root_analysis, redetail_components)
                 sub_analyses.update(redetailed_subs)
 
-            # Rebuild the global ``files`` index from the final per-component
-            # ``file_methods`` across the entire analysis tree (root + every
-            # sub-analysis). Without this, the incremental flow leaves
-            # ``analysis.files`` carrying only entries that survived
-            # ``scrub_deleted_files`` — newly added files never get bound,
-            # which breaks ``analysis.json`` consumers that look up methods
-            # via the top-level files map.
-            #
-            # Why we union subs into root: the full flow's ``AbstractionAgent``
-            # runs ``populate_file_methods`` over the FULL CFG so root
-            # components carry every project file in their ``file_methods``.
-            # The incremental flow never reruns AbstractionAgent — it only
-            # touches per-component subgraphs — so root components' own
-            # ``file_methods`` lag behind the truth held in deeper
-            # sub-analyses. The serialiser at
-            # ``analysis_json.build_unified_analysis_json`` reads only
-            # ``root_analysis.files`` for the top-level index, so we must
-            # surface every depth's files there.
+            # Rebuild the global files index, unioning every sub-analysis's
+            # files into root. The incremental flow never reruns AbstractionAgent
+            # over the full CFG, so root.files lags behind deeper levels;
+            # build_unified_analysis_json reads only root.files for the top
+            # index, so we must surface every depth's files there.
             for sub in sub_analyses.values():
                 sub.files = self.abstraction_agent._build_files_index(sub)
             unified_files = self.abstraction_agent._build_files_index(root_analysis)

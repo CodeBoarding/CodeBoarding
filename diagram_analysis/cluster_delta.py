@@ -74,18 +74,11 @@ def compute_cluster_delta(
 ) -> ClusterDelta:
     """Compute per-language cluster deltas via seeded Leiden.
 
-    When ``changes`` is provided, the cluster delta filters drift noise:
-    qnames whose file is outside the source diff AND outside the prior analysis
-    are dropped, since neither side considers them tracked changes. Qnames in
-    the prior analysis that vanish without their file appearing in the diff
-    are kept (the LLM should reason about the inconsistency) but logged as a
-    warning so drift is visible.
-
-    ``repo_dir`` is used to normalize CFG-absolute paths down to repo-relative
-    posix so they can be compared against the diff's repo-relative paths.
-
-    When ``changes`` is ``None`` (e.g., GitHub Action callers without a diff
-    source), no scoping is applied — current behavior.
+    When ``changes`` is provided, qnames whose file is outside both the diff
+    and the prior analysis are dropped as drift. Qnames in the prior analysis
+    that vanish without appearing in the diff are kept but logged as
+    inconsistent. ``repo_dir`` normalizes CFG-absolute paths to repo-relative
+    posix so they match the diff. ``changes=None`` disables scoping.
     """
     delta = ClusterDelta()
     diff_files = _changeset_to_path_set(changes) if changes is not None else None
@@ -98,13 +91,7 @@ def compute_cluster_delta(
 
 
 def _changeset_to_path_set(changes: ChangeSet) -> set[str]:
-    """Collect every path mentioned by a ChangeSet — including renames' old paths.
-
-    Renames are an edge case: ``FileChange.file_path`` is the new path,
-    ``FileChange.old_path`` the old. A qname under the old path that
-    survives in the fresh CFG would otherwise look like drift; including
-    both sides keeps that case in the diff scope.
-    """
+    """Collect every path in *changes*; renames contribute both old and new paths."""
     paths: set[str] = set()
     for fc in changes.files:
         paths.add(fc.file_path)
@@ -120,11 +107,9 @@ def _delta_for_language(
     diff_files: set[str] | None = None,
     repo_dir: Path | None = None,
 ) -> LanguageDelta:
-    # Universe is the prior cluster members plus the live CFG nodes. We use
-    # the raw graph nodes (not a fresh clustering) because seeded Leiden runs
-    # on the live graph directly — there is no separate "fresh clustering"
-    # step. Singleton/noise nodes in the live graph become added qnames here;
-    # diff scoping (when enabled) filters them down to ones in changed files.
+    # Why raw nodes (not a fresh clustering): seeded Leiden runs on the live
+    # graph directly. Singletons in the live graph become added qnames; diff
+    # scoping (if any) trims them to ones in changed files.
     live_qnames = set(nx_graph.nodes)
     old_member_union = {qname for entry in old_clusters.values() for qname in entry.members}
 
@@ -135,11 +120,6 @@ def _delta_for_language(
     raw_added = live_qnames - old_member_union
     raw_removed = old_member_union - live_qnames
 
-    # Diff scoping: see compute_cluster_delta docstring. We drop only the
-    # quadrant (qname not-in prior analysis AND file not-in diff) — pure
-    # drift on untracked qnames in untracked files. Quadrant (qname
-    # in-prior-analysis AND file not-in diff) is preserved as inconsistent
-    # state (logged as warning).
     inconsistent_removed: set[str] = set()
     if diff_files is not None:
 
@@ -189,10 +169,6 @@ def _delta_for_language(
         len(inconsistent_removed),
         changed_pct,
     )
-    # Sample of the qnames going into / out of the universe — small enough to
-    # log every run, useful for diagnosing "why is the LLM call firing on a
-    # pure deletion" scenarios where added/removed counts disagree with the
-    # user-visible diff.
     if added_nodes or removed_nodes:
         logger.info(
             "[cluster_delta] %s added qnames (first 20): %s; removed qnames (first 20): %s",
@@ -220,11 +196,10 @@ def _flavor_b_seeded(
     added_nodes: set[str],
     removed_nodes: set[str],
 ) -> LanguageDelta:
-    """Seeded Leiden on the full graph with prior partition as initial state and frontier locked.
+    """Seeded Leiden with the prior partition as initial state and the non-frontier vertices locked.
 
-    Why: see module docstring. Identity preservation comes from the basin-of-
-    attraction effect of ``initial_membership`` plus the hard guarantee of
-    ``is_membership_fixed`` on vertices outside the affected frontier.
+    Why: see module docstring — identity comes from ``initial_membership``'s
+    basin of attraction plus the hard ``is_membership_fixed`` guarantee.
     """
     if nx_graph.number_of_nodes() == 0:
         return LanguageDelta(
@@ -239,10 +214,8 @@ def _flavor_b_seeded(
             if qname not in removed_nodes and qname in nx_graph:
                 qname_to_prior_cid[qname] = cid
 
-    # Why restrict the working graph: drift qnames (in nx_graph but not in any
-    # prior cluster and filtered out of added_nodes by diff scoping) shouldn't
-    # be clustered at all. The previous procedure ignored them implicitly by
-    # only routing added_nodes; the seeded path needs to drop them explicitly.
+    # Drop drift qnames (in graph, not in any prior cluster, not in added) from
+    # the working subgraph — they aren't tracked changes and shouldn't cluster.
     tracked_qnames: set[str] = set(qname_to_prior_cid.keys()) | (added_nodes & set(nx_graph.nodes))
     if not tracked_qnames:
         return LanguageDelta(
@@ -255,10 +228,8 @@ def _flavor_b_seeded(
     surviving_prior_cids = sorted(set(qname_to_prior_cid.values()))
     prior_to_compact: dict[int, int] = {cid: i for i, cid in enumerate(surviving_prior_cids)}
 
-    # Why ordered nodes matter: leidenalg.Optimiser requires
-    # initial_membership aligned with igraph vertex order, which comes from
-    # ig.Graph.from_networkx (which iterates nx_graph.nodes()). Build the
-    # alignment via the same iteration order on the (subgraph) we'll cluster.
+    # initial_membership must align with igraph vertex order, which mirrors
+    # nx_graph.nodes() iteration order. Use the same iteration to build it.
     idx_to_qname: list[str] = list(working_graph.nodes())
     next_compact = len(surviving_prior_cids)
     initial_compact: list[int] = []
@@ -294,12 +265,10 @@ def _flavor_b_seeded(
             seed=42,
         )
     except Exception as e:
+        # Degrade to all-singletons rather than crash the pipeline; reconciliation handles any shape.
         logger.warning(
-            f"[cluster_delta] {language}: seeded Leiden failed ({e}); " "falling back to all-singleton membership."
+            f"[cluster_delta] {language}: seeded Leiden failed ({e}); falling back to all-singleton membership."
         )
-        # Why: if Leiden ever raises, we'd rather degrade to "everyone is their
-        # own community" than crash the pipeline. The reconciliation step below
-        # handles arbitrary cluster shapes.
         membership = list(range(len(idx_to_qname)))
 
     leiden_clusters: dict[int, set[str]] = {}
@@ -333,11 +302,9 @@ def _affected_frontier(
 ) -> set[str]:
     """Vertices whose cluster boundary may legitimately want to shift.
 
-    Why both directions on directed graphs: ``nx_graph.neighbors`` on a
-    DiGraph returns out-neighbors only; we need callers AND callees of an
-    added node since both have a changed neighborhood. For removed nodes
-    (gone from nx_graph), the "neighbors" we care about are the surviving
-    cluster-mates that lost a co-member.
+    Why both directions on a DiGraph: callers and callees of an added node both
+    have a changed neighborhood. For removed nodes (no longer in nx_graph),
+    surviving cluster-mates lost a co-member and are added directly.
     """
     frontier: set[str] = set(added_nodes) & set(nx_graph.nodes)
     seed_set = frontier.copy()
@@ -372,10 +339,7 @@ def _absorb_orphans_by_file(
 ) -> dict[int, set[str]]:
     """Merge zero-edge singleton clusters into a same-file cluster when one exists.
 
-    Why: nodes with no edges have no graph signal Leiden can use to place them.
-    The previous Flavor B used file co-location for this case; we preserve that
-    behavior here as a thin post-processor over Leiden's output rather than
-    losing user-visible placement quality.
+    Why: a node with no edges has no graph signal — fall back to file co-location.
     """
     if not clusters:
         return clusters
@@ -414,16 +378,11 @@ def _reconcile_seeded_partition(
     leiden_clusters: dict[int, set[str]],
     old_clusters: dict[int, ClusterSnapshotEntry],
 ) -> tuple[dict[int, int], set[int], set[int], set[int], dict[int, set[str]]]:
-    """Map leiden's renumbered output IDs back onto old prior IDs by overlap.
+    """Map leiden's renumbered output IDs back onto prior IDs by greedy max-overlap.
 
-    Why: leidenalg renumbers communities to a contiguous 0..k-1 range in the
-    output, so ID continuity across runs has to be reconstructed. We greedily
-    pair leiden output clusters with the prior cluster they overlap with most;
-    leftover leiden clusters get fresh IDs (max(old) + i + 1), leftover old
-    clusters get tombstoned in dropped_cluster_ids.
-
-    Returns: (cluster_id_remap, new_cluster_ids, changed_cluster_ids,
-    dropped_cluster_ids, final_clusters_keyed_by_new_ids).
+    Leftover leiden clusters get fresh IDs; leftover prior clusters tombstone
+    into ``dropped_cluster_ids``. Returns ``(cluster_id_remap, new_cluster_ids,
+    changed_cluster_ids, dropped_cluster_ids, final_clusters)``.
     """
     overlap_pairs: list[tuple[int, int, int]] = []  # (overlap, leiden_cid, prior_cid)
     for lcid, members in leiden_clusters.items():

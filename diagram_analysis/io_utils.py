@@ -33,15 +33,11 @@ logger = logging.getLogger(__name__)
 
 
 def normalize_repo_path(path: str, repo_root: Path | str | None) -> str:
-    """Convert a CFG file path into a posix repo-relative form.
+    """Convert a CFG file path into a repo-relative posix form.
 
-    Both ``DiagramGenerator._collect_method_entries_from_static_analysis``
-    and the incremental agent's ``_refresh_component_file_methods`` need
-    the same normalization. ``analysis.json`` (``files``, ``methods_index``,
-    ``file_methods``) indexes by repo-relative posix paths; the CFG hands
-    us either an absolute path under ``repo_root`` or a path that's
-    already relative. Returning the posix form keeps the downstream
-    indexes consistent.
+    ``analysis.json`` indexes (``files``, ``methods_index``, ``file_methods``)
+    use repo-relative posix paths; CFG nodes carry either an absolute path
+    under ``repo_root`` or an already-relative one.
     """
     posix = path.replace("\\", "/")
     candidate = Path(posix)

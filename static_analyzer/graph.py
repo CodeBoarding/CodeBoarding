@@ -26,11 +26,8 @@ def detect_communities[T](
 ) -> list[set[T]]:
     """Run Leiden community detection via leidenalg.
 
-    Why: connectivity guarantee (Leiden splits internally-disconnected
-    communities, Louvain can't), native directed-graph support, basin-of-
-    attraction warm-start support via the seeded API. NetworkX has no native
-    CPU Leiden implementation as of 3.6; ``leidenalg`` is the only option.
-    See decisions.md #1 and #2.
+    Chosen over Louvain for connectivity guarantees, directed-graph support,
+    and warm-start via the seeded API. NetworkX has no native Leiden as of 3.6.
     """
     return _leiden_find_partition(graph, weight=weight, resolution=resolution, seed=seed)
 
@@ -431,13 +428,9 @@ class CallGraph:
         min_cluster_size: int,
         total_nodes: int,
     ) -> list[tuple[list[set[str]], str, float]]:
-        """Run Leiden community detection and return the scored candidate.
+        """Run Leiden and return a single scored candidate.
 
-        Why: previously this tried louvain/leiden/greedy_modularity and picked
-        the best by score. The codebase is now Leiden-only with Louvain as
-        fallback (handled inside ``_cluster_with_algorithm``); see decisions.md.
-        The list-of-candidates return type is preserved so the caller's
-        cross-level pooling logic in ``cluster()`` is unchanged.
+        Returned as a list so ``cluster()``'s cross-level pooling stays uniform.
         """
         candidates: list[tuple[list[set[str]], str, float]] = []
         try:
