@@ -150,16 +150,17 @@ def _build_node_to_cluster_lookup(cluster_result: ClusterResult) -> dict[str, in
     return node_to_cluster
 
 
-def _build_meta_graph(cluster_result: ClusterResult, cfg_graph: nx.DiGraph) -> nx.Graph:
-    """
-    Build a weighted undirected meta-graph of inter-cluster connectivity.
+def _build_meta_graph(cluster_result: ClusterResult, cfg_graph: nx.DiGraph) -> nx.DiGraph:
+    """Build a weighted directed meta-graph of inter-cluster connectivity.
 
-    Each node is a cluster ID. Edge weights represent the number of cross-cluster
-    calls in the original CFG.
+    Each node is a cluster ID. Each edge ``(src_cid, dst_cid)`` carries the
+    number of CFG calls from ``src_cid`` members into ``dst_cid`` members.
+    Mutual coupling A↔B becomes two separate edges, each contributing
+    independently to directed Leicht-Newman modularity (decision #15).
     """
     node_to_cluster = _build_node_to_cluster_lookup(cluster_result)
 
-    meta_graph = nx.Graph()
+    meta_graph = nx.DiGraph()
     for cid in cluster_result.clusters:
         meta_graph.add_node(cid)
 
@@ -168,8 +169,7 @@ def _build_meta_graph(cluster_result: ClusterResult, cfg_graph: nx.DiGraph) -> n
         src_cid = node_to_cluster.get(src)
         dst_cid = node_to_cluster.get(dst)
         if src_cid is not None and dst_cid is not None and src_cid != dst_cid:
-            key = (min(src_cid, dst_cid), max(src_cid, dst_cid))
-            edge_weights[key] += 1
+            edge_weights[(src_cid, dst_cid)] += 1
 
     for (src_cid, dst_cid), weight in edge_weights.items():
         meta_graph.add_edge(src_cid, dst_cid, weight=weight)
@@ -182,7 +182,7 @@ def _build_meta_graph(cluster_result: ClusterResult, cfg_graph: nx.DiGraph) -> n
 # ---------------------------------------------------------------------------
 
 
-def _detect_communities(meta_graph: nx.Graph, target: int, n_original: int) -> list[set[int]]:
+def _detect_communities(meta_graph: nx.Graph | nx.DiGraph, target: int, n_original: int) -> list[set[int]]:
     """
     Run Leiden community detection (Louvain fallback) with resolution tuning to approach the target count.
 
@@ -208,7 +208,15 @@ def _detect_communities(meta_graph: nx.Graph, target: int, n_original: int) -> l
             logger.debug(f"[SuperCluster] resolution={resolution} failed: {e}")
 
     if best_communities is None or len(best_communities) >= n_original:
-        best_communities = [set(c) for c in nx.connected_components(meta_graph)]
+        # Why weakly_connected_components: under directed meta-graphs (decision #15),
+        # nx.connected_components is undefined. Reachability-ignoring-direction is
+        # the right semantic for a structural-isolation safety net.
+        components_iter = (
+            nx.weakly_connected_components(meta_graph)
+            if meta_graph.is_directed()
+            else nx.connected_components(meta_graph)
+        )
+        best_communities = [set(c) for c in components_iter]
         logger.warning(f"[SuperCluster] Falling back to connected components: {len(best_communities)} groups")
 
     return best_communities
@@ -230,7 +238,7 @@ def _community_files(community: set[int], cluster_result: ClusterResult) -> set[
 def _find_nearest_by_graph_distance(
     smallest_idx: int,
     communities: list[set[int]],
-    meta_graph: nx.Graph,
+    meta_graph: nx.Graph | nx.DiGraph,
 ) -> int | None:
     """
     Find the community closest to *smallest_idx* by shortest-path distance
@@ -239,10 +247,17 @@ def _find_nearest_by_graph_distance(
     For each candidate community we take the minimum shortest-path length
     between any cluster in the smallest community and any cluster in the
     candidate. Returns ``None`` when no finite path exists (disconnected).
+
+    Distance is computed on an undirected view: absorption is about
+    topological proximity, not directional reachability — a tiny utility
+    cluster should be absorbable by a nearby cluster regardless of which
+    way the calls flow.
     """
     smallest = communities[smallest_idx]
     best_idx: int | None = None
     best_dist = float("inf")
+
+    distance_graph = meta_graph.to_undirected(as_view=True) if meta_graph.is_directed() else meta_graph
 
     for idx, candidate in enumerate(communities):
         if idx == smallest_idx:
@@ -250,7 +265,7 @@ def _find_nearest_by_graph_distance(
         for src in smallest:
             for dst in candidate:
                 try:
-                    dist = nx.shortest_path_length(meta_graph, src, dst)
+                    dist = nx.shortest_path_length(distance_graph, src, dst)
                 except nx.NetworkXNoPath:
                     continue
                 if dist < best_dist:
@@ -321,7 +336,7 @@ def reindex_cluster_result(cluster_result: ClusterResult, offset: int) -> Cluste
 def _absorb_small_communities(
     communities: list[set[int]],
     cluster_result: ClusterResult,
-    meta_graph: nx.Graph,
+    meta_graph: nx.Graph | nx.DiGraph,
     target: int,
 ) -> list[set[int]]:
     """
