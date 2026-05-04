@@ -184,7 +184,7 @@ class TestEdgeCases:
 
     def test_expected_references(self, analysis: AnalysisRunData):
         language = analysis.fixture["language"]
-        refs = analysis.all_results[0].results[language].get("references", {})
+        refs = analysis.all_results[0].results[language].references.by_qualified_name or {}
         expected = set(analysis.fixture.get("expected_references", []))
         actual = set(refs.keys())
         missing = sorted(expected - actual)
@@ -319,7 +319,7 @@ class TestEdgeCases:
         language = analysis.fixture["language"]
 
         def _compute_metrics(results):
-            refs = results.results[language].get("references", {})
+            refs = results.results[language].references.by_qualified_name or {}
             deps = results.get_package_dependencies(language)
             cfg = results.get_cfg(language)
             source_files = results.get_source_files(language)

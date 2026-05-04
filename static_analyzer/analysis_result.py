@@ -8,6 +8,7 @@ from collections.abc import Iterator
 from pathlib import Path
 
 from static_analyzer.graph import CallGraph
+from static_analyzer.language_results import LanguageResults
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
 from static_analyzer.node import Node
 from utils import to_absolute_path, to_relative_path
@@ -121,9 +122,32 @@ def _reference_key(fully_qualified_name: str) -> str:
     return _strip_java_generics(result)
 
 
+# Run-artifact filenames. Stored in ``<repo>/.codeboarding/`` (sibling of
+# ``analysis.json``), not under ``cache/`` — losing them costs a full LSP
+# re-index, so they're not safe to wipe with the rest of the cache.
+STATIC_ANALYSIS_PKL = "static_analysis.pkl"
+STATIC_ANALYSIS_SHA = "static_analysis.sha"
+# Legacy location ``StaticAnalysisCache`` wrote to before the run-artifact
+# split. Kept for one-time read fallback so CLI users transition smoothly.
+_LEGACY_PKL_NAME = "static_analysis_results.pkl"
+_LEGACY_CACHE_SUBDIR = "cache"
+# Tag file format prefix; bump if the on-disk pickle layout changes.
+# v2: StaticAnalysisResults switched from dict-of-dicts to LanguageResults
+# dataclass storage. v1 pickles will be treated as cache misses and re-run.
+_TAG_VERSION = "v2"
+
+
 class StaticAnalysisCache:
-    def __init__(self, cache_dir: Path, repo_root: Path):
-        self.cache_dir = cache_dir
+    """Reader/writer for the persistent static-analysis run artifact.
+
+    Owns ``static_analysis.pkl`` (the relativised ``StaticAnalysisResults``
+    pickle) and ``static_analysis.sha`` (a tag file recording the source
+    SHA the pickle reflects). The artifact dir is the same directory that
+    holds ``analysis.json``; it is *not* the wipeable ``cache/`` dir.
+    """
+
+    def __init__(self, artifact_dir: Path, repo_root: Path):
+        self.artifact_dir = artifact_dir
         self.repo_root = repo_root.resolve()
 
     def _to_relative(self, path: str) -> str:
@@ -136,24 +160,7 @@ class StaticAnalysisCache:
         """Return a copy of result with all file paths made repo-relative."""
         result = copy.deepcopy(result)
         for lang_data in result.results.values():
-            if "source_files" in lang_data:
-                lang_data["source_files"] = [self._to_relative(f) for f in lang_data["source_files"]]
-            cfg: CallGraph | None = lang_data.get("cfg")
-            if cfg is not None:
-                for node in cfg.nodes.values():
-                    node.file_path = self._to_relative(node.file_path)
-            hierarchy: dict = lang_data.get("hierarchy", {})
-            for info in hierarchy.values():
-                if isinstance(info, dict) and "file_path" in info:
-                    info["file_path"] = self._to_relative(info["file_path"])
-            references: dict = lang_data.get("references", {})
-            for ref in references.values():
-                if isinstance(ref, Node):
-                    ref.file_path = self._to_relative(ref.file_path)
-            dependencies: dict = lang_data.get("dependencies", {})
-            for pkg_info in dependencies.values():
-                if isinstance(pkg_info, dict) and "files" in pkg_info:
-                    pkg_info["files"] = [self._to_relative(f) for f in pkg_info["files"]]
+            lang_data.visit_paths(self._to_relative)
         result.diagnostics = {
             lang: {self._to_relative(fp): diags for fp, diags in file_map.items()}
             for lang, file_map in result.diagnostics.items()
@@ -163,220 +170,205 @@ class StaticAnalysisCache:
     def _absolutize(self, result: "StaticAnalysisResults") -> "StaticAnalysisResults":
         """Expand all repo-relative file paths in result to absolute paths."""
         for lang_data in result.results.values():
-            if "source_files" in lang_data:
-                lang_data["source_files"] = [self._to_absolute(f) for f in lang_data["source_files"]]
-            cfg: CallGraph | None = lang_data.get("cfg")
-            if cfg is not None:
-                for node in cfg.nodes.values():
-                    node.file_path = self._to_absolute(node.file_path)
-            hierarchy: dict = lang_data.get("hierarchy", {})
-            for info in hierarchy.values():
-                if isinstance(info, dict) and "file_path" in info:
-                    info["file_path"] = self._to_absolute(info["file_path"])
-            references: dict = lang_data.get("references", {})
-            for ref in references.values():
-                if isinstance(ref, Node):
-                    ref.file_path = self._to_absolute(ref.file_path)
-            dependencies: dict = lang_data.get("dependencies", {})
-            for pkg_info in dependencies.values():
-                if isinstance(pkg_info, dict) and "files" in pkg_info:
-                    pkg_info["files"] = [self._to_absolute(f) for f in pkg_info["files"]]
+            lang_data.visit_paths(self._to_absolute)
         result.diagnostics = {
             lang: {self._to_absolute(fp): diags for fp, diags in file_map.items()}
             for lang, file_map in result.diagnostics.items()
         }
         return result
 
-    def get(self, repo_hash: str) -> "StaticAnalysisResults | None":
-        """Load cached results for the given repo hash, or None if not found/invalid."""
-        cache_file = self.cache_dir / f"{repo_hash}.pkl"
-        if not cache_file.exists():
+    @property
+    def pkl_path(self) -> Path:
+        return self.artifact_dir / STATIC_ANALYSIS_PKL
+
+    @property
+    def sha_path(self) -> Path:
+        return self.artifact_dir / STATIC_ANALYSIS_SHA
+
+    def _read_tag_sha(self) -> str | None:
+        """Return the source SHA recorded in the tag file, or None.
+
+        Format: ``<version>\\n<sha>\\n``. Unknown versions return None so
+        callers treat them as a cache miss without unpickling.
+        """
+        try:
+            text = self.sha_path.read_text().strip()
+        except (OSError, FileNotFoundError):
             return None
+        lines = [line.strip() for line in text.splitlines() if line.strip()]
+        if len(lines) < 2:
+            return None
+        version, sha = lines[0], lines[-1]
+        if version != _TAG_VERSION:
+            logger.info(f"Static analysis tag has unknown version {version!r}; treating as cache miss")
+            return None
+        return sha
+
+    def _legacy_pkl_path(self) -> Path:
+        return self.artifact_dir / _LEGACY_CACHE_SUBDIR / _LEGACY_PKL_NAME
+
+    def get(self, expected_sha: str | None = None) -> "StaticAnalysisResults | None":
+        """Load the cached results, or None if absent/invalid/SHA-mismatched.
+
+        When ``expected_sha`` is provided, the tag file is read first and
+        the pickle is only unpickled if the SHA matches — protects against
+        stale-cache hits when the source has drifted. When ``expected_sha``
+        is None, any tag (or no tag at all) is accepted; legacy pickles
+        from the previous on-disk layout are also picked up here.
+        """
+        if expected_sha is not None:
+            cached_sha = self._read_tag_sha()
+            if cached_sha is None:
+                return None
+            if cached_sha != expected_sha:
+                logger.info(
+                    "Static analysis cache SHA mismatch (cached=%s, expected=%s); skipping",
+                    cached_sha,
+                    expected_sha,
+                )
+                return None
+
+        target = self.pkl_path
+        if not target.exists():
+            legacy = self._legacy_pkl_path()
+            if expected_sha is None and legacy.exists():
+                logger.info(
+                    "Reading legacy static analysis cache from %s; "
+                    "next save will write to the new artifact location.",
+                    legacy,
+                )
+                target = legacy
+            else:
+                return None
 
         try:
-            with open(cache_file, "rb") as f:
+            with open(target, "rb") as f:
                 result = pickle.load(f)
             result = self._absolutize(result)
-            logger.info(f"Loaded static analysis from cache: {cache_file}")
+            logger.info(f"Loaded static analysis from cache: {target}")
             return result
         except Exception as e:
             logger.warning(f"Failed to load static analysis cache: {e}")
             return None
 
-    def save(self, repo_hash: str, result: "StaticAnalysisResults") -> None:
-        """Save results to cache using atomic write with repo-relative paths."""
-        self.cache_dir.mkdir(parents=True, exist_ok=True)
-        cache_file = self.cache_dir / f"{repo_hash}.pkl"
+    def save(self, result: "StaticAnalysisResults", source_sha: str | None = None) -> None:
+        """Save the result with repo-relative paths and a sibling SHA tag.
+
+        ``source_sha`` is the canonical identifier of the source state this
+        pickle reflects (e.g. a git tree SHA over HEAD + dirty overlay).
+        Stored in the sibling ``static_analysis.sha`` tag so future loads
+        can SHA-gate before paying the unpickle cost. Saving without a
+        SHA writes the pickle but leaves the tag absent — callers that
+        ``get(expected_sha=...)`` will then miss the cache.
+        """
+        self.artifact_dir.mkdir(parents=True, exist_ok=True)
 
         portable = self._relativize(result)
         data = pickle.dumps(portable)
         size_mb = sys.getsizeof(data) / (1024 * 1024)
         logger.info(f"Static analysis cache size: {size_mb:.2f} MB")
 
-        temp_fd, temp_path = tempfile.mkstemp(dir=self.cache_dir, suffix=".tmp")
+        temp_fd, temp_path = tempfile.mkstemp(dir=self.artifact_dir, suffix=".pkl.tmp")
         try:
             with open(temp_fd, "wb") as f:
                 f.write(data)
-            Path(temp_path).replace(cache_file)
-            logger.info(f"Saved static analysis to cache: {cache_file}")
+            Path(temp_path).replace(self.pkl_path)
+            logger.info(f"Saved static analysis to cache: {self.pkl_path}")
         except Exception as e:
             Path(temp_path).unlink(missing_ok=True)
             logger.warning(f"Failed to save static analysis cache: {e}")
+            return
+
+        # Write the sibling tag last so a partially-written pkl never gets a
+        # SHA stamp; readers that miss the tag treat it as no-cache.
+        if source_sha is not None:
+            tag_text = f"{_TAG_VERSION}\n{source_sha}\n"
+            tag_fd, tag_tmp = tempfile.mkstemp(dir=self.artifact_dir, suffix=".sha.tmp")
+            try:
+                with open(tag_fd, "w") as f:
+                    f.write(tag_text)
+                Path(tag_tmp).replace(self.sha_path)
+            except Exception as e:
+                Path(tag_tmp).unlink(missing_ok=True)
+                logger.warning(f"Failed to write static analysis SHA tag: {e}")
+        elif self.sha_path.exists():
+            # No SHA provided this run — drop any stale tag so the next
+            # SHA-gated read doesn't accidentally accept a mismatched pickle.
+            try:
+                self.sha_path.unlink()
+            except OSError:
+                pass
 
 
 class StaticAnalysisResults:
     def __init__(self):
-        self.results: dict[str, dict] = {}
+        self.results: dict[str, LanguageResults] = {}
         self.diagnostics: dict[str, FileDiagnosticsMap] = {}  # Language -> file_path -> diagnostics
 
+    def _bucket(self, language: str) -> LanguageResults:
+        return self.results.setdefault(language, LanguageResults())
+
     def add_class_hierarchy(self, language: str, hierarchy):
-        """
-        Adds/merges a class hierarchy to the results.
-
-        Supports multiple calls for the same language (e.g., monorepo with multiple subprojects).
-
-        :param language: The programming language.
-        :param hierarchy: A dict or list representing the class hierarchy.
-        """
-        if language not in self.results:
-            self.results[language] = {}
-        if "hierarchy" not in self.results[language]:
-            self.results[language]["hierarchy"] = {}
-
-        # Merge instead of overwrite
-        if isinstance(hierarchy, dict):
-            self.results[language]["hierarchy"].update(hierarchy)
-        elif isinstance(hierarchy, list):
-            # Handle list of dicts (legacy format)
-            for item in hierarchy:
-                if isinstance(item, dict):
-                    self.results[language]["hierarchy"].update(item)
+        """Add/merge a class hierarchy for a language; supports repeated calls."""
+        self._bucket(language).hierarchy.merge(hierarchy)
 
     def add_cfg(self, language: str, cfg: CallGraph):
-        """
-        Adds/merges a control flow graph (CFG) to the results.
-
-        Supports multiple calls for the same language (e.g., monorepo with multiple subprojects).
-
-        :param language: The programming language of the CFG.
-        :param cfg: The control flow graph data.
-        """
-        if language not in self.results:
-            self.results[language] = {}
-
-        if "cfg" not in self.results[language]:
-            self.results[language]["cfg"] = cfg
-        else:
-            # Merge nodes and edges from the new CFG into the existing one
-            existing_cfg = self.results[language]["cfg"]
-            for node in cfg.nodes.values():
-                existing_cfg.add_node(node)
-            for edge in cfg.edges:
-                try:
-                    existing_cfg.add_edge(edge.get_source(), edge.get_destination())
-                except ValueError:
-                    pass  # Skip duplicate edges
+        """Add/merge a control flow graph for a language; supports repeated calls."""
+        self._bucket(language).cfg.merge(cfg)
 
     def add_package_dependencies(self, language: str, dependencies):
-        """
-        Adds/merges package dependencies to the results.
-
-        Supports multiple calls for the same language (e.g., monorepo with multiple subprojects).
-
-        :param language: The programming language of the dependencies.
-        :param dependencies: A dict of package dependencies.
-        """
-        if language not in self.results:
-            self.results[language] = {}
-        if "dependencies" not in self.results[language]:
-            self.results[language]["dependencies"] = {}
-
-        # Merge instead of overwrite
-        if isinstance(dependencies, dict):
-            self.results[language]["dependencies"].update(dependencies)
+        """Add/merge package dependencies for a language; supports repeated calls."""
+        self._bucket(language).dependencies.merge(dependencies)
 
     def add_references(self, language: str, references: list[Node]):
+        """Add/merge source code references for a language; supports repeated calls.
+
+        Why: keys use the original qualified name to preserve source-code casing
+        in the output.
         """
-        Adds/merges source code references to the results.
-
-        Supports multiple calls for the same language (e.g., monorepo with multiple subprojects).
-
-        :param language: The programming language of the references.
-        :param references: A list of source code references.
-        """
-        if language not in self.results:
-            self.results[language] = {}
-        if "references" not in self.results[language]:
-            self.results[language]["references"] = {}
-
-        # Merge instead of overwrite.  Keys use the original qualified name
-        # to preserve source-code casing in the output.
-        for reference in references:
-            self.results[language]["references"][reference.fully_qualified_name] = reference
+        self._bucket(language).references.add(references)
 
     def get_cfg(self, language: str) -> CallGraph:
-        """
-        Retrieves the control flow graph for a specific language.
-
-        :param language: The programming language of the CFG.
-        :return: The control flow graph data or None if not found.
-        """
-        if language in self.results and "cfg" in self.results[language]:
-            return self.results[language]["cfg"]
+        """Return the control flow graph for ``language`` or raise ``ValueError``."""
+        bucket = self.results.get(language)
+        if bucket is not None and bucket.cfg.graph is not None:
+            return bucket.cfg.graph
         raise ValueError(f"Control flow graph for language '{language}' not found in results.")
 
     def get_hierarchy(self, language: str) -> dict:
-        """
-        Retrieves the class hierarchy for a specific language.
+        """Return the class hierarchy dict for ``language`` or raise ``ValueError``.
 
-        :param language: The programming language of the hierarchy.
-        :return: dict {
-                        class_qualified_name: {
-                            "superclasses": [],
-                            "subclasses": [],
-                            "file_path": str(file_path),
-                            "line_start": start_line,
-                            "line_end": end_line }
-                    }
+        Hierarchy values have shape ``{"superclasses": [...], "subclasses": [...],
+        "file_path": str, "line_start": int, "line_end": int}``.
         """
-        if language in self.results and "hierarchy" in self.results[language]:
-            return self.results[language]["hierarchy"]
+        bucket = self.results.get(language)
+        if bucket is not None and bucket.hierarchy.entries is not None:
+            return bucket.hierarchy.entries
         raise ValueError(f"Class hierarchy for language '{language}' not found in results.")
 
     def get_package_dependencies(self, language: str) -> dict:
-        """
-        Retrieves the package dependencies for a specific language.
-
-        :param language: The programming language of the dependencies.
-        :return: The package dependencies or None if not found.
-        """
-        if language in self.results and "dependencies" in self.results[language]:
-            return self.results[language]["dependencies"]
+        """Return the package dependencies for ``language`` or raise ``ValueError``."""
+        bucket = self.results.get(language)
+        if bucket is not None and bucket.dependencies.entries is not None:
+            return bucket.dependencies.entries
         raise ValueError(f"Package dependencies for language '{language}' not found in results.")
 
     def get_reference(self, language: str, qualified_name: str) -> Node:
-        """
-        Retrieves the source code reference for a specific qualified name in a language.
+        """Return the reference node for ``qualified_name``.
 
-        Lookup is case-insensitive: both the query and the stored keys are lowercased for
-        comparison, so "models.base.(Entity).GetType" and "models.base.(entity).gettype"
-        resolve to the same reference.
-
-        :param language: The programming language of the reference.
-        :param qualified_name: The fully qualified name of the source code element.
-        :return: The source code reference or None if not found.
+        Why: lookup is case-insensitive — the query and stored keys are both
+        normalised through ``_reference_key`` so e.g. ``models.base.(Entity).GetType``
+        and ``models.base.(entity).gettype`` resolve to the same reference.
         """
-        if language in self.results and "references" in self.results[language]:
-            refs = self.results[language]["references"]
-            # Direct lookup first
+        bucket = self.results.get(language)
+        if bucket is not None and bucket.references.by_qualified_name is not None:
+            refs = bucket.references.by_qualified_name
             if qualified_name in refs:
                 return refs[qualified_name]
-            # Case-insensitive fallback
             norm_qn = _reference_key(qualified_name)
             for ref_key, ref_val in refs.items():
                 if _reference_key(ref_key) == norm_qn:
                     return ref_val
-            # Check if the qualified name is a subset meaning it is a file path:
             for ref in refs.keys():
                 if ref.lower().startswith(norm_qn):
                     raise FileExistsError(
@@ -387,37 +379,31 @@ class StaticAnalysisResults:
 
     def get_loose_reference(self, language: str, qualified_name: str) -> tuple[str | None, Node | None]:
         norm_qn = _reference_key(qualified_name)
-        if language in self.results and "references" in self.results[language]:
-            # Check if the qualified name is a subset of any reference:
+        bucket = self.results.get(language)
+        if bucket is not None and bucket.references.by_qualified_name is not None:
+            refs = bucket.references.by_qualified_name
             subset_refs = []
-            for ref in self.results[language]["references"].keys():
+            for ref in refs.keys():
                 ref_lower = ref.lower()
                 if ref_lower.endswith(norm_qn):
                     return (
                         f"Found a loose match with a fully quantified name: {ref}",
-                        self.results[language]["references"][ref],
+                        refs[ref],
                     )
                 if norm_qn in ref_lower:
                     subset_refs.append(ref)
             if len(subset_refs) == 1:
-                return subset_refs[0], self.results[language]["references"][subset_refs[0]]
+                return subset_refs[0], refs[subset_refs[0]]
         return None, None
 
     def get_languages(self):
-        """
-        Retrieves the list of languages for which results are available.
-
-        :return: A list of programming languages.
-        """
+        """Return the list of languages for which any data has been recorded."""
         return list(self.results.keys())
 
     def resolve_across_languages(self, qualified_name: str) -> Node | None:
-        """Resolve *qualified_name* against every stored language.
+        """Try ``get_reference`` then ``get_loose_reference`` across every language.
 
-        Tries ``get_reference`` first, falling back to ``get_loose_reference``
-        within each language before moving on. Returns the first match, or
-        ``None`` if no language knows the name. Hides the common
-        try-exact-then-loose pattern that several callers re-implement.
+        Why: hides the try-exact-then-loose pattern several callers re-implement.
         """
         for lang in self.get_languages():
             try:
@@ -429,59 +415,29 @@ class StaticAnalysisResults:
         return None
 
     def iter_reference_nodes(self, language: str | None = None) -> Iterator[Node]:
-        """Yield every stored reference as a ``Node``, hiding the storage shape.
-
-        Why: ``add_references`` stores a dict keyed by qualified name, but
-        ``incremental_orchestrator`` can merge caches that use a list. Callers
-        shouldn't have to branch on that; they just want Nodes.
-        """
+        """Yield every stored reference as a ``Node``."""
         languages = [language] if language is not None else self.get_languages()
         for lang in languages:
-            references = self.results.get(lang, {}).get("references", {})
-            if isinstance(references, dict):
-                ref_values = references.values()
-            elif isinstance(references, list):
-                ref_values = references
-            else:
+            bucket = self.results.get(lang)
+            if bucket is None or bucket.references.by_qualified_name is None:
                 continue
-            for node in ref_values:
+            for node in bucket.references.by_qualified_name.values():
                 if isinstance(node, Node):
                     yield node
 
     def add_source_files(self, language: str, source_files):
-        """
-        Adds/extends source files to the analysis results.
-
-        Supports multiple calls for the same language (e.g., monorepo with multiple subprojects).
-
-        :param language: The programming language.
-        :param source_files: A list of source files.
-        """
-        if language not in self.results:
-            self.results[language] = {}
-        if "source_files" not in self.results[language]:
-            self.results[language]["source_files"] = []
-
-        # Extend instead of overwrite
-        self.results[language]["source_files"].extend(source_files)
+        """Add/extend source files for a language; supports repeated calls."""
+        self._bucket(language).source_files.extend(source_files)
 
     def get_source_files(self, language: str) -> list[str]:
-        """
-        Retrieves the list of source files for a given language.
-
-        :param language: The programming language.
-        :return: A list of source files.
-        """
-        if language not in self.results:
+        """Return the list of source files for ``language``, or ``[]`` if absent."""
+        bucket = self.results.get(language)
+        if bucket is None or bucket.source_files.paths is None:
             return []
-        return self.results[language].get("source_files", [])
+        return bucket.source_files.paths
 
     def get_all_source_files(self) -> list[str]:
-        """
-        Retrieves the list of all source files across all languages.
-
-        :return: A list of source files.
-        """
+        """Return source files across all languages."""
         all_source_files = []
         for language in self.results:
             all_source_files.extend(self.get_source_files(language))
