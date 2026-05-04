@@ -15,6 +15,7 @@ class TestNxToIg:
     def test_round_trip_undirected(self):
         nx_g = nx.Graph()
         nx_g.add_edges_from([("a", "b"), ("b", "c"), ("a", "c")])
+        idx_to_qname: list[str]
         ig_g, idx_to_qname = nx_to_ig(nx_g)
 
         assert ig_g.vcount() == 3
@@ -43,6 +44,7 @@ class TestNxToIg:
     def test_idx_to_qname_aligned_with_vertex_order(self):
         nx_g = nx.Graph()
         nx_g.add_nodes_from(["x", "y", "z"])
+        idx_to_qname: list[str]
         ig_g, idx_to_qname = nx_to_ig(nx_g)
 
         for i, v in enumerate(ig_g.vs):
@@ -52,7 +54,7 @@ class TestNxToIg:
 class TestPartitionToClusters:
     def test_covers_all_nodes(self):
         nx_g = nx.complete_graph(["a", "b", "c", "d"])
-        clusters = find_partition(nx_g, seed=42)
+        clusters: list[set[str]] = find_partition(nx_g, seed=42)
         covered: set[str] = set()
         for c in clusters:
             covered |= c
@@ -60,7 +62,7 @@ class TestPartitionToClusters:
 
     def test_no_overlap_between_clusters(self):
         nx_g = nx.karate_club_graph()
-        clusters = find_partition(nx_g, seed=42)
+        clusters: list[set[int]] = find_partition(nx_g, seed=42)
         seen: set[int] = set()
         for c in clusters:
             assert c.isdisjoint(seen)
@@ -74,26 +76,26 @@ class TestFindPartition:
     def test_single_node_returns_one_singleton(self):
         nx_g = nx.Graph()
         nx_g.add_node("only")
-        clusters = find_partition(nx_g, seed=42)
+        clusters: list[set[str]] = find_partition(nx_g, seed=42)
         assert clusters == [{"only"}]
 
     def test_deterministic_with_seed(self):
         nx_g = nx.karate_club_graph()
-        a = find_partition(nx_g, seed=42)
-        b = find_partition(nx_g, seed=42)
+        a: list[set[int]] = find_partition(nx_g, seed=42)
+        b: list[set[int]] = find_partition(nx_g, seed=42)
         assert sorted(sorted(c) for c in a) == sorted(sorted(c) for c in b)
 
     def test_resolution_parameter_changes_partition_count(self):
         # Higher resolution -> more, smaller communities (RB Configuration model).
         nx_g = nx.karate_club_graph()
-        low = find_partition(nx_g, resolution=0.5, seed=42)
-        high = find_partition(nx_g, resolution=2.0, seed=42)
+        low: list[set[int]] = find_partition(nx_g, resolution=0.5, seed=42)
+        high: list[set[int]] = find_partition(nx_g, resolution=2.0, seed=42)
         assert len(high) >= len(low)
 
     def test_directed_graph_handled_natively(self):
         nx_d = nx.DiGraph()
         nx_d.add_edges_from([("a", "b"), ("b", "c"), ("c", "a"), ("a", "d")])
-        clusters = find_partition(nx_d, seed=42)
+        clusters: list[set[str]] = find_partition(nx_d, seed=42)
         covered: set[str] = set()
         for c in clusters:
             covered |= c

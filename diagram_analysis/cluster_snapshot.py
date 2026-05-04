@@ -19,7 +19,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import PurePosixPath
 
-from agents.agent_responses import AnalysisInsights
+from agents.agent_responses import AnalysisInsights, iter_components
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.graph import ClusterResult
 
@@ -92,7 +92,7 @@ def snapshot_from_analysis(
     # duplicate components that surface from both the root and sub-analyses.
     qname_to_file_old: dict[str, str] = {}
     seen_components_for_files: set[int] = set()
-    for component in _iter_components(root_analysis, sub_analyses):
+    for component in iter_components(root_analysis, sub_analyses):
         if id(component) in seen_components_for_files:
             continue
         seen_components_for_files.add(id(component))
@@ -103,7 +103,7 @@ def snapshot_from_analysis(
     by_language: dict[str, dict[int, ClusterSnapshotEntry]] = defaultdict(dict)
     seen_components: set[int] = set()
     unbucketed_qnames = 0
-    for component in _iter_components(root_analysis, sub_analyses):
+    for component in iter_components(root_analysis, sub_analyses):
         if id(component) in seen_components:
             continue
         seen_components.add(id(component))
@@ -168,12 +168,3 @@ def _build_qname_language_index(static_analysis: StaticAnalysisResults) -> dict[
         for node in cfg.to_networkx().nodes:
             qname_to_language.setdefault(node, language)
     return qname_to_language
-
-
-def _iter_components(
-    root_analysis: AnalysisInsights,
-    sub_analyses: dict[str, AnalysisInsights],
-):
-    yield from root_analysis.components
-    for sub in sub_analyses.values():
-        yield from sub.components

@@ -4,7 +4,7 @@ import abc
 import logging
 from abc import abstractmethod
 from pathlib import PurePosixPath
-from typing import get_origin, Optional
+from typing import Iterator, get_origin, Optional
 
 from pydantic import BaseModel, Field
 
@@ -318,6 +318,28 @@ def assign_component_ids(analysis: AnalysisInsights, parent_id: str = "", only_n
     for relation in analysis.components_relations:
         relation.src_id = name_to_id.get(relation.src_name, "")
         relation.dst_id = name_to_id.get(relation.dst_name, "")
+
+
+def iter_components(
+    root_analysis: AnalysisInsights,
+    sub_analyses: dict[str, AnalysisInsights],
+) -> Iterator[Component]:
+    """Yield every component across the root and all sub-analyses, in tree order."""
+    yield from root_analysis.components
+    for sub in sub_analyses.values():
+        yield from sub.components
+
+
+def index_components_by_id(
+    root_analysis: AnalysisInsights,
+    sub_analyses: dict[str, AnalysisInsights],
+) -> dict[str, Component]:
+    """Build a ``component_id -> Component`` lookup across the full tree.
+
+    Components without a ``component_id`` are skipped. Later occurrences of
+    the same id silently override earlier ones (sub-analyses win over root).
+    """
+    return {c.component_id: c for c in iter_components(root_analysis, sub_analyses) if c.component_id}
 
 
 class CFGComponent(LLMBaseModel):

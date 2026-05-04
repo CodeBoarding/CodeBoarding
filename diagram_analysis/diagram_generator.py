@@ -481,18 +481,7 @@ class DiagramGenerator:
                     continue
                 for node in cfg.nodes.values():
                     if node.file_path:
-                        # CFG node file_paths can be absolute (under a snapshot
-                        # worktree) or repo-relative. Components store the
-                        # repo-relative form, so normalise both.
-                        relative = node.file_path
-                        try:
-                            relative = str(
-                                Path(node.file_path).resolve().relative_to(Path(self.repo_location).resolve())
-                            )
-                        except (ValueError, OSError):
-                            pass
-                        live_files.add(relative)
-                        live_files.add(node.file_path)
+                        live_files.add(normalize_repo_path(node.file_path, self.repo_location))
             scrub_deleted_files(root_analysis, sub_analyses, live_files)
 
             old_snapshot = snapshot_from_analysis(root_analysis, sub_analyses, self.static_analysis)

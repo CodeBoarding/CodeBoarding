@@ -20,7 +20,7 @@ from pathlib import Path
 
 from filelock import FileLock
 
-from agents.agent_responses import AnalysisInsights, Component
+from agents.agent_responses import AnalysisInsights, Component, index_components_by_id
 from agents.planner_agent import should_expand_component
 from diagram_analysis.analysis_json import (
     FileCoverageSummary,
@@ -71,20 +71,6 @@ class _AnalysisFileStore:
     ) -> list[Component]:
         """Compute expandable components deterministically for one analysis level."""
         return [c for c in analysis.components if should_expand_component(c, parent_had_clusters=parent_had_clusters)]
-
-    @staticmethod
-    def _build_component_lookup(
-        root_analysis: AnalysisInsights,
-        sub_analyses: dict[str, AnalysisInsights],
-    ) -> dict[str, Component]:
-        """Build component_id -> component lookup across root and sub-analyses."""
-        lookup: dict[str, Component] = {}
-        for component in root_analysis.components:
-            lookup[component.component_id] = component
-        for sub_analysis in sub_analyses.values():
-            for component in sub_analysis.components:
-                lookup[component.component_id] = component
-        return lookup
 
     def __init__(self, output_dir: Path) -> None:
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -233,7 +219,7 @@ class _AnalysisFileStore:
         # Convert sub_analyses dict to the format expected by build_unified_analysis_json
         sub_analyses_tuples: dict[str, tuple[AnalysisInsights, list[Component]]] | None = None
         if sub_analyses:
-            component_lookup = self._build_component_lookup(analysis, sub_analyses)
+            component_lookup = index_components_by_id(analysis, sub_analyses)
             sub_analyses_tuples = {}
             for cid, sub in sub_analyses.items():
                 parent_component = component_lookup.get(cid)

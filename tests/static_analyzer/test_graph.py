@@ -783,8 +783,8 @@ class TestDetectCommunitiesDeterminism(unittest.TestCase):
         from static_analyzer.graph import detect_communities
 
         g = nx.karate_club_graph()
-        a = detect_communities(g, seed=42)
-        b = detect_communities(g, seed=42)
+        a: list[set[int]] = detect_communities(g, seed=42)
+        b: list[set[int]] = detect_communities(g, seed=42)
         canon_a = sorted(sorted(c) for c in a)
         canon_b = sorted(sorted(c) for c in b)
         self.assertEqual(canon_a, canon_b)

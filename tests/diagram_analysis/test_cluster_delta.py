@@ -1,17 +1,12 @@
-"""Tests for ``diagram_analysis.cluster_delta`` (Flavor B + threshold fallback)."""
+"""Tests for ``diagram_analysis.cluster_delta`` (seeded Leiden, no fallback)."""
 
 import unittest
 
 from diagram_analysis.cluster_delta import (
-    FULL_RECLUSTER_THRESHOLD,
-    JACCARD_MATCH_THRESHOLD,
     ClusterDelta,
     LanguageDelta,
     _affected_frontier,
-    _flavor_a_fallback,
     _flavor_b_seeded,
-    _jaccard,
-    _match_by_jaccard,
     compute_cluster_delta,
 )
 from diagram_analysis.cluster_snapshot import ClusterSnapshot, ClusterSnapshotEntry, snapshot_from_cluster_results
@@ -83,7 +78,6 @@ class TestFlavorB(unittest.TestCase):
         self.assertEqual(ld.new_cluster_ids, set())
         self.assertEqual(ld.changed_cluster_ids, set())
         self.assertEqual(ld.dropped_cluster_ids, set())
-        self.assertFalse(ld.fallback_used)
 
     def test_added_node_routed_to_neighbor_cluster(self) -> None:
         # Snapshot lists clusters that fresh clustering will reproduce; "a.new"
@@ -118,9 +112,8 @@ class TestFlavorB(unittest.TestCase):
 
     def test_isolated_added_nodes_form_new_cluster(self) -> None:
         # Snapshot mirrors a fully-connected 12-node "a" cluster; refresh adds
-        # a 3-node connected "z" community (3/15 added = 20% < threshold) so
-        # the routing path runs Flavor B and Louvain promotes "z.*" to a
-        # fresh cluster id.
+        # a 3-node connected "z" community so seeded Leiden promotes "z.*" to
+        # a fresh cluster id.
         a_nodes = [(f"a.fn{i}", "a.py") for i in range(12)]
         a_edges = [(f"a.fn{i}", f"a.fn{j}") for i in range(12) for j in range(12) if i != j]
         z_nodes = [("z.iso1", "z.py"), ("z.iso2", "z.py"), ("z.iso3", "z.py")]
@@ -131,7 +124,6 @@ class TestFlavorB(unittest.TestCase):
         delta = compute_cluster_delta(snap, _build_static(graph))
 
         ld = delta.by_language["python"]
-        self.assertFalse(ld.fallback_used)
         self.assertEqual(len(ld.new_cluster_ids), 1)
         self.assertEqual(ld.changed_cluster_ids, set())
         new_cid = next(iter(ld.new_cluster_ids))
@@ -170,41 +162,6 @@ class TestFlavorB(unittest.TestCase):
         self.assertIn("a.new", ld.cluster_results.clusters[1])
 
 
-class TestThresholdFallback(unittest.TestCase):
-    def test_huge_diff_triggers_flavor_a(self) -> None:
-        node_specs = [(f"a.new{i}", "a.py") for i in range(9)] + [("kept", "a.py")]
-        graph = _build_graph(node_specs, [])
-        snap = _snapshot({"python": {1: ClusterSnapshotEntry(members={f"old{i}" for i in range(9)} | {"kept"})}})
-
-        delta = compute_cluster_delta(snap, _build_static(graph))
-
-        ld = delta.by_language["python"]
-        self.assertTrue(ld.fallback_used)
-
-
-class TestFlavorAMatching(unittest.TestCase):
-    def test_jaccard_above_threshold_matches_old_id(self) -> None:
-        old = {1: ClusterSnapshotEntry(members={"a", "b", "c"})}
-        new_clusters = {7: {"a", "b", "c"}, 8: {"x"}}
-
-        remap, matched = _match_by_jaccard(old, new_clusters)
-        self.assertEqual(remap, {1: 7})
-        self.assertEqual(matched, {1})
-
-    def test_jaccard_below_threshold_does_not_match(self) -> None:
-        old = {1: ClusterSnapshotEntry(members={"a", "b", "c", "d"})}
-        new_clusters = {7: {"x", "y", "z", "a"}}  # Jaccard = 1/7 approx 0.14, below 0.5
-
-        remap, matched = _match_by_jaccard(old, new_clusters)
-        self.assertEqual(remap, {})
-        self.assertEqual(matched, set())
-
-    def test_jaccard_helper(self) -> None:
-        self.assertEqual(_jaccard(set(), set()), 0.0)
-        self.assertEqual(_jaccard({"a"}, {"a"}), 1.0)
-        self.assertAlmostEqual(_jaccard({"a", "b"}, {"a", "c"}), 1 / 3)
-
-
 class TestClusterDeltaAccessors(unittest.TestCase):
     def test_all_affected_and_dropped_aggregate_across_languages(self) -> None:
         delta = ClusterDelta(
@@ -226,10 +183,6 @@ class TestClusterDeltaAccessors(unittest.TestCase):
         )
         self.assertEqual(delta.all_affected_cluster_ids(), {1, 2, 10})
         self.assertEqual(delta.all_dropped_cluster_ids(), {3, 11})
-
-    def test_constants_are_documented(self) -> None:
-        self.assertTrue(0 < FULL_RECLUSTER_THRESHOLD < 1)
-        self.assertTrue(0 < JACCARD_MATCH_THRESHOLD <= 1)
 
 
 class TestSnapshotIntegration(unittest.TestCase):
@@ -357,7 +310,8 @@ class TestDiffScoping(unittest.TestCase):
 
     def test_changes_none_preserves_unscoped_behavior(self) -> None:
         # Backwards compat: callers without a diff source (e.g., GitHub
-        # Action) get today's no-scoping behavior.
+        # Action) get today's no-scoping behavior — every live qname not in
+        # the prior snapshot counts as added; seeded Leiden routes it.
         graph = _build_graph(
             [("a.foo", "a.py"), ("a.bar", "a.py"), ("a.new", "a.py")],
             [("a.foo", "a.bar"), ("a.new", "a.foo")],
@@ -367,7 +321,14 @@ class TestDiffScoping(unittest.TestCase):
         delta = compute_cluster_delta(snap, _build_static(graph), changes=None)
 
         ld = delta.by_language["python"]
-        self.assertEqual(ld.changed_cluster_ids, {1}, "unscoped run still routes a.new normally")
+        self.assertTrue(delta.has_changes, "an added qname must surface as some kind of change")
+        # Why we don't assert on changed vs new: with a single prior cluster
+        # and a fresh node touching it, seeded Leiden may either expand
+        # cluster 1 (changed_cluster_ids={1}) or split a.new into a fresh id
+        # (new_cluster_ids has one entry). Both modularity outcomes are
+        # acceptable; what matters is that a.new is accounted for somewhere.
+        all_qnames = {q for members in ld.cluster_results.clusters.values() for q in members}
+        self.assertIn("a.new", all_qnames, "a.new must appear in some cluster")
 
 
 class TestInternalHelpersSmoke(unittest.TestCase):
@@ -375,17 +336,6 @@ class TestInternalHelpersSmoke(unittest.TestCase):
         graph = _build_graph([], [])
         ld = _flavor_b_seeded("python", graph.to_networkx(), {}, set(), set())
         self.assertFalse(ld.affected_cluster_ids)
-
-    def test_flavor_a_returns_fallback_used_true(self) -> None:
-        # ``_flavor_a_fallback`` now takes a precomputed ClusterResult; build
-        # one from the live graph the same way ``compute_cluster_delta`` does.
-        graph = _build_graph([("a.foo", "a.py"), ("a.bar", "a.py")], [("a.foo", "a.bar")])
-        sa = _build_static(graph)
-        from static_analyzer.cluster_helpers import build_all_cluster_results
-
-        fresh = build_all_cluster_results(sa).get("python", ClusterResult())
-        ld = _flavor_a_fallback("python", fresh, {})
-        self.assertTrue(ld.fallback_used)
 
 
 class TestSeededLockGuarantee(unittest.TestCase):
@@ -468,7 +418,7 @@ class TestSeededLockGuarantee(unittest.TestCase):
             (cid for cid, members in ld.cluster_results.clusters.items() if "x.new" in members),
             None,
         )
-        self.assertIsNotNone(x_cluster, "x.new must appear in some cluster")
+        assert x_cluster is not None, "x.new must appear in some cluster"
         self.assertGreater(
             len(ld.cluster_results.clusters[x_cluster]),
             1,

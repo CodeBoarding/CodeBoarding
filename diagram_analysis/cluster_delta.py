@@ -4,19 +4,12 @@ Mirrors ``build_all_cluster_results`` for the incremental path: produces a
 ``ClusterDelta`` describing which clusters carried over, which changed members,
 which are entirely new, and which dropped — without requiring any LLM call.
 
-Flavor B (default, seeded Leiden): warm-start ``leidenalg`` with the prior
-partition as ``initial_membership`` and lock vertices outside the 1-hop
-affected frontier via ``is_membership_fixed``. Replaces the previous
-remove/route/leftovers procedure with a single library call. The basin-of-
-attraction property of warm-start preserves cluster identity for vertices
-whose neighborhood didn't change, while allowing the affected frontier to
-re-optimize freely (including pulling existing nodes into newly-formed
-clusters with added nodes — a case the previous procedure couldn't express).
-
-Flavor A (fallback, triggered when ``changed_pct > FULL_RECLUSTER_THRESHOLD``):
-re-run ``build_all_cluster_results`` end-to-end and match by member-Jaccard
-against the old snapshot. Used when the diff is so large that incremental
-routing would produce noise.
+Seeded Leiden: warm-start ``leidenalg`` with the prior partition as
+``initial_membership`` and lock vertices outside the 1-hop affected frontier
+via ``is_membership_fixed``. The basin-of-attraction property of warm-start
+preserves cluster identity for vertices whose neighborhood didn't change,
+while allowing the affected frontier to re-optimize freely (including pulling
+existing nodes into newly-formed clusters with added nodes).
 """
 
 import logging
@@ -29,14 +22,10 @@ from diagram_analysis.cluster_snapshot import ClusterSnapshot, ClusterSnapshotEn
 from diagram_analysis.io_utils import normalize_repo_path
 from repo_utils.change_detector import ChangeSet
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.cluster_helpers import build_all_cluster_results
 from static_analyzer.graph import ClusterResult
 from static_analyzer.leiden_utils import find_partition_seeded
 
 logger = logging.getLogger(__name__)
-
-FULL_RECLUSTER_THRESHOLD = 0.25
-JACCARD_MATCH_THRESHOLD = 0.5
 
 
 @dataclass
@@ -47,7 +36,6 @@ class LanguageDelta:
     changed_cluster_ids: set[int] = field(default_factory=set)
     dropped_cluster_ids: set[int] = field(default_factory=set)
     cluster_id_remap: dict[int, int] = field(default_factory=dict)
-    fallback_used: bool = False
 
     @property
     def affected_cluster_ids(self) -> set[int]:
@@ -81,11 +69,10 @@ class ClusterDelta:
 def compute_cluster_delta(
     old_snapshot: ClusterSnapshot,
     new_static: StaticAnalysisResults,
-    threshold: float = FULL_RECLUSTER_THRESHOLD,
     changes: ChangeSet | None = None,
     repo_dir: Path | None = None,
 ) -> ClusterDelta:
-    """Compute per-language cluster deltas. See module docstring for flavor details.
+    """Compute per-language cluster deltas via seeded Leiden.
 
     When ``changes`` is provided, the cluster delta filters drift noise:
     qnames whose file is outside the source diff AND outside the prior analysis
@@ -100,17 +87,13 @@ def compute_cluster_delta(
     When ``changes`` is ``None`` (e.g., GitHub Action callers without a diff
     source), no scoping is applied — current behavior.
     """
-    fresh_clusters = build_all_cluster_results(new_static)
     delta = ClusterDelta()
     diff_files = _changeset_to_path_set(changes) if changes is not None else None
     for language in new_static.get_languages():
         cfg = new_static.get_cfg(language)
         nx_graph = cfg.to_networkx()
         old_clusters = old_snapshot.get_language(language)
-        fresh_for_lang = fresh_clusters.get(language, ClusterResult())
-        delta.by_language[language] = _delta_for_language(
-            language, nx_graph, old_clusters, fresh_for_lang, threshold, diff_files, repo_dir
-        )
+        delta.by_language[language] = _delta_for_language(language, nx_graph, old_clusters, diff_files, repo_dir)
     return delta
 
 
@@ -134,26 +117,23 @@ def _delta_for_language(
     language: str,
     nx_graph: nx.DiGraph,
     old_clusters: dict[int, ClusterSnapshotEntry],
-    fresh_for_lang: ClusterResult,
-    threshold: float,
     diff_files: set[str] | None = None,
     repo_dir: Path | None = None,
 ) -> LanguageDelta:
-    # Universe is the set of nodes ACTUALLY assigned to a cluster in either
-    # the prior snapshot or the fresh clustering. ``cfg.cluster()`` filters
-    # out singleton/noise nodes that ``nx_graph.nodes`` still includes; if
-    # we used the raw graph as the universe, those noise nodes would always
-    # look "added" -> would always trigger spurious Flavor B reroutes ->
-    # ``has_changes`` would never be False even on a no-op refresh.
-    fresh_member_union = {qname for members in fresh_for_lang.clusters.values() for qname in members}
+    # Universe is the prior cluster members plus the live CFG nodes. We use
+    # the raw graph nodes (not a fresh clustering) because seeded Leiden runs
+    # on the live graph directly — there is no separate "fresh clustering"
+    # step. Singleton/noise nodes in the live graph become added qnames here;
+    # diff scoping (when enabled) filters them down to ones in changed files.
+    live_qnames = set(nx_graph.nodes)
     old_member_union = {qname for entry in old_clusters.values() for qname in entry.members}
 
-    universe = fresh_member_union | old_member_union
+    universe = live_qnames | old_member_union
     if not universe:
-        return LanguageDelta(language=language, cluster_results=fresh_for_lang)
+        return LanguageDelta(language=language, cluster_results=ClusterResult())
 
-    raw_added = fresh_member_union - old_member_union
-    raw_removed = old_member_union - fresh_member_union
+    raw_added = live_qnames - old_member_union
+    raw_removed = old_member_union - live_qnames
 
     # Diff scoping: see compute_cluster_delta docstring. We drop only the
     # quadrant (qname not-in prior analysis AND file not-in diff) — pure
@@ -198,15 +178,8 @@ def _delta_for_language(
 
     changed_pct = (len(added_nodes) + len(removed_nodes)) / len(universe)
 
-    if changed_pct > threshold:
-        logger.info(
-            f"[cluster_delta] {language}: changed_pct={changed_pct:.3f} > {threshold}, "
-            "falling back to full re-cluster."
-        )
-        return _flavor_a_fallback(language, fresh_for_lang, old_clusters)
-
     logger.info(
-        "[cluster_delta] %s: Flavor B raw=(added=%d, removed=%d); "
+        "[cluster_delta] %s: seeded raw=(added=%d, removed=%d); "
         "diff-scoped=(added=%d, removed=%d); inconsistent=%d; changed_pct=%.3f",
         language,
         len(raw_added),
@@ -281,7 +254,6 @@ def _flavor_b_seeded(
 
     surviving_prior_cids = sorted(set(qname_to_prior_cid.values()))
     prior_to_compact: dict[int, int] = {cid: i for i, cid in enumerate(surviving_prior_cids)}
-    compact_to_prior: dict[int, int] = {i: cid for cid, i in prior_to_compact.items()}
 
     # Why ordered nodes matter: leidenalg.Optimiser requires
     # initial_membership aligned with igraph vertex order, which comes from
@@ -337,7 +309,7 @@ def _flavor_b_seeded(
     leiden_clusters = _absorb_orphans_by_file(leiden_clusters, working_graph)
 
     cluster_id_remap, new_cluster_ids, changed_cluster_ids, dropped_cluster_ids, final_clusters = (
-        _reconcile_seeded_partition(leiden_clusters, old_clusters, compact_to_prior)
+        _reconcile_seeded_partition(leiden_clusters, old_clusters)
     )
 
     cluster_results = _materialize_cluster_result(final_clusters, working_graph, "incremental_seeded")
@@ -348,7 +320,6 @@ def _flavor_b_seeded(
         changed_cluster_ids=changed_cluster_ids,
         dropped_cluster_ids=dropped_cluster_ids,
         cluster_id_remap=cluster_id_remap,
-        fallback_used=False,
     )
 
 
@@ -442,7 +413,6 @@ def _absorb_orphans_by_file(
 def _reconcile_seeded_partition(
     leiden_clusters: dict[int, set[str]],
     old_clusters: dict[int, ClusterSnapshotEntry],
-    compact_to_prior: dict[int, int],
 ) -> tuple[dict[int, int], set[int], set[int], set[int], dict[int, set[str]]]:
     """Map leiden's renumbered output IDs back onto old prior IDs by overlap.
 
@@ -450,9 +420,7 @@ def _reconcile_seeded_partition(
     output, so ID continuity across runs has to be reconstructed. We greedily
     pair leiden output clusters with the prior cluster they overlap with most;
     leftover leiden clusters get fresh IDs (max(old) + i + 1), leftover old
-    clusters get tombstoned in dropped_cluster_ids. ``compact_to_prior`` is
-    used as a tiebreaker hint when overlap is symmetric — it preserves the
-    seed's intent.
+    clusters get tombstoned in dropped_cluster_ids.
 
     Returns: (cluster_id_remap, new_cluster_ids, changed_cluster_ids,
     dropped_cluster_ids, final_clusters_keyed_by_new_ids).
@@ -493,8 +461,6 @@ def _reconcile_seeded_partition(
             new_cluster_ids.add(new_id)
 
     dropped_cluster_ids = {cid for cid in old_clusters.keys() if cid not in used_prior}
-    # Suppress unused-name lint while making the param's role explicit in signature.
-    _ = compact_to_prior
 
     return cluster_id_remap, new_cluster_ids, changed_cluster_ids, dropped_cluster_ids, final_clusters
 
@@ -525,69 +491,3 @@ def _materialize_cluster_result(
         file_to_clusters=file_to_clusters,
         strategy=strategy,
     )
-
-
-# ---------------------------------------------------------------------------
-# Flavor A
-# ---------------------------------------------------------------------------
-def _flavor_a_fallback(
-    language: str,
-    fresh_for_lang: ClusterResult,
-    old_clusters: dict[int, ClusterSnapshotEntry],
-) -> LanguageDelta:
-    cluster_id_remap, matched_old_ids = _match_by_jaccard(old_clusters, fresh_for_lang.clusters)
-
-    new_cluster_ids: set[int] = set()
-    changed_cluster_ids: set[int] = set()
-    for new_cid in fresh_for_lang.clusters:
-        if new_cid in cluster_id_remap.values():
-            old_cid = next(o for o, n in cluster_id_remap.items() if n == new_cid)
-            if old_clusters[old_cid].members != fresh_for_lang.clusters[new_cid]:
-                changed_cluster_ids.add(new_cid)
-        else:
-            new_cluster_ids.add(new_cid)
-
-    dropped_cluster_ids = {cid for cid in old_clusters.keys() if cid not in matched_old_ids}
-
-    return LanguageDelta(
-        language=language,
-        cluster_results=fresh_for_lang,
-        new_cluster_ids=new_cluster_ids,
-        changed_cluster_ids=changed_cluster_ids,
-        dropped_cluster_ids=dropped_cluster_ids,
-        cluster_id_remap=cluster_id_remap,
-        fallback_used=True,
-    )
-
-
-def _match_by_jaccard(
-    old_clusters: dict[int, ClusterSnapshotEntry],
-    new_clusters: dict[int, set[str]],
-) -> tuple[dict[int, int], set[int]]:
-    """Greedy 1:1 match by max Jaccard >= threshold; returns (old->new remap, matched_old_ids)."""
-    pairs: list[tuple[float, int, int]] = []
-    for old_cid, entry in old_clusters.items():
-        for new_cid, new_members in new_clusters.items():
-            score = _jaccard(entry.members, new_members)
-            if score >= JACCARD_MATCH_THRESHOLD:
-                pairs.append((score, old_cid, new_cid))
-    pairs.sort(reverse=True)
-
-    remap: dict[int, int] = {}
-    used_new: set[int] = set()
-    matched_old: set[int] = set()
-    for _, old_cid, new_cid in pairs:
-        if old_cid in matched_old or new_cid in used_new:
-            continue
-        remap[old_cid] = new_cid
-        matched_old.add(old_cid)
-        used_new.add(new_cid)
-    return remap, matched_old
-
-
-def _jaccard(a: set[str], b: set[str]) -> float:
-    if not a and not b:
-        return 0.0
-    intersection = len(a & b)
-    union = len(a | b)
-    return intersection / union if union else 0.0

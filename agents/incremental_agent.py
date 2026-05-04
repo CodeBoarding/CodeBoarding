@@ -23,6 +23,8 @@ from agents.agent_responses import (
     MetaAnalysisInsights,
     MethodEntry,
     assign_component_ids,
+    index_components_by_id,
+    iter_components,
 )
 from agents.cluster_methods_mixin import ClusterMethodsMixin
 from agents.prompts import get_system_message
@@ -159,9 +161,7 @@ def _format_existing_components(
     When *affected_files* is None, every component gets the full line
     (legacy / no-scope-known behaviour).
     """
-    all_components: list[Component] = list(root_analysis.components)
-    for sub in sub_analyses.values():
-        all_components.extend(sub.components)
+    all_components: list[Component] = list(iter_components(root_analysis, sub_analyses))
 
     if not all_components:
         return "(no existing components -- incremental run on an empty baseline)"
@@ -209,7 +209,7 @@ def stitch_delta(
     Returns the set of component_ids that need to be redetailed (their
     ``source_cluster_ids`` set changed, or they were newly inserted).
     """
-    component_index = _index_components(root_analysis, sub_analyses)
+    component_index = index_components_by_id(root_analysis, sub_analyses)
     name_lookup = {component.name.lower(): component for component in component_index.values()}
 
     cluster_id_remap = delta.merged_cluster_id_remap()
@@ -316,21 +316,6 @@ def _parent_id_for_scope(
         if sub is analysis:
             return component_id
     return ""
-
-
-def _index_components(
-    root_analysis: AnalysisInsights,
-    sub_analyses: dict[str, AnalysisInsights],
-) -> dict[str, Component]:
-    index: dict[str, Component] = {}
-    for component in root_analysis.components:
-        if component.component_id:
-            index[component.component_id] = component
-    for sub in sub_analyses.values():
-        for component in sub.components:
-            if component.component_id:
-                index[component.component_id] = component
-    return index
 
 
 # ---------------------------------------------------------------------------
