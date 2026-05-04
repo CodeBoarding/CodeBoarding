@@ -8,17 +8,15 @@ from agents.agent import CodeBoardingAgent
 from agents.agent_responses import (
     AnalysisInsights,
     ClusterAnalysis,
+    ClustersComponent,
     Component,
     MetaAnalysisInsights,
     assign_component_ids,
 )
-from agents.prompts import get_system_details_message, get_cfg_details_message, get_details_message
 from agents.cluster_methods_mixin import ClusterMethodsMixin
-from caching.cache import ModelSettings
-from caching.details_cache import (
-    FinalAnalysisCache,
-    ClusterCache,
-)
+from agents.name_arbiter import ArbiterCache, NameArbiterAgent
+from agents.prior_cluster_index import PriorClusterIndex
+from agents.prompts import get_cfg_details_message, get_details_message, get_system_details_message
 from agents.validation import (
     ValidationContext,
     validate_cluster_coverage,
@@ -26,9 +24,12 @@ from agents.validation import (
     validate_key_entities,
     validate_relation_component_names,
 )
+from caching.cache import ModelSettings
+from caching.details_cache import ClusterCache, FinalAnalysisCache
 from monitoring import trace
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cluster_helpers import get_all_cluster_ids
+from static_analyzer.constants import ClusteringConfig
 from static_analyzer.graph import ClusterResult
 
 logger = logging.getLogger(__name__)
@@ -52,6 +53,13 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
         self._cache_model_settings = ModelSettings.from_chat_model(provider="unknown", llm=agent_llm)
         self._cluster_cache = ClusterCache(repo_dir=repo_dir)
         self._analysis_cache = FinalAnalysisCache(repo_dir=repo_dir)
+        # Set externally by ``DiagramGenerator`` on the incremental path before
+        # ``run()`` is called. None on the full-analysis path: the arbiter has
+        # nothing to compare against on a first run, so the gate-then-arbitrate
+        # short-circuit doesn't fire and behavior is identical to today.
+        self.prior_index: PriorClusterIndex | None = None
+        self.name_arbiter: NameArbiterAgent | None = None
+        self.arbiter_cache: ArbiterCache | None = None
 
         self.prompts = {
             "group_clusters": PromptTemplate(
@@ -68,8 +76,13 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
     def step_clusters_grouping(
         self, component: Component, subgraph_cluster_results: dict[str, ClusterResult]
     ) -> ClusterAnalysis:
-        """
-        Group clusters within the component's subgraph into logical sub-components.
+        """Group clusters within the component's subgraph into logical sub-components.
+
+        On the incremental path with a populated ``prior_index``: each new
+        cluster whose member set has Jaccard ≥ threshold against a prior is
+        named via the arbiter (NOOP/UPDATE on the prior name); the rest go
+        to the existing LLM call. On the full-analysis path (``prior_index``
+        is None): behavior is identical to today.
 
         Args:
             component: The component being analyzed
@@ -79,9 +92,92 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
             ClusterAnalysis with grouped clusters for this component
         """
         logger.info(f"[DetailsAgent] Grouping clusters for component: {component.name}")
+
+        if self.prior_index is None or self.name_arbiter is None:
+            # Legacy path: full LLM grouping, no arbiter. Behavior identical to today.
+            return self._invoke_grouping_llm(
+                component,
+                subgraph_cluster_results,
+                get_all_cluster_ids(subgraph_cluster_results),
+            )
+
+        arbiter_components, unmatched_ids = self._gate_and_arbitrate(subgraph_cluster_results)
+        if arbiter_components and not unmatched_ids:
+            # Every cluster handled by the arbiter — skip the grouping LLM call entirely.
+            return ClusterAnalysis(cluster_components=arbiter_components)
+
+        llm_result = self._invoke_grouping_llm(component, subgraph_cluster_results, unmatched_ids)
+        return ClusterAnalysis(cluster_components=arbiter_components + llm_result.cluster_components)
+
+    def _gate_and_arbitrate(
+        self,
+        subgraph_cluster_results: dict[str, ClusterResult],
+    ) -> tuple[list[ClustersComponent], set[int]]:
+        """Resolve names for clusters whose member sets near-match a prior.
+
+        Returns ``(arbiter_components, unmatched_ids)``. Arbiter components
+        are grouped by chosen name: when multiple cluster_ids near-match the
+        same prior and arbitrate to the same name, they collapse into one
+        ``ClustersComponent`` with their cluster_ids unioned — preserving the
+        grouping the LLM would have produced.
+        """
+        if self.prior_index is None or self.name_arbiter is None:
+            return [], get_all_cluster_ids(subgraph_cluster_results)
+
+        if self.arbiter_cache is None:
+            # Lazily initialize so callers that forget to wire a cache still
+            # benefit from within-call memoization (no LLM repeats for
+            # identical triples).
+            self.arbiter_cache = {}
+
+        components_by_name: dict[str, ClustersComponent] = {}
+        unmatched: set[int] = set()
+
+        for lang, cr in subgraph_cluster_results.items():
+            for cid, members in cr.clusters.items():
+                if not members:
+                    unmatched.add(cid)
+                    continue
+                match = self.prior_index.find_best_match(
+                    members,
+                    threshold=ClusteringConfig.NAME_ARBITER_JACCARD_THRESHOLD,
+                )
+                if match is None:
+                    unmatched.add(cid)
+                    continue
+
+                prior, _score = match
+                decision = self.name_arbiter.arbitrate(
+                    prior_name=prior.name,
+                    prior_members=sorted(prior.members),
+                    new_members=sorted(members),
+                    cache=self.arbiter_cache,
+                )
+                chosen_name = prior.name if decision.event == "NOOP" else decision.new_name
+                assert chosen_name is not None  # NameDecision validator guarantees this
+
+                existing = components_by_name.get(chosen_name)
+                if existing is None:
+                    components_by_name[chosen_name] = ClustersComponent(
+                        name=chosen_name,
+                        cluster_ids=[cid],
+                        description=decision.rationale,
+                    )
+                else:
+                    if cid not in existing.cluster_ids:
+                        existing.cluster_ids.append(cid)
+
+        return list(components_by_name.values()), unmatched
+
+    def _invoke_grouping_llm(
+        self,
+        component: Component,
+        subgraph_cluster_results: dict[str, ClusterResult],
+        cluster_ids: set[int],
+    ) -> ClusterAnalysis:
+        """Run today's grouping LLM call, scoped to the given cluster_ids."""
         meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
         project_type = self.meta_context.project_type if self.meta_context else "unknown"
-
         programming_langs = self.static_analysis.get_languages()
 
         overhead_chars = len(str(self.system_message.content)) + len(
@@ -94,7 +190,10 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
             )
         )
         cluster_str = self._build_cluster_string(
-            programming_langs, subgraph_cluster_results, prompt_overhead_chars=overhead_chars
+            programming_langs,
+            subgraph_cluster_results,
+            cluster_ids=cluster_ids,
+            prompt_overhead_chars=overhead_chars,
         )
 
         prompt = self.prompts["group_clusters"].format(
@@ -107,21 +206,16 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
 
         context = ValidationContext(
             cluster_results=subgraph_cluster_results,
-            expected_cluster_ids=get_all_cluster_ids(subgraph_cluster_results),
+            expected_cluster_ids=cluster_ids,
         )
 
         cache_key = self._cluster_cache.build_key(prompt, self._cache_model_settings)
-
         if (cached := self._cluster_cache.load(cache_key)) is not None:
             return cached
         cluster_analysis = self._validation_invoke(
             prompt, ClusterAnalysis, validators=[validate_cluster_coverage], context=context, max_validation_attempts=3
         )
-        self._cluster_cache.store(
-            cache_key,
-            cluster_analysis,
-            run_id=self.run_id,
-        )
+        self._cluster_cache.store(cache_key, cluster_analysis, run_id=self.run_id)
         return cluster_analysis
 
     @trace
