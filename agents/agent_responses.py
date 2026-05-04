@@ -217,17 +217,6 @@ class Component(LLMBaseModel):
         exclude=True,
     )
 
-    cluster_members: dict[int, list[str]] = Field(
-        description=(
-            "Per-cluster member qualified names within this component. "
-            "Keys are entries from source_cluster_ids; values are sorted qnames. "
-            "Used by the incremental pipeline to reconstruct the prior CFG "
-            "clustering without a separate sidecar file."
-        ),
-        default_factory=dict,
-        exclude=True,
-    )
-
     component_id: str = Field(
         default="",
         description="Deterministic unique identifier for this component.",

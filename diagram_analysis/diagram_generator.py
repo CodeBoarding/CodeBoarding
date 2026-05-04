@@ -28,7 +28,7 @@ from diagram_analysis.analysis_json import (
     NotAnalyzedFile,
 )
 from diagram_analysis.cluster_delta import compute_cluster_delta
-from diagram_analysis.cluster_snapshot import snapshot_from_analysis
+from diagram_analysis.cluster_snapshot import snapshot_from_static_analysis
 from diagram_analysis.file_coverage import FileCoverage
 from diagram_analysis.io_utils import normalize_repo_path, save_analysis
 from diagram_analysis.version import Version
@@ -44,7 +44,6 @@ from static_analyzer import StaticAnalyzer, get_static_analysis
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.graph import ClusterResult
 from static_analyzer.scanner import ProjectScanner
-from utils import get_cache_dir
 
 logger = logging.getLogger(__name__)
 
@@ -169,12 +168,10 @@ class DiagramGenerator:
 
     def _get_static_from_injected_analyzer(
         self,
-        cache_dir: Path | None,
         skip_cache: bool = False,
         source_sha: str | None = None,
     ) -> StaticAnalysisResults:
         result = self._static_analyzer.analyze(  # type: ignore[union-attr]
-            cache_dir=cache_dir,
             skip_cache=skip_cache,
             source_sha=source_sha,
         )
@@ -191,8 +188,7 @@ class DiagramGenerator:
         ``cluster()``. We re-save once the abstraction agent has run (full
         path) or after the cluster delta is materialised (incremental path)
         so the next process gets a pkl whose CFG already carries the
-        partition, letting ``cluster_snapshot`` reconstruct prior state
-        without walking ``Component.cluster_members`` from ``analysis.json``.
+        partition. ``cluster_snapshot`` reads exclusively from this cache.
 
         On the incremental path the post-delta ``cluster_results`` are
         explicitly written into each language CFG's ``_cluster_cache``
@@ -226,16 +222,14 @@ class DiagramGenerator:
         self._monitoring_agents["MetaAgent"] = self.meta_agent
 
         def get_static_with_injected_analyzer() -> StaticAnalysisResults:
-            cache_dir = None if self.force_full_analysis else get_cache_dir(self.repo_location)
-            # SHA-gated load is the new safety net (was: blanket skip_cache=True).
             # ``CODEBOARDING_DISABLE_CACHE_REUSE=1`` is the post-deploy kill
-            # switch that reverts to the old always-recompute behaviour without
-            # a code change; useful if telemetry surfaces a regression.
+            # switch that reverts to "always re-LSP everything" without a code
+            # change; useful if telemetry surfaces a warm-start regression.
             disable_reuse = os.getenv("CODEBOARDING_DISABLE_CACHE_REUSE", "").lower() in ("1", "true", "yes")
             skip_cache = self.force_full_analysis or disable_reuse
             if disable_reuse:
                 logger.info("CODEBOARDING_DISABLE_CACHE_REUSE set; skipping static analysis cache")
-            return self._get_static_from_injected_analyzer(cache_dir, skip_cache=skip_cache, source_sha=self.source_sha)
+            return self._get_static_from_injected_analyzer(skip_cache=skip_cache, source_sha=self.source_sha)
 
         def get_static_with_new_analyzer() -> StaticAnalysisResults:
             skip_cache = self.force_full_analysis
@@ -523,9 +517,11 @@ class DiagramGenerator:
                         live_files.add(normalize_repo_path(node.file_path, self.repo_location))
             scrub_deleted_files(root_analysis, sub_analyses, live_files)
 
-            old_snapshot = snapshot_from_analysis(root_analysis, sub_analyses, self.static_analysis)
+            old_snapshot = snapshot_from_static_analysis(self.static_analysis)
             if not old_snapshot.all_cluster_ids():
-                logger.info("Baseline analysis has no cluster_members; falling back to full analysis.")
+                logger.info(
+                    "No cluster cache on the live CFG (legacy pkl or first run); falling back to full analysis."
+                )
                 return self.generate_analysis()
 
             delta = compute_cluster_delta(

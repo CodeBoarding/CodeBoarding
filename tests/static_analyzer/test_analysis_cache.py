@@ -5,13 +5,13 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from static_analyzer.analysis_result import (
+from static_analyzer.analysis_cache import (
     STATIC_ANALYSIS_PKL,
     STATIC_ANALYSIS_SHA,
     StaticAnalysisCache,
-    StaticAnalysisResults,
     copy_cache_files,
 )
+from static_analyzer.analysis_result import StaticAnalysisResults
 
 
 class TestStaticAnalysisCache(unittest.TestCase):
@@ -249,6 +249,59 @@ class TestStaticAnalysisCacheReadTagSha(unittest.TestCase):
         self.artifact_dir.mkdir(parents=True)
         (self.artifact_dir / STATIC_ANALYSIS_SHA).write_text("v999\nsha-current\n")
         self.assertIsNone(self.cache.read_tag_sha())
+
+
+class TestLoadWithSha(unittest.TestCase):
+    """``load_with_sha`` returns the unpickled cache plus the tag SHA, as a pair.
+
+    Used by the warm-start flow: the SHA is needed as a git diff base, not
+    as an exact-match gate, so the loader hands back whatever's on disk
+    along with its tag value.
+    """
+
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.artifact_dir = Path(self.temp_dir) / ".codeboarding"
+        self.repo_root = Path(self.temp_dir)
+        self.cache = StaticAnalysisCache(self.artifact_dir, self.repo_root)
+
+    def tearDown(self):
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def test_returns_results_and_sha_when_both_present(self):
+        results = StaticAnalysisResults()
+        results.add_source_files("python", [str(self.repo_root / "main.py")])
+        self.cache.save(results, source_sha="sha-current")
+
+        loaded = self.cache.load_with_sha()
+
+        self.assertIsNotNone(loaded)
+        if loaded is not None:
+            cached_results, cached_sha = loaded
+            self.assertEqual(cached_sha, "sha-current")
+            self.assertEqual(cached_results.get_source_files("python"), [str(self.repo_root / "main.py")])
+
+    def test_returns_none_when_tag_absent(self):
+        # Untagged save: pkl exists but no SHA tag -> not warm-startable.
+        results = StaticAnalysisResults()
+        self.cache.save(results, source_sha=None)
+
+        self.assertIsNone(self.cache.load_with_sha())
+
+    def test_returns_none_when_pkl_absent(self):
+        self.assertIsNone(self.cache.load_with_sha())
+
+    def test_does_not_gate_on_caller_supplied_sha(self):
+        # Even though the cached SHA is "sha-A", the load succeeds; the caller
+        # uses the returned SHA as a git diff base, not for equality matching.
+        self.cache.save(StaticAnalysisResults(), source_sha="sha-A")
+
+        loaded = self.cache.load_with_sha()
+
+        self.assertIsNotNone(loaded)
+        if loaded is not None:
+            _, cached_sha = loaded
+            self.assertEqual(cached_sha, "sha-A")
 
 
 class TestCopyCacheFiles(unittest.TestCase):

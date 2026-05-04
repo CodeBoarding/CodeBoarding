@@ -763,36 +763,7 @@ class ClusterMethodsMixin:
 
         analysis.files = self.build_files_index(analysis)
 
-        self._populate_cluster_members(analysis, cluster_results)
-
         self._log_node_coverage(analysis, len(all_nodes))
-
-    @staticmethod
-    def _populate_cluster_members(
-        analysis: AnalysisInsights,
-        cluster_results: dict[str, ClusterResult],
-    ) -> None:
-        """Record the full per-cluster member set on every owning component.
-
-        Stores cluster_id -> sorted qualified names for each cluster the
-        component declares ownership of via ``source_cluster_ids``. This
-        mirrors what ``cluster_results`` produced at clustering time and is
-        the only CFG-state we need to round-trip through ``analysis.json``
-        for ``snapshot_from_analysis`` to reconstruct an accurate
-        baseline. The same cluster id may legitimately appear on a parent
-        component AND each of its children in deep hierarchies — the
-        snapshot reader unions members across components, so duplication
-        is intentional and correct.
-        """
-        cid_to_members: dict[int, list[str]] = {}
-        for cr in cluster_results.values():
-            for cid, members in cr.clusters.items():
-                cid_to_members[cid] = sorted(members)
-
-        for comp in analysis.components:
-            comp.cluster_members = {
-                cid: cid_to_members[cid] for cid in comp.source_cluster_ids if cid in cid_to_members
-            }
 
     def build_static_relations(
         self,

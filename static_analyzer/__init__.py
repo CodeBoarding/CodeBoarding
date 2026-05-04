@@ -2,12 +2,10 @@ import logging
 import time
 from pathlib import Path
 
-from repo_utils import get_git_commit_hash
-from repo_utils.git_ops import require_current_commit
+from repo_utils.git_ops import get_changed_files_since
 from repo_utils.ignore import RepoIgnoreManager
-from static_analyzer.analysis_cache import AnalysisCacheManager
-from static_analyzer.analysis_result import StaticAnalysisCache, StaticAnalysisResults
-from static_analyzer.cluster_change_analyzer import ChangeClassification
+from static_analyzer.analysis_cache import StaticAnalysisCache
+from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import Language
 from static_analyzer.csharp_config_scanner import CSharpConfigScanner
 from static_analyzer.engine.adapters import get_adapter
@@ -18,14 +16,14 @@ from static_analyzer.engine.result_converter import convert_to_codeboarding_form
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.utils import uri_to_path
 from static_analyzer.graph import CallGraph
-from static_analyzer.incremental_orchestrator import IncrementalAnalysisOrchestrator
+from static_analyzer.incremental_orchestrator import update_cfg_for_changed_files
 from static_analyzer.java_config_scanner import JavaConfigScanner
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
 from static_analyzer.programming_language import ProgrammingLanguage
 from static_analyzer.scanner import ProjectScanner
 from static_analyzer.typescript_config_scanner import TypeScriptConfigScanner
 from tool_registry import ensure_node_on_path
-from utils import get_artifact_dir, get_cache_dir
+from utils import get_artifact_dir
 
 logger = logging.getLogger(__name__)
 
@@ -426,28 +424,24 @@ class StaticAnalyzer:
 
     def analyze(
         self,
-        cache_dir: Path | None = None,
         skip_cache: bool = False,
         source_sha: str | None = None,
     ) -> StaticAnalysisResults:
-        """Analyze the repository using the engine LSP pipeline.
+        """Analyze the repository, warm-starting from the SHA-tagged pkl when present.
 
-        Clients must be running before calling this method. Use start_clients() or
-        the context manager (``with StaticAnalyzer(...) as sa:``) to start them.
+        Flow:
 
-        Args:
-            cache_dir: Optional directory for the per-language LSP incremental
-                      caches (``incremental_cache_<lang>.json``). True cache —
-                      callers may wipe freely. If None, no per-language caching.
-            skip_cache: If True, bypass both the in-memory results cache and the
-                       on-disk run-artifact pickle and re-run the LSP analysis.
-            source_sha: Canonical identifier of the source state for SHA-gated
-                       reuse of the run-artifact pickle. When provided the disk
-                       load only succeeds if the saved tag matches; the SHA is
-                       also stamped onto the freshly-saved pickle.
+        1. In-memory cache hit -> return.
+        2. ``skip_cache=True`` -> full LSP analysis, save pkl tagged with
+           *source_sha*.
+        3. Pkl present -> load it, ask git for files changed since the pkl's
+           tag SHA, re-LSP just those files, merge in memory, re-save the
+           pkl tagged with *source_sha*. The pkl is the only persistent
+           cache; per-language JSON caches are gone.
+        4. No pkl -> full LSP, save pkl tagged with *source_sha*.
 
-        Returns:
-            StaticAnalysisResults containing all analysis data.
+        Clients must be running before calling this method. Use ``start_clients()``
+        or the context manager (``with StaticAnalyzer(...) as sa:``).
         """
         if not self._clients_started:
             raise RuntimeError(
@@ -459,118 +453,151 @@ class StaticAnalyzer:
             logger.info("static_analysis_cache: outcome=memhit")
             return self._cached_results
 
-        logger.info(
-            f"analyze() called with cache_dir={cache_dir}, skip_cache={skip_cache}, "
-            f"source_sha={'<set>' if source_sha else None}"
-        )
+        logger.info(f"analyze() called with skip_cache={skip_cache}, source_sha={'<set>' if source_sha else None}")
 
-        # Try loading from the on-disk run artifact (survives across processes).
-        # The artifact lives next to ``analysis.json``; the per-language LSP
-        # caches in ``cache_dir`` are a separate, wipeable concern below.
+        artifact_dir = get_artifact_dir(self.repository_path)
+        cache = StaticAnalysisCache(artifact_dir, self.repository_path)
+
         if skip_cache:
             logger.info("static_analysis_cache: outcome=bypass (skip_cache=True)")
+            results = self._run_full_lsp_pass()
         else:
-            cached = self.load_from_disk_cache(expected_sha=source_sha)
-            if cached is not None:
-                langs = cached.get_languages()
-                file_count = len(cached.get_all_source_files())
+            warm_start = cache.load_with_sha()
+            if warm_start is None:
+                logger.info("static_analysis_cache: outcome=miss_absent")
+                results = self._run_full_lsp_pass()
+            else:
+                cached_results, cached_sha = warm_start
                 logger.info(
-                    "static_analysis_cache: outcome=diskhit " f"({file_count} files, languages: {', '.join(langs)})"
+                    "static_analysis_cache: outcome=warmstart (cached_sha=%s, current_sha=%s)",
+                    cached_sha,
+                    source_sha or "<none>",
                 )
-                return cached
-            outcome = "miss_sha" if source_sha is not None else "miss_absent"
-            logger.info(f"static_analysis_cache: outcome={outcome}")
+                results = self._update_cached_results(cached_results, cached_sha)
 
+        self._cached_results = results
+        results.diagnostics = self.collected_diagnostics
+        logger.info(f"Saving static analysis run artifact to {artifact_dir}")
+        cache.save(results, source_sha=source_sha)
+        return results
+
+    def _run_full_lsp_pass(self) -> StaticAnalysisResults:
+        """Run a fresh LSP analysis for every started engine client.
+
+        Cold path: nothing reusable on disk, so every language re-indexes.
+        ``analyze()`` calls this only when the pkl is missing or the caller
+        explicitly requested ``skip_cache=True``.
+        """
         results = StaticAnalysisResults()
-
         for adapter, project_path, engine_client in self._engine_clients:
             language = adapter.language
             try:
                 t_lang_start = time.monotonic()
                 logger.info(f"Starting engine analysis for {language} in {project_path}")
-
-                # Determine cache path for this client if caching is enabled
-                cache_path = None
-                if cache_dir is not None:
-                    cache_dir.mkdir(parents=True, exist_ok=True)
-                    client_id = language.lower()
-                    cache_path = cache_dir / f"incremental_cache_{client_id}.json"
-                    if cache_path.exists():
-                        logger.info(f"Using incremental cache: {cache_path}")
-                    else:
-                        logger.info(f"Cache path configured but no cache exists at: {cache_path}")
-
-                # Use incremental orchestrator only when a cache file already exists
-                if cache_path is not None and cache_path.exists():
-                    orchestrator = IncrementalAnalysisOrchestrator(self.ignore_manager)
-                    analysis = orchestrator.run_incremental_analysis(
-                        adapter, project_path, engine_client, cache_path, analyze_cluster_changes=False
-                    )
-                else:
-                    analysis = self._run_full_analysis(adapter, project_path, engine_client)
-                    # Save cache for future incremental runs (without expensive clustering)
-                    if cache_path is not None:
-                        self._save_initial_cache(analysis, cache_path, project_path)
-
-                results.add_references(language, analysis.get("references", []))
-                call_graph = analysis.get("call_graph")
-                if call_graph is None:
-                    call_graph = CallGraph()
-                results.add_cfg(language, call_graph)
-                results.add_class_hierarchy(language, analysis.get("class_hierarchies", {}))
-                results.add_package_dependencies(language, analysis.get("package_relations", {}))
-                results.add_source_files(language, analysis.get("source_files", []))
+                analysis = self._run_full_analysis(adapter, project_path, engine_client)
+                self._absorb_into_results(results, language, analysis)
                 logger.info(f"Engine analysis for {language} completed in {time.monotonic() - t_lang_start:.1f}s")
-
-                # Collect diagnostics
-                cache_diags: dict = analysis.get("diagnostics") or {}
-                if cache_diags:
-                    logger.info(f"Loaded {len(cache_diags)} files with diagnostics from cache for {adapter.language}")
-
-                # Some servers (rust-analyzer, csharp-ls) publish diagnostics
-                # asynchronously after didOpen and we'd snapshot an empty
-                # ``collected_diagnostics`` if we harvested immediately. Each
-                # adapter knows what to wait for: rust-analyzer reuses its
-                # ``experimental/serverStatus`` quiescent signal; csharp-ls
-                # has no signal and falls back to debouncing. Default no-op.
-                t_wait = time.monotonic()
-                adapter.wait_for_diagnostics(engine_client)
-                logger.debug(f"wait_for_diagnostics for {adapter.language}: " f"{time.monotonic() - t_wait:.1f}s")
-
-                live_diags = engine_client.get_collected_diagnostics()
-
-                merged_diags: dict = dict(cache_diags)
-                for fp, diags in live_diags.items():
-                    merged_diags[fp] = diags
-
-                if merged_diags:
-                    total_diags = sum(len(d) for d in merged_diags.values())
-                    logger.info(
-                        f"Diagnostics for {adapter.language}: "
-                        f"{len(merged_diags)} files, {total_diags} items "
-                        f"(cache={len(cache_diags)}, live={len(live_diags)})"
-                    )
-                else:
-                    logger.debug(f"No diagnostics for {adapter.language}")
-                self.collected_diagnostics[Language(language)] = merged_diags
-
+                self._collect_diagnostics_for(adapter, engine_client, analysis)
             except Exception as e:
                 logger.error(f"Error during engine analysis for {adapter.language}: {e}")
-
         logger.info(f"Static analysis complete: {results}")
-        results.diagnostics = self.collected_diagnostics
-        self._cached_results = results
-
-        # Persist as a run artifact (sibling of ``analysis.json``) so the next
-        # process can reuse without re-running LSP. SHA-gated; an absent
-        # ``source_sha`` writes the pickle but leaves the tag missing, which
-        # disables SHA-aware loaders without breaking legacy callers.
-        artifact_dir = get_artifact_dir(self.repository_path)
-        logger.info(f"Saving static analysis run artifact to {artifact_dir}")
-        static_analysis_cache = StaticAnalysisCache(artifact_dir, self.repository_path)
-        static_analysis_cache.save(results, source_sha=source_sha)
-
         return results
+
+    def _update_cached_results(self, cached_results: StaticAnalysisResults, cached_sha: str) -> StaticAnalysisResults:
+        """Bring *cached_results* up to date in-memory using git-diff scoping.
+
+        Per language: compute the file list git reports as changed since
+        *cached_sha*, hand it to ``update_cfg_for_changed_files`` along with
+        the language's portion of the cached state, and put the merged
+        result back into a fresh ``StaticAnalysisResults``.
+
+        If ``get_changed_files_since`` fails (e.g. *cached_sha* is unreachable
+        — possible after a hard branch switch or shallow-clone fetch), fall
+        back to a full re-LSP for that language so the run still produces
+        valid output.
+        """
+        results = StaticAnalysisResults()
+        for adapter, project_path, engine_client in self._engine_clients:
+            language = adapter.language
+            cached_lang_dict = self._extract_language_dict(cached_results, language)
+            try:
+                changed_files = set(get_changed_files_since(project_path, cached_sha))
+            except Exception as e:
+                logger.warning(
+                    f"get_changed_files_since failed for {language} (cached_sha={cached_sha}): {e}; "
+                    "falling back to full re-LSP for this language"
+                )
+                changed_files = None
+
+            if changed_files is None:
+                analysis = self._run_full_analysis(adapter, project_path, engine_client)
+            else:
+                logger.info(f"warmstart {language}: re-LSPing {len(changed_files)} changed file(s)")
+                analysis = update_cfg_for_changed_files(
+                    cached_lang_dict, changed_files, adapter, project_path, engine_client, self.ignore_manager
+                )
+
+            self._absorb_into_results(results, language, analysis)
+            self._collect_diagnostics_for(adapter, engine_client, analysis)
+        return results
+
+    def _extract_language_dict(self, cached_results: StaticAnalysisResults, language: str) -> dict:
+        """Project a single language's bucket out of ``StaticAnalysisResults`` into the dict shape ``update_cfg_for_changed_files`` expects."""
+        try:
+            cached_cfg = cached_results.get_cfg(language)
+        except ValueError:
+            cached_cfg = CallGraph(language=language)
+        try:
+            class_hierarchies = cached_results.get_hierarchy(language)
+        except ValueError:
+            class_hierarchies = {}
+        try:
+            package_relations = cached_results.get_package_dependencies(language)
+        except ValueError:
+            package_relations = {}
+        cached_refs = list(cached_results.iter_reference_nodes(language))
+        cached_source_files = [Path(p) for p in cached_results.get_source_files(language)]
+        return {
+            "call_graph": cached_cfg,
+            "class_hierarchies": class_hierarchies,
+            "package_relations": package_relations,
+            "references": cached_refs,
+            "source_files": cached_source_files,
+            "diagnostics": cached_results.diagnostics.get(Language(language), {}),
+        }
+
+    def _absorb_into_results(self, results: StaticAnalysisResults, language: str, analysis: dict) -> None:
+        """Stuff one language's analysis-dict into the shared ``StaticAnalysisResults``."""
+        results.add_references(language, analysis.get("references", []))
+        call_graph = analysis.get("call_graph") or CallGraph()
+        results.add_cfg(language, call_graph)
+        results.add_class_hierarchy(language, analysis.get("class_hierarchies", {}))
+        results.add_package_dependencies(language, analysis.get("package_relations", {}))
+        results.add_source_files(language, [str(f) for f in analysis.get("source_files", [])])
+
+    def _collect_diagnostics_for(self, adapter: LanguageAdapter, engine_client: LSPClient, analysis: dict) -> None:
+        """Merge cached + live diagnostics for one adapter into ``self.collected_diagnostics``.
+
+        Why: rust-analyzer / csharp-ls publish diagnostics asynchronously
+        after ``didOpen``; ``adapter.wait_for_diagnostics`` is the
+        per-adapter quiescence signal that prevents us from snapshotting an
+        empty ``collected_diagnostics`` map.
+        """
+        cache_diags: dict = analysis.get("diagnostics") or {}
+        t_wait = time.monotonic()
+        adapter.wait_for_diagnostics(engine_client)
+        logger.debug(f"wait_for_diagnostics for {adapter.language}: {time.monotonic() - t_wait:.1f}s")
+        live_diags = engine_client.get_collected_diagnostics()
+        merged_diags: dict = dict(cache_diags)
+        for fp, diags in live_diags.items():
+            merged_diags[fp] = diags
+        if merged_diags:
+            total = sum(len(d) for d in merged_diags.values())
+            logger.info(
+                f"Diagnostics for {adapter.language}: {len(merged_diags)} files, {total} items "
+                f"(cache={len(cache_diags)}, live={len(live_diags)})"
+            )
+        self.collected_diagnostics[Language(adapter.language)] = merged_diags
 
     def _run_full_analysis(
         self,
@@ -608,107 +635,9 @@ class StaticAnalyzer:
         logger.info(f"convert_to_codeboarding_format for {adapter.language}: {time.monotonic() - t_convert:.1f}s")
         return result
 
-    def _save_initial_cache(self, analysis: dict, cache_path: Path, project_path: Path) -> None:
-        """Save initial analysis to cache for future incremental runs.
-
-        Lightweight save without expensive cluster computation.
-        """
-        try:
-            commit_hash = require_current_commit(project_path)
-            cache_manager = AnalysisCacheManager(self.repository_path)
-            cache_manager.save_cache(
-                cache_path=cache_path,
-                analysis_result=analysis,
-                commit_hash=commit_hash,
-                iteration_id=1,
-            )
-            logger.info(f"Saved initial cache to {cache_path}")
-        except Exception as e:
-            logger.warning(f"Failed to save initial cache: {e}")
-
-    def analyze_with_cluster_changes(self, cache_dir: Path | None = None) -> dict:
-        """Analyze the repository with cluster change detection.
-
-        Args:
-            cache_dir: Optional cache directory for incremental analysis.
-
-        Returns:
-            Dictionary containing:
-            - 'analysis_result': StaticAnalysisResults
-            - 'cluster_change_result': ClusterChangeResult with detailed metrics
-            - 'change_classification': ChangeClassification (SMALL, MEDIUM, BIG)
-        """
-        if not self._engine_clients:
-            return {
-                "analysis_result": StaticAnalysisResults(),
-                "cluster_change_result": None,
-                "change_classification": ChangeClassification.SMALL,
-            }
-
-        adapter, project_path, engine_client = self._engine_clients[0]
-        language = adapter.language
-
-        try:
-            logger.info(f"Starting cluster change analysis for {language} in {project_path}")
-
-            cache_path = None
-            if cache_dir is not None:
-                cache_dir.mkdir(parents=True, exist_ok=True)
-                client_id = language.lower()
-                cache_path = cache_dir / f"incremental_cache_{client_id}.json"
-                if cache_path.exists():
-                    logger.info(f"Using incremental cache: {cache_path}")
-                else:
-                    logger.info(f"Cache path configured but no cache exists at: {cache_path}")
-
-            if cache_path is not None:
-                orchestrator = IncrementalAnalysisOrchestrator(self.ignore_manager)
-                result = orchestrator.run_incremental_analysis(
-                    adapter, project_path, engine_client, cache_path, analyze_cluster_changes=True
-                )
-                if isinstance(result, dict) and "analysis_result" in result:
-                    dict_analysis = result["analysis_result"]
-                    if isinstance(dict_analysis, dict):
-                        result["analysis_result"] = self._dict_to_static_results(dict_analysis, language)
-                        if "commit_hash" not in result:
-                            result["commit_hash"] = get_git_commit_hash(self.repository_path)
-                return result
-            else:
-                analysis = self._run_full_analysis(adapter, project_path, engine_client)
-                static_results = self._dict_to_static_results(analysis, language)
-                return {
-                    "analysis_result": static_results,
-                    "cluster_change_result": None,
-                    "change_classification": ChangeClassification.BIG,
-                    "commit_hash": get_git_commit_hash(self.repository_path),
-                }
-
-        except Exception as e:
-            logger.error(f"Error during cluster change analysis: {e}")
-            return {
-                "analysis_result": StaticAnalysisResults(),
-                "cluster_change_result": None,
-                "change_classification": ChangeClassification.BIG,
-            }
-
-    def _dict_to_static_results(self, analysis_dict: dict, language: str) -> StaticAnalysisResults:
-        """Convert analysis dictionary to StaticAnalysisResults."""
-        results = StaticAnalysisResults()
-        results.add_references(language, analysis_dict.get("references", []))
-        call_graph = analysis_dict.get("call_graph")
-        if call_graph is None:
-            call_graph = CallGraph()
-        results.add_cfg(language, call_graph)
-        results.add_class_hierarchy(language, analysis_dict.get("class_hierarchies", {}))
-        results.add_package_dependencies(language, analysis_dict.get("package_relations", {}))
-        source_files = analysis_dict.get("source_files", [])
-        results.add_source_files(language, [str(f) for f in source_files])
-        return results
-
 
 def get_static_analysis(
     repo_path: Path,
-    cache_dir: Path | None = None,
     skip_cache: bool = False,
     source_sha: str | None = None,
 ) -> StaticAnalysisResults:
@@ -718,18 +647,17 @@ def get_static_analysis(
 
     Args:
         repo_path: Path to the repository to analyze.
-        cache_dir: Optional custom directory for the per-language LSP
-            incremental caches. If None, uses the default cache location.
-        skip_cache: If True, performs full analysis without using any cache.
-        source_sha: Canonical source-state identifier for SHA-gated reuse of
-            the run-artifact pickle (sibling of ``analysis.json``).
+        skip_cache: If True, bypass the SHA-tagged pkl warm-start and re-LSP
+            the entire repository from scratch.
+        source_sha: Canonical source-state identifier (typically a git tree SHA)
+            stamped onto the freshly-saved pkl so the next run can use it as
+            a diff base.
 
     Returns:
-        StaticAnalysisResults using incremental cache when available.
+        StaticAnalysisResults reflecting the live source state.
     """
-    actual_cache_dir = None if skip_cache else (cache_dir if cache_dir is not None else get_cache_dir(repo_path))
     analyzer = StaticAnalyzer(repo_path)
     with analyzer:
-        results = analyzer.analyze(cache_dir=actual_cache_dir, source_sha=source_sha)
+        results = analyzer.analyze(skip_cache=skip_cache, source_sha=source_sha)
     results.diagnostics = analyzer.collected_diagnostics
     return results

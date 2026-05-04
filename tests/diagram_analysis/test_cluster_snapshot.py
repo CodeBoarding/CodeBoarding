@@ -1,24 +1,19 @@
 """Tests for ``diagram_analysis.cluster_snapshot``.
 
-The snapshot is now reconstructed from ``analysis.json`` (specifically each
-``Component.cluster_members``), so the round-trip we exercise here is
-``Component.cluster_members -> ClusterSnapshot -> ClusterSnapshotEntry``
-classified by language using a freshly-built CFG.
+The snapshot is sourced exclusively from each per-language CFG's
+``CallGraph._cluster_cache`` (the partition is round-tripped through the
+SHA-tagged pkl). Languages without a populated cache contribute nothing,
+which is what triggers the full-analysis fallback in
+``DiagramGenerator.generate_analysis_incremental``.
 """
 
 import unittest
 
-from agents.agent_responses import (
-    AnalysisInsights,
-    Component,
-    FileMethodGroup,
-    MethodEntry,
-)
 from diagram_analysis.cluster_snapshot import (
     ClusterSnapshot,
     ClusterSnapshotEntry,
-    snapshot_from_analysis,
     snapshot_from_cluster_results,
+    snapshot_from_static_analysis,
 )
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import NodeType
@@ -49,96 +44,67 @@ def _build_static(graphs: dict[str, CallGraph]) -> StaticAnalysisResults:
     return results
 
 
-def _component(component_id: str, name: str, cluster_members: dict[int, list[str]]) -> Component:
-    return Component(
-        name=name,
-        description="",
-        key_entities=[],
-        component_id=component_id,
-        source_cluster_ids=sorted(cluster_members.keys()),
-        cluster_members=cluster_members,
-    )
-
-
-def _analysis(components: list[Component]) -> AnalysisInsights:
-    return AnalysisInsights(description="", components=components, components_relations=[])
-
-
-class TestSnapshotFromAnalysis(unittest.TestCase):
-    def test_round_trip_partitions_by_language(self) -> None:
-        py_graph = _build_graph([("a.foo", "a.py"), ("a.bar", "a.py"), ("b.baz", "b.py")])
-        go_graph = _build_graph([("c.qux", "c.go")])
-        static = _build_static({"python": py_graph, "go": go_graph})
-
-        comp_root = _component("1", "Auth", cluster_members={1: ["a.foo", "a.bar"], 2: ["b.baz"]})
-        comp_root_go = _component("2", "Worker", cluster_members={3: ["c.qux"]})
-        root = _analysis([comp_root, comp_root_go])
-
-        snap = snapshot_from_analysis(root, {}, static)
-
-        self.assertEqual(set(snap.by_language), {"python", "go"})
-        py = snap.by_language["python"]
-        self.assertEqual(py[1].members, {"a.foo", "a.bar"})
-        self.assertEqual(py[1].files, {"a.py"})
-        self.assertEqual(py[2].members, {"b.baz"})
-        self.assertEqual(py[2].files, {"b.py"})
-        self.assertEqual(snap.by_language["go"][3].members, {"c.qux"})
-        self.assertEqual(snap.by_language["go"][3].files, {"c.go"})
-
-    def test_sub_analyses_contribute_their_own_cluster_members(self) -> None:
-        graph = _build_graph(
-            [("root.a", "root.py"), ("sub.x", "sub.py"), ("sub.y", "sub.py")],
+class TestSnapshotFromStaticAnalysis(unittest.TestCase):
+    def test_partition_read_from_cfg_cache(self) -> None:
+        graph = _build_graph([("a.foo", "a.py"), ("a.bar", "a.py"), ("b.baz", "b.py")])
+        graph._cluster_cache = ClusterResult(
+            clusters={5: {"a.foo", "a.bar"}, 6: {"b.baz"}},
+            cluster_to_files={5: {"a.py"}, 6: {"b.py"}},
+            file_to_clusters={"a.py": {5}, "b.py": {6}},
         )
         static = _build_static({"python": graph})
 
-        root = _analysis([_component("1", "Top", cluster_members={1: ["root.a"]})])
-        sub = _analysis([_component("1.1", "Detail", cluster_members={2: ["sub.x", "sub.y"]})])
-
-        snap = snapshot_from_analysis(root, {"1": sub}, static)
+        snap = snapshot_from_static_analysis(static)
 
         py = snap.by_language["python"]
-        self.assertEqual(py[1].members, {"root.a"})
-        self.assertEqual(py[2].members, {"sub.x", "sub.y"})
-        self.assertEqual(py[2].files, {"sub.py"})
+        self.assertEqual(set(py.keys()), {5, 6})
+        self.assertEqual(py[5].members, {"a.foo", "a.bar"})
+        self.assertEqual(py[5].files, {"a.py"})
+        self.assertEqual(py[5].member_files, {"a.foo": "a.py", "a.bar": "a.py"})
+        self.assertEqual(py[6].members, {"b.baz"})
 
-    def test_members_missing_from_cfg_are_skipped(self) -> None:
-        # Only "a.foo" remains in the new CFG; "a.deleted" is gone from source.
-        graph = _build_graph([("a.foo", "a.py")])
-        static = _build_static({"python": graph})
+    def test_partitions_each_language_independently(self) -> None:
+        py_graph = _build_graph([("a.foo", "a.py"), ("b.baz", "b.py")])
+        py_graph._cluster_cache = ClusterResult(clusters={1: {"a.foo"}, 2: {"b.baz"}})
+        go_graph = _build_graph([("c.qux", "c.go")])
+        go_graph._cluster_cache = ClusterResult(clusters={3: {"c.qux"}})
+        static = _build_static({"python": py_graph, "go": go_graph})
 
-        root = _analysis([_component("1", "Auth", cluster_members={1: ["a.foo", "a.deleted"]})])
+        snap = snapshot_from_static_analysis(static)
 
-        snap = snapshot_from_analysis(root, {}, static)
-
+        self.assertEqual(set(snap.by_language), {"python", "go"})
         self.assertEqual(snap.by_language["python"][1].members, {"a.foo"})
+        self.assertEqual(snap.by_language["python"][2].members, {"b.baz"})
+        self.assertEqual(snap.by_language["go"][3].members, {"c.qux"})
 
-    def test_empty_when_no_cluster_members(self) -> None:
-        graph = _build_graph([("a.foo", "a.py")])
+    def test_language_without_cluster_cache_is_skipped(self) -> None:
+        # Why: legacy pkl / first-ever run leaves ``_cluster_cache`` as None.
+        # ``generate_analysis_incremental`` checks ``all_cluster_ids()`` and
+        # falls back to a full run, which then warms the pkl. The empty
+        # snapshot here is the explicit "I have nothing to compare against"
+        # signal, not an error.
+        graph = _build_graph([("a.foo", "a.py")])  # _cluster_cache is None
         static = _build_static({"python": graph})
 
-        root = _analysis([_component("1", "Auth", cluster_members={})])
-
-        snap = snapshot_from_analysis(root, {}, static)
+        snap = snapshot_from_static_analysis(static)
 
         self.assertEqual(snap.all_cluster_ids(), set())
 
-    def test_components_sharing_a_cluster_id_are_merged(self) -> None:
-        # Real analyses won't normally do this — every cluster is owned by
-        # exactly one component — but the merge behaviour is well-defined and
-        # protects us from accidental double-counting if the invariant slips.
-        graph = _build_graph([("a.x", "a.py"), ("a.y", "a.py")])
+    def test_qnames_outside_cfg_are_dropped_from_member_files(self) -> None:
+        # A qname can appear in the cluster cache without a corresponding CFG
+        # node when the cache was saved before a node-level mutation. Such
+        # qnames have no authoritative file_path, so they're absorbed into
+        # ``members`` but contribute nothing to ``files`` / ``member_files``.
+        graph = _build_graph([("a.foo", "a.py")])
+        graph._cluster_cache = ClusterResult(clusters={1: {"a.foo", "ghost.fn"}})
         static = _build_static({"python": graph})
 
-        root = _analysis(
-            [
-                _component("1", "Alpha", cluster_members={7: ["a.x"]}),
-                _component("2", "Beta", cluster_members={7: ["a.y"]}),
-            ]
-        )
+        snap = snapshot_from_static_analysis(static)
 
-        snap = snapshot_from_analysis(root, {}, static)
-
-        self.assertEqual(snap.by_language["python"][7].members, {"a.x", "a.y"})
+        py = snap.by_language["python"]
+        self.assertEqual(py[1].members, {"a.foo", "ghost.fn"})
+        self.assertEqual(py[1].files, {"a.py"})
+        self.assertEqual(py[1].member_files, {"a.foo": "a.py"})
 
 
 class TestSnapshotFromClusterResults(unittest.TestCase):
@@ -169,10 +135,6 @@ class TestClusterSnapshotHelpers(unittest.TestCase):
             }
         )
         self.assertEqual(snap.all_cluster_ids(), {1, 2, 3})
-
-
-# Suppress unused-import warning: kept for type-aware test authoring tools.
-_ = (FileMethodGroup, MethodEntry)
 
 
 if __name__ == "__main__":

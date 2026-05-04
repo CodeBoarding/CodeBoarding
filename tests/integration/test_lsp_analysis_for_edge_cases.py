@@ -151,7 +151,7 @@ def analysis(request) -> AnalysisRunData:
     all_results = []
     for run in range(1, project.stability_runs + 1):
         with StaticAnalyzer(project_path) as analyzer:
-            results = analyzer.analyze(cache_dir=None)
+            results = analyzer.analyze()
         all_results.append(results)
         logger.info(
             "[%s] run %d/%d complete",

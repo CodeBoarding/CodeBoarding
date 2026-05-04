@@ -1,644 +1,134 @@
-"""
-Incremental analysis orchestrator for coordinating incremental static analysis workflows.
+"""Pkl warm-start updater: bring a cached per-language analysis up to date in-memory.
 
-This module provides the main orchestration logic for incremental analysis,
-coordinating between cache management, git diff analysis, and LSP client operations.
+Given a cached analysis dict (loaded from the SHA-tagged pkl) and the file
+list git reports as changed since the pkl's tag SHA, rerun the LSP for those
+files only and merge the result with the kept-from-cache state. No JSON, no
+disk writes — the only persistence is the pkl save that ``StaticAnalyzer``
+performs after this returns.
 """
 
 import logging
 from pathlib import Path
+from typing import Any
 
-from agents.agent_responses import AnalysisInsights
-from static_analyzer.analysis_cache import AnalysisCacheManager
-from static_analyzer.cluster_change_analyzer import (
-    ClusterChangeAnalyzer,
-    ChangeClassification,
-    analyze_cluster_changes_for_languages,
-    get_overall_classification,
-)
-from repo_utils.git_ops import (
-    get_changed_files_since,
-    has_uncommitted_changes,
-    require_current_commit,
-)
 from repo_utils.ignore import RepoIgnoreManager
+from static_analyzer.analysis_cache import invalidate_files, merge_results
 from static_analyzer.engine.call_graph_builder import CallGraphBuilder
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_client import LSPClient
 from static_analyzer.engine.result_converter import convert_to_codeboarding_format
-from static_analyzer.graph import CallGraph, ClusterResult
-
+from static_analyzer.graph import CallGraph
 
 logger = logging.getLogger(__name__)
 
 
-class IncrementalAnalysisOrchestrator:
+def update_cfg_for_changed_files(
+    cached_analysis: dict[str, Any],
+    changed_files: set[Path],
+    adapter: LanguageAdapter,
+    project_path: Path,
+    engine_client: LSPClient,
+    ignore_manager: RepoIgnoreManager,
+) -> dict[str, Any]:
+    """Apply *changed_files* to *cached_analysis* via re-LSP-and-merge.
+
+    Steps:
+
+    1. ``invalidate_files`` drops every node/edge/reference/class/package
+       entry sourced from a changed file, leaving the cached state of every
+       *unchanged* file intact.
+    2. The LSP re-analyses just the changed files (existing ones; deleted
+       files contribute nothing).
+    3. ``merge_results`` unions the kept-from-cache state with the fresh
+       per-file result.
+    4. Surviving entries are filtered against the live filesystem so a
+       deleted file's references / classes / package members are removed
+       from the merged dict.
+
+    Returns a fresh dict with the same shape as ``cached_analysis``. The
+    caller stuffs it into ``StaticAnalysisResults`` and saves the pkl
+    tagged with the *current* source SHA.
     """
-    Orchestrates incremental static analysis workflows.
+    if not changed_files:
+        return cached_analysis
 
-    Coordinates between cache management, git diff analysis, and LSP client
-    to provide efficient incremental analysis capabilities.
+    existing_files = {f for f in changed_files if f.exists()}
+    deleted_files = {f for f in changed_files if not f.exists()}
+    logger.info(
+        "update_cfg_for_changed_files: %d changed (%d existing, %d deleted)",
+        len(changed_files),
+        len(existing_files),
+        len(deleted_files),
+    )
+
+    updated_cache = invalidate_files(cached_analysis, changed_files)
+
+    changed_source_files = [
+        f for f in existing_files if f.suffix in adapter.file_extensions and not ignore_manager.should_ignore(f)
+    ]
+
+    if changed_source_files:
+        builder = CallGraphBuilder(engine_client, adapter, project_path)
+        engine_result = builder.build(changed_source_files)
+        new_analysis = convert_to_codeboarding_format(builder.symbol_table, engine_result, adapter)
+    else:
+        new_analysis = {
+            "call_graph": CallGraph(language=adapter.language),
+            "class_hierarchies": {},
+            "package_relations": {},
+            "references": [],
+            "source_files": [],
+            "diagnostics": {},
+        }
+
+    fresh_diagnostics = engine_client.get_collected_diagnostics()
+    if fresh_diagnostics:
+        new_analysis["diagnostics"] = fresh_diagnostics
+
+    merged_analysis = merge_results(updated_cache, new_analysis)
+    return _filter_to_live_files(merged_analysis)
+
+
+def _filter_to_live_files(merged_analysis: dict[str, Any]) -> dict[str, Any]:
+    """Drop entries whose file no longer exists on disk.
+
+    A file in ``source_files`` may have been re-LSPed earlier in the run and
+    then removed by a subsequent edit; this final filter keeps the merged
+    dict consistent with the live filesystem.
     """
+    all_existing = {f for f in merged_analysis.get("source_files", []) if f.exists()}
+    existing_file_strs = {str(f) for f in all_existing}
 
-    def __init__(self, ignore_manager: RepoIgnoreManager):
-        """Initialize the incremental analysis orchestrator."""
-        self.cache_manager = AnalysisCacheManager(ignore_manager.repo_root)
-        self.cluster_analyzer = ClusterChangeAnalyzer()
-        self._ignore_manager = ignore_manager
+    merged_analysis["source_files"] = list(all_existing)
+    merged_analysis["references"] = [
+        ref for ref in merged_analysis.get("references", []) if ref.file_path in existing_file_strs
+    ]
 
-    def run_incremental_analysis(
-        self,
-        adapter: LanguageAdapter,
-        project_path: Path,
-        engine_client: LSPClient,
-        cache_path: Path,
-        analyze_cluster_changes: bool = True,
-    ) -> dict:
-        """Run incremental static analysis using the engine pipeline.
-
-        Same logic as run_incremental_analysis but uses the engine adapter/client
-        instead of the old LSPClient.
-
-        Args:
-            adapter: Language adapter for this analysis
-            project_path: Root path of the project
-            engine_client: Engine LSP client instance
-            cache_path: Path to the cache file
-            analyze_cluster_changes: Whether to analyze and classify cluster changes
-
-        Returns:
-            Dictionary containing complete analysis results with optional cluster change info.
-        """
-        try:
-            current_commit = require_current_commit(project_path)
-            logger.info(f"Current commit: {current_commit}")
-
-            cache_result = self.cache_manager.load_cache_with_clusters(cache_path)
-
-            if cache_result is None:
-                logger.info("No cache found, performing full analysis")
-                analysis_result = self._perform_full_analysis_and_cache(
-                    adapter, project_path, engine_client, cache_path, current_commit
-                )
-                if analyze_cluster_changes:
-                    return {
-                        "analysis_result": analysis_result,
-                        "cluster_change_result": None,
-                        "change_classification": ChangeClassification.BIG,
-                    }
-                return analysis_result
-
-            cached_analysis, cached_cluster_results, cached_commit, cached_iteration = cache_result
-            logger.info(f"Cache loaded successfully: commit {cached_commit}, iteration {cached_iteration}")
-
-            cached_call_graph = cached_analysis.get("call_graph", CallGraph())
-            cached_references = cached_analysis.get("references", [])
-            cached_classes = cached_analysis.get("class_hierarchies", {})
-            cached_packages = cached_analysis.get("package_relations", {})
-            cached_files = cached_analysis.get("source_files", [])
-
-            logger.info(
-                f"Cached analysis contains: {len(cached_files)} files, "
-                f"{len(cached_references)} references, {len(cached_classes)} classes, "
-                f"{len(cached_packages)} packages, {len(cached_call_graph.nodes)} call graph nodes, "
-                f"{len(cached_call_graph.edges)} edges"
-            )
-
-            dirty = has_uncommitted_changes(project_path)
-            if cached_commit == current_commit and not dirty:
-                logger.info("No changes detected, using cached results")
-                if analyze_cluster_changes:
-                    return {
-                        "analysis_result": cached_analysis,
-                        "cluster_change_result": None,
-                        "change_classification": ChangeClassification.SMALL,
-                    }
-                return cached_analysis
-
-            if dirty:
-                logger.info("Uncommitted changes detected in working directory")
-
-            logger.info(f"Performing incremental update from commit {cached_commit} to {current_commit}")
-            return self._perform_incremental_update(
-                adapter,
-                project_path,
-                engine_client,
-                cache_path,
-                cached_analysis,
-                cached_cluster_results,
-                cached_commit,
-                cached_iteration,
-                current_commit,
-                analyze_cluster_changes,
-            )
-
-        except Exception as e:
-            logger.error(f"Incremental analysis failed: {e}")
-            logger.info("Falling back to full analysis")
+    merged_cg = merged_analysis.get("call_graph", CallGraph())
+    filtered_cg = CallGraph()
+    for node in merged_cg.nodes.values():
+        if node.file_path in existing_file_strs:
+            filtered_cg.add_node(node)
+    for edge in merged_cg.edges:
+        src, dst = edge.get_source(), edge.get_destination()
+        if filtered_cg.has_node(src) and filtered_cg.has_node(dst):
             try:
-                current_commit = require_current_commit(project_path)
-            except Exception:
-                current_commit = "unknown"
-                logger.warning("Could not determine current commit for fallback analysis")
-            return self._perform_full_analysis_and_cache(
-                adapter, project_path, engine_client, cache_path, current_commit, analyze_cluster_changes
-            )
-
-    def _perform_full_analysis_and_cache(
-        self,
-        adapter: LanguageAdapter,
-        project_path: Path,
-        engine_client: LSPClient,
-        cache_path: Path,
-        commit_hash: str,
-        analyze_clusters: bool = True,
-    ) -> dict:
-        """Perform full analysis using the engine pipeline and save to cache."""
-        logger.info("Starting full engine analysis")
-
-        source_files = adapter.discover_source_files(project_path, self._ignore_manager)
-
-        logger.info(f"Will analyze {len(source_files)} source files")
-
-        if not source_files:
-            analysis_result: dict = {
-                "call_graph": CallGraph(language=adapter.language),
-                "class_hierarchies": {},
-                "package_relations": {},
-                "references": [],
-                "source_files": [],
-                "diagnostics": {},
-            }
-        else:
-            builder = CallGraphBuilder(engine_client, adapter, project_path)
-            engine_result = builder.build(source_files)
-            analysis_result = convert_to_codeboarding_format(builder.symbol_table, engine_result, adapter)
-
-        # Attach diagnostics
-        diagnostics = engine_client.get_collected_diagnostics()
-        if diagnostics:
-            analysis_result["diagnostics"] = diagnostics
-
-        call_graph = analysis_result.get("call_graph", CallGraph())
-        references = analysis_result.get("references", [])
-        classes = analysis_result.get("class_hierarchies", {})
-        packages = analysis_result.get("package_relations", {})
-        result_files = analysis_result.get("source_files", [])
-
-        logger.info(
-            f"Full analysis complete: {len(result_files)} files processed, "
-            f"{len(references)} references, {len(classes)} classes, "
-            f"{len(packages)} packages, {len(call_graph.nodes)} call graph nodes, "
-            f"{len(call_graph.edges)} edges"
-        )
-
-        cluster_results = None
-        if analyze_clusters:
-            logger.info("Computing cluster results for cache...")
-            cluster_results = self._compute_cluster_results(analysis_result)
-
-        try:
-            logger.info(f"Saving analysis results to cache: {cache_path}")
-            if cluster_results:
-                self.cache_manager.save_cache_with_clusters(
-                    cache_path=cache_path,
-                    analysis_result=analysis_result,
-                    cluster_results=cluster_results,
-                    commit_hash=commit_hash,
-                    iteration_id=1,
-                )
-            else:
-                self.cache_manager.save_cache(
-                    cache_path=cache_path,
-                    analysis_result=analysis_result,
-                    commit_hash=commit_hash,
-                    iteration_id=1,
-                )
-            logger.info("Full analysis complete and cached successfully")
-        except Exception as e:
-            logger.warning(f"Failed to save cache after full analysis: {e}")
-
-        return analysis_result
-
-    def _perform_incremental_update(
-        self,
-        adapter: LanguageAdapter,
-        project_path: Path,
-        engine_client: LSPClient,
-        cache_path: Path,
-        cached_analysis: dict,
-        cached_cluster_results: dict[str, ClusterResult],
-        cached_commit: str,
-        cached_iteration: int,
-        current_commit: str,
-        analyze_cluster_changes: bool = True,
-    ) -> dict:
-        """Perform incremental analysis update using the engine pipeline."""
-        try:
-            logger.info(f"Identifying changed files between {cached_commit} and {current_commit}")
-            changed_files = get_changed_files_since(project_path, cached_commit)
-
-            if not changed_files:
-                logger.info("No files changed, using cached results")
-                if analyze_cluster_changes:
-                    return {
-                        "analysis_result": cached_analysis,
-                        "cluster_change_result": None,
-                        "change_classification": ChangeClassification.SMALL,
-                    }
-                return cached_analysis
-
-            existing_files = {f for f in changed_files if f.exists()}
-            deleted_files = {f for f in changed_files if not f.exists()}
-
-            logger.info(
-                f"Found {len(changed_files)} changed files: {len(existing_files)} existing, {len(deleted_files)} deleted"
-            )
-
-            # Invalidate changed files from cache
-            logger.info(f"Invalidating {len(changed_files)} changed files from cache")
-            updated_cache = self.cache_manager.invalidate_files(cached_analysis, changed_files)
-
-            # Reanalyze existing changed files using engine pipeline
-            logger.info(f"Reanalyzing {len(existing_files)} existing changed files")
-            changed_source_files = [
-                f
-                for f in existing_files
-                if f.suffix in adapter.file_extensions and not self._ignore_manager.should_ignore(f)
-            ]
-
-            if changed_source_files:
-                builder = CallGraphBuilder(engine_client, adapter, project_path)
-                engine_result = builder.build(changed_source_files)
-                new_analysis = convert_to_codeboarding_format(builder.symbol_table, engine_result, adapter)
-            else:
-                new_analysis = {
-                    "call_graph": CallGraph(language=adapter.language),
-                    "class_hierarchies": {},
-                    "package_relations": {},
-                    "references": [],
-                    "source_files": [],
-                    "diagnostics": {},
-                }
-
-            # Attach fresh diagnostics
-            fresh_diagnostics = engine_client.get_collected_diagnostics()
-            if fresh_diagnostics:
-                new_analysis["diagnostics"] = fresh_diagnostics
-
-            # Merge results
-            logger.info("Merging new analysis with cached results")
-            merged_analysis = self.cache_manager.merge_results(updated_cache, new_analysis)
-
-            # Filter to only include existing files
-            all_existing = {f for f in merged_analysis.get("source_files", []) if f.exists()}
-            existing_file_strs = {str(f) for f in all_existing}
-
-            merged_analysis["source_files"] = list(all_existing)
-            merged_analysis["references"] = [
-                ref for ref in merged_analysis.get("references", []) if ref.file_path in existing_file_strs
-            ]
-
-            merged_cg = merged_analysis.get("call_graph", CallGraph())
-            filtered_cg = CallGraph()
-            for name, node in merged_cg.nodes.items():
-                if node.file_path in existing_file_strs:
-                    filtered_cg.add_node(node)
-            for edge in merged_cg.edges:
-                src, dst = edge.get_source(), edge.get_destination()
-                if filtered_cg.has_node(src) and filtered_cg.has_node(dst):
-                    try:
-                        filtered_cg.add_edge(src, dst)
-                    except ValueError:
-                        pass
-            merged_analysis["call_graph"] = filtered_cg
-
-            merged_analysis["class_hierarchies"] = {
-                name: info
-                for name, info in merged_analysis.get("class_hierarchies", {}).items()
-                if info.get("file_path") in existing_file_strs
-            }
-
-            filtered_packages = {}
-            for pkg_name, pkg_info in merged_analysis.get("package_relations", {}).items():
-                pkg_files = pkg_info.get("files", [])
-                existing_pkg_files = [f for f in pkg_files if f in existing_file_strs]
-                if existing_pkg_files:
-                    filtered_packages[pkg_name] = pkg_info.copy()
-                    filtered_packages[pkg_name]["files"] = existing_pkg_files
-            merged_analysis["package_relations"] = filtered_packages
-
-            cg = merged_analysis.get("call_graph", CallGraph())
-            logger.info(
-                f"Incremental update complete: {len(merged_analysis.get('source_files', []))} files, "
-                f"{len(merged_analysis.get('references', []))} references, "
-                f"{len(cg.nodes)} nodes, {len(cg.edges)} edges"
-            )
-
-            # Compute and match clusters
-            logger.info("Computing cluster results for incremental update...")
-            new_cluster_results = self._compute_cluster_results(merged_analysis)
-
-            cluster_mappings = None
-            if new_cluster_results and cached_cluster_results:
-                cluster_mappings = self._match_clusters_to_original(new_cluster_results, cached_cluster_results)
-
-            cluster_change_result = None
-            change_classification = ChangeClassification.SMALL
-
-            if analyze_cluster_changes and new_cluster_results:
-                logger.info("Analyzing cluster changes...")
-                cluster_changes = analyze_cluster_changes_for_languages(cached_cluster_results, new_cluster_results)
-                change_classification = get_overall_classification(cluster_changes)
-                primary_lang = list(cluster_changes.keys())[0] if cluster_changes else ""
-                cluster_change_result = cluster_changes.get(primary_lang)
-                logger.info(f"Cluster change classification: {change_classification.value}")
-
-            # Save updated cache
-            try:
-                logger.info(f"Saving updated cache to: {cache_path}")
-                if new_cluster_results:
-                    merged_cluster_results = self._merge_cluster_results_with_mappings(
-                        new_cluster_results, cached_cluster_results, cluster_mappings
-                    )
-                    self.cache_manager.save_cache_with_clusters(
-                        cache_path=cache_path,
-                        analysis_result=merged_analysis,
-                        cluster_results=merged_cluster_results,
-                        commit_hash=current_commit,
-                        iteration_id=cached_iteration + 1,
-                    )
-                else:
-                    self.cache_manager.save_cache(
-                        cache_path=cache_path,
-                        analysis_result=merged_analysis,
-                        commit_hash=current_commit,
-                        iteration_id=cached_iteration + 1,
-                    )
-                logger.info(f"Incremental analysis complete, cache updated (iteration {cached_iteration + 1})")
-            except Exception as e:
-                logger.warning(f"Failed to save updated cache: {e}")
-
-            if analyze_cluster_changes:
-                return {
-                    "analysis_result": merged_analysis,
-                    "cluster_change_result": cluster_change_result,
-                    "change_classification": change_classification,
-                }
-            return merged_analysis
-
-        except Exception as e:
-            logger.error(f"Incremental update failed: {e}")
-            raise
-
-    def _merge_cluster_results_with_mappings(
-        self,
-        new_cluster_results: dict[str, ClusterResult],
-        old_cluster_results: dict[str, ClusterResult],
-        cluster_mappings: dict[str, dict[int, int]] | None,
-    ) -> dict[str, ClusterResult]:
-        """
-        Merge new cluster results with original cluster mappings for stability.
-
-        This creates a merged ClusterResult that:
-        1. Preserves original cluster IDs where clusters match
-        2. Adds new clusters with new IDs for truly new clusters
-        3. Maintains file-to-cluster mappings consistency
-
-        Args:
-            new_cluster_results: Newly computed cluster results
-            old_cluster_results: Original cluster results from full analysis
-            cluster_mappings: Mapping from new cluster IDs to old cluster IDs
-
-        Returns:
-            Merged cluster results with stable IDs
-        """
-        if not cluster_mappings:
-            # No mappings, just return new results
-            return new_cluster_results
-
-        merged_results: dict[str, ClusterResult] = {}
-
-        for lang in new_cluster_results:
-            new_result = new_cluster_results[lang]
-            lang_mapping = cluster_mappings.get(lang, {})
-
-            if not lang_mapping or lang not in old_cluster_results:
-                # No mapping for this language, use new results as-is
-                merged_results[lang] = new_result
-                continue
-
-            old_result = old_cluster_results[lang]
-
-            # Build merged cluster result
-            merged_clusters: dict[int, set[str]] = {}
-            merged_file_to_clusters: dict[str, set[int]] = {}
-            merged_cluster_to_files: dict[int, set[str]] = {}
-
-            # Track which old IDs have been used
-            used_old_ids = set(lang_mapping.values())
-
-            # First, add all mapped clusters (use old IDs)
-            for new_id, old_id in lang_mapping.items():
-                new_files = new_result.get_files_for_cluster(new_id)
-                new_nodes = new_result.get_nodes_for_cluster(new_id)
-
-                merged_clusters[old_id] = new_nodes
-                merged_cluster_to_files[old_id] = new_files
-
-                for file_path in new_files:
-                    if file_path not in merged_file_to_clusters:
-                        merged_file_to_clusters[file_path] = set()
-                    merged_file_to_clusters[file_path].add(old_id)
-
-            # Then, add unmapped new clusters with new IDs
-            # Find the next available ID
-            next_id = max(old_result.get_cluster_ids()) + 1 if old_result.get_cluster_ids() else 1
-            for new_id in new_result.get_cluster_ids():
-                if new_id not in lang_mapping:
-                    # This is a new cluster, assign a new ID
-                    new_files = new_result.get_files_for_cluster(new_id)
-                    new_nodes = new_result.get_nodes_for_cluster(new_id)
-
-                    merged_clusters[next_id] = new_nodes
-                    merged_cluster_to_files[next_id] = new_files
-
-                    for file_path in new_files:
-                        if file_path not in merged_file_to_clusters:
-                            merged_file_to_clusters[file_path] = set()
-                        merged_file_to_clusters[file_path].add(next_id)
-
-                    next_id += 1
-
-            # Create merged ClusterResult
-            merged_result = ClusterResult(
-                clusters=merged_clusters,
-                file_to_clusters=merged_file_to_clusters,
-                cluster_to_files=merged_cluster_to_files,
-                strategy=f"incremental_merged({new_result.strategy})",
-            )
-            merged_results[lang] = merged_result
-
-            logger.info(
-                f"Merged cluster results for {lang}: "
-                f"{len(lang_mapping)} matched to original, "
-                f"{len(new_result.get_cluster_ids()) - len(lang_mapping)} new clusters"
-            )
-
-        return merged_results
-
-    def _compute_cluster_results(self, analysis_result: dict) -> dict[str, ClusterResult]:
-        """
-        Compute cluster results from analysis result.
-
-        Args:
-            analysis_result: Dictionary containing analysis results with call_graph
-
-        Returns:
-            Dictionary mapping language -> ClusterResult
-        """
-        cluster_results = {}
-        call_graph = analysis_result.get("call_graph", CallGraph())
-
-        if call_graph.nodes:
-            # For now, we treat the entire call graph as a single language (python)
-            # In the future, this could be extended to support multiple languages
-            cluster_result = call_graph.cluster()
-            cluster_results[call_graph.language] = cluster_result
-            logger.info(
-                f"Computed clusters for {call_graph.language}: "
-                f"{len(cluster_result.get_cluster_ids())} clusters, "
-                f"strategy={cluster_result.strategy}"
-            )
-
-        return cluster_results
-
-    def _match_clusters_to_original(
-        self,
-        new_cluster_results: dict[str, ClusterResult],
-        old_cluster_results: dict[str, ClusterResult],
-    ) -> dict[str, dict[int, int]]:
-        """
-        Match new clusters to original clusters based on file overlap.
-
-        This preserves cluster ID stability during incremental updates by matching
-        new clusters to the most similar old cluster based on Jaccard similarity
-        of their file sets.
-
-        Args:
-            new_cluster_results: Newly computed cluster results
-            old_cluster_results: Original cluster results from full analysis
-
-        Returns:
-            Dictionary mapping language -> {new_cluster_id: old_cluster_id}
-        """
-        cluster_mappings: dict[str, dict[int, int]] = {}
-
-        for lang in new_cluster_results:
-            if lang not in old_cluster_results:
-                # No old clusters for this language, all new clusters get new IDs
-                continue
-
-            new_result = new_cluster_results[lang]
-            old_result = old_cluster_results[lang]
-
-            # Build mapping from new cluster IDs to old cluster IDs
-            lang_mapping: dict[int, int] = {}
-            used_old_ids: set[int] = set()
-
-            # For each new cluster, find the best matching old cluster
-            for new_id in new_result.get_cluster_ids():
-                new_files = new_result.get_files_for_cluster(new_id)
-
-                best_match_id = None
-                best_similarity = 0.0
-
-                for old_id in old_result.get_cluster_ids():
-                    if old_id in used_old_ids:
-                        continue  # Don't reuse old cluster IDs
-
-                    old_files = old_result.get_files_for_cluster(old_id)
-
-                    # Calculate Jaccard similarity: |intersection| / |union|
-                    intersection = len(new_files & old_files)
-                    if intersection == 0:
-                        continue
-
-                    union = len(new_files | old_files)
-                    similarity = intersection / union if union > 0 else 0.0
-
-                    # Also consider the ratio of new files that were in the old cluster
-                    # This helps when files are added/removed
-                    containment_ratio = intersection / len(new_files) if len(new_files) > 0 else 0.0
-
-                    # Combined score: weight similarity and containment
-                    score = (similarity * 0.6) + (containment_ratio * 0.4)
-
-                    if score > best_similarity and score >= 0.3:  # Minimum threshold
-                        best_similarity = score
-                        best_match_id = old_id
-
-                if best_match_id is not None:
-                    lang_mapping[new_id] = best_match_id
-                    used_old_ids.add(best_match_id)
-                    logger.debug(
-                        f"Matched new cluster {new_id} to old cluster {best_match_id} "
-                        f"(similarity: {best_similarity:.2f})"
-                    )
-
-            cluster_mappings[lang] = lang_mapping
-            logger.info(
-                f"Cluster matching for {lang}: "
-                f"{len(lang_mapping)}/{len(new_result.get_cluster_ids())} clusters matched to original"
-            )
-
-        return cluster_mappings
-
-    def _remap_cluster_ids_in_analysis(
-        self,
-        analysis: AnalysisInsights,
-        cluster_mappings: dict[str, dict[int, int]],
-    ) -> None:
-        """
-        Remap cluster IDs in components to use original cluster IDs.
-
-        Args:
-            analysis: Analysis insights with components to update
-            cluster_mappings: Mapping from new cluster IDs to old cluster IDs
-        """
-        # Flatten all mappings (assuming single language for now)
-        # id_mapping maps new_cluster_id -> old_cluster_id
-        id_mapping: dict[int, int] = {}
-        for lang_mapping in cluster_mappings.values():
-            id_mapping.update(lang_mapping)
-
-        if not id_mapping:
-            return
-
-        # Components have OLD cluster IDs from the previous analysis.
-        # The new clustering produced NEW cluster IDs.
-        # id_mapping is new_id -> old_id, so reverse_mapping is old_id -> new_id.
-        # We keep old IDs that still have a corresponding new cluster (i.e. exist in reverse_mapping).
-        reverse_mapping: dict[int, int] = {v: k for k, v in id_mapping.items()}
-
-        updated_count = 0
-        for component in analysis.components:
-            if not component.source_cluster_ids:
-                continue
-
-            remapped_ids = []
-            for old_id in component.source_cluster_ids:
-                # If this old cluster was matched to a new cluster,
-                # keep the old ID (it's the stable one)
-                # If not matched, the cluster was deleted
-                if old_id in reverse_mapping:
-                    remapped_ids.append(old_id)
-                else:
-                    logger.debug(f"Cluster {old_id} no longer exists in component {component.name}")
-
-            if remapped_ids != component.source_cluster_ids:
-                component.source_cluster_ids = remapped_ids
-                updated_count += 1
-
-        if updated_count > 0:
-            logger.info(f"Updated cluster IDs for {updated_count} components")
+                filtered_cg.add_edge(src, dst)
+            except ValueError:
+                pass
+    merged_analysis["call_graph"] = filtered_cg
+
+    merged_analysis["class_hierarchies"] = {
+        name: info
+        for name, info in merged_analysis.get("class_hierarchies", {}).items()
+        if info.get("file_path") in existing_file_strs
+    }
+
+    filtered_packages: dict[str, Any] = {}
+    for pkg_name, pkg_info in merged_analysis.get("package_relations", {}).items():
+        existing_pkg_files = [f for f in pkg_info.get("files", []) if f in existing_file_strs]
+        if existing_pkg_files:
+            filtered_packages[pkg_name] = {**pkg_info, "files": existing_pkg_files}
+    merged_analysis["package_relations"] = filtered_packages
+
+    return merged_analysis
