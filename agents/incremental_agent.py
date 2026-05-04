@@ -175,8 +175,6 @@ def _format_component_line(component: Component, include_description: bool = Tru
     if not include_description:
         return f'- {cid} "{component.name}"'
     desc = (component.description or "").strip().replace("\n", " ")
-    if len(desc) > 200:
-        desc = desc[:197] + "..."
     return f'- {cid} "{component.name}" -- {desc}'
 
 
@@ -320,7 +318,7 @@ def repopulate_touched_scopes(
         return touched_scopes
 
     node_lookup = _build_node_lookup(helpers.static_analysis, cluster_results)
-    repo_dir = getattr(helpers, "repo_dir", None) or getattr(helpers, "repository_path", None)
+    repo_dir = helpers.repo_dir
 
     if any(c.component_id in redetail_ids for c in root_analysis.components):
         touched_scopes.add("")
@@ -471,28 +469,9 @@ def scrub_deleted_files(
     methods leaves stale ``file_methods`` / ``key_entities`` /
     ``analysis.files`` entries forever.
     """
-    dropped_files: set[str] = set()
-
-    def _drop_from_analysis(analysis: AnalysisInsights) -> None:
-        for component in analysis.components:
-            kept_groups = []
-            for group in component.file_methods:
-                if group.file_path in live_files:
-                    kept_groups.append(group)
-                else:
-                    dropped_files.add(group.file_path)
-            component.file_methods = kept_groups
-            component.key_entities = [
-                ke for ke in component.key_entities if ke.reference_file is None or ke.reference_file in live_files
-            ]
-        kept_files = {fp: entry for fp, entry in analysis.files.items() if fp in live_files}
-        for fp in set(analysis.files) - set(kept_files):
-            dropped_files.add(fp)
-        analysis.files = kept_files
-
-    _drop_from_analysis(root_analysis)
+    dropped_files: set[str] = _scrub_one_analysis(root_analysis, live_files)
     for sub in sub_analyses.values():
-        _drop_from_analysis(sub)
+        dropped_files |= _scrub_one_analysis(sub, live_files)
 
     if dropped_files:
         logger.info(
@@ -501,6 +480,25 @@ def scrub_deleted_files(
             sorted(dropped_files)[:10],
         )
     return dropped_files
+
+
+def _scrub_one_analysis(analysis: AnalysisInsights, live_files: set[str]) -> set[str]:
+    """Drop dead-file references in one ``AnalysisInsights``; returns the dropped paths."""
+    dropped: set[str] = set()
+    for component in analysis.components:
+        kept_groups = []
+        for group in component.file_methods:
+            if group.file_path in live_files:
+                kept_groups.append(group)
+            else:
+                dropped.add(group.file_path)
+        component.file_methods = kept_groups
+        component.key_entities = [
+            ke for ke in component.key_entities if ke.reference_file is None or ke.reference_file in live_files
+        ]
+    dropped |= {fp for fp in analysis.files if fp not in live_files}
+    analysis.files = {fp: entry for fp, entry in analysis.files.items() if fp in live_files}
+    return dropped
 
 
 def prune_empty_components(

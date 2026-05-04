@@ -538,8 +538,8 @@ class DiagramGenerator:
             # build_unified_analysis_json reads only root.files for the top
             # index, so we must surface every depth's files there.
             for sub in sub_analyses.values():
-                sub.files = self.abstraction_agent._build_files_index(sub)
-            unified_files = self.abstraction_agent._build_files_index(root_analysis)
+                sub.files = self.abstraction_agent.build_files_index(sub)
+            unified_files = self.abstraction_agent.build_files_index(root_analysis)
             for sub in sub_analyses.values():
                 for fp, entry in sub.files.items():
                     unified_files.setdefault(fp, entry)

@@ -703,7 +703,7 @@ class ClusterMethodsMixin:
         pct = (assigned_nodes / total_nodes * 100) if total_nodes else 0
         logger.info(f"Node coverage: {assigned_nodes}/{total_nodes} ({pct:.1f}%) nodes assigned to components")
 
-    def _build_files_index(self, analysis: AnalysisInsights) -> dict[str, FileEntry]:
+    def build_files_index(self, analysis: AnalysisInsights) -> dict[str, FileEntry]:
         files: dict[str, FileEntry] = {}
         for component in analysis.components:
             for fmg in component.file_methods:
@@ -761,7 +761,7 @@ class ClusterMethodsMixin:
         for comp in analysis.components:
             comp.file_methods = self._build_file_methods_from_nodes(component_nodes.get(comp.component_id, []))
 
-        analysis.files = self._build_files_index(analysis)
+        analysis.files = self.build_files_index(analysis)
 
         self._populate_cluster_members(analysis, cluster_results)
 

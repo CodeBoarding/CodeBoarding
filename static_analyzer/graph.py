@@ -24,10 +24,11 @@ def detect_communities[T](
     resolution: float | None = None,
     seed: int | None = None,
 ) -> list[set[T]]:
-    """Run Leiden community detection via leidenalg.
+    """Run Leiden community detection (the project-wide Leiden entry point).
 
-    Chosen over Louvain for connectivity guarantees, directed-graph support,
-    and warm-start via the seeded API. NetworkX has no native Leiden as of 3.6.
+    Wraps ``leidenalg.find_partition`` indirectly so callers in
+    ``static_analyzer`` don't import ``igraph``/``leidenalg`` themselves —
+    the dependency surface is contained to ``leiden_utils``.
     """
     return _leiden_find_partition(graph, weight=weight, resolution=resolution, seed=seed)
 

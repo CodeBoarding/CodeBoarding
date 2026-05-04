@@ -13,6 +13,7 @@ from agents.agent_responses import (
 )
 from agents.incremental_agent import (
     _format_existing_components,
+    _pick_file_for_qname,
     repopulate_touched_scopes,
     stitch_delta,
 )
@@ -152,7 +153,11 @@ class TestStitchDelta(unittest.TestCase):
 
 
 class TestFormatExistingComponents(unittest.TestCase):
-    def test_renders_id_name_and_truncated_description(self) -> None:
+    def test_renders_id_name_and_description_in_full(self) -> None:
+        # Why no truncation: the cluster-string budget downstream
+        # (``_build_cluster_string``) accounts for component-section overhead
+        # when planning skip sets, so descriptions render in full and the
+        # cluster body trims itself to fit.
         long_desc = "x" * 500
         comp = Component(
             name="Big",
@@ -166,7 +171,8 @@ class TestFormatExistingComponents(unittest.TestCase):
 
         self.assertIn("3", rendered)
         self.assertIn("Big", rendered)
-        self.assertTrue(rendered.endswith("..."), f"expected truncation marker, got: {rendered!r}")
+        self.assertIn(long_desc, rendered)
+        self.assertFalse(rendered.endswith("..."))
 
     def test_empty_baseline_message(self) -> None:
         empty = AnalysisInsights(description="r", components=[], components_relations=[])
@@ -294,6 +300,46 @@ class TestIncrementalAgentToolkit(unittest.TestCase):
         # CodeReferenceReader is the BaseRepoTool subclass behind read_source_reference.
         self.assertEqual(len(tools), 1, f"expected 1 tool, got {len(tools)}: {[type(t).__name__ for t in tools]}")
         self.assertEqual(type(tools[0]).__name__, "CodeReferenceReader")
+
+
+class TestPickFileForQname(unittest.TestCase):
+    """Substring-match tie-break: longest dotted prefix wins.
+
+    Why these matter: any other tie-break (alphabetical, set order) would
+    randomly route ``foo.py`` and ``foo_test.py`` methods between the two,
+    producing churn across runs.
+    """
+
+    def test_dotted_prefix_match_picks_correct_file(self) -> None:
+        files = {"a/b/foo.py", "a/b/bar.py"}
+        chosen = _pick_file_for_qname("a.b.foo.fn", files, qname_to_files={})
+        self.assertEqual(chosen, "a/b/foo.py")
+
+    def test_longer_dotted_match_wins_over_shorter(self) -> None:
+        # ``a.b.foo`` is a proper prefix of ``a.b.foo_x``; both files match
+        # the qname ``a.b.foo_x.run`` via substring (``a.b.foo`` is contained
+        # in ``a.b.foo_x.run``). The longer dotted form must win.
+        files = {"a/b/foo.py", "a/b/foo_x.py"}
+        chosen = _pick_file_for_qname("a.b.foo_x.run", files, qname_to_files={})
+        self.assertEqual(chosen, "a/b/foo_x.py")
+
+    def test_no_match_falls_back_to_qname_to_files(self) -> None:
+        # No file in files_for_cluster matches; qname_to_files knows the qname.
+        chosen = _pick_file_for_qname(
+            "totally.unrelated.fn",
+            files_for_cluster={"x/y/z.py"},
+            qname_to_files={"totally.unrelated.fn": {"some/other/file.py"}},
+        )
+        self.assertEqual(chosen, "some/other/file.py")
+
+    def test_no_match_anywhere_falls_back_to_first_cluster_file(self) -> None:
+        files = {"x/y/z.py", "a/b/c.py"}
+        chosen = _pick_file_for_qname("totally.unrelated", files, qname_to_files={})
+        # Sorted-first deterministic choice.
+        self.assertEqual(chosen, "a/b/c.py")
+
+    def test_empty_inputs_return_empty_string(self) -> None:
+        self.assertEqual(_pick_file_for_qname("foo.bar", set(), qname_to_files={}), "")
 
 
 if __name__ == "__main__":
