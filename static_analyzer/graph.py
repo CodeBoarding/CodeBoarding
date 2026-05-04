@@ -11,6 +11,7 @@ from static_analyzer.constants import (
     ClusteringConfig,
     NodeType,
 )
+from static_analyzer.leiden_utils import find_partition as _leiden_find_partition
 from static_analyzer.node import Node
 
 logger = logging.getLogger(__name__)
@@ -23,25 +24,15 @@ def detect_communities[T](
     resolution: float | None = None,
     seed: int | None = None,
 ) -> list[set[T]]:
-    """Run Leiden community detection with Louvain as fallback.
+    """Run Leiden community detection via leidenalg.
 
-    Why: Leiden guarantees internally-connected communities and handles
-    directed/hub-heavy call graphs better than Louvain. ``leiden_communities``
-    landed in NetworkX 3.5; older runtimes fall back to Louvain (still
-    preferable to label propagation for architecture-decomposition workloads).
+    Why: connectivity guarantee (Leiden splits internally-disconnected
+    communities, Louvain can't), native directed-graph support, basin-of-
+    attraction warm-start support via the seeded API. NetworkX has no native
+    CPU Leiden implementation as of 3.6; ``leidenalg`` is the only option.
+    See decisions.md #1 and #2.
     """
-    kwargs: dict[str, object] = {}
-    if seed is not None:
-        kwargs["seed"] = seed
-    if weight is not None:
-        kwargs["weight"] = weight
-    if resolution is not None:
-        kwargs["resolution"] = resolution
-
-    if hasattr(nx_comm, "leiden_communities"):
-        return list(nx_comm.leiden_communities(graph, **kwargs))
-    logger.debug("leiden_communities unavailable; falling back to louvain_communities.")
-    return list(nx_comm.louvain_communities(graph, **kwargs))
+    return _leiden_find_partition(graph, weight=weight, resolution=resolution, seed=seed)
 
 
 @dataclass(frozen=True)

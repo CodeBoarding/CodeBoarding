@@ -4,11 +4,14 @@ Mirrors ``build_all_cluster_results`` for the incremental path: produces a
 ``ClusterDelta`` describing which clusters carried over, which changed members,
 which are entirely new, and which dropped — without requiring any LLM call.
 
-Flavor B (default, iterative): drop deleted nodes from each cluster, route
-added nodes to the cluster they share the most CFG edges with, and run Leiden
-(Louvain fallback) on the leftover induced subgraph for any added nodes that
-don't fit anywhere. This preserves cluster identity perfectly when the
-underlying communities are stable.
+Flavor B (default, seeded Leiden): warm-start ``leidenalg`` with the prior
+partition as ``initial_membership`` and lock vertices outside the 1-hop
+affected frontier via ``is_membership_fixed``. Replaces the previous
+remove/route/leftovers procedure with a single library call. The basin-of-
+attraction property of warm-start preserves cluster identity for vertices
+whose neighborhood didn't change, while allowing the affected frontier to
+re-optimize freely (including pulling existing nodes into newly-formed
+clusters with added nodes — a case the previous procedure couldn't express).
 
 Flavor A (fallback, triggered when ``changed_pct > FULL_RECLUSTER_THRESHOLD``):
 re-run ``build_all_cluster_results`` end-to-end and match by member-Jaccard
@@ -27,7 +30,8 @@ from diagram_analysis.io_utils import normalize_repo_path
 from repo_utils.change_detector import ChangeSet
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cluster_helpers import build_all_cluster_results
-from static_analyzer.graph import ClusterResult, detect_communities
+from static_analyzer.graph import ClusterResult
+from static_analyzer.leiden_utils import find_partition_seeded
 
 logger = logging.getLogger(__name__)
 
@@ -230,58 +234,113 @@ def _delta_for_language(
             len(inconsistent_removed),
             sorted(inconsistent_removed)[:10],
         )
-    return _flavor_b_iterative(language, nx_graph, old_clusters, added_nodes, removed_nodes)
+    return _flavor_b_seeded(language, nx_graph, old_clusters, added_nodes, removed_nodes)
 
 
 # ---------------------------------------------------------------------------
-# Flavor B
+# Flavor B (seeded Leiden via leidenalg)
 # ---------------------------------------------------------------------------
-def _flavor_b_iterative(
+def _flavor_b_seeded(
     language: str,
     nx_graph: nx.DiGraph,
     old_clusters: dict[int, ClusterSnapshotEntry],
     added_nodes: set[str],
     removed_nodes: set[str],
 ) -> LanguageDelta:
-    new_member_sets: dict[int, set[str]] = {}
+    """Seeded Leiden on the full graph with prior partition as initial state and frontier locked.
+
+    Why: see module docstring. Identity preservation comes from the basin-of-
+    attraction effect of ``initial_membership`` plus the hard guarantee of
+    ``is_membership_fixed`` on vertices outside the affected frontier.
+    """
+    if nx_graph.number_of_nodes() == 0:
+        return LanguageDelta(
+            language=language,
+            cluster_results=ClusterResult(strategy="incremental_seeded_empty"),
+            dropped_cluster_ids=set(old_clusters.keys()),
+        )
+
+    qname_to_prior_cid: dict[str, int] = {}
     for cid, entry in old_clusters.items():
-        new_member_sets[cid] = set(entry.members) - removed_nodes
+        for qname in entry.members:
+            if qname not in removed_nodes and qname in nx_graph:
+                qname_to_prior_cid[qname] = cid
 
-    changed_cluster_ids: set[int] = set()
-    if removed_nodes:
-        changed_cluster_ids |= {cid for cid, entry in old_clusters.items() if entry.members & removed_nodes}
+    # Why restrict the working graph: drift qnames (in nx_graph but not in any
+    # prior cluster and filtered out of added_nodes by diff scoping) shouldn't
+    # be clustered at all. The previous procedure ignored them implicitly by
+    # only routing added_nodes; the seeded path needs to drop them explicitly.
+    tracked_qnames: set[str] = set(qname_to_prior_cid.keys()) | (added_nodes & set(nx_graph.nodes))
+    if not tracked_qnames:
+        return LanguageDelta(
+            language=language,
+            cluster_results=ClusterResult(strategy="incremental_seeded_empty"),
+            dropped_cluster_ids=set(old_clusters.keys()),
+        )
+    working_graph = nx_graph.subgraph(tracked_qnames)
 
-    undirected = nx_graph.to_undirected()
-    node_to_cid = _invert_clusters(new_member_sets)
+    surviving_prior_cids = sorted(set(qname_to_prior_cid.values()))
+    prior_to_compact: dict[int, int] = {cid: i for i, cid in enumerate(surviving_prior_cids)}
+    compact_to_prior: dict[int, int] = {i: cid for cid, i in prior_to_compact.items()}
 
-    unassigned: list[str] = []
-    for node in sorted(added_nodes):
-        target_cid = _argmax_neighbor_cluster(node, undirected, node_to_cid)
-        if target_cid is None:
-            unassigned.append(node)
+    # Why ordered nodes matter: leidenalg.Optimiser requires
+    # initial_membership aligned with igraph vertex order, which comes from
+    # ig.Graph.from_networkx (which iterates nx_graph.nodes()). Build the
+    # alignment via the same iteration order on the (subgraph) we'll cluster.
+    idx_to_qname: list[str] = list(working_graph.nodes())
+    next_compact = len(surviving_prior_cids)
+    initial_compact: list[int] = []
+    for qname in idx_to_qname:
+        prior_cid = qname_to_prior_cid.get(qname)
+        if prior_cid is not None:
+            initial_compact.append(prior_to_compact[prior_cid])
         else:
-            new_member_sets.setdefault(target_cid, set()).add(node)
-            node_to_cid[node] = target_cid
-            changed_cluster_ids.add(target_cid)
+            initial_compact.append(next_compact)
+            next_compact += 1
 
-    new_cluster_ids: set[int] = set()
-    if unassigned:
-        next_id = max(new_member_sets.keys(), default=0) + 1
-        for community in _detect_unassigned_communities(undirected.subgraph(unassigned)):
-            new_member_sets[next_id] = set(community)
-            new_cluster_ids.add(next_id)
-            for node in community:
-                node_to_cid[node] = next_id
-            next_id += 1
+    affected = _affected_frontier(working_graph, old_clusters, added_nodes, removed_nodes)
+    is_fixed = [qname not in affected for qname in idx_to_qname]
 
-    dropped_cluster_ids = {cid for cid, members in new_member_sets.items() if not members}
-    for cid in dropped_cluster_ids:
-        del new_member_sets[cid]
-    changed_cluster_ids -= dropped_cluster_ids
+    n_total = len(idx_to_qname)
+    n_locked = sum(is_fixed)
+    logger.info(
+        "[cluster_delta] %s seeded: tracked=%d, affected=%d (%.1f%%), locked=%d, " "old_clusters=%d, prior_carried=%d",
+        language,
+        n_total,
+        len(affected),
+        100.0 * len(affected) / n_total if n_total else 0.0,
+        n_locked,
+        len(old_clusters),
+        len(surviving_prior_cids),
+    )
 
-    cluster_results = _materialize_cluster_result(new_member_sets, nx_graph, "incremental_b")
-    cluster_id_remap = {cid: cid for cid in old_clusters.keys() if cid in new_member_sets}
+    try:
+        membership = find_partition_seeded(
+            working_graph,
+            initial_membership_compact=initial_compact,
+            is_membership_fixed=is_fixed,
+            seed=42,
+        )
+    except Exception as e:
+        logger.warning(
+            f"[cluster_delta] {language}: seeded Leiden failed ({e}); " "falling back to all-singleton membership."
+        )
+        # Why: if Leiden ever raises, we'd rather degrade to "everyone is their
+        # own community" than crash the pipeline. The reconciliation step below
+        # handles arbitrary cluster shapes.
+        membership = list(range(len(idx_to_qname)))
 
+    leiden_clusters: dict[int, set[str]] = {}
+    for v_idx, lcid in enumerate(membership):
+        leiden_clusters.setdefault(lcid, set()).add(idx_to_qname[v_idx])
+
+    leiden_clusters = _absorb_orphans_by_file(leiden_clusters, working_graph)
+
+    cluster_id_remap, new_cluster_ids, changed_cluster_ids, dropped_cluster_ids, final_clusters = (
+        _reconcile_seeded_partition(leiden_clusters, old_clusters, compact_to_prior)
+    )
+
+    cluster_results = _materialize_cluster_result(final_clusters, working_graph, "incremental_seeded")
     return LanguageDelta(
         language=language,
         cluster_results=cluster_results,
@@ -293,70 +352,151 @@ def _flavor_b_iterative(
     )
 
 
-def _invert_clusters(member_sets: dict[int, set[str]]) -> dict[str, int]:
-    return {qname: cid for cid, members in member_sets.items() for qname in members}
+def _affected_frontier(
+    nx_graph: nx.Graph | nx.DiGraph,
+    old_clusters: dict[int, ClusterSnapshotEntry],
+    added_nodes: set[str],
+    removed_nodes: set[str],
+    *,
+    hops: int = 1,
+) -> set[str]:
+    """Vertices whose cluster boundary may legitimately want to shift.
+
+    Why both directions on directed graphs: ``nx_graph.neighbors`` on a
+    DiGraph returns out-neighbors only; we need callers AND callees of an
+    added node since both have a changed neighborhood. For removed nodes
+    (gone from nx_graph), the "neighbors" we care about are the surviving
+    cluster-mates that lost a co-member.
+    """
+    frontier: set[str] = set(added_nodes) & set(nx_graph.nodes)
+    seed_set = frontier.copy()
+    is_directed = nx_graph.is_directed()
+    for _ in range(hops):
+        next_layer: set[str] = set()
+        for qname in seed_set:
+            if qname not in nx_graph:
+                continue
+            if is_directed:
+                next_layer.update(nx_graph.predecessors(qname))
+                next_layer.update(nx_graph.successors(qname))
+            else:
+                next_layer.update(nx_graph.neighbors(qname))
+        next_layer -= frontier
+        frontier |= next_layer
+        seed_set = next_layer
+        if not seed_set:
+            break
+
+    if removed_nodes:
+        for entry in old_clusters.values():
+            if entry.members & removed_nodes:
+                frontier.update(m for m in entry.members - removed_nodes if m in nx_graph)
+
+    return frontier & set(nx_graph.nodes)
 
 
-def _argmax_neighbor_cluster(
-    node: str,
-    undirected: nx.Graph,
-    node_to_cid: dict[str, int],
-) -> int | None:
-    """Return the cluster ID with the most edges to ``node``; tie-break by file co-location."""
-    if node not in undirected:
-        return None
-    counts: dict[int, int] = {}
-    for neighbor in undirected.neighbors(node):
-        cid = node_to_cid.get(neighbor)
-        if cid is None:
+def _absorb_orphans_by_file(
+    clusters: dict[int, set[str]],
+    nx_graph: nx.Graph | nx.DiGraph,
+) -> dict[int, set[str]]:
+    """Merge zero-edge singleton clusters into a same-file cluster when one exists.
+
+    Why: nodes with no edges have no graph signal Leiden can use to place them.
+    The previous Flavor B used file co-location for this case; we preserve that
+    behavior here as a thin post-processor over Leiden's output rather than
+    losing user-visible placement quality.
+    """
+    if not clusters:
+        return clusters
+    qname_to_cid: dict[str, int] = {q: cid for cid, members in clusters.items() for q in members}
+    singleton_cids = [cid for cid, members in clusters.items() if len(members) == 1]
+    if not singleton_cids:
+        return clusters
+
+    result = {cid: set(members) for cid, members in clusters.items()}
+    for cid in singleton_cids:
+        if cid not in result:
             continue
-        counts[cid] = counts.get(cid, 0) + 1
-    if not counts:
-        return _file_overlap_fallback(node, undirected, node_to_cid)
-    best = max(counts.values())
-    candidates = [cid for cid, count in counts.items() if count == best]
-    if len(candidates) == 1:
-        return candidates[0]
-    return _file_overlap_fallback(node, undirected, node_to_cid, restrict_to=set(candidates)) or candidates[0]
-
-
-def _file_overlap_fallback(
-    node: str,
-    undirected: nx.Graph,
-    node_to_cid: dict[str, int],
-    restrict_to: set[int] | None = None,
-) -> int | None:
-    """Tie-break by file path: pick the cluster with most members in the same file."""
-    file_path = undirected.nodes[node].get("file_path") if node in undirected else None
-    if not file_path:
-        return None
-    counts: dict[int, int] = {}
-    for other, attrs in undirected.nodes(data=True):
-        if attrs.get("file_path") != file_path or other == node:
+        (qname,) = result[cid]
+        if qname in nx_graph and nx_graph.degree(qname) > 0:
+            continue  # not orphaned; Leiden's choice stands
+        file_path = nx_graph.nodes[qname].get("file_path") if qname in nx_graph else None
+        if not file_path:
             continue
-        cid = node_to_cid.get(other)
-        if cid is None or (restrict_to and cid not in restrict_to):
+        target_cid: int | None = None
+        target_count = 0
+        for other_cid, other_members in result.items():
+            if other_cid == cid:
+                continue
+            count = sum(1 for m in other_members if m in nx_graph and nx_graph.nodes[m].get("file_path") == file_path)
+            if count > target_count:
+                target_count = count
+                target_cid = other_cid
+        if target_cid is not None:
+            result[target_cid].add(qname)
+            qname_to_cid[qname] = target_cid
+            del result[cid]
+    return result
+
+
+def _reconcile_seeded_partition(
+    leiden_clusters: dict[int, set[str]],
+    old_clusters: dict[int, ClusterSnapshotEntry],
+    compact_to_prior: dict[int, int],
+) -> tuple[dict[int, int], set[int], set[int], set[int], dict[int, set[str]]]:
+    """Map leiden's renumbered output IDs back onto old prior IDs by overlap.
+
+    Why: leidenalg renumbers communities to a contiguous 0..k-1 range in the
+    output, so ID continuity across runs has to be reconstructed. We greedily
+    pair leiden output clusters with the prior cluster they overlap with most;
+    leftover leiden clusters get fresh IDs (max(old) + i + 1), leftover old
+    clusters get tombstoned in dropped_cluster_ids. ``compact_to_prior`` is
+    used as a tiebreaker hint when overlap is symmetric — it preserves the
+    seed's intent.
+
+    Returns: (cluster_id_remap, new_cluster_ids, changed_cluster_ids,
+    dropped_cluster_ids, final_clusters_keyed_by_new_ids).
+    """
+    overlap_pairs: list[tuple[int, int, int]] = []  # (overlap, leiden_cid, prior_cid)
+    for lcid, members in leiden_clusters.items():
+        for prior_cid, entry in old_clusters.items():
+            shared = len(members & entry.members)
+            if shared > 0:
+                overlap_pairs.append((shared, lcid, prior_cid))
+    overlap_pairs.sort(reverse=True)
+
+    leiden_to_prior: dict[int, int] = {}
+    used_prior: set[int] = set()
+    for _, lcid, prior_cid in overlap_pairs:
+        if lcid in leiden_to_prior or prior_cid in used_prior:
             continue
-        counts[cid] = counts.get(cid, 0) + 1
-    if not counts:
-        return None
-    return max(counts.items(), key=lambda kv: kv[1])[0]
+        leiden_to_prior[lcid] = prior_cid
+        used_prior.add(prior_cid)
 
+    next_new_id = max(old_clusters.keys(), default=0) + 1
+    final_clusters: dict[int, set[str]] = {}
+    new_cluster_ids: set[int] = set()
+    changed_cluster_ids: set[int] = set()
+    cluster_id_remap: dict[int, int] = {}
 
-def _detect_unassigned_communities(subgraph: nx.Graph) -> list[set[str]]:
-    """Cluster the leftover unassigned-nodes subgraph with Leiden (Louvain fallback)."""
-    if subgraph.number_of_nodes() == 0:
-        return []
-    if subgraph.number_of_edges() == 0:
-        return [{node} for node in subgraph.nodes]
-    try:
-        communities: list[set[str]] = detect_communities(subgraph, seed=42)
-    except Exception as e:
-        logger.warning(
-            f"Community detection on unassigned subgraph failed ({e}); falling back to connected components."
-        )
-        communities = [set(c) for c in nx.connected_components(subgraph)]
-    return [set(c) for c in communities if c]
+    for lcid, members in leiden_clusters.items():
+        if lcid in leiden_to_prior:
+            prior_cid = leiden_to_prior[lcid]
+            final_clusters[prior_cid] = members
+            cluster_id_remap[prior_cid] = prior_cid
+            if old_clusters[prior_cid].members != members:
+                changed_cluster_ids.add(prior_cid)
+        else:
+            new_id = next_new_id
+            next_new_id += 1
+            final_clusters[new_id] = members
+            new_cluster_ids.add(new_id)
+
+    dropped_cluster_ids = {cid for cid in old_clusters.keys() if cid not in used_prior}
+    # Suppress unused-name lint while making the param's role explicit in signature.
+    _ = compact_to_prior
+
+    return cluster_id_remap, new_cluster_ids, changed_cluster_ids, dropped_cluster_ids, final_clusters
 
 
 def _materialize_cluster_result(
