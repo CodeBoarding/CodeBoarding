@@ -79,6 +79,12 @@ class DiagramGenerator:
         # the workflow function ``run_incremental_workflow`` doesn't need
         # to grow a parameter for it.
         self.changes: ChangeSet | None = None
+        # Optional canonical source-state identifier (e.g. a git tree SHA
+        # over HEAD + dirty overlay) used to SHA-gate reuse of the on-disk
+        # static-analysis run artifact. Set externally — typically by the
+        # wrapper, which has the snapshot's tree SHA at run-prepare time.
+        # ``None`` falls back to today's "any pickle" loading semantics.
+        self.source_sha: str | None = None
         self._static_analyzer = static_analyzer
 
         self.details_agent: DetailsAgent | None = None
@@ -161,11 +167,15 @@ class DiagramGenerator:
         logger.info(f"File coverage report written to {coverage_path}")
 
     def _get_static_from_injected_analyzer(
-        self, cache_dir: Path | None, skip_cache: bool = False
+        self,
+        cache_dir: Path | None,
+        skip_cache: bool = False,
+        source_sha: str | None = None,
     ) -> StaticAnalysisResults:
         result = self._static_analyzer.analyze(  # type: ignore[union-attr]
             cache_dir=cache_dir,
             skip_cache=skip_cache,
+            source_sha=source_sha,
         )
         result.diagnostics = self._static_analyzer.collected_diagnostics  # type: ignore[union-attr]
         return result
@@ -187,13 +197,21 @@ class DiagramGenerator:
 
         def get_static_with_injected_analyzer() -> StaticAnalysisResults:
             cache_dir = None if self.force_full_analysis else get_cache_dir(self.repo_location)
-            return self._get_static_from_injected_analyzer(cache_dir, skip_cache=True)
+            # SHA-gated load is the new safety net (was: blanket skip_cache=True).
+            # ``CODEBOARDING_DISABLE_CACHE_REUSE=1`` is the post-deploy kill
+            # switch that reverts to the old always-recompute behaviour without
+            # a code change; useful if telemetry surfaces a regression.
+            disable_reuse = os.getenv("CODEBOARDING_DISABLE_CACHE_REUSE", "").lower() in ("1", "true", "yes")
+            skip_cache = self.force_full_analysis or disable_reuse
+            if disable_reuse:
+                logger.info("CODEBOARDING_DISABLE_CACHE_REUSE set; skipping static analysis cache")
+            return self._get_static_from_injected_analyzer(cache_dir, skip_cache=skip_cache, source_sha=self.source_sha)
 
         def get_static_with_new_analyzer() -> StaticAnalysisResults:
             skip_cache = self.force_full_analysis
             if skip_cache:
                 logger.info("Force full analysis: skipping static analysis cache")
-            return get_static_analysis(self.repo_location, skip_cache=skip_cache)
+            return get_static_analysis(self.repo_location, skip_cache=skip_cache, source_sha=self.source_sha)
 
         # Decide how to obtain static analysis results, then run it in parallel
         # with the meta-context computation so neither blocks the other.

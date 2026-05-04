@@ -49,8 +49,15 @@ def run_full(
     depth_level: int = 1,
     monitoring_enabled: bool = False,
     force_full: bool = False,
+    static_analyzer=None,
+    source_sha: str | None = None,
 ) -> Path:
-    """Full analysis scope — rebuild the whole diagram from scratch."""
+    """Full analysis scope — rebuild the whole diagram from scratch.
+
+    ``source_sha`` is forwarded to ``StaticAnalyzer.analyze`` so the on-disk
+    static-analysis run artifact (sibling of ``analysis.json``) gets a
+    matching SHA tag — enabling the next run's SHA-gated cache reuse.
+    """
     generator = _build_generator(
         repo_name=repo_name,
         repo_path=repo_path,
@@ -59,8 +66,10 @@ def run_full(
         log_path=log_path,
         depth_level=depth_level,
         monitoring_enabled=monitoring_enabled,
+        static_analyzer=static_analyzer,
     )
     generator.force_full_analysis = force_full
+    generator.source_sha = source_sha
     analysis_path = generator.generate_analysis()
     write_full_run_metadata(output_dir, repo_path, analysis_path=analysis_path)
     return analysis_path
@@ -133,6 +142,7 @@ def run_incremental(
     static_analyzer=None,
     base_ref: str | None = None,
     target_ref: str | None = None,
+    source_sha: str | None = None,
 ) -> Path:
     """Incremental scope — cluster-driven update of an existing ``analysis.json``.
 
@@ -156,6 +166,7 @@ def run_incremental(
         monitoring_enabled=monitoring_enabled,
         static_analyzer=static_analyzer,
     )
+    generator.source_sha = source_sha
 
     effective_base = base_ref if base_ref is not None else last_successful_commit(output_dir)
     if effective_base is None:

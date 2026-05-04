@@ -25,7 +25,7 @@ from static_analyzer.programming_language import ProgrammingLanguage
 from static_analyzer.scanner import ProjectScanner
 from static_analyzer.typescript_config_scanner import TypeScriptConfigScanner
 from tool_registry import ensure_node_on_path
-from utils import get_cache_dir
+from utils import get_artifact_dir, get_cache_dir
 
 logger = logging.getLogger(__name__)
 
@@ -276,23 +276,33 @@ class StaticAnalyzer:
         """Return the sum of diagnostics generation counters across all LSP clients."""
         return sum(client.get_diagnostics_generation() for _, _, client in self._engine_clients)
 
-    def load_from_disk_cache(self, cache_dir: Path | None = None) -> StaticAnalysisResults | None:
-        """Load structural analysis results from the on-disk cache.
+    def load_from_disk_cache(
+        self,
+        artifact_dir: Path | None = None,
+        expected_sha: str | None = None,
+    ) -> StaticAnalysisResults | None:
+        """Load the static-analysis run artifact, or None if absent/stale.
 
         Args:
-            cache_dir: Optional cache directory to load from. If None, uses the default
-                      cache directory for this repository.
+            artifact_dir: Optional artifact directory to load from. If None,
+                uses ``<repository_path>/.codeboarding/`` (sibling of
+                ``analysis.json``).
+            expected_sha: When provided, only return cached results whose
+                tag-file SHA matches; otherwise treated as a cache miss
+                without unpickling. Stops stale-cache hits when the source
+                has drifted between the save and the load.
 
         Returns:
-            Cached StaticAnalysisResults if found, None otherwise.
-            Sets ``_cached_results`` so subsequent calls are free.
+            Cached StaticAnalysisResults if found and SHA-validated (or no
+            SHA gate was requested), None otherwise.  Sets
+            ``_cached_results`` so subsequent calls are free.
         """
         if self._cached_results is not None:
             return self._cached_results
 
-        load_dir = Path(cache_dir) if cache_dir is not None else get_cache_dir(self.repository_path)
+        load_dir = Path(artifact_dir) if artifact_dir is not None else get_artifact_dir(self.repository_path)
         static_analysis_cache = StaticAnalysisCache(load_dir, self.repository_path)
-        cached_results = static_analysis_cache.get("static_analysis_results")
+        cached_results = static_analysis_cache.get(expected_sha=expected_sha)
         if cached_results is not None:
             self._cached_results = cached_results
             self.collected_diagnostics = cached_results.diagnostics
@@ -398,18 +408,27 @@ class StaticAnalyzer:
             logger.warning(f"Failed to discover dependencies for {file_path}", exc_info=True)
             return []
 
-    def analyze(self, cache_dir: Path | None = None, skip_cache: bool = False) -> StaticAnalysisResults:
+    def analyze(
+        self,
+        cache_dir: Path | None = None,
+        skip_cache: bool = False,
+        source_sha: str | None = None,
+    ) -> StaticAnalysisResults:
         """Analyze the repository using the engine LSP pipeline.
 
         Clients must be running before calling this method. Use start_clients() or
         the context manager (``with StaticAnalyzer(...) as sa:``) to start them.
 
         Args:
-            cache_dir: Optional cache directory for incremental analysis.
-                      If provided, uses git-based incremental analysis per client.
-                      If None, performs full analysis without caching.
-            skip_cache: If True, bypass the in-memory cached results and re-run
-                       the LSP analysis. Useful when force_full_analysis is requested.
+            cache_dir: Optional directory for the per-language LSP incremental
+                      caches (``incremental_cache_<lang>.json``). True cache —
+                      callers may wipe freely. If None, no per-language caching.
+            skip_cache: If True, bypass both the in-memory results cache and the
+                       on-disk run-artifact pickle and re-run the LSP analysis.
+            source_sha: Canonical identifier of the source state for SHA-gated
+                       reuse of the run-artifact pickle. When provided the disk
+                       load only succeeds if the saved tag matches; the SHA is
+                       also stamped onto the freshly-saved pickle.
 
         Returns:
             StaticAnalysisResults containing all analysis data.
@@ -421,23 +440,30 @@ class StaticAnalyzer:
             )
 
         if not skip_cache and self._cached_results is not None:
-            logger.info("Returning cached static analysis results")
+            logger.info("static_analysis_cache: outcome=memhit")
             return self._cached_results
 
-        logger.info(f"analyze() called with cache_dir={cache_dir}, skip_cache={skip_cache}")
+        logger.info(
+            f"analyze() called with cache_dir={cache_dir}, skip_cache={skip_cache}, "
+            f"source_sha={'<set>' if source_sha else None}"
+        )
 
-        # Try loading from disk cache (survives across processes)
-        if not skip_cache:
-            load_dir = Path(cache_dir) if cache_dir is not None else get_cache_dir(self.repository_path)
-            cached = self.load_from_disk_cache(load_dir)
+        # Try loading from the on-disk run artifact (survives across processes).
+        # The artifact lives next to ``analysis.json``; the per-language LSP
+        # caches in ``cache_dir`` are a separate, wipeable concern below.
+        if skip_cache:
+            logger.info("static_analysis_cache: outcome=bypass (skip_cache=True)")
+        else:
+            cached = self.load_from_disk_cache(expected_sha=source_sha)
             if cached is not None:
                 langs = cached.get_languages()
                 file_count = len(cached.get_all_source_files())
                 logger.info(
-                    f"Returning static analysis results from disk cache "
-                    f"({file_count} files, languages: {', '.join(langs)})"
+                    "static_analysis_cache: outcome=diskhit " f"({file_count} files, languages: {', '.join(langs)})"
                 )
                 return cached
+            outcome = "miss_sha" if source_sha is not None else "miss_absent"
+            logger.info(f"static_analysis_cache: outcome={outcome}")
 
         results = StaticAnalysisResults()
 
@@ -519,11 +545,14 @@ class StaticAnalyzer:
         results.diagnostics = self.collected_diagnostics
         self._cached_results = results
 
-        # Persist to disk so subprocess callers can reuse without LSP
-        save_dir = Path(cache_dir) if cache_dir is not None else get_cache_dir(self.repository_path)
-        logger.info(f"Saving static analysis results to disk cache at {save_dir}")
-        static_analysis_cache = StaticAnalysisCache(save_dir, self.repository_path)
-        static_analysis_cache.save("static_analysis_results", results)
+        # Persist as a run artifact (sibling of ``analysis.json``) so the next
+        # process can reuse without re-running LSP. SHA-gated; an absent
+        # ``source_sha`` writes the pickle but leaves the tag missing, which
+        # disables SHA-aware loaders without breaking legacy callers.
+        artifact_dir = get_artifact_dir(self.repository_path)
+        logger.info(f"Saving static analysis run artifact to {artifact_dir}")
+        static_analysis_cache = StaticAnalysisCache(artifact_dir, self.repository_path)
+        static_analysis_cache.save(results, source_sha=source_sha)
 
         return results
 
@@ -662,7 +691,10 @@ class StaticAnalyzer:
 
 
 def get_static_analysis(
-    repo_path: Path, cache_dir: Path | None = None, skip_cache: bool = False
+    repo_path: Path,
+    cache_dir: Path | None = None,
+    skip_cache: bool = False,
+    source_sha: str | None = None,
 ) -> StaticAnalysisResults:
     """CLI orchestrator: get static analysis results with full LSP lifecycle management.
 
@@ -670,8 +702,11 @@ def get_static_analysis(
 
     Args:
         repo_path: Path to the repository to analyze.
-        cache_dir: Optional custom cache directory. If None, uses default cache location.
+        cache_dir: Optional custom directory for the per-language LSP
+            incremental caches. If None, uses the default cache location.
         skip_cache: If True, performs full analysis without using any cache.
+        source_sha: Canonical source-state identifier for SHA-gated reuse of
+            the run-artifact pickle (sibling of ``analysis.json``).
 
     Returns:
         StaticAnalysisResults using incremental cache when available.
@@ -679,6 +714,6 @@ def get_static_analysis(
     actual_cache_dir = None if skip_cache else (cache_dir if cache_dir is not None else get_cache_dir(repo_path))
     analyzer = StaticAnalyzer(repo_path)
     with analyzer:
-        results = analyzer.analyze(cache_dir=actual_cache_dir)
+        results = analyzer.analyze(cache_dir=actual_cache_dir, source_sha=source_sha)
     results.diagnostics = analyzer.collected_diagnostics
     return results
