@@ -10,6 +10,7 @@ from static_analyzer.analysis_result import (
     STATIC_ANALYSIS_SHA,
     StaticAnalysisCache,
     StaticAnalysisResults,
+    copy_cache_files,
 )
 
 
@@ -220,6 +221,102 @@ class TestStaticAnalysisCacheAtomicWrite(unittest.TestCase):
 
         tmp_files = list(self.artifact_dir.glob("*.tmp"))
         self.assertEqual(len(tmp_files), 0)
+
+
+class TestStaticAnalysisCacheReadTagSha(unittest.TestCase):
+    """Public ``read_tag_sha`` mirrors the SHA-gate's internal version check."""
+
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.artifact_dir = Path(self.temp_dir) / ".codeboarding"
+        self.repo_root = Path(self.temp_dir)
+        self.cache = StaticAnalysisCache(self.artifact_dir, self.repo_root)
+
+    def tearDown(self):
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def test_returns_none_when_tag_missing(self):
+        self.assertIsNone(self.cache.read_tag_sha())
+
+    def test_returns_sha_after_tagged_save(self):
+        self.cache.save(StaticAnalysisResults(), source_sha="sha-current")
+        self.assertEqual(self.cache.read_tag_sha(), "sha-current")
+
+    def test_unknown_version_returns_none(self):
+        # Why: the wrapper's restore path SHA-gates with this method; if Core
+        # bumps the tag format, the wrapper must miss the cache rather than
+        # silently restoring an incompatible pickle.
+        self.artifact_dir.mkdir(parents=True)
+        (self.artifact_dir / STATIC_ANALYSIS_SHA).write_text("v999\nsha-current\n")
+        self.assertIsNone(self.cache.read_tag_sha())
+
+
+class TestCopyCacheFiles(unittest.TestCase):
+    """``copy_cache_files`` atomically copies the pkl + sha pair between dirs."""
+
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.repo_root = Path(self.temp_dir)
+        self.src_dir = Path(self.temp_dir) / "src" / ".codeboarding"
+        self.dst_dir = Path(self.temp_dir) / "dst" / ".codeboarding"
+        self.src_cache = StaticAnalysisCache(self.src_dir, self.repo_root)
+        self.dst_cache = StaticAnalysisCache(self.dst_dir, self.repo_root)
+
+    def tearDown(self):
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def test_copies_both_files_and_returns_true(self):
+        results = StaticAnalysisResults()
+        results.add_source_files("python", [str(self.repo_root / "main.py")])
+        self.src_cache.save(results, source_sha="sha-current")
+
+        self.assertTrue(copy_cache_files(self.src_dir, self.dst_dir))
+        self.assertTrue((self.dst_dir / STATIC_ANALYSIS_PKL).exists())
+        self.assertTrue((self.dst_dir / STATIC_ANALYSIS_SHA).exists())
+        self.assertEqual(self.dst_cache.read_tag_sha(), "sha-current")
+
+    def test_copied_pkl_is_loadable(self):
+        results = StaticAnalysisResults()
+        results.add_source_files("python", [str(self.repo_root / "main.py")])
+        self.src_cache.save(results, source_sha="sha-current")
+
+        copy_cache_files(self.src_dir, self.dst_dir)
+        loaded = self.dst_cache.get(expected_sha="sha-current")
+        self.assertIsNotNone(loaded)
+        if loaded is not None:
+            self.assertEqual(loaded.get_source_files("python"), [str(self.repo_root / "main.py")])
+
+    def test_missing_pair_returns_false_without_changes(self):
+        # No source pkl/sha at all -> no-op, no destination state.
+        self.assertFalse(copy_cache_files(self.src_dir, self.dst_dir))
+        self.assertFalse(self.dst_dir.exists() and any(self.dst_dir.iterdir()))
+
+    def test_partial_source_refuses_copy(self):
+        # Pkl present, sha absent -> refuse to copy (would leave dst with a
+        # pickle but no SHA gate, which a SHA-aware reader treats as no-cache
+        # but a tag-less reader may load a stale snapshot).
+        self.src_dir.mkdir(parents=True)
+        (self.src_dir / STATIC_ANALYSIS_PKL).write_bytes(b"placeholder")
+
+        self.assertFalse(copy_cache_files(self.src_dir, self.dst_dir))
+        self.assertFalse((self.dst_dir / STATIC_ANALYSIS_PKL).exists())
+        self.assertFalse((self.dst_dir / STATIC_ANALYSIS_SHA).exists())
+
+    def test_overwrites_existing_destination(self):
+        old_results = StaticAnalysisResults()
+        old_results.add_source_files("python", [str(self.repo_root / "old.py")])
+        self.dst_cache.save(old_results, source_sha="sha-old")
+
+        new_results = StaticAnalysisResults()
+        new_results.add_source_files("python", [str(self.repo_root / "new.py")])
+        self.src_cache.save(new_results, source_sha="sha-new")
+
+        self.assertTrue(copy_cache_files(self.src_dir, self.dst_dir))
+        self.assertEqual(self.dst_cache.read_tag_sha(), "sha-new")
+        loaded = self.dst_cache.get(expected_sha="sha-new")
+        self.assertIsNotNone(loaded)
+        if loaded is not None:
+            self.assertEqual(loaded.get_source_files("python"), [str(self.repo_root / "new.py")])
 
 
 if __name__ == "__main__":

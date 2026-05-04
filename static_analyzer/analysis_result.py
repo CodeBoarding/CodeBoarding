@@ -1,7 +1,9 @@
 import copy
 import logging
+import os
 import pickle
 import re
+import shutil
 import sys
 import tempfile
 from collections.abc import Iterator
@@ -185,11 +187,13 @@ class StaticAnalysisCache:
     def sha_path(self) -> Path:
         return self.artifact_dir / STATIC_ANALYSIS_SHA
 
-    def _read_tag_sha(self) -> str | None:
+    def read_tag_sha(self) -> str | None:
         """Return the source SHA recorded in the tag file, or None.
 
         Format: ``<version>\\n<sha>\\n``. Unknown versions return None so
-        callers treat them as a cache miss without unpickling.
+        callers treat them as a cache miss without unpickling. Lets external
+        callers SHA-gate cache decisions (e.g. "is the on-disk artifact still
+        valid for this source state?") without reimplementing the parser.
         """
         try:
             text = self.sha_path.read_text().strip()
@@ -217,7 +221,7 @@ class StaticAnalysisCache:
         from the previous on-disk layout are also picked up here.
         """
         if expected_sha is not None:
-            cached_sha = self._read_tag_sha()
+            cached_sha = self.read_tag_sha()
             if cached_sha is None:
                 return None
             if cached_sha != expected_sha:
@@ -298,6 +302,57 @@ class StaticAnalysisCache:
                 self.sha_path.unlink()
             except OSError:
                 pass
+
+
+def copy_cache_files(src_dir: Path, dest_dir: Path) -> bool:
+    """Atomically copy the static-analysis pkl + sha pair from *src_dir* to *dest_dir*.
+
+    Treats the cache as an opaque file pair (no unpickle, no relativization).
+    Both files must exist in *src_dir*; a partial source is a no-op so a
+    half-written cache cannot be promoted. The pair is installed atomically:
+    if the second copy fails, the first is rolled back so a reader never
+    sees a pkl without its tag (or vice versa). Returns True iff both files
+    were installed.
+    """
+    src_pkl = src_dir / STATIC_ANALYSIS_PKL
+    src_sha = src_dir / STATIC_ANALYSIS_SHA
+    if not src_pkl.exists() or not src_sha.exists():
+        if src_pkl.exists() != src_sha.exists():
+            logger.warning(
+                "Source dir %s has %s without its sibling; refusing to copy partial cache",
+                src_dir,
+                STATIC_ANALYSIS_PKL if src_pkl.exists() else STATIC_ANALYSIS_SHA,
+            )
+        return False
+
+    dest_pkl = dest_dir / STATIC_ANALYSIS_PKL
+    dest_sha = dest_dir / STATIC_ANALYSIS_SHA
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        _atomic_copy(src_pkl, dest_pkl)
+    except OSError as e:
+        logger.warning("Failed to copy %s into %s: %s", STATIC_ANALYSIS_PKL, dest_dir, e)
+        return False
+    try:
+        _atomic_copy(src_sha, dest_sha)
+    except OSError as e:
+        logger.warning("Failed to copy %s into %s: %s", STATIC_ANALYSIS_SHA, dest_dir, e)
+        dest_pkl.unlink(missing_ok=True)
+        return False
+    return True
+
+
+def _atomic_copy(src: Path, dest: Path) -> None:
+    """Copy *src* into place at *dest* via tmp+rename so readers see all-or-nothing."""
+    fd, tmp_name = tempfile.mkstemp(prefix=f".{dest.name}.", dir=dest.parent)
+    tmp_path = Path(tmp_name)
+    os.close(fd)
+    try:
+        shutil.copy2(src, tmp_path)
+        tmp_path.replace(dest)
+    except Exception:
+        tmp_path.unlink(missing_ok=True)
+        raise
 
 
 class StaticAnalysisResults:
