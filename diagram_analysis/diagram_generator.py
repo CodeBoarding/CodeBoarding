@@ -558,6 +558,32 @@ class DiagramGenerator:
                 _, redetailed_subs = self._generate_subcomponents(root_analysis, redetail_components)
                 sub_analyses.update(redetailed_subs)
 
+            # Rebuild the global ``files`` index from the final per-component
+            # ``file_methods`` across the entire analysis tree (root + every
+            # sub-analysis). Without this, the incremental flow leaves
+            # ``analysis.files`` carrying only entries that survived
+            # ``scrub_deleted_files`` — newly added files never get bound,
+            # which breaks ``analysis.json`` consumers that look up methods
+            # via the top-level files map.
+            #
+            # Why we union subs into root: the full flow's ``AbstractionAgent``
+            # runs ``populate_file_methods`` over the FULL CFG so root
+            # components carry every project file in their ``file_methods``.
+            # The incremental flow never reruns AbstractionAgent — it only
+            # touches per-component subgraphs — so root components' own
+            # ``file_methods`` lag behind the truth held in deeper
+            # sub-analyses. The serialiser at
+            # ``analysis_json.build_unified_analysis_json`` reads only
+            # ``root_analysis.files`` for the top-level index, so we must
+            # surface every depth's files there.
+            for sub in sub_analyses.values():
+                sub.files = self.abstraction_agent._build_files_index(sub)
+            unified_files = self.abstraction_agent._build_files_index(root_analysis)
+            for sub in sub_analyses.values():
+                for fp, entry in sub.files.items():
+                    unified_files.setdefault(fp, entry)
+            root_analysis.files = unified_files
+
             commit_hash = get_git_commit_hash(self.repo_location)
             analysis_path = save_analysis(
                 analysis=root_analysis,

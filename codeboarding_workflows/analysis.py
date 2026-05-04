@@ -11,8 +11,8 @@ from pathlib import Path
 from codeboarding_workflows.incremental import run_incremental_workflow
 from diagram_analysis import DiagramGenerator
 from diagram_analysis.io_utils import load_full_analysis, save_sub_analysis
-from diagram_analysis.run_metadata import write_full_run_metadata
-from repo_utils.change_detector import ChangeSet
+from diagram_analysis.run_metadata import last_successful_commit, write_full_run_metadata
+from repo_utils.diff_parser import detect_changes
 
 logger = logging.getLogger(__name__)
 
@@ -131,15 +131,16 @@ def run_incremental(
     depth_level: int = 1,
     monitoring_enabled: bool = False,
     static_analyzer=None,
-    changes: ChangeSet | None = None,
+    base_ref: str | None = None,
+    target_ref: str | None = None,
 ) -> Path:
     """Incremental scope — cluster-driven update of an existing ``analysis.json``.
 
-    When ``changes`` is provided (a ``ChangeSet`` from the source-tree diff),
-    the cluster delta drops drift qnames whose file is outside this set and
-    outside the prior analysis. ``None`` preserves the original no-scoping
-    behavior — used by callers that don't have a diff source (e.g., the
-    GitHub Action).
+    Resolves the diff baseline and computes a ``ChangeSet`` to scope the
+    cluster delta. ``base_ref`` defaults to the last successful commit
+    recorded in metadata; ``target_ref`` defaults to ``""`` (working tree
+    plus untracked). Falls back to unscoped (no drift filtering) when no
+    baseline is available or the diff fails.
 
     Returns the path to the (possibly updated) analysis. When no baseline or
     cluster snapshot exists, falls back to a full run via
@@ -155,5 +156,17 @@ def run_incremental(
         monitoring_enabled=monitoring_enabled,
         static_analyzer=static_analyzer,
     )
-    generator.changes = changes
+
+    effective_base = base_ref if base_ref is not None else last_successful_commit(output_dir)
+    if effective_base is None:
+        logger.info("No baseline ref available; running unscoped incremental.")
+        generator.changes = None
+    else:
+        changes = detect_changes(repo_path, effective_base, target_ref or "")
+        if changes.error:
+            logger.warning("detect_changes failed (%s); running unscoped incremental.", changes.error)
+            generator.changes = None
+        else:
+            generator.changes = changes
+
     return run_incremental_workflow(generator)

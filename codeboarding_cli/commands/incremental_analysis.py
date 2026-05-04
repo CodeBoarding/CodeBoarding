@@ -20,18 +20,17 @@ def add_arguments(subparsers: argparse._SubParsersAction, parents: list[argparse
         parents=parents,
         help="Run a cluster-driven incremental update on a local repository.",
     )
-    # ``incremental`` no longer takes git refs as inputs; the cluster snapshot
-    # written next to ``analysis.json`` is the only baseline. The flags below
-    # were preserved as accepted-but-ignored to keep older invocations working.
     parser.add_argument(
         "--base-ref",
         type=str,
-        help="Deprecated: ignored. The cluster snapshot is the baseline.",
+        default=None,
+        help="Override the diff baseline. Default: last successful commit from analysis metadata.",
     )
     parser.add_argument(
         "--target-ref",
         type=str,
-        help="Deprecated: ignored. The current worktree is always the target.",
+        default=None,
+        help="Override the diff target. Default: working tree (includes untracked files).",
     )
 
 
@@ -77,6 +76,8 @@ def run_from_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> 
             run_id=run_context.run_id,
             log_path=run_context.log_path,
             monitoring_enabled=args.enable_monitoring or monitoring_enabled(),
+            base_ref=args.base_ref,
+            target_ref=args.target_ref,
         )
     except Exception as exc:
         logger.exception("Incremental analysis failed")
