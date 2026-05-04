@@ -12,6 +12,7 @@ from static_analyzer.analysis_cache import (
     copy_cache_files,
 )
 from static_analyzer.analysis_result import StaticAnalysisResults
+from static_analyzer.constants import Language
 
 
 class TestStaticAnalysisCache(unittest.TestCase):
@@ -45,7 +46,7 @@ class TestStaticAnalysisCache(unittest.TestCase):
         file1 = str(self.repo_root / "src/main.py")
         file2 = str(self.repo_root / "src/utils.py")
         results = StaticAnalysisResults()
-        results.add_source_files("python", [file1, file2])
+        results.add_source_files(Language.PYTHON, [file1, file2])
 
         self.cache.save(results)
         loaded = self.cache.get()
@@ -54,7 +55,7 @@ class TestStaticAnalysisCache(unittest.TestCase):
         if loaded is None:
             return
 
-        self.assertEqual(loaded.get_source_files("python"), [file1, file2])
+        self.assertEqual(loaded.get_source_files(Language.PYTHON), [file1, file2])
 
     def test_get_returns_none_for_corrupted_artifact(self):
         self.artifact_dir.mkdir(parents=True)
@@ -68,11 +69,11 @@ class TestStaticAnalysisCache(unittest.TestCase):
         new_file = str(self.repo_root / "new.py")
 
         results1 = StaticAnalysisResults()
-        results1.add_source_files("python", [old_file])
+        results1.add_source_files(Language.PYTHON, [old_file])
         self.cache.save(results1)
 
         results2 = StaticAnalysisResults()
-        results2.add_source_files("python", [new_file])
+        results2.add_source_files(Language.PYTHON, [new_file])
         self.cache.save(results2)
 
         loaded = self.cache.get()
@@ -80,7 +81,7 @@ class TestStaticAnalysisCache(unittest.TestCase):
         if loaded is None:
             return
 
-        self.assertEqual(loaded.get_source_files("python"), [new_file])
+        self.assertEqual(loaded.get_source_files(Language.PYTHON), [new_file])
 
     def test_artifact_filenames(self):
         results = StaticAnalysisResults()
@@ -104,7 +105,7 @@ class TestStaticAnalysisCacheShaGate(unittest.TestCase):
 
     def test_sha_match_returns_results(self):
         results = StaticAnalysisResults()
-        results.add_source_files("python", [str(self.repo_root / "main.py")])
+        results.add_source_files(Language.PYTHON, [str(self.repo_root / "main.py")])
         self.cache.save(results, source_sha="sha-current")
 
         loaded = self.cache.get(expected_sha="sha-current")
@@ -127,7 +128,7 @@ class TestStaticAnalysisCacheShaGate(unittest.TestCase):
     def test_missing_tag_without_expected_sha_returns_results(self):
         # Untagged save then untagged load = still works (legacy / CLI path).
         results = StaticAnalysisResults()
-        results.add_source_files("python", [str(self.repo_root / "main.py")])
+        results.add_source_files(Language.PYTHON, [str(self.repo_root / "main.py")])
         self.cache.save(results, source_sha=None)
 
         loaded = self.cache.get(expected_sha=None)
@@ -170,7 +171,7 @@ class TestStaticAnalysisCacheLegacyMigration(unittest.TestCase):
         # then moving the file to the old location, so the on-disk bytes are
         # still loadable but live where the previous code would have written.
         results = StaticAnalysisResults()
-        results.add_source_files("python", [str(self.repo_root / "src/legacy.py")])
+        results.add_source_files(Language.PYTHON, [str(self.repo_root / "src/legacy.py")])
         self.cache.save(results, source_sha=None)
         new_pkl = self.artifact_dir / STATIC_ANALYSIS_PKL
 
@@ -184,7 +185,7 @@ class TestStaticAnalysisCacheLegacyMigration(unittest.TestCase):
         if loaded is None:
             return
         self.assertEqual(
-            loaded.get_source_files("python"),
+            loaded.get_source_files(Language.PYTHON),
             [str(self.repo_root / "src/legacy.py")],
         )
 
@@ -270,7 +271,7 @@ class TestLoadWithSha(unittest.TestCase):
 
     def test_returns_results_and_sha_when_both_present(self):
         results = StaticAnalysisResults()
-        results.add_source_files("python", [str(self.repo_root / "main.py")])
+        results.add_source_files(Language.PYTHON, [str(self.repo_root / "main.py")])
         self.cache.save(results, source_sha="sha-current")
 
         loaded = self.cache.load_with_sha()
@@ -279,7 +280,7 @@ class TestLoadWithSha(unittest.TestCase):
         if loaded is not None:
             cached_results, cached_sha = loaded
             self.assertEqual(cached_sha, "sha-current")
-            self.assertEqual(cached_results.get_source_files("python"), [str(self.repo_root / "main.py")])
+            self.assertEqual(cached_results.get_source_files(Language.PYTHON), [str(self.repo_root / "main.py")])
 
     def test_returns_none_when_tag_absent(self):
         # Untagged save: pkl exists but no SHA tag -> not warm-startable.
@@ -320,7 +321,7 @@ class TestCopyCacheFiles(unittest.TestCase):
 
     def test_copies_both_files_and_returns_true(self):
         results = StaticAnalysisResults()
-        results.add_source_files("python", [str(self.repo_root / "main.py")])
+        results.add_source_files(Language.PYTHON, [str(self.repo_root / "main.py")])
         self.src_cache.save(results, source_sha="sha-current")
 
         self.assertTrue(copy_cache_files(self.src_dir, self.dst_dir))
@@ -330,14 +331,14 @@ class TestCopyCacheFiles(unittest.TestCase):
 
     def test_copied_pkl_is_loadable(self):
         results = StaticAnalysisResults()
-        results.add_source_files("python", [str(self.repo_root / "main.py")])
+        results.add_source_files(Language.PYTHON, [str(self.repo_root / "main.py")])
         self.src_cache.save(results, source_sha="sha-current")
 
         copy_cache_files(self.src_dir, self.dst_dir)
         loaded = self.dst_cache.get(expected_sha="sha-current")
         self.assertIsNotNone(loaded)
         if loaded is not None:
-            self.assertEqual(loaded.get_source_files("python"), [str(self.repo_root / "main.py")])
+            self.assertEqual(loaded.get_source_files(Language.PYTHON), [str(self.repo_root / "main.py")])
 
     def test_missing_pair_returns_false_without_changes(self):
         # No source pkl/sha at all -> no-op, no destination state.
@@ -357,11 +358,11 @@ class TestCopyCacheFiles(unittest.TestCase):
 
     def test_overwrites_existing_destination(self):
         old_results = StaticAnalysisResults()
-        old_results.add_source_files("python", [str(self.repo_root / "old.py")])
+        old_results.add_source_files(Language.PYTHON, [str(self.repo_root / "old.py")])
         self.dst_cache.save(old_results, source_sha="sha-old")
 
         new_results = StaticAnalysisResults()
-        new_results.add_source_files("python", [str(self.repo_root / "new.py")])
+        new_results.add_source_files(Language.PYTHON, [str(self.repo_root / "new.py")])
         self.src_cache.save(new_results, source_sha="sha-new")
 
         self.assertTrue(copy_cache_files(self.src_dir, self.dst_dir))
@@ -369,7 +370,7 @@ class TestCopyCacheFiles(unittest.TestCase):
         loaded = self.dst_cache.get(expected_sha="sha-new")
         self.assertIsNotNone(loaded)
         if loaded is not None:
-            self.assertEqual(loaded.get_source_files("python"), [str(self.repo_root / "new.py")])
+            self.assertEqual(loaded.get_source_files(Language.PYTHON), [str(self.repo_root / "new.py")])
 
 
 if __name__ == "__main__":

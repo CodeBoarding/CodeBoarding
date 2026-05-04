@@ -122,34 +122,34 @@ def _reference_key(fully_qualified_name: str) -> str:
 class StaticAnalysisResults:
     """Per-language static-analysis results for one ``analyze()`` invocation.
 
-    Keyed by ``Language``; ``StrEnum`` membership means existing string-keyed
-    call sites (``results.results["python"]``, ``get_cfg("python")``) keep
-    working unchanged because ``Language.PYTHON == "python"``.
+    Keyed by ``Language``. Callers pass ``Language`` enum members directly;
+    string-to-enum conversion happens once at the system boundary (typically
+    ``adapter.language_enum`` in the engine layer).
     """
 
     results: dict[Language, LanguageResults] = field(default_factory=dict)
     diagnostics: dict[Language, FileDiagnosticsMap] = field(default_factory=dict)
 
-    def _bucket(self, language: str) -> LanguageResults:
-        return self.results.setdefault(Language(language), LanguageResults())
+    def _bucket(self, language: Language) -> LanguageResults:
+        return self.results.setdefault(language, LanguageResults())
 
-    def _get_bucket(self, language: str) -> LanguageResults | None:
+    def _get_bucket(self, language: Language) -> LanguageResults | None:
         """Read-only sibling of ``_bucket`` — returns None instead of inserting an empty bucket."""
-        return self.results.get(Language(language))
+        return self.results.get(language)
 
-    def add_class_hierarchy(self, language: str, hierarchy):
+    def add_class_hierarchy(self, language: Language, hierarchy):
         """Add/merge a class hierarchy for a language; supports repeated calls."""
         self._bucket(language).hierarchy.merge(hierarchy)
 
-    def add_cfg(self, language: str, cfg: CallGraph):
+    def add_cfg(self, language: Language, cfg: CallGraph):
         """Add/merge a control flow graph for a language; supports repeated calls."""
         self._bucket(language).cfg.merge(cfg)
 
-    def add_package_dependencies(self, language: str, dependencies):
+    def add_package_dependencies(self, language: Language, dependencies):
         """Add/merge package dependencies for a language; supports repeated calls."""
         self._bucket(language).dependencies.merge(dependencies)
 
-    def add_references(self, language: str, references: list[Node]):
+    def add_references(self, language: Language, references: list[Node]):
         """Add/merge source code references for a language; supports repeated calls.
 
         Why: keys use the original qualified name to preserve source-code casing
@@ -157,14 +157,14 @@ class StaticAnalysisResults:
         """
         self._bucket(language).references.add(references)
 
-    def get_cfg(self, language: str) -> CallGraph:
+    def get_cfg(self, language: Language) -> CallGraph:
         """Return the control flow graph for ``language`` or raise ``ValueError``."""
         bucket = self._get_bucket(language)
         if bucket is not None and bucket.cfg.graph is not None:
             return bucket.cfg.graph
         raise ValueError(f"Control flow graph for language '{language}' not found in results.")
 
-    def get_hierarchy(self, language: str) -> dict:
+    def get_hierarchy(self, language: Language) -> dict:
         """Return the class hierarchy dict for ``language`` or raise ``ValueError``.
 
         Hierarchy values have shape ``{"superclasses": [...], "subclasses": [...],
@@ -175,14 +175,14 @@ class StaticAnalysisResults:
             return bucket.hierarchy.entries
         raise ValueError(f"Class hierarchy for language '{language}' not found in results.")
 
-    def get_package_dependencies(self, language: str) -> dict:
+    def get_package_dependencies(self, language: Language) -> dict:
         """Return the package dependencies for ``language`` or raise ``ValueError``."""
         bucket = self._get_bucket(language)
         if bucket is not None and bucket.dependencies.entries is not None:
             return bucket.dependencies.entries
         raise ValueError(f"Package dependencies for language '{language}' not found in results.")
 
-    def get_reference(self, language: str, qualified_name: str) -> Node:
+    def get_reference(self, language: Language, qualified_name: str) -> Node:
         """Return the reference node for ``qualified_name``.
 
         Why: lookup is case-insensitive — the query and stored keys are both
@@ -206,7 +206,7 @@ class StaticAnalysisResults:
                     )
         raise ValueError(f"Source code reference for '{qualified_name}' in language '{language}' not found in results.")
 
-    def get_loose_reference(self, language: str, qualified_name: str) -> tuple[str | None, Node | None]:
+    def get_loose_reference(self, language: Language, qualified_name: str) -> tuple[str | None, Node | None]:
         norm_qn = _reference_key(qualified_name)
         bucket = self._get_bucket(language)
         if bucket is not None and bucket.references.by_qualified_name is not None:
@@ -225,14 +225,9 @@ class StaticAnalysisResults:
                 return subset_refs[0], refs[subset_refs[0]]
         return None, None
 
-    def get_languages(self) -> list[str]:
-        """Return the list of languages for which any data has been recorded.
-
-        Returned as plain ``str`` (not ``Language``) so existing call sites that
-        feed the list into ``list[str]``-typed parameters keep type-checking;
-        ``Language.value`` and the enum member are interchangeable at runtime.
-        """
-        return [str(lang) for lang in self.results]
+    def get_languages(self) -> list[Language]:
+        """Return the list of languages for which any data has been recorded."""
+        return list(self.results)
 
     def resolve_across_languages(self, qualified_name: str) -> Node | None:
         """Try ``get_reference`` then ``get_loose_reference`` across every language.
@@ -248,7 +243,7 @@ class StaticAnalysisResults:
                     return node
         return None
 
-    def iter_reference_nodes(self, language: str | None = None) -> Iterator[Node]:
+    def iter_reference_nodes(self, language: Language | None = None) -> Iterator[Node]:
         """Yield every stored reference as a ``Node``."""
         languages = [language] if language is not None else self.get_languages()
         for lang in languages:
@@ -259,11 +254,11 @@ class StaticAnalysisResults:
                 if isinstance(node, Node):
                     yield node
 
-    def add_source_files(self, language: str, source_files):
+    def add_source_files(self, language: Language, source_files):
         """Add/extend source files for a language; supports repeated calls."""
         self._bucket(language).source_files.extend(source_files)
 
-    def get_source_files(self, language: str) -> list[str]:
+    def get_source_files(self, language: Language) -> list[str]:
         """Return the list of source files for ``language``, or ``[]`` if absent."""
         bucket = self._get_bucket(language)
         if bucket is None or bucket.source_files.paths is None:

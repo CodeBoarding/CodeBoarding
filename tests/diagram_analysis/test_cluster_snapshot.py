@@ -16,7 +16,7 @@ from diagram_analysis.cluster_snapshot import (
     snapshot_from_static_analysis,
 )
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.constants import NodeType
+from static_analyzer.constants import Language, NodeType
 from static_analyzer.graph import CallGraph, ClusterResult
 from static_analyzer.node import Node
 
@@ -40,7 +40,7 @@ def _build_graph(node_specs: list[tuple[str, str]]) -> CallGraph:
 def _build_static(graphs: dict[str, CallGraph]) -> StaticAnalysisResults:
     results = StaticAnalysisResults()
     for language, graph in graphs.items():
-        results.add_cfg(language, graph)
+        results.add_cfg(Language(language), graph)
     return results
 
 

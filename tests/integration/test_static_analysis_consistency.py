@@ -39,6 +39,7 @@ from repo_utils import clone_repository
 from repo_utils.ignore import initialize_codeboardingignore
 from static_analyzer import get_static_analysis
 from static_analyzer.analysis_result import StaticAnalysisResults
+from static_analyzer.constants import Language
 
 from .conftest import (
     REPOSITORY_CONFIGS,
@@ -66,7 +67,9 @@ def _relative_path(file_path: str, repo_path: Path) -> str:
         return file_path
 
 
-def _write_snapshot(static_analysis: StaticAnalysisResults, language: str, config_name: str, repo_path: Path) -> Path:
+def _write_snapshot(
+    static_analysis: StaticAnalysisResults, language: Language, config_name: str, repo_path: Path
+) -> Path:
     """Write a detailed snapshot of the analysis results to a JSON file for manual validation.
 
     The snapshot includes all references, hierarchy, call graph edges, package dependencies,
@@ -240,11 +243,11 @@ class TestStaticAnalysisConsistency:
 
         # Write snapshot if requested
         if request.config.getoption("--write-snapshots"):
-            snapshot_path = _write_snapshot(static_analysis, config.language, config.name, repo_path)
+            snapshot_path = _write_snapshot(static_analysis, Language(config.language.lower()), config.name, repo_path)
             print(f"\nSnapshot written to: {snapshot_path}")
 
         # Extract actual metrics
-        actual_metrics = extract_metrics(static_analysis, config.language)
+        actual_metrics = extract_metrics(static_analysis, Language(config.language.lower()))
         actual_metrics["execution_time_seconds"] = actual_execution_time
 
         # Compare all metrics and collect results
@@ -315,7 +318,7 @@ class TestStaticAnalysisConsistency:
         if "sample_references" in expected:
             self._verify_sample_entities_present(
                 static_analysis,
-                config.language,
+                Language(config.language.lower()),
                 expected["sample_references"],
                 "references",
             )
@@ -382,7 +385,7 @@ class TestStaticAnalysisConsistency:
     def _verify_sample_entities_present(
         self,
         static_analysis,
-        language: str,
+        language: Language,
         sample_entities: list[str],
         entity_type: str,
     ):

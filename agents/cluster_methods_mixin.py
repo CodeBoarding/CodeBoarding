@@ -32,7 +32,7 @@ from static_analyzer.cluster_relations import (
     build_node_to_component_map,
     merge_relations,
 )
-from static_analyzer.constants import CALLABLE_TYPES, CLASS_TYPES, NodeType
+from static_analyzer.constants import CALLABLE_TYPES, CLASS_TYPES, Language, NodeType
 from static_analyzer.graph import CallGraph, ClusterResult
 from static_analyzer.node import Node
 
@@ -70,7 +70,7 @@ class ClusterMethodsMixin:
 
     def _build_cluster_string(
         self,
-        programming_langs: list[str],
+        programming_langs: list[Language],
         cluster_results: dict[str, ClusterResult],
         cluster_ids: set[int] | None = None,
         prompt_overhead_chars: int = 0,
@@ -110,7 +110,7 @@ class ClusterMethodsMixin:
 
     def _render_cluster_string(
         self,
-        programming_langs: list[str],
+        programming_langs: list[Language],
         cluster_results: dict[str, ClusterResult],
         cluster_ids: set[int] | None,
         skip_sets: dict[str, set[str]],
@@ -146,7 +146,7 @@ class ClusterMethodsMixin:
 
     def _plan_skip_sets(
         self,
-        programming_langs: list[str],
+        programming_langs: list[Language],
         cluster_results: dict[str, ClusterResult],
         prompt_overhead_chars: int,
     ) -> dict[str, set[str]]:
@@ -472,7 +472,9 @@ class ClusterMethodsMixin:
         """
         all_nodes: dict[str, Node] = {}
         for lang in cluster_results:
-            cfg = cfg_graphs[lang] if cfg_graphs and lang in cfg_graphs else self.static_analysis.get_cfg(lang)
+            cfg = (
+                cfg_graphs[lang] if cfg_graphs and lang in cfg_graphs else self.static_analysis.get_cfg(Language(lang))
+            )
             all_nodes.update(cfg.nodes)
         return all_nodes
 
@@ -492,7 +494,9 @@ class ClusterMethodsMixin:
         """
         graphs: dict[str, nx.Graph] = {}
         for lang in cluster_results:
-            cfg = cfg_graphs[lang] if cfg_graphs and lang in cfg_graphs else self.static_analysis.get_cfg(lang)
+            cfg = (
+                cfg_graphs[lang] if cfg_graphs and lang in cfg_graphs else self.static_analysis.get_cfg(Language(lang))
+            )
             graphs[lang] = cfg.to_networkx().to_undirected()
         return graphs
 

@@ -12,7 +12,7 @@ from diagram_analysis.cluster_delta import (
 from diagram_analysis.cluster_snapshot import ClusterSnapshot, ClusterSnapshotEntry, snapshot_from_cluster_results
 from repo_utils.change_detector import ChangeSet, FileChange
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.constants import NodeType
+from static_analyzer.constants import Language, NodeType
 from static_analyzer.graph import CallGraph, ClusterResult
 from static_analyzer.node import Node
 
@@ -42,7 +42,7 @@ def _build_graph(node_specs: list[tuple[str, str]], edges: list[tuple[str, str]]
 
 def _build_static(graph: CallGraph) -> StaticAnalysisResults:
     results = StaticAnalysisResults()
-    results.add_cfg("python", graph)
+    results.add_cfg(Language.PYTHON, graph)
     return results
 
 

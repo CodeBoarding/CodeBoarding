@@ -490,13 +490,15 @@ class StaticAnalyzer:
         """
         results = StaticAnalysisResults()
         for adapter, project_path, engine_client in self._engine_clients:
-            language = adapter.language
+            language = adapter.language_enum
             try:
                 t_lang_start = time.monotonic()
-                logger.info(f"Starting engine analysis for {language} in {project_path}")
+                logger.info(f"Starting engine analysis for {adapter.language} in {project_path}")
                 analysis = self._run_full_analysis(adapter, project_path, engine_client)
                 self._absorb_into_results(results, language, analysis)
-                logger.info(f"Engine analysis for {language} completed in {time.monotonic() - t_lang_start:.1f}s")
+                logger.info(
+                    f"Engine analysis for {adapter.language} completed in {time.monotonic() - t_lang_start:.1f}s"
+                )
                 self._collect_diagnostics_for(adapter, engine_client, analysis)
             except Exception as e:
                 logger.error(f"Error during engine analysis for {adapter.language}: {e}")
@@ -518,13 +520,13 @@ class StaticAnalyzer:
         """
         results = StaticAnalysisResults()
         for adapter, project_path, engine_client in self._engine_clients:
-            language = adapter.language
+            language = adapter.language_enum
             cached_lang_dict = self._extract_language_dict(cached_results, language)
             try:
                 changed_files = set(get_changed_files_since(project_path, cached_sha))
             except Exception as e:
                 logger.warning(
-                    f"get_changed_files_since failed for {language} (cached_sha={cached_sha}): {e}; "
+                    f"get_changed_files_since failed for {adapter.language} (cached_sha={cached_sha}): {e}; "
                     "falling back to full re-LSP for this language"
                 )
                 changed_files = None
@@ -532,7 +534,7 @@ class StaticAnalyzer:
             if changed_files is None:
                 analysis = self._run_full_analysis(adapter, project_path, engine_client)
             else:
-                logger.info(f"warmstart {language}: re-LSPing {len(changed_files)} changed file(s)")
+                logger.info(f"warmstart {adapter.language}: re-LSPing {len(changed_files)} changed file(s)")
                 analysis = update_cfg_for_changed_files(
                     cached_lang_dict, changed_files, adapter, project_path, engine_client, self.ignore_manager
                 )
@@ -541,7 +543,7 @@ class StaticAnalyzer:
             self._collect_diagnostics_for(adapter, engine_client, analysis)
         return results
 
-    def _extract_language_dict(self, cached_results: StaticAnalysisResults, language: str) -> dict:
+    def _extract_language_dict(self, cached_results: StaticAnalysisResults, language: Language) -> dict:
         """Project a single language's bucket out of ``StaticAnalysisResults`` into the dict shape ``update_cfg_for_changed_files`` expects."""
         try:
             cached_cfg = cached_results.get_cfg(language)
@@ -563,10 +565,10 @@ class StaticAnalyzer:
             "package_relations": package_relations,
             "references": cached_refs,
             "source_files": cached_source_files,
-            "diagnostics": cached_results.diagnostics.get(Language(language), {}),
+            "diagnostics": cached_results.diagnostics.get(language, {}),
         }
 
-    def _absorb_into_results(self, results: StaticAnalysisResults, language: str, analysis: dict) -> None:
+    def _absorb_into_results(self, results: StaticAnalysisResults, language: Language, analysis: dict) -> None:
         """Stuff one language's analysis-dict into the shared ``StaticAnalysisResults``."""
         results.add_references(language, analysis.get("references", []))
         call_graph = analysis.get("call_graph") or CallGraph()
@@ -597,7 +599,7 @@ class StaticAnalyzer:
                 f"Diagnostics for {adapter.language}: {len(merged_diags)} files, {total} items "
                 f"(cache={len(cache_diags)}, live={len(live_diags)})"
             )
-        self.collected_diagnostics[Language(adapter.language)] = merged_diags
+        self.collected_diagnostics[adapter.language_enum] = merged_diags
 
     def _run_full_analysis(
         self,

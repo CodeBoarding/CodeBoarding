@@ -28,6 +28,7 @@ from pathlib import Path
 import pytest
 
 from static_analyzer import StaticAnalyzer
+from static_analyzer.constants import Language
 
 logger = logging.getLogger(__name__)
 
@@ -178,12 +179,12 @@ class TestEdgeCases:
     """
 
     def test_language_detected(self, analysis: AnalysisRunData):
-        language = analysis.fixture["language"]
+        language = Language(analysis.fixture["language"].lower())
         detected = analysis.all_results[0].get_languages()
         assert language in detected, f"Expected language '{language}' not detected. Found: {detected}"
 
     def test_expected_references(self, analysis: AnalysisRunData):
-        language = analysis.fixture["language"]
+        language = Language(analysis.fixture["language"].lower())
         refs = analysis.all_results[0].results[language].references.by_qualified_name or {}
         expected = set(analysis.fixture.get("expected_references", []))
         actual = set(refs.keys())
@@ -200,7 +201,7 @@ class TestEdgeCases:
 
     @pytest.mark.skip(reason="Class hierarchy is currently skipped (skip_hierarchy=True in CallGraphBuilder)")
     def test_expected_classes_in_hierarchy(self, analysis: AnalysisRunData):
-        language = analysis.fixture["language"]
+        language = Language(analysis.fixture["language"].lower())
         hierarchy = analysis.all_results[0].get_hierarchy(language)
         expected = set(analysis.fixture.get("expected_classes", []))
         actual = set(hierarchy.keys())
@@ -215,7 +216,7 @@ class TestEdgeCases:
 
     @pytest.mark.skip(reason="Class hierarchy is currently skipped (skip_hierarchy=True in CallGraphBuilder)")
     def test_inheritance_relationships(self, analysis: AnalysisRunData):
-        language = analysis.fixture["language"]
+        language = Language(analysis.fixture["language"].lower())
         hierarchy = analysis.all_results[0].get_hierarchy(language)
         errors = []
         for cls_name, expectations in analysis.fixture.get("expected_hierarchy", {}).items():
@@ -245,7 +246,7 @@ class TestEdgeCases:
         )
 
     def test_call_graph_edges(self, analysis: AnalysisRunData):
-        language = analysis.fixture["language"]
+        language = Language(analysis.fixture["language"].lower())
         cfg = analysis.all_results[0].get_cfg(language)
         actual_edges = {(e.get_source(), e.get_destination()) for e in cfg.edges}
         expected_edges = {(s, d) for s, d in analysis.fixture.get("expected_edges", [])}
@@ -259,7 +260,7 @@ class TestEdgeCases:
         assert not errors, "\n\n".join(errors)
 
     def test_package_dependencies(self, analysis: AnalysisRunData):
-        language = analysis.fixture["language"]
+        language = Language(analysis.fixture["language"].lower())
         deps = analysis.all_results[0].get_package_dependencies(language)
         expected_deps = analysis.fixture.get("expected_package_deps", {})
         errors = []
@@ -297,7 +298,7 @@ class TestEdgeCases:
         )
 
     def test_source_files(self, analysis: AnalysisRunData):
-        language = analysis.fixture["language"]
+        language = Language(analysis.fixture["language"].lower())
         source_files = analysis.all_results[0].get_source_files(language)
         # as_posix() keeps the fixture comparison platform-independent —
         # str() on a WindowsPath emits backslashes that don't match the
@@ -316,7 +317,7 @@ class TestEdgeCases:
         assert not errors, "\n\n".join(errors)
 
     def test_stability_across_runs(self, analysis: AnalysisRunData):
-        language = analysis.fixture["language"]
+        language = Language(analysis.fixture["language"].lower())
 
         def _compute_metrics(results):
             refs = results.results[language].references.by_qualified_name or {}

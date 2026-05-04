@@ -42,6 +42,7 @@ from repo_utils.change_detector import ChangeSet
 from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer import StaticAnalyzer, get_static_analysis
 from static_analyzer.analysis_result import StaticAnalysisResults
+from static_analyzer.constants import Language
 from static_analyzer.graph import ClusterResult
 from static_analyzer.scanner import ProjectScanner
 
@@ -200,7 +201,7 @@ class DiagramGenerator:
         if cluster_results:
             for language, cr in cluster_results.items():
                 try:
-                    cfg = self.static_analysis.get_cfg(language)
+                    cfg = self.static_analysis.get_cfg(Language(language))
                 except (ValueError, KeyError):
                     continue
                 cfg._cluster_cache = cr

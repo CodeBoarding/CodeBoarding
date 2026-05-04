@@ -23,7 +23,7 @@ from collections import defaultdict
 import networkx as nx
 
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.constants import ClusteringConfig
+from static_analyzer.constants import ClusteringConfig, Language
 from static_analyzer.graph import ClusterResult, detect_communities
 
 logger = logging.getLogger(__name__)
@@ -35,7 +35,7 @@ MAX_LLM_CLUSTERS = 50
 
 
 def build_cluster_results_for_languages(
-    static_analysis: StaticAnalysisResults, languages: list[str]
+    static_analysis: StaticAnalysisResults, languages: list[Language]
 ) -> dict[str, ClusterResult]:
     """
     Build cluster results for specified languages.
@@ -47,7 +47,7 @@ def build_cluster_results_for_languages(
     Returns:
         Dictionary mapping language name -> ClusterResult
     """
-    cluster_results = {}
+    cluster_results: dict[str, ClusterResult] = {}
     for lang in languages:
         cfg = static_analysis.get_cfg(lang)
         cluster_results[lang] = cfg.cluster()
@@ -74,7 +74,7 @@ def build_all_cluster_results(static_analysis: StaticAnalysisResults) -> dict[st
         cr = cluster_results[lang]
         n_clusters = len(cr.clusters)
         if n_clusters > MAX_LLM_CLUSTERS:
-            cfg = static_analysis.get_cfg(lang)
+            cfg = static_analysis.get_cfg(Language(lang))
             logger.info(
                 f"[SuperCluster] {lang}: {n_clusters} clusters exceeds limit of {MAX_LLM_CLUSTERS}, "
                 f"merging into super-clusters"
@@ -87,7 +87,7 @@ def build_all_cluster_results(static_analysis: StaticAnalysisResults) -> dict[st
     # within MAX_LLM_CLUSTERS by proportionally reducing per-language counts,
     # then re-index IDs so they don't overlap across languages.
     if len(cluster_results) > 1:
-        cfg_graphs = {lang: static_analysis.get_cfg(lang).to_networkx() for lang in cluster_results}
+        cfg_graphs = {lang: static_analysis.get_cfg(Language(lang)).to_networkx() for lang in cluster_results}
         enforce_cross_language_budget(cluster_results, cfg_graphs)
 
     return cluster_results

@@ -35,6 +35,7 @@ from diagram_analysis.cluster_delta import ClusterDelta
 from diagram_analysis.io_utils import normalize_repo_path
 from monitoring import trace
 from static_analyzer.analysis_result import StaticAnalysisResults
+from static_analyzer.constants import Language
 from static_analyzer.graph import ClusterResult
 
 logger = logging.getLogger(__name__)
@@ -366,7 +367,7 @@ def _build_node_lookup(static_analysis, cluster_results: dict[str, ClusterResult
     lookup: dict[str, MethodEntry] = {}
     for language in cluster_results:
         try:
-            cfg = static_analysis.get_cfg(language)
+            cfg = static_analysis.get_cfg(Language(language))
         except (ValueError, KeyError):
             continue
         for qname, node in cfg.nodes.items():
