@@ -25,6 +25,7 @@ from health.models import (
     StandardCheckSummary,
 )
 from static_analyzer.analysis_result import StaticAnalysisResults
+from static_analyzer.constants import Language
 
 logger = logging.getLogger(__name__)
 
@@ -103,7 +104,7 @@ def _collect_checks_for_language(
     # Run LSP-based unused code detection
     exclude_patterns = config.health_exclude_patterns
     collector = LSPDiagnosticsCollector()
-    language_diagnostics = static_analysis.diagnostics.get(language, {})
+    language_diagnostics = static_analysis.diagnostics.get(Language(language), {})
     if language_diagnostics:
         for file_path, file_diagnostics in language_diagnostics.items():
             if exclude_patterns and _matches_exclude_pattern("", file_path, exclude_patterns):

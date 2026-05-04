@@ -4,6 +4,7 @@ import unittest
 from health.models import HealthCheckConfig, StandardCheckSummary
 from health.runner import run_health_checks
 from static_analyzer.analysis_result import StaticAnalysisResults
+from static_analyzer.constants import Language
 from static_analyzer.graph import CallGraph
 from static_analyzer.node import Node
 
@@ -314,7 +315,7 @@ class TestHealthRunner(unittest.TestCase):
 
         # Add diagnostics for both files
         results.diagnostics = {
-            "python": {
+            Language.PYTHON: {
                 "/src/mod.py": [
                     LSPDiagnostic(code="reportUnusedImport", message="'os' is not accessed", severity=2, tags=[1]),
                 ],

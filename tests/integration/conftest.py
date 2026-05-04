@@ -238,11 +238,7 @@ def extract_metrics(static_analysis, language: str) -> dict:
         nodes_count = 0
         edges_count = 0
 
-    try:
-        references = static_analysis.results.get(language, {}).get("references", {})
-        references_count = len(references)
-    except (KeyError, AttributeError):
-        references_count = 0
+    references_count = sum(1 for _ in static_analysis.iter_reference_nodes(language))
 
     try:
         packages = static_analysis.get_package_dependencies(language)

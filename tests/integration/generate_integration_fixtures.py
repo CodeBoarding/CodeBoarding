@@ -92,8 +92,7 @@ def generate_fixture(config: RepositoryTestConfig, verbose: bool = True) -> dict
             print(f"  Execution time: {execution_time:.2f} seconds")
 
         # Extract sample entities (first 10 of each type)
-        references = static_analysis.results.get(config.language, {}).get("references", {})
-        sample_refs = sorted(list(references.keys()))[:10]
+        sample_refs = sorted(n.fully_qualified_name for n in static_analysis.iter_reference_nodes(config.language))[:10]
 
         try:
             hierarchy = static_analysis.get_hierarchy(config.language)

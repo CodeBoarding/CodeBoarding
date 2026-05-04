@@ -76,12 +76,11 @@ def _write_snapshot(static_analysis: StaticAnalysisResults, language: str, confi
     repo_path = repo_path.resolve()
 
     # References: sorted list of fully qualified names with type and location
-    refs = static_analysis.results.get(language, {}).get("references", {})
     references_snapshot = []
-    for fqn, node in sorted(refs.items()):
+    for node in sorted(static_analysis.iter_reference_nodes(language), key=lambda n: n.fully_qualified_name):
         references_snapshot.append(
             {
-                "name": fqn,
+                "name": node.fully_qualified_name,
                 "type": node.entity_label(),
                 "file": _relative_path(node.file_path, repo_path),
                 "lines": f"{node.line_start}-{node.line_end}",
@@ -117,7 +116,7 @@ def _write_snapshot(static_analysis: StaticAnalysisResults, language: str, confi
         "config_name": config_name,
         "language": language,
         "metrics": {
-            "references_count": len(refs),
+            "references_count": len(references_snapshot),
             "packages_count": len(deps),
             "call_graph_nodes": len(nodes_snapshot),
             "call_graph_edges": len(edges_snapshot),
@@ -388,15 +387,7 @@ class TestStaticAnalysisConsistency:
         entity_type: str,
     ):
         """Verify that sample entities are present in the analysis results."""
-        lang_results = static_analysis.results.get(language, {})
-        if not isinstance(lang_results, dict):
-            pytest.fail(f"Expected dict for {language} results, got {type(lang_results).__name__}")
-
-        references = lang_results.get("references", {})
-        if not isinstance(references, dict):
-            pytest.fail(f"Expected dict for references, got {type(references).__name__}")
-
-        reference_keys = {k.lower() for k in references.keys()}
+        reference_keys = {n.fully_qualified_name.lower() for n in static_analysis.iter_reference_nodes(language)}
 
         for entity in sample_entities:
             entity_lower = entity.lower()
