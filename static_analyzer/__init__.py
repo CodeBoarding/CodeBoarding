@@ -142,6 +142,13 @@ class StaticAnalyzer:
         self.collected_diagnostics: dict[Language, FileDiagnosticsMap] = {}
         self._clients_started: bool = False
         self._cached_results: StaticAnalysisResults | None = None
+        # True iff the most recent ``analyze()`` loaded a prior pkl. Read by
+        # ``DiagramGenerator.generate_analysis_incremental`` to decide whether
+        # ``CallGraph._cluster_cache`` is meaningful as an "old snapshot": on
+        # a cold start the cache only holds clusters freshly computed from
+        # the live graph (e.g. by the cohesion health check), so cluster_delta
+        # would compare new-vs-new and trivially short-circuit.
+        self.warm_started: bool = False
 
     def __enter__(self) -> "StaticAnalyzer":
         self.start_clients()
@@ -461,11 +468,13 @@ class StaticAnalyzer:
         if skip_cache:
             logger.info("static_analysis_cache: outcome=bypass (skip_cache=True)")
             results = self._run_full_lsp_pass()
+            self.warm_started = False
         else:
             warm_start = cache.load_with_sha()
             if warm_start is None:
                 logger.info("static_analysis_cache: outcome=miss_absent")
                 results = self._run_full_lsp_pass()
+                self.warm_started = False
             else:
                 cached_results, cached_sha = warm_start
                 logger.info(
@@ -474,6 +483,7 @@ class StaticAnalyzer:
                     source_sha or "<none>",
                 )
                 results = self._update_cached_results(cached_results, cached_sha)
+                self.warm_started = True
 
         self._cached_results = results
         results.diagnostics = self.collected_diagnostics

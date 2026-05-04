@@ -518,6 +518,16 @@ class DiagramGenerator:
                         live_files.add(normalize_repo_path(node.file_path, self.repo_location))
             scrub_deleted_files(root_analysis, sub_analyses, live_files)
 
+            # On a cold-started analyzer (no prior pkl) ``_cluster_cache``
+            # was either left empty or populated by an in-process call to
+            # ``cfg.cluster()`` during ``pre_analysis`` (the cohesion health
+            # check does this). Either way it carries no historical
+            # clustering, so cluster_delta would compare the live partition
+            # against itself and trivially short-circuit.
+            if self._static_analyzer is not None and not self._static_analyzer.warm_started:
+                logger.info("Static analyzer cold-started (no prior pkl); falling back to full analysis.")
+                return self.generate_analysis()
+
             old_snapshot = snapshot_from_static_analysis(self.static_analysis)
             if not old_snapshot.all_cluster_ids():
                 logger.info(
