@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from codeboarding_workflows.analysis import run_incremental
+from codeboarding_workflows.analysis import IncrementalUnavailableError, run_incremental
 from repo_utils.change_detector import ChangeSet
 
 
@@ -39,8 +39,9 @@ def test_run_incremental_forwards_static_analyzer_to_generator(tmp_path: Path, p
     in via this kwarg; if it's silently dropped on the workflow boundary,
     incremental analysis cold-starts a new analyzer instead.
     """
-    gen_cls, _workflow, last, _detect = patched
-    last.return_value = None
+    gen_cls, _workflow, last, detect = patched
+    last.return_value = "deadbeef"
+    detect.return_value = ChangeSet(base_ref="deadbeef", target_ref="", files=[])
     sentinel_analyzer = MagicMock(name="static_analyzer")
 
     _invoke(tmp_path, static_analyzer=sentinel_analyzer)
@@ -57,7 +58,7 @@ def test_run_incremental_auto_detects_baseline_from_metadata(tmp_path: Path, pat
     _invoke(tmp_path)
 
     detect.assert_called_once_with(tmp_path, "deadbeef", "")
-    assert gen_cls.return_value.changes is detect.return_value
+    assert gen_cls.call_args.kwargs["changes"] is detect.return_value
 
 
 def test_run_incremental_uses_explicit_base_ref_over_metadata(tmp_path: Path, patched) -> None:
@@ -79,21 +80,25 @@ def test_run_incremental_passes_target_ref_through(tmp_path: Path, patched) -> N
     detect.assert_called_once_with(tmp_path, "abc", "HEAD")
 
 
-def test_run_incremental_no_baseline_runs_unscoped(tmp_path: Path, patched) -> None:
+def test_run_incremental_no_baseline_raises(tmp_path: Path, patched) -> None:
+    """No --base-ref and no last_successful_commit → fail loudly; caller should run full instead."""
     gen_cls, _workflow, last, detect = patched
     last.return_value = None
 
-    _invoke(tmp_path)
+    with pytest.raises(IncrementalUnavailableError, match="No baseline ref available"):
+        _invoke(tmp_path)
 
     detect.assert_not_called()
-    assert gen_cls.return_value.changes is None
+    gen_cls.assert_not_called()
 
 
-def test_run_incremental_diff_error_falls_back_to_unscoped(tmp_path: Path, patched) -> None:
+def test_run_incremental_diff_error_raises(tmp_path: Path, patched) -> None:
+    """Bad git ref / corrupted worktree → fail loudly with the underlying error message."""
     gen_cls, _workflow, last, detect = patched
     last.return_value = "deadbeef"
     detect.return_value = ChangeSet(base_ref="deadbeef", target_ref="", error="bad object")
 
-    _invoke(tmp_path)
+    with pytest.raises(IncrementalUnavailableError, match="bad object"):
+        _invoke(tmp_path)
 
-    assert gen_cls.return_value.changes is None
+    gen_cls.assert_not_called()

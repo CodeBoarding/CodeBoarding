@@ -1,5 +1,5 @@
 """Tests for the deterministic stitching/repopulation helpers in
-``agents.incremental_agent``. The LLM-call shape (``IncrementalAgent.step_group_delta``)
+``agents.incremental_agent``. The LLM-call shape (``IncrementalAgent.run``)
 is exercised end-to-end in the diagram_generator tests with a mocked LLM."""
 
 import unittest
@@ -83,6 +83,7 @@ class TestStitchDelta(unittest.TestCase):
     def test_brand_new_component_attached_under_parent_id(self) -> None:
         parent = _component("Diagram Generator", "1", source_cluster_ids=[1])
         root = AnalysisInsights(description="root", components=[parent], components_relations=[])
+        sub_analyses: dict[str, AnalysisInsights] = {}
         delta_ca = ClusterAnalysis(
             cluster_components=[
                 ClustersComponent(
@@ -94,11 +95,14 @@ class TestStitchDelta(unittest.TestCase):
             ]
         )
 
-        redetail = stitch_delta(root, {}, delta_ca, _empty_delta())
+        redetail = stitch_delta(root, sub_analyses, delta_ca, _empty_delta())
 
-        self.assertEqual(len(root.components), 2)
-        new_component = next(c for c in root.components if c.name == "Brand New Subsystem")
-        # New component got an ID via assign_component_ids(only_new=True) and is in redetail.
+        # Parent "1" was a leaf with no sub_analyses scope; stitch_delta creates one.
+        self.assertEqual(len(root.components), 1)
+        self.assertIn("1", sub_analyses)
+        self.assertEqual(len(sub_analyses["1"].components), 1)
+        new_component = sub_analyses["1"].components[0]
+        self.assertEqual(new_component.name, "Brand New Subsystem")
         self.assertTrue(new_component.component_id)
         self.assertIn(new_component.component_id, redetail)
         self.assertEqual(new_component.source_cluster_ids, [42])
@@ -128,6 +132,7 @@ class TestStitchDelta(unittest.TestCase):
         """redetail_needed is meaningful only on existing-component routes; new ones always redetail."""
         parent = _component("Diagram Generator", "1", source_cluster_ids=[1])
         root = AnalysisInsights(description="root", components=[parent], components_relations=[])
+        sub_analyses: dict[str, AnalysisInsights] = {}
         delta_ca = ClusterAnalysis(
             cluster_components=[
                 ClustersComponent(
@@ -140,9 +145,9 @@ class TestStitchDelta(unittest.TestCase):
             ]
         )
 
-        redetail = stitch_delta(root, {}, delta_ca, _empty_delta())
+        redetail = stitch_delta(root, sub_analyses, delta_ca, _empty_delta())
 
-        new_component = next(c for c in root.components if c.name == "Brand New Subsystem")
+        new_component = sub_analyses["1"].components[0]
         self.assertIn(new_component.component_id, redetail)
 
     def test_deterministic_remap_redetails_regardless_of_flag(self) -> None:
@@ -386,8 +391,16 @@ class TestIncrementalAgentToolkit(unittest.TestCase):
 
         static_analysis = MagicMock(spec=StaticAnalysisResults)
 
-        with patch("agents.agent.create_agent") as mock_create_agent:
-            mock_create_agent.return_value = MagicMock()
+        # The base ``CodeBoardingAgent.__init__`` builds a ReAct agent with the
+        # full toolkit; ``IncrementalAgent.__init__`` then overrides ``self.agent``
+        # by rebuilding it with the narrow tool set. Patch both create_agent
+        # references and assert the override call carries the single tool.
+        with (
+            patch("agents.agent.create_agent") as mock_base_create,
+            patch("agents.incremental_agent.create_agent") as mock_override_create,
+        ):
+            mock_base_create.return_value = MagicMock()
+            mock_override_create.return_value = MagicMock()
             IncrementalAgent(
                 repo_dir=Path("/tmp/fake-repo"),
                 static_analysis=static_analysis,
@@ -397,8 +410,8 @@ class TestIncrementalAgentToolkit(unittest.TestCase):
                 parsing_llm=MagicMock(),
             )
 
-        mock_create_agent.assert_called_once()
-        tools = mock_create_agent.call_args.kwargs["tools"]
+        mock_override_create.assert_called_once()
+        tools = mock_override_create.call_args.kwargs["tools"]
         # CodeReferenceReader is the BaseRepoTool subclass behind read_source_reference.
         self.assertEqual(len(tools), 1, f"expected 1 tool, got {len(tools)}: {[type(t).__name__ for t in tools]}")
         self.assertEqual(type(tools[0]).__name__, "CodeReferenceReader")

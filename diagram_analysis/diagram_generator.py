@@ -63,6 +63,7 @@ class DiagramGenerator:
         project_name: str | None = None,
         monitoring_enabled: bool = False,
         static_analyzer: StaticAnalyzer | None = None,
+        changes: ChangeSet | None = None,
     ):
         self.repo_location = repo_location
         self.temp_folder = temp_folder
@@ -74,13 +75,11 @@ class DiagramGenerator:
         self.log_path = log_path
         self.monitoring_enabled = monitoring_enabled
         self.force_full_analysis = False  # Set to True to skip incremental updates
-        # Optional source-tree changeset for the iterative path. When set,
-        # the cluster delta drops drift qnames whose file is outside the
-        # diff AND outside the prior analysis (see ``compute_cluster_delta``).
-        # Set externally before calling ``generate_analysis_incremental``;
-        # the workflow function ``run_incremental_workflow`` doesn't need
-        # to grow a parameter for it.
-        self.changes: ChangeSet | None = None
+        # Source-tree changeset for the iterative path. When set, the cluster
+        # delta drops drift qnames whose file is outside the diff AND outside
+        # the prior analysis (see ``compute_cluster_delta``). ``None`` runs
+        # unscoped (no drift filtering).
+        self.changes: ChangeSet | None = changes
         # Optional canonical source-state identifier (e.g. a git tree SHA
         # over HEAD + dirty overlay) used to SHA-gate reuse of the on-disk
         # static-analysis run artifact. Set externally — typically by the
@@ -217,6 +216,8 @@ class DiagramGenerator:
             # change; useful if telemetry surfaces a warm-start regression.
             disable_reuse = os.getenv("CODEBOARDING_DISABLE_CACHE_REUSE", "").lower() in ("1", "true", "yes")
             skip_cache = self.force_full_analysis or disable_reuse
+            if self.force_full_analysis:
+                logger.info("Force full analysis: skipping static analysis cache")
             if disable_reuse:
                 logger.info("CODEBOARDING_DISABLE_CACHE_REUSE set; skipping static analysis cache")
             return self._get_static_from_injected_analyzer(skip_cache=skip_cache, source_sha=self.source_sha)
@@ -544,7 +545,7 @@ class DiagramGenerator:
                 parsing_llm=parsing_llm,
             )
             self._monitoring_agents["IncrementalAgent"] = incremental_agent
-            delta_cluster_analysis = incremental_agent.step_group_delta(delta, root_analysis, sub_analyses)
+            delta_cluster_analysis = incremental_agent.run(delta, root_analysis, sub_analyses)
 
             redetail_ids = stitch_delta(root_analysis, sub_analyses, delta_cluster_analysis, delta)
 

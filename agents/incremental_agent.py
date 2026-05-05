@@ -8,6 +8,7 @@ create new ones with a ``parent_id``. Stitching back into the live tree
 import logging
 from pathlib import Path
 
+from langchain.agents import create_agent
 from langchain_core.language_models import BaseChatModel
 from langchain_core.prompts import PromptTemplate
 
@@ -52,15 +53,18 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
         agent_llm: BaseChatModel,
         parsing_llm: BaseChatModel,
     ):
-        # Constrain the toolkit: routing only needs source disambiguation, not
-        # full code-reading tools — keeps the ReAct loop bounded.
         super().__init__(
             repo_dir,
             static_analysis,
             get_system_message(),
             agent_llm,
             parsing_llm,
-            tool_names=["read_source_reference"],
+        )
+        # Routing only needs source disambiguation, not the full code-reading
+        # toolkit — narrow the ReAct loop by rebuilding the agent with one tool.
+        self.agent = create_agent(
+            model=agent_llm,
+            tools=[self.toolkit.read_source_reference],
         )
         self.project_name = project_name
         self.meta_context = meta_context
@@ -72,7 +76,7 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
         }
 
     @trace
-    def step_group_delta(
+    def run(
         self,
         delta: ClusterDelta,
         root_analysis: AnalysisInsights,
@@ -297,12 +301,18 @@ def _scope_for_parent(
     sub_analyses: dict[str, AnalysisInsights],
     component_index: dict[str, Component],
 ) -> AnalysisInsights:
-    """Pick the analysis scope (root or a sub-analysis) under which to insert a new component."""
+    """Pick the analysis scope (root or a sub-analysis) under which to insert a new component.
+
+    When ``parent_id`` references a leaf with no child scope yet, create one
+    on the fly — falling through to ``root_analysis`` would silently re-root
+    the new component and break its hierarchical id assignment.
+    """
     if not parent_id or parent_id not in component_index:
         return root_analysis
-    if parent_id in sub_analyses:
-        return sub_analyses[parent_id]
-    return root_analysis
+    return sub_analyses.setdefault(
+        parent_id,
+        AnalysisInsights(description="", components=[], components_relations=[]),
+    )
 
 
 def _parent_id_for_scope(

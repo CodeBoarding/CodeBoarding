@@ -39,33 +39,20 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         system_message: str,
         agent_llm: BaseChatModel,
         parsing_llm: BaseChatModel,
-        tool_names: list[str] | None = None,
     ):
-        """
-        ``tool_names`` lets callers narrow the ReAct toolkit. ``None`` uses
-        ``CodeBoardingToolkit.get_agent_tools()`` (full set). A short list
-        like ``["read_source_reference"]`` keeps the model from speculatively
-        invoking unrelated tools — the incremental routing agent uses this
-        to bound exploration.
-        """
         ReferenceResolverMixin.__init__(self, repo_dir, static_analysis)
         MonitoringMixin.__init__(self)
         self.parsing_llm = parsing_llm
+        self.agent_llm = agent_llm
         self.repo_dir = repo_dir
         self.ignore_manager = RepoIgnoreManager(repo_dir)
 
-        # Initialize the professional toolkit
         context = RepoContext(repo_dir=repo_dir, ignore_manager=self.ignore_manager, static_analysis=static_analysis)
         self.toolkit = CodeBoardingToolkit(context=context)
 
-        if tool_names is None:
-            tools = self.toolkit.get_agent_tools()
-        else:
-            tools = [getattr(self.toolkit, name) for name in tool_names]
-
         self.agent: CompiledStateGraph = create_agent(
             model=agent_llm,
-            tools=tools,
+            tools=self.toolkit.get_agent_tools(),
         )
         self.static_analysis = static_analysis
         self.system_message = SystemMessage(content=system_message)
