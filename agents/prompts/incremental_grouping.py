@@ -40,11 +40,13 @@ For each cluster id shown above, decide which component it belongs to. \
 There are exactly two options:
 
 1. **Route to an existing component.** Set `existing_component_id` to the \
-   exact component_id from the list above (e.g. `"1.3"`). Reuse that \
-   component's `name` and a short `description` verbatim, and put the \
-   cluster ids in `cluster_ids`. Several entries may share the same \
-   `existing_component_id` if multiple groups of clusters route to the \
-   same component.
+   exact component_id from the list above (e.g. `"1.3"`). Usually you should \
+   reuse the component's `name` and `description` verbatim to maintain \
+   stability. However, if the new cluster members fundamentally shift the \
+   component's purpose, you may provide an updated `name` and `description`. \
+   Bias heavily towards keeping the existing name. Put the cluster ids in \
+   `cluster_ids`. Several entries may share the same `existing_component_id` \
+   if multiple groups of clusters route to the same component.
 
 2. **Create a new component.** Leave `existing_component_id` as null, \
    provide a fresh `name` (distinct from every existing component), write \
