@@ -249,7 +249,7 @@ def stitch_delta(
                 updated = sorted(set(existing.source_cluster_ids) | set(cc.cluster_ids))
                 if updated != existing.source_cluster_ids:
                     existing.source_cluster_ids = updated
-                    if existing.component_id:
+                    if existing.component_id and cc.redetail_needed:
                         redetail_ids.add(existing.component_id)
                 continue
 

@@ -344,7 +344,9 @@ The previous analysis established the components below. Most clusters are unchan
 Your task:
 For each cluster id shown above, decide which component it belongs to. There are exactly two options:
 
-1. Route to an existing component. Set `existing_component_id` to the exact component_id from the list above (e.g. `"1.3"`). Usually you should reuse the component's `name` and `description` verbatim to maintain stability. However, if the new cluster members fundamentally shift the component's purpose, you may provide an updated `name` and `description`. Bias heavily towards keeping the existing name. Put the cluster ids in `cluster_ids`. Several entries may share the same `existing_component_id` if multiple groups of clusters route to the same component.
+1. Route to an existing component. Set `existing_component_id` to the exact component_id from the list above (e.g. `"1.3"`). Reuse the component's `name` and a short `description` verbatim. Put the cluster ids in `cluster_ids`. Several entries may share the same `existing_component_id` if multiple groups of clusters route to the same component.
+
+   Also set `redetail_needed`. Default True. Set False only when the cluster delta is cosmetic — refactor, internal rename, small bug fix, formatting — and the component's high-level purpose is unchanged. When False, the existing description is preserved as-is and no follow-up redetail runs. Bias toward True if uncertain.
 
 2. Create a new component. Leave `existing_component_id` as null, provide a fresh `name` (distinct from every existing component), write a `description` paragraph explaining what this new component does and why these clusters belong together, and set `parent_id` to the component_id under which this new component should attach (or null for root). Choose the parent whose scope most naturally encloses the new component.
 
@@ -356,7 +358,8 @@ Return a `ClusterAnalysis` with `cluster_components`. For every entry, set:
   - `cluster_ids` (list of integers, the cluster ids assigned to this entry),
   - `description` (string),
   - `existing_component_id` (string component_id, or null) — set when routing to an existing component; null when creating a new one,
-  - `parent_id` (string component_id, or null) — required when `existing_component_id` is null; ignored otherwise.
+  - `parent_id` (string component_id, or null) — required when `existing_component_id` is null; ignored otherwise,
+  - `redetail_needed` (bool, default True) — set False on existing-component routes only, when the delta is cosmetic and the component's purpose is unchanged; ignored when creating a new component.
 
 Coverage requirement: every cluster id listed in the "Cluster groups to assign" section must appear in exactly one entry's `cluster_ids`."""
 

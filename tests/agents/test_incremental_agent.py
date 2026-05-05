@@ -103,6 +103,57 @@ class TestStitchDelta(unittest.TestCase):
         self.assertIn(new_component.component_id, redetail)
         self.assertEqual(new_component.source_cluster_ids, [42])
 
+    def test_existing_component_skips_redetail_when_redetail_needed_false(self) -> None:
+        """LLM-tagged cosmetic deltas update source_cluster_ids but skip the redetail step."""
+        comp = _component("Static Analyzer", "1", source_cluster_ids=[1, 2])
+        root = AnalysisInsights(description="root", components=[comp], components_relations=[])
+        delta_ca = ClusterAnalysis(
+            cluster_components=[
+                ClustersComponent(
+                    name="Static Analyzer",
+                    cluster_ids=[3],
+                    description="cosmetic",
+                    existing_component_id="1",
+                    redetail_needed=False,
+                )
+            ]
+        )
+
+        redetail = stitch_delta(root, {}, delta_ca, _empty_delta())
+
+        self.assertNotIn("1", redetail)
+        self.assertEqual(comp.source_cluster_ids, [1, 2, 3])
+
+    def test_brand_new_component_redetails_regardless_of_flag(self) -> None:
+        """redetail_needed is meaningful only on existing-component routes; new ones always redetail."""
+        parent = _component("Diagram Generator", "1", source_cluster_ids=[1])
+        root = AnalysisInsights(description="root", components=[parent], components_relations=[])
+        delta_ca = ClusterAnalysis(
+            cluster_components=[
+                ClustersComponent(
+                    name="Brand New Subsystem",
+                    cluster_ids=[42],
+                    description="freshly seen cluster",
+                    parent_id="1",
+                    redetail_needed=False,  # ignored for new components
+                )
+            ]
+        )
+
+        redetail = stitch_delta(root, {}, delta_ca, _empty_delta())
+
+        new_component = next(c for c in root.components if c.name == "Brand New Subsystem")
+        self.assertIn(new_component.component_id, redetail)
+
+    def test_deterministic_remap_redetails_regardless_of_flag(self) -> None:
+        """Step-1 deterministic remap/drop has no LLM signal to gate on; the cid is always redetailed."""
+        comp = _component("X", "1", source_cluster_ids=[1, 2])
+        root = AnalysisInsights(description="root", components=[comp], components_relations=[])
+        # No cluster_components entry — the remap path runs in step 1 only.
+        redetail = stitch_delta(root, {}, ClusterAnalysis(cluster_components=[]), _delta(remap={1: 10}))
+
+        self.assertEqual(redetail, {"1"})
+
     def test_dropped_clusters_are_pruned_from_existing_components(self) -> None:
         comp = _component("X", "1", source_cluster_ids=[1, 2, 3])
         root = AnalysisInsights(description="root", components=[comp], components_relations=[])

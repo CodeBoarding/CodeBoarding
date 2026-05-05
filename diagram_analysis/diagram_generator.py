@@ -32,7 +32,6 @@ from diagram_analysis.cluster_snapshot import snapshot_from_static_analysis
 from diagram_analysis.file_coverage import FileCoverage
 from diagram_analysis.io_utils import normalize_repo_path, save_analysis
 from diagram_analysis.version import Version
-from diagram_analysis.incremental_patcher import IncrementalPatcher
 
 from health.config import initialize_health_dir, load_health_config
 from health.runner import run_health_checks
@@ -547,13 +546,6 @@ class DiagramGenerator:
             self._monitoring_agents["IncrementalAgent"] = incremental_agent
             delta_cluster_analysis = incremental_agent.step_group_delta(delta, root_analysis, sub_analyses)
 
-            # Capture old file_methods for patching deltas before we refresh them
-            old_file_methods = {
-                c.component_id: c.file_methods[:]
-                for c in iter_components(root_analysis, sub_analyses)
-                if c.component_id
-            }
-
             redetail_ids = stitch_delta(root_analysis, sub_analyses, delta_cluster_analysis, delta)
 
             # Refresh first (per-component, siblings untouched), then prune —
@@ -565,10 +557,6 @@ class DiagramGenerator:
                 delta.cluster_results(),
                 self.abstraction_agent,
             )
-
-            # Apply granular patching before falling back to full redetail
-            patcher = IncrementalPatcher(self.repo_location, self.static_analysis)
-            redetail_ids = patcher.patch_components(redetail_ids, root_analysis, sub_analyses, old_file_methods)
 
             removed_ids = prune_empty_components(root_analysis, sub_analyses)
 

@@ -3,7 +3,6 @@ from __future__ import annotations
 import abc
 import logging
 from abc import abstractmethod
-from enum import Enum
 from pathlib import PurePosixPath
 from typing import get_origin, Optional
 
@@ -136,6 +135,18 @@ class ClustersComponent(LLMBaseModel):
         ),
         exclude=True,
     )
+    redetail_needed: bool = Field(
+        default=True,
+        description=(
+            "Incremental routing only: when routing clusters into an existing component "
+            "(``existing_component_id`` is set), set False if the cluster delta is "
+            "cosmetic (refactor, internal rename, small bug fix) and the component's "
+            "high-level purpose is unchanged — the existing description stays. Default "
+            "True forces a full redetail. Ignored for brand-new components (always "
+            "redetailed) and by the full-analysis flow."
+        ),
+        exclude=True,
+    )
 
     def llm_str(self):
         ids_str = ", ".join(str(cid) for cid in self.cluster_ids)
@@ -203,39 +214,6 @@ class FileEntry(BaseModel):
     )
 
 
-class PatchOperation(str, Enum):
-    """Operation type for a component analysis patch."""
-
-    NOOP = "NOOP"
-    APPEND = "APPEND"
-    REPLACE_SECTION = "REPLACE_SECTION"
-    FULL_REWRITE = "FULL_REWRITE"
-
-
-class ComponentPatch(LLMBaseModel):
-    """A granular patch to a component's architectural analysis."""
-
-    operation: PatchOperation = Field(
-        description="The patching operation to perform: NOOP (do nothing), APPEND (add new info to the end), REPLACE_SECTION (swap a paragraph), or FULL_REWRITE (massive change)."
-    )
-    reasoning: str = Field(description="Brief explanation of why this patching operation was chosen.")
-    updated_name: str | None = Field(
-        default=None,
-        description="Optional: provide a new PascalCase_Snake_Case name if the component's semantic purpose has shifted.",
-    )
-    patch_text: str | None = Field(
-        default=None,
-        description="The text to append or use as a replacement. Should be null for NOOP or FULL_REWRITE.",
-    )
-    key_entities: list[SourceCodeReference] | None = Field(
-        default=None,
-        description="Updated list of 2-5 critical source code references. Provide if the operation is REPLACE_SECTION or FULL_REWRITE.",
-    )
-
-    def llm_str(self):
-        return f"Op: {self.operation.value} | Reason: {self.reasoning}"
-
-
 class Component(LLMBaseModel):
     """A software component with name, description, and key entities."""
 
@@ -267,12 +245,6 @@ class Component(LLMBaseModel):
     component_id: str = Field(
         default="",
         description="Deterministic unique identifier for this component.",
-        exclude=True,
-    )
-
-    patch_count: int = Field(
-        default=0,
-        description="Number of times this component has been incrementally patched since its last full rewrite.",
         exclude=True,
     )
 
