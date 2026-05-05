@@ -179,33 +179,21 @@ class DiagramGenerator:
         result.diagnostics = self._static_analyzer.collected_diagnostics  # type: ignore[union-attr]
         return result
 
-    def _persist_pkl_with_cluster_cache(
-        self,
-        cluster_results: dict[str, ClusterResult] | None = None,
-    ) -> None:
-        """Re-save the pkl after clustering has populated ``CallGraph._cluster_cache``.
+    def _seed_incremental_cluster_cache(self, cluster_results: dict[str, ClusterResult]) -> None:
+        """Write post-delta ``cluster_results`` into each language CFG's ``_cluster_cache``.
 
-        ``analyze()`` saves the pkl right after LSP, before anything calls
-        ``cluster()``. We re-save once the abstraction agent has run (full
-        path) or after the cluster delta is materialised (incremental path)
-        so the next process gets a pkl whose CFG already carries the
-        partition. ``cluster_snapshot`` reads exclusively from this cache.
-
-        On the incremental path the post-delta ``cluster_results`` are
-        explicitly written into each language CFG's ``_cluster_cache``
-        before saving; on the full path the abstraction agent already
-        populated those caches via ``cfg.cluster()``.
+        On the incremental path the abstraction agent doesn't run, so the live
+        partition has to be plumbed in explicitly before ``stop_clients`` saves
+        the pkl. ``cluster_snapshot`` reads exclusively from this cache.
         """
-        if self._static_analyzer is None or self.source_sha is None or self.static_analysis is None:
+        if self.static_analysis is None:
             return
-        if cluster_results:
-            for language, cr in cluster_results.items():
-                try:
-                    cfg = self.static_analysis.get_cfg(Language(language))
-                except (ValueError, KeyError):
-                    continue
-                cfg._cluster_cache = cr
-        self._static_analyzer.re_save_with_cluster_cache(source_sha=self.source_sha)
+        for language, cr in cluster_results.items():
+            try:
+                cfg = self.static_analysis.get_cfg(Language(language))
+            except (ValueError, KeyError):
+                continue
+            cfg._cluster_cache = cr
 
     def pre_analysis(self):
         analysis_start_time = time.time()
@@ -418,8 +406,6 @@ class DiagramGenerator:
             assert self.abstraction_agent is not None
 
             analysis, cluster_results = self.abstraction_agent.run()
-            self._persist_pkl_with_cluster_cache()
-
             # Get the initial components to analyze (deterministic, no LLM)
             root_components = get_expandable_components(analysis)
             logger.info(f"Found {len(root_components)} components to analyze at level 1")
@@ -520,9 +506,10 @@ class DiagramGenerator:
 
             old_snapshot = snapshot_from_static_analysis(self.static_analysis)
             if not old_snapshot.all_cluster_ids():
-                logger.info(
-                    "No cluster cache on the live CFG (legacy pkl or first run); falling back to full analysis."
-                )
+                # No cluster_cache on the live CFG — no prior pkl, legacy pkl,
+                # or first-ever incremental run. Either way, no historical
+                # snapshot to diff against, so fall back to a full run.
+                logger.info("No cluster history available; falling back to full analysis.")
                 return self.generate_analysis()
 
             delta = compute_cluster_delta(
@@ -600,11 +587,12 @@ class DiagramGenerator:
                 file_coverage_summary=self._build_file_coverage_summary(),
                 commit_hash=commit_hash,
             ).resolve()
-            # Persist the new cluster baseline only after analysis.json is on
-            # disk. Order matters: save_analysis first, pickle second — so a
-            # crash between the two writes leaves the next incremental
-            # re-doing this delta (idempotent) rather than silently missing it.
-            self._persist_pkl_with_cluster_cache(delta.cluster_results())
+            # Seed the new cluster baseline only after analysis.json is on
+            # disk. Order matters: save_analysis first, cache seed second — so
+            # a crash between the two leaves the next incremental re-doing
+            # this delta (idempotent) rather than silently missing it. The
+            # actual pkl write happens in ``StaticAnalyzer.stop_clients``.
+            self._seed_incremental_cluster_cache(delta.cluster_results())
             self._write_file_coverage()
             return analysis_path
 

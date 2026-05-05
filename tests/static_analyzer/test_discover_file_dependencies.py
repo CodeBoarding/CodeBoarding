@@ -3,6 +3,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from static_analyzer import StaticAnalyzer
+from static_analyzer import EngineConfig
 
 
 class TestDiscoverFileDependencies(unittest.TestCase):
@@ -13,7 +14,8 @@ class TestDiscoverFileDependencies(unittest.TestCase):
         adapter = MagicMock()
         adapter.file_extensions = {file_ext}
         client = MagicMock()
-        analyzer._engine_clients = [(adapter, Path("/fake"), client)]
+        cfg = EngineConfig(adapter=adapter, project_path=Path("/fake"))
+        analyzer._engine_clients = [(cfg, client)]
         return analyzer, client
 
     @patch.object(StaticAnalyzer, "__init__", lambda self, *a, **kw: None)
