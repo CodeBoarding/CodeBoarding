@@ -15,6 +15,12 @@ def check_component_cohesion(call_graph: CallGraph, config: HealthCheckConfig) -
     Low cohesion means the cluster's nodes talk more to nodes outside the
     cluster than inside it, suggesting the grouping may not reflect
     actual code organization.
+
+    NOT wired into ``health.runner`` today: the ``cluster()`` call below seeds
+    ``CallGraph._cluster_cache`` with a current-graph partition, which would
+    masquerade as a historical snapshot in the next incremental delta. Before
+    re-enabling, either reset ``_cluster_cache`` after the call or compute the
+    partition without touching the cache.
     """
     warning_entities: list[FindingEntity] = []
 
