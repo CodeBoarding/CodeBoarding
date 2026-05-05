@@ -8,7 +8,8 @@ from agents.llm_config import LLMConfigError
 from codeboarding_cli.bootstrap import bootstrap_environment, resolve_local_run_paths
 from codeboarding_workflows.analysis import run_incremental
 from diagram_analysis import RunContext
-from diagram_analysis.run_metadata import RunMode
+from diagram_analysis.run_metadata import RunMode, last_successful_commit
+from repo_utils.git_ops import get_current_commit
 from utils import monitoring_enabled
 
 logger = logging.getLogger(__name__)
@@ -56,6 +57,18 @@ def run_from_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> 
         _emit_error(str(exc))
         return
 
+    base_ref = args.base_ref if args.base_ref is not None else last_successful_commit(run_paths.output_dir)
+    if base_ref is None:
+        logger.error("Incremental run aborted: no baseline ref available")
+        _emit_error("No baseline ref available: pass --base-ref or run a full analysis first to record a baseline.")
+        return
+
+    target_ref = args.target_ref if args.target_ref is not None else get_current_commit(run_paths.repo_path)
+    if target_ref is None:
+        logger.error("Incremental run aborted: could not resolve current commit for diff target")
+        _emit_error("Could not resolve target ref: pass --target-ref or run inside a git repository with a valid HEAD.")
+        return
+
     try:
         run_context = RunContext.resolve(
             repo_dir=run_paths.repo_path,
@@ -76,8 +89,8 @@ def run_from_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> 
             run_id=run_context.run_id,
             log_path=run_context.log_path,
             monitoring_enabled=args.enable_monitoring or monitoring_enabled(),
-            base_ref=args.base_ref,
-            target_ref=args.target_ref,
+            base_ref=base_ref,
+            target_ref=target_ref,
         )
     except Exception as exc:
         logger.exception("Incremental analysis failed")

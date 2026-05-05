@@ -15,7 +15,7 @@ from pathlib import Path
 
 from diagram_analysis import DiagramGenerator
 from diagram_analysis.io_utils import load_analysis_metadata, load_full_analysis, save_sub_analysis
-from diagram_analysis.run_metadata import last_successful_commit, write_full_run_metadata
+from diagram_analysis.run_metadata import write_full_run_metadata
 from repo_utils.diff_parser import detect_changes
 
 logger = logging.getLogger(__name__)
@@ -147,36 +147,26 @@ def run_incremental(
     project_name: str,
     run_id: str,
     log_path: str,
+    base_ref: str,
+    target_ref: str,
     depth_level: int = 1,
     monitoring_enabled: bool = False,
     static_analyzer=None,
-    base_ref: str | None = None,
-    target_ref: str | None = None,
     source_sha: str | None = None,
 ) -> Path:
     """Incremental scope — cluster-driven update of an existing ``analysis.json``.
 
-    Resolves the diff baseline and computes a ``ChangeSet`` to scope the
-    cluster delta. ``base_ref`` defaults to the last successful commit
-    recorded in metadata; ``target_ref`` defaults to ``""`` (working tree
-    plus untracked).
+    ``base_ref`` and ``target_ref`` are required: callers (CLI, wrapper)
+    must resolve concrete refs (typically ``last_successful_commit`` and
+    the current HEAD) and fail at the boundary if either is unavailable.
 
-    Raises ``IncrementalUnavailableError`` when no baseline is resolvable or
-    the diff cannot be computed — callers (CLI, wrapper) should surface a
-    "run full analysis" prompt rather than silently degrading to an
-    unscoped run.
+    Raises ``IncrementalUnavailableError`` when the diff cannot be computed
+    against the given baseline — callers should surface a "run full
+    analysis" prompt rather than silently degrading to an unscoped run.
     """
-    effective_base = base_ref if base_ref is not None else last_successful_commit(output_dir)
-    if effective_base is None:
-        raise IncrementalUnavailableError(
-            "No baseline ref available: pass --base-ref or run a full analysis first to record a baseline."
-        )
-
-    detected = detect_changes(repo_path, effective_base, target_ref or "")
+    detected = detect_changes(repo_path, base_ref, target_ref)
     if detected.error:
-        raise IncrementalUnavailableError(
-            f"Could not compute diff against baseline {effective_base!r}: {detected.error}"
-        )
+        raise IncrementalUnavailableError(f"Could not compute diff against baseline {base_ref!r}: {detected.error}")
     changes = detected
 
     generator = build_generator(
