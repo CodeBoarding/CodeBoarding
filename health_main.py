@@ -20,6 +20,7 @@ from health.config import initialize_health_dir, load_health_config
 from logging_config import setup_logging
 from repo_utils import clone_repository, get_repo_name
 from static_analyzer import get_static_analysis
+from utils import get_artifact_dir
 from vscode_constants import update_config
 
 logger = logging.getLogger(__name__)
@@ -74,7 +75,7 @@ def _run_health_checks(repo_path: Path, project_name: str, output_dir: Path) -> 
     """Core health check logic shared by local and remote paths."""
     logger.info(f"Running health checks on '{project_name}' at {repo_path}")
 
-    static_analysis = get_static_analysis(repo_path)
+    static_analysis = get_static_analysis(repo_path, cache_dir=get_artifact_dir(repo_path))
 
     # Load health check configuration and initialize health config dir
     health_config_dir = output_dir / "health"

@@ -156,10 +156,6 @@ def run_incremental(
 ) -> Path:
     """Incremental scope — cluster-driven update of an existing ``analysis.json``.
 
-    ``base_ref`` and ``target_ref`` are required: callers (CLI, wrapper)
-    must resolve concrete refs (typically ``last_successful_commit`` and
-    the current HEAD) and fail at the boundary if either is unavailable.
-
     Raises ``IncrementalUnavailableError`` when the diff cannot be computed
     against the given baseline — callers should surface a "run full
     analysis" prompt rather than silently degrading to an unscoped run.

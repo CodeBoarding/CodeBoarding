@@ -5,6 +5,7 @@ from agents.tools import CodeReferenceReader
 from agents.tools.base import RepoContext
 from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer import StaticAnalyzer
+from utils import get_artifact_dir
 
 
 class TestReadSourceTool(unittest.TestCase):
@@ -15,7 +16,7 @@ class TestReadSourceTool(unittest.TestCase):
             self.skipTest("Test repository not available")
 
         analyzer = StaticAnalyzer(test_repo)
-        static_analysis = analyzer.analyze()
+        static_analysis = analyzer.analyze(cache_dir=get_artifact_dir(test_repo))
         ignore_manager = RepoIgnoreManager(test_repo)
         context = RepoContext(repo_dir=test_repo, ignore_manager=ignore_manager, static_analysis=static_analysis)
         self.tool = CodeReferenceReader(context=context)

@@ -83,10 +83,12 @@ class DiagramGenerator:
         # unscoped (no drift filtering).
         self.changes: ChangeSet | None = changes
         # Optional canonical source-state identifier (e.g. a git tree SHA
-        # over HEAD + dirty overlay) used to SHA-gate reuse of the on-disk
-        # static-analysis run artifact. Set externally — typically by the
-        # wrapper, which has the snapshot's tree SHA at run-prepare time.
-        # ``None`` falls back to today's "any pickle" loading semantics.
+        # over HEAD + dirty overlay), stamped into the pkl's sibling .sha
+        # file as the diff base for the next warm-start. Used by Core's
+        # ``_update_cached_results`` to compute "what files changed since
+        # this pkl was saved" — NOT a cache gate. Set externally —
+        # typically by the wrapper, which has the snapshot's tree SHA
+        # at run-prepare time. ``None`` is a tag-less save.
         self.source_sha: str | None = None
         self._static_analyzer = static_analyzer
 
@@ -177,6 +179,7 @@ class DiagramGenerator:
         result = self._static_analyzer.analyze(  # type: ignore[union-attr]
             skip_cache=skip_cache,
             source_sha=source_sha,
+            cache_dir=get_artifact_dir(self.repo_location),
         )
         result.diagnostics = self._static_analyzer.collected_diagnostics  # type: ignore[union-attr]
         return result
@@ -228,7 +231,12 @@ class DiagramGenerator:
             skip_cache = self.force_full_analysis
             if skip_cache:
                 logger.info("Force full analysis: skipping static analysis cache")
-            return get_static_analysis(self.repo_location, skip_cache=skip_cache, source_sha=self.source_sha)
+            return get_static_analysis(
+                self.repo_location,
+                skip_cache=skip_cache,
+                source_sha=self.source_sha,
+                cache_dir=get_artifact_dir(self.repo_location),
+            )
 
         # Decide how to obtain static analysis results, then run it in parallel
         # with the meta-context computation so neither blocks the other.
@@ -432,6 +440,15 @@ class DiagramGenerator:
             # Write file_coverage.json
             self._write_file_coverage()
 
+            # Persist the static-analysis pkl to ``cache_dir`` now that
+            # downstream CFG mutations (cluster cache populated by
+            # AbstractionAgent) have completed and analysis.json is on disk.
+            # When the analyzer was constructed inside ``get_static_analysis``,
+            # its context manager already flushed on exit; this call covers
+            # the wrapper-injected case.
+            if self._static_analyzer is not None:
+                self._static_analyzer.flush_cache()
+
             return analysis_path
 
     def _collect_method_entries_from_static_analysis(self) -> dict[str, list]:
@@ -541,6 +558,10 @@ class DiagramGenerator:
                     commit_hash=commit_hash,
                 ).resolve()
                 self._write_file_coverage()
+                # Re-emit the pkl to keep the on-disk artifact aligned with
+                # the (unchanged) in-memory CFG; harmless if already current.
+                if self._static_analyzer is not None:
+                    self._static_analyzer.flush_cache()
                 return analysis_path
 
             agent_llm, parsing_llm = initialize_llms()
@@ -602,10 +623,15 @@ class DiagramGenerator:
             # Seed the new cluster baseline only after analysis.json is on
             # disk. Order matters: save_analysis first, cache seed second — so
             # a crash between the two leaves the next incremental re-doing
-            # this delta (idempotent) rather than silently missing it. The
-            # actual pkl write happens in ``StaticAnalyzer.stop_clients``.
+            # this delta (idempotent) rather than silently missing it.
             self._seed_incremental_cluster_cache(delta.cluster_results())
             self._write_file_coverage()
+            # Persist the static-analysis pkl now that the seeded cluster cache
+            # has reached the live CFG. Wrapper-injected analyzer case only;
+            # the context-managed analyzer in ``get_static_analysis`` flushes
+            # on exit.
+            if self._static_analyzer is not None:
+                self._static_analyzer.flush_cache()
             return analysis_path
 
 

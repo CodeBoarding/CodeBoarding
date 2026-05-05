@@ -29,6 +29,7 @@ import pytest
 
 from static_analyzer import StaticAnalyzer
 from static_analyzer.constants import Language
+from utils import get_artifact_dir
 
 logger = logging.getLogger(__name__)
 
@@ -152,7 +153,7 @@ def analysis(request) -> AnalysisRunData:
     all_results = []
     for run in range(1, project.stability_runs + 1):
         with StaticAnalyzer(project_path) as analyzer:
-            results = analyzer.analyze()
+            results = analyzer.analyze(cache_dir=get_artifact_dir(project_path))
         all_results.append(results)
         logger.info(
             "[%s] run %d/%d complete",

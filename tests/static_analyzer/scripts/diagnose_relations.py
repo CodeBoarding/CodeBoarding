@@ -24,6 +24,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 from static_analyzer import get_static_analysis
 from static_analyzer.cluster_relations import build_component_relations
 from static_analyzer.graph import CallGraph
+from utils import get_artifact_dir
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -211,7 +212,7 @@ def main():
         sys.exit(1)
 
     print(f"Running static analysis on {repo_path}...")
-    results = get_static_analysis(repo_path, skip_cache=args.skip_cache)
+    results = get_static_analysis(repo_path, cache_dir=get_artifact_dir(repo_path), skip_cache=args.skip_cache)
 
     for language in results.get_languages():
         print(f"\n{'#' * 70}")

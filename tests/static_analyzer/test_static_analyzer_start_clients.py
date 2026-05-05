@@ -136,3 +136,43 @@ class TestStartClientsWorkspaceReadyDispatch:
 
         py_client.wait_for_server_ready.assert_not_called()
         rust_client.wait_for_server_ready.assert_called_once()
+
+
+class TestFlushCacheRespectsCacheDir:
+    """``flush_cache`` writes to ``_pending_cache_dir`` (set by ``analyze``)
+    when supplied, otherwise to the default ``get_artifact_dir(repository_path)``.
+    """
+
+    def test_flush_uses_pending_cache_dir_when_set(self, analyzer: StaticAnalyzer, tmp_path: Path) -> None:
+        from static_analyzer.analysis_result import StaticAnalysisResults
+
+        custom_cache = tmp_path / "branches" / "main"
+        analyzer._cached_results = StaticAnalysisResults()
+        analyzer._pending_cache_dir = custom_cache
+        analyzer._pending_source_sha = None
+
+        analyzer.flush_cache()
+
+        assert (custom_cache / "static_analysis.pkl").exists()
+        # Default location must be untouched.
+        from utils import get_artifact_dir
+
+        default_pkl = get_artifact_dir(analyzer.repository_path) / "static_analysis.pkl"
+        assert not default_pkl.exists()
+
+    def test_flush_uses_default_artifact_dir_when_analyze_was_not_called(self, analyzer: StaticAnalyzer) -> None:
+        """Default ``_pending_cache_dir`` is set in ``__init__`` so a flush
+        before any ``analyze()`` call still writes to the canonical location.
+        """
+        from static_analyzer.analysis_result import StaticAnalysisResults
+        from utils import get_artifact_dir
+
+        assert analyzer._pending_cache_dir == get_artifact_dir(analyzer.repository_path)
+
+        analyzer._cached_results = StaticAnalysisResults()
+        analyzer._pending_source_sha = None
+
+        analyzer.flush_cache()
+
+        default_pkl = get_artifact_dir(analyzer.repository_path) / "static_analysis.pkl"
+        assert default_pkl.exists()

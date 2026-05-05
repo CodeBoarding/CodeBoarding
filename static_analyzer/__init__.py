@@ -174,9 +174,14 @@ class StaticAnalyzer:
         self._clients_started: bool = False
         self._cached_results: StaticAnalysisResults | None = None
         # ``stop_clients`` writes the pkl using ``_pending_source_sha`` as the
-        # tag. ``analyze()`` updates it on every call so the latest run's SHA
+        # tag value (a diff-base for the next warm-start, NOT a cache gate).
+        # ``analyze()`` updates it on every call so the latest run's SHA
         # always reaches disk — including after warm-start merges.
         self._pending_source_sha: str | None = None
+        # ``stop_clients`` writes the pkl into ``_pending_cache_dir``.
+        # ``analyze()`` resolves it from its ``cache_dir`` arg, falling back
+        # to the default below. Always a real path — never None.
+        self._pending_cache_dir: Path = get_artifact_dir(self.repository_path)
 
     def __enter__(self) -> "StaticAnalyzer":
         self.start_clients()
@@ -289,7 +294,7 @@ class StaticAnalyzer:
         """
         if not self._clients_started:
             return
-        self._persist_results()
+        self.flush_cache()
         for engine_config, client in self._engine_clients:
             try:
                 client.shutdown()
@@ -299,16 +304,21 @@ class StaticAnalyzer:
         self._clients_started = False
         self._cached_results = None
 
-    def _persist_results(self) -> None:
-        """Write ``_cached_results`` to the SHA-tagged pkl (no-op if absent)."""
+    def flush_cache(self) -> None:
+        """Write ``_cached_results`` to the SHA-tagged pkl at ``_pending_cache_dir``.
+
+        No-op when ``_cached_results`` is absent (analyze never ran). Called
+        automatically by ``stop_clients``; callers that need the pkl on disk
+        before teardown (e.g. snapshot promotion, capture tooling) can invoke
+        this explicitly after the run completes.
+        """
         if self._cached_results is None:
             return
-        artifact_dir = get_artifact_dir(self.repository_path)
         try:
-            StaticAnalysisCache(artifact_dir, self.repository_path).save(
+            StaticAnalysisCache(self._pending_cache_dir, self.repository_path).save(
                 self._cached_results, source_sha=self._pending_source_sha
             )
-            logger.info(f"Saved static analysis run artifact to {artifact_dir}")
+            logger.info(f"Saved static analysis run artifact to {self._pending_cache_dir}")
         except Exception:
             logger.exception("Failed to persist static analysis pkl during stop_clients; continuing teardown")
 
@@ -467,6 +477,7 @@ class StaticAnalyzer:
 
     def analyze(
         self,
+        cache_dir: Path,
         skip_cache: bool = False,
         source_sha: str | None = None,
     ) -> StaticAnalysisResults:
@@ -499,8 +510,7 @@ class StaticAnalyzer:
 
         logger.info(f"analyze() called with skip_cache={skip_cache}, source_sha={'<set>' if source_sha else None}")
 
-        artifact_dir = get_artifact_dir(self.repository_path)
-        cache = StaticAnalysisCache(artifact_dir, self.repository_path)
+        cache = StaticAnalysisCache(cache_dir, self.repository_path)
 
         if skip_cache:
             logger.info("static_analysis_cache: outcome=bypass (skip_cache=True)")
@@ -521,6 +531,7 @@ class StaticAnalyzer:
 
         self._cached_results = results
         self._pending_source_sha = source_sha
+        self._pending_cache_dir = cache_dir
         results.diagnostics = self.collected_diagnostics
         return results
 
@@ -686,6 +697,7 @@ class StaticAnalyzer:
 
 def get_static_analysis(
     repo_path: Path,
+    cache_dir: Path,
     skip_cache: bool = False,
     source_sha: str | None = None,
 ) -> StaticAnalysisResults:
@@ -695,17 +707,20 @@ def get_static_analysis(
 
     Args:
         repo_path: Path to the repository to analyze.
+        cache_dir: Directory for the pkl + sha pair. Pass
+            ``get_artifact_dir(repo_path)`` for the canonical location, or a
+            per-branch override.
         skip_cache: If True, bypass the SHA-tagged pkl warm-start and re-LSP
             the entire repository from scratch.
         source_sha: Canonical source-state identifier (typically a git tree SHA)
-            stamped onto the freshly-saved pkl so the next run can use it as
-            a diff base.
+            stamped onto the freshly-saved pkl as a diff base for the next
+            warm-start.
 
     Returns:
         StaticAnalysisResults reflecting the live source state.
     """
     analyzer = StaticAnalyzer(repo_path)
     with analyzer:
-        results = analyzer.analyze(skip_cache=skip_cache, source_sha=source_sha)
+        results = analyzer.analyze(skip_cache=skip_cache, source_sha=source_sha, cache_dir=cache_dir)
     results.diagnostics = analyzer.collected_diagnostics
     return results

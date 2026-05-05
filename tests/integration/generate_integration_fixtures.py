@@ -80,7 +80,7 @@ def generate_fixture(config: RepositoryTestConfig, verbose: bool = True) -> dict
         mock_scan = create_mock_scanner(config.mock_language)
         start_time = time.perf_counter()
         with patch("static_analyzer.scanner.ProjectScanner.scan", mock_scan):
-            static_analysis = get_static_analysis(repo_path)
+            static_analysis = get_static_analysis(repo_path, cache_dir=cache_dir)
         end_time = time.perf_counter()
         execution_time = end_time - start_time
 
