@@ -43,7 +43,7 @@ def test_incremental_passes_base_ref_through(tmp_path: Path, stub_run_incrementa
     last.assert_not_called()
     kwargs = ri.call_args.kwargs
     assert kwargs["base_ref"] == "abc123"
-    # No --target-ref → CLI resolves via get_current_commit.
+    # No --target-ref: CLI resolves via get_current_commit.
     head.assert_called_once()
     assert kwargs["target_ref"] == "current-head"
 
@@ -74,7 +74,7 @@ def test_incremental_no_flags_resolves_from_metadata_and_head(tmp_path: Path, st
 
 
 def test_incremental_no_baseline_short_circuits(tmp_path: Path, stub_run_incremental) -> None:
-    """No --base-ref and no last_successful_commit → emit error, never call run_incremental."""
+    """No --base-ref and no last_successful_commit: emit error, never call run_incremental."""
     ri, last, _head = stub_run_incremental
     last.return_value = None
 
@@ -84,7 +84,7 @@ def test_incremental_no_baseline_short_circuits(tmp_path: Path, stub_run_increme
 
 
 def test_incremental_no_head_short_circuits(tmp_path: Path, stub_run_incremental) -> None:
-    """Baseline resolves but HEAD does not (non-git dir / fresh repo) → emit error."""
+    """Baseline resolves but HEAD does not (non-git dir / fresh repo): emit error."""
     ri, _last, head = stub_run_incremental
     head.return_value = None
 
