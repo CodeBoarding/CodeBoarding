@@ -5,7 +5,9 @@ create new ones with a ``parent_id``. Stitching back into the live tree
 (``stitch_delta``) and downstream refresh/prune is deterministic.
 """
 
+import json
 import logging
+from enum import StrEnum
 from pathlib import Path
 
 from langchain.agents import create_agent
@@ -16,6 +18,7 @@ from agents.agent import CodeBoardingAgent
 from agents.agent_responses import (
     AnalysisInsights,
     ClusterAnalysis,
+    ClustersComponent,
     Component,
     FileMethodGroup,
     MetaAnalysisInsights,
@@ -190,6 +193,25 @@ def _format_component_line(component: Component, include_description: bool = Tru
 # ---------------------------------------------------------------------------
 # Stitching (deterministic, no LLM)
 # ---------------------------------------------------------------------------
+class Verdict(StrEnum):
+    """Derived stitching verdict — not part of the LLM schema.
+
+    Why: the verdict is implicit in (existing_component_id, redetail_needed);
+    surfacing it as a derived label keeps logs/stats legible without a
+    second source of truth.
+    """
+
+    ADD = "ADD"
+    UPDATE = "UPDATE"
+    NOOP = "NOOP"
+
+
+def _classify_verdict(cc: ClustersComponent, *, existing_found: bool) -> Verdict:
+    if not existing_found:
+        return Verdict.ADD
+    return Verdict.UPDATE if cc.redetail_needed else Verdict.NOOP
+
+
 def stitch_delta(
     root_analysis: AnalysisInsights,
     sub_analyses: dict[str, AnalysisInsights],
@@ -233,6 +255,7 @@ def stitch_delta(
 
     # Step 2 — route delta cluster_components by ID (never by name).
     new_components: list[tuple[Component, str | None]] = []
+    verdicts: dict[Verdict, int] = {Verdict.ADD: 0, Verdict.UPDATE: 0, Verdict.NOOP: 0}
     for cc in delta_cluster_analysis.cluster_components:
         if cc.existing_component_id is not None:
             existing = component_index.get(cc.existing_component_id)
@@ -249,7 +272,35 @@ def stitch_delta(
                     cc.existing_component_id,
                     cc.name,
                 )
+                logging.getLogger("traces").info(
+                    json.dumps(
+                        {
+                            "event": "stitch_hallucinated_id",
+                            "component_id": cc.existing_component_id,
+                            "name": cc.name,
+                        }
+                    )
+                )
             else:
+                verdict = _classify_verdict(cc, existing_found=True)
+                verdicts[verdict] += 1
+                logger.debug(
+                    "[stitch_delta] %s component_id=%s clusters=%s",
+                    verdict,
+                    existing.component_id,
+                    sorted(set(cc.cluster_ids)),
+                )
+                # On UPDATE, the LLM may supply a refreshed name/description
+                # ("if the new cluster members fundamentally shift the
+                # component's purpose, you may provide an updated name and
+                # description" — incremental grouping prompt). Apply before
+                # the cluster merge so the redetail decision below is gated
+                # only by member-set churn.
+                if cc.redetail_needed:
+                    if cc.name and cc.name != existing.name:
+                        existing.name = cc.name
+                    if cc.description and cc.description != existing.description:
+                        existing.description = cc.description
                 updated = sorted(set(existing.source_cluster_ids) | set(cc.cluster_ids))
                 if updated != existing.source_cluster_ids:
                     existing.source_cluster_ids = updated
@@ -257,6 +308,16 @@ def stitch_delta(
                         redetail_ids.add(existing.component_id)
                 continue
 
+        verdicts[Verdict.ADD] += 1
+        logger.debug(
+            "[stitch_delta] %s name=%r parent_id=%s clusters=%s",
+            Verdict.ADD,
+            cc.name,
+            cc.parent_id,
+            sorted(set(cc.cluster_ids)),
+        )
+        # cc.redetail_needed is intentionally not read here — new components
+        # are always redetailed via _attach_new_components.
         new_component = Component(
             name=cc.name,
             description=cc.description or "",
@@ -268,6 +329,14 @@ def stitch_delta(
 
     if new_components:
         _attach_new_components(new_components, root_analysis, sub_analyses, component_index, redetail_ids)
+
+    if delta_cluster_analysis.cluster_components:
+        logger.info(
+            "[stitch_delta] verdicts: ADD=%d UPDATE=%d NOOP=%d",
+            verdicts[Verdict.ADD],
+            verdicts[Verdict.UPDATE],
+            verdicts[Verdict.NOOP],
+        )
 
     return redetail_ids
 

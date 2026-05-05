@@ -69,7 +69,7 @@ class TestStitchDelta(unittest.TestCase):
                 ClustersComponent(
                     name="Static Analyzer",
                     cluster_ids=[3],
-                    description="ignored for existing component",
+                    description=comp.description,  # LLM reused verbatim
                     existing_component_id="1",
                 )
             ]
@@ -111,10 +111,12 @@ class TestStitchDelta(unittest.TestCase):
         """LLM-tagged cosmetic deltas update source_cluster_ids but skip the redetail step."""
         comp = _component("Static Analyzer", "1", source_cluster_ids=[1, 2])
         root = AnalysisInsights(description="root", components=[comp], components_relations=[])
+        original_description = comp.description
+        original_name = comp.name
         delta_ca = ClusterAnalysis(
             cluster_components=[
                 ClustersComponent(
-                    name="Static Analyzer",
+                    name="Renamed By LLM",
                     cluster_ids=[3],
                     description="cosmetic",
                     existing_component_id="1",
@@ -127,6 +129,50 @@ class TestStitchDelta(unittest.TestCase):
 
         self.assertNotIn("1", redetail)
         self.assertEqual(comp.source_cluster_ids, [1, 2, 3])
+        # redetail_needed=False -> existing name/description preserved verbatim.
+        self.assertEqual(comp.name, original_name)
+        self.assertEqual(comp.description, original_description)
+
+    def test_existing_component_description_updated_when_redetail_needed_true(self) -> None:
+        comp = _component("Static Analyzer", "1", source_cluster_ids=[1, 2])
+        root = AnalysisInsights(description="root", components=[comp], components_relations=[])
+        delta_ca = ClusterAnalysis(
+            cluster_components=[
+                ClustersComponent(
+                    name="Static Analyzer & Cluster Engine",
+                    cluster_ids=[3],
+                    description="now also performs Leiden clustering",
+                    existing_component_id="1",
+                    redetail_needed=True,
+                )
+            ]
+        )
+
+        stitch_delta(root, {}, delta_ca, _empty_delta())
+
+        self.assertEqual(comp.name, "Static Analyzer & Cluster Engine")
+        self.assertEqual(comp.description, "now also performs Leiden clustering")
+
+    def test_existing_component_name_update_skipped_when_cc_name_empty(self) -> None:
+        """Empty cc.name (LLM signalling reuse) must not blank out the existing name."""
+        comp = _component("Static Analyzer", "1", source_cluster_ids=[1])
+        root = AnalysisInsights(description="root", components=[comp], components_relations=[])
+        delta_ca = ClusterAnalysis(
+            cluster_components=[
+                ClustersComponent(
+                    name="",
+                    cluster_ids=[2],
+                    description="",
+                    existing_component_id="1",
+                    redetail_needed=True,
+                )
+            ]
+        )
+
+        stitch_delta(root, {}, delta_ca, _empty_delta())
+
+        self.assertEqual(comp.name, "Static Analyzer")
+        self.assertEqual(comp.description, "Static Analyzer description")
 
     def test_brand_new_component_redetails_regardless_of_flag(self) -> None:
         """redetail_needed is meaningful only on existing-component routes; new ones always redetail."""
@@ -257,6 +303,49 @@ class TestStitchDelta(unittest.TestCase):
         self.assertEqual(comp.source_cluster_ids, [1])  # untouched
         new_one = next(c for c in root.components if c.name == "Hallucinated Routing")
         self.assertEqual(new_one.source_cluster_ids, [42])
+
+    def test_replaying_same_delta_is_idempotent(self) -> None:
+        """Replay safety: if save_analysis succeeds but the cluster_cache seed
+        crashes, the next run re-applies the same delta. Second application
+        must not duplicate components or re-mutate cluster ids."""
+        comp = _component("Static Analyzer", "1", source_cluster_ids=[1, 2])
+        root = AnalysisInsights(description="root", components=[comp], components_relations=[])
+        delta_ca = ClusterAnalysis(
+            cluster_components=[
+                ClustersComponent(
+                    name="Static Analyzer",
+                    cluster_ids=[3],
+                    description="d",
+                    existing_component_id="1",
+                )
+            ]
+        )
+
+        first = stitch_delta(root, {}, delta_ca, _empty_delta())
+        snapshot_components = [(c.component_id, c.name, list(c.source_cluster_ids)) for c in root.components]
+
+        second = stitch_delta(root, {}, delta_ca, _empty_delta())
+
+        self.assertEqual(first, {"1"})
+        self.assertEqual(second, set())
+        self.assertEqual(
+            [(c.component_id, c.name, list(c.source_cluster_ids)) for c in root.components],
+            snapshot_components,
+        )
+
+    def test_replaying_delta_with_dropped_clusters_is_idempotent(self) -> None:
+        comp = _component("X", "1", source_cluster_ids=[1, 2, 3])
+        root = AnalysisInsights(description="root", components=[comp], components_relations=[])
+        delta = _delta(dropped={2})
+
+        first = stitch_delta(root, {}, ClusterAnalysis(cluster_components=[]), delta)
+        snapshot = list(comp.source_cluster_ids)
+
+        second = stitch_delta(root, {}, ClusterAnalysis(cluster_components=[]), delta)
+
+        self.assertEqual(first, {"1"})
+        self.assertEqual(second, set())
+        self.assertEqual(comp.source_cluster_ids, snapshot)
 
 
 class TestFormatExistingComponents(unittest.TestCase):
