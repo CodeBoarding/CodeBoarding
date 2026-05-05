@@ -16,7 +16,7 @@ from agents.incremental_agent import (
     IncrementalAgent,
     prune_empty_components,
     repopulate_touched_scopes,
-    scrub_deleted_files,
+    remove_deleted_files,
     stitch_delta,
 )
 from agents.llm_config import initialize_llms
@@ -47,7 +47,6 @@ from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import Language
 from static_analyzer.graph import ClusterResult
 from static_analyzer.scanner import ProjectScanner
-from utils import get_artifact_dir
 
 logger = logging.getLogger(__name__)
 
@@ -179,7 +178,7 @@ class DiagramGenerator:
         result = self._static_analyzer.analyze(  # type: ignore[union-attr]
             skip_cache=skip_cache,
             source_sha=source_sha,
-            cache_dir=get_artifact_dir(self.repo_location),
+            cache_dir=self.output_dir,
         )
         result.diagnostics = self._static_analyzer.collected_diagnostics  # type: ignore[union-attr]
         return result
@@ -235,7 +234,7 @@ class DiagramGenerator:
                 self.repo_location,
                 skip_cache=skip_cache,
                 source_sha=self.source_sha,
-                cache_dir=get_artifact_dir(self.repo_location),
+                cache_dir=self.output_dir,
             )
 
         # Decide how to obtain static analysis results, then run it in parallel
@@ -523,7 +522,7 @@ class DiagramGenerator:
                 for node in cfg.nodes.values():
                     if node.file_path:
                         live_files.add(normalize_repo_path(node.file_path, self.repo_location))
-            scrub_deleted_files(root_analysis, sub_analyses, live_files)
+            remove_deleted_files(root_analysis, sub_analyses, live_files)
 
             old_snapshot = snapshot_from_static_analysis(self.static_analysis)
             if not old_snapshot.all_cluster_ids():
@@ -532,7 +531,7 @@ class DiagramGenerator:
                 # from scratch; that would discard the existing analysis.json's
                 # depth and component IDs. Caller must explicitly request a
                 # full run instead.
-                artifact_dir = get_artifact_dir(self.repo_location)
+                artifact_dir = self.output_dir
                 logger.error(
                     "Incremental analysis cannot proceed: no warm static_analysis.pkl at %s",
                     artifact_dir,

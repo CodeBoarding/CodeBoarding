@@ -558,7 +558,7 @@ def _dedup_methods(methods: list[MethodEntry]) -> list[MethodEntry]:
 # ---------------------------------------------------------------------------
 # Prune (deterministic, no LLM)
 # ---------------------------------------------------------------------------
-def scrub_deleted_files(
+def remove_deleted_files(
     root_analysis: AnalysisInsights,
     sub_analyses: dict[str, AnalysisInsights],
     live_files: set[str],

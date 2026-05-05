@@ -29,7 +29,6 @@ from diagram_analysis.exceptions import IncrementalCacheMissingError
 from diagram_analysis.version import Version
 from repo_utils.change_detector import ChangeSet
 from static_analyzer.analysis_result import StaticAnalysisResults
-from utils import get_artifact_dir
 
 
 class TestVersion(unittest.TestCase):
@@ -680,8 +679,8 @@ class TestDiagramGenerator(unittest.TestCase):
         with self.assertRaises(IncrementalCacheMissingError) as ctx:
             gen.generate_analysis_incremental(root_analysis, {})
 
-        self.assertEqual(ctx.exception.artifact_dir, get_artifact_dir(self.repo_location))
-        self.assertIn(str(get_artifact_dir(self.repo_location)), str(ctx.exception))
+        self.assertEqual(ctx.exception.artifact_dir, self.output_dir)
+        self.assertIn(str(self.output_dir), str(ctx.exception))
 
 
 if __name__ == "__main__":
