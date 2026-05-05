@@ -1,18 +1,18 @@
 import logging
 from typing import TYPE_CHECKING
 
-from agents.agent_responses import ComponentPatch, PatchOperation
-from agents.agent import BaseAgent
+from agents.agent_responses import ComponentPatch
+from agents.agent import CodeBoardingAgent
 from agents.prompts.patching import get_patching_system_message, get_patching_prompt
 
 if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel
-    from agents.agent_responses import Component, FileMethodGroup
+    from agents.agent_responses import Component
 
 logger = logging.getLogger(__name__)
 
 
-class PatchingAgent(BaseAgent):
+class PatchingAgent(CodeBoardingAgent):
     """LLM agent responsible for deciding how to patch a component's analysis."""
 
     def __init__(
@@ -45,8 +45,4 @@ class PatchingAgent(BaseAgent):
             removed_methods=removed_methods,
         )
 
-        return self._validation_invoke(
-            prompt,
-            ComponentPatch,
-            max_validation_attempts=2,
-        )
+        return self._parse_invoke(prompt, ComponentPatch)

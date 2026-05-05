@@ -364,6 +364,45 @@ CONSTRAINTS (MUST obey):
 JUSTIFICATION:
 MUST base component choices on fundamental architectural importance."""
 
+INCREMENTAL_GROUPING_MESSAGE = """You are a software architecture analyst. STRICTLY follow these rules.
+
+TASK:
+Update the architecture of `{project_name}` by routing changed and new CFG clusters into the correct components.
+
+CONTEXT:
+- Project: {project_name}
+- Type: {project_type}
+- Meta: {meta_context}
+
+The previous analysis established the components below. Most clusters are unchanged and stay where they are; this prompt only shows the slice that changed (new clusters or clusters whose member methods changed).
+
+EXISTING COMPONENTS (each line shows `component_id "name"`):
+{existing_components}
+
+CLUSTER GROUPS TO ASSIGN:
+{cfg_clusters}
+
+REQUIRED STEPS (execute in order, per cluster id):
+For each cluster id above, you MUST choose exactly one option:
+
+1. Route to an existing component. Set `existing_component_id` to the EXACT component_id from the list above (e.g. `"1.3"`). MUST reuse the existing `name` and `description` verbatim unless the new cluster members fundamentally shift the component's purpose. Bias HEAVILY toward keeping the existing name. Put the cluster ids in `cluster_ids`. Several entries MAY share the same `existing_component_id` if multiple groups of clusters route to the same component.
+
+2. Create a new component. Leave `existing_component_id` as null, provide a fresh `name` (MUST be distinct from every existing component), write a `description` paragraph explaining what this new component does and WHY these clusters belong together, and set `parent_id` to the component_id under which this new component should attach (or null for root). MUST choose the parent whose scope most naturally encloses the new component.
+
+CRITICAL RULE:
+Identity is by component_id, NOT by name. Reusing an existing component's name without setting `existing_component_id` will fork a duplicate component — that is WRONG. If clusters belong in an existing component, you MUST set `existing_component_id`.
+
+OUTPUT FORMAT (complete ALL fields):
+Return a `ClusterAnalysis` with `cluster_components`. For every entry, set:
+- `name` (string)
+- `cluster_ids` (list of integers, the cluster ids assigned to this entry)
+- `description` (string)
+- `existing_component_id` (string component_id, or null) — set when routing to an existing component; null when creating a new one
+- `parent_id` (string component_id, or null) — REQUIRED when `existing_component_id` is null; ignored otherwise
+
+COVERAGE REQUIREMENT (MANDATORY):
+Every cluster id listed in the "CLUSTER GROUPS TO ASSIGN" section MUST appear in exactly one entry's `cluster_ids`."""
+
 
 class GLMPromptFactory(AbstractPromptFactory):
     """Prompt factory for GLM models optimized for firm directive prompts with strong role-playing."""
@@ -412,3 +451,6 @@ class GLMPromptFactory(AbstractPromptFactory):
 
     def get_details_message(self) -> str:
         return DETAILS_MESSAGE
+
+    def get_incremental_grouping_message(self) -> str:
+        return INCREMENTAL_GROUPING_MESSAGE

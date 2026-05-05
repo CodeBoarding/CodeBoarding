@@ -1,6 +1,5 @@
 import json
 import logging
-import re
 from pathlib import Path
 
 from google.api_core.exceptions import ResourceExhausted
@@ -11,7 +10,7 @@ from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.prompts import PromptTemplate
 from langchain.agents import create_agent
 from langgraph.graph.state import CompiledStateGraph
-from pydantic import BaseModel, ValidationError
+from pydantic import ValidationError
 from trustcall import create_extractor
 
 from agents.prompts import get_validation_feedback_message
@@ -336,14 +335,6 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         if response is None or response.strip() == "":
             logger.error(f"Empty response for prompt: {prompt}")
 
-        # Fast-path: try a no-LLM parse first. The agent often emits valid JSON
-        # for ``return_type`` directly (especially for tightly-shaped outputs
-        # like ClusterAnalysis); when it does, the trustcall extractor's
-        # second LLM round-trip is pure overhead.
-        direct = self._direct_pydantic_parse(response, return_type)
-        if direct is not None:
-            return direct
-
         def call_once():
             # Extractor is rebuilt on every attempt — previous trustcall state
             # may have corrupted attributes (see the tool_call_id bug below).
@@ -427,36 +418,3 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
                 except:
                     pass
         raise ValueError(f"Couldn't parse {message_content}")
-
-    @staticmethod
-    def _direct_pydantic_parse(response: str, return_type: type[BaseModel]):
-        """Try to parse ``response`` directly into ``return_type`` without an LLM call.
-
-        Handles two common shapes the agent emits:
-        1. The full response is JSON for ``return_type``.
-        2. The JSON is wrapped in a ```json ... ``` fence with surrounding prose.
-
-        Returns the parsed instance on success, or ``None`` if the response
-        doesn't cleanly match — caller falls back to the LLM-based extractor.
-        """
-        if response is None:
-            return None
-        text = response.strip()
-        if not text:
-            return None
-
-        candidates: list[str] = [text]
-        # ```json ... ``` or ``` ... ``` fenced block
-        fenced = re.findall(r"```(?:json)?\s*(\{.*?\}|\[.*?\])\s*```", text, re.DOTALL)
-        candidates.extend(fenced)
-        # Bare JSON object/array embedded in prose
-        first_obj = re.search(r"\{.*\}", text, re.DOTALL)
-        if first_obj:
-            candidates.append(first_obj.group(0))
-
-        for candidate in candidates:
-            try:
-                return return_type.model_validate_json(candidate)
-            except (ValidationError, json.JSONDecodeError, ValueError):
-                continue
-        return None

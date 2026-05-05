@@ -24,8 +24,7 @@ from agents.agent_responses import (
     iter_components,
 )
 from agents.cluster_methods_mixin import ClusterMethodsMixin
-from agents.prompts import get_system_message
-from agents.prompts.incremental_grouping import get_incremental_grouping_message
+from agents.prompts import get_incremental_grouping_message, get_system_message
 from agents.validation import (
     ValidationContext,
     validate_cluster_coverage,

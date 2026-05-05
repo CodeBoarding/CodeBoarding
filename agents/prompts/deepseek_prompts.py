@@ -345,6 +345,44 @@ Create final sub-component architecture for the `{component}` subsystem of `{pro
 # Justification
 Base component choices on fundamental architectural importance."""
 
+INCREMENTAL_GROUPING_MESSAGE = """# Task
+Update the architecture of `{project_name}` by routing changed and new CFG clusters into the correct components.
+
+# Context
+- Project: {project_name}
+- Type: {project_type}
+- Meta: {meta_context}
+
+The previous analysis established the components below. Most clusters are unchanged and stay where they are; this prompt only shows the slice that changed (new clusters or clusters whose member methods changed).
+
+# Existing components
+Each line shows `component_id "name"`:
+{existing_components}
+
+# Cluster groups to assign
+{cfg_clusters}
+
+# Instructions (execute in order, per cluster id)
+For each cluster id above, choose exactly one option:
+
+1. Route to an existing component. Set `existing_component_id` to the exact component_id from the list above (e.g. `"1.3"`). Reuse the existing `name` and `description` verbatim unless the new cluster members fundamentally shift the component's purpose. Bias heavily toward keeping the existing name. Put the cluster ids in `cluster_ids`. Several entries may share the same `existing_component_id` if multiple groups of clusters route to the same component.
+
+2. Create a new component. Leave `existing_component_id` as null, provide a fresh `name` distinct from every existing component, write a `description` paragraph explaining what this new component does and why these clusters belong together, and set `parent_id` to the component_id under which this new component should attach (or null for root). Choose the parent whose scope most naturally encloses the new component.
+
+# Critical rule
+Identity is by component_id, not by name. Reusing an existing component's name without setting `existing_component_id` will fork a duplicate component — that is wrong. If clusters belong in an existing component, you MUST set `existing_component_id`.
+
+# Output format
+Return a `ClusterAnalysis` with `cluster_components`. For every entry, set:
+- `name` (string)
+- `cluster_ids` (list of integers, the cluster ids assigned to this entry)
+- `description` (string)
+- `existing_component_id` (string component_id, or null) — set when routing to an existing component; null when creating a new one
+- `parent_id` (string component_id, or null) — required when `existing_component_id` is null; ignored otherwise
+
+# Coverage requirement
+Every cluster id listed in the "Cluster groups to assign" section must appear in exactly one entry's `cluster_ids`."""
+
 
 class DeepSeekPromptFactory(AbstractPromptFactory):
     """Prompt factory for DeepSeek models optimized for direct, structured instructions."""
@@ -393,3 +431,6 @@ class DeepSeekPromptFactory(AbstractPromptFactory):
 
     def get_details_message(self) -> str:
         return DETAILS_MESSAGE
+
+    def get_incremental_grouping_message(self) -> str:
+        return INCREMENTAL_GROUPING_MESSAGE

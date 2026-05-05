@@ -3,8 +3,9 @@ from __future__ import annotations
 import abc
 import logging
 from abc import abstractmethod
+from enum import Enum
 from pathlib import PurePosixPath
-from typing import Iterator, get_origin, Optional
+from typing import get_origin, Optional
 
 from pydantic import BaseModel, Field
 
@@ -123,6 +124,7 @@ class ClustersComponent(LLMBaseModel):
             "while reusing an existing component's name forks a duplicate component. "
             "Ignored by the full-analysis flow."
         ),
+        exclude=True,
     )
     parent_id: str | None = Field(
         default=None,
@@ -132,6 +134,7 @@ class ClustersComponent(LLMBaseModel):
             "should attach (or null to attach at root). Ignored when "
             "``existing_component_id`` is set, and ignored by the full-analysis flow."
         ),
+        exclude=True,
     )
 
     def llm_str(self):
@@ -198,10 +201,6 @@ class FileEntry(BaseModel):
         default_factory=list,
         description="Methods and functions in this file, sorted by start line.",
     )
-
-
-from enum import Enum
-from typing import Iterator, get_origin, Optional, Literal
 
 
 class PatchOperation(str, Enum):
@@ -366,11 +365,12 @@ def assign_component_ids(analysis: AnalysisInsights, parent_id: str = "", only_n
 def iter_components(
     root_analysis: AnalysisInsights,
     sub_analyses: dict[str, AnalysisInsights],
-) -> Iterator[Component]:
-    """Yield every component across the root and all sub-analyses, in tree order."""
-    yield from root_analysis.components
+) -> list[Component]:
+    """Return every component across the root and all sub-analyses, in tree order."""
+    components = list(root_analysis.components)
     for sub in sub_analyses.values():
-        yield from sub.components
+        components.extend(sub.components)
+    return components
 
 
 def index_components_by_id(

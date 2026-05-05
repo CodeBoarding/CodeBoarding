@@ -4,10 +4,10 @@ from typing import TYPE_CHECKING
 
 from agents.agent_responses import PatchOperation, index_components_by_id
 from agents.patching_agent import PatchingAgent
-from llms import initialize_llms
+from agents.llm_config import initialize_llms
 
 if TYPE_CHECKING:
-    from agents.agent_responses import AnalysisInsights, Component, FileMethodGroup
+    from agents.agent_responses import AnalysisInsights, Component, ComponentPatch, FileMethodGroup
     from static_analyzer.analysis_result import StaticAnalysisResults
 
 logger = logging.getLogger(__name__)
