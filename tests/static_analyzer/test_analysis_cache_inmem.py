@@ -10,7 +10,7 @@ from pathlib import Path
 
 from static_analyzer.analysis_cache import invalidate_files, merge_results
 from static_analyzer.constants import NodeType
-from static_analyzer.graph import CallGraph
+from static_analyzer.graph import CallGraph, ClusterResult
 from static_analyzer.node import Node
 
 
@@ -152,6 +152,102 @@ class TestMergeResults(unittest.TestCase):
         merged = merge_results(cached, new)
 
         self.assertEqual(merged["diagnostics"], {"a.py": ["old-a"], "b.py": ["new-b"]})
+
+
+class TestClusterCachePreservation(unittest.TestCase):
+    """``_cluster_cache`` must survive warm-start invalidation/merge.
+
+    Regression: dropping it caused ``IncrementalCacheMissingError`` even
+    when the pkl on disk had a populated cache.
+    """
+
+    def _cg_with_cluster_cache(self) -> CallGraph:
+        cg = CallGraph(language="python")
+        cg.add_node(_node("a.foo", "a.py", line_start=1))
+        cg.add_node(_node("a.bar", "a.py", line_start=10))
+        cg.add_node(_node("b.qux", "b.py", line_start=1))
+        cg._cluster_cache = ClusterResult(
+            clusters={1: {"a.foo", "a.bar"}, 2: {"b.qux"}},
+            cluster_to_files={1: {"a.py"}, 2: {"b.py"}},
+            file_to_clusters={"a.py": {1}, "b.py": {2}},
+            strategy="leiden",
+        )
+        return cg
+
+    def test_invalidate_files_preserves_cluster_cache_for_kept_files(self) -> None:
+        cached = _result(self._cg_with_cluster_cache(), source_files=["a.py", "b.py"])
+
+        updated = invalidate_files(cached, {Path("a.py")})
+
+        cc = updated["call_graph"]._cluster_cache
+        self.assertIsNotNone(cc)
+        # Cluster 1 had only a.py members -> dropped entirely.
+        # Cluster 2 keeps b.qux from b.py.
+        self.assertNotIn(1, cc.clusters)
+        self.assertEqual(cc.clusters[2], {"b.qux"})
+        self.assertEqual(cc.cluster_to_files[2], {"b.py"})
+        self.assertEqual(cc.file_to_clusters, {"b.py": {2}})
+        self.assertEqual(cc.strategy, "leiden")
+
+    def test_invalidate_files_preserves_partial_cluster(self) -> None:
+        cached = _result(self._cg_with_cluster_cache(), source_files=["a.py", "b.py"])
+        # Only invalidate b.py; cluster 1 (members in a.py) survives whole;
+        # cluster 2 (b.qux only) drops.
+        updated = invalidate_files(cached, {Path("b.py")})
+
+        cc = updated["call_graph"]._cluster_cache
+        self.assertEqual(cc.clusters[1], {"a.foo", "a.bar"})
+        self.assertNotIn(2, cc.clusters)
+
+    def test_merge_results_preserves_cached_cluster_cache(self) -> None:
+        cached = _result(self._cg_with_cluster_cache(), source_files=["a.py", "b.py"])
+        new_cg = CallGraph(language="python")
+        new_cg.add_node(_node("c.new", "c.py"))
+        new = _result(new_cg, source_files=["c.py"])
+
+        merged = merge_results(cached, new)
+
+        cc = merged["call_graph"]._cluster_cache
+        # Cached clusters survive; new node 'c.new' is unclustered (intentional —
+        # cluster_delta will pick it up as drift on the next run).
+        self.assertEqual(cc.clusters[1], {"a.foo", "a.bar"})
+        self.assertEqual(cc.clusters[2], {"b.qux"})
+
+    def test_filter_returns_independent_call_graph(self) -> None:
+        # Ensure CallGraph.filter does not mutate the source.
+        cg = self._cg_with_cluster_cache()
+        original_node_count = len(cg.nodes)
+        original_cluster_ids = set(cg._cluster_cache.clusters.keys())
+
+        cg.filter(lambda n: n.file_path != "a.py")
+
+        self.assertEqual(len(cg.nodes), original_node_count)
+        self.assertEqual(set(cg._cluster_cache.clusters.keys()), original_cluster_ids)
+
+    def test_filter_drops_edges_with_dropped_endpoint(self) -> None:
+        cg = CallGraph(language="python")
+        cg.add_node(_node("a.foo", "a.py"))
+        cg.add_node(_node("b.bar", "b.py"))
+        cg.add_edge("a.foo", "b.bar")
+
+        filtered = cg.filter(lambda n: n.file_path != "a.py")
+
+        self.assertEqual(len(filtered.edges), 0)
+        self.assertNotIn("a.foo", filtered.nodes)
+        self.assertIn("b.bar", filtered.nodes)
+
+    def test_union_preserves_cached_side_cluster_cache(self) -> None:
+        cached = self._cg_with_cluster_cache()
+        new = CallGraph(language="python")
+        new.add_node(_node("c.new", "c.py"))
+
+        unioned = cached.union(new)
+
+        cc = unioned._cluster_cache
+        self.assertEqual(cc.clusters, {1: {"a.foo", "a.bar"}, 2: {"b.qux"}})
+        # New node from `other` participates in the graph but not yet in any cluster.
+        self.assertIn("c.new", unioned.nodes)
+        self.assertNotIn("c.new", {m for members in cc.clusters.values() for m in members})
 
 
 if __name__ == "__main__":

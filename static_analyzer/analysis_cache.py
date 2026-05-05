@@ -301,8 +301,11 @@ def invalidate_files(analysis_result: dict[str, Any], changed_files: set[Path]) 
     """
     changed_file_strs = {str(path) for path in changed_files}
 
+    call_graph: CallGraph = analysis_result["call_graph"]
+    filtered_cg = call_graph.filter(lambda node: node.file_path not in changed_file_strs)
+
     updated_result: dict[str, Any] = {
-        "call_graph": CallGraph(),
+        "call_graph": filtered_cg,
         "class_hierarchies": {},
         "package_relations": {},
         "references": [],
@@ -313,31 +316,6 @@ def invalidate_files(analysis_result: dict[str, Any], changed_files: set[Path]) 
         updated_result["diagnostics"] = {
             fp: diags for fp, diags in analysis_result["diagnostics"].items() if fp not in changed_file_strs
         }
-
-    call_graph: CallGraph = analysis_result["call_graph"]
-    removed_nodes: set[str] = set()
-    kept_nodes: set[str] = set()
-    for node_name, node in call_graph.nodes.items():
-        if node.file_path in changed_file_strs:
-            removed_nodes.add(node_name)
-        else:
-            updated_result["call_graph"].add_node(node)
-            kept_nodes.add(node_name)
-
-    removed_edges = 0
-    kept_edges = 0
-    for edge in call_graph.edges:
-        src_name = edge.get_source()
-        dst_name = edge.get_destination()
-        if src_name in kept_nodes and dst_name in kept_nodes:
-            try:
-                updated_result["call_graph"].add_edge(src_name, dst_name)
-                kept_edges += 1
-            except ValueError as e:
-                logger.warning(f"Failed to add edge {src_name} -> {dst_name}: {e}")
-                removed_edges += 1
-        else:
-            removed_edges += 1
 
     class_hierarchies: dict[str, Any] = analysis_result["class_hierarchies"]
     for class_name, class_info in class_hierarchies.items():
@@ -366,8 +344,8 @@ def invalidate_files(analysis_result: dict[str, Any], changed_files: set[Path]) 
     _validate_no_dangling_references(updated_result)
 
     logger.info(
-        f"Invalidated {len(changed_files)} files: kept {len(kept_nodes)} nodes, "
-        f"{kept_edges} edges, {len(updated_result['references'])} references"
+        f"Invalidated {len(changed_files)} files: kept {len(filtered_cg.nodes)} nodes, "
+        f"{len(filtered_cg.edges)} edges, {len(updated_result['references'])} references"
     )
     return updated_result
 
@@ -381,28 +359,12 @@ def merge_results(cached_result: dict[str, Any], new_result: dict[str, Any]) -> 
     nodes present in the merged graph are kept.
     """
     merged_result: dict[str, Any] = {
-        "call_graph": CallGraph(),
+        "call_graph": cached_result["call_graph"].union(new_result["call_graph"]),
         "class_hierarchies": {},
         "package_relations": {},
         "references": [],
         "source_files": [],
     }
-
-    for node in cached_result["call_graph"].nodes.values():
-        merged_result["call_graph"].add_node(node)
-    for node in new_result["call_graph"].nodes.values():
-        merged_result["call_graph"].add_node(node)
-
-    for edge in cached_result["call_graph"].edges:
-        try:
-            merged_result["call_graph"].add_edge(edge.get_source(), edge.get_destination())
-        except ValueError:
-            pass
-    for edge in new_result["call_graph"].edges:
-        try:
-            merged_result["call_graph"].add_edge(edge.get_source(), edge.get_destination())
-        except ValueError:
-            pass
 
     merged_result["class_hierarchies"].update(cached_result["class_hierarchies"])
     merged_result["class_hierarchies"].update(new_result["class_hierarchies"])

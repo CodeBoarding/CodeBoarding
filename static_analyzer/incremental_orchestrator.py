@@ -96,7 +96,9 @@ def _filter_to_live_files(merged_analysis: dict[str, Any]) -> dict[str, Any]:
     then removed by a subsequent edit; this final filter keeps the merged
     dict consistent with the live filesystem.
     """
-    all_existing = {f for f in merged_analysis.get("source_files", []) if f.exists()}
+    # Normalize: ``merge_results`` may contain a mix of Path (from the cached
+    # side) and str (from the LSP-rebuilt new side); coerce before ``.exists()``.
+    all_existing = {Path(f) for f in merged_analysis.get("source_files", []) if Path(f).exists()}
     existing_file_strs = {str(f) for f in all_existing}
 
     merged_analysis["source_files"] = list(all_existing)
@@ -105,18 +107,7 @@ def _filter_to_live_files(merged_analysis: dict[str, Any]) -> dict[str, Any]:
     ]
 
     merged_cg = merged_analysis.get("call_graph", CallGraph())
-    filtered_cg = CallGraph()
-    for node in merged_cg.nodes.values():
-        if node.file_path in existing_file_strs:
-            filtered_cg.add_node(node)
-    for edge in merged_cg.edges:
-        src, dst = edge.get_source(), edge.get_destination()
-        if filtered_cg.has_node(src) and filtered_cg.has_node(dst):
-            try:
-                filtered_cg.add_edge(src, dst)
-            except ValueError:
-                pass
-    merged_analysis["call_graph"] = filtered_cg
+    merged_analysis["call_graph"] = merged_cg.filter(lambda node: node.file_path in existing_file_strs)
 
     merged_analysis["class_hierarchies"] = {
         name: info
