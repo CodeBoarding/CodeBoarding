@@ -25,9 +25,11 @@ from diagram_analysis.analysis_json import (
     from_component_to_json_component,
 )
 from diagram_analysis.diagram_generator import DiagramGenerator
+from diagram_analysis.exceptions import IncrementalCacheMissingError
 from diagram_analysis.version import Version
 from repo_utils.change_detector import ChangeSet
 from static_analyzer.analysis_result import StaticAnalysisResults
+from utils import get_artifact_dir
 
 
 class TestVersion(unittest.TestCase):
@@ -656,6 +658,30 @@ class TestDiagramGenerator(unittest.TestCase):
 
         written = json.loads((self.output_dir / "analysis.json").read_text())
         self.assertEqual([c["can_expand"] for c in written["components"]], [True, True])
+
+    def test_generate_analysis_incremental_raises_when_cluster_cache_missing(self):
+        gen = DiagramGenerator(
+            repo_location=self.repo_location,
+            temp_folder=self.temp_folder,
+            repo_name="test_repo",
+            output_dir=self.output_dir,
+            depth_level=2,
+            run_id="test-run-id",
+            log_path="test_repo/test-run-log",
+        )
+        gen.details_agent = Mock()
+        gen.abstraction_agent = Mock()
+        # Empty static analysis -> snapshot has no cluster ids -> incremental
+        # path must refuse rather than silently re-deriving from scratch.
+        gen.static_analysis = StaticAnalysisResults()
+
+        root_analysis = AnalysisInsights(description="root", components=[], components_relations=[])
+
+        with self.assertRaises(IncrementalCacheMissingError) as ctx:
+            gen.generate_analysis_incremental(root_analysis, {})
+
+        self.assertEqual(ctx.exception.artifact_dir, get_artifact_dir(self.repo_location))
+        self.assertIn(str(get_artifact_dir(self.repo_location)), str(ctx.exception))
 
 
 if __name__ == "__main__":

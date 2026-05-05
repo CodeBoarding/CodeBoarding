@@ -29,6 +29,7 @@ from diagram_analysis.analysis_json import (
 )
 from diagram_analysis.cluster_delta import compute_cluster_delta
 from diagram_analysis.cluster_snapshot import snapshot_from_static_analysis
+from diagram_analysis.exceptions import IncrementalCacheMissingError
 from diagram_analysis.file_coverage import FileCoverage
 from diagram_analysis.io_utils import normalize_repo_path, save_analysis
 from diagram_analysis.version import Version
@@ -46,6 +47,7 @@ from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import Language
 from static_analyzer.graph import ClusterResult
 from static_analyzer.scanner import ProjectScanner
+from utils import get_artifact_dir
 
 logger = logging.getLogger(__name__)
 
@@ -509,10 +511,16 @@ class DiagramGenerator:
             old_snapshot = snapshot_from_static_analysis(self.static_analysis)
             if not old_snapshot.all_cluster_ids():
                 # No cluster_cache on the live CFG — no prior pkl, legacy pkl,
-                # or first-ever incremental run. Either way, no historical
-                # snapshot to diff against, so fall back to a full run.
-                logger.info("No cluster history available; falling back to full analysis.")
-                return self.generate_analysis()
+                # or first-ever incremental run. Refuse to silently rebuild
+                # from scratch; that would discard the existing analysis.json's
+                # depth and component IDs. Caller must explicitly request a
+                # full run instead.
+                artifact_dir = get_artifact_dir(self.repo_location)
+                logger.error(
+                    "Incremental analysis cannot proceed: no warm static_analysis.pkl at %s",
+                    artifact_dir,
+                )
+                raise IncrementalCacheMissingError(artifact_dir)
 
             delta = compute_cluster_delta(
                 old_snapshot,
