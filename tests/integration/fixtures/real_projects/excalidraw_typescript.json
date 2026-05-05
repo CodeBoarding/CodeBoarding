@@ -15,7 +15,7 @@
     "packages_count": 58,
     "call_graph_nodes": 4902,
     "call_graph_edges": 12407,
-    "source_files_count": 414,
+    "source_files_count": 404,
     "execution_time_seconds_by_os": {
       "Linux": 70,
       "Darwin": 87,
