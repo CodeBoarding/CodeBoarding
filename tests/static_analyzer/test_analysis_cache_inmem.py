@@ -217,11 +217,13 @@ class TestClusterCachePreservation(unittest.TestCase):
         # Ensure CallGraph.filter does not mutate the source.
         cg = self._cg_with_cluster_cache()
         original_node_count = len(cg.nodes)
+        assert cg._cluster_cache is not None
         original_cluster_ids = set(cg._cluster_cache.clusters.keys())
 
         cg.filter(lambda n: n.file_path != "a.py")
 
         self.assertEqual(len(cg.nodes), original_node_count)
+        assert cg._cluster_cache is not None
         self.assertEqual(set(cg._cluster_cache.clusters.keys()), original_cluster_ids)
 
     def test_filter_drops_edges_with_dropped_endpoint(self) -> None:
@@ -244,6 +246,7 @@ class TestClusterCachePreservation(unittest.TestCase):
         unioned = cached.union(new)
 
         cc = unioned._cluster_cache
+        assert cc is not None
         self.assertEqual(cc.clusters, {1: {"a.foo", "a.bar"}, 2: {"b.qux"}})
         # New node from `other` participates in the graph but not yet in any cluster.
         self.assertIn("c.new", unioned.nodes)
