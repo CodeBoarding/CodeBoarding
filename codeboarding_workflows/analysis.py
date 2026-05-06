@@ -15,7 +15,6 @@ from pathlib import Path
 
 from diagram_analysis import DiagramGenerator
 from diagram_analysis.io_utils import load_analysis_metadata, load_full_analysis, save_sub_analysis
-from diagram_analysis.run_metadata import write_full_run_metadata
 from repo_utils.diff_parser import detect_changes
 
 logger = logging.getLogger(__name__)
@@ -81,9 +80,7 @@ def run_full(
     )
     generator.force_full_analysis = force_full
     generator.source_sha = source_sha
-    analysis_path = generator.generate_analysis()
-    write_full_run_metadata(output_dir, repo_path, analysis_path=analysis_path)
-    return analysis_path
+    return generator.generate_analysis()
 
 
 def run_partial(
