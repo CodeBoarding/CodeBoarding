@@ -27,6 +27,8 @@ import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from filelock import FileLock
+
 from static_analyzer.graph import CallGraph
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
 from static_analyzer.node import Node
@@ -43,6 +45,7 @@ logger = logging.getLogger(__name__)
 # re-index, so they're not safe to wipe with the rest of the cache.
 STATIC_ANALYSIS_PKL = "static_analysis.pkl"
 STATIC_ANALYSIS_SHA = "static_analysis.sha"
+STATIC_ANALYSIS_LOCK = "static_analysis.lock"
 # Legacy location ``StaticAnalysisCache`` wrote to before the run-artifact
 # split. Kept for one-time read fallback so CLI users transition smoothly.
 _LEGACY_PKL_NAME = "static_analysis_results.pkl"
@@ -101,6 +104,10 @@ class StaticAnalysisCache:
     def sha_path(self) -> Path:
         return self.artifact_dir / STATIC_ANALYSIS_SHA
 
+    @property
+    def lock_path(self) -> Path:
+        return self.artifact_dir / STATIC_ANALYSIS_LOCK
+
     def read_tag_sha(self) -> str | None:
         """Return the source SHA the pkl was saved at, or None if absent/unparsable.
 
@@ -112,8 +119,14 @@ class StaticAnalysisCache:
         ``git diff <tag_sha>..HEAD`` for the file list to re-LSP. Pure
         all-or-nothing callers can still use ``get(expected_sha=...)``.
         """
+        if not self.sha_path.exists():
+            return None
+        with FileLock(self.lock_path, timeout=30):
+            return self._read_tag_sha_unlocked()
+
+    def _read_tag_sha_unlocked(self) -> str | None:
         try:
-            text = self.sha_path.read_text().strip()
+            text = self.sha_path.read_text(encoding="utf-8").strip()
         except (OSError, FileNotFoundError):
             return None
         lines = [line.strip() for line in text.splitlines() if line.strip()]
@@ -138,13 +151,16 @@ class StaticAnalysisCache:
         Differs from ``get(expected_sha=...)``: this never gates on the SHA,
         it just hands it back along with the loaded results.
         """
-        cached_sha = self.read_tag_sha()
-        if cached_sha is None:
+        if not self.artifact_dir.exists():
             return None
-        results = self.get()  # SHA-less get -> accepts any tag (or no tag).
-        if results is None:
-            return None
-        return results, cached_sha
+        with FileLock(self.lock_path, timeout=30):
+            cached_sha = self._read_tag_sha_unlocked()
+            if cached_sha is None:
+                return None
+            results = self._get_unlocked()
+            if results is None:
+                return None
+            return results, cached_sha
 
     def get(self, expected_sha: str | None = None) -> "StaticAnalysisResults | None":
         """Load the cached results, or None if absent/invalid/SHA-mismatched.
@@ -155,8 +171,14 @@ class StaticAnalysisCache:
         is None, any tag (or no tag at all) is accepted; legacy pickles
         from the previous on-disk layout are also picked up here.
         """
+        if not self.artifact_dir.exists():
+            return None
+        with FileLock(self.lock_path, timeout=30):
+            return self._get_unlocked(expected_sha=expected_sha)
+
+    def _get_unlocked(self, expected_sha: str | None = None) -> "StaticAnalysisResults | None":
         if expected_sha is not None:
-            cached_sha = self.read_tag_sha()
+            cached_sha = self._read_tag_sha_unlocked()
             if cached_sha is None:
                 return None
             if cached_sha != expected_sha:
@@ -202,79 +224,94 @@ class StaticAnalysisCache:
         """
         self.artifact_dir.mkdir(parents=True, exist_ok=True)
 
-        portable = self._relativize(result)
-        data = pickle.dumps(portable)
-        size_mb = sys.getsizeof(data) / (1024 * 1024)
-        logger.info(f"Static analysis cache size: {size_mb:.2f} MB")
+        with FileLock(self.lock_path, timeout=30):
+            portable = self._relativize(result)
+            data = pickle.dumps(portable)
+            size_mb = sys.getsizeof(data) / (1024 * 1024)
+            logger.info(f"Static analysis cache size: {size_mb:.2f} MB")
 
-        temp_fd, temp_path = tempfile.mkstemp(dir=self.artifact_dir, suffix=".pkl.tmp")
-        try:
-            with open(temp_fd, "wb") as f:
-                f.write(data)
-            Path(temp_path).replace(self.pkl_path)
-            logger.info(f"Saved static analysis to cache: {self.pkl_path}")
-        except Exception as e:
-            Path(temp_path).unlink(missing_ok=True)
-            logger.warning(f"Failed to save static analysis cache: {e}")
-            return
-
-        # Write the sibling tag last so a partially-written pkl never gets a
-        # SHA stamp; readers that miss the tag treat it as no-cache.
-        if source_sha is not None:
-            tag_text = f"{_TAG_VERSION}\n{source_sha}\n"
-            tag_fd, tag_tmp = tempfile.mkstemp(dir=self.artifact_dir, suffix=".sha.tmp")
+            temp_fd, temp_path = tempfile.mkstemp(dir=self.artifact_dir, suffix=".pkl.tmp")
             try:
-                with open(tag_fd, "w") as f:
-                    f.write(tag_text)
-                Path(tag_tmp).replace(self.sha_path)
+                with open(temp_fd, "wb") as f:
+                    f.write(data)
+                    # Ensure bytes are durable before the atomic replace.
+                    f.flush()
+                    os.fsync(f.fileno())
+                Path(temp_path).replace(self.pkl_path)
+                logger.info(f"Saved static analysis to cache: {self.pkl_path}")
             except Exception as e:
-                Path(tag_tmp).unlink(missing_ok=True)
-                logger.warning(f"Failed to write static analysis SHA tag: {e}")
-        elif self.sha_path.exists():
-            # No SHA provided this run — drop any stale tag so the next
-            # SHA-gated read doesn't accidentally accept a mismatched pickle.
-            try:
-                self.sha_path.unlink()
-            except OSError:
-                pass
+                Path(temp_path).unlink(missing_ok=True)
+                logger.warning(f"Failed to save static analysis cache: {e}")
+                return
+
+            # Write the sibling tag last so a partially-written pkl never gets a
+            # SHA stamp; readers that miss the tag treat it as no-cache.
+            if source_sha is not None:
+                tag_text = f"{_TAG_VERSION}\n{source_sha}\n"
+                tag_fd, tag_tmp = tempfile.mkstemp(dir=self.artifact_dir, suffix=".sha.tmp")
+                try:
+                    with open(tag_fd, "w", encoding="utf-8", newline="\n") as f:
+                        f.write(tag_text)
+                        f.flush()
+                        os.fsync(f.fileno())
+                    Path(tag_tmp).replace(self.sha_path)
+                except Exception as e:
+                    Path(tag_tmp).unlink(missing_ok=True)
+                    # Drop any old tag rather than pair it with the new pkl.
+                    try:
+                        self.sha_path.unlink()
+                    except (OSError, FileNotFoundError):
+                        pass
+                    logger.warning(f"Failed to write SHA tag, dropped stale tag to avoid mismatch: {e}")
+            elif self.sha_path.exists():
+                # No SHA provided this run; drop any stale tag so the next
+                # SHA-gated read doesn't accidentally accept a mismatched pickle.
+                try:
+                    self.sha_path.unlink()
+                except OSError:
+                    pass
 
 
 def copy_cache_files(src_dir: Path, dest_dir: Path) -> bool:
-    """Atomically copy the static-analysis pkl + sha pair from *src_dir* to *dest_dir*.
+    """Copy the static-analysis pkl + sha pair from *src_dir* to *dest_dir*.
 
     Treats the cache as an opaque file pair (no unpickle, no relativization).
-    Both files must exist in *src_dir*; a partial source is a no-op so a
-    half-written cache cannot be promoted. The pair is installed atomically:
-    if the second copy fails, the first is rolled back so a reader never
-    sees a pkl without its tag (or vice versa). Returns True iff both files
-    were installed.
+    Both files must exist in *src_dir*; a partial source is a no-op. Source
+    and destination locks keep readers from seeing a mixed pkl/tag generation.
+    Returns True iff both files were installed.
     """
     src_pkl = src_dir / STATIC_ANALYSIS_PKL
     src_sha = src_dir / STATIC_ANALYSIS_SHA
-    if not src_pkl.exists() or not src_sha.exists():
-        if src_pkl.exists() != src_sha.exists():
-            logger.warning(
-                "Source dir %s has %s without its sibling; refusing to copy partial cache",
-                src_dir,
-                STATIC_ANALYSIS_PKL if src_pkl.exists() else STATIC_ANALYSIS_SHA,
-            )
+    if not src_dir.exists():
         return False
 
     dest_pkl = dest_dir / STATIC_ANALYSIS_PKL
     dest_sha = dest_dir / STATIC_ANALYSIS_SHA
-    dest_dir.mkdir(parents=True, exist_ok=True)
-    try:
-        _atomic_copy(src_pkl, dest_pkl)
-    except OSError as e:
-        logger.warning("Failed to copy %s into %s: %s", STATIC_ANALYSIS_PKL, dest_dir, e)
-        return False
-    try:
-        _atomic_copy(src_sha, dest_sha)
-    except OSError as e:
-        logger.warning("Failed to copy %s into %s: %s", STATIC_ANALYSIS_SHA, dest_dir, e)
-        dest_pkl.unlink(missing_ok=True)
-        return False
-    return True
+    with FileLock(src_dir / STATIC_ANALYSIS_LOCK, timeout=30):
+        if not src_pkl.exists() or not src_sha.exists():
+            if src_pkl.exists() != src_sha.exists():
+                logger.warning(
+                    "Source dir %s has %s without its sibling; refusing to copy partial cache",
+                    src_dir,
+                    STATIC_ANALYSIS_PKL if src_pkl.exists() else STATIC_ANALYSIS_SHA,
+                )
+            return False
+
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        with FileLock(dest_dir / STATIC_ANALYSIS_LOCK, timeout=30):
+            try:
+                _atomic_copy(src_pkl, dest_pkl)
+            except OSError as e:
+                logger.warning("Failed to copy %s into %s: %s", STATIC_ANALYSIS_PKL, dest_dir, e)
+                return False
+            try:
+                _atomic_copy(src_sha, dest_sha)
+            except OSError as e:
+                logger.warning("Failed to copy %s into %s: %s", STATIC_ANALYSIS_SHA, dest_dir, e)
+                dest_pkl.unlink(missing_ok=True)
+                dest_sha.unlink(missing_ok=True)
+                return False
+            return True
 
 
 def _atomic_copy(src: Path, dest: Path) -> None:
@@ -284,6 +321,11 @@ def _atomic_copy(src: Path, dest: Path) -> None:
     os.close(fd)
     try:
         shutil.copy2(src, tmp_path)
+        # fsync the freshly-copied bytes before the rename commits, so a crash
+        # between rename and writeback can't leave the directory entry pointing
+        # at a not-yet-durable inode.
+        with open(tmp_path, "rb") as f:
+            os.fsync(f.fileno())
         tmp_path.replace(dest)
     except Exception:
         tmp_path.unlink(missing_ok=True)

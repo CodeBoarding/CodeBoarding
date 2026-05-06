@@ -90,7 +90,17 @@ def build_all_cluster_results(static_analysis: StaticAnalysisResults) -> dict[st
         cfg_graphs = {lang: static_analysis.get_cfg(Language(lang)).to_networkx() for lang in cluster_results}
         enforce_cross_language_budget(cluster_results, cfg_graphs)
 
+    _sync_cluster_cache(static_analysis, cluster_results)
     return cluster_results
+
+
+def _sync_cluster_cache(static_analysis: StaticAnalysisResults, cluster_results: dict[str, ClusterResult]) -> None:
+    """Keep each CFG cache aligned with returned cluster IDs."""
+    for lang, result in cluster_results.items():
+        try:
+            static_analysis.get_cfg(Language(lang))._cluster_cache = result
+        except ValueError:
+            logger.warning("Could not sync cluster cache for missing language %s", lang)
 
 
 def enforce_cross_language_budget(

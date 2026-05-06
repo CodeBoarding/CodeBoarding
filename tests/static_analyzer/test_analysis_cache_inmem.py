@@ -6,12 +6,15 @@ the cached analysis-dict up to date in memory before saving a new pkl.
 """
 
 import unittest
+import tempfile
 from pathlib import Path
+from unittest.mock import MagicMock
 
 from static_analyzer.analysis_cache import invalidate_files, merge_results
 from static_analyzer.constants import NodeType
 from static_analyzer.graph import CallGraph, ClusterResult
 from static_analyzer.node import Node
+from static_analyzer.incremental_orchestrator import update_cfg_for_changed_files
 
 
 def _node(qname: str, file_path: str, line_start: int = 1) -> Node:
@@ -251,6 +254,45 @@ class TestClusterCachePreservation(unittest.TestCase):
         # New node from `other` participates in the graph but not yet in any cluster.
         self.assertIn("c.new", unioned.nodes)
         self.assertNotIn("c.new", {m for members in cc.clusters.values() for m in members})
+
+
+class TestWarmStartDeletion(unittest.TestCase):
+    def test_deleted_changed_file_is_removed_from_cached_cfg(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_path = Path(temp_dir)
+            live_file = project_path / "b.py"
+            live_file.write_text("def bar():\n    pass\n", encoding="utf-8")
+            deleted_file = project_path / "a.py"
+
+            cg = CallGraph(language="python")
+            cg.add_node(_node("a.foo", str(deleted_file)))
+            cg.add_node(_node("b.bar", str(live_file)))
+            cached = _result(
+                cg,
+                references=[_node("a.foo", str(deleted_file)), _node("b.bar", str(live_file))],
+                source_files=[str(deleted_file), str(live_file)],
+            )
+
+            adapter = MagicMock()
+            adapter.file_extensions = [".py"]
+            adapter.language = "python"
+            engine_client = MagicMock()
+            engine_client.get_collected_diagnostics.return_value = {}
+            ignore_manager = MagicMock()
+            ignore_manager.should_ignore.return_value = False
+
+            updated = update_cfg_for_changed_files(
+                cached,
+                {deleted_file},
+                adapter,
+                project_path,
+                engine_client,
+                ignore_manager,
+            )
+
+            self.assertNotIn("a.foo", updated["call_graph"].nodes)
+            self.assertIn("b.bar", updated["call_graph"].nodes)
+            self.assertEqual([str(path) for path in updated["source_files"]], [str(live_file)])
 
 
 if __name__ == "__main__":

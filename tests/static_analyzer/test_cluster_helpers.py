@@ -62,6 +62,8 @@ class TestClusterHelpers(unittest.TestCase):
 
         shifted_ts_ids = set().union(*result["typescript"].file_to_clusters.values())
         self.assertEqual(shifted_ts_ids, set(range(26, 51)))
+        self.assertIs(python_cfg._cluster_cache, result["python"])
+        self.assertIs(typescript_cfg._cluster_cache, result["typescript"])
 
     def test_reindex_cluster_result_shifts_all_ids(self):
         cr = self._make_cluster_result("x", 3)

@@ -43,6 +43,7 @@ from repo_utils import get_git_commit_hash
 from repo_utils.change_detector import ChangeSet
 from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer import StaticAnalyzer, get_static_analysis
+from static_analyzer.analysis_cache import StaticAnalysisCache
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import Language
 from static_analyzer.graph import ClusterResult
@@ -198,6 +199,15 @@ class DiagramGenerator:
             except (ValueError, KeyError):
                 continue
             cfg._cluster_cache = cr
+
+    def _persist_static_analysis_artifact(self) -> None:
+        """Persist the post-clustering static-analysis artifact."""
+        if self._static_analyzer is not None:
+            self._static_analyzer.flush_cache()
+            return
+        if self.static_analysis is None:
+            return
+        StaticAnalysisCache(self.output_dir, self.repo_location).save(self.static_analysis, source_sha=self.source_sha)
 
     def pre_analysis(self):
         analysis_start_time = time.time()
@@ -439,14 +449,7 @@ class DiagramGenerator:
             # Write file_coverage.json
             self._write_file_coverage()
 
-            # Persist the static-analysis pkl to ``cache_dir`` now that
-            # downstream CFG mutations (cluster cache populated by
-            # AbstractionAgent) have completed and analysis.json is on disk.
-            # When the analyzer was constructed inside ``get_static_analysis``,
-            # its context manager already flushed on exit; this call covers
-            # the wrapper-injected case.
-            if self._static_analyzer is not None:
-                self._static_analyzer.flush_cache()
+            self._persist_static_analysis_artifact()
 
             return analysis_path
 
@@ -557,10 +560,7 @@ class DiagramGenerator:
                     commit_hash=commit_hash,
                 ).resolve()
                 self._write_file_coverage()
-                # Re-emit the pkl to keep the on-disk artifact aligned with
-                # the (unchanged) in-memory CFG; harmless if already current.
-                if self._static_analyzer is not None:
-                    self._static_analyzer.flush_cache()
+                self._persist_static_analysis_artifact()
                 return analysis_path
 
             agent_llm, parsing_llm = initialize_llms()
@@ -625,12 +625,7 @@ class DiagramGenerator:
             # this delta (idempotent) rather than silently missing it.
             self._seed_incremental_cluster_cache(delta.cluster_results())
             self._write_file_coverage()
-            # Persist the static-analysis pkl now that the seeded cluster cache
-            # has reached the live CFG. Wrapper-injected analyzer case only;
-            # the context-managed analyzer in ``get_static_analysis`` flushes
-            # on exit.
-            if self._static_analyzer is not None:
-                self._static_analyzer.flush_cache()
+            self._persist_static_analysis_artifact()
             return analysis_path
 
 

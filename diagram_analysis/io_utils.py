@@ -72,7 +72,9 @@ class _AnalysisFileStore:
         output_dir.mkdir(parents=True, exist_ok=True)
         self._output_dir = output_dir
         self._analysis_path = output_dir / ANALYSIS_FILENAME
-        self._lock = FileLock(output_dir / f"{ANALYSIS_FILENAME}.lock", timeout=10)
+        # 30s rather than 10s: cold-start LSP runs on Windows under AV scans
+        # routinely steal multi-second cycles from contended writers.
+        self._lock = FileLock(output_dir / f"{ANALYSIS_FILENAME}.lock", timeout=30)
 
     def read(self) -> tuple[AnalysisInsights, dict[str, AnalysisInsights], dict] | None:
         """Load the unified ``analysis.json`` from disk.
@@ -119,6 +121,7 @@ class _AnalysisFileStore:
         repo_name: str = "",
         file_coverage_summary: FileCoverageSummary | None = None,
         commit_hash: str = "",
+        snapshot_commit: str | None = None,
     ) -> Path:
         """Write the full analysis to ``analysis.json`` with file locking.
 
@@ -127,7 +130,13 @@ class _AnalysisFileStore:
         """
         with self._lock:
             return self._write_with_lock_held(
-                analysis, expandable_component_ids, sub_analyses, repo_name, file_coverage_summary, commit_hash
+                analysis,
+                expandable_component_ids,
+                sub_analyses,
+                repo_name,
+                file_coverage_summary,
+                commit_hash,
+                snapshot_commit,
             )
 
     def write_sub(
@@ -179,6 +188,7 @@ class _AnalysisFileStore:
         repo_name: str = "",
         file_coverage_summary: FileCoverageSummary | None = None,
         commit_hash: str = "",
+        snapshot_commit: str | None = None,
     ) -> Path:
         """Write ``analysis.json`` — caller must already hold ``self._lock``."""
         # Keep caller-provided expandables, but also preserve deterministic planner eligibility.
@@ -189,14 +199,22 @@ class _AnalysisFileStore:
         expandable = [c for c in analysis.components if c.component_id in expandable_ids]
 
         # Preserve existing metadata fields from disk when not explicitly provided
-        existing_data_cache: dict | None = None
-        if sub_analyses is None or file_coverage_summary is None or not repo_name or not commit_hash:
+        if (
+            sub_analyses is None
+            or file_coverage_summary is None
+            or not repo_name
+            or not commit_hash
+            or snapshot_commit is None
+        ):
             existing = self.read()
             if existing:
                 _, existing_subs, existing_data = existing
-                existing_data_cache = existing_data
                 if sub_analyses is None:
                     sub_analyses = existing_subs
+                if snapshot_commit is None:
+                    existing_snapshot = existing_data.get("snapshotCommit")
+                    if isinstance(existing_snapshot, str) and existing_snapshot:
+                        snapshot_commit = existing_snapshot
                 metadata = existing_data.get("metadata", {})
                 if not repo_name:
                     repo_name = metadata.get("repo_name", "")
@@ -232,6 +250,7 @@ class _AnalysisFileStore:
                     sub_analyses=sub_analyses_tuples,
                     file_coverage_summary=file_coverage_summary,
                     commit_hash=commit_hash,
+                    snapshot_commit=snapshot_commit,
                 )
             )
 
@@ -317,10 +336,17 @@ def save_analysis(
     repo_name: str = "",
     file_coverage_summary: FileCoverageSummary | None = None,
     commit_hash: str = "",
+    snapshot_commit: str | None = None,
 ) -> Path:
     """Save the analysis to a unified analysis.json file with file locking."""
     return _get_store(output_dir).write(
-        analysis, expandable_component_ids, sub_analyses, repo_name, file_coverage_summary, commit_hash
+        analysis,
+        expandable_component_ids,
+        sub_analyses,
+        repo_name,
+        file_coverage_summary,
+        commit_hash,
+        snapshot_commit,
     )
 
 

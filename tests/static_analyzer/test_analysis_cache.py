@@ -4,6 +4,7 @@ import shutil
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from static_analyzer.analysis_cache import (
     STATIC_ANALYSIS_PKL,
@@ -371,6 +372,30 @@ class TestCopyCacheFiles(unittest.TestCase):
         self.assertIsNotNone(loaded)
         if loaded is not None:
             self.assertEqual(loaded.get_source_files(Language.PYTHON), [str(self.repo_root / "new.py")])
+
+    def test_sha_copy_failure_removes_destination_pair(self):
+        old_results = StaticAnalysisResults()
+        old_results.add_source_files(Language.PYTHON, [str(self.repo_root / "old.py")])
+        self.dst_cache.save(old_results, source_sha="sha-old")
+
+        new_results = StaticAnalysisResults()
+        new_results.add_source_files(Language.PYTHON, [str(self.repo_root / "new.py")])
+        self.src_cache.save(new_results, source_sha="sha-new")
+
+        from static_analyzer import analysis_cache
+
+        original_atomic_copy = analysis_cache._atomic_copy
+
+        def fail_sha_copy(src: Path, dest: Path) -> None:
+            if dest.name == STATIC_ANALYSIS_SHA:
+                raise OSError("simulated sha copy failure")
+            original_atomic_copy(src, dest)
+
+        with patch("static_analyzer.analysis_cache._atomic_copy", side_effect=fail_sha_copy):
+            self.assertFalse(copy_cache_files(self.src_dir, self.dst_dir))
+
+        self.assertFalse((self.dst_dir / STATIC_ANALYSIS_PKL).exists())
+        self.assertFalse((self.dst_dir / STATIC_ANALYSIS_SHA).exists())
 
 
 if __name__ == "__main__":

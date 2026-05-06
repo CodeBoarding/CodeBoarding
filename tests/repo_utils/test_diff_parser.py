@@ -19,10 +19,13 @@ def test_worktree_diff_includes_untracked_files():
         parsed = detect_changes(Path("/tmp/repo"), "HEAD", target_ref="")
 
     assert run.call_count == 2
+    # Argvs are prefixed by ``-c core.quotepath=false`` (see git_ops._git_argv);
+    # match against the subcommand head, ignoring the leading config flags.
     diff_cmd = run.call_args_list[0].args[0]
-    assert diff_cmd[:3] == ["git", "diff", "--raw"]
+    assert diff_cmd[0] == "git"
+    assert diff_cmd[diff_cmd.index("diff") :][:2] == ["diff", "--raw"]
     ls_cmd = run.call_args_list[1].args[0]
-    assert ls_cmd[:5] == ["git", "ls-files", "--others", "--exclude-standard", "-z"]
+    assert ls_cmd[ls_cmd.index("ls-files") :][:4] == ["ls-files", "--others", "--exclude-standard", "-z"]
 
     paths = [f.file_path for f in parsed.files]
     assert paths == ["src/existing.py", "src/new_helper.py"]

@@ -11,8 +11,8 @@ from main import build_parser, main
 def stub_run_incremental(tmp_path: Path):
     """Patch the chain so ``run_from_args`` reaches ``run_incremental`` without running it.
 
-    Yields ``(run_incremental_mock, load_snapshot_commit_mock, get_current_commit_mock)``
-    so individual tests can shape baseline / HEAD resolution.
+    Yields ``(run_incremental_mock, load_snapshot_commit_mock, get_current_commit_mock, resolve_ref_mock)``
+    so individual tests can shape baseline / source-SHA resolution.
     """
     with ExitStack() as stack:
         stack.enter_context(patch("codeboarding_cli.commands.incremental_analysis.bootstrap_environment"))
@@ -25,18 +25,21 @@ def stub_run_incremental(tmp_path: Path):
         head = stack.enter_context(
             patch("codeboarding_cli.commands.incremental_analysis.get_current_commit", return_value="current-head")
         )
+        resolve = stack.enter_context(
+            patch("codeboarding_cli.commands.incremental_analysis.resolve_ref", return_value="resolved-head")
+        )
         ri = stack.enter_context(
             patch(
                 "codeboarding_cli.commands.incremental_analysis.run_incremental",
                 return_value=tmp_path / "analysis.json",
             )
         )
-        yield ri, last, head
+        yield ri, last, head, resolve
 
 
 def test_incremental_passes_base_ref_through(tmp_path: Path, stub_run_incremental) -> None:
     """Explicit --base-ref wins over load_snapshot_commit."""
-    ri, last, head = stub_run_incremental
+    ri, last, head, resolve = stub_run_incremental
 
     main(["incremental", "--local", str(tmp_path), "--base-ref", "abc123"])
 
@@ -45,37 +48,56 @@ def test_incremental_passes_base_ref_through(tmp_path: Path, stub_run_incrementa
     assert kwargs["base_ref"] == "abc123"
     # No --target-ref: CLI resolves via get_current_commit.
     head.assert_called_once()
+    resolve.assert_called_once_with(tmp_path, "current-head")
     assert kwargs["target_ref"] == "current-head"
+    assert kwargs["source_sha"] == "resolved-head"
 
 
 def test_incremental_passes_target_ref_through(tmp_path: Path, stub_run_incremental) -> None:
     """Explicit --target-ref wins over get_current_commit."""
-    ri, _last, head = stub_run_incremental
+    ri, _last, head, resolve = stub_run_incremental
 
     main(["incremental", "--local", str(tmp_path), "--base-ref", "abc", "--target-ref", "HEAD"])
 
     head.assert_not_called()
+    resolve.assert_called_once_with(tmp_path, "HEAD")
     kwargs = ri.call_args.kwargs
     assert kwargs["base_ref"] == "abc"
     assert kwargs["target_ref"] == "HEAD"
+    assert kwargs["source_sha"] == "resolved-head"
+
+
+def test_incremental_empty_target_ref_diffs_worktree(tmp_path: Path, stub_run_incremental) -> None:
+    """--target-ref "" opts in to a worktree diff and stamps source_sha from HEAD."""
+    ri, _last, head, resolve = stub_run_incremental
+
+    main(["incremental", "--local", str(tmp_path), "--base-ref", "abc", "--target-ref", ""])
+
+    head.assert_called_once()
+    resolve.assert_not_called()
+    kwargs = ri.call_args.kwargs
+    assert kwargs["target_ref"] == ""
+    assert kwargs["source_sha"] == "current-head"
 
 
 def test_incremental_no_flags_resolves_from_metadata_and_head(tmp_path: Path, stub_run_incremental) -> None:
     """No flags: CLI resolves base from load_snapshot_commit and target from current HEAD."""
-    ri, last, head = stub_run_incremental
+    ri, last, head, resolve = stub_run_incremental
 
     main(["incremental", "--local", str(tmp_path)])
 
     last.assert_called_once()
     head.assert_called_once()
+    resolve.assert_called_once_with(tmp_path, "current-head")
     kwargs = ri.call_args.kwargs
     assert kwargs["base_ref"] == "last-success"
     assert kwargs["target_ref"] == "current-head"
+    assert kwargs["source_sha"] == "resolved-head"
 
 
 def test_incremental_no_baseline_short_circuits(tmp_path: Path, stub_run_incremental) -> None:
     """No --base-ref and no load_snapshot_commit: emit error, never call run_incremental."""
-    ri, last, _head = stub_run_incremental
+    ri, last, _head, _resolve = stub_run_incremental
     last.return_value = None
 
     main(["incremental", "--local", str(tmp_path)])
@@ -85,7 +107,7 @@ def test_incremental_no_baseline_short_circuits(tmp_path: Path, stub_run_increme
 
 def test_incremental_no_head_short_circuits(tmp_path: Path, stub_run_incremental) -> None:
     """Baseline resolves but HEAD does not (non-git dir / fresh repo): emit error."""
-    ri, _last, head = stub_run_incremental
+    ri, _last, head, _resolve = stub_run_incremental
     head.return_value = None
 
     main(["incremental", "--local", str(tmp_path), "--base-ref", "abc"])

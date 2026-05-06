@@ -10,7 +10,7 @@ from codeboarding_workflows.analysis import run_incremental
 from diagram_analysis import RunContext
 from diagram_analysis.io_utils import load_snapshot_commit
 from diagram_analysis.run_mode import RunMode
-from repo_utils.git_ops import get_current_commit
+from repo_utils.git_ops import get_current_commit, resolve_ref
 from utils import monitoring_enabled
 
 logger = logging.getLogger(__name__)
@@ -32,7 +32,7 @@ def add_arguments(subparsers: argparse._SubParsersAction, parents: list[argparse
         "--target-ref",
         type=str,
         default=None,
-        help="Override the diff target. Default: working tree (includes untracked files).",
+        help="Override the diff target. Default: HEAD. Pass an empty string to diff the working tree.",
     )
 
 
@@ -70,6 +70,12 @@ def run_from_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> 
         _emit_error("Could not resolve target ref: pass --target-ref or run inside a git repository with a valid HEAD.")
         return
 
+    source_sha = (
+        (resolve_ref(run_paths.repo_path, target_ref) or target_ref)
+        if target_ref
+        else get_current_commit(run_paths.repo_path)
+    )
+
     try:
         run_context = RunContext.resolve(
             repo_dir=run_paths.repo_path,
@@ -92,6 +98,7 @@ def run_from_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> 
             monitoring_enabled=args.enable_monitoring or monitoring_enabled(),
             base_ref=base_ref,
             target_ref=target_ref,
+            source_sha=source_sha,
         )
     except Exception as exc:
         logger.exception("Incremental analysis failed")
