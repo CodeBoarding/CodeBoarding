@@ -68,6 +68,7 @@ def run_full(
     static-analysis run artifact (sibling of ``analysis.json``) gets a
     matching SHA tag — enabling the next run's SHA-gated cache reuse.
     """
+    logger.info(f"Running FULL analysis workflow for repo '{repo_name}'.")
     generator = build_generator(
         repo_name=repo_name,
         repo_path=repo_path,
@@ -95,6 +96,7 @@ def run_partial(
     depth_level: int = 1,
 ) -> None:
     """Partial scope — regenerate a single component within an existing analysis."""
+    logger.info(f"Running PARTIAL analysis workflow for project '{project_name}', component '{component_id}'.")
     generator = build_generator(
         repo_name=project_name,
         repo_path=repo_path,
@@ -160,6 +162,10 @@ def run_incremental(
     against the given baseline — callers should surface a "run full
     analysis" prompt rather than silently degrading to an unscoped run.
     """
+    logger.info(
+        f"Running INCREMENTAL analysis workflow for project '{project_name}' "
+        f"(base={base_ref!r}, target={target_ref!r})."
+    )
     detected = detect_changes(repo_path, base_ref, target_ref)
     if detected.error:
         raise IncrementalUnavailableError(f"Could not compute diff against baseline {base_ref!r}: {detected.error}")
