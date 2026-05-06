@@ -347,6 +347,124 @@ class TestStitchDelta(unittest.TestCase):
         self.assertEqual(second, set())
         self.assertEqual(comp.source_cluster_ids, snapshot)
 
+    def test_update_propagates_new_clusters_to_ancestors(self) -> None:
+        """Routing a new cluster into a leaf must surface it in every ancestor.
+
+        Why: the next incremental cycle's ``_format_existing_components`` keys
+        on each component's own ``file_methods``. If the parent doesn't reflect
+        descendant clusters, it falls into the "names only" tier and the LLM
+        loses the description it would route by.
+        """
+        top = _component("Top", "1", source_cluster_ids=[1])
+        mid = _component("Mid", "1.1", source_cluster_ids=[2])
+        leaf = _component("Leaf", "1.1.1", source_cluster_ids=[3])
+        root = AnalysisInsights(description="root", components=[top], components_relations=[])
+        sub_analyses = {
+            "1": AnalysisInsights(description="", components=[mid], components_relations=[]),
+            "1.1": AnalysisInsights(description="", components=[leaf], components_relations=[]),
+        }
+        delta_ca = ClusterAnalysis(
+            cluster_components=[
+                ClustersComponent(
+                    name="Leaf",
+                    cluster_ids=[99],
+                    description="d",
+                    existing_component_id="1.1.1",
+                )
+            ]
+        )
+
+        redetail = stitch_delta(root, sub_analyses, delta_ca, _empty_delta())
+
+        self.assertEqual(leaf.source_cluster_ids, [3, 99])
+        self.assertEqual(mid.source_cluster_ids, [2, 99])
+        self.assertEqual(top.source_cluster_ids, [1, 99])
+        # Every ancestor that gained a cluster id must be redetailed so its
+        # file_methods get rebuilt from the merged source_cluster_ids.
+        self.assertIn("1.1.1", redetail)
+        self.assertIn("1.1", redetail)
+        self.assertIn("1", redetail)
+
+    def test_update_skips_propagation_when_ancestors_already_carry_ids(self) -> None:
+        """Idempotency: a second run of the same delta is a no-op for ancestors."""
+        top = _component("Top", "1", source_cluster_ids=[1, 99])
+        mid = _component("Mid", "1.1", source_cluster_ids=[2, 99])
+        leaf = _component("Leaf", "1.1.1", source_cluster_ids=[3, 99])
+        root = AnalysisInsights(description="root", components=[top], components_relations=[])
+        sub_analyses = {
+            "1": AnalysisInsights(description="", components=[mid], components_relations=[]),
+            "1.1": AnalysisInsights(description="", components=[leaf], components_relations=[]),
+        }
+        delta_ca = ClusterAnalysis(
+            cluster_components=[
+                ClustersComponent(
+                    name="Leaf",
+                    cluster_ids=[99],
+                    description="d",
+                    existing_component_id="1.1.1",
+                )
+            ]
+        )
+
+        redetail = stitch_delta(root, sub_analyses, delta_ca, _empty_delta())
+
+        self.assertEqual(top.source_cluster_ids, [1, 99])
+        self.assertEqual(mid.source_cluster_ids, [2, 99])
+        self.assertEqual(leaf.source_cluster_ids, [3, 99])
+        # Leaf's set didn't change; ancestors didn't change. No redetail needed.
+        self.assertEqual(redetail, set())
+
+    def test_add_new_component_propagates_clusters_to_ancestors(self) -> None:
+        """A brand-new component under '1.1' must surface its clusters in '1.1' and '1'."""
+        top = _component("Top", "1", source_cluster_ids=[1])
+        mid = _component("Mid", "1.1", source_cluster_ids=[2])
+        root = AnalysisInsights(description="root", components=[top], components_relations=[])
+        sub_analyses: dict[str, AnalysisInsights] = {
+            "1": AnalysisInsights(description="", components=[mid], components_relations=[]),
+        }
+        delta_ca = ClusterAnalysis(
+            cluster_components=[
+                ClustersComponent(
+                    name="Brand New",
+                    cluster_ids=[42],
+                    description="freshly seen cluster",
+                    parent_id="1.1",
+                )
+            ]
+        )
+
+        redetail = stitch_delta(root, sub_analyses, delta_ca, _empty_delta())
+
+        self.assertEqual(top.source_cluster_ids, [1, 42])
+        self.assertEqual(mid.source_cluster_ids, [2, 42])
+        self.assertIn("1", redetail)
+        self.assertIn("1.1", redetail)
+        # The new component should also be present and registered for redetail.
+        new_component = sub_analyses["1.1"].components[0]
+        self.assertEqual(new_component.name, "Brand New")
+        self.assertIn(new_component.component_id, redetail)
+
+    def test_add_top_level_component_does_not_propagate(self) -> None:
+        """A new top-level component (parent_id=None) has no ancestors to update."""
+        existing = _component("Existing", "1", source_cluster_ids=[1])
+        root = AnalysisInsights(description="root", components=[existing], components_relations=[])
+        delta_ca = ClusterAnalysis(
+            cluster_components=[
+                ClustersComponent(
+                    name="New Top",
+                    cluster_ids=[99],
+                    description="d",
+                    parent_id=None,
+                )
+            ]
+        )
+
+        stitch_delta(root, {}, delta_ca, _empty_delta())
+
+        # The existing top-level component is a sibling, not an ancestor.
+        # Its source_cluster_ids must stay untouched.
+        self.assertEqual(existing.source_cluster_ids, [1])
+
 
 class TestFormatExistingComponents(unittest.TestCase):
     def test_renders_id_name_and_description_in_full(self) -> None:

@@ -212,6 +212,43 @@ def _classify_verdict(cc: ClustersComponent, *, existing_found: bool) -> Verdict
     return Verdict.UPDATE if cc.redetail_needed else Verdict.NOOP
 
 
+def _ancestor_ids(component_id: str) -> list[str]:
+    """Return the ancestor chain of ``component_id`` from immediate parent up.
+
+    Hierarchical IDs encode ancestry by dotted prefix (``"1.1.3" -> "1.1" -> "1"``).
+    Returns ``[]`` for top-level (depth-1) ids.
+    """
+    parts = component_id.split(".")
+    return [".".join(parts[:i]) for i in range(len(parts) - 1, 0, -1)]
+
+
+def _propagate_clusters_to_ancestors(
+    component_id: str,
+    cluster_ids: set[int],
+    component_index: dict[str, Component],
+    redetail_ids: set[str],
+) -> None:
+    """Union ``cluster_ids`` into every ancestor of ``component_id``.
+
+    Maintains the parents-transitively-own-descendants invariant the
+    full-analysis path produces naturally: when a leaf gains a cluster, every
+    enclosing component must reflect it so the next incremental cycle sees
+    the right "affected" set in ``_format_existing_components`` and so
+    ``repopulate_touched_scopes`` rebuilds the ancestors' ``file_methods``.
+    """
+    if not cluster_ids:
+        return
+    for ancestor_id in _ancestor_ids(component_id):
+        ancestor = component_index.get(ancestor_id)
+        if ancestor is None:
+            continue
+        before = set(ancestor.source_cluster_ids)
+        merged = before | cluster_ids
+        if merged != before:
+            ancestor.source_cluster_ids = sorted(merged)
+            redetail_ids.add(ancestor_id)
+
+
 def stitch_delta(
     root_analysis: AnalysisInsights,
     sub_analyses: dict[str, AnalysisInsights],
@@ -306,6 +343,10 @@ def stitch_delta(
                     existing.source_cluster_ids = updated
                     if existing.component_id and cc.redetail_needed:
                         redetail_ids.add(existing.component_id)
+                if existing.component_id:
+                    _propagate_clusters_to_ancestors(
+                        existing.component_id, set(cc.cluster_ids), component_index, redetail_ids
+                    )
                 continue
 
         verdicts[Verdict.ADD] += 1
@@ -362,6 +403,12 @@ def _attach_new_components(
     for component, _ in new_components:
         if component.component_id:
             redetail_ids.add(component.component_id)
+            _propagate_clusters_to_ancestors(
+                component.component_id,
+                set(component.source_cluster_ids),
+                component_index,
+                redetail_ids,
+            )
 
 
 def _scope_for_parent(
