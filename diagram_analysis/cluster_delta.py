@@ -350,7 +350,10 @@ def _absorb_orphans_by_file(
 
     result = {cid: set(members) for cid, members in clusters.items()}
     for cid in singleton_cids:
-        if cid not in result:
+        if cid not in result or len(result[cid]) != 1:
+            # cid was absorbed into another cluster, or grew because another
+            # same-file singleton was merged into it earlier in this loop.
+            # Either way: no longer a singleton, skip.
             continue
         (qname,) = result[cid]
         if qname in nx_graph and nx_graph.degree(qname) > 0:

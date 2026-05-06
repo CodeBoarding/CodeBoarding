@@ -5,6 +5,7 @@ import unittest
 from diagram_analysis.cluster_delta import (
     ClusterDelta,
     LanguageDelta,
+    _absorb_orphans_by_file,
     _affected_frontier,
     _flavor_b_seeded,
     compute_cluster_delta,
@@ -452,6 +453,66 @@ class TestSeededLockGuarantee(unittest.TestCase):
         # must reach the frontier via the 1-hop expansion.
         self.assertIn("added.x", frontier)
         self.assertIn("callee.x", frontier)
+
+
+class TestAbsorbOrphansByFile(unittest.TestCase):
+    """Regression: same-file singleton merging must not unpack-fail when
+    multiple singletons co-locate and one absorbs another.
+    """
+
+    def test_two_same_file_singletons_one_absorbs_other(self) -> None:
+        # Two zero-edge nodes in the same file, each their own singleton
+        # cluster, plus a third populated cluster in a different file. The
+        # first singleton has no same-file neighbour to absorb into; it stays.
+        # The second singleton's same-file peer is now cluster 0 with len=2
+        # — but we need to confirm the loop doesn't crash on it.
+        graph = _build_graph(
+            [
+                ("a.foo", "a.py"),
+                ("a.bar", "a.py"),
+                ("b.qux", "b.py"),
+                ("b.baz", "b.py"),
+            ],
+            [("b.qux", "b.baz")],  # b cluster has an edge so it's not orphan-eligible
+        )
+        nx_graph = graph.to_networkx()
+        clusters = {
+            0: {"a.foo"},  # singleton, zero-edge
+            1: {"a.bar"},  # singleton, zero-edge, same file as 0
+            2: {"b.qux", "b.baz"},  # populated, different file
+        }
+
+        # Must not raise.
+        result = _absorb_orphans_by_file(clusters, nx_graph)
+
+        # Either order of iteration must end with both a.* qnames clustered
+        # somewhere — the function shouldn't crash and shouldn't lose nodes.
+        all_qnames: set[str] = set()
+        for members in result.values():
+            all_qnames.update(members)
+        self.assertEqual(all_qnames, {"a.foo", "a.bar", "b.qux", "b.baz"})
+
+    def test_singleton_absorbed_into_populated_same_file_cluster(self) -> None:
+        # Original intent: an orphan singleton merges into a same-file
+        # cluster that already has multiple members. Verify this still works.
+        graph = _build_graph(
+            [
+                ("m.orphan", "m.py"),
+                ("m.alpha", "m.py"),
+                ("m.beta", "m.py"),
+            ],
+            [("m.alpha", "m.beta")],
+        )
+        nx_graph = graph.to_networkx()
+        clusters = {
+            0: {"m.orphan"},  # zero-edge singleton, same file as cluster 1
+            1: {"m.alpha", "m.beta"},
+        }
+
+        result = _absorb_orphans_by_file(clusters, nx_graph)
+
+        self.assertNotIn(0, result)
+        self.assertEqual(result[1], {"m.orphan", "m.alpha", "m.beta"})
 
 
 if __name__ == "__main__":
