@@ -16,6 +16,8 @@ analysis.json file with nested components.
 
 import json
 import logging
+import os
+import tempfile
 from pathlib import Path
 
 from filelock import FileLock
@@ -241,18 +243,32 @@ class _AnalysisFileStore:
                 sub_expandable = self._compute_expandable_components(sub, parent_had_clusters=parent_had_clusters)
                 sub_analyses_tuples[cid] = (sub, sub_expandable)
 
-        with open(self._analysis_path, "w", encoding="utf-8") as f:
-            f.write(
-                build_unified_analysis_json(
-                    analysis=analysis,
-                    expandable_components=expandable,
-                    repo_name=repo_name,
-                    sub_analyses=sub_analyses_tuples,
-                    file_coverage_summary=file_coverage_summary,
-                    commit_hash=commit_hash,
-                    snapshot_commit=snapshot_commit,
-                )
-            )
+        # Atomic write: build the JSON in a sibling temp file, then rename
+        # over the destination.  A crashed process leaves either the prior
+        # complete file or no file at all — never a half-written one.  The
+        # wrapper's snapshot promotion path hashes whatever it sees here, so
+        # a truncated file would otherwise be cryptographically promoted as
+        # if it were a real result.
+        payload = build_unified_analysis_json(
+            analysis=analysis,
+            expandable_components=expandable,
+            repo_name=repo_name,
+            sub_analyses=sub_analyses_tuples,
+            file_coverage_summary=file_coverage_summary,
+            commit_hash=commit_hash,
+            snapshot_commit=snapshot_commit,
+        )
+        tmp_fd, tmp_name = tempfile.mkstemp(
+            prefix=f".{self._analysis_path.name}.",
+            dir=str(self._analysis_path.parent),
+        )
+        try:
+            with os.fdopen(tmp_fd, "w", encoding="utf-8") as f:
+                f.write(payload)
+            os.replace(tmp_name, self._analysis_path)
+        except Exception:
+            Path(tmp_name).unlink(missing_ok=True)
+            raise
 
         return self._analysis_path
 
