@@ -11,7 +11,7 @@ from main import build_parser, main
 def stub_run_incremental(tmp_path: Path):
     """Patch the chain so ``run_from_args`` reaches ``run_incremental`` without running it.
 
-    Yields ``(run_incremental_mock, last_successful_commit_mock, get_current_commit_mock)``
+    Yields ``(run_incremental_mock, load_snapshot_commit_mock, get_current_commit_mock)``
     so individual tests can shape baseline / HEAD resolution.
     """
     with ExitStack() as stack:
@@ -20,7 +20,7 @@ def stub_run_incremental(tmp_path: Path):
         rc.resolve.return_value.run_id = "rid"
         rc.resolve.return_value.log_path = "logs/run.log"
         last = stack.enter_context(
-            patch("codeboarding_cli.commands.incremental_analysis.last_successful_commit", return_value="last-success")
+            patch("codeboarding_cli.commands.incremental_analysis.load_snapshot_commit", return_value="last-success")
         )
         head = stack.enter_context(
             patch("codeboarding_cli.commands.incremental_analysis.get_current_commit", return_value="current-head")
@@ -35,7 +35,7 @@ def stub_run_incremental(tmp_path: Path):
 
 
 def test_incremental_passes_base_ref_through(tmp_path: Path, stub_run_incremental) -> None:
-    """Explicit --base-ref wins over last_successful_commit."""
+    """Explicit --base-ref wins over load_snapshot_commit."""
     ri, last, head = stub_run_incremental
 
     main(["incremental", "--local", str(tmp_path), "--base-ref", "abc123"])
@@ -61,7 +61,7 @@ def test_incremental_passes_target_ref_through(tmp_path: Path, stub_run_incremen
 
 
 def test_incremental_no_flags_resolves_from_metadata_and_head(tmp_path: Path, stub_run_incremental) -> None:
-    """No flags: CLI resolves base from last_successful_commit and target from current HEAD."""
+    """No flags: CLI resolves base from load_snapshot_commit and target from current HEAD."""
     ri, last, head = stub_run_incremental
 
     main(["incremental", "--local", str(tmp_path)])
@@ -74,7 +74,7 @@ def test_incremental_no_flags_resolves_from_metadata_and_head(tmp_path: Path, st
 
 
 def test_incremental_no_baseline_short_circuits(tmp_path: Path, stub_run_incremental) -> None:
-    """No --base-ref and no last_successful_commit: emit error, never call run_incremental."""
+    """No --base-ref and no load_snapshot_commit: emit error, never call run_incremental."""
     ri, last, _head = stub_run_incremental
     last.return_value = None
 

@@ -284,6 +284,31 @@ def load_analysis_metadata(output_dir: Path) -> dict | None:
     return result[2].get("metadata")
 
 
+def load_snapshot_commit(output_dir: Path) -> str | None:
+    """Return the top-level ``snapshotCommit`` from live ``analysis.json``.
+
+    The single source of truth for the incremental baseline. The wrapper
+    stamps this field at promote time; reading it here lets callers find
+    the prior analysis without walking git refs or sidecar files.
+
+    Returns ``None`` when the file is absent, unreadable, not a JSON
+    object, or the field is missing or empty. Reads raw JSON (not via the
+    Pydantic store) so a partially-malformed analysis.json still yields
+    a usable baseline pointer.
+    """
+    path = Path(output_dir) / ANALYSIS_FILENAME
+    if not path.is_file():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    sha = data.get("snapshotCommit")
+    return sha if isinstance(sha, str) and sha else None
+
+
 def save_analysis(
     analysis: AnalysisInsights,
     output_dir: Path,
