@@ -24,7 +24,6 @@ classifiers = [
 dependencies = [
     "docker>=7.1",
     "dotenv>=0.9",
-    "duckdb>=1.3",
     "dulwich>=0.22",
     "fastapi>=0.115",
     "filelock>=3.12",
@@ -101,7 +100,6 @@ py-modules = [
     "utils",
     "vscode_constants",
     "logging_config",
-    "duckdb_crud",
     "github_action",
     "user_config",
     "main",
