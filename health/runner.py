@@ -6,7 +6,6 @@ from pathlib import Path
 
 from core import run_plugin_health_checks
 from health.checks.circular_deps import check_circular_dependencies
-from health.checks.cohesion import check_component_cohesion
 from health.checks.coupling import check_fan_in, check_fan_out
 from health.checks.function_size import check_function_size
 from health.checks.god_class import check_god_classes
@@ -25,6 +24,7 @@ from health.models import (
     StandardCheckSummary,
 )
 from static_analyzer.analysis_result import StaticAnalysisResults
+from static_analyzer.constants import Language
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +70,7 @@ def _relativize_path(file_path: str, repo_root: str) -> str:
 
 def _collect_checks_for_language(
     static_analysis: StaticAnalysisResults,
-    language: str,
+    language: Language,
     config: HealthCheckConfig,
 ) -> CheckSummaryList:
     """Run all applicable health checks for a single language and return the summaries."""
@@ -98,7 +98,13 @@ def _collect_checks_for_language(
         summaries.append(check_circular_dependencies(package_deps, config))
         summaries.append(check_package_instability(package_deps, config))
 
-    summaries.append(check_component_cohesion(call_graph, config))
+    # Component-cohesion check intentionally not run here. It's the only health
+    # check that calls ``CallGraph.cluster()``, which would seed
+    # ``_cluster_cache`` with a current-graph partition and let it masquerade
+    # as a historical snapshot in the next incremental delta. Re-enable via
+    # ``health.checks.cohesion.check_component_cohesion`` only after addressing
+    # that side effect.
+    # use_cache=False
 
     # Run LSP-based unused code detection
     exclude_patterns = config.health_exclude_patterns

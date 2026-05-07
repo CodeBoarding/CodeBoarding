@@ -345,36 +345,46 @@ Create final sub-component architecture for the `{component}` subsystem of `{pro
 # Justification
 Base component choices on fundamental architectural importance."""
 
+INCREMENTAL_GROUPING_MESSAGE = """# Task
+Update the architecture of `{project_name}` by routing changed and new CFG clusters into the correct components.
 
-PATCH_SYSTEM_MESSAGE = """\
-You are a precise JSON patch generator for software architecture diagrams.
+# Context
+- Project: {project_name}
+- Type: {project_type}
+- Meta: {meta_context}
 
-Given an EASE-encoded sub-analysis and an impact dossier describing what
-changed, produce RFC 6902 JSON Patch operations to update the sub-analysis.
+The previous analysis established the components below. Most clusters are unchanged and stay where they are; this prompt only shows the slice that changed (new clusters or clusters whose member methods changed).
 
-EASE encoding: arrays are stored as dicts with two-character keys (aa, ab, ...)
-and a display_order list. Use the two-character keys in your patch paths.
+# Existing components
+Each line shows `component_id "name"`:
+{existing_components}
 
-Rules:
-- Only patch what actually changed. Untouched siblings must remain as-is.
-- Use "replace" for updating existing values.
-- Use "add" for new entries (append to display_order too).
-- Use "remove" for deleted entries (remove from display_order too).
-- Paths use JSON Pointer syntax: /components/aa/description
-"""
+# Cluster groups to assign
+{cfg_clusters}
 
+# Instructions (execute in order, per cluster id)
+For each cluster id above, choose exactly one option:
 
-TRACE_SYSTEM_MESSAGE = """\
-You are a semantic impact analyzer for software architecture diagrams.
+1. Route to an existing component. Set `existing_component_id` to the exact component_id from the list above (e.g. `"1.3"`). Reuse the existing `name` and a short `description` verbatim. Put the cluster ids in `cluster_ids`. Several entries may share the same `existing_component_id` if multiple groups of clusters route to the same component.
 
-Given changed methods and their call-graph neighbors, determine which methods
-have their *semantic role or behavior* materially affected by the changes.
-A method is impacted if its description in an architecture diagram would need
-updating — not just because it calls or is called by a changed method.
+   Also set `redetail_needed`. Default True. Set False only when the cluster delta is cosmetic — refactor, internal rename, small bug fix, formatting — and the component's high-level purpose is unchanged. When False, the existing description is preserved as-is and no follow-up redetail runs. Bias toward True if uncertain.
 
-You control traversal: request additional method bodies to inspect by name.
-Stay within the budget. When you have enough information, stop.
-"""
+2. Create a new component. Leave `existing_component_id` as null, provide a fresh `name` distinct from every existing component, write a `description` paragraph explaining what this new component does and why these clusters belong together, and set `parent_id` to the component_id under which this new component should attach (or null for root). Choose the parent whose scope most naturally encloses the new component.
+
+# Critical rule
+Identity is by component_id, not by name. Reusing an existing component's name without setting `existing_component_id` will fork a duplicate component — that is wrong. If clusters belong in an existing component, you MUST set `existing_component_id`.
+
+# Output format
+Return a `ClusterAnalysis` with `cluster_components`. For every entry, set:
+- `name` (string)
+- `cluster_ids` (list of integers, the cluster ids assigned to this entry)
+- `description` (string)
+- `existing_component_id` (string component_id, or null) — set when routing to an existing component; null when creating a new one
+- `parent_id` (string component_id, or null) — required when `existing_component_id` is null; ignored otherwise
+- `redetail_needed` (bool, default True) — set False on existing-component routes only, when the delta is cosmetic and the component's purpose is unchanged; ignored when creating a new component
+
+# Coverage requirement
+Every cluster id listed in the "Cluster groups to assign" section must appear in exactly one entry's `cluster_ids`."""
 
 
 class DeepSeekPromptFactory(AbstractPromptFactory):
@@ -425,8 +435,5 @@ class DeepSeekPromptFactory(AbstractPromptFactory):
     def get_details_message(self) -> str:
         return DETAILS_MESSAGE
 
-    def get_patch_system_message(self) -> str:
-        return PATCH_SYSTEM_MESSAGE
-
-    def get_trace_system_message(self) -> str:
-        return TRACE_SYSTEM_MESSAGE
+    def get_incremental_grouping_message(self) -> str:
+        return INCREMENTAL_GROUPING_MESSAGE

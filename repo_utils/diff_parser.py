@@ -131,16 +131,29 @@ def _parse_raw_line(line: str) -> FileChange | None:
             return None
         return FileChange(
             status_code=status_code,
-            file_path=parts[2],
-            old_path=parts[1],
+            file_path=_strip_git_quotes(parts[2]),
+            old_path=_strip_git_quotes(parts[1]),
             similarity=similarity,
         )
 
     return FileChange(
         status_code=status_code,
-        file_path=parts[1],
+        file_path=_strip_git_quotes(parts[1]),
         similarity=similarity,
     )
+
+
+def _strip_git_quotes(path: str) -> str:
+    """Drop git's surrounding quotes if present.
+
+    Belt-and-braces with ``core.quotepath=false`` from ``_git_argv`` — handles
+    the case where an upstream env var or repo-local config flips quotepath
+    back on. Mirrors the optional-quote pattern in ``_DIFF_HEADER_RE`` so the
+    raw-line key matches the patch-body key in ``_split_patch_bodies``.
+    """
+    if len(path) >= 2 and path[0] == '"' and path[-1] == '"':
+        return path[1:-1]
+    return path
 
 
 def _parse_patch_text(patch_text: str) -> list[DiffHunk]:

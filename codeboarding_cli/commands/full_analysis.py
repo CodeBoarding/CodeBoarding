@@ -14,6 +14,7 @@ from diagram_analysis import RunContext
 from monitoring import monitor_execution
 from monitoring.paths import get_monitoring_run_dir
 from repo_utils import get_branch, store_token
+from repo_utils.git_ops import get_current_commit
 from repo_utils.ignore import initialize_codeboardingignore
 from utils import CODEBOARDING_DIR_NAME, copy_files, monitoring_enabled
 
@@ -92,6 +93,7 @@ def _run_local(args: argparse.Namespace) -> None:
             log_path=run_context.log_path,
             monitoring_enabled=should_monitor,
             force_full=args.force,
+            source_sha=get_current_commit(src.repo_path),
         )
 
     run_analysis_pipeline(
@@ -173,6 +175,7 @@ def _process_one_remote(
                 run_id=run_context.run_id,
                 log_path=run_context.log_path,
                 monitoring_enabled=should_monitor,
+                source_sha=get_current_commit(src.repo_path),
             )
             render_docs(
                 analysis_path=analysis_path,

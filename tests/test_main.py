@@ -64,6 +64,7 @@ class TestGenerateAnalysis(unittest.TestCase):
                 log_path="test_repo/test-run-log",
                 monitoring_enabled=False,
                 static_analyzer=None,
+                changes=None,
             )
             mock_generator.generate_analysis.assert_called_once()
 

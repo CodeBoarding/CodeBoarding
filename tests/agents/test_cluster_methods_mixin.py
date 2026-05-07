@@ -9,7 +9,7 @@ from agents.cluster_methods_mixin import ClusterMethodsMixin
 from agents.agent_responses import AnalysisInsights, Component, SourceCodeReference
 from agents.model_capabilities import ContextWindow
 from static_analyzer.graph import CallGraph, ClusterResult
-from static_analyzer.constants import NodeType
+from static_analyzer.constants import Language, NodeType
 from static_analyzer.node import Node
 
 
@@ -233,7 +233,7 @@ class TestClusterStringBudgeting(unittest.TestCase):
         static.get_cfg.side_effect = {"python": py_cfg, "javascript": js_cfg}.__getitem__
         mixin = MockMixin(repo_dir=Path("/repo"), static_analysis=static)
 
-        full = mixin._render_cluster_string(["python", "javascript"], cluster_results, None, {}).text
+        full = mixin._render_cluster_string([Language.PYTHON, Language.JAVASCRIPT], cluster_results, None, {}).text
         desired_budget = len(full) + 10
         input_tokens = int(desired_budget / (ClusterPromptBudget(input_tokens=0).chars_per_token * 0.9)) + 8_001
 
@@ -244,7 +244,7 @@ class TestClusterStringBudgeting(unittest.TestCase):
             ),
             patch("agents.cluster_methods_mixin.plan_skip_set") as mock_plan_skip,
         ):
-            result = mixin._build_cluster_string(["python", "javascript"], cluster_results)
+            result = mixin._build_cluster_string([Language.PYTHON, Language.JAVASCRIPT], cluster_results)
 
         self.assertEqual(result, full)
         mock_plan_skip.assert_not_called()

@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from agents.tools.base import BaseRepoTool, RepoContext
     from health.models import HealthCheckConfig, StandardCheckSummary, CircularDependencyCheck
     from static_analyzer.analysis_result import StaticAnalysisResults
+    from static_analyzer.constants import Language
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +57,7 @@ def reset_registries() -> None:
 
 def run_plugin_health_checks(
     static_analysis: "StaticAnalysisResults",
-    language: str,
+    language: "Language",
     config: "HealthCheckConfig",
 ) -> "list[StandardCheckSummary | CircularDependencyCheck]":
     """Run all registered plugin health checks for a language and return their summaries.

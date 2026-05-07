@@ -3,21 +3,28 @@
 Three scopes, one shared generator builder. Each function takes a local
 repo path and the minimum context needed to run; they are source-agnostic
 (see ``codeboarding_workflows.sources`` for local/remote materialization).
+
+``run_incremental_workflow`` is the kernel shared by the CLI path
+(``run_incremental``) and external callers (``github_action.py``, desktop
+wrapper) that build their own ``DiagramGenerator`` and skip the local-git
+baseline resolution.
 """
 
 import logging
 from pathlib import Path
 
 from diagram_analysis import DiagramGenerator
-from diagram_analysis.incremental_payload import IncrementalRunPayload
-from diagram_analysis.incremental_pipeline import run_incremental_pipeline
-from diagram_analysis.io_utils import load_full_analysis, save_sub_analysis
-from diagram_analysis.run_metadata import write_full_run_metadata
+from diagram_analysis.io_utils import load_analysis_metadata, load_full_analysis, save_sub_analysis
+from repo_utils.diff_parser import detect_changes
 
 logger = logging.getLogger(__name__)
 
 
-def _build_generator(
+class IncrementalUnavailableError(RuntimeError):
+    """Raised when incremental analysis cannot run and the caller should fall back to a full run."""
+
+
+def build_generator(
     repo_name: str,
     repo_path: Path,
     output_dir: Path,
@@ -26,6 +33,7 @@ def _build_generator(
     depth_level: int = 1,
     monitoring_enabled: bool = False,
     static_analyzer=None,
+    changes=None,
 ) -> DiagramGenerator:
     return DiagramGenerator(
         repo_location=repo_path,
@@ -37,6 +45,7 @@ def _build_generator(
         log_path=log_path,
         monitoring_enabled=monitoring_enabled,
         static_analyzer=static_analyzer,
+        changes=changes,
     )
 
 
@@ -49,9 +58,17 @@ def run_full(
     depth_level: int = 1,
     monitoring_enabled: bool = False,
     force_full: bool = False,
+    static_analyzer=None,
+    source_sha: str | None = None,
 ) -> Path:
-    """Full analysis scope — rebuild the whole diagram from scratch."""
-    generator = _build_generator(
+    """Full analysis scope — rebuild the whole diagram from scratch.
+
+    ``source_sha`` is forwarded to ``StaticAnalyzer.analyze`` so the on-disk
+    static-analysis run artifact (sibling of ``analysis.json``) gets a
+    matching SHA tag — enabling the next run's SHA-gated cache reuse.
+    """
+    logger.info(f"Running FULL analysis workflow for repo '{repo_name}'.")
+    generator = build_generator(
         repo_name=repo_name,
         repo_path=repo_path,
         output_dir=output_dir,
@@ -59,11 +76,11 @@ def run_full(
         log_path=log_path,
         depth_level=depth_level,
         monitoring_enabled=monitoring_enabled,
+        static_analyzer=static_analyzer,
     )
     generator.force_full_analysis = force_full
-    analysis_path = generator.generate_analysis()
-    write_full_run_metadata(output_dir, repo_path, analysis_path=analysis_path)
-    return analysis_path
+    generator.source_sha = source_sha
+    return generator.generate_analysis()
 
 
 def run_partial(
@@ -76,7 +93,8 @@ def run_partial(
     depth_level: int = 1,
 ) -> None:
     """Partial scope — regenerate a single component within an existing analysis."""
-    generator = _build_generator(
+    logger.info(f"Running PARTIAL analysis workflow for project '{project_name}', component '{component_id}'.")
+    generator = build_generator(
         repo_name=project_name,
         repo_path=repo_path,
         output_dir=output_dir,
@@ -133,9 +151,24 @@ def run_incremental(
     depth_level: int = 1,
     monitoring_enabled: bool = False,
     static_analyzer=None,
-) -> IncrementalRunPayload:
-    """Incremental scope — diff against *base_ref* and propagate only the semantic deltas."""
-    generator = _build_generator(
+    source_sha: str | None = None,
+) -> Path:
+    """Incremental scope — cluster-driven update of an existing ``analysis.json``.
+
+    Raises ``IncrementalUnavailableError`` when the diff cannot be computed
+    against the given baseline — callers should surface a "run full
+    analysis" prompt rather than silently degrading to an unscoped run.
+    """
+    logger.info(
+        f"Running INCREMENTAL analysis workflow for project '{project_name}' "
+        f"(base={base_ref!r}, target={target_ref!r})."
+    )
+    detected = detect_changes(repo_path, base_ref, target_ref)
+    if detected.error:
+        raise IncrementalUnavailableError(f"Could not compute diff against baseline {base_ref!r}: {detected.error}")
+    changes = detected
+
+    generator = build_generator(
         repo_name=project_name,
         repo_path=repo_path,
         output_dir=output_dir,
@@ -144,5 +177,34 @@ def run_incremental(
         depth_level=depth_level,
         monitoring_enabled=monitoring_enabled,
         static_analyzer=static_analyzer,
+        changes=changes,
     )
-    return run_incremental_pipeline(generator, base_ref=base_ref, target_ref=target_ref)
+    generator.source_sha = source_sha
+
+    return run_incremental_workflow(generator)
+
+
+def run_incremental_workflow(generator: DiagramGenerator) -> Path:
+    """Run incremental analysis when a baseline exists, otherwise fall back to a full run.
+
+    Public kernel used by ``github_action.py``, the desktop wrapper, and
+    ``run_incremental`` (CLI). Shape:
+    1. If no prior ``analysis.json`` is present, run full analysis.
+    2. Otherwise hand the loaded baseline to ``generate_analysis_incremental``,
+       which itself falls back to a full run when the cluster snapshot is
+       missing or the cluster delta produces nothing actionable.
+    """
+    output_dir = generator.output_dir
+    existing = load_full_analysis(output_dir)
+    metadata = load_analysis_metadata(output_dir)
+    if existing is None or metadata is None:
+        logger.info("No existing analysis baseline; running full analysis.")
+        return generator.generate_analysis()
+
+    root_analysis, sub_analyses = existing
+
+    if not root_analysis.components:
+        logger.info("Baseline analysis has no components; running full analysis.")
+        return generator.generate_analysis()
+
+    return generator.generate_analysis_incremental(root_analysis, sub_analyses)

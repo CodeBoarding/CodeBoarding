@@ -20,8 +20,28 @@ import logging
 import subprocess
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Any
 
 logger = logging.getLogger(__name__)
+
+# Decode all git text output as UTF-8 with replacement, not the platform default.
+# Why: ``subprocess.run(..., text=True)`` without an explicit encoding decodes
+# stdout/stderr through ``locale.getpreferredencoding()`` — on Windows that's
+# typically cp1252 and raises ``UnicodeDecodeError`` on UTF-8 bytes git emits
+# for non-ASCII paths or translated error messages. ``read_file_at_ref`` uses
+# the same UTF-8 + replace strategy on its raw bytes.
+_GIT_TEXT_KWARGS: dict[str, Any] = {"text": True, "encoding": "utf-8", "errors": "replace"}
+
+
+def _git_argv(*args: str) -> list[str]:
+    """Build a git argv with config flags that make output bytes deterministic.
+
+    ``core.quotepath=false`` keeps non-ASCII paths unquoted (so they match the
+    live worktree byte-for-byte). Without it, git C-quotes any byte >= 0x80 —
+    e.g. ``é.py`` comes back as ``"\\303\\251.py"`` and never matches the file
+    on disk, silently mis-scoping any diff-driven flow.
+    """
+    return ["git", "-c", "core.quotepath=false", *args]
 
 
 def get_current_commit(repo_dir: Path) -> str | None:
@@ -33,10 +53,10 @@ def get_current_commit(repo_dir: Path) -> str | None:
     """
     try:
         result = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
+            _git_argv("rev-parse", "HEAD"),
             cwd=repo_dir,
             capture_output=True,
-            text=True,
+            **_GIT_TEXT_KWARGS,
             check=True,
         )
         return result.stdout.strip()
@@ -47,10 +67,10 @@ def get_current_commit(repo_dir: Path) -> str | None:
 def require_current_commit(repo_dir: Path) -> str:
     """Return the current HEAD commit hash, raising on failure."""
     result = subprocess.run(
-        ["git", "rev-parse", "HEAD"],
+        _git_argv("rev-parse", "HEAD"),
         cwd=repo_dir,
         capture_output=True,
-        text=True,
+        **_GIT_TEXT_KWARGS,
         check=True,
     )
     return result.stdout.strip()
@@ -60,10 +80,10 @@ def is_git_repository(repo_dir: Path) -> bool:
     """True iff *repo_dir* is inside a git work tree."""
     try:
         subprocess.run(
-            ["git", "rev-parse", "--git-dir"],
+            _git_argv("rev-parse", "--git-dir"),
             cwd=repo_dir,
             capture_output=True,
-            text=True,
+            **_GIT_TEXT_KWARGS,
             check=True,
         )
         return True
@@ -79,11 +99,11 @@ def has_uncommitted_changes(repo_dir: Path) -> bool:
     """
     try:
         for args in (
-            ["git", "diff", "--cached", "--name-only"],
-            ["git", "diff", "--name-only"],
-            ["git", "ls-files", "--others", "--exclude-standard"],
+            _git_argv("diff", "--cached", "--name-only"),
+            _git_argv("diff", "--name-only"),
+            _git_argv("ls-files", "--others", "--exclude-standard"),
         ):
-            result = subprocess.run(args, cwd=repo_dir, capture_output=True, text=True, check=True)
+            result = subprocess.run(args, cwd=repo_dir, capture_output=True, **_GIT_TEXT_KWARGS, check=True)
             if result.stdout.strip():
                 return True
         return False
@@ -104,15 +124,13 @@ def get_changed_files_since(repo_dir: Path, from_commit: str) -> set[Path]:
     changed: set[Path] = set()
 
     result = subprocess.run(
-        ["git", "diff", "--name-only", from_commit, "HEAD"],
+        _git_argv("diff", "--name-status", "-z", "-M", "-C", from_commit, "HEAD"),
         cwd=repo_dir,
         capture_output=True,
-        text=True,
+        **_GIT_TEXT_KWARGS,
         check=True,
     )
-    for line in result.stdout.strip().split("\n"):
-        if line:
-            changed.add(repo_dir / line)
+    changed.update(_parse_name_status_paths(result.stdout, repo_dir))
 
     changed.update(_list_uncommitted_changed_files(repo_dir))
     logger.info("Found %d changed files since commit %s", len(changed), from_commit)
@@ -133,8 +151,7 @@ def run_raw_diff(
     baseline ref — callers that want to retry after ``git fetch`` should catch
     and re-invoke). Empty ``target_ref`` diffs the worktree against *base_ref*.
     """
-    cmd = [
-        "git",
+    cmd = _git_argv(
         "diff",
         "--raw",
         f"-U{context_lines}",
@@ -142,23 +159,23 @@ def run_raw_diff(
         "-C",
         "--find-renames=50%",
         base_ref,
-    ]
+    )
     if target_ref:
         cmd.append(target_ref)
     cmd.extend(["--", "."])
     cmd.extend(f":!{pattern}" for pattern in exclude_patterns)
 
-    result = subprocess.run(cmd, cwd=repo_dir, capture_output=True, text=True, check=True)
+    result = subprocess.run(cmd, cwd=repo_dir, capture_output=True, **_GIT_TEXT_KWARGS, check=True)
     return result.stdout
 
 
 def fetch_all(repo_dir: Path) -> None:
     """Run ``git fetch --all --prune --tags``; raises on failure."""
     subprocess.run(
-        ["git", "fetch", "--all", "--prune", "--tags"],
+        _git_argv("fetch", "--all", "--prune", "--tags"),
         cwd=repo_dir,
         capture_output=True,
-        text=True,
+        **_GIT_TEXT_KWARGS,
         check=True,
     )
 
@@ -170,9 +187,9 @@ def list_untracked_files(repo_dir: Path, *, exclude_patterns: Sequence[str] = ()
     stay intact. Distinct from :func:`_list_uncommitted_changed_files`, which
     also includes staged/unstaged and returns absolute paths.
     """
-    cmd = ["git", "ls-files", "--others", "--exclude-standard", "-z", "--", "."]
+    cmd = _git_argv("ls-files", "--others", "--exclude-standard", "-z", "--", ".")
     cmd.extend(f":!{pattern}" for pattern in exclude_patterns)
-    result = subprocess.run(cmd, cwd=repo_dir, capture_output=True, text=True, check=True)
+    result = subprocess.run(cmd, cwd=repo_dir, capture_output=True, **_GIT_TEXT_KWARGS, check=True)
     return [path for path in result.stdout.split("\0") if path]
 
 
@@ -183,9 +200,11 @@ def read_file_at_ref(repo_dir: Path, ref: str, file_path: str) -> str | None:
     (missing ref, file not present at that ref, git not installed) — callers
     treat absence as "fall back to worktree". UTF-8 decoded with ``replace``.
     """
+    # git show requires posix separators; harden against a Windows-style relative path.
+    posix_path = file_path.replace("\\", "/")
     try:
         result = subprocess.run(
-            ["git", "show", f"{ref}:{file_path}"],
+            _git_argv("show", f"{ref}:{posix_path}"),
             cwd=repo_dir,
             capture_output=True,
             check=True,
@@ -199,10 +218,10 @@ def resolve_ref(repo_dir: Path, ref: str) -> str | None:
     """Resolve *ref* (branch/tag/SHA) to its full commit SHA, or ``None`` on failure."""
     try:
         result = subprocess.run(
-            ["git", "rev-parse", "--verify", ref],
+            _git_argv("rev-parse", "--verify", ref),
             cwd=repo_dir,
             capture_output=True,
-            text=True,
+            **_GIT_TEXT_KWARGS,
             check=True,
         )
     except (OSError, subprocess.CalledProcessError):
@@ -219,10 +238,10 @@ def git_object_type(repo_dir: Path, ref: str) -> str | None:
     """
     try:
         result = subprocess.run(
-            ["git", "cat-file", "-t", ref],
+            _git_argv("cat-file", "-t", ref),
             cwd=repo_dir,
             capture_output=True,
-            text=True,
+            **_GIT_TEXT_KWARGS,
             check=True,
         )
     except (OSError, subprocess.CalledProcessError):
@@ -239,10 +258,10 @@ def worktree_has_changes(repo_dir: Path, *, exclude_patterns: Sequence[str] = ()
     whether to treat the tree as dirty, and "treat as dirty" is the safe
     default when we cannot tell.
     """
-    cmd = ["git", "status", "--porcelain", "--untracked-files=all", "--", "."]
+    cmd = _git_argv("status", "--porcelain", "--untracked-files=all", "--", ".")
     cmd.extend(f":!{pattern}" for pattern in exclude_patterns)
     try:
-        result = subprocess.run(cmd, cwd=repo_dir, capture_output=True, text=True, check=True)
+        result = subprocess.run(cmd, cwd=repo_dir, capture_output=True, **_GIT_TEXT_KWARGS, check=True)
     except (OSError, subprocess.CalledProcessError):
         return True
     return bool(result.stdout.strip())
@@ -254,30 +273,47 @@ def approve_https_credentials(*, host: str, username: str, password: str, protoc
     Fire-and-forget: caller is responsible for handling failures if needed.
     """
     cred = f"protocol={protocol}\nhost={host}\nusername={username}\npassword={password}\n\n"
-    subprocess.run(["git", "credential", "approve"], input=cred, text=True, check=True)
+    subprocess.run(_git_argv("credential", "approve"), input=cred, **_GIT_TEXT_KWARGS, check=True)
 
 
 def _list_uncommitted_changed_files(repo_dir: Path) -> set[Path]:
     """Absolute paths of files with staged / unstaged / untracked changes.
 
-    Nonexistent paths are skipped (handles files staged-for-delete then
-    popped from the worktree). Returns an empty set on any git failure.
+    Deleted paths are retained so cache invalidation can remove stale nodes.
+    Returns an empty set on any git failure.
     """
     paths: set[Path] = set()
     for args in (
-        ["git", "diff", "--cached", "--name-only"],
-        ["git", "diff", "--name-only"],
-        ["git", "ls-files", "--others", "--exclude-standard"],
+        _git_argv("diff", "--cached", "--name-status", "-z", "-M", "-C"),
+        _git_argv("diff", "--name-status", "-z", "-M", "-C"),
+        _git_argv("ls-files", "--others", "--exclude-standard", "-z"),
     ):
         try:
-            result = subprocess.run(args, cwd=repo_dir, capture_output=True, text=True, check=True)
+            result = subprocess.run(args, cwd=repo_dir, capture_output=True, **_GIT_TEXT_KWARGS, check=True)
         except subprocess.CalledProcessError as exc:
             logger.warning("Failed to list uncommitted changes (%s): %s", args, exc)
             return paths
-        for line in result.stdout.strip().split("\n"):
-            if not line:
-                continue
-            candidate = repo_dir / line
-            if candidate.exists():
-                paths.add(candidate)
+        if "diff" in args:
+            paths.update(_parse_name_status_paths(result.stdout, repo_dir))
+            continue
+        for line in result.stdout.split("\0"):
+            if line:
+                paths.add(repo_dir / line)
+    return paths
+
+
+def _parse_name_status_paths(output: str, repo_dir: Path) -> set[Path]:
+    """Parse ``git diff --name-status -z`` output into absolute changed paths."""
+    paths: set[Path] = set()
+    fields = [field for field in output.split("\0") if field]
+    index = 0
+    while index < len(fields):
+        status = fields[index]
+        index += 1
+        path_count = 2 if status[:1] in {"R", "C"} else 1
+        for _ in range(path_count):
+            if index >= len(fields):
+                return paths
+            paths.add(repo_dir / fields[index])
+            index += 1
     return paths

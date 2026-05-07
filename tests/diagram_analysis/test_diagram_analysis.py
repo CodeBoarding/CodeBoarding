@@ -25,9 +25,14 @@ from diagram_analysis.analysis_json import (
     from_component_to_json_component,
 )
 from diagram_analysis.diagram_generator import DiagramGenerator
+from diagram_analysis.exceptions import IncrementalCacheMissingError
 from diagram_analysis.version import Version
 from repo_utils.change_detector import ChangeSet
+from static_analyzer.analysis_cache import StaticAnalysisCache
 from static_analyzer.analysis_result import StaticAnalysisResults
+from static_analyzer.constants import Language, NodeType
+from static_analyzer.graph import CallGraph, ClusterResult
+from static_analyzer.node import Node
 
 
 class TestVersion(unittest.TestCase):
@@ -583,6 +588,7 @@ class TestDiagramGenerator(unittest.TestCase):
             sub_analyses,
             file_coverage_summary=None,
             commit_hash="",
+            snapshot_commit=None,
         ):
             captured["expandable_components"] = expandable_components
             return "{}"
@@ -656,6 +662,72 @@ class TestDiagramGenerator(unittest.TestCase):
 
         written = json.loads((self.output_dir / "analysis.json").read_text())
         self.assertEqual([c["can_expand"] for c in written["components"]], [True, True])
+
+    def test_generate_analysis_incremental_raises_when_cluster_cache_missing(self):
+        gen = DiagramGenerator(
+            repo_location=self.repo_location,
+            temp_folder=self.temp_folder,
+            repo_name="test_repo",
+            output_dir=self.output_dir,
+            depth_level=2,
+            run_id="test-run-id",
+            log_path="test_repo/test-run-log",
+        )
+        gen.details_agent = Mock()
+        gen.abstraction_agent = Mock()
+        # Empty static analysis -> snapshot has no cluster ids -> incremental
+        # path must refuse rather than silently re-deriving from scratch.
+        gen.static_analysis = StaticAnalysisResults()
+
+        root_analysis = AnalysisInsights(description="root", components=[], components_relations=[])
+
+        with self.assertRaises(IncrementalCacheMissingError) as ctx:
+            gen.generate_analysis_incremental(root_analysis, {})
+
+        self.assertEqual(ctx.exception.artifact_dir, self.output_dir)
+        self.assertIn(str(self.output_dir), str(ctx.exception))
+
+    def test_persist_static_analysis_artifact_saves_cluster_cache_without_injected_analyzer(self):
+        gen = DiagramGenerator(
+            repo_location=self.repo_location,
+            temp_folder=self.temp_folder,
+            repo_name="test_repo",
+            output_dir=self.output_dir,
+            depth_level=1,
+            run_id="test-run-id",
+            log_path="test_repo/test-run-log",
+        )
+        gen.source_sha = "sha-current"
+
+        cfg = CallGraph(language="python")
+        cfg.add_node(
+            Node(
+                fully_qualified_name="test.fn",
+                node_type=NodeType.FUNCTION,
+                file_path=str(self.repo_location / "test.py"),
+                line_start=1,
+                line_end=1,
+            )
+        )
+        cfg._cluster_cache = ClusterResult(
+            clusters={1: {"test.fn"}},
+            cluster_to_files={1: {str(self.repo_location / "test.py")}},
+            file_to_clusters={str(self.repo_location / "test.py"): {1}},
+            strategy="test",
+        )
+        results = StaticAnalysisResults()
+        results.add_cfg(Language.PYTHON, cfg)
+        gen.static_analysis = results
+
+        gen._persist_static_analysis_artifact()
+
+        loaded = StaticAnalysisCache(self.output_dir, self.repo_location).load_with_sha()
+        self.assertIsNotNone(loaded)
+        if loaded is None:
+            return
+        loaded_results, cached_sha = loaded
+        self.assertEqual(cached_sha, "sha-current")
+        self.assertIsNotNone(loaded_results.get_cfg(Language.PYTHON)._cluster_cache)
 
 
 if __name__ == "__main__":

@@ -27,6 +27,7 @@ from .prompt_factory import (
     get_system_details_message,
     get_cfg_details_message,
     get_details_message,
+    get_incremental_grouping_message,
 )
 
 
@@ -68,6 +69,7 @@ __all__ = [
     "get_system_details_message",
     "get_cfg_details_message",
     "get_details_message",
+    "get_incremental_grouping_message",
     # Prompt constants (available via __getattr__)
     "SYSTEM_MESSAGE",
     "CLUSTER_GROUPING_MESSAGE",

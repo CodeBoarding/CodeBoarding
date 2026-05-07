@@ -16,11 +16,13 @@ analysis.json file with nested components.
 
 import json
 import logging
+import os
+import tempfile
 from pathlib import Path
 
 from filelock import FileLock
 
-from agents.agent_responses import AnalysisInsights, Component
+from agents.agent_responses import AnalysisInsights, Component, index_components_by_id
 from agents.planner_agent import should_expand_component
 from diagram_analysis.analysis_json import (
     FileCoverageSummary,
@@ -30,6 +32,25 @@ from diagram_analysis.analysis_json import (
 from utils import ANALYSIS_FILENAME
 
 logger = logging.getLogger(__name__)
+
+
+def normalize_repo_path(path: str, repo_root: Path | str | None) -> str:
+    """Convert a CFG file path into a repo-relative posix form.
+
+    ``analysis.json`` indexes (``files``, ``methods_index``, ``file_methods``)
+    use repo-relative posix paths; CFG nodes carry either an absolute path
+    under ``repo_root`` or an already-relative one.
+    """
+    posix = path.replace("\\", "/")
+    candidate = Path(posix)
+    if candidate.is_absolute() and repo_root is not None:
+        try:
+            return candidate.resolve().relative_to(Path(repo_root).resolve()).as_posix()
+        except ValueError:
+            return posix
+    while posix.startswith("./"):
+        posix = posix[2:]
+    return posix
 
 
 class _AnalysisFileStore:
@@ -49,25 +70,13 @@ class _AnalysisFileStore:
         """Compute expandable components deterministically for one analysis level."""
         return [c for c in analysis.components if should_expand_component(c, parent_had_clusters=parent_had_clusters)]
 
-    @staticmethod
-    def _build_component_lookup(
-        root_analysis: AnalysisInsights,
-        sub_analyses: dict[str, AnalysisInsights],
-    ) -> dict[str, Component]:
-        """Build component_id -> component lookup across root and sub-analyses."""
-        lookup: dict[str, Component] = {}
-        for component in root_analysis.components:
-            lookup[component.component_id] = component
-        for sub_analysis in sub_analyses.values():
-            for component in sub_analysis.components:
-                lookup[component.component_id] = component
-        return lookup
-
     def __init__(self, output_dir: Path) -> None:
         output_dir.mkdir(parents=True, exist_ok=True)
         self._output_dir = output_dir
         self._analysis_path = output_dir / ANALYSIS_FILENAME
-        self._lock = FileLock(output_dir / f"{ANALYSIS_FILENAME}.lock", timeout=10)
+        # 30s rather than 10s: cold-start LSP runs on Windows under AV scans
+        # routinely steal multi-second cycles from contended writers.
+        self._lock = FileLock(output_dir / f"{ANALYSIS_FILENAME}.lock", timeout=30)
 
     def read(self) -> tuple[AnalysisInsights, dict[str, AnalysisInsights], dict] | None:
         """Load the unified ``analysis.json`` from disk.
@@ -114,6 +123,7 @@ class _AnalysisFileStore:
         repo_name: str = "",
         file_coverage_summary: FileCoverageSummary | None = None,
         commit_hash: str = "",
+        snapshot_commit: str | None = None,
     ) -> Path:
         """Write the full analysis to ``analysis.json`` with file locking.
 
@@ -122,7 +132,13 @@ class _AnalysisFileStore:
         """
         with self._lock:
             return self._write_with_lock_held(
-                analysis, expandable_component_ids, sub_analyses, repo_name, file_coverage_summary, commit_hash
+                analysis,
+                expandable_component_ids,
+                sub_analyses,
+                repo_name,
+                file_coverage_summary,
+                commit_hash,
+                snapshot_commit,
             )
 
     def write_sub(
@@ -174,6 +190,7 @@ class _AnalysisFileStore:
         repo_name: str = "",
         file_coverage_summary: FileCoverageSummary | None = None,
         commit_hash: str = "",
+        snapshot_commit: str | None = None,
     ) -> Path:
         """Write ``analysis.json`` — caller must already hold ``self._lock``."""
         # Keep caller-provided expandables, but also preserve deterministic planner eligibility.
@@ -184,14 +201,22 @@ class _AnalysisFileStore:
         expandable = [c for c in analysis.components if c.component_id in expandable_ids]
 
         # Preserve existing metadata fields from disk when not explicitly provided
-        existing_data_cache: dict | None = None
-        if sub_analyses is None or file_coverage_summary is None or not repo_name or not commit_hash:
+        if (
+            sub_analyses is None
+            or file_coverage_summary is None
+            or not repo_name
+            or not commit_hash
+            or snapshot_commit is None
+        ):
             existing = self.read()
             if existing:
                 _, existing_subs, existing_data = existing
-                existing_data_cache = existing_data
                 if sub_analyses is None:
                     sub_analyses = existing_subs
+                if snapshot_commit is None:
+                    existing_snapshot = existing_data.get("snapshotCommit")
+                    if isinstance(existing_snapshot, str) and existing_snapshot:
+                        snapshot_commit = existing_snapshot
                 metadata = existing_data.get("metadata", {})
                 if not repo_name:
                     repo_name = metadata.get("repo_name", "")
@@ -210,7 +235,7 @@ class _AnalysisFileStore:
         # Convert sub_analyses dict to the format expected by build_unified_analysis_json
         sub_analyses_tuples: dict[str, tuple[AnalysisInsights, list[Component]]] | None = None
         if sub_analyses:
-            component_lookup = self._build_component_lookup(analysis, sub_analyses)
+            component_lookup = index_components_by_id(analysis, sub_analyses)
             sub_analyses_tuples = {}
             for cid, sub in sub_analyses.items():
                 parent_component = component_lookup.get(cid)
@@ -218,17 +243,32 @@ class _AnalysisFileStore:
                 sub_expandable = self._compute_expandable_components(sub, parent_had_clusters=parent_had_clusters)
                 sub_analyses_tuples[cid] = (sub, sub_expandable)
 
-        with open(self._analysis_path, "w", encoding="utf-8") as f:
-            f.write(
-                build_unified_analysis_json(
-                    analysis=analysis,
-                    expandable_components=expandable,
-                    repo_name=repo_name,
-                    sub_analyses=sub_analyses_tuples,
-                    file_coverage_summary=file_coverage_summary,
-                    commit_hash=commit_hash,
-                )
-            )
+        # Atomic write: build the JSON in a sibling temp file, then rename
+        # over the destination.  A crashed process leaves either the prior
+        # complete file or no file at all — never a half-written one.  The
+        # wrapper's snapshot promotion path hashes whatever it sees here, so
+        # a truncated file would otherwise be cryptographically promoted as
+        # if it were a real result.
+        payload = build_unified_analysis_json(
+            analysis=analysis,
+            expandable_components=expandable,
+            repo_name=repo_name,
+            sub_analyses=sub_analyses_tuples,
+            file_coverage_summary=file_coverage_summary,
+            commit_hash=commit_hash,
+            snapshot_commit=snapshot_commit,
+        )
+        tmp_fd, tmp_name = tempfile.mkstemp(
+            prefix=f".{self._analysis_path.name}.",
+            dir=str(self._analysis_path.parent),
+        )
+        try:
+            with os.fdopen(tmp_fd, "w", encoding="utf-8") as f:
+                f.write(payload)
+            os.replace(tmp_name, self._analysis_path)
+        except Exception:
+            Path(tmp_name).unlink(missing_ok=True)
+            raise
 
         return self._analysis_path
 
@@ -279,6 +319,61 @@ def load_analysis_metadata(output_dir: Path) -> dict | None:
     return result[2].get("metadata")
 
 
+def load_analysis_commit_hash(output_dir: Path) -> str | None:
+    """Return ``metadata.commit_hash`` from live ``analysis.json``.
+
+    This is the user's git commit at which the analysis was generated, and
+    is the right standalone-CLI default for an incremental ``--base-ref``:
+    the CLI should answer "what changed in the user's git history relative
+    to the user's last full analysis?", not "what changed relative to the
+    wrapper's snapshot commit?" (which is meaningful only inside the
+    extension/snapshot-worktree flow).
+
+    Returns ``None`` when the file is absent, unreadable, malformed, or
+    the field is missing/empty. Reads raw JSON so a partially-malformed
+    analysis.json still yields a usable baseline pointer.
+    """
+    path = Path(output_dir) / ANALYSIS_FILENAME
+    if not path.is_file():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    metadata = data.get("metadata")
+    if not isinstance(metadata, dict):
+        return None
+    sha = metadata.get("commit_hash")
+    return sha if isinstance(sha, str) and sha else None
+
+
+def load_snapshot_commit(output_dir: Path) -> str | None:
+    """Return the top-level ``snapshotCommit`` from live ``analysis.json``.
+
+    The single source of truth for the incremental baseline. The wrapper
+    stamps this field at promote time; reading it here lets callers find
+    the prior analysis without walking git refs or sidecar files.
+
+    Returns ``None`` when the file is absent, unreadable, not a JSON
+    object, or the field is missing or empty. Reads raw JSON (not via the
+    Pydantic store) so a partially-malformed analysis.json still yields
+    a usable baseline pointer.
+    """
+    path = Path(output_dir) / ANALYSIS_FILENAME
+    if not path.is_file():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    sha = data.get("snapshotCommit")
+    return sha if isinstance(sha, str) and sha else None
+
+
 def save_analysis(
     analysis: AnalysisInsights,
     output_dir: Path,
@@ -287,10 +382,17 @@ def save_analysis(
     repo_name: str = "",
     file_coverage_summary: FileCoverageSummary | None = None,
     commit_hash: str = "",
+    snapshot_commit: str | None = None,
 ) -> Path:
     """Save the analysis to a unified analysis.json file with file locking."""
     return _get_store(output_dir).write(
-        analysis, expandable_component_ids, sub_analyses, repo_name, file_coverage_summary, commit_hash
+        analysis,
+        expandable_component_ids,
+        sub_analyses,
+        repo_name,
+        file_coverage_summary,
+        commit_hash,
+        snapshot_commit,
     )
 
 

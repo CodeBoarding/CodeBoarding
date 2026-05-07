@@ -253,6 +253,38 @@ class RepoIgnoreManager:
         """Filter a list of paths, returning only those that should not be ignored."""
         return [p for p in paths if not self.should_ignore(p)]
 
+    def strip_ignored(self, analysis: "Any") -> "Any":
+        """Drop file_methods + key_entities entries whose file_path is ignored.
+
+        Single chokepoint applied right before ``analysis.json`` is written so
+        the rendered architecture honors ``.codeboardingignore`` regardless of
+        which discovery path (LSP, agent, plugin) introduced a file. Other
+        layers — file_monitor, file_coverage, function_size — already use this
+        manager's ``should_ignore``; this call extends the same authority to
+        the analyzer's serialized output.
+
+        Mutates `analysis` in place and returns it for convenient chaining.
+        Idempotent: a second call is a no-op since all surviving entries
+        already pass ``should_ignore``.
+
+        Components left with empty ``file_methods`` are *kept* — relations
+        already reference their component_ids, and pruning them risks dangling
+        edges. They serialize as zero-method components, which downstream
+        renderers handle.
+        """
+        for component in getattr(analysis, "components", []) or []:
+            file_methods = getattr(component, "file_methods", None)
+            if file_methods is not None:
+                component.file_methods = [fm for fm in file_methods if not self.should_ignore(Path(fm.file_path))]
+            key_entities = getattr(component, "key_entities", None)
+            if key_entities is not None:
+                component.key_entities = [
+                    ke
+                    for ke in key_entities
+                    if not getattr(ke, "file_path", None) or not self.should_ignore(Path(ke.file_path))
+                ]
+        return analysis
+
     @staticmethod
     def should_skip_file(file_path: str | Path | None) -> bool:
         """Check if a file path matches default exclusion patterns.
