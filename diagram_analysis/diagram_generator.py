@@ -142,6 +142,28 @@ class DiagramGenerator:
         else:
             logger.warning("Health checks skipped: no languages found in static analysis results")
 
+    def _strip_ignored(
+        self,
+        analysis: AnalysisInsights,
+        sub_analyses: dict[str, AnalysisInsights] | None = None,
+    ) -> None:
+        """Sweep ``.codeboardingignore``-matched files out of the rendered tree.
+
+        Single chokepoint applied right before every ``save_analysis(...)`` so
+        the serialized architecture honors the user's ignore rules, regardless
+        of which discovery path (LSP imports, agent clustering, plugin) added
+        a file. Other layers (file_monitor, file_coverage, function_size)
+        already use ``RepoIgnoreManager``; this extends the same authority to
+        the analyzer's persisted output.
+
+        Idempotent. Mutates in place. Empty components are kept (relations may
+        reference them); downstream renderers handle zero-method components.
+        """
+        ignore_manager = RepoIgnoreManager(self.repo_location)
+        ignore_manager.strip_ignored(analysis)
+        for sub in (sub_analyses or {}).values():
+            ignore_manager.strip_ignored(sub)
+
     def _build_file_coverage(self, scanner: ProjectScanner, static_analysis: StaticAnalysisResults) -> dict:
         """Build file coverage data comparing all text files against analyzed files."""
         ignore_manager = RepoIgnoreManager(self.repo_location)
@@ -380,6 +402,7 @@ class DiagramGenerator:
                             stats["saves"] += 1
 
                             logger.debug("Saving intermediate analysis for '%s'", comp_name)
+                            self._strip_ignored(analysis, sub_analyses)
                             save_analysis(
                                 analysis=analysis,
                                 output_dir=Path(self.output_dir),
@@ -435,6 +458,7 @@ class DiagramGenerator:
             expanded_components, sub_analyses = self._generate_subcomponents(analysis, root_components)
 
             commit_hash = get_git_commit_hash(self.repo_location)
+            self._strip_ignored(analysis, sub_analyses)
             analysis_path = save_analysis(
                 analysis=analysis,
                 output_dir=Path(self.output_dir),
@@ -533,13 +557,13 @@ class DiagramGenerator:
                 # or first-ever incremental run. Refuse to silently rebuild
                 # from scratch; that would discard the existing analysis.json's
                 # depth and component IDs. Caller must explicitly request a
-                # full run instead.
+                # full run instead.  ``IncrementalCacheMissingError`` inspects
+                # the artifact dir to pick the specific diagnostic (missing
+                # pkl, missing sha, or pkl-without-cluster-baseline).
                 artifact_dir = self.output_dir
-                logger.error(
-                    "Incremental analysis cannot proceed: no warm static_analysis.pkl at %s",
-                    artifact_dir,
-                )
-                raise IncrementalCacheMissingError(artifact_dir)
+                error = IncrementalCacheMissingError(artifact_dir)
+                logger.error("%s", error)
+                raise error
 
             delta = compute_cluster_delta(
                 old_snapshot,
@@ -551,6 +575,7 @@ class DiagramGenerator:
                 logger.info("Cluster delta is empty; rewriting current analysis without re-detailing.")
                 prune_empty_components(root_analysis, sub_analyses)
                 commit_hash = get_git_commit_hash(self.repo_location)
+                self._strip_ignored(root_analysis, sub_analyses)
                 analysis_path = save_analysis(
                     analysis=root_analysis,
                     output_dir=Path(self.output_dir),
@@ -611,6 +636,7 @@ class DiagramGenerator:
             root_analysis.files = unified_files
 
             commit_hash = get_git_commit_hash(self.repo_location)
+            self._strip_ignored(root_analysis, sub_analyses)
             analysis_path = save_analysis(
                 analysis=root_analysis,
                 output_dir=Path(self.output_dir),

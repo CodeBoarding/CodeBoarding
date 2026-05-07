@@ -319,6 +319,36 @@ def load_analysis_metadata(output_dir: Path) -> dict | None:
     return result[2].get("metadata")
 
 
+def load_analysis_commit_hash(output_dir: Path) -> str | None:
+    """Return ``metadata.commit_hash`` from live ``analysis.json``.
+
+    This is the user's git commit at which the analysis was generated, and
+    is the right standalone-CLI default for an incremental ``--base-ref``:
+    the CLI should answer "what changed in the user's git history relative
+    to the user's last full analysis?", not "what changed relative to the
+    wrapper's snapshot commit?" (which is meaningful only inside the
+    extension/snapshot-worktree flow).
+
+    Returns ``None`` when the file is absent, unreadable, malformed, or
+    the field is missing/empty. Reads raw JSON so a partially-malformed
+    analysis.json still yields a usable baseline pointer.
+    """
+    path = Path(output_dir) / ANALYSIS_FILENAME
+    if not path.is_file():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    metadata = data.get("metadata")
+    if not isinstance(metadata, dict):
+        return None
+    sha = metadata.get("commit_hash")
+    return sha if isinstance(sha, str) and sha else None
+
+
 def load_snapshot_commit(output_dir: Path) -> str | None:
     """Return the top-level ``snapshotCommit`` from live ``analysis.json``.
 

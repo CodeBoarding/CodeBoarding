@@ -8,7 +8,7 @@ from agents.llm_config import LLMConfigError
 from codeboarding_cli.bootstrap import bootstrap_environment, resolve_local_run_paths
 from codeboarding_workflows.analysis import run_incremental
 from diagram_analysis import RunContext
-from diagram_analysis.io_utils import load_snapshot_commit
+from diagram_analysis.io_utils import load_analysis_commit_hash
 from diagram_analysis.run_mode import RunMode
 from repo_utils.git_ops import get_current_commit, resolve_ref
 from utils import monitoring_enabled
@@ -58,10 +58,13 @@ def run_from_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> 
         _emit_error(str(exc))
         return
 
-    base_ref = args.base_ref if args.base_ref is not None else load_snapshot_commit(run_paths.output_dir)
+    base_ref = args.base_ref if args.base_ref is not None else load_analysis_commit_hash(run_paths.output_dir)
     if base_ref is None:
         logger.error("Incremental run aborted: no baseline ref available")
-        _emit_error("No baseline ref available: pass --base-ref or run a full analysis first to record a baseline.")
+        _emit_error(
+            "No baseline ref available: pass --base-ref or run a full analysis first "
+            "to record a baseline (analysis metadata commit hash)."
+        )
         return
 
     target_ref = args.target_ref if args.target_ref is not None else get_current_commit(run_paths.repo_path)

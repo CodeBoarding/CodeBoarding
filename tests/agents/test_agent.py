@@ -228,20 +228,13 @@ class TestCodeBoardingAgent(unittest.TestCase):
         self.assertIn(agent.agent_monitoring_callback, config["callbacks"])
 
     @patch("agents.agent.create_agent")
-    @patch("agents.agent.create_extractor")
-    def test_parse_invoke(self, mock_extractor, mock_create_agent):
-        # Test parse_invoke method
+    def test_parse_invoke(self, mock_create_agent):
+        # Raw JSON from primary LLM parses directly without an LLM round trip.
         mock_agent_executor = Mock()
         mock_create_agent.return_value = mock_agent_executor
 
-        # Mock response
         mock_response_message = AIMessage(content='{"value": "test_value"}')
         mock_agent_executor.invoke.return_value = {"messages": [mock_response_message]}
-
-        # Mock extractor
-        mock_extractor_instance = Mock()
-        mock_extractor.return_value = mock_extractor_instance
-        mock_extractor_instance.invoke.return_value = {"responses": [{"value": "test_value"}]}
 
         mock_parsing_llm = Mock(spec=BaseChatModel)
         agent = CodeBoardingAgent(
@@ -254,9 +247,9 @@ class TestCodeBoardingAgent(unittest.TestCase):
 
         result = agent._parse_invoke("Test prompt", TestResponse)
 
-        # Should return parsed response
         self.assertIsInstance(result, TestResponse)
         self.assertEqual(result.value, "test_value")
+        mock_parsing_llm.invoke.assert_not_called()
 
     @patch("agents.agent.create_agent")
     def test_get_monitoring_results_no_callback(self, mock_create_agent):
@@ -312,19 +305,9 @@ class TestCodeBoardingAgent(unittest.TestCase):
         self.assertEqual(results["tool_usage"]["counts"]["tool1"], 5)
 
     @patch("agents.agent.create_agent")
-    @patch("agents.agent.create_extractor")
-    @patch("time.sleep")
-    def test_parse_response_with_retry(self, mock_sleep, mock_extractor, mock_create_agent):
-        # Test parse_response with retry logic
+    def test_parse_response_fenced_json(self, mock_create_agent):
+        # Markdown-fenced JSON from the primary LLM parses without an LLM call.
         mock_create_agent.return_value = Mock()
-
-        # Mock extractor to fail first, then succeed
-        mock_extractor_instance = Mock()
-        mock_extractor.return_value = mock_extractor_instance
-        mock_extractor_instance.invoke.side_effect = [
-            IndexError("First attempt fails"),
-            {"responses": [{"value": "success"}]},
-        ]
 
         mock_parsing_llm = Mock(spec=BaseChatModel)
         agent = CodeBoardingAgent(
@@ -335,11 +318,97 @@ class TestCodeBoardingAgent(unittest.TestCase):
             parsing_llm=mock_parsing_llm,
         )
 
-        result = agent._parse_response("Test prompt", '{"value": "success"}', TestResponse, max_retries=5)
+        fenced = '```json\n{"value": "success"}\n```'
+        result = agent._parse_response("Test prompt", fenced, TestResponse)
 
-        # Should succeed after retry
         self.assertIsInstance(result, TestResponse)
         self.assertEqual(result.value, "success")
+        mock_parsing_llm.invoke.assert_not_called()
+
+    @patch("agents.agent.create_agent")
+    def test_parse_response_cluster_analysis_bug_shape(self, mock_create_agent):
+        # Regression: the exact fenced ClusterAnalysis JSON that broke the
+        # trustcall path (bug_report.md) must validate into all components.
+        from agents.agent_responses import ClusterAnalysis
+
+        mock_create_agent.return_value = Mock()
+
+        mock_parsing_llm = Mock(spec=BaseChatModel)
+        agent = CodeBoardingAgent(
+            repo_dir=self.repo_dir,
+            static_analysis=self.mock_analysis,
+            system_message="Test",
+            agent_llm=self.mock_llm,
+            parsing_llm=mock_parsing_llm,
+        )
+
+        fenced = (
+            "```json\n"
+            "{\n"
+            '  "cluster_components": [\n'
+            "    {\n"
+            '      "name": "VS Code Extension Host & View Providers",\n'
+            '      "cluster_ids": [1, 15],\n'
+            '      "description": "Hosts the extension and view providers.",\n'
+            '      "interactions": "talks to webview"\n'
+            "    },\n"
+            "    {\n"
+            '      "name": "Analysis Pipeline",\n'
+            '      "cluster_ids": [2, 3],\n'
+            '      "description": "Runs analysis."\n'
+            "    }\n"
+            "  ]\n"
+            "}\n"
+            "```"
+        )
+
+        result = agent._parse_response("Test prompt", fenced, ClusterAnalysis)
+
+        self.assertIsInstance(result, ClusterAnalysis)
+        self.assertEqual(len(result.cluster_components), 2)
+        self.assertEqual(result.cluster_components[0].name, "VS Code Extension Host & View Providers")
+        self.assertEqual(result.cluster_components[0].cluster_ids, [1, 15])
+        self.assertEqual(result.cluster_components[1].cluster_ids, [2, 3])
+        mock_parsing_llm.invoke.assert_not_called()
+
+    @patch("agents.agent.create_agent")
+    def test_parse_response_invalid_falls_back_to_llm_repair(self, mock_create_agent):
+        # Genuinely messy responses (no JSON anywhere) drop into LLM repair.
+        # Why: agents like MetaAnalysisInsights return prose, not JSON, and the
+        # parsing_llm is the existing recovery path for those cases.
+        mock_create_agent.return_value = Mock()
+
+        mock_parsing_llm = Mock(spec=BaseChatModel)
+        agent = CodeBoardingAgent(
+            repo_dir=self.repo_dir,
+            static_analysis=self.mock_analysis,
+            system_message="Test",
+            agent_llm=self.mock_llm,
+            parsing_llm=mock_parsing_llm,
+        )
+
+        with patch.object(agent, "_repair_parse_with_llm", return_value=TestResponse(value="repaired")) as repair:
+            result = agent._parse_response("Test prompt", "not json at all", TestResponse)
+
+        self.assertEqual(result.value, "repaired")
+        repair.assert_called_once()
+
+    @patch("agents.agent.create_agent")
+    def test_parse_response_empty_raises(self, mock_create_agent):
+        # Empty response raises immediately rather than running a parse.
+        mock_create_agent.return_value = Mock()
+
+        mock_parsing_llm = Mock(spec=BaseChatModel)
+        agent = CodeBoardingAgent(
+            repo_dir=self.repo_dir,
+            static_analysis=self.mock_analysis,
+            system_message="Test",
+            agent_llm=self.mock_llm,
+            parsing_llm=mock_parsing_llm,
+        )
+
+        with self.assertRaises(ValueError):
+            agent._parse_response("Test prompt", "", TestResponse)
 
     @patch("agents.agent.create_agent")
     def test_tools_initialized(self, mock_create_agent):
