@@ -160,8 +160,8 @@ LLM_PROVIDERS = {
     "aws": LLMConfig(
         chat_class=ChatBedrockConverse,
         api_key_env="AWS_BEARER_TOKEN_BEDROCK",  # Used for existence check
-        agent_model="anthropic.claude-sonnet-4-6",
-        parsing_model="claude-haiku-4-5",
+        agent_model="us.anthropic.claude-sonnet-4-6",
+        parsing_model="us.anthropic.claude-haiku-4-5",
         llm_type=LLMType.CLAUDE_SONNET,
         extra_args={
             "max_tokens": 4096,
