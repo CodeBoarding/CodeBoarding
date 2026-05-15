@@ -143,7 +143,7 @@ python main.py full https://github.com/pytorch/pytorch
 
 ## Supported stack
 
-- Languages: Python, TypeScript, JavaScript, Java, Go, PHP, Rust.
+- Languages: Python, TypeScript, JavaScript, Java, Go, PHP, Rust, C#.
 - LLM providers: OpenAI, Anthropic, Google, Vercel AI Gateway, AWS Bedrock, Ollama, OpenRouter, and more.
 
 ## Examples
