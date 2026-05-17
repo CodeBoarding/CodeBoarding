@@ -79,6 +79,75 @@ class TestNode(unittest.TestCase):
         self.assertIn("module.callee1", caller.methods_called_by_me)
         self.assertIn("module.callee2", caller.methods_called_by_me)
 
+    def test_entity_label_callable_types(self):
+        cases = [
+            (NodeType.METHOD, "Method"),
+            (NodeType.FUNCTION, "Function"),
+            (NodeType.CONSTRUCTOR, "Constructor"),
+        ]
+        for node_type, expected_label in cases:
+            with self.subTest(node_type=node_type):
+                node = Node("module.entity", node_type, "/file.py", 1, 10)
+                self.assertEqual(node.entity_label(), expected_label)
+
+    def test_is_callable_true_for_callable_types(self):
+        for node_type in (NodeType.METHOD, NodeType.FUNCTION, NodeType.CONSTRUCTOR):
+            with self.subTest(node_type=node_type):
+                node = Node("module.entity", node_type, "/file.py", 1, 10)
+                self.assertTrue(node.is_callable())
+
+    def test_is_callable_false_for_non_callable_types(self):
+        for node_type in (NodeType.CLASS, NodeType.VARIABLE, NodeType.PROPERTY, NodeType.MODULE):
+            with self.subTest(node_type=node_type):
+                node = Node("module.entity", node_type, "/file.py", 1, 10)
+                self.assertFalse(node.is_callable())
+
+    def test_is_class_true_for_class_types(self):
+        for node_type in (NodeType.CLASS, NodeType.INTERFACE, NodeType.STRUCT, NodeType.ENUM):
+            with self.subTest(node_type=node_type):
+                node = Node("module.entity", node_type, "/file.py", 1, 10)
+                self.assertTrue(node.is_class())
+
+    def test_is_class_false_for_non_class_types(self):
+        for node_type in (NodeType.FUNCTION, NodeType.METHOD, NodeType.VARIABLE):
+            with self.subTest(node_type=node_type):
+                node = Node("module.entity", node_type, "/file.py", 1, 10)
+                self.assertFalse(node.is_class())
+
+    def test_is_data_true_for_data_types(self):
+        for node_type in (
+            NodeType.PROPERTY,
+            NodeType.FIELD,
+            NodeType.VARIABLE,
+            NodeType.CONSTANT,
+            NodeType.ENUM_MEMBER,
+        ):
+            with self.subTest(node_type=node_type):
+                node = Node("module.entity", node_type, "/file.py", 1, 10)
+                self.assertTrue(node.is_data())
+
+    def test_is_data_false_for_non_data_types(self):
+        for node_type in (NodeType.FUNCTION, NodeType.CLASS):
+            with self.subTest(node_type=node_type):
+                node = Node("module.entity", node_type, "/file.py", 1, 10)
+                self.assertFalse(node.is_data())
+
+    def test_is_callback_or_anonymous_matches_patterns(self):
+        for qualified_name in (
+            "module.foo.forEach() callback",
+            "module.bar.<function>",
+            "module.baz.<arrow>1",
+        ):
+            with self.subTest(qualified_name=qualified_name):
+                node = Node(qualified_name, NodeType.FUNCTION, "/file.py", 1, 10)
+                self.assertTrue(node.is_callback_or_anonymous())
+
+    def test_is_callback_or_anonymous_negative(self):
+        for qualified_name in ("module.func", "module.Class.method", "pkg.handle_callback"):
+            with self.subTest(qualified_name=qualified_name):
+                node = Node(qualified_name, NodeType.FUNCTION, "/file.py", 1, 10)
+                self.assertFalse(node.is_callback_or_anonymous())
+
 
 class TestEdge(unittest.TestCase):
     def test_edge_creation(self):
