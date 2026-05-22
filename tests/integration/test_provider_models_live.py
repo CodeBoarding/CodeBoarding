@@ -31,7 +31,7 @@ _MODELSDEV_KEYS = {
     "google": ["google"],
     "cerebras": ["cerebras"],
     "deepseek": ["deepseek"],
-    "glm": ["zhipuai"],
+    "glm": ["zhipuai", "zai"],
     "kimi": ["moonshotai", "moonshotai-cn"],
 }
 
