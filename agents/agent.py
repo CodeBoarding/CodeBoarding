@@ -1,6 +1,5 @@
 import json
 import logging
-import re
 from pathlib import Path
 
 from google.api_core.exceptions import ResourceExhausted
@@ -12,6 +11,7 @@ from langchain_core.prompts import PromptTemplate
 from langchain.agents import create_agent
 from langgraph.graph.state import CompiledStateGraph
 from pydantic import ValidationError
+from trustcall import create_extractor
 
 from agents.prompts import get_validation_feedback_message
 from agents.retry import RetryAction, RetryDecision, default_backoff, with_retries
@@ -27,20 +27,8 @@ from static_analyzer.reference_resolve_mixin import ReferenceResolverMixin
 logger = logging.getLogger(__name__)
 
 
-_FENCE_RE = re.compile(r"```(?:json)?\s*(.*?)\s*```", re.DOTALL)
-
-
-def _strip_json_fences(text: str) -> str:
-    """Return JSON body from a possibly-fenced response.
-
-    Why: primary LLM responses often arrive wrapped in ```json ... ``` fences;
-    direct Pydantic JSON validation needs the bare JSON.
-    """
-    stripped = text.strip()
-    match = _FENCE_RE.search(stripped)
-    if match:
-        return match.group(1).strip()
-    return stripped
+class EmptyExtractorMessageError(ValueError):
+    """Raised when extractor returns an empty message payload."""
 
 
 class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
@@ -331,46 +319,59 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         return best_result
 
     def _parse_response(self, prompt, response, return_type, max_retries=5, attempt=0):
-        """Parse a primary-LLM response into ``return_type``.
-
-        Why: when the primary LLM returns the target JSON shape (e.g.
-        ``ClusterAnalysis``), a deterministic parse is preferable to a tool-call
-        extraction pass that can hallucinate an empty payload (see
-        bug_report.md). Some agents (e.g. ``MetaAnalysisInsights``) still
-        return prose; those fall through to LLM-based repair.
-
-        ``max_retries`` and ``attempt`` are accepted for backwards-compat but
-        ignored — the local deterministic attempts can't change on retry, and
-        the LLM repair manages its own retry policy.
-        """
-        del max_retries, attempt  # signature kept for backwards-compat
-
         if response is None or response.strip() == "":
             logger.error(f"Empty response for prompt: {prompt}")
-            raise ValueError(f"Empty response for {return_type.__name__}")
 
-        cleaned = _strip_json_fences(response)
-
-        try:
-            return return_type.model_validate_json(cleaned)
-        except (ValidationError, ValueError) as direct_exc:
-            parser = PydanticOutputParser(pydantic_object=return_type)
+        def call_once():
+            extractor = create_extractor(self.parsing_llm, tools=[return_type], tool_choice=return_type.__name__)
             try:
-                return parser.parse(response)
-            except (OutputParserException, ValidationError) as parser_exc:
-                logger.info(
-                    f"Deterministic parse failed for {return_type.__name__}; "
-                    f"falling back to LLM repair. direct={direct_exc!r}; parser={parser_exc!r}"
+                result = extractor.invoke(
+                    return_type.extractor_str() + response,
+                    config={"callbacks": [MONITORING_CALLBACK, self.agent_monitoring_callback]},
                 )
-                return self._repair_parse_with_llm(response, parser)
+            except AttributeError as e:
+                if "tool_call_id" in str(e):
+                    logger.warning(f"Trustcall bug encountered, falling back to Pydantic parser: {e}")
+                    parser = PydanticOutputParser(pydantic_object=return_type)
+                    return self._try_parse(response, parser)
+                raise
+            if "responses" in result and len(result["responses"]) != 0:
+                return return_type.model_validate(result["responses"][0])
+            if "messages" in result and len(result["messages"]) != 0:
+                message = result["messages"][0].content
+                parser = PydanticOutputParser(pydantic_object=return_type)
+                if not message:
+                    raise EmptyExtractorMessageError("Extractor returned empty message content")
+                return self._try_parse(message, parser)
+            parser = PydanticOutputParser(pydantic_object=return_type)
+            return self._try_parse(response, parser)
 
-    def _repair_parse_with_llm(self, message_content, parser):
-        """LLM-assisted repair for genuinely malformed responses.
+        def classify(exc: Exception, attempt: int) -> RetryDecision:
+            if isinstance(exc, ResourceExhausted):
+                return RetryDecision(
+                    action=RetryAction.RETRY,
+                    backoff_s=default_backoff(attempt, initial_s=30.0, multiplier=2.0, max_s=300.0),
+                )
+            if isinstance(exc, (EmptyExtractorMessageError, IndexError, json.JSONDecodeError, ValueError)):
+                return RetryDecision(action=RetryAction.RETRY_NOW)
+            return RetryDecision(action=RetryAction.GIVE_UP)
 
-        Why: kept available for callers that need to recover from messy prose
-        responses; not used by ``_parse_response`` because the primary LLM
-        already returns valid JSON.
-        """
+        def on_exhausted(exc: Exception):
+            if isinstance(exc, ResourceExhausted):
+                logger.error(f"Resource exhausted on final parsing attempt: {exc}")
+                raise exc
+            logger.error(f"Max retries ({max_retries}) reached for parsing response: {response}")
+            raise Exception(f"Max retries reached for parsing response: {response}")
+
+        return with_retries(
+            call_once,
+            max_attempts=max(1, max_retries - attempt),
+            classify=classify,
+            on_exhausted=on_exhausted,
+            log_prefix="Parse response",
+        )
+
+    def _try_parse(self, message_content, parser):
         try:
             prompt_template = """You are an JSON expert. Here you need to extract information in the following json format: {format_instructions}
 
@@ -390,7 +391,7 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         except (ValidationError, OutputParserException):
             for _, v in json.loads(message_content).items():
                 try:
-                    return self._repair_parse_with_llm(json.dumps(v), parser)
-                except Exception:
+                    return self._try_parse(json.dumps(v), parser)
+                except:
                     pass
         raise ValueError(f"Couldn't parse {message_content}")

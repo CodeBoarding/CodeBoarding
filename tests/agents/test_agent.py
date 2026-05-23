@@ -227,14 +227,18 @@ class TestCodeBoardingAgent(unittest.TestCase):
         self.assertEqual(len(config["callbacks"]), 2)
         self.assertIn(agent.agent_monitoring_callback, config["callbacks"])
 
+    @patch("agents.agent.create_extractor")
     @patch("agents.agent.create_agent")
-    def test_parse_invoke(self, mock_create_agent):
-        # Raw JSON from primary LLM parses directly without an LLM round trip.
+    def test_parse_invoke(self, mock_create_agent, mock_create_extractor):
         mock_agent_executor = Mock()
         mock_create_agent.return_value = mock_agent_executor
 
         mock_response_message = AIMessage(content='{"value": "test_value"}')
         mock_agent_executor.invoke.return_value = {"messages": [mock_response_message]}
+
+        mock_extractor = Mock()
+        mock_extractor.invoke.return_value = {"responses": [{"value": "test_value"}]}
+        mock_create_extractor.return_value = mock_extractor
 
         mock_parsing_llm = Mock(spec=BaseChatModel)
         agent = CodeBoardingAgent(
@@ -249,7 +253,6 @@ class TestCodeBoardingAgent(unittest.TestCase):
 
         self.assertIsInstance(result, TestResponse)
         self.assertEqual(result.value, "test_value")
-        mock_parsing_llm.invoke.assert_not_called()
 
     @patch("agents.agent.create_agent")
     def test_get_monitoring_results_no_callback(self, mock_create_agent):
@@ -304,10 +307,14 @@ class TestCodeBoardingAgent(unittest.TestCase):
         self.assertIn("tool_usage", results)
         self.assertEqual(results["tool_usage"]["counts"]["tool1"], 5)
 
+    @patch("agents.agent.create_extractor")
     @patch("agents.agent.create_agent")
-    def test_parse_response_fenced_json(self, mock_create_agent):
-        # Markdown-fenced JSON from the primary LLM parses without an LLM call.
+    def test_parse_response_fenced_json(self, mock_create_agent, mock_create_extractor):
         mock_create_agent.return_value = Mock()
+
+        mock_extractor = Mock()
+        mock_extractor.invoke.return_value = {"responses": [{"value": "success"}]}
+        mock_create_extractor.return_value = mock_extractor
 
         mock_parsing_llm = Mock(spec=BaseChatModel)
         agent = CodeBoardingAgent(
@@ -323,15 +330,31 @@ class TestCodeBoardingAgent(unittest.TestCase):
 
         self.assertIsInstance(result, TestResponse)
         self.assertEqual(result.value, "success")
-        mock_parsing_llm.invoke.assert_not_called()
 
+    @patch("agents.agent.create_extractor")
     @patch("agents.agent.create_agent")
-    def test_parse_response_cluster_analysis_bug_shape(self, mock_create_agent):
-        # Regression: the exact fenced ClusterAnalysis JSON that broke the
-        # trustcall path (bug_report.md) must validate into all components.
+    def test_parse_response_cluster_analysis_bug_shape(self, mock_create_agent, mock_create_extractor):
         from agents.agent_responses import ClusterAnalysis
 
         mock_create_agent.return_value = Mock()
+
+        mock_extractor = Mock()
+        mock_extractor.invoke.return_value = {
+            "responses": [
+                {
+                    "cluster_components": [
+                        {
+                            "name": "VS Code Extension Host & View Providers",
+                            "cluster_ids": [1, 15],
+                            "description": "Hosts the extension and view providers.",
+                            "interactions": "talks to webview",
+                        },
+                        {"name": "Analysis Pipeline", "cluster_ids": [2, 3], "description": "Runs analysis."},
+                    ]
+                }
+            ]
+        }
+        mock_create_extractor.return_value = mock_extractor
 
         mock_parsing_llm = Mock(spec=BaseChatModel)
         agent = CodeBoardingAgent(
@@ -369,14 +392,15 @@ class TestCodeBoardingAgent(unittest.TestCase):
         self.assertEqual(result.cluster_components[0].name, "VS Code Extension Host & View Providers")
         self.assertEqual(result.cluster_components[0].cluster_ids, [1, 15])
         self.assertEqual(result.cluster_components[1].cluster_ids, [2, 3])
-        mock_parsing_llm.invoke.assert_not_called()
 
+    @patch("agents.agent.create_extractor")
     @patch("agents.agent.create_agent")
-    def test_parse_response_invalid_falls_back_to_llm_repair(self, mock_create_agent):
-        # Genuinely messy responses (no JSON anywhere) drop into LLM repair.
-        # Why: agents like MetaAnalysisInsights return prose, not JSON, and the
-        # parsing_llm is the existing recovery path for those cases.
+    def test_parse_response_invalid_falls_back_to_llm_repair(self, mock_create_agent, mock_create_extractor):
         mock_create_agent.return_value = Mock()
+
+        mock_extractor = Mock()
+        mock_extractor.invoke.return_value = {"responses": [], "messages": []}
+        mock_create_extractor.return_value = mock_extractor
 
         mock_parsing_llm = Mock(spec=BaseChatModel)
         agent = CodeBoardingAgent(
@@ -387,16 +411,20 @@ class TestCodeBoardingAgent(unittest.TestCase):
             parsing_llm=mock_parsing_llm,
         )
 
-        with patch.object(agent, "_repair_parse_with_llm", return_value=TestResponse(value="repaired")) as repair:
+        with patch.object(agent, "_try_parse", return_value=TestResponse(value="repaired")) as repair:
             result = agent._parse_response("Test prompt", "not json at all", TestResponse)
 
         self.assertEqual(result.value, "repaired")
         repair.assert_called_once()
 
+    @patch("agents.agent.create_extractor")
     @patch("agents.agent.create_agent")
-    def test_parse_response_empty_raises(self, mock_create_agent):
-        # Empty response raises immediately rather than running a parse.
+    def test_parse_response_empty_raises(self, mock_create_agent, mock_create_extractor):
         mock_create_agent.return_value = Mock()
+
+        mock_extractor = Mock()
+        mock_extractor.invoke.side_effect = ValueError("empty")
+        mock_create_extractor.return_value = mock_extractor
 
         mock_parsing_llm = Mock(spec=BaseChatModel)
         agent = CodeBoardingAgent(
@@ -407,7 +435,7 @@ class TestCodeBoardingAgent(unittest.TestCase):
             parsing_llm=mock_parsing_llm,
         )
 
-        with self.assertRaises(ValueError):
+        with self.assertRaises(Exception):
             agent._parse_response("Test prompt", "", TestResponse)
 
     @patch("agents.agent.create_agent")
