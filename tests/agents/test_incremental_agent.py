@@ -10,10 +10,14 @@ from agents.agent_responses import (
     ClusterAnalysis,
     ClustersComponent,
     Component,
+    FileMethodGroup,
+    MethodEntry,
+    Relation,
 )
 from agents.incremental_agent import (
     _format_existing_components,
     _pick_file_for_qname,
+    prune_empty_components,
     repopulate_touched_scopes,
     stitch_delta,
 )
@@ -30,6 +34,24 @@ def _component(name: str, component_id: str, source_cluster_ids: list[int] | Non
         source_cluster_ids=source_cluster_ids or [],
         component_id=component_id,
     )
+
+
+def _component_with_method(name: str, component_id: str) -> Component:
+    component = _component(name, component_id)
+    component.file_methods = [
+        FileMethodGroup(
+            file_path=f"{component_id}.py",
+            methods=[
+                MethodEntry(
+                    qualified_name=f"{component_id}.method",
+                    start_line=1,
+                    end_line=2,
+                    node_type="FUNCTION",
+                )
+            ],
+        )
+    ]
+    return component
 
 
 def _empty_delta() -> ClusterDelta:
@@ -492,6 +514,46 @@ class TestFormatExistingComponents(unittest.TestCase):
         empty = AnalysisInsights(description="r", components=[], components_relations=[])
         rendered = _format_existing_components(empty, {})
         self.assertIn("no existing components", rendered)
+
+
+class TestPruneEmptyComponents(unittest.TestCase):
+    def test_strips_relations_by_id_not_duplicate_name(self) -> None:
+        discovery = _component_with_method("Discovery & Extraction Engine", "1")
+        graph = _component_with_method("Graph Synthesis & Normalization", "2")
+        removed_root = _component("Removed Root", "9")
+        root = AnalysisInsights(
+            description="root",
+            components=[discovery, graph, removed_root],
+            components_relations=[
+                Relation(
+                    relation="sends raw data to",
+                    src_name=discovery.name,
+                    dst_name=graph.name,
+                    src_id="1",
+                    dst_id="2",
+                ),
+                Relation(
+                    relation="obsolete",
+                    src_name=discovery.name,
+                    dst_name=removed_root.name,
+                    src_id="1",
+                    dst_id="9",
+                ),
+            ],
+        )
+        sub_analyses = {
+            "3.2": AnalysisInsights(
+                description="sub",
+                components=[_component("Graph Synthesis & Normalization", "3.2.4")],
+                components_relations=[],
+            )
+        }
+
+        removed_ids = prune_empty_components(root, sub_analyses)
+
+        self.assertEqual(removed_ids, {"3.2.4", "9"})
+        self.assertEqual([(r.src_id, r.dst_id) for r in root.components_relations], [("1", "2")])
+        self.assertEqual([c.component_id for c in root.components], ["1", "2"])
 
 
 class TestRepopulateTouchedScopes(unittest.TestCase):

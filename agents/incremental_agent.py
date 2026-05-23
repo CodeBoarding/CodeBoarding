@@ -656,10 +656,9 @@ def prune_empty_components(
 ) -> set[str]:
     """Remove components with no methods after scrub+repopulation; cascades into sub-analyses.
 
-    Also strips relations referencing removed components (by id or name).
+    Also strips relations referencing removed components by id.
     """
     removed_ids: set[str] = set()
-    removed_names: set[str] = set()
 
     def _has_methods(component: Component) -> bool:
         return any(group.methods for group in component.file_methods)
@@ -668,8 +667,6 @@ def prune_empty_components(
         for component in analysis.components:
             if component.component_id and not _has_methods(component):
                 removed_ids.add(component.component_id)
-                if component.name:
-                    removed_names.add(component.name)
 
     _collect_empty(root_analysis)
     for sub in sub_analyses.values():
@@ -679,11 +676,11 @@ def prune_empty_components(
         return set()
 
     root_analysis.components = [c for c in root_analysis.components if c.component_id not in removed_ids]
-    _strip_relations(root_analysis, removed_ids, removed_names)
+    _strip_relations(root_analysis, removed_ids)
 
     for sub in sub_analyses.values():
         sub.components = [c for c in sub.components if c.component_id not in removed_ids]
-        _strip_relations(sub, removed_ids, removed_names)
+        _strip_relations(sub, removed_ids)
 
     for cid in list(sub_analyses.keys()):
         if cid in removed_ids:
@@ -692,12 +689,7 @@ def prune_empty_components(
     return removed_ids
 
 
-def _strip_relations(analysis: AnalysisInsights, removed_ids: set[str], removed_names: set[str]) -> None:
+def _strip_relations(analysis: AnalysisInsights, removed_ids: set[str]) -> None:
     analysis.components_relations = [
-        rel
-        for rel in analysis.components_relations
-        if rel.src_id not in removed_ids
-        and rel.dst_id not in removed_ids
-        and rel.src_name not in removed_names
-        and rel.dst_name not in removed_names
+        rel for rel in analysis.components_relations if rel.src_id not in removed_ids and rel.dst_id not in removed_ids
     ]
