@@ -104,10 +104,7 @@ class TestGoplsConfiguration:
 
     def test_init_options_include_directory_filters_from_ignore_manager(self, tmp_path: Path):
         """Directory filters are derived from .codeboardingignore patterns."""
-        # Create a .codeboardingignore with directory patterns
-        cb_dir = tmp_path / ".codeboarding"
-        cb_dir.mkdir()
-        ignore_file = cb_dir / ".codeboardingignore"
+        ignore_file = tmp_path / ".codeboardingignore"
         ignore_file.write_text("vendor/\n**/tests/**\n**/examples/**\n*.test.js\n")
 
         ignore_manager = RepoIgnoreManager(tmp_path)
@@ -144,9 +141,7 @@ class TestGoplsConfiguration:
 
     def test_directory_filters_deduplicates(self, tmp_path: Path):
         """Same directory from multiple patterns should only appear once."""
-        cb_dir = tmp_path / ".codeboarding"
-        cb_dir.mkdir()
-        ignore_file = cb_dir / ".codeboardingignore"
+        ignore_file = tmp_path / ".codeboardingignore"
         ignore_file.write_text("vendor/\n**/vendor/**\n")
 
         ignore_manager = RepoIgnoreManager(tmp_path)

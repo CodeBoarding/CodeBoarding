@@ -33,7 +33,6 @@ from diagram_analysis.incremental_updater import IncrementalUpdater
 from diagram_analysis.io_utils import load_full_analysis
 from diagram_analysis.run_metadata import METADATA_FILENAME, write_incremental_run_metadata
 from repo_utils.diff_parser import detect_changes
-from repo_utils.ignore import initialize_codeboardingignore
 from repo_utils import get_git_commit_hash, get_repo_state_hash
 from repo_utils.git_ops import git_object_type, resolve_ref, worktree_has_changes
 from static_analyzer.analysis_result import StaticAnalysisResults
@@ -183,7 +182,6 @@ def run_incremental_pipeline(
     repo_path = generator.repo_location
     output_dir = generator.output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
-    initialize_codeboardingignore(output_dir)
 
     def _abort(msg: str) -> RequiresFullAnalysisPayload:
         logger.info("Incremental aborted (base_ref=%s target_ref=%s): %s", base_ref, target_ref or "WORKTREE", msg)
