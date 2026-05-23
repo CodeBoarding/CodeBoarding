@@ -42,6 +42,12 @@ def add_arguments(subparsers: argparse._SubParsersAction, parents: list[argparse
         action="store_true",
         help="Force full reanalysis, skipping cached static analysis",
     )
+    parser.add_argument(
+        "--depth-level",
+        type=int,
+        default=1,
+        help="Depth level for diagram generation (default: 1)",
+    )
 
 
 def validate_arguments(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:

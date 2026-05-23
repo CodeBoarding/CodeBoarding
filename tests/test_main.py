@@ -4,7 +4,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
 
 from codeboarding_cli.commands.full_analysis import run_from_args, validate_arguments
-from codeboarding_workflows.analysis import run_full, run_partial
+from codeboarding_workflows.analysis import BaselineUnavailableError, run_full, run_incremental, run_partial
 from codeboarding_workflows.sources import local_source, onboarding_materials_exist, remote_source
 
 
@@ -95,8 +95,12 @@ class TestGenerateAnalysis(unittest.TestCase):
 class TestPartialUpdate(unittest.TestCase):
     @patch("codeboarding_workflows.analysis.save_sub_analysis")
     @patch("codeboarding_workflows.analysis.load_full_analysis")
+    @patch("codeboarding_workflows.analysis.load_analysis_metadata")
     @patch("codeboarding_workflows.analysis.DiagramGenerator")
-    def test_partial_update_success(self, mock_generator_class, mock_load_full, mock_save_sub_analysis):
+    def test_partial_update_success(
+        self, mock_generator_class, mock_load_metadata, mock_load_full, mock_save_sub_analysis
+    ):
+        mock_load_metadata.return_value = {"depth_level": 1}
         from agents.agent_responses import AnalysisInsights, Component
 
         mock_generator = MagicMock()
@@ -145,7 +149,6 @@ class TestPartialUpdate(unittest.TestCase):
                 component_id="test_comp_id",
                 run_id="test-run-id",
                 log_path="test_project/test-run-log",
-                depth_level=1,
             )
 
             mock_generator.pre_analysis.assert_called_once()
@@ -154,10 +157,12 @@ class TestPartialUpdate(unittest.TestCase):
 
     @patch("codeboarding_workflows.analysis.save_sub_analysis")
     @patch("codeboarding_workflows.analysis.load_full_analysis")
+    @patch("codeboarding_workflows.analysis.load_analysis_metadata")
     @patch("codeboarding_workflows.analysis.DiagramGenerator")
     def test_partial_update_nested_component_success(
-        self, mock_generator_class, mock_load_full, mock_save_sub_analysis
+        self, mock_generator_class, mock_load_metadata, mock_load_full, mock_save_sub_analysis
     ):
+        mock_load_metadata.return_value = {"depth_level": 2}
         from agents.agent_responses import AnalysisInsights, Component
 
         mock_generator = MagicMock()
@@ -211,15 +216,17 @@ class TestPartialUpdate(unittest.TestCase):
                 component_id="nested_comp_id",
                 run_id="test-run-id",
                 log_path="test_project/test-run-log",
-                depth_level=1,
             )
 
             mock_generator.pre_analysis.assert_called_once()
             mock_generator.process_component.assert_called_once_with(nested_component)
             mock_save_sub_analysis.assert_called_once_with(mock_sub_analysis_result, output_dir, "nested_comp_id")
+            self.assertEqual(mock_generator_class.call_args.kwargs["depth_level"], 2)
 
+    @patch("codeboarding_workflows.analysis.load_analysis_metadata")
     @patch("codeboarding_workflows.analysis.DiagramGenerator")
-    def test_partial_update_file_not_found(self, mock_generator_class):
+    def test_partial_update_file_not_found(self, mock_generator_class, mock_load_metadata):
+        mock_load_metadata.return_value = None
         mock_generator = MagicMock()
         mock_generator_class.return_value = mock_generator
 
@@ -229,18 +236,74 @@ class TestPartialUpdate(unittest.TestCase):
             output_dir = Path(temp_dir) / "output"
             output_dir.mkdir()
 
-            run_partial(
+            with self.assertRaises(BaselineUnavailableError):
+                run_partial(
+                    repo_path=repo_path,
+                    output_dir=output_dir,
+                    project_name="test_project",
+                    component_id="TestComponent",
+                    run_id="test-run-id",
+                    log_path="test_project/test-run-log",
+                )
+
+            # No metadata: raise before building the generator or touching pre_analysis.
+            mock_generator_class.assert_not_called()
+            mock_generator.pre_analysis.assert_not_called()
+            mock_generator.process_component.assert_not_called()
+
+
+class TestIncrementalDepthSource(unittest.TestCase):
+    """``run_incremental`` reads depth_level from analysis.json metadata."""
+
+    @patch("codeboarding_workflows.analysis.load_analysis_metadata")
+    def test_cold_start_raises_incremental_unavailable(self, mock_load_metadata):
+        mock_load_metadata.return_value = None
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_path = Path(temp_dir) / "repo"
+            repo_path.mkdir()
+            output_dir = Path(temp_dir) / "output"
+            output_dir.mkdir()
+
+            with self.assertRaises(BaselineUnavailableError):
+                run_incremental(
+                    repo_path=repo_path,
+                    output_dir=output_dir,
+                    project_name="test_project",
+                    run_id="r",
+                    log_path="l",
+                    base_ref="abc",
+                    target_ref="HEAD",
+                )
+
+    @patch("codeboarding_workflows.analysis.run_incremental_workflow")
+    @patch("codeboarding_workflows.analysis.detect_changes")
+    @patch("codeboarding_workflows.analysis.DiagramGenerator")
+    @patch("codeboarding_workflows.analysis.load_analysis_metadata")
+    def test_depth_level_taken_from_metadata(
+        self, mock_load_metadata, mock_generator_class, mock_detect, mock_workflow
+    ):
+        mock_load_metadata.return_value = {"depth_level": 3}
+        mock_detect.return_value = MagicMock(error=None)
+        mock_workflow.return_value = Path("analysis.json")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_path = Path(temp_dir) / "repo"
+            repo_path.mkdir()
+            output_dir = Path(temp_dir) / "output"
+            output_dir.mkdir()
+
+            run_incremental(
                 repo_path=repo_path,
                 output_dir=output_dir,
                 project_name="test_project",
-                component_id="TestComponent",
-                run_id="test-run-id",
-                log_path="test_project/test-run-log",
-                depth_level=1,
+                run_id="r",
+                log_path="l",
+                base_ref="abc",
+                target_ref="HEAD",
             )
 
-            mock_generator.pre_analysis.assert_called_once()
-            mock_generator.process_component.assert_not_called()
+        self.assertEqual(mock_generator_class.call_args.kwargs["depth_level"], 3)
 
 
 class TestRemoteSource(unittest.TestCase):
@@ -307,9 +370,18 @@ class TestLocalSource(unittest.TestCase):
 
     @patch("codeboarding_workflows.analysis.DiagramGenerator")
     @patch("codeboarding_workflows.analysis.load_full_analysis")
-    def test_local_source_composes_with_partial_update(self, mock_load_full, mock_generator_class):
+    @patch("codeboarding_workflows.analysis.load_analysis_metadata")
+    def test_local_source_composes_with_partial_update(self, mock_load_metadata, mock_load_full, mock_generator_class):
         """Axes are orthogonal: the local source composes with any scope, not just full."""
-        mock_load_full.return_value = None  # exits early, enough to prove dispatch
+        from agents.agent_responses import AnalysisInsights
+
+        mock_load_metadata.return_value = {"depth_level": 1}
+        # Minimal non-None baseline so run_partial gets past both early-return guards
+        # and reaches pre_analysis (which is what this test asserts on).
+        mock_load_full.return_value = (
+            AnalysisInsights(description="root", components=[], components_relations=[]),
+            {},
+        )
 
         with tempfile.TemporaryDirectory() as temp_dir:
             repo_path = Path(temp_dir) / "repo"
@@ -400,7 +472,6 @@ class TestPartialCliLocal(unittest.TestCase):
             args.output_dir = None
             args.project_name = None
             args.binary_location = None
-            args.depth_level = 1
             args.component_id = "c1"
             args.enable_monitoring = False
 

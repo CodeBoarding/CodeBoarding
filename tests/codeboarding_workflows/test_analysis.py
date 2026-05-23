@@ -4,19 +4,24 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from codeboarding_workflows.analysis import IncrementalUnavailableError, run_incremental
+from codeboarding_workflows.analysis import BaselineUnavailableError, run_incremental
 from repo_utils.change_detector import ChangeSet
 
 
 @pytest.fixture
 def patched(tmp_path: Path):
-    """Patch the three collaborators of ``run_incremental`` and yield their mocks."""
+    """Patch the four collaborators of ``run_incremental`` and yield their mocks."""
     with ExitStack() as stack:
         gen_cls = stack.enter_context(patch("codeboarding_workflows.analysis.DiagramGenerator"))
         workflow = stack.enter_context(
             patch("codeboarding_workflows.analysis.run_incremental_workflow", return_value=tmp_path / "analysis.json")
         )
         detect = stack.enter_context(patch("codeboarding_workflows.analysis.detect_changes"))
+        # Metadata read happens before detect_changes; supply a non-None default
+        # so existing tests don't fail the cold-start guard.
+        stack.enter_context(
+            patch("codeboarding_workflows.analysis.load_analysis_metadata", return_value={"depth_level": 1})
+        )
         yield gen_cls, workflow, detect
 
 
@@ -82,7 +87,7 @@ def test_run_incremental_diff_error_raises(tmp_path: Path, patched) -> None:
     gen_cls, _workflow, detect = patched
     detect.return_value = ChangeSet(base_ref="deadbeef", target_ref="", error="bad object")
 
-    with pytest.raises(IncrementalUnavailableError, match="bad object"):
+    with pytest.raises(BaselineUnavailableError, match="bad object"):
         _invoke(tmp_path, base_ref="deadbeef")
 
     gen_cls.assert_not_called()

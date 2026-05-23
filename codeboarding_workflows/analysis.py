@@ -20,8 +20,16 @@ from repo_utils.diff_parser import detect_changes
 logger = logging.getLogger(__name__)
 
 
-class IncrementalUnavailableError(RuntimeError):
-    """Raised when incremental analysis cannot run and the caller should fall back to a full run."""
+class BaselineUnavailableError(RuntimeError):
+    """Raised when a workflow needs an existing analysis.json baseline but none is usable.
+
+    Covers two control-flow cases:
+    - partial/incremental find no ``analysis.json`` on disk;
+    - incremental can't compute the diff against the requested base ref.
+
+    Callers should surface a "run full analysis" prompt rather than silently
+    degrading to an unscoped run or producing an empty update.
+    """
 
 
 def build_generator(
@@ -30,7 +38,7 @@ def build_generator(
     output_dir: Path,
     run_id: str,
     log_path: str,
-    depth_level: int = 1,
+    depth_level: int,
     monitoring_enabled: bool = False,
     static_analyzer=None,
     changes=None,
@@ -90,24 +98,35 @@ def run_partial(
     component_id: str,
     run_id: str,
     log_path: str,
-    depth_level: int = 1,
 ) -> None:
-    """Partial scope — regenerate a single component within an existing analysis."""
+    """Partial scope — regenerate a single component within an existing analysis.
+
+    Raises ``BaselineUnavailableError`` when no ``analysis.json`` baseline
+    exists — partial updates a *component within* an existing analysis and
+    has no meaningful behavior without one.
+    """
     logger.info(f"Running PARTIAL analysis workflow for project '{project_name}', component '{component_id}'.")
+
+    # Depth comes from the existing analysis.json (metadata.depth_level).
+    metadata = load_analysis_metadata(output_dir)
+    if metadata is None:
+        raise BaselineUnavailableError(f"No baseline analysis.json found in '{output_dir}'. Run a full analysis first.")
+
     generator = build_generator(
         repo_name=project_name,
         repo_path=repo_path,
         output_dir=output_dir,
         run_id=run_id,
         log_path=log_path,
-        depth_level=depth_level,
+        depth_level=int(metadata.get("depth_level", 1)),
     )
     generator.pre_analysis()
 
     full_analysis = load_full_analysis(output_dir)
     if full_analysis is None:
-        logger.error(f"No analysis.json found in '{output_dir}'. Please ensure the file exists.")
-        return
+        # Metadata was present but the unified read failed — treat as a
+        # corrupt or partially-written baseline, same surfacing as cold start.
+        raise BaselineUnavailableError(f"analysis.json in '{output_dir}' could not be parsed as a unified analysis.")
 
     root_analysis, sub_analyses = full_analysis
 
@@ -148,24 +167,33 @@ def run_incremental(
     log_path: str,
     base_ref: str,
     target_ref: str,
-    depth_level: int = 1,
     monitoring_enabled: bool = False,
     static_analyzer=None,
     source_sha: str | None = None,
 ) -> Path:
     """Incremental scope — cluster-driven update of an existing ``analysis.json``.
 
-    Raises ``IncrementalUnavailableError`` when the diff cannot be computed
-    against the given baseline — callers should surface a "run full
-    analysis" prompt rather than silently degrading to an unscoped run.
+    Raises ``BaselineUnavailableError`` when no baseline analysis exists or
+    the diff cannot be computed against the given baseline — callers should
+    surface a "run full analysis" prompt rather than silently degrading to an
+    unscoped run.
     """
     logger.info(
         f"Running INCREMENTAL analysis workflow for project '{project_name}' "
         f"(base={base_ref!r}, target={target_ref!r})."
     )
+
+    # Depth comes from the existing analysis.json (metadata.depth_level).
+    # Fail fast on cold-start: ``_generate_subcomponents`` requires the prior
+    # depth to re-detail changed components.
+    metadata = load_analysis_metadata(output_dir)
+    if metadata is None:
+        raise BaselineUnavailableError(f"No baseline analysis.json found in '{output_dir}'. Run a full analysis first.")
+    depth_level = int(metadata.get("depth_level", 1))
+
     detected = detect_changes(repo_path, base_ref, target_ref)
     if detected.error:
-        raise IncrementalUnavailableError(f"Could not compute diff against baseline {base_ref!r}: {detected.error}")
+        raise BaselineUnavailableError(f"Could not compute diff against baseline {base_ref!r}: {detected.error}")
     changes = detected
 
     generator = build_generator(

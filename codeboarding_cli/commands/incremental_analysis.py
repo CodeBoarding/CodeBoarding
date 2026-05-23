@@ -6,7 +6,7 @@ from typing import Any
 
 from agents.llm_config import LLMConfigError
 from codeboarding_cli.bootstrap import bootstrap_environment, resolve_local_run_paths
-from codeboarding_workflows.analysis import run_incremental
+from codeboarding_workflows.analysis import BaselineUnavailableError, run_incremental
 from diagram_analysis import RunContext
 from diagram_analysis.io_utils import load_analysis_commit_hash
 from diagram_analysis.run_mode import RunMode
@@ -95,7 +95,6 @@ def run_from_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> 
             repo_path=run_paths.repo_path,
             output_dir=run_paths.output_dir,
             project_name=run_paths.project_name,
-            depth_level=args.depth_level,
             run_id=run_context.run_id,
             log_path=run_context.log_path,
             monitoring_enabled=args.enable_monitoring or monitoring_enabled(),
@@ -103,6 +102,12 @@ def run_from_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> 
             target_ref=target_ref,
             source_sha=source_sha,
         )
+    except BaselineUnavailableError as exc:
+        # Expected: no baseline, or diff failed against the requested base ref.
+        # The wire contract's ``requiresFullAnalysis: true`` tells the wrapper
+        # to prompt for a full run; no stack trace needed.
+        logger.info("Incremental unavailable: %s", exc)
+        _emit_error(str(exc))
     except Exception as exc:
         logger.exception("Incremental analysis failed")
         _emit_error(str(exc))
