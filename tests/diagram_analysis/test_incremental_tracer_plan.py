@@ -18,7 +18,7 @@ from diagram_analysis.incremental_tracer import (
     _collapse_fallback_groups,
     build_trace_plan,
 )
-from diagram_analysis.incremental_updater import FileDelta, IncrementalDelta, MethodChange
+from diagram_analysis.incremental_updater import FileDelta, IncrementalDelta, ModifiedMethodChange
 from repo_utils.change_detector import ChangeSet
 from static_analyzer.constants import NodeType
 from static_analyzer.graph import CallGraph
@@ -47,15 +47,14 @@ def _make_repo_with_file(contents: str, file_rel: str = "src/utils.py") -> tuple
     return repo, base_ref
 
 
-def _make_method_change(
-    qualified_name: str, file_path: str, start: int, end: int, change_type: ChangeStatus
-) -> MethodChange:
-    return MethodChange(
+def _make_modified(qualified_name: str, file_path: str, start: int, end: int) -> ModifiedMethodChange:
+    return ModifiedMethodChange(
         qualified_name=qualified_name,
         file_path=file_path,
         start_line=start,
         end_line=end,
-        change_type=change_type,
+        head_start_line=start,
+        head_end_line=end,
         node_type="FUNCTION",
     )
 
@@ -90,7 +89,7 @@ def test_cosmetic_only_modification_is_skipped_from_plan():
                     file_status=ChangeStatus.MODIFIED,
                     component_id="1",
                     modified_methods=[
-                        _make_method_change("src.utils.alpha", "src/utils.py", 2, 3, ChangeStatus.MODIFIED),
+                        _make_modified("src.utils.alpha", "src/utils.py", 2, 3),
                     ],
                 )
             ]
@@ -184,7 +183,7 @@ def test_plan_builds_groups_for_modified_method_with_callers():
                     file_status=ChangeStatus.MODIFIED,
                     component_id="1",
                     modified_methods=[
-                        _make_method_change("src.utils.helper", "src/utils.py", 1, 2, ChangeStatus.MODIFIED),
+                        _make_modified("src.utils.helper", "src/utils.py", 1, 2),
                     ],
                 )
             ]
@@ -241,7 +240,7 @@ def test_plan_fast_path_used_for_leaf_modification_with_no_callers():
                     file_status=ChangeStatus.MODIFIED,
                     component_id="1",
                     modified_methods=[
-                        _make_method_change("src.utils.isolated", "src/utils.py", 1, 2, ChangeStatus.MODIFIED),
+                        _make_modified("src.utils.isolated", "src/utils.py", 1, 2),
                     ],
                 )
             ]

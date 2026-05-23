@@ -14,6 +14,7 @@ construction: :func:`apply_method_delta`, :func:`prune_empty_components`,
 
 import logging
 import time
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 from typing import Any, Callable
@@ -34,16 +35,36 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Delta types
 # ---------------------------------------------------------------------------
-@dataclass
-class MethodChange:
+# `MethodChange` is a discriminated union over `change_type`. Each variant carries exactly
+# the line numbers it needs:
+#   - Added/Unchanged: working-copy lines only.
+#   - Modified: working-copy lines + HEAD lines.
+#   - Deleted: HEAD lines + a working-copy insertion anchor (where the method would go if restored).
+# Why: a single flat type with optional fields lets consumers drift into runtime "is this
+# field set?" branches the type system can't check. With variants, every revert/delete code
+# path narrows on `change_type` and gets a fully-typed object.
+@dataclass(kw_only=True)
+class _MethodChangeBase:
     qualified_name: str
     file_path: str
+    node_type: str
+
+    @property
+    def change_type(self) -> ChangeStatus:
+        raise NotImplementedError
+
+    def to_dict(self) -> dict[str, Any]:
+        raise NotImplementedError
+
+
+@dataclass(kw_only=True)
+class AddedMethodChange(_MethodChangeBase):
     start_line: int
     end_line: int
-    change_type: ChangeStatus
-    node_type: str
-    old_start_line: int | None = None
-    old_end_line: int | None = None
+
+    @property
+    def change_type(self) -> ChangeStatus:
+        return ChangeStatus.ADDED
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -51,11 +72,83 @@ class MethodChange:
             "file_path": self.file_path,
             "start_line": self.start_line,
             "end_line": self.end_line,
-            "change_type": self.change_type.value,
+            "change_type": ChangeStatus.ADDED.value,
             "node_type": self.node_type,
-            "old_start_line": self.old_start_line,
-            "old_end_line": self.old_end_line,
         }
+
+
+@dataclass(kw_only=True)
+class ModifiedMethodChange(_MethodChangeBase):
+    start_line: int
+    end_line: int
+    head_start_line: int
+    head_end_line: int
+
+    @property
+    def change_type(self) -> ChangeStatus:
+        return ChangeStatus.MODIFIED
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "qualified_name": self.qualified_name,
+            "file_path": self.file_path,
+            "start_line": self.start_line,
+            "end_line": self.end_line,
+            "head_start_line": self.head_start_line,
+            "head_end_line": self.head_end_line,
+            "change_type": ChangeStatus.MODIFIED.value,
+            "node_type": self.node_type,
+        }
+
+
+@dataclass(kw_only=True)
+class DeletedMethodChange(_MethodChangeBase):
+    # `start_line`/`end_line` is the working-copy insertion anchor: where the method
+    # would go if restored. Typically the line of the closest surviving sibling
+    # method by source order, or end-of-file if no anchor exists.
+    start_line: int
+    end_line: int
+    head_start_line: int
+    head_end_line: int
+
+    @property
+    def change_type(self) -> ChangeStatus:
+        return ChangeStatus.DELETED
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "qualified_name": self.qualified_name,
+            "file_path": self.file_path,
+            "start_line": self.start_line,
+            "end_line": self.end_line,
+            "head_start_line": self.head_start_line,
+            "head_end_line": self.head_end_line,
+            "change_type": ChangeStatus.DELETED.value,
+            "node_type": self.node_type,
+        }
+
+
+@dataclass(kw_only=True)
+class UnchangedMethodChange(_MethodChangeBase):
+    start_line: int
+    end_line: int
+
+    @property
+    def change_type(self) -> ChangeStatus:
+        return ChangeStatus.UNCHANGED
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "qualified_name": self.qualified_name,
+            "file_path": self.file_path,
+            "start_line": self.start_line,
+            "end_line": self.end_line,
+            "change_type": ChangeStatus.UNCHANGED.value,
+            "node_type": self.node_type,
+        }
+
+
+MethodChange = AddedMethodChange | ModifiedMethodChange | DeletedMethodChange | UnchangedMethodChange
 
 
 @dataclass
@@ -64,12 +157,12 @@ class FileDelta:
     file_status: ChangeStatus
     component_id: str | None = None
     old_file_path: str | None = None
-    added_methods: list[MethodChange] = field(default_factory=list)
-    modified_methods: list[MethodChange] = field(default_factory=list)
-    deleted_methods: list[MethodChange] = field(default_factory=list)
+    added_methods: list[AddedMethodChange] = field(default_factory=list)
+    modified_methods: list[ModifiedMethodChange] = field(default_factory=list)
+    deleted_methods: list[DeletedMethodChange] = field(default_factory=list)
     renamed_qualified_names: dict[str, str] = field(default_factory=dict)
     # Why: produced by the wrapper on revert so the IDE can drop stale overlays.
-    reset_methods: list[MethodChange] = field(default_factory=list)
+    reset_methods: list[UnchangedMethodChange] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -192,18 +285,66 @@ class IncrementalUpdater:
         return component_id
 
     @staticmethod
-    def _to_method_change(
-        file_path: str,
-        method: MethodEntry,
-        change_type: ChangeStatus,
-    ) -> MethodChange:
-        return MethodChange(
+    def _make_added(file_path: str, method: MethodEntry) -> AddedMethodChange:
+        return AddedMethodChange(
             qualified_name=method.qualified_name,
             file_path=file_path,
             start_line=method.start_line,
             end_line=method.end_line,
-            change_type=change_type,
             node_type=method.node_type,
+        )
+
+    @staticmethod
+    def _make_modified(file_path: str, current: MethodEntry, head: MethodEntry) -> ModifiedMethodChange:
+        return ModifiedMethodChange(
+            qualified_name=current.qualified_name,
+            file_path=file_path,
+            start_line=current.start_line,
+            end_line=current.end_line,
+            head_start_line=head.start_line,
+            head_end_line=head.end_line,
+            node_type=current.node_type,
+        )
+
+    @staticmethod
+    def _compute_deletion_anchor(
+        head_method: MethodEntry,
+        current_methods: list[MethodEntry],
+    ) -> tuple[int, int]:
+        """Pick a working-copy line where the deleted method would be reinserted.
+
+        Why: revert needs a place to insert HEAD's content. The anchor is the line of
+        the closest surviving sibling by HEAD-side source order — closest below first
+        (so reinsertion lands above it), then closest above (insertion lands below
+        the anchor's end). Falls back to (1, 1) when nothing else survives.
+        """
+        if not current_methods:
+            return (1, 1)
+        # Surviving methods sorted by their HEAD-side position aren't available, so we
+        # use working-copy ordering as a proxy: a sibling that exists in both states
+        # has roughly stable relative position within the file.
+        sorted_current = sorted(current_methods, key=lambda m: m.start_line)
+        below = next((m for m in sorted_current if m.start_line >= head_method.start_line), None)
+        if below is not None:
+            return (below.start_line, below.start_line)
+        above = sorted_current[-1]
+        return (above.end_line + 1, above.end_line + 1)
+
+    def _make_deleted(
+        self,
+        file_path: str,
+        head_method: MethodEntry,
+        current_methods: list[MethodEntry],
+    ) -> DeletedMethodChange:
+        anchor_start, anchor_end = self._compute_deletion_anchor(head_method, current_methods)
+        return DeletedMethodChange(
+            qualified_name=head_method.qualified_name,
+            file_path=file_path,
+            start_line=anchor_start,
+            end_line=anchor_end,
+            head_start_line=head_method.start_line,
+            head_end_line=head_method.end_line,
+            node_type=head_method.node_type,
         )
 
     def _classify_method_statuses(
@@ -237,21 +378,21 @@ class IncrementalUpdater:
                     file_path=file_path,
                     file_status=ChangeStatus.ADDED,
                     component_id=component_id,
-                    added_methods=[self._to_method_change(file_path, m, ChangeStatus.ADDED) for m in current],
+                    added_methods=[self._make_added(file_path, m) for m in current],
                 ),
                 missing,
             )
 
         if file_status == ChangeStatus.DELETED:
             prev = self._get_previous_methods(file_path)
+            # File is gone — there are no surviving working-copy methods; anchor falls
+            # back to (1, 1).
             return (
                 FileDelta(
                     file_path=file_path,
                     file_status=ChangeStatus.DELETED,
                     component_id=component_id,
-                    deleted_methods=[
-                        self._to_method_change(file_path, m, ChangeStatus.DELETED) for _, m in sorted(prev.items())
-                    ],
+                    deleted_methods=[self._make_deleted(file_path, m, []) for _, m in sorted(prev.items())],
                 ),
                 missing,
             )
@@ -269,15 +410,15 @@ class IncrementalUpdater:
                 "Symbol resolution returned no methods for %s; marking all existing methods as modified",
                 file_path,
             )
+            # Without `current` we can't pair HEAD positions to working-copy positions;
+            # the working-copy values fall back to HEAD's, so revert is at least functional
+            # against an unchanged copy.
             return (
                 FileDelta(
                     file_path=file_path,
                     file_status=ChangeStatus.MODIFIED,
                     component_id=component_id,
-                    modified_methods=[
-                        self._to_method_change(file_path, m, ChangeStatus.MODIFIED)
-                        for _, m in sorted(prev_active.items())
-                    ],
+                    modified_methods=[self._make_modified(file_path, m, m) for _, m in sorted(prev_active.items())],
                 ),
                 missing,
             )
@@ -294,19 +435,16 @@ class IncrementalUpdater:
                 file_status=ChangeStatus.MODIFIED,
                 component_id=component_id,
                 added_methods=[
-                    self._to_method_change(file_path, m, ChangeStatus.ADDED)
-                    for m in current
-                    if m.qualified_name in current_keys - prev_keys
+                    self._make_added(file_path, m) for m in current if m.qualified_name in current_keys - prev_keys
                 ],
                 modified_methods=[
-                    self._to_method_change(file_path, m, ChangeStatus.MODIFIED)
+                    self._make_modified(file_path, m, prev_active[m.qualified_name])
                     for m in current
                     if m.qualified_name in current_keys & prev_keys
                     and method_statuses.get(m.qualified_name) == ChangeStatus.MODIFIED
                 ],
                 deleted_methods=[
-                    self._to_method_change(file_path, prev_active[qn], ChangeStatus.DELETED)
-                    for qn in sorted(prev_keys - current_keys)
+                    self._make_deleted(file_path, prev_active[qn], current) for qn in sorted(prev_keys - current_keys)
                 ],
             ),
             missing,
@@ -373,7 +511,7 @@ def _ensure_file_entry(files: dict[str, FileEntry], file_path: str) -> FileEntry
 
 def _apply_method_changes(
     methods_by_name: dict[str, MethodEntry],
-    method_changes: list[MethodChange],
+    method_changes: Sequence[MethodChange],
 ) -> None:
     for method in method_changes:
         methods_by_name[method.qualified_name] = MethodEntry.from_method_change(method)
