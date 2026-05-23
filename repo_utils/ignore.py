@@ -1,5 +1,6 @@
 import logging
 from pathlib import Path
+from typing import Any
 
 import pathspec
 
@@ -253,7 +254,7 @@ class RepoIgnoreManager:
         """Filter a list of paths, returning only those that should not be ignored."""
         return [p for p in paths if not self.should_ignore(p)]
 
-    def strip_ignored(self, analysis: "Any") -> "Any":
+    def strip_ignored(self, analysis: Any) -> Any:
         """Drop file_methods + key_entities entries whose file_path is ignored.
 
         Single chokepoint applied right before ``analysis.json`` is written so
