@@ -42,17 +42,21 @@ class ReferenceResolverMixin:
         """Orchestrates different resolution strategies for a single reference."""
         assert self.static_analysis is not None, "static_analysis required for reference resolution"
         qname = reference.qualified_name.replace(os.sep, ".")
+        languages = self.static_analysis.get_languages()
 
-        for lang in self.static_analysis.get_languages():
-            # Try exact match first
+        # Prefer source symbols across all languages before falling back to
+        # file paths. A repo may contain Python and TypeScript; accepting a
+        # TypeScript file path during the Python pass would otherwise stop
+        # before the TypeScript symbol lookup can fill line ranges.
+        for lang in languages:
             if self._try_exact_match(reference, qname, lang):
                 return
 
-            # Try loose matching
+        for lang in languages:
             if self._try_loose_match(reference, qname, lang):
                 return
 
-            # Try file path resolution
+        for lang in languages:
             if self._try_file_path_resolution(reference, qname, lang, file_candidates):
                 return
 

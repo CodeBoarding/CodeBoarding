@@ -267,6 +267,33 @@ class TestReferenceResolverMixin(unittest.TestCase):
         expected_path = str(self.repo_dir / "module" / "file.py")
         self.assertEqual(reference.reference_file, expected_path)
 
+    def test_symbol_match_across_languages_beats_existing_file_fallback(self):
+        """A weaker file-path match must not preempt a later language symbol match."""
+        (self.repo_dir / "src").mkdir()
+        (self.repo_dir / "src" / "widget.ts").write_text("export class Widget {}\n")
+        self.mock_static_analysis.get_languages.return_value = ["python", "typescript"]
+
+        reference = SourceCodeReference(
+            qualified_name="src.widget.Widget",
+            reference_file="src/widget.ts",
+            reference_start_line=None,
+            reference_end_line=None,
+        )
+
+        ts_node = MagicMock()
+        ts_node.file_path = str(self.repo_dir / "src" / "widget.ts")
+        ts_node.line_start = 12
+        ts_node.line_end = 34
+        ts_node.fully_qualified_name = "src.widget.Widget"
+        self.mock_static_analysis.get_reference.side_effect = [ValueError("Not in python"), ts_node]
+
+        self.resolver._resolve_single_reference(reference)
+
+        self.assertEqual(reference.reference_file, str(self.repo_dir / "src" / "widget.ts"))
+        self.assertEqual(reference.reference_start_line, 12)
+        self.assertEqual(reference.reference_end_line, 34)
+        self.mock_static_analysis.get_loose_reference.assert_not_called()
+
     def test_resolve_single_reference_cascade_no_match(self):
         """Test that unrelated file candidates are NOT used as fallback"""
         reference = SourceCodeReference(

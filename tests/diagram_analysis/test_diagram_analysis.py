@@ -24,7 +24,7 @@ from diagram_analysis.analysis_json import (
     from_analysis_to_json,
     from_component_to_json_component,
 )
-from diagram_analysis.diagram_generator import DiagramGenerator
+from diagram_analysis.diagram_generator import DiagramGenerator, _component_depth, _component_expansion_seeds
 from diagram_analysis.exceptions import IncrementalCacheMissingError
 from diagram_analysis.version import Version
 from repo_utils.change_detector import ChangeSet
@@ -686,6 +686,63 @@ class TestDiagramGenerator(unittest.TestCase):
 
         self.assertEqual(ctx.exception.artifact_dir, self.output_dir)
         self.assertIn(str(self.output_dir), str(ctx.exception))
+
+    def test_component_depth_uses_absolute_hierarchical_depth(self):
+        self.assertEqual(_component_depth("1"), 1)
+        self.assertEqual(_component_depth("1.1"), 2)
+        self.assertEqual(_component_depth("1.1.3"), 3)
+        self.assertEqual(_component_depth(None), 1)
+        self.assertEqual(_component_depth(""), 1)
+
+    def test_component_expansion_seeds_skip_components_at_max_depth(self):
+        root = Component(name="Root", description="", key_entities=[], component_id="1")
+        child = Component(name="Child", description="", key_entities=[], component_id="1.1")
+        leaf = Component(name="Leaf", description="", key_entities=[], component_id="1.1.3")
+
+        seeds = _component_expansion_seeds([root, child, leaf], max_depth=3)
+
+        self.assertEqual([(component.component_id, level) for component, level in seeds], [("1", 1), ("1.1", 2)])
+        self.assertEqual(_component_expansion_seeds([root, child, leaf], max_depth=1), [])
+
+    @patch("diagram_analysis.diagram_generator.get_git_commit_hash", return_value="abc123")
+    @patch("diagram_analysis.diagram_generator.save_analysis")
+    @patch("diagram_analysis.diagram_generator.get_expandable_components")
+    def test_generate_subcomponents_respects_absolute_depth(
+        self,
+        mock_get_expandable_components,
+        mock_save_analysis,
+        _mock_git_hash,
+    ):
+        gen = DiagramGenerator(
+            repo_location=self.repo_location,
+            temp_folder=self.temp_folder,
+            repo_name="test_repo",
+            output_dir=self.output_dir,
+            depth_level=3,
+            run_id="test-run-id",
+            log_path="test_repo/test-run-log",
+        )
+        gen.details_agent = Mock()
+
+        root_analysis = AnalysisInsights(description="root", components=[], components_relations=[])
+        depth_two = Component(name="Depth two", description="", key_entities=[], component_id="1.1")
+        max_depth_leaf = Component(name="Leaf", description="", key_entities=[], component_id="1.1.3")
+        generated_child = Component(name="Generated", description="", key_entities=[], component_id="1.1.1")
+        child_analysis = AnalysisInsights(
+            description="child",
+            components=[generated_child],
+            components_relations=[],
+        )
+
+        gen.details_agent.run.return_value = (child_analysis, {})
+        mock_get_expandable_components.return_value = [generated_child]
+
+        expanded_components, sub_analyses = gen._generate_subcomponents(root_analysis, [depth_two, max_depth_leaf])
+
+        gen.details_agent.run.assert_called_once_with(depth_two)
+        self.assertEqual([component.component_id for component in expanded_components], ["1.1"])
+        self.assertEqual(set(sub_analyses), {"1.1"})
+        self.assertEqual(mock_save_analysis.call_count, 1)
 
     def test_persist_static_analysis_artifact_saves_cluster_cache_without_injected_analyzer(self):
         gen = DiagramGenerator(

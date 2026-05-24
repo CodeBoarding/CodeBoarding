@@ -52,6 +52,22 @@ from static_analyzer.scanner import ProjectScanner
 logger = logging.getLogger(__name__)
 
 
+def _component_depth(component_id: str | None) -> int:
+    """Return the absolute diagram depth for a hierarchical component id."""
+    if not component_id:
+        return 1
+    return component_id.count(".") + 1
+
+
+def _component_expansion_seeds(components: list[Component], max_depth: int) -> list[tuple[Component, int]]:
+    """Return components that may still be expanded, paired with absolute depth."""
+    return [
+        (component, depth)
+        for component in components
+        if (depth := _component_depth(component.component_id)) < max_depth
+    ]
+
+
 class DiagramGenerator:
     def __init__(
         self,
@@ -357,7 +373,7 @@ class DiagramGenerator:
         analysis: AnalysisInsights,
         root_components: list[Component],
     ) -> tuple[list[Component], dict[str, AnalysisInsights]]:
-        """Generate subcomponents for the given root-level analysis using a frontier queue."""
+        """Generate subcomponents using absolute component depth and a frontier queue."""
         max_workers = min(os.cpu_count() or 4, 8)
 
         expanded_components: list[Component] = []
@@ -377,9 +393,8 @@ class DiagramGenerator:
                 logger.debug("Submitted component='%s' at level=%d", comp.name, lvl)
 
             # 1. Initial Seeding
-            if self.depth_level > 1:
-                for component in root_components:
-                    submit_component(component, 1)
+            for component, level in _component_expansion_seeds(root_components, self.depth_level):
+                submit_component(component, level)
 
             logger.info(
                 "Subcomponent generation started with %d workers. Initial tasks: %d", max_workers, stats["submitted"]
