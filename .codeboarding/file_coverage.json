@@ -1,18 +1,20 @@
 {
   "version": 1,
-  "generated_at": "2026-04-11T19:13:07.460444+00:00",
+  "generated_at": "2026-05-17T21:52:54.982742+00:00",
   "analyzed_files": [
     "agents/__init__.py",
     "agents/abstraction_agent.py",
     "agents/agent.py",
     "agents/agent_responses.py",
     "agents/change_status.py",
+    "agents/cluster_budget.py",
     "agents/cluster_methods_mixin.py",
     "agents/constants.py",
     "agents/dependency_discovery.py",
     "agents/details_agent.py",
     "agents/llm_config.py",
     "agents/meta_agent.py",
+    "agents/model_capabilities.py",
     "agents/planner_agent.py",
     "agents/prompts/__init__.py",
     "agents/prompts/abstract_prompt_factory.py",
@@ -23,6 +25,7 @@
     "agents/prompts/gpt_prompts.py",
     "agents/prompts/kimi_prompts.py",
     "agents/prompts/prompt_factory.py",
+    "agents/retry.py",
     "agents/tools/__init__.py",
     "agents/tools/base.py",
     "agents/tools/get_external_deps.py",
@@ -31,7 +34,6 @@
     "agents/tools/read_docs.py",
     "agents/tools/read_file.py",
     "agents/tools/read_file_structure.py",
-    "agents/tools/read_git_diff.py",
     "agents/tools/read_packages.py",
     "agents/tools/read_source.py",
     "agents/tools/read_structure.py",
@@ -41,6 +43,20 @@
     "caching/cache.py",
     "caching/details_cache.py",
     "caching/meta_cache.py",
+    "codeboarding_cli/__init__.py",
+    "codeboarding_cli/bootstrap.py",
+    "codeboarding_cli/commands/__init__.py",
+    "codeboarding_cli/commands/full_analysis.py",
+    "codeboarding_cli/commands/incremental_analysis.py",
+    "codeboarding_cli/commands/partial_analysis.py",
+    "codeboarding_workflows/__init__.py",
+    "codeboarding_workflows/analysis.py",
+    "codeboarding_workflows/incremental.py",
+    "codeboarding_workflows/orchestration.py",
+    "codeboarding_workflows/rendering.py",
+    "codeboarding_workflows/sources/__init__.py",
+    "codeboarding_workflows/sources/local.py",
+    "codeboarding_workflows/sources/remote.py",
     "constants.py",
     "core/__init__.py",
     "core/plugin_loader.py",
@@ -48,12 +64,19 @@
     "core/registry.py",
     "diagram_analysis/__init__.py",
     "diagram_analysis/analysis_json.py",
+    "diagram_analysis/analysis_patcher.py",
     "diagram_analysis/diagram_generator.py",
+    "diagram_analysis/ease.py",
     "diagram_analysis/file_coverage.py",
-    "diagram_analysis/incremental_types.py",
+    "diagram_analysis/incremental_models.py",
+    "diagram_analysis/incremental_payload.py",
+    "diagram_analysis/incremental_pipeline.py",
+    "diagram_analysis/incremental_tracer.py",
     "diagram_analysis/incremental_updater.py",
     "diagram_analysis/io_utils.py",
     "diagram_analysis/run_context.py",
+    "diagram_analysis/run_metadata.py",
+    "diagram_analysis/scope_planner.py",
     "diagram_analysis/version.py",
     "duckdb_crud.py",
     "github_action.py",
@@ -90,23 +113,28 @@
     "output_generators/sphinx.py",
     "repo_utils/__init__.py",
     "repo_utils/change_detector.py",
+    "repo_utils/diff_parser.py",
     "repo_utils/errors.py",
-    "repo_utils/git_diff.py",
+    "repo_utils/git_ops.py",
     "repo_utils/ignore.py",
-    "repo_utils/method_diff.py",
     "static_analyzer/__init__.py",
     "static_analyzer/analysis_cache.py",
     "static_analyzer/analysis_result.py",
+    "static_analyzer/cfg_skip_planner.py",
     "static_analyzer/cluster_change_analyzer.py",
     "static_analyzer/cluster_helpers.py",
     "static_analyzer/cluster_relations.py",
     "static_analyzer/constants.py",
+    "static_analyzer/cosmetic_diff.py",
+    "static_analyzer/csharp_config_scanner.py",
     "static_analyzer/engine/__init__.py",
     "static_analyzer/engine/adapters/__init__.py",
+    "static_analyzer/engine/adapters/csharp_adapter.py",
     "static_analyzer/engine/adapters/go_adapter.py",
     "static_analyzer/engine/adapters/java_adapter.py",
     "static_analyzer/engine/adapters/php_adapter.py",
     "static_analyzer/engine/adapters/python_adapter.py",
+    "static_analyzer/engine/adapters/rust_adapter.py",
     "static_analyzer/engine/adapters/typescript_adapter.py",
     "static_analyzer/engine/call_graph_builder.py",
     "static_analyzer/engine/edge_build_context.py",
@@ -122,19 +150,26 @@
     "static_analyzer/engine/source_inspector.py",
     "static_analyzer/engine/symbol_table.py",
     "static_analyzer/engine/utils.py",
-    "static_analyzer/git_diff_analyzer.py",
     "static_analyzer/graph.py",
+    "static_analyzer/graph_query.py",
     "static_analyzer/incremental_orchestrator.py",
     "static_analyzer/java_config_scanner.py",
     "static_analyzer/java_utils.py",
     "static_analyzer/lsp_client/__init__.py",
     "static_analyzer/lsp_client/diagnostics.py",
+    "static_analyzer/method_fingerprint.py",
     "static_analyzer/node.py",
     "static_analyzer/programming_language.py",
     "static_analyzer/reference_resolve_mixin.py",
     "static_analyzer/scanner.py",
+    "static_analyzer/semantic_diff.py",
+    "static_analyzer/tree_sitter_parsers.py",
     "static_analyzer/typescript_config_scanner.py",
-    "tool_registry.py",
+    "tool_registry/__init__.py",
+    "tool_registry/installers.py",
+    "tool_registry/manifest.py",
+    "tool_registry/paths.py",
+    "tool_registry/registry.py",
     "user_config.py",
     "utils.py",
     "vscode_constants.py"
@@ -241,11 +276,19 @@
       "reason": "codeboardingignore"
     },
     {
+      "path": "tests/agents/test_model_capabilities.py",
+      "reason": "codeboardingignore"
+    },
+    {
       "path": "tests/agents/test_monitoring.py",
       "reason": "codeboardingignore"
     },
     {
       "path": "tests/agents/test_planner_agent.py",
+      "reason": "codeboardingignore"
+    },
+    {
+      "path": "tests/agents/test_retry.py",
       "reason": "codeboardingignore"
     },
     {
@@ -281,11 +324,15 @@
       "reason": "codeboardingignore"
     },
     {
-      "path": "tests/agents/tools/test_read_git_diff.py",
+      "path": "tests/agents/tools/test_read_source_tool.py",
       "reason": "codeboardingignore"
     },
     {
-      "path": "tests/agents/tools/test_read_source_tool.py",
+      "path": "tests/codeboarding_workflows/test_analysis.py",
+      "reason": "codeboardingignore"
+    },
+    {
+      "path": "tests/codeboarding_workflows/test_incremental.py",
       "reason": "codeboardingignore"
     },
     {
@@ -453,6 +500,14 @@
       "reason": "codeboardingignore"
     },
     {
+      "path": "tests/diagram_analysis/test_analysis_patcher.py",
+      "reason": "codeboardingignore"
+    },
+    {
+      "path": "tests/diagram_analysis/test_component_prune.py",
+      "reason": "codeboardingignore"
+    },
+    {
       "path": "tests/diagram_analysis/test_depth_computation.py",
       "reason": "codeboardingignore"
     },
@@ -465,11 +520,31 @@
       "reason": "codeboardingignore"
     },
     {
+      "path": "tests/diagram_analysis/test_ease.py",
+      "reason": "codeboardingignore"
+    },
+    {
+      "path": "tests/diagram_analysis/test_incremental_cli.py",
+      "reason": "codeboardingignore"
+    },
+    {
       "path": "tests/diagram_analysis/test_incremental_method_diff_integration.py",
       "reason": "codeboardingignore"
     },
     {
+      "path": "tests/diagram_analysis/test_incremental_tracer.py",
+      "reason": "codeboardingignore"
+    },
+    {
+      "path": "tests/diagram_analysis/test_incremental_tracer_plan.py",
+      "reason": "codeboardingignore"
+    },
+    {
       "path": "tests/diagram_analysis/test_run_context.py",
+      "reason": "codeboardingignore"
+    },
+    {
+      "path": "tests/diagram_analysis/test_scope_planner.py",
       "reason": "codeboardingignore"
     },
     {
@@ -521,6 +596,10 @@
       "reason": "codeboardingignore"
     },
     {
+      "path": "tests/integration/fixtures/edge_cases/csharp_edge_cases.json",
+      "reason": "codeboardingignore"
+    },
+    {
       "path": "tests/integration/fixtures/edge_cases/go_edge_cases.json",
       "reason": "codeboardingignore"
     },
@@ -541,6 +620,10 @@
       "reason": "codeboardingignore"
     },
     {
+      "path": "tests/integration/fixtures/edge_cases/rust_edge_cases.json",
+      "reason": "codeboardingignore"
+    },
+    {
       "path": "tests/integration/fixtures/edge_cases/scaled/javascript_scaled.json",
       "reason": "codeboardingignore"
     },
@@ -554,6 +637,10 @@
     },
     {
       "path": "tests/integration/fixtures/edge_cases/typescript_edge_cases.json",
+      "reason": "codeboardingignore"
+    },
+    {
+      "path": "tests/integration/fixtures/real_projects/clap_rust.json",
       "reason": "codeboardingignore"
     },
     {
@@ -577,6 +664,10 @@
       "reason": "codeboardingignore"
     },
     {
+      "path": "tests/integration/fixtures/real_projects/serilog_csharp.json",
+      "reason": "codeboardingignore"
+    },
+    {
       "path": "tests/integration/fixtures/real_projects/wordpress_php.json",
       "reason": "codeboardingignore"
     },
@@ -593,7 +684,59 @@
       "reason": "codeboardingignore"
     },
     {
+      "path": "tests/integration/health/test_csharp_diagnostics_integration.py",
+      "reason": "codeboardingignore"
+    },
+    {
       "path": "tests/integration/health/test_health_integration.py",
+      "reason": "codeboardingignore"
+    },
+    {
+      "path": "tests/integration/health/test_rust_diagnostics_integration.py",
+      "reason": "codeboardingignore"
+    },
+    {
+      "path": "tests/integration/projects/csharp_edge_cases_project/EdgeCases.csproj",
+      "reason": "codeboardingignore"
+    },
+    {
+      "path": "tests/integration/projects/csharp_edge_cases_project/Models/Animal.cs",
+      "reason": "codeboardingignore"
+    },
+    {
+      "path": "tests/integration/projects/csharp_edge_cases_project/Models/Repository.cs",
+      "reason": "codeboardingignore"
+    },
+    {
+      "path": "tests/integration/projects/csharp_edge_cases_project/Models/Task.cs",
+      "reason": "codeboardingignore"
+    },
+    {
+      "path": "tests/integration/projects/csharp_edge_cases_project/Program.cs",
+      "reason": "codeboardingignore"
+    },
+    {
+      "path": "tests/integration/projects/csharp_edge_cases_project/Services/QueryBuilder.cs",
+      "reason": "codeboardingignore"
+    },
+    {
+      "path": "tests/integration/projects/csharp_edge_cases_project/Services/TaskService.cs",
+      "reason": "codeboardingignore"
+    },
+    {
+      "path": "tests/integration/projects/csharp_edge_cases_project/Unused/Orphan.cs",
+      "reason": "codeboardingignore"
+    },
+    {
+      "path": "tests/integration/projects/csharp_edge_cases_project/Utils/Formatter.cs",
+      "reason": "codeboardingignore"
+    },
+    {
+      "path": "tests/integration/projects/csharp_unused_code_project/Sample.cs",
+      "reason": "codeboardingignore"
+    },
+    {
+      "path": "tests/integration/projects/csharp_unused_code_project/UnusedCode.csproj",
       "reason": "codeboardingignore"
     },
     {
@@ -821,6 +964,50 @@
       "reason": "codeboardingignore"
     },
     {
+      "path": "tests/integration/projects/rust_edge_cases_project/Cargo.toml",
+      "reason": "codeboardingignore"
+    },
+    {
+      "path": "tests/integration/projects/rust_edge_cases_project/src/main.rs",
+      "reason": "codeboardingignore"
+    },
+    {
+      "path": "tests/integration/projects/rust_edge_cases_project/src/models/base.rs",
+      "reason": "codeboardingignore"
+    },
+    {
+      "path": "tests/integration/projects/rust_edge_cases_project/src/models/entities.rs",
+      "reason": "codeboardingignore"
+    },
+    {
+      "path": "tests/integration/projects/rust_edge_cases_project/src/models/mod.rs",
+      "reason": "codeboardingignore"
+    },
+    {
+      "path": "tests/integration/projects/rust_edge_cases_project/src/services/mod.rs",
+      "reason": "codeboardingignore"
+    },
+    {
+      "path": "tests/integration/projects/rust_edge_cases_project/src/services/processor.rs",
+      "reason": "codeboardingignore"
+    },
+    {
+      "path": "tests/integration/projects/rust_edge_cases_project/src/utils/helpers.rs",
+      "reason": "codeboardingignore"
+    },
+    {
+      "path": "tests/integration/projects/rust_edge_cases_project/src/utils/mod.rs",
+      "reason": "codeboardingignore"
+    },
+    {
+      "path": "tests/integration/projects/rust_unused_code_project/Cargo.toml",
+      "reason": "codeboardingignore"
+    },
+    {
+      "path": "tests/integration/projects/rust_unused_code_project/src/lib.rs",
+      "reason": "codeboardingignore"
+    },
+    {
       "path": "tests/integration/projects/typescript_edge_cases_project/node_modules/typescript/LICENSE.txt",
       "reason": "ignored_directory"
     },
@@ -901,6 +1088,10 @@
       "reason": "codeboardingignore"
     },
     {
+      "path": "tests/integration/test_model_capabilities_live.py",
+      "reason": "codeboardingignore"
+    },
+    {
       "path": "tests/integration/test_static_analysis_consistency.py",
       "reason": "codeboardingignore"
     },
@@ -937,11 +1128,7 @@
       "reason": "codeboardingignore"
     },
     {
-      "path": "tests/repo_utils/test_change_detector.py",
-      "reason": "codeboardingignore"
-    },
-    {
-      "path": "tests/repo_utils/test_git_diff.py",
+      "path": "tests/repo_utils/test_diff_parser.py",
       "reason": "codeboardingignore"
     },
     {
@@ -993,6 +1180,10 @@
       "reason": "codeboardingignore"
     },
     {
+      "path": "tests/static_analyzer/test_cfg_skip_planner.py",
+      "reason": "codeboardingignore"
+    },
+    {
       "path": "tests/static_analyzer/test_cluster_helpers.py",
       "reason": "codeboardingignore"
     },
@@ -1002,6 +1193,14 @@
     },
     {
       "path": "tests/static_analyzer/test_code_structure.py",
+      "reason": "codeboardingignore"
+    },
+    {
+      "path": "tests/static_analyzer/test_csharp_adapter.py",
+      "reason": "codeboardingignore"
+    },
+    {
+      "path": "tests/static_analyzer/test_csharp_config_scanner.py",
       "reason": "codeboardingignore"
     },
     {
@@ -1065,7 +1264,19 @@
       "reason": "codeboardingignore"
     },
     {
+      "path": "tests/static_analyzer/test_rust_adapter.py",
+      "reason": "codeboardingignore"
+    },
+    {
+      "path": "tests/static_analyzer/test_semantic_diff.py",
+      "reason": "codeboardingignore"
+    },
+    {
       "path": "tests/static_analyzer/test_source_inspector.py",
+      "reason": "codeboardingignore"
+    },
+    {
+      "path": "tests/static_analyzer/test_static_analyzer_start_clients.py",
       "reason": "codeboardingignore"
     },
     {
@@ -1074,6 +1285,10 @@
     },
     {
       "path": "tests/static_analyzer/test_utils.py",
+      "reason": "codeboardingignore"
+    },
+    {
+      "path": "tests/test_cli_parser.py",
       "reason": "codeboardingignore"
     },
     {
@@ -1094,6 +1309,10 @@
     },
     {
       "path": "tests/test_pyproject_packages.py",
+      "reason": "codeboardingignore"
+    },
+    {
+      "path": "tests/test_registry_coverage.py",
       "reason": "codeboardingignore"
     },
     {
@@ -1118,12 +1337,12 @@
     }
   ],
   "summary": {
-    "total_files": 380,
-    "analyzed": 136,
-    "not_analyzed": 244,
+    "total_files": 461,
+    "analyzed": 171,
+    "not_analyzed": 290,
     "not_analyzed_by_reason": {
       "other": 12,
-      "codeboardingignore": 227,
+      "codeboardingignore": 273,
       "ignored_directory": 5
     }
   }

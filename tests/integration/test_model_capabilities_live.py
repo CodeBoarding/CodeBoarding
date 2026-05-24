@@ -59,7 +59,7 @@ _TRICKY_CASES = [
     ("glm", "glm-4.6", 200_000),
     ("google", "gemini-2.5-pro", 1_000_000),
     ("google", "gemini-2.5-flash", 1_000_000),
-    ("google", "gemini-1.5-pro", 1_000_000),
+    ("google", "gemini-3-pro-preview", 1_000_000),
     ("openrouter", "google/gemini-2.5-flash", 1_000_000),
     ("openrouter", "meta-llama/llama-3.1-70b-instruct", 100_000),
     ("openrouter", "qwen/qwen3-32b", 32_000),
@@ -92,7 +92,7 @@ _POPULAR_PAIRS = [
     ("aws", "meta.llama3-70b-instruct-v1:0"),
     # Google
     ("google", "gemini-2.0-flash"),
-    ("google", "gemini-1.5-flash"),
+    ("google", "gemini-3-flash-preview"),
     # OpenRouter aggregator
     ("openrouter", "anthropic/claude-3.5-sonnet"),
     ("openrouter", "openai/gpt-4o"),
