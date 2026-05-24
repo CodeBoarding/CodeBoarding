@@ -61,3 +61,7 @@ class AbstractPromptFactory(ABC):
     @abstractmethod
     def get_incremental_grouping_message(self) -> str:
         pass
+
+    @abstractmethod
+    def get_scope_relations_message(self) -> str:
+        pass

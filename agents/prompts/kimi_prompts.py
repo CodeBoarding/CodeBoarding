@@ -16,6 +16,36 @@ Kimi Prompt Design Principles:
 
 from .abstract_prompt_factory import AbstractPromptFactory
 
+SCOPE_RELATIONS_MESSAGE = """You are Kimi, an AI assistant created by Moonshot AI.
+
+Task: Generate inter-component relationships for the `{scope_name}` scope of `{project_name}`.
+
+Project Context:
+{meta_context}
+
+Project Type: {project_type}
+
+Components in this scope:
+{component_summaries}
+
+Cross-component communication from static analysis:
+{cross_component_calls}
+
+Reason step-by-step. Review the components listed above and the cross-component communication evidence, then produce relationships that describe how these components interact.
+
+Think aloud first about which components actually communicate based on the evidence, then for each relationship provide:
+- **src_name**: Source component name
+- **dst_name**: Target component name
+- **relation**: A short phrase describing the relationship (e.g. "delegates to", "notifies", "provides data to")
+
+Constraints:
+- Every src_name and dst_name must match an existing component name exactly
+- Maximum 2 relationships per component pair, avoiding bidirectional sends/returns pairs (i.e. ComponentA sends to ComponentB and ComponentB returns to ComponentA)
+- Focus on architecturally significant interactions, not implementation details
+- Use the cross-component communication evidence to ground relationships in actual code flow
+- A component that never calls or is called by another component should not have a relation to it
+"""
+
 SYSTEM_MESSAGE = """You are Kimi, an AI assistant created by Moonshot AI.
 
 Project Context:
@@ -414,3 +444,6 @@ class KimiPromptFactory(AbstractPromptFactory):
 
     def get_incremental_grouping_message(self) -> str:
         return INCREMENTAL_GROUPING_MESSAGE
+
+    def get_scope_relations_message(self) -> str:
+        return SCOPE_RELATIONS_MESSAGE

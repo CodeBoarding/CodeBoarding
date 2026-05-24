@@ -5,7 +5,6 @@ create new ones with a ``parent_id``. Stitching back into the live tree
 (``stitch_delta``) and downstream refresh/prune is deterministic.
 """
 
-import json
 import logging
 from enum import StrEnum
 from pathlib import Path
@@ -23,21 +22,25 @@ from agents.agent_responses import (
     FileMethodGroup,
     MetaAnalysisInsights,
     MethodEntry,
+    Relation,
+    ScopeRelations,
     assign_component_ids,
     index_components_by_id,
     iter_components,
 )
 from agents.cluster_methods_mixin import ClusterMethodsMixin
-from agents.prompts import get_incremental_grouping_message, get_system_message
+from agents.prompts import get_incremental_grouping_message, get_scope_relations_message, get_system_message
 from agents.validation import (
     ValidationContext,
     validate_cluster_coverage,
     validate_existing_component_ids,
+    validate_scope_relation_names,
 )
 from diagram_analysis.cluster_delta import ClusterDelta
 from diagram_analysis.io_utils import normalize_repo_path
 from monitoring import trace
 from static_analyzer.analysis_result import StaticAnalysisResults
+from static_analyzer.cluster_relations import merge_relations
 from static_analyzer.constants import Language
 from static_analyzer.graph import ClusterResult
 
@@ -85,17 +88,12 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
         root_analysis: AnalysisInsights,
         sub_analyses: dict[str, AnalysisInsights],
     ) -> ClusterAnalysis:
-        """LLM call: route delta clusters to existing or new components."""
         affected_cluster_ids = delta.all_affected_cluster_ids()
         if not affected_cluster_ids:
-            logger.info("[IncrementalAgent] No affected cluster ids; skipping LLM call.")
             return ClusterAnalysis(cluster_components=[])
 
         meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
         project_type = self.meta_context.project_type if self.meta_context else "unknown"
-        # Two-tier rendering: components touching affected files get full info,
-        # the rest get a single "id (name)" line to keep them as routing targets
-        # without bloating the prompt.
         cluster_results = delta.cluster_results()
         affected_files: set[str] = set()
         for cr in cluster_results.values():
@@ -144,8 +142,103 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
                 existing_component_ids=existing_component_ids,
             ),
             max_validation_attempts=3,
+            include_hidden=True,
         )
+        _log_routing_summary(result)
         return result
+
+    @trace
+    def generate_scope_relations(self, scope: AnalysisInsights, scope_name: str) -> list[Relation]:
+        """Generate LLM relations for a single scope and merge with existing static ones.
+
+        Mutates ``scope.components_relations`` in place. Returns the LLM-generated relations.
+        """
+        if len(scope.components) < 2:
+            return []
+
+        meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
+        project_type = self.meta_context.project_type if self.meta_context else "unknown"
+
+        component_summaries = "\n".join(c.llm_str() for c in scope.components)
+        cross_calls = self.build_scope_cfg_string(scope)
+
+        template = get_scope_relations_message()
+        prompt_template = PromptTemplate(
+            template=template,
+            input_variables=[
+                "scope_name",
+                "project_name",
+                "meta_context",
+                "project_type",
+                "component_summaries",
+                "cross_component_calls",
+            ],
+        )
+        prompt = prompt_template.format(
+            scope_name=scope_name,
+            project_name=self.project_name,
+            meta_context=meta_context_str,
+            project_type=project_type,
+            component_summaries=component_summaries,
+            cross_component_calls=cross_calls,
+        )
+
+        valid_names = {c.name for c in scope.components}
+        context = ValidationContext(valid_component_names=valid_names)
+
+        result: ScopeRelations = self._validation_invoke(
+            prompt,
+            ScopeRelations,
+            validators=[validate_scope_relation_names],
+            context=context,
+            max_validation_attempts=3,
+        )
+
+        existing_static = [r for r in scope.components_relations if r.is_static]
+        merged = merge_relations(result.components_relations, [], scope)
+        if existing_static:
+            for r in existing_static:
+                existing_pair = next(
+                    (m for m in merged if m.src_id == r.src_id and m.dst_id == r.dst_id),
+                    None,
+                )
+                if existing_pair is None:
+                    merged.append(r)
+                elif existing_pair.edge_count == 0 and r.edge_count > 0:
+                    existing_pair.edge_count = r.edge_count
+                    existing_pair.is_static = True
+
+        scope.components_relations = merged
+        return result.components_relations
+
+    @trace
+    def generate_all_scope_relations(
+        self,
+        root_analysis: AnalysisInsights,
+        sub_analyses: dict[str, AnalysisInsights],
+        touched_scopes: set[str],
+    ) -> None:
+        """Generate LLM relations for every touched scope with >= 2 components.
+
+        The LLM infers semantic connections that CFG-only ``build_static_relations``
+        misses (e.g. a component that registers callbacks siblings call, with no
+        direct static edge). Called once after stitching, repopulation, and
+        redetail are complete so the full component context is available.
+        """
+        all_llm_rels: list[tuple[str, list[Relation]]] = []
+        if "" in touched_scopes:
+            rels = self.generate_scope_relations(root_analysis, "root")
+            if rels:
+                all_llm_rels.append(("root", rels))
+        for scope_id in sorted(touched_scopes - {""}):
+            sub = sub_analyses.get(scope_id)
+            if sub is not None:
+                rels = self.generate_scope_relations(sub, scope_id)
+                if rels:
+                    all_llm_rels.append((scope_id, rels))
+
+        if all_llm_rels:
+            _log_scope_relations_summary(all_llm_rels)
 
 
 def _format_existing_components(
@@ -210,6 +303,42 @@ def _classify_verdict(cc: ClustersComponent, *, existing_found: bool) -> Verdict
     if not existing_found:
         return Verdict.ADD
     return Verdict.UPDATE if cc.redetail_needed else Verdict.NOOP
+
+
+def _log_routing_summary(result: ClusterAnalysis) -> None:
+    if not result.cluster_components:
+        return
+    rows = []
+    for cc in result.cluster_components:
+        action = (
+            f"UPDATE {cc.existing_component_id}" if cc.existing_component_id else f"ADD under {cc.parent_id or 'root'}"
+        )
+        rows.append(f"  {action:25s}  {cc.name:40s}  clusters={cc.cluster_ids}")
+    header = f"[incremental] Routing decisions ({len(result.cluster_components)} groups):"
+    logger.info("\n".join([header] + rows))
+
+
+def _log_stitch_summary(routing_rows: list[dict], verdicts: dict[Verdict, int], redetail_ids: set[str]) -> None:
+    lines = [
+        f"[stitch] ADD={verdicts[Verdict.ADD]} UPDATE={verdicts[Verdict.UPDATE]} "
+        f"NOOP={verdicts[Verdict.NOOP]}  redetail={sorted(redetail_ids)}"
+    ]
+    for r in routing_rows:
+        parent_str = f"under {r['parent']}" if r["parent"] else ""
+        redetail_str = "redetail" if r["redetail"] else "keep"
+        lines.append(
+            f"  {r['verdict']:8s}  {r['id']:5s} {r['name']:40s}  "
+            f"clusters={r['clusters']}  {redetail_str}  {parent_str}"
+        )
+    logger.info("\n".join(lines))
+
+
+def _log_scope_relations_summary(all_rels: list[tuple[str, list[Relation]]]) -> None:
+    lines = ["[scope_relations] LLM-generated inter-component relations:"]
+    for scope_name, rels in all_rels:
+        for r in rels:
+            lines.append(f"  {scope_name:8s}  {r.src_name:40s} --{r.relation}--> {r.dst_name}")
+    logger.info("\n".join(lines))
 
 
 def _ancestor_ids(component_id: str) -> list[str]:
@@ -277,8 +406,6 @@ def stitch_delta(
 
     redetail_ids: set[str] = set()
 
-    # Step 1 — remap and drop removed clusters before merging delta ids in,
-    # so a remapped id can't get re-added below.
     for component in component_index.values():
         before = set(component.source_cluster_ids)
         remapped = {cluster_id_remap.get(cid, cid) for cid in before}
@@ -290,49 +417,31 @@ def stitch_delta(
         if component.component_id and remapped & changed_cluster_ids:
             redetail_ids.add(component.component_id)
 
-    # Step 2 — route delta cluster_components by ID (never by name).
     new_components: list[tuple[Component, str | None]] = []
     verdicts: dict[Verdict, int] = {Verdict.ADD: 0, Verdict.UPDATE: 0, Verdict.NOOP: 0}
+    routing_rows: list[dict] = []
     for cc in delta_cluster_analysis.cluster_components:
         if cc.existing_component_id is not None:
             existing = component_index.get(cc.existing_component_id)
             if existing is None:
-                # Hallucinated ID: validate_existing_component_ids should
-                # have rejected the response upstream; if we got here, the
-                # validator was bypassed. Don't crash and don't fall back to
-                # name matching — treat as a new component so data is never
-                # silently lost, and log loudly so it surfaces in telemetry.
                 logger.warning(
-                    "[stitch_delta] LLM returned existing_component_id=%r "
-                    "which does not match any live component; treating "
-                    "cluster_components entry %r as a new component.",
+                    "[stitch] hallucinated existing_component_id=%r, treating %r as ADD",
                     cc.existing_component_id,
                     cc.name,
-                )
-                logging.getLogger("traces").info(
-                    json.dumps(
-                        {
-                            "event": "stitch_hallucinated_id",
-                            "component_id": cc.existing_component_id,
-                            "name": cc.name,
-                        }
-                    )
                 )
             else:
                 verdict = _classify_verdict(cc, existing_found=True)
                 verdicts[verdict] += 1
-                logger.debug(
-                    "[stitch_delta] %s component_id=%s clusters=%s",
-                    verdict,
-                    existing.component_id,
-                    sorted(set(cc.cluster_ids)),
+                routing_rows.append(
+                    {
+                        "verdict": verdict,
+                        "id": existing.component_id,
+                        "name": existing.name,
+                        "clusters": sorted(set(cc.cluster_ids)),
+                        "redetail": cc.redetail_needed,
+                        "parent": None,
+                    }
                 )
-                # On UPDATE, the LLM may supply a refreshed name/description
-                # ("if the new cluster members fundamentally shift the
-                # component's purpose, you may provide an updated name and
-                # description" — incremental grouping prompt). Apply before
-                # the cluster merge so the redetail decision below is gated
-                # only by member-set churn.
                 if cc.redetail_needed:
                     if cc.name and cc.name != existing.name:
                         existing.name = cc.name
@@ -350,15 +459,16 @@ def stitch_delta(
                 continue
 
         verdicts[Verdict.ADD] += 1
-        logger.debug(
-            "[stitch_delta] %s name=%r parent_id=%s clusters=%s",
-            Verdict.ADD,
-            cc.name,
-            cc.parent_id,
-            sorted(set(cc.cluster_ids)),
+        routing_rows.append(
+            {
+                "verdict": Verdict.ADD,
+                "id": "?",
+                "name": cc.name,
+                "clusters": sorted(set(cc.cluster_ids)),
+                "redetail": True,
+                "parent": cc.parent_id,
+            }
         )
-        # cc.redetail_needed is intentionally not read here — new components
-        # are always redetailed via _attach_new_components.
         new_component = Component(
             name=cc.name,
             description=cc.description or "",
@@ -372,12 +482,7 @@ def stitch_delta(
         _attach_new_components(new_components, root_analysis, sub_analyses, component_index, redetail_ids)
 
     if delta_cluster_analysis.cluster_components:
-        logger.info(
-            "[stitch_delta] verdicts: ADD=%d UPDATE=%d NOOP=%d",
-            verdicts[Verdict.ADD],
-            verdicts[Verdict.UPDATE],
-            verdicts[Verdict.NOOP],
-        )
+        _log_stitch_summary(routing_rows, verdicts, redetail_ids)
 
     return redetail_ids
 
@@ -610,24 +715,11 @@ def remove_deleted_files(
     sub_analyses: dict[str, AnalysisInsights],
     live_files: set[str],
 ) -> set[str]:
-    """Drop every reference to a file not in *live_files*; returns the dropped paths.
-
-    Why this runs before cluster math: orphan-routed methods (assigned by
-    file co-location, not cluster membership) are invisible to the cluster
-    delta. Without an explicit scrub, deleting a file containing only such
-    methods leaves stale ``file_methods`` / ``key_entities`` /
-    ``analysis.files`` entries forever.
-    """
     dropped_files: set[str] = _scrub_one_analysis(root_analysis, live_files)
     for sub in sub_analyses.values():
         dropped_files |= _scrub_one_analysis(sub, live_files)
-
     if dropped_files:
-        logger.info(
-            "[incremental] scrub: dropped %d deleted file(s) from analysis: %s",
-            len(dropped_files),
-            sorted(dropped_files)[:10],
-        )
+        logger.info("[incremental] dropped %d deleted file(s)", len(dropped_files))
     return dropped_files
 
 

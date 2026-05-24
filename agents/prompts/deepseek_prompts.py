@@ -15,6 +15,38 @@ DeepSeek Prompt Design Principles:
 
 from .abstract_prompt_factory import AbstractPromptFactory
 
+SCOPE_RELATIONS_MESSAGE = """# Task
+Generate inter-component relationships for the `{scope_name}` scope of `{project_name}`.
+
+# Context
+Project Type: {project_type}
+
+{meta_context}
+
+# Components in this scope
+{component_summaries}
+
+# Cross-component communication evidence
+{cross_component_calls}
+
+# Instructions (execute in order)
+1. Review each component and its responsibilities.
+2. Analyze the cross-component communication evidence to identify actual interaction patterns.
+3. For each meaningful interaction, produce a relationship with:
+   - **src_name**: Source component name (must match an existing component name exactly)
+   - **dst_name**: Target component name (must match an existing component name exactly)
+   - **relation**: Short phrase describing the interaction (e.g. "delegates to", "notifies", "provides data to")
+
+# Constraints
+- Every src_name and dst_name must match an existing component name exactly
+- Maximum 2 relationships per component pair (avoid bidirectional sends/returns pairs like ComponentA sends to ComponentB and ComponentB returns to ComponentA)
+- Only include architecturally significant interactions grounded in the communication evidence
+- Components with no cross-component calls between them must not have a relationship
+
+# Required outputs
+A list of `components_relations` entries, each with src_name, dst_name, and relation.
+"""
+
 SYSTEM_MESSAGE = """You are a software architecture expert.
 
 # Task
@@ -419,3 +451,6 @@ class DeepSeekPromptFactory(AbstractPromptFactory):
 
     def get_incremental_grouping_message(self) -> str:
         return INCREMENTAL_GROUPING_MESSAGE
+
+    def get_scope_relations_message(self) -> str:
+        return SCOPE_RELATIONS_MESSAGE

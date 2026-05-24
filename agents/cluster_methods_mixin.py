@@ -788,3 +788,44 @@ class ClusterMethodsMixin:
         node_to_component = build_node_to_component_map(analysis)
         static_relations = build_component_relations(node_to_component, cfg_graphs)
         analysis.components_relations = merge_relations(analysis.components_relations, static_relations, analysis)
+
+    def build_scope_cfg_string(self, analysis: AnalysisInsights) -> str:
+        """Render cross-component communication edges as a human-readable string for the LLM.
+
+        For every CFG edge where src belongs to component A and dst belongs to
+        component B (A != B), this produces a grouped summary like:
+
+            ComponentA -> ComponentB (3 edges):
+              src_pkg.MethodX -> dst_pkg.MethodY
+              src_pkg.MethodZ -> dst_pkg.MethodW
+        """
+        node_to_component = build_node_to_component_map(analysis)
+        id_to_name = {c.component_id: c.name for c in analysis.components}
+        cfg_graphs = {lang: self.static_analysis.get_cfg(lang) for lang in self.static_analysis.get_languages()}
+
+        cross_edges: dict[tuple[str, str], list[tuple[str, str]]] = defaultdict(list)
+        for cfg in cfg_graphs.values():
+            for edge in cfg.edges:
+                src_name = edge.get_source()
+                dst_name = edge.get_destination()
+                src_comp = node_to_component.get(src_name)
+                dst_comp = node_to_component.get(dst_name)
+                if src_comp and dst_comp and src_comp != dst_comp:
+                    cross_edges[(src_comp, dst_comp)].append((src_name, dst_name))
+
+        if not cross_edges:
+            return "No cross-component communication edges found."
+
+        lines: list[str] = []
+        for (src_id, dst_id), edges in sorted(cross_edges.items()):
+            src_label = id_to_name.get(src_id, src_id)
+            dst_label = id_to_name.get(dst_id, dst_id)
+            lines.append(f"\n{src_label} -> {dst_label} ({len(edges)} edge{'s' if len(edges) != 1 else ''}):")
+            for s, d in edges[:10]:
+                short_s = s.split(".")[-1]
+                short_d = d.split(".")[-1]
+                lines.append(f"  {short_s} -> {short_d}")
+            if len(edges) > 10:
+                lines.append(f"  ... and {len(edges) - 10} more")
+
+        return "\n".join(lines)

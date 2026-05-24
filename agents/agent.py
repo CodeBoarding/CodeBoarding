@@ -5,7 +5,7 @@ from pathlib import Path
 from google.api_core.exceptions import ResourceExhausted
 from langchain_core.exceptions import OutputParserException
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
+from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, ToolMessage
 from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.prompts import PromptTemplate
 from langchain.agents import create_agent
@@ -20,6 +20,7 @@ from agents.tools.toolkit import CodeBoardingToolkit
 from agents.validation import ValidationResult, score_validation_results, VALIDATOR_WEIGHTS, DEFAULT_VALIDATOR_WEIGHT
 from monitoring.mixin import MonitoringMixin
 from repo_utils.ignore import RepoIgnoreManager
+from agents.agent_responses import LLMBaseModel
 from agents.llm_config import MONITORING_CALLBACK
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.reference_resolve_mixin import ReferenceResolverMixin
@@ -200,10 +201,10 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         except Empty:
             raise RuntimeError("Agent invocation completed but no result was returned")
 
-    def _parse_invoke(self, prompt: str, type: type):
+    def _parse_invoke(self, prompt: str, type: type, include_hidden: bool = False):
         response = self._invoke(prompt)
         assert isinstance(response, str), f"Expected a string as response type got {response}"
-        return self._parse_response(prompt, response, type)
+        return self._parse_response(prompt, response, type, include_hidden=include_hidden)
 
     def _score_result(self, result, validators: list, context) -> tuple[float, list[tuple[float, str]]]:
         """Run all validators on a result and return (score, prioritized_feedback).
@@ -233,7 +234,13 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         return score, weighted_feedback
 
     def _validation_invoke(
-        self, prompt: str, return_type: type, validators: list, context, max_validation_attempts: int = 1
+        self,
+        prompt: str,
+        return_type: type,
+        validators: list,
+        context,
+        max_validation_attempts: int = 1,
+        include_hidden: bool = False,
     ):
         """
         Invoke LLM with validation, feedback loop, and best-of-N selection.
@@ -261,7 +268,12 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         # Compute the maximum possible score so we can detect a perfect result
         max_possible_score = sum(VALIDATOR_WEIGHTS.get(v.__name__, DEFAULT_VALIDATOR_WEIGHT) for v in validators)
 
-        result = self._parse_invoke(prompt, return_type)
+        result = self._parse_invoke(prompt, return_type, include_hidden=include_hidden)
+        logger.info(
+            "[Validation] Parsed %s: %s",
+            return_type.__name__,
+            result.llm_str()[:500],
+        )
 
         # Track the best candidate across all attempts
         best_result = result
@@ -314,22 +326,33 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
                 f"[Validation] Preparing attempt {attempt + 1}/{max_validation_attempts} "
                 f"with {len(weighted_feedback)} feedback items"
             )
-            result = self._parse_invoke(feedback_prompt, return_type)
+            result = self._parse_invoke(feedback_prompt, return_type, include_hidden=include_hidden)
 
         return best_result
 
-    def _parse_response(self, prompt, response, return_type, max_retries=5, attempt=0):
+    def _parse_response(self, prompt, response, return_type, max_retries=5, attempt=0, include_hidden: bool = False):
         if response is None or response.strip() == "":
             logger.error(f"Empty response for prompt: {prompt}")
 
-        parser = PydanticOutputParser(pydantic_object=return_type)
+        if include_hidden and issubclass(return_type, LLMBaseModel):
+            schema = return_type.model_json_schema(include_hidden=True)
+            parser = PydanticOutputParser(pydantic_object=return_type)
+            format_instructions = (
+                f"The output should be formatted as a JSON instance that conforms to the JSON schema below.\n"
+                f"Here is the output schema:\n```json\n{json.dumps(schema, indent=2)}\n```"
+            )
+        else:
+            parser = PydanticOutputParser(pydantic_object=return_type)
+            format_instructions = parser.get_format_instructions()
 
         def call_once():
             try:
-                return self._structured_parse(response, parser)
-            except Exception:
-                logger.warning("Structured parser failed, falling back to extractor parser")
-            return self._extractor_parse(response, return_type, parser)
+                result = self._structured_parse(response, parser, format_instructions=format_instructions)
+                logger.debug("[parse_response] structured_parse succeeded for %s", return_type.__name__)
+                return result
+            except Exception as e:
+                logger.warning("[parse_response] structured_parse failed for %s: %s", return_type.__name__, e)
+            return self._extractor_parse(response, return_type, parser, include_hidden=include_hidden)
 
         def classify(exc: Exception, attempt: int) -> RetryDecision:
             if isinstance(exc, ResourceExhausted):
@@ -356,7 +379,9 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
             log_prefix="Parse response",
         )
 
-    def _structured_parse(self, message_content, parser):
+    def _structured_parse(self, message_content, parser, format_instructions: str | None = None):
+        if format_instructions is None:
+            format_instructions = parser.get_format_instructions()
         prompt_template = """You are a JSON expert. Here you need to extract information in the following json format: {format_instructions}
 
         Here is the content to parse and fix: {adjective}
@@ -365,7 +390,7 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         prompt = PromptTemplate(
             template=prompt_template,
             input_variables=["adjective"],
-            partial_variables={"format_instructions": parser.get_format_instructions()},
+            partial_variables={"format_instructions": format_instructions},
         )
         chain = prompt | self.parsing_llm | parser
         try:
@@ -381,11 +406,11 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
                     pass
         raise ValueError(f"Couldn't parse {message_content}")
 
-    def _extractor_parse(self, response, return_type, parser):
+    def _extractor_parse(self, response, return_type, parser, include_hidden: bool = False):
         extractor = create_extractor(self.parsing_llm, tools=[return_type], tool_choice=return_type.__name__)
         try:
             result = extractor.invoke(
-                return_type.extractor_str() + response,
+                return_type.extractor_str(include_hidden=include_hidden) + response,
                 config={"callbacks": [MONITORING_CALLBACK, self.agent_monitoring_callback]},
             )
         except AttributeError as e:

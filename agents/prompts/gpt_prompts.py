@@ -435,6 +435,34 @@ For each cluster group above, decide whether it belongs in an existing component
 - Identity is tracked by **component_id**, not by name. If clusters belong in an existing component, you must reference its **component_id** explicitly — reusing a name without the correct id will fork a duplicate
 - Every cluster id listed in the cluster groups above must appear in exactly one routing entry"""
 
+SCOPE_RELATIONS_MESSAGE = """Generate inter-component relationships for the `{scope_name}` scope of `{project_name}`.
+
+Project Context:
+{meta_context}
+
+Project Type: {project_type}
+
+**Components in this scope:**
+{component_summaries}
+
+**Cross-component communication from static analysis:**
+{cross_component_calls}
+
+Instructions:
+Review the components listed above and the cross-component communication evidence. Generate relationships that describe how these components interact with each other.
+
+For each relationship provide:
+- **src_name**: Source component name
+- **dst_name**: Target component name
+- **relation**: A short phrase describing the relationship (e.g. "delegates to", "notifies", "provides data to")
+
+Guidelines:
+- Every src_name and dst_name must match an existing component name exactly
+- Maximum 2 relationships per component pair, avoiding bidirectional sends/returns pairs
+- Focus on architecturally significant interactions, not implementation details
+- Use the cross-component communication evidence to ground relationships in actual code flow
+- A component that never calls or is called by another component should not have a relation to it"""
+
 
 class GPTPromptFactory(AbstractPromptFactory):
     """Prompt factory for GPT-4 models."""
@@ -486,3 +514,6 @@ class GPTPromptFactory(AbstractPromptFactory):
 
     def get_incremental_grouping_message(self) -> str:
         return INCREMENTAL_GROUPING_MESSAGE
+
+    def get_scope_relations_message(self) -> str:
+        return SCOPE_RELATIONS_MESSAGE

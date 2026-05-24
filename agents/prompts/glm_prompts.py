@@ -17,6 +17,41 @@ GLM Prompt Design Principles:
 
 from .abstract_prompt_factory import AbstractPromptFactory
 
+SCOPE_RELATIONS_MESSAGE = """You are a software architecture relationship analyst. STRICTLY follow these rules:
+
+MANDATORY TASK:
+Generate inter-component relationships for the `{scope_name}` scope of `{project_name}`.
+
+Project Context:
+{meta_context}
+
+Project Type: {project_type}
+
+Components in this scope:
+{component_summaries}
+
+Cross-component communication from static analysis:
+{cross_component_calls}
+
+REQUIRED STEPS (execute in order):
+1. Review the components listed above and their summaries.
+2. Analyze the cross-component communication evidence to identify actual code-flow interactions.
+3. Generate relationships that describe how these components interact with each other.
+
+REQUIRED OUTPUT (complete ALL):
+For each relationship, MUST provide:
+- **src_name**: Source component name — MUST match an existing component name EXACTLY
+- **dst_name**: Target component name — MUST match an existing component name EXACTLY
+- **relation**: A short phrase describing the relationship (e.g. 'delegates to', 'notifies', 'provides data to')
+
+CONSTRAINTS (MUST obey):
+- Every src_name and dst_name MUST match an existing component name exactly — invented or approximate names are STRICTLY forbidden
+- Maximum 2 relationships per component pair — STRICTLY avoid bidirectional sends/returns pairs (e.g. ComponentA sends message to ComponentB AND ComponentB returns result to ComponentA)
+- MUST focus on architecturally significant interactions — STRICTLY avoid implementation details
+- MUST ground relationships in the cross-component communication evidence provided above
+- A component that NEVER calls or is called by another component MUST NOT have a relation to it
+"""
+
 SYSTEM_MESSAGE = """You are a software architecture expert. STRICTLY follow these rules:
 
 MANDATORY INSTRUCTIONS (MUST comply):
@@ -444,3 +479,6 @@ class GLMPromptFactory(AbstractPromptFactory):
 
     def get_incremental_grouping_message(self) -> str:
         return INCREMENTAL_GROUPING_MESSAGE
+
+    def get_scope_relations_message(self) -> str:
+        return SCOPE_RELATIONS_MESSAGE

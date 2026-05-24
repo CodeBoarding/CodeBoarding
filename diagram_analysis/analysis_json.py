@@ -253,7 +253,6 @@ def from_component_to_json_component(
     sub_analyses: dict[str, tuple[AnalysisInsights, list[Component]]] | None = None,
     processed_ids: set[str] | None = None,
 ) -> ComponentJson:
-    """Convert a Component to a ComponentJson, optionally nesting sub-analysis data."""
     if processed_ids is None:
         processed_ids = set()
 

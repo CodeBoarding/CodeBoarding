@@ -604,7 +604,7 @@ class DiagramGenerator:
 
             # Refresh first (per-component, siblings untouched), then prune —
             # we only know a component is empty after rebuilding from live CFG.
-            repopulate_touched_scopes(
+            touched_scopes = repopulate_touched_scopes(
                 redetail_ids,
                 root_analysis,
                 sub_analyses,
@@ -613,14 +613,16 @@ class DiagramGenerator:
             )
 
             removed_ids = prune_empty_components(root_analysis, sub_analyses)
-
             if removed_ids:
                 redetail_ids -= removed_ids
 
             redetail_components = _collect_components_by_id(redetail_ids, root_analysis, sub_analyses)
             if redetail_components:
                 _, redetailed_subs = self._generate_subcomponents(root_analysis, redetail_components)
-                sub_analyses.update(redetailed_subs)
+                _merge_sub_analyses(sub_analyses, redetailed_subs)
+
+            if touched_scopes:
+                incremental_agent.generate_all_scope_relations(root_analysis, sub_analyses, touched_scopes)
 
             # Rebuild the global files index, unioning every sub-analysis's
             # files into root. The incremental flow never reruns AbstractionAgent
@@ -637,6 +639,13 @@ class DiagramGenerator:
 
             commit_hash = get_git_commit_hash(self.repo_location)
             self._strip_ignored(root_analysis, sub_analyses)
+            n_subs = sum(len(sub.components) for sub in sub_analyses.values())
+            logger.info(
+                "[incremental] saving: %d root + %d sub-components, %d relations",
+                len(root_analysis.components),
+                n_subs,
+                len(root_analysis.components_relations),
+            )
             analysis_path = save_analysis(
                 analysis=root_analysis,
                 output_dir=Path(self.output_dir),
@@ -671,3 +680,41 @@ def _collect_components_by_id(
                 found.append(component)
                 seen.add(component.component_id)
     return found
+
+
+def _merge_sub_analyses(
+    target: dict[str, AnalysisInsights],
+    updates: dict[str, AnalysisInsights],
+) -> None:
+    """Merge *updates* into *target*, preserving components the redetailer didn't touch.
+
+    ``_generate_subcomponents`` produces fresh sub-analyses that only contain
+    components the detailer LLM generated.  In the incremental path, ``stitch_delta``
+    may have inserted brand-new components (e.g. MCP Server Interface) that the
+    detailer never saw because they weren't in its input scope.  A plain
+    ``dict.update()`` would wipe those survivors out.
+
+    For each key in *updates*, we:
+      1. Keep old components whose IDs are absent from the new sub-analysis.
+      2. Replace everything else with the new sub-analysis data.
+      3. Union the relations (old relations referencing surviving components are kept).
+    """
+    for key, new_sub in updates.items():
+        old_sub = target.get(key)
+        if old_sub is None:
+            target[key] = new_sub
+            continue
+
+        new_ids = {c.component_id for c in new_sub.components}
+        surviving = [c for c in old_sub.components if c.component_id not in new_ids]
+        surviving_ids = {c.component_id for c in surviving}
+        if surviving:
+            new_sub.components = surviving + new_sub.components
+
+        kept_relations = [
+            r for r in old_sub.components_relations if (r.src_id in surviving_ids or r.dst_id in surviving_ids)
+        ]
+        if kept_relations:
+            new_sub.components_relations = kept_relations + new_sub.components_relations
+
+        target[key] = new_sub

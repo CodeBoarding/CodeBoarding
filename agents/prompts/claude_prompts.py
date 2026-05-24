@@ -15,6 +15,40 @@ Claude Prompt Design Principles:
 
 from .abstract_prompt_factory import AbstractPromptFactory
 
+SCOPE_RELATIONS_MESSAGE = """Generate inter-component relationships for the `{scope_name}` scope of `{project_name}`.
+
+<context>
+Project context: {meta_context}
+
+Project type: {project_type}
+
+### Components in this scope
+{component_summaries}
+
+### Cross-component communication from static analysis
+{cross_component_calls}
+</context>
+
+<instructions>
+Review the components and cross-component communication evidence above. Generate `components_relations` entries describing how these components interact.
+
+For each relationship provide:
+- **src_name**: Source component name
+- **dst_name**: Target component name
+- **relation**: Short phrase (e.g. "delegates to", "notifies", "provides data to")
+
+Constraints:
+- Every src_name and dst_name MUST match an existing component name exactly
+- Maximum 2 relationships per component pair — avoid bidirectional sends/returns pairs
+- Focus on architecturally significant interactions, not implementation details
+- Ground relationships in the cross-component communication evidence
+- A component that never calls or is called by another component should not have a relation to it
+</instructions>
+
+<thinking>
+Map the cross-component call evidence to the component boundaries first. Then identify which pairs have meaningful architectural interactions worth documenting. Discard pairs with no communication evidence.
+</thinking>"""
+
 # Highly optimized prompts for Claude performance
 SYSTEM_MESSAGE = """You are a software architecture expert analyzing {project_name} with comprehensive diagram generation optimization.
 
@@ -405,6 +439,9 @@ class ClaudePromptFactory(AbstractPromptFactory):
 
     def get_incremental_grouping_message(self) -> str:
         return INCREMENTAL_GROUPING_MESSAGE
+
+    def get_scope_relations_message(self) -> str:
+        return SCOPE_RELATIONS_MESSAGE
 
     def get_details_message(self) -> str:
         return DETAILS_MESSAGE

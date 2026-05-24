@@ -108,7 +108,7 @@ class LLMBaseModel(BaseModel, abc.ABC):
             defn = schema.get("$defs", {}).get(title)
             if isinstance(defn, dict) and "properties" in defn:
                 defn["properties"] = {k: v for k, v in defn["properties"].items() if k not in excluded}
-        own_excluded = cls._excluded_fields()
+        own_excluded = cls._excluded_fields(include_hidden)
         if "properties" in schema:
             schema["properties"] = {k: v for k, v in schema["properties"].items() if k not in own_excluded}
         return schema
@@ -192,7 +192,6 @@ class ClustersComponent(LLMBaseModel):
             "while reusing an existing component's name forks a duplicate component. "
             "Ignored by the full-analysis flow."
         ),
-        exclude=True,
         json_schema_extra={"hidden": True},
     )
     parent_id: str | None = Field(
@@ -203,7 +202,6 @@ class ClustersComponent(LLMBaseModel):
             "should attach (or null to attach at root). Ignored when "
             "``existing_component_id`` is set, and ignored by the full-analysis flow."
         ),
-        exclude=True,
         json_schema_extra={"hidden": True},
     )
     redetail_needed: bool = Field(
@@ -216,7 +214,6 @@ class ClustersComponent(LLMBaseModel):
             "True forces a full redetail. Ignored for brand-new components (always "
             "redetailed) and by the full-analysis flow."
         ),
-        exclude=True,
         json_schema_extra={"hidden": True},
     )
 
@@ -554,6 +551,17 @@ class ComponentFiles(LLMBaseModel):
         title = "# Component File Classifications\n"
         body = "\n".join(f"- `{fc.file_path}` -> Component: `{fc.component_name}`" for fc in self.file_paths)
         return title + body
+
+
+class ScopeRelations(LLMBaseModel):
+    """Relations between components within a single scope."""
+
+    components_relations: list[Relation] = Field(description="Inter-component relationships within this scope.")
+
+    def llm_str(self):
+        if not self.components_relations:
+            return "No relations found."
+        return "\n".join(r.llm_str() for r in self.components_relations)
 
 
 class FilePath(LLMBaseModel):

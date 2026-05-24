@@ -15,6 +15,29 @@ Gemini Flash Prompt Design Principles:
 
 from .abstract_prompt_factory import AbstractPromptFactory
 
+SCOPE_RELATIONS_MESSAGE = """Generate inter-component relationships for the `{scope_name}` scope of `{project_name}`.
+
+Project Context:
+{meta_context}
+
+Project Type: {project_type}
+
+Components in this scope:
+{component_summaries}
+
+Cross-component communication from static analysis:
+{cross_component_calls}
+
+Review the components and cross-component communication evidence above. For each relationship, provide: src_name (source component name), dst_name (target component name), and relation (a short phrase like "delegates to", "notifies", "provides data to").
+
+Constraints:
+- Every src_name and dst_name must match an existing component name exactly
+- Maximum 2 relationships per component pair, avoid bidirectional sends/returns pairs (e.g. A sends to B and B returns to A)
+- Focus on architecturally significant interactions
+- Ground relationships in the cross-component communication evidence
+- No relationship between components that never call or are called by each other
+"""
+
 SYSTEM_MESSAGE = """You are a software architecture expert. Your task is to analyze Control Flow Graphs (CFG) for `{project_name}` and generate a high-level data flow overview optimized for diagram generation.
 
 Project Context:
@@ -383,3 +406,6 @@ class GeminiFlashPromptFactory(AbstractPromptFactory):
 
     def get_incremental_grouping_message(self) -> str:
         return INCREMENTAL_GROUPING_MESSAGE
+
+    def get_scope_relations_message(self) -> str:
+        return SCOPE_RELATIONS_MESSAGE

@@ -6,7 +6,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from difflib import SequenceMatcher
 
-from agents.agent_responses import AnalysisInsights, ClusterAnalysis, ComponentFiles
+from agents.agent_responses import AnalysisInsights, ClusterAnalysis, ComponentFiles, ScopeRelations
 from repo_utils import normalize_path
 from static_analyzer.graph import CallGraph, ClusterResult
 
@@ -551,6 +551,35 @@ def validate_relation_component_names(result: AnalysisInsights, _context: Valida
     )
 
     logger.warning(f"[Validation] Relations with unknown component names: {invalid_str}")
+    return ValidationResult(is_valid=False, feedback_messages=[feedback])
+
+
+def validate_scope_relation_names(result: ScopeRelations, _context: ValidationContext) -> ValidationResult:
+    """Validate that src_name/dst_name in scope relations match known component names."""
+    known_names = _context.valid_component_names
+    if not known_names:
+        return ValidationResult(is_valid=True)
+
+    invalid: list[str] = []
+    for rel in result.components_relations:
+        unknown: list[str] = []
+        if rel.src_name not in known_names:
+            unknown.append(f"src_name='{rel.src_name}'")
+        if rel.dst_name not in known_names:
+            unknown.append(f"dst_name='{rel.dst_name}'")
+        if unknown:
+            invalid.append(f"({rel.src_name} -{rel.relation}-> {rel.dst_name}): {', '.join(unknown)}")
+
+    if not invalid:
+        return ValidationResult(is_valid=True)
+
+    known_str = ", ".join(sorted(known_names))
+    feedback = (
+        f"The following relations reference component names that do not exist: {'; '.join(invalid)}. "
+        f"Known component names are: {known_str}. "
+        f"Ensure src_name and dst_name match an existing component name exactly."
+    )
+    logger.warning(f"[Validation] Scope relations with unknown names: {'; '.join(invalid)}")
     return ValidationResult(is_valid=False, feedback_messages=[feedback])
 
 
