@@ -7,6 +7,7 @@ from pathlib import PurePosixPath
 from typing import get_origin, Optional
 
 from pydantic import BaseModel, Field
+from pydantic.fields import FieldInfo
 
 logger = logging.getLogger(__name__)
 
@@ -19,8 +20,13 @@ class LLMBaseModel(BaseModel, abc.ABC):
         raise NotImplementedError("LLM String has to be implemented.")
 
     @classmethod
-    def _is_field_hidden(cls, fvalue) -> bool:
-        return fvalue.exclude or (fvalue.json_schema_extra or {}).get("hidden")
+    def _is_field_hidden(cls, fvalue: FieldInfo) -> bool:
+        if fvalue.exclude:
+            return True
+        extra = fvalue.json_schema_extra
+        if isinstance(extra, dict):
+            return bool(extra.get("hidden"))
+        return False
 
     @classmethod
     def _excluded_fields(cls, include_hidden: bool = False) -> set[str]:
