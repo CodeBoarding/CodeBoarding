@@ -75,9 +75,7 @@ FOCUS AREAS (prioritize):
 - MUST provide clear justification for why clusters belong together
 - MUST describe inter-group interactions based on the inter-cluster connections
 
-OUTPUT FORMAT (MUST use):
-Return a ClusterAnalysis with cluster_components using ClustersComponent model.
-Each component MUST have name (descriptive label), cluster_ids (list), and description (comprehensive explanation with rationale and inter-group interactions)."""
+MUST return each component with a descriptive name, its cluster_ids as a list, and a comprehensive description including rationale and inter-group interactions."""
 
 FINAL_ANALYSIS_MESSAGE = """You are a software architecture designer. STRICTLY follow these rules:
 
@@ -94,7 +92,7 @@ REQUIRED STEPS (execute in order):
 1. Review the named cluster groups above.
 2. Decide which named groups MUST be merged into final components.
 3. For each component, specify which named cluster groups it encompasses via source_group_names.
-4. Add key entities (2-5 most important classes/methods) for each component using SourceCodeReference.
+4. Add key entities (2-5 most important classes/methods) for each component, referencing the source file where they are defined.
 5. Define relationships between components.
 
 GUIDELINES for {project_type} projects (MUST follow):
@@ -109,7 +107,7 @@ REQUIRED OUTPUTS (complete all):
   * name: Clear component name
   * description: What this component does
   * source_group_names: Which named cluster groups from the analysis above this component encompasses (MUST use exact group names)
-  * key_entities: 2-5 most important classes/methods (SourceCodeReference objects with qualified_name and reference_file)
+  * key_entities: 2-5 most important classes/methods, mentioning their qualified names and source files
 - Relations: Max 2 relationships per component pair (STRICTLY avoid bidirectional relations like ComponentA sends message to ComponentB and ComponentB returns result to ComponentA)
 
 CONSTRAINTS (MUST obey):
@@ -319,9 +317,7 @@ REQUIRED STEPS (execute in order):
 FOCUS:
 MUST analyze core subsystem functionality only. STRICTLY avoid cross-cutting concerns like logging or error handling.
 
-OUTPUT FORMAT (MUST use):
-Return a ClusterAnalysis with cluster_components using ClustersComponent model.
-Each component MUST have name (descriptive label), cluster_ids (list), and description (comprehensive explanation with rationale and inter-group interactions)."""
+MUST return each component with a descriptive name, its cluster_ids as a list, and a comprehensive description including rationale and inter-group interactions."""
 
 DETAILS_MESSAGE = """You are a sub-component architecture designer. STRICTLY follow these rules:
 
@@ -338,7 +334,7 @@ REQUIRED STEPS (execute in order):
 1. Review the named cluster groups above.
 2. Decide which named groups MUST be merged into final sub-components.
 3. For each sub-component, specify which named cluster groups it encompasses via source_group_names.
-4. Add key entities (2-5 most important classes/methods) for each sub-component using SourceCodeReference.
+4. Add key entities (2-5 most important classes/methods) for each sub-component, referencing the source file where they are defined.
 5. Define relationships between sub-components.
 
 GUIDELINES for {project_type} projects (MUST follow):
@@ -353,7 +349,7 @@ REQUIRED OUTPUTS (complete all):
   * name: Clear sub-component name
   * description: What this sub-component does
   * source_group_names: Which named cluster groups from the analysis above this sub-component encompasses (MUST use exact group names)
-  * key_entities: 2-5 most important classes/methods (SourceCodeReference objects with qualified_name and reference_file)
+  * key_entities: 2-5 most important classes/methods, mentioning their qualified names and source files
 - Relations: Max 2 relationships per component pair (STRICTLY avoid bidirectional relations like ComponentA sends message to ComponentB and ComponentB returns result to ComponentA)
 
 CONSTRAINTS (MUST obey):
@@ -376,35 +372,26 @@ CONTEXT:
 
 The previous analysis established the components below. Most clusters are unchanged and stay where they are; this prompt only shows the slice that changed (new clusters or clusters whose member methods changed).
 
-EXISTING COMPONENTS (each line shows `component_id "name"`):
+EXISTING COMPONENTS (each line shows component_id and name):
 {existing_components}
 
 CLUSTER GROUPS TO ASSIGN:
 {cfg_clusters}
 
-REQUIRED STEPS (execute in order, per cluster id):
-For each cluster id above, you MUST choose exactly one option:
+REQUIRED STEPS (execute in order):
+1. For each cluster group above, decide whether it belongs in an existing component or warrants a new one.
 
-1. Route to an existing component. Set `existing_component_id` to the EXACT component_id from the list above (e.g. `"1.3"`). MUST reuse the existing `name` and a short `description` verbatim. Put the cluster ids in `cluster_ids`. Several entries MAY share the same `existing_component_id` if multiple groups of clusters route to the same component.
+2. When routing to an existing component, you MUST provide the exact component_id from the list above. Reuse that component's existing name and description verbatim. Multiple cluster groups MAY route to the same component — that is fine. Additionally, set **redetail_needed** to True (the default) whenever the change touches functionality or you are unsure. Set it to False ONLY when the delta is purely cosmetic — a refactor, internal rename, small bug fix, or formatting — AND the component's high-level purpose is clearly unchanged. When False, the existing description is preserved as-is. Bias HEAVILY toward True if uncertain.
 
-   ALSO set `redetail_needed`. Default True. Set False ONLY when the cluster delta is cosmetic — refactor, internal rename, small bug fix, formatting — AND the component's high-level purpose is unchanged. When False, the existing description is preserved as-is and no follow-up redetail runs. Bias HEAVILY toward True if uncertain.
-
-2. Create a new component. Leave `existing_component_id` as null, provide a fresh `name` (MUST be distinct from every existing component), write a `description` paragraph explaining what this new component does and WHY these clusters belong together, and set `parent_id` to the component_id under which this new component should attach (or null for root). MUST choose the parent whose scope most naturally encloses the new component.
+3. When creating a new component, leave the existing component reference empty. Provide a fresh name that MUST be distinct from every existing component, a description paragraph explaining what this new component does and WHY these clusters belong together, and the component_id of the parent under which it should attach (or leave empty for root). You MUST choose the parent whose scope most naturally encloses the new component.
 
 CRITICAL RULE:
-Identity is by component_id, NOT by name. Reusing an existing component's name without setting `existing_component_id` will fork a duplicate component — that is WRONG. If clusters belong in an existing component, you MUST set `existing_component_id`.
+Identity is by component_id, NOT by name. If clusters belong in an existing component, you MUST reference that component by its exact id — omitting it will fork a duplicate, which is WRONG.
 
-OUTPUT FORMAT (complete ALL fields):
-Return a `ClusterAnalysis` with `cluster_components`. For every entry, set:
-- `name` (string)
-- `cluster_ids` (list of integers, the cluster ids assigned to this entry)
-- `description` (string)
-- `existing_component_id` (string component_id, or null) — set when routing to an existing component; null when creating a new one
-- `parent_id` (string component_id, or null) — REQUIRED when `existing_component_id` is null; ignored otherwise
-- `redetail_needed` (bool, default True) — set False on existing-component routes ONLY, when the delta is cosmetic AND the component's purpose is unchanged; ignored when creating a new component
+COVERAGE (MANDATORY):
+Every cluster id listed in the CLUSTER GROUPS TO ASSIGN section MUST appear in exactly one entry.
 
-COVERAGE REQUIREMENT (MANDATORY):
-Every cluster id listed in the "CLUSTER GROUPS TO ASSIGN" section MUST appear in exactly one entry's `cluster_ids`."""
+Return one routing decision per cluster group. Each decision MUST clearly indicate whether it routes to an existing component (referenced by its exact id from the list above) or proposes a new component with a distinct name, a description paragraph, and the parent it should attach to."""
 
 
 class GLMPromptFactory(AbstractPromptFactory):

@@ -411,7 +411,7 @@ class TestCodeBoardingAgent(unittest.TestCase):
             parsing_llm=mock_parsing_llm,
         )
 
-        with patch.object(agent, "_try_parse", return_value=TestResponse(value="repaired")) as repair:
+        with patch.object(agent, "_structured_parse", return_value=TestResponse(value="repaired")) as repair:
             result = agent._parse_response("Test prompt", "not json at all", TestResponse)
 
         self.assertEqual(result.value, "repaired")

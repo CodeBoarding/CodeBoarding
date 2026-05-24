@@ -322,29 +322,14 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         if response is None or response.strip() == "":
             logger.error(f"Empty response for prompt: {prompt}")
 
+        parser = PydanticOutputParser(pydantic_object=return_type)
+
         def call_once():
-            extractor = create_extractor(self.parsing_llm, tools=[return_type], tool_choice=return_type.__name__)
             try:
-                result = extractor.invoke(
-                    return_type.extractor_str() + response,
-                    config={"callbacks": [MONITORING_CALLBACK, self.agent_monitoring_callback]},
-                )
-            except AttributeError as e:
-                if "tool_call_id" in str(e):
-                    logger.warning(f"Trustcall bug encountered, falling back to Pydantic parser: {e}")
-                    parser = PydanticOutputParser(pydantic_object=return_type)
-                    return self._try_parse(response, parser)
-                raise
-            if "responses" in result and len(result["responses"]) != 0:
-                return return_type.model_validate(result["responses"][0])
-            if "messages" in result and len(result["messages"]) != 0:
-                message = result["messages"][0].content
-                parser = PydanticOutputParser(pydantic_object=return_type)
-                if not message:
-                    raise EmptyExtractorMessageError("Extractor returned empty message content")
-                return self._try_parse(message, parser)
-            parser = PydanticOutputParser(pydantic_object=return_type)
-            return self._try_parse(response, parser)
+                return self._structured_parse(response, parser)
+            except Exception:
+                logger.warning("Structured parser failed, falling back to extractor parser")
+            return self._extractor_parse(response, return_type, parser)
 
         def classify(exc: Exception, attempt: int) -> RetryDecision:
             if isinstance(exc, ResourceExhausted):
@@ -371,19 +356,19 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
             log_prefix="Parse response",
         )
 
-    def _try_parse(self, message_content, parser):
+    def _structured_parse(self, message_content, parser):
+        prompt_template = """You are a JSON expert. Here you need to extract information in the following json format: {format_instructions}
+
+        Here is the content to parse and fix: {adjective}
+
+        Please provide only the JSON output without any additional text."""
+        prompt = PromptTemplate(
+            template=prompt_template,
+            input_variables=["adjective"],
+            partial_variables={"format_instructions": parser.get_format_instructions()},
+        )
+        chain = prompt | self.parsing_llm | parser
         try:
-            prompt_template = """You are an JSON expert. Here you need to extract information in the following json format: {format_instructions}
-
-            Here is the content to parse and fix: {adjective}
-
-            Please provide only the JSON output without any additional text."""
-            prompt = PromptTemplate(
-                template=prompt_template,
-                input_variables=["adjective"],
-                partial_variables={"format_instructions": parser.get_format_instructions()},
-            )
-            chain = prompt | self.parsing_llm | parser
             return chain.invoke(
                 {"adjective": message_content},
                 config={"callbacks": [MONITORING_CALLBACK, self.agent_monitoring_callback]},
@@ -391,7 +376,28 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         except (ValidationError, OutputParserException):
             for _, v in json.loads(message_content).items():
                 try:
-                    return self._try_parse(json.dumps(v), parser)
+                    return self._structured_parse(json.dumps(v), parser)
                 except:
                     pass
         raise ValueError(f"Couldn't parse {message_content}")
+
+    def _extractor_parse(self, response, return_type, parser):
+        extractor = create_extractor(self.parsing_llm, tools=[return_type], tool_choice=return_type.__name__)
+        try:
+            result = extractor.invoke(
+                return_type.extractor_str() + response,
+                config={"callbacks": [MONITORING_CALLBACK, self.agent_monitoring_callback]},
+            )
+        except AttributeError as e:
+            if "tool_call_id" in str(e):
+                logger.warning(f"Trustcall bug encountered: {e}")
+                raise
+            raise
+        if "responses" in result and len(result["responses"]) != 0:
+            return return_type.model_validate(result["responses"][0])
+        if "messages" in result and len(result["messages"]) != 0:
+            message = result["messages"][0].content
+            if not message:
+                raise EmptyExtractorMessageError("Extractor returned empty message content")
+            return self._structured_parse(message, parser)
+        raise EmptyExtractorMessageError("Extractor returned no responses and no messages")

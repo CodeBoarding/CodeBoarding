@@ -72,8 +72,7 @@ The CFG has been pre-clustered into groups of related methods/functions. Each cl
 - Describe inter-group interactions based on the inter-cluster connections
 
 # Output format
-Return a ClusterAnalysis with cluster_components using ClustersComponent model.
-Each component must have name (descriptive label), cluster_ids (list), and description (comprehensive explanation with rationale and inter-group interactions)."""
+For each component provide a descriptive name, the list of cluster IDs it contains, and a comprehensive description with rationale and inter-group interactions."""
 
 FINAL_ANALYSIS_MESSAGE = """# Task
 Create final component architecture for `{project_name}` optimized for flow representation.
@@ -88,7 +87,7 @@ Create final component architecture for `{project_name}` optimized for flow repr
 1. Review the named cluster groups above.
 2. Decide which named groups should be merged into final components.
 3. For each component, specify which named cluster groups it encompasses via source_group_names.
-4. Add key entities (2-5 most important classes/methods) for each component using SourceCodeReference.
+4. Add key entities (2-5 most important classes/methods) for each component, referencing the source file where they are defined.
 5. Define relationships between components.
 
 # Guidelines for {project_type} projects
@@ -99,11 +98,7 @@ Create final component architecture for `{project_name}` optimized for flow repr
 
 # Required outputs
 - Description: One paragraph explaining the main flow and purpose
-- Components: Each with:
-  * name: Clear component name
-  * description: What this component does
-  * source_group_names: Which named cluster groups from the analysis above this component encompasses (use exact group names)
-  * key_entities: 2-5 most important classes/methods (SourceCodeReference objects with qualified_name and reference_file)
+- Components: Each with a clear name, a description of what it does, the exact named cluster groups it encompasses, and 2-5 key entities mentioning their qualified names and source files
 - Relations: Max 2 relationships per component pair (avoid bidirectional relations like ComponentA sends message to ComponentB and ComponentB returns result to ComponentA)
 
 # Constraints
@@ -303,8 +298,7 @@ The CFG has been pre-clustered into groups of related methods/functions. Each cl
 Analyze core subsystem functionality only. Avoid cross-cutting concerns like logging or error handling.
 
 # Output format
-Return a ClusterAnalysis with cluster_components using ClustersComponent model.
-Each component must have name (descriptive label), cluster_ids (list), and description (comprehensive explanation with rationale and inter-group interactions)."""
+For each sub-component provide a descriptive name, the list of cluster IDs it contains, and a comprehensive description with rationale and inter-group interactions."""
 
 DETAILS_MESSAGE = """# Task
 Create final sub-component architecture for the `{component}` subsystem of `{project_name}` optimized for flow representation.
@@ -319,7 +313,7 @@ Create final sub-component architecture for the `{component}` subsystem of `{pro
 1. Review the named cluster groups above.
 2. Decide which named groups should be merged into final sub-components.
 3. For each sub-component, specify which named cluster groups it encompasses via source_group_names.
-4. Add key entities (2-5 most important classes/methods) for each sub-component using SourceCodeReference.
+4. Add key entities (2-5 most important classes/methods) for each sub-component, referencing the source file where they are defined.
 5. Define relationships between sub-components.
 
 # Guidelines for {project_type} projects
@@ -330,11 +324,7 @@ Create final sub-component architecture for the `{component}` subsystem of `{pro
 
 # Required outputs (complete all)
 - Description: One paragraph explaining the subsystem's main flow and purpose
-- Components: Each with:
-  * name: Clear sub-component name
-  * description: What this sub-component does
-  * source_group_names: Which named cluster groups from the analysis above this sub-component encompasses (use exact group names)
-  * key_entities: 2-5 most important classes/methods (SourceCodeReference objects with qualified_name and reference_file)
+- Components: Each with a clear name, a description of what it does, the exact named cluster groups it encompasses, and 2-5 key entities mentioning their qualified names and source files
 - Relations: Max 2 relationships per component pair (avoid bidirectional relations like ComponentA sends message to ComponentB and ComponentB returns result to ComponentA)
 
 # Constraints
@@ -346,7 +336,7 @@ Create final sub-component architecture for the `{component}` subsystem of `{pro
 Base component choices on fundamental architectural importance."""
 
 INCREMENTAL_GROUPING_MESSAGE = """# Task
-Update the architecture of `{project_name}` by routing changed and new CFG clusters into the correct components.
+Route each changed or new CFG cluster into the correct component — either an existing one or a brand new one.
 
 # Context
 - Project: {project_name}
@@ -356,35 +346,27 @@ Update the architecture of `{project_name}` by routing changed and new CFG clust
 The previous analysis established the components below. Most clusters are unchanged and stay where they are; this prompt only shows the slice that changed (new clusters or clusters whose member methods changed).
 
 # Existing components
-Each line shows `component_id "name"`:
+Each line shows the component id and its name:
 {existing_components}
 
 # Cluster groups to assign
 {cfg_clusters}
 
-# Instructions (execute in order, per cluster id)
-For each cluster id above, choose exactly one option:
+# Instructions
 
-1. Route to an existing component. Set `existing_component_id` to the exact component_id from the list above (e.g. `"1.3"`). Reuse the existing `name` and a short `description` verbatim. Put the cluster ids in `cluster_ids`. Several entries may share the same `existing_component_id` if multiple groups of clusters route to the same component.
+1. For each cluster group listed above, decide whether it belongs in an existing component or requires a new one.
 
-   Also set `redetail_needed`. Default True. Set False only when the cluster delta is cosmetic — refactor, internal rename, small bug fix, formatting — and the component's high-level purpose is unchanged. When False, the existing description is preserved as-is and no follow-up redetail runs. Bias toward True if uncertain.
+2. If routing to an existing component, reference it by its exact component id from the list above (e.g. `"1.3"`). Reuse that component's current name. Include the cluster ids that now belong there. Multiple groups of clusters can route to the same component if they are functionally related.
 
-2. Create a new component. Leave `existing_component_id` as null, provide a fresh `name` distinct from every existing component, write a `description` paragraph explaining what this new component does and why these clusters belong together, and set `parent_id` to the component_id under which this new component should attach (or null for root). Choose the parent whose scope most naturally encloses the new component.
+3. Decide whether the component's description needs updating. Default to yes. Only skip the update when the change is cosmetic — a refactor, internal rename, small bug fix, or formatting change that does not alter the component's high-level purpose. When in doubt, request the update.
+
+4. If creating a new component, give it a fresh name distinct from every existing component, write a description explaining what this component does and why these clusters belong together, and specify a parent component id to attach it under (or leave it at root level). Choose the parent whose scope most naturally encloses the new component.
 
 # Critical rule
-Identity is by component_id, not by name. Reusing an existing component's name without setting `existing_component_id` will fork a duplicate component — that is wrong. If clusters belong in an existing component, you MUST set `existing_component_id`.
+Identity is by component id, not by name. Reusing an existing component's name without explicitly referencing its component id will fork a duplicate — that is wrong. When clusters belong in an existing component, always reference that component by its id.
 
-# Output format
-Return a `ClusterAnalysis` with `cluster_components`. For every entry, set:
-- `name` (string)
-- `cluster_ids` (list of integers, the cluster ids assigned to this entry)
-- `description` (string)
-- `existing_component_id` (string component_id, or null) — set when routing to an existing component; null when creating a new one
-- `parent_id` (string component_id, or null) — required when `existing_component_id` is null; ignored otherwise
-- `redetail_needed` (bool, default True) — set False on existing-component routes only, when the delta is cosmetic and the component's purpose is unchanged; ignored when creating a new component
-
-# Coverage requirement
-Every cluster id listed in the "Cluster groups to assign" section must appear in exactly one entry's `cluster_ids`."""
+# Coverage
+Every cluster id listed in the "Cluster groups to assign" section must appear in exactly one output entry."""
 
 
 class DeepSeekPromptFactory(AbstractPromptFactory):

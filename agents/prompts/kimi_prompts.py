@@ -66,9 +66,7 @@ Reason carefully, then execute:
 
 Focus on creating cohesive, logical groupings that reflect the actual {project_type} architecture based on semantic meaning from method names, call patterns, and architectural context. Describe inter-group interactions based on the inter-cluster connections.
 
-Output Format:
-Return a ClusterAnalysis with cluster_components using ClustersComponent model.
-Each component should have name (descriptive label), cluster_ids (list), and description (comprehensive explanation with rationale and inter-group interactions)."""
+Return each grouped component with a descriptive name, its cluster_ids list, and a comprehensive description covering rationale and inter-group interactions."""
 
 FINAL_ANALYSIS_MESSAGE = """You are Kimi, an AI assistant created by Moonshot AI.
 
@@ -85,7 +83,7 @@ Reason step-by-step. Decompose this into subtasks:
 1. Review the named cluster groups above.
 2. Decide which named groups should be merged into final components.
 3. For each component, specify which named cluster groups it encompasses via source_group_names.
-4. Add key entities (2-5 most important classes/methods) for each component using SourceCodeReference.
+4. For each component, list the 2-5 most important classes/methods, referencing their qualified names and source files.
 5. Define relationships between components.
 
 Guidelines for {project_type} projects:
@@ -94,14 +92,7 @@ Guidelines for {project_type} projects:
 - Each component should have clear boundaries
 - Include only architecturally significant relationships
 
-Required outputs:
-- Description: One paragraph explaining the main flow and purpose
-- Components: Each with:
-  * name: Clear component name
-  * description: What this component does
-  * source_group_names: Which named cluster groups from the analysis above this component encompasses (use exact group names)
-  * key_entities: 2-5 most important classes/methods (SourceCodeReference objects with qualified_name and reference_file)
-- Relations: Max 2 relationships per component pair (avoid relations in which we have sends/returns i.e. ComponentA sends a message to ComponentB and ComponentB returns result to ComponentA)
+For each component provide a clear name, a description of what it does, the exact named cluster group names it encompasses, and the 2-5 most important classes/methods with their qualified names and source files. For relationships, allow at most 2 per component pair and avoid pairs where one sends and the other returns (i.e. ComponentA sends a message to ComponentB and ComponentB returns result to ComponentA). Also provide one paragraph explaining the overall main flow and purpose.
 
 Constraints:
 - Focus on highest level architectural components
@@ -308,9 +299,7 @@ Reason carefully, then execute:
 
 Focus on core subsystem functionality only. Avoid cross-cutting concerns like logging or error handling.
 
-Output Format:
-Return a ClusterAnalysis with cluster_components using ClustersComponent model.
-Each component should have name (descriptive label), cluster_ids (list), and description (comprehensive explanation with rationale and inter-group interactions)."""
+Return each grouped sub-component with a descriptive name, its cluster_ids list, and a comprehensive description covering rationale and inter-group interactions."""
 
 DETAILS_MESSAGE = """You are Kimi, an AI assistant created by Moonshot AI.
 
@@ -327,7 +316,7 @@ Think aloud first (reasoning), then synthesize:
 1. Review the named cluster groups above.
 2. Decide which named groups should be merged into final sub-components.
 3. For each sub-component, specify which named cluster groups it encompasses via source_group_names.
-4. Add key entities (2-5 most important classes/methods) for each sub-component using SourceCodeReference.
+4. For each sub-component, list the 2-5 most important classes/methods, referencing their qualified names and source files.
 5. Define relationships between sub-components.
 
 Guidelines for {project_type} projects:
@@ -336,14 +325,7 @@ Guidelines for {project_type} projects:
 - Each sub-component should have clear boundaries
 - Include only architecturally significant relationships
 
-Required outputs:
-- Description: One paragraph explaining the subsystem's main flow and purpose
-- Components: Each with:
-  * name: Clear sub-component name
-  * description: What this sub-component does
-  * source_group_names: Which named cluster groups from the analysis above this sub-component encompasses (use exact group names)
-  * key_entities: 2-5 most important classes/methods (SourceCodeReference objects with qualified_name and reference_file)
-- Relations: Max 2 relationships per component pair (avoid relations in which we have sends/returns i.e. ComponentA sends a message to ComponentB and ComponentB returns result to ComponentA)
+For each sub-component provide a clear name, a description of what it does, the exact named cluster group names it encompasses, and the 2-5 most important classes/methods with their qualified names and source files. For relationships, allow at most 2 per component pair and avoid pairs where one sends and the other returns (i.e. ComponentA sends a message to ComponentB and ComponentB returns result to ComponentA). Also provide one paragraph explaining the subsystem's overall main flow and purpose.
 
 Constraints:
 - Focus on subsystem-specific functionality
@@ -363,32 +345,23 @@ Project context:
 
 The previous analysis established the components below. Most clusters are unchanged and stay where they are; this prompt only shows the slice that changed (new clusters or clusters whose member methods changed).
 
-Existing components (each line shows `component_id "name"`):
+Existing components (each line shows component_id "name"):
 {existing_components}
 
 Cluster groups to assign:
 {cfg_clusters}
 
-Think aloud first about whether each cluster belongs to an existing component or warrants a new one, then commit to a routing decision. For each cluster id above, choose exactly one option:
+Think aloud first about whether each cluster belongs to an existing component or warrants a new one, then commit to a routing decision. For each cluster group above, choose exactly one of these two paths:
 
-1. Route to an existing component. Set `existing_component_id` to the exact component_id from the list above (e.g. `"1.3"`). Reuse the existing `name` and a short `description` verbatim. Put the cluster ids in `cluster_ids`. Several entries may share the same `existing_component_id` if multiple groups of clusters route to the same component.
+1. **Route to an existing component.** If the cluster fits naturally into one of the existing components listed above, reference it by its exact component_id (e.g. "1.3"). Reuse that component's name and a short description verbatim, and list the cluster ids you are routing into it. Multiple cluster groups can share the same existing component if they all belong there.
 
-   Also set `redetail_needed`. Default True. Set False only when the cluster delta is cosmetic — refactor, internal rename, small bug fix, formatting — and the component's high-level purpose is unchanged. When False, the existing description is preserved as-is and no follow-up redetail runs. Bias toward True if uncertain.
+   For each routing decision, consider whether the component's description needs updating. Default to yes — only skip the update when the change is purely cosmetic (a refactor, internal rename, small bug fix, or formatting tweak that leaves the component's high-level purpose untouched). When you skip the update, the existing description is preserved as-is and no follow-up redetail runs. If you're unsure, it's safer to request the update.
 
-2. Create a new component. Leave `existing_component_id` as null, provide a fresh `name` distinct from every existing component, write a `description` paragraph explaining what this new component does and why these clusters belong together, and set `parent_id` to the component_id under which this new component should attach (or null for root). Choose the parent whose scope most naturally encloses the new component.
+2. **Create a new component.** If no existing component is a good fit, create a fresh one. Give it a distinct name that doesn't duplicate any existing component, write a description paragraph explaining what this new component does and why these clusters belong together, and choose a parent component whose scope most naturally encloses the new one (or leave it at root level if nothing fits).
 
-Identity is by component_id, not by name. Reusing an existing component's name without setting `existing_component_id` will fork a duplicate component — that is wrong. If clusters belong in an existing component, you MUST set `existing_component_id`.
+A critical note on identity: components are identified by their component_id, not by name. Reusing an existing component's name without explicitly routing to its component_id will fork a duplicate — that is wrong. If clusters belong in an existing component, you must route to it by component_id.
 
-Output format:
-Return a `ClusterAnalysis` with `cluster_components`. For every entry, set:
-- `name` (string)
-- `cluster_ids` (list of integers, the cluster ids assigned to this entry)
-- `description` (string)
-- `existing_component_id` (string component_id, or null) — set when routing to an existing component; null when creating a new one
-- `parent_id` (string component_id, or null) — required when `existing_component_id` is null; ignored otherwise
-- `redetail_needed` (bool, default True) — set False on existing-component routes only, when the delta is cosmetic and the component's purpose is unchanged; ignored when creating a new component
-
-Coverage requirement: every cluster id listed in the "Cluster groups to assign" section must appear in exactly one entry's `cluster_ids`."""
+Every cluster id listed in the "Cluster groups to assign" section must appear in exactly one routing entry."""
 
 
 class KimiPromptFactory(AbstractPromptFactory):
