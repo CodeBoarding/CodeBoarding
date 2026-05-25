@@ -32,7 +32,7 @@ from static_analyzer.cluster_relations import (
     build_node_to_component_map,
     merge_relations,
 )
-from static_analyzer.constants import CALLABLE_TYPES, CLASS_TYPES, NodeType
+from static_analyzer.constants import CALLABLE_TYPES, CLASS_TYPES, Language, NodeType
 from static_analyzer.graph import CallGraph, ClusterResult
 from static_analyzer.node import Node
 
@@ -70,7 +70,7 @@ class ClusterMethodsMixin:
 
     def _build_cluster_string(
         self,
-        programming_langs: list[str],
+        programming_langs: list[Language],
         cluster_results: dict[str, ClusterResult],
         cluster_ids: set[int] | None = None,
         prompt_overhead_chars: int = 0,
@@ -110,7 +110,7 @@ class ClusterMethodsMixin:
 
     def _render_cluster_string(
         self,
-        programming_langs: list[str],
+        programming_langs: list[Language],
         cluster_results: dict[str, ClusterResult],
         cluster_ids: set[int] | None,
         skip_sets: dict[str, set[str]],
@@ -146,7 +146,7 @@ class ClusterMethodsMixin:
 
     def _plan_skip_sets(
         self,
-        programming_langs: list[str],
+        programming_langs: list[Language],
         cluster_results: dict[str, ClusterResult],
         prompt_overhead_chars: int,
     ) -> dict[str, set[str]]:
@@ -472,7 +472,9 @@ class ClusterMethodsMixin:
         """
         all_nodes: dict[str, Node] = {}
         for lang in cluster_results:
-            cfg = cfg_graphs[lang] if cfg_graphs and lang in cfg_graphs else self.static_analysis.get_cfg(lang)
+            cfg = (
+                cfg_graphs[lang] if cfg_graphs and lang in cfg_graphs else self.static_analysis.get_cfg(Language(lang))
+            )
             all_nodes.update(cfg.nodes)
         return all_nodes
 
@@ -492,7 +494,9 @@ class ClusterMethodsMixin:
         """
         graphs: dict[str, nx.Graph] = {}
         for lang in cluster_results:
-            cfg = cfg_graphs[lang] if cfg_graphs and lang in cfg_graphs else self.static_analysis.get_cfg(lang)
+            cfg = (
+                cfg_graphs[lang] if cfg_graphs and lang in cfg_graphs else self.static_analysis.get_cfg(Language(lang))
+            )
             graphs[lang] = cfg.to_networkx().to_undirected()
         return graphs
 
@@ -703,7 +707,7 @@ class ClusterMethodsMixin:
         pct = (assigned_nodes / total_nodes * 100) if total_nodes else 0
         logger.info(f"Node coverage: {assigned_nodes}/{total_nodes} ({pct:.1f}%) nodes assigned to components")
 
-    def _build_files_index(self, analysis: AnalysisInsights) -> dict[str, FileEntry]:
+    def build_files_index(self, analysis: AnalysisInsights) -> dict[str, FileEntry]:
         files: dict[str, FileEntry] = {}
         for component in analysis.components:
             for fmg in component.file_methods:
@@ -761,7 +765,7 @@ class ClusterMethodsMixin:
         for comp in analysis.components:
             comp.file_methods = self._build_file_methods_from_nodes(component_nodes.get(comp.component_id, []))
 
-        analysis.files = self._build_files_index(analysis)
+        analysis.files = self.build_files_index(analysis)
 
         self._log_node_coverage(analysis, len(all_nodes))
 
@@ -784,3 +788,44 @@ class ClusterMethodsMixin:
         node_to_component = build_node_to_component_map(analysis)
         static_relations = build_component_relations(node_to_component, cfg_graphs)
         analysis.components_relations = merge_relations(analysis.components_relations, static_relations, analysis)
+
+    def build_scope_cfg_string(self, analysis: AnalysisInsights) -> str:
+        """Render cross-component communication edges as a human-readable string for the LLM.
+
+        For every CFG edge where src belongs to component A and dst belongs to
+        component B (A != B), this produces a grouped summary like:
+
+            ComponentA -> ComponentB (3 edges):
+              src_pkg.MethodX -> dst_pkg.MethodY
+              src_pkg.MethodZ -> dst_pkg.MethodW
+        """
+        node_to_component = build_node_to_component_map(analysis)
+        id_to_name = {c.component_id: c.name for c in analysis.components}
+        cfg_graphs = {lang: self.static_analysis.get_cfg(lang) for lang in self.static_analysis.get_languages()}
+
+        cross_edges: dict[tuple[str, str], list[tuple[str, str]]] = defaultdict(list)
+        for cfg in cfg_graphs.values():
+            for edge in cfg.edges:
+                src_name = edge.get_source()
+                dst_name = edge.get_destination()
+                src_comp = node_to_component.get(src_name)
+                dst_comp = node_to_component.get(dst_name)
+                if src_comp and dst_comp and src_comp != dst_comp:
+                    cross_edges[(src_comp, dst_comp)].append((src_name, dst_name))
+
+        if not cross_edges:
+            return "No cross-component communication edges found."
+
+        lines: list[str] = []
+        for (src_id, dst_id), edges in sorted(cross_edges.items()):
+            src_label = id_to_name.get(src_id, src_id)
+            dst_label = id_to_name.get(dst_id, dst_id)
+            lines.append(f"\n{src_label} -> {dst_label} ({len(edges)} edge{'s' if len(edges) != 1 else ''}):")
+            for s, d in edges[:10]:
+                short_s = s.split(".")[-1]
+                short_d = d.split(".")[-1]
+                lines.append(f"  {short_s} -> {short_d}")
+            if len(edges) > 10:
+                lines.append(f"  ... and {len(edges) - 10} more")
+
+        return "\n".join(lines)

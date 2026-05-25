@@ -17,6 +17,41 @@ GLM Prompt Design Principles:
 
 from .abstract_prompt_factory import AbstractPromptFactory
 
+SCOPE_RELATIONS_MESSAGE = """You are a software architecture relationship analyst. STRICTLY follow these rules:
+
+MANDATORY TASK:
+Generate inter-component relationships for the `{scope_name}` scope of `{project_name}`.
+
+Project Context:
+{meta_context}
+
+Project Type: {project_type}
+
+Components in this scope:
+{component_summaries}
+
+Cross-component communication from static analysis:
+{cross_component_calls}
+
+REQUIRED STEPS (execute in order):
+1. Review the components listed above and their summaries.
+2. Analyze the cross-component communication evidence to identify actual code-flow interactions.
+3. Generate relationships that describe how these components interact with each other.
+
+REQUIRED OUTPUT (complete ALL):
+For each relationship, MUST provide:
+- **src_name**: Source component name — MUST match an existing component name EXACTLY
+- **dst_name**: Target component name — MUST match an existing component name EXACTLY
+- **relation**: A short phrase describing the relationship (e.g. 'delegates to', 'notifies', 'provides data to')
+
+CONSTRAINTS (MUST obey):
+- Every src_name and dst_name MUST match an existing component name exactly — invented or approximate names are STRICTLY forbidden
+- Maximum 2 relationships per component pair — STRICTLY avoid bidirectional sends/returns pairs (e.g. ComponentA sends message to ComponentB AND ComponentB returns result to ComponentA)
+- MUST focus on architecturally significant interactions — STRICTLY avoid implementation details
+- MUST ground relationships in the cross-component communication evidence provided above
+- A component that NEVER calls or is called by another component MUST NOT have a relation to it
+"""
+
 SYSTEM_MESSAGE = """You are a software architecture expert. STRICTLY follow these rules:
 
 MANDATORY INSTRUCTIONS (MUST comply):
@@ -75,9 +110,7 @@ FOCUS AREAS (prioritize):
 - MUST provide clear justification for why clusters belong together
 - MUST describe inter-group interactions based on the inter-cluster connections
 
-OUTPUT FORMAT (MUST use):
-Return a ClusterAnalysis with cluster_components using ClustersComponent model.
-Each component MUST have name (descriptive label), cluster_ids (list), and description (comprehensive explanation with rationale and inter-group interactions)."""
+MUST return each component with a descriptive name, its cluster_ids as a list, and a comprehensive description including rationale and inter-group interactions."""
 
 FINAL_ANALYSIS_MESSAGE = """You are a software architecture designer. STRICTLY follow these rules:
 
@@ -94,7 +127,7 @@ REQUIRED STEPS (execute in order):
 1. Review the named cluster groups above.
 2. Decide which named groups MUST be merged into final components.
 3. For each component, specify which named cluster groups it encompasses via source_group_names.
-4. Add key entities (2-5 most important classes/methods) for each component using SourceCodeReference.
+4. Add key entities (2-5 most important classes/methods) for each component, referencing the source file where they are defined.
 5. Define relationships between components.
 
 GUIDELINES for {project_type} projects (MUST follow):
@@ -109,7 +142,7 @@ REQUIRED OUTPUTS (complete all):
   * name: Clear component name
   * description: What this component does
   * source_group_names: Which named cluster groups from the analysis above this component encompasses (MUST use exact group names)
-  * key_entities: 2-5 most important classes/methods (SourceCodeReference objects with qualified_name and reference_file)
+  * key_entities: 2-5 most important classes/methods, mentioning their qualified names and source files
 - Relations: Max 2 relationships per component pair (STRICTLY avoid bidirectional relations like ComponentA sends message to ComponentB and ComponentB returns result to ComponentA)
 
 CONSTRAINTS (MUST obey):
@@ -319,9 +352,7 @@ REQUIRED STEPS (execute in order):
 FOCUS:
 MUST analyze core subsystem functionality only. STRICTLY avoid cross-cutting concerns like logging or error handling.
 
-OUTPUT FORMAT (MUST use):
-Return a ClusterAnalysis with cluster_components using ClustersComponent model.
-Each component MUST have name (descriptive label), cluster_ids (list), and description (comprehensive explanation with rationale and inter-group interactions)."""
+MUST return each component with a descriptive name, its cluster_ids as a list, and a comprehensive description including rationale and inter-group interactions."""
 
 DETAILS_MESSAGE = """You are a sub-component architecture designer. STRICTLY follow these rules:
 
@@ -338,7 +369,7 @@ REQUIRED STEPS (execute in order):
 1. Review the named cluster groups above.
 2. Decide which named groups MUST be merged into final sub-components.
 3. For each sub-component, specify which named cluster groups it encompasses via source_group_names.
-4. Add key entities (2-5 most important classes/methods) for each sub-component using SourceCodeReference.
+4. Add key entities (2-5 most important classes/methods) for each sub-component, referencing the source file where they are defined.
 5. Define relationships between sub-components.
 
 GUIDELINES for {project_type} projects (MUST follow):
@@ -353,7 +384,7 @@ REQUIRED OUTPUTS (complete all):
   * name: Clear sub-component name
   * description: What this sub-component does
   * source_group_names: Which named cluster groups from the analysis above this sub-component encompasses (MUST use exact group names)
-  * key_entities: 2-5 most important classes/methods (SourceCodeReference objects with qualified_name and reference_file)
+  * key_entities: 2-5 most important classes/methods, mentioning their qualified names and source files
 - Relations: Max 2 relationships per component pair (STRICTLY avoid bidirectional relations like ComponentA sends message to ComponentB and ComponentB returns result to ComponentA)
 
 CONSTRAINTS (MUST obey):
@@ -364,36 +395,38 @@ CONSTRAINTS (MUST obey):
 JUSTIFICATION:
 MUST base component choices on fundamental architectural importance."""
 
+INCREMENTAL_GROUPING_MESSAGE = """You are a software architecture analyst. STRICTLY follow these rules.
 
-PATCH_SYSTEM_MESSAGE = """\
-You are a precise JSON patch generator for software architecture diagrams.
+TASK:
+Update the architecture of `{project_name}` by routing changed and new CFG clusters into the correct components.
 
-Given an EASE-encoded sub-analysis and an impact dossier describing what
-changed, produce RFC 6902 JSON Patch operations to update the sub-analysis.
+CONTEXT:
+- Project: {project_name}
+- Type: {project_type}
+- Meta: {meta_context}
 
-EASE encoding: arrays are stored as dicts with two-character keys (aa, ab, ...)
-and a display_order list. Use the two-character keys in your patch paths.
+The previous analysis established the components below. Most clusters are unchanged and stay where they are; this prompt only shows the slice that changed (new clusters or clusters whose member methods changed).
 
-Rules:
-- Only patch what actually changed. Untouched siblings must remain as-is.
-- Use "replace" for updating existing values.
-- Use "add" for new entries (append to display_order too).
-- Use "remove" for deleted entries (remove from display_order too).
-- Paths use JSON Pointer syntax: /components/aa/description
-"""
+EXISTING COMPONENTS (each line shows component_id and name):
+{existing_components}
 
+CLUSTER GROUPS TO ASSIGN:
+{cfg_clusters}
 
-TRACE_SYSTEM_MESSAGE = """\
-You are a semantic impact analyzer for software architecture diagrams.
+REQUIRED STEPS (execute in order):
+1. For each cluster group above, decide whether it belongs in an existing component or warrants a new one.
 
-Given changed methods and their call-graph neighbors, determine which methods
-have their *semantic role or behavior* materially affected by the changes.
-A method is impacted if its description in an architecture diagram would need
-updating — not just because it calls or is called by a changed method.
+2. When routing to an existing component, you MUST provide the exact component_id from the list above. Reuse that component's existing name and description verbatim. Multiple cluster groups MAY route to the same component — that is fine. Additionally, set **redetail_needed** to True (the default) whenever the change touches functionality or you are unsure. Set it to False ONLY when the delta is purely cosmetic — a refactor, internal rename, small bug fix, or formatting — AND the component's high-level purpose is clearly unchanged. When False, the existing description is preserved as-is. Bias HEAVILY toward True if uncertain.
 
-You control traversal: request additional method bodies to inspect by name.
-Stay within the budget. When you have enough information, stop.
-"""
+3. When creating a new component, leave the existing component reference empty. Provide a fresh name that MUST be distinct from every existing component, a description paragraph explaining what this new component does and WHY these clusters belong together, and the component_id of the parent under which it should attach (or leave empty for root). You MUST choose the parent whose scope most naturally encloses the new component.
+
+CRITICAL RULE:
+Identity is by component_id, NOT by name. If clusters belong in an existing component, you MUST reference that component by its exact id — omitting it will fork a duplicate, which is WRONG.
+
+COVERAGE (MANDATORY):
+Every cluster id listed in the CLUSTER GROUPS TO ASSIGN section MUST appear in exactly one entry.
+
+Return one routing decision per cluster group. Each decision MUST clearly indicate whether it routes to an existing component (referenced by its exact id from the list above) or proposes a new component with a distinct name, a description paragraph, and the parent it should attach to."""
 
 
 class GLMPromptFactory(AbstractPromptFactory):
@@ -444,8 +477,8 @@ class GLMPromptFactory(AbstractPromptFactory):
     def get_details_message(self) -> str:
         return DETAILS_MESSAGE
 
-    def get_patch_system_message(self) -> str:
-        return PATCH_SYSTEM_MESSAGE
+    def get_incremental_grouping_message(self) -> str:
+        return INCREMENTAL_GROUPING_MESSAGE
 
-    def get_trace_system_message(self) -> str:
-        return TRACE_SYSTEM_MESSAGE
+    def get_scope_relations_message(self) -> str:
+        return SCOPE_RELATIONS_MESSAGE

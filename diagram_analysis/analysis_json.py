@@ -117,6 +117,10 @@ class FileEntryJson(BaseModel):
 
 
 class UnifiedAnalysisJson(BaseModel):
+    snapshotCommit: str | None = Field(
+        default=None,
+        description="Wrapper-owned snapshot ref used as the next incremental diff baseline.",
+    )
     metadata: AnalysisMetadata = Field(description="Metadata about the analysis run.")
     description: str = Field(
         description="One paragraph explaining the functionality which is represented by this graph."
@@ -249,7 +253,6 @@ def from_component_to_json_component(
     sub_analyses: dict[str, tuple[AnalysisInsights, list[Component]]] | None = None,
     processed_ids: set[str] | None = None,
 ) -> ComponentJson:
-    """Convert a Component to a ComponentJson, optionally nesting sub-analysis data."""
     if processed_ids is None:
         processed_ids = set()
 
@@ -361,6 +364,7 @@ def build_unified_analysis_json(
     sub_analyses: dict[str, tuple[AnalysisInsights, list[Component]]] | None = None,
     file_coverage_summary: FileCoverageSummary | None = None,
     commit_hash: str = "",
+    snapshot_commit: str | None = None,
 ) -> str:
     """Build the full unified analysis JSON with metadata and nested sub-analyses.
 
@@ -381,6 +385,7 @@ def build_unified_analysis_json(
 
     relations_json = [_relation_to_json(r) for r in analysis.components_relations]
     unified = UnifiedAnalysisJson(
+        snapshotCommit=snapshot_commit,
         metadata=AnalysisMetadata(
             generated_at=datetime.now(timezone.utc).isoformat(),
             commit_hash=commit_hash,

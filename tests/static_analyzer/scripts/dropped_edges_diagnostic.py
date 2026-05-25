@@ -25,11 +25,13 @@ CallGraph.add_edge = patched_add_edge
 logging.basicConfig(level=logging.WARNING)
 
 from static_analyzer import StaticAnalyzer
+from utils import get_artifact_dir
 
-analyzer = StaticAnalyzer(Path("."))
+repo_path = Path(".")
+analyzer = StaticAnalyzer(repo_path)
 analyzer.start_clients()
 try:
-    results = analyzer.analyze()
+    results = analyzer.analyze(cache_dir=get_artifact_dir(repo_path))
 finally:
     analyzer.stop_clients()
 

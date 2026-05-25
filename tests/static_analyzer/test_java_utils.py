@@ -354,40 +354,72 @@ class TestFindJava21OrLater(unittest.TestCase):
 class TestGetJdtlsConfigDir(unittest.TestCase):
     """Test JDTLS configuration directory selection."""
 
+    @patch("platform.machine")
     @patch("platform.system")
-    def test_get_config_dir_linux(self, mock_system):
+    def test_get_config_dir_linux(self, mock_system, mock_machine):
         """Test getting config directory on Linux."""
         mock_system.return_value = "Linux"
+        mock_machine.return_value = "x86_64"
         jdtls_root = Path("/opt/jdtls")
 
         config_dir = get_jdtls_config_dir(jdtls_root)
 
         self.assertEqual(config_dir, Path("/opt/jdtls/config_linux"))
 
+    @patch("platform.machine")
     @patch("platform.system")
-    def test_get_config_dir_macos(self, mock_system):
+    def test_get_config_dir_macos(self, mock_system, mock_machine):
         """Test getting config directory on macOS."""
         mock_system.return_value = "Darwin"
+        mock_machine.return_value = "x86_64"
         jdtls_root = Path("/opt/jdtls")
 
         config_dir = get_jdtls_config_dir(jdtls_root)
 
         self.assertEqual(config_dir, Path("/opt/jdtls/config_mac"))
 
+    @patch("platform.machine")
     @patch("platform.system")
-    def test_get_config_dir_windows(self, mock_system):
+    def test_get_config_dir_windows(self, mock_system, mock_machine):
         """Test getting config directory on Windows."""
         mock_system.return_value = "Windows"
+        mock_machine.return_value = "x86_64"
         jdtls_root = Path("C:/jdtls")
 
         config_dir = get_jdtls_config_dir(jdtls_root)
 
         self.assertEqual(config_dir, Path("C:/jdtls/config_win"))
 
+    @patch("platform.machine")
     @patch("platform.system")
-    def test_get_config_dir_unsupported(self, mock_system):
+    def test_get_config_dir_macos_arm64(self, mock_system, mock_machine):
+        """Test getting arm64 config directory on macOS."""
+        mock_system.return_value = "Darwin"
+        mock_machine.return_value = "arm64"
+        jdtls_root = Path("/opt/jdtls")
+
+        config_dir = get_jdtls_config_dir(jdtls_root)
+
+        self.assertEqual(config_dir, Path("/opt/jdtls/config_mac_arm"))
+
+    @patch("platform.machine")
+    @patch("platform.system")
+    def test_get_config_dir_linux_arm64(self, mock_system, mock_machine):
+        """Test getting arm64 config directory on Linux."""
+        mock_system.return_value = "Linux"
+        mock_machine.return_value = "aarch64"
+        jdtls_root = Path("/opt/jdtls")
+
+        config_dir = get_jdtls_config_dir(jdtls_root)
+
+        self.assertEqual(config_dir, Path("/opt/jdtls/config_linux_arm"))
+
+    @patch("platform.machine")
+    @patch("platform.system")
+    def test_get_config_dir_unsupported(self, mock_system, mock_machine):
         """Test error on unsupported platform."""
         mock_system.return_value = "FreeBSD"
+        mock_machine.return_value = "x86_64"
         jdtls_root = Path("/opt/jdtls")
 
         with self.assertRaises(RuntimeError) as context:

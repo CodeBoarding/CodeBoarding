@@ -5,6 +5,7 @@ from agents.tools.read_structure import CodeStructureTool
 from agents.tools.base import RepoContext
 from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.analysis_result import StaticAnalysisResults
+from static_analyzer.constants import Language
 
 
 class TestCodeStructureTool(unittest.TestCase):
@@ -13,7 +14,7 @@ class TestCodeStructureTool(unittest.TestCase):
         # Create mock static analysis with class hierarchy
         self.static_analysis = StaticAnalysisResults()
         self.static_analysis.add_class_hierarchy(
-            "python",
+            Language.PYTHON,
             {
                 "myapp.models.User": {
                     "superclasses": ["BaseModel", "UserMixin"],
@@ -61,7 +62,7 @@ class TestCodeStructureTool(unittest.TestCase):
     def test_multiple_languages(self):
         # Test with multiple languages
         self.static_analysis.add_class_hierarchy(
-            "typescript",
+            Language.TYPESCRIPT,
             {
                 "src.controllers.UserController": {
                     "superclasses": ["BaseController"],

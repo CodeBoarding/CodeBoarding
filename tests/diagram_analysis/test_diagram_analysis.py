@@ -24,10 +24,15 @@ from diagram_analysis.analysis_json import (
     from_analysis_to_json,
     from_component_to_json_component,
 )
-from diagram_analysis.diagram_generator import DiagramGenerator
+from diagram_analysis.diagram_generator import DiagramGenerator, _component_depth, _component_expansion_seeds
+from diagram_analysis.exceptions import IncrementalCacheMissingError
 from diagram_analysis.version import Version
 from repo_utils.change_detector import ChangeSet
+from static_analyzer.analysis_cache import StaticAnalysisCache
 from static_analyzer.analysis_result import StaticAnalysisResults
+from static_analyzer.constants import Language, NodeType
+from static_analyzer.graph import CallGraph, ClusterResult
+from static_analyzer.node import Node
 
 
 class TestVersion(unittest.TestCase):
@@ -583,6 +588,7 @@ class TestDiagramGenerator(unittest.TestCase):
             sub_analyses,
             file_coverage_summary=None,
             commit_hash="",
+            snapshot_commit=None,
         ):
             captured["expandable_components"] = expandable_components
             return "{}"
@@ -656,6 +662,129 @@ class TestDiagramGenerator(unittest.TestCase):
 
         written = json.loads((self.output_dir / "analysis.json").read_text())
         self.assertEqual([c["can_expand"] for c in written["components"]], [True, True])
+
+    def test_generate_analysis_incremental_raises_when_cluster_cache_missing(self):
+        gen = DiagramGenerator(
+            repo_location=self.repo_location,
+            temp_folder=self.temp_folder,
+            repo_name="test_repo",
+            output_dir=self.output_dir,
+            depth_level=2,
+            run_id="test-run-id",
+            log_path="test_repo/test-run-log",
+        )
+        gen.details_agent = Mock()
+        gen.abstraction_agent = Mock()
+        # Empty static analysis -> snapshot has no cluster ids -> incremental
+        # path must refuse rather than silently re-deriving from scratch.
+        gen.static_analysis = StaticAnalysisResults()
+
+        root_analysis = AnalysisInsights(description="root", components=[], components_relations=[])
+
+        with self.assertRaises(IncrementalCacheMissingError) as ctx:
+            gen.generate_analysis_incremental(root_analysis, {})
+
+        self.assertEqual(ctx.exception.artifact_dir, self.output_dir)
+        self.assertIn(str(self.output_dir), str(ctx.exception))
+
+    def test_component_depth_uses_absolute_hierarchical_depth(self):
+        self.assertEqual(_component_depth("1"), 1)
+        self.assertEqual(_component_depth("1.1"), 2)
+        self.assertEqual(_component_depth("1.1.3"), 3)
+        self.assertEqual(_component_depth(None), 1)
+        self.assertEqual(_component_depth(""), 1)
+
+    def test_component_expansion_seeds_skip_components_at_max_depth(self):
+        root = Component(name="Root", description="", key_entities=[], component_id="1")
+        child = Component(name="Child", description="", key_entities=[], component_id="1.1")
+        leaf = Component(name="Leaf", description="", key_entities=[], component_id="1.1.3")
+
+        seeds = _component_expansion_seeds([root, child, leaf], max_depth=3)
+
+        self.assertEqual([(component.component_id, level) for component, level in seeds], [("1", 1), ("1.1", 2)])
+        self.assertEqual(_component_expansion_seeds([root, child, leaf], max_depth=1), [])
+
+    @patch("diagram_analysis.diagram_generator.get_git_commit_hash", return_value="abc123")
+    @patch("diagram_analysis.diagram_generator.save_analysis")
+    @patch("diagram_analysis.diagram_generator.get_expandable_components")
+    def test_generate_subcomponents_respects_absolute_depth(
+        self,
+        mock_get_expandable_components,
+        mock_save_analysis,
+        _mock_git_hash,
+    ):
+        gen = DiagramGenerator(
+            repo_location=self.repo_location,
+            temp_folder=self.temp_folder,
+            repo_name="test_repo",
+            output_dir=self.output_dir,
+            depth_level=3,
+            run_id="test-run-id",
+            log_path="test_repo/test-run-log",
+        )
+        gen.details_agent = Mock()
+
+        root_analysis = AnalysisInsights(description="root", components=[], components_relations=[])
+        depth_two = Component(name="Depth two", description="", key_entities=[], component_id="1.1")
+        max_depth_leaf = Component(name="Leaf", description="", key_entities=[], component_id="1.1.3")
+        generated_child = Component(name="Generated", description="", key_entities=[], component_id="1.1.1")
+        child_analysis = AnalysisInsights(
+            description="child",
+            components=[generated_child],
+            components_relations=[],
+        )
+
+        gen.details_agent.run.return_value = (child_analysis, {})
+        mock_get_expandable_components.return_value = [generated_child]
+
+        expanded_components, sub_analyses = gen._generate_subcomponents(root_analysis, [depth_two, max_depth_leaf])
+
+        gen.details_agent.run.assert_called_once_with(depth_two)
+        self.assertEqual([component.component_id for component in expanded_components], ["1.1"])
+        self.assertEqual(set(sub_analyses), {"1.1"})
+        self.assertEqual(mock_save_analysis.call_count, 1)
+
+    def test_persist_static_analysis_artifact_saves_cluster_cache_without_injected_analyzer(self):
+        gen = DiagramGenerator(
+            repo_location=self.repo_location,
+            temp_folder=self.temp_folder,
+            repo_name="test_repo",
+            output_dir=self.output_dir,
+            depth_level=1,
+            run_id="test-run-id",
+            log_path="test_repo/test-run-log",
+        )
+        gen.source_sha = "sha-current"
+
+        cfg = CallGraph(language="python")
+        cfg.add_node(
+            Node(
+                fully_qualified_name="test.fn",
+                node_type=NodeType.FUNCTION,
+                file_path=str(self.repo_location / "test.py"),
+                line_start=1,
+                line_end=1,
+            )
+        )
+        cfg._cluster_cache = ClusterResult(
+            clusters={1: {"test.fn"}},
+            cluster_to_files={1: {str(self.repo_location / "test.py")}},
+            file_to_clusters={str(self.repo_location / "test.py"): {1}},
+            strategy="test",
+        )
+        results = StaticAnalysisResults()
+        results.add_cfg(Language.PYTHON, cfg)
+        gen.static_analysis = results
+
+        gen._persist_static_analysis_artifact()
+
+        loaded = StaticAnalysisCache(self.output_dir, self.repo_location).load_with_sha()
+        self.assertIsNotNone(loaded)
+        if loaded is None:
+            return
+        loaded_results, cached_sha = loaded
+        self.assertEqual(cached_sha, "sha-current")
+        self.assertIsNotNone(loaded_results.get_cfg(Language.PYTHON)._cluster_cache)
 
 
 if __name__ == "__main__":

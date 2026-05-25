@@ -30,6 +30,7 @@ from health.runner import run_health_checks
 from repo_utils import clone_repository
 from static_analyzer import get_static_analysis
 from static_analyzer.programming_language import ProgrammingLanguage
+from utils import get_artifact_dir
 
 REPO_URL = "https://github.com/CodeBoarding/CodeBoarding"
 PINNED_COMMIT = "03b25afe8d37ce733e5f70c3cbcdfb52f4883dcd"
@@ -154,7 +155,7 @@ class TestHealthCheckIntegration:
         # Mock ProjectScanner.scan() to bypass tokei binary dependency
         with patch("static_analyzer.scanner.ProjectScanner.scan", _mock_project_scanner_scan):
             # Run static analysis (the heavy part)
-            static_analysis = get_static_analysis(repo_path, cache_dir=tmp_path / "cache")
+            static_analysis = get_static_analysis(repo_path, cache_dir=get_artifact_dir(repo_path))
 
             # Set up health config
             health_config_dir = output_dir / "health"

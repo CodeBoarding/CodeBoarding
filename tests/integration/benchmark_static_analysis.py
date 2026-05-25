@@ -23,6 +23,7 @@ import tempfile
 import time
 from datetime import datetime
 from pathlib import Path
+from utils import get_artifact_dir
 
 CODEBOARDING_ROOT = Path(__file__).parent.parent.parent.resolve()
 CODEBOARDING_REPO_URL = "https://github.com/CodeBoarding/CodeBoarding.git"
@@ -281,7 +282,7 @@ def do_worker(repo_path: Path, repo_name: str) -> None:
         analyzer = StaticAnalyzer(repo_path)
 
     with analyzer:
-        results = analyzer.analyze()
+        results = analyzer.analyze(cache_dir=get_artifact_dir(repo_path))
         wall_elapsed = time.perf_counter() - wall_start
 
         # Collect metrics from analysis results

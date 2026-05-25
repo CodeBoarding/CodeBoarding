@@ -23,11 +23,10 @@ on:
   push:
     branches: [main]
 
-  # PRs that touch install / bootstrap / LSP code. The Node-bootstrap path
-  # only surfaces on Node-less machines, so the per-OS uninstall steps
+  # PRs that touch install / bootstrap / LSP / scanner code. The Node-bootstrap
+  # path only surfaces on Node-less machines, so the per-OS uninstall steps
   # below simulate that environment and catch regressions before merge.
   pull_request:
-    branches: [main]
     paths:
       - 'install.py'
       - 'tool_registry/**'
@@ -35,6 +34,7 @@ on:
       - 'pyproject.toml'
       - 'uv.lock'
       - 'static_analyzer/**'
+      - 'repo_utils/ignore.py'
       - 'tests/integration/**'
       - 'tests/test_install.py'
       - 'tests/test_tool_registry.py'
