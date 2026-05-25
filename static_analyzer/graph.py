@@ -1,5 +1,6 @@
 import logging
 from collections import defaultdict
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 import networkx as nx
@@ -11,9 +12,26 @@ from static_analyzer.constants import (
     ClusteringConfig,
     NodeType,
 )
+from static_analyzer.leiden_utils import find_partition as _leiden_find_partition
 from static_analyzer.node import Node
 
 logger = logging.getLogger(__name__)
+
+
+def detect_communities[T](
+    graph: nx.Graph | nx.DiGraph,
+    *,
+    weight: str | None = None,
+    resolution: float | None = None,
+    seed: int | None = None,
+) -> list[set[T]]:
+    """Run Leiden community detection (the project-wide Leiden entry point).
+
+    Wraps ``leidenalg.find_partition`` indirectly so callers in
+    ``static_analyzer`` don't import ``igraph``/``leidenalg`` themselves —
+    the dependency surface is contained to ``leiden_utils``.
+    """
+    return _leiden_find_partition(graph, weight=weight, resolution=resolution, seed=seed)
 
 
 @dataclass(frozen=True)
@@ -152,6 +170,81 @@ class CallGraph:
         self._edge_set.add(edge_key)
 
         self.nodes[src_name].added_method_called_by_me(self.nodes[dst_name])
+
+    def filter(self, keep_node: Callable[[Node], bool]) -> "CallGraph":
+        """Return a new CallGraph keeping only nodes matching ``keep_node`` and connecting edges.
+
+        ``_cluster_cache`` is preserved and pruned to the surviving qnames so
+        a warm-start invalidation/filter step doesn't silently drop the prior
+        clustering. Edges whose endpoints both survive are re-added; edges
+        with a dropped endpoint are cascaded out.
+        """
+        out = CallGraph(language=self.language)
+        for node in self.nodes.values():
+            if keep_node(node):
+                out.add_node(node)
+        for edge in self.edges:
+            src, dst = edge.get_source(), edge.get_destination()
+            if out.has_node(src) and out.has_node(dst):
+                try:
+                    out.add_edge(src, dst)
+                except ValueError as e:
+                    logger.warning(f"Failed to add edge {src} -> {dst} during filter: {e}")
+        out._cluster_cache = self._prune_cluster_cache(out.nodes)
+        return out
+
+    def union(self, other: "CallGraph") -> "CallGraph":
+        """Return a new CallGraph unioning ``self`` (cached) with ``other`` (fresh).
+
+        ``_cluster_cache`` comes from ``self`` (the cached side that was
+        clustered in a prior run), pruned to the merged-node set. ``other``'s
+        nodes are new and unclustered until the next clustering pass; that's
+        the intended cluster_delta input — new files appear unassigned.
+        """
+        out = CallGraph(language=self.language)
+        for node in self.nodes.values():
+            out.add_node(node)
+        for node in other.nodes.values():
+            out.add_node(node)
+        for edge in self.edges:
+            try:
+                out.add_edge(edge.get_source(), edge.get_destination())
+            except ValueError:
+                pass
+        for edge in other.edges:
+            try:
+                out.add_edge(edge.get_source(), edge.get_destination())
+            except ValueError:
+                pass
+        out._cluster_cache = self._prune_cluster_cache(out.nodes)
+        return out
+
+    def _prune_cluster_cache(self, surviving_nodes: dict[str, Node]) -> "ClusterResult | None":
+        """Drop qnames not in ``surviving_nodes`` from ``_cluster_cache``; recompute file maps."""
+        if self._cluster_cache is None:
+            return None
+        pruned_clusters: dict[int, set[str]] = {}
+        pruned_cluster_to_files: dict[int, set[str]] = {}
+        pruned_file_to_clusters: dict[str, set[int]] = {}
+        for cid, members in self._cluster_cache.clusters.items():
+            kept = {m for m in members if m in surviving_nodes}
+            if not kept:
+                continue
+            pruned_clusters[cid] = kept
+            files: set[str] = set()
+            for qname in kept:
+                fp = surviving_nodes[qname].file_path
+                if fp:
+                    files.add(fp)
+                    pruned_file_to_clusters.setdefault(fp, set()).add(cid)
+            if files:
+                pruned_cluster_to_files[cid] = files
+        return ClusterResult(
+            clusters=pruned_clusters,
+            cluster_to_files=pruned_cluster_to_files,
+            file_to_clusters=pruned_file_to_clusters,
+            strategy=self._cluster_cache.strategy,
+        )
 
     def to_networkx(self) -> nx.DiGraph:
         nx_graph = nx.DiGraph()
@@ -340,22 +433,16 @@ class CallGraph:
             return node_name
 
     def _cluster_with_algorithm(self, graph: nx.DiGraph, algorithm: str) -> list[set[str]]:
-        # Use class-level seed for reproducibility - Louvain/Leiden are non-deterministic without it
-        if algorithm == "louvain":
+        # Use class-level seed for reproducibility - Leiden/Louvain are non-deterministic without it
+        if algorithm == "leiden":
+            return detect_communities(graph, seed=ClusteringConfig.CLUSTERING_SEED)
+        elif algorithm == "louvain":
             return list(nx_comm.louvain_communities(graph, seed=ClusteringConfig.CLUSTERING_SEED))
         elif algorithm == "greedy_modularity":
             return list(nx.community.greedy_modularity_communities(graph))
-        elif algorithm == "leiden":
-            if hasattr(nx_comm, "leiden_communities"):
-                return list(nx_comm.leiden_communities(graph, seed=ClusteringConfig.CLUSTERING_SEED))
-            logger.warning(
-                "leiden_communities not available in this networkx version, "
-                "falling back to asynchronous label propagation"
-            )
-            return list(nx_comm.asyn_lpa_communities(graph, seed=ClusteringConfig.CLUSTERING_SEED))
         else:
-            logger.warning(f"Algorithm {algorithm} not supported, defaulting to greedy_modularity")
-            return list(nx.community.greedy_modularity_communities(graph))
+            logger.warning(f"Algorithm {algorithm} not supported, defaulting to leiden")
+            return detect_communities(graph, seed=ClusteringConfig.CLUSTERING_SEED)
 
     def _score_clustering(
         self,
@@ -418,17 +505,18 @@ class CallGraph:
         min_cluster_size: int,
         total_nodes: int,
     ) -> list[tuple[list[set[str]], str, float]]:
-        """Try all clustering algorithms and return scored candidates."""
-        algorithms = ["louvain", "leiden", "greedy_modularity"]
+        """Run Leiden and return a single scored candidate.
+
+        Returned as a list so ``cluster()``'s cross-level pooling stays uniform.
+        """
         candidates: list[tuple[list[set[str]], str, float]] = []
-        for algo in algorithms:
-            try:
-                communities = self._cluster_with_algorithm(graph, algo)
-                score = self._score_clustering(communities, min_cluster_size, total_nodes)
-                candidates.append((communities, algo, score))
-                logger.debug(f"{algo}: score={score:.3f}, clusters={len(communities)}")
-            except Exception as e:
-                logger.debug(f"Algorithm {algo} failed: {e}")
+        try:
+            communities = self._cluster_with_algorithm(graph, "leiden")
+            score = self._score_clustering(communities, min_cluster_size, total_nodes)
+            candidates.append((communities, "leiden", score))
+            logger.debug(f"leiden: score={score:.3f}, clusters={len(communities)}")
+        except Exception as e:
+            logger.debug(f"Algorithm leiden failed: {e}")
         return candidates
 
     def _map_candidates_to_original(

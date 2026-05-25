@@ -20,6 +20,7 @@ from typing import Generator
 
 import pytest
 
+from static_analyzer.constants import Language
 from static_analyzer.programming_language import ProgrammingLanguage, JavaConfig
 from utils import get_config
 
@@ -220,7 +221,7 @@ def load_fixture(fixture_filename: str) -> dict:
         return json.load(f)
 
 
-def extract_metrics(static_analysis, language: str) -> dict:
+def extract_metrics(static_analysis, language: Language) -> dict:
     """Extract comparable metrics from StaticAnalysisResults.
 
     Args:
@@ -238,11 +239,7 @@ def extract_metrics(static_analysis, language: str) -> dict:
         nodes_count = 0
         edges_count = 0
 
-    try:
-        references = static_analysis.results.get(language, {}).get("references", {})
-        references_count = len(references)
-    except (KeyError, AttributeError):
-        references_count = 0
+    references_count = sum(1 for _ in static_analysis.iter_reference_nodes(language))
 
     try:
         packages = static_analysis.get_package_dependencies(language)

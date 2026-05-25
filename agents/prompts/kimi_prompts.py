@@ -16,6 +16,36 @@ Kimi Prompt Design Principles:
 
 from .abstract_prompt_factory import AbstractPromptFactory
 
+SCOPE_RELATIONS_MESSAGE = """You are Kimi, an AI assistant created by Moonshot AI.
+
+Task: Generate inter-component relationships for the `{scope_name}` scope of `{project_name}`.
+
+Project Context:
+{meta_context}
+
+Project Type: {project_type}
+
+Components in this scope:
+{component_summaries}
+
+Cross-component communication from static analysis:
+{cross_component_calls}
+
+Reason step-by-step. Review the components listed above and the cross-component communication evidence, then produce relationships that describe how these components interact.
+
+Think aloud first about which components actually communicate based on the evidence, then for each relationship provide:
+- **src_name**: Source component name
+- **dst_name**: Target component name
+- **relation**: A short phrase describing the relationship (e.g. "delegates to", "notifies", "provides data to")
+
+Constraints:
+- Every src_name and dst_name must match an existing component name exactly
+- Maximum 2 relationships per component pair, avoiding bidirectional sends/returns pairs (i.e. ComponentA sends to ComponentB and ComponentB returns to ComponentA)
+- Focus on architecturally significant interactions, not implementation details
+- Use the cross-component communication evidence to ground relationships in actual code flow
+- A component that never calls or is called by another component should not have a relation to it
+"""
+
 SYSTEM_MESSAGE = """You are Kimi, an AI assistant created by Moonshot AI.
 
 Project Context:
@@ -66,9 +96,7 @@ Reason carefully, then execute:
 
 Focus on creating cohesive, logical groupings that reflect the actual {project_type} architecture based on semantic meaning from method names, call patterns, and architectural context. Describe inter-group interactions based on the inter-cluster connections.
 
-Output Format:
-Return a ClusterAnalysis with cluster_components using ClustersComponent model.
-Each component should have name (descriptive label), cluster_ids (list), and description (comprehensive explanation with rationale and inter-group interactions)."""
+Return each grouped component with a descriptive name, its cluster_ids list, and a comprehensive description covering rationale and inter-group interactions."""
 
 FINAL_ANALYSIS_MESSAGE = """You are Kimi, an AI assistant created by Moonshot AI.
 
@@ -85,7 +113,7 @@ Reason step-by-step. Decompose this into subtasks:
 1. Review the named cluster groups above.
 2. Decide which named groups should be merged into final components.
 3. For each component, specify which named cluster groups it encompasses via source_group_names.
-4. Add key entities (2-5 most important classes/methods) for each component using SourceCodeReference.
+4. For each component, list the 2-5 most important classes/methods, referencing their qualified names and source files.
 5. Define relationships between components.
 
 Guidelines for {project_type} projects:
@@ -94,14 +122,7 @@ Guidelines for {project_type} projects:
 - Each component should have clear boundaries
 - Include only architecturally significant relationships
 
-Required outputs:
-- Description: One paragraph explaining the main flow and purpose
-- Components: Each with:
-  * name: Clear component name
-  * description: What this component does
-  * source_group_names: Which named cluster groups from the analysis above this component encompasses (use exact group names)
-  * key_entities: 2-5 most important classes/methods (SourceCodeReference objects with qualified_name and reference_file)
-- Relations: Max 2 relationships per component pair (avoid relations in which we have sends/returns i.e. ComponentA sends a message to ComponentB and ComponentB returns result to ComponentA)
+For each component provide a clear name, a description of what it does, the exact named cluster group names it encompasses, and the 2-5 most important classes/methods with their qualified names and source files. For relationships, allow at most 2 per component pair and avoid pairs where one sends and the other returns (i.e. ComponentA sends a message to ComponentB and ComponentB returns result to ComponentA). Also provide one paragraph explaining the overall main flow and purpose.
 
 Constraints:
 - Focus on highest level architectural components
@@ -308,9 +329,7 @@ Reason carefully, then execute:
 
 Focus on core subsystem functionality only. Avoid cross-cutting concerns like logging or error handling.
 
-Output Format:
-Return a ClusterAnalysis with cluster_components using ClustersComponent model.
-Each component should have name (descriptive label), cluster_ids (list), and description (comprehensive explanation with rationale and inter-group interactions)."""
+Return each grouped sub-component with a descriptive name, its cluster_ids list, and a comprehensive description covering rationale and inter-group interactions."""
 
 DETAILS_MESSAGE = """You are Kimi, an AI assistant created by Moonshot AI.
 
@@ -327,7 +346,7 @@ Think aloud first (reasoning), then synthesize:
 1. Review the named cluster groups above.
 2. Decide which named groups should be merged into final sub-components.
 3. For each sub-component, specify which named cluster groups it encompasses via source_group_names.
-4. Add key entities (2-5 most important classes/methods) for each sub-component using SourceCodeReference.
+4. For each sub-component, list the 2-5 most important classes/methods, referencing their qualified names and source files.
 5. Define relationships between sub-components.
 
 Guidelines for {project_type} projects:
@@ -336,14 +355,7 @@ Guidelines for {project_type} projects:
 - Each sub-component should have clear boundaries
 - Include only architecturally significant relationships
 
-Required outputs:
-- Description: One paragraph explaining the subsystem's main flow and purpose
-- Components: Each with:
-  * name: Clear sub-component name
-  * description: What this sub-component does
-  * source_group_names: Which named cluster groups from the analysis above this sub-component encompasses (use exact group names)
-  * key_entities: 2-5 most important classes/methods (SourceCodeReference objects with qualified_name and reference_file)
-- Relations: Max 2 relationships per component pair (avoid relations in which we have sends/returns i.e. ComponentA sends a message to ComponentB and ComponentB returns result to ComponentA)
+For each sub-component provide a clear name, a description of what it does, the exact named cluster group names it encompasses, and the 2-5 most important classes/methods with their qualified names and source files. For relationships, allow at most 2 per component pair and avoid pairs where one sends and the other returns (i.e. ComponentA sends a message to ComponentB and ComponentB returns result to ComponentA). Also provide one paragraph explaining the subsystem's overall main flow and purpose.
 
 Constraints:
 - Focus on subsystem-specific functionality
@@ -352,36 +364,34 @@ Constraints:
 
 Justify component choices based on fundamental architectural importance."""
 
+INCREMENTAL_GROUPING_MESSAGE = """You are Kimi, an AI assistant created by Moonshot AI.
 
-PATCH_SYSTEM_MESSAGE = """\
-You are a precise JSON patch generator for software architecture diagrams.
+Reason step-by-step about how the architecture of `{project_name}` should change as new and modified CFG clusters arrive. Use tools proactively to verify any cluster placement you're not confident about.
 
-Given an EASE-encoded sub-analysis and an impact dossier describing what
-changed, produce RFC 6902 JSON Patch operations to update the sub-analysis.
+Project context:
+- Project: {project_name}
+- Type: {project_type}
+- Meta: {meta_context}
 
-EASE encoding: arrays are stored as dicts with two-character keys (aa, ab, ...)
-and a display_order list. Use the two-character keys in your patch paths.
+The previous analysis established the components below. Most clusters are unchanged and stay where they are; this prompt only shows the slice that changed (new clusters or clusters whose member methods changed).
 
-Rules:
-- Only patch what actually changed. Untouched siblings must remain as-is.
-- Use "replace" for updating existing values.
-- Use "add" for new entries (append to display_order too).
-- Use "remove" for deleted entries (remove from display_order too).
-- Paths use JSON Pointer syntax: /components/aa/description
-"""
+Existing components (each line shows component_id "name"):
+{existing_components}
 
+Cluster groups to assign:
+{cfg_clusters}
 
-TRACE_SYSTEM_MESSAGE = """\
-You are a semantic impact analyzer for software architecture diagrams.
+Think aloud first about whether each cluster belongs to an existing component or warrants a new one, then commit to a routing decision. For each cluster group above, choose exactly one of these two paths:
 
-Given changed methods and their call-graph neighbors, determine which methods
-have their *semantic role or behavior* materially affected by the changes.
-A method is impacted if its description in an architecture diagram would need
-updating — not just because it calls or is called by a changed method.
+1. **Route to an existing component.** If the cluster fits naturally into one of the existing components listed above, reference it by its exact component_id (e.g. "1.3"). Reuse that component's name and a short description verbatim, and list the cluster ids you are routing into it. Multiple cluster groups can share the same existing component if they all belong there.
 
-You control traversal: request additional method bodies to inspect by name.
-Stay within the budget. When you have enough information, stop.
-"""
+   For each routing decision, consider whether the component's description needs updating. Default to yes — only skip the update when the change is purely cosmetic (a refactor, internal rename, small bug fix, or formatting tweak that leaves the component's high-level purpose untouched). When you skip the update, the existing description is preserved as-is and no follow-up redetail runs. If you're unsure, it's safer to request the update.
+
+2. **Create a new component.** If no existing component is a good fit, create a fresh one. Give it a distinct name that doesn't duplicate any existing component, write a description paragraph explaining what this new component does and why these clusters belong together, and choose a parent component whose scope most naturally encloses the new one (or leave it at root level if nothing fits).
+
+A critical note on identity: components are identified by their component_id, not by name. Reusing an existing component's name without explicitly routing to its component_id will fork a duplicate — that is wrong. If clusters belong in an existing component, you must route to it by component_id.
+
+Every cluster id listed in the "Cluster groups to assign" section must appear in exactly one routing entry."""
 
 
 class KimiPromptFactory(AbstractPromptFactory):
@@ -432,8 +442,8 @@ class KimiPromptFactory(AbstractPromptFactory):
     def get_details_message(self) -> str:
         return DETAILS_MESSAGE
 
-    def get_patch_system_message(self) -> str:
-        return PATCH_SYSTEM_MESSAGE
+    def get_incremental_grouping_message(self) -> str:
+        return INCREMENTAL_GROUPING_MESSAGE
 
-    def get_trace_system_message(self) -> str:
-        return TRACE_SYSTEM_MESSAGE
+    def get_scope_relations_message(self) -> str:
+        return SCOPE_RELATIONS_MESSAGE

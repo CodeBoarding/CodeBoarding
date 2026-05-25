@@ -770,5 +770,25 @@ class TestCallGraph(unittest.TestCase):
         self.assertTrue(graph2.has_node("bar"))
 
 
+class TestDetectCommunitiesDeterminism(unittest.TestCase):
+    """Property test: same input + same seed -> byte-equal output.
+
+    Why: ``detect_communities`` is the entry point for both incremental and
+    full clustering. Determinism is the contract every downstream piece
+    relies on (cluster IDs persisted in analysis.json must reproduce on
+    subsequent runs of the same code).
+    """
+
+    def test_detect_communities_is_deterministic(self):
+        from static_analyzer.graph import detect_communities
+
+        g = nx.karate_club_graph()
+        a: list[set[int]] = detect_communities(g, seed=42)
+        b: list[set[int]] = detect_communities(g, seed=42)
+        canon_a = sorted(sorted(c) for c in a)
+        canon_b = sorted(sorted(c) for c in b)
+        self.assertEqual(canon_a, canon_b)
+
+
 if __name__ == "__main__":
     unittest.main()

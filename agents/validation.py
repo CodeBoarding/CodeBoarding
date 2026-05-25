@@ -6,7 +6,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from difflib import SequenceMatcher
 
-from agents.agent_responses import AnalysisInsights, ClusterAnalysis, ComponentFiles
+from agents.agent_responses import AnalysisInsights, ClusterAnalysis, ComponentFiles, ScopeRelations
 from repo_utils import normalize_path
 from static_analyzer.graph import CallGraph, ClusterResult
 
@@ -41,6 +41,7 @@ class ValidationContext:
     expected_cluster_ids: set[int] = field(default_factory=set)
     expected_files: set[str] = field(default_factory=set)
     valid_component_names: set[str] = field(default_factory=set)  # For file classification validation
+    existing_component_ids: set[str] = field(default_factory=set)  # For incremental ID-based routing validation
     repo_dir: str | None = None  # For path normalization
     static_analysis: StaticAnalysisResults | None = None  # For qualified name validation
     llm_cluster_analysis: ClusterAnalysis | None = None  # For group name coverage validation
@@ -142,6 +143,41 @@ def validate_cluster_coverage(result: ClusterAnalysis, context: ValidationContex
         return ValidationResult(is_valid=True)
 
     return ValidationResult(is_valid=False, feedback_messages=feedback_messages)
+
+
+def validate_existing_component_ids(result: ClusterAnalysis, context: ValidationContext) -> ValidationResult:
+    """Reject ``existing_component_id`` values the LLM hallucinated.
+
+    Why: incremental routing identifies existing components by id (decision
+    #4). A hallucinated id silently creates a new component during stitching
+    instead of routing into the intended one. Catching it here forces the
+    LLM to retry with a valid id (or null for new components) before any
+    state mutation.
+    """
+    if not context.existing_component_ids:
+        return ValidationResult(is_valid=True)
+
+    feedback_messages: list[str] = []
+    valid_str = ", ".join(sorted(context.existing_component_ids))
+    for cc in result.cluster_components:
+        if cc.existing_component_id is None:
+            continue
+        if cc.existing_component_id not in context.existing_component_ids:
+            feedback_messages.append(
+                f"cluster_components entry '{cc.name}' references "
+                f"existing_component_id={cc.existing_component_id!r} which does not "
+                f"match any live component. Either set existing_component_id to a "
+                f"value from the existing-components list ({valid_str}), or set it "
+                f"to null to create a new component."
+            )
+
+    if feedback_messages:
+        logger.warning(
+            "[Validation] %d cluster_components entries reference unknown existing_component_id",
+            len(feedback_messages),
+        )
+        return ValidationResult(is_valid=False, feedback_messages=feedback_messages)
+    return ValidationResult(is_valid=True)
 
 
 def _normalize_group_name(name: str) -> str:
@@ -515,6 +551,35 @@ def validate_relation_component_names(result: AnalysisInsights, _context: Valida
     )
 
     logger.warning(f"[Validation] Relations with unknown component names: {invalid_str}")
+    return ValidationResult(is_valid=False, feedback_messages=[feedback])
+
+
+def validate_scope_relation_names(result: ScopeRelations, _context: ValidationContext) -> ValidationResult:
+    """Validate that src_name/dst_name in scope relations match known component names."""
+    known_names = _context.valid_component_names
+    if not known_names:
+        return ValidationResult(is_valid=True)
+
+    invalid: list[str] = []
+    for rel in result.components_relations:
+        unknown: list[str] = []
+        if rel.src_name not in known_names:
+            unknown.append(f"src_name='{rel.src_name}'")
+        if rel.dst_name not in known_names:
+            unknown.append(f"dst_name='{rel.dst_name}'")
+        if unknown:
+            invalid.append(f"({rel.src_name} -{rel.relation}-> {rel.dst_name}): {', '.join(unknown)}")
+
+    if not invalid:
+        return ValidationResult(is_valid=True)
+
+    known_str = ", ".join(sorted(known_names))
+    feedback = (
+        f"The following relations reference component names that do not exist: {'; '.join(invalid)}. "
+        f"Known component names are: {known_str}. "
+        f"Ensure src_name and dst_name match an existing component name exactly."
+    )
+    logger.warning(f"[Validation] Scope relations with unknown names: {'; '.join(invalid)}")
     return ValidationResult(is_valid=False, feedback_messages=[feedback])
 
 

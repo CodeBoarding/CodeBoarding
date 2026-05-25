@@ -1,16 +1,13 @@
-import copy
 import logging
-import pickle
 import re
-import sys
-import tempfile
 from collections.abc import Iterator
-from pathlib import Path
+from dataclasses import dataclass, field
 
+from static_analyzer.constants import Language
 from static_analyzer.graph import CallGraph
+from static_analyzer.language_results import LanguageResults
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
 from static_analyzer.node import Node
-from utils import to_absolute_path, to_relative_path
 
 logger = logging.getLogger(__name__)
 
@@ -121,262 +118,86 @@ def _reference_key(fully_qualified_name: str) -> str:
     return _strip_java_generics(result)
 
 
-class StaticAnalysisCache:
-    def __init__(self, cache_dir: Path, repo_root: Path):
-        self.cache_dir = cache_dir
-        self.repo_root = repo_root.resolve()
-
-    def _to_relative(self, path: str) -> str:
-        return to_relative_path(path, self.repo_root)
-
-    def _to_absolute(self, path: str) -> str:
-        return to_absolute_path(path, self.repo_root)
-
-    def _relativize(self, result: "StaticAnalysisResults") -> "StaticAnalysisResults":
-        """Return a copy of result with all file paths made repo-relative."""
-        result = copy.deepcopy(result)
-        for lang_data in result.results.values():
-            if "source_files" in lang_data:
-                lang_data["source_files"] = [self._to_relative(f) for f in lang_data["source_files"]]
-            cfg: CallGraph | None = lang_data.get("cfg")
-            if cfg is not None:
-                for node in cfg.nodes.values():
-                    node.file_path = self._to_relative(node.file_path)
-            hierarchy: dict = lang_data.get("hierarchy", {})
-            for info in hierarchy.values():
-                if isinstance(info, dict) and "file_path" in info:
-                    info["file_path"] = self._to_relative(info["file_path"])
-            references: dict = lang_data.get("references", {})
-            for ref in references.values():
-                if isinstance(ref, Node):
-                    ref.file_path = self._to_relative(ref.file_path)
-            dependencies: dict = lang_data.get("dependencies", {})
-            for pkg_info in dependencies.values():
-                if isinstance(pkg_info, dict) and "files" in pkg_info:
-                    pkg_info["files"] = [self._to_relative(f) for f in pkg_info["files"]]
-        result.diagnostics = {
-            lang: {self._to_relative(fp): diags for fp, diags in file_map.items()}
-            for lang, file_map in result.diagnostics.items()
-        }
-        return result
-
-    def _absolutize(self, result: "StaticAnalysisResults") -> "StaticAnalysisResults":
-        """Expand all repo-relative file paths in result to absolute paths."""
-        for lang_data in result.results.values():
-            if "source_files" in lang_data:
-                lang_data["source_files"] = [self._to_absolute(f) for f in lang_data["source_files"]]
-            cfg: CallGraph | None = lang_data.get("cfg")
-            if cfg is not None:
-                for node in cfg.nodes.values():
-                    node.file_path = self._to_absolute(node.file_path)
-            hierarchy: dict = lang_data.get("hierarchy", {})
-            for info in hierarchy.values():
-                if isinstance(info, dict) and "file_path" in info:
-                    info["file_path"] = self._to_absolute(info["file_path"])
-            references: dict = lang_data.get("references", {})
-            for ref in references.values():
-                if isinstance(ref, Node):
-                    ref.file_path = self._to_absolute(ref.file_path)
-            dependencies: dict = lang_data.get("dependencies", {})
-            for pkg_info in dependencies.values():
-                if isinstance(pkg_info, dict) and "files" in pkg_info:
-                    pkg_info["files"] = [self._to_absolute(f) for f in pkg_info["files"]]
-        result.diagnostics = {
-            lang: {self._to_absolute(fp): diags for fp, diags in file_map.items()}
-            for lang, file_map in result.diagnostics.items()
-        }
-        return result
-
-    def get(self, repo_hash: str) -> "StaticAnalysisResults | None":
-        """Load cached results for the given repo hash, or None if not found/invalid."""
-        cache_file = self.cache_dir / f"{repo_hash}.pkl"
-        if not cache_file.exists():
-            return None
-
-        try:
-            with open(cache_file, "rb") as f:
-                result = pickle.load(f)
-            result = self._absolutize(result)
-            logger.info(f"Loaded static analysis from cache: {cache_file}")
-            return result
-        except Exception as e:
-            logger.warning(f"Failed to load static analysis cache: {e}")
-            return None
-
-    def save(self, repo_hash: str, result: "StaticAnalysisResults") -> None:
-        """Save results to cache using atomic write with repo-relative paths."""
-        self.cache_dir.mkdir(parents=True, exist_ok=True)
-        cache_file = self.cache_dir / f"{repo_hash}.pkl"
-
-        portable = self._relativize(result)
-        data = pickle.dumps(portable)
-        size_mb = sys.getsizeof(data) / (1024 * 1024)
-        logger.info(f"Static analysis cache size: {size_mb:.2f} MB")
-
-        temp_fd, temp_path = tempfile.mkstemp(dir=self.cache_dir, suffix=".tmp")
-        try:
-            with open(temp_fd, "wb") as f:
-                f.write(data)
-            Path(temp_path).replace(cache_file)
-            logger.info(f"Saved static analysis to cache: {cache_file}")
-        except Exception as e:
-            Path(temp_path).unlink(missing_ok=True)
-            logger.warning(f"Failed to save static analysis cache: {e}")
-
-
+@dataclass
 class StaticAnalysisResults:
-    def __init__(self):
-        self.results: dict[str, dict] = {}
-        self.diagnostics: dict[str, FileDiagnosticsMap] = {}  # Language -> file_path -> diagnostics
+    """Per-language static-analysis results for one ``analyze()`` invocation.
 
-    def add_class_hierarchy(self, language: str, hierarchy):
+    Keyed by ``Language``. Callers pass ``Language`` enum members directly;
+    string-to-enum conversion happens once at the system boundary (typically
+    ``adapter.language_enum`` in the engine layer).
+    """
+
+    results: dict[Language, LanguageResults] = field(default_factory=dict)
+    diagnostics: dict[Language, FileDiagnosticsMap] = field(default_factory=dict)
+
+    def _bucket(self, language: Language) -> LanguageResults:
+        return self.results.setdefault(language, LanguageResults())
+
+    def _get_bucket(self, language: Language) -> LanguageResults | None:
+        """Read-only sibling of ``_bucket`` — returns None instead of inserting an empty bucket."""
+        return self.results.get(language)
+
+    def add_class_hierarchy(self, language: Language, hierarchy):
+        """Add/merge a class hierarchy for a language; supports repeated calls."""
+        self._bucket(language).hierarchy.merge(hierarchy)
+
+    def add_cfg(self, language: Language, cfg: CallGraph):
+        """Add/merge a control flow graph for a language; supports repeated calls."""
+        self._bucket(language).cfg.merge(cfg)
+
+    def add_package_dependencies(self, language: Language, dependencies):
+        """Add/merge package dependencies for a language; supports repeated calls."""
+        self._bucket(language).dependencies.merge(dependencies)
+
+    def add_references(self, language: Language, references: list[Node]):
+        """Add/merge source code references for a language; supports repeated calls.
+
+        Why: keys use the original qualified name to preserve source-code casing
+        in the output.
         """
-        Adds/merges a class hierarchy to the results.
+        self._bucket(language).references.add(references)
 
-        Supports multiple calls for the same language (e.g., monorepo with multiple subprojects).
-
-        :param language: The programming language.
-        :param hierarchy: A dict or list representing the class hierarchy.
-        """
-        if language not in self.results:
-            self.results[language] = {}
-        if "hierarchy" not in self.results[language]:
-            self.results[language]["hierarchy"] = {}
-
-        # Merge instead of overwrite
-        if isinstance(hierarchy, dict):
-            self.results[language]["hierarchy"].update(hierarchy)
-        elif isinstance(hierarchy, list):
-            # Handle list of dicts (legacy format)
-            for item in hierarchy:
-                if isinstance(item, dict):
-                    self.results[language]["hierarchy"].update(item)
-
-    def add_cfg(self, language: str, cfg: CallGraph):
-        """
-        Adds/merges a control flow graph (CFG) to the results.
-
-        Supports multiple calls for the same language (e.g., monorepo with multiple subprojects).
-
-        :param language: The programming language of the CFG.
-        :param cfg: The control flow graph data.
-        """
-        if language not in self.results:
-            self.results[language] = {}
-
-        if "cfg" not in self.results[language]:
-            self.results[language]["cfg"] = cfg
-        else:
-            # Merge nodes and edges from the new CFG into the existing one
-            existing_cfg = self.results[language]["cfg"]
-            for node in cfg.nodes.values():
-                existing_cfg.add_node(node)
-            for edge in cfg.edges:
-                try:
-                    existing_cfg.add_edge(edge.get_source(), edge.get_destination())
-                except ValueError:
-                    pass  # Skip duplicate edges
-
-    def add_package_dependencies(self, language: str, dependencies):
-        """
-        Adds/merges package dependencies to the results.
-
-        Supports multiple calls for the same language (e.g., monorepo with multiple subprojects).
-
-        :param language: The programming language of the dependencies.
-        :param dependencies: A dict of package dependencies.
-        """
-        if language not in self.results:
-            self.results[language] = {}
-        if "dependencies" not in self.results[language]:
-            self.results[language]["dependencies"] = {}
-
-        # Merge instead of overwrite
-        if isinstance(dependencies, dict):
-            self.results[language]["dependencies"].update(dependencies)
-
-    def add_references(self, language: str, references: list[Node]):
-        """
-        Adds/merges source code references to the results.
-
-        Supports multiple calls for the same language (e.g., monorepo with multiple subprojects).
-
-        :param language: The programming language of the references.
-        :param references: A list of source code references.
-        """
-        if language not in self.results:
-            self.results[language] = {}
-        if "references" not in self.results[language]:
-            self.results[language]["references"] = {}
-
-        # Merge instead of overwrite.  Keys use the original qualified name
-        # to preserve source-code casing in the output.
-        for reference in references:
-            self.results[language]["references"][reference.fully_qualified_name] = reference
-
-    def get_cfg(self, language: str) -> CallGraph:
-        """
-        Retrieves the control flow graph for a specific language.
-
-        :param language: The programming language of the CFG.
-        :return: The control flow graph data or None if not found.
-        """
-        if language in self.results and "cfg" in self.results[language]:
-            return self.results[language]["cfg"]
+    def get_cfg(self, language: Language) -> CallGraph:
+        """Return the control flow graph for ``language`` or raise ``ValueError``."""
+        bucket = self._get_bucket(language)
+        if bucket is not None and bucket.cfg.graph is not None:
+            return bucket.cfg.graph
         raise ValueError(f"Control flow graph for language '{language}' not found in results.")
 
-    def get_hierarchy(self, language: str) -> dict:
-        """
-        Retrieves the class hierarchy for a specific language.
+    def get_hierarchy(self, language: Language) -> dict:
+        """Return the class hierarchy dict for ``language`` or raise ``ValueError``.
 
-        :param language: The programming language of the hierarchy.
-        :return: dict {
-                        class_qualified_name: {
-                            "superclasses": [],
-                            "subclasses": [],
-                            "file_path": str(file_path),
-                            "line_start": start_line,
-                            "line_end": end_line }
-                    }
+        Hierarchy values have shape ``{"superclasses": [...], "subclasses": [...],
+        "file_path": str, "line_start": int, "line_end": int}``.
         """
-        if language in self.results and "hierarchy" in self.results[language]:
-            return self.results[language]["hierarchy"]
+        bucket = self._get_bucket(language)
+        if bucket is not None and bucket.hierarchy.entries is not None:
+            return bucket.hierarchy.entries
         raise ValueError(f"Class hierarchy for language '{language}' not found in results.")
 
-    def get_package_dependencies(self, language: str) -> dict:
-        """
-        Retrieves the package dependencies for a specific language.
-
-        :param language: The programming language of the dependencies.
-        :return: The package dependencies or None if not found.
-        """
-        if language in self.results and "dependencies" in self.results[language]:
-            return self.results[language]["dependencies"]
+    def get_package_dependencies(self, language: Language) -> dict:
+        """Return the package dependencies for ``language`` or raise ``ValueError``."""
+        bucket = self._get_bucket(language)
+        if bucket is not None and bucket.dependencies.entries is not None:
+            return bucket.dependencies.entries
         raise ValueError(f"Package dependencies for language '{language}' not found in results.")
 
-    def get_reference(self, language: str, qualified_name: str) -> Node:
-        """
-        Retrieves the source code reference for a specific qualified name in a language.
+    def get_reference(self, language: Language, qualified_name: str) -> Node:
+        """Return the reference node for ``qualified_name``.
 
-        Lookup is case-insensitive: both the query and the stored keys are lowercased for
-        comparison, so "models.base.(Entity).GetType" and "models.base.(entity).gettype"
-        resolve to the same reference.
-
-        :param language: The programming language of the reference.
-        :param qualified_name: The fully qualified name of the source code element.
-        :return: The source code reference or None if not found.
+        Why: lookup is case-insensitive — the query and stored keys are both
+        normalised through ``_reference_key`` so e.g. ``models.base.(Entity).GetType``
+        and ``models.base.(entity).gettype`` resolve to the same reference.
         """
-        if language in self.results and "references" in self.results[language]:
-            refs = self.results[language]["references"]
-            # Direct lookup first
+        bucket = self._get_bucket(language)
+        if bucket is not None and bucket.references.by_qualified_name is not None:
+            refs = bucket.references.by_qualified_name
             if qualified_name in refs:
                 return refs[qualified_name]
-            # Case-insensitive fallback
             norm_qn = _reference_key(qualified_name)
             for ref_key, ref_val in refs.items():
                 if _reference_key(ref_key) == norm_qn:
                     return ref_val
-            # Check if the qualified name is a subset meaning it is a file path:
             for ref in refs.keys():
                 if ref.lower().startswith(norm_qn):
                     raise FileExistsError(
@@ -385,39 +206,33 @@ class StaticAnalysisResults:
                     )
         raise ValueError(f"Source code reference for '{qualified_name}' in language '{language}' not found in results.")
 
-    def get_loose_reference(self, language: str, qualified_name: str) -> tuple[str | None, Node | None]:
+    def get_loose_reference(self, language: Language, qualified_name: str) -> tuple[str | None, Node | None]:
         norm_qn = _reference_key(qualified_name)
-        if language in self.results and "references" in self.results[language]:
-            # Check if the qualified name is a subset of any reference:
+        bucket = self._get_bucket(language)
+        if bucket is not None and bucket.references.by_qualified_name is not None:
+            refs = bucket.references.by_qualified_name
             subset_refs = []
-            for ref in self.results[language]["references"].keys():
+            for ref in refs.keys():
                 ref_lower = ref.lower()
                 if ref_lower.endswith(norm_qn):
                     return (
                         f"Found a loose match with a fully quantified name: {ref}",
-                        self.results[language]["references"][ref],
+                        refs[ref],
                     )
                 if norm_qn in ref_lower:
                     subset_refs.append(ref)
             if len(subset_refs) == 1:
-                return subset_refs[0], self.results[language]["references"][subset_refs[0]]
+                return subset_refs[0], refs[subset_refs[0]]
         return None, None
 
-    def get_languages(self):
-        """
-        Retrieves the list of languages for which results are available.
-
-        :return: A list of programming languages.
-        """
-        return list(self.results.keys())
+    def get_languages(self) -> list[Language]:
+        """Return the list of languages for which any data has been recorded."""
+        return list(self.results)
 
     def resolve_across_languages(self, qualified_name: str) -> Node | None:
-        """Resolve *qualified_name* against every stored language.
+        """Try ``get_reference`` then ``get_loose_reference`` across every language.
 
-        Tries ``get_reference`` first, falling back to ``get_loose_reference``
-        within each language before moving on. Returns the first match, or
-        ``None`` if no language knows the name. Hides the common
-        try-exact-then-loose pattern that several callers re-implement.
+        Why: hides the try-exact-then-loose pattern several callers re-implement.
         """
         for lang in self.get_languages():
             try:
@@ -428,60 +243,30 @@ class StaticAnalysisResults:
                     return node
         return None
 
-    def iter_reference_nodes(self, language: str | None = None) -> Iterator[Node]:
-        """Yield every stored reference as a ``Node``, hiding the storage shape.
-
-        Why: ``add_references`` stores a dict keyed by qualified name, but
-        ``incremental_orchestrator`` can merge caches that use a list. Callers
-        shouldn't have to branch on that; they just want Nodes.
-        """
+    def iter_reference_nodes(self, language: Language | None = None) -> Iterator[Node]:
+        """Yield every stored reference as a ``Node``."""
         languages = [language] if language is not None else self.get_languages()
         for lang in languages:
-            references = self.results.get(lang, {}).get("references", {})
-            if isinstance(references, dict):
-                ref_values = references.values()
-            elif isinstance(references, list):
-                ref_values = references
-            else:
+            bucket = self._get_bucket(lang)
+            if bucket is None or bucket.references.by_qualified_name is None:
                 continue
-            for node in ref_values:
+            for node in bucket.references.by_qualified_name.values():
                 if isinstance(node, Node):
                     yield node
 
-    def add_source_files(self, language: str, source_files):
-        """
-        Adds/extends source files to the analysis results.
+    def add_source_files(self, language: Language, source_files):
+        """Add/extend source files for a language; supports repeated calls."""
+        self._bucket(language).source_files.extend(source_files)
 
-        Supports multiple calls for the same language (e.g., monorepo with multiple subprojects).
-
-        :param language: The programming language.
-        :param source_files: A list of source files.
-        """
-        if language not in self.results:
-            self.results[language] = {}
-        if "source_files" not in self.results[language]:
-            self.results[language]["source_files"] = []
-
-        # Extend instead of overwrite
-        self.results[language]["source_files"].extend(source_files)
-
-    def get_source_files(self, language: str) -> list[str]:
-        """
-        Retrieves the list of source files for a given language.
-
-        :param language: The programming language.
-        :return: A list of source files.
-        """
-        if language not in self.results:
+    def get_source_files(self, language: Language) -> list[str]:
+        """Return the list of source files for ``language``, or ``[]`` if absent."""
+        bucket = self._get_bucket(language)
+        if bucket is None or bucket.source_files.paths is None:
             return []
-        return self.results[language].get("source_files", [])
+        return bucket.source_files.paths
 
     def get_all_source_files(self) -> list[str]:
-        """
-        Retrieves the list of all source files across all languages.
-
-        :return: A list of source files.
-        """
+        """Return source files across all languages."""
         all_source_files = []
         for language in self.results:
             all_source_files.extend(self.get_source_files(language))

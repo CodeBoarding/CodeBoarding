@@ -52,7 +52,6 @@ def run_from_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> 
             output_dir=src.artifact_dir,
             project_name=src.project_name,
             component_id=args.component_id,
-            depth_level=args.depth_level,
             run_id=run_context.run_id,
             log_path=run_context.log_path,
         )

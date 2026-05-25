@@ -3,9 +3,6 @@ import os
 from dataclasses import dataclass, field
 from typing import Any, Type
 
-from agents.constants import LLMDefaults, ModelCapabilities
-from agents.model_capabilities import ContextWindow, get_context_window
-from agents.prompts.prompt_factory import LLMType, initialize_global_factory
 from langchain_anthropic import ChatAnthropic
 from langchain_aws import ChatBedrockConverse
 from langchain_cerebras import ChatCerebras
@@ -13,6 +10,10 @@ from langchain_core.language_models import BaseChatModel
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_ollama import ChatOllama
 from langchain_openai import ChatOpenAI
+
+from agents.constants import LLMDefaults, ModelCapabilities
+from agents.model_capabilities import ContextWindow, get_context_window
+from agents.prompts.prompt_factory import LLMType, initialize_global_factory
 from monitoring.callbacks import MonitoringCallback
 
 # Initialize global monitoring callback with its own stats container to avoid ContextVar dependency
@@ -239,7 +240,7 @@ LLM_PROVIDERS = {
         chat_class=ChatOpenAI,
         api_key_env="OPENROUTER_API_KEY",
         agent_model="google/gemini-3-flash-preview",
-        parsing_model="google/gemini-3.1-flash-lite",
+        parsing_model="google/gemini-3-flash-preview",
         llm_type=LLMType.GEMINI_FLASH,
         extra_args={
             "base_url": lambda: os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"),

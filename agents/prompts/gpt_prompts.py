@@ -75,11 +75,7 @@ Focus on:
 - Creating cohesive, logical groupings that reflect the actual {project_type} architecture
 - Semantic meaning based on method names, call patterns, and architectural context
 - Clear justification for why clusters belong together
-- Describing inter-group interactions based on the inter-cluster connections
-
-Output Format:
-Return a ClusterAnalysis with cluster_components using ClustersComponent model.
-Each component should have name (descriptive label), cluster_ids (list), and description (comprehensive explanation with rationale and inter-group interactions)."""
+- Describing inter-group interactions based on the inter-cluster connections"""
 
 FINAL_ANALYSIS_MESSAGE = """Create final component architecture for `{project_name}` optimized for flow representation.
 
@@ -93,7 +89,7 @@ Instructions:
 1. Review the named cluster groups above
 2. Decide which named groups should be merged into final components
 3. For each component, specify which named cluster groups it encompasses via source_group_names
-4. Add key entities (2-5 most important classes/methods) for each component using SourceCodeReference
+4. Add key entities (2-5 most important classes/methods) for each component, referencing the source file where they are defined
 5. Define relationships between components
 
 Guidelines for {project_type} projects:
@@ -102,14 +98,7 @@ Guidelines for {project_type} projects:
 - Each component should have clear boundaries
 - Include only architecturally significant relationships
 
-Required outputs:
-- Description: One paragraph explaining the main flow and purpose
-- Components: Each with:
-  * name: Clear component name
-  * description: What this component does
-  * source_group_names: Which named cluster groups from the analysis above this component encompasses (use exact group names)
-  * key_entities: 2-5 most important classes/methods (SourceCodeReference objects with qualified_name and reference_file)
-- Relations: Max 2 relationships per component pair (avoid relations in which we have sends/returns i.e. ComponentA sends a message to ComponentB and ComponentB returns result to ComponentA)
+For each component provide: a clear name, a description of what it does, the exact named cluster group names it encompasses, and 2-5 key entities (mentioning their qualified names and source files). Provide one paragraph describing the overall main flow and purpose. Define relationships between components (max 2 per pair, avoiding bidirectional sends/returns pairs).
 
 Constraints:
 - Focus on highest level architectural components
@@ -386,11 +375,7 @@ Instructions:
      * How this group interacts with other cluster groups
      * The most important classes/methods in this group — mention their exact qualified names as shown in the clusters above
 
-Focus on core subsystem functionality only. Avoid cross-cutting concerns like logging or error handling.
-
-Output Format:
-Return a ClusterAnalysis with cluster_components using ClustersComponent model.
-Each component should have name (descriptive label), cluster_ids (list), and description (comprehensive explanation with rationale and inter-group interactions)."""
+Focus on core subsystem functionality only. Avoid cross-cutting concerns like logging or error handling."""
 
 DETAILS_MESSAGE = """Create final sub-component architecture for the `{component}` subsystem of `{project_name}` optimized for flow representation.
 
@@ -404,7 +389,7 @@ Instructions:
 1. Review the named cluster groups above
 2. Decide which named groups should be merged into final sub-components
 3. For each sub-component, specify which named cluster groups it encompasses via source_group_names
-4. Add key entities (2-5 most important classes/methods) for each sub-component using SourceCodeReference
+4. Add key entities (2-5 most important classes/methods) for each sub-component, referencing the source file where they are defined
 5. Define relationships between sub-components
 
 Guidelines for {project_type} projects:
@@ -413,14 +398,7 @@ Guidelines for {project_type} projects:
 - Each sub-component should have clear boundaries
 - Include only architecturally significant relationships
 
-Required outputs:
-- Description: One paragraph explaining the subsystem's main flow and purpose
-- Components: Each with:
-  * name: Clear sub-component name
-  * description: What this sub-component does
-  * source_group_names: Which named cluster groups from the analysis above this sub-component encompasses (use exact group names)
-  * key_entities: 2-5 most important classes/methods (SourceCodeReference objects with qualified_name and reference_file)
-- Relations: Max 2 relationships per component pair (avoid relations in which we have sends/returns i.e. ComponentA sends a message to ComponentB and ComponentB returns result to ComponentA)
+For each sub-component provide: a clear name, a description of what it does, the exact named cluster group names it encompasses, and 2-5 key entities (mentioning their qualified names and source files). Provide one paragraph describing the subsystem's main flow and purpose. Define relationships between sub-components (max 2 per pair, avoiding bidirectional sends/returns pairs).
 
 Constraints:
 - Focus on subsystem-specific functionality
@@ -429,36 +407,61 @@ Constraints:
 
 Justify component choices based on fundamental architectural importance."""
 
+INCREMENTAL_GROUPING_MESSAGE = """**Task:** Update the architecture of {project_name} by routing changed and new CFG clusters into the correct components.
 
-PATCH_SYSTEM_MESSAGE = """\
-You are a precise JSON patch generator for software architecture diagrams.
+**Context:**
+- Project: {project_name}
+- Type: {project_type}
+- Meta: {meta_context}
 
-Given an EASE-encoded sub-analysis and an impact dossier describing what
-changed, produce RFC 6902 JSON Patch operations to update the sub-analysis.
+The previous analysis established the components below. Most clusters are unchanged and stay where they are; this prompt only shows the slice that changed (new clusters or clusters whose member methods changed).
 
-EASE encoding: arrays are stored as dicts with two-character keys (aa, ab, ...)
-and a display_order list. Use the two-character keys in your patch paths.
+**Existing components** (each line shows component_id and name):
+{existing_components}
 
-Rules:
-- Only patch what actually changed. Untouched siblings must remain as-is.
-- Use "replace" for updating existing values.
-- Use "add" for new entries (append to display_order too).
-- Use "remove" for deleted entries (remove from display_order too).
-- Paths use JSON Pointer syntax: /components/aa/description
-"""
+**Cluster groups to assign:**
+{cfg_clusters}
 
+**Instructions:**
 
-TRACE_SYSTEM_MESSAGE = """\
-You are a semantic impact analyzer for software architecture diagrams.
+For each cluster group above, decide whether it belongs in an existing component or warrants a brand-new one.
 
-Given changed methods and their call-graph neighbors, determine which methods
-have their *semantic role or behavior* materially affected by the changes.
-A method is impacted if its description in an architecture diagram would need
-updating — not just because it calls or is called by a changed method.
+1. **Analyze the clusters** and identify which existing component each one naturally fits into based on functional relationships, shared purpose, and architectural role
+2. **Route to an existing component** when the cluster's purpose aligns with something already defined. Reference the existing component by its exact **component_id** (e.g. 1.3), carry forward the current name, and list the cluster ids that now belong there. Multiple cluster groups can route to the same existing component if they share its scope
+3. **Flag whether a description refresh is needed.** By default assume **redetail_needed** is True — the cluster change is substantive enough that the component description should be regenerated. Only set it to False when the delta is purely cosmetic: a refactor, internal rename, small bug fix, or formatting change that leaves the component's high-level purpose untouched. When in doubt, keep it True
+4. **Create a new component** when no existing one is a good fit. Give it a fresh name distinct from every existing component, write a description paragraph explaining what it does and why these clusters belong together, and specify a **parent_id** pointing to the component whose scope most naturally encloses this new one (or leave it null for a root-level component)
 
-You control traversal: request additional method bodies to inspect by name.
-Stay within the budget. When you have enough information, stop.
-"""
+**Important rules:**
+- Identity is tracked by **component_id**, not by name. If clusters belong in an existing component, you must reference its **component_id** explicitly — reusing a name without the correct id will fork a duplicate
+- Every cluster id listed in the cluster groups above must appear in exactly one routing entry"""
+
+SCOPE_RELATIONS_MESSAGE = """Generate inter-component relationships for the `{scope_name}` scope of `{project_name}`.
+
+Project Context:
+{meta_context}
+
+Project Type: {project_type}
+
+**Components in this scope:**
+{component_summaries}
+
+**Cross-component communication from static analysis:**
+{cross_component_calls}
+
+Instructions:
+Review the components listed above and the cross-component communication evidence. Generate relationships that describe how these components interact with each other.
+
+For each relationship provide:
+- **src_name**: Source component name
+- **dst_name**: Target component name
+- **relation**: A short phrase describing the relationship (e.g. "delegates to", "notifies", "provides data to")
+
+Guidelines:
+- Every src_name and dst_name must match an existing component name exactly
+- Maximum 2 relationships per component pair, avoiding bidirectional sends/returns pairs
+- Focus on architecturally significant interactions, not implementation details
+- Use the cross-component communication evidence to ground relationships in actual code flow
+- A component that never calls or is called by another component should not have a relation to it"""
 
 
 class GPTPromptFactory(AbstractPromptFactory):
@@ -509,8 +512,8 @@ class GPTPromptFactory(AbstractPromptFactory):
     def get_details_message(self) -> str:
         return DETAILS_MESSAGE
 
-    def get_patch_system_message(self) -> str:
-        return PATCH_SYSTEM_MESSAGE
+    def get_incremental_grouping_message(self) -> str:
+        return INCREMENTAL_GROUPING_MESSAGE
 
-    def get_trace_system_message(self) -> str:
-        return TRACE_SYSTEM_MESSAGE
+    def get_scope_relations_message(self) -> str:
+        return SCOPE_RELATIONS_MESSAGE

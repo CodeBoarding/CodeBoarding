@@ -137,22 +137,20 @@ def find_java_21_or_later() -> Path | None:
     return None
 
 
+def _is_arm64(machine: str) -> bool:
+    """Return True for arm64/aarch64 (case-insensitive)."""
+    return machine.lower() in ("arm64", "aarch64")
+
+
 def get_jdtls_config_dir(jdtls_root: Path) -> Path:
-    """
-    Get platform-specific JDTLS configuration directory.
-
-    Args:
-        jdtls_root: Root directory of JDTLS installation
-
-    Returns:
-        Path to config_linux, config_mac, or config_win
-    """
+    """Get platform- and arch-specific JDTLS configuration directory."""
     system = platform.system()
+    machine = platform.machine()
 
     if system == "Linux":
-        return jdtls_root / "config_linux"
+        return jdtls_root / ("config_linux_arm" if _is_arm64(machine) else "config_linux")
     elif system == "Darwin":
-        return jdtls_root / "config_mac"
+        return jdtls_root / ("config_mac_arm" if _is_arm64(machine) else "config_mac")
     elif system == "Windows":
         return jdtls_root / "config_win"
     else:

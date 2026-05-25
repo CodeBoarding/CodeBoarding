@@ -7,6 +7,7 @@ from agents.tools import GetCFGTool, MethodInvocationsTool
 from agents.tools.base import RepoContext
 from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer import StaticAnalyzer
+from utils import get_artifact_dir
 
 
 class TestCFGTools(unittest.TestCase):
@@ -16,7 +17,7 @@ class TestCFGTools(unittest.TestCase):
         if not test_repo.exists():
             self.skipTest("Test repository not available")
         analyzer = StaticAnalyzer(test_repo)
-        static_analysis = analyzer.analyze()
+        static_analysis = analyzer.analyze(cache_dir=get_artifact_dir(test_repo))
         ignore_manager = RepoIgnoreManager(test_repo)
         self.context = RepoContext(repo_dir=test_repo, ignore_manager=ignore_manager, static_analysis=static_analysis)
         self.read_cfg = GetCFGTool(context=self.context)

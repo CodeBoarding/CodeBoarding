@@ -2,14 +2,15 @@ import argparse
 import json
 import logging
 import sys
+from typing import Any
 
 from agents.llm_config import LLMConfigError
 from codeboarding_cli.bootstrap import bootstrap_environment, resolve_local_run_paths
-from codeboarding_workflows.analysis import run_incremental
+from codeboarding_workflows.analysis import BaselineUnavailableError, run_incremental
 from diagram_analysis import RunContext
-from diagram_analysis.incremental_payload import RequiresFullAnalysisPayload, IncrementalRunPayload
-from diagram_analysis.run_metadata import RunMode
-from diagram_analysis.run_metadata import last_successful_commit
+from diagram_analysis.io_utils import load_analysis_commit_hash
+from diagram_analysis.run_mode import RunMode
+from repo_utils.git_ops import get_current_commit, resolve_ref
 from utils import monitoring_enabled
 
 logger = logging.getLogger(__name__)
@@ -19,40 +20,20 @@ def add_arguments(subparsers: argparse._SubParsersAction, parents: list[argparse
     parser = subparsers.add_parser(
         "incremental",
         parents=parents,
-        help="Run an incremental analysis on a local repository.",
+        help="Run a cluster-driven incremental update on a local repository.",
     )
     parser.add_argument(
         "--base-ref",
         type=str,
-        help=(
-            "Git ref (commit SHA, branch, or tag) to diff against when computing the incremental update. "
-            "Defaults to the commit that produced the last successful analysis "
-            "(recorded in <output-dir>/incremental_run_metadata.json); "
-            "if no prior run is recorded, incremental mode falls back to a full analysis."
-        ),
+        default=None,
+        help="Override the diff baseline. Default: last successful commit from analysis metadata.",
     )
     parser.add_argument(
         "--target-ref",
         type=str,
-        help=(
-            "Target git ref (commit, branch, or tag). Must match the current checkout "
-            "with a clean worktree; defaults to the current working tree."
-        ),
+        default=None,
+        help="Override the diff target. Default: HEAD. Pass an empty string to diff the working tree.",
     )
-
-
-def _error_payload(message: str) -> RequiresFullAnalysisPayload:
-    """Build a ``REQUIRES_FULL_ANALYSIS`` payload for a CLI-level error."""
-    return RequiresFullAnalysisPayload(message=message, error=message)
-
-
-def _api_key_missing_dict(message: str) -> dict:
-    """Distinct wire shape — the wrapper detects ``kind=api_key_missing`` to prompt the user."""
-    return {
-        "mode": RunMode.INCREMENTAL,
-        "error": message,
-        "kind": "api_key_missing",
-    }
 
 
 def validate_arguments(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
@@ -70,26 +51,33 @@ def run_from_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> 
         bootstrap_environment(run_paths.output_dir, args.binary_location)
     except LLMConfigError as exc:
         logger.warning("Incremental bootstrap failed: LLM provider not configured: %s", exc)
-        _emit_dict(_api_key_missing_dict(str(exc)))
+        _emit({"mode": RunMode.INCREMENTAL, "error": str(exc), "kind": "api_key_missing"})
         return
     except ValueError as exc:
         logger.exception("Incremental bootstrap failed")
-        _emit_payload(_error_payload(str(exc)))
+        _emit_error(str(exc))
         return
 
-    # Resolve base_ref up-front so every layer below sees a concrete str.
-    base_ref = args.base_ref or last_successful_commit(run_paths.output_dir)
-    if not base_ref:
-        msg = "No prior incremental metadata found; full analysis required before running incremental."
-        logger.info(
-            "Incremental aborted (base_ref=<unresolved> target_ref=%s): %s",
-            args.target_ref or "WORKTREE",
-            msg,
+    base_ref = args.base_ref if args.base_ref is not None else load_analysis_commit_hash(run_paths.output_dir)
+    if base_ref is None:
+        logger.error("Incremental run aborted: no baseline ref available")
+        _emit_error(
+            "No baseline ref available: pass --base-ref or run a full analysis first "
+            "to record a baseline (analysis metadata commit hash)."
         )
-        _emit_payload(RequiresFullAnalysisPayload(message=msg))
         return
 
-    target_ref = args.target_ref or ""
+    target_ref = args.target_ref if args.target_ref is not None else get_current_commit(run_paths.repo_path)
+    if target_ref is None:
+        logger.error("Incremental run aborted: could not resolve current commit for diff target")
+        _emit_error("Could not resolve target ref: pass --target-ref or run inside a git repository with a valid HEAD.")
+        return
+
+    source_sha = (
+        (resolve_ref(run_paths.repo_path, target_ref) or target_ref)
+        if target_ref
+        else get_current_commit(run_paths.repo_path)
+    )
 
     try:
         run_context = RunContext.resolve(
@@ -99,39 +87,53 @@ def run_from_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> 
         )
     except Exception as exc:
         logger.exception("RunContext resolution failed")
-        payload = _error_payload(str(exc))
+        _emit_error(str(exc))
+        return
+
+    try:
+        analysis_path = run_incremental(
+            repo_path=run_paths.repo_path,
+            output_dir=run_paths.output_dir,
+            project_name=run_paths.project_name,
+            run_id=run_context.run_id,
+            log_path=run_context.log_path,
+            monitoring_enabled=args.enable_monitoring or monitoring_enabled(),
+            base_ref=base_ref,
+            target_ref=target_ref,
+            source_sha=source_sha,
+        )
+    except BaselineUnavailableError as exc:
+        # Expected: no baseline, or diff failed against the requested base ref.
+        # The wire contract's ``requiresFullAnalysis: true`` tells the wrapper
+        # to prompt for a full run; no stack trace needed.
+        logger.info("Incremental unavailable: %s", exc)
+        _emit_error(str(exc))
+    except Exception as exc:
+        logger.exception("Incremental analysis failed")
+        _emit_error(str(exc))
     else:
-        try:
-            payload = run_incremental(
-                repo_path=run_paths.repo_path,
-                output_dir=run_paths.output_dir,
-                project_name=run_paths.project_name,
-                depth_level=args.depth_level,
-                base_ref=base_ref,
-                target_ref=target_ref,
-                run_id=run_context.run_id,
-                log_path=run_context.log_path,
-                monitoring_enabled=args.enable_monitoring or monitoring_enabled(),
-            )
-        except Exception as exc:
-            logger.exception("Incremental analysis failed")
-            payload = _error_payload(str(exc))
-        finally:
-            run_context.finalize()
-
-    _emit_payload(payload)
+        _emit(
+            {
+                "mode": RunMode.INCREMENTAL,
+                "requiresFullAnalysis": False,
+                "analysis_path": str(analysis_path),
+            }
+        )
+    finally:
+        run_context.finalize()
 
 
-def _emit_payload(payload: IncrementalRunPayload) -> None:
-    """Serialize *payload* as JSON on stdout (the CLI's wire contract)."""
-    _emit_dict(payload.to_dict())
+def _emit_error(message: str) -> None:
+    _emit(
+        {
+            "mode": RunMode.INCREMENTAL,
+            "error": message,
+            "requiresFullAnalysis": True,
+        }
+    )
 
 
-def _emit_dict(payload: dict) -> None:
-    """Write a pre-built wire dict as JSON to stdout.
-
-    Why: the wrapper / IDE integration reads stdout as JSON. This is the
-    incremental command's API contract, not a diagnostic log line.
-    """
+def _emit(payload: dict[str, Any]) -> None:
+    """Write a wire dict as JSON to stdout (the IDE/wrapper contract)."""
     sys.stdout.write(json.dumps(payload, default=str, indent=2, sort_keys=True) + "\n")
     sys.stdout.flush()

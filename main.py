@@ -17,12 +17,6 @@ def _build_shared_parser() -> argparse.ArgumentParser:
         type=Path,
         help="Path to the binary directory for language servers (overrides ~/.codeboarding/servers/)",
     )
-    shared.add_argument(
-        "--depth-level",
-        type=int,
-        default=1,
-        help="Depth level for diagram generation (default: 1)",
-    )
     shared.add_argument("--enable-monitoring", action="store_true", help="Enable monitoring")
     return shared
 

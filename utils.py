@@ -32,7 +32,24 @@ def remove_temp_repo_folder(temp_path: str):
 
 
 def get_cache_dir(repo_dir: Path) -> Path:
+    """Wipeable per-file/per-language indices (e.g. ``incremental_cache_<lang>.json``).
+
+    Anything under here may be deleted at any time; consumers must tolerate
+    cache misses. Run-artifact files (e.g. ``static_analysis.pkl``) belong in
+    :func:`get_artifact_dir` instead.
+    """
     return repo_dir / CODEBOARDING_DIR_NAME / "cache"
+
+
+def get_artifact_dir(repo_dir: Path) -> Path:
+    """Sibling-of-``analysis.json`` directory for run-artifact files.
+
+    Run artifacts are the outputs of one successful ``analyze()`` invocation
+    (e.g. ``analysis.json``, ``static_analysis.pkl``). They survive across
+    runs, deserve atomic promotion, and must not be wiped by snapshot
+    preparation. Distinct from :func:`get_cache_dir`.
+    """
+    return repo_dir / CODEBOARDING_DIR_NAME
 
 
 def get_project_root() -> Path:
