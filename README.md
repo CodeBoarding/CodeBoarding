@@ -108,13 +108,67 @@ On first run, CodeBoarding creates `~/.codeboarding/config.toml`. Set one provid
 # aws_bearer_token_bedrock  = "..."
 # ollama_base_url           = "http://localhost:11434"
 # openrouter_api_key        = "sk-..."
+# opencode_base_url         = "http://localhost:4096"
+# opencode_server_password  = "..."
 
 [llm]
 # agent_model   = "gemini-3-flash"
 # parsing_model = "gemini-3-flash"
 ```
 
-Shell environment variables such as `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`, and `OLLAMA_BASE_URL` take precedence over the config file. For private repositories, set `GITHUB_TOKEN` in your environment.
+Shell environment variables such as `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`, `OLLAMA_BASE_URL`, and `OPENCODE_BASE_URL` take precedence over the config file. For private repositories, set `GITHUB_TOKEN` in your environment.
+
+### OpenCode provider
+
+CodeBoarding can route all LLM requests through a local [OpenCode](https://opencode.ai) instance. This lets you use OpenCode's model aggregation layer (Qwen, Claude, GPT, Gemini, etc.) without managing individual API keys.
+
+**1. Install OpenCode** (if not already installed):
+
+```bash
+curl -fsSL https://opencode.ai/install | bash
+```
+
+**2. Start the OpenCode server:**
+
+```bash
+opencode serve
+```
+
+Or start an OpenCode TUI session — it runs a background server automatically.
+
+**3. Verify the server is running:**
+
+```bash
+curl -s http://localhost:4096/global/health
+# Expected: {"healthy":true,"version":"..."}
+```
+
+**4. Configure CodeBoarding to use OpenCode:**
+
+Set the base URL (and optional password if you configured one):
+
+```bash
+export OPENCODE_BASE_URL=http://localhost:4096
+# Optional: export OPENCODE_SERVER_PASSWORD=your-password
+```
+
+Or add to `~/.codeboarding/config.toml`:
+
+```toml
+[provider]
+opencode_base_url = "http://localhost:4096"
+```
+
+**5. (Optional) Override the default model:**
+
+CodeBoarding defaults to `opencode-go/qwen3.6-plus`. You can switch to any model available through OpenCode Go:
+
+```bash
+export AGENT_MODEL=opencode-go/qwen3.7-max
+export PARSING_MODEL=opencode-go/glm-5
+```
+
+Available models: `qwen3.7-max`, `qwen3.6-plus`, `qwen3.5-plus`, `glm-5`, `glm-5.1`, `kimi-k2.5`, `kimi-k2.6`, `minimax-m2.5`, `minimax-m2.7`, `deepseek-v4-pro`, `deepseek-v4-flash`.
 
 ## Common commands
 
@@ -144,7 +198,7 @@ python main.py full https://github.com/pytorch/pytorch
 ## Supported stack
 
 - Languages: Python, TypeScript, JavaScript, Java, Go, PHP, Rust, C#.
-- LLM providers: OpenAI, Anthropic, Google, Vercel AI Gateway, AWS Bedrock, Ollama, OpenRouter, and more.
+- LLM providers: OpenAI, Anthropic, Google, Vercel AI Gateway, AWS Bedrock, Ollama, OpenRouter, OpenCode, and more.
 
 ## Examples
 

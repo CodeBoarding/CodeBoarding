@@ -7,7 +7,7 @@
 **CodeBoarding** generates interactive architectural diagrams from any codebase using static analysis + LLM agents. It's built for developers and AI agents that need to understand large, complex systems quickly.
 
 - Extracts modules and relationships via control flow graph analysis (LSP-based, no runtime required)
-- Builds layered abstractions with an LLM agent (OpenAI, Anthropic, Google Gemini, Ollama, and more)
+- Builds layered abstractions with an LLM agent (OpenAI, Anthropic, Google Gemini, Ollama, OpenCode, and more)
 - Outputs Mermaid.js diagrams ready for docs, IDEs, and CI/CD pipelines
 
 **Supported languages:** Python · TypeScript · JavaScript · Java · Go · PHP
@@ -112,6 +112,7 @@ LLM provider keys and model overrides are stored in `~/.codeboarding/config.toml
 # anthropic_api_key = "sk-ant-..."
 # google_api_key    = "AIza..."
 # ollama_base_url   = "http://localhost:11434"
+# opencode_base_url = "http://localhost:4096"
 
 [llm]
 # Optional: override the default model for your active provider
@@ -119,7 +120,22 @@ LLM provider keys and model overrides are stored in `~/.codeboarding/config.toml
 # parsing_model = "gemini-3-flash"
 ```
 
-Shell environment variables (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, etc.) always take precedence over the config file, so CI/CD pipelines need no changes. For private repositories, set `GITHUB_TOKEN` in your environment.
+Shell environment variables (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `OPENCODE_BASE_URL`, etc.) always take precedence over the config file, so CI/CD pipelines need no changes. For private repositories, set `GITHUB_TOKEN` in your environment.
+
+### OpenCode provider
+
+CodeBoarding can route all LLM requests through a local [OpenCode](https://opencode.ai) instance:
+
+```bash
+# 1. Start OpenCode server
+opencode serve
+
+# 2. Set the base URL
+export OPENCODE_BASE_URL=http://localhost:4096
+
+# 3. (Optional) Override the default model (defaults to opencode/qwen3.6-plus)
+export AGENT_MODEL=opencode/claude-sonnet-4-5
+```
 
 > **Tip:** Google Gemini 3 Pro consistently produces the best diagram quality for complex codebases.
 

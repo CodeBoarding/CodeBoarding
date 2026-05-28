@@ -31,6 +31,7 @@ def get_context_window(provider: str, model_name: str) -> ContextWindow:
         _resolve_env,
         _resolve_user_config,
         _resolve_ollama,
+        _resolve_opencode,
         _resolve_modelsdev,
         _resolve_litellm,
         _resolve_openrouter,
@@ -85,6 +86,20 @@ def _resolve_ollama(provider: str, model_name: str) -> tuple[int, int] | None:
     if not base:
         return None
     return _ollama_show(model_name, base.rstrip("/"))
+
+
+def _resolve_opencode(provider: str, model_name: str) -> tuple[int, int] | None:
+    if provider != "opencode":
+        return None
+    base = os.getenv("OPENCODE_BASE_URL")
+    if not base:
+        return None
+    actual_model = model_name.split("/", 1)[-1] if "/" in model_name else model_name
+    for resolver in (_resolve_modelsdev, _resolve_litellm, _resolve_openrouter):
+        hit = resolver("openai", actual_model)
+        if hit is not None:
+            return hit
+    return None
 
 
 def _ollama_show(model_name: str, base_url: str) -> tuple[int, int] | None:

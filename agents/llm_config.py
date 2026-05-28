@@ -13,6 +13,7 @@ from langchain_openai import ChatOpenAI
 
 from agents.constants import LLMDefaults, ModelCapabilities
 from agents.model_capabilities import ContextWindow, get_context_window
+from agents.opencode_chat import ChatOpenCode
 from agents.prompts.prompt_factory import LLMType, initialize_global_factory
 from monitoring.callbacks import MonitoringCallback
 
@@ -249,6 +250,20 @@ LLM_PROVIDERS = {
             "max_retries": 0,
         },
     ),
+    "opencode": LLMConfig(
+        chat_class=ChatOpenCode,
+        api_key_env="OPENCODE_BASE_URL",
+        agent_model="opencode-go/qwen3.6-plus",
+        parsing_model="opencode-go/qwen3.6-plus",
+        llm_type=LLMType.OPENCODE,
+        alt_env_vars=["OPENCODE_SERVER_PASSWORD"],
+        extra_args={
+            "base_url": lambda: os.getenv("OPENCODE_BASE_URL", "http://localhost:4096"),
+            "password": lambda: os.getenv("OPENCODE_SERVER_PASSWORD"),
+            "max_tokens": None,
+            "timeout": 120,
+        },
+    ),
 }
 
 
@@ -288,7 +303,11 @@ def _initialize_llm(
     }
     kwargs.update(config.get_resolved_extra_args())
 
-    if name not in ["aws", "ollama"]:
+    if name == "opencode":
+        kwargs["base_url"] = kwargs.get("base_url", "http://localhost:4096")
+        if "password" in kwargs and kwargs["password"] is None:
+            kwargs.pop("password")
+    elif name not in ["aws", "ollama"]:
         api_key = config.get_api_key()
         kwargs["api_key"] = api_key or "no-key-required"
 
