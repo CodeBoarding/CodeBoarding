@@ -14,13 +14,13 @@ import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 
-
 CONFIG_PATH = Path.home() / ".codeboarding" / "config.toml"
 
 # Mapping from config.toml key names to the env var each provider reads.
 # These are the canonical env var names used in agents/llm_config.py.
 _PROVIDER_KEY_TO_ENV: dict[str, str] = {
     "openai_api_key": "OPENAI_API_KEY",
+    "openai_base_url": "OPENAI_BASE_URL",
     "anthropic_api_key": "ANTHROPIC_API_KEY",
     "google_api_key": "GOOGLE_API_KEY",
     "vercel_api_key": "VERCEL_API_KEY",
@@ -44,6 +44,7 @@ CONFIG_TEMPLATE = """\
 
 [provider]
 # openai_api_key            = "sk-..."
+# openai_base_url           = "http://localhost:8000/v1"   # self-hosted / OpenAI-compatible proxy
 # anthropic_api_key         = "sk-ant-..."
 # google_api_key            = "AIza..."
 # vercel_api_key            = "vck_..."
@@ -69,6 +70,7 @@ class ProviderUserConfig:
     """Raw API key / URL values read from [provider] in config.toml."""
 
     openai_api_key: str | None = None
+    openai_base_url: str | None = None
     anthropic_api_key: str | None = None
     google_api_key: str | None = None
     vercel_api_key: str | None = None
@@ -115,6 +117,7 @@ def load_user_config(path: Path = CONFIG_PATH) -> UserConfig:
     return UserConfig(
         provider=ProviderUserConfig(
             openai_api_key=provider_data.get("openai_api_key") or None,
+            openai_base_url=provider_data.get("openai_base_url") or None,
             anthropic_api_key=provider_data.get("anthropic_api_key") or None,
             google_api_key=provider_data.get("google_api_key") or None,
             vercel_api_key=provider_data.get("vercel_api_key") or None,

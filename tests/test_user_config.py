@@ -1,6 +1,6 @@
 import os
 
-from user_config import ProviderUserConfig, UserConfig, ensure_config_template
+from user_config import ProviderUserConfig, UserConfig, ensure_config_template, load_user_config
 
 
 class TestUserConfigApplyToEnv:
@@ -63,6 +63,52 @@ class TestUserConfigApplyToEnv:
         finally:
             os.environ.clear()
             os.environ.update(original)
+
+    def test_injects_openai_base_url_for_self_hosted_proxy(self):
+        cfg = UserConfig(provider=ProviderUserConfig(openai_base_url="http://127.0.0.1:8000/v1"))
+
+        original = os.environ.copy()
+        try:
+            os.environ.pop("OPENAI_BASE_URL", None)
+
+            cfg.apply_to_env()
+
+            assert os.environ["OPENAI_BASE_URL"] == "http://127.0.0.1:8000/v1"
+        finally:
+            os.environ.clear()
+            os.environ.update(original)
+
+    def test_shell_openai_base_url_takes_precedence(self):
+        cfg = UserConfig(provider=ProviderUserConfig(openai_base_url="http://config-value/v1"))
+
+        original = os.environ.copy()
+        try:
+            os.environ["OPENAI_BASE_URL"] = "http://shell-value/v1"
+
+            cfg.apply_to_env()
+
+            assert os.environ["OPENAI_BASE_URL"] == "http://shell-value/v1"
+        finally:
+            os.environ.clear()
+            os.environ.update(original)
+
+
+class TestLoadUserConfig:
+    def test_loads_openai_base_url(self, tmp_path):
+        path = tmp_path / "config.toml"
+        path.write_text("[provider]\n" 'openai_api_key = "local"\n' 'openai_base_url = "http://127.0.0.1:8000/v1"\n')
+
+        cfg = load_user_config(path)
+
+        assert cfg.provider.openai_base_url == "http://127.0.0.1:8000/v1"
+
+    def test_openai_base_url_defaults_none_when_absent(self, tmp_path):
+        path = tmp_path / "config.toml"
+        path.write_text('[provider]\nopenai_api_key = "local"\n')
+
+        cfg = load_user_config(path)
+
+        assert cfg.provider.openai_base_url is None
 
 
 class TestEnsureConfigTemplate:
