@@ -83,10 +83,24 @@ class TestHealthCheck:
         mock_urlopen.return_value.__exit__ = MagicMock(return_value=False)
 
         client = ChatOpenCode()
-        client._health_check()
+        assert client._health_check() is True
         client._health_check()
 
         assert mock_urlopen.call_count == 1
+
+    @patch("urllib.request.urlopen")
+    def test_health_check_caching_false(self, mock_urlopen):
+        mock_response = MagicMock()
+        mock_response.read.return_value = json.dumps({"healthy": False}).encode()
+        mock_urlopen.return_value.__enter__ = MagicMock(return_value=mock_response)
+        mock_urlopen.return_value.__exit__ = MagicMock(return_value=False)
+
+        client = ChatOpenCode()
+        assert client._health_check() is False
+        client._health_check()
+
+        assert mock_urlopen.call_count == 1
+        assert client._cached_healthy is False
 
 
 class TestSessionManagement:
@@ -257,8 +271,12 @@ class TestOpenCodeLiveServer:
 
     def test_health_check_returns_healthy(self):
         import urllib.request
+        from base64 import b64encode
 
         req = urllib.request.Request(f"{self.base_url}/global/health")
+        if self.password:
+            creds = b64encode(f"opencode:{self.password}".encode()).decode()
+            req.add_header("Authorization", f"Basic {creds}")
         with urllib.request.urlopen(req, timeout=5) as resp:
             data = json.loads(resp.read().decode())
         assert data["healthy"] is True
@@ -266,12 +284,17 @@ class TestOpenCodeLiveServer:
 
     def test_create_session_returns_id(self):
         import urllib.request
+        from base64 import b64encode
 
+        headers = {"Content-Type": "application/json"}
+        if self.password:
+            creds = b64encode(f"opencode:{self.password}".encode()).decode()
+            headers["Authorization"] = f"Basic {creds}"
         body = json.dumps({"title": "Integration Test"}).encode()
         req = urllib.request.Request(
             f"{self.base_url}/session",
             data=body,
-            headers={"Content-Type": "application/json"},
+            headers=headers,
             method="POST",
         )
         with urllib.request.urlopen(req, timeout=10) as resp:
@@ -281,12 +304,17 @@ class TestOpenCodeLiveServer:
 
     def test_send_prompt_returns_response(self):
         import urllib.request
+        from base64 import b64encode
 
+        headers = {"Content-Type": "application/json"}
+        if self.password:
+            creds = b64encode(f"opencode:{self.password}".encode()).decode()
+            headers["Authorization"] = f"Basic {creds}"
         session_body = json.dumps({"title": "Prompt Test"}).encode()
         session_req = urllib.request.Request(
             f"{self.base_url}/session",
             data=session_body,
-            headers={"Content-Type": "application/json"},
+            headers=headers,
             method="POST",
         )
         with urllib.request.urlopen(session_req, timeout=10) as resp:
@@ -301,7 +329,7 @@ class TestOpenCodeLiveServer:
         prompt_req = urllib.request.Request(
             f"{self.base_url}/session/{session_id}/message",
             data=prompt_body,
-            headers={"Content-Type": "application/json"},
+            headers=headers,
             method="POST",
         )
         with urllib.request.urlopen(prompt_req, timeout=120) as resp:

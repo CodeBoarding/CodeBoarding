@@ -1,5 +1,4 @@
 import logging
-from typing import Optional
 from langchain_core.tools import ArgsSchema
 from pydantic import BaseModel, Field
 from agents.tools.base import BaseRepoTool
@@ -12,7 +11,7 @@ class MethodInvocationsInput(BaseModel):
 
 
 class MethodInvocationsTool(BaseRepoTool):
-    name: str = "getMethodInvocationsTool"
+    name: str = "getMethodInvocations"
     description: str = (
         "Retrieves complete project control flow graph (CFG) in DOT format. "
         "Use once at the start of analysis to understand overall architecture. "
@@ -20,7 +19,7 @@ class MethodInvocationsTool(BaseRepoTool):
         "Primary data source - analyze this output before using other tools. "
         "No input arguments required."
     )
-    args_schema: Optional[ArgsSchema] = MethodInvocationsInput
+    args_schema: ArgsSchema | None = MethodInvocationsInput
 
     def _run(self, method: str) -> str:
         """

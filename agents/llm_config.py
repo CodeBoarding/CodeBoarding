@@ -2,7 +2,7 @@ import logging
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional, Type
+from typing import Any, Type
 
 from langchain_anthropic import ChatAnthropic
 from langchain_aws import ChatBedrockConverse
@@ -25,7 +25,7 @@ from monitoring.stats import RunStats
 MONITORING_CALLBACK = MonitoringCallback(stats_container=RunStats())
 
 # Global OpenCode launcher instance (managed lifecycle)
-_opencode_launcher: Optional[OpenCodeLauncher] = None
+_opencode_launcher: OpenCodeLauncher | None = None
 
 logger = logging.getLogger(__name__)
 
@@ -282,7 +282,7 @@ def configure_opencode_launcher(repo_dir: Path) -> None:
     _opencode_launcher = OpenCodeLauncher(repo_dir=repo_dir)
 
 
-def get_opencode_launcher() -> Optional[OpenCodeLauncher]:
+def get_opencode_launcher() -> OpenCodeLauncher | None:
     """Get the configured OpenCode launcher instance."""
     return _opencode_launcher
 
@@ -333,7 +333,8 @@ def _initialize_llm(
 
     if name == "opencode":
         global _opencode_launcher
-        if _opencode_launcher is not None:
+        user_base_url = os.getenv("OPENCODE_BASE_URL")
+        if _opencode_launcher is not None and not user_base_url:
             if not _opencode_launcher.is_running:
                 _opencode_launcher.start()
             kwargs["base_url"] = _opencode_launcher.base_url

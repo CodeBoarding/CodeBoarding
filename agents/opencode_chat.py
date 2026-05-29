@@ -1,5 +1,6 @@
 """LangChain adapter for OpenCode server API."""
 
+import asyncio
 import json
 import logging
 import os
@@ -44,6 +45,7 @@ class ChatOpenCode(BaseChatModel):
 
     _session_id: Optional[str] = None
     _last_health_check: float = 0
+    _cached_healthy: bool = False
     _health_check_interval: int = 60
 
     @property
@@ -68,16 +70,19 @@ class ChatOpenCode(BaseChatModel):
     def _health_check(self) -> bool:
         now = time.time()
         if now - self._last_health_check < self._health_check_interval:
-            return True
+            return self._cached_healthy
         try:
             url = f"{self.base_url}/global/health"
             req = urllib.request.Request(url, headers=self._get_auth_header())
             with urllib.request.urlopen(req, timeout=5) as resp:
                 data = json.loads(resp.read().decode())
                 self._last_health_check = now
-                return data.get("healthy", False)
+                self._cached_healthy = data.get("healthy", False)
+                return self._cached_healthy
         except Exception as e:
             logger.warning(f"OpenCode health check failed: {e}")
+            self._last_health_check = now
+            self._cached_healthy = False
             return False
 
     def _ensure_session(self) -> str:
@@ -258,4 +263,4 @@ class ChatOpenCode(BaseChatModel):
         return self
 
     async def _agenerate(self, messages, stop=None, run_manager=None, **kwargs):
-        return self._generate(messages, stop, run_manager, **kwargs)
+        return await asyncio.to_thread(self._generate, messages, stop, run_manager, **kwargs)

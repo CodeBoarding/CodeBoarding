@@ -8,8 +8,8 @@ import subprocess
 import time
 import urllib.error
 import urllib.request
+from base64 import b64encode
 from pathlib import Path
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -36,9 +36,9 @@ class OpenCodeLauncher:
     def __init__(
         self,
         repo_dir: Path,
-        port: Optional[int] = None,
+        port: int | None = None,
         hostname: str = "127.0.0.1",
-        password: Optional[str] = None,
+        password: str | None = None,
         timeout: int = 30,
     ):
         self.repo_dir = repo_dir
@@ -47,11 +47,11 @@ class OpenCodeLauncher:
         self.password = password
         self.timeout = timeout
         self.base_url = f"http://{hostname}:{self.port}"
-        self._process: Optional[subprocess.Popen] = None
+        self._process: subprocess.Popen | None = None
 
     def _build_mcp_config(self) -> dict:
         """Build MCP config for CodeBoarding tools."""
-        mcp_script = Path(__file__).parent / "codeboarding_mcp_server.py"
+        mcp_script = self.repo_dir / "codeboarding_mcp_server.py"
         return {
             "mcp": {
                 "codeboarding": {
@@ -80,8 +80,6 @@ class OpenCodeLauncher:
             try:
                 req = urllib.request.Request(url)
                 if self.password:
-                    from base64 import b64encode
-
                     creds = b64encode(f"opencode:{self.password}".encode()).decode()
                     req.add_header("Authorization", f"Basic {creds}")
                 with urllib.request.urlopen(req, timeout=2) as resp:
@@ -89,8 +87,8 @@ class OpenCodeLauncher:
                     if data.get("healthy", False):
                         logger.info(f"OpenCode server healthy at {self.base_url}")
                         return True
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("OpenCode health check attempt failed: %s", exc)
             time.sleep(1)
         return False
 
@@ -109,8 +107,8 @@ class OpenCodeLauncher:
         self._process = subprocess.Popen(
             cmd,
             env=self._build_env(),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
         )
 
         if not self._wait_for_health():

@@ -133,8 +133,8 @@ opencode serve
 # 2. Set the base URL
 export OPENCODE_BASE_URL=http://localhost:4096
 
-# 3. (Optional) Override the default model (defaults to opencode/qwen3.6-plus)
-export AGENT_MODEL=opencode/claude-sonnet-4-5
+# 3. (Optional) Override the default model (defaults to opencode-go/qwen3.6-plus)
+export AGENT_MODEL=opencode-go/claude-sonnet-4-5
 ```
 
 > **Tip:** Google Gemini 3 Pro consistently produces the best diagram quality for complex codebases.

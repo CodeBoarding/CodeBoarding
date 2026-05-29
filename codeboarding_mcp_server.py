@@ -20,8 +20,12 @@ def _get_repo_context():
     repo_dir = Path(os.environ.get("CODEBOARDING_REPO_DIR", "."))
     analyzer = StaticAnalyzer(repo_dir)
     analyzer.__enter__()
-    static_analysis = analyzer.analyze(cache_dir=repo_dir / ".codeboarding" / "artifacts")
-    ignore_manager = RepoIgnoreManager(repo_dir)
+    try:
+        static_analysis = analyzer.analyze(cache_dir=repo_dir / ".codeboarding" / "artifacts")
+        ignore_manager = RepoIgnoreManager(repo_dir)
+    except Exception:
+        analyzer.__exit__(None, None, None)
+        raise
     return RepoContext(repo_dir=repo_dir, ignore_manager=ignore_manager, static_analysis=static_analysis), analyzer
 
 
@@ -67,7 +71,7 @@ def _run_tool(tool_name: str, **kwargs) -> str:
     try:
         return tool_map[tool_name]._run(**kwargs)
     except Exception as e:
-        return f"Error running {tool_name}: {e}"
+        return f"Error: {tool_name} failed - {e}"
 
 
 mcp = FastMCP("CodeBoarding")
@@ -75,79 +79,60 @@ mcp = FastMCP("CodeBoarding")
 
 @mcp.tool()
 def getSourceCode(code_reference: str) -> str:
-    """Retrieves source code for specific classes, methods, or functions by fully qualified import path.
-    Use only when CFG analysis lacks critical implementation details.
-    Examples: 'django.core.management.base.BaseCommand', 'langchain.tools.tool'.
-    Do not include file extensions (.py) or relative paths.
-    Note: Each call is expensive - prefer analyzing CFG data first."""
+    """Retrieve source code by fully qualified import path."""
     return _run_tool("getSourceCode", code_reference=code_reference)
 
 
 @mcp.tool()
 def readFile(file_path: str, line_number: int) -> str:
-    """Reads specific file content around a target line number.
-    Returns 300 lines centered on the requested line.
-    Use relative paths from the project root.
-    Avoid exploratory reading - use only when you know exactly what to examine."""
+    """Read file content centered on a target line number."""
     return _run_tool("readFile", file_path=file_path, line_number=line_number)
 
 
 @mcp.tool()
 def getFileStructure(dir: str = ".") -> str:
-    """Returns project directory structure as a tree.
-    Useful for understanding project layout and locating files.
-    Defaults to root directory if not specified."""
+    """Return project directory structure as a tree."""
     return _run_tool("getFileStructure", dir=dir)
 
 
 @mcp.tool()
 def getClassHierarchy(class_qualified_name: str) -> str:
-    """Retrieves class hierarchy and inheritance patterns.
-    Returns superclasses and subclasses for the specified class.
-    Use fully qualified class name (e.g., 'django.views.View')."""
+    """Retrieve class hierarchy and inheritance patterns."""
     return _run_tool("getClassHierarchy", class_qualified_name=class_qualified_name)
 
 
 @mcp.tool()
 def getPackageDependencies(root_package: str) -> str:
-    """Shows hierarchical relationships between modules and sub-packages.
-    Returns imports and imported-by relationships for the package.
-    Use top-level package name (e.g., 'django', 'langchain')."""
+    """Show hierarchical relationships between modules and sub-packages."""
     return _run_tool("getPackageDependencies", root_package=root_package)
 
 
 @mcp.tool()
 def getControlFlowGraph() -> str:
-    """Retrieves complete project control flow graph (CFG) showing all method calls.
-    Primary analysis tool - use this first to understand project execution flow.
-    Provides graphical representation of function/method relationships.
-    Essential data - analyze this output thoroughly before using other tools."""
+    """Retrieve complete project control flow graph showing all method calls."""
     return _run_tool("getControlFlowGraph")
 
 
 @mcp.tool()
 def getMethodInvocations(method: str) -> str:
-    """Retrieves method invocation relationships from CFG.
-    Returns list of methods that call or are called by the specified method.
-    Use fully qualified method name."""
+    """Retrieve method invocation relationships from CFG."""
     return _run_tool("getMethodInvocations", method=method)
 
 
 @mcp.tool()
 def readDocs(file_path: str = "README.md", line_number: int = 1) -> str:
-    """Reads project documentation files (.md, .rst, .txt, .html).
-    Defaults to README.md if not specified.
-    Returns 300 lines centered on the requested line number."""
+    """Read project documentation files centered on a target line."""
     return _run_tool("readDocs", file_path=file_path, line_number=line_number)
 
 
 @mcp.tool()
 def readExternalDeps() -> str:
-    """Scans repository for common dependency manifest files.
-    Returns list of discovered dependency files (requirements.txt, pyproject.toml, etc.)."""
+    """Scan repository for dependency manifest files."""
     return _run_tool("readExternalDeps")
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
+    from logging_config import setup_logging
+
+    setup_logging()
     mcp.run(transport="stdio")

@@ -31,6 +31,10 @@ class TestMCPToolSchemas(unittest.TestCase):
         cls.context = RepoContext(repo_dir=test_repo, ignore_manager=ignore_manager, static_analysis=static_analysis)
         cls.toolkit = CodeBoardingToolkit(cls.context)
 
+        from codeboarding_mcp_server import mcp
+
+        cls.mcp_tools = mcp._tool_manager.list_tools()
+
     @classmethod
     def tearDownClass(cls):
         cls.analyzer.__exit__(None, None, None)
@@ -112,6 +116,14 @@ class TestMCPToolSchemas(unittest.TestCase):
         for tool in tools:
             self.assertTrue(tool.description, f"Tool {tool.name} has no description")
 
+    def test_mcp_server_exports_match_toolkit_schemas(self):
+        """Verify MCP server exports match Toolkit schemas."""
+        from codeboarding_mcp_server import mcp
+
+        mcp_tool_names = {t.name for t in mcp._tool_manager.list_tools()}
+        toolkit_tool_names = {t.name for t in self.toolkit.get_all_tools()}
+        self.assertEqual(mcp_tool_names, toolkit_tool_names)
+
 
 class TestMCPToolExecution(unittest.TestCase):
     """Test that CodeBoarding tools execute correctly when called via MCP-style interface."""
@@ -131,22 +143,13 @@ class TestMCPToolExecution(unittest.TestCase):
         cls.analyzer.__exit__(None, None, None)
 
     def _simulate_mcp_call(self, tool_name: str, args: dict) -> dict:
-        """Simulate an MCP tool call: dispatch to the right tool and return result."""
-        tool_map = {
-            "getSourceCode": self.toolkit.read_source_reference,
-            "readFile": self.toolkit.read_file,
-            "getFileStructure": self.toolkit.read_file_structure,
-            "getClassHierarchy": self.toolkit.read_structure,
-            "getPackageDependencies": self.toolkit.read_packages,
-            "getControlFlowGraph": self.toolkit.read_cfg,
-            "getMethodInvocations": self.toolkit.read_method_invocations,
-            "readDocs": self.toolkit.read_docs,
-            "readExternalDeps": self.toolkit.external_deps,
-        }
-        if tool_name not in tool_map:
-            return {"content": [{"type": "text", "text": f"Error: Unknown tool '{tool_name}'"}], "isError": True}
+        """Simulate an MCP tool call: dispatch to the real server dispatcher."""
+        from codeboarding_mcp_server import _run_tool
+
         try:
-            result = tool_map[tool_name]._run(**args)
+            result = _run_tool(tool_name, **args)
+            if result.startswith("Error:"):
+                return {"content": [{"type": "text", "text": result}], "isError": True}
             return {"content": [{"type": "text", "text": str(result)}], "isError": False}
         except Exception as e:
             return {"content": [{"type": "text", "text": f"Error: {e}"}], "isError": True}
@@ -188,7 +191,6 @@ class TestOpenCodeLauncher(unittest.TestCase):
     """Test the OpenCode server launcher functionality."""
 
     def test_opencode_config_content_env_var(self):
-        """Test that OPENCODE_CONFIG_CONTENT can be set with MCP config."""
         mcp_config = {
             "mcp": {
                 "codeboarding": {
@@ -202,7 +204,6 @@ class TestOpenCodeLauncher(unittest.TestCase):
         self.assertIn("local", config_json)
 
     def test_opencode_config_with_environment(self):
-        """Test that config can include environment variables for MCP server."""
         mcp_config = {
             "mcp": {
                 "codeboarding": {
@@ -219,7 +220,6 @@ class TestOpenCodeLauncher(unittest.TestCase):
         self.assertEqual(parsed["mcp"]["codeboarding"]["environment"]["CODEBOARDING_REPO_DIR"], "/path/to/repo")
 
     def test_opencode_serve_command_construction(self):
-        """Test that the opencode serve command is constructed correctly."""
         cmd = ["opencode", "serve", "--port", "4096", "--hostname", "127.0.0.1"]
         self.assertEqual(cmd[0], "opencode")
         self.assertEqual(cmd[1], "serve")
@@ -228,7 +228,6 @@ class TestOpenCodeLauncher(unittest.TestCase):
 
     @patch("subprocess.Popen")
     def test_launcher_starts_opencode_with_config(self, mock_popen):
-        """Test that launcher starts opencode serve with OPENCODE_CONFIG_CONTENT."""
         mock_popen.return_value = MagicMock()
 
         mcp_config = {
@@ -253,17 +252,14 @@ class TestMCPHealthCheck(unittest.TestCase):
     """Test health check and lifecycle management for OpenCode + MCP."""
 
     def test_health_check_endpoint(self):
-        """Test that the health check endpoint format is correct."""
         expected_path = "/global/health"
         self.assertEqual(expected_path, "/global/health")
 
     def test_mcp_add_endpoint(self):
-        """Test that the MCP add endpoint format is correct."""
         expected_path = "/mcp"
         self.assertEqual(expected_path, "/mcp")
 
     def test_mcp_add_payload_structure(self):
-        """Test that the MCP add payload has the correct structure."""
         payload = {
             "name": "codeboarding",
             "config": {
@@ -282,7 +278,6 @@ class TestOpenCodeChatToolHandling(unittest.TestCase):
     """Test that ChatOpenCode can handle tool calls and results."""
 
     def test_extract_text_ignores_tool_parts(self):
-        """Test that text extraction ignores tool_call/tool_result parts."""
         from agents.opencode_chat import ChatOpenCode
 
         client = ChatOpenCode()
@@ -297,7 +292,6 @@ class TestOpenCodeChatToolHandling(unittest.TestCase):
         self.assertEqual(text, "Hello\nWorld")
 
     def test_extract_text_with_only_tool_parts(self):
-        """Test that text extraction returns empty string when only tool parts exist."""
         from agents.opencode_chat import ChatOpenCode
 
         client = ChatOpenCode()
@@ -310,7 +304,6 @@ class TestOpenCodeChatToolHandling(unittest.TestCase):
         self.assertEqual(text, "")
 
     def test_extract_text_with_empty_parts(self):
-        """Test that text extraction handles empty parts list."""
         from agents.opencode_chat import ChatOpenCode
 
         client = ChatOpenCode()
@@ -338,23 +331,10 @@ class TestMCPToolResultIntegration(unittest.TestCase):
 
     def _simulate_tool_call_response(self, tool_name: str, args: dict) -> dict:
         """Simulate the full MCP tool call/response cycle."""
-        tool_map = {
-            "getSourceCode": self.toolkit.read_source_reference,
-            "readFile": self.toolkit.read_file,
-            "getFileStructure": self.toolkit.read_file_structure,
-            "getClassHierarchy": self.toolkit.read_structure,
-            "getPackageDependencies": self.toolkit.read_packages,
-            "getControlFlowGraph": self.toolkit.read_cfg,
-            "getMethodInvocations": self.toolkit.read_method_invocations,
-            "readDocs": self.toolkit.read_docs,
-            "readExternalDeps": self.toolkit.external_deps,
-        }
-        tool = tool_map.get(tool_name)
-        if not tool:
-            return {"error": f"Unknown tool: {tool_name}"}
+        from codeboarding_mcp_server import _run_tool
 
         try:
-            result = tool._run(**args)
+            result = _run_tool(tool_name, **args)
             return {
                 "tool": tool_name,
                 "input": args,
