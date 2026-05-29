@@ -25,6 +25,8 @@ from pathlib import Path
 import pytest
 
 from static_analyzer import StaticAnalyzer
+from static_analyzer.constants import Language
+from utils import get_artifact_dir
 
 logger = logging.getLogger(__name__)
 
@@ -111,7 +113,7 @@ def test_autotools_cdb_generation_and_analysis(pristine_project: Path) -> None:
     language = fixture["language"]
 
     with StaticAnalyzer(pristine_project) as analyzer:
-        results = analyzer.analyze(cache_dir=None)
+        results = analyzer.analyze(cache_dir=get_artifact_dir(PROJECT_DIR))
 
     # The generator dropped the CDB where CppAdapter expects it.
     cdb_path = pristine_project / ".codeboarding" / "cdb" / "compile_commands.json"
@@ -123,7 +125,7 @@ def test_autotools_cdb_generation_and_analysis(pristine_project: Path) -> None:
     detected = results.get_languages()
     assert language in detected, f"Expected '{language}' in detected languages {detected}"
 
-    refs = results.results[language].get("references", {})
+    refs = results.results[Language(language.lower())].references.by_qualified_name or {}
     expected_refs = set(fixture["expected_references"])
     actual_refs = set(refs.keys())
     assert actual_refs == expected_refs, (

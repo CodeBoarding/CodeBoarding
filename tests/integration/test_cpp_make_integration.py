@@ -20,6 +20,8 @@ from pathlib import Path
 import pytest
 
 from static_analyzer import StaticAnalyzer
+from static_analyzer.constants import Language
+from utils import get_artifact_dir
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +59,7 @@ def test_make_bear_cdb_end_to_end(monkeypatch: pytest.MonkeyPatch) -> None:
 
     try:
         with StaticAnalyzer(PROJECT_DIR) as analyzer:
-            results = analyzer.analyze(cache_dir=None)
+            results = analyzer.analyze(cache_dir=get_artifact_dir(PROJECT_DIR))
 
         # Bear must have produced the CDB under .codeboarding/cdb/ —
         # this is the whole point of the test.
@@ -80,7 +82,7 @@ def test_make_bear_cdb_end_to_end(monkeypatch: pytest.MonkeyPatch) -> None:
 
         # References: exact set match (the tiny project has no room for
         # std-library leakage in the empirically captured fixture).
-        refs = results.results[language].get("references", {})
+        refs = results.results[Language(language.lower())].references.by_qualified_name or {}
         expected_refs = set(fixture["expected_references"])
         actual_refs = set(refs.keys())
         assert actual_refs == expected_refs, (

@@ -143,12 +143,12 @@ def _create_engine_configs(
     # Dedup (adapter class, project_path) — tokei reports related variants
     # separately (e.g. "C++" and "C++ Header") that route to one adapter.
     deduped: list[EngineConfig] = []
-    seen: set[tuple[type[LanguageAdapter], Path]] = set()
+    dedup_keys: set[tuple[type[LanguageAdapter], Path]] = set()
     for cfg in configs:
         key = (type(cfg.adapter), cfg.project_path)
-        if key in seen:
+        if key in dedup_keys:
             continue
-        seen.add(key)
+        dedup_keys.add(key)
         deduped.append(cfg)
     return deduped
 

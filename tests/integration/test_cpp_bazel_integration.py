@@ -23,7 +23,9 @@ from pathlib import Path
 import pytest
 
 from static_analyzer import StaticAnalyzer
+from static_analyzer.constants import Language
 from static_analyzer.engine.adapters.cpp_cdb.bazel_generator import BazelAqueryGenerator
+from utils import get_artifact_dir
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +83,7 @@ def test_bazel_cdb_generation_and_analysis(bazel_project: Path) -> None:
     fixture = json.loads(FIXTURE_PATH.read_text())
 
     with StaticAnalyzer(bazel_project) as analyzer:
-        results = analyzer.analyze(cache_dir=None)
+        results = analyzer.analyze(cache_dir=get_artifact_dir(PROJECT_DIR))
 
     # The generator should have produced a CDB under .codeboarding/cdb/.
     cdb_path = bazel_project / ".codeboarding" / "cdb" / "compile_commands.json"
@@ -114,7 +116,7 @@ def test_bazel_cdb_generation_and_analysis(bazel_project: Path) -> None:
     assert not errors, "\n\n".join(errors)
 
     # References
-    refs = results.results[language].get("references", {})
+    refs = results.results[Language(language.lower())].references.by_qualified_name or {}
     expected_refs = set(fixture.get("expected_references", []))
     actual_refs = set(refs.keys())
     missing_refs = sorted(expected_refs - actual_refs)
