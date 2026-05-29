@@ -38,9 +38,10 @@ class CSharpAdapter(LanguageAdapter):
         """Fail fast if the .NET SDK is missing — csharp-ls needs dotnet+MSBuild to load Roslyn."""
         if shutil.which("dotnet") is None:
             raise RuntimeError(
-                ".NET SDK not found on PATH. csharp-ls requires the .NET SDK "
-                "to index C# projects. Install it from "
-                "https://dotnet.microsoft.com/download and re-run the analysis."
+                ".NET 9.0 SDK not found on PATH. csharp-ls requires the .NET 9.0 SDK "
+                "(MSBuild.Locator cannot discover MSBuild from a 10.0-only install). "
+                "Install it from https://dotnet.microsoft.com/download/dotnet/9.0 "
+                "and re-run the analysis."
             )
         return super().get_lsp_command(project_root)
 
@@ -196,21 +197,21 @@ class CSharpAdapter(LanguageAdapter):
             logger.warning("dotnet restore could not be invoked: %s", exc)
 
     def get_lsp_env(self) -> dict[str, str]:
-        """Set DOTNET_ROOT when not already in the environment.
+        """Set DOTNET_ROOT so csharp-ls can discover MSBuild and the .NET runtime.
 
-        csharp-ls requires the .NET runtime to be discoverable. On systems
-        where the SDK is installed via a package manager (e.g. Homebrew on
-        macOS), the ``DOTNET_ROOT`` variable may not be set, causing
-        csharp-ls to fail at startup.  This resolves the runtime location
-        from the ``dotnet`` binary on PATH.
+        csharp-ls uses Microsoft.Build.Locator which probes ``DOTNET_ROOT`` for
+        SDK installations.  Without it the server reports "No instances of MSBuild
+        could be detected" and fails to initialize.
         """
         if os.environ.get("DOTNET_ROOT"):
             return {}
         dotnet = shutil.which("dotnet")
-        if dotnet:
-            dotnet_root = Path(dotnet).resolve().parent.parent / "libexec"
-            if dotnet_root.is_dir():
-                return {"DOTNET_ROOT": str(dotnet_root)}
+        if not dotnet:
+            return {}
+        resolved = Path(dotnet).resolve()
+        for candidate in (resolved.parent.parent / "libexec", resolved.parent):
+            if candidate.is_dir():
+                return {"DOTNET_ROOT": str(candidate)}
         return {}
 
     def is_reference_worthy(self, symbol_kind: int) -> bool:

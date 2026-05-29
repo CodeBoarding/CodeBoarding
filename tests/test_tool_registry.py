@@ -1642,13 +1642,13 @@ class TestInstallPackageManagerTools(unittest.TestCase):
         assert isinstance(csharp.source, PackageManagerToolSource)
         self.assertIn(csharp.source.tag, tools_fingerprint())
 
-    def test_csharp_registry_targets_net10_framework(self):
-        """C# package-manager install must target .NET 10 during full migration."""
+    def test_csharp_registry_targets_net9_framework(self):
+        """C# package-manager install targets the net9.0 framework matching csharp-ls 0.20.0."""
         csharp = next(d for d in TOOL_REGISTRY if d.key == "csharp")
         assert isinstance(csharp.source, PackageManagerToolSource)
         self.assertIn("--framework", csharp.source.install_args)
         framework_idx = csharp.source.install_args.index("--framework") + 1
-        self.assertEqual(csharp.source.install_args[framework_idx], "net10.0")
+        self.assertEqual(csharp.source.install_args[framework_idx], "net9.0")
 
 
 if __name__ == "__main__":

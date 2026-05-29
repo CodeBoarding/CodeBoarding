@@ -29,7 +29,7 @@ class TestGetLspCommandDotnetCheck:
             return real_which(name)
 
         with patch("static_analyzer.engine.adapters.csharp_adapter.shutil.which", side_effect=selective):
-            with pytest.raises(RuntimeError, match=r"\.NET SDK not found.*dotnet\.microsoft\.com"):
+            with pytest.raises(RuntimeError, match=r"\.NET 9\.0 SDK not found"):
                 CSharpAdapter().get_lsp_command(tmp_path)
 
     def test_returns_command_when_dotnet_present(self, tmp_path: Path) -> None:

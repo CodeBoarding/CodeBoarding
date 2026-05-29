@@ -110,8 +110,9 @@ VSCODE_CONFIG = {
             "languages": ["csharp"],
             "file_extensions": [".cs"],
             # csharp-ls is installed via `dotnet tool install --tool-path` by
-            # tool_registry. Full migration mode targets .NET 10.
-            "install_commands": "codeboarding-setup (installs csharp-ls automatically; requires .NET SDK 10.0+)",
+            # tool_registry. Targets net9.0 so a .NET 9.0 SDK must be present
+            # for MSBuild discovery (10.0 SDK alone is insufficient).
+            "install_commands": "codeboarding-setup (installs csharp-ls automatically; requires .NET SDK 9.0+)",
         },
         "java": {
             "name": "Eclipse JDT Language Server",

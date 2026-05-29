@@ -214,9 +214,11 @@ TOOL_REGISTRY: list[ToolDependency] = [
     ),
     # csharp-ls ships only as a NuGet dotnet-tool; installed via ``dotnet tool install``.
     # Pinned 0.20.0: 0.21.0+ has a malformed NuGet upstream.
-    # During .NET 10 migration we request ``--framework net10.0``; ``--tool-path``
-    # avoids a misleading "DotnetToolSettings.xml not found" error when no local
-    # manifest is present.
+    # The tool targets net9.0 so MSBuild.Locator requires a .NET 9.0 SDK to be
+    # present on the host (10.0 alone is insufficient — the locator cannot find
+    # MSBuild without a matching major-version SDK).
+    # ``--tool-path`` avoids a misleading "DotnetToolSettings.xml not found"
+    # error when no local manifest is present.
     ToolDependency(
         key="csharp",
         binary_name="csharp-ls",
@@ -232,7 +234,7 @@ TOOL_REGISTRY: list[ToolDependency] = [
                 "--version",
                 "{tag}",
                 "--framework",
-                "net10.0",
+                "net9.0",
                 "--tool-path",
                 "{tool_path}",
             ),
