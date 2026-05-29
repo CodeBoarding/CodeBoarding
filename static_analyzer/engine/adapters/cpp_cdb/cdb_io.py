@@ -20,10 +20,10 @@ _CDB_FILENAME = "compile_commands.json"
 _LOCK_FILENAME = ".lock"
 
 
-def validate_compile_commands(payload: object, *, require_non_empty: bool = True) -> list[dict]:
+def validate_compile_commands(payload: object) -> list[dict]:
     if not isinstance(payload, list):
         raise ValueError("compile_commands.json must contain a JSON array")
-    if require_non_empty and not payload:
+    if not payload:
         raise ValueError("compile_commands.json has no entries")
 
     entries: list[dict] = []
@@ -40,13 +40,13 @@ def validate_compile_commands(payload: object, *, require_non_empty: bool = True
     return entries
 
 
-def read_compile_commands(path: Path, *, require_non_empty: bool = True) -> list[dict]:
-    return validate_compile_commands(json.loads(path.read_text(encoding="utf-8")), require_non_empty=require_non_empty)
+def read_compile_commands(path: Path) -> list[dict]:
+    return validate_compile_commands(json.loads(path.read_text(encoding="utf-8")))
 
 
-def is_valid_compile_commands(path: Path, *, require_non_empty: bool = True) -> bool:
+def is_valid_compile_commands(path: Path) -> bool:
     try:
-        read_compile_commands(path, require_non_empty=require_non_empty)
+        read_compile_commands(path)
     except (OSError, ValueError, json.JSONDecodeError):
         return False
     return True

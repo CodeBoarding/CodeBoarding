@@ -7,6 +7,8 @@ from abc import ABC, abstractmethod
 from enum import Enum
 from pathlib import Path
 
+from static_analyzer.constants import LANGUAGE_EXTENSIONS, Language
+
 
 class BuildSystemKind(str, Enum):
     """Identifier for a detected C/C++ build system."""
@@ -26,10 +28,8 @@ CDB_SUBDIR = Path(".codeboarding") / "cdb"
 """Where generated compilation databases live, relative to the project root."""
 
 
-CPP_SOURCE_EXTENSIONS: frozenset[str] = frozenset(
-    {".cpp", ".cc", ".cxx", ".c++", ".ipp", ".tpp", ".hpp", ".hh", ".hxx", ".h++", ".h", ".c"}
-)
-"""File suffixes a CppAdapter would index."""
+CPP_SOURCE_EXTENSIONS: frozenset[str] = frozenset(LANGUAGE_EXTENSIONS[Language.CPP])
+"""File suffixes a CppAdapter would index — single source of truth in ``constants``."""
 
 
 CDB_SKIP_DIRS: frozenset[str] = frozenset({".codeboarding", ".git", ".hg", ".svn", "node_modules", "__pycache__"})
