@@ -7,12 +7,20 @@
     "codeboarding_version": "0.9.5"
   },
   "metrics": {
-    "references_count": 33,
+    "references_count_by_os": {
+      "Linux": 33,
+      "Darwin": 33,
+      "Windows": 33
+    },
     "packages_count": 12,
     "call_graph_nodes": 33,
     "call_graph_edges": 34,
     "source_files_count": 17,
-    "execution_time_seconds": 3
+    "execution_time_seconds_by_os": {
+      "Linux": 3,
+      "Darwin": 3,
+      "Windows": 3
+    }
   },
   "sample_references": [
     "main.workflow <entry>",

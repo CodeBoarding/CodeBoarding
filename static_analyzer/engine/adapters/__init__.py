@@ -21,6 +21,7 @@ ADAPTER_REGISTRY: dict[str, type[LanguageAdapter]] = {
     "Java": JavaAdapter,
     "PHP": PHPAdapter,
     "Rust": RustAdapter,
+    "Nextflow": NextflowAdapter,
 }
 
 

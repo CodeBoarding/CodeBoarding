@@ -607,10 +607,11 @@ def _language_checks_from_registry(target_dir: Path) -> list[LanguageSupportChec
                 reason_requirement = "pyright-langserver not found in node_modules or active environment"
                 reason_binary = reason_requirement
         elif dep.kind is ToolKind.ARCHIVE:
-            # JDTLS is validated by directory presence (+ plugins/ subdir),
-            # mirroring has_required_tools.
             subdir = dep.archive_subdir or dep.key
-            paths.append(target_dir / "bin" / subdir)
+            if dep.archive_asset:
+                paths.append(target_dir / "bin" / subdir / dep.archive_asset)
+            else:
+                paths.append(target_dir / "bin" / subdir)
             reason_requirement = f"{subdir} installation not found"
             reason_binary = reason_requirement
             # Java analysis can still proceed when a system Java 21+ is available

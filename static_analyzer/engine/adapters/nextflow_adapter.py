@@ -1,4 +1,4 @@
-"""Nextflow language adapter using the Nextflow Language Server."""
+"""Nextflow adapter backed by the official Nextflow Language Server."""
 
 from __future__ import annotations
 
@@ -8,71 +8,43 @@ import shutil
 from pathlib import Path
 
 from repo_utils.ignore import RepoIgnoreManager
+from static_analyzer.constants import Language
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.java_utils import get_java_version
 from utils import get_config
 
 logger = logging.getLogger(__name__)
 
-# Well-known Nextflow config file names that should always be included
-_NEXTFLOW_CONFIG_NAMES = {"nextflow.config"}
-# Directory names commonly used for Nextflow config fragments
-_NEXTFLOW_CONFIG_DIRS = {"conf", "config", "configs"}
+_CONFIG_FILE_NAMES = {"nextflow.config"}
+_CONFIG_DIR_NAMES = {"conf", "config", "configs"}
+_SERVER_JAR_NAME = "language-server-all.jar"
 
 
 class NextflowAdapter(LanguageAdapter):
-
     @property
     def language(self) -> str:
         return "Nextflow"
 
     @property
-    def file_extensions(self) -> tuple[str, ...]:
-        return (".nf", ".config")
+    def language_enum(self) -> Language:
+        return Language.NEXTFLOW
 
     @property
     def lsp_command(self) -> list[str]:
-        return ["java", "-jar", "language-server-all.jar"]
+        return ["java", "-jar", _SERVER_JAR_NAME]
 
     @property
     def language_id(self) -> str:
         return "nextflow"
 
     def get_lsp_init_options(self, ignore_manager: RepoIgnoreManager | None = None) -> dict:
-        """Return Nextflow-specific LSP initialization options."""
-        return {
-            "nextflow": {
-                "debug": False,
-                "files": {"exclude": [".git", ".nf-test", "work"]},
-            }
-        }
+        return self._settings()
 
-    def post_init_lsp(self, client: object) -> None:
-        """Send workspace/didChangeConfiguration to trigger Nextflow LS indexing.
-
-        The Nextflow LS requires this notification before it will index
-        workspace files and return document symbols.
-        """
-        from static_analyzer.engine.lsp_client import LSPClient
-
-        if not isinstance(client, LSPClient):
-            return
-        client._send_notification(
-            "workspace/didChangeConfiguration",
-            {
-                "settings": {
-                    "nextflow": {
-                        "debug": False,
-                        "files": {"exclude": [".git", ".nf-test", "work"]},
-                    }
-                }
-            },
-        )
+    def get_workspace_settings(self) -> dict | None:
+        return self._settings()
 
     @property
     def indexing_retries(self) -> int:
-        """The Nextflow LS indexes lazily after didOpen and responds eagerly
-        with empty results. Retry the sync probe to wait for indexing."""
         return 15
 
     @property
@@ -80,77 +52,17 @@ class NextflowAdapter(LanguageAdapter):
         return 2.0
 
     def get_lsp_command(self, project_root: Path) -> list[str]:
-        """Build the Nextflow LS launch command.
-
-        Resolves the JAR path from tool_registry config, then builds
-        a ``java -jar /path/to/language-server-all.jar`` command.
-        """
         jar_path = self._find_jar_path()
         if jar_path is None:
             raise RuntimeError(
                 "Nextflow Language Server JAR not found. "
-                "Run `codeboarding-setup` or download language-server-all.jar "
-                "from https://github.com/nextflow-io/language-server/releases"
+                "Run `codeboarding-setup` or install language-server-all.jar under "
+                "~/.codeboarding/servers/bin/nextflow-lsp/."
             )
-
-        java_cmd = self._find_java()
-        return [str(java_cmd), "-jar", str(jar_path)]
-
-    @staticmethod
-    def _find_jar_path() -> Path | None:
-        """Locate the Nextflow LS JAR from tool config or well-known paths."""
-        lsp_servers = get_config("lsp_servers")
-        nf_entry = lsp_servers.get("nextflow", {})
-        if jar_str := nf_entry.get("jar_path"):
-            jar = Path(jar_str)
-            if jar.is_file():
-                return jar
-
-        # Fallback to well-known location
-        well_known = Path.home() / ".codeboarding" / "servers" / "bin" / "nextflow-lsp" / "language-server-all.jar"
-        if well_known.is_file():
-            return well_known
-
-        return None
-
-    @staticmethod
-    def _find_java() -> str:
-        """Find a Java 17+ executable.
-
-        Checks JAVA_HOME, then system PATH. Validates version >= 17
-        since the Nextflow Language Server requires it.
-        """
-        candidates: list[str] = []
-
-        java_home = os.environ.get("JAVA_HOME")
-        if java_home:
-            java_bin = Path(java_home) / "bin" / "java"
-            if java_bin.exists():
-                candidates.append(str(java_bin))
-
-        system_java = shutil.which("java")
-        if system_java:
-            candidates.append(system_java)
-
-        for java_cmd in candidates:
-            version = get_java_version(java_cmd)
-            if version >= 17:
-                return java_cmd
-
-        if candidates:
-            logger.warning("Found Java but version < 17. Nextflow LS requires Java 17+.")
-            return candidates[0]
-
-        return "java"
+        return [self._find_java(), "-jar", str(jar_path)]
 
     def discover_source_files(self, project_root: Path, ignore_manager: RepoIgnoreManager) -> list[Path]:
-        """Discover Nextflow source files, filtering .config intelligently.
-
-        All .nf files are included. For .config files, only include:
-        - Files named nextflow.config
-        - .config files in directories that also contain .nf files
-        - .config files in well-known config directories (conf/, config/, configs/)
-        """
+        """Include .nf sources plus Nextflow-specific .config files."""
         project_root = project_root.resolve()
         nf_files: list[Path] = []
         config_files: list[Path] = []
@@ -163,28 +75,59 @@ class NextflowAdapter(LanguageAdapter):
             elif path.suffix == ".config":
                 config_files.append(path)
 
-        # Filter .config files
-        filtered_configs: list[Path] = []
-        for cf in config_files:
-            if cf.name in _NEXTFLOW_CONFIG_NAMES:
-                filtered_configs.append(cf)
-            elif cf.parent in dirs_with_nf:
-                filtered_configs.append(cf)
-            elif cf.parent.name in _NEXTFLOW_CONFIG_DIRS:
-                filtered_configs.append(cf)
+        filtered_configs = [
+            path
+            for path in config_files
+            if path.name in _CONFIG_FILE_NAMES or path.parent in dirs_with_nf or path.parent.name in _CONFIG_DIR_NAMES
+        ]
 
-        # Sort .nf files before .config files so the sync probe (which
-        # uses source_files[0]) targets a file that produces symbols.
         nf_files.sort()
         filtered_configs.sort()
-        all_files = nf_files + filtered_configs
-
-        if all_files:
+        files = nf_files + filtered_configs
+        if files:
             logger.info(
                 "Found %d Nextflow files in %s (%d .nf, %d .config)",
-                len(all_files),
+                len(files),
                 project_root,
                 len(nf_files),
                 len(filtered_configs),
             )
-        return all_files
+        return files
+
+    @staticmethod
+    def _settings() -> dict:
+        return {
+            "nextflow": {
+                "debug": False,
+                "files": {"exclude": [".git", ".nf-test", "work"]},
+            }
+        }
+
+    @staticmethod
+    def _find_jar_path() -> Path | None:
+        lsp_servers = get_config("lsp_servers")
+        jar_str = lsp_servers.get("nextflow", {}).get("jar_path")
+        if jar_str:
+            jar_path = Path(jar_str)
+            if jar_path.is_file():
+                return jar_path
+
+        well_known = Path.home() / ".codeboarding" / "servers" / "bin" / "nextflow-lsp" / _SERVER_JAR_NAME
+        return well_known if well_known.is_file() else None
+
+    @staticmethod
+    def _find_java() -> str:
+        candidates: list[str] = []
+        if java_home := os.environ.get("JAVA_HOME"):
+            java_bin = Path(java_home) / "bin" / "java"
+            if java_bin.exists():
+                candidates.append(str(java_bin))
+
+        if system_java := shutil.which("java"):
+            candidates.append(system_java)
+
+        for java_cmd in candidates:
+            if get_java_version(java_cmd) >= 17:
+                return java_cmd
+
+        raise RuntimeError("Java 17+ is required to run the Nextflow Language Server.")

@@ -50,6 +50,11 @@ def update_command_paths(bin_dir):
                     value["jdtls_root"] = jdtls_dir
                     # Keep command as "java" - it will be constructed by JavaClient
                     cmd[0] = "java"
+            elif key == "nextflow":
+                nextflow_jar = os.path.join(bin_dir, "bin", "nextflow-lsp", "language-server-all.jar")
+                if os.path.exists(nextflow_jar):
+                    value["jar_path"] = nextflow_jar
+                cmd[0] = "java"
             elif "command" in value:
                 if isinstance(cmd, list) and cmd:
                     cmd[0] = os.path.join(bin_path, cmd[0])
@@ -129,6 +134,13 @@ VSCODE_CONFIG = {
             # by tool_registry; the install_commands string is informational only
             # and surfaces in error messages when the binary cannot be located.
             "install_commands": "codeboarding-setup (downloads rust-analyzer automatically)",
+        },
+        "nextflow": {
+            "name": "Nextflow Language Server",
+            "command": ["java", "-jar", "language-server-all.jar"],
+            "languages": ["nextflow"],
+            "file_extensions": [".nf"],
+            "install_commands": "codeboarding-setup (downloads Nextflow Language Server automatically; requires Java 17+)",
         },
     },
     "tools": {

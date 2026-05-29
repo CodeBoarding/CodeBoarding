@@ -40,6 +40,7 @@ LANGUAGE_EXTENSIONS: dict[Language, tuple[str, ...]] = {
     Language.RUST: (".rs",),
     Language.CSHARP: (".cs",),
     Language.CPP: (".cpp", ".cc", ".cxx", ".hpp", ".hh", ".hxx", ".h"),
+    Language.NEXTFLOW: (".nf",),
 }
 
 # Import-time invariant: every language has an extension list. Cheap check that

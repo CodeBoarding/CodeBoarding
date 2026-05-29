@@ -191,6 +191,11 @@ class CallGraphBuilder:
         t_probe = time.monotonic()
         if source_files:
             probe_result = self._lsp.document_symbol(source_files[0], timeout=probe_timeout)
+            retries_left = self._adapter.indexing_retries
+            while not probe_result and retries_left > 0:
+                time.sleep(self._adapter.indexing_retry_delay)
+                probe_result = self._lsp.document_symbol(source_files[0], timeout=probe_timeout)
+                retries_left -= 1
         logger.info(
             "Sync probe: %.1fs (%d symbols)",
             time.monotonic() - t_probe,
