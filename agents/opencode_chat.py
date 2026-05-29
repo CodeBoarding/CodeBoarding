@@ -8,7 +8,7 @@ import time
 import urllib.error
 import urllib.request
 from base64 import b64encode
-from typing import Any, Callable, Optional, Sequence, Union
+from typing import Any, Callable, Sequence, Union
 
 from langchain_core.callbacks import CallbackManagerForLLMRun
 from langchain_core.language_models import BaseChatModel
@@ -38,12 +38,12 @@ class ChatOpenCode(BaseChatModel):
 
     model: str = "anthropic/claude-3-5-sonnet-20241022"
     base_url: str = "http://localhost:4096"
-    password: Optional[str] = None
+    password: str | None = None
     temperature: float = 0.0
-    max_tokens: Optional[int] = None
+    max_tokens: int | None = None
     timeout: int = 120
 
-    _session_id: Optional[str] = None
+    _session_id: str | None = None
     _last_health_check: float = 0
     _cached_healthy: bool = False
     _health_check_interval: int = 60
@@ -189,8 +189,8 @@ class ChatOpenCode(BaseChatModel):
     def _generate(
         self,
         messages: list[BaseMessage],
-        stop: Optional[list[str]] = None,
-        run_manager: Optional[CallbackManagerForLLMRun] = None,
+        stop: list[str] | None = None,
+        run_manager: CallbackManagerForLLMRun | None = None,
         **kwargs: Any,
     ) -> ChatResult:
         if not self._health_check():
@@ -250,7 +250,7 @@ class ChatOpenCode(BaseChatModel):
         self,
         tools: Sequence[Union[dict[str, Any], type, Callable[..., Any], BaseTool]],
         *,
-        tool_choice: Optional[str] = None,
+        tool_choice: str | None = None,
         **kwargs: Any,
     ) -> BaseChatModel:
         """Bind tools for OpenCode MCP integration.

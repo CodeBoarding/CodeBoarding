@@ -1,5 +1,6 @@
 """MCP server exposing CodeBoarding's static analysis tools to OpenCode."""
 
+import atexit
 import json
 import logging
 import os
@@ -29,14 +30,22 @@ def _get_repo_context():
     return RepoContext(repo_dir=repo_dir, ignore_manager=ignore_manager, static_analysis=static_analysis), analyzer
 
 
-def _cleanup(analyzer):
-    """Clean up the static analyzer."""
-    if analyzer:
-        analyzer.__exit__(None, None, None)
+def _cleanup():
+    """Clean up the cached static analyzer."""
+    global _repo_context, _analyzer
+    if _analyzer:
+        try:
+            _analyzer.__exit__(None, None, None)
+        except Exception:
+            logger.exception("Failed to cleanup analyzer")
+        _analyzer = None
+        _repo_context = None
 
 
 _repo_context = None
 _analyzer = None
+
+atexit.register(_cleanup)
 
 
 def _get_context():
