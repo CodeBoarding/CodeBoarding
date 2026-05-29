@@ -157,6 +157,7 @@ def _lang_to_adapter_name(language: str) -> str | None:
         "java": "Java",
         "php": "PHP",
         "rust": "Rust",
+        "swift": "Swift",
     }
     return mapping.get(language.lower())
 

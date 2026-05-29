@@ -130,6 +130,16 @@ VSCODE_CONFIG = {
             # and surfaces in error messages when the binary cannot be located.
             "install_commands": "codeboarding-setup (downloads rust-analyzer automatically)",
         },
+        "swift": {
+            "name": "sourcekit-lsp",
+            "command": ["sourcekit-lsp"],
+            "languages": ["swift"],
+            "file_extensions": [".swift"],
+            # sourcekit-lsp ships with the Swift toolchain (not as a standalone
+            # release), so there is nothing for tool_registry to download —
+            # the user installs ``swift.org/install`` or Xcode to get the binary.
+            "install_commands": "Install the Swift toolchain from https://swift.org/install/ (or Xcode on macOS)",
+        },
     },
     "tools": {
         "tokei": {
