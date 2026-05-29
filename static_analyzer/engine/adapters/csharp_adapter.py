@@ -120,6 +120,18 @@ class CSharpAdapter(LanguageAdapter):
         return True
 
     @property
+    def workspace_ready_timeout(self) -> int:
+        """csharp-ls 0.20.0 emits a solution-loaded notification only when
+        it finds a ``.sln``/``.slnx`` in the workspace folder. For
+        per-csproj launches (or when the Roslyn MSBuild loader silently
+        skips an unsupported format) it never emits anything. Cap the
+        wait at 60s so analysis proceeds promptly instead of stalling
+        the full default (300s) per discovered project — see
+        ``LSPClient.wait_for_server_ready``.
+        """
+        return 60
+
+    @property
     def probe_before_open(self) -> bool:
         """csharp-ls loads all files from the .sln — didOpen before workspace load kills it."""
         return True
@@ -196,22 +208,30 @@ class CSharpAdapter(LanguageAdapter):
             logger.warning("dotnet restore could not be invoked: %s", exc)
 
     def get_lsp_env(self) -> dict[str, str]:
-        """Set DOTNET_ROOT when not already in the environment.
+        """Set DOTNET_ROOT and DOTNET_ROLL_FORWARD when not already in the environment.
 
         csharp-ls requires the .NET runtime to be discoverable. On systems
         where the SDK is installed via a package manager (e.g. Homebrew on
         macOS), the ``DOTNET_ROOT`` variable may not be set, causing
         csharp-ls to fail at startup.  This resolves the runtime location
         from the ``dotnet`` binary on PATH.
+
+        DOTNET_ROLL_FORWARD=Major: csharp-ls 0.20.0 on NuGet only ships a
+        net9.0 build (no net10.0 tools/), so ``dotnet tool install --framework
+        net10.0`` silently produces a binary whose runtimeconfig pins
+        Microsoft.NETCore.App 9.0.0. Without rollForward, exit code 150 on
+        systems that have only the .NET 10 runtime.
         """
-        if os.environ.get("DOTNET_ROOT"):
-            return {}
-        dotnet = shutil.which("dotnet")
-        if dotnet:
-            dotnet_root = Path(dotnet).resolve().parent.parent / "libexec"
-            if dotnet_root.is_dir():
-                return {"DOTNET_ROOT": str(dotnet_root)}
-        return {}
+        env: dict[str, str] = {}
+        if not os.environ.get("DOTNET_ROOT"):
+            dotnet = shutil.which("dotnet")
+            if dotnet:
+                dotnet_root = Path(dotnet).resolve().parent.parent / "libexec"
+                if dotnet_root.is_dir():
+                    env["DOTNET_ROOT"] = str(dotnet_root)
+        if not os.environ.get("DOTNET_ROLL_FORWARD"):
+            env["DOTNET_ROLL_FORWARD"] = "Major"
+        return env
 
     def is_reference_worthy(self, symbol_kind: int) -> bool:
         """Include namespaces in reference tracking (similar to PHP modules)."""

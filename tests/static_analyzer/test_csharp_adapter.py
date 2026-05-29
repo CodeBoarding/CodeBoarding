@@ -235,17 +235,28 @@ class TestLspConfiguration:
         adapter = CSharpAdapter()
         assert adapter.get_probe_timeout_minimum() > 300
 
+    def test_workspace_ready_timeout_shorter_than_default(self):
+        # Why: csharp-ls's solution-loaded notification only fires when a
+        # .sln/.slnx is found in the workspace folder. The default 300s
+        # wait stalls analysis when the notification never arrives.
+        adapter = CSharpAdapter()
+        assert adapter.workspace_ready_timeout < 300
+
 
 class TestLspEnv:
-    """Tests for DOTNET_ROOT resolution."""
+    """Tests for DOTNET_ROOT and DOTNET_ROLL_FORWARD resolution."""
 
-    def test_returns_empty_when_dotnet_root_set(self, monkeypatch):
+    def test_skips_dotnet_root_when_already_set(self, monkeypatch):
         monkeypatch.setenv("DOTNET_ROOT", "/usr/share/dotnet")
+        monkeypatch.delenv("DOTNET_ROLL_FORWARD", raising=False)
         adapter = CSharpAdapter()
-        assert adapter.get_lsp_env() == {}
+        env = adapter.get_lsp_env()
+        assert "DOTNET_ROOT" not in env
+        assert env.get("DOTNET_ROLL_FORWARD") == "Major"
 
     def test_resolves_dotnet_root_from_path(self, monkeypatch, tmp_path):
         monkeypatch.delenv("DOTNET_ROOT", raising=False)
+        monkeypatch.delenv("DOTNET_ROLL_FORWARD", raising=False)
         # Simulate Homebrew layout: bin/dotnet -> Cellar/.../libexec/dotnet
         libexec = tmp_path / "opt" / "dotnet" / "libexec"
         libexec.mkdir(parents=True)
@@ -259,11 +270,28 @@ class TestLspEnv:
         env = adapter.get_lsp_env()
         assert env.get("DOTNET_ROOT") == str(libexec)
 
-    def test_returns_empty_when_dotnet_not_found(self, monkeypatch):
+    def test_skips_dotnet_root_when_dotnet_not_found(self, monkeypatch):
         monkeypatch.delenv("DOTNET_ROOT", raising=False)
+        monkeypatch.delenv("DOTNET_ROLL_FORWARD", raising=False)
         monkeypatch.setattr("shutil.which", lambda _: None)
         adapter = CSharpAdapter()
-        assert adapter.get_lsp_env() == {}
+        env = adapter.get_lsp_env()
+        assert "DOTNET_ROOT" not in env
+
+    def test_sets_roll_forward_when_unset(self, monkeypatch):
+        # Why: csharp-ls 0.20.0 nupkg ships only tools/net9.0/, so the
+        # installed binary pins Microsoft.NETCore.App 9.0.0. Without
+        # DOTNET_ROLL_FORWARD=Major it exits 150 on .NET-10-only hosts.
+        monkeypatch.delenv("DOTNET_ROLL_FORWARD", raising=False)
+        monkeypatch.setenv("DOTNET_ROOT", "/usr/share/dotnet")
+        adapter = CSharpAdapter()
+        assert adapter.get_lsp_env()["DOTNET_ROLL_FORWARD"] == "Major"
+
+    def test_preserves_user_roll_forward(self, monkeypatch):
+        monkeypatch.setenv("DOTNET_ROLL_FORWARD", "LatestMajor")
+        monkeypatch.setenv("DOTNET_ROOT", "/usr/share/dotnet")
+        adapter = CSharpAdapter()
+        assert "DOTNET_ROLL_FORWARD" not in adapter.get_lsp_env()
 
 
 class TestReferenceTracking:
