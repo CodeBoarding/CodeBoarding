@@ -95,9 +95,9 @@ def _cmd_set(repo_root: Path, name: str) -> None:
         set_context(repo_root, name)
         print(f"Switched to context '{name}'")
         if name == GLOBAL_CONTEXT:
-            print("Running analysis on full repository (no .codeboarding-include)")
+            print("Ready to analyze full repository (no .codeboarding-include)")
         else:
-            print(f"Run 'codeboarding full --local {repo_root}' to analyze with this context")
+            print(f"Run 'codeboarding <full|partial|incremental> --local {repo_root}' to analyze")
     except ValueError as e:
         logger.error(str(e))
         raise SystemExit(1) from e
