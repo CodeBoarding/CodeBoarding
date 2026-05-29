@@ -104,8 +104,8 @@ def _extract_signature(detail: str) -> str | None:
     body = detail[open_idx + 1 : end].strip()
     if not body:
         return None
-    # Normalize whitespace (``const  Entity &`` → ``const Entity &``),
-    # tighten trailing-``&``/``*`` (``Entity &`` → ``Entity&``) and flatten
+    # Normalize whitespace (``const  Entity &`` -> ``const Entity &``),
+    # tighten trailing-``&``/``*`` (``Entity &`` -> ``Entity&``) and flatten
     # ``::`` to ``.`` to match the adapter's scope-operator convention.
     body = _SIGNATURE_WS_RE.sub(" ", body).strip()
     body = body.replace(" &", "&").replace(" *", "*")

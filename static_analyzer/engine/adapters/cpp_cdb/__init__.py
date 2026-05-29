@@ -40,9 +40,9 @@ def ensure_cdb(project_root: Path) -> Path | None:
     """Return a usable CDB path for clangd, or ``None``.
 
     Resolution order:
-      1. User-owned CDB (root, build/, cmake-build-*) — never clobber.
-      2. Opt-in disabled → ``None``.
-      3. Detect build system → ``generator_for`` → ``generate``.
+      1. User-owned CDB (root, build/, cmake-build-*) -- never clobber.
+      2. Opt-in disabled -> ``None``.
+      3. Detect build system -> ``generator_for`` -> ``generate``.
          Generator ``RuntimeError``s are logged and surface as ``None``.
     """
     user_cdb = locate_user_cdb(project_root)
