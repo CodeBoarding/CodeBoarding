@@ -19,7 +19,7 @@ from agents.incremental_agent import (
     remove_deleted_files,
     stitch_delta,
 )
-from agents.llm_config import initialize_llms
+from agents.llm_config import cleanup_opencode_launcher, configure_opencode_launcher, initialize_llms
 from agents.meta_agent import MetaAgent
 from agents.planner_agent import get_expandable_components
 from diagram_analysis.analysis_json import (
@@ -249,6 +249,10 @@ class DiagramGenerator:
 
     def pre_analysis(self):
         analysis_start_time = time.time()
+
+        # Auto-configure OpenCode launcher when provider is active
+        if os.getenv("OPENCODE_BASE_URL") or os.getenv("OPENCODE_SERVER_PASSWORD"):
+            configure_opencode_launcher(repo_dir=self.repo_location)
 
         # Initialize LLMs before spawning threads so both share the same instances
         agent_llm, parsing_llm = initialize_llms()
@@ -490,6 +494,9 @@ class DiagramGenerator:
 
             self._persist_static_analysis_artifact()
 
+            # Clean up OpenCode launcher (stops opencode serve process)
+            cleanup_opencode_launcher()
+
             return analysis_path
 
     def _collect_method_entries_from_static_analysis(self) -> dict[str, list]:
@@ -601,6 +608,7 @@ class DiagramGenerator:
                 ).resolve()
                 self._write_file_coverage()
                 self._persist_static_analysis_artifact()
+                cleanup_opencode_launcher()
                 return analysis_path
 
             agent_llm, parsing_llm = initialize_llms()
@@ -676,6 +684,7 @@ class DiagramGenerator:
             self._seed_incremental_cluster_cache(delta.cluster_results())
             self._write_file_coverage()
             self._persist_static_analysis_artifact()
+            cleanup_opencode_launcher()
             return analysis_path
 
 

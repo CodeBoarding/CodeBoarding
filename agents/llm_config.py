@@ -1,7 +1,8 @@
 import logging
 import os
 from dataclasses import dataclass, field
-from typing import Any, Type
+from pathlib import Path
+from typing import Any, Optional, Type
 
 from langchain_anthropic import ChatAnthropic
 from langchain_aws import ChatBedrockConverse
@@ -14,6 +15,7 @@ from langchain_openai import ChatOpenAI
 from agents.constants import LLMDefaults, ModelCapabilities
 from agents.model_capabilities import ContextWindow, get_context_window
 from agents.opencode_chat import ChatOpenCode
+from agents.opencode_launcher import OpenCodeLauncher
 from agents.prompts.prompt_factory import LLMType, initialize_global_factory
 from monitoring.callbacks import MonitoringCallback
 
@@ -21,6 +23,9 @@ from monitoring.callbacks import MonitoringCallback
 from monitoring.stats import RunStats
 
 MONITORING_CALLBACK = MonitoringCallback(stats_container=RunStats())
+
+# Global OpenCode launcher instance (managed lifecycle)
+_opencode_launcher: Optional[OpenCodeLauncher] = None
 
 logger = logging.getLogger(__name__)
 
@@ -267,6 +272,29 @@ LLM_PROVIDERS = {
 }
 
 
+def configure_opencode_launcher(repo_dir: Path) -> None:
+    """Configure the OpenCode launcher for the given repository.
+
+    Call this before initialize_llms() when using the OpenCode provider.
+    The launcher will be started automatically during LLM initialization.
+    """
+    global _opencode_launcher
+    _opencode_launcher = OpenCodeLauncher(repo_dir=repo_dir)
+
+
+def get_opencode_launcher() -> Optional[OpenCodeLauncher]:
+    """Get the configured OpenCode launcher instance."""
+    return _opencode_launcher
+
+
+def cleanup_opencode_launcher() -> None:
+    """Stop and clean up the OpenCode launcher."""
+    global _opencode_launcher
+    if _opencode_launcher is not None:
+        _opencode_launcher.stop()
+        _opencode_launcher = None
+
+
 def _initialize_llm(
     model_override: str | None,
     model_attr: str,
@@ -304,7 +332,13 @@ def _initialize_llm(
     kwargs.update(config.get_resolved_extra_args())
 
     if name == "opencode":
-        kwargs["base_url"] = kwargs.get("base_url", "http://localhost:4096")
+        global _opencode_launcher
+        if _opencode_launcher is not None:
+            if not _opencode_launcher.is_running:
+                _opencode_launcher.start()
+            kwargs["base_url"] = _opencode_launcher.base_url
+        else:
+            kwargs["base_url"] = kwargs.get("base_url", "http://localhost:4096")
         if "password" in kwargs and kwargs["password"] is None:
             kwargs.pop("password")
     elif name not in ["aws", "ollama"]:

@@ -122,6 +122,27 @@ Shell environment variables such as `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOG
 
 CodeBoarding can route all LLM requests through a local [OpenCode](https://opencode.ai) instance. This lets you use OpenCode's model aggregation layer (Qwen, Claude, GPT, Gemini, etc.) without managing individual API keys.
 
+**CodeBoarding manages the OpenCode lifecycle automatically** — it starts the server with MCP tool integration, runs the analysis, and cleans up when done. No manual configuration needed.
+
+#### Quick start (automatic)
+
+Just set the base URL and run:
+
+```bash
+export OPENCODE_BASE_URL=http://localhost:4096
+python main.py full --local ./my-project
+```
+
+CodeBoarding will:
+1. Start `opencode serve` with MCP tool integration
+2. Register all 9 static analysis tools (CFG, source lookup, class hierarchy, etc.)
+3. Run the full analysis pipeline with tool calling support
+4. Stop the server when done
+
+#### Manual start (optional)
+
+If you prefer to manage the OpenCode server yourself:
+
 **1. Install OpenCode** (if not already installed):
 
 ```bash
@@ -169,6 +190,24 @@ export PARSING_MODEL=opencode-go/glm-5
 ```
 
 Available models: `qwen3.7-max`, `qwen3.6-plus`, `qwen3.5-plus`, `glm-5`, `glm-5.1`, `kimi-k2.5`, `kimi-k2.6`, `minimax-m2.5`, `minimax-m2.7`, `deepseek-v4-pro`, `deepseek-v4-flash`.
+
+#### MCP Tool Integration
+
+When CodeBoarding manages the OpenCode server, it automatically registers an MCP server with all 9 static analysis tools:
+
+| Tool | Description |
+|------|-------------|
+| `getControlFlowGraph` | Complete project CFG showing all method calls |
+| `getSourceCode` | Source code by fully qualified import path |
+| `readFile` | Read specific file content around a line number |
+| `getFileStructure` | Project directory tree |
+| `getClassHierarchy` | Class inheritance (super/subclasses) |
+| `getPackageDependencies` | Package import relationships |
+| `getMethodInvocations` | Method caller/callee relationships |
+| `readDocs` | Project documentation files |
+| `readExternalDeps` | Dependency manifest files |
+
+The LLM can call these tools during analysis to disambiguate references, explore code structure, and improve diagram accuracy.
 
 ## Common commands
 

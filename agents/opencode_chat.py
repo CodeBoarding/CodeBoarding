@@ -7,12 +7,13 @@ import time
 import urllib.error
 import urllib.request
 from base64 import b64encode
-from typing import Any, Optional
+from typing import Any, Callable, Optional, Sequence, Union
 
 from langchain_core.callbacks import CallbackManagerForLLMRun
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
+from langchain_core.tools import BaseTool
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +22,8 @@ class ChatOpenCode(BaseChatModel):
     """LangChain-compatible wrapper for OpenCode server.
 
     Communicates with a running OpenCode instance via its HTTP API.
-    Requires `opencode serve` or an active TUI session.
+    Supports MCP-based tool execution when OpenCode is launched with
+    CodeBoarding's MCP server.
 
     Args:
         model: OpenCode model specifier, e.g. "anthropic/claude-3-5-sonnet-20241022".
@@ -109,7 +111,26 @@ class ChatOpenCode(BaseChatModel):
             elif isinstance(msg, HumanMessage):
                 parts.append({"type": "text", "text": str(msg.content)})
             elif isinstance(msg, AIMessage):
-                parts.append({"type": "text", "text": f"Assistant: {msg.content}"})
+                if msg.content:
+                    parts.append({"type": "text", "text": str(msg.content)})
+                if msg.tool_calls:
+                    for tc in msg.tool_calls:
+                        tool_call_part: dict[str, Any] = {
+                            "type": "tool_call",
+                            "tool": tc["name"],
+                            "input": tc["args"],
+                            "id": tc.get("id") or tc["name"],
+                        }
+                        parts.append(tool_call_part)
+            elif isinstance(msg, ToolMessage):
+                parts.append(
+                    {
+                        "type": "tool_result",
+                        "tool": msg.tool_call_id,
+                        "output": str(msg.content),
+                        "id": msg.tool_call_id,
+                    }
+                )
             else:
                 parts.append({"type": "text", "text": str(msg.content)})
         return parts
@@ -129,6 +150,36 @@ class ChatOpenCode(BaseChatModel):
             if part.get("type") == "text":
                 texts.append(part.get("text", ""))
         return "\n".join(texts) if texts else ""
+
+    def _extract_tool_calls_from_response(self, data: dict) -> list[dict]:
+        """Extract tool calls from OpenCode response parts."""
+        parts = data.get("parts", [])
+        tool_calls = []
+        for part in parts:
+            if part.get("type") == "tool_call":
+                tool_calls.append(
+                    {
+                        "name": part.get("tool", ""),
+                        "args": part.get("input", {}),
+                        "id": part.get("id", ""),
+                    }
+                )
+        return tool_calls
+
+    def _extract_tool_results_from_response(self, data: dict) -> list[dict]:
+        """Extract tool results from OpenCode response parts."""
+        parts = data.get("parts", [])
+        tool_results = []
+        for part in parts:
+            if part.get("type") == "tool_result":
+                tool_results.append(
+                    {
+                        "tool": part.get("tool", ""),
+                        "output": part.get("output", ""),
+                        "id": part.get("id", ""),
+                    }
+                )
+        return tool_results
 
     def _generate(
         self,
@@ -176,13 +227,35 @@ class ChatOpenCode(BaseChatModel):
             raise RuntimeError(f"OpenCode request failed: {e}") from e
 
         text = self._extract_text_from_response(data)
-        message = AIMessage(content=text)
+        tool_calls = self._extract_tool_calls_from_response(data)
+
+        message_kwargs: dict[str, Any] = {"content": text}
+        if tool_calls:
+            message_kwargs["tool_calls"] = tool_calls
+
+        message = AIMessage(**message_kwargs)
         generation = ChatGeneration(message=message)
 
         if run_manager:
             run_manager.on_llm_new_token(text)
 
         return ChatResult(generations=[generation])
+
+    def bind_tools(
+        self,
+        tools: Sequence[Union[dict[str, Any], type, Callable[..., Any], BaseTool]],
+        *,
+        tool_choice: Optional[str] = None,
+        **kwargs: Any,
+    ) -> BaseChatModel:
+        """Bind tools for OpenCode MCP integration.
+
+        Since OpenCode handles tool execution via MCP servers, this is a no-op.
+        Tools are registered with the MCP server at launch time, not passed
+        to the LLM directly.
+        """
+        logger.debug(f"bind_tools called with {len(tools)} tools (no-op for OpenCode MCP)")
+        return self
 
     async def _agenerate(self, messages, stop=None, run_manager=None, **kwargs):
         return self._generate(messages, stop, run_manager, **kwargs)

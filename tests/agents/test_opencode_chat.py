@@ -137,7 +137,7 @@ class TestMessageBuilding:
 
         assert len(parts) == 1
         assert parts[0]["type"] == "text"
-        assert parts[0]["text"] == "Assistant: I can help"
+        assert parts[0]["text"] == "I can help"
 
     def test_build_parts_multiple_messages(self):
         client = ChatOpenCode()
