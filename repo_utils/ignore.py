@@ -227,7 +227,8 @@ class RepoIgnoreManager:
         """Check if a given path should be ignored.
 
         Handles both absolute paths and paths relative to repo_root.
-        If .codeboarding-include exists and path matches, never ignore.
+        If .codeboarding-include exists: match → never ignore, no match → ignore.
+        Otherwise use standard ignore logic.
         """
         try:
             # Convert to relative path if absolute
@@ -239,18 +240,16 @@ class RepoIgnoreManager:
             else:
                 rel_path = path
 
-            # Include patterns take priority — if matched, never ignore
-            if self.include_spec and self.include_spec.match_file(str(rel_path)):
-                return False
-
-            # Always exclude hidden directories (starting with .) and a small
-            # set of universally non-source directories. Everything else is
-            # handled by pathspec patterns from .codeboardingignore.
+            # Always exclude hidden directories and universal non-source dirs
             for part in rel_path.parts:
                 if part in _ALWAYS_IGNORED_DIRS:
                     return True
                 if part.startswith("."):
                     return True
+
+            # Include patterns: if file exists, it's the ONLY filter
+            if self.include_spec:
+                return not self.include_spec.match_file(str(rel_path))
 
             # Use pathspec for .gitignore + .codeboardingignore patterns
             return self.spec.match_file(str(rel_path))

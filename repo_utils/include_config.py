@@ -10,12 +10,17 @@ logger = logging.getLogger(__name__)
 INCLUDE_FILENAME = ".codeboarding-include"
 
 
+def _get_include_path(repo_root: Path) -> Path:
+    """Return the path to .codeboarding-include (inside .codeboarding/ dir)."""
+    return repo_root / ".codeboarding" / INCLUDE_FILENAME
+
+
 def load_include_patterns(repo_root: Path) -> pathspec.PathSpec | None:
-    """Load .codeboarding-include from repo root and compile a PathSpec.
+    """Load .codeboarding-include from .codeboarding/ dir and compile a PathSpec.
 
     Returns None if the file doesn't exist or contains only comments/blank lines.
     """
-    include_path = repo_root / INCLUDE_FILENAME
+    include_path = _get_include_path(repo_root)
     if not include_path.exists():
         return None
 
@@ -36,7 +41,7 @@ def load_include_patterns(repo_root: Path) -> pathspec.PathSpec | None:
 
 def validate_include_patterns(repo_root: Path) -> list[str]:
     """Return list of validation errors for .codeboarding-include, empty if valid."""
-    include_path = repo_root / INCLUDE_FILENAME
+    include_path = _get_include_path(repo_root)
     if not include_path.exists():
         return []
 
