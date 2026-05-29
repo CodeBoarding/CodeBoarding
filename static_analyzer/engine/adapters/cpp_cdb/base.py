@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import subprocess
 from abc import ABC, abstractmethod
 from enum import Enum
 from pathlib import Path
@@ -117,3 +118,41 @@ class CdbGenerator(ABC):
 
             write_cached_fingerprint(cdb_dir, new_fp)
             return cdb_path
+
+
+def run_build_step(
+    argv: list[str],
+    *,
+    cwd: Path,
+    step: str,
+    timeout: int | None = None,
+) -> subprocess.CompletedProcess[str]:
+    """Run a build subprocess, raising ``RuntimeError`` with a stderr tail on failure.
+
+    Why: every generator that shells out (Bear, CMake, Meson, Ninja) wants the
+    same shape — capture output, surface stderr tail on non-zero exit, point at
+    ``CODEBOARDING_CPP_GENERATOR_TIMEOUT`` when the wall clock expires.
+    ``timeout`` defaults to ``config.generator_timeout_seconds()``.
+    """
+    effective_timeout = timeout if timeout is not None else config.generator_timeout_seconds()
+    try:
+        result = subprocess.run(
+            argv,
+            cwd=str(cwd),
+            capture_output=True,
+            text=True,
+            timeout=effective_timeout,
+        )
+    except FileNotFoundError as exc:
+        raise RuntimeError(f"{step}: command not found ({argv[0]})") from exc
+    except OSError as exc:
+        raise RuntimeError(f"{step}: could not run {argv[0]} ({exc})") from exc
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(
+            f"{step} timed out after {effective_timeout}s in {cwd}. " f"Raise {config.ENV_TIMEOUT} to allow more time."
+        ) from exc
+
+    if result.returncode != 0:
+        tail = (result.stderr or result.stdout or "").strip().splitlines()[-30:]
+        raise RuntimeError(f"{step} failed with exit {result.returncode} in {cwd}:\n" + "\n".join(tail))
+    return result

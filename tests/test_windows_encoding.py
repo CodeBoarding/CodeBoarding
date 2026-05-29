@@ -16,13 +16,16 @@ class TestWindowsEncoding(unittest.TestCase):
         violations: list[str] = []
 
         for py_file in sorted(repo_root.rglob("*.py")):
-            # Skip virtual-env, hidden dirs, and build artefacts
+            # Skip virtual-env, hidden dirs, build artefacts, and benchmark clones
+            # (which are arbitrary upstream code we don't control).
             rel = py_file.relative_to(repo_root)
             parts = rel.parts
             if any(
                 p.startswith(".") or p in ("__pycache__", ".venv", "venv", "node_modules", "build", "dist", "repos")
                 for p in parts
             ):
+                continue
+            if len(parts) >= 3 and parts[0] == "tests" and parts[1] == "integration" and parts[2] == "benchmark_repos":
                 continue
 
             try:

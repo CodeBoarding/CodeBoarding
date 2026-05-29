@@ -7,7 +7,7 @@ REPO_ROOT = Path(__file__).parent.parent
 
 def _find_packages_on_disk() -> set[str]:
     """Return all Python packages (directories with __init__.py) under the repo root."""
-    exclude_prefixes = {".venv", "tests", "repos", "build", "dist"}
+    exclude_prefixes = {".venv", "tests", "repos", "build", "dist", ".codeboarding"}
     packages = set()
     for init_file in REPO_ROOT.rglob("__init__.py"):
         parts = init_file.relative_to(REPO_ROOT).parts

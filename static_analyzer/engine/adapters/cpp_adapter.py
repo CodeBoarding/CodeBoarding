@@ -175,7 +175,7 @@ class CppAdapter(LanguageAdapter):
         search misses the hidden ``.codeboarding/cdb/`` sibling.
         """
         if not self._has_compilation_database(project_root):
-            kind = detect_build_system(project_root)
+            kind, _ = detect_build_system(project_root)
             raise RuntimeError(
                 f"No compile_commands.json or compile_flags.txt under {project_root}. " + install_hint_for(kind)
             )

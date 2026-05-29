@@ -371,3 +371,59 @@ class TestBearGeneratorAutotools:
         ):
             with pytest.raises(RuntimeError, match=r"autoreconf"):
                 BearGenerator(BuildSystemKind.AUTOTOOLS).generate(tmp_path)
+
+    @pytest.mark.parametrize("script", ["autogen.sh", "bootstrap.sh", "bootstrap"])
+    def test_bootstrap_script_preferred_over_autoreconf(self, tmp_path: Path, script: str) -> None:
+        (tmp_path / "configure.ac").write_text("AC_INIT([x], [0.1])\n")
+        bootstrap = tmp_path / script
+        bootstrap.write_text("#!/bin/sh\nexit 0\n")
+        bootstrap.chmod(0o755)
+
+        recorded: list[list[str]] = []
+
+        def fake_run(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess:
+            recorded.append(list(argv))
+            if argv[:2] == ["bear", "--version"]:
+                return _fake_bear_version()
+            if argv[0] == f"./{script}":
+                (tmp_path / "configure").write_text("#!/bin/sh\nexit 0\n")
+                (tmp_path / "configure").chmod(0o755)
+            if argv[0] == "bear" and "--output" in argv:
+                Path(argv[argv.index("--output") + 1]).write_text(VALID_CDB_JSON)
+            return subprocess.CompletedProcess(args=argv, returncode=0, stdout="", stderr="")
+
+        with (
+            patch("static_analyzer.engine.adapters.cpp_cdb.bear_generator.shutil.which", side_effect=self._all_present),
+            patch("static_analyzer.engine.adapters.cpp_cdb.bear_generator.subprocess.run", side_effect=fake_run),
+        ):
+            BearGenerator(BuildSystemKind.AUTOTOOLS).generate(tmp_path)
+
+        assert any(argv == [f"./{script}"] for argv in recorded), f"{script} should have run"
+        assert not any(argv[:1] == ["autoreconf"] for argv in recorded), "autoreconf should not have run"
+
+    def test_non_executable_bootstrap_script_falls_back_to_autoreconf(self, tmp_path: Path) -> None:
+        (tmp_path / "configure.ac").write_text("AC_INIT([x], [0.1])\n")
+        # Present but not chmod +x — must not be invoked.
+        (tmp_path / "autogen.sh").write_text("#!/bin/sh\nexit 0\n")
+
+        recorded: list[list[str]] = []
+
+        def fake_run(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess:
+            recorded.append(list(argv))
+            if argv[:2] == ["bear", "--version"]:
+                return _fake_bear_version()
+            if argv[0] == "autoreconf":
+                (tmp_path / "configure").write_text("#!/bin/sh\nexit 0\n")
+                (tmp_path / "configure").chmod(0o755)
+            if argv[0] == "bear" and "--output" in argv:
+                Path(argv[argv.index("--output") + 1]).write_text(VALID_CDB_JSON)
+            return subprocess.CompletedProcess(args=argv, returncode=0, stdout="", stderr="")
+
+        with (
+            patch("static_analyzer.engine.adapters.cpp_cdb.bear_generator.shutil.which", side_effect=self._all_present),
+            patch("static_analyzer.engine.adapters.cpp_cdb.bear_generator.subprocess.run", side_effect=fake_run),
+        ):
+            BearGenerator(BuildSystemKind.AUTOTOOLS).generate(tmp_path)
+
+        assert any(argv[:1] == ["autoreconf"] for argv in recorded)
+        assert not any(argv == ["./autogen.sh"] for argv in recorded)

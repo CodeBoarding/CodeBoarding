@@ -7,6 +7,7 @@ Bear intercepts compiler invocations and writes them to
 from __future__ import annotations
 
 import logging
+import os
 import re
 import shutil
 import subprocess
@@ -18,6 +19,7 @@ from static_analyzer.engine.adapters.cpp_cdb.base import (
     CPP_SOURCE_EXTENSIONS,
     BuildSystemKind,
     CdbGenerator,
+    run_build_step,
 )
 from static_analyzer.engine.adapters.cpp_cdb.cdb_io import (
     read_compile_commands,
@@ -86,25 +88,16 @@ class BearGenerator(CdbGenerator):
             *config.make_target(),
         ]
         logger.info("Bear: running %s in %s", " ".join(argv), project_root)
-        self._subprocess_run(argv, cwd=project_root, step="bear make")
+        run_build_step(argv, cwd=project_root, step="bear make")
 
     def _run_autotools(self, project_root: Path, cdb_path: Path) -> None:
         if not (project_root / "configure").is_file():
-            if shutil.which("autoreconf") is None:
-                raise RuntimeError(
-                    "Autotools project has no ./configure script and 'autoreconf' is not on PATH. "
-                    "Install autoconf/automake/libtool and retry."
-                )
-            self._subprocess_run(
-                ["autoreconf", "-i"],
-                cwd=project_root,
-                step="autoreconf",
-            )
+            self._bootstrap_autotools(project_root)
 
         build_dir = project_root / CDB_SUBDIR / "_build"
         build_dir.mkdir(parents=True, exist_ok=True)
         configure_cmd = [str(project_root / "configure"), *config.configure_args()]
-        self._subprocess_run(configure_cmd, cwd=build_dir, step="./configure")
+        run_build_step(configure_cmd, cwd=build_dir, step="./configure")
 
         argv = [
             "bear",
@@ -114,33 +107,28 @@ class BearGenerator(CdbGenerator):
             "make",
             *config.make_target(),
         ]
-        self._subprocess_run(argv, cwd=build_dir, step="bear make")
+        run_build_step(argv, cwd=build_dir, step="bear make")
 
     @staticmethod
-    def _subprocess_run(argv: list[str], *, cwd: Path, step: str) -> None:
-        """Run a subprocess, surface stderr tail on failure, enforce the timeout."""
-        try:
-            result = subprocess.run(
-                argv,
-                cwd=str(cwd),
-                capture_output=True,
-                text=True,
-                timeout=config.generator_timeout_seconds(),
-            )
-        except FileNotFoundError as exc:
-            raise RuntimeError(f"{step}: command not found ({argv[0]})") from exc
-        except OSError as exc:
-            raise RuntimeError(f"{step}: could not run {argv[0]} ({exc})") from exc
-        except subprocess.TimeoutExpired as exc:
-            raise RuntimeError(
-                f"{step} timed out after {config.generator_timeout_seconds()}s in {cwd}. "
-                f"Raise {config.ENV_TIMEOUT} to allow more time."
-            ) from exc
+    def _bootstrap_autotools(project_root: Path) -> None:
+        """Run the project's bootstrap script if present, else ``autoreconf -i``.
 
-        if result.returncode != 0:
-            # stderr tail only — a full build log would swamp the message.
-            tail = (result.stderr or result.stdout or "").strip().splitlines()[-30:]
-            raise RuntimeError(f"{step} failed with exit {result.returncode} in {cwd}:\n" + "\n".join(tail))
+        Why: many GNU-tail repos (swig, glib, …) keep a custom ``autogen.sh``
+        because raw ``autoreconf -i`` has known interactions with automake
+        that the project's own script papers over.
+        """
+        for script in ("autogen.sh", "bootstrap.sh", "bootstrap"):
+            p = project_root / script
+            if p.is_file() and os.access(p, os.X_OK):
+                run_build_step([f"./{script}"], cwd=project_root, step=script)
+                return
+        if shutil.which("autoreconf") is None:
+            raise RuntimeError(
+                "Autotools project has no ./configure script, no bootstrap script "
+                "(autogen.sh / bootstrap.sh / bootstrap), and 'autoreconf' is not on PATH. "
+                "Install autoconf/automake/libtool and retry."
+            )
+        run_build_step(["autoreconf", "-i"], cwd=project_root, step="autoreconf")
 
     @staticmethod
     def _require_bear() -> None:

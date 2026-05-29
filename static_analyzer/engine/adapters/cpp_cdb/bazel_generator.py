@@ -57,7 +57,7 @@ class BazelAqueryGenerator(CdbGenerator):
             raise RuntimeError(
                 "bazel aquery returned no CppCompile actions. "
                 f"Check that {config.ENV_BAZEL_QUERY!s} ({config.bazel_query_scope()!r}) matches "
-                "real targets; the default deps(//...) fails on workspaces with no C++ code."
+                "targets that actually compile C++ (try narrowing to a known package, e.g. //pkg/...)."
             )
         logger.info("Collected %d CppCompile entries from bazel aquery", len(entries))
         return entries

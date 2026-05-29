@@ -31,16 +31,8 @@ def collect_project_sources(
 ) -> list[Path]:
     """Walk ``project_root`` and return source files matching ``extensions``.
 
-    Used by Make/Bazel/Autotools fingerprint builders so adding a new
-    ``src/new.cc`` busts the cached CDB even when the Makefile/BUILD
-    hasn't changed.
-
-    * ``skip_dirs`` defaults to :data:`CDB_SKIP_DIRS` — node_modules,
-      .codeboarding, .git, etc.
-    * ``extra_skip_prefixes`` is a tuple of directory-name prefixes to
-      skip (e.g. ``("bazel-",)`` so ``bazel-bin`` symlinks are ignored).
-    * Symlinked subdirectories are skipped — following them can walk into
-      Bazel's output tree and hash megabytes of generated artefacts.
+    Why: adding a new source must bust the cache so the generator re-runs.
+    Symlinked subdirs are skipped to avoid hashing Bazel's output tree.
     """
     ext_set = {e.lower() for e in extensions}
     skip = set(skip_dirs) if skip_dirs is not None else set(CDB_SKIP_DIRS)

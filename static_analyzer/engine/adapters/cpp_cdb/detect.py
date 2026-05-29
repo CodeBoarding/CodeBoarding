@@ -19,34 +19,49 @@ _BAZEL_MARKERS = ("MODULE.bazel", "WORKSPACE", "WORKSPACE.bazel")
 _AUTOTOOLS_MARKERS = ("configure.ac", "configure.in", "Makefile.am")
 _MAKE_MARKERS = ("Makefile", "GNUmakefile", "makefile")
 
+# Probed in order; root wins ties so a `Makefile` in src/ only fires when root
+# is bare. Stockfish-shaped repos (Makefile in src/) need this.
+_PROBE_SUBDIRS: tuple[str, ...] = ("", "src", "source", "build")
 
-def detect_build_system(project_root: Path) -> BuildSystemKind:
-    """Identify the build system at ``project_root`` by marker file.
 
-    Why: root-only; a nested ``CMakeLists.txt`` belongs to a vendored dep,
-    not the outer project.
+def detect_build_system(project_root: Path) -> tuple[BuildSystemKind, Path]:
+    """Identify the build system at ``project_root`` (and where it lives).
+
+    Returns ``(kind, build_root)`` — ``build_root`` is the directory whose
+    markers matched, which generators use as cwd. Probes the root first,
+    then ``src/`` / ``source/`` / ``build/``.
     """
     if not project_root.is_dir():
-        return BuildSystemKind.UNKNOWN
+        return BuildSystemKind.UNKNOWN, project_root
 
+    for sub in _PROBE_SUBDIRS:
+        d = project_root / sub if sub else project_root
+        if not d.is_dir():
+            continue
+        kind = _detect_at(d)
+        if kind is not BuildSystemKind.UNKNOWN:
+            return kind, d
+    return BuildSystemKind.UNKNOWN, project_root
+
+
+def _detect_at(d: Path) -> BuildSystemKind:
     # Pre-generated CDB beats every marker — if it already exists we don't
     # need to know how it was built.
-    if (project_root / "compile_commands.json").is_file():
+    if (d / "compile_commands.json").is_file():
         return BuildSystemKind.COMPILE_COMMANDS_JSON
-    if (project_root / "compile_flags.txt").is_file():
+    if (d / "compile_flags.txt").is_file():
         return BuildSystemKind.COMPILE_FLAGS_TXT
-
-    if _any_exists(project_root, _CMAKE_MARKERS):
+    if _any_exists(d, _CMAKE_MARKERS):
         return BuildSystemKind.CMAKE
-    if _any_exists(project_root, _MESON_MARKERS):
+    if _any_exists(d, _MESON_MARKERS):
         return BuildSystemKind.MESON
-    if _any_exists(project_root, _BAZEL_MARKERS):
+    if _any_exists(d, _BAZEL_MARKERS):
         return BuildSystemKind.BAZEL
-    if _any_exists(project_root, _AUTOTOOLS_MARKERS):
+    if _any_exists(d, _AUTOTOOLS_MARKERS):
         return BuildSystemKind.AUTOTOOLS
-    if _any_exists(project_root, _NINJA_MARKERS):
+    if _any_exists(d, _NINJA_MARKERS):
         return BuildSystemKind.NINJA
-    if _any_exists(project_root, _MAKE_MARKERS):
+    if _any_exists(d, _MAKE_MARKERS):
         return BuildSystemKind.MAKE
     return BuildSystemKind.UNKNOWN
 
@@ -90,17 +105,19 @@ def install_hint_for(kind: BuildSystemKind) -> str:
     """Return a user-facing hint for how to get a CDB for ``kind``."""
     if kind is BuildSystemKind.CMAKE:
         return (
-            "Detected CMake (CMakeLists.txt). Regenerate with "
-            "'cmake -S . -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON' "
-            "then re-run the analysis."
+            "Detected CMake (CMakeLists.txt). Set CODEBOARDING_CPP_GENERATE_CDB=1 to let "
+            "CodeBoarding run 'cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=ON' on your behalf."
         )
     if kind is BuildSystemKind.MESON:
         return (
-            "Detected Meson (meson.build). Run 'meson setup build' — "
-            "the CDB is emitted to build/compile_commands.json automatically."
+            "Detected Meson (meson.build). Set CODEBOARDING_CPP_GENERATE_CDB=1 to let "
+            "CodeBoarding run 'meson setup' on your behalf."
         )
     if kind is BuildSystemKind.NINJA:
-        return "Detected Ninja (build.ninja). Run 'ninja -t compdb > compile_commands.json' " "at the project root."
+        return (
+            "Detected Ninja (build.ninja). Set CODEBOARDING_CPP_GENERATE_CDB=1 to let "
+            "CodeBoarding run 'ninja -t compdb' on your behalf."
+        )
     if kind is BuildSystemKind.BAZEL:
         return (
             "Detected Bazel (MODULE.bazel / WORKSPACE). Set "

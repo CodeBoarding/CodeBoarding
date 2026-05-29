@@ -20,50 +20,50 @@ class TestDetectBuildSystem:
     """
 
     def test_unknown_for_empty_dir(self, tmp_path: Path) -> None:
-        assert detect_build_system(tmp_path) is BuildSystemKind.UNKNOWN
+        assert detect_build_system(tmp_path)[0] is BuildSystemKind.UNKNOWN
 
     def test_unknown_for_nonexistent_dir(self, tmp_path: Path) -> None:
-        assert detect_build_system(tmp_path / "does-not-exist") is BuildSystemKind.UNKNOWN
+        assert detect_build_system(tmp_path / "does-not-exist")[0] is BuildSystemKind.UNKNOWN
 
     def test_compile_commands_json_detected(self, tmp_path: Path) -> None:
         (tmp_path / "compile_commands.json").write_text("[]")
-        assert detect_build_system(tmp_path) is BuildSystemKind.COMPILE_COMMANDS_JSON
+        assert detect_build_system(tmp_path)[0] is BuildSystemKind.COMPILE_COMMANDS_JSON
 
     def test_compile_flags_txt_detected(self, tmp_path: Path) -> None:
         (tmp_path / "compile_flags.txt").write_text("-std=c++20\n")
-        assert detect_build_system(tmp_path) is BuildSystemKind.COMPILE_FLAGS_TXT
+        assert detect_build_system(tmp_path)[0] is BuildSystemKind.COMPILE_FLAGS_TXT
 
     def test_cmake_detected(self, tmp_path: Path) -> None:
         (tmp_path / "CMakeLists.txt").write_text("project(x)")
-        assert detect_build_system(tmp_path) is BuildSystemKind.CMAKE
+        assert detect_build_system(tmp_path)[0] is BuildSystemKind.CMAKE
 
     def test_meson_detected(self, tmp_path: Path) -> None:
         (tmp_path / "meson.build").write_text("project('x')")
-        assert detect_build_system(tmp_path) is BuildSystemKind.MESON
+        assert detect_build_system(tmp_path)[0] is BuildSystemKind.MESON
 
     def test_bazel_module_detected(self, tmp_path: Path) -> None:
         (tmp_path / "MODULE.bazel").write_text("module(name='x')")
-        assert detect_build_system(tmp_path) is BuildSystemKind.BAZEL
+        assert detect_build_system(tmp_path)[0] is BuildSystemKind.BAZEL
 
     def test_bazel_workspace_detected(self, tmp_path: Path) -> None:
         (tmp_path / "WORKSPACE").write_text("workspace(name='x')")
-        assert detect_build_system(tmp_path) is BuildSystemKind.BAZEL
+        assert detect_build_system(tmp_path)[0] is BuildSystemKind.BAZEL
 
     def test_autotools_detected(self, tmp_path: Path) -> None:
         (tmp_path / "configure.ac").write_text("AC_INIT")
-        assert detect_build_system(tmp_path) is BuildSystemKind.AUTOTOOLS
+        assert detect_build_system(tmp_path)[0] is BuildSystemKind.AUTOTOOLS
 
     def test_ninja_detected(self, tmp_path: Path) -> None:
         (tmp_path / "build.ninja").write_text("rule cc\n")
-        assert detect_build_system(tmp_path) is BuildSystemKind.NINJA
+        assert detect_build_system(tmp_path)[0] is BuildSystemKind.NINJA
 
     def test_make_detected(self, tmp_path: Path) -> None:
         (tmp_path / "Makefile").write_text("all:\n\techo hi\n")
-        assert detect_build_system(tmp_path) is BuildSystemKind.MAKE
+        assert detect_build_system(tmp_path)[0] is BuildSystemKind.MAKE
 
     def test_gnumakefile_also_counts_as_make(self, tmp_path: Path) -> None:
         (tmp_path / "GNUmakefile").write_text("all:\n")
-        assert detect_build_system(tmp_path) is BuildSystemKind.MAKE
+        assert detect_build_system(tmp_path)[0] is BuildSystemKind.MAKE
 
     def test_existing_cdb_wins_over_cmake_markers(self, tmp_path: Path) -> None:
         """A pre-existing ``compile_commands.json`` beats CMake detection:
@@ -72,7 +72,7 @@ class TestDetectBuildSystem:
         """
         (tmp_path / "CMakeLists.txt").write_text("project(x)")
         (tmp_path / "compile_commands.json").write_text("[]")
-        assert detect_build_system(tmp_path) is BuildSystemKind.COMPILE_COMMANDS_JSON
+        assert detect_build_system(tmp_path)[0] is BuildSystemKind.COMPILE_COMMANDS_JSON
 
     def test_cmake_wins_over_make(self, tmp_path: Path) -> None:
         """CMake projects routinely ship a top-level Makefile wrapper; the
@@ -80,7 +80,7 @@ class TestDetectBuildSystem:
         """
         (tmp_path / "CMakeLists.txt").write_text("project(x)")
         (tmp_path / "Makefile").write_text("all:\n")
-        assert detect_build_system(tmp_path) is BuildSystemKind.CMAKE
+        assert detect_build_system(tmp_path)[0] is BuildSystemKind.CMAKE
 
     def test_autotools_wins_over_make(self, tmp_path: Path) -> None:
         """Autotools generates a Makefile after ``./configure`` — the
@@ -89,7 +89,23 @@ class TestDetectBuildSystem:
         """
         (tmp_path / "configure.ac").write_text("AC_INIT")
         (tmp_path / "Makefile").write_text("all:\n")
-        assert detect_build_system(tmp_path) is BuildSystemKind.AUTOTOOLS
+        assert detect_build_system(tmp_path)[0] is BuildSystemKind.AUTOTOOLS
+
+    def test_makefile_in_src_subdir_detected(self, tmp_path: Path) -> None:
+        """Stockfish-shape: bare root, Makefile in src/."""
+        (tmp_path / "src").mkdir()
+        (tmp_path / "src" / "Makefile").write_text("all:\n")
+        kind, build_root = detect_build_system(tmp_path)
+        assert kind is BuildSystemKind.MAKE
+        assert build_root == tmp_path / "src"
+
+    def test_root_marker_wins_over_subdir(self, tmp_path: Path) -> None:
+        (tmp_path / "CMakeLists.txt").write_text("project(x)")
+        (tmp_path / "src").mkdir()
+        (tmp_path / "src" / "Makefile").write_text("all:\n")
+        kind, build_root = detect_build_system(tmp_path)
+        assert kind is BuildSystemKind.CMAKE
+        assert build_root == tmp_path
 
 
 class TestInstallHintFor:
@@ -97,13 +113,20 @@ class TestInstallHintFor:
     a CDB" is worthless to a newbie; we pin that as a test invariant.
     """
 
-    def test_cmake_hint_mentions_export_flag(self) -> None:
+    def test_cmake_hint_mentions_env_var_and_export_flag(self) -> None:
         hint = install_hint_for(BuildSystemKind.CMAKE)
+        assert "CODEBOARDING_CPP_GENERATE_CDB" in hint
         assert "CMAKE_EXPORT_COMPILE_COMMANDS" in hint
 
     def test_meson_hint_mentions_setup(self) -> None:
         hint = install_hint_for(BuildSystemKind.MESON)
         assert "meson setup" in hint
+        assert "CODEBOARDING_CPP_GENERATE_CDB" in hint
+
+    def test_ninja_hint_mentions_compdb(self) -> None:
+        hint = install_hint_for(BuildSystemKind.NINJA)
+        assert "ninja -t compdb" in hint
+        assert "CODEBOARDING_CPP_GENERATE_CDB" in hint
 
     def test_bazel_hint_mentions_aquery_or_extractor(self) -> None:
         hint = install_hint_for(BuildSystemKind.BAZEL)

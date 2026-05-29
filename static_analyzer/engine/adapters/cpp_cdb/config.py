@@ -15,7 +15,7 @@ _TRUTHY = {"1", "true", "yes", "on"}
 
 _DEFAULT_TIMEOUT_SECONDS = 900
 _DEFAULT_MAKE_TARGET = "clean all"
-_DEFAULT_BAZEL_QUERY = "deps(//...)"
+_DEFAULT_BAZEL_QUERY = "//..."
 
 
 def is_generation_enabled() -> bool:

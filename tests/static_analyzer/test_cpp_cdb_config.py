@@ -90,7 +90,7 @@ class TestMakeTarget:
 class TestBazelQueryScope:
     def test_default(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv(config.ENV_BAZEL_QUERY, raising=False)
-        assert config.bazel_query_scope() == "deps(//...)"
+        assert config.bazel_query_scope() == "//..."
 
     def test_override(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv(config.ENV_BAZEL_QUERY, "//src/...")

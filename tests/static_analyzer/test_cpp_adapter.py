@@ -600,9 +600,9 @@ class TestPrepareProjectSkipConditions:
         gen_for.assert_not_called()
 
     def test_skip_when_kind_has_no_generator(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        # Empty dir -> UNKNOWN -> generator_for returns None; must not raise.
         monkeypatch.setenv("CODEBOARDING_CPP_GENERATE_CDB", "1")
-        (tmp_path / "CMakeLists.txt").write_text("project(x)")
-        CppAdapter().prepare_project(tmp_path)  # Must not raise
+        CppAdapter().prepare_project(tmp_path)
         assert not (tmp_path / ".codeboarding" / "cdb" / "compile_commands.json").is_file()
 
 
@@ -633,3 +633,36 @@ class TestPrepareProjectInvokesBearForMake:
         with patch("static_analyzer.engine.adapters.cpp_cdb.generator_for", return_value=fake_generator):
             CppAdapter().prepare_project(tmp_path)  # Must NOT raise
         assert "CDB generation failed" in caplog.text
+
+    def test_build_system_override_forces_kind(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """``CODEBOARDING_CPP_BUILD_SYSTEM=bazel`` wins over CMake markers."""
+        monkeypatch.setenv("CODEBOARDING_CPP_GENERATE_CDB", "1")
+        monkeypatch.setenv("CODEBOARDING_CPP_BUILD_SYSTEM", "bazel")
+        (tmp_path / "CMakeLists.txt").write_text("project(x)")
+
+        recorded: list[BuildSystemKind] = []
+
+        def fake_generator_for(kind: BuildSystemKind) -> MagicMock | None:
+            recorded.append(kind)
+            return None  # short-circuit; we only care which kind was dispatched
+
+        with patch("static_analyzer.engine.adapters.cpp_cdb.generator_for", side_effect=fake_generator_for):
+            CppAdapter().prepare_project(tmp_path)
+        assert recorded == [BuildSystemKind.BAZEL]
+
+    def test_invalid_build_system_override_falls_back_to_detect(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("CODEBOARDING_CPP_GENERATE_CDB", "1")
+        monkeypatch.setenv("CODEBOARDING_CPP_BUILD_SYSTEM", "garbage")
+        (tmp_path / "CMakeLists.txt").write_text("project(x)")
+
+        recorded: list[BuildSystemKind] = []
+
+        def fake_generator_for(kind: BuildSystemKind) -> MagicMock | None:
+            recorded.append(kind)
+            return None
+
+        with patch("static_analyzer.engine.adapters.cpp_cdb.generator_for", side_effect=fake_generator_for):
+            CppAdapter().prepare_project(tmp_path)
+        assert recorded == [BuildSystemKind.CMAKE]
