@@ -4,6 +4,8 @@ from typing import Any
 
 import pathspec
 
+from repo_utils.include_config import load_include_patterns
+
 logger = logging.getLogger(__name__)
 
 CODEBOARDINGIGNORE_TEMPLATE = """# CodeBoarding Ignore File
@@ -175,9 +177,10 @@ class RepoIgnoreManager:
         self.reload()
 
     def reload(self):
-        """Reload ignore patterns from .gitignore and .codeboardingignore."""
+        """Reload ignore patterns from .gitignore, .codeboardingignore, and .codeboarding-include."""
         gitignore_patterns = self._load_gitignore_patterns()
         codeboardingignore_patterns = self._load_codeboardingignore_patterns()
+        self.include_spec = load_include_patterns(self.repo_root)
 
         # Build separate specs for categorization
         self.gitignore_spec = pathspec.PathSpec.from_lines("gitwildmatch", gitignore_patterns)
@@ -224,6 +227,7 @@ class RepoIgnoreManager:
         """Check if a given path should be ignored.
 
         Handles both absolute paths and paths relative to repo_root.
+        If .codeboarding-include exists and path matches, never ignore.
         """
         try:
             # Convert to relative path if absolute
@@ -234,6 +238,10 @@ class RepoIgnoreManager:
                 rel_path = path.relative_to(self.repo_root)
             else:
                 rel_path = path
+
+            # Include patterns take priority — if matched, never ignore
+            if self.include_spec and self.include_spec.match_file(str(rel_path)):
+                return False
 
             # Always exclude hidden directories (starting with .) and a small
             # set of universally non-source directories. Everything else is
@@ -301,7 +309,7 @@ class RepoIgnoreManager:
     def categorize_file(self, path: Path) -> str:
         """Return the exclusion reason for a file.
 
-        Reasons for excluded files: "ignored_directory", "codeboardingignore", "gitignore".
+        Reasons for excluded files: "ignored_directory", "codeboardingignore", "gitignore", "not_included".
         Returns "other" if the file is not excluded by any known rule.
         """
         try:
@@ -316,6 +324,10 @@ class RepoIgnoreManager:
             for part in rel_path.parts:
                 if part in _ALWAYS_IGNORED_DIRS or part.startswith("."):
                     return "ignored_directory"
+
+            # If include patterns exist but path doesn't match, it's not included
+            if self.include_spec and not self.include_spec.match_file(str(rel_path)):
+                return "not_included"
 
             rel_str = str(rel_path)
             if self.codeboardingignore_spec.match_file(rel_str):

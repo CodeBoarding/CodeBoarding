@@ -14,6 +14,7 @@ from diagram_analysis import RunContext
 from monitoring import monitor_execution
 from monitoring.paths import get_monitoring_run_dir
 from repo_utils import get_branch, store_token
+from repo_utils.context_manager import ensure_global_context, get_current_context, save_context
 from repo_utils.git_ops import get_current_commit
 from repo_utils.ignore import initialize_codeboardingignore
 from utils import CODEBOARDING_DIR_NAME, copy_files, monitoring_enabled
@@ -110,6 +111,13 @@ def _run_local(args: argparse.Namespace) -> None:
         ),
         scope=scope,
     )
+
+    # Auto-save analysis to current context
+    ensure_global_context(run_paths.repo_path)
+    current_context = get_current_context(run_paths.repo_path)
+    save_context(run_paths.repo_path, current_context)
+    logger.info(f"Analysis auto-saved to context '{current_context}'")
+
     logger.info(f"Documentation generated successfully in {run_paths.output_dir}")
 
 
