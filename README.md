@@ -135,6 +135,41 @@ python main.py partial --local ./my-project --component-id "1.2"
 python main.py full https://github.com/pytorch/pytorch
 ```
 
+## Context management
+
+Focus analysis on specific parts of a codebase using contexts. Each context has its own `.codeboarding-include` file and saved analysis state.
+
+```bash
+# List saved contexts
+codeboarding context --local ./my-project list
+
+# Create a new context (creates empty .codeboarding-include)
+codeboarding context --local ./my-project create auth
+
+# Edit the include file manually:
+# .codeboarding/contexts/auth/.codeboarding-include
+#   src/auth.py
+#   src/middleware.py
+#   lib/**/*.ts
+
+# Switch to the context (copies files to root)
+codeboarding context --local ./my-project set auth
+
+# Run analysis — only included files are processed
+codeboarding full --local ./my-project
+
+# Switch back to full repository analysis
+codeboarding context --local ./my-project set global
+
+# Save current analysis to a context
+codeboarding context --local ./my-project save auth
+
+# Delete a context
+codeboarding context --local ./my-project delete auth
+```
+
+The `global` context analyzes all files (no `.codeboarding-include`). Named contexts only analyze files matching the include patterns. Analysis results are auto-saved to the active context after each run.
+
 ## Where to use it
 
 - [CLI](https://github.com/CodeBoarding/CodeBoarding) for local analysis, automation, and CI workflows.
