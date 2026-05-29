@@ -10,7 +10,7 @@ import sys
 import time
 from copy import deepcopy
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, NamedTuple, cast
 
 if sys.platform == "win32":
     import msvcrt
@@ -32,25 +32,28 @@ from .registry import (
     UpstreamToolSource,
 )
 
-# Per-layout specs: (marker, strip_root, has_binary_rewrite). One table
-# lookup replaces three parallel field reads across installers + manifest.
-# ``binary_path`` is always ``bin/<binary_name>`` when has_binary_rewrite
-# is True — derived from the dep, not stored here.
-_LAYOUT_SPECS: dict[ArchiveLayout, tuple[str, bool, bool]] = {
-    ArchiveLayout.NESTED_PLUGINS: ("plugins", False, False),
-    ArchiveLayout.STRIPPED_BIN_DIR: ("bin", True, True),
+
+class ArchiveLayoutSpec(NamedTuple):
+    """Per-layout extraction recipe. NamedTuple keeps tuple destructure compat."""
+
+    marker: str
+    strip_root: bool
+    binary_path: str  # Empty when the layout has no ``command[0]`` rewrite.
+
+
+# binary_path is derived ("bin/<binary_name>") rather than stored, so the
+# only per-layout knobs are the marker and the strip_root flag.
+_LAYOUT_KNOBS: dict[ArchiveLayout, tuple[str, bool]] = {
+    ArchiveLayout.NESTED_PLUGINS: ("plugins", False),
+    ArchiveLayout.STRIPPED_BIN_DIR: ("bin", True),
 }
 
 
-def archive_layout_spec(dep: ToolDependency) -> tuple[str, bool, str]:
-    """Return ``(marker, strip_root, binary_path)`` for an ARCHIVE dep.
-
-    ``binary_path`` is a non-empty relative path (``bin/<binary_name>``)
-    when the layout rewrites ``command[0]``, empty otherwise.
-    """
-    marker, strip_root, has_binary = _LAYOUT_SPECS[dep.archive_layout]
-    binary_path = f"bin/{dep.binary_name}" if has_binary else ""
-    return marker, strip_root, binary_path
+def archive_layout_spec(dep: ToolDependency) -> ArchiveLayoutSpec:
+    """Resolved layout for an ARCHIVE dep; non-empty ``binary_path`` means rewrite ``command[0]``."""
+    marker, strip_root = _LAYOUT_KNOBS[dep.archive_layout]
+    binary_path = f"bin/{dep.binary_name}" if dep.archive_layout is ArchiveLayout.STRIPPED_BIN_DIR else ""
+    return ArchiveLayoutSpec(marker=marker, strip_root=strip_root, binary_path=binary_path)
 
 
 logger = logging.getLogger(__name__)
@@ -230,10 +233,10 @@ def archive_binary_path(dep: ToolDependency, base_dir: Path) -> Path | None:
     """
     if dep.kind is not ToolKind.ARCHIVE or not dep.archive_subdir:
         return None
-    _marker, _strip, rel = archive_layout_spec(dep)
-    if not rel:
+    spec = archive_layout_spec(dep)
+    if not spec.binary_path:
         return None
-    binary = base_dir / "bin" / dep.archive_subdir / rel
+    binary = base_dir / "bin" / dep.archive_subdir / spec.binary_path
     if platform.system() == "Windows" and binary.suffix == "":
         binary = binary.with_suffix(".exe")
     return binary
@@ -257,8 +260,7 @@ def archive_is_complete(dep: ToolDependency, base_dir: Path) -> bool:
     archive_dir = base_dir / "bin" / dep.archive_subdir
     if not archive_dir.is_dir():
         return False
-    marker, _strip, _rel = archive_layout_spec(dep)
-    if not (archive_dir / marker).exists():
+    if not (archive_dir / archive_layout_spec(dep).marker).exists():
         return False
     binary = archive_binary_path(dep, base_dir)
     if binary is not None and not binary.exists():

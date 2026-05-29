@@ -94,7 +94,9 @@ class BazelAqueryGenerator(CdbGenerator):
         return inputs
 
     def _run_aquery(self, project_root: Path) -> dict:
-        query = f'mnemonic("CppCompile", {config.bazel_query_scope()})'
+        # Wrap the scope so user-supplied content via CODEBOARDING_CPP_BAZEL_QUERY
+        # can't close the outer mnemonic(...) call and inject sibling expressions.
+        query = f'mnemonic("CppCompile", ({config.bazel_query_scope()}))'
         argv = [
             "bazel",
             "aquery",

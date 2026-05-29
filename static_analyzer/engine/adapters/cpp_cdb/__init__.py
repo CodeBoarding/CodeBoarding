@@ -23,9 +23,11 @@ logger = logging.getLogger(__name__)
 def generator_for(kind: BuildSystemKind) -> CdbGenerator | None:
     """Map a detected build system to its generator, or ``None``.
 
-    Why: CMake/Meson/Ninja return ``None`` because their CDB-export is a
-    trivial one-liner we'd rather let the user run. On Windows Bear is
-    unavailable (``LD_PRELOAD``), so Make/Autotools also return ``None``.
+    Why: also serves as a test-injection point — ``ensure_cdb`` resolves
+    its concrete generator through this seam so tests can swap it.
+    CMake/Meson/Ninja return ``None`` because their CDB-export is a
+    one-liner we'd rather let the user run; Bear needs ``LD_PRELOAD`` so
+    Make/Autotools also return ``None`` on Windows.
     """
     if sys.platform == "win32" and kind in (BuildSystemKind.MAKE, BuildSystemKind.AUTOTOOLS):
         return None

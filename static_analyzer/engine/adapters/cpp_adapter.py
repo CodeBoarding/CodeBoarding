@@ -23,6 +23,31 @@ from static_analyzer.engine.lsp_constants import CALLABLE_KINDS
 _OPERATOR_SYMBOL_CHARS = frozenset("<>=!+-*/%&|^~?,[]")
 
 
+def _scan_operator_token(name: str, i: int) -> int | None:
+    """If ``name[i:]`` starts an ``operator…`` token, return its end index.
+
+    Returns ``None`` when ``i`` does not begin a fresh ``operator`` keyword
+    (e.g. ``foperator`` or mid-identifier). Eats trailing whitespace plus
+    either an identifier (``operator new``) or a punctuation run
+    (``operator<=>``).
+    """
+    if not name.startswith("operator", i):
+        return None
+    if i > 0 and (name[i - 1].isalnum() or name[i - 1] == "_"):
+        return None
+    n = len(name)
+    j = i + len("operator")
+    while j < n and name[j] == " ":
+        j += 1
+    if j < n and (name[j].isalpha() or name[j] == "_"):
+        while j < n and (name[j].isalnum() or name[j] == "_"):
+            j += 1
+    else:
+        while j < n and name[j] in _OPERATOR_SYMBOL_CHARS:
+            j += 1
+    return j
+
+
 def _strip_template_args(name: str) -> str:
     """Strip balanced ``<...>`` template-arg blocks, preserving ``operator`` tokens.
 
@@ -38,34 +63,18 @@ def _strip_template_args(name: str) -> str:
     i = 0
     n = len(name)
     while i < n:
+        if depth == 0 and name[i] == "o":
+            end = _scan_operator_token(name, i)
+            if end is not None:
+                out.extend(name[i:end])
+                i = end
+                continue
         ch = name[i]
-        if (
-            depth == 0
-            and ch == "o"
-            and name.startswith("operator", i)
-            and (i == 0 or not (name[i - 1].isalnum() or name[i - 1] == "_"))
-        ):
-            j = i + len("operator")
-            while j < n and name[j] == " ":
-                j += 1
-            if j < n and (name[j].isalpha() or name[j] == "_"):
-                while j < n and (name[j].isalnum() or name[j] == "_"):
-                    j += 1
-            else:
-                while j < n and name[j] in _OPERATOR_SYMBOL_CHARS:
-                    j += 1
-            out.extend(name[i:j])
-            i = j
-            continue
         if ch == "<" and out and (out[-1].isalnum() or out[-1] == "_"):
             depth += 1
-            i += 1
-            continue
-        if ch == ">" and depth > 0:
+        elif ch == ">" and depth > 0:
             depth -= 1
-            i += 1
-            continue
-        if depth == 0:
+        elif depth == 0:
             out.append(ch)
         i += 1
     if depth != 0:

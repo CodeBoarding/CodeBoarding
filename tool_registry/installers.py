@@ -211,10 +211,7 @@ def install_native_tools(
         source = dep.source
         assert isinstance(source, GitHubToolSource)
         asset_name = resolve_native_asset_name(source, suffix or "")
-        if asset_name is None:
-            # Defensive: should be unreachable via is_available_on_host above.
-            logger.warning("  %s: resolve_native_asset_name returned None", dep.binary_name)
-            continue
+        assert asset_name is not None, f"is_available_on_host() lied for {dep.binary_name}"
         url = asset_url(source, asset_name)
         compressed = _is_compressed_asset(asset_name)
         # Hash lookup precedence:
@@ -571,8 +568,7 @@ def install_archive_tool(
             logger.warning("%s download failed (empty file)", dep.key)
             return
 
-        _marker, strip_root, _binary = archive_layout_spec(dep)
-        _extract_archive(archive_path, extract_dir, strip_root=strip_root)
+        _extract_archive(archive_path, extract_dir, strip_root=archive_layout_spec(dep).strip_root)
         archive_path.unlink()
         logger.info("%s installed successfully", dep.key)
     except Exception:
@@ -740,9 +736,9 @@ def install_embedded_node(
 
         nodeenv.create_environment(str(env_dir), args)
     except SystemExit:
-        # Should be unreachable (we wipe env_dir above), but catch to defend
-        # against a race with a concurrent install without the file lock.
-        logger.exception("nodeenv.create_environment() called sys.exit — unexpected pre-existing state")
+        # nodeenv calls sys.exit on internal errors (e.g. network failure
+        # mid-download). Without this catch CodeBoarding's installer dies.
+        logger.exception("nodeenv.create_environment() called sys.exit")
         return False
     except Exception:
         logger.exception("Failed to install embedded Node.js runtime via nodeenv")
