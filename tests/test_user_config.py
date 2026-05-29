@@ -1,6 +1,6 @@
 import os
 
-from user_config import ProviderUserConfig, UserConfig, ensure_config_template
+from user_config import ProviderUserConfig, UserConfig, ensure_config_template, load_user_config
 
 
 class TestUserConfigApplyToEnv:
@@ -96,3 +96,30 @@ class TestEnsureConfigTemplate:
         text = path.read_text()
         assert "[llm]" in text
         assert "context_window" in text
+
+
+class TestLoadUserConfig:
+    def test_loads_timeouts(self, tmp_path):
+        path = tmp_path / "config.toml"
+        path.write_text(
+            "[provider]\n"
+            'openai_api_key = "local"\n'
+            "\n[llm]\n"
+            'agent_model = "qwen"\n'
+            "agent_timeout_s = 1200\n"
+            "parsing_timeout_s = 900\n"
+        )
+
+        cfg = load_user_config(path)
+
+        assert cfg.llm.agent_timeout_s == 1200
+        assert cfg.llm.parsing_timeout_s == 900
+
+    def test_timeouts_default_none_when_absent(self, tmp_path):
+        path = tmp_path / "config.toml"
+        path.write_text('[llm]\nagent_model = "qwen"\n')
+
+        cfg = load_user_config(path)
+
+        assert cfg.llm.agent_timeout_s is None
+        assert cfg.llm.parsing_timeout_s is None

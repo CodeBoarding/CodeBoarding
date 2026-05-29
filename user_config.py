@@ -14,7 +14,6 @@ import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 
-
 CONFIG_PATH = Path.home() / ".codeboarding" / "config.toml"
 
 # Mapping from config.toml key names to the env var each provider reads.
@@ -61,6 +60,8 @@ CONFIG_TEMPLATE = """\
 # agent_model    = "google/gemini-3-flash-preview"
 # parsing_model  = "google/gemini-3.1-flash-lite-preview"
 # context_window = 272000   # override if needed
+# agent_timeout_s   = 1200   # thread-join timeout per agent invoke attempt (slow/local backends)
+# parsing_timeout_s = 1200   # HTTP client timeout for the parsing model
 """
 
 
@@ -86,6 +87,8 @@ class LLMUserConfig:
     agent_model: str | None = None
     parsing_model: str | None = None
     context_window: int | None = None
+    agent_timeout_s: int | None = None
+    parsing_timeout_s: int | None = None
 
 
 @dataclass
@@ -130,6 +133,8 @@ def load_user_config(path: Path = CONFIG_PATH) -> UserConfig:
             agent_model=llm_data.get("agent_model") or None,
             parsing_model=llm_data.get("parsing_model") or None,
             context_window=llm_data.get("context_window"),
+            agent_timeout_s=llm_data.get("agent_timeout_s"),
+            parsing_timeout_s=llm_data.get("parsing_timeout_s"),
         ),
     )
 
