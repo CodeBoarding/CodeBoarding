@@ -24,6 +24,51 @@ class TestValidateApiKeyProvided:
             with pytest.raises(ValueError, match="Multiple LLM provider keys detected"):
                 validate_api_key_provided()
 
+    def test_base_url_without_key_passes_with_warning(self, caplog):
+        # Self-hosted / OpenAI-compatible endpoint: active via OPENAI_BASE_URL,
+        # no OPENAI_API_KEY. Should not raise; should warn.
+        import logging
+
+        with patch.dict(os.environ, {"OPENAI_BASE_URL": "http://127.0.0.1:8000/v1"}, clear=True):
+            with caplog.at_level(logging.WARNING, logger="agents.llm_config"):
+                validate_api_key_provided()  # should not raise
+        assert any("keyless local endpoint" in r.message for r in caplog.records)
+
+    def test_base_url_with_key_passes_without_warning(self, caplog):
+        # base_url + a real key: valid and no keyless warning.
+        import logging
+
+        env = {"OPENAI_BASE_URL": "http://127.0.0.1:8000/v1", "OPENAI_API_KEY": "sk-test"}
+        with patch.dict(os.environ, env, clear=True):
+            with caplog.at_level(logging.WARNING, logger="agents.llm_config"):
+                validate_api_key_provided()  # should not raise
+        assert not any("keyless local endpoint" in r.message for r in caplog.records)
+
+    def test_base_url_plus_other_provider_still_ambiguous(self):
+        # Multi-key detection is preserved even when a base URL is set.
+        env = {"OPENAI_BASE_URL": "http://127.0.0.1:8000/v1", "ANTHROPIC_API_KEY": "sk-ant-test"}
+        with patch.dict(os.environ, env, clear=True):
+            with pytest.raises(ValueError, match="Multiple LLM provider keys detected"):
+                validate_api_key_provided()
+
+
+class TestLLMConfigKeyless:
+    def test_openai_is_keyless_capable(self):
+        from agents.llm_config import LLM_PROVIDERS
+
+        assert LLM_PROVIDERS["openai"].keyless_capable is True
+
+    def test_has_real_api_key_distinguishes_from_is_active(self):
+        from agents.llm_config import LLM_PROVIDERS
+
+        openai = LLM_PROVIDERS["openai"]
+        with patch.dict(os.environ, {"OPENAI_BASE_URL": "http://127.0.0.1:8000/v1"}, clear=True):
+            assert openai.is_active() is True
+            assert openai.has_real_api_key() is False
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test"}, clear=True):
+            assert openai.is_active() is True
+            assert openai.has_real_api_key() is True
+
 
 class TestDetectLLMTypeFromModel:
     """Test the LLMType.from_model_name function with various model names."""
