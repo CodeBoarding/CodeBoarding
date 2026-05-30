@@ -7,7 +7,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from repo_utils.ignore import RepoIgnoreManager
-from static_analyzer.constants import NodeType
+from static_analyzer.constants import Language, NodeType
 from static_analyzer.engine.adapters.cpp_cdb import (
     detect_build_system,
     ensure_cdb,
@@ -15,7 +15,7 @@ from static_analyzer.engine.adapters.cpp_cdb import (
     locate_generated_cdb,
     locate_user_cdb,
 )
-from static_analyzer.engine.adapters.cpp_cdb.base import CDB_SUBDIR, CPP_SOURCE_EXTENSIONS
+from static_analyzer.engine.adapters.cpp_cdb.base import CDB_SUBDIR
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_client import LSPClient
 from static_analyzer.engine.lsp_constants import CALLABLE_KINDS
@@ -143,8 +143,8 @@ class CppAdapter(LanguageAdapter):
         return "Cpp"
 
     @property
-    def file_extensions(self) -> tuple[str, ...]:
-        return tuple(sorted(CPP_SOURCE_EXTENSIONS))
+    def language_enum(self) -> Language:
+        return Language.CPP
 
     @property
     def lsp_command(self) -> list[str]:

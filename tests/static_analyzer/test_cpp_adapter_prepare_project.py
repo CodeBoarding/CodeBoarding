@@ -60,14 +60,9 @@ class TestPrepareProjectSkipConditions:
         gen_for.assert_not_called()
 
     def test_skip_when_kind_has_no_generator(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        """CMake / Meson / Ninja hit this branch — their CLI is trivial, so
-        we don't auto-run. The user already sees a useful hint from
-        ``get_lsp_command``.
-        """
+        # Empty dir -> UNKNOWN -> generator_for returns None; must not raise.
         monkeypatch.setenv("CODEBOARDING_CPP_GENERATE_CDB", "1")
-        (tmp_path / "CMakeLists.txt").write_text("project(x)")
-        CppAdapter().prepare_project(tmp_path)  # Must not raise
-        # And no CDB magically appeared
+        CppAdapter().prepare_project(tmp_path)
         assert not (tmp_path / ".codeboarding" / "cdb" / "compile_commands.json").is_file()
 
 
