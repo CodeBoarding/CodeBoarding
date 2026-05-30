@@ -85,9 +85,25 @@ class LLMConfig:
     parsing_temperature: float = LLMDefaults.DEFAULT_PARSING_TEMPERATURE
     extra_args: dict[str, Any] = field(default_factory=dict)
     alt_env_vars: list[str] = field(default_factory=list)
+    keyless_capable: bool = False
+    """Whether this provider can run without a real API key.
+
+    True for self-hosted / OpenAI-compatible endpoints where ``api_key_env`` (or
+    an ``alt_env_vars`` entry) is really a base-URL existence check rather than a
+    secret. When such a provider is the sole active one and no real key is set,
+    key validation warns instead of failing, and the client uses a placeholder.
+    """
 
     def get_api_key(self) -> str | None:
         return os.getenv(self.api_key_env)
+
+    def has_real_api_key(self) -> bool:
+        """True if the provider's primary API-key env var holds a value.
+
+        Distinct from ``is_active()``: a keyless-capable provider can be active
+        via a base-URL ``alt_env_vars`` entry while having no real key here.
+        """
+        return bool(os.getenv(self.api_key_env))
 
     def is_active(self) -> bool:
         """Check if any of the environment variables (primary or alternate) are set."""
@@ -113,6 +129,7 @@ LLM_PROVIDERS = {
         parsing_model="gpt-4o-mini",
         llm_type=LLMType.GPT4,
         alt_env_vars=["OPENAI_BASE_URL"],
+        keyless_capable=True,
         extra_args={
             "base_url": lambda: os.getenv("OPENAI_BASE_URL"),
             "max_tokens": None,
@@ -313,13 +330,32 @@ class LLMConfigError(ValueError):
 
 
 def validate_api_key_provided() -> None:
-    """Raise LLMConfigError if zero or more than one LLM provider key is configured."""
+    """Raise LLMConfigError if zero or more than one LLM provider is configured.
+
+    A provider is "active" when its API-key env var *or* a base-URL alternate
+    (``alt_env_vars``) is set. Keyless-capable providers (self-hosted /
+    OpenAI-compatible endpoints, e.g. an ``OPENAI_BASE_URL`` with no key) are
+    therefore valid: they are activated by their base URL, and the client falls
+    back to a placeholder key downstream. In that case we log a warning rather
+    than fail. Ambiguity detection (more than one active provider) is preserved
+    so a stray second key is still surfaced.
+    """
     active = [name for name, config in LLM_PROVIDERS.items() if config.is_active()]
     if not active:
         required = sorted({config.api_key_env for config in LLM_PROVIDERS.values()})
         raise LLMConfigError(f"No LLM provider API key found. Set one of: {', '.join(required)}")
     if len(active) > 1:
         raise LLMConfigError(f"Multiple LLM provider keys detected ({', '.join(active)}); please set only one.")
+
+    (name,) = active
+    config = LLM_PROVIDERS[name]
+    if config.keyless_capable and not config.has_real_api_key():
+        logger.warning(
+            "Provider '%s' is active via a base URL with no %s set; "
+            "treating as a keyless local endpoint (a placeholder key is used).",
+            name,
+            config.api_key_env,
+        )
 
 
 def initialize_agent_llm(model_override: str | None = None) -> BaseChatModel:
