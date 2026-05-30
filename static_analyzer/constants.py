@@ -58,6 +58,41 @@ SOURCE_EXTENSION_TO_LANGUAGE: dict[str, Language] = {
 }
 
 
+# ``Language`` -> ``VSCODE_CONFIG["lsp_servers"]`` section key. Most languages
+# share their value with the lsp-config key, but JavaScript routes through the
+# typescript-language-server entry. Centralized here so ``ProgrammingLanguageBuilder``
+# and ``JavaScriptAdapter.config_key`` cannot drift.
+LANGUAGE_TO_LSP_CONFIG_KEY: dict[Language, str] = {
+    Language.PYTHON: "python",
+    Language.TYPESCRIPT: "typescript",
+    Language.JAVASCRIPT: "typescript",  # shares the typescript-language-server entry
+    Language.GO: "go",
+    Language.JAVA: "java",
+    Language.PHP: "php",
+    Language.RUST: "rust",
+    Language.CSHARP: "csharp",
+    Language.CPP: "cpp",
+}
+assert set(LANGUAGE_TO_LSP_CONFIG_KEY) == set(
+    Language
+), f"LANGUAGE_TO_LSP_CONFIG_KEY missing: {set(Language) - set(LANGUAGE_TO_LSP_CONFIG_KEY)}"
+
+
+# Tokei reports several language names that don't lowercase into an
+# lsp-config key on their own ("C", "C++", "C Header", "C++ Header" all
+# index through clangd; "TSX"/"JSX" through tsserver). Listed here so the
+# direct-match path in ``ProgrammingLanguageBuilder._find_lsp_server_key``
+# stays in sync with the extension-based fallback.
+TOKEI_LANGUAGE_TO_LSP_CONFIG_KEY: dict[str, str] = {
+    "c": "cpp",
+    "c++": "cpp",
+    "c header": "cpp",
+    "c++ header": "cpp",
+    "tsx": "typescript",
+    "jsx": "typescript",
+}
+
+
 class ClusteringConfig:
     """Configuration constants for graph clustering algorithms.
 

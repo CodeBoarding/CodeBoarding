@@ -1,10 +1,17 @@
 cc_binary(
-    name = "greeter_app",
+    name = "cppedge",
     srcs = [
-        "greeter.cpp",
-        "greeter.hpp",
-        "main.cpp",
+        "src/main.cpp",
+        "src/models/base.cpp",
+        "src/models/entities.cpp",
+        "src/services/processor.cpp",
+        "include/models/base.hpp",
+        "include/models/entities.hpp",
+        "include/services/processor.hpp",
     ],
-    copts = ["-std=c++17"],
+    copts = [
+        "-std=c++17",
+        "-Iinclude",
+    ],
     visibility = ["//visibility:public"],
 )

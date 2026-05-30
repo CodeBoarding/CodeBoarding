@@ -1,5 +1,7 @@
 """Tests for the C++ language adapter."""
 
+import json
+import shutil
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -13,8 +15,13 @@ from static_analyzer.engine.adapters.cpp_adapter import (
     _normalize_cpp_parent,
     _strip_template_args,
 )
-from static_analyzer.engine.adapters.cpp_cdb import locate_generated_cdb, locate_user_cdb
-from static_analyzer.engine.adapters.cpp_cdb.base import BuildSystemKind
+from static_analyzer.cdb import locate_generated_cdb, locate_user_cdb
+from static_analyzer.cdb.base import BuildSystemKind
+
+
+# Single valid CDB payload reused across guard tests; valid means a non-empty
+# array with each entry providing ``directory``/``file``/``command``.
+_VALID_CDB = json.dumps([{"directory": ".", "file": "x.cc", "command": "c++ -c x.cc"}])
 
 
 class TestCppAdapterProperties:
@@ -62,26 +69,27 @@ class TestCompilationDatabaseGuard:
         assert any("clangd" in part for part in cmd)
 
     def test_accepts_compile_commands_at_root(self, tmp_path: Path) -> None:
-        (tmp_path / "compile_commands.json").write_text("[]")
+        (tmp_path / "compile_commands.json").write_text(_VALID_CDB)
         cmd = CppAdapter().get_lsp_command(tmp_path)
         assert cmd
+        assert any("clangd" in part for part in cmd)
 
     def test_accepts_compile_commands_in_build_subdir(self, tmp_path: Path) -> None:
         (tmp_path / "build").mkdir()
-        (tmp_path / "build" / "compile_commands.json").write_text("[]")
+        (tmp_path / "build" / "compile_commands.json").write_text(_VALID_CDB)
         cmd = CppAdapter().get_lsp_command(tmp_path)
         assert cmd
 
     def test_accepts_cmake_build_debug(self, tmp_path: Path) -> None:
         (tmp_path / "cmake-build-debug").mkdir()
-        (tmp_path / "cmake-build-debug" / "compile_commands.json").write_text("[]")
+        (tmp_path / "cmake-build-debug" / "compile_commands.json").write_text(_VALID_CDB)
         cmd = CppAdapter().get_lsp_command(tmp_path)
         assert cmd
 
     def test_accepts_generated_cdb_under_codeboarding_dir(self, tmp_path: Path) -> None:
         cdb_dir = tmp_path / ".codeboarding" / "cdb"
         cdb_dir.mkdir(parents=True)
-        (cdb_dir / "compile_commands.json").write_text('[{"directory": ".", "file": "x.cc", "command": "c++ -c x.cc"}]')
+        (cdb_dir / "compile_commands.json").write_text(_VALID_CDB)
         cmd = CppAdapter().get_lsp_command(tmp_path)
         assert any("--compile-commands-dir" in part for part in cmd), (
             "clangd's walk-up search would miss the hidden .codeboarding/cdb/ sibling; "
@@ -95,8 +103,16 @@ class TestCompilationDatabaseGuard:
         with pytest.raises(RuntimeError, match=r"compile_commands\.json"):
             CppAdapter().get_lsp_command(tmp_path)
 
-    def test_no_compile_commands_dir_when_cdb_at_root(self, tmp_path: Path) -> None:
+    def test_rejects_empty_user_cdb_at_root(self, tmp_path: Path) -> None:
+        """Bug M2: an empty user ``[]`` must NOT be silently accepted —
+        clangd would index nothing.
+        """
         (tmp_path / "compile_commands.json").write_text("[]")
+        with pytest.raises(RuntimeError, match=r"compile_commands\.json"):
+            CppAdapter().get_lsp_command(tmp_path)
+
+    def test_no_compile_commands_dir_when_cdb_at_root(self, tmp_path: Path) -> None:
+        (tmp_path / "compile_commands.json").write_text(_VALID_CDB)
         cmd = CppAdapter().get_lsp_command(tmp_path)
         assert not any("--compile-commands-dir" in part for part in cmd)
 
@@ -113,18 +129,18 @@ class TestCompilationDatabaseGuard:
 
 class TestCdbLocationSplit:
     def test_find_user_cdb_at_root(self, tmp_path: Path) -> None:
-        (tmp_path / "compile_commands.json").write_text("[]")
+        (tmp_path / "compile_commands.json").write_text(_VALID_CDB)
         assert locate_user_cdb(tmp_path) == tmp_path
 
     def test_find_user_cdb_in_build(self, tmp_path: Path) -> None:
         (tmp_path / "build").mkdir()
-        (tmp_path / "build" / "compile_commands.json").write_text("[]")
+        (tmp_path / "build" / "compile_commands.json").write_text(_VALID_CDB)
         assert locate_user_cdb(tmp_path) == tmp_path / "build"
 
     def test_user_cdb_does_not_match_generated_dir(self, tmp_path: Path) -> None:
         cdb_dir = tmp_path / ".codeboarding" / "cdb"
         cdb_dir.mkdir(parents=True)
-        (cdb_dir / "compile_commands.json").write_text('[{"directory": ".", "file": "x.cc", "command": "c++ -c x.cc"}]')
+        (cdb_dir / "compile_commands.json").write_text(_VALID_CDB)
         assert locate_user_cdb(tmp_path) is None
 
     def test_find_generated_cdb_requires_validity(self, tmp_path: Path) -> None:
@@ -148,7 +164,7 @@ class TestExtractSignature:
         assert _extract_signature("(int) -> void") == "(int)"
 
     def test_multiple_params(self) -> None:
-        assert _extract_signature("(int, const std::string &) -> bool") == "(int, const std.string&)"
+        assert _extract_signature("(int, const std::string &) -> bool") == "(int, const string&)"
 
     def test_strips_whitespace_before_ref_and_pointer(self) -> None:
         assert _extract_signature("(const Entity &) const") == "(const Entity&)"
@@ -159,12 +175,29 @@ class TestExtractSignature:
     def test_nested_template_args(self) -> None:
         """Outer ``(...)`` must balance despite inner ``<``/``>``; template args
         in the signature body are kept (adapter strips them on the symbol name,
-        not on detail).
+        not on detail). ``std.`` prefix is stripped for clangd-version stability.
         """
-        assert _extract_signature("(std::vector<int> &)") == "(std.vector<int>&)"
+        assert _extract_signature("(std::vector<int> &)") == "(vector<int>&)"
 
     def test_unbalanced_returns_none(self) -> None:
         assert _extract_signature("(int, missing_close") is None
+
+    def test_strips_std_prefix(self) -> None:
+        """M11: clangd 22.x drops ``std::`` from common std-lib tokens; pin
+        the format so hashes stay stable across clangd versions.
+        """
+        assert _extract_signature("int Foo::bar(std::vector<int>&)") == "(vector<int>&)"
+
+    def test_strips_nested_std_prefix(self) -> None:
+        assert _extract_signature("void f(std::map<std::string, int>&)") == "(map<string, int>&)"
+
+    def test_does_not_strip_non_std_prefix(self) -> None:
+        """``mystd`` is a pseudo-namespace; the negative lookbehind preserves it."""
+        assert _extract_signature("void f(mystd::vector<int>&)") == "(mystd.vector<int>&)"
+
+    def test_strips_std_when_following_template_open(self) -> None:
+        """``<std::...>`` boundary is a non-identifier char; strip applies."""
+        assert _extract_signature("void f(unique_ptr<std::string>&)") == "(unique_ptr<string>&)"
 
 
 class TestBuildQualifiedNameOverloads:
@@ -226,7 +259,7 @@ class TestBuildQualifiedNameOverloads:
             detail="(const std::string &) -> void",
         )
         assert default_ctor == "models.Entity.Entity"
-        assert param_ctor == "models.Entity.Entity(const std.string&)"
+        assert param_ctor == "models.Entity.Entity(const string&)"
         assert default_ctor != param_ctor
 
 
@@ -408,18 +441,19 @@ class TestBuildQualifiedName:
         )
         assert result == "std.vector.get"
 
-    def test_free_function_uses_bare_symbol(self, tmp_path: Path) -> None:
-        """Free function (no parent chain) uses just the bare symbol.
+    def test_free_function_prefixes_file_stem(self, tmp_path: Path) -> None:
+        """Free function (no parent chain) gets file-stem prefix (M11).
 
-        Why: header/source path disagreement would break cross-file refs;
-        bare aliases must stay shorter than the scoped canonical so
-        CallGraph's longest-wins dedup picks the scoped entry.
+        Why: two unrelated global ``helper`` functions in different TUs would
+        otherwise overwrite each other in the SymbolTable. Headers and matching
+        sources share a stem (``util.hpp`` / ``util.cpp``), preserving the
+        cross-file reference within a single translation unit.
         """
         src = tmp_path / "src" / "util.cpp"
         src.parent.mkdir()
         src.touch()
         result = self._call(src, "helper", [], tmp_path)
-        assert result == "helper"
+        assert result == "util.helper"
 
     def test_bare_name_is_shorter_than_scoped(self, tmp_path: Path) -> None:
         src = tmp_path / "a.cpp"
@@ -481,6 +515,7 @@ class TestBuildQualifiedName:
         assert result == "models.Entity.~Entity"
 
     def test_all_string_parents_drops_all(self, tmp_path: Path) -> None:
+        """All-STRING parent chain collapses to the no-parent case -> file-stem prefix."""
         src = tmp_path / "a.cpp"
         src.touch()
         result = self._call(
@@ -492,19 +527,19 @@ class TestBuildQualifiedName:
             ],
             tmp_path,
         )
-        assert result == "format"
+        assert result == "a.format"
 
     def test_symbol_with_scope_in_name_no_parents(self, tmp_path: Path) -> None:
         src = tmp_path / "a.cpp"
         src.touch()
         result = self._call(src, "std::move", [], tmp_path)
-        assert result == "std.move"
+        assert result == "a.std.move"
 
     def test_template_symbol_no_parents(self, tmp_path: Path) -> None:
         src = tmp_path / "a.cpp"
         src.touch()
         result = self._call(src, "swap<T>", [], tmp_path)
-        assert result == "swap"
+        assert result == "a.swap"
 
     def test_enum_parent(self, tmp_path: Path) -> None:
         src = tmp_path / "a.cpp"
@@ -530,18 +565,18 @@ class TestBuildQualifiedName:
 
     def test_build_release_subdir(self, tmp_path: Path) -> None:
         (tmp_path / "build" / "Release").mkdir(parents=True)
-        (tmp_path / "build" / "Release" / "compile_commands.json").write_text("[]")
+        (tmp_path / "build" / "Release" / "compile_commands.json").write_text(_VALID_CDB)
         cmd = CppAdapter().get_lsp_command(tmp_path)
         assert cmd
 
     def test_cmake_build_release(self, tmp_path: Path) -> None:
         (tmp_path / "cmake-build-release").mkdir()
-        (tmp_path / "cmake-build-release" / "compile_commands.json").write_text("[]")
+        (tmp_path / "cmake-build-release" / "compile_commands.json").write_text(_VALID_CDB)
         cmd = CppAdapter().get_lsp_command(tmp_path)
         assert cmd
 
     def test_both_compile_db_and_flags(self, tmp_path: Path) -> None:
-        (tmp_path / "compile_commands.json").write_text("[]")
+        (tmp_path / "compile_commands.json").write_text(_VALID_CDB)
         (tmp_path / "compile_flags.txt").write_text("-std=c++20\n")
         cmd = CppAdapter().get_lsp_command(tmp_path)
         assert cmd
@@ -563,13 +598,50 @@ class TestBuildQualifiedName:
         )
         assert result == "Foo.method"
 
+    def test_build_qualified_name_no_parent_prefixes_file_stem(self, tmp_path: Path) -> None:
+        """M11: no-parent globals must include the file stem so two ``add``
+        helpers in different TUs don't overwrite each other in SymbolTable.
+        """
+        src = tmp_path / "src" / "foo.cpp"
+        src.parent.mkdir(parents=True)
+        src.touch()
+        assert self._call(src, "add", [], tmp_path) == "foo.add"
+
+    def test_build_qualified_name_with_parent_does_not_prefix_file_stem(self, tmp_path: Path) -> None:
+        """Parent-chain case stays backward-compatible: no file-stem prefix."""
+        src = tmp_path / "src" / "foo.cpp"
+        src.parent.mkdir(parents=True)
+        src.touch()
+        assert self._call(src, "method", [("Bar", int(NodeType.CLASS))], tmp_path) == "Bar.method"
+
+    def test_build_qualified_name_string_parent_chain_treated_as_no_parent(self, tmp_path: Path) -> None:
+        """STRING-only parents are dropped -> behaves like no-parent -> file-stem prefix."""
+        src = tmp_path / "src" / "foo.cpp"
+        src.parent.mkdir(parents=True)
+        src.touch()
+        result = self._call(src, "format", [("FMT_BEGIN_NAMESPACE", int(NodeType.STRING))], tmp_path)
+        assert result == "foo.format"
+
+    def test_build_qualified_name_no_parent_globals_in_different_files_dont_collide(self, tmp_path: Path) -> None:
+        """Two ``add`` symbols in foo.cpp and bar.cpp must get distinct names (M11)."""
+        (tmp_path / "src").mkdir()
+        foo = tmp_path / "src" / "foo.cpp"
+        bar = tmp_path / "src" / "bar.cpp"
+        foo.touch()
+        bar.touch()
+        foo_add = self._call(foo, "add", [], tmp_path)
+        bar_add = self._call(bar, "add", [], tmp_path)
+        assert foo_add == "foo.add"
+        assert bar_add == "bar.add"
+        assert foo_add != bar_add
+
 
 class TestPrepareProjectSkipConditions:
     def test_skip_when_user_cdb_already_present(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """A user-owned compile_commands.json short-circuits even with opt-in set."""
         monkeypatch.setenv("CODEBOARDING_CPP_GENERATE_CDB", "1")
-        (tmp_path / "compile_commands.json").write_text("[]")
-        with patch("static_analyzer.engine.adapters.cpp_cdb.generator_for") as gen_for:
+        (tmp_path / "compile_commands.json").write_text(_VALID_CDB)
+        with patch("static_analyzer.cdb.generator_for") as gen_for:
             CppAdapter().prepare_project(tmp_path)
         gen_for.assert_not_called()
 
@@ -588,14 +660,15 @@ class TestPrepareProjectSkipConditions:
         fake_generator = MagicMock()
         fake_generator.generate.return_value = cdb_dir / "compile_commands.json"
         fake_generator.kind = BuildSystemKind.MAKE
-        with patch("static_analyzer.engine.adapters.cpp_cdb.generator_for", return_value=fake_generator):
+        with patch("static_analyzer.cdb.generator_for", return_value=fake_generator):
             CppAdapter().prepare_project(tmp_path)
-        fake_generator.generate.assert_called_once_with(tmp_path)
+        # H2 fix: generators now receive (analysis_root, build_cwd).
+        fake_generator.generate.assert_called_once_with(tmp_path, tmp_path)
 
     def test_skip_when_optin_not_set(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv("CODEBOARDING_CPP_GENERATE_CDB", raising=False)
         (tmp_path / "Makefile").write_text("all:\n")
-        with patch("static_analyzer.engine.adapters.cpp_cdb.generator_for") as gen_for:
+        with patch("static_analyzer.cdb.generator_for") as gen_for:
             CppAdapter().prepare_project(tmp_path)
         gen_for.assert_not_called()
 
@@ -614,9 +687,9 @@ class TestPrepareProjectInvokesBearForMake:
         fake_generator = MagicMock()
         fake_generator.generate.return_value = tmp_path / ".codeboarding" / "cdb" / "compile_commands.json"
         fake_generator.kind = BuildSystemKind.MAKE
-        with patch("static_analyzer.engine.adapters.cpp_cdb.generator_for", return_value=fake_generator):
+        with patch("static_analyzer.cdb.generator_for", return_value=fake_generator):
             CppAdapter().prepare_project(tmp_path)
-        fake_generator.generate.assert_called_once_with(tmp_path)
+        fake_generator.generate.assert_called_once_with(tmp_path, tmp_path)
 
     def test_generator_failure_is_swallowed(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
@@ -630,7 +703,7 @@ class TestPrepareProjectInvokesBearForMake:
         fake_generator = MagicMock()
         fake_generator.generate.side_effect = RuntimeError("make exploded")
         fake_generator.kind = BuildSystemKind.MAKE
-        with patch("static_analyzer.engine.adapters.cpp_cdb.generator_for", return_value=fake_generator):
+        with patch("static_analyzer.cdb.generator_for", return_value=fake_generator):
             CppAdapter().prepare_project(tmp_path)  # Must NOT raise
         assert "CDB generation failed" in caplog.text
 
@@ -646,7 +719,7 @@ class TestPrepareProjectInvokesBearForMake:
             recorded.append(kind)
             return None  # short-circuit; we only care which kind was dispatched
 
-        with patch("static_analyzer.engine.adapters.cpp_cdb.generator_for", side_effect=fake_generator_for):
+        with patch("static_analyzer.cdb.generator_for", side_effect=fake_generator_for):
             CppAdapter().prepare_project(tmp_path)
         assert recorded == [BuildSystemKind.BAZEL]
 
@@ -663,6 +736,128 @@ class TestPrepareProjectInvokesBearForMake:
             recorded.append(kind)
             return None
 
-        with patch("static_analyzer.engine.adapters.cpp_cdb.generator_for", side_effect=fake_generator_for):
+        with patch("static_analyzer.cdb.generator_for", side_effect=fake_generator_for):
             CppAdapter().prepare_project(tmp_path)
         assert recorded == [BuildSystemKind.CMAKE]
+
+
+class TestPrepareProjectM7OverrideRejection:
+    """Bug M7: terminal-CDB sentinels are no longer enum members but the env
+    override accepted them as buildable systems silently. ``unknown`` is
+    also rejected since it would just dispatch nothing.
+    """
+
+    @pytest.mark.parametrize("override", ["compile_flags_txt", "compile_commands_json"])
+    def test_override_rejects_terminal_cdb_sentinel_with_warning(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+        override: str,
+    ) -> None:
+        monkeypatch.setenv("CODEBOARDING_CPP_GENERATE_CDB", "1")
+        monkeypatch.setenv("CODEBOARDING_CPP_BUILD_SYSTEM", override)
+        (tmp_path / "CMakeLists.txt").write_text("project(x)")
+
+        recorded: list[BuildSystemKind] = []
+
+        def fake_generator_for(kind: BuildSystemKind) -> MagicMock | None:
+            recorded.append(kind)
+            return None
+
+        with patch("static_analyzer.cdb.generator_for", side_effect=fake_generator_for):
+            CppAdapter().prepare_project(tmp_path)
+        # Falls back to detection (CMake), no longer accepted silently.
+        assert recorded == [BuildSystemKind.CMAKE]
+        assert any("Ignoring CODEBOARDING_CPP_BUILD_SYSTEM" in r.message for r in caplog.records)
+
+    def test_override_rejects_unknown_sentinel(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """``unknown`` is a sentinel value, not a buildable system."""
+        monkeypatch.setenv("CODEBOARDING_CPP_GENERATE_CDB", "1")
+        monkeypatch.setenv("CODEBOARDING_CPP_BUILD_SYSTEM", "unknown")
+        (tmp_path / "Makefile").write_text("all:\n")
+
+        recorded: list[BuildSystemKind] = []
+
+        def fake_generator_for(kind: BuildSystemKind) -> MagicMock | None:
+            recorded.append(kind)
+            return None
+
+        with patch("static_analyzer.cdb.generator_for", side_effect=fake_generator_for):
+            CppAdapter().prepare_project(tmp_path)
+        assert recorded == [BuildSystemKind.MAKE]
+        assert any("Ignoring CODEBOARDING_CPP_BUILD_SYSTEM" in r.message for r in caplog.records)
+
+
+class TestPrepareProjectH2SubdirBuildRoot:
+    """Bug H2: Stockfish-shape repos (Makefile in src/) must end up with the
+    generated CDB at the analysis root, not under src/, so
+    ``get_lsp_command`` finds it.
+    """
+
+    def test_generator_receives_build_cwd_separately_from_analysis_root(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("CODEBOARDING_CPP_GENERATE_CDB", "1")
+        (tmp_path / "src").mkdir()
+        (tmp_path / "src" / "Makefile").write_text("all:\n")
+
+        fake_generator = MagicMock()
+        fake_generator.generate.return_value = tmp_path / ".codeboarding" / "cdb" / "compile_commands.json"
+        fake_generator.kind = BuildSystemKind.MAKE
+        with patch("static_analyzer.cdb.generator_for", return_value=fake_generator):
+            CppAdapter().prepare_project(tmp_path)
+        # Analysis root is the project root (where .codeboarding/cdb lives);
+        # build cwd is the subdir holding the Makefile.
+        fake_generator.generate.assert_called_once_with(tmp_path, tmp_path / "src")
+
+    def test_get_lsp_command_finds_generated_cdb_for_stockfish_shape(self, tmp_path: Path) -> None:
+        """End-to-end H2: a Stockfish-shaped repo's generated CDB lives at
+        ``<project_root>/.codeboarding/cdb/`` (not under src/), so
+        ``--compile-commands-dir`` points to it.
+        """
+        (tmp_path / "src").mkdir()
+        (tmp_path / "src" / "Makefile").write_text("all:\n")
+        cdb_dir = tmp_path / ".codeboarding" / "cdb"
+        cdb_dir.mkdir(parents=True)
+        (cdb_dir / "compile_commands.json").write_text(_VALID_CDB)
+        cmd = CppAdapter().get_lsp_command(tmp_path)
+        assert any("--compile-commands-dir" in part and ".codeboarding/cdb" in part for part in cmd), cmd
+
+    def test_get_lsp_command_finds_compile_flags_in_src(self, tmp_path: Path) -> None:
+        """Bug H3 reproducer: ``src/compile_flags.txt`` must satisfy the guard."""
+        (tmp_path / "src").mkdir()
+        (tmp_path / "src" / "compile_flags.txt").write_text("-std=c++20\n")
+        cmd = CppAdapter().get_lsp_command(tmp_path)
+        assert cmd
+        # No --compile-commands-dir because the CDB is the user's, not generated.
+        assert not any("--compile-commands-dir" in part for part in cmd)
+
+    def test_stockfish_fixture_detection_drives_build_cwd_to_src(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """Live fixture: ``tests/integration/projects/cpp_make_subdir_edge_cases_project/``
+        has ``src/Makefile``. ``prepare_project`` must dispatch the Make
+        generator with ``build_cwd=src/`` while the CDB lands at the
+        analysis root.
+        """
+        fixture = (
+            Path(__file__).resolve().parent.parent / "integration" / "projects" / "cpp_make_subdir_edge_cases_project"
+        )
+        # Copy into tmp_path so prepare_project doesn't pollute the
+        # fixture (detection/ensure_cdb touches .codeboarding/cdb/).
+        shutil.copytree(fixture, tmp_path / "repo")
+        repo = tmp_path / "repo"
+
+        monkeypatch.setenv("CODEBOARDING_CPP_GENERATE_CDB", "1")
+        fake_generator = MagicMock()
+        fake_generator.generate.return_value = repo / ".codeboarding" / "cdb" / "compile_commands.json"
+        fake_generator.kind = BuildSystemKind.MAKE
+        with patch("static_analyzer.cdb.generator_for", return_value=fake_generator):
+            CppAdapter().prepare_project(repo)
+        fake_generator.generate.assert_called_once_with(repo, repo / "src")

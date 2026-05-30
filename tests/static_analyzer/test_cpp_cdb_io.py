@@ -7,7 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from static_analyzer.engine.adapters.cpp_cdb.cdb_io import (
+from static_analyzer.cdb.cdb_io import (
+    EmptyCompilationDatabaseError,
     cdb_generation_lock,
     is_valid_compile_commands,
     read_compile_commands,
@@ -29,7 +30,6 @@ def test_write_compile_commands_atomic_round_trip(tmp_path: Path) -> None:
 @pytest.mark.parametrize(
     "payload",
     [
-        [],
         [{"directory": ".", "command": "c++ -c x.cc"}],
         [{"directory": ".", "file": "x.cc"}],
         [{"directory": ".", "file": "x.cc", "arguments": []}],
@@ -38,6 +38,27 @@ def test_write_compile_commands_atomic_round_trip(tmp_path: Path) -> None:
 def test_validate_compile_commands_rejects_invalid_entries(payload: object) -> None:
     with pytest.raises(ValueError):
         validate_compile_commands(payload)
+
+
+def test_empty_array_raises_dedicated_error() -> None:
+    """Bug M3: an empty array gets a specific "no compile actions found"
+    message rather than a generic JSON-shape failure.
+    """
+    with pytest.raises(EmptyCompilationDatabaseError, match=r"no compile actions found"):
+        validate_compile_commands([])
+
+
+def test_empty_compilation_database_error_is_value_error() -> None:
+    """Callers catching ``ValueError`` from the validator still work."""
+    assert issubclass(EmptyCompilationDatabaseError, ValueError)
+
+
+def test_non_array_payload_still_says_must_contain_array() -> None:
+    """Shape-failure path must keep the original message — empty-CDB carve-out
+    only changes the ``[]`` case.
+    """
+    with pytest.raises(ValueError, match=r"must contain a JSON array"):
+        validate_compile_commands({"not": "a list"})
 
 
 def test_is_valid_compile_commands_rejects_malformed_json(tmp_path: Path) -> None:

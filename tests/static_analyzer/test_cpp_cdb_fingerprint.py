@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from static_analyzer.engine.adapters.cpp_cdb.fingerprint import (
+from static_analyzer.cdb.fingerprint import (
     compute_fingerprint,
     delete_cached_fingerprint,
     read_cached_fingerprint,
@@ -68,6 +68,40 @@ class TestComputeFingerprint:
         except (OSError, NotImplementedError) as exc:
             pytest.skip(f"symlinks unavailable on this platform: {exc}")
         assert compute_fingerprint([real, link]) == compute_fingerprint([real])
+
+    def test_compute_fingerprint_with_metadata_changes_hash(self, tmp_path: Path) -> None:
+        """Same files, different metadata -> different digest. Regression for M9:
+        ``CODEBOARDING_CPP_MAKE_TARGET=clean install`` vs ``=all`` must not
+        reuse the same cached CDB.
+        """
+        f = tmp_path / "Makefile"
+        f.write_text("all:\n\ttrue\n")
+        base = compute_fingerprint([f])
+        with_target_a = compute_fingerprint([f], metadata=[("CODEBOARDING_CPP_MAKE_TARGET", "all")])
+        with_target_b = compute_fingerprint([f], metadata=[("CODEBOARDING_CPP_MAKE_TARGET", "clean install")])
+        assert with_target_a != with_target_b
+        assert with_target_a != base
+        assert with_target_b != base
+
+    def test_compute_fingerprint_metadata_order_independent(self, tmp_path: Path) -> None:
+        """Metadata pairs in different orders must hash the same — callers
+        shouldn't have to sort, and dict iteration order shouldn't bust caches.
+        """
+        f = tmp_path / "Makefile"
+        f.write_text("all:\n")
+        forward = [("CODEBOARDING_CPP_BAZEL_QUERY", "//src/..."), ("CODEBOARDING_CPP_MAKE_TARGET", "all")]
+        reverse = [("CODEBOARDING_CPP_MAKE_TARGET", "all"), ("CODEBOARDING_CPP_BAZEL_QUERY", "//src/...")]
+        assert compute_fingerprint([f], metadata=forward) == compute_fingerprint([f], metadata=reverse)
+
+    def test_compute_fingerprint_with_none_metadata_matches_legacy(self, tmp_path: Path) -> None:
+        """``metadata=None`` must produce the same digest as omitting the
+        argument entirely — guarantees backward compatibility for any caller
+        still passing only ``paths``.
+        """
+        f = tmp_path / "Makefile"
+        f.write_text("all:\n\ttrue\n")
+        assert compute_fingerprint([f], metadata=None) == compute_fingerprint([f])
+        assert compute_fingerprint([f], metadata=[]) == compute_fingerprint([f])
 
 
 class TestCachedFingerprintRoundTrip:

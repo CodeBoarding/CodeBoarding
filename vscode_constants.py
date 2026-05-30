@@ -134,8 +134,9 @@ VSCODE_CONFIG = {
             "name": "clangd",
             "command": ["clangd"],
             "languages": ["cpp"],
-            # ``.h`` included: clangd handles C+C++ in one process; can't
-            # distinguish dialects per-file.
+            # ``.c`` / ``.h`` included: clangd handles C+C++ in one process;
+            # can't distinguish dialects per-file. Keep aligned with
+            # ``LANGUAGE_EXTENSIONS[Language.CPP]`` (the canonical source).
             "file_extensions": [
                 ".cpp",
                 ".cc",
@@ -148,6 +149,7 @@ VSCODE_CONFIG = {
                 ".hxx",
                 ".h++",
                 ".h",
+                ".c",
             ],
             "install_commands": "codeboarding-setup (downloads clangd automatically)",
         },

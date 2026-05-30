@@ -1,0 +1,6 @@
+# Build artifacts left by `make` running inside src/.
+src/**/*.o
+src/demo
+
+# CodeBoarding CDB scratch dir
+.codeboarding/

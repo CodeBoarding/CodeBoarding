@@ -9,14 +9,14 @@ from unittest.mock import patch
 
 import pytest
 
-from static_analyzer.engine.adapters.cpp_cdb import (
+from static_analyzer.cdb import (
     BuildSystemKind,
     CMakeGenerator,
     MesonGenerator,
     NinjaGenerator,
     generator_for,
 )
-from static_analyzer.engine.adapters.cpp_cdb.base import CDB_SUBDIR
+from static_analyzer.cdb.base import CDB_SUBDIR
 
 VALID_CDB_JSON = json.dumps([{"directory": "/p", "file": "a.cpp", "arguments": ["c++", "-c", "a.cpp"]}])
 
@@ -48,7 +48,7 @@ class TestCmakeGenerator:
                 (bdir / "compile_commands.json").write_text(VALID_CDB_JSON)
             return subprocess.CompletedProcess(args=argv, returncode=0, stdout="", stderr="")
 
-        with patch("static_analyzer.engine.adapters.cpp_cdb.base.subprocess.run", side_effect=fake_run):
+        with patch("static_analyzer.cdb.base.subprocess.run", side_effect=fake_run):
             cdb = CMakeGenerator().generate(tmp_path)
 
         assert cdb.is_file()
@@ -66,7 +66,7 @@ class TestCmakeGenerator:
         def fake_run(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess:
             return subprocess.CompletedProcess(args=argv, returncode=1, stdout="", stderr="syntax error")
 
-        with patch("static_analyzer.engine.adapters.cpp_cdb.base.subprocess.run", side_effect=fake_run):
+        with patch("static_analyzer.cdb.base.subprocess.run", side_effect=fake_run):
             with pytest.raises(RuntimeError, match=r"(?s)cmake configure failed.*syntax error"):
                 CMakeGenerator().generate(tmp_path)
 
@@ -86,7 +86,7 @@ class TestMesonGenerator:
                 (bdir / "compile_commands.json").write_text(VALID_CDB_JSON)
             return subprocess.CompletedProcess(args=argv, returncode=0, stdout="", stderr="")
 
-        with patch("static_analyzer.engine.adapters.cpp_cdb.base.subprocess.run", side_effect=fake_run):
+        with patch("static_analyzer.cdb.base.subprocess.run", side_effect=fake_run):
             cdb = MesonGenerator().generate(tmp_path)
 
         assert cdb.is_file()
@@ -103,7 +103,7 @@ class TestNinjaGenerator:
             assert argv == ["ninja", "-t", "compdb"]
             return subprocess.CompletedProcess(args=argv, returncode=0, stdout=VALID_CDB_JSON, stderr="")
 
-        with patch("static_analyzer.engine.adapters.cpp_cdb.base.subprocess.run", side_effect=fake_run):
+        with patch("static_analyzer.cdb.base.subprocess.run", side_effect=fake_run):
             cdb = NinjaGenerator().generate(tmp_path)
 
         assert cdb.is_file()
@@ -115,6 +115,6 @@ class TestNinjaGenerator:
         def fake_run(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess:
             return subprocess.CompletedProcess(args=argv, returncode=0, stdout="not-json", stderr="")
 
-        with patch("static_analyzer.engine.adapters.cpp_cdb.base.subprocess.run", side_effect=fake_run):
+        with patch("static_analyzer.cdb.base.subprocess.run", side_effect=fake_run):
             with pytest.raises(RuntimeError, match=r"invalid JSON"):
                 NinjaGenerator().generate(tmp_path)

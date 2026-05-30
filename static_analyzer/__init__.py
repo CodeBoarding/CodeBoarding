@@ -167,9 +167,11 @@ def _lang_to_adapter_name(language: str) -> str | None:
         "java": "Java",
         "php": "PHP",
         "rust": "Rust",
-        "c++": "Cpp",
+        "c": "Cpp",  # clangd indexes C in the same process as C++
         "cpp": "Cpp",
-        "c++ header": "Cpp",  # tokei splits headers from sources
+        "c++": "Cpp",
+        "c header": "Cpp",  # tokei splits headers from sources
+        "c++ header": "Cpp",
     }
     return mapping.get(language.lower())
 

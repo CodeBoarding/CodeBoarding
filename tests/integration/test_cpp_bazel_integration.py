@@ -24,7 +24,7 @@ import pytest
 
 from static_analyzer import StaticAnalyzer
 from static_analyzer.constants import Language
-from static_analyzer.engine.adapters.cpp_cdb.bazel_generator import BazelAqueryGenerator
+from static_analyzer.cdb.bazel_generator import BazelAqueryGenerator
 from utils import get_artifact_dir
 
 logger = logging.getLogger(__name__)
@@ -95,7 +95,7 @@ def test_bazel_cdb_generation_and_analysis(bazel_project: Path) -> None:
         assert "file" in entry, "CDB entry missing 'file'"
         assert "directory" in entry, "CDB entry missing 'directory'"
 
-    language = fixture["language"]
+    language = Language(fixture["language"].lower())
     detected = results.get_languages()
     assert language in detected, f"Expected language {language!r} not detected. Found: {detected}"
 
@@ -116,7 +116,7 @@ def test_bazel_cdb_generation_and_analysis(bazel_project: Path) -> None:
     assert not errors, "\n\n".join(errors)
 
     # References
-    refs = results.results[Language(language.lower())].references.by_qualified_name or {}
+    refs = results.results[language].references.by_qualified_name or {}
     expected_refs = set(fixture.get("expected_references", []))
     actual_refs = set(refs.keys())
     missing_refs = sorted(expected_refs - actual_refs)

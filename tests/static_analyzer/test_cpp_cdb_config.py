@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from static_analyzer.engine.adapters.cpp_cdb import config
+from static_analyzer.cdb import config
 
 
 class TestIsGenerationEnabled:
@@ -95,3 +95,79 @@ class TestBazelQueryScope:
     def test_override(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv(config.ENV_BAZEL_QUERY, "//src/...")
         assert config.bazel_query_scope() == "//src/..."
+
+
+class TestFingerprintOptions:
+    """Knobs that change CDB output must land in the fingerprint cache key.
+
+    Why: M9 — without these the cache reuses a stale ``compile_commands.json``
+    when the user flips ``CODEBOARDING_CPP_MAKE_TARGET`` / ``_CONFIGURE_ARGS``
+    / ``_BAZEL_QUERY``.
+    """
+
+    def test_fingerprint_options_empty_when_no_env_set(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv(config.ENV_MAKE_TARGET, raising=False)
+        monkeypatch.delenv(config.ENV_CONFIGURE_ARGS, raising=False)
+        monkeypatch.delenv(config.ENV_BAZEL_QUERY, raising=False)
+        assert config.fingerprint_options() == []
+
+    def test_fingerprint_options_includes_make_target(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv(config.ENV_CONFIGURE_ARGS, raising=False)
+        monkeypatch.delenv(config.ENV_BAZEL_QUERY, raising=False)
+        monkeypatch.setenv(config.ENV_MAKE_TARGET, "release")
+        assert config.fingerprint_options() == [(config.ENV_MAKE_TARGET, "release")]
+
+    def test_fingerprint_options_includes_configure_args(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv(config.ENV_MAKE_TARGET, raising=False)
+        monkeypatch.delenv(config.ENV_BAZEL_QUERY, raising=False)
+        monkeypatch.setenv(config.ENV_CONFIGURE_ARGS, "--disable-shared")
+        assert config.fingerprint_options() == [(config.ENV_CONFIGURE_ARGS, "--disable-shared")]
+
+    def test_fingerprint_options_includes_bazel_query(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv(config.ENV_MAKE_TARGET, raising=False)
+        monkeypatch.delenv(config.ENV_CONFIGURE_ARGS, raising=False)
+        monkeypatch.setenv(config.ENV_BAZEL_QUERY, "//src/...")
+        assert config.fingerprint_options() == [(config.ENV_BAZEL_QUERY, "//src/...")]
+
+    def test_fingerprint_options_sorted(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Stable key order so callers don't have to sort and dict-order
+        shuffles don't bust the cache.
+        """
+        monkeypatch.setenv(config.ENV_BAZEL_QUERY, "//src/...")
+        monkeypatch.setenv(config.ENV_MAKE_TARGET, "release")
+        monkeypatch.setenv(config.ENV_CONFIGURE_ARGS, "--disable-shared")
+        result = config.fingerprint_options()
+        assert result == sorted(result)
+        assert dict(result) == {
+            config.ENV_BAZEL_QUERY: "//src/...",
+            config.ENV_MAKE_TARGET: "release",
+            config.ENV_CONFIGURE_ARGS: "--disable-shared",
+        }
+
+    @pytest.mark.parametrize(
+        ("raw", "normalized"),
+        [
+            ("  release  ", "release"),
+            ("clean  all", "clean all"),
+            ("'clean' 'all'", "clean all"),
+            ('"clean install"', "clean install"),
+        ],
+    )
+    def test_fingerprint_options_normalizes_make_target(
+        self, raw: str, normalized: str, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Whitespace and quoting that ``shlex.split`` collapses must hash
+        the same — otherwise ``"clean install"`` and ``clean install`` would
+        spuriously bust the cache.
+        """
+        monkeypatch.delenv(config.ENV_CONFIGURE_ARGS, raising=False)
+        monkeypatch.delenv(config.ENV_BAZEL_QUERY, raising=False)
+        monkeypatch.setenv(config.ENV_MAKE_TARGET, raw)
+        assert config.fingerprint_options() == [(config.ENV_MAKE_TARGET, normalized)]
+
+    def test_fingerprint_options_skips_empty_values(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """An env var set to whitespace shouldn't pollute the key."""
+        monkeypatch.setenv(config.ENV_MAKE_TARGET, "   ")
+        monkeypatch.setenv(config.ENV_CONFIGURE_ARGS, "")
+        monkeypatch.delenv(config.ENV_BAZEL_QUERY, raising=False)
+        assert config.fingerprint_options() == []

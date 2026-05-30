@@ -3,7 +3,12 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
-from static_analyzer.constants import Language
+from static_analyzer.constants import (
+    LANGUAGE_TO_LSP_CONFIG_KEY,
+    SOURCE_EXTENSION_TO_LANGUAGE,
+    TOKEI_LANGUAGE_TO_LSP_CONFIG_KEY,
+    Language,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -80,13 +85,16 @@ class ProgrammingLanguageBuilder:
 
     def __init__(self, lsp_configs: dict):
         self.lsp_configs = lsp_configs
-        # Build reverse index: extension -> lsp_config_key
+        # Build reverse index: extension -> lsp_config_key. Sourced from
+        # ``SOURCE_EXTENSION_TO_LANGUAGE`` + ``LANGUAGE_TO_LSP_CONFIG_KEY`` so the
+        # extension set cannot drift from ``LANGUAGE_EXTENSIONS`` (which is what
+        # adapters consume). Only emit entries whose lsp_config_key is actually
+        # present in ``lsp_configs`` so callers passing trimmed configs still work.
         self._extension_to_lsp: dict[str, str] = {}
-        for lsp_server_key, config in lsp_configs.items():
-            for ext in config.get("file_extensions", []):
-                # Normalize extension (ensure it starts with '.')
-                normalized_ext = ext if ext.startswith(".") else f".{ext}"
-                self._extension_to_lsp[normalized_ext] = lsp_server_key
+        for ext, language in SOURCE_EXTENSION_TO_LANGUAGE.items():
+            lsp_key = LANGUAGE_TO_LSP_CONFIG_KEY[language]
+            if lsp_key in lsp_configs:
+                self._extension_to_lsp[ext] = lsp_key
 
     def _find_lsp_server_key(self, tokei_language: str, file_suffixes: set[str]) -> str | None:
         """
@@ -100,12 +108,19 @@ class ProgrammingLanguageBuilder:
             LSP config key if found, None otherwise
         """
 
-        # Try direct match with lsp_configs keys
         normalized = tokei_language.lower()
+        # Direct match on lsp_configs keys (e.g. "Python" -> "python").
         if normalized in self.lsp_configs:
             return normalized
+        # Tokei names that don't lowercase into an lsp key on their own
+        # ("C", "C++", "C Header", "C++ Header" all -> "cpp"; "TSX"/"JSX"
+        # -> "typescript"). Why: keeps the direct path working for C-only
+        # repos before the extension-based fallback even runs.
+        aliased = TOKEI_LANGUAGE_TO_LSP_CONFIG_KEY.get(normalized)
+        if aliased and aliased in self.lsp_configs:
+            return aliased
 
-        # Fallback: try matching by file extensions
+        # Fallback: try matching by file extensions.
         for suffix in file_suffixes:
             normalized_suffix = suffix if suffix.startswith(".") else f".{suffix}"
             if normalized_suffix in self._extension_to_lsp:

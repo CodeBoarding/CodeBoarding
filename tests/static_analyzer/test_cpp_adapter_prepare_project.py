@@ -4,13 +4,17 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from static_analyzer.engine.adapters.cpp_adapter import CppAdapter
-from static_analyzer.engine.adapters.cpp_cdb.base import BuildSystemKind
+from static_analyzer.cdb.base import BuildSystemKind
+
+
+_VALID_CDB = json.dumps([{"directory": ".", "file": "x.cc", "command": "c++ -c x.cc"}])
 
 
 class TestPrepareProjectSkipConditions:
@@ -22,8 +26,8 @@ class TestPrepareProjectSkipConditions:
         pure wasted time, and we don't want to clobber their file.
         """
         monkeypatch.setenv("CODEBOARDING_CPP_GENERATE_CDB", "1")
-        (tmp_path / "compile_commands.json").write_text("[]")
-        with patch("static_analyzer.engine.adapters.cpp_cdb.generator_for") as gen_for:
+        (tmp_path / "compile_commands.json").write_text(_VALID_CDB)
+        with patch("static_analyzer.cdb.generator_for") as gen_for:
             CppAdapter().prepare_project(tmp_path)
         gen_for.assert_not_called()
 
@@ -40,14 +44,15 @@ class TestPrepareProjectSkipConditions:
         (tmp_path / "Makefile").write_text("all:\n")
         cdb_dir = tmp_path / ".codeboarding" / "cdb"
         cdb_dir.mkdir(parents=True)
-        (cdb_dir / "compile_commands.json").write_text('[{"directory": ".", "file": "x.cc", "command": "c++"}]')
+        (cdb_dir / "compile_commands.json").write_text(_VALID_CDB)
 
         fake_generator = MagicMock()
         fake_generator.generate.return_value = cdb_dir / "compile_commands.json"
         fake_generator.kind = BuildSystemKind.MAKE
-        with patch("static_analyzer.engine.adapters.cpp_cdb.generator_for", return_value=fake_generator):
+        with patch("static_analyzer.cdb.generator_for", return_value=fake_generator):
             CppAdapter().prepare_project(tmp_path)
-        fake_generator.generate.assert_called_once_with(tmp_path)
+        # H2: generate now takes (analysis_root, build_cwd).
+        fake_generator.generate.assert_called_once_with(tmp_path, tmp_path)
 
     def test_skip_when_optin_not_set(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Without the env var we never touch the user's repo — even if we
@@ -55,7 +60,7 @@ class TestPrepareProjectSkipConditions:
         """
         monkeypatch.delenv("CODEBOARDING_CPP_GENERATE_CDB", raising=False)
         (tmp_path / "Makefile").write_text("all:\n")
-        with patch("static_analyzer.engine.adapters.cpp_cdb.generator_for") as gen_for:
+        with patch("static_analyzer.cdb.generator_for") as gen_for:
             CppAdapter().prepare_project(tmp_path)
         gen_for.assert_not_called()
 
@@ -74,9 +79,9 @@ class TestPrepareProjectInvokesBearForMake:
         fake_generator = MagicMock()
         fake_generator.generate.return_value = tmp_path / ".codeboarding" / "cdb" / "compile_commands.json"
         fake_generator.kind = BuildSystemKind.MAKE
-        with patch("static_analyzer.engine.adapters.cpp_cdb.generator_for", return_value=fake_generator):
+        with patch("static_analyzer.cdb.generator_for", return_value=fake_generator):
             CppAdapter().prepare_project(tmp_path)
-        fake_generator.generate.assert_called_once_with(tmp_path)
+        fake_generator.generate.assert_called_once_with(tmp_path, tmp_path)
 
     def test_generator_failure_is_swallowed(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
@@ -91,6 +96,36 @@ class TestPrepareProjectInvokesBearForMake:
         fake_generator = MagicMock()
         fake_generator.generate.side_effect = RuntimeError("make exploded")
         fake_generator.kind = BuildSystemKind.MAKE
-        with patch("static_analyzer.engine.adapters.cpp_cdb.generator_for", return_value=fake_generator):
+        with patch("static_analyzer.cdb.generator_for", return_value=fake_generator):
             CppAdapter().prepare_project(tmp_path)  # Must NOT raise
         assert "CDB generation failed" in caplog.text
+
+
+class TestPrepareProjectM7BuildSystemOverride:
+    """Bug M7: ``CODEBOARDING_CPP_BUILD_SYSTEM`` must only accept buildable
+    kinds; the historic ``compile_flags_txt`` / ``compile_commands_json``
+    enum values now warn-and-fall-through instead of dispatching nothing.
+    """
+
+    @pytest.mark.parametrize("override", ["compile_flags_txt", "compile_commands_json", "unknown"])
+    def test_non_buildable_override_falls_back_to_detection(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+        override: str,
+    ) -> None:
+        monkeypatch.setenv("CODEBOARDING_CPP_GENERATE_CDB", "1")
+        monkeypatch.setenv("CODEBOARDING_CPP_BUILD_SYSTEM", override)
+        (tmp_path / "Makefile").write_text("all:\n")
+
+        recorded: list[BuildSystemKind] = []
+
+        def fake_generator_for(kind: BuildSystemKind) -> MagicMock | None:
+            recorded.append(kind)
+            return None
+
+        with patch("static_analyzer.cdb.generator_for", side_effect=fake_generator_for):
+            CppAdapter().prepare_project(tmp_path)
+        assert recorded == [BuildSystemKind.MAKE]
+        assert any("Ignoring CODEBOARDING_CPP_BUILD_SYSTEM" in r.message for r in caplog.records)

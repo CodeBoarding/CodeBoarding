@@ -7,15 +7,8 @@ from functools import lru_cache
 from pathlib import Path
 
 from repo_utils.ignore import RepoIgnoreManager
+from static_analyzer.cdb import CdbResolution, resolve_cdb
 from static_analyzer.constants import Language, NodeType
-from static_analyzer.engine.adapters.cpp_cdb import (
-    detect_build_system,
-    ensure_cdb,
-    install_hint_for,
-    locate_generated_cdb,
-    locate_user_cdb,
-)
-from static_analyzer.engine.adapters.cpp_cdb.base import CDB_SUBDIR
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_client import LSPClient
 from static_analyzer.engine.lsp_constants import CALLABLE_KINDS
@@ -84,6 +77,7 @@ def _strip_template_args(name: str) -> str:
 
 _SIGNATURE_WS_RE = re.compile(r"\s+")
 _SIGNATURE_SCOPE_RE = re.compile(r"::")
+_SIGNATURE_STD_PREFIX_RE = re.compile(r"(?<![A-Za-z0-9_])std\.")
 
 
 def _extract_signature(detail: str) -> str | None:
@@ -119,6 +113,12 @@ def _extract_signature(detail: str) -> str | None:
     body = _SIGNATURE_WS_RE.sub(" ", body).strip()
     body = body.replace(" &", "&").replace(" *", "*")
     body = _SIGNATURE_SCOPE_RE.sub(".", body)
+    # Why: clangd builds (22.x) drop the ``std::`` prefix from common
+    # standard-library template tokens; older builds keep it. Strip ``std.``
+    # at fresh identifier boundaries so signature hashes survive clangd
+    # version drift (M11). ``mystd.vector`` and similar pseudo-namespaces
+    # are preserved by the negative lookbehind.
+    body = _SIGNATURE_STD_PREFIX_RE.sub("", body)
     return f"({body})"
 
 
@@ -137,6 +137,10 @@ def _normalize_cpp_parent(name: str) -> str:
 
 class CppAdapter(LanguageAdapter):
     """Static-analysis adapter for C/C++ projects backed by clangd."""
+
+    def __init__(self) -> None:
+        # Cached so get_lsp_command doesn't re-run detection/generation.
+        self._cdb_resolution: CdbResolution | None = None
 
     @property
     def language(self) -> str:
@@ -172,21 +176,21 @@ class CppAdapter(LanguageAdapter):
         """Fail fast without a CDB; add --compile-commands-dir for generated ones.
 
         Why: clangd silently returns empty refs with no CDB, and its walk-up
-        search misses the hidden ``.codeboarding/cdb/`` sibling.
+        search misses the hidden ``.codeboarding/cdb/`` sibling. Consumes
+        the resolution cached by ``prepare_project`` so detection and
+        generation only run once per root.
         """
-        if not self._has_compilation_database(project_root):
-            kind, _ = detect_build_system(project_root)
+        resolution = self._cdb_resolution or resolve_cdb(project_root)
+        if resolution.cdb_dir is None:
             raise RuntimeError(
-                f"No compile_commands.json or compile_flags.txt under {project_root}. " + install_hint_for(kind)
+                f"No compile_commands.json or compile_flags.txt under {project_root}. " + (resolution.error_hint or "")
             )
         command = list(super().get_lsp_command(project_root))
-        if locate_generated_cdb(project_root) is not None:
-            command.append(f"--compile-commands-dir={(project_root / CDB_SUBDIR).resolve()}")
+        # Only set --compile-commands-dir for generated CDBs; user CDBs are
+        # found by clangd's walk-up search from each source file.
+        if resolution.cdb_dir != project_root:
+            command.append(f"--compile-commands-dir={resolution.cdb_dir.resolve()}")
         return command
-
-    @staticmethod
-    def _has_compilation_database(project_root: Path) -> bool:
-        return locate_user_cdb(project_root) is not None or locate_generated_cdb(project_root) is not None
 
     def get_lsp_init_options(self, ignore_manager: RepoIgnoreManager | None = None) -> dict:
         """``fallbackFlags`` is top-level — nesting under ``"clangd"`` is an editor convention clangd ignores."""
@@ -197,8 +201,8 @@ class CppAdapter(LanguageAdapter):
         client.wait_for_diagnostics_quiesce(idle_seconds=2.0, max_wait=60.0)
 
     def prepare_project(self, project_root: Path) -> None:
-        """Optionally generate a ``compile_commands.json`` before clangd starts."""
-        ensure_cdb(project_root)
+        """Resolve CDB once (optionally generating) and cache for ``get_lsp_command``."""
+        self._cdb_resolution = resolve_cdb(project_root)
 
     def build_qualified_name(
         self,
@@ -209,13 +213,14 @@ class CppAdapter(LanguageAdapter):
         project_root: Path,
         detail: str = "",
     ) -> str:
-        """Build names from namespace/class chain, not file path.
+        """Build names from namespace/class chain, falling back to file stem.
 
-        Why: the .hpp/.cpp split would otherwise give the same method two
-        distinct qualified names, breaking cross-file references. The
-        no-parent case returns the bare name so dual-registration aliases
-        stay strictly shorter than the canonical scoped entry (CallGraph
-        picks longest-wins).
+        Why: the .hpp/.cpp split must give the same method one qualified
+        name when a namespace/class parent exists. For no-parent globals
+        (file-scope helpers, free functions), bare names collide across
+        translation units (M11) — so prefix with ``file_path.stem`` to
+        give each TU its own scope. Headers and matching sources share
+        a stem, preserving cross-file refs within a TU.
         """
         sym = _strip_template_args(symbol_name).replace("::", ".").strip()
 
@@ -228,9 +233,9 @@ class CppAdapter(LanguageAdapter):
             if parents:
                 qualified = ".".join(parents) + "." + sym
             else:
-                qualified = sym
+                qualified = f"{file_path.stem}.{sym}"
         else:
-            qualified = sym
+            qualified = f"{file_path.stem}.{sym}"
 
         if symbol_kind in CALLABLE_KINDS:
             signature = _extract_signature(detail)

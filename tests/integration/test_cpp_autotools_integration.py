@@ -110,7 +110,7 @@ def test_autotools_cdb_generation_and_analysis(pristine_project: Path) -> None:
     the whole path, so reporting each concern independently buys little.
     """
     fixture = _load_fixture()
-    language = fixture["language"]
+    language = Language(fixture["language"].lower())
 
     with StaticAnalyzer(pristine_project) as analyzer:
         results = analyzer.analyze(cache_dir=get_artifact_dir(PROJECT_DIR))
@@ -125,7 +125,7 @@ def test_autotools_cdb_generation_and_analysis(pristine_project: Path) -> None:
     detected = results.get_languages()
     assert language in detected, f"Expected '{language}' in detected languages {detected}"
 
-    refs = results.results[Language(language.lower())].references.by_qualified_name or {}
+    refs = results.results[language].references.by_qualified_name or {}
     expected_refs = set(fixture["expected_references"])
     actual_refs = set(refs.keys())
     assert actual_refs == expected_refs, (
