@@ -32,6 +32,7 @@ from tool_registry import (
     preferred_npm_command,
     write_manifest,
 )
+from tool_registry.manifest import archive_binary_path, archive_layout_spec
 from tool_registry.registry import ConfigSection, PackageManagerToolSource
 from vscode_constants import VSCODE_CONFIG
 from static_analyzer.constants import Language
@@ -49,7 +50,10 @@ class LanguageSupportCheck:
 
     def evaluate(self, npm_available: bool) -> tuple[bool, str | None]:
         requirement_ok = (not self.requires_npm) or npm_available
-        path_exists = any(path.exists() for path in self.paths)
+        # AND-semantics: every declared path must exist. For ARCHIVE deps the
+        # caller appends both the marker dir and the binary so a half-extracted
+        # clangd (marker present, binary missing) doesn't falsely report "yes".
+        path_exists = bool(self.paths) and all(p.exists() for p in self.paths)
         is_available = (path_exists and requirement_ok) or self.fallback_available
         if is_available:
             return True, None
@@ -607,10 +611,15 @@ def _language_checks_from_registry(target_dir: Path) -> list[LanguageSupportChec
                 reason_requirement = "pyright-langserver not found in node_modules or active environment"
                 reason_binary = reason_requirement
         elif dep.kind is ToolKind.ARCHIVE:
-            # JDTLS is validated by directory presence (+ plugins/ subdir),
-            # mirroring has_required_tools.
-            subdir = dep.archive_subdir or dep.key
-            paths.append(target_dir / "bin" / subdir)
+            # Mirrors installer/has_required_tools: marker AND binary (when
+            # the layout declares one) must both be on disk. Without the
+            # binary check a half-extracted clangd (bin/ present, bin/clangd
+            # missing) falsely reports "yes" in the summary.
+            subdir = dep.archive_subdir
+            paths.append(target_dir / "bin" / subdir / archive_layout_spec(dep).marker)
+            binary = archive_binary_path(dep, target_dir)
+            if binary is not None:
+                paths.append(binary)
             reason_requirement = f"{subdir} installation not found"
             reason_binary = reason_requirement
             # Java analysis can still proceed when a system Java 21+ is available

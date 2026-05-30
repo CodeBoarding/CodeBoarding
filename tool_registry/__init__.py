@@ -12,6 +12,7 @@ from .registry import (  # noqa: F401
     TOOL_REGISTRY,
     TOOLS_REPO,
     TOOLS_TAG,
+    ArchiveLayout,
     ConfigSection,
     GitHubToolSource,
     PackageManagerToolSource,
@@ -42,6 +43,7 @@ from .paths import (  # noqa: F401
 )
 from .manifest import (  # noqa: F401
     acquire_lock,
+    archive_layout_spec,
     build_config,
     has_required_tools,
     installed_version,

@@ -1,0 +1,29 @@
+{
+  "language": "Cpp",
+  "description": "End-to-end integration fixture for the Bazel CDB-generation path. A tiny MODULE.bazel workspace with a cc_binary that compiles greeter.cpp + main.cpp against greeter.hpp; BazelAqueryGenerator runs 'bazel aquery' with CODEBOARDING_CPP_GENERATE_CDB=1, emits .codeboarding/cdb/compile_commands.json, and clangd drives the StaticAnalyzer the same way compile_flags.txt does elsewhere.",
+  "expected_source_files": [
+    "greeter.cpp",
+    "greeter.hpp",
+    "main.cpp"
+  ],
+  "expected_references": [
+    "greet",
+    "greet.Greeter",
+    "greet.Greeter.Greeter(std.string)",
+    "greet.Greeter.hello",
+    "greet.Greeter.name_",
+    "main"
+  ],
+  "expected_classes": [],
+  "expected_hierarchy": {},
+  "expected_edges": [
+    ["main", "Greeter.Greeter(std.string)"],
+    ["main", "Greeter.hello"],
+    ["main", "greet.Greeter.Greeter(std.string)"],
+    ["main", "greet.Greeter.hello"]
+  ],
+  "expected_package_deps": {
+    "greeter": {"imports_contain": [], "imported_by_contain": ["main"]},
+    "main": {"imports_contain": ["greeter"], "imported_by_contain": []}
+  }
+}

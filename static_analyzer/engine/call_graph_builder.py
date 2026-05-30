@@ -152,7 +152,13 @@ class CallGraphBuilder:
             self._bulk_did_open(source_files)
             probe_result = self._send_sync_probe(source_files, probe_timeout)
 
-        # Phase 1: extract symbols from each file
+        # Phase 1: extract symbols from each file. Adapters can opt into
+        # using ``probe_timeout`` for per-file queries via
+        # ``phase1_request_timeout`` — needed by clangd on Windows where a
+        # single ``document_symbol`` can block for minutes during index
+        # warm-up. Default ``None`` keeps the historical 60s per-request
+        # timeout for every other language.
+        phase1_timeout = self._adapter.phase1_request_timeout(probe_timeout)
         pbar = ProgressLogger("Phase 1 (symbols)", total, unit="file")
         for idx, file_path in enumerate(source_files, 1):
             # Reuse the sync probe result for the first file to avoid a
@@ -160,7 +166,7 @@ class CallGraphBuilder:
             if idx == 1 and probe_result is not None:
                 symbols = probe_result
             else:
-                symbols = self._lsp.document_symbol(file_path)
+                symbols = self._lsp.document_symbol(file_path, timeout=phase1_timeout)
             self._symbol_table.register_symbols(file_path, symbols, parent_chain=[], project_root=self._root)
             pbar.set_postfix(symbols=len(self._symbol_table.symbols))
             pbar.update(1)

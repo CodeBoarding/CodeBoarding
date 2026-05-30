@@ -38,7 +38,10 @@ LANGUAGE_EXTENSIONS: dict[Language, tuple[str, ...]] = {
     Language.PHP: (".php",),
     Language.RUST: (".rs",),
     Language.CSHARP: (".cs",),
-    Language.CPP: (".cpp", ".cc", ".cxx", ".hpp", ".hh", ".hxx", ".h"),
+    # ``.c`` is here, not in a separate Language.C, because clangd handles
+    # C and C++ in one process and mixed C/C++ projects (POCO, embedded
+    # codebases) would otherwise skip indexing their C sources.
+    Language.CPP: (".cpp", ".cc", ".cxx", ".c++", ".ipp", ".tpp", ".hpp", ".hh", ".hxx", ".h++", ".h", ".c"),
 }
 
 # Import-time invariant: every language has an extension list. Cheap check that

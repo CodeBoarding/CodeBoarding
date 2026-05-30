@@ -130,6 +130,27 @@ VSCODE_CONFIG = {
             # and surfaces in error messages when the binary cannot be located.
             "install_commands": "codeboarding-setup (downloads rust-analyzer automatically)",
         },
+        "cpp": {
+            "name": "clangd",
+            "command": ["clangd"],
+            "languages": ["cpp"],
+            # ``.h`` included: clangd handles C+C++ in one process; can't
+            # distinguish dialects per-file.
+            "file_extensions": [
+                ".cpp",
+                ".cc",
+                ".cxx",
+                ".c++",
+                ".ipp",
+                ".tpp",
+                ".hpp",
+                ".hh",
+                ".hxx",
+                ".h++",
+                ".h",
+            ],
+            "install_commands": "codeboarding-setup (downloads clangd automatically)",
+        },
     },
     "tools": {
         "tokei": {

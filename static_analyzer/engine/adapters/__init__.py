@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from static_analyzer.engine.language_adapter import LanguageAdapter
+from static_analyzer.engine.adapters.cpp_adapter import CppAdapter
 from static_analyzer.engine.adapters.csharp_adapter import CSharpAdapter
 from static_analyzer.engine.adapters.go_adapter import GoAdapter
 from static_analyzer.engine.adapters.java_adapter import JavaAdapter
@@ -15,6 +16,7 @@ ADAPTER_REGISTRY: dict[str, type[LanguageAdapter]] = {
     "Python": PythonAdapter,
     "JavaScript": JavaScriptAdapter,
     "TypeScript": TypeScriptAdapter,
+    "Cpp": CppAdapter,
     "CSharp": CSharpAdapter,
     "Go": GoAdapter,
     "Java": JavaAdapter,

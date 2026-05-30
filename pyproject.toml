@@ -87,6 +87,7 @@ packages = [
     "static_analyzer",
     "static_analyzer.engine",
     "static_analyzer.engine.adapters",
+    "static_analyzer.engine.adapters.cpp_cdb",
     "static_analyzer.lsp_client",
     "caching",
     "tool_registry",
@@ -161,4 +162,5 @@ markers = [
     "javascript_lang: marks tests for JavaScript language",
     "rust_lang: marks tests for Rust language",
     "csharp_lang: marks tests for C# language",
+    "cpp_lang: marks tests for C++ language",
 ]

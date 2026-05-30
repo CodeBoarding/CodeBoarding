@@ -961,20 +961,39 @@ def _populate_complete_servers_dir(base_dir: Path) -> None:
     NATIVE -> platform_bin_dir/<name><exe>;
     NODE -> node_modules/<js_entry_parent>/lib/<js_entry_file>
     (find_runnable does a substring match on parent dir);
-    ARCHIVE -> bin/<archive_subdir>/plugins/;
+    ARCHIVE -> bin/<archive_subdir>/<layout marker> (+ layout's binary if declared);
     PACKAGE_MANAGER -> platform_bin_dir/pm-tools/<subdir>/<name><exe>
     """
+    from tool_registry.manifest import archive_layout_spec
+
     bin_dir = platform_bin_dir(base_dir)
     bin_dir.mkdir(parents=True, exist_ok=True)
     for dep in TOOL_REGISTRY:
         if dep.kind is ToolKind.NATIVE:
+            if not dep.is_available_on_host():
+                continue
             (bin_dir / f"{dep.binary_name}{exe_suffix()}").write_text("#!/bin/sh\n")
         elif dep.kind is ToolKind.NODE and dep.js_entry_file:
             entry_dir = base_dir / "node_modules" / dep.js_entry_parent / "lib"
             entry_dir.mkdir(parents=True, exist_ok=True)
             (entry_dir / dep.js_entry_file).write_text("// stub\n")
         elif dep.kind is ToolKind.ARCHIVE and dep.archive_subdir:
-            (base_dir / "bin" / dep.archive_subdir / "plugins").mkdir(parents=True, exist_ok=True)
+            if not dep.is_available_on_host():
+                continue
+            archive_dir = base_dir / "bin" / dep.archive_subdir
+            marker_name, _strip, binary_rel = archive_layout_spec(dep)
+            # Marker always names a directory (JDTLS's ``plugins/``,
+            # clangd's ``bin/``); file-level markers would fail ``.exists``
+            # on Windows where binaries carry a ``.exe`` suffix.
+            (archive_dir / marker_name).mkdir(parents=True, exist_ok=True)
+            # For layouts with a binary rewrite also materialize the
+            # binary itself so ``resolve_config`` can point ``command[0]``
+            # at it — otherwise the cmd branch in the resolver wouldn't
+            # trigger during tests.
+            if binary_rel:
+                binary = archive_dir / binary_rel
+                binary.parent.mkdir(parents=True, exist_ok=True)
+                binary.write_text("#!/bin/sh\n")
         elif dep.kind is ToolKind.PACKAGE_MANAGER:
             subdir = dep.archive_subdir or dep.key
             pm_dir = bin_dir / "pm-tools" / subdir
@@ -1037,6 +1056,25 @@ class TestHasRequiredTools(unittest.TestCase):
             shutil.rmtree(base_dir / "bin" / "jdtls" / "plugins")
             self.assertFalse(has_required_tools(base_dir))
 
+    def test_archive_with_missing_binary_returns_false(self):
+        from tool_registry.manifest import archive_layout_spec
+        from tool_registry.registry import TOOL_REGISTRY
+
+        clangd_dep = next((d for d in TOOL_REGISTRY if d.key == "cpp"), None)
+        if clangd_dep is None:
+            self.skipTest("clangd dep not in registry (nothing to regression-test)")
+        _marker, _strip, rel = archive_layout_spec(clangd_dep)
+        if not rel:
+            self.skipTest("clangd layout has no binary rewrite")
+        if not clangd_dep.is_available_on_host():
+            self.skipTest("clangd unavailable on this host")
+        with tempfile.TemporaryDirectory() as tmp:
+            base_dir = Path(tmp)
+            _populate_complete_servers_dir(base_dir)
+            binary = base_dir / "bin" / clangd_dep.archive_subdir / rel
+            binary.unlink()
+            self.assertFalse(has_required_tools(base_dir))
+
     def test_needs_install_triggers_on_missing_node_install(self):
         """Integration: matching fingerprints but missing node_modules/pyright/ -> needs_install."""
         with tempfile.TemporaryDirectory() as tmp:
@@ -1057,9 +1095,9 @@ class TestHasRequiredTools(unittest.TestCase):
                         self.assertTrue(needs_install())
 
     def test_unavailable_native_dep_does_not_block_required_tools(self):
-        """Regression: rust-analyzer missing on Linux/riscv64 must not make
-        ``has_required_tools`` False — that would loop forever via
-        ``needs_install``.
+        """An unavailable native dep (e.g. rust-analyzer on unsupported arch)
+        must not make ``has_required_tools`` False — that would loop forever
+        via ``needs_install``.
         """
         with (
             patch("tool_registry.registry.platform.system", return_value="Linux"),

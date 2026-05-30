@@ -140,7 +140,17 @@ def _create_engine_configs(
         except RuntimeError as e:
             logger.error(f"Failed to create engine config for {pl.language}: {e}")
 
-    return configs
+    # Dedup (adapter class, project_path) — tokei reports related variants
+    # separately (e.g. "C++" and "C++ Header") that route to one adapter.
+    deduped: list[EngineConfig] = []
+    dedup_keys: set[tuple[type[LanguageAdapter], Path]] = set()
+    for cfg in configs:
+        key = (type(cfg.adapter), cfg.project_path)
+        if key in dedup_keys:
+            continue
+        dedup_keys.add(key)
+        deduped.append(cfg)
+    return deduped
 
 
 def _lang_to_adapter_name(language: str) -> str | None:
@@ -157,6 +167,9 @@ def _lang_to_adapter_name(language: str) -> str | None:
         "java": "Java",
         "php": "PHP",
         "rust": "Rust",
+        "c++": "Cpp",
+        "cpp": "Cpp",
+        "c++ header": "Cpp",  # tokei splits headers from sources
     }
     return mapping.get(language.lower())
 

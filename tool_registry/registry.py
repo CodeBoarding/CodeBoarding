@@ -38,6 +38,11 @@ JDTLS_URL_TEMPLATE = (
 RUST_ANALYZER_REPO = "rust-lang/rust-analyzer"
 RUST_ANALYZER_TAG = "2026-03-30"
 
+# clangd ships as a dir archive (binary + clang builtin headers loaded at
+# runtime) under a ``clangd_<ver>/`` wrapper that ``STRIPPED_BIN_DIR`` drops.
+CLANGD_REPO = "clangd/clangd"
+CLANGD_TAG = "22.1.0"
+
 # Pinned Node.js runtime for users without system Node; downloaded to
 # <servers_dir>/nodeenv/ via install_embedded_node(). A bump is folded into
 # tools_fingerprint() and triggers a full reinstall.
@@ -69,6 +74,15 @@ class ConfigSection(StrEnum):
 
     TOOLS = "tools"
     LSP_SERVERS = "lsp_servers"
+
+
+class ArchiveLayout(StrEnum):
+    """Shape of an ARCHIVE-kind tool's extracted directory tree."""
+
+    # JDTLS-shaped: wrapped in archive_subdir, post-install marker "plugins".
+    NESTED_PLUGINS = "nested_plugins"
+    # clangd-shaped: drop top-level wrapper dir, marker "bin", LSP binary at bin/<name>.
+    STRIPPED_BIN_DIR = "stripped_bin_dir"
 
 
 @dataclass(frozen=True)
@@ -136,14 +150,16 @@ class ToolDependency:
     archive_subdir: str = ""
     js_entry_file: str = ""
     js_entry_parent: str = ""
+    # ARCHIVE-kind discriminator (no-op for other kinds). Default preserves
+    # the JDTLS contract; see ``ArchiveLayout`` for per-variant semantics.
+    archive_layout: ArchiveLayout = ArchiveLayout.NESTED_PLUGINS
 
     def is_available_on_host(self) -> bool:
-        """True unless this is an arch-aware NATIVE dep whose override map
-        excludes the running ``(system, machine)`` (e.g. rust-analyzer on
-        Linux/riscv64). Consulted by both the installer and
-        ``has_required_tools`` to keep them in sync.
+        """True unless an arch-aware dep's override map excludes the current (system, machine).
+
+        Applies to NATIVE/ARCHIVE deps with a GitHub source; other kinds always True.
         """
-        if self.kind is not ToolKind.NATIVE:
+        if self.kind not in (ToolKind.NATIVE, ToolKind.ARCHIVE):
             return True
         if not isinstance(self.source, GitHubToolSource):
             return True
@@ -271,5 +287,36 @@ TOOL_REGISTRY: list[ToolDependency] = [
                 ("Windows", "ARM64"): "rust-analyzer-aarch64-pc-windows-msvc.zip",
             },
         ),
+    ),
+    # clangd ships a full dir (binary + clang builtin headers) under a
+    # ``clangd_<ver>/`` wrapper. Upstream: x86_64 Linux / universal mac /
+    # x86_64 Windows only; other hosts are warned-and-skipped.
+    ToolDependency(
+        key="cpp",
+        binary_name="clangd",
+        kind=ToolKind.ARCHIVE,
+        config_section=ConfigSection.LSP_SERVERS,
+        source=GitHubToolSource(
+            tag=CLANGD_TAG,
+            repo=CLANGD_REPO,
+            # Unused in practice (every host has an override), kept non-empty
+            # for stable ``tools_fingerprint``. Upstream uses ``mac`` not
+            # ``macos``, so fall-through would 404 — ``is_available_on_host``
+            # prevents that.
+            asset_template="clangd-{platform_suffix}-" + CLANGD_TAG + ".zip",
+            asset_arch_overrides={
+                ("Linux", "x86_64"): f"clangd-linux-{CLANGD_TAG}.zip",
+                ("Darwin", "x86_64"): f"clangd-mac-{CLANGD_TAG}.zip",
+                ("Darwin", "arm64"): f"clangd-mac-{CLANGD_TAG}.zip",
+                ("Windows", "AMD64"): f"clangd-windows-{CLANGD_TAG}.zip",
+            },
+            sha256={
+                f"clangd-linux-{CLANGD_TAG}.zip": "c54e57dbff3ccc9e8352367ddb7030ad3f624073ec58c7477424e7919f578572",
+                f"clangd-mac-{CLANGD_TAG}.zip": "71eddc5303da9a5bc5e8b509488b5b2c5acf45f20e33b8394e71a12a56d67198",
+                f"clangd-windows-{CLANGD_TAG}.zip": "e31e271fe11f6dcd7cf87ca74be4a12788ff8ce5a0b07762583e335c058e939a",
+            },
+        ),
+        archive_subdir="clangd",
+        archive_layout=ArchiveLayout.STRIPPED_BIN_DIR,
     ),
 ]
