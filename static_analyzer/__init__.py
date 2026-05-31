@@ -227,6 +227,7 @@ class StaticAnalyzer:
         started: list[tuple[EngineConfig, LSPClient]] = []
         attempted: list[str] = []
         failed_languages: list[str] = []
+        failure_details: list[str] = []
 
         for engine_config in self._engine_configs:
             adapter, project_path = engine_config.adapter, engine_config.project_path
@@ -271,12 +272,14 @@ class StaticAnalyzer:
 
                 started.append((engine_config, engine_client))
 
-            except Exception:
+            except Exception as e:
                 logger.exception(
                     f"Failed to start engine LSP client for {adapter.language}; "
                     f"skipping this language and continuing"
                 )
                 failed_languages.append(adapter.language)
+                detail = str(e).strip() or e.__class__.__name__
+                failure_details.append(f"{adapter.language}: {detail}")
                 if engine_client is not None:
                     try:
                         engine_client.shutdown()
@@ -287,7 +290,12 @@ class StaticAnalyzer:
 
         if not started:
             self._clients_started = False
-            raise RuntimeError(f"Failed to start any engine LSP client (attempted: {', '.join(attempted) or 'none'})")
+            attempted_list = ", ".join(attempted) or "none"
+            failure_summary = "; ".join(failure_details)
+            raise RuntimeError(
+                f"Failed to start any engine LSP client (attempted: {attempted_list})"
+                + (f". Failures: {failure_summary}" if failure_summary else "")
+            )
 
         if failed_languages:
             logger.warning(

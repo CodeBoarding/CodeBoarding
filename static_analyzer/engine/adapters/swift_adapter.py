@@ -100,19 +100,18 @@ class SwiftAdapter(LanguageAdapter):
             raise RuntimeError(
                 "Swift toolchain not found on PATH. sourcekit-lsp ships with "
                 "the Swift toolchain and is required to index Swift projects. "
-                "Install one from https://swift.org/install/ (or Xcode on macOS) "
-                "and re-run the analysis."
+                "Install Swift from https://swift.org/install/ (or Xcode on macOS), "
+                "make sure swift and sourcekit-lsp are on PATH, then re-run the analysis."
             )
         resolved = resolve_sourcekit_lsp()
         if resolved is None:
             raise RuntimeError(
-                "sourcekit-lsp could not be located on PATH"
+                "sourcekit-lsp could not be located"
                 + (" or via 'xcrun --find sourcekit-lsp'" if platform.system() == "Darwin" else "")
-                + ". This usually means a partial toolchain install (some swiftly/asdf "
-                "shims, Command Line Tools without Xcode on older macOS, or a swift.org "
-                "tarball whose usr/bin was not added to PATH). Install a full Swift "
-                "toolchain from https://swift.org/install/ (or Xcode on macOS) and "
-                "re-run the analysis."
+                + ". It ships with the full Swift toolchain and is required to index "
+                "Swift projects. Install a full Swift toolchain from "
+                "https://swift.org/install/ (or Xcode on macOS), ensure its usr/bin "
+                "directory is on PATH, then re-run the analysis."
             )
         cmd = super().get_lsp_command(project_root)
         # ``tool_registry`` may have left ``sourcekit-lsp`` as a bare name when

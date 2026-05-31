@@ -117,8 +117,13 @@ class TestGetLspCommandToolchainCheck:
             return None
 
         with patch("static_analyzer.engine.adapters.swift_adapter.shutil.which", side_effect=selective):
-            with pytest.raises(RuntimeError, match=r"Swift toolchain not found.*swift\.org"):
+            with pytest.raises(RuntimeError) as exc_info:
                 SwiftAdapter().get_lsp_command(tmp_path)
+        message = str(exc_info.value)
+        assert "Swift toolchain not found on PATH" in message
+        assert "sourcekit-lsp ships with the Swift toolchain" in message
+        assert "https://swift.org/install/" in message
+        assert "make sure swift and sourcekit-lsp are on PATH" in message
 
     def test_raises_when_sourcekit_lsp_missing(self, tmp_path: Path) -> None:
         """``swift`` present but ``sourcekit-lsp`` absent (partial install / shim layouts)."""
@@ -130,8 +135,13 @@ class TestGetLspCommandToolchainCheck:
 
         with patch("static_analyzer.engine.adapters.swift_adapter.shutil.which", side_effect=selective):
             with patch("static_analyzer.engine.adapters.swift_adapter.resolve_sourcekit_lsp", return_value=None):
-                with pytest.raises(RuntimeError, match=r"sourcekit-lsp could not be located"):
+                with pytest.raises(RuntimeError) as exc_info:
                     SwiftAdapter().get_lsp_command(tmp_path)
+        message = str(exc_info.value)
+        assert "sourcekit-lsp could not be located" in message
+        assert "It ships with the full Swift toolchain" in message
+        assert "https://swift.org/install/" in message
+        assert "ensure its usr/bin directory is on PATH" in message
 
     def test_returns_command_when_both_present(self, tmp_path: Path) -> None:
         def selective(name: str) -> str | None:
