@@ -1828,6 +1828,40 @@ class TestInstallNativeToolsPinDrift(unittest.TestCase):
             mock_dl.assert_called_once()
             self.assertEqual(stale.read_bytes(), new_payload)
 
+    def test_missing_platform_pin_aborts_batch_before_later_deps(self):
+        missing_pin_dep = ToolDependency(
+            key="tokei",
+            binary_name="tokei",
+            kind=ToolKind.NATIVE,
+            config_section=ConfigSection.TOOLS,
+            source=GitHubToolSource(
+                tag="tools-2026.04.05",
+                repo="CodeBoarding/tools",
+                asset_template="tokei-{platform_suffix}",
+                sha256={"macos": "0" * 64},
+            ),
+        )
+        later_dep = ToolDependency(
+            key="go",
+            binary_name="gopls",
+            kind=ToolKind.NATIVE,
+            config_section=ConfigSection.LSP_SERVERS,
+            source=GitHubToolSource(
+                tag="tools-2026.04.05",
+                repo="CodeBoarding/tools",
+                asset_template="gopls-{platform_suffix}",
+                sha256={"linux": "1" * 64},
+            ),
+        )
+
+        with tempfile.TemporaryDirectory() as tmp, self._patched_linux():
+            with (
+                self.assertRaisesRegex(ValueError, "missing SHA256 pin"),
+                patch("tool_registry.installers.download_asset") as mock_dl,
+            ):
+                install_native_tools(Path(tmp), [missing_pin_dep, later_dep])
+            mock_dl.assert_not_called()
+
     def test_no_pin_skips_with_caveat(self):
         """When the registry has no SHA for this platform we cannot verify,
         so the existing binary is trusted (legacy behavior preserved)."""

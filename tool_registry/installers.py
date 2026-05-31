@@ -169,7 +169,11 @@ def _resolve_native_download_hash(
     compressed: bool,
     platform_suffix: str,
 ) -> str | None:
-    """Resolve the SHA256 pin for the downloaded release asset."""
+    """Resolve the SHA256 pin for the downloaded release asset.
+
+    Exact asset-name pins apply to any asset; platform-suffix pins only apply
+    to pre-extracted binaries, not compressed archives with different bytes.
+    """
     if asset_name in source.sha256:
         return source.sha256[asset_name]
     if not compressed:
