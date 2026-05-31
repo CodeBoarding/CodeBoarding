@@ -121,6 +121,18 @@ class CSharpAdapter(LanguageAdapter):
         return True
 
     @property
+    def workspace_ready_timeout(self) -> int:
+        """csharp-ls 0.20.0 emits a solution-loaded notification only when
+        it finds a ``.sln``/``.slnx`` in the workspace folder. For
+        per-csproj launches (or when the Roslyn MSBuild loader silently
+        skips an unsupported format) it never emits anything. Cap the
+        wait at 60s so analysis proceeds promptly instead of stalling
+        the full default (300s) per discovered project — see
+        ``LSPClient.wait_for_server_ready``.
+        """
+        return 60
+
+    @property
     def probe_before_open(self) -> bool:
         """csharp-ls loads all files from the .sln — didOpen before workspace load kills it."""
         return True

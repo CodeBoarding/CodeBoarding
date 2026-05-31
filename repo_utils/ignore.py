@@ -83,6 +83,15 @@ test_*.py
 *Test.kt
 *IT.kt
 *Tests.java
+*Tests.cs
+*Test.cs
+
+# C# / .NET test project directories (PascalCase suffix convention:
+# ``Foo.UnitTests``, ``Foo.IntegrationTests``, ``Foo.ConformanceTests``,
+# ``Foo.LayoutTests``, etc.) and ad-hoc test runners.
+**/*Tests/**
+**/*TestRunner/**
+**/*TestRunners/**
 
 # Mock, fixture, and stub directories
 **/__mocks__/**
@@ -106,6 +115,13 @@ test_*.py
 # Example and documentation code
 **/examples/**
 **/documentation/examples/**
+
+# C# / .NET example / sample / report project directories
+# (PascalCase suffix convention: ``Foo.Examples``, ``Foo.Samples``,
+# ``Foo.DocumentationExamples``, ``Foo.ReportSample``).
+**/*Examples/**
+**/*Samples/**
+**/*Sample/**
 
 # Generated code
 *.pb.go
