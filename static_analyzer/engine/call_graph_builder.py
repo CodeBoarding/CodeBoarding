@@ -168,6 +168,7 @@ class CallGraphBuilder:
 
         logger.info("Discovered %d symbols across %d files", len(self._symbol_table.symbols), len(source_files))
 
+        self._adapter.wait_for_references_ready(self._lsp)
         self._warmup_references(source_files)
 
     def _bulk_did_open(self, source_files: list[Path]) -> None:

@@ -16,6 +16,7 @@ CODEBOARDINGIGNORE_TEMPLATE = """# CodeBoarding Ignore File
 #   - Hidden directories (starting with .)
 #   - .git/, .codeboarding/, node_modules/, __pycache__/
 #   - Build output: build/, dist/, coverage/
+#   - SwiftPM/Xcode generated dependencies: checkouts/, DerivedData/
 #
 # This file is automatically loaded by CodeBoarding analysis tools to exclude
 # specified paths from code analysis, architecture generation, and other processing.
@@ -144,20 +145,22 @@ _DEFAULT_SPEC = pathspec.PathSpec.from_lines("gitwildmatch", CODEBOARDINGIGNORE_
 
 
 # Directories that are always excluded, even without a .codeboardingignore file.
-# These contain compiled output, dependency installs, or tooling artifacts —
-# never source code, regardless of language or user preference.
+# These contain compiled output, dependency installs, or tooling artifacts
+# rather than repository-owned source.
 _ALWAYS_IGNORED_DIRS = {
     # Version control and tooling
     ".git",
     ".codeboarding",
     # Dependency installs
     "node_modules",
+    "checkouts",  # SwiftPM dependency checkout dirs
     # Compiled / build output (universal across ecosystems — never source)
     "__pycache__",
     "build",
     "dist",
     "coverage",
     "target",  # Java (Maven), Rust (Cargo)
+    "DerivedData",  # Xcode build/index output
 }
 
 

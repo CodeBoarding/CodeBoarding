@@ -313,6 +313,30 @@ class LSPClient:
 
         return self._send_batch("textDocument/references", queries, build_params, timeout=timeout)
 
+    def workspace_synchronize(
+        self,
+        *,
+        index: bool = False,
+        build_server_updates: bool = False,
+        copy_file_map: bool = False,
+        timeout: int | None = None,
+    ) -> bool:
+        """Ask servers with a synchronize extension to flush workspace state."""
+        params: dict[str, bool] = {}
+        if index:
+            params["index"] = True
+        if build_server_updates:
+            params["buildServerUpdates"] = True
+        if copy_file_map:
+            params["copyFileMap"] = True
+        self._send_request("workspace/synchronize", params, timeout=timeout)
+        return True
+
+    def workspace_poll_index(self, timeout: int | None = None) -> bool:
+        """Ask older SourceKit-LSP builds to ingest pending index-store changes."""
+        self._send_request("workspace/_pollIndex", {}, timeout=timeout)
+        return True
+
     def definition(self, file_path: Path, line: int, character: int, timeout: int | None = None) -> list[dict]:
         """Find the definition of the symbol at the given position."""
         result = self._send_request(

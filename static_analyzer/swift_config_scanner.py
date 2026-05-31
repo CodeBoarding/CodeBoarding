@@ -14,11 +14,6 @@ from repo_utils.ignore import RepoIgnoreManager
 
 logger = logging.getLogger(__name__)
 
-# Directories that contain SwiftPM-checked-out source (other packages'
-# Package.swift files). Walking into them would create duplicate roots for
-# dependencies the outer package already covers.
-_VENDORED_DIRS = {".build", "Checkouts", "DerivedData", ".swiftpm"}
-
 
 class SwiftPackageConfig:
     """Describes a discovered SwiftPM package root."""
@@ -34,7 +29,7 @@ class SwiftConfigScanner:
     """Scan a repository for SwiftPM package roots.
 
     Strategy:
-        1. Locate every ``Package.swift`` outside vendored dependency dirs.
+        1. Locate every ``Package.swift`` outside ignored dependency/build dirs.
         2. Keep only top-level manifests: drop any package nested inside
            another discovered package (workspaces typically have a root
            Package.swift that already pulls in siblings via ``dependencies``).
@@ -78,7 +73,7 @@ class SwiftConfigScanner:
         for manifest in self.repo_path.rglob("Package.swift"):
             if not manifest.is_file():
                 continue
-            if any(part in _VENDORED_DIRS for part in manifest.parts):
+            if self.ignore_manager.should_ignore(manifest):
                 continue
             roots.add(manifest.parent)
         return sorted(roots, key=lambda p: (len(p.parts), str(p)))
@@ -86,7 +81,7 @@ class SwiftConfigScanner:
     def _has_swift_files(self, directory: Path) -> bool:
         try:
             for candidate in directory.rglob("*.swift"):
-                if not any(part in _VENDORED_DIRS for part in candidate.parts):
+                if not self.ignore_manager.should_ignore(candidate):
                     return True
             return False
         except OSError:

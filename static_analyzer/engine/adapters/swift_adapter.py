@@ -12,9 +12,11 @@ from pathlib import Path
 
 from static_analyzer.constants import Language
 from static_analyzer.engine.language_adapter import LanguageAdapter
-from static_analyzer.engine.lsp_client import LSPClient
+from static_analyzer.engine.lsp_client import LSPClient, MethodNotFoundError
 
 logger = logging.getLogger(__name__)
+
+SWIFT_BUILD_TIMEOUT_SECONDS = 300
 
 
 @lru_cache(maxsize=1)
@@ -175,6 +177,32 @@ class SwiftAdapter(LanguageAdapter):
         """
         client.wait_for_diagnostics_quiesce(idle_seconds=2.0, max_wait=30.0)
 
+    def wait_for_references_ready(self, client: LSPClient) -> None:
+        """Wait for SourceKit-LSP to load the index used by references."""
+        try:
+            logger.info("Synchronizing SourceKit-LSP index before references queries...")
+            client.workspace_synchronize(index=True, timeout=300)
+            return
+        except MethodNotFoundError:
+            logger.info("SourceKit-LSP workspace/synchronize unsupported; trying legacy workspace/_pollIndex")
+        except Exception as e:
+            logger.warning("SourceKit-LSP workspace/synchronize failed; trying legacy poll: %s", e)
+
+        try:
+            client.workspace_poll_index(timeout=300)
+        except MethodNotFoundError:
+            logger.warning("SourceKit-LSP index synchronization is unsupported; references may be incomplete")
+        except Exception as e:
+            logger.warning("SourceKit-LSP legacy index poll failed; references may be incomplete: %s", e)
+
+    @property
+    def empty_references_retry_attempts(self) -> int:
+        return 3
+
+    @property
+    def empty_references_retry_delay(self) -> float:
+        return 5.0
+
     def prepare_project(self, project_root: Path) -> None:
         """Run ``swift build`` so sourcekit-lsp has an index store to query.
 
@@ -213,7 +241,7 @@ class SwiftAdapter(LanguageAdapter):
                 env=env,
                 capture_output=True,
                 text=True,
-                timeout=600,
+                timeout=SWIFT_BUILD_TIMEOUT_SECONDS,
             )
             if result.returncode != 0:
                 logger.warning(
@@ -225,6 +253,10 @@ class SwiftAdapter(LanguageAdapter):
             else:
                 logger.info("swift build completed for %s; index store populated", project_root)
         except subprocess.TimeoutExpired:
-            logger.warning("swift build timed out after 600s for %s; proceeding with partial index", project_root)
+            logger.warning(
+                "swift build timed out after %ds for %s; proceeding with partial index",
+                SWIFT_BUILD_TIMEOUT_SECONDS,
+                project_root,
+            )
         except OSError as e:
             logger.warning("Failed to invoke swift build for %s: %s", project_root, e)

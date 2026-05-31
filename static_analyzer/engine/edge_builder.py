@@ -8,6 +8,7 @@ Two strategies are provided:
 from __future__ import annotations
 
 import logging
+import time
 from pathlib import Path
 
 from static_analyzer.engine.edge_build_context import EdgeBuildContext
@@ -44,6 +45,33 @@ def build_edges_via_references(
 
     pos_to_syms, unique_positions = _prepare_trackable_symbols(adapter, st)
 
+    if not unique_positions:
+        return set()
+
+    max_empty_retries = _empty_references_retry_attempts(adapter)
+    retry_delay = _empty_references_retry_delay(adapter)
+    for attempt in range(max_empty_retries + 1):
+        edge_set, refs_total, _ = _build_edges_via_references_once(adapter, ctx, pos_to_syms, unique_positions)
+        if refs_total > 0 or attempt >= max_empty_retries:
+            return edge_set
+        logger.warning(
+            "Phase 2 references returned zero results; retrying in %.1fs (%d/%d)",
+            retry_delay,
+            attempt + 1,
+            max_empty_retries,
+        )
+        time.sleep(retry_delay)
+
+    return set()
+
+
+def _build_edges_via_references_once(
+    adapter: EdgeBuildAdapter,
+    ctx: EdgeBuildContext,
+    pos_to_syms: dict[tuple[str, int, int], list[SymbolInfo]],
+    unique_positions: list[tuple[str, int, int]],
+) -> tuple[set[tuple[str, str]], int, int]:
+    """Run one full references pass."""
     total_unique = len(unique_positions)
 
     # Group positions by file for progress tracking
@@ -119,7 +147,17 @@ def build_edges_via_references(
         refs_total,
         (1 - refs_call_sites / max(refs_total, 1)) * 100,
     )
-    return edge_set
+    return edge_set, refs_total, refs_call_sites
+
+
+def _empty_references_retry_attempts(adapter: EdgeBuildAdapter) -> int:
+    value = getattr(adapter, "empty_references_retry_attempts", 0)
+    return value if isinstance(value, int) and value > 0 else 0
+
+
+def _empty_references_retry_delay(adapter: EdgeBuildAdapter) -> float:
+    value = getattr(adapter, "empty_references_retry_delay", 0.0)
+    return value if isinstance(value, int | float) and value > 0 else 0.0
 
 
 def _prepare_trackable_symbols(

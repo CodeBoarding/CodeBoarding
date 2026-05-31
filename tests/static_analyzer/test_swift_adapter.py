@@ -10,6 +10,7 @@ import pytest
 from static_analyzer.constants import Language
 from static_analyzer.engine.adapters import get_adapter
 from static_analyzer.engine.adapters.swift_adapter import SwiftAdapter, resolve_sourcekit_lsp
+from static_analyzer.engine.lsp_client import MethodNotFoundError
 
 
 class TestSwiftAdapterProperties:
@@ -178,6 +179,35 @@ class TestGetLspCommandToolchainCheck:
             ):
                 cmd = SwiftAdapter().get_lsp_command(tmp_path)
         assert cmd[0] == xcrun_path
+
+
+class TestReferenceIndexSync:
+    def test_wait_for_references_ready_uses_modern_synchronize(self):
+        client = MagicMock()
+
+        SwiftAdapter().wait_for_references_ready(client)
+
+        client.workspace_synchronize.assert_called_once_with(index=True, timeout=300)
+        client.workspace_poll_index.assert_not_called()
+
+    def test_wait_for_references_ready_falls_back_to_legacy_poll(self):
+        client = MagicMock()
+        client.workspace_synchronize.side_effect = MethodNotFoundError("not supported")
+
+        SwiftAdapter().wait_for_references_ready(client)
+
+        client.workspace_synchronize.assert_called_once_with(index=True, timeout=300)
+        client.workspace_poll_index.assert_called_once_with(timeout=300)
+
+    def test_wait_for_references_ready_tolerates_missing_sync_extensions(self):
+        client = MagicMock()
+        client.workspace_synchronize.side_effect = MethodNotFoundError("not supported")
+        client.workspace_poll_index.side_effect = MethodNotFoundError("not supported")
+
+        SwiftAdapter().wait_for_references_ready(client)
+
+        client.workspace_synchronize.assert_called_once_with(index=True, timeout=300)
+        client.workspace_poll_index.assert_called_once_with(timeout=300)
 
 
 class TestBuildQualifiedName:

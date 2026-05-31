@@ -208,6 +208,20 @@ class LanguageAdapter(ABC):
         """
         return None
 
+    def wait_for_references_ready(self, client: LSPClient) -> None:
+        """Block until reference-backed global index queries are ready."""
+        return None
+
+    @property
+    def empty_references_retry_attempts(self) -> int:
+        """Number of retries when every references query returns empty."""
+        return 0
+
+    @property
+    def empty_references_retry_delay(self) -> float:
+        """Delay between empty-reference retries."""
+        return 0.0
+
     def get_lsp_env(self) -> dict[str, str]:
         """Return extra environment variables for the LSP server process."""
         return {}

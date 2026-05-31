@@ -96,6 +96,10 @@ dist/
         self.assertTrue(self.ignore_manager.should_ignore(Path("node_modules/react/index.js")))
         self.assertTrue(self.ignore_manager.should_ignore(Path("dist/bundle.js")))
         self.assertTrue(self.ignore_manager.should_ignore(Path(".codeboarding/config.json")))
+        self.assertTrue(self.ignore_manager.should_ignore(Path("checkouts/SomeDep/Package.swift")))
+        self.assertTrue(
+            self.ignore_manager.should_ignore(Path("DerivedData/App/SourcePackages/checkouts/Dep/File.swift"))
+        )
 
         # Default ignored file patterns (build artifacts, minified files)
         self.assertTrue(self.ignore_manager.should_ignore(Path("src/app.bundle.js")))

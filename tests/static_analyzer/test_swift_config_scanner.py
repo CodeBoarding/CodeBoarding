@@ -44,13 +44,27 @@ class TestSwiftConfigScanner:
         assert [c.root for c in configs] == [tmp_path]
 
     def test_vendored_dependencies_ignored(self, tmp_path: Path):
-        """Package.swift files inside .build/Checkouts/ are SwiftPM-fetched deps."""
+        """Package.swift files inside .build/checkouts/ are SwiftPM-fetched deps."""
         (tmp_path / "Package.swift").write_text("")
         dep_dir = tmp_path / ".build" / "checkouts" / "SomeDep"
         dep_dir.mkdir(parents=True)
         (dep_dir / "Package.swift").write_text("")
         configs = SwiftConfigScanner(tmp_path).scan()
         assert [c.root for c in configs] == [tmp_path]
+
+    def test_un_nested_checkouts_directory_ignored(self, tmp_path: Path):
+        (tmp_path / "Package.swift").write_text("")
+        dep_dir = tmp_path / "checkouts" / "SomeDep"
+        dep_dir.mkdir(parents=True)
+        (dep_dir / "Package.swift").write_text("")
+        configs = SwiftConfigScanner(tmp_path).scan()
+        assert [c.root for c in configs] == [tmp_path]
+
+    def test_fallback_ignores_swift_files_in_ignored_dirs(self, tmp_path: Path):
+        dep_source = tmp_path / "checkouts" / "SomeDep" / "Sources"
+        dep_source.mkdir(parents=True)
+        (dep_source / "Dependency.swift").write_text("struct Dependency {}\n")
+        assert SwiftConfigScanner(tmp_path).scan() == []
 
     def test_fallback_when_swift_files_without_manifest(self, tmp_path: Path):
         """Xcode-only project: swift files exist but no Package.swift -> repo root."""

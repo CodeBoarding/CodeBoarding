@@ -248,6 +248,24 @@ class TestReferences:
         assert result == []
 
 
+class TestWorkspaceIndexSync:
+    def test_sends_index_synchronize_request(self):
+        client = LSPClient(["cmd"], Path("/root"))
+
+        with patch.object(client, "_send_request", return_value={}) as send_request:
+            assert client.workspace_synchronize(index=True, timeout=300) is True
+
+        send_request.assert_called_once_with("workspace/synchronize", {"index": True}, timeout=300)
+
+    def test_sends_legacy_poll_index_request(self):
+        client = LSPClient(["cmd"], Path("/root"))
+
+        with patch.object(client, "_send_request", return_value={}) as send_request:
+            assert client.workspace_poll_index(timeout=300) is True
+
+        send_request.assert_called_once_with("workspace/_pollIndex", {}, timeout=300)
+
+
 class TestSendReferencesBatch:
     def test_sends_batch_and_collects_results(self):
         client = LSPClient(["cmd"], Path("/root"))

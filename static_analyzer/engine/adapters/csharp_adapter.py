@@ -15,6 +15,8 @@ from static_analyzer.engine.lsp_client import LSPClient
 
 logger = logging.getLogger(__name__)
 
+DOTNET_RESTORE_TIMEOUT_SECONDS = 300
+
 
 class CSharpAdapter(LanguageAdapter):
 
@@ -179,7 +181,7 @@ class CSharpAdapter(LanguageAdapter):
                 env=env,
                 capture_output=True,
                 text=True,
-                timeout=600,
+                timeout=DOTNET_RESTORE_TIMEOUT_SECONDS,
             )
             if result.returncode != 0:
                 logger.warning(
@@ -191,7 +193,7 @@ class CSharpAdapter(LanguageAdapter):
             else:
                 logger.info("dotnet restore completed for %s", target.name)
         except subprocess.TimeoutExpired:
-            logger.warning("dotnet restore timed out after 600s for %s", target.name)
+            logger.warning("dotnet restore timed out after %ds for %s", DOTNET_RESTORE_TIMEOUT_SECONDS, target.name)
         except OSError as exc:
             logger.warning("dotnet restore could not be invoked: %s", exc)
 
