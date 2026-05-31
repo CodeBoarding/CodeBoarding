@@ -24,7 +24,7 @@ from enum import StrEnum
 ProgressCallback = Callable[[str, int, int], None]
 
 TOOLS_REPO = "CodeBoarding/tools"
-TOOLS_TAG = "tools-2026.04.05"
+TOOLS_TAG = "tools-2026.05.31"
 
 JDTLS_VERSION = "1.44.0"
 JDTLS_BUILD = "202501221502"
@@ -163,9 +163,9 @@ TOOL_REGISTRY: list[ToolDependency] = [
             repo=TOOLS_REPO,
             asset_template="tokei-{platform_suffix}",
             sha256={
-                "linux": "e366026993bce6a40d6df19dcac9c1c58e88820268c68304c056cd3878e545e2",
-                "macos": "90ae8a2e979b9658c2616787bcc26f187f14b922fcd0bf61cb3f7fcc2a43634e",
-                "windows.exe": "7db547cb6bfa1722e89ca52a43426fb212aa53603a60256af25fb6e59ca12099",
+                "linux": "7b9a7dc321790e47a7b3759908e85da78f8b123e0e9f1248c0bd681253f9ba9b",
+                "macos": "bef03fbb7adb26e70d5521fddba6016dab75b19c584d7c9c9ba044cb71155fa8",
+                "windows.exe": "6d6517d967bfd7ea51c8b097f97a6e2a5d30bc0cc11dfe7e27a17fabb04ba329",
             },
         ),
     ),
@@ -179,9 +179,9 @@ TOOL_REGISTRY: list[ToolDependency] = [
             repo=TOOLS_REPO,
             asset_template="gopls-{platform_suffix}",
             sha256={
-                "linux": "76ecc01106266aa03f75c3ea857f6bd6a1da79b00abb6cb5a573b1cd5ecbdcb7",
-                "macos": "a12551ec82e8000c055a8e8e3447cbf22bd7c4b220d4e3802112a569e88a4965",
-                "windows.exe": "b739c89bcd3068257a5ac1be1b9b4978576f7731c7893fdc0b13577927bd6483",
+                "linux": "166b94c8f938391b93399bd5c07fbd75aaac77c7991fd6632b5f16a3b8f151b0",
+                "macos": "087a683aabc9e1d2a04e156447ccd1f1c7d551e75a3286099c666c3381efc43e",
+                "windows.exe": "1f9ea287d2162fee719e666cf09ee92260d62a5425301481f4327cbb5fa64113",
             },
         ),
     ),
