@@ -22,6 +22,7 @@ from static_analyzer.java_config_scanner import JavaConfigScanner
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
 from static_analyzer.programming_language import ProgrammingLanguage
 from static_analyzer.scanner import ProjectScanner
+from static_analyzer.swift_config_scanner import SwiftConfigScanner
 from static_analyzer.typescript_config_scanner import TypeScriptConfigScanner
 from tool_registry import ensure_node_on_path
 from utils import get_artifact_dir
@@ -119,6 +120,19 @@ def _create_engine_configs(
                         configs.append(EngineConfig(adapter, project_config.root))
                 else:
                     logger.info("No Java projects detected")
+
+            elif lang_lower == Language.SWIFT:
+                swift_scanner = SwiftConfigScanner(repository_path, ignore_manager=ignore_manager)
+                swift_packages = swift_scanner.scan()
+
+                if swift_packages:
+                    for swift_config in swift_packages:
+                        logger.info(
+                            f"Creating engine config for Swift at: " f"{swift_config.root.relative_to(repository_path)}"
+                        )
+                        configs.append(EngineConfig(adapter, swift_config.root))
+                else:
+                    logger.info("No Swift packages detected")
 
             elif lang_lower in (Language.CSHARP, "c#"):
                 csharp_scanner = CSharpConfigScanner(repository_path, ignore_manager=ignore_manager)

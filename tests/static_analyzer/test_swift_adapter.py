@@ -38,24 +38,34 @@ class TestGetLspCommandToolchainCheck:
     """
 
     def test_raises_when_swift_missing(self, tmp_path: Path) -> None:
-        real_which = shutil.which
-
         def selective(name: str) -> str | None:
-            if name == "swift":
-                return None
-            return real_which(name)
+            return None
 
         with patch("static_analyzer.engine.adapters.swift_adapter.shutil.which", side_effect=selective):
             with pytest.raises(RuntimeError, match=r"Swift toolchain not found.*swift\.org"):
                 SwiftAdapter().get_lsp_command(tmp_path)
 
-    def test_returns_command_when_swift_present(self, tmp_path: Path) -> None:
-        real_which = shutil.which
+    def test_raises_when_sourcekit_lsp_missing(self, tmp_path: Path) -> None:
+        """``swift`` present but ``sourcekit-lsp`` absent (partial install / shim layouts)."""
 
         def selective(name: str) -> str | None:
             if name == "swift":
                 return "/usr/local/bin/swift"
-            return real_which(name)
+            if name == "sourcekit-lsp":
+                return None
+            return None
+
+        with patch("static_analyzer.engine.adapters.swift_adapter.shutil.which", side_effect=selective):
+            with pytest.raises(RuntimeError, match=r"sourcekit-lsp is not"):
+                SwiftAdapter().get_lsp_command(tmp_path)
+
+    def test_returns_command_when_both_present(self, tmp_path: Path) -> None:
+        def selective(name: str) -> str | None:
+            if name == "swift":
+                return "/usr/local/bin/swift"
+            if name == "sourcekit-lsp":
+                return "/usr/local/bin/sourcekit-lsp"
+            return None
 
         with patch("static_analyzer.engine.adapters.swift_adapter.shutil.which", side_effect=selective):
             cmd = SwiftAdapter().get_lsp_command(tmp_path)
@@ -64,15 +74,17 @@ class TestGetLspCommandToolchainCheck:
 
 
 class TestBuildQualifiedName:
-    """SwiftAdapter inherits the base implementation; these tests pin the
-    expected shape so a future override doesn't silently change consumer output.
+    """SwiftPM convention: ``<package>/Sources/<Target>/...`` and
+    ``<package>/Tests/<TestTarget>/...``. The adapter strips the leading
+    ``Sources``/``Tests`` segment so the SwiftPM target becomes the top
+    component of the qualified name.
     """
 
     def setup_method(self):
         self.adapter = SwiftAdapter()
         self.root = Path("/project")
 
-    def test_top_level_function(self):
+    def test_top_level_function_strips_sources(self):
         result = self.adapter.build_qualified_name(
             file_path=Path("/project/Sources/App/main.swift"),
             symbol_name="run",
@@ -80,9 +92,9 @@ class TestBuildQualifiedName:
             parent_chain=[],
             project_root=self.root,
         )
-        assert result == "Sources.App.main.run"
+        assert result == "App.main.run"
 
-    def test_method_in_class(self):
+    def test_method_in_class_strips_sources(self):
         result = self.adapter.build_qualified_name(
             file_path=Path("/project/Sources/App/User.swift"),
             symbol_name="greet",
@@ -90,4 +102,28 @@ class TestBuildQualifiedName:
             parent_chain=[("User", 5)],
             project_root=self.root,
         )
-        assert result == "Sources.App.User.User.greet"
+        assert result == "App.User.User.greet"
+
+    def test_tests_directory_strips_prefix(self):
+        result = self.adapter.build_qualified_name(
+            file_path=Path("/project/Tests/AppTests/UserTests.swift"),
+            symbol_name="testGreet",
+            symbol_kind=6,
+            parent_chain=[("UserTests", 5)],
+            project_root=self.root,
+        )
+        assert result == "AppTests.UserTests.UserTests.testGreet"
+
+    def test_flat_layout_unchanged(self):
+        """Non-SwiftPM layout (no Sources/Tests prefix): falls back to file path."""
+        result = self.adapter.build_qualified_name(
+            file_path=Path("/project/App/User.swift"),
+            symbol_name="greet",
+            symbol_kind=6,
+            parent_chain=[("User", 5)],
+            project_root=self.root,
+        )
+        assert result == "App.User.User.greet"
+
+    def test_package_for_file_strips_sources(self):
+        assert self.adapter.get_package_for_file(Path("/project/Sources/App/User.swift"), self.root) == "App"

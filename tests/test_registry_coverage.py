@@ -52,14 +52,23 @@ class TestInstallOrchestratorCoversEveryKind(unittest.TestCase):
         ToolKind.PACKAGE_MANAGER: "install_package_manager_lsp_servers",
     }
 
+    # Kinds that are intentionally NOT installed by ``run_install`` (the
+    # binary ships with a third-party toolchain and is resolved from PATH
+    # at spawn time). Listed explicitly so adding a new kind still has to
+    # pass through this file — the author must consciously decide whether
+    # it gets an installer or joins this set.
+    _UNINSTALLED_KINDS: set[ToolKind] = {ToolKind.SYSTEM}
+
     def test_every_tool_kind_in_registry_has_a_mapped_installer(self):
         kinds_in_registry = {dep.kind for dep in TOOL_REGISTRY}
-        unmapped = kinds_in_registry - self._INSTALLER_FOR_KIND.keys()
+        accounted_for = self._INSTALLER_FOR_KIND.keys() | self._UNINSTALLED_KINDS
+        unmapped = kinds_in_registry - accounted_for
         self.assertFalse(
             unmapped,
-            f"ToolKind(s) {unmapped} are in TOOL_REGISTRY but not mapped "
-            f"to an installer function in this test. Add them to both "
-            f"``_INSTALLER_FOR_KIND`` here and to ``install.run_install``.",
+            f"ToolKind(s) {unmapped} are in TOOL_REGISTRY but neither mapped "
+            f"to an installer function nor marked as intentionally uninstalled. "
+            f"Add them to ``_INSTALLER_FOR_KIND`` (and ``install.run_install``) "
+            f"or to ``_UNINSTALLED_KINDS``.",
         )
 
     def test_run_install_invokes_installer_for_every_kind_in_registry(self):
@@ -101,6 +110,8 @@ class TestInstallOrchestratorCoversEveryKind(unittest.TestCase):
                 "install_package_manager_lsp_servers": mocks[3].called,
             }
             for kind in kinds_in_registry:
+                if kind in self._UNINSTALLED_KINDS:
+                    continue
                 fn_name = self._INSTALLER_FOR_KIND[kind]
                 self.assertTrue(
                     called_by_name[fn_name],
@@ -133,6 +144,12 @@ class TestHasRequiredToolsCoversEveryKind(unittest.TestCase):
         kinds_in_registry = {dep.kind for dep in TOOL_REGISTRY}
 
         for kind in kinds_in_registry:
+            # SYSTEM tools have no on-disk artifact under the servers dir —
+            # they live wherever the user's toolchain installed them and are
+            # resolved from PATH at spawn time. ``has_required_tools`` is
+            # not expected to validate them.
+            if kind is ToolKind.SYSTEM:
+                continue
             dep = next(d for d in TOOL_REGISTRY if d.kind is kind)
             with self.subTest(kind=kind, dep=dep.key):
                 with tempfile.TemporaryDirectory() as tmp:
@@ -288,6 +305,7 @@ class TestLspAdapterAndLanguageEnumParity(unittest.TestCase):
         "csharp": "CSharp",
         "java": "Java",
         "rust": "Rust",
+        "swift": "Swift",
     }
 
     def test_every_lsp_tool_has_an_adapter_per_supported_language(self):

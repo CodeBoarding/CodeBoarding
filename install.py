@@ -630,6 +630,16 @@ def _language_checks_from_registry(target_dir: Path) -> list[LanguageSupportChec
             else:
                 reason_requirement = f"{dep.binary_name} not installed ({manager} unavailable or install failed)"
             reason_binary = reason_requirement
+        elif dep.kind is ToolKind.SYSTEM:
+            # SYSTEM tools ship with a third-party toolchain and aren't installed
+            # by codeboarding-setup; the summary checks PATH directly. Using
+            # ``fallback_available`` (instead of a path under target_dir)
+            # because the binary lives wherever the user's toolchain installer
+            # placed it, not at a path we can predict.
+            sys_path = shutil.which(dep.binary_name)
+            fallback_available = bool(sys_path)
+            reason_requirement = f"{dep.binary_name} not on PATH (install the providing toolchain)"
+            reason_binary = reason_requirement
 
         for lang in languages:
             checks.append(
