@@ -163,6 +163,30 @@ def download_asset(url: str, destination: Path, expected_sha256: str | None = No
 # -- Native binary installer --------------------------------------------------
 
 
+def _resolve_native_expected_hash(
+    source: GitHubToolSource,
+    asset_name: str,
+    compressed: bool,
+    platform_suffix: str,
+) -> str | None:
+    """SHA256 to expect for a NATIVE asset, or None when no pin applies.
+
+    Precedence:
+      1. ``sha256[asset_name]`` — exact-asset pin (works for any asset
+         including compressed; one entry per arch override).
+      2. ``sha256[platform_suffix]`` — per-platform pin used by tools we
+         republish ourselves (tokei, gopls); only consulted for
+         pre-extracted assets so a stale platform-keyed hash doesn't get
+         applied to a freshly compressed binary.
+      3. ``None`` — no pin, callers must skip verification.
+    """
+    if asset_name in source.sha256:
+        return source.sha256[asset_name]
+    if not compressed:
+        return source.sha256.get(platform_suffix or "")
+    return None
+
+
 def install_native_tools(
     target_dir: Path,
     deps: list[ToolDependency],
@@ -173,6 +197,11 @@ def install_native_tools(
     Supports both pre-extracted binaries (default, e.g. ``tokei``,
     ``gopls``) and compressed-binary assets (``rust-analyzer``); the
     archive format is inferred from the asset filename suffix.
+
+    On-disk binaries are SHA256-verified against the pin before the
+    skip-if-installed shortcut. A drifted binary (pin moved upstream
+    after the user's first install) is removed and re-fetched so users
+    pick up corrected/updated artifacts automatically.
     """
     system = platform.system()
     suffix = PLATFORM_SUFFIX.get(system)
@@ -205,9 +234,6 @@ def install_native_tools(
             )
             continue
         binary_path = bin_dir / f"{dep.binary_name}{exe_suffix()}"
-        if binary_path.exists():
-            logger.info("  %s: already installed, skipping", dep.binary_name)
-            continue
         source = dep.source
         assert isinstance(source, GitHubToolSource)
         asset_name = resolve_native_asset_name(source, suffix or "")
@@ -217,20 +243,32 @@ def install_native_tools(
             continue
         url = asset_url(source, asset_name)
         compressed = _is_compressed_asset(asset_name)
-        # Hash lookup precedence:
-        #   1. ``sha256[asset_name]`` — exact-asset pin (works for any asset
-        #      including compressed; one entry per arch override).
-        #   2. ``sha256[suffix]`` — per-platform pin used by tools we
-        #      republish ourselves (tokei, gopls); only consulted for
-        #      pre-extracted assets so a stale platform-keyed hash doesn't
-        #      get applied to a freshly compressed binary.
-        #   3. ``None`` — no pin, ``download_asset`` skips verification.
-        if asset_name in source.sha256:
-            expected_hash: str | None = source.sha256[asset_name]
-        elif not compressed:
-            expected_hash = source.sha256.get(suffix or "")
-        else:
-            expected_hash = None
+        expected_hash = _resolve_native_expected_hash(source, asset_name, compressed, suffix or "")
+
+        if binary_path.exists():
+            # Compressed assets carry a SHA for the archive, not the extracted
+            # binary, so on-disk verification is structurally impossible —
+            # trust the existing install rather than reinstall on every run.
+            if compressed or expected_hash is None:
+                logger.info("  %s: already installed (no on-disk pin to verify)", dep.binary_name)
+                continue
+            try:
+                actual = hashlib.sha256(binary_path.read_bytes()).hexdigest()
+            except OSError as exc:
+                logger.warning("  %s: existing binary unreadable (%s); reinstalling", dep.binary_name, exc)
+                binary_path.unlink(missing_ok=True)
+            else:
+                if actual == expected_hash:
+                    logger.info("  %s: already installed (sha256 verified)", dep.binary_name)
+                    continue
+                logger.info(
+                    "  %s: pin drift (have %s..., want %s...); reinstalling",
+                    dep.binary_name,
+                    actual[:12],
+                    expected_hash[:12],
+                )
+                binary_path.unlink(missing_ok=True)
+
         try:
             if compressed:
                 archive_path = bin_dir / asset_name

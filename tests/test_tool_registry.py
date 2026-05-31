@@ -1651,5 +1651,152 @@ class TestInstallPackageManagerTools(unittest.TestCase):
         self.assertEqual(csharp.source.install_args[framework_idx], "net10.0")
 
 
+class TestInstallNativeToolsPinDrift(unittest.TestCase):
+    """Existing on-disk binaries are SHA-verified against the registry pin.
+
+    Why: the original ``if binary_path.exists(): skip`` shortcut meant a user
+    who installed CodeBoarding before a tools-repo re-cut kept their stale
+    binary forever — pin bumps in ``registry.py`` were silently ignored. The
+    fix re-fetches on hash mismatch so users converge on the pinned artifact.
+    """
+
+    def _make_dep(self, sha: str | None = None) -> ToolDependency:
+        return ToolDependency(
+            key="tokei",
+            binary_name="tokei",
+            kind=ToolKind.NATIVE,
+            config_section=ConfigSection.TOOLS,
+            source=GitHubToolSource(
+                tag="tools-2026.04.05",
+                repo="CodeBoarding/tools",
+                asset_template="tokei-{platform_suffix}",
+                sha256={"linux": sha} if sha else {},
+            ),
+        )
+
+    def _platform_patches(self):
+        """Return a list of patches that pin the test host to Linux/x86_64.
+
+        Used as a unit, never split across separate ``with`` statements —
+        all three must enter together so the in-installer ``platform_bin_dir``
+        call resolves to ``target_dir/bin/linux`` consistently with the
+        pre-created on-disk binary.
+        """
+        return [
+            patch("tool_registry.installers.platform.system", return_value="Linux"),
+            patch("tool_registry.installers.platform.machine", return_value="x86_64"),
+            patch("tool_registry.paths.platform.system", return_value="Linux"),
+        ]
+
+    def _bin_dir_under(self, target_dir: Path) -> Path:
+        """Resolve the Linux ``bin_dir`` the installer will see under our patches.
+
+        Done as a callable so the test body computes it ONLY after the patches
+        are active — otherwise ``platform_bin_dir`` resolves against the host
+        platform and writes the pre-existing binary in the wrong subdir.
+        """
+        with patch("tool_registry.paths.platform.system", return_value="Linux"):
+            return platform_bin_dir(target_dir)
+
+    def test_matching_sha_skips_download(self):
+        """The happy path: on-disk hash equals the pin → no network call."""
+        payload = b"fresh tokei bytes" * 100
+        sha = hashlib.sha256(payload).hexdigest()
+        dep = self._make_dep(sha=sha)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            target_dir = Path(tmp)
+            bin_dir = self._bin_dir_under(target_dir)
+            bin_dir.mkdir(parents=True, exist_ok=True)
+            (bin_dir / "tokei").write_bytes(payload)
+
+            p1, p2, p3 = self._platform_patches()
+            with p1, p2, p3, patch("tool_registry.installers.download_asset") as mock_dl:
+                install_native_tools(target_dir, [dep])
+            mock_dl.assert_not_called()
+            self.assertEqual((bin_dir / "tokei").read_bytes(), payload)
+
+    def test_drifted_sha_triggers_reinstall(self):
+        """The motivating case: pin moved upstream, on-disk binary is stale."""
+        stale_payload = b"stale tokei v12.1.2" * 50
+        new_payload = b"fresh tokei v14.0.0" * 50
+        new_sha = hashlib.sha256(new_payload).hexdigest()
+        dep = self._make_dep(sha=new_sha)
+
+        def fake_download(url, destination, expected_sha256=None):
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes(new_payload)
+            return True
+
+        with tempfile.TemporaryDirectory() as tmp:
+            target_dir = Path(tmp)
+            bin_dir = self._bin_dir_under(target_dir)
+            bin_dir.mkdir(parents=True, exist_ok=True)
+            stale = bin_dir / "tokei"
+            stale.write_bytes(stale_payload)
+
+            p1, p2, p3 = self._platform_patches()
+            with p1, p2, p3, patch("tool_registry.installers.download_asset", side_effect=fake_download) as mock_dl:
+                install_native_tools(target_dir, [dep])
+            mock_dl.assert_called_once()
+            self.assertEqual(stale.read_bytes(), new_payload)
+
+    def test_no_pin_skips_with_caveat(self):
+        """When the registry has no SHA for this platform we cannot verify,
+        so the existing binary is trusted (legacy behavior preserved)."""
+        dep = self._make_dep(sha=None)
+        payload = b"unpinned binary"
+
+        with tempfile.TemporaryDirectory() as tmp:
+            target_dir = Path(tmp)
+            bin_dir = self._bin_dir_under(target_dir)
+            bin_dir.mkdir(parents=True, exist_ok=True)
+            (bin_dir / "tokei").write_bytes(payload)
+
+            p1, p2, p3 = self._platform_patches()
+            with p1, p2, p3, patch("tool_registry.installers.download_asset") as mock_dl:
+                install_native_tools(target_dir, [dep])
+            mock_dl.assert_not_called()
+
+    def test_unreadable_existing_binary_triggers_reinstall(self):
+        """If we cannot read the on-disk binary (permissions, FS error), do
+        not skip — reinstall defensively rather than report a broken file
+        as healthy."""
+        new_payload = b"reinstalled binary"
+        new_sha = hashlib.sha256(new_payload).hexdigest()
+        dep = self._make_dep(sha=new_sha)
+
+        def fake_download(url, destination, expected_sha256=None):
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes(new_payload)
+            return True
+
+        with tempfile.TemporaryDirectory() as tmp:
+            target_dir = Path(tmp)
+            bin_dir = self._bin_dir_under(target_dir)
+            bin_dir.mkdir(parents=True, exist_ok=True)
+            existing = bin_dir / "tokei"
+            existing.write_bytes(b"x")
+
+            real_read_bytes = Path.read_bytes
+
+            def selective_read_bytes(self):
+                if self == existing:
+                    raise OSError("permission denied (simulated)")
+                return real_read_bytes(self)
+
+            p1, p2, p3 = self._platform_patches()
+            with (
+                p1,
+                p2,
+                p3,
+                patch("tool_registry.installers.download_asset", side_effect=fake_download) as mock_dl,
+                patch.object(Path, "read_bytes", selective_read_bytes),
+            ):
+                install_native_tools(target_dir, [dep])
+            mock_dl.assert_called_once()
+            self.assertEqual(existing.read_bytes(), new_payload)
+
+
 if __name__ == "__main__":
     unittest.main()
