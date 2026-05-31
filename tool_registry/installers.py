@@ -187,6 +187,49 @@ def _resolve_native_expected_hash(
     return None
 
 
+def _existing_binary_is_usable(
+    binary_path: Path,
+    expected_hash: str | None,
+    compressed: bool,
+    binary_name: str,
+) -> bool:
+    """Return True when the on-disk binary can be trusted (skip reinstall).
+
+    Side effect: deletes ``binary_path`` on hash mismatch or read failure,
+    leaving the slot empty for the caller's subsequent download.
+
+    Trusts the existing file (returns True) when:
+
+    - The asset is compressed — the pin is over the archive, not the
+      extracted binary, so on-disk verification is structurally impossible.
+    - No SHA is pinned for this platform.
+    - The on-disk SHA matches the pin.
+
+    Returns False (and deletes the file) when the on-disk hash differs
+    from the pin, or the file exists but cannot be read.
+    """
+    if compressed or expected_hash is None:
+        logger.info("  %s: already installed (no on-disk pin to verify)", binary_name)
+        return True
+    try:
+        actual = hashlib.sha256(binary_path.read_bytes()).hexdigest()
+    except OSError as exc:
+        logger.warning("  %s: existing binary unreadable (%s); reinstalling", binary_name, exc)
+        binary_path.unlink(missing_ok=True)
+        return False
+    if actual == expected_hash:
+        logger.info("  %s: already installed (sha256 verified)", binary_name)
+        return True
+    logger.info(
+        "  %s: pin drift (have %s..., want %s...); reinstalling",
+        binary_name,
+        actual[:12],
+        expected_hash[:12],
+    )
+    binary_path.unlink(missing_ok=True)
+    return False
+
+
 def install_native_tools(
     target_dir: Path,
     deps: list[ToolDependency],
@@ -245,29 +288,8 @@ def install_native_tools(
         compressed = _is_compressed_asset(asset_name)
         expected_hash = _resolve_native_expected_hash(source, asset_name, compressed, suffix or "")
 
-        if binary_path.exists():
-            # Compressed assets carry a SHA for the archive, not the extracted
-            # binary, so on-disk verification is structurally impossible —
-            # trust the existing install rather than reinstall on every run.
-            if compressed or expected_hash is None:
-                logger.info("  %s: already installed (no on-disk pin to verify)", dep.binary_name)
-                continue
-            try:
-                actual = hashlib.sha256(binary_path.read_bytes()).hexdigest()
-            except OSError as exc:
-                logger.warning("  %s: existing binary unreadable (%s); reinstalling", dep.binary_name, exc)
-                binary_path.unlink(missing_ok=True)
-            else:
-                if actual == expected_hash:
-                    logger.info("  %s: already installed (sha256 verified)", dep.binary_name)
-                    continue
-                logger.info(
-                    "  %s: pin drift (have %s..., want %s...); reinstalling",
-                    dep.binary_name,
-                    actual[:12],
-                    expected_hash[:12],
-                )
-                binary_path.unlink(missing_ok=True)
+        if binary_path.exists() and _existing_binary_is_usable(binary_path, expected_hash, compressed, dep.binary_name):
+            continue
 
         try:
             if compressed:
