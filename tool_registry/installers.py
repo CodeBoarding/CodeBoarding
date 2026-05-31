@@ -259,17 +259,23 @@ def install_native_tools(
         url = asset_url(source, asset_name)
         compressed = _is_compressed_asset(asset_name)
         download_hash = _resolve_native_download_hash(source, asset_name, compressed, suffix or "")
-        # Compressed pins apply to the archive, not the extracted binary.
-        existing_binary_hash = None if compressed else download_hash
+        had_existing_binary = binary_path.exists()
 
-        if binary_path.exists():
-            if existing_binary_hash is None:
-                logger.info("  %s: already installed (no on-disk pin to verify)", dep.binary_name)
+        if had_existing_binary:
+            if compressed:
+                logger.info(
+                    "  %s: already installed (compressed asset; reinstalling because extracted binary "
+                    "cannot be verified against archive pin)",
+                    dep.binary_name,
+                )
+            elif download_hash is None:
+                logger.info("  %s: already installed (unpinned binary; skipping verification)", dep.binary_name)
                 continue
-            if _existing_binary_is_usable(binary_path, existing_binary_hash, dep.binary_name):
+            elif _existing_binary_is_usable(binary_path, download_hash, dep.binary_name):
                 continue
-            logger.info("  %s: existing binary unusable; reinstalling", dep.binary_name)
-            binary_path.unlink(missing_ok=True)
+            else:
+                logger.info("  %s: existing binary unusable; reinstalling", dep.binary_name)
+                binary_path.unlink(missing_ok=True)
 
         try:
             if compressed:
@@ -292,7 +298,8 @@ def install_native_tools(
             logger.info("  %s: downloaded successfully", dep.binary_name)
         except Exception:
             logger.exception("  %s: download failed", dep.binary_name)
-            binary_path.unlink(missing_ok=True)
+            if not (compressed and had_existing_binary):
+                binary_path.unlink(missing_ok=True)
 
 
 # -- Package-manager installer (dotnet tool, cargo install, ...) --------------

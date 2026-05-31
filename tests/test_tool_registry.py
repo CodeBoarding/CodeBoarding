@@ -1350,6 +1350,61 @@ class TestInstallNativeToolsCompressed(unittest.TestCase):
                 mode = installed.stat().st_mode & 0o777
                 self.assertEqual(mode & 0o111, 0o111)
 
+    def test_existing_compressed_asset_is_refetched(self):
+        dep = self._make_compressed_dep("rust-analyzer-x86_64-unknown-linux-gnu.gz")
+        old_payload = b"\x7fELFold-rust-analyzer"
+        new_payload = b"\x7fELFnew-rust-analyzer"
+
+        def fake_download(url: str, destination: Path, expected_sha256: str | None = None) -> bool:
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            with gzip.open(destination, "wb") as f:
+                f.write(new_payload)
+            return True
+
+        with tempfile.TemporaryDirectory() as tmp:
+            target_dir = Path(tmp)
+            with (
+                patch("tool_registry.installers.platform.system", return_value="Linux"),
+                patch("tool_registry.installers.platform.machine", return_value="x86_64"),
+                patch("tool_registry.paths.platform.system", return_value="Linux"),
+            ):
+                bin_dir = platform_bin_dir(target_dir)
+                bin_dir.mkdir(parents=True, exist_ok=True)
+                installed = bin_dir / "rust-analyzer"
+                installed.write_bytes(old_payload)
+
+                with (
+                    self.assertLogs("tool_registry.installers", level="INFO") as logs,
+                    patch("tool_registry.installers.download_asset", side_effect=fake_download) as mock_dl,
+                ):
+                    install_native_tools(target_dir, [dep])
+
+            mock_dl.assert_called_once()
+            self.assertEqual(installed.read_bytes(), new_payload)
+            self.assertIn("compressed asset; reinstalling", "\n".join(logs.output))
+
+    def test_failed_existing_compressed_refetch_preserves_binary(self):
+        dep = self._make_compressed_dep("rust-analyzer-x86_64-unknown-linux-gnu.gz")
+        old_payload = b"\x7fELFold-rust-analyzer"
+
+        with tempfile.TemporaryDirectory() as tmp:
+            target_dir = Path(tmp)
+            with (
+                patch("tool_registry.installers.platform.system", return_value="Linux"),
+                patch("tool_registry.installers.platform.machine", return_value="x86_64"),
+                patch("tool_registry.paths.platform.system", return_value="Linux"),
+            ):
+                bin_dir = platform_bin_dir(target_dir)
+                bin_dir.mkdir(parents=True, exist_ok=True)
+                installed = bin_dir / "rust-analyzer"
+                installed.write_bytes(old_payload)
+
+                with patch("tool_registry.installers.download_asset", side_effect=RuntimeError("network")) as mock_dl:
+                    install_native_tools(target_dir, [dep])
+
+            mock_dl.assert_called_once()
+            self.assertEqual(installed.read_bytes(), old_payload)
+
     def test_compressed_asset_honors_per_asset_sha256(self):
         """``sha256[asset_name]`` lets a registry author pin compressed assets."""
         binary_payload = b"#!/bin/sh\necho rust-analyzer\n" * 10
@@ -1784,9 +1839,13 @@ class TestInstallNativeToolsPinDrift(unittest.TestCase):
             bin_dir.mkdir(parents=True, exist_ok=True)
             (bin_dir / "tokei").write_bytes(b"unpinned binary")
 
-            with patch("tool_registry.installers.download_asset") as mock_dl:
+            with (
+                self.assertLogs("tool_registry.installers", level="INFO") as logs,
+                patch("tool_registry.installers.download_asset") as mock_dl,
+            ):
                 install_native_tools(target_dir, [dep])
             mock_dl.assert_not_called()
+            self.assertIn("unpinned binary; skipping verification", "\n".join(logs.output))
 
     def test_unreadable_existing_binary_triggers_reinstall(self):
         """If we cannot read the on-disk binary (permissions, FS error), do
