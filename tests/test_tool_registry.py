@@ -1,3 +1,4 @@
+import contextlib
 import gzip
 import hashlib
 import io
@@ -1734,69 +1735,55 @@ class TestInstallNativeToolsPinDrift(unittest.TestCase):
             ),
         )
 
-    def _platform_patches(self):
-        """Return a list of patches that pin the test host to Linux/x86_64.
+    @contextlib.contextmanager
+    def _patched_linux(self):
+        """Pin all three platform call sites the installer touches to Linux/x86_64.
 
-        Used as a unit, never split across separate ``with`` statements —
-        all three must enter together so the in-installer ``platform_bin_dir``
-        call resolves to ``target_dir/bin/linux`` consistently with the
-        pre-created on-disk binary.
+        Entered around the entire test body so ``platform_bin_dir`` resolves
+        consistently to ``<target_dir>/bin/linux`` for both the pre-created
+        on-disk binary and the in-installer lookup.
         """
-        return [
+        with (
             patch("tool_registry.installers.platform.system", return_value="Linux"),
             patch("tool_registry.installers.platform.machine", return_value="x86_64"),
             patch("tool_registry.paths.platform.system", return_value="Linux"),
-        ]
-
-    def _bin_dir_under(self, target_dir: Path) -> Path:
-        """Resolve the Linux ``bin_dir`` the installer will see under our patches.
-
-        Done as a callable so the test body computes it ONLY after the patches
-        are active — otherwise ``platform_bin_dir`` resolves against the host
-        platform and writes the pre-existing binary in the wrong subdir.
-        """
-        with patch("tool_registry.paths.platform.system", return_value="Linux"):
-            return platform_bin_dir(target_dir)
+        ):
+            yield
 
     def test_matching_sha_skips_download(self):
         """The happy path: on-disk hash equals the pin → no network call."""
         payload = b"fresh tokei bytes" * 100
-        sha = hashlib.sha256(payload).hexdigest()
-        dep = self._make_dep(sha=sha)
+        dep = self._make_dep(sha=hashlib.sha256(payload).hexdigest())
 
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory() as tmp, self._patched_linux():
             target_dir = Path(tmp)
-            bin_dir = self._bin_dir_under(target_dir)
+            bin_dir = platform_bin_dir(target_dir)
             bin_dir.mkdir(parents=True, exist_ok=True)
             (bin_dir / "tokei").write_bytes(payload)
 
-            p1, p2, p3 = self._platform_patches()
-            with p1, p2, p3, patch("tool_registry.installers.download_asset") as mock_dl:
+            with patch("tool_registry.installers.download_asset") as mock_dl:
                 install_native_tools(target_dir, [dep])
             mock_dl.assert_not_called()
             self.assertEqual((bin_dir / "tokei").read_bytes(), payload)
 
     def test_drifted_sha_triggers_reinstall(self):
         """The motivating case: pin moved upstream, on-disk binary is stale."""
-        stale_payload = b"stale tokei v12.1.2" * 50
         new_payload = b"fresh tokei v14.0.0" * 50
-        new_sha = hashlib.sha256(new_payload).hexdigest()
-        dep = self._make_dep(sha=new_sha)
+        dep = self._make_dep(sha=hashlib.sha256(new_payload).hexdigest())
 
         def fake_download(url, destination, expected_sha256=None):
             destination.parent.mkdir(parents=True, exist_ok=True)
             destination.write_bytes(new_payload)
             return True
 
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory() as tmp, self._patched_linux():
             target_dir = Path(tmp)
-            bin_dir = self._bin_dir_under(target_dir)
+            bin_dir = platform_bin_dir(target_dir)
             bin_dir.mkdir(parents=True, exist_ok=True)
             stale = bin_dir / "tokei"
-            stale.write_bytes(stale_payload)
+            stale.write_bytes(b"stale tokei v12.1.2" * 50)
 
-            p1, p2, p3 = self._platform_patches()
-            with p1, p2, p3, patch("tool_registry.installers.download_asset", side_effect=fake_download) as mock_dl:
+            with patch("tool_registry.installers.download_asset", side_effect=fake_download) as mock_dl:
                 install_native_tools(target_dir, [dep])
             mock_dl.assert_called_once()
             self.assertEqual(stale.read_bytes(), new_payload)
@@ -1805,16 +1792,14 @@ class TestInstallNativeToolsPinDrift(unittest.TestCase):
         """When the registry has no SHA for this platform we cannot verify,
         so the existing binary is trusted (legacy behavior preserved)."""
         dep = self._make_dep(sha=None)
-        payload = b"unpinned binary"
 
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory() as tmp, self._patched_linux():
             target_dir = Path(tmp)
-            bin_dir = self._bin_dir_under(target_dir)
+            bin_dir = platform_bin_dir(target_dir)
             bin_dir.mkdir(parents=True, exist_ok=True)
-            (bin_dir / "tokei").write_bytes(payload)
+            (bin_dir / "tokei").write_bytes(b"unpinned binary")
 
-            p1, p2, p3 = self._platform_patches()
-            with p1, p2, p3, patch("tool_registry.installers.download_asset") as mock_dl:
+            with patch("tool_registry.installers.download_asset") as mock_dl:
                 install_native_tools(target_dir, [dep])
             mock_dl.assert_not_called()
 
@@ -1823,17 +1808,16 @@ class TestInstallNativeToolsPinDrift(unittest.TestCase):
         not skip — reinstall defensively rather than report a broken file
         as healthy."""
         new_payload = b"reinstalled binary"
-        new_sha = hashlib.sha256(new_payload).hexdigest()
-        dep = self._make_dep(sha=new_sha)
+        dep = self._make_dep(sha=hashlib.sha256(new_payload).hexdigest())
 
         def fake_download(url, destination, expected_sha256=None):
             destination.parent.mkdir(parents=True, exist_ok=True)
             destination.write_bytes(new_payload)
             return True
 
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory() as tmp, self._patched_linux():
             target_dir = Path(tmp)
-            bin_dir = self._bin_dir_under(target_dir)
+            bin_dir = platform_bin_dir(target_dir)
             bin_dir.mkdir(parents=True, exist_ok=True)
             existing = bin_dir / "tokei"
             existing.write_bytes(b"x")
@@ -1845,11 +1829,7 @@ class TestInstallNativeToolsPinDrift(unittest.TestCase):
                     raise OSError("permission denied (simulated)")
                 return real_read_bytes(self)
 
-            p1, p2, p3 = self._platform_patches()
             with (
-                p1,
-                p2,
-                p3,
                 patch("tool_registry.installers.download_asset", side_effect=fake_download) as mock_dl,
                 patch.object(Path, "read_bytes", selective_read_bytes),
             ):
