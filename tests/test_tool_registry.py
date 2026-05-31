@@ -48,6 +48,7 @@ from tool_registry import PackageManagerToolSource
 from tool_registry.installers import (
     _existing_binary_is_usable,
     _extract_compressed_binary,
+    _resolve_native_download_hash,
     install_package_manager_tools,
     package_manager_tool_dir,
     resolve_native_asset_name,
@@ -1654,32 +1655,7 @@ class TestInstallPackageManagerTools(unittest.TestCase):
 
 
 class TestExistingBinaryIsUsable(unittest.TestCase):
-    """Focused tests for the drift-check helper used by install_native_tools.
-
-    These exercise the predicate (and its side-effect of deleting the file
-    on mismatch) in isolation — no platform mocking, no download mocking.
-    ``TestInstallNativeToolsPinDrift`` below covers the same logic
-    end-to-end through ``install_native_tools``.
-    """
-
-    def test_compressed_skips_without_reading_file(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            path = Path(tmp) / "rust-analyzer"
-            path.write_bytes(b"would mismatch any hash")
-            usable = _existing_binary_is_usable(
-                path, expected_hash="0" * 64, compressed=True, binary_name="rust-analyzer"
-            )
-        self.assertTrue(usable)
-        # File is preserved — we did not even try to verify.
-        # (Asserting via the bytes we just wrote would be racy after the
-        # tempdir teardown, so we trust the True return as the contract.)
-
-    def test_no_pin_skips_without_reading_file(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            path = Path(tmp) / "tokei"
-            path.write_bytes(b"unpinned")
-            self.assertTrue(_existing_binary_is_usable(path, expected_hash=None, compressed=False, binary_name="tokei"))
-            self.assertTrue(path.exists())
+    """Focused tests for the drift-check helper used by install_native_tools."""
 
     def test_matching_sha_returns_true_and_preserves_file(self):
         payload = b"binary bytes" * 100
@@ -1687,29 +1663,38 @@ class TestExistingBinaryIsUsable(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "tokei"
             path.write_bytes(payload)
-            self.assertTrue(_existing_binary_is_usable(path, expected_hash=sha, compressed=False, binary_name="tokei"))
+            self.assertTrue(_existing_binary_is_usable(path, expected_hash=sha, binary_name="tokei"))
             self.assertEqual(path.read_bytes(), payload)
 
-    def test_drifted_sha_returns_false_and_deletes_file(self):
+    def test_drifted_sha_returns_false_and_preserves_file(self):
         payload = b"stale binary"
         wrong_sha = hashlib.sha256(b"different bytes").hexdigest()
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "tokei"
             path.write_bytes(payload)
-            self.assertFalse(
-                _existing_binary_is_usable(path, expected_hash=wrong_sha, compressed=False, binary_name="tokei")
-            )
-            self.assertFalse(path.exists())
+            self.assertFalse(_existing_binary_is_usable(path, expected_hash=wrong_sha, binary_name="tokei"))
+            self.assertEqual(path.read_bytes(), payload)
 
-    def test_unreadable_file_returns_false_and_deletes_file(self):
+    def test_unreadable_file_returns_false_and_preserves_file(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "tokei"
             path.write_bytes(b"x")
             with patch.object(Path, "read_bytes", side_effect=OSError("simulated")):
-                self.assertFalse(
-                    _existing_binary_is_usable(path, expected_hash="0" * 64, compressed=False, binary_name="tokei")
-                )
-            self.assertFalse(path.exists())
+                self.assertFalse(_existing_binary_is_usable(path, expected_hash="0" * 64, binary_name="tokei"))
+            self.assertTrue(path.exists())
+
+
+class TestResolveNativeDownloadHash(unittest.TestCase):
+    def test_missing_platform_pin_raises_for_preextracted_asset(self):
+        source = GitHubToolSource(
+            tag="tools-2026.04.05",
+            repo="CodeBoarding/tools",
+            asset_template="tokei-{platform_suffix}",
+            sha256={"macos": "0" * 64},
+        )
+
+        with self.assertRaisesRegex(ValueError, "missing SHA256 pin"):
+            _resolve_native_download_hash(source, "tokei-linux", compressed=False, platform_suffix="linux")
 
 
 class TestInstallNativeToolsPinDrift(unittest.TestCase):
@@ -1751,7 +1736,7 @@ class TestInstallNativeToolsPinDrift(unittest.TestCase):
             yield
 
     def test_matching_sha_skips_download(self):
-        """The happy path: on-disk hash equals the pin → no network call."""
+        """The happy path: on-disk hash equals the pin, so no network call."""
         payload = b"fresh tokei bytes" * 100
         dep = self._make_dep(sha=hashlib.sha256(payload).hexdigest())
 
