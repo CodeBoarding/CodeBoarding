@@ -6,7 +6,7 @@ on:
 env:
   TOKEI_VERSION: "v14.0.0"
   GOPLS_VERSION: "v0.21.1"
-  TOOLS_TAG: "tools-2026.04.05"
+  TOOLS_TAG: "tools-2026.05.31"
 
 permissions:
   contents: read
