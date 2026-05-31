@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import logging
 import os
+import platform
 import shutil
 import subprocess
+from functools import lru_cache
 from pathlib import Path
 
 from static_analyzer.constants import Language
@@ -15,14 +17,54 @@ from static_analyzer.engine.lsp_client import LSPClient
 logger = logging.getLogger(__name__)
 
 
+@lru_cache(maxsize=1)
+def resolve_sourcekit_lsp() -> str | None:
+    """Resolve the absolute path to ``sourcekit-lsp``, or ``None`` if absent.
+
+    1. ``shutil.which``: covers Linux installs that put the toolchain on PATH,
+       Windows MSI installs, swift.org tarballs whose ``usr/bin`` is sourced,
+       and recent macOS (~26+) where Apple ships ``/usr/bin/sourcekit-lsp``
+       as an ``xcselect`` shim alongside ``/usr/bin/swift``.
+    2. macOS fallback via ``xcrun --find sourcekit-lsp``: reaches the binary
+       inside Xcode / Command Line Tools on older macOS where the
+       ``/usr/bin`` shim is absent. Most macOS users with Xcode installed
+       hit this case.
+
+    Cached for one process — the toolchain layout doesn't move at runtime
+    and the same lookup is hit by ``get_lsp_command`` and the install
+    summary.
+    """
+    path = shutil.which("sourcekit-lsp")
+    if path:
+        return path
+    if platform.system() != "Darwin":
+        return None
+    try:
+        result = subprocess.run(
+            ["xcrun", "--find", "sourcekit-lsp"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return None
+    if result.returncode != 0:
+        return None
+    candidate = result.stdout.strip()
+    if not candidate:
+        return None
+    return candidate if Path(candidate).is_file() else None
+
+
 class SwiftAdapter(LanguageAdapter):
     """Static-analysis adapter for Swift projects backed by sourcekit-lsp.
 
     sourcekit-lsp ships *inside* the Swift toolchain (next to ``swift`` /
     ``swiftc``) rather than as a standalone release, so unlike clangd or
     rust-analyzer there is nothing to download — we require a user-installed
-    toolchain and resolve the binary from PATH. Mirrors Rust's cargo check
-    and Go's go check.
+    toolchain. Resolution prefers PATH; on macOS we fall back to
+    ``xcrun --find sourcekit-lsp`` so Xcode/CLT users don't need to manually
+    splice the Developer dir into their shell PATH.
     """
 
     @property
@@ -42,13 +84,17 @@ class SwiftAdapter(LanguageAdapter):
         return "swift"
 
     def get_lsp_command(self, project_root: Path) -> list[str]:
-        """Fail fast if the Swift toolchain or sourcekit-lsp is missing.
+        """Resolve ``sourcekit-lsp``'s absolute path or fail with a clear error.
 
-        Why: sourcekit-lsp ships *with* the Swift toolchain but a few install
-        layouts (some ``swiftly``/``asdf`` shims, the macOS CLT shim,
-        partially-installed toolchains) expose ``swift`` without
-        ``sourcekit-lsp`` on PATH. Checking both turns an opaque
-        ``FileNotFoundError`` at spawn into a clear install message.
+        On macOS the binary commonly lives inside Xcode / CLT without a
+        ``/usr/bin`` shim; ``resolve_sourcekit_lsp`` reaches it through
+        ``xcrun --find``. When it returns ``None`` we surface a targeted
+        install message instead of letting ``subprocess.Popen`` die with
+        ``FileNotFoundError``.
+
+        The resolved path is spliced into the tool-registry-built command so
+        the spawn works even when ``tool_registry.manifest`` had nothing on
+        PATH to bind to.
         """
         if shutil.which("swift") is None:
             raise RuntimeError(
@@ -57,15 +103,25 @@ class SwiftAdapter(LanguageAdapter):
                 "Install one from https://swift.org/install/ (or Xcode on macOS) "
                 "and re-run the analysis."
             )
-        if shutil.which("sourcekit-lsp") is None:
+        resolved = resolve_sourcekit_lsp()
+        if resolved is None:
             raise RuntimeError(
-                "swift is on PATH but sourcekit-lsp is not. This usually means a "
-                "partial toolchain install (some swiftly/asdf shims, macOS Command "
-                "Line Tools without Xcode). Install a full Swift toolchain from "
-                "https://swift.org/install/ (or Xcode on macOS) so sourcekit-lsp "
-                "is reachable, and re-run the analysis."
+                "sourcekit-lsp could not be located on PATH"
+                + (" or via 'xcrun --find sourcekit-lsp'" if platform.system() == "Darwin" else "")
+                + ". This usually means a partial toolchain install (some swiftly/asdf "
+                "shims, Command Line Tools without Xcode on older macOS, or a swift.org "
+                "tarball whose usr/bin was not added to PATH). Install a full Swift "
+                "toolchain from https://swift.org/install/ (or Xcode on macOS) and "
+                "re-run the analysis."
             )
-        return super().get_lsp_command(project_root)
+        cmd = super().get_lsp_command(project_root)
+        # ``tool_registry`` may have left ``sourcekit-lsp`` as a bare name when
+        # nothing on PATH matched (the xcrun-only case). Splice the resolved
+        # absolute path so spawn doesn't fall back to PATH resolution at the
+        # OS level — which would just fail again.
+        if cmd and not Path(cmd[0]).is_absolute():
+            cmd = [resolved, *cmd[1:]]
+        return cmd
 
     def build_qualified_name(
         self,
