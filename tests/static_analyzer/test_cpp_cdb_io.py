@@ -7,7 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from static_analyzer.engine.adapters.cpp_cdb.cdb_io import (
+from static_analyzer.cdb.cdb_io import (
+    EmptyCompilationDatabaseError,
     cdb_generation_lock,
     is_valid_compile_commands,
     read_compile_commands,
@@ -29,7 +30,6 @@ def test_write_compile_commands_atomic_round_trip(tmp_path: Path) -> None:
 @pytest.mark.parametrize(
     "payload",
     [
-        [],
         [{"directory": ".", "command": "c++ -c x.cc"}],
         [{"directory": ".", "file": "x.cc"}],
         [{"directory": ".", "file": "x.cc", "arguments": []}],
@@ -38,6 +38,24 @@ def test_write_compile_commands_atomic_round_trip(tmp_path: Path) -> None:
 def test_validate_compile_commands_rejects_invalid_entries(payload: object) -> None:
     with pytest.raises(ValueError):
         validate_compile_commands(payload)
+
+
+def test_validate_compile_commands_empty_raises_dedicated_error() -> None:
+    """Empty CDB gets its own error subclass so the diagnostic names the
+    real problem ("no compile actions") instead of the file shape."""
+    with pytest.raises(EmptyCompilationDatabaseError, match=r"no compile actions"):
+        validate_compile_commands([])
+
+
+def test_empty_compilation_database_error_is_value_error() -> None:
+    """Backward-compatible: existing ``except ValueError`` catches both."""
+    assert issubclass(EmptyCompilationDatabaseError, ValueError)
+
+
+def test_is_valid_compile_commands_rejects_empty_array(tmp_path: Path) -> None:
+    target = tmp_path / "compile_commands.json"
+    target.write_text("[]")
+    assert is_valid_compile_commands(target) is False
 
 
 def test_is_valid_compile_commands_rejects_malformed_json(tmp_path: Path) -> None:

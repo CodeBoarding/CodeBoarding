@@ -184,7 +184,7 @@ class CallGraphBuilder:
         for i in range(0, total, DID_OPEN_BATCH_SIZE):
             batch = source_files[i : i + DID_OPEN_BATCH_SIZE]
             for file_path in batch:
-                self._lsp.did_open(file_path, self._adapter.language_id)
+                self._lsp.did_open(file_path, self._adapter.language_id_for_file(file_path))
             pbar.update(len(batch))
             time.sleep(0.1)
         pbar.finish()

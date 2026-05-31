@@ -24,6 +24,7 @@ class Language(StrEnum):
     RUST = "rust"
     CSHARP = "csharp"
     CPP = "cpp"
+    C = "c"
 
 
 # File extensions per language. Every ``Language`` member appears here — keep
@@ -38,10 +39,14 @@ LANGUAGE_EXTENSIONS: dict[Language, tuple[str, ...]] = {
     Language.PHP: (".php",),
     Language.RUST: (".rs",),
     Language.CSHARP: (".cs",),
-    # ``.c`` is here, not in a separate Language.C, because clangd handles
-    # C and C++ in one process and mixed C/C++ projects (POCO, embedded
-    # codebases) would otherwise skip indexing their C sources.
+    # ``.c`` deliberately appears in BOTH ``Language.C`` and ``Language.CPP``:
+    # clangd handles C and C++ in one process, and mixed C/C++ projects
+    # (POCO, embedded codebases) need ``CppAdapter`` to walk ``.c`` sources
+    # after the ``_create_engine_configs`` post-pass collapses C+CPP onto
+    # CppAdapter for the same project root. Pure-C repos route to
+    # ``CAdapter`` which gets the surface label "C".
     Language.CPP: (".cpp", ".cc", ".cxx", ".c++", ".ipp", ".tpp", ".hpp", ".hh", ".hxx", ".h++", ".h", ".c"),
+    Language.C: (".c", ".h"),
 }
 
 # Import-time invariant: every language has an extension list. Cheap check that

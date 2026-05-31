@@ -1,6 +1,7 @@
 # Autoreconf-generated files — never commit; a pristine checkout must
 # trigger `autoreconf -i` so the test exercises the full generation path.
 configure
+Makefile
 Makefile.in
 aclocal.m4
 autom4te.cache/
@@ -10,6 +11,13 @@ depcomp
 install-sh
 missing
 compile
+stamp-h1
+
+# In-tree object/binary/dep leftovers from automake's subdir-objects build.
+**/*.o
+**/.deps/
+**/.dirstamp
+cppedge
 
 # CodeBoarding CDB scratch dir
 .codeboarding/

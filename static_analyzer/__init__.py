@@ -10,6 +10,8 @@ from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import Language
 from static_analyzer.csharp_config_scanner import CSharpConfigScanner
 from static_analyzer.engine.adapters import get_adapter
+from static_analyzer.engine.adapters.c_adapter import CAdapter
+from static_analyzer.engine.adapters.cpp_adapter import CppAdapter
 from static_analyzer.engine.call_graph_builder import CallGraphBuilder
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_client import LSPClient
@@ -150,6 +152,17 @@ def _create_engine_configs(
             continue
         dedup_keys.add(key)
         deduped.append(cfg)
+
+    # Collapse C onto Cpp for the same project root: clangd handles both in
+    # one process, and ``Language.CPP``'s extension set already covers ``.c``,
+    # so a mixed C/C++ repo would otherwise spawn clangd twice and index the
+    # ``.c`` files redundantly. Surface label stays "C++" — accurate for a
+    # mixed project; pure-C repos keep the "C" label because no CppAdapter
+    # config is created.
+    cpp_paths = {cfg.project_path for cfg in deduped if type(cfg.adapter) is CppAdapter}
+    if cpp_paths:
+        deduped = [cfg for cfg in deduped if not (type(cfg.adapter) is CAdapter and cfg.project_path in cpp_paths)]
+
     return deduped
 
 
@@ -170,6 +183,8 @@ def _lang_to_adapter_name(language: str) -> str | None:
         "c++": "Cpp",
         "cpp": "Cpp",
         "c++ header": "Cpp",  # tokei splits headers from sources
+        "c": "C",
+        "c header": "C",
     }
     return mapping.get(language.lower())
 
@@ -400,7 +415,7 @@ class StaticAnalyzer:
             adapter = engine_config.adapter
             if suffix in adapter.file_extensions:
                 # Open + change to ensure the server has the latest content
-                client.did_open(file_path, adapter.language_id)
+                client.did_open(file_path, adapter.language_id_for_file(file_path))
                 client.did_change(file_path, content)
                 logger.debug(f"Sent didOpen+didChange for {file_path} to {adapter.language} engine LSP")
 

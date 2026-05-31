@@ -134,8 +134,15 @@ VSCODE_CONFIG = {
             "name": "clangd",
             "command": ["clangd"],
             "languages": ["cpp"],
-            # ``.h`` included: clangd handles C+C++ in one process; can't
-            # distinguish dialects per-file.
+            # ``.h`` and ``.c`` included: clangd handles C+C++ in one process;
+            # can't distinguish dialects per-file. The ``.c`` entry is what
+            # makes pure-C repos reach ``is_supported_lang() = True`` in the
+            # programming-language builder — without it tokei's "C" report
+            # silently drops on the floor.
+            # noqa: keep in sync with ``static_analyzer.constants.LANGUAGE_EXTENSIONS[Language.CPP]``
+            # — duplicated literally because importing ``static_analyzer.constants`` here
+            # triggers ``static_analyzer/__init__.py`` -> ``tool_registry`` -> ``vscode_constants``
+            # (cycle). Parity is pinned by ``test_vscode_config_cpp_file_extensions_match_canonical``.
             "file_extensions": [
                 ".cpp",
                 ".cc",
@@ -148,6 +155,7 @@ VSCODE_CONFIG = {
                 ".hxx",
                 ".h++",
                 ".h",
+                ".c",
             ],
             "install_commands": "codeboarding-setup (downloads clangd automatically)",
         },

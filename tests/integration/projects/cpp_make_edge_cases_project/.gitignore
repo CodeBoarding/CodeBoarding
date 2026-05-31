@@ -1,0 +1,6 @@
+# Build artifacts left by `bear -- make` at the project root.
+src/**/*.o
+demo
+
+# CodeBoarding CDB scratch dir
+.codeboarding/

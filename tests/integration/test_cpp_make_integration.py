@@ -52,7 +52,7 @@ def test_make_bear_cdb_end_to_end(monkeypatch: pytest.MonkeyPatch) -> None:
     """Full stack: Make -> Bear -> clangd -> StaticAnalyzer, validated against fixture."""
     assert PROJECT_DIR.is_dir(), f"Project directory not found: {PROJECT_DIR}"
     fixture = _load_fixture()
-    language = fixture["language"]
+    language = Language(fixture["language"].lower())
 
     monkeypatch.setenv("CODEBOARDING_CPP_GENERATE_CDB", "1")
     _cleanup_generated(PROJECT_DIR)
@@ -82,7 +82,7 @@ def test_make_bear_cdb_end_to_end(monkeypatch: pytest.MonkeyPatch) -> None:
 
         # References: exact set match (the tiny project has no room for
         # std-library leakage in the empirically captured fixture).
-        refs = results.results[Language(language.lower())].references.by_qualified_name or {}
+        refs = results.results[language].references.by_qualified_name or {}
         expected_refs = set(fixture["expected_references"])
         actual_refs = set(refs.keys())
         assert actual_refs == expected_refs, (

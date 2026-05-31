@@ -12,12 +12,27 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from static_analyzer.engine.adapters.cpp_cdb.base import BuildSystemKind
-from static_analyzer.engine.adapters.cpp_cdb.bear_generator import BearGenerator
-from static_analyzer.engine.adapters.cpp_cdb.fingerprint import write_cached_fingerprint, compute_fingerprint
+from static_analyzer.cdb import config
+from static_analyzer.cdb.base import BuildSystemKind
+from static_analyzer.cdb.bear_generator import BearGenerator
+from static_analyzer.cdb.fingerprint import write_cached_fingerprint, compute_fingerprint
 
 
 VALID_CDB_JSON = '[{"directory": ".", "file": "x.c", "command": "cc -c x.c"}]'
+
+
+def _prime_fingerprint(cdb_dir: Path, generator: BearGenerator, project_root: Path) -> None:
+    """Write the fingerprint a freshly-generated CDB would carry.
+
+    Why: the cache key now folds ``self.kind`` and ``config.fingerprint_options()``
+    in alongside file content (M9). Tests that pre-seed the cache must compute
+    the same composite key or every subsequent ``generate()`` call would be a
+    spurious miss.
+    """
+    metadata = [("__kind__", generator.kind.value), *config.fingerprint_options()]
+    write_cached_fingerprint(
+        cdb_dir, compute_fingerprint(generator._fingerprint_inputs(project_root), metadata=metadata)
+    )
 
 
 def _fake_bear_version() -> subprocess.CompletedProcess:
@@ -47,7 +62,7 @@ class TestBearGeneratorPreflight:
             return None if name == "bear" else real_which(name)
 
         (tmp_path / "Makefile").write_text("all:\n\ttrue\n")
-        with patch("static_analyzer.engine.adapters.cpp_cdb.bear_generator.shutil.which", side_effect=selective):
+        with patch("static_analyzer.cdb.bear_generator.shutil.which", side_effect=selective):
             with pytest.raises(RuntimeError, match=r"bear.*PATH"):
                 BearGenerator(BuildSystemKind.MAKE).generate(tmp_path)
 
@@ -61,10 +76,10 @@ class TestBearGeneratorPreflight:
 
         with (
             patch(
-                "static_analyzer.engine.adapters.cpp_cdb.bear_generator.shutil.which",
+                "static_analyzer.cdb.bear_generator.shutil.which",
                 side_effect=lambda n: "/usr/bin/" + n,
             ),
-            patch("static_analyzer.engine.adapters.cpp_cdb.bear_generator.subprocess.run", side_effect=fake_run),
+            patch("static_analyzer.cdb.bear_generator.subprocess.run", side_effect=fake_run),
         ):
             with pytest.raises(RuntimeError, match=r"Bear 2"):
                 BearGenerator(BuildSystemKind.MAKE).generate(tmp_path)
@@ -76,8 +91,8 @@ class TestBearGeneratorPreflight:
             return None if name == "make" else f"/usr/bin/{name}"
 
         with (
-            patch("static_analyzer.engine.adapters.cpp_cdb.bear_generator.shutil.which", side_effect=selective),
-            patch("static_analyzer.engine.adapters.cpp_cdb.bear_generator.subprocess.run", side_effect=_fake_success),
+            patch("static_analyzer.cdb.bear_generator.shutil.which", side_effect=selective),
+            patch("static_analyzer.cdb.bear_generator.subprocess.run", side_effect=_fake_success),
         ):
             with pytest.raises(RuntimeError, match=r"'make'"):
                 BearGenerator(BuildSystemKind.MAKE).generate(tmp_path)
@@ -102,8 +117,8 @@ class TestBearGeneratorMake:
             return subprocess.CompletedProcess(args=argv, returncode=0, stdout="", stderr="")
 
         with (
-            patch("static_analyzer.engine.adapters.cpp_cdb.bear_generator.shutil.which", side_effect=self._all_present),
-            patch("static_analyzer.engine.adapters.cpp_cdb.bear_generator.subprocess.run", side_effect=fake_run),
+            patch("static_analyzer.cdb.bear_generator.shutil.which", side_effect=self._all_present),
+            patch("static_analyzer.cdb.bear_generator.subprocess.run", side_effect=fake_run),
         ):
             cdb = BearGenerator(BuildSystemKind.MAKE).generate(tmp_path)
 
@@ -123,7 +138,7 @@ class TestBearGeneratorMake:
         cdb_path.write_text(VALID_CDB_JSON)
         generator = BearGenerator(BuildSystemKind.MAKE)
         # Prime the cache
-        write_cached_fingerprint(cdb_dir, compute_fingerprint(generator._fingerprint_inputs(tmp_path)))
+        _prime_fingerprint(cdb_dir, generator, tmp_path)
 
         runs: list[list[str]] = []
 
@@ -132,8 +147,8 @@ class TestBearGeneratorMake:
             return _fake_success(argv, **kwargs)
 
         with (
-            patch("static_analyzer.engine.adapters.cpp_cdb.bear_generator.shutil.which", side_effect=self._all_present),
-            patch("static_analyzer.engine.adapters.cpp_cdb.bear_generator.subprocess.run", side_effect=recording_run),
+            patch("static_analyzer.cdb.bear_generator.shutil.which", side_effect=self._all_present),
+            patch("static_analyzer.cdb.bear_generator.subprocess.run", side_effect=recording_run),
         ):
             out = generator.generate(tmp_path)
 
@@ -156,7 +171,7 @@ class TestBearGeneratorMake:
         cdb_path = cdb_dir / "compile_commands.json"
         cdb_path.write_text(VALID_CDB_JSON)
         generator = BearGenerator(BuildSystemKind.MAKE)
-        write_cached_fingerprint(cdb_dir, compute_fingerprint(generator._fingerprint_inputs(tmp_path)))
+        _prime_fingerprint(cdb_dir, generator, tmp_path)
 
         # A new source appears — must bust the cache on the next call.
         (src_dir / "new.cc").write_text("int new_fn() { return 0; }\n")
@@ -170,14 +185,55 @@ class TestBearGeneratorMake:
             return _fake_success(argv, **kwargs)
 
         with (
-            patch("static_analyzer.engine.adapters.cpp_cdb.bear_generator.shutil.which", side_effect=self._all_present),
-            patch("static_analyzer.engine.adapters.cpp_cdb.bear_generator.subprocess.run", side_effect=recording_run),
+            patch("static_analyzer.cdb.bear_generator.shutil.which", side_effect=self._all_present),
+            patch("static_analyzer.cdb.bear_generator.subprocess.run", side_effect=recording_run),
         ):
             generator.generate(tmp_path)
 
         assert any(
             r[:1] == ["bear"] and "--output" in r for r in runs
         ), "new source file should have busted the cache and forced a bear rerun"
+
+    def test_changing_make_target_busts_cache(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Regression for M9: flipping ``CODEBOARDING_CPP_MAKE_TARGET`` must
+        invalidate a cached CDB built with a different target — otherwise
+        switching from ``all`` to ``clean install`` reuses commands captured
+        for the wrong build.
+        """
+        (tmp_path / "Makefile").write_text("all:\n\ttrue\n")
+
+        def fake_run(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess:
+            if argv[:2] == ["bear", "--version"]:
+                return _fake_bear_version()
+            if argv[0] == "bear" and "--output" in argv:
+                Path(argv[argv.index("--output") + 1]).write_text(VALID_CDB_JSON)
+            return subprocess.CompletedProcess(args=argv, returncode=0, stdout="", stderr="")
+
+        # First run with target=all primes the cache.
+        monkeypatch.setenv("CODEBOARDING_CPP_MAKE_TARGET", "all")
+        with (
+            patch("static_analyzer.cdb.bear_generator.shutil.which", side_effect=self._all_present),
+            patch("static_analyzer.cdb.bear_generator.subprocess.run", side_effect=fake_run),
+        ):
+            BearGenerator(BuildSystemKind.MAKE).generate(tmp_path)
+
+        # Flip the target; record whether bear re-runs.
+        monkeypatch.setenv("CODEBOARDING_CPP_MAKE_TARGET", "clean install")
+        runs: list[list[str]] = []
+
+        def recording_run(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess:
+            runs.append(list(argv))
+            return fake_run(argv, **kwargs)
+
+        with (
+            patch("static_analyzer.cdb.bear_generator.shutil.which", side_effect=self._all_present),
+            patch("static_analyzer.cdb.bear_generator.subprocess.run", side_effect=recording_run),
+        ):
+            BearGenerator(BuildSystemKind.MAKE).generate(tmp_path)
+
+        assert any(
+            r[:1] == ["bear"] and "--output" in r for r in runs
+        ), "switching CODEBOARDING_CPP_MAKE_TARGET should have busted the cache and re-run bear"
 
     def test_fingerprint_invalidated_on_makefile_change(self, tmp_path: Path) -> None:
         """Edit the Makefile and the old CDB is considered stale, then rebuild."""
@@ -188,7 +244,7 @@ class TestBearGeneratorMake:
         cdb_path = cdb_dir / "compile_commands.json"
         cdb_path.write_text(VALID_CDB_JSON)
         generator = BearGenerator(BuildSystemKind.MAKE)
-        write_cached_fingerprint(cdb_dir, compute_fingerprint(generator._fingerprint_inputs(tmp_path)))
+        _prime_fingerprint(cdb_dir, generator, tmp_path)
         makefile.write_text("all:\n\techo different\n")
 
         runs: list[list[str]] = []
@@ -200,8 +256,8 @@ class TestBearGeneratorMake:
             return _fake_success(argv, **kwargs)
 
         with (
-            patch("static_analyzer.engine.adapters.cpp_cdb.bear_generator.shutil.which", side_effect=self._all_present),
-            patch("static_analyzer.engine.adapters.cpp_cdb.bear_generator.subprocess.run", side_effect=fake_run),
+            patch("static_analyzer.cdb.bear_generator.shutil.which", side_effect=self._all_present),
+            patch("static_analyzer.cdb.bear_generator.subprocess.run", side_effect=fake_run),
         ):
             generator.generate(tmp_path)
 
@@ -221,8 +277,8 @@ class TestBearGeneratorMake:
             )
 
         with (
-            patch("static_analyzer.engine.adapters.cpp_cdb.bear_generator.shutil.which", side_effect=self._all_present),
-            patch("static_analyzer.engine.adapters.cpp_cdb.bear_generator.subprocess.run", side_effect=fake_run),
+            patch("static_analyzer.cdb.bear_generator.shutil.which", side_effect=self._all_present),
+            patch("static_analyzer.cdb.bear_generator.subprocess.run", side_effect=fake_run),
         ):
             with pytest.raises(RuntimeError, match=r"Error 1"):
                 BearGenerator(BuildSystemKind.MAKE).generate(tmp_path)
@@ -237,8 +293,8 @@ class TestBearGeneratorMake:
             raise subprocess.TimeoutExpired(cmd=argv, timeout=float(timeout_value))  # type: ignore[arg-type]
 
         with (
-            patch("static_analyzer.engine.adapters.cpp_cdb.bear_generator.shutil.which", side_effect=self._all_present),
-            patch("static_analyzer.engine.adapters.cpp_cdb.bear_generator.subprocess.run", side_effect=fake_run),
+            patch("static_analyzer.cdb.bear_generator.shutil.which", side_effect=self._all_present),
+            patch("static_analyzer.cdb.bear_generator.subprocess.run", side_effect=fake_run),
         ):
             with pytest.raises(RuntimeError, match=r"CODEBOARDING_CPP_GENERATOR_TIMEOUT"):
                 BearGenerator(BuildSystemKind.MAKE).generate(tmp_path)
@@ -259,8 +315,8 @@ class TestBearGeneratorMake:
             return subprocess.CompletedProcess(args=argv, returncode=0, stdout="", stderr="")
 
         with (
-            patch("static_analyzer.engine.adapters.cpp_cdb.bear_generator.shutil.which", side_effect=self._all_present),
-            patch("static_analyzer.engine.adapters.cpp_cdb.bear_generator.subprocess.run", side_effect=fake_run),
+            patch("static_analyzer.cdb.bear_generator.shutil.which", side_effect=self._all_present),
+            patch("static_analyzer.cdb.bear_generator.subprocess.run", side_effect=fake_run),
         ):
             with pytest.raises(RuntimeError, match=r"invalid compile_commands"):
                 BearGenerator(BuildSystemKind.MAKE).generate(tmp_path)
@@ -282,8 +338,8 @@ class TestBearGeneratorMake:
             return subprocess.CompletedProcess(args=argv, returncode=0, stdout="", stderr="")
 
         with (
-            patch("static_analyzer.engine.adapters.cpp_cdb.bear_generator.shutil.which", side_effect=self._all_present),
-            patch("static_analyzer.engine.adapters.cpp_cdb.bear_generator.subprocess.run", side_effect=fake_run),
+            patch("static_analyzer.cdb.bear_generator.shutil.which", side_effect=self._all_present),
+            patch("static_analyzer.cdb.bear_generator.subprocess.run", side_effect=fake_run),
         ):
             with pytest.raises(RuntimeError, match=r"invalid compile_commands"):
                 BearGenerator(BuildSystemKind.MAKE).generate(tmp_path)
@@ -316,8 +372,8 @@ class TestBearGeneratorAutotools:
             return subprocess.CompletedProcess(args=argv, returncode=0, stdout="", stderr="")
 
         with (
-            patch("static_analyzer.engine.adapters.cpp_cdb.bear_generator.shutil.which", side_effect=self._all_present),
-            patch("static_analyzer.engine.adapters.cpp_cdb.bear_generator.subprocess.run", side_effect=fake_run),
+            patch("static_analyzer.cdb.bear_generator.shutil.which", side_effect=self._all_present),
+            patch("static_analyzer.cdb.bear_generator.subprocess.run", side_effect=fake_run),
         ):
             BearGenerator(BuildSystemKind.AUTOTOOLS).generate(tmp_path)
 
@@ -352,8 +408,8 @@ class TestBearGeneratorAutotools:
             return fake_run(argv, **kwargs)
 
         with (
-            patch("static_analyzer.engine.adapters.cpp_cdb.bear_generator.shutil.which", side_effect=self._all_present),
-            patch("static_analyzer.engine.adapters.cpp_cdb.bear_generator.subprocess.run", side_effect=tracking_run),
+            patch("static_analyzer.cdb.bear_generator.shutil.which", side_effect=self._all_present),
+            patch("static_analyzer.cdb.bear_generator.subprocess.run", side_effect=tracking_run),
         ):
             BearGenerator(BuildSystemKind.AUTOTOOLS).generate(tmp_path)
 
@@ -366,8 +422,8 @@ class TestBearGeneratorAutotools:
             return None if name == "autoreconf" else f"/usr/bin/{name}"
 
         with (
-            patch("static_analyzer.engine.adapters.cpp_cdb.bear_generator.shutil.which", side_effect=selective),
-            patch("static_analyzer.engine.adapters.cpp_cdb.bear_generator.subprocess.run", side_effect=_fake_success),
+            patch("static_analyzer.cdb.bear_generator.shutil.which", side_effect=selective),
+            patch("static_analyzer.cdb.bear_generator.subprocess.run", side_effect=_fake_success),
         ):
             with pytest.raises(RuntimeError, match=r"autoreconf"):
                 BearGenerator(BuildSystemKind.AUTOTOOLS).generate(tmp_path)

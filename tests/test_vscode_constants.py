@@ -5,6 +5,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from static_analyzer.constants import LANGUAGE_EXTENSIONS, Language
 from vscode_constants import (
     VSCODE_CONFIG,
     find_runnable,
@@ -233,6 +234,16 @@ class TestVSCodeConstants(unittest.TestCase):
         self.assertIn("command", php_config)
         self.assertEqual(php_config["languages"], ["php"])
         self.assertIn(".php", php_config["file_extensions"])
+
+    def test_vscode_config_cpp_file_extensions_match_canonical(self):
+        # Why: ``vscode_constants.py`` duplicates the cpp extension list because
+        # importing ``static_analyzer.constants`` from it causes a circular import
+        # (static_analyzer/__init__.py -> tool_registry -> vscode_constants). This
+        # assertion pins the two lists in lockstep so adding a new extension to
+        # ``LANGUAGE_EXTENSIONS[Language.CPP]`` forces an update here too.
+        cpp_extensions = set(VSCODE_CONFIG["lsp_servers"]["cpp"]["file_extensions"])
+        canonical_extensions = set(LANGUAGE_EXTENSIONS[Language.CPP])
+        self.assertEqual(cpp_extensions, canonical_extensions)
 
 
 if __name__ == "__main__":

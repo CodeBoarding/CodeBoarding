@@ -202,6 +202,25 @@ class TestDiscoverSymbols:
         phase1_call = lsp.document_symbol.call_args_list[1]
         assert phase1_call.kwargs.get("timeout") == probe_timeout
 
+    def test_bulk_did_open_uses_per_file_language_id_for_cpp_adapter(self):
+        """HIGH#1 regression: mixed C+C++ projects collapse onto CppAdapter,
+        so ``.c`` files must still be announced as ``languageId="c"`` to clangd --
+        not the adapter-level ``"cpp"``. ``.h`` headers ride as C++ (the
+        common case in mixed repos); pure-C projects route through
+        ``CAdapter`` whose override pins ``.h`` back to ``"c"``.
+        """
+        from static_analyzer.engine.adapters.cpp_adapter import CppAdapter
+
+        lsp = _make_lsp()
+        adapter = CppAdapter()
+        builder = CallGraphBuilder(lsp, adapter, Path("/project"))
+
+        files = [Path("/project/legacy.c"), Path("/project/modern.cpp"), Path("/project/api.h")]
+        builder._bulk_did_open(files)
+
+        lang_ids = [call.args[1] for call in lsp.did_open.call_args_list]
+        assert lang_ids == ["c", "cpp", "cpp"]
+
 
 class TestBuild:
     def test_returns_language_analysis_result(self):

@@ -1,0 +1,6 @@
+# Bazel per-invocation side effects — symlinks point at an ephemeral output base.
+bazel-*
+MODULE.bazel.lock
+
+# CodeBoarding CDB scratch dir
+.codeboarding/

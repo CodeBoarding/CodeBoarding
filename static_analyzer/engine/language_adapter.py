@@ -78,6 +78,16 @@ class LanguageAdapter(ABC):
         """LSP language identifier for textDocument/didOpen."""
         return self.language.lower()
 
+    def language_id_for_file(self, file_path: Path) -> str:
+        """Per-file LSP language identifier sent via ``textDocument/didOpen``.
+
+        Defaults to the adapter-level ``language_id``. Override when a single
+        adapter spans more than one dialect (e.g. ``CppAdapter`` handles ``.c``
+        and ``.cpp`` from one clangd process but must announce each file's
+        true dialect to the server).
+        """
+        return self.language_id
+
     def build_qualified_name(
         self,
         file_path: Path,

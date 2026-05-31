@@ -1,0 +1,55 @@
+{
+  "language": "C",
+  "description": "End-to-end fixture for the Make+Bear CDB-generation path on a pure-C project. With CODEBOARDING_CPP_GENERATE_CDB=1 set and only a bare Makefile at the project root, CodeBoarding drives 'bear -- make clean all' and writes compile_commands.json to .codeboarding/cdb/. Exercises CAdapter (inheriting CppAdapter) end-to-end: language detection routes to 'C' rather than 'Cpp', no namespace/class hierarchy means free-function symbols are file-stem-prefixed, and clangd's -std=c17 fallback (set by CAdapter.get_lsp_init_options) parses C99/C11 designated initializers correctly.",
+  "expected_references": [
+    "BaseModel.id",
+    "BaseModel.name",
+    "Entity.base",
+    "Entity.kind",
+    "EntityKind.ENTITY_KIND_CAT",
+    "EntityKind.ENTITY_KIND_DOG",
+    "base.BaseModel",
+    "base.models_base_describe(const BaseModel*, char*, size_t)",
+    "base.models_base_init(BaseModel*, const char*, int32_t)",
+    "base.models_base_name(const BaseModel*)",
+    "entities.Entity",
+    "entities.EntityKind",
+    "entities.models_entities_describe(const Entity*, char*, size_t)",
+    "entities.models_entities_init_cat(Entity*, const char*)",
+    "entities.models_entities_init_dog(Entity*, const char*)",
+    "entities.models_entities_speak(const Entity*, char*, size_t)",
+    "main.main(void)",
+    "processor.services_processor_process(const Entity*, char*, size_t)",
+    "processor.services_processor_process_batch(const Entity*, size_t, char (*)[128])"
+  ],
+  "expected_classes": [],
+  "expected_hierarchy": {},
+  "expected_edges": [
+    ["entities.models_entities_describe(const Entity*, char*, size_t)", "base.models_base_describe(const BaseModel*, char*, size_t)"],
+    ["entities.models_entities_describe(const Entity*, char*, size_t)", "base.models_base_name(const BaseModel*)"],
+    ["entities.models_entities_init_cat(Entity*, const char*)", "base.models_base_init(BaseModel*, const char*, int32_t)"],
+    ["entities.models_entities_init_dog(Entity*, const char*)", "base.models_base_init(BaseModel*, const char*, int32_t)"],
+    ["main.main(void)", "entities.models_entities_init_cat(Entity*, const char*)"],
+    ["main.main(void)", "entities.models_entities_init_dog(Entity*, const char*)"],
+    ["main.main(void)", "processor.services_processor_process(const Entity*, char*, size_t)"],
+    ["main.main(void)", "processor.services_processor_process_batch(const Entity*, size_t, char (*)[128])"],
+    ["processor.services_processor_process(const Entity*, char*, size_t)", "entities.models_entities_describe(const Entity*, char*, size_t)"],
+    ["processor.services_processor_process_batch(const Entity*, size_t, char (*)[128])", "processor.services_processor_process(const Entity*, char*, size_t)"]
+  ],
+  "expected_package_deps": {
+    "include.models": {"imports_contain": [], "imported_by_contain": []},
+    "include.services": {"imports_contain": [], "imported_by_contain": []},
+    "src": {"imports_contain": ["src.models", "src.services"], "imported_by_contain": []},
+    "src.models": {"imports_contain": [], "imported_by_contain": ["src", "src.services"]},
+    "src.services": {"imports_contain": ["src.models"], "imported_by_contain": ["src"]}
+  },
+  "expected_source_files": [
+    "include/models/base.h",
+    "include/models/entities.h",
+    "include/services/processor.h",
+    "src/main.c",
+    "src/models/base.c",
+    "src/models/entities.c",
+    "src/services/processor.c"
+  ]
+}
