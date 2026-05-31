@@ -1,3 +1,4 @@
+import contextlib
 import gzip
 import hashlib
 import io
@@ -45,7 +46,9 @@ from tool_registry import (
 )
 from tool_registry import PackageManagerToolSource
 from tool_registry.installers import (
+    _existing_binary_is_usable,
     _extract_compressed_binary,
+    _resolve_native_download_hash,
     install_package_manager_tools,
     package_manager_tool_dir,
     resolve_native_asset_name,
@@ -1347,6 +1350,61 @@ class TestInstallNativeToolsCompressed(unittest.TestCase):
                 mode = installed.stat().st_mode & 0o777
                 self.assertEqual(mode & 0o111, 0o111)
 
+    def test_existing_compressed_asset_is_refetched(self):
+        dep = self._make_compressed_dep("rust-analyzer-x86_64-unknown-linux-gnu.gz")
+        old_payload = b"\x7fELFold-rust-analyzer"
+        new_payload = b"\x7fELFnew-rust-analyzer"
+
+        def fake_download(url: str, destination: Path, expected_sha256: str | None = None) -> bool:
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            with gzip.open(destination, "wb") as f:
+                f.write(new_payload)
+            return True
+
+        with tempfile.TemporaryDirectory() as tmp:
+            target_dir = Path(tmp)
+            with (
+                patch("tool_registry.installers.platform.system", return_value="Linux"),
+                patch("tool_registry.installers.platform.machine", return_value="x86_64"),
+                patch("tool_registry.paths.platform.system", return_value="Linux"),
+            ):
+                bin_dir = platform_bin_dir(target_dir)
+                bin_dir.mkdir(parents=True, exist_ok=True)
+                installed = bin_dir / "rust-analyzer"
+                installed.write_bytes(old_payload)
+
+                with (
+                    self.assertLogs("tool_registry.installers", level="INFO") as logs,
+                    patch("tool_registry.installers.download_asset", side_effect=fake_download) as mock_dl,
+                ):
+                    install_native_tools(target_dir, [dep])
+
+            mock_dl.assert_called_once()
+            self.assertEqual(installed.read_bytes(), new_payload)
+            self.assertIn("compressed asset; reinstalling", "\n".join(logs.output))
+
+    def test_failed_existing_compressed_refetch_preserves_binary(self):
+        dep = self._make_compressed_dep("rust-analyzer-x86_64-unknown-linux-gnu.gz")
+        old_payload = b"\x7fELFold-rust-analyzer"
+
+        with tempfile.TemporaryDirectory() as tmp:
+            target_dir = Path(tmp)
+            with (
+                patch("tool_registry.installers.platform.system", return_value="Linux"),
+                patch("tool_registry.installers.platform.machine", return_value="x86_64"),
+                patch("tool_registry.paths.platform.system", return_value="Linux"),
+            ):
+                bin_dir = platform_bin_dir(target_dir)
+                bin_dir.mkdir(parents=True, exist_ok=True)
+                installed = bin_dir / "rust-analyzer"
+                installed.write_bytes(old_payload)
+
+                with patch("tool_registry.installers.download_asset", side_effect=RuntimeError("network")) as mock_dl:
+                    install_native_tools(target_dir, [dep])
+
+            mock_dl.assert_called_once()
+            self.assertEqual(installed.read_bytes(), old_payload)
+
     def test_compressed_asset_honors_per_asset_sha256(self):
         """``sha256[asset_name]`` lets a registry author pin compressed assets."""
         binary_payload = b"#!/bin/sh\necho rust-analyzer\n" * 10
@@ -1649,6 +1707,213 @@ class TestInstallPackageManagerTools(unittest.TestCase):
         self.assertIn("--framework", csharp.source.install_args)
         framework_idx = csharp.source.install_args.index("--framework") + 1
         self.assertEqual(csharp.source.install_args[framework_idx], "net10.0")
+
+
+class TestExistingBinaryIsUsable(unittest.TestCase):
+    """Focused tests for the drift-check helper used by install_native_tools."""
+
+    def test_matching_sha_returns_true_and_preserves_file(self):
+        payload = b"binary bytes" * 100
+        sha = hashlib.sha256(payload).hexdigest()
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "tokei"
+            path.write_bytes(payload)
+            self.assertTrue(_existing_binary_is_usable(path, expected_hash=sha, binary_name="tokei"))
+            self.assertEqual(path.read_bytes(), payload)
+
+    def test_drifted_sha_returns_false_and_preserves_file(self):
+        payload = b"stale binary"
+        wrong_sha = hashlib.sha256(b"different bytes").hexdigest()
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "tokei"
+            path.write_bytes(payload)
+            self.assertFalse(_existing_binary_is_usable(path, expected_hash=wrong_sha, binary_name="tokei"))
+            self.assertEqual(path.read_bytes(), payload)
+
+    def test_unreadable_file_returns_false_and_preserves_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "tokei"
+            path.write_bytes(b"x")
+            with patch.object(Path, "read_bytes", side_effect=OSError("simulated")):
+                self.assertFalse(_existing_binary_is_usable(path, expected_hash="0" * 64, binary_name="tokei"))
+            self.assertTrue(path.exists())
+
+
+class TestResolveNativeDownloadHash(unittest.TestCase):
+    def test_missing_platform_pin_raises_for_preextracted_asset(self):
+        source = GitHubToolSource(
+            tag="tools-2026.04.05",
+            repo="CodeBoarding/tools",
+            asset_template="tokei-{platform_suffix}",
+            sha256={"macos": "0" * 64},
+        )
+
+        with self.assertRaisesRegex(ValueError, "missing SHA256 pin"):
+            _resolve_native_download_hash(source, "tokei-linux", compressed=False, platform_suffix="linux")
+
+
+class TestInstallNativeToolsPinDrift(unittest.TestCase):
+    """Existing on-disk binaries are SHA-verified against the registry pin.
+
+    Why: the original ``if binary_path.exists(): skip`` shortcut meant a user
+    who installed CodeBoarding before a tools-repo re-cut kept their stale
+    binary forever — pin bumps in ``registry.py`` were silently ignored. The
+    fix re-fetches on hash mismatch so users converge on the pinned artifact.
+    """
+
+    def _make_dep(self, sha: str | None = None) -> ToolDependency:
+        return ToolDependency(
+            key="tokei",
+            binary_name="tokei",
+            kind=ToolKind.NATIVE,
+            config_section=ConfigSection.TOOLS,
+            source=GitHubToolSource(
+                tag="tools-2026.04.05",
+                repo="CodeBoarding/tools",
+                asset_template="tokei-{platform_suffix}",
+                sha256={"linux": sha} if sha else {},
+            ),
+        )
+
+    @contextlib.contextmanager
+    def _patched_linux(self):
+        """Pin all three platform call sites the installer touches to Linux/x86_64.
+
+        Entered around the entire test body so ``platform_bin_dir`` resolves
+        consistently to ``<target_dir>/bin/linux`` for both the pre-created
+        on-disk binary and the in-installer lookup.
+        """
+        with (
+            patch("tool_registry.installers.platform.system", return_value="Linux"),
+            patch("tool_registry.installers.platform.machine", return_value="x86_64"),
+            patch("tool_registry.paths.platform.system", return_value="Linux"),
+        ):
+            yield
+
+    def test_matching_sha_skips_download(self):
+        """The happy path: on-disk hash equals the pin, so no network call."""
+        payload = b"fresh tokei bytes" * 100
+        dep = self._make_dep(sha=hashlib.sha256(payload).hexdigest())
+
+        with tempfile.TemporaryDirectory() as tmp, self._patched_linux():
+            target_dir = Path(tmp)
+            bin_dir = platform_bin_dir(target_dir)
+            bin_dir.mkdir(parents=True, exist_ok=True)
+            (bin_dir / "tokei").write_bytes(payload)
+
+            with patch("tool_registry.installers.download_asset") as mock_dl:
+                install_native_tools(target_dir, [dep])
+            mock_dl.assert_not_called()
+            self.assertEqual((bin_dir / "tokei").read_bytes(), payload)
+
+    def test_drifted_sha_triggers_reinstall(self):
+        """The motivating case: pin moved upstream, on-disk binary is stale."""
+        new_payload = b"fresh tokei v14.0.0" * 50
+        dep = self._make_dep(sha=hashlib.sha256(new_payload).hexdigest())
+
+        def fake_download(url, destination, expected_sha256=None):
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes(new_payload)
+            return True
+
+        with tempfile.TemporaryDirectory() as tmp, self._patched_linux():
+            target_dir = Path(tmp)
+            bin_dir = platform_bin_dir(target_dir)
+            bin_dir.mkdir(parents=True, exist_ok=True)
+            stale = bin_dir / "tokei"
+            stale.write_bytes(b"stale tokei v12.1.2" * 50)
+
+            with patch("tool_registry.installers.download_asset", side_effect=fake_download) as mock_dl:
+                install_native_tools(target_dir, [dep])
+            mock_dl.assert_called_once()
+            self.assertEqual(stale.read_bytes(), new_payload)
+
+    def test_missing_platform_pin_aborts_batch_before_later_deps(self):
+        missing_pin_dep = ToolDependency(
+            key="tokei",
+            binary_name="tokei",
+            kind=ToolKind.NATIVE,
+            config_section=ConfigSection.TOOLS,
+            source=GitHubToolSource(
+                tag="tools-2026.04.05",
+                repo="CodeBoarding/tools",
+                asset_template="tokei-{platform_suffix}",
+                sha256={"macos": "0" * 64},
+            ),
+        )
+        later_dep = ToolDependency(
+            key="go",
+            binary_name="gopls",
+            kind=ToolKind.NATIVE,
+            config_section=ConfigSection.LSP_SERVERS,
+            source=GitHubToolSource(
+                tag="tools-2026.04.05",
+                repo="CodeBoarding/tools",
+                asset_template="gopls-{platform_suffix}",
+                sha256={"linux": "1" * 64},
+            ),
+        )
+
+        with tempfile.TemporaryDirectory() as tmp, self._patched_linux():
+            with (
+                self.assertRaisesRegex(ValueError, "missing SHA256 pin"),
+                patch("tool_registry.installers.download_asset") as mock_dl,
+            ):
+                install_native_tools(Path(tmp), [missing_pin_dep, later_dep])
+            mock_dl.assert_not_called()
+
+    def test_no_pin_skips_with_caveat(self):
+        """When the registry has no SHA for this platform we cannot verify,
+        so the existing binary is trusted (legacy behavior preserved)."""
+        dep = self._make_dep(sha=None)
+
+        with tempfile.TemporaryDirectory() as tmp, self._patched_linux():
+            target_dir = Path(tmp)
+            bin_dir = platform_bin_dir(target_dir)
+            bin_dir.mkdir(parents=True, exist_ok=True)
+            (bin_dir / "tokei").write_bytes(b"unpinned binary")
+
+            with (
+                self.assertLogs("tool_registry.installers", level="INFO") as logs,
+                patch("tool_registry.installers.download_asset") as mock_dl,
+            ):
+                install_native_tools(target_dir, [dep])
+            mock_dl.assert_not_called()
+            self.assertIn("unpinned binary; skipping verification", "\n".join(logs.output))
+
+    def test_unreadable_existing_binary_triggers_reinstall(self):
+        """If we cannot read the on-disk binary (permissions, FS error), do
+        not skip — reinstall defensively rather than report a broken file
+        as healthy."""
+        new_payload = b"reinstalled binary"
+        dep = self._make_dep(sha=hashlib.sha256(new_payload).hexdigest())
+
+        def fake_download(url, destination, expected_sha256=None):
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes(new_payload)
+            return True
+
+        with tempfile.TemporaryDirectory() as tmp, self._patched_linux():
+            target_dir = Path(tmp)
+            bin_dir = platform_bin_dir(target_dir)
+            bin_dir.mkdir(parents=True, exist_ok=True)
+            existing = bin_dir / "tokei"
+            existing.write_bytes(b"x")
+
+            real_read_bytes = Path.read_bytes
+
+            def selective_read_bytes(self):
+                if self == existing:
+                    raise OSError("permission denied (simulated)")
+                return real_read_bytes(self)
+
+            with (
+                patch("tool_registry.installers.download_asset", side_effect=fake_download) as mock_dl,
+                patch.object(Path, "read_bytes", selective_read_bytes),
+            ):
+                install_native_tools(target_dir, [dep])
+            mock_dl.assert_called_once()
+            self.assertEqual(existing.read_bytes(), new_payload)
 
 
 if __name__ == "__main__":

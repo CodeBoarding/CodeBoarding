@@ -163,6 +163,52 @@ def download_asset(url: str, destination: Path, expected_sha256: str | None = No
 # -- Native binary installer --------------------------------------------------
 
 
+def _resolve_native_download_hash(
+    source: GitHubToolSource,
+    asset_name: str,
+    compressed: bool,
+    platform_suffix: str,
+) -> str | None:
+    """Resolve the SHA256 pin for the downloaded release asset.
+
+    Exact asset-name pins apply to any asset; platform-suffix pins only apply
+    to pre-extracted binaries, not compressed archives with different bytes.
+    """
+    if asset_name in source.sha256:
+        return source.sha256[asset_name]
+    if not compressed:
+        if not source.sha256:
+            return None
+        platform_hash = source.sha256.get(platform_suffix or "")
+        if platform_hash is None:
+            raise ValueError(f"{asset_name}: missing SHA256 pin for platform {platform_suffix!r}")
+        return platform_hash
+    return None
+
+
+def _existing_binary_is_usable(
+    binary_path: Path,
+    expected_hash: str,
+    binary_name: str,
+) -> bool:
+    """Return whether the on-disk binary can be reused."""
+    try:
+        actual = hashlib.sha256(binary_path.read_bytes()).hexdigest()
+    except OSError as exc:
+        logger.warning("  %s: existing binary unreadable (%s)", binary_name, exc)
+        return False
+    if actual == expected_hash:
+        logger.info("  %s: already installed (sha256 verified)", binary_name)
+        return True
+    logger.info(
+        "  %s: pin drift (have %s..., want %s...)",
+        binary_name,
+        actual[:12],
+        expected_hash[:12],
+    )
+    return False
+
+
 def install_native_tools(
     target_dir: Path,
     deps: list[ToolDependency],
@@ -173,6 +219,8 @@ def install_native_tools(
     Supports both pre-extracted binaries (default, e.g. ``tokei``,
     ``gopls``) and compressed-binary assets (``rust-analyzer``); the
     archive format is inferred from the asset filename suffix.
+
+    Pre-extracted on-disk binaries are SHA256-verified before reuse.
     """
     system = platform.system()
     suffix = PLATFORM_SUFFIX.get(system)
@@ -205,9 +253,6 @@ def install_native_tools(
             )
             continue
         binary_path = bin_dir / f"{dep.binary_name}{exe_suffix()}"
-        if binary_path.exists():
-            logger.info("  %s: already installed, skipping", dep.binary_name)
-            continue
         source = dep.source
         assert isinstance(source, GitHubToolSource)
         asset_name = resolve_native_asset_name(source, suffix or "")
@@ -217,24 +262,29 @@ def install_native_tools(
             continue
         url = asset_url(source, asset_name)
         compressed = _is_compressed_asset(asset_name)
-        # Hash lookup precedence:
-        #   1. ``sha256[asset_name]`` — exact-asset pin (works for any asset
-        #      including compressed; one entry per arch override).
-        #   2. ``sha256[suffix]`` — per-platform pin used by tools we
-        #      republish ourselves (tokei, gopls); only consulted for
-        #      pre-extracted assets so a stale platform-keyed hash doesn't
-        #      get applied to a freshly compressed binary.
-        #   3. ``None`` — no pin, ``download_asset`` skips verification.
-        if asset_name in source.sha256:
-            expected_hash: str | None = source.sha256[asset_name]
-        elif not compressed:
-            expected_hash = source.sha256.get(suffix or "")
-        else:
-            expected_hash = None
+        download_hash = _resolve_native_download_hash(source, asset_name, compressed, suffix or "")
+        had_existing_binary = binary_path.exists()
+
+        if had_existing_binary:
+            if compressed:
+                logger.info(
+                    "  %s: already installed (compressed asset; reinstalling because extracted binary "
+                    "cannot be verified against archive pin)",
+                    dep.binary_name,
+                )
+            elif download_hash is None:
+                logger.info("  %s: already installed (unpinned binary; skipping verification)", dep.binary_name)
+                continue
+            elif _existing_binary_is_usable(binary_path, download_hash, dep.binary_name):
+                continue
+            else:
+                logger.info("  %s: existing binary unusable; reinstalling", dep.binary_name)
+                binary_path.unlink(missing_ok=True)
+
         try:
             if compressed:
                 archive_path = bin_dir / asset_name
-                if not download_asset(url, archive_path, expected_sha256=expected_hash):
+                if not download_asset(url, archive_path, expected_sha256=download_hash):
                     logger.warning("  %s: download failed (empty file)", dep.binary_name)
                     archive_path.unlink(missing_ok=True)
                     continue
@@ -243,7 +293,7 @@ def install_native_tools(
                 finally:
                     archive_path.unlink(missing_ok=True)
             else:
-                if not download_asset(url, binary_path, expected_sha256=expected_hash):
+                if not download_asset(url, binary_path, expected_sha256=download_hash):
                     logger.warning("  %s: download failed (empty file)", dep.binary_name)
                     binary_path.unlink(missing_ok=True)
                     continue
@@ -252,7 +302,8 @@ def install_native_tools(
             logger.info("  %s: downloaded successfully", dep.binary_name)
         except Exception:
             logger.exception("  %s: download failed", dep.binary_name)
-            binary_path.unlink(missing_ok=True)
+            if not (compressed and had_existing_binary):
+                binary_path.unlink(missing_ok=True)
 
 
 # -- Package-manager installer (dotnet tool, cargo install, ...) --------------
