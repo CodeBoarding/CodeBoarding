@@ -287,6 +287,7 @@ class TestLspAdapterAndLanguageEnumParity(unittest.TestCase):
         "php": "PHP",
         "csharp": "CSharp",
         "java": "Java",
+        "mojo": "Mojo",
         "rust": "Rust",
     }
 
@@ -372,23 +373,24 @@ class TestPackageManagerSourceInvariants(unittest.TestCase):
                 )
 
     def test_every_pm_dep_has_exactly_one_tool_path_placeholder(self):
-        """The installer substitutes ``{tool_path}`` with the managed install
-        dir. Zero placeholders means the tool lands in the package manager's
-        default location (polluting the user's global namespace, and
-        ``has_required_tools`` won't find it). Multiple placeholders is a
-        copy-paste bug.
+        """``{tool_path}`` must be consumed exactly once across install_args + env.
+
+        Zero: tool lands in the package manager's default location.
+        Multiple: copy-paste bug.
         """
         for dep in self._pm_deps():
             source = dep.source
             assert isinstance(source, PackageManagerToolSource)
             with self.subTest(dep=dep.key):
-                placeholder_count = sum(arg.count("{tool_path}") for arg in source.install_args)
+                args_count = sum(arg.count("{tool_path}") for arg in source.install_args)
+                env_count = sum(value.count("{tool_path}") for _, value in source.env)
+                placeholder_count = args_count + env_count
                 self.assertEqual(
                     placeholder_count,
                     1,
-                    f"{dep.key}: expected exactly one '{{tool_path}}' placeholder in "
-                    f"install_args, found {placeholder_count}. "
-                    f"install_args={list(source.install_args)!r}",
+                    f"{dep.key}: expected exactly one '{{tool_path}}' placeholder across "
+                    f"install_args + env, found {placeholder_count}. "
+                    f"install_args={list(source.install_args)!r} env={list(source.env)!r}",
                 )
 
 

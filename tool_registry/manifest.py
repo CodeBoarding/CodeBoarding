@@ -195,9 +195,11 @@ def package_manager_tool_path(base_dir: Path, dep: ToolDependency) -> Path | Non
     hard crash.
     """
     try:
-        return package_manager_tool_dir(base_dir, dep) / f"{dep.binary_name}{exe_suffix()}"
+        install_dir = package_manager_tool_dir(base_dir, dep)
     except RuntimeError:
         return None
+    binary_dir = install_dir / dep.binary_subpath if dep.binary_subpath else install_dir
+    return binary_dir / f"{dep.binary_name}{exe_suffix()}"
 
 
 def resolve_config(base_dir: Path) -> dict[str, Any]:

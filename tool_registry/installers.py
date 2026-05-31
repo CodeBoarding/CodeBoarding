@@ -292,6 +292,14 @@ def install_package_manager_tools(
     for i, dep in enumerate(pm_deps, 1):
         if on_progress:
             on_progress(dep.binary_name, i, len(pm_deps))
+        if not dep.is_available_on_host():
+            logger.warning(
+                "  %s: upstream has no package for this host (%s/%s); skipping",
+                dep.binary_name,
+                platform.system(),
+                platform.machine(),
+            )
+            continue
         source = cast(PackageManagerToolSource, dep.source)
         if not shutil.which(source.manager_binary):
             logger.warning(
@@ -301,12 +309,17 @@ def install_package_manager_tools(
             )
             continue
         install_dir = pm_root / (dep.archive_subdir or dep.key)
-        binary_path = install_dir / f"{dep.binary_name}{exe_suffix()}"
+        binary_dir = install_dir / dep.binary_subpath if dep.binary_subpath else install_dir
+        binary_path = binary_dir / f"{dep.binary_name}{exe_suffix()}"
         if binary_path.exists():
             logger.info("  %s: already installed, skipping", dep.binary_name)
             continue
         install_dir.mkdir(parents=True, exist_ok=True)
-        args = [arg.format(tool_path=str(install_dir), tag=source.tag) for arg in source.install_args]
+        fmt = dict(tool_path=str(install_dir), tag=source.tag)
+        args = [arg.format(**fmt) for arg in source.install_args]
+        subprocess_env = os.environ.copy()
+        for key, value in source.env:
+            subprocess_env[key] = value.format(**fmt)
         try:
             result = subprocess.run(
                 [source.manager_binary, *args],
@@ -314,6 +327,7 @@ def install_package_manager_tools(
                 text=True,
                 check=False,
                 timeout=600,
+                env=subprocess_env if source.env else None,
             )
             if result.returncode != 0:
                 # A failed install can leave partial files that would
