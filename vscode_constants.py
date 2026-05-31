@@ -130,6 +130,18 @@ VSCODE_CONFIG = {
             # and surfaces in error messages when the binary cannot be located.
             "install_commands": "codeboarding-setup (downloads rust-analyzer automatically)",
         },
+        "mojo": {
+            "name": "Mojo Language Server",
+            "command": ["mojo-lsp-server"],
+            "languages": ["mojo"],
+            "file_extensions": [".mojo"],
+            # mojo-lsp-server is installed via `pixi global install` by
+            # tool_registry. Requires `pixi` on PATH; no native Windows or
+            # macOS x86_64 build exists.
+            "install_commands": (
+                "codeboarding-setup (installs mojo-lsp-server via pixi; " "requires pixi from https://pixi.sh)"
+            ),
+        },
     },
     "tools": {
         "tokei": {

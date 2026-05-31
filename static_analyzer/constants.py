@@ -24,6 +24,7 @@ class Language(StrEnum):
     RUST = "rust"
     CSHARP = "csharp"
     CPP = "cpp"
+    MOJO = "mojo"
 
 
 # File extensions per language. Every ``Language`` member appears here — keep
@@ -39,6 +40,7 @@ LANGUAGE_EXTENSIONS: dict[Language, tuple[str, ...]] = {
     Language.RUST: (".rs",),
     Language.CSHARP: (".cs",),
     Language.CPP: (".cpp", ".cc", ".cxx", ".hpp", ".hh", ".hxx", ".h"),
+    Language.MOJO: (".mojo",),
 }
 
 # Import-time invariant: every language has an extension list. Cheap check that

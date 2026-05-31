@@ -155,6 +155,7 @@ def _lang_to_adapter_name(language: str) -> str | None:
         "csharp": "CSharp",
         "go": "Go",
         "java": "Java",
+        "mojo": "Mojo",
         "php": "PHP",
         "rust": "Rust",
     }

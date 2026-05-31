@@ -118,9 +118,15 @@ class PackageManagerToolSource(ToolSource):
     Why: some LSPs ship only as language-package-manager packages, not as standalone binaries.
     """
 
-    manager_binary: str = ""  # e.g. "dotnet"
-    # Placeholders substituted at install time: ``{tool_path}`` -> managed install dir; ``{tag}`` -> source.tag.
+    manager_binary: str = ""
+    # ``{tool_path}`` and ``{tag}`` placeholders are substituted at install time.
     install_args: tuple[str, ...] = ()
+    # Empty = available on every host. Populate when upstream only publishes
+    # for a subset (e.g. no Windows native build).
+    supported_platforms: tuple[tuple[str, str], ...] = ()
+    # Same substitution as ``install_args``. Use to redirect package-manager
+    # state into ``install_dir`` (e.g. pixi's ``PIXI_HOME``).
+    env: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -136,20 +142,22 @@ class ToolDependency:
     archive_subdir: str = ""
     js_entry_file: str = ""
     js_entry_parent: str = ""
+    # ``binary_name`` location relative to install dir. Empty = ``<install_dir>/<binary>``;
+    # ``"bin"`` for package managers that drop shims in a ``bin/`` subdir.
+    binary_subpath: str = ""
 
     def is_available_on_host(self) -> bool:
-        """True unless this is an arch-aware NATIVE dep whose override map
-        excludes the running ``(system, machine)`` (e.g. rust-analyzer on
-        Linux/riscv64). Consulted by both the installer and
-        ``has_required_tools`` to keep them in sync.
-        """
-        if self.kind is not ToolKind.NATIVE:
-            return True
-        if not isinstance(self.source, GitHubToolSource):
-            return True
-        if not self.source.asset_arch_overrides:
-            return True
-        return (platform.system(), platform.machine()) in self.source.asset_arch_overrides
+        """True unless an arch-aware dep excludes the running ``(system, machine)``."""
+        host = (platform.system(), platform.machine())
+        if self.kind is ToolKind.NATIVE and isinstance(self.source, GitHubToolSource):
+            if not self.source.asset_arch_overrides:
+                return True
+            return host in self.source.asset_arch_overrides
+        if self.kind is ToolKind.PACKAGE_MANAGER and isinstance(self.source, PackageManagerToolSource):
+            if not self.source.supported_platforms:
+                return True
+            return host in self.source.supported_platforms
+        return True
 
 
 TOOL_REGISTRY: list[ToolDependency] = [
@@ -271,5 +279,40 @@ TOOL_REGISTRY: list[ToolDependency] = [
                 ("Windows", "ARM64"): "rust-analyzer-aarch64-pc-windows-msvc.zip",
             },
         ),
+    ),
+    # mojo-lsp-server only ships inside Modular's ``mojo`` conda package
+    # (compiler + stdlib + LSP; smaller than the full ``max`` SDK).
+    # Why: the pixi shim under ``$PIXI_HOME/bin/`` is a dynamic-linker
+    # wrapper for the binary in ``$PIXI_HOME/envs/mojo/bin/``; ``binary_subpath``
+    # tells the rest of the registry to look in ``bin/``.
+    # Prerequisite: pinned tokei must recognize ``.mojo`` for ProjectScanner
+    # to surface Mojo as a detected language — requires tokei >= 13.0.0-alpha.8
+    # (TOOLS_TAG bump in flight).
+    ToolDependency(
+        key="mojo",
+        binary_name="mojo-lsp-server",
+        kind=ToolKind.PACKAGE_MANAGER,
+        config_section=ConfigSection.LSP_SERVERS,
+        binary_subpath="bin",
+        source=PackageManagerToolSource(
+            tag="25.5",
+            manager_binary="pixi",
+            install_args=(
+                "global",
+                "install",
+                "--channel",
+                "https://conda.modular.com/max",
+                "--expose",
+                "mojo-lsp-server",
+                "mojo={tag}",
+            ),
+            env=(("PIXI_HOME", "{tool_path}"),),
+            supported_platforms=(
+                ("Linux", "x86_64"),
+                ("Linux", "aarch64"),
+                ("Darwin", "arm64"),
+            ),
+        ),
+        archive_subdir="mojo",
     ),
 ]

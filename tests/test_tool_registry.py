@@ -978,8 +978,9 @@ def _populate_complete_servers_dir(base_dir: Path) -> None:
         elif dep.kind is ToolKind.PACKAGE_MANAGER:
             subdir = dep.archive_subdir or dep.key
             pm_dir = bin_dir / "pm-tools" / subdir
-            pm_dir.mkdir(parents=True, exist_ok=True)
-            (pm_dir / f"{dep.binary_name}{exe_suffix()}").write_text("#!/bin/sh\n")
+            binary_dir = pm_dir / dep.binary_subpath if dep.binary_subpath else pm_dir
+            binary_dir.mkdir(parents=True, exist_ok=True)
+            (binary_dir / f"{dep.binary_name}{exe_suffix()}").write_text("#!/bin/sh\n")
 
 
 class TestHasRequiredTools(unittest.TestCase):
@@ -1008,6 +1009,21 @@ class TestHasRequiredTools(unittest.TestCase):
             _populate_complete_servers_dir(base_dir)
             (platform_bin_dir(base_dir) / f"tokei{exe_suffix()}").unlink()
             self.assertFalse(has_required_tools(base_dir))
+
+    def test_pm_binary_subpath_is_honored(self):
+        """PACKAGE_MANAGER deps with ``binary_subpath`` (mojo: ``bin``) must
+        find their binary at ``<install_dir>/<binary_subpath>/<name>``, not
+        at ``<install_dir>/<name>``. Without this, ``has_required_tools``
+        returns False on a successful install and ``needs_install`` loops
+        forever re-running the package manager."""
+        mojo_dep = next((d for d in TOOL_REGISTRY if d.key == "mojo"), None)
+        self.assertIsNotNone(mojo_dep, "mojo registry entry expected")
+        self.assertEqual(mojo_dep.binary_subpath, "bin")
+        install_dir = package_manager_tool_dir(Path("/tmp/example"), mojo_dep)
+        from tool_registry.manifest import package_manager_tool_path
+
+        binary_path = package_manager_tool_path(Path("/tmp/example"), mojo_dep)
+        self.assertEqual(binary_path, install_dir / "bin" / f"mojo-lsp-server{exe_suffix()}")
 
     def test_missing_node_js_entry_returns_false(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -1649,6 +1665,64 @@ class TestInstallPackageManagerTools(unittest.TestCase):
         self.assertIn("--framework", csharp.source.install_args)
         framework_idx = csharp.source.install_args.index("--framework") + 1
         self.assertEqual(csharp.source.install_args[framework_idx], "net10.0")
+
+    def test_env_param_redirects_pixi_home(self):
+        """Mojo's ``env=(("PIXI_HOME", "{tool_path}"),)`` must be passed to
+        subprocess.run with the install dir substituted, so pixi's global
+        install state stays inside ``install_dir`` instead of leaking into
+        the user's ``~/.pixi``."""
+        dep = next((d for d in TOOL_REGISTRY if d.key == "mojo"), None)
+        self.assertIsNotNone(dep, "mojo registry entry expected")
+        with (
+            tempfile.TemporaryDirectory() as tmp,
+            patch("tool_registry.installers.platform.system", return_value="Linux"),
+            patch("tool_registry.installers.platform.machine", return_value="x86_64"),
+            patch("tool_registry.paths.platform.system", return_value="Linux"),
+        ):
+            base = Path(tmp)
+            install_dir = package_manager_tool_dir(base, dep)
+            binary_path = install_dir / dep.binary_subpath / f"mojo-lsp-server{exe_suffix()}"
+
+            def fake_run(cmd, **kwargs):
+                binary_path.parent.mkdir(parents=True, exist_ok=True)
+                binary_path.write_text("fake mojo-lsp-server")
+                result = MagicMock()
+                result.returncode = 0
+                result.stdout = result.stderr = ""
+                return result
+
+            with (
+                patch("tool_registry.installers.shutil.which", return_value="/usr/bin/pixi"),
+                patch("tool_registry.installers.subprocess.run", side_effect=fake_run) as mock_run,
+            ):
+                install_package_manager_tools(base, [dep])
+            env = mock_run.call_args.kwargs.get("env")
+            self.assertIsNotNone(env, "env kwarg must be passed when source.env is populated")
+            self.assertEqual(env["PIXI_HOME"], str(install_dir))
+
+    def test_env_param_omitted_for_csharp(self):
+        """csharp-ls has no ``env=`` in its source — subprocess.run must
+        receive ``env=None`` so it inherits os.environ unchanged."""
+        dep = self._csharp_dep()
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            install_dir = package_manager_tool_dir(base, dep)
+            binary_path = install_dir / f"csharp-ls{exe_suffix()}"
+
+            def fake_run(cmd, **kwargs):
+                binary_path.parent.mkdir(parents=True, exist_ok=True)
+                binary_path.write_text("fake")
+                result = MagicMock()
+                result.returncode = 0
+                result.stdout = result.stderr = ""
+                return result
+
+            with (
+                patch("tool_registry.installers.shutil.which", return_value="/usr/bin/dotnet"),
+                patch("tool_registry.installers.subprocess.run", side_effect=fake_run) as mock_run,
+            ):
+                install_package_manager_tools(base, [dep])
+            self.assertIsNone(mock_run.call_args.kwargs.get("env"))
 
 
 if __name__ == "__main__":
