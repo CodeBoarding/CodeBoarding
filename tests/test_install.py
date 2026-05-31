@@ -203,6 +203,26 @@ class TestVerifyBinary(unittest.TestCase):
         self.assertEqual(result, install.BinaryStatus.LOAD_ERROR)
 
 
+class TestLanguageSupportSummary(unittest.TestCase):
+    @patch("static_analyzer.engine.adapters.swift_adapter.resolve_sourcekit_lsp", return_value=None)
+    @patch("install.shutil.which", return_value=None)
+    def test_swift_summary_reports_missing_toolchain_symmetrically(
+        self,
+        mock_which,
+        mock_resolve_sourcekit_lsp,
+    ):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            checks = install._language_checks_from_registry(Path(temp_dir))
+
+        swift_check = next(check for check in checks if check.language == "swift")
+        is_available, reason = swift_check.evaluate(npm_available=True)
+
+        self.assertFalse(is_available)
+        self.assertEqual(reason, "sourcekit-lsp not available (Swift toolchain unavailable or not on PATH)")
+        mock_which.assert_any_call("sourcekit-lsp")
+        mock_resolve_sourcekit_lsp.assert_called_once()
+
+
 class TestMainCliLock(unittest.TestCase):
     """The bare ``codeboarding-setup`` CLI entry point must hold the
     same ``.download.lock`` that ``ensure_tools`` uses, so two concurrent

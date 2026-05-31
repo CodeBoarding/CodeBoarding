@@ -646,6 +646,8 @@ def _language_checks_from_registry(target_dir: Path) -> list[LanguageSupportChec
                 sys_path = resolve_sourcekit_lsp()
             fallback_available = bool(sys_path)
             reason_requirement = f"{dep.binary_name} not on PATH (install the providing toolchain)"
+            if dep.key == "swift":
+                reason_requirement = f"{dep.binary_name} not available (Swift toolchain unavailable or not on PATH)"
             reason_binary = reason_requirement
 
         for lang in languages:
