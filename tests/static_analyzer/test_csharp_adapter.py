@@ -235,6 +235,13 @@ class TestLspConfiguration:
         adapter = CSharpAdapter()
         assert adapter.get_probe_timeout_minimum() > 300
 
+    def test_workspace_ready_timeout_shorter_than_default(self):
+        # Why: csharp-ls's solution-loaded notification only fires when a
+        # .sln/.slnx is found in the workspace folder. The default 300s
+        # wait stalls analysis when the notification never arrives.
+        adapter = CSharpAdapter()
+        assert adapter.workspace_ready_timeout < 300
+
 
 class TestLspEnv:
     """Tests for DOTNET_ROOT resolution."""
