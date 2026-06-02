@@ -6,6 +6,7 @@ from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.adapters.csharp_adapter import CSharpAdapter
 from static_analyzer.engine.adapters.go_adapter import GoAdapter
 from static_analyzer.engine.adapters.java_adapter import JavaAdapter
+from static_analyzer.engine.adapters.nextflow_adapter import NextflowAdapter
 from static_analyzer.engine.adapters.php_adapter import PHPAdapter
 from static_analyzer.engine.adapters.python_adapter import PythonAdapter
 from static_analyzer.engine.adapters.rust_adapter import RustAdapter
@@ -20,6 +21,7 @@ ADAPTER_REGISTRY: dict[str, type[LanguageAdapter]] = {
     "Java": JavaAdapter,
     "PHP": PHPAdapter,
     "Rust": RustAdapter,
+    "Nextflow": NextflowAdapter,
 }
 
 

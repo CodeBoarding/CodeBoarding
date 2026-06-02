@@ -282,6 +282,22 @@ class LanguageAdapter(ABC):
         return symbol_kind in (CALLABLE_KINDS | CLASS_LIKE_KINDS | {NodeType.VARIABLE, NodeType.CONSTANT})
 
     @property
+    def indexing_retries(self) -> int:
+        """Number of times to retry the sync probe if it returns 0 symbols.
+
+        Some LSP servers (e.g. Nextflow) respond eagerly with empty results
+        before indexing is complete. Override to enable retry-based waiting.
+        Each retry waits ``indexing_retry_delay`` seconds before re-probing.
+        Default is 0 (no retries — probe result is accepted immediately).
+        """
+        return 0
+
+    @property
+    def indexing_retry_delay(self) -> float:
+        """Seconds to wait between sync probe retries. Default: 2.0."""
+        return 2.0
+
+    @property
     def edge_strategy(self) -> EdgeStrategy:
         """Edge-building strategy for Phase 2.
 

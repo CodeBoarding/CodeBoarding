@@ -162,6 +162,21 @@ REPOSITORY_CONFIGS = [
             "lsp_server_key": "csharp",
         },
     ),
+    RepositoryTestConfig(
+        name="nfcore_demo_nextflow",
+        repo_url="https://github.com/nf-core/demo",
+        pinned_commit="1.1.0",
+        language="Nextflow",
+        fixture_file="nextflow_demo.json",
+        mock_language={
+            "language": "Nextflow",
+            "size": 10000,
+            "percentage": 100.0,
+            "suffixes": [".nf"],
+            "server_commands": ["java", "-jar", "language-server-all.jar"],
+            "lsp_server_key": "nextflow",
+        },
+    ),
 ]
 
 

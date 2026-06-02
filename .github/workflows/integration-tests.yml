@@ -18,6 +18,7 @@ on:
           - javascript
           - rust
           - csharp
+          - nextflow
 
   push:
     branches: [main]
@@ -44,7 +45,7 @@ on:
 
 jobs:
   # Emit the matrix.include list, event-driven:
-  #   schedule / workflow_dispatch → full 7 langs x 3 OSes minus skipped pairs.
+  #   schedule / workflow_dispatch → full language matrix x 3 OSes minus skipped pairs.
   #   push / pull_request         → Windows all langs (except java) + java on
   #                                 Linux/mac (java's dev platforms).
   # workflow_dispatch honors the optional ``language`` input to narrow
@@ -74,7 +75,7 @@ jobs:
           event = os.environ.get("EVENT_NAME", "")
           dispatch_lang = os.environ.get("DISPATCH_LANG", "").strip()
 
-          all_langs = ["python", "java", "go", "typescript", "php", "javascript", "rust", "csharp"]
+          all_langs = ["python", "java", "go", "typescript", "php", "javascript", "rust", "csharp", "nextflow"]
           all_os = ["ubuntu-latest", "macos-latest", "windows-latest"]
           skip = {("macos-latest", "go"), ("windows-latest", "java")}  # see job-level note
 
@@ -144,7 +145,7 @@ jobs:
           go-version: '1.21'
 
       - name: Install Java 21
-        if: matrix.language == 'java'
+        if: matrix.language == 'java' || matrix.language == 'nextflow'
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'

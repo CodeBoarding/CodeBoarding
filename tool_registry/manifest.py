@@ -243,7 +243,11 @@ def resolve_config(base_dir: Path) -> dict[str, Any]:
 
         elif dep.kind is ToolKind.ARCHIVE and dep.archive_subdir:
             archive_dir = base_dir / "bin" / dep.archive_subdir
-            if archive_dir.is_dir() and (archive_dir / "plugins").is_dir():
+            if dep.archive_asset:
+                asset_path = archive_dir / dep.archive_asset
+                if asset_path.is_file() and dep.archive_asset.lower().endswith(".jar"):
+                    config[dep.config_section][dep.key]["jar_path"] = str(asset_path)
+            elif archive_dir.is_dir() and (archive_dir / "plugins").is_dir():
                 config[dep.config_section][dep.key]["jdtls_root"] = str(archive_dir)
 
     return config
@@ -282,7 +286,7 @@ def has_required_tools(base_dir: Path) -> bool:
     NATIVE -> ``platform_bin_dir/<binary><exe>`` exists;
     NODE -> ``find_runnable`` locates ``js_entry_file`` (``.bin/`` wrapper is
     skipped because Windows AV strips it first, and the resolver bypasses it too);
-    ARCHIVE -> ``bin/<archive_subdir>/plugins/`` exists.
+    ARCHIVE -> ``bin/<archive_subdir>/plugins/`` or declared ``archive_asset`` exists.
     """
     if not base_dir.exists():
         return False
@@ -336,7 +340,11 @@ def has_required_tools(base_dir: Path) -> bool:
 
         elif dep.kind is ToolKind.ARCHIVE and dep.archive_subdir:
             archive_dir = base_dir / "bin" / dep.archive_subdir
-            if not (archive_dir.is_dir() and (archive_dir / "plugins").is_dir()):
+            if dep.archive_asset:
+                artifact_exists = (archive_dir / dep.archive_asset).is_file()
+            else:
+                artifact_exists = archive_dir.is_dir() and (archive_dir / "plugins").is_dir()
+            if not artifact_exists:
                 logger.info(
                     "has_required_tools: %s archive missing or incomplete at %s",
                     dep.key,

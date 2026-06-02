@@ -402,7 +402,7 @@ def install_archive_tool(
     dep: ToolDependency,
     on_progress: ProgressCallback | None = None,
 ) -> None:
-    """Download and extract an archive tool."""
+    """Download an archive tool, extracting tarballs and storing single assets."""
     assert dep.source, f"{dep.key}: source required for archive tools"
     assert dep.archive_subdir, f"{dep.key}: archive_subdir required for archive tools"
 
@@ -410,6 +410,28 @@ def install_archive_tool(
         on_progress(dep.key, 1, 1)
 
     extract_dir = target_dir / "bin" / dep.archive_subdir
+    if dep.archive_asset:
+        asset_path = extract_dir / dep.archive_asset
+        if asset_path.exists():
+            logger.info("%s already installed", dep.key)
+            return
+
+        logger.info("Downloading %s...", dep.key)
+        try:
+            extract_dir.mkdir(parents=True, exist_ok=True)
+            url = asset_url(dep.source, dep.archive_asset)
+            expected_hash = (
+                dep.source.sha256.get(dep.archive_asset) if isinstance(dep.source, GitHubToolSource) else None
+            )
+            if not download_asset(url, asset_path, expected_sha256=expected_hash):
+                logger.warning("%s download failed (empty file)", dep.key)
+                return
+            logger.info("%s installed successfully", dep.key)
+        except Exception:
+            logger.exception("%s installation failed", dep.key)
+            asset_path.unlink(missing_ok=True)
+        return
+
     if extract_dir.exists() and (extract_dir / "plugins").is_dir():
         logger.info("%s already installed", dep.key)
         return

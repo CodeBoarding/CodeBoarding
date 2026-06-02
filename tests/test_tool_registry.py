@@ -16,6 +16,9 @@ import nodeenv
 from tool_registry import (
     MINIMUM_NODE_MAJOR_VERSION,
     NODEENV_VERSION_STAMP,
+    NEXTFLOW_LS_JAR,
+    NEXTFLOW_LS_REPO,
+    NEXTFLOW_LS_TAG,
     PINNED_NODE_VERSION,
     TOOL_REGISTRY,
     TOOLS_REPO,
@@ -46,6 +49,7 @@ from tool_registry import (
 from tool_registry import PackageManagerToolSource
 from tool_registry.installers import (
     _extract_compressed_binary,
+    install_archive_tool,
     install_package_manager_tools,
     package_manager_tool_dir,
     resolve_native_asset_name,
@@ -126,6 +130,18 @@ class TestToolRegistry(unittest.TestCase):
             self.assertEqual(command[0], str(nodeenv_bin / "node"))
             self.assertTrue(command[1].endswith("langserver.index.js"))
             self.assertEqual(command[2:], ["--stdio"])
+
+    def test_resolve_config_sets_nextflow_jar_path(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            base_dir = Path(temp_dir)
+            jar = base_dir / "bin" / "nextflow-lsp" / NEXTFLOW_LS_JAR
+            jar.parent.mkdir(parents=True)
+            jar.write_text("stub\n")
+
+            config = resolve_config(base_dir)
+
+            self.assertEqual(config["lsp_servers"]["nextflow"]["jar_path"], str(jar))
+            self.assertEqual(config["lsp_servers"]["nextflow"]["command"], ["java", "-jar", NEXTFLOW_LS_JAR])
 
     @patch("tool_registry.paths.node_is_acceptable", side_effect=_accept_any_non_none_node)
     @patch("tool_registry.installers.subprocess.run")
@@ -816,6 +832,14 @@ class TestToolSource(unittest.TestCase):
         url = asset_url(source, "tokei-linux")
         self.assertEqual(url, "https://github.com/CodeBoarding/tools/releases/download/tools-2026.01.01/tokei-linux")
 
+    def test_asset_url_github_single_asset(self):
+        source = GitHubToolSource(tag=NEXTFLOW_LS_TAG, repo=NEXTFLOW_LS_REPO, asset_template=NEXTFLOW_LS_JAR)
+        url = asset_url(source, NEXTFLOW_LS_JAR)
+        self.assertEqual(
+            url,
+            f"https://github.com/{NEXTFLOW_LS_REPO}/releases/download/{NEXTFLOW_LS_TAG}/{NEXTFLOW_LS_JAR}",
+        )
+
     def test_asset_url_direct_upstream(self):
         source = UpstreamToolSource(
             tag="1.44.0",
@@ -961,7 +985,7 @@ def _populate_complete_servers_dir(base_dir: Path) -> None:
     NATIVE -> platform_bin_dir/<name><exe>;
     NODE -> node_modules/<js_entry_parent>/lib/<js_entry_file>
     (find_runnable does a substring match on parent dir);
-    ARCHIVE -> bin/<archive_subdir>/plugins/;
+    ARCHIVE -> bin/<archive_subdir>/plugins/ or bin/<archive_subdir>/<archive_asset>;
     PACKAGE_MANAGER -> platform_bin_dir/pm-tools/<subdir>/<name><exe>
     """
     bin_dir = platform_bin_dir(base_dir)
@@ -974,7 +998,12 @@ def _populate_complete_servers_dir(base_dir: Path) -> None:
             entry_dir.mkdir(parents=True, exist_ok=True)
             (entry_dir / dep.js_entry_file).write_text("// stub\n")
         elif dep.kind is ToolKind.ARCHIVE and dep.archive_subdir:
-            (base_dir / "bin" / dep.archive_subdir / "plugins").mkdir(parents=True, exist_ok=True)
+            archive_dir = base_dir / "bin" / dep.archive_subdir
+            if dep.archive_asset:
+                archive_dir.mkdir(parents=True, exist_ok=True)
+                (archive_dir / dep.archive_asset).write_text("stub\n")
+            else:
+                (archive_dir / "plugins").mkdir(parents=True, exist_ok=True)
         elif dep.kind is ToolKind.PACKAGE_MANAGER:
             subdir = dep.archive_subdir or dep.key
             pm_dir = bin_dir / "pm-tools" / subdir
@@ -1035,6 +1064,13 @@ class TestHasRequiredTools(unittest.TestCase):
             base_dir = Path(tmp)
             _populate_complete_servers_dir(base_dir)
             shutil.rmtree(base_dir / "bin" / "jdtls" / "plugins")
+            self.assertFalse(has_required_tools(base_dir))
+
+    def test_missing_archive_asset_returns_false(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base_dir = Path(tmp)
+            _populate_complete_servers_dir(base_dir)
+            (base_dir / "bin" / "nextflow-lsp" / NEXTFLOW_LS_JAR).unlink()
             self.assertFalse(has_required_tools(base_dir))
 
     def test_needs_install_triggers_on_missing_node_install(self):
@@ -1506,6 +1542,32 @@ class TestInstallNativeToolsCompressed(unittest.TestCase):
             self.assertIn("Unsupported platform FreeBSD", warning_text)
 
 
+class TestInstallArchiveTools(unittest.TestCase):
+    def test_single_asset_archive_downloads_to_subdir(self):
+        dep = ToolDependency(
+            key="nextflow",
+            binary_name="java",
+            kind=ToolKind.ARCHIVE,
+            config_section=ConfigSection.LSP_SERVERS,
+            source=GitHubToolSource(tag="v1.0.0", repo="nextflow-io/language-server", asset_template=NEXTFLOW_LS_JAR),
+            archive_asset=NEXTFLOW_LS_JAR,
+            archive_subdir="nextflow-lsp",
+        )
+
+        def fake_download(url: str, destination: Path, expected_sha256: str | None = None) -> bool:
+            destination.write_text("jar-bytes\n")
+            return True
+
+        with tempfile.TemporaryDirectory() as tmp:
+            target_dir = Path(tmp)
+            with patch("tool_registry.installers.download_asset", side_effect=fake_download) as mock_download:
+                install_archive_tool(target_dir, dep)
+
+            jar_path = target_dir / "bin" / "nextflow-lsp" / NEXTFLOW_LS_JAR
+            self.assertEqual(jar_path.read_text(), "jar-bytes\n")
+            self.assertIn(NEXTFLOW_LS_JAR, mock_download.call_args.args[0])
+
+
 class TestRustRegistryEntry(unittest.TestCase):
     """Smoke tests for the rust-analyzer entry in TOOL_REGISTRY."""
 
@@ -1536,6 +1598,21 @@ class TestRustRegistryEntry(unittest.TestCase):
         rust = next(d for d in TOOL_REGISTRY if d.key == "rust")
         assert isinstance(rust.source, GitHubToolSource)
         self.assertIn(rust.source.tag, tools_fingerprint())
+
+
+class TestNextflowRegistryEntry(unittest.TestCase):
+    def test_nextflow_entry_present(self):
+        nextflow_deps = [d for d in TOOL_REGISTRY if d.key == "nextflow"]
+        self.assertEqual(len(nextflow_deps), 1)
+        self.assertEqual(nextflow_deps[0].binary_name, "java")
+        self.assertEqual(nextflow_deps[0].kind, ToolKind.ARCHIVE)
+        self.assertEqual(nextflow_deps[0].archive_asset, NEXTFLOW_LS_JAR)
+        self.assertEqual(nextflow_deps[0].archive_subdir, "nextflow-lsp")
+
+    def test_nextflow_fingerprint_includes_tag(self):
+        nextflow = next(d for d in TOOL_REGISTRY if d.key == "nextflow")
+        assert isinstance(nextflow.source, GitHubToolSource)
+        self.assertIn(nextflow.source.tag, tools_fingerprint())
 
 
 class TestInstallPackageManagerTools(unittest.TestCase):

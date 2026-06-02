@@ -38,6 +38,10 @@ JDTLS_URL_TEMPLATE = (
 RUST_ANALYZER_REPO = "rust-lang/rust-analyzer"
 RUST_ANALYZER_TAG = "2026-03-30"
 
+NEXTFLOW_LS_REPO = "nextflow-io/language-server"
+NEXTFLOW_LS_TAG = "v26.04.0"
+NEXTFLOW_LS_JAR = "language-server-all.jar"
+
 # Pinned Node.js runtime for users without system Node; downloaded to
 # <servers_dir>/nodeenv/ via install_embedded_node(). A bump is folded into
 # tools_fingerprint() and triggers a full reinstall.
@@ -133,6 +137,7 @@ class ToolDependency:
     config_section: ConfigSection
     source: ToolSource | None = None
     npm_packages: list[str] = field(default_factory=list)
+    archive_asset: str = ""
     archive_subdir: str = ""
     js_entry_file: str = ""
     js_entry_parent: str = ""
@@ -250,6 +255,19 @@ TOOL_REGISTRY: list[ToolDependency] = [
             build=JDTLS_BUILD,
         ),
         archive_subdir="jdtls",
+    ),
+    ToolDependency(
+        key="nextflow",
+        binary_name="java",
+        kind=ToolKind.ARCHIVE,
+        config_section=ConfigSection.LSP_SERVERS,
+        source=GitHubToolSource(
+            tag=NEXTFLOW_LS_TAG,
+            repo=NEXTFLOW_LS_REPO,
+            asset_template=NEXTFLOW_LS_JAR,
+        ),
+        archive_asset=NEXTFLOW_LS_JAR,
+        archive_subdir="nextflow-lsp",
     ),
     ToolDependency(
         key="rust",

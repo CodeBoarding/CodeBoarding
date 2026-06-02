@@ -168,6 +168,7 @@ def get_language_marker(language: str):
         "JavaScript": pytest.mark.javascript_lang,
         "Rust": pytest.mark.rust_lang,
         "CSharp": pytest.mark.csharp_lang,
+        "Nextflow": pytest.mark.nextflow_lang,
     }
     return marker_map.get(language)
 
