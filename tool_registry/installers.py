@@ -206,6 +206,19 @@ def install_native_tools(
             continue
         binary_path = bin_dir / f"{dep.binary_name}{exe_suffix()}"
         if binary_path.exists():
+            # Repair a binary that exists but lost its exec bit (a crash before
+            # the post-download chmod, or a mode-dropping copy/restore) — cheap
+            # vs a re-download, and breaks the "skip forever" EACCES loop.
+            if system != "Windows" and not os.access(binary_path, os.X_OK):
+                try:
+                    os.chmod(binary_path, 0o755)
+                    logger.info("  %s: restored exec bit on existing binary", dep.binary_name)
+                except OSError:
+                    logger.warning(
+                        "  %s: present but not executable and chmod failed (%s); check ownership/mount",
+                        dep.binary_name,
+                        binary_path,
+                    )
             logger.info("  %s: already installed, skipping", dep.binary_name)
             continue
         source = dep.source

@@ -40,6 +40,19 @@ def platform_bin_dir(base: Path) -> Path:
     return base / "bin" / subdir
 
 
+def native_binary_ok(path: Path) -> bool:
+    """True when a native binary is present and (on POSIX) executable.
+
+    Existence alone is insufficient: a binary published at mode 0644 (the
+    download temp's mode survives os.replace until the post-download chmod) or
+    copied/restored without its mode is readable but not executable, which
+    fails at Popen with EACCES. Mirrors the embedded-node X_OK check.
+    """
+    if not path.exists():
+        return False
+    return platform.system() == "Windows" or os.access(path, os.X_OK)
+
+
 # -- User data directory ------------------------------------------------------
 
 
