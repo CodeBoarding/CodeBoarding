@@ -95,14 +95,21 @@ class LSPClient:
         """Start the LSP server process and perform initialization handshake."""
         env = os.environ.copy()
         env.update(self._extra_env)
-        self._process = subprocess.Popen(
-            self._command,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-            env=env,
-            cwd=str(self._project_root),
-        )
+        try:
+            self._process = subprocess.Popen(
+                self._command,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                env=env,
+                cwd=str(self._project_root),
+            )
+        except PermissionError as exc:
+            binary = self._command[0] if self._command else "<lsp>"
+            raise PermissionError(
+                f"LSP server binary is not executable: {binary}. Restart to reinstall, "
+                f"run 'chmod +x {binary}', or check that its directory is not mounted noexec."
+            ) from exc
 
         # Grab raw fd and close Python's BufferedReader immediately
         self._stdout_fd = os.dup(self._process.stdout.fileno())  # type: ignore[union-attr]

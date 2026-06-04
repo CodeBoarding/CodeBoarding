@@ -968,7 +968,9 @@ def _populate_complete_servers_dir(base_dir: Path) -> None:
     bin_dir.mkdir(parents=True, exist_ok=True)
     for dep in TOOL_REGISTRY:
         if dep.kind is ToolKind.NATIVE:
-            (bin_dir / f"{dep.binary_name}{exe_suffix()}").write_text("#!/bin/sh\n")
+            native = bin_dir / f"{dep.binary_name}{exe_suffix()}"
+            native.write_text("#!/bin/sh\n")
+            native.chmod(0o755)  # install_native_tools chmods natives; has_required_tools now checks X_OK
         elif dep.kind is ToolKind.NODE and dep.js_entry_file:
             entry_dir = base_dir / "node_modules" / dep.js_entry_parent / "lib"
             entry_dir.mkdir(parents=True, exist_ok=True)
@@ -1007,6 +1009,17 @@ class TestHasRequiredTools(unittest.TestCase):
             base_dir = Path(tmp)
             _populate_complete_servers_dir(base_dir)
             (platform_bin_dir(base_dir) / f"tokei{exe_suffix()}").unlink()
+            self.assertFalse(has_required_tools(base_dir))
+
+    def test_non_executable_native_binary_returns_false(self):
+        """A present-but-non-executable native binary reads as missing so
+        needs_install() re-arms the reinstall instead of trusting mere presence."""
+        if exe_suffix():  # Windows has no exec bit; native_binary_ok is existence-only there
+            self.skipTest("no exec bit on Windows")
+        with tempfile.TemporaryDirectory() as tmp:
+            base_dir = Path(tmp)
+            _populate_complete_servers_dir(base_dir)
+            (platform_bin_dir(base_dir) / f"gopls{exe_suffix()}").chmod(0o644)
             self.assertFalse(has_required_tools(base_dir))
 
     def test_missing_node_js_entry_returns_false(self):
@@ -1504,6 +1517,43 @@ class TestInstallNativeToolsCompressed(unittest.TestCase):
                 install_native_tools(target_dir, [compressed_dep])
             warning_text = "\n".join(logs.output)
             self.assertIn("Unsupported platform FreeBSD", warning_text)
+
+
+class TestInstallNativeToolsRepair(unittest.TestCase):
+    """install_native_tools repairs a present-but-non-executable binary in place."""
+
+    def test_existing_non_executable_binary_regains_exec_bit_without_redownload(self):
+        if exe_suffix():  # exec-bit semantics are POSIX-only
+            self.skipTest("no exec bit on Windows")
+
+        dep = ToolDependency(
+            key="tokei",
+            binary_name="tokei",
+            kind=ToolKind.NATIVE,
+            config_section=ConfigSection.LSP_SERVERS,
+            source=GitHubToolSource(tag="v1", repo="x/y", asset_template="tokei-{platform_suffix}"),
+        )
+
+        def fail_download(*args, **kwargs):
+            raise AssertionError("download_asset must not run for an already-present binary")
+
+        with tempfile.TemporaryDirectory() as tmp:
+            target_dir = Path(tmp)
+            with (
+                patch("tool_registry.installers.platform.system", return_value="Linux"),
+                patch("tool_registry.installers.platform.machine", return_value="x86_64"),
+                patch("tool_registry.paths.platform.system", return_value="Linux"),
+                patch("tool_registry.installers.download_asset", side_effect=fail_download),
+            ):
+                binary_path = platform_bin_dir(target_dir) / "tokei"
+                binary_path.parent.mkdir(parents=True, exist_ok=True)
+                binary_path.write_text("#!/bin/sh\n")
+                binary_path.chmod(0o644)
+                self.assertEqual(binary_path.stat().st_mode & 0o111, 0, "precondition: not executable")
+
+                install_native_tools(target_dir, [dep])
+
+                self.assertEqual(binary_path.stat().st_mode & 0o111, 0o111)
 
 
 class TestRustRegistryEntry(unittest.TestCase):
