@@ -19,7 +19,7 @@ from agents.incremental_agent import (
     remove_deleted_files,
     stitch_delta,
 )
-from agents.llm_config import initialize_llms
+from agents.llm_config import MONITORING_CALLBACK, initialize_llms
 from agents.meta_agent import MetaAgent
 from agents.planner_agent import get_expandable_components
 from diagram_analysis.analysis_json import (
@@ -117,6 +117,22 @@ class DiagramGenerator:
 
         self._monitoring_agents: dict[str, MonitoringMixin] = {}
         self.stats_writer: StreamingStatsWriter | None = None
+        self.last_token_usage: dict | None = None
+
+    def capture_token_usage(self) -> None:
+        """Snapshot cumulative token usage into ``last_token_usage``.
+
+        Reads live agent stats, so it is valid after a full or incremental run,
+        or a standalone ``process_component`` (expansion). No-op when monitoring
+        is disabled.
+        """
+        if not self.stats_writer:
+            self.last_token_usage = None
+            return
+        usage = self.stats_writer.snapshot_usage()
+        if usage["model_name"] == "unknown" and MONITORING_CALLBACK.model_name:
+            usage["model_name"] = MONITORING_CALLBACK.model_name
+        self.last_token_usage = usage
 
     def process_component(
         self, component: Component
@@ -490,6 +506,7 @@ class DiagramGenerator:
 
             self._persist_static_analysis_artifact()
 
+            self.capture_token_usage()
             return analysis_path
 
     def _collect_method_entries_from_static_analysis(self) -> dict[str, list]:
@@ -601,6 +618,7 @@ class DiagramGenerator:
                 ).resolve()
                 self._write_file_coverage()
                 self._persist_static_analysis_artifact()
+                self.capture_token_usage()
                 return analysis_path
 
             agent_llm, parsing_llm = initialize_llms()
@@ -676,6 +694,7 @@ class DiagramGenerator:
             self._seed_incremental_cluster_cache(delta.cluster_results())
             self._write_file_coverage()
             self._persist_static_analysis_artifact()
+            self.capture_token_usage()
             return analysis_path
 
 

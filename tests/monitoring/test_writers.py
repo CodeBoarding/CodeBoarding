@@ -69,6 +69,24 @@ class TestStreamingStatsWriter:
         assert writer.interval == 5.0  # default
         assert writer._thread is None
 
+    def test_snapshot_usage_aggregates_across_agents(self, temp_monitoring_dir: Path, sample_agents: dict):
+        writer = StreamingStatsWriter(monitoring_dir=temp_monitoring_dir, agents_dict=sample_agents, repo_name="x")
+        assert writer.snapshot_usage() == {
+            "input_tokens": 300,
+            "output_tokens": 150,
+            "total_tokens": 450,
+            "model_name": "claude-3",  # last agent reporting a model name wins
+        }
+
+    def test_snapshot_usage_no_agents_is_zero_and_unknown(self, temp_monitoring_dir: Path):
+        writer = StreamingStatsWriter(monitoring_dir=temp_monitoring_dir, agents_dict={}, repo_name="x")
+        assert writer.snapshot_usage() == {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "total_tokens": 0,
+            "model_name": "unknown",
+        }
+
     def test_custom_interval(self, temp_monitoring_dir: Path, sample_agents: dict):
         """Test that custom interval is set correctly."""
         writer = StreamingStatsWriter(
