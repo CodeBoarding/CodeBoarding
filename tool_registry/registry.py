@@ -213,22 +213,17 @@ TOOL_REGISTRY: list[ToolDependency] = [
         js_entry_parent="intelephense",
     ),
     # csharp-ls ships only as a NuGet dotnet-tool; installed via ``dotnet tool install``.
-    # Pinned 0.20.0: 0.21.0+ has a malformed NuGet upstream.
-    # ``--framework net9.0`` matches what the 0.20.0 nupkg actually ships
-    # (only ``tools/net9.0/`` is present); ``--framework net10.0`` is
-    # silently ignored and produces the same net9.0 binary. The launched
-    # binary's runtimeconfig pins ``Microsoft.NETCore.App 9.0.0``; the
-    # CSharpAdapter sets ``DOTNET_ROLL_FORWARD=Major`` at launch so hosts
-    # with only the .NET 10 runtime can still run it. ``--tool-path``
-    # avoids a misleading "DotnetToolSettings.xml not found" error when no
-    # local manifest is present.
+    # Pin to 0.24.0 so C# document symbols work reliably for modern .NET 10
+    # repositories. Older 0.20.0 installs target net9.0 and can start via
+    # roll-forward on .NET-10-only hosts, but may time out or return no symbols
+    # for large SDK-style solutions.
     ToolDependency(
         key="csharp",
         binary_name="csharp-ls",
         kind=ToolKind.PACKAGE_MANAGER,
         config_section=ConfigSection.LSP_SERVERS,
         source=PackageManagerToolSource(
-            tag="0.20.0",
+            tag="0.24.0",
             manager_binary="dotnet",
             install_args=(
                 "tool",
@@ -236,8 +231,6 @@ TOOL_REGISTRY: list[ToolDependency] = [
                 "csharp-ls",
                 "--version",
                 "{tag}",
-                "--framework",
-                "net9.0",
                 "--tool-path",
                 "{tool_path}",
             ),

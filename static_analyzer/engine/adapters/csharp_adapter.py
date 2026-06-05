@@ -117,18 +117,19 @@ class CSharpAdapter(LanguageAdapter):
 
     @property
     def wait_for_workspace_ready(self) -> bool:
-        return True
+        """Skip the startup workspace-ready gate for csharp-ls.
+
+        csharp-ls does not consistently emit a solution/workspace-loaded signal
+        when CodeBoarding launches it per project directory. Waiting here makes
+        otherwise usable projects fail before the later probe/diagnostics waits
+        can run. Keep those later C#-specific waits instead; they use real LSP
+        requests/diagnostic quiescence and have larger timeouts.
+        """
+        return False
 
     @property
     def workspace_ready_timeout(self) -> int:
-        """csharp-ls 0.20.0 emits a solution-loaded notification only when
-        it finds a ``.sln``/``.slnx`` in the workspace folder. For
-        per-csproj launches (or when the Roslyn MSBuild loader silently
-        skips an unsupported format) it never emits anything. Cap the
-        wait at 60s so analysis proceeds promptly instead of stalling
-        the full default (300s) per discovered project — see
-        ``LSPClient.wait_for_server_ready``.
-        """
+        """Retained for compatibility if C# startup waits are re-enabled."""
         return 60
 
     @property
