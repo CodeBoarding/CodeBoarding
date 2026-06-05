@@ -1550,7 +1550,7 @@ class TestInstallPackageManagerTools(unittest.TestCase):
             kind=ToolKind.PACKAGE_MANAGER,
             config_section=ConfigSection.LSP_SERVERS,
             source=PackageManagerToolSource(
-                tag="0.20.0",
+                tag="0.24.0",
                 manager_binary="dotnet",
                 install_args=("tool", "install", "csharp-ls", "--version", "{tag}", "--tool-path", "{tool_path}"),
             ),
@@ -1595,7 +1595,7 @@ class TestInstallPackageManagerTools(unittest.TestCase):
             self.assertEqual(invoked_cmd[0], "dotnet")
             # Placeholders must be substituted: {tool_path} -> install dir, {tag} -> source.tag.
             self.assertIn(str(install_dir), invoked_cmd)
-            self.assertIn("0.20.0", invoked_cmd)
+            self.assertIn("0.24.0", invoked_cmd)
             self.assertNotIn("{tool_path}", invoked_cmd)
             self.assertNotIn("{tag}", invoked_cmd)
             self.assertTrue(binary_path.exists())
@@ -1642,19 +1642,14 @@ class TestInstallPackageManagerTools(unittest.TestCase):
         assert isinstance(csharp.source, PackageManagerToolSource)
         self.assertIn(csharp.source.tag, tools_fingerprint())
 
-    def test_csharp_registry_targets_net9_framework(self):
-        """C# install must request net9.0 because csharp-ls 0.20.0 ships
-        only ``tools/net9.0/``. Asking for net10.0 is silently downgraded
-        and obscures what was actually installed. The runtime-side
-        ``DOTNET_ROLL_FORWARD=Major`` env var (set by ``CSharpAdapter``)
-        is what lets the resulting net9.0 binary run on a host with only
-        the .NET 10 runtime.
+    def test_csharp_registry_uses_modern_default_framework(self):
+        """C# install should let dotnet select the package's default target
+        framework so newer csharp-ls packages can run natively on modern SDKs.
         """
         csharp = next(d for d in TOOL_REGISTRY if d.key == "csharp")
         assert isinstance(csharp.source, PackageManagerToolSource)
-        self.assertIn("--framework", csharp.source.install_args)
-        framework_idx = csharp.source.install_args.index("--framework") + 1
-        self.assertEqual(csharp.source.install_args[framework_idx], "net9.0")
+        self.assertNotIn("--framework", csharp.source.install_args)
+        self.assertEqual(csharp.source.tag, "0.24.0")
 
 
 if __name__ == "__main__":

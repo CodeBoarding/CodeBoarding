@@ -235,10 +235,14 @@ class TestLspConfiguration:
         adapter = CSharpAdapter()
         assert adapter.get_probe_timeout_minimum() > 300
 
-    def test_workspace_ready_timeout_shorter_than_default(self):
-        # Why: csharp-ls's solution-loaded notification only fires when a
-        # .sln/.slnx is found in the workspace folder. The default 300s
-        # wait stalls analysis when the notification never arrives.
+    def test_skips_initial_workspace_ready_wait(self):
+        # Why: csharp-ls does not consistently emit a startup workspace-ready
+        # signal for per-csproj launches. C# relies on the later probe and
+        # diagnostics waits instead.
+        adapter = CSharpAdapter()
+        assert adapter.wait_for_workspace_ready is False
+
+    def test_workspace_ready_timeout_shorter_than_default_if_reenabled(self):
         adapter = CSharpAdapter()
         assert adapter.workspace_ready_timeout < 300
 
@@ -279,9 +283,9 @@ class TestLspEnv:
         assert "DOTNET_ROOT" not in env
 
     def test_sets_roll_forward_when_unset(self, monkeypatch):
-        # Why: csharp-ls 0.20.0 nupkg ships only tools/net9.0/, so the
-        # installed binary pins Microsoft.NETCore.App 9.0.0. Without
-        # DOTNET_ROLL_FORWARD=Major it exits 150 on .NET-10-only hosts.
+        # Why: csharp-ls is a dotnet tool, and older installs may pin a
+        # runtime not present on the host. Roll-forward keeps setup resilient
+        # across supported .NET SDK/runtime combinations.
         monkeypatch.delenv("DOTNET_ROLL_FORWARD", raising=False)
         monkeypatch.setenv("DOTNET_ROOT", "/usr/share/dotnet")
         adapter = CSharpAdapter()
