@@ -23,6 +23,7 @@ def _make_adapter(language: str, *, wait_for_workspace_ready: bool = False) -> L
     adapter.get_lsp_init_options.return_value = {}
     adapter.get_lsp_env.return_value = {}
     adapter.get_workspace_settings.return_value = {}
+    adapter.get_probe_timeout_minimum.return_value = 0
     adapter.wait_for_workspace_ready = wait_for_workspace_ready
     return cast(LanguageAdapter, adapter)
 

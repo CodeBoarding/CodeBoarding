@@ -64,6 +64,7 @@ class LSPClient:
         self._request_id = 0
         self._msg_queue: queue.Queue[dict] = queue.Queue()
         self._reader_thread: threading.Thread | None = None
+        self._stderr_thread: threading.Thread | None = None
         self._shutdown_event = threading.Event()
         self._write_lock = threading.Lock()
 
@@ -100,7 +101,7 @@ class LSPClient:
                 self._command,
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
-                stderr=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
                 env=env,
                 cwd=str(self._project_root),
             )
@@ -110,6 +111,12 @@ class LSPClient:
                 f"LSP server binary is not executable: {binary}. Restart to reinstall, "
                 f"run 'chmod +x {binary}', or check that its directory is not mounted noexec."
             ) from exc
+
+        # Drain the server's stderr to the debug log. Why: workspace servers
+        # (e.g. csharp-ls) report load progress and fatal MSBuild/runtime errors
+        # only on stderr; discarding it (DEVNULL) hid a silent project-load hang.
+        self._stderr_thread = threading.Thread(target=self._drain_stderr, name="lsp-stderr", daemon=True)
+        self._stderr_thread.start()
 
         # Grab raw fd and close Python's BufferedReader immediately
         self._stdout_fd = os.dup(self._process.stdout.fileno())  # type: ignore[union-attr]
@@ -184,6 +191,22 @@ class LSPClient:
             )
 
         return init_result
+
+    def _drain_stderr(self) -> None:
+        """Forward the LSP server's stderr to the debug log line by line."""
+        proc = self._process
+        if proc is None or proc.stderr is None:
+            return
+        label = Path(self._command[0]).name if self._command else "lsp"
+        try:
+            for raw in iter(proc.stderr.readline, b""):
+                if self._shutdown_event.is_set():
+                    break
+                line = raw.decode("utf-8", "replace").rstrip()
+                if line:
+                    logger.debug("[%s] %s", label, line)
+        except (ValueError, OSError):
+            pass
 
     def shutdown(self) -> None:
         """Send shutdown request and exit notification, then terminate process."""
