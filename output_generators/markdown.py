@@ -155,3 +155,8 @@ def component_header(component_name: str, component_id: str, expanded_components
         return f"### {component_name} [[Expand]](./{sanitized_name}.md)"
     else:
         return f"### {component_name}"
+
+
+def _smoke_v1_marker() -> str:
+    """Throwaway marker for smoke-testing the CodeBoarding GitHub Action on v1."""
+    return "smoke-v1"
