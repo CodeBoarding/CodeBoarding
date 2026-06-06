@@ -25,11 +25,14 @@ class LLMType(StrEnum):
     DEEPSEEK = "deepseek"
     GLM = "glm"
     KIMI = "kimi"
+    OPENCODE = "opencode"
 
     @classmethod
     def from_model_name(cls, model_name: str) -> "LLMType":
         model_lower = model_name.lower().strip()
 
+        if "opencode" in model_lower:
+            return cls.OPENCODE
         if "deepseek" in model_lower:
             return cls.DEEPSEEK
         if "glm" in model_lower:
@@ -73,6 +76,9 @@ class PromptFactory:
 
             case LLMType.KIMI:
                 return KimiPromptFactory()
+
+            case LLMType.OPENCODE:
+                return GeminiFlashPromptFactory()
 
             case _:
                 # Default fallback

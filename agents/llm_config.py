@@ -1,6 +1,7 @@
 import logging
 import os
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Type
 
 from langchain_anthropic import ChatAnthropic
@@ -13,6 +14,8 @@ from langchain_openai import ChatOpenAI
 
 from agents.constants import LLMDefaults, ModelCapabilities
 from agents.model_capabilities import ContextWindow, get_context_window
+from agents.opencode_chat import ChatOpenCode
+from agents.opencode_launcher import OpenCodeLauncher
 from agents.prompts.prompt_factory import LLMType, initialize_global_factory
 from monitoring.callbacks import MonitoringCallback
 
@@ -20,6 +23,9 @@ from monitoring.callbacks import MonitoringCallback
 from monitoring.stats import RunStats
 
 MONITORING_CALLBACK = MonitoringCallback(stats_container=RunStats())
+
+# Global OpenCode launcher instance (managed lifecycle)
+_opencode_launcher: OpenCodeLauncher | None = None
 
 logger = logging.getLogger(__name__)
 
@@ -266,7 +272,44 @@ LLM_PROVIDERS = {
             "max_retries": 0,
         },
     ),
+    "opencode": LLMConfig(
+        chat_class=ChatOpenCode,
+        api_key_env="OPENCODE_BASE_URL",
+        agent_model="opencode-go/qwen3.6-plus",
+        parsing_model="opencode-go/qwen3.6-plus",
+        llm_type=LLMType.OPENCODE,
+        alt_env_vars=["OPENCODE_SERVER_PASSWORD"],
+        extra_args={
+            "base_url": lambda: os.getenv("OPENCODE_BASE_URL", "http://localhost:4096"),
+            "password": lambda: os.getenv("OPENCODE_SERVER_PASSWORD"),
+            "max_tokens": None,
+            "timeout": 120,
+        },
+    ),
 }
+
+
+def configure_opencode_launcher(repo_dir: Path) -> None:
+    """Configure the OpenCode launcher for the given repository.
+
+    Call this before initialize_llms() when using the OpenCode provider.
+    The launcher will be started automatically during LLM initialization.
+    """
+    global _opencode_launcher
+    _opencode_launcher = OpenCodeLauncher(repo_dir=repo_dir)
+
+
+def get_opencode_launcher() -> OpenCodeLauncher | None:
+    """Get the configured OpenCode launcher instance."""
+    return _opencode_launcher
+
+
+def cleanup_opencode_launcher() -> None:
+    """Stop and clean up the OpenCode launcher."""
+    global _opencode_launcher
+    if _opencode_launcher is not None:
+        _opencode_launcher.stop()
+        _opencode_launcher = None
 
 
 def _initialize_llm(
@@ -305,7 +348,18 @@ def _initialize_llm(
     }
     kwargs.update(config.get_resolved_extra_args())
 
-    if name not in ["aws", "ollama"]:
+    if name == "opencode":
+        global _opencode_launcher
+        user_base_url = os.getenv("OPENCODE_BASE_URL")
+        if _opencode_launcher is not None and not user_base_url:
+            if not _opencode_launcher.is_running:
+                _opencode_launcher.start()
+            kwargs["base_url"] = _opencode_launcher.base_url
+        else:
+            kwargs["base_url"] = kwargs.get("base_url", "http://localhost:4096")
+        if "password" in kwargs and kwargs["password"] is None:
+            kwargs.pop("password")
+    elif name not in ["aws", "ollama"]:
         api_key = config.get_api_key()
         kwargs["api_key"] = api_key or "no-key-required"
 

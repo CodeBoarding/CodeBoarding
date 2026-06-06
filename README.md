@@ -108,13 +108,106 @@ On first run, CodeBoarding creates `~/.codeboarding/config.toml`. Set one provid
 # aws_bearer_token_bedrock  = "..."
 # ollama_base_url           = "http://localhost:11434"
 # openrouter_api_key        = "sk-..."
+# opencode_base_url         = "http://localhost:4096"
+# opencode_server_password  = "..."
 
 [llm]
 # agent_model   = "gemini-3-flash"
 # parsing_model = "gemini-3-flash"
 ```
 
-Shell environment variables such as `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`, and `OLLAMA_BASE_URL` take precedence over the config file. For private repositories, set `GITHUB_TOKEN` in your environment.
+Shell environment variables such as `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`, `OLLAMA_BASE_URL`, and `OPENCODE_BASE_URL` take precedence over the config file. For private repositories, set `GITHUB_TOKEN` in your environment.
+
+### OpenCode provider
+
+CodeBoarding can route all LLM requests through a local [OpenCode](https://opencode.ai) instance. This lets you use OpenCode's model aggregation layer (Qwen, Claude, GPT, Gemini, etc.) without managing individual API keys.
+
+**CodeBoarding manages the OpenCode lifecycle automatically** — it starts the server with MCP tool integration, runs the analysis, and cleans up when done. No manual configuration needed.
+
+#### Quick start (automatic)
+
+Just set the base URL and run:
+
+```bash
+export OPENCODE_BASE_URL=http://localhost:4096
+python main.py full --local ./my-project
+```
+
+CodeBoarding will:
+1. Start `opencode serve` with MCP tool integration
+2. Register all 9 static analysis tools (CFG, source lookup, class hierarchy, etc.)
+3. Run the full analysis pipeline with tool calling support
+4. Stop the server when done
+
+#### Manual start (optional)
+
+If you prefer to manage the OpenCode server yourself:
+
+**1. Install OpenCode** (if not already installed):
+
+```bash
+curl -fsSL https://opencode.ai/install | bash
+```
+
+**2. Start the OpenCode server:**
+
+```bash
+opencode serve
+```
+
+Or start an OpenCode TUI session — it runs a background server automatically.
+
+**3. Verify the server is running:**
+
+```bash
+curl -s http://localhost:4096/global/health
+# Expected: {"healthy":true,"version":"..."}
+```
+
+**4. Configure CodeBoarding to use OpenCode:**
+
+Set the base URL (and optional password if you configured one):
+
+```bash
+export OPENCODE_BASE_URL=http://localhost:4096
+# Optional: export OPENCODE_SERVER_PASSWORD=your-password
+```
+
+Or add to `~/.codeboarding/config.toml`:
+
+```toml
+[provider]
+opencode_base_url = "http://localhost:4096"
+```
+
+**5. (Optional) Override the default model:**
+
+CodeBoarding defaults to `opencode-go/qwen3.6-plus`. You can switch to any model available through OpenCode Go:
+
+```bash
+export AGENT_MODEL=opencode-go/qwen3.7-max
+export PARSING_MODEL=opencode-go/glm-5
+```
+
+Available models: `qwen3.7-max`, `qwen3.6-plus`, `qwen3.5-plus`, `glm-5`, `glm-5.1`, `kimi-k2.5`, `kimi-k2.6`, `minimax-m2.5`, `minimax-m2.7`, `deepseek-v4-pro`, `deepseek-v4-flash`.
+
+#### MCP Tool Integration
+
+When CodeBoarding manages the OpenCode server, it automatically registers an MCP server with all 9 static analysis tools:
+
+| Tool | Description |
+|------|-------------|
+| `getControlFlowGraph` | Complete project CFG showing all method calls |
+| `getSourceCode` | Source code by fully qualified import path |
+| `readFile` | Read specific file content around a line number |
+| `getFileStructure` | Project directory tree |
+| `getClassHierarchy` | Class inheritance (super/subclasses) |
+| `getPackageDependencies` | Package import relationships |
+| `getMethodInvocations` | Method caller/callee relationships |
+| `readDocs` | Project documentation files |
+| `readExternalDeps` | Dependency manifest files |
+
+The LLM can call these tools during analysis to disambiguate references, explore code structure, and improve diagram accuracy.
 
 ## Common commands
 
@@ -144,7 +237,7 @@ python main.py full https://github.com/pytorch/pytorch
 ## Supported stack
 
 - Languages: Python, TypeScript, JavaScript, Java, Go, PHP, Rust, C#.
-- LLM providers: OpenAI, Anthropic, Google, Vercel AI Gateway, AWS Bedrock, Ollama, OpenRouter, and more.
+- LLM providers: OpenAI, Anthropic, Google, Vercel AI Gateway, AWS Bedrock, Ollama, OpenRouter, OpenCode, and more.
 
 ## Examples
 
