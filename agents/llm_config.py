@@ -266,6 +266,26 @@ LLM_PROVIDERS = {
             "max_retries": 0,
         },
     ),
+    # LiteLLM proxy server: OpenAI-compatible gateway in front of any provider.
+    # LITELLM_BASE_URL is the activation/mandatory variable (the proxy address,
+    # like Ollama); LITELLM_API_KEY is optional since some proxies are keyless.
+    # Model names are defined by the proxy, so AGENT_MODEL / PARSING_MODEL (or the
+    # [llm] section of config.toml) should normally override the placeholder defaults.
+    "litellm": LLMConfig(
+        chat_class=ChatOpenAI,
+        api_key_env="LITELLM_BASE_URL",
+        agent_model="gpt-4o",
+        parsing_model="gpt-4o-mini",
+        llm_type=LLMType.GPT4,
+        keyless_capable=True,
+        extra_args={
+            "base_url": lambda: os.getenv("LITELLM_BASE_URL"),
+            "api_key": lambda: os.getenv("LITELLM_API_KEY") or "no-key-required",
+            "max_tokens": None,
+            "timeout": None,
+            "max_retries": 0,
+        },
+    ),
 }
 
 
@@ -305,7 +325,7 @@ def _initialize_llm(
     }
     kwargs.update(config.get_resolved_extra_args())
 
-    if name not in ["aws", "ollama"]:
+    if name not in ["aws", "ollama", "litellm"]:
         api_key = config.get_api_key()
         kwargs["api_key"] = api_key or "no-key-required"
 

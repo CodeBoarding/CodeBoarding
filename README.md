@@ -108,6 +108,8 @@ On first run, CodeBoarding creates `~/.codeboarding/config.toml`. Set one provid
 # aws_bearer_token_bedrock  = "..."
 # ollama_base_url           = "http://localhost:11434"
 # openrouter_api_key        = "sk-..."
+# litellm_base_url          = "http://localhost:4000"  # LiteLLM proxy server URL (required)
+# litellm_api_key           = "sk-..."           # LiteLLM proxy server key (optional)
 
 [llm]
 # agent_model   = "gemini-3-flash"
@@ -144,7 +146,7 @@ python main.py full https://github.com/pytorch/pytorch
 ## Supported stack
 
 - Languages: Python, TypeScript, JavaScript, Java, Go, PHP, Rust, C#.
-- LLM providers: OpenAI, Anthropic, Google, Vercel AI Gateway, AWS Bedrock, Ollama, OpenRouter, and more.
+- LLM providers: OpenAI, Anthropic, Google, Vercel AI Gateway, AWS Bedrock, Ollama, OpenRouter, LiteLLM proxy, and more.
 
 ## Examples
 

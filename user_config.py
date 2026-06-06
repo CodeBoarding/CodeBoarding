@@ -31,6 +31,8 @@ _PROVIDER_KEY_TO_ENV: dict[str, str] = {
     "kimi_api_key": "KIMI_API_KEY",
     "ollama_base_url": "OLLAMA_BASE_URL",
     "openrouter_api_key": "OPENROUTER_API_KEY",
+    "litellm_api_key": "LITELLM_API_KEY",
+    "litellm_base_url": "LITELLM_BASE_URL",
 }
 
 # Template written to ~/.codeboarding/config.toml on first install.
@@ -55,6 +57,8 @@ CONFIG_TEMPLATE = """\
 # kimi_api_key              = "..."
 # ollama_base_url           = "http://localhost:11434"
 # openrouter_api_key        = "sk..."
+# litellm_base_url          = "http://localhost:4000"  # LiteLLM proxy server URL (required)
+# litellm_api_key           = "sk-..."           # LiteLLM proxy server key (optional)
 
 # Optional: override the default models chosen by the active provider.
 # If omitted, each provider's built-in defaults are used.
@@ -81,6 +85,8 @@ class ProviderUserConfig:
     kimi_api_key: str | None = None
     ollama_base_url: str | None = None
     openrouter_api_key: str | None = None
+    litellm_api_key: str | None = None
+    litellm_base_url: str | None = None
 
 
 @dataclass
@@ -128,6 +134,8 @@ def load_user_config(path: Path = CONFIG_PATH) -> UserConfig:
             kimi_api_key=provider_data.get("kimi_api_key") or None,
             ollama_base_url=provider_data.get("ollama_base_url") or None,
             openrouter_api_key=provider_data.get("openrouter_api_key") or None,
+            litellm_api_key=provider_data.get("litellm_api_key") or None,
+            litellm_base_url=provider_data.get("litellm_base_url") or None,
         ),
         llm=LLMUserConfig(
             agent_model=llm_data.get("agent_model") or None,

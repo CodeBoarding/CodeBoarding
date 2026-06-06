@@ -78,6 +78,27 @@ class TestUserConfigApplyToEnv:
             os.environ.clear()
             os.environ.update(original)
 
+    def test_injects_litellm_proxy_key_and_base_url(self):
+        cfg = UserConfig(
+            provider=ProviderUserConfig(
+                litellm_api_key="sk-litellm-test",
+                litellm_base_url="http://localhost:4000",
+            )
+        )
+
+        original = os.environ.copy()
+        try:
+            os.environ.pop("LITELLM_API_KEY", None)
+            os.environ.pop("LITELLM_BASE_URL", None)
+
+            cfg.apply_to_env()
+
+            assert os.environ["LITELLM_API_KEY"] == "sk-litellm-test"
+            assert os.environ["LITELLM_BASE_URL"] == "http://localhost:4000"
+        finally:
+            os.environ.clear()
+            os.environ.update(original)
+
     def test_shell_openai_base_url_takes_precedence(self):
         cfg = UserConfig(provider=ProviderUserConfig(openai_base_url="http://config-value/v1"))
 
