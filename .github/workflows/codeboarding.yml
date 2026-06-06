@@ -28,7 +28,6 @@ jobs:
        startsWith(github.event.comment.body, '/codeboarding') &&
        contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))
     steps:
-      # TODO: switch to @v1 once the action is published to the Marketplace.
-      - uses: CodeBoarding/CodeBoarding-action@docs/readme-codeboarding-style
+      - uses: CodeBoarding/CodeBoarding-action@v1
         with:
           llm_api_key: ${{ secrets.OPENROUTER_API_KEY }}
