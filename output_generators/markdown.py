@@ -155,3 +155,8 @@ def component_header(component_name: str, component_id: str, expanded_components
         return f"### {component_name} [[Expand]](./{sanitized_name}.md)"
     else:
         return f"### {component_name}"
+
+
+def _smoke_cta_marker() -> str:
+    """No-op marker so the CTA-links smoke-test PR has a changed source file."""
+    return "cta-smoke"

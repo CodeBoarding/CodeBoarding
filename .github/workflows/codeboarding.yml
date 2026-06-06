@@ -31,6 +31,7 @@ jobs:
        startsWith(github.event.comment.body, '/codeboarding') &&
        contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))
     steps:
-      - uses: CodeBoarding/CodeBoarding-action@v1
+      # Smoke test: pin the action to the CTA-direct-links commit (not yet on @v1).
+      - uses: CodeBoarding/CodeBoarding-action@fbc75940e50170c69c7ae0b04ed42b11d16e2f5e
         with:
           llm_api_key: ${{ secrets.OPENROUTER_API_KEY }}
