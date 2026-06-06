@@ -1,0 +1,33 @@
+name: CodeBoarding review
+
+on:
+  pull_request:
+    # Generate once, when the PR becomes reviewable, not on every push.
+    types: [opened, reopened, ready_for_review]
+  issue_comment:
+    # Enables refreshing on demand by commenting /codeboarding.
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: codeboarding-${{ github.event.pull_request.number || github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    # PR events (non-draft), or a /codeboarding comment from a trusted collaborator.
+    if: >
+      (github.event_name == 'pull_request' && github.event.pull_request.draft == false) ||
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request != null &&
+       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))
+    steps:
+      # TODO: switch to @v1 once the action is published to the Marketplace.
+      - uses: CodeBoarding/CodeBoarding-action@docs/readme-codeboarding-style
+        with:
+          llm_api_key: ${{ secrets.OPENROUTER_API_KEY }}
