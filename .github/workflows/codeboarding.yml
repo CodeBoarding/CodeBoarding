@@ -2,8 +2,9 @@ name: CodeBoarding review
 
 on:
   pull_request:
-    # Generate once, when the PR becomes reviewable, not on every push.
-    types: [opened, reopened, ready_for_review]
+    # Generate once when the PR becomes reviewable; 'closed' only cancels an
+    # in-flight review (see concurrency below), it doesn't start one.
+    types: [opened, reopened, ready_for_review, closed]
   issue_comment:
     # Enables refreshing on demand by commenting /codeboarding.
     types: [created]
@@ -15,7 +16,9 @@ permissions:
 
 concurrency:
   group: codeboarding-${{ github.event.pull_request.number || github.event.issue.number }}
-  cancel-in-progress: true
+  # Only a PR close cancels a running review. Bot comments (issue_comment) and
+  # re-triggers must NOT cancel it — they queue behind the running review instead.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' && github.event.action == 'closed' }}
 
 jobs:
   review:
@@ -23,7 +26,7 @@ jobs:
     timeout-minutes: 60
     # PR events (non-draft), or a /codeboarding comment from a trusted collaborator.
     if: >
-      (github.event_name == 'pull_request' && github.event.pull_request.draft == false) ||
+      (github.event_name == 'pull_request' && github.event.action != 'closed' && github.event.pull_request.draft == false) ||
       (github.event_name == 'issue_comment' && github.event.issue.pull_request != null &&
        startsWith(github.event.comment.body, '/codeboarding') &&
        contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))
