@@ -155,3 +155,12 @@ def component_header(component_name: str, component_id: str, expanded_components
         return f"### {component_name} [[Expand]](./{sanitized_name}.md)"
     else:
         return f"### {component_name}"
+
+
+def _codeboarding_action_smoke_marker() -> str:
+    """Temporary marker added by an end-to-end test of the CodeBoarding PR action.
+
+    Pure, side-effect-free, and unreferenced — safe to delete. It exists only so the
+    architecture diff has a changed method in the Rendering & Output Engine component.
+    """
+    return "codeboarding-action-smoke-test"
