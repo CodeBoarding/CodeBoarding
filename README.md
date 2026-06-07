@@ -4,9 +4,9 @@ See what your AI is building before it breaks.
 
 CodeBoarding gives developers and coding agents a visual map of a codebase. It combines static analysis with LLM reasoning to generate architecture diagrams, component-level documentation, and navigable outputs you can use in your IDE, CI, and docs.
 
-[Website](https://codeboarding.org) · [Open VSX extension](https://open-vsx.org/extension/CodeBoarding/codeboarding) · [Explore examples](https://codeboarding.org/diagrams) · [VS Code extension](https://marketplace.visualstudio.com/items?itemName=Codeboarding.codeboarding) · [GitHub Action](https://github.com/marketplace/actions/codeboarding-diagram-first-documentation) ·[Discord](https://discord.gg/T5zHTJYFuy)
+[Website](https://codeboarding.org) <img referrerpolicy="no-referrer-when-downgrade" src="https://static.scarf.sh/a.png?x-pxid=0855d476-b2d0-44cc-b93d-69b47504719c" width="0" height="0" /> · [Open VSX extension](https://open-vsx.org/extension/CodeBoarding/codeboarding) <img referrerpolicy="no-referrer-when-downgrade" src="https://static.scarf.sh/a.png?x-pxid=ce87464c-2792-46b0-9ea2-87eefe853d7e" width="0" height="0" /> · [Explore examples](https://codeboarding.org/diagrams) · [VS Code extension](https://marketplace.visualstudio.com/items?itemName=Codeboarding.codeboarding) <img referrerpolicy="no-referrer-when-downgrade" src="https://static.scarf.sh/a.png?x-pxid=8a3d26e0-6f6b-49c0-8482-114445de56a5" width="0" height="0" /> · [GitHub Action](https://github.com/marketplace/actions/codeboarding-diagram-first-documentation) ·[Discord](https://discord.gg/T5zHTJYFuy)
 
-[![CodeBoarding demo](https://gist.githubusercontent.com/ivanmilevtues/1c4f921066613516cfd7b938014a6877/raw/611aec7711556807860ff2e1679a5dc4c0c23fed/CodeBoarding_extension_demo.gif)](https://open-vsx.org/extension/CodeBoarding/codeboarding)
+[![CodeBoarding demo](https://gist.githubusercontent.com/ivanmilevtues/1c4f921066613516cfd7b938014a6877/raw/611aec7711556807860ff2e1679a5dc4c0c23fed/CodeBoarding_extension_demo.gif)](https://open-vsx.org/extension/CodeBoarding/codeboarding) <img referrerpolicy="no-referrer-when-downgrade" src="https://static.scarf.sh/a.png?x-pxid=ce87464c-2792-46b0-9ea2-87eefe853d7e" width="0" height="0" />
 
 Install the extension from Open VSX.
 
@@ -86,7 +86,7 @@ codeboarding full --local /path/to/repo
 Or, if you prefer pip, install into a virtual environment (not the global Python):
 
 ```bash
-pip install codeboarding
+pip install codeboarding --extra-index-url https://pip.codeboarding.org/simple/
 codeboarding-setup
 codeboarding full --local /path/to/repo
 ```
@@ -138,7 +138,7 @@ python main.py full https://github.com/pytorch/pytorch
 ## Where to use it
 
 - [CLI](https://github.com/CodeBoarding/CodeBoarding) for local analysis, automation, and CI workflows.
-- [VS Code extension](https://marketplace.visualstudio.com/items?itemName=Codeboarding.codeboarding) for in-editor visual architecture.
+- [VS Code extension](https://marketplace.visualstudio.com/items?itemName=Codeboarding.codeboarding) <img referrerpolicy="no-referrer-when-downgrade" src="https://static.scarf.sh/a.png?x-pxid=8a3d26e0-6f6b-49c0-8482-114445de56a5" width="0" height="0" /> for in-editor visual architecture.
 - [GitHub Action](https://github.com/marketplace/actions/codeboarding-diagram-first-documentation) to keep diagrams updated in CI.
 
 ## Supported stack
@@ -150,7 +150,7 @@ python main.py full https://github.com/pytorch/pytorch
 
 - Visualized 800+ open-source repositories.
 - Browse generated examples in [GeneratedOnBoardings](https://github.com/CodeBoarding/GeneratedOnBoardings).
-- Try the hosted explorer at [codeboarding.org/diagrams](https://codeboarding.org/diagrams).
+- Try the hosted explorer at [codeboarding.org/diagrams](https://codeboarding.org/diagrams) <img referrerpolicy="no-referrer-when-downgrade" src="https://static.scarf.sh/a.png?x-pxid=0855d476-b2d0-44cc-b93d-69b47504719c" width="0" height="0" />.
 
 ## Contributing
 
@@ -159,3 +159,5 @@ If you want to improve CodeBoarding, open an [issue](https://github.com/CodeBoar
 ## Vision
 
 CodeBoarding is building an open standard for code understanding: a visual, accurate, high-level representation of a codebase that both humans and agents can use.
+
+<img referrerpolicy="no-referrer-when-downgrade" src="https://static.scarf.sh/a.png?x-pxid=1942e7e7-0762-4cdd-9f08-024acc098071" />
