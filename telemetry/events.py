@@ -21,6 +21,39 @@ def _app_version() -> str:
         return "unknown"
 
 
+# Repos already reported this process, so a scan that runs twice per analysis
+# (StaticAnalyzer init + diagram generation) emits a single event. Paths stay
+# in-memory only and are never sent.
+_scanned_repos: set[str] = set()
+
+
+def track_tech_stack(repo_path, total_loc: int, languages) -> None:
+    """Emit one ``repo_scanned`` event with lines-of-code and tech stack.
+
+    ``languages`` is the scanner's list of detected languages (duck-typed:
+    ``.language``, ``.size``, ``.percentage``). Only aggregate language names and
+    line counts are sent — never file names, paths, or code.
+    """
+    key = str(repo_path)
+    if key in _scanned_repos:
+        return
+    _scanned_repos.add(key)
+
+    top = sorted(languages, key=lambda pl: pl.size, reverse=True)
+    telemetry.capture(
+        "repo_scanned",
+        {
+            "version": _app_version(),
+            "total_loc": total_loc,
+            "language_count": len(languages),
+            "languages": [
+                {"language": pl.language, "loc": pl.size, "percentage": round(pl.percentage, 2)} for pl in top[:15]
+            ],
+            "stack": ",".join(sorted(pl.language for pl in languages)),
+        },
+    )
+
+
 def _token_usage() -> dict:
     """Snapshot of the process-global token counters (best effort)."""
     try:

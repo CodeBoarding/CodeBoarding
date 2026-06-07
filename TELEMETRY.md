@@ -40,6 +40,7 @@ There is no account, email, login, or IP-based identity. GeoIP is disabled.
 |-------|------|------------|
 | `analysis_started` | An analysis run begins | `command`, `version`, `depth_level` |
 | `analysis_completed` | An analysis run ends (success or failure) | `command`, `version`, `depth_level`, `status`, `duration_ms`, `model_name`, `total_tokens`, `input_tokens`, `output_tokens`, `error_type` (only on failure) |
+| `repo_scanned` | The repository is scanned (once per repo) | `version`, `total_loc`, `language_count`, `languages`, `stack` |
 
 Every event also carries:
 
@@ -58,6 +59,11 @@ Property meanings:
 - `duration_ms` — wall-clock duration of the run.
 - `model_name` — the LLM model used (e.g. `gpt-4o`), for cost analysis.
 - `*_tokens` — token counts consumed by the run, for cost analysis.
+- `total_loc` — total lines of code in the repository.
+- `language_count` — number of detected languages.
+- `languages` — per-language breakdown: `[{language, loc, percentage}]` (top 15).
+- `stack` — sorted, comma-joined language names (the tech stack), e.g.
+  `Python,Shell,TypeScript`.
 
 ## What we never collect
 
@@ -81,7 +87,9 @@ All telemetry is contained in the [`telemetry/`](telemetry/) package:
   check, and anonymous-id resolution.
 - [`telemetry/device_id.py`](telemetry/device_id.py) — the anonymous device-id
   algorithm.
-- [`telemetry/events.py`](telemetry/events.py) — the analysis lifecycle events.
+- [`telemetry/events.py`](telemetry/events.py) — the analysis lifecycle and
+  repository-scan events. The `repo_scanned` event is emitted from
+  [`static_analyzer/scanner.py`](static_analyzer/scanner.py).
 
 If anything here is unclear or you'd like a change, please open an
 [issue](https://github.com/CodeBoarding/CodeBoarding/issues).
