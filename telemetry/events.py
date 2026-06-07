@@ -71,12 +71,12 @@ def _token_usage() -> dict:
         return {}
 
 
-def _depth_level(func, args, kwargs) -> int | None:
-    """Pull ``depth_level`` from the call if the wrapped function takes one."""
+def _bound_arg(func, args, kwargs, name: str):
+    """Pull a named argument from the call if the wrapped function takes one."""
     try:
         bound = inspect.signature(func).bind(*args, **kwargs)
         bound.apply_defaults()
-        return bound.arguments.get("depth_level")
+        return bound.arguments.get(name)
     except Exception:
         return None
 
@@ -87,12 +87,19 @@ def track_analysis(func):
     The command is the wrapped function's name without the ``run_`` prefix
     (``run_full`` -> ``full``). Token counts are reported as the delta over this
     run so a multi-repo loop in one process attributes usage to the right run.
+
+    ``run_id`` (the same id ``monitoring`` uses) is stamped on both events so
+    ``analysis_started`` / ``analysis_completed`` can be paired even when runs
+    overlap in one process.
     """
 
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         base = {"command": func.__name__.removeprefix("run_"), "version": _app_version()}
-        depth_level = _depth_level(func, args, kwargs)
+        run_id = _bound_arg(func, args, kwargs, "run_id")
+        if run_id is not None:
+            base["run_id"] = run_id
+        depth_level = _bound_arg(func, args, kwargs, "depth_level")
         if depth_level is not None:
             base["depth_level"] = depth_level
 
