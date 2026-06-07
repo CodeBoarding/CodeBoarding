@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generated_at": "2026-05-17T21:52:54.982742+00:00",
+  "generated_at": "2026-06-07T01:17:24.147924+00:00",
   "analyzed_files": [
     "agents/__init__.py",
     "agents/abstraction_agent.py",
@@ -12,6 +12,7 @@
     "agents/constants.py",
     "agents/dependency_discovery.py",
     "agents/details_agent.py",
+    "agents/incremental_agent.py",
     "agents/llm_config.py",
     "agents/meta_agent.py",
     "agents/model_capabilities.py",
@@ -51,7 +52,6 @@
     "codeboarding_cli/commands/partial_analysis.py",
     "codeboarding_workflows/__init__.py",
     "codeboarding_workflows/analysis.py",
-    "codeboarding_workflows/incremental.py",
     "codeboarding_workflows/orchestration.py",
     "codeboarding_workflows/rendering.py",
     "codeboarding_workflows/sources/__init__.py",
@@ -64,21 +64,15 @@
     "core/registry.py",
     "diagram_analysis/__init__.py",
     "diagram_analysis/analysis_json.py",
-    "diagram_analysis/analysis_patcher.py",
+    "diagram_analysis/cluster_delta.py",
+    "diagram_analysis/cluster_snapshot.py",
     "diagram_analysis/diagram_generator.py",
-    "diagram_analysis/ease.py",
+    "diagram_analysis/exceptions.py",
     "diagram_analysis/file_coverage.py",
-    "diagram_analysis/incremental_models.py",
-    "diagram_analysis/incremental_payload.py",
-    "diagram_analysis/incremental_pipeline.py",
-    "diagram_analysis/incremental_tracer.py",
-    "diagram_analysis/incremental_updater.py",
     "diagram_analysis/io_utils.py",
     "diagram_analysis/run_context.py",
-    "diagram_analysis/run_metadata.py",
-    "diagram_analysis/scope_planner.py",
+    "diagram_analysis/run_mode.py",
     "diagram_analysis/version.py",
-    "duckdb_crud.py",
     "github_action.py",
     "health/__init__.py",
     "health/checks/__init__.py",
@@ -91,7 +85,6 @@
     "health/checks/instability.py",
     "health/checks/unused_code_diagnostics.py",
     "health/config.py",
-    "health/constants.py",
     "health/models.py",
     "health/runner.py",
     "health_main.py",
@@ -121,11 +114,9 @@
     "static_analyzer/analysis_cache.py",
     "static_analyzer/analysis_result.py",
     "static_analyzer/cfg_skip_planner.py",
-    "static_analyzer/cluster_change_analyzer.py",
     "static_analyzer/cluster_helpers.py",
     "static_analyzer/cluster_relations.py",
     "static_analyzer/constants.py",
-    "static_analyzer/cosmetic_diff.py",
     "static_analyzer/csharp_config_scanner.py",
     "static_analyzer/engine/__init__.py",
     "static_analyzer/engine/adapters/__init__.py",
@@ -151,19 +142,17 @@
     "static_analyzer/engine/symbol_table.py",
     "static_analyzer/engine/utils.py",
     "static_analyzer/graph.py",
-    "static_analyzer/graph_query.py",
     "static_analyzer/incremental_orchestrator.py",
     "static_analyzer/java_config_scanner.py",
     "static_analyzer/java_utils.py",
+    "static_analyzer/language_results.py",
+    "static_analyzer/leiden_utils.py",
     "static_analyzer/lsp_client/__init__.py",
     "static_analyzer/lsp_client/diagnostics.py",
-    "static_analyzer/method_fingerprint.py",
     "static_analyzer/node.py",
     "static_analyzer/programming_language.py",
     "static_analyzer/reference_resolve_mixin.py",
     "static_analyzer/scanner.py",
-    "static_analyzer/semantic_diff.py",
-    "static_analyzer/tree_sitter_parsers.py",
     "static_analyzer/typescript_config_scanner.py",
     "tool_registry/__init__.py",
     "tool_registry/installers.py",
@@ -209,6 +198,10 @@
     },
     {
       "path": "docs/development/architecture.md",
+      "reason": "other"
+    },
+    {
+      "path": "docs/summary-interactive.md",
       "reason": "other"
     },
     {
@@ -261,6 +254,10 @@
     },
     {
       "path": "tests/agents/test_details_agent.py",
+      "reason": "codeboardingignore"
+    },
+    {
+      "path": "tests/agents/test_incremental_agent.py",
       "reason": "codeboardingignore"
     },
     {
@@ -328,11 +325,15 @@
       "reason": "codeboardingignore"
     },
     {
-      "path": "tests/codeboarding_workflows/test_analysis.py",
+      "path": "tests/codeboarding_cli/__init__.py",
       "reason": "codeboardingignore"
     },
     {
-      "path": "tests/codeboarding_workflows/test_incremental.py",
+      "path": "tests/codeboarding_cli/test_incremental_analysis.py",
+      "reason": "codeboardingignore"
+    },
+    {
+      "path": "tests/codeboarding_workflows/test_analysis.py",
       "reason": "codeboardingignore"
     },
     {
@@ -356,155 +357,11 @@
       "reason": "codeboardingignore"
     },
     {
-      "path": "tests/diagram_analysis/incremental_caches/3eb1230d_026bf6b9/incr_resources/AI_Agent_Orchestrator.json",
+      "path": "tests/diagram_analysis/test_cluster_delta.py",
       "reason": "codeboardingignore"
     },
     {
-      "path": "tests/diagram_analysis/incremental_caches/3eb1230d_026bf6b9/incr_resources/AI_Interpretation_Layer.json",
-      "reason": "codeboardingignore"
-    },
-    {
-      "path": "tests/diagram_analysis/incremental_caches/3eb1230d_026bf6b9/incr_resources/Core_Orchestration_Output_Generator.json",
-      "reason": "codeboardingignore"
-    },
-    {
-      "path": "tests/diagram_analysis/incremental_caches/3eb1230d_026bf6b9/incr_resources/Evaluation.json",
-      "reason": "codeboardingignore"
-    },
-    {
-      "path": "tests/diagram_analysis/incremental_caches/3eb1230d_026bf6b9/incr_resources/Monitoring.json",
-      "reason": "codeboardingignore"
-    },
-    {
-      "path": "tests/diagram_analysis/incremental_caches/3eb1230d_026bf6b9/incr_resources/Monitoring_Evaluation_System.json",
-      "reason": "codeboardingignore"
-    },
-    {
-      "path": "tests/diagram_analysis/incremental_caches/3eb1230d_026bf6b9/incr_resources/Orchestration_Output_Generation.json",
-      "reason": "codeboardingignore"
-    },
-    {
-      "path": "tests/diagram_analysis/incremental_caches/3eb1230d_026bf6b9/incr_resources/Repository_Manager.json",
-      "reason": "codeboardingignore"
-    },
-    {
-      "path": "tests/diagram_analysis/incremental_caches/3eb1230d_026bf6b9/incr_resources/Static_Analysis_Engine.json",
-      "reason": "codeboardingignore"
-    },
-    {
-      "path": "tests/diagram_analysis/incremental_caches/3eb1230d_026bf6b9/incr_resources/analysis.json",
-      "reason": "codeboardingignore"
-    },
-    {
-      "path": "tests/diagram_analysis/incremental_caches/3eb1230d_026bf6b9/incr_resources/analysis_manifest.json",
-      "reason": "codeboardingignore"
-    },
-    {
-      "path": "tests/diagram_analysis/incremental_caches/3eb1230d_026bf6b9/incr_resources/codeboarding_version.json",
-      "reason": "codeboardingignore"
-    },
-    {
-      "path": "tests/diagram_analysis/incremental_caches/3eb1230d_026bf6b9/init_resources/AI_Agent_Orchestrator.json",
-      "reason": "codeboardingignore"
-    },
-    {
-      "path": "tests/diagram_analysis/incremental_caches/3eb1230d_026bf6b9/init_resources/AI_Interpretation_Layer.json",
-      "reason": "codeboardingignore"
-    },
-    {
-      "path": "tests/diagram_analysis/incremental_caches/3eb1230d_026bf6b9/init_resources/Core_Orchestration_Output_Generator.json",
-      "reason": "codeboardingignore"
-    },
-    {
-      "path": "tests/diagram_analysis/incremental_caches/3eb1230d_026bf6b9/init_resources/Evaluation.json",
-      "reason": "codeboardingignore"
-    },
-    {
-      "path": "tests/diagram_analysis/incremental_caches/3eb1230d_026bf6b9/init_resources/Monitoring.json",
-      "reason": "codeboardingignore"
-    },
-    {
-      "path": "tests/diagram_analysis/incremental_caches/3eb1230d_026bf6b9/init_resources/Monitoring_Evaluation_System.json",
-      "reason": "codeboardingignore"
-    },
-    {
-      "path": "tests/diagram_analysis/incremental_caches/3eb1230d_026bf6b9/init_resources/Orchestration_Output_Generation.json",
-      "reason": "codeboardingignore"
-    },
-    {
-      "path": "tests/diagram_analysis/incremental_caches/3eb1230d_026bf6b9/init_resources/Repository_Manager.json",
-      "reason": "codeboardingignore"
-    },
-    {
-      "path": "tests/diagram_analysis/incremental_caches/3eb1230d_026bf6b9/init_resources/Static_Analysis_Engine.json",
-      "reason": "codeboardingignore"
-    },
-    {
-      "path": "tests/diagram_analysis/incremental_caches/3eb1230d_026bf6b9/init_resources/analysis.json",
-      "reason": "codeboardingignore"
-    },
-    {
-      "path": "tests/diagram_analysis/incremental_caches/3eb1230d_026bf6b9/init_resources/analysis_manifest.json",
-      "reason": "codeboardingignore"
-    },
-    {
-      "path": "tests/diagram_analysis/incremental_caches/3eb1230d_026bf6b9/init_resources/codeboarding_version.json",
-      "reason": "codeboardingignore"
-    },
-    {
-      "path": "tests/diagram_analysis/incremental_caches/cc42c3a7_101ca968/incr_resources/analysis.json",
-      "reason": "codeboardingignore"
-    },
-    {
-      "path": "tests/diagram_analysis/incremental_caches/cc42c3a7_101ca968/incr_resources/analysis_manifest.json",
-      "reason": "codeboardingignore"
-    },
-    {
-      "path": "tests/diagram_analysis/incremental_caches/cc42c3a7_101ca968/incr_resources/codeboarding_version.json",
-      "reason": "codeboardingignore"
-    },
-    {
-      "path": "tests/diagram_analysis/incremental_caches/cc42c3a7_101ca968/init_resources/analysis.json",
-      "reason": "codeboardingignore"
-    },
-    {
-      "path": "tests/diagram_analysis/incremental_caches/cc42c3a7_101ca968/init_resources/analysis_manifest.json",
-      "reason": "codeboardingignore"
-    },
-    {
-      "path": "tests/diagram_analysis/incremental_caches/cc42c3a7_101ca968/init_resources/codeboarding_version.json",
-      "reason": "codeboardingignore"
-    },
-    {
-      "path": "tests/diagram_analysis/incremental_caches/cd92ff49_026bf6b9/incr_resources/analysis.json",
-      "reason": "codeboardingignore"
-    },
-    {
-      "path": "tests/diagram_analysis/incremental_caches/cd92ff49_026bf6b9/incr_resources/analysis_manifest.json",
-      "reason": "codeboardingignore"
-    },
-    {
-      "path": "tests/diagram_analysis/incremental_caches/cd92ff49_026bf6b9/incr_resources/codeboarding_version.json",
-      "reason": "codeboardingignore"
-    },
-    {
-      "path": "tests/diagram_analysis/incremental_caches/cd92ff49_026bf6b9/init_resources/analysis.json",
-      "reason": "codeboardingignore"
-    },
-    {
-      "path": "tests/diagram_analysis/incremental_caches/cd92ff49_026bf6b9/init_resources/analysis_manifest.json",
-      "reason": "codeboardingignore"
-    },
-    {
-      "path": "tests/diagram_analysis/incremental_caches/cd92ff49_026bf6b9/init_resources/codeboarding_version.json",
-      "reason": "codeboardingignore"
-    },
-    {
-      "path": "tests/diagram_analysis/test_analysis_patcher.py",
-      "reason": "codeboardingignore"
-    },
-    {
-      "path": "tests/diagram_analysis/test_component_prune.py",
+      "path": "tests/diagram_analysis/test_cluster_snapshot.py",
       "reason": "codeboardingignore"
     },
     {
@@ -516,35 +373,15 @@
       "reason": "codeboardingignore"
     },
     {
-      "path": "tests/diagram_analysis/test_duckdb_crud.py",
+      "path": "tests/diagram_analysis/test_load_analysis_commit_hash.py",
       "reason": "codeboardingignore"
     },
     {
-      "path": "tests/diagram_analysis/test_ease.py",
-      "reason": "codeboardingignore"
-    },
-    {
-      "path": "tests/diagram_analysis/test_incremental_cli.py",
-      "reason": "codeboardingignore"
-    },
-    {
-      "path": "tests/diagram_analysis/test_incremental_method_diff_integration.py",
-      "reason": "codeboardingignore"
-    },
-    {
-      "path": "tests/diagram_analysis/test_incremental_tracer.py",
-      "reason": "codeboardingignore"
-    },
-    {
-      "path": "tests/diagram_analysis/test_incremental_tracer_plan.py",
+      "path": "tests/diagram_analysis/test_load_snapshot_commit.py",
       "reason": "codeboardingignore"
     },
     {
       "path": "tests/diagram_analysis/test_run_context.py",
-      "reason": "codeboardingignore"
-    },
-    {
-      "path": "tests/diagram_analysis/test_scope_planner.py",
       "reason": "codeboardingignore"
     },
     {
@@ -1092,6 +929,10 @@
       "reason": "codeboardingignore"
     },
     {
+      "path": "tests/integration/test_provider_models_live.py",
+      "reason": "codeboardingignore"
+    },
+    {
       "path": "tests/integration/test_static_analysis_consistency.py",
       "reason": "codeboardingignore"
     },
@@ -1140,6 +981,10 @@
       "reason": "codeboardingignore"
     },
     {
+      "path": "tests/repo_utils/test_non_ascii_paths.py",
+      "reason": "codeboardingignore"
+    },
+    {
       "path": "tests/repo_utils/test_repo_utils.py",
       "reason": "codeboardingignore"
     },
@@ -1168,7 +1013,11 @@
       "reason": "codeboardingignore"
     },
     {
-      "path": "tests/static_analyzer/test_analysis_cache_paths.py",
+      "path": "tests/static_analyzer/test_analysis_cache_inmem.py",
+      "reason": "codeboardingignore"
+    },
+    {
+      "path": "tests/static_analyzer/test_analysis_cache_partial_save.py",
       "reason": "codeboardingignore"
     },
     {
@@ -1228,15 +1077,15 @@
       "reason": "codeboardingignore"
     },
     {
-      "path": "tests/static_analyzer/test_incremental_orchestrator.py",
-      "reason": "codeboardingignore"
-    },
-    {
       "path": "tests/static_analyzer/test_java_config_scanner.py",
       "reason": "codeboardingignore"
     },
     {
       "path": "tests/static_analyzer/test_java_utils.py",
+      "reason": "codeboardingignore"
+    },
+    {
+      "path": "tests/static_analyzer/test_leiden_utils.py",
       "reason": "codeboardingignore"
     },
     {
@@ -1268,10 +1117,6 @@
       "reason": "codeboardingignore"
     },
     {
-      "path": "tests/static_analyzer/test_semantic_diff.py",
-      "reason": "codeboardingignore"
-    },
-    {
       "path": "tests/static_analyzer/test_source_inspector.py",
       "reason": "codeboardingignore"
     },
@@ -1281,6 +1126,10 @@
     },
     {
       "path": "tests/static_analyzer/test_symbol_table.py",
+      "reason": "codeboardingignore"
+    },
+    {
+      "path": "tests/static_analyzer/test_typescript_config_scanner.py",
       "reason": "codeboardingignore"
     },
     {
@@ -1337,12 +1186,12 @@
     }
   ],
   "summary": {
-    "total_files": 461,
-    "analyzed": 171,
-    "not_analyzed": 290,
+    "total_files": 415,
+    "analyzed": 160,
+    "not_analyzed": 255,
     "not_analyzed_by_reason": {
-      "other": 12,
-      "codeboardingignore": 273,
+      "other": 13,
+      "codeboardingignore": 237,
       "ignored_directory": 5
     }
   }
