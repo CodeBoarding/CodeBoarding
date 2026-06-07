@@ -10,11 +10,17 @@ import functools
 import inspect
 import time
 
+from contextvars import ContextVar
 from importlib.metadata import PackageNotFoundError, version
 
 from telemetry.service import telemetry
 
 from agents.llm_config import MONITORING_CALLBACK
+
+# Current analysis run_id, set by ``track_analysis`` for the duration of a run
+# so nested emitters (e.g. the scanner's ``repo_scanned``) can tag the same id
+# without threading run_id through every call. Concurrency-safe via ContextVar.
+_current_run_id: ContextVar[str | None] = ContextVar("telemetry_run_id", default=None)
 
 
 def _app_version() -> str:
@@ -43,18 +49,19 @@ def track_tech_stack(repo_path, total_loc: int, languages) -> None:
     _scanned_repos.add(key)
 
     top = sorted(languages, key=lambda pl: pl.size, reverse=True)
-    telemetry.capture(
-        "repo_scanned",
-        {
-            "version": _app_version(),
-            "total_loc": total_loc,
-            "language_count": len(languages),
-            "languages": [
-                {"language": pl.language, "loc": pl.size, "percentage": round(pl.percentage, 2)} for pl in top[:15]
-            ],
-            "stack": ",".join(sorted(pl.language for pl in languages)),
-        },
-    )
+    props = {
+        "version": _app_version(),
+        "total_loc": total_loc,
+        "language_count": len(languages),
+        "languages": [
+            {"language": pl.language, "loc": pl.size, "percentage": round(pl.percentage, 2)} for pl in top[:15]
+        ],
+        "stack": ",".join(sorted(pl.language for pl in languages)),
+    }
+    run_id = _current_run_id.get()
+    if run_id is not None:
+        props["run_id"] = run_id
+    telemetry.capture("repo_scanned", props)
 
 
 def _token_usage() -> dict:
@@ -108,6 +115,9 @@ def track_analysis(func):
         started = time.monotonic()
         telemetry.capture("analysis_started", base)
 
+        # Expose run_id to nested emitters (e.g. the scanner) for this run only.
+        run_id_token = _current_run_id.set(run_id)
+
         status = "success"
         error_type: str | None = None
         try:
@@ -117,6 +127,7 @@ def track_analysis(func):
             error_type = type(exc).__name__
             raise
         finally:
+            _current_run_id.reset(run_id_token)
             after = _token_usage()
             props = {
                 **base,
