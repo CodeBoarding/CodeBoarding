@@ -42,6 +42,9 @@ class StreamingStatsWriter:
         self._logger = logging.getLogger("monitoring.writer")
         self._error: str | None = None
         self._end_time: float | None = None
+        # Finalized cumulative usage, set once in stop() after agents are done.
+        # Owned by the monitoring lifecycle so every run path picks it up for free.
+        self.final_usage: dict | None = None
 
     @property
     def llm_usage_file(self) -> Path:
@@ -76,8 +79,9 @@ class StreamingStatsWriter:
         self._error = error
         self._stop_event.set()
         self._thread.join(timeout=2.0)
+        self.final_usage = self.snapshot_usage()
         self._save_llm_usage()
-        self._stream_token_usage()
+        self._stream_token_usage(self.final_usage)
         self._save_run_metadata()
         self._logger.info("Stopped streaming monitoring results")
 
@@ -113,8 +117,9 @@ class StreamingStatsWriter:
             "model_name": model_name,
         }
 
-    def _stream_token_usage(self):
-        usage = self.snapshot_usage()
+    def _stream_token_usage(self, usage: dict | None = None):
+        if usage is None:
+            usage = self.snapshot_usage()
         payload = {
             "token_usage": {
                 "input_tokens": usage["input_tokens"],
