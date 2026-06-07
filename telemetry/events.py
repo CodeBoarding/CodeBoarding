@@ -9,9 +9,12 @@ them apart. No repository name, path, or code content is ever sent.
 import functools
 import inspect
 import time
+
 from importlib.metadata import PackageNotFoundError, version
 
 from telemetry.service import telemetry
+
+from agents.llm_config import MONITORING_CALLBACK
 
 
 def _app_version() -> str:
@@ -57,8 +60,6 @@ def track_tech_stack(repo_path, total_loc: int, languages) -> None:
 def _token_usage() -> dict:
     """Snapshot of the process-global token counters (best effort)."""
     try:
-        from agents.llm_config import MONITORING_CALLBACK
-
         stats = MONITORING_CALLBACK.stats.to_dict()
         usage = stats.get("token_usage", {})
         return {
