@@ -246,7 +246,7 @@ class StaticAnalyzer:
                 t_lsp_started = time.monotonic()
                 logger.info(f"{adapter.language} LSP start: {t_lsp_started - t_start:.1f}s")
 
-                # Some LSP servers (JDTLS, rust-analyzer, csharp-ls) load
+                # Some LSP servers (JDTLS, rust-analyzer) load
                 # workspace metadata asynchronously and only respond to
                 # cross-file queries once that's complete. Adapters opt in
                 # via ``wait_for_workspace_ready`` so the language-name

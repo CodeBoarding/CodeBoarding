@@ -242,10 +242,6 @@ class TestLspConfiguration:
         adapter = CSharpAdapter()
         assert adapter.wait_for_workspace_ready is False
 
-    def test_workspace_ready_timeout_shorter_than_default_if_reenabled(self):
-        adapter = CSharpAdapter()
-        assert adapter.workspace_ready_timeout < 300
-
 
 class TestLspEnv:
     """Tests for DOTNET_ROOT and DOTNET_ROLL_FORWARD resolution."""
@@ -273,6 +269,7 @@ class TestLspEnv:
         adapter = CSharpAdapter()
         env = adapter.get_lsp_env()
         assert env.get("DOTNET_ROOT") == str(libexec)
+        assert env.get("DOTNET_ROLL_FORWARD") == "Major"
 
     def test_skips_dotnet_root_when_dotnet_not_found(self, monkeypatch):
         monkeypatch.delenv("DOTNET_ROOT", raising=False)
@@ -281,6 +278,7 @@ class TestLspEnv:
         adapter = CSharpAdapter()
         env = adapter.get_lsp_env()
         assert "DOTNET_ROOT" not in env
+        assert env.get("DOTNET_ROLL_FORWARD") == "Major"
 
     def test_sets_roll_forward_when_unset(self, monkeypatch):
         # Why: csharp-ls is a dotnet tool, and older installs may pin a

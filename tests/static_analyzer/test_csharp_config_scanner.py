@@ -38,11 +38,7 @@ class TestCSharpConfigScanner:
         assert projects[0].project_type == "solution"
 
     def test_scan_slnx_solution_file(self, tmp_path: Path):
-        """``.slnx`` is the XML-based replacement for ``.sln`` adopted by
-        Visual Studio in 2024. Modern .NET repos (e.g. Spectre.Console)
-        ship only the .slnx; missing it caused per-csproj LSP launches
-        that stall on csharp-ls's solution-loaded notification.
-        """
+        """Ensure .slnx files are recognized to avoid per-project fallback scanning."""
         (tmp_path / "MyApp.slnx").write_text("<Solution/>")
         sub = tmp_path / "src" / "Api"
         sub.mkdir(parents=True)

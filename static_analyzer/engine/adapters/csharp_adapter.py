@@ -128,11 +128,6 @@ class CSharpAdapter(LanguageAdapter):
         return False
 
     @property
-    def workspace_ready_timeout(self) -> int:
-        """Retained for compatibility if C# startup waits are re-enabled."""
-        return 60
-
-    @property
     def probe_before_open(self) -> bool:
         """csharp-ls loads all files from the .sln — didOpen before workspace load kills it."""
         return True
@@ -217,11 +212,9 @@ class CSharpAdapter(LanguageAdapter):
         csharp-ls to fail at startup.  This resolves the runtime location
         from the ``dotnet`` binary on PATH.
 
-        DOTNET_ROLL_FORWARD=Major: csharp-ls 0.20.0 on NuGet only ships a
-        net9.0 build (no net10.0 tools/), so ``dotnet tool install --framework
-        net10.0`` silently produces a binary whose runtimeconfig pins
-        Microsoft.NETCore.App 9.0.0. Without rollForward, exit code 150 on
-        systems that have only the .NET 10 runtime.
+        DOTNET_ROLL_FORWARD=Major allows the dotnet-hosted csharp-ls tool to
+        start when the installed runtime is newer than the runtime targeted by
+        the tool package.
         """
         env: dict[str, str] = {}
         if not os.environ.get("DOTNET_ROOT"):
