@@ -58,6 +58,7 @@ def build_generator(
     )
 
 
+@track_analysis
 def run_full(
     repo_name: str,
     repo_path: Path,
@@ -77,22 +78,22 @@ def run_full(
     matching SHA tag — enabling the next run's SHA-gated cache reuse.
     """
     logger.info(f"Running FULL analysis workflow for repo '{repo_name}'.")
-    with track_analysis(command="full", depth_level=depth_level):
-        generator = build_generator(
-            repo_name=repo_name,
-            repo_path=repo_path,
-            output_dir=output_dir,
-            run_id=run_id,
-            log_path=log_path,
-            depth_level=depth_level,
-            monitoring_enabled=monitoring_enabled,
-            static_analyzer=static_analyzer,
-        )
-        generator.force_full_analysis = force_full
-        generator.source_sha = source_sha
-        return generator.generate_analysis()
+    generator = build_generator(
+        repo_name=repo_name,
+        repo_path=repo_path,
+        output_dir=output_dir,
+        run_id=run_id,
+        log_path=log_path,
+        depth_level=depth_level,
+        monitoring_enabled=monitoring_enabled,
+        static_analyzer=static_analyzer,
+    )
+    generator.force_full_analysis = force_full
+    generator.source_sha = source_sha
+    return generator.generate_analysis()
 
 
+@track_analysis
 def run_partial(
     repo_path: Path,
     output_dir: Path,
@@ -115,56 +116,54 @@ def run_partial(
         raise BaselineUnavailableError(f"No baseline analysis.json found in '{output_dir}'. Run a full analysis first.")
 
     depth_level = int(metadata.get("depth_level", 1))
-    with track_analysis(command="partial", depth_level=depth_level):
-        generator = build_generator(
-            repo_name=project_name,
-            repo_path=repo_path,
-            output_dir=output_dir,
-            run_id=run_id,
-            log_path=log_path,
-            depth_level=depth_level,
-        )
-        generator.pre_analysis()
+    generator = build_generator(
+        repo_name=project_name,
+        repo_path=repo_path,
+        output_dir=output_dir,
+        run_id=run_id,
+        log_path=log_path,
+        depth_level=depth_level,
+    )
+    generator.pre_analysis()
 
-        full_analysis = load_full_analysis(output_dir)
-        if full_analysis is None:
-            # Metadata was present but the unified read failed — treat as a
-            # corrupt or partially-written baseline, same surfacing as cold start.
-            raise BaselineUnavailableError(
-                f"analysis.json in '{output_dir}' could not be parsed as a unified analysis."
-            )
+    full_analysis = load_full_analysis(output_dir)
+    if full_analysis is None:
+        # Metadata was present but the unified read failed — treat as a
+        # corrupt or partially-written baseline, same surfacing as cold start.
+        raise BaselineUnavailableError(f"analysis.json in '{output_dir}' could not be parsed as a unified analysis.")
 
-        root_analysis, sub_analyses = full_analysis
+    root_analysis, sub_analyses = full_analysis
 
-        component_to_analyze = None
-        for component in root_analysis.components:
-            if component.component_id == component_id:
-                logger.info(f"Updating analysis for component: {component.name}")
-                component_to_analyze = component
-                break
-        if component_to_analyze is None:
-            for sub_analysis in sub_analyses.values():
-                for component in sub_analysis.components:
-                    if component.component_id == component_id:
-                        logger.info(f"Updating analysis for component: {component.name}")
-                        component_to_analyze = component
-                        break
-                if component_to_analyze is not None:
+    component_to_analyze = None
+    for component in root_analysis.components:
+        if component.component_id == component_id:
+            logger.info(f"Updating analysis for component: {component.name}")
+            component_to_analyze = component
+            break
+    if component_to_analyze is None:
+        for sub_analysis in sub_analyses.values():
+            for component in sub_analysis.components:
+                if component.component_id == component_id:
+                    logger.info(f"Updating analysis for component: {component.name}")
+                    component_to_analyze = component
                     break
+            if component_to_analyze is not None:
+                break
 
-        if component_to_analyze is None:
-            logger.error(f"Component with ID '{component_id}' not found in analysis")
-            return
+    if component_to_analyze is None:
+        logger.error(f"Component with ID '{component_id}' not found in analysis")
+        return
 
-        _comp_id, sub_analysis, _new_components = generator.process_component(component_to_analyze)
+    _comp_id, sub_analysis, _new_components = generator.process_component(component_to_analyze)
 
-        if sub_analysis:
-            save_sub_analysis(sub_analysis, output_dir, component_id)
-            logger.info(f"Updated component '{component_id}' in analysis.json")
-        else:
-            logger.error(f"Failed to generate sub-analysis for component '{component_id}'")
+    if sub_analysis:
+        save_sub_analysis(sub_analysis, output_dir, component_id)
+        logger.info(f"Updated component '{component_id}' in analysis.json")
+    else:
+        logger.error(f"Failed to generate sub-analysis for component '{component_id}'")
 
 
+@track_analysis
 def run_incremental(
     repo_path: Path,
     output_dir: Path,
@@ -202,20 +201,19 @@ def run_incremental(
         raise BaselineUnavailableError(f"Could not compute diff against baseline {base_ref!r}: {detected.error}")
     changes = detected
 
-    with track_analysis(command="incremental", depth_level=depth_level):
-        generator = build_generator(
-            repo_name=project_name,
-            repo_path=repo_path,
-            output_dir=output_dir,
-            run_id=run_id,
-            log_path=log_path,
-            depth_level=depth_level,
-            monitoring_enabled=monitoring_enabled,
-            static_analyzer=static_analyzer,
-            changes=changes,
-        )
-        generator.source_sha = source_sha
-        return run_incremental_workflow(generator)
+    generator = build_generator(
+        repo_name=project_name,
+        repo_path=repo_path,
+        output_dir=output_dir,
+        run_id=run_id,
+        log_path=log_path,
+        depth_level=depth_level,
+        monitoring_enabled=monitoring_enabled,
+        static_analyzer=static_analyzer,
+        changes=changes,
+    )
+    generator.source_sha = source_sha
+    return run_incremental_workflow(generator)
 
 
 def run_incremental_workflow(generator: DiagramGenerator) -> Path:
