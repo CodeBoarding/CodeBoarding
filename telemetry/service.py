@@ -1,13 +1,3 @@
-"""Minimal anonymous telemetry, modeled on browser-use's ProductTelemetry.
-
-Identity rules (so VSCode and standalone OSS runs correlate in one project):
-  1. ``CODEBOARDING_TELEMETRY_USER_ID`` env var, if set. The VSCode extension
-     passes its already-computed device id here, so events from a VSCode-driven
-     run share the same ``distinct_id`` as the extension's own events.
-  2. Otherwise a random UUID persisted at ``~/.codeboarding/telemetry_user_id``
-     (created on first run, stable across reinstalls of the same machine).
-"""
-
 import logging
 import os
 
@@ -63,9 +53,6 @@ class ProductTelemetry:
         if self._user_id is not None:
             return self._user_id
 
-        # The VSCode extension passes its already-computed device id here; it is
-        # identical to generate_device_id() on the same machine (enforced by the
-        # parity test) but avoids re-running the fingerprint subprocesses.
         env_id = os.getenv("CODEBOARDING_TELEMETRY_USER_ID", "").strip()
         self._user_id = env_id or generate_device_id()
         return self._user_id
