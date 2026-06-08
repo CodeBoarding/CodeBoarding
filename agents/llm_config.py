@@ -30,12 +30,22 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 _agent_model_override: str | None = None
 _parsing_model_override: str | None = None
+_agent_timeout_override: int | None = None
+_parsing_timeout_override: int | None = None
+
+# Default thread-join timeouts for the agent invoke loop (seconds).
+# First attempt is shorter; retries get the longer budget. Overridden as a
+# single flat value when agent_timeout_s is configured (see get_agent_timeout).
+_DEFAULT_AGENT_TIMEOUT_FIRST = 300
+_DEFAULT_AGENT_TIMEOUT_RETRY = 600
 
 
 def configure_models(
     agent_model: str | None = None,
     parsing_model: str | None = None,
     api_keys: dict[str, str] | None = None,
+    agent_timeout_s: int | None = None,
+    parsing_timeout_s: int | None = None,
 ) -> None:
     """Set process-wide model and provider overrides.  Call this once at startup.
 
@@ -46,6 +56,12 @@ def configure_models(
     Keys already present in the shell environment are never overwritten, so
     CI/CD pipelines that export keys directly retain full control.
 
+    ``agent_timeout_s`` overrides the agent invoke thread-join timeout (a single
+    flat value for every attempt). ``parsing_timeout_s`` overrides the parsing
+    model's HTTP client timeout. Both are optional; when unset the built-in
+    defaults apply. Useful for slow self-hosted / local backends whose
+    long-context completions exceed the default budgets.
+
     Priority (highest to lowest):
       1. Shell environment variables (set before the process starts)
       2. ``api_keys`` passed here  /  values from ~/.codeboarding/config.toml
@@ -53,12 +69,31 @@ def configure_models(
       4. Provider defaults defined in LLM_PROVIDERS
     """
     global _agent_model_override, _parsing_model_override
+    global _agent_timeout_override, _parsing_timeout_override
     _agent_model_override = agent_model
     _parsing_model_override = parsing_model
+    _agent_timeout_override = agent_timeout_s
+    _parsing_timeout_override = parsing_timeout_s
     if api_keys:
         for env_var, value in api_keys.items():
             if value and not os.environ.get(env_var):
                 os.environ[env_var] = value
+
+
+def get_agent_timeout(attempt: int) -> int:
+    """Thread-join timeout (seconds) for an agent invoke attempt.
+
+    When ``agent_timeout_s`` was configured, return it flat for every attempt
+    (B1a). Otherwise fall back to the default first/retry split.
+    """
+    if _agent_timeout_override is not None:
+        return _agent_timeout_override
+    return _DEFAULT_AGENT_TIMEOUT_FIRST if attempt == 0 else _DEFAULT_AGENT_TIMEOUT_RETRY
+
+
+def get_parsing_timeout() -> int | None:
+    """HTTP client timeout (seconds) for the parsing model, or None for no limit."""
+    return _parsing_timeout_override
 
 
 @dataclass
@@ -275,6 +310,7 @@ def _initialize_llm(
     temperature_attr: str,
     log_prefix: str,
     init_factory: bool = False,
+    apply_parsing_timeout: bool = False,
 ) -> tuple[BaseChatModel, str]:
     resolved = _resolve_active_provider(model_override, model_attr)
     if resolved is None:
@@ -304,6 +340,14 @@ def _initialize_llm(
         "temperature": getattr(config, temperature_attr),
     }
     kwargs.update(config.get_resolved_extra_args())
+
+    # Why: parsing calls have no thread-join wrapper (unlike the agent loop), so
+    # without an HTTP client timeout a slow backend can hang the parse step
+    # indefinitely. parsing_timeout_s, when set, bounds it.
+    if apply_parsing_timeout:
+        parsing_timeout = get_parsing_timeout()
+        if parsing_timeout is not None:
+            kwargs["timeout"] = parsing_timeout
 
     if name not in ["aws", "ollama"]:
         api_key = config.get_api_key()
@@ -379,7 +423,9 @@ def get_current_agent_context_window() -> ContextWindow:
 
 
 def initialize_parsing_llm(model_override: str | None = None) -> BaseChatModel:
-    model, _ = _initialize_llm(model_override, "parsing_model", "parsing_temperature", "Extractor ")
+    model, _ = _initialize_llm(
+        model_override, "parsing_model", "parsing_temperature", "Extractor ", apply_parsing_timeout=True
+    )
     return model
 
 

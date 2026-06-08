@@ -21,7 +21,7 @@ from agents.validation import ValidationResult, score_validation_results, VALIDA
 from monitoring.mixin import MonitoringMixin
 from repo_utils.ignore import RepoIgnoreManager
 from agents.agent_responses import LLMBaseModel
-from agents.llm_config import MONITORING_CALLBACK
+from agents.llm_config import MONITORING_CALLBACK, get_agent_timeout
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.reference_resolve_mixin import ReferenceResolverMixin
 
@@ -112,7 +112,7 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         def call_once() -> str:
             attempt = attempt_counter[0]
             attempt_counter[0] += 1
-            timeout_seconds = 300 if attempt == 0 else 600
+            timeout_seconds = get_agent_timeout(attempt)
             callback_list = (callbacks or []) + [MONITORING_CALLBACK, self.agent_monitoring_callback]
             logger.info(
                 f"Starting agent.invoke() [attempt {attempt + 1}/{max_attempts}] with prompt length: {len(prompt)}, timeout: {timeout_seconds}s"
