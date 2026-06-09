@@ -4,7 +4,7 @@ See what your AI is building before it breaks.
 
 CodeBoarding gives developers and coding agents a visual map of a codebase. It combines static analysis with LLM reasoning to generate architecture diagrams, component-level documentation, and navigable outputs you can use in your IDE, CI, and docs.
 
-[Website](https://codeboarding.org) <img referrerpolicy="no-referrer-when-downgrade" src="https://static.scarf.sh/a.png?x-pxid=0855d476-b2d0-44cc-b93d-69b47504719c" width="0" height="0" /> · [Open VSX extension](https://open-vsx.org/extension/CodeBoarding/codeboarding) <img referrerpolicy="no-referrer-when-downgrade" src="https://static.scarf.sh/a.png?x-pxid=ce87464c-2792-46b0-9ea2-87eefe853d7e" width="0" height="0" /> · [Explore examples](https://codeboarding.org/diagrams) · [VS Code extension](https://marketplace.visualstudio.com/items?itemName=Codeboarding.codeboarding) <img referrerpolicy="no-referrer-when-downgrade" src="https://static.scarf.sh/a.png?x-pxid=8a3d26e0-6f6b-49c0-8482-114445de56a5" width="0" height="0" /> · [GitHub Action](https://github.com/marketplace/actions/codeboarding-diagram-first-documentation) ·[Discord](https://discord.gg/T5zHTJYFuy)
+[Website](https://codeboarding.org) <img referrerpolicy="no-referrer-when-downgrade" src="https://static.scarf.sh/a.png?x-pxid=0855d476-b2d0-44cc-b93d-69b47504719c" width="0" height="0" /> · [Open VSX extension](https://open-vsx.org/extension/CodeBoarding/codeboarding) <img referrerpolicy="no-referrer-when-downgrade" src="https://static.scarf.sh/a.png?x-pxid=ce87464c-2792-46b0-9ea2-87eefe853d7e" width="0" height="0" /> · [Explore examples](https://codeboarding.org/diagrams) · [VS Code extension](https://marketplace.visualstudio.com/items?itemName=Codeboarding.codeboarding) <img referrerpolicy="no-referrer-when-downgrade" src="https://static.scarf.sh/a.png?x-pxid=8a3d26e0-6f6b-49c0-8482-114445de56a5" width="0" height="0" /> · [GitHub Action](https://github.com/marketplace/actions/codeboarding-action) ·[Discord](https://discord.gg/T5zHTJYFuy)
 
 [![CodeBoarding demo](https://gist.githubusercontent.com/ivanmilevtues/1c4f921066613516cfd7b938014a6877/raw/611aec7711556807860ff2e1679a5dc4c0c23fed/CodeBoarding_extension_demo.gif)](https://open-vsx.org/extension/CodeBoarding/codeboarding) <img referrerpolicy="no-referrer-when-downgrade" src="https://static.scarf.sh/a.png?x-pxid=ce87464c-2792-46b0-9ea2-87eefe853d7e" width="0" height="0" />
 
@@ -139,7 +139,7 @@ python main.py full https://github.com/pytorch/pytorch
 
 - [CLI](https://github.com/CodeBoarding/CodeBoarding) for local analysis, automation, and CI workflows.
 - [VS Code extension](https://marketplace.visualstudio.com/items?itemName=Codeboarding.codeboarding) <img referrerpolicy="no-referrer-when-downgrade" src="https://static.scarf.sh/a.png?x-pxid=8a3d26e0-6f6b-49c0-8482-114445de56a5" width="0" height="0" /> for in-editor visual architecture.
-- [GitHub Action](https://github.com/marketplace/actions/codeboarding-diagram-first-documentation) to keep diagrams updated in CI.
+- [GitHub Action](https://github.com/marketplace/actions/codeboarding-action) to keep diagrams updated in CI.
 
 ## Supported stack
 
