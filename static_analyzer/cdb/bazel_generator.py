@@ -53,7 +53,7 @@ class BazelAqueryGenerator(CdbGenerator):
         self._require_bazel()
         exec_root = self._bazel_info(project_root, "execution_root")
         aquery_json = self._run_aquery(project_root)
-        entries = self._actions_to_cdb(aquery_json, exec_root)
+        entries = self._actions_to_cdb(aquery_json, exec_root, project_root)
         if not entries:
             raise RuntimeError(
                 "bazel aquery returned no CppCompile actions. "
@@ -145,7 +145,7 @@ class BazelAqueryGenerator(CdbGenerator):
         return result.stdout.strip()
 
     @staticmethod
-    def _actions_to_cdb(aquery: dict, exec_root: str) -> list[dict]:
+    def _actions_to_cdb(aquery: dict, exec_root: str, project_root: Path) -> list[dict]:
         """Translate aquery actions into compile_commands.json entries.
 
         Accepts any ``*Compile`` mnemonic (``CppCompile``, ``ObjcCompile``,
@@ -154,6 +154,14 @@ class BazelAqueryGenerator(CdbGenerator):
         Why: Bazel 8+ jsonproto stores mnemonics as an integer ``mnemonicId``
         keyed against a top-level ``mnemonics`` table; older schemas inline
         the label as a ``mnemonic`` string. Handle both.
+
+        Entries are rooted at ``project_root``, not the execroot: with
+        ``directory`` set to the execroot, every relative include resolves
+        into Bazel's symlink forest, so clangd indexes execroot paths the
+        analyzer never opened and cross-TU references silently vanish.
+        Workspace-relative sources resolve against the real tree; only
+        Bazel-generated artifacts (``bazel-out/...``, ``external/...``)
+        are rewritten to absolute execroot paths.
         """
         mnemonic_table: dict[int, str] = {}
         for entry in aquery.get("mnemonics", []) or []:
@@ -180,9 +188,9 @@ class BazelAqueryGenerator(CdbGenerator):
                 continue
             entries.append(
                 {
-                    "directory": exec_root,
-                    "arguments": list(args),
-                    "file": source,
+                    "directory": str(project_root),
+                    "arguments": [_rebase_argument(arg, exec_root) for arg in args],
+                    "file": _rebase_argument(source, exec_root),
                 }
             )
         return entries
@@ -244,3 +252,24 @@ def _find_source_argument(args: list[str]) -> str | None:
         if arg.endswith(_SOURCE_SUFFIXES) and not arg.startswith("-"):
             return arg
     return None
+
+
+_EXECROOT_ONLY_PREFIXES = ("bazel-out/", "external/")
+_INCLUDE_FLAG_PREFIXES = ("-iquote", "-isystem", "-idirafter", "-I")
+
+
+def _rebase_argument(arg: str, exec_root: str) -> str:
+    """Absolutize paths that only exist under the execroot.
+
+    ``bazel-out/...`` (generated files) and ``external/...`` (external
+    repos, toolchain wrappers) have no counterpart in the workspace, so
+    they must stay anchored to the execroot once ``directory`` points at
+    the workspace. Handles bare arguments and fused include flags
+    (``-Ibazel-out/...``); everything else passes through untouched.
+    """
+    if arg.startswith(_EXECROOT_ONLY_PREFIXES):
+        return f"{exec_root}/{arg}"
+    for flag in _INCLUDE_FLAG_PREFIXES:
+        if arg.startswith(flag) and arg[len(flag) :].startswith(_EXECROOT_ONLY_PREFIXES):
+            return f"{flag}{exec_root}/{arg[len(flag):]}"
+    return arg

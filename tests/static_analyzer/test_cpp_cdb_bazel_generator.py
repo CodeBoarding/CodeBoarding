@@ -202,8 +202,13 @@ class TestBazelAqueryGeneratorHappyPath:
         by_file = {entry["file"]: entry for entry in entries}
         assert "src/foo.cc" in by_file
         assert "src/bar.cpp" in by_file
-        assert by_file["src/foo.cc"]["directory"].endswith("/_main")
-        assert by_file["src/foo.cc"]["arguments"][0] == "external/toolchain/clang"
+        # Entries are rooted at the workspace; execroot-only paths (external
+        # toolchains, bazel-out artifacts) are absolutized against the execroot.
+        assert by_file["src/foo.cc"]["directory"] == str(tmp_path)
+        assert (
+            by_file["src/foo.cc"]["arguments"][0]
+            == "/private/var/tmp/_bazel_user/abc/execroot/_main/external/toolchain/clang"
+        )
 
     def test_empty_aquery_raises(self, tmp_path: Path) -> None:
         """If the user's query scope matches no targets, aquery returns an
@@ -321,7 +326,7 @@ class TestActionsToCdbMnemonicFiltering:
                 {"mnemonic": None, "arguments": ["clang", "-c", "src/x.cc"]},
             ]
         }
-        assert BazelAqueryGenerator._actions_to_cdb(aquery, "/exec") == []
+        assert BazelAqueryGenerator._actions_to_cdb(aquery, "/exec", Path("/ws")) == []
 
     def test_missing_mnemonic_keys_skipped(self) -> None:
         aquery = {
@@ -329,7 +334,7 @@ class TestActionsToCdbMnemonicFiltering:
                 {"arguments": ["clang", "-c", "src/x.cc"]},
             ]
         }
-        assert BazelAqueryGenerator._actions_to_cdb(aquery, "/exec") == []
+        assert BazelAqueryGenerator._actions_to_cdb(aquery, "/exec", Path("/ws")) == []
 
     def test_actions_to_cdb_resolves_mnemonic_id_via_mnemonics_table(self) -> None:
         """Bazel 8+ jsonproto encodes mnemonics as integer ids into a top-level
@@ -352,7 +357,7 @@ class TestActionsToCdbMnemonicFiltering:
                 },
             ],
         }
-        entries = BazelAqueryGenerator._actions_to_cdb(aquery, "/exec")
+        entries = BazelAqueryGenerator._actions_to_cdb(aquery, "/exec", Path("/ws"))
         assert len(entries) == 1
         assert entries[0]["file"] == "src/x.cc"
 
@@ -366,7 +371,7 @@ class TestActionsToCdbMnemonicFiltering:
                 {"mnemonicId": 99, "arguments": ["clang", "-c", "src/x.cc"]},
             ],
         }
-        assert BazelAqueryGenerator._actions_to_cdb(aquery, "/exec") == []
+        assert BazelAqueryGenerator._actions_to_cdb(aquery, "/exec", Path("/ws")) == []
 
     def test_objc_compile_mnemonic_is_emitted(self) -> None:
         """``ObjcCompile`` ends in ``Compile`` — verify the wildcard matches
@@ -380,7 +385,7 @@ class TestActionsToCdbMnemonicFiltering:
                 },
             ]
         }
-        entries = BazelAqueryGenerator._actions_to_cdb(aquery, "/exec")
+        entries = BazelAqueryGenerator._actions_to_cdb(aquery, "/exec", Path("/ws"))
         assert len(entries) == 1
         assert entries[0]["file"] == "src/x.m"
 
@@ -406,12 +411,12 @@ class TestActionsToCdbMnemonicFiltering:
                 },
             ]
         }
-        entries = BazelAqueryGenerator._actions_to_cdb(aquery_with_cc, "/exec")
+        entries = BazelAqueryGenerator._actions_to_cdb(aquery_with_cc, "/exec", Path("/ws"))
         assert len(entries) == 1
         assert entries[0]["file"] == "src/mod.cc"
         # Sanity: when no recognisable suffix is present we drop, but we still
         # see the mnemonic accepted (i.e. no CppCompile substring assumption).
-        assert BazelAqueryGenerator._actions_to_cdb(aquery_no_recognised_source, "/exec") == []
+        assert BazelAqueryGenerator._actions_to_cdb(aquery_no_recognised_source, "/exec", Path("/ws")) == []
 
     @pytest.mark.parametrize("mnemonic", ["JavaCompile", "CppLink", "Action", "GoCompile"])
     def test_actions_to_cdb_drops_non_compile_actions(self, mnemonic: str) -> None:
@@ -425,14 +430,14 @@ class TestActionsToCdbMnemonicFiltering:
                 {"mnemonic": mnemonic, "arguments": ["javac", "-c", "src/x.java", "-o", "x.class"]},
             ]
         }
-        assert BazelAqueryGenerator._actions_to_cdb(aquery, "/exec") == []
+        assert BazelAqueryGenerator._actions_to_cdb(aquery, "/exec", Path("/ws")) == []
 
     def test_actions_to_cdb_handles_null_actions_field(self) -> None:
         """Some proto-JSON encoders emit ``null`` for empty repeated fields;
         ``aquery.get("actions", [])`` would then return ``None`` and break the
         iteration. The ``or []`` defence must keep the parser silent.
         """
-        assert BazelAqueryGenerator._actions_to_cdb({"actions": None}, "/exec") == []
+        assert BazelAqueryGenerator._actions_to_cdb({"actions": None}, "/exec", Path("/ws")) == []
 
     def test_actions_to_cdb_handles_null_mnemonics_field(self) -> None:
         """Regression guard for the sibling ``or []`` on the ``mnemonics``
@@ -443,7 +448,7 @@ class TestActionsToCdbMnemonicFiltering:
             "actions": [{"mnemonic": "CppCompile", "arguments": ["clang", "-c", "x.cc"]}],
             "mnemonics": None,
         }
-        entries = BazelAqueryGenerator._actions_to_cdb(aquery, "/exec")
+        entries = BazelAqueryGenerator._actions_to_cdb(aquery, "/exec", Path("/ws"))
         assert len(entries) == 1
         assert entries[0]["file"] == "x.cc"
 
@@ -456,7 +461,7 @@ class TestActionsToCdbMnemonicFiltering:
         ],
     )
     def test_actions_to_cdb_handles_edge_json_shapes(self, aquery: dict) -> None:
-        assert BazelAqueryGenerator._actions_to_cdb(aquery, "/exec") == []
+        assert BazelAqueryGenerator._actions_to_cdb(aquery, "/exec", Path("/ws")) == []
 
 
 class TestBazelAqueryGeneratorFingerprint:
