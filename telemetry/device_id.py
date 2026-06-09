@@ -1,23 +1,3 @@
-"""Anonymous device id, byte-for-byte compatible with the VSCode extension.
-
-This is a Python port of ``LicenseService.generateDeviceId`` in the VSCode
-extension (``backend/services/deviceFingerprint.ts``). Keeping the two in
-lockstep lets a standalone OSS run be matched to the same machine's VSCode usage
-in analytics. The parity test (in the VSCode project) runs both implementations
-and asserts they produce the same hash.
-
-Algorithm (must not drift from the TS side):
-    device_id = sha256( strip_whitespace(anchor).lower() )
-    anchor    = f"{system_uuid}-{disk_serial}-{raw_cpu_model}"
-where ``system_uuid`` and ``disk_serial`` are themselves sha256 hex digests of
-platform fingerprints, and ``raw_cpu_model`` is the *unhashed* CPU brand string.
-
-On Linux everything is read natively (files + /proc/cpuinfo). On macOS/Windows
-the identifiers live in IOKit/WMI, which have no Python-stdlib equivalent, so we
-read them from the same OS tools the extension uses (ioreg/sysctl, PowerShell)
-to keep the hashes identical.
-"""
-
 import getpass
 import hashlib
 import platform
