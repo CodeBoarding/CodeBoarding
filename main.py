@@ -1,4 +1,5 @@
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -75,6 +76,7 @@ def _inject_default_subcommand(argv: list[str]) -> list[str]:
 
 
 def main(argv: list[str] | None = None) -> None:
+    os.environ.setdefault("CODEBOARDING_SOURCE", "oss")
     if argv is None:
         argv = sys.argv[1:]
     argv = _inject_default_subcommand(list(argv))
