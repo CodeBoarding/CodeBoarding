@@ -116,18 +116,6 @@ class CSharpAdapter(LanguageAdapter):
         }
 
     @property
-    def wait_for_workspace_ready(self) -> bool:
-        """Skip the startup workspace-ready gate for csharp-ls.
-
-        csharp-ls does not consistently emit a solution/workspace-loaded signal
-        when CodeBoarding launches it per project directory. Waiting here makes
-        otherwise usable projects fail before the later probe/diagnostics waits
-        can run. Keep those later C#-specific waits instead; they use real LSP
-        requests/diagnostic quiescence and have larger timeouts.
-        """
-        return False
-
-    @property
     def probe_before_open(self) -> bool:
         """csharp-ls loads all files from the .sln — didOpen before workspace load kills it."""
         return True

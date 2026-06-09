@@ -252,7 +252,7 @@ class StaticAnalyzer:
                 # via ``wait_for_workspace_ready`` so the language-name
                 # check doesn't keep growing.
                 if adapter.wait_for_workspace_ready:
-                    engine_client.wait_for_server_ready(timeout=adapter.workspace_ready_timeout)
+                    engine_client.wait_for_server_ready()
                     logger.info(f"{adapter.language} workspace ready: {time.monotonic() - t_lsp_started:.1f}s")
 
                 started.append((engine_config, engine_client))

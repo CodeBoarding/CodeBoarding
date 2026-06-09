@@ -169,19 +169,6 @@ class LanguageAdapter(ABC):
         return False
 
     @property
-    def workspace_ready_timeout(self) -> int:
-        """Seconds to wait for the workspace-ready signal before proceeding anyway.
-
-        Only consulted when ``wait_for_workspace_ready`` is True. The
-        default (300s = 5 min) matches the ``LSPClient.wait_for_server_ready``
-        default and is sized for slow Roslyn/JDT workspace loads on large
-        repos. Adapters whose readiness signal is unreliable (or whose
-        per-project workspaces are small) should override with a shorter
-        value so analysis proceeds promptly without it.
-        """
-        return 300
-
-    @property
     def probe_before_open(self) -> bool:
         """If True, send the sync probe BEFORE bulk didOpen notifications.
 
