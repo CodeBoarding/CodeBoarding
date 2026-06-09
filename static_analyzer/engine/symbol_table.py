@@ -118,10 +118,18 @@ class SymbolTable:
             self._primary_file_symbols.setdefault(file_key, []).append(info)
 
             # Dual registration: register unqualified form(s) for symbols with parents
-            # Aliases go into _file_symbols but NOT _primary_file_symbols
+            # Aliases go into _file_symbols but NOT _primary_file_symbols.
+            # Why the length guard: CallGraph's location dedup is longest-wins,
+            # so an alias longer than the canonical name (e.g. C++ file-stem
+            # aliases like ``entities.Cat`` vs ``models.Cat``) would hijack
+            # the canonical name for the node at that location.
             if parent_chain:
                 unqualified_name = self._naming.build_qualified_name(file_path, name, kind, [], project_root, detail)
-                if unqualified_name != qualified_name and unqualified_name not in self._symbols:
+                if (
+                    unqualified_name != qualified_name
+                    and len(unqualified_name) <= len(qualified_name)
+                    and unqualified_name not in self._symbols
+                ):
                     unq_info = SymbolInfo(
                         name=name,
                         qualified_name=unqualified_name,

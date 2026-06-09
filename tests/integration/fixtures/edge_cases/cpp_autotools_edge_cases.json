@@ -3,29 +3,29 @@
   "description": "End-to-end fixture for the Autotools CDB-generation path: a pristine GNU Autotools project (no ./configure committed) that forces BearGenerator._run_autotools to invoke autoreconf -i, then configure, then bear -- make clean all, then feeds the resulting compile_commands.json to clangd. The C++ sources mirror cpp_edge_cases_project exactly so reference/edge expectations match the other build-system fixtures.",
   "_notes": "expected_hierarchy is intentionally empty: CallGraphBuilder currently runs with skip_hierarchy=True, so the hierarchy tests are skipped upstream; we keep the key so the fixture shape matches its siblings.",
   "expected_references": [
-    "main",
+    "main.main",
     "models",
     "models.Cat",
-    "models.Cat.Cat(std.string)",
+    "models.Cat.Cat(string)",
     "models.Cat.describe",
     "models.Cat.speak",
     "models.Dog",
-    "models.Dog.Dog(std.string)",
+    "models.Dog.Dog(string)",
     "models.Dog.speak",
     "models.Entity",
-    "models.Entity.Entity(std.string)",
+    "models.Entity.Entity(string)",
     "models.Entity.describe",
     "models.Entity.name",
     "models.Entity.name_",
     "models.Entity.~Entity",
     "models.Speaker",
-    "models.Speaker.Speaker(std.string)",
+    "models.Speaker.Speaker(string)",
     "models.Speaker.shout",
     "models.Speaker.speak",
     "services",
     "services.Processor",
     "services.Processor.process(const models.Entity&)",
-    "services.Processor.process_batch(const std.vector<models.Entity*>&)",
+    "services.Processor.process_batch(const vector<models.Entity*>&)",
     "services.count_unique_descriptions(Iter, Iter)"
   ],
   "expected_classes": [
@@ -37,35 +37,139 @@
   ],
   "expected_hierarchy": {},
   "expected_edges": [
-    ["main", "Cat.Cat(std.string)"],
-    ["main", "Dog.Dog(std.string)"],
-    ["main", "Processor.process(const models.Entity&)"],
-    ["main", "Processor.process_batch(const std.vector<models.Entity*>&)"],
-    ["main", "models.Cat.Cat(std.string)"],
-    ["main", "models.Dog.Dog(std.string)"],
-    ["main", "services.Processor.process(const models.Entity&)"],
-    ["main", "services.Processor.process_batch(const std.vector<models.Entity*>&)"],
-    ["main", "services.count_unique_descriptions(Iter, Iter)"],
-    ["models.Cat.describe", "Entity.name"],
-    ["models.Cat.describe", "models.Entity.name"],
-    ["models.Speaker.shout", "Cat.speak"],
-    ["models.Speaker.shout", "Dog.speak"],
-    ["models.Speaker.shout", "models.Cat.speak"],
-    ["models.Speaker.shout", "models.Dog.speak"],
-    ["models.Speaker.shout", "models.Speaker.speak"],
-    ["services.Processor.process(const models.Entity&)", "Cat.describe"],
-    ["services.Processor.process(const models.Entity&)", "Entity.describe"],
-    ["services.Processor.process(const models.Entity&)", "models.Cat.describe"],
-    ["services.Processor.process(const models.Entity&)", "models.Entity.describe"],
-    ["services.Processor.process_batch(const std.vector<models.Entity*>&)", "Processor.process(const models.Entity&)"],
-    ["services.Processor.process_batch(const std.vector<models.Entity*>&)", "services.Processor.process(const models.Entity&)"]
+    [
+      "main.main",
+      "entities.Cat(string)"
+    ],
+    [
+      "main.main",
+      "entities.Dog(string)"
+    ],
+    [
+      "main.main",
+      "models.Cat.Cat(string)"
+    ],
+    [
+      "main.main",
+      "models.Dog.Dog(string)"
+    ],
+    [
+      "main.main",
+      "processor.process(const models.Entity&)"
+    ],
+    [
+      "main.main",
+      "processor.process_batch(const vector<models.Entity*>&)"
+    ],
+    [
+      "main.main",
+      "services.Processor.process(const models.Entity&)"
+    ],
+    [
+      "main.main",
+      "services.Processor.process_batch(const vector<models.Entity*>&)"
+    ],
+    [
+      "main.main",
+      "services.count_unique_descriptions(Iter, Iter)"
+    ],
+    [
+      "models.Cat.describe",
+      "Entity.name"
+    ],
+    [
+      "models.Cat.describe",
+      "models.Entity.name"
+    ],
+    [
+      "models.Speaker.shout",
+      "Dog.speak"
+    ],
+    [
+      "models.Speaker.shout",
+      "entities.speak"
+    ],
+    [
+      "models.Speaker.shout",
+      "models.Cat.speak"
+    ],
+    [
+      "models.Speaker.shout",
+      "models.Dog.speak"
+    ],
+    [
+      "models.Speaker.shout",
+      "models.Speaker.speak"
+    ],
+    [
+      "services.Processor.process(const models.Entity&)",
+      "Entity.describe"
+    ],
+    [
+      "services.Processor.process(const models.Entity&)",
+      "entities.describe"
+    ],
+    [
+      "services.Processor.process(const models.Entity&)",
+      "models.Cat.describe"
+    ],
+    [
+      "services.Processor.process(const models.Entity&)",
+      "models.Entity.describe"
+    ],
+    [
+      "services.Processor.process_batch(const vector<models.Entity*>&)",
+      "processor.process(const models.Entity&)"
+    ],
+    [
+      "services.Processor.process_batch(const vector<models.Entity*>&)",
+      "services.Processor.process(const models.Entity&)"
+    ]
   ],
   "expected_package_deps": {
-    "include.models": {"imports_contain": [], "imported_by_contain": []},
-    "include.services": {"imports_contain": [], "imported_by_contain": []},
-    "src": {"imports_contain": ["include.services", "src.services"], "imported_by_contain": []},
-    "src.models": {"imports_contain": ["include.models"], "imported_by_contain": []},
-    "src.services": {"imports_contain": ["include.models", "include.services", "src.models"], "imported_by_contain": []}
+    "include.models": {
+      "imports_contain": [],
+      "imported_by_contain": [
+        "src",
+        "src.models",
+        "src.services"
+      ]
+    },
+    "include.services": {
+      "imports_contain": [],
+      "imported_by_contain": [
+        "src",
+        "src.services"
+      ]
+    },
+    "src": {
+      "imports_contain": [
+        "include.models",
+        "include.services",
+        "src.models",
+        "src.services"
+      ],
+      "imported_by_contain": []
+    },
+    "src.models": {
+      "imports_contain": [
+        "include.models"
+      ],
+      "imported_by_contain": [
+        "src",
+        "src.services"
+      ]
+    },
+    "src.services": {
+      "imports_contain": [
+        "include.models",
+        "include.services",
+        "src.models"
+      ],
+      "imported_by_contain": [
+        "src"
+      ]
+    }
   },
   "expected_source_files": [
     "include/models/base.hpp",

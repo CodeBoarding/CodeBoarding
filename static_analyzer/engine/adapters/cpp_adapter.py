@@ -303,7 +303,9 @@ class CppAdapter(LanguageAdapter):
         (file-scope helpers, free functions), bare names collide across
         translation units (M11) — so prefix with ``file_path.stem`` to
         give each TU its own scope. Headers and matching sources share
-        a stem, preserving cross-file refs within a TU.
+        a stem, preserving cross-file refs within a TU. Namespaces are
+        exempt: one namespace spans many files and must keep one name,
+        so stem-prefixing would split it per file.
         """
         sym = _strip_template_args(symbol_name).replace("::", ".").strip()
         # Why: ``Path.stem`` only strips the final suffix, so ``simd.x86.cpp``
@@ -311,6 +313,7 @@ class CppAdapter(LanguageAdapter):
         # there would qualify as ``simd.x86.baz`` and collide with the method
         # ``simd::x86::baz`` from another TU.
         stem = file_path.stem.replace(".", "_")
+        no_parent_name = sym if symbol_kind == int(NodeType.NAMESPACE) else f"{stem}.{sym}"
 
         if parent_chain:
             # Drop ``kind=STRING`` parents: clangd surfaces namespace-wrapper
@@ -321,9 +324,9 @@ class CppAdapter(LanguageAdapter):
             if parents:
                 qualified = ".".join(parents) + "." + sym
             else:
-                qualified = f"{stem}.{sym}"
+                qualified = no_parent_name
         else:
-            qualified = f"{stem}.{sym}"
+            qualified = no_parent_name
 
         if symbol_kind in CALLABLE_KINDS:
             signature = _extract_signature(detail)
