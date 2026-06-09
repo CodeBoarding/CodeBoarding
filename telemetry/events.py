@@ -24,9 +24,6 @@ _current_run_id: ContextVar[str | None] = ContextVar("telemetry_run_id", default
 # rebuild) is owned by the outer run and does not emit a second event pair.
 _analysis_active: ContextVar[bool] = ContextVar("telemetry_analysis_active", default=False)
 
-# The command a caller requested, recorded by ``analysis_intent``.
-_requested_command: ContextVar[str | None] = ContextVar("telemetry_requested_command", default=None)
-
 
 def _app_version() -> str:
     try:
@@ -90,18 +87,13 @@ def _token_usage() -> dict:
 
 
 @contextmanager
-def analysis_intent(command: str):
-    """Record the requested command, so a fallback (incremental -> full) still
-    reports the original intent via ``requested_command``."""
-    token = _requested_command.set(command)
-    try:
-        yield
-    finally:
-        _requested_command.reset(token)
-
-
-@contextmanager
-def track_analysis_run(command: str, *, run_id: str | None = None, depth_level: int | None = None):
+def track_analysis_run(
+    command: str,
+    *,
+    run_id: str | None = None,
+    depth_level: int | None = None,
+    requested_command: str | None = None,
+):
     """Emit the ``analysis_started`` / ``analysis_completed`` pair around one run.
 
     Reports token-usage delta, wall-clock duration, and outcome. Re-entrant: a
@@ -109,7 +101,7 @@ def track_analysis_run(command: str, *, run_id: str | None = None, depth_level: 
     no pair of its own.
     """
     if _analysis_active.get():
-        yield
+        yield {}
         return
 
     base = {"command": command, "version": _app_version()}
@@ -117,13 +109,12 @@ def track_analysis_run(command: str, *, run_id: str | None = None, depth_level: 
         base["run_id"] = run_id
     if depth_level is not None:
         base["depth_level"] = depth_level
-    requested = _requested_command.get()
-    if requested is not None and requested != command:
-        base["requested_command"] = requested
+    if requested_command is not None and requested_command != command:
+        base["requested_command"] = requested_command
 
     before = _token_usage()
     started = time.monotonic()
-    telemetry.capture("analysis_started", base)
+    telemetry.capture("analysis_started", dict(base))
 
     run_id_token = _current_run_id.set(run_id)
     active_token = _analysis_active.set(True)
@@ -131,7 +122,7 @@ def track_analysis_run(command: str, *, run_id: str | None = None, depth_level: 
     status = "success"
     error_type: str | None = None
     try:
-        yield
+        yield base
     except BaseException as exc:
         status = "error"
         error_type = type(exc).__name__

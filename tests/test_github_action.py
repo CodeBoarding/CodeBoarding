@@ -186,6 +186,40 @@ class TestGenerateAnalysis(unittest.TestCase):
     @patch("github_action.create_temp_repo_folder")
     @patch("github_action.checkout_repo")
     @patch("github_action.clone_repository")
+    @patch.dict(os.environ, {"REPO_ROOT": "/tmp/repos", "DIAGRAM_DEPTH_LEVEL": "1"})
+    def test_generate_analysis_sets_github_action_source(
+        self,
+        mock_clone,
+        mock_checkout,
+        mock_create_temp,
+        mock_generator_class,
+        mock_workflow,
+        mock_generate_markdown,
+    ):
+        os.environ.pop("CODEBOARDING_SOURCE", None)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            mock_create_temp.return_value = temp_path
+            mock_clone.return_value = "test_repo"
+            mock_generator_class.return_value = MagicMock()
+            mock_workflow.return_value = temp_path / "analysis.json"
+
+            generate_analysis(
+                repo_url="https://github.com/test/repo",
+                source_branch="main",
+                target_branch="main",
+                extension=".md",
+                output_dir=".codeboarding",
+            )
+
+        self.assertEqual(os.environ["CODEBOARDING_SOURCE"], "github_action")
+
+    @patch("github_action.generate_markdown")
+    @patch("github_action.run_incremental_workflow")
+    @patch("github_action.DiagramGenerator")
+    @patch("github_action.create_temp_repo_folder")
+    @patch("github_action.checkout_repo")
+    @patch("github_action.clone_repository")
     @patch.dict(os.environ, {"REPO_ROOT": "/tmp/repos", "DIAGRAM_DEPTH_LEVEL": "2"})
     def test_generate_analysis_markdown(
         self,

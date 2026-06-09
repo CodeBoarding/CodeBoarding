@@ -93,6 +93,7 @@ def generate_analysis(
     existing_analysis_dir: str | None = None,
 ) -> Path:
     """Generate analysis for a GitHub repository URL (GitHub Action entry point)."""
+    os.environ.setdefault("CODEBOARDING_SOURCE", "github_action")
     repo_root = Path(os.getenv("REPO_ROOT", "repos"))
     repo_name = clone_repository(repo_url, repo_root)
     repo_dir = repo_root / repo_name

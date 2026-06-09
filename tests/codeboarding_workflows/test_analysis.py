@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from codeboarding_workflows.analysis import BaselineUnavailableError, run_incremental
+from codeboarding_workflows.analysis import BaselineUnavailableError, run_incremental, run_incremental_workflow
 from repo_utils.change_detector import ChangeSet
 
 
@@ -36,6 +36,10 @@ def _invoke(tmp_path: Path, *, base_ref: str = "abc", target_ref: str = "HEAD", 
         target_ref=target_ref,
         **kwargs,
     )
+
+
+def _captured_props(telemetry: MagicMock, event: str) -> list[dict]:
+    return [call.args[1] for call in telemetry.capture.call_args_list if call.args[0] == event]
 
 
 def test_run_incremental_forwards_static_analyzer_to_generator(tmp_path: Path, patched) -> None:
@@ -91,3 +95,48 @@ def test_run_incremental_diff_error_raises(tmp_path: Path, patched) -> None:
         _invoke(tmp_path, base_ref="deadbeef")
 
     gen_cls.assert_not_called()
+
+
+def test_run_incremental_missing_baseline_emits_error_telemetry(tmp_path: Path) -> None:
+    with ExitStack() as stack:
+        telemetry = stack.enter_context(patch("telemetry.events.telemetry"))
+        stack.enter_context(patch("telemetry.events._app_version", return_value="test-version"))
+        stack.enter_context(patch("telemetry.events._token_usage", return_value={}))
+        stack.enter_context(patch("codeboarding_workflows.analysis.load_analysis_metadata", return_value=None))
+
+        with pytest.raises(BaselineUnavailableError):
+            _invoke(tmp_path)
+
+    completed = _captured_props(telemetry, "analysis_completed")
+    assert completed
+    assert completed[0]["command"] == "incremental"
+    assert completed[0]["run_id"] == "rid"
+    assert completed[0]["status"] == "error"
+    assert completed[0]["error_type"] == "BaselineUnavailableError"
+
+
+def test_run_incremental_workflow_fallback_reports_requested_command(tmp_path: Path) -> None:
+    analysis_path = tmp_path / "analysis.json"
+    generator = MagicMock(
+        output_dir=tmp_path,
+        run_id="rid",
+        depth_level=2,
+    )
+    generator.generate_analysis.return_value = analysis_path
+
+    with ExitStack() as stack:
+        telemetry = stack.enter_context(patch("telemetry.events.telemetry"))
+        stack.enter_context(patch("telemetry.events._app_version", return_value="test-version"))
+        stack.enter_context(patch("telemetry.events._token_usage", return_value={}))
+        stack.enter_context(patch("codeboarding_workflows.analysis.load_full_analysis", return_value=None))
+        stack.enter_context(patch("codeboarding_workflows.analysis.load_analysis_metadata", return_value=None))
+
+        result = run_incremental_workflow(generator)
+
+    assert result == analysis_path
+    started = _captured_props(telemetry, "analysis_started")
+    assert started
+    assert started[0]["command"] == "full"
+    assert started[0]["requested_command"] == "incremental"
+    assert started[0]["run_id"] == "rid"
+    assert started[0]["depth_level"] == 2

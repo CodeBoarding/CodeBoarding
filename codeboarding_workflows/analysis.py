@@ -16,7 +16,7 @@ from pathlib import Path
 from diagram_analysis import DiagramGenerator
 from diagram_analysis.io_utils import load_analysis_metadata, load_full_analysis, save_sub_analysis
 from repo_utils.diff_parser import detect_changes
-from telemetry.events import analysis_intent, track_analysis_run
+from telemetry.events import track_analysis_run
 
 logger = logging.getLogger(__name__)
 
@@ -76,20 +76,21 @@ def run_full(
     static-analysis run artifact (sibling of ``analysis.json``) gets a
     matching SHA tag — enabling the next run's SHA-gated cache reuse.
     """
-    logger.info(f"Running FULL analysis workflow for repo '{repo_name}'.")
-    generator = build_generator(
-        repo_name=repo_name,
-        repo_path=repo_path,
-        output_dir=output_dir,
-        run_id=run_id,
-        log_path=log_path,
-        depth_level=depth_level,
-        monitoring_enabled=monitoring_enabled,
-        static_analyzer=static_analyzer,
-    )
-    generator.force_full_analysis = force_full
-    generator.source_sha = source_sha
-    return generator.generate_analysis()
+    with track_analysis_run("full", run_id=run_id, depth_level=depth_level):
+        logger.info(f"Running FULL analysis workflow for repo '{repo_name}'.")
+        generator = build_generator(
+            repo_name=repo_name,
+            repo_path=repo_path,
+            output_dir=output_dir,
+            run_id=run_id,
+            log_path=log_path,
+            depth_level=depth_level,
+            monitoring_enabled=monitoring_enabled,
+            static_analyzer=static_analyzer,
+        )
+        generator.force_full_analysis = force_full
+        generator.source_sha = source_sha
+        return generator.generate_analysis()
 
 
 def run_partial(
@@ -106,15 +107,18 @@ def run_partial(
     exists — partial updates a *component within* an existing analysis and
     has no meaningful behavior without one.
     """
-    logger.info(f"Running PARTIAL analysis workflow for project '{project_name}', component '{component_id}'.")
+    with track_analysis_run("partial", run_id=run_id) as telemetry_props:
+        logger.info(f"Running PARTIAL analysis workflow for project '{project_name}', component '{component_id}'.")
 
-    # Depth comes from the existing analysis.json (metadata.depth_level).
-    metadata = load_analysis_metadata(output_dir)
-    if metadata is None:
-        raise BaselineUnavailableError(f"No baseline analysis.json found in '{output_dir}'. Run a full analysis first.")
+        # Depth comes from the existing analysis.json (metadata.depth_level).
+        metadata = load_analysis_metadata(output_dir)
+        if metadata is None:
+            raise BaselineUnavailableError(
+                f"No baseline analysis.json found in '{output_dir}'. Run a full analysis first."
+            )
 
-    depth_level = int(metadata.get("depth_level", 1))
-    with track_analysis_run("partial", run_id=run_id, depth_level=depth_level):
+        depth_level = int(metadata.get("depth_level", 1))
+        telemetry_props["depth_level"] = depth_level
         generator = build_generator(
             repo_name=project_name,
             repo_path=repo_path,
@@ -183,37 +187,41 @@ def run_incremental(
     surface a "run full analysis" prompt rather than silently degrading to an
     unscoped run.
     """
-    logger.info(
-        f"Running INCREMENTAL analysis workflow for project '{project_name}' "
-        f"(base={base_ref!r}, target={target_ref!r})."
-    )
+    with track_analysis_run("incremental", run_id=run_id) as telemetry_props:
+        logger.info(
+            f"Running INCREMENTAL analysis workflow for project '{project_name}' "
+            f"(base={base_ref!r}, target={target_ref!r})."
+        )
 
-    # Depth comes from the existing analysis.json (metadata.depth_level).
-    # Fail fast on cold-start: ``_generate_subcomponents`` requires the prior
-    # depth to re-detail changed components.
-    metadata = load_analysis_metadata(output_dir)
-    if metadata is None:
-        raise BaselineUnavailableError(f"No baseline analysis.json found in '{output_dir}'. Run a full analysis first.")
-    depth_level = int(metadata.get("depth_level", 1))
+        # Depth comes from the existing analysis.json (metadata.depth_level).
+        # Fail fast on cold-start: ``_generate_subcomponents`` requires the prior
+        # depth to re-detail changed components.
+        metadata = load_analysis_metadata(output_dir)
+        if metadata is None:
+            raise BaselineUnavailableError(
+                f"No baseline analysis.json found in '{output_dir}'. Run a full analysis first."
+            )
+        depth_level = int(metadata.get("depth_level", 1))
+        telemetry_props["depth_level"] = depth_level
 
-    detected = detect_changes(repo_path, base_ref, target_ref)
-    if detected.error:
-        raise BaselineUnavailableError(f"Could not compute diff against baseline {base_ref!r}: {detected.error}")
-    changes = detected
+        detected = detect_changes(repo_path, base_ref, target_ref)
+        if detected.error:
+            raise BaselineUnavailableError(f"Could not compute diff against baseline {base_ref!r}: {detected.error}")
+        changes = detected
 
-    generator = build_generator(
-        repo_name=project_name,
-        repo_path=repo_path,
-        output_dir=output_dir,
-        run_id=run_id,
-        log_path=log_path,
-        depth_level=depth_level,
-        monitoring_enabled=monitoring_enabled,
-        static_analyzer=static_analyzer,
-        changes=changes,
-    )
-    generator.source_sha = source_sha
-    return run_incremental_workflow(generator)
+        generator = build_generator(
+            repo_name=project_name,
+            repo_path=repo_path,
+            output_dir=output_dir,
+            run_id=run_id,
+            log_path=log_path,
+            depth_level=depth_level,
+            monitoring_enabled=monitoring_enabled,
+            static_analyzer=static_analyzer,
+            changes=changes,
+        )
+        generator.source_sha = source_sha
+        return run_incremental_workflow(generator)
 
 
 def run_incremental_workflow(generator: DiagramGenerator) -> Path:
@@ -226,20 +234,29 @@ def run_incremental_workflow(generator: DiagramGenerator) -> Path:
        which itself falls back to a full run when the cluster snapshot is
        missing or the cluster delta produces nothing actionable.
     """
-    # Mark the requested command so a baseline-missing fallback to a full
-    # rebuild is still attributed as an incremental run (``requested_command``).
-    with analysis_intent("incremental"):
-        output_dir = generator.output_dir
-        existing = load_full_analysis(output_dir)
-        metadata = load_analysis_metadata(output_dir)
-        if existing is None or metadata is None:
-            logger.info("No existing analysis baseline; running full analysis.")
+    output_dir = generator.output_dir
+    existing = load_full_analysis(output_dir)
+    metadata = load_analysis_metadata(output_dir)
+    if existing is None or metadata is None:
+        logger.info("No existing analysis baseline; running full analysis.")
+        with track_analysis_run(
+            "full",
+            run_id=generator.run_id,
+            depth_level=generator.depth_level,
+            requested_command="incremental",
+        ):
             return generator.generate_analysis()
 
-        root_analysis, sub_analyses = existing
+    root_analysis, sub_analyses = existing
 
-        if not root_analysis.components:
-            logger.info("Baseline analysis has no components; running full analysis.")
+    if not root_analysis.components:
+        logger.info("Baseline analysis has no components; running full analysis.")
+        with track_analysis_run(
+            "full",
+            run_id=generator.run_id,
+            depth_level=generator.depth_level,
+            requested_command="incremental",
+        ):
             return generator.generate_analysis()
 
-        return generator.generate_analysis_incremental(root_analysis, sub_analyses)
+    return generator.generate_analysis_incremental(root_analysis, sub_analyses)
