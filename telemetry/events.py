@@ -9,6 +9,7 @@ them apart. No repository name, path, or code content is ever sent.
 import functools
 import inspect
 import time
+import traceback
 
 from contextvars import ContextVar
 from importlib.metadata import PackageNotFoundError, version
@@ -16,6 +17,24 @@ from importlib.metadata import PackageNotFoundError, version
 from telemetry.service import telemetry
 
 from agents.llm_config import MONITORING_CALLBACK
+
+# PostHog rejects oversized properties, and a full stacktrace can be huge.
+# Keep the message generous and the trace bounded; truncation is annotated so
+# a clipped trace is obvious rather than silently misleading.
+_MAX_ERROR_MESSAGE_CHARS = 4000
+_MAX_STACKTRACE_CHARS = 12000
+
+
+def _truncate(text: str, limit: int) -> str:
+    if len(text) <= limit:
+        return text
+    # Keep the tail: the innermost frame (where it actually broke) lives there.
+    return f"...[truncated {len(text) - limit} chars]\n{text[-limit:]}"
+
+
+def _format_stacktrace(exc: BaseException) -> str:
+    return "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
+
 
 # Current analysis run_id, set by ``track_analysis`` for the duration of a run
 # so nested emitters (e.g. the scanner's ``repo_scanned``) can tag the same id
@@ -120,11 +139,15 @@ def track_analysis(func):
 
         status = "success"
         error_type: str | None = None
+        error_message: str | None = None
+        error_stacktrace: str | None = None
         try:
             return func(*args, **kwargs)
         except BaseException as exc:
             status = "error"
             error_type = type(exc).__name__
+            error_message = _truncate(str(exc), _MAX_ERROR_MESSAGE_CHARS)
+            error_stacktrace = _truncate(_format_stacktrace(exc), _MAX_STACKTRACE_CHARS)
             raise
         finally:
             _current_run_id.reset(run_id_token)
@@ -140,7 +163,37 @@ def track_analysis(func):
             }
             if error_type is not None:
                 props["error_type"] = error_type
+            if error_message:
+                props["error_message"] = error_message
+            if error_stacktrace:
+                props["error_stacktrace"] = error_stacktrace
             telemetry.capture("analysis_completed", props)
             telemetry.flush()
 
     return wrapper
+
+
+def capture_error(command: str, exc: BaseException, *, extra: dict | None = None) -> None:
+    """Emit an ``error`` event carrying the full message + stacktrace of *exc*.
+
+    For entry points not wrapped by :func:`track_analysis` (the desktop
+    wrapper's full-analysis / expand paths and its snapshot git operations).
+    The crashing exception's ``str`` and traceback are the whole point — for
+    ``subprocess.CalledProcessError`` that means the runner must fold git's
+    stderr into ``__str__`` (see the wrapper's ``GitCommandError``) or the
+    message is just the useless ``returned non-zero exit status N``.
+    """
+    props = {
+        "command": command,
+        "version": _app_version(),
+        "error_type": type(exc).__name__,
+        "error_message": _truncate(str(exc), _MAX_ERROR_MESSAGE_CHARS),
+        "error_stacktrace": _truncate(_format_stacktrace(exc), _MAX_STACKTRACE_CHARS),
+    }
+    run_id = _current_run_id.get()
+    if run_id is not None:
+        props["run_id"] = run_id
+    if extra:
+        props.update(extra)
+    telemetry.capture("error", props)
+    telemetry.flush()
