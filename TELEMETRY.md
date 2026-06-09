@@ -45,7 +45,8 @@ There is no account, email, login, or IP-based identity. GeoIP is disabled.
 Every event also carries:
 
 - `source` — `"oss"` for the open-source CLI, `"vscode"` when invoked by the
-  extension, or `"core"` for other embeddings.
+  VS Code extension, `"github_action"` for the GitHub Action, or `"core"` for
+  other embeddings.
 - `distinct_id` — the anonymous id described above.
 
 Property meanings:

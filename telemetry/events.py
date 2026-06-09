@@ -1,26 +1,31 @@
-"""Analysis lifecycle telemetry, emitted from the core kernels.
+"""Analysis lifecycle telemetry: ``analysis_started`` / ``analysis_completed``.
 
-Decorating the core (``codeboarding_workflows.analysis``) rather than the CLI
-means token usage and run outcomes are captured no matter who invokes the core
-(OSS CLI, GitHub Action, or the VSCode wrapper) — the ``source`` property tells
-them apart. No repository name, path, or code content is ever sent.
+Instrumentation sits on the ``DiagramGenerator`` analysis methods — the
+chokepoint every surface (OSS CLI, GitHub Action, hosted, VSCode wrapper) flows
+through — so each run is captured regardless of caller; ``source`` tells them
+apart. ``partial`` has no generator chokepoint, so ``run_partial`` opens
+``track_analysis_run`` directly. No repo name, path, or code is ever sent.
 """
 
 import functools
-import inspect
 import time
 
+from contextlib import contextmanager
 from contextvars import ContextVar
 from importlib.metadata import PackageNotFoundError, version
 
 from telemetry.service import telemetry
 
-from agents.llm_config import MONITORING_CALLBACK
-
-# Current analysis run_id, set by ``track_analysis`` for the duration of a run
-# so nested emitters (e.g. the scanner's ``repo_scanned``) can tag the same id
-# without threading run_id through every call. Concurrency-safe via ContextVar.
+# Current run_id, set for the duration of a run so nested emitters (e.g. the
+# scanner's ``repo_scanned``) can tag the same id. Concurrency-safe via ContextVar.
 _current_run_id: ContextVar[str | None] = ContextVar("telemetry_run_id", default=None)
+
+# True while a run is being measured, so a nested analysis (incremental -> full
+# rebuild) is owned by the outer run and does not emit a second event pair.
+_analysis_active: ContextVar[bool] = ContextVar("telemetry_analysis_active", default=False)
+
+# The command a caller requested, recorded by ``analysis_intent``.
+_requested_command: ContextVar[str | None] = ContextVar("telemetry_requested_command", default=None)
 
 
 def _app_version() -> str:
@@ -39,9 +44,8 @@ _scanned_repos: set[str] = set()
 def track_tech_stack(repo_path, total_loc: int, languages) -> None:
     """Emit one ``repo_scanned`` event with lines-of-code and tech stack.
 
-    ``languages`` is the scanner's list of detected languages (duck-typed:
-    ``.language``, ``.size``, ``.percentage``). Only aggregate language names and
-    line counts are sent — never file names, paths, or code.
+    ``languages`` is duck-typed (``.language``, ``.size``, ``.percentage``). Only
+    aggregate language names and line counts are sent — never paths or code.
     """
     key = str(repo_path)
     if key in _scanned_repos:
@@ -65,8 +69,14 @@ def track_tech_stack(repo_path, total_loc: int, languages) -> None:
 
 
 def _token_usage() -> dict:
-    """Snapshot of the process-global token counters (best effort)."""
+    """Snapshot of the process-global token counters (best effort).
+
+    Why: ``MONITORING_CALLBACK`` is imported lazily so importing this module (and
+    its importers, e.g. the scanner) does not eagerly pull in the LLM/agent stack.
+    """
     try:
+        from agents.llm_config import MONITORING_CALLBACK
+
         stats = MONITORING_CALLBACK.stats.to_dict()
         usage = stats.get("token_usage", {})
         return {
@@ -79,68 +89,89 @@ def _token_usage() -> dict:
         return {}
 
 
-def _bound_arg(func, args, kwargs, name: str):
-    """Pull a named argument from the call if the wrapped function takes one."""
+@contextmanager
+def analysis_intent(command: str):
+    """Record the requested command, so a fallback (incremental -> full) still
+    reports the original intent via ``requested_command``."""
+    token = _requested_command.set(command)
     try:
-        bound = inspect.signature(func).bind(*args, **kwargs)
-        bound.apply_defaults()
-        return bound.arguments.get(name)
-    except Exception:
-        return None
+        yield
+    finally:
+        _requested_command.reset(token)
 
 
-def track_analysis(func):
-    """Emit ``analysis_started`` / ``analysis_completed`` around a core run.
+@contextmanager
+def track_analysis_run(command: str, *, run_id: str | None = None, depth_level: int | None = None):
+    """Emit the ``analysis_started`` / ``analysis_completed`` pair around one run.
 
-    The command is the wrapped function's name without the ``run_`` prefix
-    (``run_full`` -> ``full``). Token counts are reported as the delta over this
-    run so a multi-repo loop in one process attributes usage to the right run.
+    Reports token-usage delta, wall-clock duration, and outcome. Re-entrant: a
+    nested run (incremental -> full fallback) is owned by the outer run and emits
+    no pair of its own.
+    """
+    if _analysis_active.get():
+        yield
+        return
 
-    ``run_id`` (the same id ``monitoring`` uses) is stamped on both events so
-    ``analysis_started`` / ``analysis_completed`` can be paired even when runs
-    overlap in one process.
+    base = {"command": command, "version": _app_version()}
+    if run_id is not None:
+        base["run_id"] = run_id
+    if depth_level is not None:
+        base["depth_level"] = depth_level
+    requested = _requested_command.get()
+    if requested is not None and requested != command:
+        base["requested_command"] = requested
+
+    before = _token_usage()
+    started = time.monotonic()
+    telemetry.capture("analysis_started", base)
+
+    run_id_token = _current_run_id.set(run_id)
+    active_token = _analysis_active.set(True)
+
+    status = "success"
+    error_type: str | None = None
+    try:
+        yield
+    except BaseException as exc:
+        status = "error"
+        error_type = type(exc).__name__
+        raise
+    finally:
+        _analysis_active.reset(active_token)
+        _current_run_id.reset(run_id_token)
+        after = _token_usage()
+        props = {
+            **base,
+            "status": status,
+            "duration_ms": round((time.monotonic() - started) * 1000),
+            "model_name": after.get("model_name"),
+            "total_tokens": after.get("total_tokens", 0) - before.get("total_tokens", 0),
+            "input_tokens": after.get("input_tokens", 0) - before.get("input_tokens", 0),
+            "output_tokens": after.get("output_tokens", 0) - before.get("output_tokens", 0),
+        }
+        if error_type is not None:
+            props["error_type"] = error_type
+        telemetry.capture("analysis_completed", props)
+        telemetry.flush()
+
+
+def track_generator_analysis(command: str):
+    """Decorator: instrument a ``DiagramGenerator`` analysis method as one run.
+
+    Reads ``run_id`` / ``depth_level`` from the generator, so both are always
+    present; one application covers every caller of the method.
     """
 
-    @functools.wraps(func)
-    def wrapper(*args, **kwargs):
-        base = {"command": func.__name__.removeprefix("run_"), "version": _app_version()}
-        run_id = _bound_arg(func, args, kwargs, "run_id")
-        if run_id is not None:
-            base["run_id"] = run_id
-        depth_level = _bound_arg(func, args, kwargs, "depth_level")
-        if depth_level is not None:
-            base["depth_level"] = depth_level
+    def decorator(method):
+        @functools.wraps(method)
+        def wrapper(self, *args, **kwargs):
+            with track_analysis_run(
+                command,
+                run_id=getattr(self, "run_id", None),
+                depth_level=getattr(self, "depth_level", None),
+            ):
+                return method(self, *args, **kwargs)
 
-        before = _token_usage()
-        started = time.monotonic()
-        telemetry.capture("analysis_started", base)
+        return wrapper
 
-        # Expose run_id to nested emitters (e.g. the scanner) for this run only.
-        run_id_token = _current_run_id.set(run_id)
-
-        status = "success"
-        error_type: str | None = None
-        try:
-            return func(*args, **kwargs)
-        except BaseException as exc:
-            status = "error"
-            error_type = type(exc).__name__
-            raise
-        finally:
-            _current_run_id.reset(run_id_token)
-            after = _token_usage()
-            props = {
-                **base,
-                "status": status,
-                "duration_ms": round((time.monotonic() - started) * 1000),
-                "model_name": after.get("model_name"),
-                "total_tokens": after.get("total_tokens", 0) - before.get("total_tokens", 0),
-                "input_tokens": after.get("input_tokens", 0) - before.get("input_tokens", 0),
-                "output_tokens": after.get("output_tokens", 0) - before.get("output_tokens", 0),
-            }
-            if error_type is not None:
-                props["error_type"] = error_type
-            telemetry.capture("analysis_completed", props)
-            telemetry.flush()
-
-    return wrapper
+    return decorator

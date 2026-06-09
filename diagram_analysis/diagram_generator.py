@@ -48,6 +48,7 @@ from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import Language
 from static_analyzer.graph import ClusterResult
 from static_analyzer.scanner import ProjectScanner
+from telemetry.events import track_generator_analysis
 
 logger = logging.getLogger(__name__)
 
@@ -447,6 +448,7 @@ class DiagramGenerator:
 
         return expanded_components, sub_analyses
 
+    @track_generator_analysis("full")
     def generate_analysis(self) -> Path:
         """
         Generate the graph analysis for the given repository.
@@ -535,6 +537,7 @@ class DiagramGenerator:
             not_analyzed_by_reason=summary["not_analyzed_by_reason"],
         )
 
+    @track_generator_analysis("incremental")
     def generate_analysis_incremental(
         self,
         root_analysis: AnalysisInsights,
