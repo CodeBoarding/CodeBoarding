@@ -31,6 +31,18 @@ jobs:
        startsWith(github.event.comment.body, '/codeboarding') &&
        contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))
     steps:
+      # Post the review as codeboarding-review[bot] instead of github-actions[bot].
+      # Falls back to the workflow token when the app credentials are missing or
+      # the mint fails. Uses CODEBOARDING_APP_CLIENT_ID, not the org-level
+      # CODEBOARDING_APP_ID — that is a different app with no key in Actions.
+      - uses: actions/create-github-app-token@v3
+        id: codeboarding-app-token
+        if: vars.CODEBOARDING_APP_CLIENT_ID != ''
+        continue-on-error: true
+        with:
+          client-id: ${{ vars.CODEBOARDING_APP_CLIENT_ID }}
+          private-key: ${{ secrets.CODEBOARDING_APP_PRIVATE_KEY }}
       - uses: CodeBoarding/CodeBoarding-action@v1
         with:
+          github_token: ${{ steps.codeboarding-app-token.outputs.token || github.token }}
           llm_api_key: ${{ secrets.OPENROUTER_API_KEY }}
