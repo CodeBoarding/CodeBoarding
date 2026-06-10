@@ -1,5 +1,8 @@
+import logging
 import os
 import platform
+
+logger = logging.getLogger(__name__)
 
 
 def get_bin_path(bin_dir):
@@ -10,6 +13,30 @@ def get_bin_path(bin_dir):
             f"Unsupported platform: {system}. The extension currently supports Windows, macOS, and Linux."
         )
     return os.path.join(bin_dir, "bin", subdirs[system])
+
+
+def _runnable_native(path: str) -> bool:
+    """True when a native binary exists and is executable, restoring a lost exec bit when possible.
+
+    Why: a mode-dropping unpack/copy leaves the binary at 0644; wiring its absolute
+    path into the command guarantees EACCES at Popen and disables the PATH fallback
+    in tool_registry.build_config. Mirrors the repair in tool_registry.installers
+    (not imported from there: tool_registry.manifest imports this module).
+    """
+    if platform.system().lower() == "windows":
+        # No exec bit on Windows; Popen resolves the suffix-less path to .exe itself.
+        return os.path.exists(path) or os.path.exists(path + ".exe")
+    if not os.path.exists(path):
+        return False
+    if os.access(path, os.X_OK):
+        return True
+    try:
+        os.chmod(path, 0o755)
+        logger.info("Restored exec bit on %s", path)
+        return True
+    except OSError:
+        logger.warning("%s exists but is not executable and chmod failed; check ownership/mount", path)
+        return False
 
 
 def update_command_paths(bin_dir):
@@ -52,7 +79,11 @@ def update_command_paths(bin_dir):
                     cmd[0] = "java"
             elif "command" in value:
                 if isinstance(cmd, list) and cmd:
-                    cmd[0] = os.path.join(bin_path, cmd[0])
+                    candidate = os.path.join(bin_path, cmd[0])
+                    # Keep the bare name when the binary is unusable so the PATH
+                    # fallback in tool_registry.build_config stays available.
+                    if _runnable_native(candidate):
+                        cmd[0] = candidate
 
             # Apply Windows-specific node prefix for specified languages
             # Use VSCode's bundled Node.js (passed via CODEBOARDING_NODE_PATH) so users
