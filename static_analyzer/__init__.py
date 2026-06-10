@@ -1,4 +1,5 @@
 import logging
+import os
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -372,6 +373,92 @@ class StaticAnalyzer:
             self.collected_diagnostics = cached_results.diagnostics
         return cached_results
 
+    def load_cache_if_fresh(self, cache_dir: Path) -> StaticAnalysisResults | None:
+        """Serve the SHA-tagged pkl without LSP clients when git reports no relevant changes.
+
+        LSP-free freshness probe: load the pkl + tag SHA, ask git which files
+        changed since that SHA per engine config, and keep only files matching
+        that adapter's extensions (the same filter the warm-start re-LSP
+        applies). A hit means a warm start would merge in nothing, so LSP
+        startup — workspace-ready waits included — can be skipped entirely.
+
+        Returns None (callers fall back to ``start_clients()`` + ``analyze()``)
+        when the pkl or tag is absent, any config has relevant changed files,
+        git cannot diff against the tag SHA, or the
+        ``CODEBOARDING_DISABLE_CACHE_REUSE`` kill switch is set.
+        """
+        if self._cached_results is not None:
+            return self._cached_results
+        if os.getenv("CODEBOARDING_DISABLE_CACHE_REUSE", "").lower() in ("1", "true", "yes"):
+            logger.info("CODEBOARDING_DISABLE_CACHE_REUSE set; skipping LSP-free cache fast path")
+            return None
+        if not self._engine_configs:
+            return None
+        # The probe must never be the thing that fails a run — any error here
+        # (lock timeout, corrupt tag, git trouble) just means "no fast path".
+        try:
+            return self._probe_and_load_fresh_cache(cache_dir)
+        except Exception:
+            logger.warning("load_cache_if_fresh: probe failed; falling back to LSP analysis", exc_info=True)
+            return None
+
+    def _probe_and_load_fresh_cache(self, cache_dir: Path) -> StaticAnalysisResults | None:
+        """Freshness probe + load, cheapest check first.
+
+        The tag SHA and git diffs are consulted before the (multi-MB) pkl is
+        unpickled so a miss — the common case for incremental users — costs
+        only a tag read and one git subprocess set per engine config.
+        """
+        cache = StaticAnalysisCache(cache_dir, self.repository_path)
+        cached_sha = cache.read_tag_sha()
+        if cached_sha is None:
+            return None
+        for engine_config in self._engine_configs:
+            adapter, project_path = engine_config.adapter, engine_config.project_path
+            try:
+                changed_files = get_changed_files_since(project_path, cached_sha)
+            except Exception as e:
+                logger.info(
+                    f"load_cache_if_fresh: git diff against cached SHA failed for {adapter.language}: {e}; "
+                    "falling back to LSP analysis"
+                )
+                return None
+            relevant = [
+                f
+                for f in changed_files
+                if f.suffix in adapter.file_extensions and not self.ignore_manager.should_ignore(f)
+            ]
+            if relevant:
+                logger.info(
+                    f"load_cache_if_fresh: {len(relevant)} changed {adapter.language} file(s) since cached SHA; "
+                    "falling back to LSP analysis"
+                )
+                return None
+        warm_start = cache.load_with_sha()
+        if warm_start is None:
+            return None
+        cached_results, loaded_sha = warm_start
+        if loaded_sha != cached_sha:
+            # Another process saved a newer pkl between the tag probe and the
+            # load; the diff above no longer vouches for it.
+            return None
+        # A language whose config vanished (e.g. a deleted sub-project) leaves
+        # no diff to inspect — a warm start would drop its bucket, so the
+        # fast path must not serve it.
+        config_languages = {ec.adapter.language_enum for ec in self._engine_configs}
+        stale_languages = set(cached_results.get_languages()) - config_languages
+        if stale_languages:
+            logger.info(
+                "load_cache_if_fresh: cached language(s) %s no longer configured; falling back to LSP analysis",
+                ", ".join(str(lang) for lang in stale_languages),
+            )
+            return None
+        logger.info("static_analysis_cache: outcome=freshhit (cached_sha=%s); LSP startup skipped", cached_sha)
+        self._cached_results = cached_results
+        self._pending_cache_dir = cache_dir
+        self.collected_diagnostics = cached_results.diagnostics
+        return cached_results
+
     def notify_file_changed(self, file_path: Path, content: str) -> None:
         """Notify the LSP server that the editor has saved new content for a file.
 
@@ -495,10 +582,18 @@ class StaticAnalyzer:
         (cluster cache populated by the abstraction agent) reach disk in one
         save instead of two. ``source_sha`` is stashed for that save.
 
-        Clients must be running before calling this method. Use ``start_clients()``
-        or the context manager (``with StaticAnalyzer(...) as sa:``).
+        Clients must be running before calling this method — unless the pkl
+        is fresh (``load_cache_if_fresh`` hit), in which case the cached
+        results are served without any LSP. Use ``start_clients()`` or the
+        context manager (``with StaticAnalyzer(...) as sa:``) for the rest.
         """
         if not self._clients_started:
+            if not skip_cache:
+                fresh = self.load_cache_if_fresh(cache_dir)
+                if fresh is not None:
+                    self._pending_source_sha = source_sha
+                    self._pending_cache_dir = cache_dir
+                    return fresh
             raise RuntimeError(
                 "LSP clients are not running. Call start_clients() or use StaticAnalyzer as a context manager "
                 "('with StaticAnalyzer(...) as sa:') before calling analyze()."
@@ -703,7 +798,9 @@ def get_static_analysis(
 ) -> StaticAnalysisResults:
     """CLI orchestrator: get static analysis results with full LSP lifecycle management.
 
-    Starts LSP clients, runs analysis, and stops clients — all in one call.
+    Probes the SHA-tagged pkl first (LSP-free); on a fresh hit no LSP client
+    is ever started. Otherwise starts LSP clients, runs analysis, and stops
+    clients — all in one call.
 
     Args:
         repo_path: Path to the repository to analyze.
@@ -720,6 +817,10 @@ def get_static_analysis(
         StaticAnalysisResults reflecting the live source state.
     """
     analyzer = StaticAnalyzer(repo_path)
+    if not skip_cache:
+        cached_results = analyzer.load_cache_if_fresh(cache_dir)
+        if cached_results is not None:
+            return cached_results
     with analyzer:
         results = analyzer.analyze(skip_cache=skip_cache, source_sha=source_sha, cache_dir=cache_dir)
     results.diagnostics = analyzer.collected_diagnostics
