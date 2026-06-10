@@ -16,15 +16,13 @@ import time
 from contextvars import ContextVar
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from telemetry.schemas import AnalysisCompleted, AnalysisStarted, LanguageStat, RepoScanned, TokenSnapshot
 from telemetry.service import telemetry
 
 from agents.llm_config import MONITORING_CALLBACK
 
-if TYPE_CHECKING:
-    from static_analyzer.programming_language import ProgrammingLanguage
+from static_analyzer.programming_language import ProgrammingLanguage
 
 # Current analysis run_id, set by ``track_analysis`` for the duration of a run
 # so nested emitters (e.g. the scanner's ``repo_scanned``) can tag the same id
