@@ -41,8 +41,11 @@ def analyzer(tmp_path: Path) -> StaticAnalyzer:
 
 @pytest.fixture
 def cache_dir(tmp_path: Path) -> Path:
+    """Pkl tagged "abc123" with a Python bucket, so hits also prove bucket matching."""
     d = tmp_path / ".codeboarding"
-    StaticAnalysisCache(d, tmp_path).save(StaticAnalysisResults(), source_sha="abc123")
+    results = StaticAnalysisResults()
+    results.add_source_files(Language.PYTHON, [str(tmp_path / "a.py")])
+    StaticAnalysisCache(d, tmp_path).save(results, source_sha="abc123")
     return d
 
 
@@ -58,7 +61,7 @@ class TestLoadCacheIfFresh:
         assert analyzer.collected_diagnostics == result.diagnostics
 
     def test_changed_source_file_misses(self, analyzer: StaticAnalyzer, cache_dir: Path, tmp_path: Path) -> None:
-        """A relevant change — including a deletion, the path need not exist — falls back to LSP."""
+        """The path need not exist — deletions are relevant changes too."""
         with patch("static_analyzer.get_changed_files_since", return_value={tmp_path / "src" / "main.py"}):
             assert analyzer.load_cache_if_fresh(cache_dir) is None
         assert analyzer._cached_results is None
@@ -103,27 +106,15 @@ class TestLoadCacheIfFresh:
         with patch("static_analyzer.get_changed_files_since", return_value={tmp_path / "app.ts"}):
             assert analyzer.load_cache_if_fresh(cache_dir) is None
 
-    def test_removed_language_bucket_misses(self, analyzer: StaticAnalyzer, tmp_path: Path) -> None:
+    def test_removed_language_bucket_misses(self, analyzer: StaticAnalyzer, cache_dir: Path, tmp_path: Path) -> None:
         """A cached language with no current engine config has no diff to vouch for it — fall back."""
-        d = tmp_path / ".codeboarding"
-        results = StaticAnalysisResults()
-        results.add_source_files(Language.PYTHON, [str(tmp_path / "a.py")])
-        StaticAnalysisCache(d, tmp_path).save(results, source_sha="abc123")
         analyzer._engine_configs = [EngineConfig(_make_adapter("TypeScript", (".ts",), Language.TYPESCRIPT), tmp_path)]
         with patch("static_analyzer.get_changed_files_since", return_value=set()):
-            assert analyzer.load_cache_if_fresh(d) is None
-
-    def test_cached_language_with_matching_config_hits(self, analyzer: StaticAnalyzer, tmp_path: Path) -> None:
-        d = tmp_path / ".codeboarding"
-        results = StaticAnalysisResults()
-        results.add_source_files(Language.PYTHON, [str(tmp_path / "a.py")])
-        StaticAnalysisCache(d, tmp_path).save(results, source_sha="abc123")
-        with patch("static_analyzer.get_changed_files_since", return_value=set()):
-            assert analyzer.load_cache_if_fresh(d) is not None
+            assert analyzer.load_cache_if_fresh(cache_dir) is None
 
     def test_concurrent_resave_with_different_sha_misses(self, analyzer: StaticAnalyzer, cache_dir: Path) -> None:
-        """If the pkl is re-saved between the tag probe and the load, the diff no longer vouches for it."""
-        with patch.object(StaticAnalysisCache, "load_with_sha", return_value=(StaticAnalysisResults(), "newer-sha")):
+        """The SHA-gated unpickle misses when the pkl is re-saved between the tag probe and the load."""
+        with patch.object(StaticAnalysisCache, "get", return_value=None):
             with patch("static_analyzer.get_changed_files_since", return_value=set()):
                 assert analyzer.load_cache_if_fresh(cache_dir) is None
 
@@ -133,7 +124,7 @@ class TestLoadCacheIfFresh:
 
     def test_miss_does_not_unpickle(self, analyzer: StaticAnalyzer, cache_dir: Path, tmp_path: Path) -> None:
         """A miss caused by changed files must cost only the tag read + git diff, not the pkl load."""
-        with patch.object(StaticAnalysisCache, "load_with_sha") as load:
+        with patch.object(StaticAnalysisCache, "get") as load:
             with patch("static_analyzer.get_changed_files_since", return_value={tmp_path / "main.py"}):
                 assert analyzer.load_cache_if_fresh(cache_dir) is None
         load.assert_not_called()
