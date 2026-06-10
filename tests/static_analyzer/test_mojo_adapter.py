@@ -53,7 +53,7 @@ class TestMojoAdapterProperties:
         assert MojoAdapter().language_enum is Language.MOJO
 
     def test_file_extensions(self):
-        assert MojoAdapter().file_extensions == (".mojo", ".🔥")
+        assert MojoAdapter().file_extensions == (".mojo", ".\U0001f525")
 
     def test_lsp_command(self):
         assert MojoAdapter().lsp_command == ["mojo-lsp-server"]

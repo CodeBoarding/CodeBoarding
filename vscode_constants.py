@@ -134,7 +134,7 @@ VSCODE_CONFIG = {
             "name": "Mojo Language Server",
             "command": ["mojo-lsp-server"],
             "languages": ["mojo"],
-            "file_extensions": [".mojo", ".🔥"],
+            "file_extensions": [".mojo", ".\U0001f525"],
             # mojo-lsp-server is installed via `pixi global install` by
             # tool_registry. Requires `pixi` on PATH; no native Windows or
             # macOS x86_64 build exists.

@@ -40,8 +40,9 @@ LANGUAGE_EXTENSIONS: dict[Language, tuple[str, ...]] = {
     Language.RUST: (".rs",),
     Language.CSHARP: (".cs",),
     Language.CPP: (".cpp", ".cc", ".cxx", ".hpp", ".hh", ".hxx", ".h"),
-    # ``.🔥`` is Mojo's alternate extension; real repos ship it (lightbug_http).
-    Language.MOJO: (".mojo", ".🔥"),
+    # The fire-emoji (U+1F525) is Mojo's alternate extension; real repos ship
+    # it (lightbug_http). Escaped so the source file stays cp1252-encodable.
+    Language.MOJO: (".mojo", ".\U0001f525"),
 }
 
 # Import-time invariant: every language has an extension list. Cheap check that
