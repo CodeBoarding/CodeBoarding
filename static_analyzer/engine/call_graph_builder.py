@@ -161,6 +161,7 @@ class CallGraphBuilder:
                 symbols = probe_result
             else:
                 symbols = self._lsp.document_symbol(file_path)
+            symbols = self._adapter.postprocess_document_symbols(symbols, file_path)
             self._symbol_table.register_symbols(file_path, symbols, parent_chain=[], project_root=self._root)
             pbar.set_postfix(symbols=len(self._symbol_table.symbols))
             pbar.update(1)

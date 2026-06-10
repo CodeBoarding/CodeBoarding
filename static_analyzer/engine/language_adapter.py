@@ -78,6 +78,15 @@ class LanguageAdapter(ABC):
         """LSP language identifier for textDocument/didOpen."""
         return self.language.lower()
 
+    def postprocess_document_symbols(self, symbols: list[dict], file_path: Path) -> list[dict]:
+        """Hook to repair server quirks in documentSymbol output before registration.
+
+        Default: identity. Override when a server's response shape breaks a
+        downstream assumption (e.g. declaration-line-only ranges that defeat
+        call-site containment).
+        """
+        return symbols
+
     def build_qualified_name(
         self,
         file_path: Path,

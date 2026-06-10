@@ -53,7 +53,7 @@ class TestMojoAdapterProperties:
         assert MojoAdapter().language_enum is Language.MOJO
 
     def test_file_extensions(self):
-        assert MojoAdapter().file_extensions == (".mojo",)
+        assert MojoAdapter().file_extensions == (".mojo", ".🔥")
 
     def test_lsp_command(self):
         assert MojoAdapter().lsp_command == ["mojo-lsp-server"]
@@ -90,3 +90,51 @@ class TestQualifiedNameInherited:
             project_root=tmp_path,
         )
         assert qn == "models.user.User.greet"
+
+
+def _sym(name: str, kind: int, line: int, end_line: int | None = None, children: list | None = None) -> dict:
+    end = end_line if end_line is not None else line
+    return {
+        "name": name,
+        "kind": kind,
+        "range": {"start": {"line": line, "character": 0}, "end": {"line": end, "character": 10}},
+        "selectionRange": {"start": {"line": line, "character": 3}, "end": {"line": line, "character": 8}},
+        "children": children or [],
+    }
+
+
+class TestPostprocessDocumentSymbols:
+    """mojo-lsp-server reports range == selectionRange (declaration line only),
+    which defeats call-site containment and yields empty call graphs. The
+    adapter must extend each degenerate range to the next sibling's start."""
+
+    def _run(self, symbols: list[dict], tmp_path: Path, n_lines: int = 100) -> list[dict]:
+        f = tmp_path / "mod.mojo"
+        f.write_text("\n".join(f"# line {i}" for i in range(n_lines)))
+        return MojoAdapter().postprocess_document_symbols(symbols, f)
+
+    def test_extends_to_next_sibling(self, tmp_path: Path) -> None:
+        syms = self._run([_sym("a", 12, 0), _sym("b", 12, 10)], tmp_path)
+        assert syms[0]["range"]["end"]["line"] == 9
+        assert syms[1]["range"]["end"]["line"] == 99
+
+    def test_last_sibling_extends_to_file_end(self, tmp_path: Path) -> None:
+        syms = self._run([_sym("a", 12, 5)], tmp_path, n_lines=42)
+        assert syms[0]["range"]["end"]["line"] == 41
+
+    def test_children_bounded_by_parent(self, tmp_path: Path) -> None:
+        struct = _sym("S", 23, 10, children=[_sym("m1", 6, 12), _sym("m2", 6, 20)])
+        syms = self._run([struct, _sym("after", 12, 30)], tmp_path)
+        assert syms[0]["range"]["end"]["line"] == 29
+        m1, m2 = syms[0]["children"]
+        assert m1["range"]["end"]["line"] == 19
+        assert m2["range"]["end"]["line"] == 29
+
+    def test_real_multi_line_ranges_untouched(self, tmp_path: Path) -> None:
+        syms = self._run([_sym("a", 12, 0, end_line=7), _sym("b", 12, 10)], tmp_path)
+        assert syms[0]["range"]["end"] == {"line": 7, "character": 10}
+
+    def test_unreadable_file_returns_symbols_unchanged(self, tmp_path: Path) -> None:
+        syms = [_sym("a", 12, 0)]
+        out = MojoAdapter().postprocess_document_symbols(syms, tmp_path / "missing.mojo")
+        assert out[0]["range"]["end"]["line"] == 0
