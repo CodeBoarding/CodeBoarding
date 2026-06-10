@@ -16,20 +16,23 @@ def get_bin_path(bin_dir):
 
 
 def _runnable_native(path: str) -> bool:
-    """True when a native binary exists and is executable, restoring a lost exec bit when possible.
+    """True when a native binary is a runnable file, restoring a lost exec bit when possible.
 
-    Why: a mode-dropping unpack/copy leaves the binary at 0644; wiring its absolute
-    path into the command guarantees EACCES at Popen and disables the PATH fallback
-    in tool_registry.build_config. Mirrors the repair in tool_registry.installers
-    (not imported from there: tool_registry.manifest imports this module).
+    Why: a 0644 binary wired as an absolute path fails EACCES at Popen with the PATH
+    fallback disabled. Mirrors the tool_registry.installers repair (not imported from
+    there: tool_registry.manifest imports this module).
     """
     if platform.system().lower() == "windows":
         # No exec bit on Windows; Popen resolves the suffix-less path to .exe itself.
-        return os.path.exists(path) or os.path.exists(path + ".exe")
-    if not os.path.exists(path):
+        return os.path.isfile(path) or os.path.isfile(path + ".exe")
+    if not os.path.isfile(path):
+        logger.info("No runnable binary at %s; keeping the bare command for PATH lookup", path)
         return False
     if os.access(path, os.X_OK):
         return True
+    if os.path.islink(path):
+        logger.warning("%s is a symlink without exec permission; refusing to chmod it", path)
+        return False
     try:
         os.chmod(path, 0o755)
         logger.info("Restored exec bit on %s", path)
@@ -79,11 +82,12 @@ def update_command_paths(bin_dir):
                     cmd[0] = "java"
             elif "command" in value:
                 if isinstance(cmd, list) and cmd:
-                    candidate = os.path.join(bin_path, cmd[0])
-                    # Keep the bare name when the binary is unusable so the PATH
-                    # fallback in tool_registry.build_config stays available.
-                    if _runnable_native(candidate):
-                        cmd[0] = candidate
+                    # Re-derive from the bare tool name (re-entry may have left an
+                    # absolute path); keep it bare when the binary is unusable so the
+                    # PATH fallback in tool_registry.build_config stays available.
+                    bare = os.path.basename(cmd[0])
+                    candidate = os.path.join(bin_path, bare)
+                    cmd[0] = candidate if _runnable_native(candidate) else bare
 
             # Apply Windows-specific node prefix for specified languages
             # Use VSCode's bundled Node.js (passed via CODEBOARDING_NODE_PATH) so users

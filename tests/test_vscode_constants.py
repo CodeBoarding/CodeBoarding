@@ -236,47 +236,58 @@ class TestVSCodeConstants(unittest.TestCase):
         self.assertIn(".php", php_config["file_extensions"])
 
 
+_PRISTINE_VSCODE_CONFIG = copy.deepcopy(VSCODE_CONFIG)
+
+
 class TestUpdateCommandPathsNativeGate(unittest.TestCase):
     """Native binaries must only be wired as absolute paths when runnable (or repairable),
     otherwise the bare name is kept so build_config's PATH fallback stays available."""
 
     def setUp(self):
-        self._snapshot = copy.deepcopy(VSCODE_CONFIG)
+        self._restore_pristine()
 
     def tearDown(self):
-        VSCODE_CONFIG.clear()
-        VSCODE_CONFIG.update(self._snapshot)
+        self._restore_pristine()
 
-    def _make_gopls(self, temp_dir, mode):
+    def _restore_pristine(self):
+        VSCODE_CONFIG.clear()
+        VSCODE_CONFIG.update(copy.deepcopy(_PRISTINE_VSCODE_CONFIG))
+
+    def _make_binary(self, temp_dir, name, mode):
         bin_dir = Path(temp_dir) / "bin" / "linux"
-        bin_dir.mkdir(parents=True)
-        gopls = bin_dir / "gopls"
-        gopls.write_text("#!/bin/sh\n")
-        os.chmod(gopls, mode)
-        return gopls
+        bin_dir.mkdir(parents=True, exist_ok=True)
+        binary = bin_dir / name
+        binary.write_text("#!/bin/sh\n")
+        os.chmod(binary, mode)
+        return binary
 
     @patch("platform.system")
     def test_executable_binary_wired_absolute(self, mock_system):
         mock_system.return_value = "Linux"
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            gopls = self._make_gopls(temp_dir, 0o755)
+            gopls = self._make_binary(temp_dir, "gopls", 0o755)
+            tokei = self._make_binary(temp_dir, "tokei", 0o755)
 
             update_command_paths(temp_dir)
 
             self.assertEqual(VSCODE_CONFIG["lsp_servers"]["go"]["command"][0], str(gopls))
+            self.assertEqual(VSCODE_CONFIG["tools"]["tokei"]["command"][0], str(tokei))
 
+    @unittest.skipIf(os.name == "nt", "exec-bit semantics are POSIX-only")
     @patch("platform.system")
     def test_repairs_lost_exec_bit(self, mock_system):
         mock_system.return_value = "Linux"
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            gopls = self._make_gopls(temp_dir, 0o644)
+            gopls = self._make_binary(temp_dir, "gopls", 0o644)
 
-            update_command_paths(temp_dir)
+            with self.assertLogs("vscode_constants", level="INFO") as logs:
+                update_command_paths(temp_dir)
 
             self.assertEqual(VSCODE_CONFIG["lsp_servers"]["go"]["command"][0], str(gopls))
             self.assertTrue(os.access(gopls, os.X_OK))
+            self.assertTrue(any("Restored exec bit" in line for line in logs.output))
 
     @patch("platform.system")
     def test_missing_binary_keeps_bare_name(self, mock_system):
@@ -286,19 +297,72 @@ class TestUpdateCommandPathsNativeGate(unittest.TestCase):
             update_command_paths(temp_dir)
 
             self.assertEqual(VSCODE_CONFIG["lsp_servers"]["go"]["command"][0], "gopls")
+            self.assertEqual(VSCODE_CONFIG["tools"]["tokei"]["command"][0], "tokei")
 
+    @unittest.skipIf(os.name == "nt", "exec-bit semantics are POSIX-only")
     @patch("platform.system")
     def test_unrepairable_binary_keeps_bare_name(self, mock_system):
         mock_system.return_value = "Linux"
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            gopls = self._make_gopls(temp_dir, 0o644)
+            gopls = self._make_binary(temp_dir, "gopls", 0o644)
 
-            with patch("os.chmod", side_effect=OSError("operation not permitted")):
-                update_command_paths(temp_dir)
+            with self.assertLogs("vscode_constants", level="WARNING") as logs:
+                with patch("os.chmod", side_effect=OSError("operation not permitted")):
+                    update_command_paths(temp_dir)
 
             self.assertEqual(VSCODE_CONFIG["lsp_servers"]["go"]["command"][0], "gopls")
             self.assertFalse(os.access(gopls, os.X_OK))
+            self.assertTrue(any("chmod failed" in line for line in logs.output))
+
+    @patch("platform.system")
+    def test_directory_named_like_binary_keeps_bare_name(self, mock_system):
+        # A traversable directory passes an exists()+X_OK gate; only isfile keeps
+        # it from being wired as the command and failing EACCES at Popen.
+        mock_system.return_value = "Linux"
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            (Path(temp_dir) / "bin" / "linux" / "gopls").mkdir(parents=True)
+
+            update_command_paths(temp_dir)
+
+            self.assertEqual(VSCODE_CONFIG["lsp_servers"]["go"]["command"][0], "gopls")
+
+    @unittest.skipIf(os.name == "nt", "symlink creation requires privileges on Windows")
+    @patch("platform.system")
+    def test_symlinked_non_executable_binary_not_chmodded(self, mock_system):
+        mock_system.return_value = "Linux"
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            target = Path(temp_dir) / "victim"
+            target.write_text("private")
+            os.chmod(target, 0o600)
+            bin_dir = Path(temp_dir) / "bin" / "linux"
+            bin_dir.mkdir(parents=True)
+            (bin_dir / "gopls").symlink_to(target)
+
+            update_command_paths(temp_dir)
+
+            self.assertEqual(VSCODE_CONFIG["lsp_servers"]["go"]["command"][0], "gopls")
+            self.assertEqual(os.stat(target).st_mode & 0o777, 0o600)
+
+    @patch("platform.system")
+    def test_reinvocation_revalidates_from_bare_name(self, mock_system):
+        mock_system.return_value = "Linux"
+
+        with tempfile.TemporaryDirectory() as old_dir:
+            self._make_binary(old_dir, "gopls", 0o755)
+            update_command_paths(old_dir)
+
+        # old_dir is gone: a second call must fall back to the bare name, not
+        # keep the stale absolute path that would disable the PATH fallback.
+        with tempfile.TemporaryDirectory() as new_dir:
+            update_command_paths(new_dir)
+            self.assertEqual(VSCODE_CONFIG["lsp_servers"]["go"]["command"][0], "gopls")
+
+            gopls = self._make_binary(new_dir, "gopls", 0o755)
+            update_command_paths(new_dir)
+            self.assertEqual(VSCODE_CONFIG["lsp_servers"]["go"]["command"][0], str(gopls))
 
     @patch("platform.system")
     def test_windows_exe_suffix_binary_wired_without_suffix(self, mock_system):
@@ -314,6 +378,15 @@ class TestUpdateCommandPathsNativeGate(unittest.TestCase):
             update_command_paths(temp_dir)
 
             self.assertEqual(VSCODE_CONFIG["lsp_servers"]["go"]["command"][0], str(bin_dir / "gopls"))
+
+    @patch("platform.system")
+    def test_windows_missing_binary_keeps_bare_name(self, mock_system):
+        mock_system.return_value = "Windows"
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            update_command_paths(temp_dir)
+
+            self.assertEqual(VSCODE_CONFIG["lsp_servers"]["go"]["command"][0], "gopls")
 
 
 if __name__ == "__main__":
