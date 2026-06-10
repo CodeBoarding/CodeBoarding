@@ -152,6 +152,19 @@ python main.py full https://github.com/pytorch/pytorch
 - Browse generated examples in [GeneratedOnBoardings](https://github.com/CodeBoarding/GeneratedOnBoardings).
 - Try the hosted explorer at [codeboarding.org/diagrams](https://codeboarding.org/diagrams) <img referrerpolicy="no-referrer-when-downgrade" src="https://static.scarf.sh/a.png?x-pxid=0855d476-b2d0-44cc-b93d-69b47504719c" width="0" height="0" />.
 
+## Telemetry
+
+CodeBoarding collects anonymous, aggregate usage telemetry (which command ran,
+success/failure, duration, and token cost) to help us improve the tool. It is on
+by default and never collects source code, file names, repository names, paths,
+prompts, model outputs, API keys, or any personal information. Opt out anytime:
+
+```bash
+export CODEBOARDING_TELEMETRY=false   # or: export DO_NOT_TRACK=1
+```
+
+See [TELEMETRY.md](TELEMETRY.md) for the full list of events and properties.
+
 ## Contributing
 
 If you want to improve CodeBoarding, open an [issue](https://github.com/CodeBoarding/CodeBoarding/issues) or send a pull request. We welcome improvements to analysis quality, output generators, integrations, and developer experience.
