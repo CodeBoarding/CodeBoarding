@@ -1,6 +1,8 @@
 import logging
 import os
 
+from posthog import Posthog
+
 from telemetry.device_id import generate_device_id
 
 logger = logging.getLogger(__name__)
@@ -35,8 +37,6 @@ class ProductTelemetry:
             return
 
         try:
-            from posthog import Posthog  # type: ignore[import-not-found]
-
             self._client = Posthog(
                 project_api_key=POSTHOG_PROJECT_API_KEY,
                 host=POSTHOG_HOST,
@@ -44,7 +44,7 @@ class ProductTelemetry:
             )
             # Silence the SDK's own logging unless we're debugging.
             logging.getLogger("posthog").setLevel(logging.CRITICAL)
-        except Exception as e:  # SDK missing or init failed -> no-op
+        except Exception as e:  # init failed -> no-op
             logger.debug("Telemetry disabled (init failed): %s", e)
             self._client = None
 
@@ -71,6 +71,20 @@ class ProductTelemetry:
             )
         except Exception as e:
             logger.debug("Telemetry capture failed: %s", e)
+
+    def capture_exception(self, exc: BaseException, *, properties: dict | None = None) -> None:
+        """Forward to PostHog's built-in ``$exception`` error tracking."""
+        if self._client is None:
+            return
+        try:
+            source = os.getenv("CODEBOARDING_SOURCE", "core")
+            self._client.capture_exception(
+                exc,
+                distinct_id=self.user_id,
+                properties={"source": source, **(properties or {})},
+            )
+        except Exception as e:
+            logger.debug("Telemetry capture_exception failed: %s", e)
 
     def flush(self) -> None:
         if self._client is not None:

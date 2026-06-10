@@ -47,9 +47,9 @@ never personal data.
 | Event | When | Properties |
 |-------|------|------------|
 | `analysis_started` | An analysis run begins | `command`, `version`, `run_id`, `depth_level` |
-| `analysis_completed` | An analysis run ends (success or failure) | `command`, `version`, `run_id`, `depth_level`, `status`, `duration_ms`, `model_name`, `total_tokens`, `input_tokens`, `output_tokens`; `error_type`, `error_message`, `error_stacktrace` on failure |
+| `analysis_completed` | An analysis run ends (success or failure) | `command`, `version`, `run_id`, `depth_level`, `status`, `duration_ms`, `model_name`, `total_tokens`, `input_tokens`, `output_tokens` |
 | `repo_scanned` | The repository is scanned (once per repo) | `version`, `run_id`, `total_loc`, `language_count`, `languages`, `stack` |
-| `error` | A failure outside the analysis lifecycle (emitted by embeddings such as the desktop wrapper) | `command`, `version`, `run_id`, `error_type`, `error_message`, `error_stacktrace` |
+| `$exception` | Any unhandled exception, via PostHog's built-in error tracking | `command`, `version`, `run_id` (plus the exception type, message, and stack trace captured automatically by the SDK) |
 
 Every event also carries:
 
@@ -65,11 +65,6 @@ Property meanings:
 - `run_id` — the per-run correlation id described under Identity.
 - `depth_level` — the configured diagram depth (an integer).
 - `status` — `success` or `error`.
-- `error_type` — the exception class name (e.g. `LLMConfigError`).
-- `error_message` — the exception message, truncated to 4000 chars.
-- `error_stacktrace` — the formatted traceback, truncated to 12000 chars (the
-  tail is kept). May include file paths or source snippets from the failing
-  frame — see the privacy note below.
 - `duration_ms` — wall-clock duration of the run.
 - `model_name` — the LLM model used (e.g. `gpt-4o`), for cost analysis.
 - `*_tokens` — token counts consumed by the run, for cost analysis.
@@ -81,9 +76,11 @@ Property meanings:
 
 ### Error diagnostics
 
-On failure, `analysis_completed` (and the standalone `error` event) include the
-exception's message and stack trace so we can diagnose crashes. They are
-truncated and may contain file paths, line numbers, or source snippets from the
+On failure, exceptions are forwarded to PostHog's built-in **error tracking**
+(`$exception` event) via `telemetry.capture_exception`. The SDK captures the
+exception type, message, and stack trace automatically; we attach `command`,
+`version`, `run_id`, and `source` so the crash can be correlated to the run. The
+stack trace may contain file paths, line numbers, or source snippets from the
 failing frame. No source code, repository names, prompts, model outputs, or
 credentials are ever sent.
 
@@ -110,6 +107,7 @@ All telemetry is contained in the [`telemetry/`](telemetry/) package:
 
 - [`telemetry/service.py`](telemetry/service.py) — the PostHog client, opt-out
   check, and anonymous-id resolution.
+- [`telemetry/schemas.py`](telemetry/schemas.py) — Pydantic models for event payloads.
 - [`telemetry/device_id.py`](telemetry/device_id.py) — the anonymous device-id
   algorithm.
 - [`telemetry/events.py`](telemetry/events.py) — the analysis lifecycle and

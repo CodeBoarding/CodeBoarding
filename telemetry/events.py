@@ -3,40 +3,28 @@
 Decorating the core (``codeboarding_workflows.analysis``) rather than the CLI
 means token usage and run outcomes are captured no matter who invokes the core
 (OSS CLI, GitHub Action, or the VSCode wrapper) — the ``source`` property tells
-them apart. No repository name or code content is ever sent; the only place a
-file path can appear is inside a truncated error stacktrace (see ``capture_error``).
+them apart. Exceptions are forwarded to PostHog's built-in ``$exception`` event
+so we get structured error tracking instead of hand-rolled trace formatting.
 """
 
+from __future__ import annotations
+
 import functools
-import inspect
 import os
 import time
-import traceback
 
 from contextvars import ContextVar
 from importlib.metadata import PackageNotFoundError, version
+from pathlib import Path
+from typing import TYPE_CHECKING
 
+from telemetry.schemas import AnalysisCompleted, AnalysisStarted, LanguageStat, RepoScanned, TokenSnapshot
 from telemetry.service import telemetry
 
 from agents.llm_config import MONITORING_CALLBACK
 
-# PostHog rejects oversized properties, and a full stacktrace can be huge.
-# Keep the message generous and the trace bounded; truncation is annotated so
-# a clipped trace is obvious rather than silently misleading.
-_MAX_ERROR_MESSAGE_CHARS = 4000
-_MAX_STACKTRACE_CHARS = 12000
-
-
-def _truncate(text: str, limit: int) -> str:
-    if len(text) <= limit:
-        return text
-    # Keep the tail: the innermost frame (where it actually broke) lives there.
-    return f"...[truncated {len(text) - limit} chars]\n{text[-limit:]}"
-
-
-def _format_stacktrace(exc: BaseException) -> str:
-    return "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
-
+if TYPE_CHECKING:
+    from static_analyzer.programming_language import ProgrammingLanguage
 
 # Current analysis run_id, set by ``track_analysis`` for the duration of a run
 # so nested emitters (e.g. the scanner's ``repo_scanned``) can tag the same id
@@ -52,173 +40,127 @@ def _app_version() -> str:
 
 
 # Repos already reported this process, so a scan that runs twice per analysis
-# (StaticAnalyzer init + diagram generation) emits a single event. Paths stay
-# in-memory only and are never sent.
+# emits a single event. Paths stay in-memory only and are never sent.
 _scanned_repos: set[str] = set()
 
 
-def track_tech_stack(repo_path, total_loc: int, languages) -> None:
-    """Emit one ``repo_scanned`` event with lines-of-code and tech stack.
+def _resolve_run_id() -> str | None:
+    """Correlation id from the subprocess env, then the run-scoped ContextVar."""
+    return os.getenv("CODEBOARDING_RUN_ID") or _current_run_id.get()
 
-    ``languages`` is the scanner's list of detected languages (duck-typed:
-    ``.language``, ``.size``, ``.percentage``). Only aggregate language names and
-    line counts are sent — never file names, paths, or code.
-    """
+
+def _token_usage() -> TokenSnapshot:
+    """Snapshot of the process-global token counters (best effort)."""
+    try:
+        stats = MONITORING_CALLBACK.stats.to_dict()
+        usage = stats.get("token_usage", {})
+        return TokenSnapshot(
+            model_name=stats.get("model_name"),
+            total_tokens=usage.get("total_tokens", 0),
+            input_tokens=usage.get("input_tokens", 0),
+            output_tokens=usage.get("output_tokens", 0),
+        )
+    except Exception:
+        return TokenSnapshot()
+
+
+def track_tech_stack(repo_path: str | Path, total_loc: int, languages: list[ProgrammingLanguage]) -> None:
+    """Emit one ``repo_scanned`` event with lines-of-code and tech stack."""
     key = str(repo_path)
     if key in _scanned_repos:
         return
     _scanned_repos.add(key)
 
     top = sorted(languages, key=lambda pl: pl.size, reverse=True)
-    props = {
-        "version": _app_version(),
-        "total_loc": total_loc,
-        "language_count": len(languages),
-        "languages": [
-            {"language": pl.language, "loc": pl.size, "percentage": round(pl.percentage, 2)} for pl in top[:15]
+    event = RepoScanned(
+        version=_app_version(),
+        run_id=_resolve_run_id(),
+        total_loc=total_loc,
+        language_count=len(languages),
+        languages=[
+            LanguageStat(language=pl.language, loc=pl.size, percentage=round(pl.percentage, 2)) for pl in top[:15]
         ],
-        "stack": ",".join(sorted(pl.language for pl in languages)),
-    }
-    run_id = os.getenv("CODEBOARDING_RUN_ID") or _current_run_id.get()
-    if run_id is not None:
-        props["run_id"] = run_id
-    telemetry.capture("repo_scanned", props)
-
-
-def _token_usage() -> dict:
-    """Snapshot of the process-global token counters (best effort)."""
-    try:
-        stats = MONITORING_CALLBACK.stats.to_dict()
-        usage = stats.get("token_usage", {})
-        return {
-            "model_name": stats.get("model_name"),
-            "total_tokens": usage.get("total_tokens", 0),
-            "input_tokens": usage.get("input_tokens", 0),
-            "output_tokens": usage.get("output_tokens", 0),
-        }
-    except Exception:
-        return {}
-
-
-def _bound_arg(func, args, kwargs, name: str):
-    """Pull a named argument from the call if the wrapped function takes one."""
-    try:
-        bound = inspect.signature(func).bind(*args, **kwargs)
-        bound.apply_defaults()
-        return bound.arguments.get(name)
-    except Exception:
-        return None
-
-
-def _instance_attr(args, name: str):
-    """Read *name* off the bound instance (``self``) of a decorated method.
-
-    ``DiagramGenerator`` methods like ``generate_analysis`` keep ``run_id`` and
-    ``depth_level`` on ``self`` rather than as parameters, so the decorator
-    reads them there to stamp the same id VSCode and Core agreed on — letting
-    events be joined across the VSCode -> wrapper -> core layers.
-    """
-    if args and hasattr(args[0], name):
-        return getattr(args[0], name)
-    return None
+        stack=",".join(sorted(pl.language for pl in languages)),
+    )
+    telemetry.capture("repo_scanned", event.model_dump(exclude_none=True))
 
 
 def track_analysis(func):
     """Emit ``analysis_started`` / ``analysis_completed`` around a core run.
 
-    ``command`` is the wrapped function's name (e.g. ``generate_analysis``).
-    Token counts are reported as the delta over this run so a multi-repo loop
-    in one process attributes usage to the right run.
-
-    ``run_id`` is read from an explicit parameter (standalone workflow
-    functions) or, for ``DiagramGenerator`` methods, from ``self.run_id``. It
-    is stamped on both events so ``analysis_started`` / ``analysis_completed``
-    can be paired — and matched to the VSCode/wrapper layers — even when runs
-    overlap in one process.
+    ``run_id`` is resolved from the VSCode env var, an explicit keyword, or
+    ``self.run_id`` (DiagramGenerator methods). Token counts are reported as the
+    delta over this run. On failure the exception is forwarded to PostHog's
+    built-in ``$exception`` event and ``analysis_completed`` gets ``status=error``.
     """
 
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
-        base = {"command": func.__name__, "version": _app_version()}
-        # VSCode's correlation id (subprocess env) wins so events join across
-        # the VSCode -> wrapper -> core layers regardless of which internal
-        # run_id the generator carries. OSS path has no env id -> falls back
-        # to the explicit param / ``self.run_id``.
-        run_id = (
-            os.getenv("CODEBOARDING_RUN_ID")
-            or _bound_arg(func, args, kwargs, "run_id")
-            or _instance_attr(args, "run_id")
+        instance = args[0] if args else None
+        command = func.__name__
+        run_id = os.getenv("CODEBOARDING_RUN_ID") or kwargs.get("run_id") or getattr(instance, "run_id", None)
+        depth_level = kwargs.get("depth_level") or getattr(instance, "depth_level", None)
+
+        telemetry.capture(
+            "analysis_started",
+            AnalysisStarted(command=command, version=_app_version(), run_id=run_id, depth_level=depth_level).model_dump(
+                exclude_none=True
+            ),
         )
-        if run_id:
-            base["run_id"] = run_id
-        depth_level = _bound_arg(func, args, kwargs, "depth_level") or _instance_attr(args, "depth_level")
-        if depth_level is not None:
-            base["depth_level"] = depth_level
 
         before = _token_usage()
         started = time.monotonic()
-        telemetry.capture("analysis_started", base)
-
         # Expose run_id to nested emitters (e.g. the scanner) for this run only.
         run_id_token = _current_run_id.set(run_id)
 
         status = "success"
-        error_type: str | None = None
-        error_message: str | None = None
-        error_stacktrace: str | None = None
+        exc: BaseException | None = None
         try:
             return func(*args, **kwargs)
-        except BaseException as exc:
+        except BaseException as e:
             status = "error"
-            error_type = type(exc).__name__
-            error_message = _truncate(str(exc), _MAX_ERROR_MESSAGE_CHARS)
-            error_stacktrace = _truncate(_format_stacktrace(exc), _MAX_STACKTRACE_CHARS)
+            exc = e
             raise
         finally:
             _current_run_id.reset(run_id_token)
             after = _token_usage()
-            props = {
-                **base,
-                "status": status,
-                "duration_ms": round((time.monotonic() - started) * 1000),
-                "model_name": after.get("model_name"),
-                "total_tokens": after.get("total_tokens", 0) - before.get("total_tokens", 0),
-                "input_tokens": after.get("input_tokens", 0) - before.get("input_tokens", 0),
-                "output_tokens": after.get("output_tokens", 0) - before.get("output_tokens", 0),
-            }
-            if error_type is not None:
-                props["error_type"] = error_type
-            if error_message:
-                props["error_message"] = error_message
-            if error_stacktrace:
-                props["error_stacktrace"] = error_stacktrace
-            telemetry.capture("analysis_completed", props)
+            telemetry.capture(
+                "analysis_completed",
+                AnalysisCompleted(
+                    command=command,
+                    version=_app_version(),
+                    status=status,
+                    duration_ms=round((time.monotonic() - started) * 1000),
+                    model_name=after.model_name,
+                    total_tokens=after.total_tokens - before.total_tokens,
+                    input_tokens=after.input_tokens - before.input_tokens,
+                    output_tokens=after.output_tokens - before.output_tokens,
+                    run_id=run_id,
+                    depth_level=depth_level,
+                ).model_dump(exclude_none=True),
+            )
+            if exc is not None:
+                exc_props: dict = {"command": command, "version": _app_version()}
+                if run_id:
+                    exc_props["run_id"] = run_id
+                telemetry.capture_exception(exc, properties=exc_props)
             telemetry.flush()
 
     return wrapper
 
 
 def capture_error(command: str, exc: BaseException, *, extra: dict | None = None) -> None:
-    """Emit an ``error`` event carrying the full message + stacktrace of *exc*.
+    """Forward *exc* to PostHog's built-in ``$exception`` error tracking.
 
-    For entry points not wrapped by :func:`track_analysis` (the desktop
-    wrapper's full-analysis / expand paths and its snapshot git operations).
-    The crashing exception's ``str`` and traceback are the whole point — for
-    ``subprocess.CalledProcessError`` that means the runner must fold git's
-    stderr into ``__str__`` (see the wrapper's ``GitCommandError``) or the
-    message is just the useless ``returned non-zero exit status N``.
+    Thin wrapper around ``telemetry.capture_exception`` that stamps the standard
+    properties (command, version, run_id, source). For entry points not wrapped
+    by :func:`track_analysis` (the wrapper's full-analysis / expand / git paths).
     """
-    props = {
-        "command": command,
-        "version": _app_version(),
-        "error_type": type(exc).__name__,
-        "error_message": _truncate(str(exc), _MAX_ERROR_MESSAGE_CHARS),
-        "error_stacktrace": _truncate(_format_stacktrace(exc), _MAX_STACKTRACE_CHARS),
-    }
-    run_id = os.getenv("CODEBOARDING_RUN_ID") or _current_run_id.get()
+    properties: dict = {"command": command, "version": _app_version()}
+    run_id = _resolve_run_id()
     if run_id is not None:
-        props["run_id"] = run_id
+        properties["run_id"] = run_id
     if extra:
-        props.update(extra)
-    telemetry.capture("error", props)
+        properties.update(extra)
+    telemetry.capture_exception(exc, properties=properties)
     telemetry.flush()
