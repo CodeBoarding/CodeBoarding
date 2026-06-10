@@ -40,7 +40,8 @@ LANGUAGE_EXTENSIONS: dict[Language, tuple[str, ...]] = {
     Language.RUST: (".rs",),
     Language.CSHARP: (".cs",),
     Language.CPP: (".cpp", ".cc", ".cxx", ".hpp", ".hh", ".hxx", ".h"),
-    Language.MOJO: (".mojo",),
+    # ``.🔥`` is Mojo's alternate extension; real repos ship it (lightbug_http).
+    Language.MOJO: (".mojo", ".🔥"),
 }
 
 # Import-time invariant: every language has an extension list. Cheap check that
