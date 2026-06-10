@@ -295,13 +295,19 @@ TOOL_REGISTRY: list[ToolDependency] = [
         config_section=ConfigSection.LSP_SERVERS,
         binary_subpath="bin",
         source=PackageManagerToolSource(
-            tag="25.5",
+            # Modular re-versioned ``mojo`` to a 1.0 scheme and purged the 25.x
+            # builds from the channel; 1.0.0b1 also depends on python>=3.10,
+            # which only conda-forge provides — without that channel the solve
+            # fails with "no candidates were found for python".
+            tag="1.0.0b1",
             manager_binary="pixi",
             install_args=(
                 "global",
                 "install",
                 "--channel",
                 "https://conda.modular.com/max",
+                "--channel",
+                "conda-forge",
                 "--expose",
                 "mojo-lsp-server",
                 "mojo={tag}",
