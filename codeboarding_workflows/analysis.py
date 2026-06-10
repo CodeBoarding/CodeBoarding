@@ -16,6 +16,7 @@ from pathlib import Path
 from diagram_analysis import DiagramGenerator
 from diagram_analysis.io_utils import load_analysis_metadata, load_full_analysis, save_sub_analysis
 from repo_utils.diff_parser import detect_changes
+from telemetry.events import track_analysis
 
 logger = logging.getLogger(__name__)
 
@@ -112,13 +113,14 @@ def run_partial(
     if metadata is None:
         raise BaselineUnavailableError(f"No baseline analysis.json found in '{output_dir}'. Run a full analysis first.")
 
+    depth_level = int(metadata.get("depth_level", 1))
     generator = build_generator(
         repo_name=project_name,
         repo_path=repo_path,
         output_dir=output_dir,
         run_id=run_id,
         log_path=log_path,
-        depth_level=int(metadata.get("depth_level", 1)),
+        depth_level=depth_level,
     )
     generator.pre_analysis()
 
@@ -150,7 +152,7 @@ def run_partial(
         logger.error(f"Component with ID '{component_id}' not found in analysis")
         return
 
-    _comp_id, sub_analysis, _new_components = generator.process_component(component_to_analyze)
+    _, sub_analysis, __ = generator.process_component(component_to_analyze)
 
     if sub_analysis:
         save_sub_analysis(sub_analysis, output_dir, component_id)
@@ -208,7 +210,6 @@ def run_incremental(
         changes=changes,
     )
     generator.source_sha = source_sha
-
     return run_incremental_workflow(generator)
 
 

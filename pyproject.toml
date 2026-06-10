@@ -46,6 +46,8 @@ dependencies = [
     "networkx>=3.4",
     "nodeenv>=1.10.0",
     "pathspec>=0.12",
+    "posthog>=3.7",
+    "pydantic>=2.0",
     "pyyaml>=6.0",
     "regex>=2024.11",
     "rich>=12.6",
@@ -94,6 +96,7 @@ packages = [
     "codeboarding_cli.commands",
     "codeboarding_workflows",
     "codeboarding_workflows.sources",
+    "telemetry",
 ]
 py-modules = [
     "constants",

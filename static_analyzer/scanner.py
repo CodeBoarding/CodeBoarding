@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Set
 
 from static_analyzer.programming_language import ProgrammingLanguage, ProgrammingLanguageBuilder
+from telemetry.events import track_tech_stack
 from utils import get_config
 
 logger = logging.getLogger(__name__)
@@ -83,6 +84,7 @@ class ProjectScanner:
                 programming_languages.append(pl)
 
         self.all_text_files = all_files
+        track_tech_stack(self.repo_location, total_code, programming_languages)
         return programming_languages
 
     @staticmethod

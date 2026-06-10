@@ -509,7 +509,7 @@ class TestDiagramGenerator(unittest.TestCase):
                 return "A-child", sub_analysis_child, []
             raise AssertionError(f"Unexpected component: {component.name}")
 
-        gen.process_component = Mock(side_effect=process_component_side_effect)
+        gen._process_component = Mock(side_effect=process_component_side_effect)
 
         result = gen.generate_analysis()
 
@@ -518,7 +518,7 @@ class TestDiagramGenerator(unittest.TestCase):
         self.assertIn("b_end", timestamps)
         self.assertLess(timestamps["child_start"], timestamps["b_end"])
 
-        processed_names = [call.args[0].name for call in gen.process_component.call_args_list]
+        processed_names = [call.args[0].name for call in gen._process_component.call_args_list]
         self.assertIn("A-child", processed_names)
 
     def test_generate_analysis_uses_root_expandables_for_can_expand(self):
