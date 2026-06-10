@@ -58,7 +58,6 @@ def build_generator(
     )
 
 
-@track_analysis
 def run_full(
     repo_name: str,
     repo_path: Path,
@@ -93,7 +92,6 @@ def run_full(
     return generator.generate_analysis()
 
 
-@track_analysis
 def run_partial(
     repo_path: Path,
     output_dir: Path,
@@ -154,7 +152,7 @@ def run_partial(
         logger.error(f"Component with ID '{component_id}' not found in analysis")
         return
 
-    _comp_id, sub_analysis, _new_components = generator.process_component(component_to_analyze)
+    _, sub_analysis, __ = generator.process_component(component_to_analyze)
 
     if sub_analysis:
         save_sub_analysis(sub_analysis, output_dir, component_id)
@@ -163,7 +161,6 @@ def run_partial(
         logger.error(f"Failed to generate sub-analysis for component '{component_id}'")
 
 
-@track_analysis
 def run_incremental(
     repo_path: Path,
     output_dir: Path,

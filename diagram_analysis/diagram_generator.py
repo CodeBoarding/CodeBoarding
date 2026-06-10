@@ -22,6 +22,7 @@ from agents.incremental_agent import (
 from agents.llm_config import initialize_llms
 from agents.meta_agent import MetaAgent
 from agents.planner_agent import get_expandable_components
+from telemetry.events import track_analysis
 from diagram_analysis.analysis_json import (
     FileCoverageReport,
     FileCoverageSummary,
@@ -118,14 +119,20 @@ class DiagramGenerator:
         self._monitoring_agents: dict[str, MonitoringMixin] = {}
         self.stats_writer: StreamingStatsWriter | None = None
 
+    @track_analysis
     def process_component(
+        self, component: Component
+    ) -> tuple[str, AnalysisInsights, list[Component]] | tuple[None, None, list]:
+        return self._process_component(component)
+
+    def _process_component(
         self, component: Component
     ) -> tuple[str, AnalysisInsights, list[Component]] | tuple[None, None, list]:
         """Process a single component and return its name, sub-analysis, and new components to analyze."""
         try:
             assert self.details_agent is not None
 
-            analysis, subgraph_cluster_results = self.details_agent.run(component)
+            analysis, _ = self.details_agent.run(component)
 
             # Track whether parent had clusters for expansion decision
             parent_had_clusters = bool(component.source_cluster_ids)
@@ -387,7 +394,7 @@ class DiagramGenerator:
             future_to_task: dict[Future, tuple[Component, int]] = {}
 
             def submit_component(comp: Component, lvl: int):
-                future = executor.submit(self.process_component, comp)
+                future = executor.submit(self._process_component, comp)
                 future_to_task[future] = (comp, lvl)
                 stats["submitted"] += 1
                 logger.debug("Submitted component='%s' at level=%d", comp.name, lvl)
@@ -447,6 +454,7 @@ class DiagramGenerator:
 
         return expanded_components, sub_analyses
 
+    @track_analysis
     def generate_analysis(self) -> Path:
         """
         Generate the graph analysis for the given repository.
@@ -535,6 +543,7 @@ class DiagramGenerator:
             not_analyzed_by_reason=summary["not_analyzed_by_reason"],
         )
 
+    @track_analysis
     def generate_analysis_incremental(
         self,
         root_analysis: AnalysisInsights,

@@ -4,9 +4,10 @@ CodeBoarding collects **anonymous, aggregate usage telemetry** so we can see how
 the tool is used (which commands run, success rates, rough token/latency cost)
 and prioritize what to improve. It is **on by default** and easy to turn off.
 
-We designed it to be privacy-first: **no source code, file names, repository
-names, paths, prompts, model outputs, API keys, IP addresses, or any personal
-information are ever collected.**
+We designed it to be privacy-first: **no source code, repository names, prompts,
+model outputs, API keys, IP addresses, or any personal information are ever
+collected.** (Error diagnostics may include file paths from a traceback — see
+[Error diagnostics](#error-diagnostics) for the only exception.)
 
 ## How to opt out
 
@@ -34,13 +35,21 @@ tell that one anonymous user used both — without ever learning who they are.
 
 There is no account, email, login, or IP-based identity. GeoIP is disabled.
 
+`distinct_id` is the **who**. Events also carry a `run_id` (the **which run**):
+a per-run correlation id that lets us join one analysis's events across the VS
+Code extension, the wrapper, and Core. The extension generates one per analysis
+and threads it through the wrapper into Core (via the `CODEBOARDING_RUN_ID` env
+var); for standalone OSS runs it is Core's internal run id. It is an opaque id,
+never personal data.
+
 ### Events
 
 | Event | When | Properties |
 |-------|------|------------|
-| `analysis_started` | An analysis run begins | `command`, `version`, `depth_level` |
-| `analysis_completed` | An analysis run ends (success or failure) | `command`, `version`, `depth_level`, `status`, `duration_ms`, `model_name`, `total_tokens`, `input_tokens`, `output_tokens`, `error_type` (only on failure) |
-| `repo_scanned` | The repository is scanned (once per repo) | `version`, `total_loc`, `language_count`, `languages`, `stack` |
+| `analysis_started` | An analysis run begins | `command`, `version`, `run_id`, `depth_level` |
+| `analysis_completed` | An analysis run ends (success or failure) | `command`, `version`, `run_id`, `depth_level`, `status`, `duration_ms`, `model_name`, `total_tokens`, `input_tokens`, `output_tokens`; `error_type`, `error_message`, `error_stacktrace` on failure |
+| `repo_scanned` | The repository is scanned (once per repo) | `version`, `run_id`, `total_loc`, `language_count`, `languages`, `stack` |
+| `error` | A failure outside the analysis lifecycle (emitted by embeddings such as the desktop wrapper) | `command`, `version`, `run_id`, `error_type`, `error_message`, `error_stacktrace` |
 
 Every event also carries:
 
@@ -50,12 +59,17 @@ Every event also carries:
 
 Property meanings:
 
-- `command` — which workflow ran: `full`, `incremental`, or `partial`.
+- `command` — the Core entry point that ran (e.g. `generate_analysis`,
+  `generate_analysis_incremental`).
 - `version` — the installed CodeBoarding version.
+- `run_id` — the per-run correlation id described under Identity.
 - `depth_level` — the configured diagram depth (an integer).
 - `status` — `success` or `error`.
-- `error_type` — the exception class name (e.g. `LLMConfigError`), never the
-  message or stack trace.
+- `error_type` — the exception class name (e.g. `LLMConfigError`).
+- `error_message` — the exception message, truncated to 4000 chars.
+- `error_stacktrace` — the formatted traceback, truncated to 12000 chars (the
+  tail is kept). May include file paths or source snippets from the failing
+  frame — see the privacy note below.
 - `duration_ms` — wall-clock duration of the run.
 - `model_name` — the LLM model used (e.g. `gpt-4o`), for cost analysis.
 - `*_tokens` — token counts consumed by the run, for cost analysis.
@@ -65,13 +79,24 @@ Property meanings:
 - `stack` — sorted, comma-joined language names (the tech stack), e.g.
   `Python,Shell,TypeScript`.
 
+### Error diagnostics
+
+On failure, `analysis_completed` (and the standalone `error` event) include the
+exception's message and stack trace so we can diagnose crashes. They are
+truncated and may contain file paths, line numbers, or source snippets from the
+failing frame. No source code, repository names, prompts, model outputs, or
+credentials are ever sent.
+
 ## What we never collect
 
 - Source code or file contents
-- File names, paths, or repository names/URLs
+- Repository names or URLs
 - Prompts sent to or responses from LLMs
 - API keys, tokens, or credentials of any kind
 - Names, emails, usernames, or IP addresses
+
+(File paths or source snippets may appear inside a truncated error stack trace,
+as noted above — that is the only exception.)
 
 ## Where it goes
 

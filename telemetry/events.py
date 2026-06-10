@@ -3,11 +3,13 @@
 Decorating the core (``codeboarding_workflows.analysis``) rather than the CLI
 means token usage and run outcomes are captured no matter who invokes the core
 (OSS CLI, GitHub Action, or the VSCode wrapper) — the ``source`` property tells
-them apart. No repository name, path, or code content is ever sent.
+them apart. No repository name or code content is ever sent; the only place a
+file path can appear is inside a truncated error stacktrace (see ``capture_error``).
 """
 
 import functools
 import inspect
+import os
 import time
 import traceback
 
@@ -77,7 +79,7 @@ def track_tech_stack(repo_path, total_loc: int, languages) -> None:
         ],
         "stack": ",".join(sorted(pl.language for pl in languages)),
     }
-    run_id = _current_run_id.get()
+    run_id = os.getenv("CODEBOARDING_RUN_ID") or _current_run_id.get()
     if run_id is not None:
         props["run_id"] = run_id
     telemetry.capture("repo_scanned", props)
@@ -108,25 +110,48 @@ def _bound_arg(func, args, kwargs, name: str):
         return None
 
 
+def _instance_attr(args, name: str):
+    """Read *name* off the bound instance (``self``) of a decorated method.
+
+    ``DiagramGenerator`` methods like ``generate_analysis`` keep ``run_id`` and
+    ``depth_level`` on ``self`` rather than as parameters, so the decorator
+    reads them there to stamp the same id VSCode and Core agreed on — letting
+    events be joined across the VSCode -> wrapper -> core layers.
+    """
+    if args and hasattr(args[0], name):
+        return getattr(args[0], name)
+    return None
+
+
 def track_analysis(func):
     """Emit ``analysis_started`` / ``analysis_completed`` around a core run.
 
-    The command is the wrapped function's name without the ``run_`` prefix
-    (``run_full`` -> ``full``). Token counts are reported as the delta over this
-    run so a multi-repo loop in one process attributes usage to the right run.
+    ``command`` is the wrapped function's name (e.g. ``generate_analysis``).
+    Token counts are reported as the delta over this run so a multi-repo loop
+    in one process attributes usage to the right run.
 
-    ``run_id`` (the same id ``monitoring`` uses) is stamped on both events so
-    ``analysis_started`` / ``analysis_completed`` can be paired even when runs
+    ``run_id`` is read from an explicit parameter (standalone workflow
+    functions) or, for ``DiagramGenerator`` methods, from ``self.run_id``. It
+    is stamped on both events so ``analysis_started`` / ``analysis_completed``
+    can be paired — and matched to the VSCode/wrapper layers — even when runs
     overlap in one process.
     """
 
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
-        base = {"command": func.__name__.removeprefix("run_"), "version": _app_version()}
-        run_id = _bound_arg(func, args, kwargs, "run_id")
-        if run_id is not None:
+        base = {"command": func.__name__, "version": _app_version()}
+        # VSCode's correlation id (subprocess env) wins so events join across
+        # the VSCode -> wrapper -> core layers regardless of which internal
+        # run_id the generator carries. OSS path has no env id -> falls back
+        # to the explicit param / ``self.run_id``.
+        run_id = (
+            os.getenv("CODEBOARDING_RUN_ID")
+            or _bound_arg(func, args, kwargs, "run_id")
+            or _instance_attr(args, "run_id")
+        )
+        if run_id:
             base["run_id"] = run_id
-        depth_level = _bound_arg(func, args, kwargs, "depth_level")
+        depth_level = _bound_arg(func, args, kwargs, "depth_level") or _instance_attr(args, "depth_level")
         if depth_level is not None:
             base["depth_level"] = depth_level
 
@@ -190,7 +215,7 @@ def capture_error(command: str, exc: BaseException, *, extra: dict | None = None
         "error_message": _truncate(str(exc), _MAX_ERROR_MESSAGE_CHARS),
         "error_stacktrace": _truncate(_format_stacktrace(exc), _MAX_STACKTRACE_CHARS),
     }
-    run_id = _current_run_id.get()
+    run_id = os.getenv("CODEBOARDING_RUN_ID") or _current_run_id.get()
     if run_id is not None:
         props["run_id"] = run_id
     if extra:
