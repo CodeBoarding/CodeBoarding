@@ -22,13 +22,12 @@ def _runnable_native(path: str) -> bool:
     fallback disabled. Mirrors the tool_registry.installers repair (not imported from
     there: tool_registry.manifest imports this module).
     """
-    if platform.system().lower() == "windows":
-        # No exec bit on Windows; Popen resolves the suffix-less path to .exe itself.
-        return os.path.isfile(path) or os.path.isfile(path + ".exe")
-    if not os.path.isfile(path):
+    windows = platform.system().lower() == "windows"
+    # On Windows the .exe sibling counts; Popen resolves the suffix-less path itself.
+    if not (os.path.isfile(path) or (windows and os.path.isfile(path + ".exe"))):
         logger.info("No runnable binary at %s; keeping the bare command for PATH lookup", path)
         return False
-    if os.access(path, os.X_OK):
+    if windows or os.access(path, os.X_OK):
         return True
     if os.path.islink(path):
         logger.warning("%s is a symlink without exec permission; refusing to chmod it", path)
