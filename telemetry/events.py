@@ -10,6 +10,7 @@ so we get structured error tracking instead of hand-rolled trace formatting.
 from __future__ import annotations
 
 import functools
+import logging
 import os
 import time
 
@@ -17,12 +18,19 @@ from contextvars import ContextVar
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
-from telemetry.schemas import AnalysisCompleted, AnalysisStarted, LanguageStat, RepoScanned, TokenSnapshot
+from telemetry.schemas import (
+    AnalysisCompleted,
+    AnalysisStarted,
+    LanguageStat,
+    LspAnalysisResult,
+    RepoScanned,
+    TokenSnapshot,
+)
 from telemetry.service import telemetry
 
 from agents.llm_config import MONITORING_CALLBACK
 
-from static_analyzer.programming_language import ProgrammingLanguage
+logger = logging.getLogger(__name__)
 
 # Current analysis run_id, set by ``track_analysis`` for the duration of a run
 # so nested emitters (e.g. the scanner's ``repo_scanned``) can tag the same id
@@ -62,7 +70,7 @@ def _token_usage() -> TokenSnapshot:
         return TokenSnapshot()
 
 
-def track_tech_stack(repo_path: str | Path, total_loc: int, languages: list[ProgrammingLanguage]) -> None:
+def track_tech_stack(repo_path: str | Path, total_loc: int, languages: list) -> None:
     """Emit one ``repo_scanned`` event with lines-of-code and tech stack."""
     key = str(repo_path)
     if key in _scanned_repos:
@@ -81,6 +89,72 @@ def track_tech_stack(repo_path: str | Path, total_loc: int, languages: list[Prog
         stack=",".join(sorted(pl.language for pl in languages)),
     )
     telemetry.capture("repo_scanned", event.model_dump(exclude_none=True))
+
+
+def track_lsp_result(
+    *,
+    language: str,
+    loc: int,
+    status: str,
+    duration_ms: int,
+    analysis: dict,
+    diagnostics: dict,
+) -> None:
+    """Emit one ``lsp_analysis_result`` event for a language analysis pass."""
+    call_graph = analysis.get("call_graph")
+    missing_call_graph = call_graph is None
+    node_count = len(call_graph.nodes) if call_graph is not None else 0
+    edge_count = len(call_graph.edges) if call_graph is not None else 0
+    source_files = analysis.get("source_files")
+    missing_source_files = source_files is None
+    if source_files is None:
+        source_files = []
+    references = analysis.get("references", [])
+    if not diagnostics:
+        diagnostics = analysis.get("diagnostics") or {}
+    diagnostic_count = sum(len(items) for items in diagnostics.values()) if diagnostics else 0
+
+    zero_nodes_with_loc = loc > 0 and node_count == 0
+    zero_edges_with_loc = loc > 0 and edge_count == 0
+    missing_summary = missing_call_graph or missing_source_files
+    quality_status = "error" if zero_nodes_with_loc else "warning" if zero_edges_with_loc or missing_summary else "ok"
+
+    issues = []
+    if zero_nodes_with_loc:
+        issues.append("zero nodes despite LOC")
+    if zero_edges_with_loc:
+        issues.append("zero edges despite LOC")
+    if missing_call_graph:
+        issues.append("missing call graph")
+    if missing_source_files:
+        issues.append("missing source files")
+    if zero_nodes_with_loc:
+        logger.error("LSP analysis result for %s is unhealthy: %s", language, ", ".join(issues))
+    elif issues:
+        logger.warning(
+            "LSP analysis result for %s is degraded: %s",
+            language,
+            ", ".join(issues),
+        )
+
+    event = LspAnalysisResult(
+        version=_app_version(),
+        run_id=_resolve_run_id(),
+        language=language,
+        loc=loc,
+        status=status,
+        duration_ms=duration_ms,
+        source_file_count=len(source_files),
+        node_count=node_count,
+        edge_count=edge_count,
+        reference_count=len(references),
+        diagnostic_file_count=len(diagnostics),
+        diagnostic_count=diagnostic_count,
+        quality_status=quality_status,
+        zero_nodes_with_loc=zero_nodes_with_loc,
+        zero_edges_with_loc=zero_edges_with_loc,
+    )
+    telemetry.capture("lsp_analysis_result", event.model_dump(exclude_none=True))
 
 
 def track_analysis(func):

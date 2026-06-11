@@ -4,7 +4,7 @@
 - **Activate the venv in the repository to run python**: Always execute `source .venv/bin/activate` (or `.venv\Scripts\activate` on Windows) before running any Python commands. This ensures all dependencies are resolved correctly and the project is isolated.
 - **Use `uv run` for direct execution**: When running scripts without pre-activating the venv, use `uv run python <script>` or `uv run pytest --ignore=tests/integration` to leverage the virtual environment automatically.
 - **Verify Python version**: Ensure the Python version is 3.12 or higher (as specified in `.python_version`). Check with `python --version` after activating the venv.
-- **Static type checking** - we use mypy for static type checking of the CodeBoarding repo, we avoid the typing library where possible and use the default library types: dict, set, list etc. for Optional we use the | None notation.
+- **Static type checking** - we use mypy for static type checking of the CodeBoarding repo, we avoid the typing library where possible and use the default library types: dict, set, list etc. Avoid nullable types when a caller can pass an empty collection or concrete value instead. If a nullable type is truly necessary, use the `| None` notation.
 
 ### 2. Dependency and Repository Navigation
 - **Always use relative paths from repository root**: Reference files using paths like `src/components/file.ts` or `agents/tools/module.py` relative to `/Users/svilen/Documents/Projects/CodeBoarding/`. This ensures consistency across agent execution and makes file references portable.
@@ -15,7 +15,7 @@
 - **Run tests with coverage requirements**: Execute `uv run pytest --cov=. --cov-report=term --cov-fail-under=80 --ignore=tests/integration` to validate changes. The project enforces an 80% minimum code coverage threshold.
 - **Format and lint before commits**: Run `uv run black .` (line length: 120) and `uv run mypy .` to ensure code quality. These are enforced in pre-commit hooks and GitHub CI/CD workflows.
 - **Respect project structure**: Code is organized by functional domain (e.g., `agents/`, `static_analyzer/`, `output_generators/`, `monitoring/`). Place new code in the appropriate directory and follow existing module patterns.
-- **Add imports at the top of the file**: avoid function or class level imports - only consider them if they have significant impact on the execution.
+- **Add imports at the top of the file**: avoid function or class level imports. Do not use `if TYPE_CHECKING` import blocks; keep runtime imports explicit and resolve cycles by moving shared types or decoupling modules instead.
 - **Keep comments and docstrings terse**: write a one-line summary. Add a short `Why:` line only when the rationale is non-obvious. Do NOT narrate diff history (`"Previously X did Y"`), name internal bug tickets (`"V4 reproducer"`, `"Bug C"`), reference line numbers in third-party files (they rot), or re-state what type hints already say. If the prose is longer than the code it documents, delete the prose. See `REVIEW.md` §10 "Comment & Docstring Bloat" for the full checklist.
 - **Don't re-paste module docstrings across submodules**: a package-layout explanation belongs once in `__init__.py`, not copied into every sibling file.
 - **Test docstrings should add information**: if a test is named `test_rejects_none`, the docstring `"""Test that None is rejected."""` is pure noise — delete it. Only add a docstring when there's a non-obvious *reason* the test exists.
