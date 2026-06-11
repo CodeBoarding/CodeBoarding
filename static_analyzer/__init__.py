@@ -23,6 +23,7 @@ from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
 from static_analyzer.programming_language import ProgrammingLanguage
 from static_analyzer.scanner import ProjectScanner
 from static_analyzer.typescript_config_scanner import TypeScriptConfigScanner
+from telemetry.events import track_lsp_result
 from tool_registry import ensure_node_on_path
 from utils import get_artifact_dir
 
@@ -167,8 +168,8 @@ class StaticAnalyzer:
     def __init__(self, repository_path: Path):
         self.repository_path = repository_path.resolve()
         self.ignore_manager = RepoIgnoreManager(self.repository_path)
-        programming_langs = ProjectScanner(self.repository_path).scan()
-        self._engine_configs = _create_engine_configs(programming_langs, self.repository_path, self.ignore_manager)
+        self.programming_langs = ProjectScanner(self.repository_path).scan()
+        self._engine_configs = _create_engine_configs(self.programming_langs, self.repository_path, self.ignore_manager)
         self._engine_clients: list[tuple[EngineConfig, LSPClient]] = []
         self.collected_diagnostics: dict[Language, FileDiagnosticsMap] = {}
         self._clients_started: bool = False
@@ -546,17 +547,32 @@ class StaticAnalyzer:
         for engine_config, engine_client in self._engine_clients:
             adapter, project_path = engine_config.adapter, engine_config.project_path
             language = adapter.language_enum
+            t_lang_start = time.monotonic()
             try:
-                t_lang_start = time.monotonic()
                 logger.info(f"Starting engine analysis for {adapter.language} in {project_path}")
                 analysis = self._run_full_analysis(engine_config, engine_client)
                 self._absorb_into_results(results, language, analysis)
-                logger.info(
-                    f"Engine analysis for {adapter.language} completed in {time.monotonic() - t_lang_start:.1f}s"
-                )
+                duration_ms = round((time.monotonic() - t_lang_start) * 1000)
+                logger.info(f"Engine analysis for {adapter.language} completed in {duration_ms / 1000:.1f}s")
                 self._collect_diagnostics_for(adapter, engine_client, analysis)
+                track_lsp_result(
+                    language=adapter.language_enum.value,
+                    loc=self._loc_for_adapter(adapter),
+                    status="success",
+                    duration_ms=duration_ms,
+                    analysis=analysis,
+                    diagnostics=self.collected_diagnostics.get(adapter.language_enum, {}),
+                )
             except Exception as e:
                 logger.error(f"Error during engine analysis for {adapter.language}: {e}")
+                track_lsp_result(
+                    language=adapter.language_enum.value,
+                    loc=self._loc_for_adapter(adapter),
+                    status="error",
+                    duration_ms=round((time.monotonic() - t_lang_start) * 1000),
+                    analysis={},
+                    diagnostics={},
+                )
         logger.info(f"Static analysis complete: {results}")
         return results
 
@@ -578,6 +594,7 @@ class StaticAnalyzer:
             adapter, project_path = engine_config.adapter, engine_config.project_path
             language = adapter.language_enum
             cached_lang_dict = self._extract_language_dict(cached_results, language)
+            t_lang_start = time.monotonic()
             try:
                 changed_files = set(get_changed_files_since(project_path, cached_sha))
             except Exception as e:
@@ -597,6 +614,14 @@ class StaticAnalyzer:
 
             self._absorb_into_results(results, language, analysis)
             self._collect_diagnostics_for(adapter, engine_client, analysis)
+            track_lsp_result(
+                language=adapter.language_enum.value,
+                loc=self._loc_for_adapter(adapter),
+                status="success",
+                duration_ms=round((time.monotonic() - t_lang_start) * 1000),
+                analysis=analysis,
+                diagnostics=self.collected_diagnostics.get(adapter.language_enum, {}),
+            )
         return results
 
     def _extract_language_dict(self, cached_results: StaticAnalysisResults, language: Language) -> dict:
@@ -656,6 +681,16 @@ class StaticAnalyzer:
                 f"(cache={len(cache_diags)}, live={len(live_diags)})"
             )
         self.collected_diagnostics[adapter.language_enum] = merged_diags
+
+    def _loc_for_adapter(self, adapter: LanguageAdapter) -> int:
+        """Return scanner LOC that should have been covered by this adapter."""
+        adapter_name = adapter.language.lower()
+        total = 0
+        for pl in self.programming_langs:
+            mapped = _lang_to_adapter_name(pl.language)
+            if mapped is not None and mapped.lower() == adapter_name:
+                total += pl.size
+        return total
 
     def _run_full_analysis(self, engine_config: EngineConfig, engine_client: LSPClient) -> dict:
         """Run a full analysis using the engine pipeline.

@@ -13,12 +13,17 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from static_analyzer import EngineConfig, StaticAnalyzer
+from static_analyzer.constants import Language
 from static_analyzer.engine.language_adapter import LanguageAdapter
 
 
-def _make_adapter(language: str, *, wait_for_workspace_ready: bool = False) -> LanguageAdapter:
+def _make_adapter(
+    language: str, *, wait_for_workspace_ready: bool = False, language_enum: Language | None = None
+) -> LanguageAdapter:
     adapter = MagicMock(name=f"{language}Adapter")
     adapter.language = language
+    if language_enum is not None:
+        adapter.language_enum = language_enum
     adapter.get_lsp_command.return_value = [f"{language.lower()}-lsp"]
     adapter.get_lsp_init_options.return_value = {}
     adapter.get_lsp_env.return_value = {}

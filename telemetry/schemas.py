@@ -22,6 +22,24 @@ class RepoScanned(BaseModel):
     run_id: str | None = None
 
 
+class LspAnalysisResult(BaseModel):
+    version: str
+    language: str
+    loc: int
+    status: str
+    duration_ms: int
+    source_file_count: int = 0
+    node_count: int = 0
+    edge_count: int = 0
+    reference_count: int = 0
+    diagnostic_file_count: int = 0
+    diagnostic_count: int = 0
+    quality_status: str = "ok"
+    zero_nodes_with_loc: bool = False
+    zero_edges_with_loc: bool = False
+    run_id: str | None = None
+
+
 class AnalysisStarted(BaseModel):
     command: str
     version: str

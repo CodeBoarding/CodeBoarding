@@ -3,7 +3,7 @@ from types import SimpleNamespace
 import pytest
 
 import telemetry.events as events
-from telemetry.events import capture_error, track_analysis
+from telemetry.events import capture_error, track_analysis, track_lsp_result
 
 
 @pytest.fixture
@@ -111,6 +111,44 @@ def test_repo_scanned_reads_run_id_from_env_without_track_analysis(captured, mon
     events.track_tech_stack("/env-repo", 100, [])
 
     assert props_for(captured, "repo_scanned")["run_id"] == "env-run"
+
+
+def test_lsp_analysis_result_marks_zero_nodes_as_error(captured, monkeypatch):
+    monkeypatch.setenv("CODEBOARDING_RUN_ID", "lsp-run")
+
+    analysis = {
+        "call_graph": SimpleNamespace(nodes={}, edges=[]),
+        "source_files": ["a.py", "b.py"],
+    }
+
+    track_lsp_result(
+        language="python",
+        loc=42,
+        status="success",
+        duration_ms=250,
+        analysis=analysis,
+        diagnostics={},
+    )
+
+    props = props_for(captured, "lsp_analysis_result")
+    assert props["run_id"] == "lsp-run"
+    assert props["language"] == "python"
+    assert "project_path" not in props
+    assert props["source_file_count"] == 2
+    assert props["quality_status"] == "error"
+    assert props["zero_nodes_with_loc"] is True
+    assert props["zero_edges_with_loc"] is True
+
+
+def test_lsp_analysis_result_warns_when_summary_fields_missing(captured, caplog):
+    track_lsp_result(language="python", loc=0, status="error", duration_ms=10, analysis={}, diagnostics={})
+
+    assert "LSP analysis result for python is degraded: missing call graph, missing source files" in caplog.text
+    props = props_for(captured, "lsp_analysis_result")
+    assert props["source_file_count"] == 0
+    assert props["node_count"] == 0
+    assert props["edge_count"] == 0
+    assert props["quality_status"] == "warning"
 
 
 def test_track_analysis_env_run_id_overrides_self(captured, monkeypatch):
