@@ -1,7 +1,7 @@
 """Tests for static_analyzer.engine.edge_builder — both strategies and helpers."""
 
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from static_analyzer.engine.edge_builder import (
     _best_candidate,
@@ -390,6 +390,40 @@ class TestBuildEdgesViaDefinitions:
 
 
 class TestBuildEdgesViaReferencesExtra:
+    def test_retries_when_all_reference_queries_are_empty(self):
+        class RetryingAdapter(_TestAdapter):
+            @property
+            def empty_references_retry_attempts(self) -> int:
+                return 1
+
+        lsp = _make_lsp()
+        adapter = RetryingAdapter()
+        ctx = EdgeBuildContext(lsp, SymbolTable(adapter), SourceInspector())
+        st = ctx.symbol_table
+
+        caller = _sym("caller", "app.caller", NodeType.FUNCTION, "/project/app.py", 0, 0, 20)
+        target = _sym("target", "app.target", NodeType.FUNCTION, "/project/app.py", 25, 0, 35)
+        st._symbols["app.caller"] = caller
+        st._symbols["app.target"] = target
+        st._file_symbols[str(Path("/project/app.py"))] = [caller, target]
+        st._primary_file_symbols[str(Path("/project/app.py"))] = [caller, target]
+        st.build_indices()
+
+        ref_to_target = {
+            "uri": Path("/project/app.py").as_uri(),
+            "range": {"start": {"line": 5, "character": 4}, "end": {"line": 5, "character": 10}},
+        }
+        lsp.send_references_batch.side_effect = [
+            ([[], []], set()),
+            ([[], [ref_to_target]], set()),
+        ]
+
+        with patch("static_analyzer.engine.edge_builder.time.sleep") as sleep:
+            edges = build_edges_via_references(adapter, ctx, [Path("/project/app.py")])
+
+        assert ("app.caller", "app.target") in edges
+        sleep.assert_called_once_with(0.0)
+
     def test_filters_class_non_invocations(self):
         """References to a class that aren't invocations are filtered out."""
         lsp = _make_lsp()

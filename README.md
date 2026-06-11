@@ -18,6 +18,7 @@ Install the extension from Open VSX.
 [![PHP](https://img.shields.io/badge/PHP-777BB4?style=flat-square&logo=php&logoColor=white)](https://www.php.net/)
 [![Rust](https://img.shields.io/badge/Rust-000000?style=flat-square&logo=rust&logoColor=white)](https://www.rust-lang.org/)
 [![C#](https://custom-icon-badges.demolab.com/badge/C%23-512BD4.svg?style=flat-square&logo=cshrp&logoColor=white)](https://learn.microsoft.com/en-us/dotnet/csharp/)
+[![Swift](https://img.shields.io/badge/Swift-F05138?style=flat-square&logo=swift&logoColor=white)](https://www.swift.org/)
 
 ## Few use cases:
 
@@ -95,6 +96,8 @@ Output is written to `/path/to/repo/.codeboarding/`.
 
 `python install.py` and `codeboarding-setup` download language server binaries to `~/.codeboarding/servers/`, shared across projects. Node.js (and its bundled `npm`) is required for the Python, TypeScript, JavaScript, and PHP language servers; if neither `node` nor `CODEBOARDING_NODE_PATH` is set, setup downloads a pinned Node.js runtime into `~/.codeboarding/servers/nodeenv/` automatically.
 
+Swift analysis uses `sourcekit-lsp`, which ships with the Swift toolchain rather than as a standalone CodeBoarding download. Install Swift from [swift.org/install](https://www.swift.org/install/) or Xcode on macOS, make sure `swift` is available on `PATH`, and run CodeBoarding from a SwiftPM project with `Package.swift` so the analyzer can build the SourceKit-LSP index.
+
 ## Configuration
 
 On first run, CodeBoarding creates `~/.codeboarding/config.toml`. Set one provider there or use environment variables.
@@ -143,7 +146,7 @@ python main.py full https://github.com/pytorch/pytorch
 
 ## Supported stack
 
-- Languages: Python, TypeScript, JavaScript, Java, Go, PHP, Rust, C#.
+- Languages: Python, TypeScript, JavaScript, Java, Go, PHP, Rust, C#, Swift.
 - LLM providers: OpenAI, Anthropic, Google, Vercel AI Gateway, AWS Bedrock, Ollama, OpenRouter, and more.
 
 ## Examples

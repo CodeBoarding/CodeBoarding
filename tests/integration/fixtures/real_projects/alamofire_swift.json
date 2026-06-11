@@ -1,0 +1,37 @@
+{
+  "metadata": {
+    "repo_url": "https://github.com/Alamofire/Alamofire",
+    "pinned_commit": "5.10.2",
+    "language": "Swift",
+    "generated_at": "2026-05-31T16:26:07+00:00",
+    "codeboarding_version": "0.2.0"
+  },
+  "metrics": {
+    "references_count_by_os": {
+      "Linux": 3300,
+      "Darwin": 3300,
+      "Windows": 3300
+    },
+    "packages_count": 10,
+    "call_graph_nodes": 2231,
+    "call_graph_edges": 987,
+    "source_files_count": 92,
+    "execution_time_seconds_by_os": {
+      "Linux": 60,
+      "Darwin": 60,
+      "Windows": 60
+    }
+  },
+  "sample_references": [
+    "Source.Core.DataRequest.DataRequest",
+    "Source.Core.DataRequest.DataRequest._response(queue:responseSerializer:completionHandler:)",
+    "Source.Core.DataRequest.DataRequest.didReceive(data:)",
+    "Source.Core.DataRequest.DataRequest.updateDownloadProgress()",
+    "Source.Core.Protected.Protected.write(_:)",
+    "Source.Core.Request.Request.appendResponseSerializer(_:)",
+    "Source.Core.Request.Request.responseSerializerDidComplete(completion:)",
+    "Source.Core.Request.RequestDelegate.retryResult(for:dueTo:completion:)",
+    "Source.Core.Request.RequestDelegate.retryRequest(_:withDelay:)",
+    "Source.Features.ResponseSerialization.DataResponseSerializerProtocol.serialize(request:response:data:error:)"
+  ]
+}

@@ -630,6 +630,25 @@ def _language_checks_from_registry(target_dir: Path) -> list[LanguageSupportChec
             else:
                 reason_requirement = f"{dep.binary_name} not installed ({manager} unavailable or install failed)"
             reason_binary = reason_requirement
+        elif dep.kind is ToolKind.SYSTEM:
+            # SYSTEM tools ship with a third-party toolchain and aren't installed
+            # by codeboarding-setup; the summary checks PATH directly. Using
+            # ``fallback_available`` (instead of a path under target_dir)
+            # because the binary lives wherever the user's toolchain installer
+            # placed it, not at a path we can predict.
+            sys_path: str | None = shutil.which(dep.binary_name)
+            # macOS keeps sourcekit-lsp inside Xcode/CLT without a /usr/bin shim
+            # on older macOS releases. Reach it via ``xcrun --find`` so users
+            # with Xcode installed don't see "no" in the language summary.
+            if sys_path is None and dep.binary_name == "sourcekit-lsp":
+                from static_analyzer.engine.adapters.swift_adapter import resolve_sourcekit_lsp
+
+                sys_path = resolve_sourcekit_lsp()
+            fallback_available = bool(sys_path)
+            reason_requirement = f"{dep.binary_name} not on PATH (install the providing toolchain)"
+            if dep.key == "swift":
+                reason_requirement = f"{dep.binary_name} not available (Swift toolchain unavailable or not on PATH)"
+            reason_binary = reason_requirement
 
         for lang in languages:
             checks.append(

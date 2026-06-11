@@ -9,6 +9,7 @@ from static_analyzer.engine.adapters.java_adapter import JavaAdapter
 from static_analyzer.engine.adapters.php_adapter import PHPAdapter
 from static_analyzer.engine.adapters.python_adapter import PythonAdapter
 from static_analyzer.engine.adapters.rust_adapter import RustAdapter
+from static_analyzer.engine.adapters.swift_adapter import SwiftAdapter
 from static_analyzer.engine.adapters.typescript_adapter import JavaScriptAdapter, TypeScriptAdapter
 
 ADAPTER_REGISTRY: dict[str, type[LanguageAdapter]] = {
@@ -20,6 +21,7 @@ ADAPTER_REGISTRY: dict[str, type[LanguageAdapter]] = {
     "Java": JavaAdapter,
     "PHP": PHPAdapter,
     "Rust": RustAdapter,
+    "Swift": SwiftAdapter,
 }
 
 

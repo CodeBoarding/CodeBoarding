@@ -22,6 +22,7 @@ from static_analyzer.java_config_scanner import JavaConfigScanner
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
 from static_analyzer.programming_language import ProgrammingLanguage
 from static_analyzer.scanner import ProjectScanner
+from static_analyzer.swift_config_scanner import SwiftConfigScanner
 from static_analyzer.typescript_config_scanner import TypeScriptConfigScanner
 from telemetry.events import track_lsp_result
 from tool_registry import ensure_node_on_path
@@ -121,6 +122,19 @@ def _create_engine_configs(
                 else:
                     logger.info("No Java projects detected")
 
+            elif lang_lower == Language.SWIFT:
+                swift_scanner = SwiftConfigScanner(repository_path, ignore_manager=ignore_manager)
+                swift_packages = swift_scanner.scan()
+
+                if swift_packages:
+                    for swift_config in swift_packages:
+                        logger.info(
+                            f"Creating engine config for Swift at: " f"{swift_config.root.relative_to(repository_path)}"
+                        )
+                        configs.append(EngineConfig(adapter, swift_config.root))
+                else:
+                    logger.info("No Swift packages detected")
+
             elif lang_lower in (Language.CSHARP, "c#"):
                 csharp_scanner = CSharpConfigScanner(repository_path, ignore_manager=ignore_manager)
                 csharp_projects = csharp_scanner.scan()
@@ -158,6 +172,7 @@ def _lang_to_adapter_name(language: str) -> str | None:
         "java": "Java",
         "php": "PHP",
         "rust": "Rust",
+        "swift": "Swift",
     }
     return mapping.get(language.lower())
 
@@ -213,6 +228,7 @@ class StaticAnalyzer:
         started: list[tuple[EngineConfig, LSPClient]] = []
         attempted: list[str] = []
         failed_languages: list[str] = []
+        failure_details: list[str] = []
 
         for engine_config in self._engine_configs:
             adapter, project_path = engine_config.adapter, engine_config.project_path
@@ -257,12 +273,14 @@ class StaticAnalyzer:
 
                 started.append((engine_config, engine_client))
 
-            except Exception:
+            except Exception as e:
                 logger.exception(
                     f"Failed to start engine LSP client for {adapter.language}; "
                     f"skipping this language and continuing"
                 )
                 failed_languages.append(adapter.language)
+                detail = str(e).strip() or e.__class__.__name__
+                failure_details.append(f"{adapter.language}: {detail}")
                 if engine_client is not None:
                     try:
                         engine_client.shutdown()
@@ -273,7 +291,12 @@ class StaticAnalyzer:
 
         if not started:
             self._clients_started = False
-            raise RuntimeError(f"Failed to start any engine LSP client (attempted: {', '.join(attempted) or 'none'})")
+            attempted_list = ", ".join(attempted) or "none"
+            failure_summary = "; ".join(failure_details)
+            raise RuntimeError(
+                f"Failed to start any engine LSP client (attempted: {attempted_list})"
+                + (f". Failures: {failure_summary}" if failure_summary else "")
+            )
 
         if failed_languages:
             logger.warning(

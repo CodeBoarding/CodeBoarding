@@ -255,7 +255,7 @@ def resolve_config_from_path() -> dict[str, Any]:
 
     for dep in TOOL_REGISTRY:
         path = None
-        if dep.kind in (ToolKind.NATIVE, ToolKind.NODE, ToolKind.PACKAGE_MANAGER):
+        if dep.kind in (ToolKind.NATIVE, ToolKind.NODE, ToolKind.PACKAGE_MANAGER, ToolKind.SYSTEM):
             path = shutil.which(dep.binary_name)
         if path:
             cmd = cast(list[str], config[dep.config_section][dep.key]["command"])

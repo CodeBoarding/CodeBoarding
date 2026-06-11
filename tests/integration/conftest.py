@@ -162,6 +162,21 @@ REPOSITORY_CONFIGS = [
             "lsp_server_key": "csharp",
         },
     ),
+    RepositoryTestConfig(
+        name="alamofire_swift",
+        repo_url="https://github.com/Alamofire/Alamofire",
+        pinned_commit="5.10.2",
+        language="Swift",
+        fixture_file="alamofire_swift.json",
+        mock_language={
+            "language": "Swift",
+            "size": 100000,
+            "percentage": 100.0,
+            "suffixes": [".swift"],
+            "server_commands": ["sourcekit-lsp"],
+            "lsp_server_key": "swift",
+        },
+    ),
 ]
 
 

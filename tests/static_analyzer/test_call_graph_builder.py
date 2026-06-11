@@ -127,6 +127,15 @@ class TestDiscoverSymbols:
         builder._discover_symbols([])
         lsp.did_open.assert_not_called()
 
+    def test_waits_for_references_ready_after_symbols(self):
+        lsp = _make_lsp()
+        adapter = _make_adapter()
+        builder = CallGraphBuilder(lsp, adapter, Path("/project"))
+
+        builder._discover_symbols([Path("/project/a.py")])
+
+        adapter.wait_for_references_ready.assert_called_once_with(lsp)
+
     @patch("static_analyzer.engine.call_graph_builder.time.sleep")
     def test_batches_did_open_calls(self, mock_sleep):
         lsp = _make_lsp()

@@ -50,6 +50,10 @@ def update_command_paths(bin_dir):
                     value["jdtls_root"] = jdtls_dir
                     # Keep command as "java" - it will be constructed by JavaClient
                     cmd[0] = "java"
+            elif key == "swift":
+                # sourcekit-lsp is not bundled — it ships with the Swift toolchain.
+                # Leave the command bare so spawn resolves it from PATH.
+                pass
             elif "command" in value:
                 if isinstance(cmd, list) and cmd:
                     cmd[0] = os.path.join(bin_path, cmd[0])
@@ -129,6 +133,16 @@ VSCODE_CONFIG = {
             # by tool_registry; the install_commands string is informational only
             # and surfaces in error messages when the binary cannot be located.
             "install_commands": "codeboarding-setup (downloads rust-analyzer automatically)",
+        },
+        "swift": {
+            "name": "sourcekit-lsp",
+            "command": ["sourcekit-lsp"],
+            "languages": ["swift"],
+            "file_extensions": [".swift"],
+            # sourcekit-lsp ships with the Swift toolchain (not as a standalone
+            # release), so there is nothing for tool_registry to download —
+            # the user installs ``swift.org/install`` or Xcode to get the binary.
+            "install_commands": "Install the Swift toolchain from https://swift.org/install/ (or Xcode on macOS)",
         },
     },
     "tools": {

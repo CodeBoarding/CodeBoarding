@@ -86,9 +86,13 @@ class TestStartClientsGracefulDegradation:
         bad_cs.start.side_effect = TimeoutError("omnisharp timed out")
 
         with patch("static_analyzer.LSPClient", side_effect=[bad_py, bad_cs]):
-            with pytest.raises(RuntimeError, match=r"attempted:.*Python.*CSharp"):
+            with pytest.raises(RuntimeError) as exc_info:
                 analyzer.start_clients()
 
+        message = str(exc_info.value)
+        assert "attempted: Python, CSharp" in message
+        assert "Python: pyright missing" in message
+        assert "CSharp: omnisharp timed out" in message
         assert analyzer._clients_started is False
         assert analyzer._engine_clients == []
 

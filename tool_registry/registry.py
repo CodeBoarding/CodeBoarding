@@ -62,6 +62,11 @@ class ToolKind(StrEnum):
     PACKAGE_MANAGER = (
         "package_manager"  # Installed by invoking a user-provided package manager (e.g. `dotnet tool install`)
     )
+    # System-provided, not installable. The binary ships with a third-party
+    # toolchain (e.g. sourcekit-lsp inside the Swift toolchain) and is
+    # resolved from PATH at spawn time. Installers skip it; the install
+    # summary checks PATH so users see whether the toolchain is reachable.
+    SYSTEM = "system"
 
 
 class ConfigSection(StrEnum):
@@ -250,6 +255,16 @@ TOOL_REGISTRY: list[ToolDependency] = [
             build=JDTLS_BUILD,
         ),
         archive_subdir="jdtls",
+    ),
+    # sourcekit-lsp ships inside the Swift toolchain rather than as a
+    # standalone binary, so there is nothing to download. The SYSTEM kind
+    # tells installers to skip it and the install summary to report PATH
+    # availability instead of "binary not found at <bundled path>".
+    ToolDependency(
+        key="swift",
+        binary_name="sourcekit-lsp",
+        kind=ToolKind.SYSTEM,
+        config_section=ConfigSection.LSP_SERVERS,
     ),
     ToolDependency(
         key="rust",
