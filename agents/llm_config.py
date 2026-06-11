@@ -86,7 +86,6 @@ class LLMConfig:
     extra_args: dict[str, Any] = field(default_factory=dict)
     alt_env_vars: list[str] = field(default_factory=list)
     required_env_vars: list[str] = field(default_factory=list)
-    """Env vars that must be set when this provider is active (e.g. a mandatory base URL)."""
     keyless_capable: bool = False
     """Whether this provider can run without a real API key.
 
@@ -268,11 +267,6 @@ LLM_PROVIDERS = {
             "max_retries": 0,
         },
     ),
-    # LiteLLM proxy server: OpenAI-compatible gateway in front of any provider.
-    # LITELLM_BASE_URL (the proxy address) is mandatory; LITELLM_API_KEY is
-    # optional since some proxies are keyless. Model names are defined by the
-    # proxy, so AGENT_MODEL / PARSING_MODEL (or the [llm] section of config.toml)
-    # should normally override the placeholder defaults.
     "litellm": LLMConfig(
         chat_class=ChatOpenAI,
         api_key_env="LITELLM_API_KEY",
