@@ -106,6 +106,14 @@ class TestLLMConfigKeyless:
     def test_openai_is_keyless_capable(self):
         assert LLM_PROVIDERS["openai"].keyless_capable is True
 
+    def test_empty_string_key_is_not_a_real_key(self):
+        # Empty env values must keep meaning "unset", matching is_active() and
+        # the `api_key or "no-key-required"` fallback.
+        openai = LLM_PROVIDERS["openai"]
+        env = {"OPENAI_BASE_URL": "http://127.0.0.1:8000/v1", "OPENAI_API_KEY": ""}
+        with patch.dict(os.environ, env, clear=True):
+            assert openai.has_real_api_key() is False
+
     def test_has_real_api_key_distinguishes_from_is_active(self):
         openai = LLM_PROVIDERS["openai"]
         with patch.dict(os.environ, {"OPENAI_BASE_URL": "http://127.0.0.1:8000/v1"}, clear=True):

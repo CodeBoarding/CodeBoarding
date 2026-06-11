@@ -106,7 +106,7 @@ class LLMConfig:
         Distinct from ``is_active()``: a keyless-capable provider can be active
         via a base-URL activation var while having no real key here.
         """
-        return bool(self.api_key_env and os.getenv(self.api_key_env))
+        return bool(self.get_api_key())
 
     def is_active(self) -> bool:
         """Check if any of the activation environment variables are set."""
