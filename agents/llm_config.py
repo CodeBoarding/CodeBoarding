@@ -85,6 +85,8 @@ class LLMConfig:
     parsing_temperature: float = LLMDefaults.DEFAULT_PARSING_TEMPERATURE
     extra_args: dict[str, Any] = field(default_factory=dict)
     alt_env_vars: list[str] = field(default_factory=list)
+    required_env_vars: list[str] = field(default_factory=list)
+    """Env vars that must be set when this provider is active (e.g. a mandatory base URL)."""
     keyless_capable: bool = False
     """Whether this provider can run without a real API key.
 
@@ -267,20 +269,23 @@ LLM_PROVIDERS = {
         },
     ),
     # LiteLLM proxy server: OpenAI-compatible gateway in front of any provider.
-    # LITELLM_BASE_URL is the activation/mandatory variable (the proxy address,
-    # like Ollama); LITELLM_API_KEY is optional since some proxies are keyless.
-    # Model names are defined by the proxy, so AGENT_MODEL / PARSING_MODEL (or the
-    # [llm] section of config.toml) should normally override the placeholder defaults.
+    # LITELLM_BASE_URL (the proxy address) is mandatory; LITELLM_API_KEY is
+    # optional since some proxies are keyless. Model names are defined by the
+    # proxy, so AGENT_MODEL / PARSING_MODEL (or the [llm] section of config.toml)
+    # should normally override the placeholder defaults.
     "litellm": LLMConfig(
         chat_class=ChatOpenAI,
-        api_key_env="LITELLM_BASE_URL",
+        api_key_env="LITELLM_API_KEY",
         agent_model="gpt-4o",
         parsing_model="gpt-4o-mini",
         llm_type=LLMType.GPT4,
+        alt_env_vars=["LITELLM_BASE_URL"],
+        # Required even when the key is set: a key-only config must fail fast
+        # instead of falling through to the default OpenAI endpoint.
+        required_env_vars=["LITELLM_BASE_URL"],
         keyless_capable=True,
         extra_args={
             "base_url": lambda: os.getenv("LITELLM_BASE_URL"),
-            "api_key": lambda: os.getenv("LITELLM_API_KEY") or "no-key-required",
             "max_tokens": None,
             "timeout": None,
             "max_retries": 0,
@@ -309,6 +314,10 @@ def _initialize_llm(
 
     name, config, model_name = resolved
 
+    missing = [var for var in config.required_env_vars if not os.getenv(var)]
+    if missing:
+        raise LLMConfigError(f"The '{name}' provider requires {', '.join(missing)} to be set.")
+
     if init_factory:
         detected_llm_type = LLMType.from_model_name(model_name)
         initialize_global_factory(detected_llm_type)
@@ -325,7 +334,7 @@ def _initialize_llm(
     }
     kwargs.update(config.get_resolved_extra_args())
 
-    if name not in ["aws", "ollama", "litellm"]:
+    if name not in ["aws", "ollama"]:
         api_key = config.get_api_key()
         kwargs["api_key"] = api_key or "no-key-required"
 

@@ -5,7 +5,14 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from agents.llm_config import initialize_agent_llm, initialize_parsing_llm, validate_api_key_provided
+from agents.llm_config import (
+    LLM_PROVIDERS,
+    LLMConfigError,
+    initialize_agent_llm,
+    initialize_llms,
+    initialize_parsing_llm,
+    validate_api_key_provided,
+)
 from agents.prompts.prompt_factory import LLMType
 
 
@@ -58,13 +65,9 @@ class TestValidateApiKeyProvided:
 
 class TestLLMConfigKeyless:
     def test_openai_is_keyless_capable(self):
-        from agents.llm_config import LLM_PROVIDERS
-
         assert LLM_PROVIDERS["openai"].keyless_capable is True
 
     def test_has_real_api_key_distinguishes_from_is_active(self):
-        from agents.llm_config import LLM_PROVIDERS
-
         openai = LLM_PROVIDERS["openai"]
         with patch.dict(os.environ, {"OPENAI_BASE_URL": "http://127.0.0.1:8000/v1"}, clear=True):
             assert openai.is_active() is True
@@ -80,8 +83,6 @@ class TestLiteLLMProvider:
     @patch("agents.prompts.prompt_factory.initialize_global_factory")
     @patch("agents.agent.MONITORING_CALLBACK")
     def test_uses_proxy_base_url_and_key(self, mock_monitoring_callback, mock_init_factory):
-        from agents.llm_config import LLM_PROVIDERS, initialize_llms
-
         env = {
             "LITELLM_API_KEY": "sk-litellm-test",
             "LITELLM_BASE_URL": "http://localhost:4000",
@@ -102,8 +103,6 @@ class TestLiteLLMProvider:
     @patch("agents.agent.MONITORING_CALLBACK")
     def test_keyless_proxy_uses_placeholder_key(self, mock_monitoring_callback, mock_init_factory):
         # Base URL alone activates the proxy; a placeholder key is sent when none is set.
-        from agents.llm_config import LLM_PROVIDERS, initialize_llms
-
         env = {"LITELLM_BASE_URL": "http://localhost:4000", "AGENT_MODEL": "my-proxy-model"}
         with patch.dict(os.environ, env, clear=True):
             litellm_config = LLM_PROVIDERS["litellm"]
@@ -114,6 +113,15 @@ class TestLiteLLMProvider:
                 agent_kwargs = mock_chat_class.call_args_list[0][1]
                 assert agent_kwargs["base_url"] == "http://localhost:4000"
                 assert agent_kwargs["api_key"] == "no-key-required"
+
+    @patch("agents.prompts.prompt_factory.initialize_global_factory")
+    @patch("agents.agent.MONITORING_CALLBACK")
+    def test_key_without_base_url_raises(self, mock_monitoring_callback, mock_init_factory):
+        # A key alone must not fall through to the default OpenAI endpoint.
+        env = {"LITELLM_API_KEY": "sk-litellm-test", "AGENT_MODEL": "my-proxy-model"}
+        with patch.dict(os.environ, env, clear=True):
+            with pytest.raises(LLMConfigError, match="LITELLM_BASE_URL"):
+                initialize_llms()
 
 
 class TestDetectLLMTypeFromModel:
