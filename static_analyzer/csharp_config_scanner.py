@@ -1,7 +1,7 @@
 """Scanner for C# / .NET project configurations.
 
-Detects solution files (.sln), project files (.csproj), and standalone
-C# source trees to support mono-repo analysis with csharp-ls.
+Detects solution files (.sln/.slnx), project files (.csproj), and
+standalone C# source trees to support mono-repo analysis with csharp-ls.
 """
 
 import logging
@@ -10,6 +10,8 @@ from pathlib import Path
 from repo_utils.ignore import RepoIgnoreManager
 
 logger = logging.getLogger(__name__)
+
+SOLUTION_GLOBS: tuple[str, ...] = ("*.sln", "*.slnx")
 
 
 class CSharpProjectConfig:
@@ -31,8 +33,10 @@ class CSharpConfigScanner:
     """Scan a repository for C# / .NET project configurations.
 
     Scanning priority:
-        1. ``.sln`` files — solution-level roots (csharp-ls uses these
-           to discover all referenced projects automatically).
+        1. ``.sln`` / ``.slnx`` files — solution-level roots (csharp-ls
+           uses these to discover all referenced projects automatically).
+           ``.slnx`` is the XML-based replacement Visual Studio adopted in
+           2024; modern .NET repos (e.g. Spectre.Console) ship only it.
         2. Standalone ``.csproj`` files not already covered by a solution.
         3. Fallback to the repository root when ``.cs`` files exist but
            no solution or project files are found.
@@ -64,15 +68,18 @@ class CSharpConfigScanner:
         # 3. Fallback: .cs files exist but no project infrastructure
         if not configs and self._has_cs_files(self.repo_path):
             logger.warning(
-                f"No .sln or .csproj found in {self.repo_path}, but C# files detected. Analysis will be limited."
+                f"No .sln/.slnx or .csproj found in {self.repo_path}, but C# files detected. Analysis will be limited."
             )
             configs.append(CSharpProjectConfig(self.repo_path, "none"))
 
         return configs
 
     def _find_solution_roots(self) -> list[Path]:
-        """Find directories containing .sln files."""
-        return sorted({p.parent for p in self.repo_path.rglob("*.sln") if p.is_file()})
+        """Find directories containing ``.sln`` or ``.slnx`` files."""
+        roots: set[Path] = set()
+        for pattern in SOLUTION_GLOBS:
+            roots.update(p.parent for p in self.repo_path.rglob(pattern) if p.is_file())
+        return sorted(roots)
 
     def _find_project_roots(self) -> list[Path]:
         """Find directories containing .csproj files."""

@@ -5,6 +5,7 @@ The only module in the package with filesystem side effects.
 
 import gzip
 import hashlib
+import json
 import logging
 import os
 import platform
@@ -40,6 +41,8 @@ from .registry import (
 )
 
 logger = logging.getLogger(__name__)
+
+PACKAGE_MANAGER_TOOL_STAMP = ".codeboarding-tool.json"
 
 
 # -- Download primitive -------------------------------------------------------
@@ -281,10 +284,58 @@ def package_manager_tool_dir(target_dir: Path, dep: ToolDependency) -> Path:
     return platform_bin_dir(target_dir) / "pm-tools" / subdir
 
 
+def package_manager_tool_fingerprint(dep: ToolDependency) -> str:
+    """Stable install fingerprint for one PACKAGE_MANAGER tool."""
+    source = dep.source
+    if not isinstance(source, PackageManagerToolSource):
+        return ""
+    return json.dumps(
+        {
+            "key": dep.key,
+            "binary": dep.binary_name,
+            "manager": source.manager_binary,
+            "tag": source.tag,
+            "install_args": list(source.install_args),
+        },
+        sort_keys=True,
+    )
+
+
+def package_manager_tool_is_current(target_dir: Path, dep: ToolDependency) -> bool:
+    """Return True when a PACKAGE_MANAGER tool binary and version stamp match."""
+    if not isinstance(dep.source, PackageManagerToolSource):
+        return False
+    try:
+        install_dir = package_manager_tool_dir(target_dir, dep)
+    except RuntimeError:
+        return False
+    binary_path = install_dir / f"{dep.binary_name}{exe_suffix()}"
+    stamp_path = install_dir / PACKAGE_MANAGER_TOOL_STAMP
+    if not binary_path.exists() or not stamp_path.exists():
+        return False
+    try:
+        payload = json.loads(stamp_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    return payload.get("fingerprint") == package_manager_tool_fingerprint(dep)
+
+
+def _write_package_manager_tool_stamp(install_dir: Path, dep: ToolDependency) -> None:
+    stamp_path = install_dir / PACKAGE_MANAGER_TOOL_STAMP
+    tmp = stamp_path.with_name(stamp_path.name + ".tmp")
+    payload = {
+        "fingerprint": package_manager_tool_fingerprint(dep),
+    }
+    tmp.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    os.replace(tmp, stamp_path)
+
+
 def install_package_manager_tools(
     target_dir: Path,
     deps: list[ToolDependency],
     on_progress: ProgressCallback | None = None,
+    manager_overrides: dict[str, str] | None = None,
+    env: dict[str, str] | None = None,
 ) -> None:
     """Install each dep by invoking its declared package manager.
 
@@ -306,27 +357,37 @@ def install_package_manager_tools(
         if on_progress:
             on_progress(dep.binary_name, i, len(pm_deps))
         source = cast(PackageManagerToolSource, dep.source)
-        if not shutil.which(source.manager_binary):
+        manager_binary = (manager_overrides or {}).get(source.manager_binary, source.manager_binary)
+        manager_available = (
+            Path(manager_binary).exists()
+            if Path(manager_binary).is_absolute()
+            else shutil.which(manager_binary) is not None
+        )
+        if not manager_available:
             logger.warning(
                 "  %s: %s not found on PATH; skipping install. Users must install it before running analysis.",
                 dep.binary_name,
-                source.manager_binary,
+                manager_binary,
             )
             continue
         install_dir = pm_root / (dep.archive_subdir or dep.key)
         binary_path = install_dir / f"{dep.binary_name}{exe_suffix()}"
-        if binary_path.exists():
+        if package_manager_tool_is_current(target_dir, dep):
             logger.info("  %s: already installed, skipping", dep.binary_name)
             continue
+        if install_dir.exists():
+            logger.info("  %s: install fingerprint changed, reinstalling", dep.binary_name)
+            shutil.rmtree(install_dir, ignore_errors=True)
         install_dir.mkdir(parents=True, exist_ok=True)
         args = [arg.format(tool_path=str(install_dir), tag=source.tag) for arg in source.install_args]
         try:
             result = subprocess.run(
-                [source.manager_binary, *args],
+                [manager_binary, *args],
                 capture_output=True,
                 text=True,
                 check=False,
                 timeout=600,
+                env=env,
             )
             if result.returncode != 0:
                 # A failed install can leave partial files that would
@@ -352,6 +413,7 @@ def install_package_manager_tools(
                 continue
             if platform.system() != "Windows":
                 os.chmod(binary_path, 0o755)
+            _write_package_manager_tool_stamp(install_dir, dep)
             logger.info("  %s: installed via %s", dep.binary_name, source.manager_binary)
         except subprocess.TimeoutExpired:
             shutil.rmtree(install_dir, ignore_errors=True)
