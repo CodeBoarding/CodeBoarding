@@ -45,9 +45,12 @@ from tool_registry import (
 )
 from tool_registry import PackageManagerToolSource
 from tool_registry.installers import (
+    PACKAGE_MANAGER_TOOL_STAMP,
     _extract_compressed_binary,
     install_package_manager_tools,
+    package_manager_tool_fingerprint,
     package_manager_tool_dir,
+    package_manager_tool_is_current,
     resolve_native_asset_name,
 )
 from tool_registry.registry import ConfigSection, ToolDependency, ToolSource
@@ -982,6 +985,9 @@ def _populate_complete_servers_dir(base_dir: Path) -> None:
             pm_dir = bin_dir / "pm-tools" / subdir
             pm_dir.mkdir(parents=True, exist_ok=True)
             (pm_dir / f"{dep.binary_name}{exe_suffix()}").write_text("#!/bin/sh\n")
+            (pm_dir / PACKAGE_MANAGER_TOOL_STAMP).write_text(
+                json.dumps({"fingerprint": package_manager_tool_fingerprint(dep)})
+            )
 
 
 class TestHasRequiredTools(unittest.TestCase):
@@ -1649,6 +1655,7 @@ class TestInstallPackageManagerTools(unittest.TestCase):
             self.assertNotIn("{tool_path}", invoked_cmd)
             self.assertNotIn("{tag}", invoked_cmd)
             self.assertTrue(binary_path.exists())
+            self.assertTrue(package_manager_tool_is_current(base, dep))
 
     def test_idempotent_when_binary_already_present(self):
         dep = self._csharp_dep()
@@ -1657,6 +1664,9 @@ class TestInstallPackageManagerTools(unittest.TestCase):
             install_dir = package_manager_tool_dir(base, dep)
             install_dir.mkdir(parents=True, exist_ok=True)
             (install_dir / f"csharp-ls{exe_suffix()}").write_text("pre-existing")
+            (install_dir / PACKAGE_MANAGER_TOOL_STAMP).write_text(
+                json.dumps({"fingerprint": package_manager_tool_fingerprint(dep)})
+            )
 
             with (
                 patch("tool_registry.installers.shutil.which", return_value="/usr/bin/dotnet"),
@@ -1664,6 +1674,30 @@ class TestInstallPackageManagerTools(unittest.TestCase):
             ):
                 install_package_manager_tools(base, [dep])
             mock_run.assert_not_called()
+
+    def test_reinstalls_when_stamp_missing(self):
+        dep = self._csharp_dep()
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            install_dir = package_manager_tool_dir(base, dep)
+            binary_path = install_dir / f"csharp-ls{exe_suffix()}"
+            install_dir.mkdir(parents=True, exist_ok=True)
+            binary_path.write_text("stale")
+
+            def fake_run(cmd, **_kwargs):
+                binary_path.parent.mkdir(parents=True, exist_ok=True)
+                binary_path.write_text("fresh")
+                return MagicMock(returncode=0, stdout="", stderr="")
+
+            with (
+                patch("tool_registry.installers.shutil.which", return_value="/usr/bin/dotnet"),
+                patch("tool_registry.installers.subprocess.run", side_effect=fake_run) as mock_run,
+            ):
+                install_package_manager_tools(base, [dep])
+
+            mock_run.assert_called_once()
+            self.assertEqual(binary_path.read_text(), "fresh")
+            self.assertTrue(package_manager_tool_is_current(base, dep))
 
     def test_reports_failure_when_manager_exits_nonzero(self):
         dep = self._csharp_dep()

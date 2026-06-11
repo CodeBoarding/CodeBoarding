@@ -12,7 +12,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from static_analyzer import EngineConfig, StaticAnalyzer
+from static_analyzer import EngineConfig, StaticAnalysisFatalError, StaticAnalyzer
+from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import Language
 from static_analyzer.engine.language_adapter import LanguageAdapter
 
@@ -86,11 +87,35 @@ class TestStartClientsGracefulDegradation:
         bad_cs.start.side_effect = TimeoutError("omnisharp timed out")
 
         with patch("static_analyzer.LSPClient", side_effect=[bad_py, bad_cs]):
-            with pytest.raises(RuntimeError, match=r"attempted:.*Python.*CSharp"):
+            with pytest.raises(RuntimeError, match=r"attempted:.*Python.*CSharp.*pyright missing") as exc:
                 analyzer.start_clients()
 
+        assert "omnisharp timed out" in str(exc.value)
         assert analyzer._clients_started is False
         assert analyzer._engine_clients == []
+
+    def test_validate_rejects_empty_symbol_csharp_result(self, analyzer: StaticAnalyzer, tmp_path: Path) -> None:
+        cs_adapter = _make_adapter("CSharp")
+        cs_adapter.language_enum = Language.CSHARP
+        cs_adapter.fail_on_empty_symbols = True
+        analyzer._engine_clients = [(EngineConfig(cs_adapter, tmp_path), MagicMock())]
+
+        results = StaticAnalysisResults()
+        results.add_source_files(Language.CSHARP, [str(tmp_path / "Program.cs")])
+
+        with pytest.raises(StaticAnalysisFatalError, match="0 symbols"):
+            analyzer._validate_analysis_results(results)
+
+    def test_validate_ignores_empty_non_opted_language(self, analyzer: StaticAnalyzer, tmp_path: Path) -> None:
+        py_adapter = _make_adapter("Python")
+        py_adapter.language_enum = Language.PYTHON
+        py_adapter.fail_on_empty_symbols = False
+        analyzer._engine_clients = [(EngineConfig(py_adapter, tmp_path), MagicMock())]
+
+        results = StaticAnalysisResults()
+        results.add_source_files(Language.PYTHON, [str(tmp_path / "app.py")])
+
+        analyzer._validate_analysis_results(results)
 
     def test_all_success_records_no_failures(self, analyzer: StaticAnalyzer, tmp_path: Path) -> None:
         py_adapter = _make_adapter("Python")

@@ -191,6 +191,11 @@ class LanguageAdapter(ABC):
         """
         return 0
 
+    @property
+    def fail_on_empty_symbols(self) -> bool:
+        """If True, a non-empty project producing zero symbols is fatal."""
+        return False
+
     def wait_for_diagnostics(self, client: LSPClient) -> None:
         """Block until the LSP server is done publishing diagnostics for didOpen'd files.
 
@@ -208,7 +213,7 @@ class LanguageAdapter(ABC):
         """
         return None
 
-    def get_lsp_env(self) -> dict[str, str]:
+    def get_lsp_env(self, project_root: Path | None = None) -> dict[str, str]:
         """Return extra environment variables for the LSP server process."""
         return {}
 

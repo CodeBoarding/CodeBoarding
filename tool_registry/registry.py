@@ -214,9 +214,9 @@ TOOL_REGISTRY: list[ToolDependency] = [
     ),
     # csharp-ls ships only as a NuGet dotnet-tool; installed via ``dotnet tool install``.
     # Pin to 0.24.0 so C# document symbols work reliably for modern .NET 10
-    # repositories. Older 0.20.0 installs target net9.0 and can start via
-    # roll-forward on .NET-10-only hosts, but may time out or return no symbols
-    # for large SDK-style solutions.
+    # repositories. ``--tool-path`` avoids a misleading "DotnetToolSettings.xml
+    # not found" error when no local manifest is present; the package's default
+    # target framework is selected by dotnet.
     ToolDependency(
         key="csharp",
         binary_name="csharp-ls",

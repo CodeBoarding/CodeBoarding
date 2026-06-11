@@ -44,6 +44,10 @@ class EngineConfig:
     source_files: list[Path] = field(default_factory=list)
 
 
+class StaticAnalysisFatalError(RuntimeError):
+    """Raised when continuing would produce misleading cached analysis."""
+
+
 def _create_engine_configs(
     programming_languages: list[ProgrammingLanguage],
     repository_path: Path,
@@ -213,6 +217,7 @@ class StaticAnalyzer:
         started: list[tuple[EngineConfig, LSPClient]] = []
         attempted: list[str] = []
         failed_languages: list[str] = []
+        failed_details: list[str] = []
 
         for engine_config in self._engine_configs:
             adapter, project_path = engine_config.adapter, engine_config.project_path
@@ -226,7 +231,7 @@ class StaticAnalyzer:
                 adapter.prepare_project(project_path)
                 command = adapter.get_lsp_command(project_path)
                 init_options = adapter.get_lsp_init_options(self.ignore_manager)
-                extra_env = adapter.get_lsp_env()
+                extra_env = adapter.get_lsp_env(project_path)
                 # Node-based LSPs spawn child ``node`` processes by name; on
                 # a Node-less host the embedded runtime's dir must be on PATH.
                 ensure_node_on_path(command, extra_env)
@@ -257,12 +262,13 @@ class StaticAnalyzer:
 
                 started.append((engine_config, engine_client))
 
-            except Exception:
+            except Exception as exc:
                 logger.exception(
                     f"Failed to start engine LSP client for {adapter.language}; "
                     f"skipping this language and continuing"
                 )
                 failed_languages.append(adapter.language)
+                failed_details.append(f"{adapter.language}: {exc}")
                 if engine_client is not None:
                     try:
                         engine_client.shutdown()
@@ -273,13 +279,18 @@ class StaticAnalyzer:
 
         if not started:
             self._clients_started = False
-            raise RuntimeError(f"Failed to start any engine LSP client (attempted: {', '.join(attempted) or 'none'})")
+            details = f"; failures: {'; '.join(failed_details)}" if failed_details else ""
+            raise RuntimeError(
+                f"Failed to start any engine LSP client (attempted: {', '.join(attempted) or 'none'}){details}"
+            )
 
         if failed_languages:
+            details = f" Details: {'; '.join(failed_details)}." if failed_details else ""
             logger.warning(
                 f"Proceeding with partial LSP coverage. "
                 f"Failed: {', '.join(failed_languages)}. "
-                f"Started: {', '.join(s.adapter.language for s, _ in started)}"
+                f"Started: {', '.join(s.adapter.language for s, _ in started)}."
+                f"{details}"
             )
 
         self._engine_clients = started
@@ -530,10 +541,11 @@ class StaticAnalyzer:
                 )
                 results = self._update_cached_results(cached_results, cached_sha)
 
+        self._validate_analysis_results(results)
+        results.diagnostics = self.collected_diagnostics
         self._cached_results = results
         self._pending_source_sha = source_sha
         self._pending_cache_dir = cache_dir
-        results.diagnostics = self.collected_diagnostics
         return results
 
     def _run_full_lsp_pass(self) -> StaticAnalysisResults:
@@ -563,6 +575,8 @@ class StaticAnalyzer:
                     analysis=analysis,
                     diagnostics=self.collected_diagnostics.get(adapter.language_enum, {}),
                 )
+            except StaticAnalysisFatalError:
+                raise
             except Exception as e:
                 logger.error(f"Error during engine analysis for {adapter.language}: {e}")
                 track_lsp_result(
@@ -723,11 +737,38 @@ class StaticAnalyzer:
         builder = CallGraphBuilder(engine_client, adapter, project_path)
         engine_result = builder.build(source_files)
         logger.info(f"CallGraphBuilder.build() for {adapter.language}: {time.monotonic() - t_build_start:.1f}s")
+        if adapter.fail_on_empty_symbols is True and not builder.symbol_table.symbols:
+            raise StaticAnalysisFatalError(
+                f"{adapter.language} analysis produced 0 symbols across {len(source_files)} source files in "
+                f"{project_path}. This usually means the language server failed to load the workspace; "
+                "not caching empty analysis."
+            )
 
         t_convert = time.monotonic()
         result = convert_to_codeboarding_format(builder.symbol_table, engine_result, adapter)
         logger.info(f"convert_to_codeboarding_format for {adapter.language}: {time.monotonic() - t_convert:.1f}s")
         return result
+
+    def _validate_analysis_results(self, results: StaticAnalysisResults) -> None:
+        """Reject non-empty language buckets that would otherwise cache zero-symbol output."""
+        for engine_config, _ in self._engine_clients:
+            adapter = engine_config.adapter
+            if adapter.fail_on_empty_symbols is not True:
+                continue
+            language = adapter.language_enum
+            source_files = results.get_source_files(language)
+            if not source_files:
+                continue
+            try:
+                node_count = len(results.get_cfg(language).nodes)
+            except ValueError:
+                node_count = 0
+            if node_count == 0:
+                raise StaticAnalysisFatalError(
+                    f"{adapter.language} analysis has 0 symbols across {len(source_files)} source files. "
+                    "Delete any stale .codeboarding/static_analysis.pkl after fixing the SDK/LSP issue; "
+                    "not caching empty analysis."
+                )
 
 
 def get_static_analysis(

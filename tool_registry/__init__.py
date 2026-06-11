@@ -68,5 +68,6 @@ from .installers import (  # noqa: F401
     install_tools,
     nodeenv_needs_unofficial_builds,
     package_manager_tool_dir,
+    package_manager_tool_is_current,
 )
 from .manifest import package_manager_tool_path  # noqa: F401

@@ -175,7 +175,7 @@ class GoAdapter(LanguageAdapter):
             "ui.diagnostic.staticcheck": True,
         }
 
-    def get_lsp_env(self) -> dict[str, str]:
+    def get_lsp_env(self, project_root: Path | None = None) -> dict[str, str]:
         """Tune Go GC for lower peak memory at the cost of more CPU.
 
         ``GOGC=50`` makes the garbage collector run more frequently (default
