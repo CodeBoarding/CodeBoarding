@@ -67,6 +67,9 @@ class LLMConfig:
     Configuration for LLM providers.
 
     Attributes:
+        activation_envs: Env vars that select this provider — active iff any is set.
+        api_key_env: Env var holding the provider's secret, or None when the
+                     underlying SDK reads its credentials from the environment itself.
         agent_model: The "agent" model used for complex reasoning and agentic tasks.
         parsing_model: The "parsing" model used for fast, cost-effective extraction and parsing tasks.
         agent_temperature: Temperature for the agent model. Defaults to 0 for deterministic behavior
@@ -77,40 +80,37 @@ class LLMConfig:
     """
 
     chat_class: Type[BaseChatModel]
-    api_key_env: str
+    activation_envs: list[str]
     agent_model: str
     parsing_model: str
     llm_type: LLMType
     agent_temperature: float = LLMDefaults.DEFAULT_AGENT_TEMPERATURE
     parsing_temperature: float = LLMDefaults.DEFAULT_PARSING_TEMPERATURE
     extra_args: dict[str, Any] = field(default_factory=dict)
-    alt_env_vars: list[str] = field(default_factory=list)
-    required_env_vars: list[str] = field(default_factory=list)
+    api_key_env: str | None = None
     keyless_capable: bool = False
     """Whether this provider can run without a real API key.
 
-    True for self-hosted / OpenAI-compatible endpoints where ``api_key_env`` (or
-    an ``alt_env_vars`` entry) is really a base-URL existence check rather than a
-    secret. When such a provider is the sole active one and no real key is set,
-    key validation warns instead of failing, and the client uses a placeholder.
+    True for self-hosted / OpenAI-compatible endpoints that accept
+    unauthenticated requests. When such a provider is the sole active one and
+    no real key is set, key validation warns instead of failing, and the
+    client uses a placeholder.
     """
 
     def get_api_key(self) -> str | None:
-        return os.getenv(self.api_key_env)
+        return os.getenv(self.api_key_env) if self.api_key_env else None
 
     def has_real_api_key(self) -> bool:
-        """True if the provider's primary API-key env var holds a value.
+        """True if the provider's API-key env var holds a value.
 
         Distinct from ``is_active()``: a keyless-capable provider can be active
-        via a base-URL ``alt_env_vars`` entry while having no real key here.
+        via a base-URL activation var while having no real key here.
         """
-        return bool(os.getenv(self.api_key_env))
+        return bool(self.api_key_env and os.getenv(self.api_key_env))
 
     def is_active(self) -> bool:
-        """Check if any of the environment variables (primary or alternate) are set."""
-        if os.getenv(self.api_key_env):
-            return True
-        return any(os.getenv(var) for var in self.alt_env_vars)
+        """Check if any of the activation environment variables are set."""
+        return any(os.getenv(var) for var in self.activation_envs)
 
     def get_resolved_extra_args(self) -> dict[str, Any]:
         resolved = {}
@@ -125,11 +125,11 @@ class LLMConfig:
 LLM_PROVIDERS = {
     "openai": LLMConfig(
         chat_class=ChatOpenAI,
+        activation_envs=["OPENAI_API_KEY", "OPENAI_BASE_URL"],
         api_key_env="OPENAI_API_KEY",
         agent_model="gpt-4o",
         parsing_model="gpt-4o-mini",
         llm_type=LLMType.GPT4,
-        alt_env_vars=["OPENAI_BASE_URL"],
         keyless_capable=True,
         extra_args={
             "base_url": lambda: os.getenv("OPENAI_BASE_URL"),
@@ -140,11 +140,11 @@ LLM_PROVIDERS = {
     ),
     "vercel": LLMConfig(
         chat_class=ChatOpenAI,
+        activation_envs=["VERCEL_API_KEY", "VERCEL_BASE_URL"],
         api_key_env="VERCEL_API_KEY",
         agent_model="google/gemini-3-flash",
         parsing_model="openai/gpt-5-mini",
         llm_type=LLMType.GEMINI_FLASH,
-        alt_env_vars=["VERCEL_BASE_URL"],
         extra_args={
             "base_url": lambda: os.getenv("VERCEL_BASE_URL", f"https://ai-gateway.vercel.sh/v1"),
             "max_tokens": None,
@@ -154,6 +154,7 @@ LLM_PROVIDERS = {
     ),
     "anthropic": LLMConfig(
         chat_class=ChatAnthropic,
+        activation_envs=["ANTHROPIC_API_KEY"],
         api_key_env="ANTHROPIC_API_KEY",
         agent_model="claude-sonnet-4-6",
         parsing_model="claude-haiku-4-5",
@@ -166,6 +167,7 @@ LLM_PROVIDERS = {
     ),
     "google": LLMConfig(
         chat_class=ChatGoogleGenerativeAI,
+        activation_envs=["GOOGLE_API_KEY"],
         api_key_env="GOOGLE_API_KEY",
         agent_model="gemini-3-flash-preview",
         parsing_model="gemini-3.1-flash-lite",
@@ -178,7 +180,8 @@ LLM_PROVIDERS = {
     ),
     "aws": LLMConfig(
         chat_class=ChatBedrockConverse,
-        api_key_env="AWS_BEARER_TOKEN_BEDROCK",  # Used for existence check
+        # No api_key_env: botocore reads AWS_BEARER_TOKEN_BEDROCK from the environment itself.
+        activation_envs=["AWS_BEARER_TOKEN_BEDROCK"],
         agent_model="anthropic.claude-sonnet-4-6",
         parsing_model="claude-haiku-4-5",
         llm_type=LLMType.CLAUDE_SONNET,
@@ -190,6 +193,7 @@ LLM_PROVIDERS = {
     ),
     "cerebras": LLMConfig(
         chat_class=ChatCerebras,
+        activation_envs=["CEREBRAS_API_KEY"],
         api_key_env="CEREBRAS_API_KEY",
         agent_model="zai-glm-4.7",
         parsing_model="gpt-oss-120b",
@@ -202,7 +206,11 @@ LLM_PROVIDERS = {
     ),
     "ollama": LLMConfig(
         chat_class=ChatOllama,
-        api_key_env="OLLAMA_BASE_URL",  # Used for existence check
+        # OLLAMA_HOST is Ollama's canonical host var; the client falls back to it
+        # when no base_url is passed, and sends OLLAMA_API_KEY (Ollama cloud) itself.
+        activation_envs=["OLLAMA_BASE_URL", "OLLAMA_HOST"],
+        api_key_env="OLLAMA_API_KEY",
+        keyless_capable=True,
         agent_model="qwen3:30b",
         parsing_model="qwen2.5:7b",
         llm_type=LLMType.GEMINI_FLASH,
@@ -214,11 +222,11 @@ LLM_PROVIDERS = {
     ),
     "deepseek": LLMConfig(
         chat_class=ChatOpenAI,
+        activation_envs=["DEEPSEEK_API_KEY", "DEEPSEEK_BASE_URL"],
         api_key_env="DEEPSEEK_API_KEY",
         agent_model="deepseek-chat",
         parsing_model="deepseek-chat",
         llm_type=LLMType.DEEPSEEK,
-        alt_env_vars=["DEEPSEEK_BASE_URL"],
         extra_args={
             "base_url": lambda: os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1"),
             "max_tokens": None,
@@ -228,11 +236,11 @@ LLM_PROVIDERS = {
     ),
     "glm": LLMConfig(
         chat_class=ChatOpenAI,
+        activation_envs=["GLM_API_KEY", "GLM_BASE_URL"],
         api_key_env="GLM_API_KEY",
         agent_model="glm-4.7-flash",
         parsing_model="glm-4.7-flash",
         llm_type=LLMType.GLM,
-        alt_env_vars=["GLM_BASE_URL"],
         extra_args={
             "base_url": lambda: os.getenv("GLM_BASE_URL", "https://open.bigmodel.cn/api/paas/v4"),
             "max_tokens": None,
@@ -242,11 +250,11 @@ LLM_PROVIDERS = {
     ),
     "kimi": LLMConfig(
         chat_class=ChatOpenAI,
+        activation_envs=["KIMI_API_KEY", "KIMI_BASE_URL"],
         api_key_env="KIMI_API_KEY",
         agent_model="kimi-k2.5",
         parsing_model="kimi-k2.5",
         llm_type=LLMType.KIMI,
-        alt_env_vars=["KIMI_BASE_URL"],
         extra_args={
             "base_url": lambda: os.getenv("KIMI_BASE_URL", "https://api.moonshot.cn/v1"),
             "max_tokens": None,
@@ -256,6 +264,7 @@ LLM_PROVIDERS = {
     ),
     "openrouter": LLMConfig(
         chat_class=ChatOpenAI,
+        activation_envs=["OPENROUTER_API_KEY"],
         api_key_env="OPENROUTER_API_KEY",
         agent_model="google/gemini-3-flash-preview",
         parsing_model="google/gemini-3-flash-preview",
@@ -269,14 +278,13 @@ LLM_PROVIDERS = {
     ),
     "litellm": LLMConfig(
         chat_class=ChatOpenAI,
+        # Base URL only: a key alone must not select litellm, since there is no
+        # universal proxy endpoint to default to.
+        activation_envs=["LITELLM_BASE_URL"],
         api_key_env="LITELLM_API_KEY",
         agent_model="gpt-4o",
         parsing_model="gpt-4o-mini",
         llm_type=LLMType.GPT4,
-        alt_env_vars=["LITELLM_BASE_URL"],
-        # Required even when the key is set: a key-only config must fail fast
-        # instead of falling through to the default OpenAI endpoint.
-        required_env_vars=["LITELLM_BASE_URL"],
         keyless_capable=True,
         extra_args={
             "base_url": lambda: os.getenv("LITELLM_BASE_URL"),
@@ -288,6 +296,20 @@ LLM_PROVIDERS = {
 }
 
 
+def _all_activation_envs() -> list[str]:
+    return sorted({var for config in LLM_PROVIDERS.values() for var in config.activation_envs})
+
+
+def _inactive_key_hints() -> list[str]:
+    """Messages for providers whose API key is set but whose activation vars are not."""
+    return [
+        f"{config.api_key_env} is set, but the '{name}' provider activates via "
+        f"{' or '.join(config.activation_envs)}."
+        for name, config in LLM_PROVIDERS.items()
+        if config.has_real_api_key() and not config.is_active()
+    ]
+
+
 def _initialize_llm(
     model_override: str | None,
     model_attr: str,
@@ -297,20 +319,10 @@ def _initialize_llm(
 ) -> tuple[BaseChatModel, str]:
     resolved = _resolve_active_provider(model_override, model_attr)
     if resolved is None:
-        required_vars = []
-        for config in LLM_PROVIDERS.values():
-            required_vars.append(config.api_key_env)
-            required_vars.extend(config.alt_env_vars)
-
-        raise ValueError(
-            f"No valid LLM configuration found. Please set one of: {', '.join(sorted(set(required_vars)))}"
-        )
+        message = f"No valid LLM configuration found. Please set one of: {', '.join(_all_activation_envs())}."
+        raise ValueError(" ".join([message, *_inactive_key_hints()]))
 
     name, config, model_name = resolved
-
-    missing = [var for var in config.required_env_vars if not os.getenv(var)]
-    if missing:
-        raise LLMConfigError(f"The '{name}' provider requires {', '.join(missing)} to be set.")
 
     if init_factory:
         detected_llm_type = LLMType.from_model_name(model_name)
@@ -328,6 +340,8 @@ def _initialize_llm(
     }
     kwargs.update(config.get_resolved_extra_args())
 
+    # ChatBedrockConverse and ChatOllama take no api_key kwarg; their SDKs read
+    # AWS_BEARER_TOKEN_BEDROCK / OLLAMA_API_KEY from the environment directly.
     if name not in ["aws", "ollama"]:
         api_key = config.get_api_key()
         kwargs["api_key"] = api_key or "no-key-required"
@@ -355,20 +369,24 @@ class LLMConfigError(ValueError):
 def validate_api_key_provided() -> None:
     """Raise LLMConfigError if zero or more than one LLM provider is configured.
 
-    A provider is "active" when its API-key env var *or* a base-URL alternate
-    (``alt_env_vars``) is set. Keyless-capable providers (self-hosted /
-    OpenAI-compatible endpoints, e.g. an ``OPENAI_BASE_URL`` with no key) are
-    therefore valid: they are activated by their base URL, and the client falls
-    back to a placeholder key downstream. In that case we log a warning rather
-    than fail. Ambiguity detection (more than one active provider) is preserved
-    so a stray second key is still surfaced.
+    A provider is "active" when any of its ``activation_envs`` is set. Keyless-
+    capable providers (self-hosted / OpenAI-compatible endpoints, e.g. an
+    ``OPENAI_BASE_URL`` with no key) are therefore valid: they are activated by
+    their base URL, and the client falls back to a placeholder key downstream.
+    In that case we log a warning rather than fail. Ambiguity detection (more
+    than one active provider) is preserved so a stray second key is still
+    surfaced, and a key set for an inactive provider (e.g. LITELLM_API_KEY
+    without LITELLM_BASE_URL) is reported rather than silently ignored.
     """
+    hints = _inactive_key_hints()
     active = [name for name, config in LLM_PROVIDERS.items() if config.is_active()]
     if not active:
-        required = sorted({config.api_key_env for config in LLM_PROVIDERS.values()})
-        raise LLMConfigError(f"No LLM provider API key found. Set one of: {', '.join(required)}")
+        message = f"No LLM provider API key found. Set one of: {', '.join(_all_activation_envs())}."
+        raise LLMConfigError(" ".join([message, *hints]))
     if len(active) > 1:
         raise LLMConfigError(f"Multiple LLM provider keys detected ({', '.join(active)}); please set only one.")
+    for hint in hints:
+        logger.warning(hint)
 
     (name,) = active
     config = LLM_PROVIDERS[name]
