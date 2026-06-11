@@ -19,12 +19,17 @@ from static_analyzer.engine.language_adapter import LanguageAdapter
 
 
 def _make_adapter(
-    language: str, *, wait_for_workspace_ready: bool = False, language_enum: Language | None = None
+    language: str,
+    *,
+    wait_for_workspace_ready: bool = False,
+    language_enum: Language | None = None,
+    fail_on_empty_symbols: bool = False,
 ) -> LanguageAdapter:
     adapter = MagicMock(name=f"{language}Adapter")
     adapter.language = language
     if language_enum is not None:
         adapter.language_enum = language_enum
+    adapter.fail_on_empty_symbols = fail_on_empty_symbols
     adapter.get_lsp_command.return_value = [f"{language.lower()}-lsp"]
     adapter.get_lsp_init_options.return_value = {}
     adapter.get_lsp_env.return_value = {}
@@ -95,9 +100,7 @@ class TestStartClientsGracefulDegradation:
         assert analyzer._engine_clients == []
 
     def test_validate_rejects_empty_symbol_csharp_result(self, analyzer: StaticAnalyzer, tmp_path: Path) -> None:
-        cs_adapter = _make_adapter("CSharp")
-        cs_adapter.language_enum = Language.CSHARP
-        cs_adapter.fail_on_empty_symbols = True
+        cs_adapter = _make_adapter("CSharp", language_enum=Language.CSHARP, fail_on_empty_symbols=True)
         analyzer._engine_clients = [(EngineConfig(cs_adapter, tmp_path), MagicMock())]
 
         results = StaticAnalysisResults()
@@ -107,9 +110,7 @@ class TestStartClientsGracefulDegradation:
             analyzer._validate_analysis_results(results)
 
     def test_validate_ignores_empty_non_opted_language(self, analyzer: StaticAnalyzer, tmp_path: Path) -> None:
-        py_adapter = _make_adapter("Python")
-        py_adapter.language_enum = Language.PYTHON
-        py_adapter.fail_on_empty_symbols = False
+        py_adapter = _make_adapter("Python", language_enum=Language.PYTHON, fail_on_empty_symbols=False)
         analyzer._engine_clients = [(EngineConfig(py_adapter, tmp_path), MagicMock())]
 
         results = StaticAnalysisResults()
