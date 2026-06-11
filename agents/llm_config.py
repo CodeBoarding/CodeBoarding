@@ -375,7 +375,16 @@ def get_current_agent_context_window() -> ContextWindow:
     if resolved is not None:
         name, _config, model_name = resolved
         return get_context_window(name, model_name)
-    return ContextWindow(ModelCapabilities.FALLBACK_INPUT, ModelCapabilities.FALLBACK_OUTPUT)
+    return ContextWindow(ModelCapabilities.FALLBACK_INPUT, ModelCapabilities.FALLBACK_OUTPUT, is_fallback=True)
+
+
+def get_current_agent_model_ref() -> str:
+    """``provider/model`` for the currently active agent LLM, or ``"unknown"``."""
+    resolved = _resolve_active_provider(_agent_model_override or os.getenv("AGENT_MODEL"), "agent_model")
+    if resolved is None:
+        return "unknown"
+    name, _config, model_name = resolved
+    return f"{name}/{model_name}"
 
 
 def initialize_parsing_llm(model_override: str | None = None) -> BaseChatModel:

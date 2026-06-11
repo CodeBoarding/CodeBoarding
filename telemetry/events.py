@@ -215,6 +215,7 @@ def track_analysis(func):
                 exc_props: dict = {"command": command, "version": _app_version()}
                 if run_id:
                     exc_props["run_id"] = run_id
+                exc_props.update(_exception_properties(exc))
                 telemetry.capture_exception(exc, properties=exc_props)
             telemetry.flush()
 
@@ -232,7 +233,14 @@ def capture_error(command: str, exc: BaseException, *, extra: dict | None = None
     run_id = _resolve_run_id()
     if run_id is not None:
         properties["run_id"] = run_id
+    properties.update(_exception_properties(exc))
     if extra:
         properties.update(extra)
     telemetry.capture_exception(exc, properties=properties)
     telemetry.flush()
+
+
+def _exception_properties(exc: BaseException) -> dict:
+    """Diagnostic properties an exception carries for its ``$exception`` event."""
+    props = getattr(exc, "telemetry_properties", None)
+    return props if isinstance(props, dict) else {}

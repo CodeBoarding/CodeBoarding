@@ -30,7 +30,14 @@ class ContextBudgetExceededError(RuntimeError):
     Raised when the pre-planning overhead already exceeds the input window,
     or when the most aggressive safe trim (per ``max_peel_frac`` and
     ``min_keep_per_cluster``) still overflows the remaining budget.
+
+    ``telemetry_properties`` is forwarded into the PostHog ``$exception``
+    event so overflow reports carry the budget numbers and window provenance.
     """
+
+    def __init__(self, message: str, telemetry_properties: dict | None = None):
+        super().__init__(message)
+        self.telemetry_properties = telemetry_properties or {}
 
 
 def _compute_peel_order(cfg_nx: nx.DiGraph) -> list[str]:

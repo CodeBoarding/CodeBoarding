@@ -3,6 +3,7 @@ import logging
 import os
 import re
 import time
+import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from functools import lru_cache
@@ -19,14 +20,34 @@ _BEDROCK_REGION = re.compile(r"^(us|eu|apac|global|au|ca|us-gov)\.")
 # app before `ollama serve` is up -- doesn't memoize None for the rest of the process.
 _OLLAMA_CACHE: dict[tuple[str, str], tuple[int, int]] = {}
 
+_PRESET_RE = re.compile(r"^@preset/([A-Za-z0-9_.-]+)$")
+
+# Why: presets are mutable server-side, so cache per-process only. Network errors are
+# not cached (transient); HTTP errors are (bad slug / key without preset read access).
+_PRESET_CACHE: dict[str, list[str]] = {}
+
 
 @dataclass(frozen=True)
 class ContextWindow:
     input_tokens: int
     output_tokens: int
+    is_fallback: bool = False
 
 
 def get_context_window(provider: str, model_name: str) -> ContextWindow:
+    hit = _run_resolvers(provider, model_name)
+    if hit is not None:
+        return ContextWindow(*hit)
+
+    preset_window = _resolve_preset_window(provider, model_name)
+    if preset_window is not None:
+        return preset_window
+
+    logger.warning(f"No context window for {provider}/{model_name}; using fallback {ModelCapabilities.FALLBACK_INPUT}")
+    return ContextWindow(ModelCapabilities.FALLBACK_INPUT, ModelCapabilities.FALLBACK_OUTPUT, is_fallback=True)
+
+
+def _run_resolvers(provider: str, model_name: str) -> tuple[int, int] | None:
     resolvers = (
         _resolve_env,
         _resolve_user_config,
@@ -38,9 +59,76 @@ def get_context_window(provider: str, model_name: str) -> ContextWindow:
     for resolver in resolvers:
         hit = resolver(provider, model_name)
         if hit is not None:
-            return ContextWindow(*hit)
-    logger.warning(f"No context window for {provider}/{model_name}; using fallback {ModelCapabilities.FALLBACK_INPUT}")
-    return ContextWindow(ModelCapabilities.FALLBACK_INPUT, ModelCapabilities.FALLBACK_OUTPUT)
+            return hit
+    return None
+
+
+def _resolve_preset_window(provider: str, model_name: str) -> ContextWindow | None:
+    """Window for an OpenRouter ``@preset/...`` reference via its underlying models.
+
+    Why min: a preset may route across models with different windows; promise only
+    the smallest so no candidate can overflow.
+    """
+    hits: list[tuple[int, int]] = []
+    unresolved: list[str] = []
+    for underlying in _openrouter_preset_models(provider, model_name):
+        hit = _run_resolvers(provider, underlying)
+        if hit is not None:
+            hits.append(hit)
+        else:
+            unresolved.append(underlying)
+    if not hits:
+        return None
+    if unresolved:
+        logger.warning(f"Preset {model_name}: no window for {unresolved}; using min over the resolved models")
+    return ContextWindow(min(inp for inp, _ in hits), min(out for _, out in hits))
+
+
+def _openrouter_preset_models(provider: str, model_name: str) -> list[str]:
+    """Model ids configured in an OpenRouter preset, or [] when not a preset reference."""
+    if provider != "openrouter":
+        return []
+    match = _PRESET_RE.match(model_name)
+    if not match:
+        return []
+    slug = match.group(1)
+    cached = _PRESET_CACHE.get(slug)
+    if cached is not None:
+        return cached
+
+    api_key = os.getenv("OPENROUTER_API_KEY")
+    if not api_key:
+        return []
+    base_url = (os.getenv("OPENROUTER_BASE_URL") or "https://openrouter.ai/api/v1").rstrip("/")
+    try:
+        req = urllib.request.Request(f"{base_url}/presets/{slug}", headers={"Authorization": f"Bearer {api_key}"})
+        with urllib.request.urlopen(req, timeout=3) as r:
+            payload = json.load(r)
+    except urllib.error.HTTPError as e:
+        logger.warning(f"OpenRouter preset lookup failed for {model_name} (HTTP {e.code})")
+        _PRESET_CACHE[slug] = []
+        return []
+    except Exception as e:
+        logger.warning(f"OpenRouter preset lookup failed for {model_name} ({e})")
+        return []
+
+    models = _extract_preset_models(payload)
+    if not models:
+        logger.warning(f"OpenRouter preset {model_name} lists no models")
+    _PRESET_CACHE[slug] = models
+    return models
+
+
+def _extract_preset_models(payload: dict) -> list[str]:
+    # The active config lives under data.designated_version.config; `model` is a single
+    # id, `models` a routing/fallback array. Either or both may be present.
+    data = payload.get("data") or {}
+    config = (data.get("designated_version") or {}).get("config") or data.get("config") or {}
+    models: list[str] = []
+    for candidate in [config.get("model"), *(config.get("models") or [])]:
+        if isinstance(candidate, str) and candidate and candidate not in models:
+            models.append(candidate)
+    return models
 
 
 def _resolve_env(provider: str, model_name: str) -> tuple[int, int] | None:
