@@ -2,13 +2,11 @@
 
 import io
 import json
-import urllib.error
 
 import pytest
 
 from agents.model_capabilities import (
     _OLLAMA_CACHE,
-    _PRESET_CACHE,
     ContextWindow,
     _parse_num_ctx,
     _resolve_ollama,
@@ -45,19 +43,7 @@ _FAKE_OPENROUTER = {
         "context_length": 1_000_000,
         "top_provider": {"max_completion_tokens": 128_000},
     },
-    "google/gemini-3-flash-preview": {
-        "context_length": 1_048_576,
-        "top_provider": {"max_completion_tokens": 65_536},
-    },
-    "anthropic/claude-opus-4.6": {
-        "context_length": 200_000,
-        "top_provider": {"max_completion_tokens": 128_000},
-    },
 }
-
-
-def _preset_payload(models: list[str]) -> bytes:
-    return json.dumps({"data": {"slug": "production", "designated_version": {"config": {"models": models}}}}).encode()
 
 
 @pytest.fixture
@@ -75,10 +61,7 @@ def fake_catalogs(monkeypatch):
     # Why: isolate from ~/.codeboarding/config.toml so a developer's local override
     # doesn't shadow the catalog under test.
     monkeypatch.setattr("agents.model_capabilities._user_context_window_override", lambda: None)
-    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
-    monkeypatch.delenv("OPENROUTER_BASE_URL", raising=False)
     _OLLAMA_CACHE.clear()
-    _PRESET_CACHE.clear()
 
 
 class TestResolverPriority:
@@ -133,96 +116,6 @@ class TestOpenrouterResolution:
         cw = get_context_window("anthropic", "claude-opus-4-7")
         assert cw.input_tokens == 1_000_000
         assert cw.output_tokens == 128_000
-
-
-class TestOpenrouterPresetResolution:
-    def test_resolves_min_window_across_preset_models(self, fake_catalogs, monkeypatch):
-        # Why: with allow_fallbacks any listed model may serve a request, so the
-        # promised window must be the smallest among them.
-        monkeypatch.setenv("OPENROUTER_API_KEY", "sk-test")
-        payload = _preset_payload(["google/gemini-3-flash-preview", "anthropic/claude-opus-4.6"])
-
-        def fake_urlopen(req, timeout=None):
-            assert "/presets/production" in req.full_url
-            assert req.get_header("Authorization") == "Bearer sk-test"
-            return io.BytesIO(payload)
-
-        monkeypatch.setattr("agents.model_capabilities.urllib.request.urlopen", fake_urlopen)
-        cw = get_context_window("openrouter", "@preset/production")
-        assert cw == ContextWindow(200_000, 65_536)
-
-    def test_unresolvable_candidates_are_skipped(self, fake_catalogs, monkeypatch):
-        monkeypatch.setenv("OPENROUTER_API_KEY", "sk-test")
-        payload = _preset_payload(["anthropic/claude-opus-4.6", "~openai/gpt-latest"])
-        monkeypatch.setattr(
-            "agents.model_capabilities.urllib.request.urlopen",
-            lambda req, timeout=None: io.BytesIO(payload),
-        )
-        assert get_context_window("openrouter", "@preset/production").input_tokens == 200_000
-
-    def test_single_model_field_is_honoured(self, fake_catalogs, monkeypatch):
-        monkeypatch.setenv("OPENROUTER_API_KEY", "sk-test")
-        payload = json.dumps(
-            {"data": {"designated_version": {"config": {"model": "google/gemini-3-flash-preview"}}}}
-        ).encode()
-        monkeypatch.setattr(
-            "agents.model_capabilities.urllib.request.urlopen",
-            lambda req, timeout=None: io.BytesIO(payload),
-        )
-        assert get_context_window("openrouter", "@preset/production").input_tokens == 1_048_576
-
-    def test_non_preset_name_makes_no_preset_request(self, fake_catalogs, monkeypatch):
-        monkeypatch.setenv("OPENROUTER_API_KEY", "sk-test")
-
-        def fail_urlopen(req, timeout=None):
-            raise AssertionError("unexpected network call")
-
-        monkeypatch.setattr("agents.model_capabilities.urllib.request.urlopen", fail_urlopen)
-        assert get_context_window("openrouter", "google/gemini-3-flash-preview").input_tokens == 1_048_576
-
-    def test_missing_api_key_falls_back(self, fake_catalogs):
-        cw = get_context_window("openrouter", "@preset/production")
-        assert cw.is_fallback
-
-    def test_http_error_is_cached_per_process(self, fake_catalogs, monkeypatch):
-        # Why: a 403/404 (bad slug, key without preset read access) is not transient;
-        # retrying on every budget computation would add network latency in a loop.
-        monkeypatch.setenv("OPENROUTER_API_KEY", "sk-test")
-        calls = {"n": 0}
-
-        def fake_urlopen(req, timeout=None):
-            calls["n"] += 1
-            raise urllib.error.HTTPError(req.full_url, 404, "not found", hdrs=None, fp=None)
-
-        monkeypatch.setattr("agents.model_capabilities.urllib.request.urlopen", fake_urlopen)
-        assert get_context_window("openrouter", "@preset/production").is_fallback
-        assert get_context_window("openrouter", "@preset/production").is_fallback
-        assert calls["n"] == 1
-
-    def test_network_error_is_retried_not_cached(self, fake_catalogs, monkeypatch):
-        monkeypatch.setenv("OPENROUTER_API_KEY", "sk-test")
-        calls = {"n": 0}
-        payload = _preset_payload(["anthropic/claude-opus-4.6"])
-
-        def fake_urlopen(req, timeout=None):
-            calls["n"] += 1
-            if calls["n"] == 1:
-                raise ConnectionRefusedError("offline")
-            return io.BytesIO(payload)
-
-        monkeypatch.setattr("agents.model_capabilities.urllib.request.urlopen", fake_urlopen)
-        assert get_context_window("openrouter", "@preset/production").is_fallback
-        assert get_context_window("openrouter", "@preset/production").input_tokens == 200_000
-
-    def test_user_config_override_beats_preset_lookup(self, fake_catalogs, monkeypatch):
-        monkeypatch.setenv("OPENROUTER_API_KEY", "sk-test")
-        monkeypatch.setattr("agents.model_capabilities._user_context_window_override", lambda: 1_000_000)
-
-        def fail_urlopen(req, timeout=None):
-            raise AssertionError("unexpected network call")
-
-        monkeypatch.setattr("agents.model_capabilities.urllib.request.urlopen", fail_urlopen)
-        assert get_context_window("openrouter", "@preset/production").input_tokens == 1_000_000
 
 
 class TestOllamaResolver:
