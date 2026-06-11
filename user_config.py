@@ -16,11 +16,14 @@ from pathlib import Path
 
 CONFIG_PATH = Path.home() / ".codeboarding" / "config.toml"
 
-# Mapping from config.toml key names to the env var each provider reads.
-# These are the canonical env var names used in agents/llm_config.py.
-_PROVIDER_KEY_TO_ENV: dict[str, str] = {
+# Both dicts feed config.toml's [provider] table; values are injected into
+# os.environ at startup. Provider selection itself is decided solely by
+# LLMConfig.selection_envs in agents/llm_config.py — membership here only
+# controls what can live in config.toml (contract-tested in tests/test_user_config.py).
+
+# Secrets: one per provider that accepts a key (api_key_env in agents/llm_config.py).
+_PROVIDER_SECRETS: dict[str, str] = {
     "openai_api_key": "OPENAI_API_KEY",
-    "openai_base_url": "OPENAI_BASE_URL",
     "anthropic_api_key": "ANTHROPIC_API_KEY",
     "google_api_key": "GOOGLE_API_KEY",
     "vercel_api_key": "VERCEL_API_KEY",
@@ -29,12 +32,20 @@ _PROVIDER_KEY_TO_ENV: dict[str, str] = {
     "deepseek_api_key": "DEEPSEEK_API_KEY",
     "glm_api_key": "GLM_API_KEY",
     "kimi_api_key": "KIMI_API_KEY",
-    "ollama_base_url": "OLLAMA_BASE_URL",
     "ollama_api_key": "OLLAMA_API_KEY",
     "openrouter_api_key": "OPENROUTER_API_KEY",
     "litellm_api_key": "LITELLM_API_KEY",
+}
+
+# Endpoints with no built-in default — the user must say where the server is.
+# Defaulted base URLs (vercel, deepseek, glm, kimi) are shell-override-only on purpose.
+_PROVIDER_ENDPOINTS: dict[str, str] = {
+    "openai_base_url": "OPENAI_BASE_URL",
+    "ollama_base_url": "OLLAMA_BASE_URL",
     "litellm_base_url": "LITELLM_BASE_URL",
 }
+
+_PROVIDER_KEY_TO_ENV: dict[str, str] = _PROVIDER_SECRETS | _PROVIDER_ENDPOINTS
 
 # Template written to ~/.codeboarding/config.toml on first install.
 CONFIG_TEMPLATE = """\

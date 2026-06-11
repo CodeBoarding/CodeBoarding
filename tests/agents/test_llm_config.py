@@ -19,7 +19,7 @@ from agents.prompts.prompt_factory import LLMType
 class TestValidateApiKeyProvided:
     def test_no_keys_raises_value_error(self):
         with patch.dict(os.environ, {}, clear=True):
-            with pytest.raises(ValueError, match="No LLM provider API key found"):
+            with pytest.raises(ValueError, match="No LLM provider selected"):
                 validate_api_key_provided()
 
     def test_single_key_passes(self):
@@ -28,7 +28,7 @@ class TestValidateApiKeyProvided:
 
     def test_multiple_keys_raises_value_error(self):
         with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test", "ANTHROPIC_API_KEY": "sk-ant-test"}, clear=True):
-            with pytest.raises(ValueError, match="Multiple LLM provider keys detected"):
+            with pytest.raises(ValueError, match="Multiple LLM providers selected"):
                 validate_api_key_provided()
 
     def test_base_url_without_key_passes_with_warning(self, caplog):
@@ -55,7 +55,7 @@ class TestValidateApiKeyProvided:
         # Multi-key detection is preserved even when a base URL is set.
         env = {"OPENAI_BASE_URL": "http://127.0.0.1:8000/v1", "ANTHROPIC_API_KEY": "sk-ant-test"}
         with patch.dict(os.environ, env, clear=True):
-            with pytest.raises(ValueError, match="Multiple LLM provider keys detected"):
+            with pytest.raises(ValueError, match="Multiple LLM providers selected"):
                 validate_api_key_provided()
 
     def test_litellm_proxy_base_url_passes(self):
@@ -65,7 +65,7 @@ class TestValidateApiKeyProvided:
     def test_litellm_key_without_base_url_raises_with_hint(self):
         # A key alone does not activate litellm; the error must point at the missing URL.
         with patch.dict(os.environ, {"LITELLM_API_KEY": "sk-litellm-test"}, clear=True):
-            with pytest.raises(LLMConfigError, match="activates via LITELLM_BASE_URL"):
+            with pytest.raises(LLMConfigError, match="is selected by LITELLM_BASE_URL"):
                 validate_api_key_provided()
 
     def test_stray_inactive_key_warns_but_passes(self, caplog):
@@ -79,25 +79,25 @@ class TestValidateApiKeyProvided:
         assert any("LITELLM_API_KEY is set" in r.message for r in caplog.records)
 
 
-class TestProviderActivation:
+class TestProviderSelection:
     def test_ollama_activates_via_ollama_host(self):
         ollama = LLM_PROVIDERS["ollama"]
         with patch.dict(os.environ, {"OLLAMA_HOST": "127.0.0.1:11434"}, clear=True):
-            assert ollama.is_active() is True
+            assert ollama.is_selected_by_env() is True
             assert ollama.has_real_api_key() is False
 
     def test_ollama_cloud_key_is_a_real_key(self):
         ollama = LLM_PROVIDERS["ollama"]
         env = {"OLLAMA_BASE_URL": "https://ollama.com", "OLLAMA_API_KEY": "ok-test"}
         with patch.dict(os.environ, env, clear=True):
-            assert ollama.is_active() is True
+            assert ollama.is_selected_by_env() is True
             assert ollama.has_real_api_key() is True
 
     def test_aws_has_no_api_key_env(self):
         # botocore consumes AWS_BEARER_TOKEN_BEDROCK directly; it is never passed as a kwarg.
         aws = LLM_PROVIDERS["aws"]
         with patch.dict(os.environ, {"AWS_BEARER_TOKEN_BEDROCK": "bearer-test"}, clear=True):
-            assert aws.is_active() is True
+            assert aws.is_selected_by_env() is True
             assert aws.get_api_key() is None
             assert aws.has_real_api_key() is False
 
@@ -107,20 +107,20 @@ class TestLLMConfigKeyless:
         assert LLM_PROVIDERS["openai"].keyless_capable is True
 
     def test_empty_string_key_is_not_a_real_key(self):
-        # Empty env values must keep meaning "unset", matching is_active() and
+        # Empty env values must keep meaning "unset", matching is_selected_by_env() and
         # the `api_key or "no-key-required"` fallback.
         openai = LLM_PROVIDERS["openai"]
         env = {"OPENAI_BASE_URL": "http://127.0.0.1:8000/v1", "OPENAI_API_KEY": ""}
         with patch.dict(os.environ, env, clear=True):
             assert openai.has_real_api_key() is False
 
-    def test_has_real_api_key_distinguishes_from_is_active(self):
+    def test_has_real_api_key_distinguishes_from_is_selected_by_env(self):
         openai = LLM_PROVIDERS["openai"]
         with patch.dict(os.environ, {"OPENAI_BASE_URL": "http://127.0.0.1:8000/v1"}, clear=True):
-            assert openai.is_active() is True
+            assert openai.is_selected_by_env() is True
             assert openai.has_real_api_key() is False
         with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test"}, clear=True):
-            assert openai.is_active() is True
+            assert openai.is_selected_by_env() is True
             assert openai.has_real_api_key() is True
 
 
@@ -167,7 +167,7 @@ class TestLiteLLMProvider:
         # A key alone must not select litellm and fall through to the default OpenAI endpoint.
         env = {"LITELLM_API_KEY": "sk-litellm-test", "AGENT_MODEL": "my-proxy-model"}
         with patch.dict(os.environ, env, clear=True):
-            with pytest.raises(ValueError, match="activates via LITELLM_BASE_URL"):
+            with pytest.raises(ValueError, match="is selected by LITELLM_BASE_URL"):
                 initialize_llms()
 
 
@@ -407,7 +407,7 @@ class TestEnvironmentVariables:
         """Test that model_override parameter takes precedence over default in initialize_agent_llm()."""
         # Setup mock provider
         mock_config = MagicMock()
-        mock_config.is_active.return_value = True
+        mock_config.is_selected_by_env.return_value = True
         mock_config.agent_model = "gpt-4o"  # Default model
         mock_config.agent_temperature = 0.1
         mock_config.get_api_key.return_value = "test-key"
@@ -472,7 +472,7 @@ class TestEnvironmentVariables:
         """Test that model_override parameter takes precedence over default in initialize_parsing_llm()."""
         # Setup mock provider
         mock_config = MagicMock()
-        mock_config.is_active.return_value = True
+        mock_config.is_selected_by_env.return_value = True
         mock_config.parsing_model = "gpt-4o-mini"  # Default parsing model
         mock_config.parsing_temperature = 0
         mock_config.get_api_key.return_value = "test-key"
@@ -525,7 +525,7 @@ class TestMonitoringIntegration:
 
         # Setup mock provider
         mock_config = MagicMock()
-        mock_config.is_active.return_value = True
+        mock_config.is_selected_by_env.return_value = True
         mock_config.agent_model = "gpt-4o"
         mock_config.agent_temperature = 0.1
         mock_config.get_api_key.return_value = "test-key"
