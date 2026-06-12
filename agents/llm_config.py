@@ -23,6 +23,8 @@ MONITORING_CALLBACK = MonitoringCallback(stats_container=RunStats())
 
 logger = logging.getLogger(__name__)
 
+_OPENROUTER_FALLBACK_CONTEXT_WINDOW = ContextWindow(1_048_576, 65_536, is_fallback=True)
+
 # ---------------------------------------------------------------------------
 # Module-level model overrides – set once by the orchestrator (main.py) and
 # consumed by initialize_llms() without needing to thread the values through
@@ -374,7 +376,10 @@ def get_current_agent_context_window() -> ContextWindow:
     resolved = _resolve_active_provider(_agent_model_override or os.getenv("AGENT_MODEL"), "agent_model")
     if resolved is not None:
         name, _config, model_name = resolved
-        return get_context_window(name, model_name)
+        ctx = get_context_window(name, model_name)
+        if name == "openrouter" and ctx.is_fallback:
+            return _OPENROUTER_FALLBACK_CONTEXT_WINDOW
+        return ctx
     return ContextWindow(ModelCapabilities.FALLBACK_INPUT, ModelCapabilities.FALLBACK_OUTPUT, is_fallback=True)
 
 

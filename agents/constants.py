@@ -14,9 +14,8 @@ class FileStructureConfig:
 
 
 class ModelCapabilities:
-    # Gemini 3 Flash limits — the default production model class.
-    FALLBACK_INPUT = 1_048_576
-    FALLBACK_OUTPUT = 65_536
+    FALLBACK_INPUT = 256_000
+    FALLBACK_OUTPUT = 64_000
     CACHE_TTL_SECONDS = 24 * 3600
     CHARS_PER_TOKEN = 3.5  # community consensus conversion is around 3 or 4 chars/token.
 

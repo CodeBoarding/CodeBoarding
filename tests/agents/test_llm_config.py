@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from agents.llm_config import initialize_agent_llm, initialize_parsing_llm, validate_api_key_provided
+from agents.model_capabilities import ContextWindow
 from agents.prompts.prompt_factory import LLMType
 
 
@@ -68,6 +69,39 @@ class TestLLMConfigKeyless:
         with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test"}, clear=True):
             assert openai.is_active() is True
             assert openai.has_real_api_key() is True
+
+
+class TestAgentContextWindow:
+    def test_openrouter_fallback_uses_large_default(self):
+        from agents.llm_config import get_current_agent_context_window
+
+        with (
+            patch(
+                "agents.llm_config._resolve_active_provider",
+                return_value=("openrouter", MagicMock(), "@preset/production"),
+            ),
+            patch(
+                "agents.llm_config.get_context_window",
+                return_value=ContextWindow(256_000, 64_000, is_fallback=True),
+            ),
+        ):
+            ctx = get_current_agent_context_window()
+
+        assert ctx == ContextWindow(1_048_576, 65_536, is_fallback=True)
+
+    def test_non_openrouter_fallback_stays_generic(self):
+        from agents.llm_config import get_current_agent_context_window
+
+        with (
+            patch("agents.llm_config._resolve_active_provider", return_value=("openai", MagicMock(), "private")),
+            patch(
+                "agents.llm_config.get_context_window",
+                return_value=ContextWindow(256_000, 64_000, is_fallback=True),
+            ),
+        ):
+            ctx = get_current_agent_context_window()
+
+        assert ctx == ContextWindow(256_000, 64_000, is_fallback=True)
 
 
 class TestDetectLLMTypeFromModel:

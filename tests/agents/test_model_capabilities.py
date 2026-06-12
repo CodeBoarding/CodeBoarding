@@ -73,7 +73,7 @@ class TestResolverPriority:
         monkeypatch.setenv("CB_CTX_OPENAI_GPT_5", "500000")
         cw = get_context_window("openai", "gpt-5")
         assert cw.input_tokens == 500_000
-        assert cw.output_tokens == 65_536
+        assert cw.output_tokens == 64_000
 
     def test_malformed_env_override_falls_through_to_catalog(self, fake_catalogs, monkeypatch):
         # Regression: a typo like `500k` used to raise ValueError out of get_context_window.
@@ -81,7 +81,7 @@ class TestResolverPriority:
         assert get_context_window("openai", "gpt-5").input_tokens == 272_000
 
     def test_fallback_when_nothing_matches(self, fake_catalogs):
-        assert get_context_window("mystery", "nonexistent") == ContextWindow(1_048_576, 65_536, is_fallback=True)
+        assert get_context_window("mystery", "nonexistent") == ContextWindow(256_000, 64_000, is_fallback=True)
 
 
 class TestModelsdevResolution:
@@ -137,7 +137,7 @@ class TestOllamaResolver:
 
         monkeypatch.setattr("agents.model_capabilities.urllib.request.urlopen", fake_urlopen)
         result = _resolve_ollama("ollama", "qwen3:30b")
-        assert result == (4096, 65_536)
+        assert result == (4096, 64_000)
 
     def test_arch_max_used_when_num_ctx_absent(self, monkeypatch):
         monkeypatch.setenv("OLLAMA_BASE_URL", "http://fake:11434")
@@ -148,7 +148,7 @@ class TestOllamaResolver:
             return io.BytesIO(json.dumps(payload).encode())
 
         monkeypatch.setattr("agents.model_capabilities.urllib.request.urlopen", fake_urlopen)
-        assert _resolve_ollama("ollama", "llama3:8b") == (131072, 65_536)
+        assert _resolve_ollama("ollama", "llama3:8b") == (131072, 64_000)
 
     def test_transient_failure_is_retried_not_cached(self, monkeypatch):
         # Why: @lru_cache used to memoize None here, so a brief Ollama outage
@@ -166,7 +166,7 @@ class TestOllamaResolver:
 
         monkeypatch.setattr("agents.model_capabilities.urllib.request.urlopen", fake_urlopen)
         assert _resolve_ollama("ollama", "llama3:8b") is None
-        assert _resolve_ollama("ollama", "llama3:8b") == (8192, 65_536)
+        assert _resolve_ollama("ollama", "llama3:8b") == (8192, 64_000)
 
 
 class TestCorruptCache:
