@@ -24,6 +24,7 @@ _OLLAMA_CACHE: dict[tuple[str, str], tuple[int, int]] = {}
 class ContextWindow:
     input_tokens: int
     output_tokens: int
+    is_fallback: bool = False
 
 
 def get_context_window(provider: str, model_name: str) -> ContextWindow:
@@ -40,7 +41,7 @@ def get_context_window(provider: str, model_name: str) -> ContextWindow:
         if hit is not None:
             return ContextWindow(*hit)
     logger.warning(f"No context window for {provider}/{model_name}; using fallback {ModelCapabilities.FALLBACK_INPUT}")
-    return ContextWindow(ModelCapabilities.FALLBACK_INPUT, ModelCapabilities.FALLBACK_OUTPUT)
+    return ContextWindow(ModelCapabilities.FALLBACK_INPUT, ModelCapabilities.FALLBACK_OUTPUT, is_fallback=True)
 
 
 def _resolve_env(provider: str, model_name: str) -> tuple[int, int] | None:

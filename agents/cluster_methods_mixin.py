@@ -16,7 +16,8 @@ from agents.agent_responses import (
     MethodEntry,
 )
 from agents.cluster_budget import ClusterPromptBudget
-from agents.llm_config import get_current_agent_context_window
+from agents.llm_config import get_current_agent_context_window, get_current_agent_model_ref
+from agents.model_capabilities import ContextWindow
 from constants import MIN_CLUSTERS_THRESHOLD
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cfg_skip_planner import ContextBudgetExceededError, plan_skip_set
@@ -44,6 +45,20 @@ class _RenderedClusterString:
     text: str
     by_language: dict[str, str]
     cluster_ids: set[int]
+
+
+def _describe_window(ctx: ContextWindow) -> str:
+    suffix = "; fallback default, model window unresolved" if ctx.is_fallback else ""
+    return f"{ctx.input_tokens} input tokens for {get_current_agent_model_ref()}{suffix}"
+
+
+def _window_telemetry(ctx: ContextWindow, char_budget: int) -> dict:
+    return {
+        "char_budget": char_budget,
+        "window_input_tokens": ctx.input_tokens,
+        "window_is_fallback": ctx.is_fallback,
+        "agent_model": get_current_agent_model_ref(),
+    }
 
 
 class ClusterMethodsMixin:
@@ -156,10 +171,10 @@ class ClusterMethodsMixin:
             ctx = get_current_agent_context_window()
             msg = (
                 f"Prompt overhead ({prompt_overhead_chars} chars) consumes the entire agent input "
-                f"window ({ctx.input_tokens} tokens); no room for cluster renderings."
+                f"window ({_describe_window(ctx)}); no room for cluster renderings."
             )
             logger.error("[CFG skip planner] %s", msg)
-            raise ContextBudgetExceededError(msg)
+            raise ContextBudgetExceededError(msg, telemetry_properties=_window_telemetry(ctx, char_budget))
 
         langs_with_clusters = [l for l in programming_langs if cluster_results.get(l)]
         if not langs_with_clusters:
@@ -240,14 +255,21 @@ class ClusterMethodsMixin:
         rendered: _RenderedClusterString,
         skip_sets: dict[str, set[str]],
     ) -> NoReturn:
+        ctx = get_current_agent_context_window()
         per_lang_sizes = {lang: len(text) for lang, text in rendered.by_language.items()}
         skipped_counts = {lang: len(skip) for lang, skip in skip_sets.items() if skip}
         msg = (
-            f"Cluster render {len(rendered.text)} chars exceeds budget {char_budget}. "
+            f"Cluster render {len(rendered.text)} chars exceeds budget {char_budget} "
+            f"(agent window: {_describe_window(ctx)}). "
             f"Per-language sizes: {per_lang_sizes}; skipped nodes: {skipped_counts}."
         )
         logger.error("[CFG skip planner] %s", msg)
-        raise ContextBudgetExceededError(msg)
+        telemetry = _window_telemetry(ctx, char_budget) | {
+            "render_chars": len(rendered.text),
+            "per_language_chars": per_lang_sizes,
+            "skipped_node_counts": skipped_counts,
+        }
+        raise ContextBudgetExceededError(msg, telemetry_properties=telemetry)
 
     @staticmethod
     def _cluster_prompt_budget(prompt_overhead_chars: int) -> int:

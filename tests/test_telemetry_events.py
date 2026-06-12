@@ -68,6 +68,33 @@ def test_capture_error_forwards_to_posthog(captured):
     assert props["run_id"] == "r9"
 
 
+def test_exception_attached_telemetry_properties_are_forwarded(captured):
+    # Why: budget-overflow errors attach window provenance so the $exception
+    # event is diagnosable without a local repro.
+    @track_analysis
+    def generate_analysis(run_id=None):
+        exc = RuntimeError("render exceeds budget")
+        exc.telemetry_properties = {"window_is_fallback": True, "char_budget": 776_700}  # type: ignore[attr-defined]
+        raise exc
+
+    with pytest.raises(RuntimeError):
+        generate_analysis(run_id="r3")
+
+    _, props = captured.exceptions[0]
+    assert props["window_is_fallback"] is True
+    assert props["char_budget"] == 776_700
+    assert props["command"] == "generate_analysis"
+
+
+def test_capture_error_merges_exception_telemetry_properties(captured):
+    exc = RuntimeError("boom")
+    exc.telemetry_properties = {"window_is_fallback": False}  # type: ignore[attr-defined]
+    capture_error("expand", exc)
+
+    _, props = captured.exceptions[0]
+    assert props["window_is_fallback"] is False
+
+
 def test_track_analysis_reads_run_id_from_self_for_generator_methods(captured):
     """Generator methods (generate_analysis) keep run_id on self, not as a param."""
 

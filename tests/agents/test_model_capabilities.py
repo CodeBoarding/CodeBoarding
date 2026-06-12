@@ -81,7 +81,7 @@ class TestResolverPriority:
         assert get_context_window("openai", "gpt-5").input_tokens == 272_000
 
     def test_fallback_when_nothing_matches(self, fake_catalogs):
-        assert get_context_window("mystery", "nonexistent") == ContextWindow(256_000, 64_000)
+        assert get_context_window("mystery", "nonexistent") == ContextWindow(256_000, 64_000, is_fallback=True)
 
 
 class TestModelsdevResolution:

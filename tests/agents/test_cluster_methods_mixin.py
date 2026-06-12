@@ -8,6 +8,7 @@ from agents.cluster_budget import ClusterPromptBudget
 from agents.cluster_methods_mixin import ClusterMethodsMixin
 from agents.agent_responses import AnalysisInsights, Component, SourceCodeReference
 from agents.model_capabilities import ContextWindow
+from static_analyzer.cfg_skip_planner import ContextBudgetExceededError
 from static_analyzer.graph import CallGraph, ClusterResult
 from static_analyzer.constants import Language, NodeType
 from static_analyzer.node import Node
@@ -248,6 +249,42 @@ class TestClusterStringBudgeting(unittest.TestCase):
 
         self.assertEqual(result, full)
         mock_plan_skip.assert_not_called()
+
+    def test_budget_error_reports_window_provenance_and_telemetry(self):
+        # Why: overflow errors must be diagnosable from PostHog alone — they need the
+        # window size, whether it was a fallback guess, and the active model.
+        names = ["py." + ("long_name_" * 30) + str(i) for i in range(10)]
+        cfg = self._make_graph("python", names)
+        cluster_results = {"python": ClusterResult(clusters={1: set(names)}, strategy="test")}
+        static = MagicMock()
+        static.get_cfg.return_value = cfg
+        mixin = MockMixin(repo_dir=Path("/repo"), static_analysis=static)
+
+        with (
+            patch(
+                "agents.cluster_methods_mixin.get_current_agent_context_window",
+                return_value=ContextWindow(input_tokens=8_100, output_tokens=64_000, is_fallback=True),
+            ),
+            patch(
+                "agents.cluster_methods_mixin.get_current_agent_model_ref",
+                return_value="openrouter/@preset/production",
+            ),
+            patch(
+                "agents.cluster_methods_mixin.plan_skip_set",
+                side_effect=ContextBudgetExceededError("cannot fit"),
+            ),
+        ):
+            with self.assertRaises(ContextBudgetExceededError) as raised:
+                mixin._build_cluster_string([Language.PYTHON], cluster_results)
+
+        message = str(raised.exception)
+        self.assertIn("openrouter/@preset/production", message)
+        self.assertIn("fallback default", message)
+        props = raised.exception.telemetry_properties
+        self.assertTrue(props["window_is_fallback"])
+        self.assertEqual(props["window_input_tokens"], 8_100)
+        self.assertEqual(props["agent_model"], "openrouter/@preset/production")
+        self.assertGreater(props["render_chars"], props["char_budget"])
 
 
 class TestExpandToMethodLevelClusters(unittest.TestCase):
