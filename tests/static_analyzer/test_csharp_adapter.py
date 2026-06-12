@@ -8,7 +8,12 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from static_analyzer.constants import Language, NodeType
+from static_analyzer.dotnet_sdk import DotnetSdkError, DotnetSdkResolution
 from static_analyzer.engine.adapters.csharp_adapter import CSharpAdapter
+
+
+def _dotnet_resolution(dotnet_path: str = "/usr/bin/dotnet", env: dict[str, str] | None = None) -> DotnetSdkResolution:
+    return DotnetSdkResolution(dotnet_path=dotnet_path, env=env or {}, source="system")
 
 
 class TestGetLspCommandDotnetCheck:
@@ -20,31 +25,24 @@ class TestGetLspCommandDotnetCheck:
     ``RustAdapter`` enforces a cargo toolchain.
     """
 
-    def test_raises_when_dotnet_missing(self, tmp_path: Path) -> None:
-        real_which = shutil.which
-
-        def selective(name: str) -> str | None:
-            if name == "dotnet":
-                return None
-            return real_which(name)
-
-        with patch("static_analyzer.engine.adapters.csharp_adapter.shutil.which", side_effect=selective):
-            with pytest.raises(RuntimeError, match=r"\.NET SDK not found.*dotnet\.microsoft\.com"):
+    def test_raises_when_sdk_cannot_be_resolved(self, tmp_path: Path) -> None:
+        with patch(
+            "static_analyzer.engine.adapters.csharp_adapter.resolve_dotnet_sdk",
+            side_effect=DotnetSdkError(".NET SDK not found"),
+        ):
+            with pytest.raises(RuntimeError, match=r"\.NET SDK not found"):
                 CSharpAdapter().get_lsp_command(tmp_path)
 
     def test_returns_command_when_dotnet_present(self, tmp_path: Path) -> None:
-        real_which = shutil.which
-
-        def selective(name: str) -> str | None:
-            if name == "dotnet":
-                return "/usr/local/bin/dotnet"
-            return real_which(name)
-
         resolved = "/opt/codeboarding/pm-tools/csharp/csharp-ls"
         lsp_servers = {"csharp": {"command": [resolved]}}
 
         with (
-            patch("static_analyzer.engine.adapters.csharp_adapter.shutil.which", side_effect=selective),
+            patch(
+                "static_analyzer.engine.adapters.csharp_adapter.resolve_dotnet_sdk",
+                return_value=_dotnet_resolution("/usr/local/bin/dotnet"),
+            ),
+            patch.object(CSharpAdapter, "_ensure_csharp_ls_installed"),
             patch("static_analyzer.engine.language_adapter.get_config", return_value=lsp_servers),
         ):
             cmd = CSharpAdapter().get_lsp_command(tmp_path)
@@ -74,6 +72,10 @@ class TestCSharpAdapterProperties:
     def test_language_id(self):
         adapter = CSharpAdapter()
         assert adapter.language_id == "csharp"
+
+    def test_fails_on_empty_symbols(self):
+        adapter = CSharpAdapter()
+        assert adapter.fail_on_empty_symbols is True
 
     def test_config_key_defaults_to_language_id(self):
         adapter = CSharpAdapter()
@@ -235,17 +237,28 @@ class TestLspConfiguration:
         adapter = CSharpAdapter()
         assert adapter.get_probe_timeout_minimum() > 300
 
+    def test_skips_initial_workspace_ready_wait(self):
+        # Why: csharp-ls does not consistently emit a startup workspace-ready
+        # signal for per-csproj launches. C# relies on the later probe and
+        # diagnostics waits instead.
+        adapter = CSharpAdapter()
+        assert adapter.wait_for_workspace_ready is False
+
 
 class TestLspEnv:
-    """Tests for DOTNET_ROOT resolution."""
+    """Tests for DOTNET_ROOT and DOTNET_ROLL_FORWARD resolution."""
 
-    def test_returns_empty_when_dotnet_root_set(self, monkeypatch):
+    def test_skips_dotnet_root_when_already_set(self, monkeypatch):
         monkeypatch.setenv("DOTNET_ROOT", "/usr/share/dotnet")
+        monkeypatch.delenv("DOTNET_ROLL_FORWARD", raising=False)
         adapter = CSharpAdapter()
-        assert adapter.get_lsp_env() == {}
+        env = adapter.get_lsp_env()
+        assert "DOTNET_ROOT" not in env
+        assert env.get("DOTNET_ROLL_FORWARD") == "Major"
 
     def test_resolves_dotnet_root_from_path(self, monkeypatch, tmp_path):
         monkeypatch.delenv("DOTNET_ROOT", raising=False)
+        monkeypatch.delenv("DOTNET_ROLL_FORWARD", raising=False)
         # Simulate Homebrew layout: bin/dotnet -> Cellar/.../libexec/dotnet
         libexec = tmp_path / "opt" / "dotnet" / "libexec"
         libexec.mkdir(parents=True)
@@ -258,12 +271,39 @@ class TestLspEnv:
         adapter = CSharpAdapter()
         env = adapter.get_lsp_env()
         assert env.get("DOTNET_ROOT") == str(libexec)
+        assert env.get("DOTNET_ROLL_FORWARD") == "Major"
 
-    def test_returns_empty_when_dotnet_not_found(self, monkeypatch):
+    def test_skips_dotnet_root_when_dotnet_not_found(self, monkeypatch):
         monkeypatch.delenv("DOTNET_ROOT", raising=False)
+        monkeypatch.delenv("DOTNET_ROLL_FORWARD", raising=False)
         monkeypatch.setattr("shutil.which", lambda _: None)
         adapter = CSharpAdapter()
-        assert adapter.get_lsp_env() == {}
+        env = adapter.get_lsp_env()
+        assert "DOTNET_ROOT" not in env
+        assert env.get("DOTNET_ROLL_FORWARD") == "Major"
+
+    def test_sets_roll_forward_when_unset(self, monkeypatch):
+        # Why: csharp-ls is a dotnet tool, and older installs may pin a
+        # runtime not present on the host. Roll-forward keeps setup resilient
+        # across supported .NET SDK/runtime combinations.
+        monkeypatch.delenv("DOTNET_ROLL_FORWARD", raising=False)
+        monkeypatch.setenv("DOTNET_ROOT", "/usr/share/dotnet")
+        adapter = CSharpAdapter()
+        assert adapter.get_lsp_env()["DOTNET_ROLL_FORWARD"] == "Major"
+
+    def test_preserves_user_roll_forward(self, monkeypatch):
+        monkeypatch.setenv("DOTNET_ROLL_FORWARD", "LatestMajor")
+        monkeypatch.setenv("DOTNET_ROOT", "/usr/share/dotnet")
+        adapter = CSharpAdapter()
+        assert "DOTNET_ROLL_FORWARD" not in adapter.get_lsp_env()
+
+    def test_project_env_uses_resolved_sdk(self, monkeypatch, tmp_path):
+        monkeypatch.setattr(
+            "static_analyzer.engine.adapters.csharp_adapter.resolve_dotnet_sdk",
+            lambda _root: _dotnet_resolution("/private/dotnet", {"DOTNET_ROOT": "/private"}),
+        )
+        adapter = CSharpAdapter()
+        assert adapter.get_lsp_env(tmp_path) == {"DOTNET_ROOT": "/private"}
 
 
 class TestReferenceTracking:
@@ -306,28 +346,32 @@ class TestPrepareProject:
 
     def test_runs_dotnet_restore_when_csproj_present(self, tmp_path, monkeypatch):
         (tmp_path / "Foo.csproj").write_text("<Project />")
-        monkeypatch.setattr("shutil.which", lambda name: "/usr/bin/dotnet" if name == "dotnet" else None)
 
         called = {}
 
         def fake_run(cmd, **kwargs):
             called["cmd"] = cmd
             called["cwd"] = kwargs.get("cwd")
+            called["env"] = kwargs.get("env")
             return MagicMock(returncode=0, stdout="", stderr="")
 
         monkeypatch.setattr(
             "static_analyzer.engine.adapters.csharp_adapter.subprocess.run",
             fake_run,
         )
+        monkeypatch.setattr(
+            "static_analyzer.engine.adapters.csharp_adapter.resolve_dotnet_sdk",
+            lambda _root: _dotnet_resolution("/opt/dotnet/dotnet", {"DOTNET_ROOT": "/opt/dotnet"}),
+        )
         CSharpAdapter().prepare_project(tmp_path)
-        assert called["cmd"][:2] == ["dotnet", "restore"]
+        assert called["cmd"][:2] == ["/opt/dotnet/dotnet", "restore"]
         assert called["cmd"][2] == "Foo.csproj"
         assert called["cwd"] == str(tmp_path)
+        assert called["env"]["DOTNET_ROOT"] == "/opt/dotnet"
 
     def test_prefers_solution_over_csproj(self, tmp_path, monkeypatch):
         (tmp_path / "Foo.sln").write_text("")
         (tmp_path / "Foo.csproj").write_text("<Project />")
-        monkeypatch.setattr("shutil.which", lambda name: "/usr/bin/dotnet" if name == "dotnet" else None)
 
         called = {}
 
@@ -339,24 +383,32 @@ class TestPrepareProject:
             "static_analyzer.engine.adapters.csharp_adapter.subprocess.run",
             fake_run,
         )
+        monkeypatch.setattr(
+            "static_analyzer.engine.adapters.csharp_adapter.resolve_dotnet_sdk",
+            lambda _root: _dotnet_resolution(),
+        )
         CSharpAdapter().prepare_project(tmp_path)
         assert called["cmd"][2] == "Foo.sln"
 
     def test_skips_when_no_project_file(self, tmp_path, monkeypatch):
-        monkeypatch.setattr("shutil.which", lambda name: "/usr/bin/dotnet" if name == "dotnet" else None)
-
         def fake_run(*_args, **_kwargs):
             raise AssertionError("subprocess.run should not be called")
+
+        def fake_resolve(*_args, **_kwargs):
+            raise AssertionError("resolve_dotnet_sdk should not be called")
 
         monkeypatch.setattr(
             "static_analyzer.engine.adapters.csharp_adapter.subprocess.run",
             fake_run,
+        )
+        monkeypatch.setattr(
+            "static_analyzer.engine.adapters.csharp_adapter.resolve_dotnet_sdk",
+            fake_resolve,
         )
         CSharpAdapter().prepare_project(tmp_path)  # no exception
 
-    def test_skips_when_dotnet_not_on_path(self, tmp_path, monkeypatch):
+    def test_raises_when_sdk_unavailable(self, tmp_path, monkeypatch):
         (tmp_path / "Foo.csproj").write_text("<Project />")
-        monkeypatch.setattr("shutil.which", lambda _: None)
 
         def fake_run(*_args, **_kwargs):
             raise AssertionError("subprocess.run should not be called")
@@ -365,11 +417,15 @@ class TestPrepareProject:
             "static_analyzer.engine.adapters.csharp_adapter.subprocess.run",
             fake_run,
         )
-        CSharpAdapter().prepare_project(tmp_path)
+        monkeypatch.setattr(
+            "static_analyzer.engine.adapters.csharp_adapter.resolve_dotnet_sdk",
+            lambda _root: (_ for _ in ()).throw(DotnetSdkError("compatible .NET SDK was not found")),
+        )
+        with pytest.raises(RuntimeError, match="compatible .NET SDK"):
+            CSharpAdapter().prepare_project(tmp_path)
 
     def test_swallows_restore_failure(self, tmp_path, monkeypatch):
         (tmp_path / "Foo.csproj").write_text("<Project />")
-        monkeypatch.setattr("shutil.which", lambda name: "/usr/bin/dotnet" if name == "dotnet" else None)
 
         def fake_run(cmd, **kwargs):
             return MagicMock(returncode=1, stdout="", stderr="boom")
@@ -378,12 +434,15 @@ class TestPrepareProject:
             "static_analyzer.engine.adapters.csharp_adapter.subprocess.run",
             fake_run,
         )
+        monkeypatch.setattr(
+            "static_analyzer.engine.adapters.csharp_adapter.resolve_dotnet_sdk",
+            lambda _root: _dotnet_resolution(),
+        )
         # Should not raise — restore failures are warnings, not aborts.
         CSharpAdapter().prepare_project(tmp_path)
 
     def test_handles_subprocess_timeout(self, tmp_path, monkeypatch):
         (tmp_path / "Foo.csproj").write_text("<Project />")
-        monkeypatch.setattr("shutil.which", lambda name: "/usr/bin/dotnet" if name == "dotnet" else None)
 
         def fake_run(cmd, **kwargs):
             raise subprocess.TimeoutExpired(cmd=cmd, timeout=1)
@@ -391,5 +450,9 @@ class TestPrepareProject:
         monkeypatch.setattr(
             "static_analyzer.engine.adapters.csharp_adapter.subprocess.run",
             fake_run,
+        )
+        monkeypatch.setattr(
+            "static_analyzer.engine.adapters.csharp_adapter.resolve_dotnet_sdk",
+            lambda _root: _dotnet_resolution(),
         )
         CSharpAdapter().prepare_project(tmp_path)  # no exception

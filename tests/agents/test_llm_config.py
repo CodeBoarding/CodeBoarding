@@ -5,7 +5,14 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from agents.llm_config import initialize_agent_llm, initialize_parsing_llm, validate_api_key_provided
+from agents.llm_config import (
+    LLM_PROVIDERS,
+    LLMConfigError,
+    initialize_agent_llm,
+    initialize_llms,
+    initialize_parsing_llm,
+    validate_api_key_provided,
+)
 from agents.model_capabilities import ContextWindow
 from agents.prompts.prompt_factory import LLMType
 
@@ -13,7 +20,7 @@ from agents.prompts.prompt_factory import LLMType
 class TestValidateApiKeyProvided:
     def test_no_keys_raises_value_error(self):
         with patch.dict(os.environ, {}, clear=True):
-            with pytest.raises(ValueError, match="No LLM provider API key found"):
+            with pytest.raises(ValueError, match="No LLM provider selected"):
                 validate_api_key_provided()
 
     def test_single_key_passes(self):
@@ -22,7 +29,7 @@ class TestValidateApiKeyProvided:
 
     def test_multiple_keys_raises_value_error(self):
         with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test", "ANTHROPIC_API_KEY": "sk-ant-test"}, clear=True):
-            with pytest.raises(ValueError, match="Multiple LLM provider keys detected"):
+            with pytest.raises(ValueError, match="Multiple LLM providers selected"):
                 validate_api_key_provided()
 
     def test_base_url_without_key_passes_with_warning(self, caplog):
@@ -49,25 +56,72 @@ class TestValidateApiKeyProvided:
         # Multi-key detection is preserved even when a base URL is set.
         env = {"OPENAI_BASE_URL": "http://127.0.0.1:8000/v1", "ANTHROPIC_API_KEY": "sk-ant-test"}
         with patch.dict(os.environ, env, clear=True):
-            with pytest.raises(ValueError, match="Multiple LLM provider keys detected"):
+            with pytest.raises(ValueError, match="Multiple LLM providers selected"):
                 validate_api_key_provided()
+
+    def test_litellm_proxy_base_url_passes(self):
+        with patch.dict(os.environ, {"LITELLM_BASE_URL": "http://localhost:4000"}, clear=True):
+            validate_api_key_provided()  # should not raise; base URL activates the proxy
+
+    def test_litellm_key_without_base_url_raises_with_hint(self):
+        # A key alone does not activate litellm; the error must point at the missing URL.
+        with patch.dict(os.environ, {"LITELLM_API_KEY": "sk-litellm-test"}, clear=True):
+            with pytest.raises(LLMConfigError, match="is selected by LITELLM_BASE_URL"):
+                validate_api_key_provided()
+
+    def test_stray_inactive_key_warns_but_passes(self, caplog):
+        # A leftover key for an inactive provider is reported, not treated as ambiguity.
+        import logging
+
+        env = {"OPENAI_API_KEY": "sk-test", "LITELLM_API_KEY": "sk-litellm-test"}
+        with patch.dict(os.environ, env, clear=True):
+            with caplog.at_level(logging.WARNING, logger="agents.llm_config"):
+                validate_api_key_provided()  # should not raise
+        assert any("LITELLM_API_KEY is set" in r.message for r in caplog.records)
+
+
+class TestProviderSelection:
+    def test_ollama_activates_via_ollama_host(self):
+        ollama = LLM_PROVIDERS["ollama"]
+        with patch.dict(os.environ, {"OLLAMA_HOST": "127.0.0.1:11434"}, clear=True):
+            assert ollama.is_selected_by_env() is True
+            assert ollama.has_real_api_key() is False
+
+    def test_ollama_cloud_key_is_a_real_key(self):
+        ollama = LLM_PROVIDERS["ollama"]
+        env = {"OLLAMA_BASE_URL": "https://ollama.com", "OLLAMA_API_KEY": "ok-test"}
+        with patch.dict(os.environ, env, clear=True):
+            assert ollama.is_selected_by_env() is True
+            assert ollama.has_real_api_key() is True
+
+    def test_aws_has_no_api_key_env(self):
+        # botocore consumes AWS_BEARER_TOKEN_BEDROCK directly; it is never passed as a kwarg.
+        aws = LLM_PROVIDERS["aws"]
+        with patch.dict(os.environ, {"AWS_BEARER_TOKEN_BEDROCK": "bearer-test"}, clear=True):
+            assert aws.is_selected_by_env() is True
+            assert aws.get_api_key() is None
+            assert aws.has_real_api_key() is False
 
 
 class TestLLMConfigKeyless:
     def test_openai_is_keyless_capable(self):
-        from agents.llm_config import LLM_PROVIDERS
-
         assert LLM_PROVIDERS["openai"].keyless_capable is True
 
-    def test_has_real_api_key_distinguishes_from_is_active(self):
-        from agents.llm_config import LLM_PROVIDERS
+    def test_empty_string_key_is_not_a_real_key(self):
+        # Empty env values must keep meaning "unset", matching is_selected_by_env() and
+        # the `api_key or "no-key-required"` fallback.
+        openai = LLM_PROVIDERS["openai"]
+        env = {"OPENAI_BASE_URL": "http://127.0.0.1:8000/v1", "OPENAI_API_KEY": ""}
+        with patch.dict(os.environ, env, clear=True):
+            assert openai.has_real_api_key() is False
 
+    def test_has_real_api_key_distinguishes_from_is_selected_by_env(self):
         openai = LLM_PROVIDERS["openai"]
         with patch.dict(os.environ, {"OPENAI_BASE_URL": "http://127.0.0.1:8000/v1"}, clear=True):
-            assert openai.is_active() is True
+            assert openai.is_selected_by_env() is True
             assert openai.has_real_api_key() is False
         with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test"}, clear=True):
-            assert openai.is_active() is True
+            assert openai.is_selected_by_env() is True
             assert openai.has_real_api_key() is True
 
 
@@ -77,7 +131,7 @@ class TestAgentContextWindow:
 
         with (
             patch(
-                "agents.llm_config._resolve_active_provider",
+                "agents.llm_config._resolve_selected_provider",
                 return_value=("openrouter", MagicMock(), "@preset/production"),
             ),
             patch(
@@ -93,7 +147,7 @@ class TestAgentContextWindow:
         from agents.llm_config import get_current_agent_context_window
 
         with (
-            patch("agents.llm_config._resolve_active_provider", return_value=("openai", MagicMock(), "private")),
+            patch("agents.llm_config._resolve_selected_provider", return_value=("openai", MagicMock(), "private")),
             patch(
                 "agents.llm_config.get_context_window",
                 return_value=ContextWindow(256_000, 64_000, is_fallback=True),
@@ -102,6 +156,53 @@ class TestAgentContextWindow:
             ctx = get_current_agent_context_window()
 
         assert ctx == ContextWindow(256_000, 64_000, is_fallback=True)
+
+
+class TestLiteLLMProvider:
+    """The litellm provider proxies an OpenAI-compatible server via base_url."""
+
+    @patch("agents.prompts.prompt_factory.initialize_global_factory")
+    @patch("agents.agent.MONITORING_CALLBACK")
+    def test_uses_proxy_base_url_and_key(self, mock_monitoring_callback, mock_init_factory):
+        env = {
+            "LITELLM_API_KEY": "sk-litellm-test",
+            "LITELLM_BASE_URL": "http://localhost:4000",
+            "AGENT_MODEL": "my-proxy-model",
+        }
+        with patch.dict(os.environ, env, clear=True):
+            litellm_config = LLM_PROVIDERS["litellm"]
+            mock_llm = MagicMock()
+            with patch.object(litellm_config, "chat_class", return_value=mock_llm) as mock_chat_class:
+                initialize_llms()
+
+                agent_kwargs = mock_chat_class.call_args_list[0][1]
+                assert agent_kwargs["model"] == "my-proxy-model"
+                assert agent_kwargs["base_url"] == "http://localhost:4000"
+                assert agent_kwargs["api_key"] == "sk-litellm-test"
+
+    @patch("agents.prompts.prompt_factory.initialize_global_factory")
+    @patch("agents.agent.MONITORING_CALLBACK")
+    def test_keyless_proxy_uses_placeholder_key(self, mock_monitoring_callback, mock_init_factory):
+        # Base URL alone activates the proxy; a placeholder key is sent when none is set.
+        env = {"LITELLM_BASE_URL": "http://localhost:4000", "AGENT_MODEL": "my-proxy-model"}
+        with patch.dict(os.environ, env, clear=True):
+            litellm_config = LLM_PROVIDERS["litellm"]
+            mock_llm = MagicMock()
+            with patch.object(litellm_config, "chat_class", return_value=mock_llm) as mock_chat_class:
+                initialize_llms()
+
+                agent_kwargs = mock_chat_class.call_args_list[0][1]
+                assert agent_kwargs["base_url"] == "http://localhost:4000"
+                assert agent_kwargs["api_key"] == "no-key-required"
+
+    @patch("agents.prompts.prompt_factory.initialize_global_factory")
+    @patch("agents.agent.MONITORING_CALLBACK")
+    def test_key_without_base_url_raises(self, mock_monitoring_callback, mock_init_factory):
+        # A key alone must not select litellm and fall through to the default OpenAI endpoint.
+        env = {"LITELLM_API_KEY": "sk-litellm-test", "AGENT_MODEL": "my-proxy-model"}
+        with patch.dict(os.environ, env, clear=True):
+            with pytest.raises(ValueError, match="is selected by LITELLM_BASE_URL"):
+                initialize_llms()
 
 
 class TestDetectLLMTypeFromModel:
@@ -340,7 +441,7 @@ class TestEnvironmentVariables:
         """Test that model_override parameter takes precedence over default in initialize_agent_llm()."""
         # Setup mock provider
         mock_config = MagicMock()
-        mock_config.is_active.return_value = True
+        mock_config.is_selected_by_env.return_value = True
         mock_config.agent_model = "gpt-4o"  # Default model
         mock_config.agent_temperature = 0.1
         mock_config.get_api_key.return_value = "test-key"
@@ -405,7 +506,7 @@ class TestEnvironmentVariables:
         """Test that model_override parameter takes precedence over default in initialize_parsing_llm()."""
         # Setup mock provider
         mock_config = MagicMock()
-        mock_config.is_active.return_value = True
+        mock_config.is_selected_by_env.return_value = True
         mock_config.parsing_model = "gpt-4o-mini"  # Default parsing model
         mock_config.parsing_temperature = 0
         mock_config.get_api_key.return_value = "test-key"
@@ -458,7 +559,7 @@ class TestMonitoringIntegration:
 
         # Setup mock provider
         mock_config = MagicMock()
-        mock_config.is_active.return_value = True
+        mock_config.is_selected_by_env.return_value = True
         mock_config.agent_model = "gpt-4o"
         mock_config.agent_temperature = 0.1
         mock_config.get_api_key.return_value = "test-key"

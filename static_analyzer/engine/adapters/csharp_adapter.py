@@ -10,8 +10,18 @@ from pathlib import Path
 
 from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.constants import Language, NodeType
+from static_analyzer.dotnet_sdk import DotnetSdkError, resolve_dotnet_sdk, system_dotnet_env
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_client import LSPClient
+from tool_registry import (
+    TOOL_REGISTRY,
+    ToolKind,
+    acquire_lock,
+    get_servers_dir,
+    install_package_manager_tools,
+    package_manager_tool_is_current,
+    package_manager_tool_path,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -35,14 +45,48 @@ class CSharpAdapter(LanguageAdapter):
         return "csharp"
 
     def get_lsp_command(self, project_root: Path) -> list[str]:
-        """Fail fast if the .NET SDK is missing — csharp-ls needs dotnet+MSBuild to load Roslyn."""
-        if shutil.which("dotnet") is None:
-            raise RuntimeError(
-                ".NET SDK not found on PATH. csharp-ls requires the .NET SDK "
-                "to index C# projects. Install it from "
-                "https://dotnet.microsoft.com/download and re-run the analysis."
-            )
+        """Resolve the .NET SDK and ensure the managed csharp-ls install is current."""
+        try:
+            resolution = resolve_dotnet_sdk(project_root)
+        except DotnetSdkError as exc:
+            raise RuntimeError(str(exc)) from exc
+
+        self._ensure_csharp_ls_installed(project_root, resolution.dotnet_path, resolution.env)
         return super().get_lsp_command(project_root)
+
+    def _ensure_csharp_ls_installed(self, project_root: Path, dotnet_path: str, dotnet_env: dict[str, str]) -> None:
+        dep = next((d for d in TOOL_REGISTRY if d.key == "csharp" and d.kind is ToolKind.PACKAGE_MANAGER), None)
+        if dep is None:
+            return
+
+        servers_dir = get_servers_dir()
+        managed_path = package_manager_tool_path(servers_dir, dep)
+        if managed_path is not None and package_manager_tool_is_current(servers_dir, dep):
+            return
+
+        command = super().get_lsp_command(project_root)
+        if managed_path is None and command and shutil.which(command[0]):
+            return
+
+        servers_dir.mkdir(parents=True, exist_ok=True)
+        lock_path = servers_dir / ".download.lock"
+        env = os.environ.copy()
+        env.update(dotnet_env)
+        with open(lock_path, "w") as lock_fd:
+            acquire_lock(lock_fd)
+            if package_manager_tool_is_current(servers_dir, dep):
+                return
+            install_package_manager_tools(
+                servers_dir,
+                [dep],
+                manager_overrides={"dotnet": dotnet_path},
+                env=env,
+            )
+        if not package_manager_tool_is_current(servers_dir, dep):
+            raise RuntimeError(
+                "csharp-ls could not be installed. CodeBoarding needs csharp-ls 0.24.0 and a .NET 10 SDK "
+                "to analyze C# projects."
+            )
 
     def build_qualified_name(
         self,
@@ -116,10 +160,6 @@ class CSharpAdapter(LanguageAdapter):
         }
 
     @property
-    def wait_for_workspace_ready(self) -> bool:
-        return True
-
-    @property
     def probe_before_open(self) -> bool:
         """csharp-ls loads all files from the .sln — didOpen before workspace load kills it."""
         return True
@@ -155,9 +195,6 @@ class CSharpAdapter(LanguageAdapter):
         defined`` diagnostics for every file. Restore is idempotent and
         only writes under ``obj/`` (which we already gitignore).
         """
-        if shutil.which("dotnet") is None:
-            logger.info("Skipping dotnet restore: dotnet not on PATH")
-            return
         # Find solution or csproj/fsproj at the project_root level
         target = next(iter(project_root.glob("*.sln")), None)
         if target is None:
@@ -170,11 +207,16 @@ class CSharpAdapter(LanguageAdapter):
             logger.debug("No solution/project file found at %s; skipping restore", project_root)
             return
 
+        try:
+            resolution = resolve_dotnet_sdk(project_root)
+        except DotnetSdkError as exc:
+            raise RuntimeError(str(exc)) from exc
+
         env = os.environ.copy()
-        env.update(self.get_lsp_env())
+        env.update(resolution.env)
         try:
             result = subprocess.run(
-                ["dotnet", "restore", str(target.name), "--nologo", "--verbosity", "minimal"],
+                [resolution.dotnet_path, "restore", str(target.name), "--nologo", "--verbosity", "minimal"],
                 cwd=str(project_root),
                 env=env,
                 capture_output=True,
@@ -195,23 +237,27 @@ class CSharpAdapter(LanguageAdapter):
         except OSError as exc:
             logger.warning("dotnet restore could not be invoked: %s", exc)
 
-    def get_lsp_env(self) -> dict[str, str]:
-        """Set DOTNET_ROOT when not already in the environment.
+    def get_lsp_env(self, project_root: Path | None = None) -> dict[str, str]:
+        """Return the .NET environment needed by csharp-ls.
 
-        csharp-ls requires the .NET runtime to be discoverable. On systems
-        where the SDK is installed via a package manager (e.g. Homebrew on
-        macOS), the ``DOTNET_ROOT`` variable may not be set, causing
-        csharp-ls to fail at startup.  This resolves the runtime location
-        from the ``dotnet`` binary on PATH.
+        With a project root, this may point at CodeBoarding's private SDK
+        hive. Without one, preserve the branch's legacy Homebrew/system
+        DOTNET_ROOT and DOTNET_ROLL_FORWARD behavior for older callers.
         """
-        if os.environ.get("DOTNET_ROOT"):
-            return {}
+        if project_root is not None:
+            try:
+                return resolve_dotnet_sdk(project_root).env
+            except DotnetSdkError as exc:
+                raise RuntimeError(str(exc)) from exc
         dotnet = shutil.which("dotnet")
-        if dotnet:
-            dotnet_root = Path(dotnet).resolve().parent.parent / "libexec"
-            if dotnet_root.is_dir():
-                return {"DOTNET_ROOT": str(dotnet_root)}
-        return {}
+        env = system_dotnet_env(Path(dotnet)) if dotnet else {}
+        if not os.environ.get("DOTNET_ROLL_FORWARD"):
+            env["DOTNET_ROLL_FORWARD"] = "Major"
+        return env
+
+    @property
+    def fail_on_empty_symbols(self) -> bool:
+        return True
 
     def is_reference_worthy(self, symbol_kind: int) -> bool:
         """Include namespaces in reference tracking (similar to PHP modules)."""

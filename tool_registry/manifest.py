@@ -19,7 +19,7 @@ else:
 
 from vscode_constants import VSCODE_CONFIG, find_runnable
 
-from .installers import package_manager_tool_dir
+from .installers import package_manager_tool_dir, package_manager_tool_is_current
 from .paths import exe_suffix, get_servers_dir, native_binary_ok, platform_bin_dir, preferred_node_path
 from .registry import (
     PINNED_NODE_VERSION,
@@ -220,7 +220,7 @@ def resolve_config(base_dir: Path) -> dict[str, Any]:
 
         elif dep.kind is ToolKind.PACKAGE_MANAGER:
             binary_path = package_manager_tool_path(base_dir, dep)
-            if binary_path is not None and binary_path.exists():
+            if binary_path is not None and package_manager_tool_is_current(base_dir, dep):
                 cmd = cast(list[str], config[dep.config_section][dep.key]["command"])
                 cmd[0] = str(binary_path)
 
@@ -316,8 +316,8 @@ def has_required_tools(base_dir: Path) -> bool:
             if binary_path is None:
                 logger.info("has_required_tools: %s unsupported on this host; skipping check", dep.key)
                 continue
-            if not binary_path.exists():
-                logger.info("has_required_tools: %s missing at %s", dep.key, binary_path)
+            if not package_manager_tool_is_current(base_dir, dep):
+                logger.info("has_required_tools: %s missing or stale at %s", dep.key, binary_path)
                 return False
 
         elif dep.kind is ToolKind.NODE:

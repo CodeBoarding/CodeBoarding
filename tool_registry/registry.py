@@ -213,17 +213,17 @@ TOOL_REGISTRY: list[ToolDependency] = [
         js_entry_parent="intelephense",
     ),
     # csharp-ls ships only as a NuGet dotnet-tool; installed via ``dotnet tool install``.
-    # Pinned 0.20.0: 0.21.0+ has a malformed NuGet upstream.
-    # During .NET 10 migration we request ``--framework net10.0``; ``--tool-path``
-    # avoids a misleading "DotnetToolSettings.xml not found" error when no local
-    # manifest is present.
+    # Pin to 0.24.0 so C# document symbols work reliably for modern .NET 10
+    # repositories. ``--tool-path`` avoids a misleading "DotnetToolSettings.xml
+    # not found" error when no local manifest is present; the package's default
+    # target framework is selected by dotnet.
     ToolDependency(
         key="csharp",
         binary_name="csharp-ls",
         kind=ToolKind.PACKAGE_MANAGER,
         config_section=ConfigSection.LSP_SERVERS,
         source=PackageManagerToolSource(
-            tag="0.20.0",
+            tag="0.24.0",
             manager_binary="dotnet",
             install_args=(
                 "tool",
@@ -231,8 +231,6 @@ TOOL_REGISTRY: list[ToolDependency] = [
                 "csharp-ls",
                 "--version",
                 "{tag}",
-                "--framework",
-                "net10.0",
                 "--tool-path",
                 "{tool_path}",
             ),

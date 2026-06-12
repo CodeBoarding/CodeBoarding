@@ -82,9 +82,12 @@ def _user_context_window_override() -> int | None:
 def _resolve_ollama(provider: str, model_name: str) -> tuple[int, int] | None:
     if provider != "ollama":
         return None
-    base = os.getenv("OLLAMA_BASE_URL")
+    base = os.getenv("OLLAMA_BASE_URL") or os.getenv("OLLAMA_HOST")
     if not base:
         return None
+    if "://" not in base:
+        # OLLAMA_HOST conventionally allows bare host:port.
+        base = f"http://{base}"
     return _ollama_show(model_name, base.rstrip("/"))
 
 

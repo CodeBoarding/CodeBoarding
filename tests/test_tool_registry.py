@@ -45,9 +45,12 @@ from tool_registry import (
 )
 from tool_registry import PackageManagerToolSource
 from tool_registry.installers import (
+    PACKAGE_MANAGER_TOOL_STAMP,
     _extract_compressed_binary,
     install_package_manager_tools,
+    package_manager_tool_fingerprint,
     package_manager_tool_dir,
+    package_manager_tool_is_current,
     resolve_native_asset_name,
 )
 from tool_registry.registry import ConfigSection, ToolDependency, ToolSource
@@ -982,6 +985,9 @@ def _populate_complete_servers_dir(base_dir: Path) -> None:
             pm_dir = bin_dir / "pm-tools" / subdir
             pm_dir.mkdir(parents=True, exist_ok=True)
             (pm_dir / f"{dep.binary_name}{exe_suffix()}").write_text("#!/bin/sh\n")
+            (pm_dir / PACKAGE_MANAGER_TOOL_STAMP).write_text(
+                json.dumps({"fingerprint": package_manager_tool_fingerprint(dep)})
+            )
 
 
 class TestHasRequiredTools(unittest.TestCase):
@@ -1600,7 +1606,7 @@ class TestInstallPackageManagerTools(unittest.TestCase):
             kind=ToolKind.PACKAGE_MANAGER,
             config_section=ConfigSection.LSP_SERVERS,
             source=PackageManagerToolSource(
-                tag="0.20.0",
+                tag="0.24.0",
                 manager_binary="dotnet",
                 install_args=("tool", "install", "csharp-ls", "--version", "{tag}", "--tool-path", "{tool_path}"),
             ),
@@ -1645,10 +1651,11 @@ class TestInstallPackageManagerTools(unittest.TestCase):
             self.assertEqual(invoked_cmd[0], "dotnet")
             # Placeholders must be substituted: {tool_path} -> install dir, {tag} -> source.tag.
             self.assertIn(str(install_dir), invoked_cmd)
-            self.assertIn("0.20.0", invoked_cmd)
+            self.assertIn("0.24.0", invoked_cmd)
             self.assertNotIn("{tool_path}", invoked_cmd)
             self.assertNotIn("{tag}", invoked_cmd)
             self.assertTrue(binary_path.exists())
+            self.assertTrue(package_manager_tool_is_current(base, dep))
 
     def test_idempotent_when_binary_already_present(self):
         dep = self._csharp_dep()
@@ -1657,6 +1664,9 @@ class TestInstallPackageManagerTools(unittest.TestCase):
             install_dir = package_manager_tool_dir(base, dep)
             install_dir.mkdir(parents=True, exist_ok=True)
             (install_dir / f"csharp-ls{exe_suffix()}").write_text("pre-existing")
+            (install_dir / PACKAGE_MANAGER_TOOL_STAMP).write_text(
+                json.dumps({"fingerprint": package_manager_tool_fingerprint(dep)})
+            )
 
             with (
                 patch("tool_registry.installers.shutil.which", return_value="/usr/bin/dotnet"),
@@ -1664,6 +1674,30 @@ class TestInstallPackageManagerTools(unittest.TestCase):
             ):
                 install_package_manager_tools(base, [dep])
             mock_run.assert_not_called()
+
+    def test_reinstalls_when_stamp_missing(self):
+        dep = self._csharp_dep()
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            install_dir = package_manager_tool_dir(base, dep)
+            binary_path = install_dir / f"csharp-ls{exe_suffix()}"
+            install_dir.mkdir(parents=True, exist_ok=True)
+            binary_path.write_text("stale")
+
+            def fake_run(cmd, **_kwargs):
+                binary_path.parent.mkdir(parents=True, exist_ok=True)
+                binary_path.write_text("fresh")
+                return MagicMock(returncode=0, stdout="", stderr="")
+
+            with (
+                patch("tool_registry.installers.shutil.which", return_value="/usr/bin/dotnet"),
+                patch("tool_registry.installers.subprocess.run", side_effect=fake_run) as mock_run,
+            ):
+                install_package_manager_tools(base, [dep])
+
+            mock_run.assert_called_once()
+            self.assertEqual(binary_path.read_text(), "fresh")
+            self.assertTrue(package_manager_tool_is_current(base, dep))
 
     def test_reports_failure_when_manager_exits_nonzero(self):
         dep = self._csharp_dep()
@@ -1692,13 +1726,14 @@ class TestInstallPackageManagerTools(unittest.TestCase):
         assert isinstance(csharp.source, PackageManagerToolSource)
         self.assertIn(csharp.source.tag, tools_fingerprint())
 
-    def test_csharp_registry_targets_net10_framework(self):
-        """C# package-manager install must target .NET 10 during full migration."""
+    def test_csharp_registry_uses_modern_default_framework(self):
+        """C# install should let dotnet select the package's default target
+        framework so newer csharp-ls packages can run natively on modern SDKs.
+        """
         csharp = next(d for d in TOOL_REGISTRY if d.key == "csharp")
         assert isinstance(csharp.source, PackageManagerToolSource)
-        self.assertIn("--framework", csharp.source.install_args)
-        framework_idx = csharp.source.install_args.index("--framework") + 1
-        self.assertEqual(csharp.source.install_args[framework_idx], "net10.0")
+        self.assertNotIn("--framework", csharp.source.install_args)
+        self.assertEqual(csharp.source.tag, "0.24.0")
 
 
 if __name__ == "__main__":
