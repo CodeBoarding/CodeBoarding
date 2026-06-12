@@ -29,6 +29,7 @@ from static_analyzer.cdb.detect import (
     locate_generated_cdb,
     locate_user_cdb,
 )
+from static_analyzer.cdb.fallback_flags import synthesize_fallback_flags
 
 logger = logging.getLogger(__name__)
 
@@ -42,12 +43,14 @@ class CdbResolution:
     or ``None`` when no usable CDB exists). ``detection`` is preserved
     for callers that want to surface build-system hints. ``error_hint``
     is populated when ``cdb_dir is None`` so the adapter can compose a
-    user-facing message without re-running detection.
+    user-facing message without re-running detection. ``is_fallback``
+    marks a synthesized ``compile_flags.txt`` (degraded fidelity).
     """
 
     cdb_dir: Path | None
     detection: DetectionResult
     error_hint: str | None = None
+    is_fallback: bool = False
 
 
 def generator_for(kind: BuildSystemKind) -> CdbGenerator | None:
@@ -72,7 +75,7 @@ def generator_for(kind: BuildSystemKind) -> CdbGenerator | None:
     return None
 
 
-def ensure_cdb(project_root: Path) -> Path | None:
+def ensure_cdb(project_root: Path, detection: DetectionResult | None = None) -> Path | None:
     """Return a usable CDB path for clangd, or ``None``.
 
     Resolution order:
@@ -82,8 +85,12 @@ def ensure_cdb(project_root: Path) -> Path | None:
          only), else detect.
       4. ``generator_for`` -> ``generate``. Generator ``RuntimeError``s
          are logged and surface as ``None``.
+
+    ``detection`` lets ``resolve_cdb`` share its result instead of
+    re-probing (which would also duplicate user-CDB warnings).
     """
-    detection = detect_build_system(project_root)
+    if detection is None:
+        detection = detect_build_system(project_root)
     if detection.existing_cdb is not None:
         return detection.existing_cdb
     if not is_generation_enabled():
@@ -133,16 +140,29 @@ def resolve_cdb(project_root: Path) -> CdbResolution:
         no ``--compile-commands-dir`` needed).
       * Generated CDB found -> ``<project_root>/.codeboarding/cdb``
         (the dir to pass to ``--compile-commands-dir``).
-      * Nothing usable -> ``None`` and ``error_hint`` is populated.
+      * Neither -> synthesized fallback ``compile_flags.txt`` in the same
+        dir (header-only repos export empty CDBs; degraded beats refusal).
+      * Synthesis write failure -> ``None`` and ``error_hint`` is populated.
     """
     detection = detect_build_system(project_root)
     if detection.existing_cdb is not None:
         # User CDB wins; clangd walks up from sources so cdb_dir is project_root.
         return CdbResolution(cdb_dir=project_root, detection=detection)
 
-    ensure_cdb(project_root)
+    ensure_cdb(project_root, detection)
     if locate_generated_cdb(project_root) is not None:
         return CdbResolution(cdb_dir=project_root / CDB_SUBDIR, detection=detection)
+
+    fallback_dir = synthesize_fallback_flags(project_root)
+    if fallback_dir is not None:
+        logger.warning(
+            "No usable compilation database for %s; running clangd with synthesized fallback flags "
+            "(%s). Cross-file fidelity may be reduced. %s",
+            project_root,
+            fallback_dir / "compile_flags.txt",
+            install_hint_for(detection),
+        )
+        return CdbResolution(cdb_dir=fallback_dir, detection=detection, is_fallback=True)
 
     return CdbResolution(cdb_dir=None, detection=detection, error_hint=install_hint_for(detection))
 
@@ -164,4 +184,5 @@ __all__ = [
     "locate_generated_cdb",
     "locate_user_cdb",
     "resolve_cdb",
+    "synthesize_fallback_flags",
 ]

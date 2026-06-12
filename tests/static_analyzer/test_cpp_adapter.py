@@ -1,6 +1,7 @@
 """Tests for the C++ language adapter."""
 
 import json
+import logging
 import shutil
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -58,9 +59,18 @@ class TestCppAdapterProperties:
 
 
 class TestCompilationDatabaseGuard:
-    def test_raises_when_no_compilation_database(self, tmp_path: Path) -> None:
-        with pytest.raises(RuntimeError, match=r"compile_commands\.json"):
-            CppAdapter().get_lsp_command(tmp_path)
+    def test_falls_back_to_synthesized_flags_when_no_cdb(self, tmp_path: Path) -> None:
+        """Header-only repos export empty CDBs; the adapter must run clangd
+        with synthesized flags instead of refusing."""
+        cmd = CppAdapter().get_lsp_command(tmp_path)
+        cdb_dir = (tmp_path / ".codeboarding" / "cdb").resolve()
+        assert f"--compile-commands-dir={cdb_dir}" in cmd
+        assert (cdb_dir / "compile_flags.txt").is_file()
+
+    def test_raises_when_fallback_synthesis_fails(self, tmp_path: Path) -> None:
+        with patch("static_analyzer.cdb.synthesize_fallback_flags", return_value=None):
+            with pytest.raises(RuntimeError, match=r"synthesized fallback flags failed"):
+                CppAdapter().get_lsp_command(tmp_path)
 
     def test_accepts_compile_flags_txt_at_root(self, tmp_path: Path) -> None:
         (tmp_path / "compile_flags.txt").write_text("-std=c++17\n")
@@ -96,35 +106,44 @@ class TestCompilationDatabaseGuard:
             "the adapter must pass --compile-commands-dir explicitly."
         )
 
-    def test_rejects_empty_generated_cdb(self, tmp_path: Path) -> None:
+    def test_empty_generated_cdb_is_cleared_and_falls_back(self, tmp_path: Path) -> None:
+        """A stale empty generated ``[]`` would shadow the synthesized flags
+        file — clangd's loader tries JSON first and accepts zero commands."""
         cdb_dir = tmp_path / ".codeboarding" / "cdb"
         cdb_dir.mkdir(parents=True)
         (cdb_dir / "compile_commands.json").write_text("[]")
-        with pytest.raises(RuntimeError, match=r"compile_commands\.json"):
-            CppAdapter().get_lsp_command(tmp_path)
+        cmd = CppAdapter().get_lsp_command(tmp_path)
+        assert f"--compile-commands-dir={cdb_dir.resolve()}" in cmd
+        assert not (cdb_dir / "compile_commands.json").exists()
+        assert (cdb_dir / "compile_flags.txt").is_file()
 
-    def test_rejects_empty_user_cdb_at_root(self, tmp_path: Path) -> None:
-        """Bug M2: an empty user ``[]`` must NOT be silently accepted —
-        clangd would index nothing.
-        """
+    def test_empty_user_cdb_falls_back_without_touching_it(self, tmp_path: Path) -> None:
+        """Bug M2: an empty user ``[]`` must NOT be fed to clangd (it would
+        index nothing) — but it's the user's file, so it must survive."""
         (tmp_path / "compile_commands.json").write_text("[]")
-        with pytest.raises(RuntimeError, match=r"compile_commands\.json"):
-            CppAdapter().get_lsp_command(tmp_path)
+        cmd = CppAdapter().get_lsp_command(tmp_path)
+        cdb_dir = (tmp_path / ".codeboarding" / "cdb").resolve()
+        assert f"--compile-commands-dir={cdb_dir}" in cmd
+        assert (tmp_path / "compile_commands.json").read_text() == "[]"
 
     def test_no_compile_commands_dir_when_cdb_at_root(self, tmp_path: Path) -> None:
         (tmp_path / "compile_commands.json").write_text(_VALID_CDB)
         cmd = CppAdapter().get_lsp_command(tmp_path)
         assert not any("--compile-commands-dir" in part for part in cmd)
 
-    def test_error_message_names_detected_build_system(self, tmp_path: Path) -> None:
+    def test_fallback_warning_names_detected_build_system(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
         (tmp_path / "CMakeLists.txt").write_text("project(x)")
-        with pytest.raises(RuntimeError, match=r"CMAKE_EXPORT_COMPILE_COMMANDS"):
+        with caplog.at_level(logging.WARNING, logger="static_analyzer.cdb"):
             CppAdapter().get_lsp_command(tmp_path)
+        assert any("CMAKE_EXPORT_COMPILE_COMMANDS" in r.message for r in caplog.records)
 
-    def test_error_message_names_bazel_when_detected(self, tmp_path: Path) -> None:
+    def test_fallback_warning_names_bazel_when_detected(self, tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
         (tmp_path / "MODULE.bazel").write_text("module(name='x')")
-        with pytest.raises(RuntimeError, match=r"CODEBOARDING_CPP_GENERATE_CDB"):
+        with caplog.at_level(logging.WARNING, logger="static_analyzer.cdb"):
             CppAdapter().get_lsp_command(tmp_path)
+        assert any("CODEBOARDING_CPP_GENERATE_CDB" in r.message for r in caplog.records)
 
 
 class TestCdbLocationSplit:

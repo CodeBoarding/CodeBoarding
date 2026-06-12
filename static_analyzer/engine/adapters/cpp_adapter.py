@@ -183,7 +183,8 @@ class CppAdapter(LanguageAdapter):
         resolution = self._cdb_resolution or resolve_cdb(project_root)
         if resolution.cdb_dir is None:
             raise RuntimeError(
-                f"No compile_commands.json or compile_flags.txt under {project_root}. " + (resolution.error_hint or "")
+                f"No compile_commands.json or compile_flags.txt under {project_root}, and writing "
+                f"synthesized fallback flags failed (is .codeboarding/ writable?). " + (resolution.error_hint or "")
             )
         command = list(super().get_lsp_command(project_root))
         # Only set --compile-commands-dir for generated CDBs; user CDBs are
