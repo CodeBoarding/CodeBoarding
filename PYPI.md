@@ -23,14 +23,16 @@
 The recommended way to install the CLI is with [pipx](https://pipx.pypa.io), which automatically creates an isolated environment:
 
 ```bash
-pipx install codeboarding --python python3.12
+pipx install codeboarding --python python3.12 --pip-args="--extra-index-url https://pip.codeboarding.org/simple/"
 ```
 
 Alternatively, install into an existing virtual environment with pip:
 
 ```bash
-pip install codeboarding
+pip install codeboarding --extra-index-url https://pip.codeboarding.org/simple/
 ```
+
+
 
 > Installing into the global Python environment with `pip` is not recommended — it can cause dependency conflicts and will fail if the system Python is not 3.12 or 3.13.
 
