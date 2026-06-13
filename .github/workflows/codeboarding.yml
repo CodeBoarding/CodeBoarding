@@ -10,7 +10,10 @@ on:
     types: [created]
 
 permissions:
-  contents: read
+  # write lets the action commit the generated .codeboarding/analysis.json back to
+  # the PR branch so the comment links to the webview diff (same-repo PRs). Drop to
+  # `read` to keep the comment without that link.
+  contents: write
   pull-requests: write
   issues: write
 
