@@ -26,7 +26,6 @@ from agents.agent_responses import AnalysisInsights, Component, index_components
 from agents.planner_agent import should_expand_component
 from diagram_analysis.analysis_json import (
     FileCoverageSummary,
-    UnifiedAnalysisJson,
     build_unified_analysis_json,
     parse_unified_analysis,
 )
@@ -97,20 +96,6 @@ class _AnalysisFileStore:
                 return (root_analysis, sub_analyses, data)
             except Exception as e:
                 logger.error(f"Failed to load unified analysis: {e}")
-                return None
-
-    def read_json(self) -> UnifiedAnalysisJson | None:
-        """Load the unified ``analysis.json`` as its persisted JSON model."""
-        with self._lock:
-            if not self._analysis_path.exists():
-                return None
-
-            try:
-                with open(self._analysis_path, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                return UnifiedAnalysisJson.model_validate(data)
-            except Exception as e:
-                logger.error(f"Failed to load unified analysis JSON: {e}")
                 return None
 
     def read_root(self) -> AnalysisInsights | None:
@@ -324,11 +309,6 @@ def load_full_analysis(output_dir: Path) -> tuple[AnalysisInsights, dict[str, An
         return None
     root_analysis, sub_analyses, _ = result
     return root_analysis, sub_analyses
-
-
-def load_unified_analysis_json(output_dir: Path) -> UnifiedAnalysisJson | None:
-    """Load the unified analysis file as its persisted JSON model."""
-    return _get_store(output_dir).read_json()
 
 
 def load_analysis_metadata(output_dir: Path) -> dict | None:

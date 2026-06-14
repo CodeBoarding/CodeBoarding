@@ -116,14 +116,6 @@ class FileEntryJson(BaseModel):
     )
 
 
-class AnalysisInsightsJson(BaseModel):
-    description: str = Field(
-        description="One paragraph explaining the functionality which is represented by this graph."
-    )
-    components: list[ComponentJson] = Field(description="List of the components identified in the project.")
-    components_relations: list[RelationJson] = Field(description="List of relations among the components.")
-
-
 class UnifiedAnalysisJson(BaseModel):
     snapshotCommit: str | None = Field(
         default=None,
