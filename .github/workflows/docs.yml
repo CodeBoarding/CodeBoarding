@@ -38,8 +38,21 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Read depth from committed baseline
+        id: depth
+        shell: bash
+        run: |
+          DEPTH=2
+          if [ -f .codeboarding/analysis.json ]; then
+            DEPTH=$(python3 -c "import json; print(json.load(open('.codeboarding/analysis.json')).get('metadata',{}).get('depth_level',2))" 2>/dev/null || echo 2)
+          fi
+          echo "depth=$DEPTH" >> "$GITHUB_OUTPUT"
       - uses: CodeBoarding/CodeBoarding-action@v1
         with:
           mode: sync
+          depth_level: ${{ steps.depth.outputs.depth }}
           force_full: ${{ inputs.force_full || false }}
           llm_api_key: ${{ secrets.OPENROUTER_API_KEY }}
