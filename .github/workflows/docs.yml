@@ -41,6 +41,5 @@ jobs:
       - uses: CodeBoarding/CodeBoarding-action@v1
         with:
           mode: sync
-          depth_level: '2'
           force_full: ${{ inputs.force_full || false }}
           llm_api_key: ${{ secrets.OPENROUTER_API_KEY }}
