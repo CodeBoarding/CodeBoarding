@@ -642,6 +642,39 @@ class TestRefreshComponentFileMethodsPathNormalization(unittest.TestCase):
         )
 
 
+class TestBuildNodeLookupContentHash(unittest.TestCase):
+    """``_build_node_lookup`` must stamp ``content_hash`` so an incremental
+    refresh doesn't round-trip-wipe a previously-computed hash to ''."""
+
+    def test_method_entry_carries_content_hash_when_source_available(self) -> None:
+        import tempfile
+        from pathlib import Path
+
+        from agents.cluster_methods_mixin import _hash_method_body
+        from agents.incremental_agent import _build_node_lookup
+        from static_analyzer.constants import NodeType
+        from static_analyzer.node import Node
+
+        source = "def foo():\n    return 1\n\n\ndef bar():\n    return 2\n"
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_dir = Path(tmp)
+            (repo_dir / "mod.py").write_text(source, encoding="utf-8")
+
+            node = Node("mod.foo", NodeType.FUNCTION, "mod.py", 1, 2)
+            cfg = MagicMock(nodes={"mod.foo": node})
+            static_analysis = MagicMock()
+            static_analysis.get_cfg.return_value = cfg
+
+            lookup = _build_node_lookup(static_analysis, {"python": ClusterResult()}, repo_dir)
+
+            entry = lookup["mod.foo"]
+            self.assertNotEqual(entry.content_hash, "")
+            self.assertEqual(
+                entry.content_hash,
+                _hash_method_body(source.splitlines(), 1, 2),
+            )
+
+
 class TestIncrementalAgentToolkit(unittest.TestCase):
     """Constructor wiring: routing should never see the full ReAct toolkit.
 

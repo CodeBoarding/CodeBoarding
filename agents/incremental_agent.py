@@ -6,6 +6,7 @@ create new ones with a ``parent_id``. Stitching back into the live tree
 """
 
 import logging
+import os
 from enum import StrEnum
 from pathlib import Path
 
@@ -28,7 +29,7 @@ from agents.agent_responses import (
     index_components_by_id,
     iter_components,
 )
-from agents.cluster_methods_mixin import ClusterMethodsMixin
+from agents.cluster_methods_mixin import ClusterMethodsMixin, _hash_method_body, _read_source_lines
 from agents.prompts import get_incremental_grouping_message, get_scope_relations_message, get_system_message
 from agents.validation import (
     ValidationContext,
@@ -571,8 +572,8 @@ def repopulate_touched_scopes(
     if not redetail_ids:
         return touched_scopes
 
-    node_lookup = _build_node_lookup(helpers.static_analysis, cluster_results)
     repo_dir = helpers.repo_dir
+    node_lookup = _build_node_lookup(helpers.static_analysis, cluster_results, repo_dir)
 
     if any(c.component_id in redetail_ids for c in root_analysis.components):
         touched_scopes.add("")
@@ -592,9 +593,12 @@ def repopulate_touched_scopes(
     return touched_scopes
 
 
-def _build_node_lookup(static_analysis, cluster_results: dict[str, ClusterResult]) -> dict[str, MethodEntry]:
-    """Map qname -> ``MethodEntry`` built from the live CFG (fresh file/line metadata)."""
+def _build_node_lookup(
+    static_analysis, cluster_results: dict[str, ClusterResult], repo_dir: Path
+) -> dict[str, MethodEntry]:
+    """Map qname -> ``MethodEntry`` built from the live CFG (fresh file/line metadata + content_hash)."""
     lookup: dict[str, MethodEntry] = {}
+    source_cache: dict[str, list[str] | None] = {}
     for language in cluster_results:
         try:
             cfg = static_analysis.get_cfg(Language(language))
@@ -603,11 +607,17 @@ def _build_node_lookup(static_analysis, cluster_results: dict[str, ClusterResult
         for qname, node in cfg.nodes.items():
             if qname in lookup:
                 continue
+            rel_path = os.path.relpath(node.file_path, repo_dir) if os.path.isabs(node.file_path) else node.file_path
             lookup[qname] = MethodEntry(
                 qualified_name=qname,
                 start_line=node.line_start,
                 end_line=node.line_end,
                 node_type=node.type.name,
+                content_hash=_hash_method_body(
+                    _read_source_lines(repo_dir, rel_path, source_cache),
+                    node.line_start,
+                    node.line_end,
+                ),
             )
     return lookup
 

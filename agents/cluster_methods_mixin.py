@@ -1,3 +1,4 @@
+import hashlib
 import logging
 import os
 from collections import defaultdict
@@ -38,6 +39,32 @@ from static_analyzer.graph import CallGraph, ClusterResult
 from static_analyzer.node import Node
 
 logger = logging.getLogger(__name__)
+
+
+def _read_source_lines(repo_dir: Path, rel_path: str, cache: dict[str, list[str] | None]) -> list[str] | None:
+    """Read and cache a file's lines (repo-relative path). None if unreadable."""
+    if rel_path not in cache:
+        try:
+            # splitlines() normalizes line endings, so trailing-newline-only changes aren't detected.
+            cache[rel_path] = (repo_dir / rel_path).read_text(encoding="utf-8", errors="replace").splitlines()
+        except OSError:
+            cache[rel_path] = None
+    return cache[rel_path]
+
+
+def _hash_method_body(lines: list[str] | None, start_line: int, end_line: int) -> str:
+    """Truncated SHA-256 of source lines [start_line-1:end_line]. '' when unavailable."""
+    if lines is None or start_line < 1 or end_line < start_line:
+        return ""
+    body = "\n".join(lines[start_line - 1 : end_line])
+    return hashlib.sha256(body.encode("utf-8")).hexdigest()[:16]
+
+
+def _hash_whole_file(lines: list[str] | None) -> str:
+    """Truncated SHA-256 of the entire file's lines. '' when unavailable."""
+    if lines is None:
+        return ""
+    return hashlib.sha256("\n".join(lines).encode("utf-8")).hexdigest()[:16]
 
 
 @dataclass(frozen=True)
@@ -582,6 +609,8 @@ class ClusterMethodsMixin:
                 return len(candidate_parts) > len(current_parts)
             return len(candidate) > len(current)
 
+        source_cache: dict[str, list[str] | None] = {}
+
         for node in nodes:
             if node.type not in allowed_types:
                 continue
@@ -597,6 +626,11 @@ class ClusterMethodsMixin:
                 start_line=node.line_start,
                 end_line=node.line_end,
                 node_type=node.type.name,
+                content_hash=_hash_method_body(
+                    _read_source_lines(self.repo_dir, rel_path, source_cache),
+                    node.line_start,
+                    node.line_end,
+                ),
             )
 
             existing = by_file[rel_path].get(dedupe_key)
@@ -730,12 +764,16 @@ class ClusterMethodsMixin:
         logger.info(f"Node coverage: {assigned_nodes}/{total_nodes} ({pct:.1f}%) nodes assigned to components")
 
     def build_files_index(self, analysis: AnalysisInsights) -> dict[str, FileEntry]:
+        file_cache: dict[str, list[str] | None] = {}
         files: dict[str, FileEntry] = {}
         for component in analysis.components:
             for fmg in component.file_methods:
                 entry = files.get(fmg.file_path)
                 if entry is None:
-                    entry = FileEntry(methods=[])
+                    entry = FileEntry(
+                        methods=[],
+                        content_hash=_hash_whole_file(_read_source_lines(self.repo_dir, fmg.file_path, file_cache)),
+                    )
                     files[fmg.file_path] = entry
 
                 methods_by_qname = {m.qualified_name: m for m in entry.methods}
