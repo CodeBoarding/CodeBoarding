@@ -1,0 +1,40 @@
+name: CodeBoarding sync
+
+on:
+  push:
+    branches: ['main']
+    # Loop guard: don't re-trigger on the files this workflow itself commits.
+    # Listed explicitly (not '.codeboarding/**') so editing your own
+    # .codeboarding/.codeboardingignore still regenerates the baseline.
+    paths-ignore:
+      - '.codeboarding/*.md'
+      - '.codeboarding/analysis.json'
+      - '.codeboarding/codeboarding_version.json'
+      - '.codeboarding/health/**'
+      - 'docs/development/architecture.md'
+  workflow_dispatch:
+    inputs:
+      force_full:
+        description: 'Ignore the committed baseline and rebuild it from scratch (full analysis).'
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: write   # commit the generated baseline + docs to the branch
+  id-token: write   # mint a GitHub OIDC token for the free hosted tier (omit if you set a key/license)
+
+concurrency:
+  # Serialize against itself so a push landing mid-run can't make two commits.
+  group: codeboarding-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: CodeBoarding/CodeBoarding-action@v1
+        with:
+          mode: sync
+          force_full: ${{ inputs.force_full || false }}
