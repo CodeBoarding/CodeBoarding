@@ -2,46 +2,37 @@ name: CodeBoarding review
 
 on:
   pull_request:
-    # Generate once when the PR becomes reviewable; 'closed' only cancels an
-    # in-flight review (see concurrency below), it doesn't start one.
     types: [opened, reopened, ready_for_review, closed]
   issue_comment:
-    # Enables refreshing on demand by commenting /codeboarding.
     types: [created]
 
-permissions:
-  # write lets the action commit the generated .codeboarding/analysis.json back to
-  # the PR branch so the comment links to the webview diff (same-repo PRs). Drop to
-  # `read` to keep the comment without that link.
-  contents: write
-  pull-requests: write
-  issues: write
+# No workflow-level permissions: each job requests only what it needs (least
+# privilege), so the default token starts with none.
+permissions: {}
 
 concurrency:
   group: codeboarding-${{ github.event.pull_request.number || github.event.issue.number }}
-  # Only a PR close cancels a running review. Bot comments (issue_comment) and
-  # re-triggers must NOT cancel it — they queue behind the running review instead.
   cancel-in-progress: ${{ github.event_name == 'pull_request' && github.event.action == 'closed' }}
 
 jobs:
   review:
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    # PR events (non-draft), or a /codeboarding comment from a trusted collaborator.
+    permissions:
+      contents: read        # check out the repo + read the committed baseline (no writes in review mode)
+      pull-requests: write  # post the architecture-diff PR comment
+      issues: write         # the /codeboarding issue_comment trigger + comment API
+      id-token: write       # mint a GitHub OIDC token for the free hosted tier (write is the only level for id-token)
     if: >
       (github.event_name == 'pull_request' && github.event.action != 'closed' && github.event.pull_request.draft == false) ||
       (github.event_name == 'issue_comment' && github.event.issue.pull_request != null &&
        startsWith(github.event.comment.body, '/codeboarding') &&
        contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))
     steps:
-      - uses: actions/create-github-app-token@v3
-        id: codeboarding-app-token
-        if: vars.CODEBOARDING_APP_CLIENT_ID != ''
-        continue-on-error: true
-        with:
-          client-id: ${{ vars.CODEBOARDING_APP_CLIENT_ID }}
-          private-key: ${{ secrets.CODEBOARDING_APP_PRIVATE_KEY }}
       - uses: CodeBoarding/CodeBoarding-action@v1
         with:
-          github_token: ${{ steps.codeboarding-app-token.outputs.token || github.token }}
-          llm_api_key: ${{ secrets.OPENROUTER_API_KEY }}
+          # Free tier needs no secret — these fall through to the hosted OIDC tier when
+          # unset. Add either repo secret (Settings → Secrets and variables → Actions)
+          # for more/unmetered usage; no YAML edit required.
+          llm_api_key: ${{ secrets.OPENROUTER_API_KEY }}   # BYO LLM provider key (OpenRouter)
+          license_key: ${{ secrets.CODEBOARDING_LICENSE }}  # CodeBoarding paid plan
