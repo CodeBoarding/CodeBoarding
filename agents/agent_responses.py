@@ -162,19 +162,38 @@ class SourceCodeReference(LLMBaseModel):
         return f"`{self.qualified_name}`:{self.reference_start_line}-{self.reference_end_line}"
 
 
-class Relation(LLMBaseModel):
-    """A relationship between two components."""
+def _relation_str(rel) -> str:
+    return f"({rel.src_name}, {rel.relation}, {rel.dst_name})"
+
+
+class RelationLLM(LLMBaseModel):
+    """A relationship between two components, as produced by the LLM."""
 
     relation: str = Field(description="Single phrase used for the relationship of two components.")
     src_name: str = Field(description="Source component name")
     dst_name: str = Field(description="Target component name")
-    src_id: str = Field(default="", description="Component ID of the source.", exclude=True)
-    dst_id: str = Field(default="", description="Component ID of the destination.", exclude=True)
-    edge_count: int = Field(default=0, description="Number of CFG edges backing this relation.", exclude=True)
-    is_static: bool = Field(default=False, description="True if derived from static CFG analysis.", exclude=True)
 
     def llm_str(self):
-        return f"({self.src_name}, {self.relation}, {self.dst_name})"
+        return _relation_str(self)
+
+
+class Relation(BaseModel):
+    """Runtime relation: the LLM's fields plus deterministically-resolved identity and static evidence."""
+
+    relation: str = Field(description="Single phrase used for the relationship of two components.")
+    src_name: str = Field(description="Source component name")
+    dst_name: str = Field(description="Target component name")
+    src_id: str = Field(default="", description="Component ID of the source.")
+    dst_id: str = Field(default="", description="Component ID of the destination.")
+    edge_count: int = Field(default=0, description="Number of CFG edges backing this relation.")
+    is_static: bool = Field(default=False, description="True if derived from static CFG analysis.")
+
+    @classmethod
+    def from_llm(cls, llm: RelationLLM) -> Relation:
+        return cls(relation=llm.relation, src_name=llm.src_name, dst_name=llm.dst_name)
+
+    def llm_str(self):
+        return _relation_str(self)
 
 
 class ClustersComponent(LLMBaseModel):
@@ -293,12 +312,25 @@ class FileEntry(BaseModel):
     )
     content_hash: str = Field(
         default="",
-        description="Truncated SHA-256 of the entire file's bytes; '' when source was unavailable.",
+        description="Truncated SHA-256 of the entire file's source lines; '' when source was unavailable.",
     )
 
 
-class Component(LLMBaseModel):
-    """A software component with name, description, and key entities."""
+def _component_str(comp) -> str:
+    n = f"**Component:** `{comp.name}`"
+    d = f"   - *Description*: {comp.description}"
+    sg = ""
+    if comp.source_group_names:
+        sg = f"   - *Source Group Names*: {', '.join(comp.source_group_names)}"
+    qn = ""
+    if comp.key_entities:
+        qn += "   - *Key Entities*: "
+        qn += ", ".join(f"`{q.llm_str()}`" for q in comp.key_entities)
+    return "\n".join([n, d, sg, qn]).strip()
+
+
+class ComponentLLM(LLMBaseModel):
+    """A software component as produced by the LLM: name, description, key entities."""
 
     name: str = Field(description="Name of the component")
     description: str = Field(description="A short description of the component.")
@@ -313,62 +345,91 @@ class Component(LLMBaseModel):
         default_factory=list,
     )
 
+    def llm_str(self):
+        return _component_str(self)
+
+
+class Component(BaseModel):
+    """Runtime component: the LLM's fields plus fields populated deterministically from cluster results."""
+
+    name: str = Field(description="Name of the component")
+    description: str = Field(description="A short description of the component.")
+    key_entities: list[SourceCodeReference] = Field(
+        description="The most important/critical classes and methods that represent this component's core functionality."
+    )
+    source_group_names: list[str] = Field(
+        default_factory=list,
+        description="Names of the cluster groups from the grouping analysis that this component encompasses.",
+    )
     source_cluster_ids: list[int] = Field(
-        description="List of cluster IDs from CFG analysis that this component encompasses (populated deterministically from source_group_names).",
         default_factory=list,
-        exclude=True,
-        json_schema_extra={"hidden": True},
+        description="Cluster IDs this component encompasses (populated deterministically from source_group_names).",
     )
-
     file_methods: list[FileMethodGroup] = Field(
-        description="All methods/functions belonging to this component, grouped by file (populated deterministically from cluster results).",
         default_factory=list,
-        exclude=True,
-        json_schema_extra={"hidden": True},
+        description="All methods/functions belonging to this component, grouped by file (populated deterministically).",
     )
+    component_id: str = Field(default="", description="Deterministic unique identifier for this component.")
 
-    component_id: str = Field(
-        default="",
-        description="Deterministic unique identifier for this component.",
-        exclude=True,
-        json_schema_extra={"hidden": True},
-    )
+    @classmethod
+    def from_llm(cls, llm: ComponentLLM) -> Component:
+        return cls(
+            name=llm.name,
+            description=llm.description,
+            key_entities=llm.key_entities,
+            source_group_names=llm.source_group_names,
+        )
 
     def llm_str(self):
-        n = f"**Component:** `{self.name}`"
-        d = f"   - *Description*: {self.description}"
-        sg = ""
-        if self.source_group_names:
-            sg = f"   - *Source Group Names*: {', '.join(self.source_group_names)}"
-        qn = ""
-        if self.key_entities:
-            qn += "   - *Key Entities*: "
-            qn += ", ".join(f"`{q.llm_str()}`" for q in self.key_entities)
-        return "\n".join([n, d, sg, qn]).strip()
+        return _component_str(self)
 
 
-class AnalysisInsights(LLMBaseModel):
-    """Project analysis insights including components and their relations."""
+def _analysis_str(analysis) -> str:
+    if not analysis.components:
+        return "No abstract components found."
+    title = "# Abstract Components Overview\n"
+    body = "\n".join(ac.llm_str() for ac in analysis.components)
+    relations = "\n".join(cr.llm_str() for cr in analysis.components_relations)
+    return title + body + relations
+
+
+class AnalysisInsightsLLM(LLMBaseModel):
+    """Project analysis insights as produced by the LLM: components and their relations."""
 
     description: str = Field(
         description="One paragraph explaining the functionality which is represented by this graph. What the main flow is and what is its purpose."
     )
+    components: list[ComponentLLM] = Field(description="List of the components identified in the project.")
+    components_relations: list[RelationLLM] = Field(description="List of relations among the components.")
+
+    def llm_str(self):
+        return _analysis_str(self)
+
+
+class AnalysisInsights(BaseModel):
+    """Runtime analysis insights: enriched components/relations plus the deterministic file index."""
+
+    description: str = Field(description="One paragraph explaining the functionality represented by this graph.")
+    components: list[Component] = Field(default_factory=list, description="Identified components, enriched.")
+    components_relations: list[Relation] = Field(
+        default_factory=list, description="Relations among components, enriched."
+    )
     files: dict[str, FileEntry] = Field(
         default_factory=dict,
         description="Top-level file index keyed by relative file path. Contains all methods and statuses.",
-        exclude=True,
-        json_schema_extra={"hidden": True},
     )
-    components: list[Component] = Field(description="List of the components identified in the project.")
-    components_relations: list[Relation] = Field(description="List of relations among the components.")
+
+    @classmethod
+    def from_llm(cls, llm: AnalysisInsightsLLM) -> AnalysisInsights:
+        """Promote a parsed LLM result into the runtime model; internal fields default, filled later by enrichment."""
+        return cls(
+            description=llm.description,
+            components=[Component.from_llm(c) for c in llm.components],
+            components_relations=[Relation.from_llm(r) for r in llm.components_relations],
+        )
 
     def llm_str(self):
-        if not self.components:
-            return "No abstract components found."
-        title = "# Abstract Components Overview\n"
-        body = "\n".join(ac.llm_str() for ac in self.components)
-        relations = "\n".join(cr.llm_str() for cr in self.components_relations)
-        return title + body + relations
+        return _analysis_str(self)
 
     def file_to_component(self) -> dict[str, str]:
         """Build file path -> component_id mapping from root components."""
@@ -570,7 +631,7 @@ class ComponentFiles(LLMBaseModel):
 class ScopeRelations(LLMBaseModel):
     """Relations between components within a single scope."""
 
-    components_relations: list[Relation] = Field(description="Inter-component relationships within this scope.")
+    components_relations: list[RelationLLM] = Field(description="Inter-component relationships within this scope.")
 
     def llm_str(self):
         if not self.components_relations:

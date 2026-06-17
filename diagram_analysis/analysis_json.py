@@ -120,7 +120,7 @@ class FileEntryJson(BaseModel):
     )
     content_hash: str = Field(
         default="",
-        description="Truncated SHA-256 of the entire file's bytes; '' when unknown.",
+        description="Truncated SHA-256 of the entire file's source lines; '' when unknown.",
     )
 
 

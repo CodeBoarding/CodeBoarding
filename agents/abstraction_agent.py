@@ -7,6 +7,7 @@ from langchain_core.prompts import PromptTemplate
 from agents.agent import CodeBoardingAgent
 from agents.agent_responses import (
     AnalysisInsights,
+    AnalysisInsightsLLM,
     ClusterAnalysis,
     MetaAnalysisInsights,
     assign_component_ids,
@@ -138,9 +139,9 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
             llm_cluster_analysis=llm_cluster_analysis,
         )
 
-        return self._validation_invoke(
+        result = self._validation_invoke(
             prompt,
-            AnalysisInsights,
+            AnalysisInsightsLLM,
             validators=[
                 validate_relation_component_names,
                 validate_group_name_coverage,
@@ -149,6 +150,7 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
             context=context,
             max_validation_attempts=3,
         )
+        return AnalysisInsights.from_llm(result)
 
     def run(self):
         # Build full cluster results dict for all languages ONCE

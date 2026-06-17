@@ -1,11 +1,16 @@
+import json
 import unittest
 
 from agents.agent_responses import (
     SourceCodeReference,
     Relation,
+    RelationLLM,
     Component,
+    ComponentLLM,
     FileMethodGroup,
     AnalysisInsights,
+    AnalysisInsightsLLM,
+    ScopeRelations,
     assign_component_ids,
 )
 
@@ -205,6 +210,73 @@ class TestAnalysisInsights(unittest.TestCase):
         # Should work with non-empty list
         component = Component(name="Test", description="Test component", key_entities=[ref])
         self.assertEqual(len(component.key_entities), 1)
+
+
+class TestLLMSchemaSeparation(unittest.TestCase):
+    """LLM-facing models expose only LLM-produced fields; runtime subclasses add
+    the deterministically-enriched fields, which therefore never reach the LLM."""
+
+    INTERNAL = (
+        "content_hash",
+        "component_id",
+        "file_methods",
+        "files",
+        "source_cluster_ids",
+        "src_id",
+        "dst_id",
+        "edge_count",
+        "is_static",
+    )
+
+    @staticmethod
+    def _all_property_names(schema: dict) -> set:
+        names: set = set()
+
+        def walk(node):
+            if isinstance(node, dict):
+                props = node.get("properties")
+                if isinstance(props, dict):
+                    names.update(props.keys())
+                for value in node.values():
+                    walk(value)
+            elif isinstance(node, list):
+                for item in node:
+                    walk(item)
+
+        walk(schema)
+        return names
+
+    def test_llm_schemas_carry_no_internal_fields(self):
+        for model in (AnalysisInsightsLLM, ComponentLLM, RelationLLM, ScopeRelations):
+            names = self._all_property_names(model.model_json_schema())
+            leaked = names & set(self.INTERNAL)
+            self.assertEqual(leaked, set(), f"{model.__name__} schema leaks {leaked}")
+
+    def test_runtime_models_are_independent_of_llm_models(self):
+        # Runtime models are not subclasses of the LLM DTOs; they map via from_llm.
+        self.assertFalse(issubclass(Component, ComponentLLM))
+        self.assertFalse(issubclass(Relation, RelationLLM))
+        self.assertFalse(issubclass(AnalysisInsights, AnalysisInsightsLLM))
+
+    def test_runtime_models_carry_internal_fields(self):
+        self.assertIn("component_id", Component.model_fields)
+        self.assertIn("file_methods", Component.model_fields)
+        self.assertIn("files", AnalysisInsights.model_fields)
+        self.assertIn("src_id", Relation.model_fields)
+
+    def test_from_llm_promotes_to_runtime(self):
+        llm = AnalysisInsightsLLM(
+            description="d",
+            components=[ComponentLLM(name="A", description="x", key_entities=[])],
+            components_relations=[RelationLLM(relation="uses", src_name="A", dst_name="B")],
+        )
+        rt = AnalysisInsights.from_llm(llm)
+        self.assertIsInstance(rt, AnalysisInsights)
+        self.assertIsInstance(rt.components[0], Component)
+        self.assertIsInstance(rt.components_relations[0], Relation)
+        # Internal fields exist and default until enrichment fills them.
+        self.assertEqual(rt.components[0].component_id, "")
+        self.assertEqual(rt.files, {})
 
 
 class TestComponentIds(unittest.TestCase):

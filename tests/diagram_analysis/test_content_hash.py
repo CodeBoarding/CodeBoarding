@@ -63,6 +63,9 @@ def test_hash_method_body_empty_on_bad_range():
     assert _hash_method_body(["a", "b"], 0, 2) == ""
     assert _hash_method_body(["a", "b"], 3, 2) == ""
     assert _hash_method_body(None, 1, 2) == ""
+    # end_line past the file end (e.g. file truncated since lines were recorded)
+    assert _hash_method_body(["a", "b"], 1, 5) == ""
+    assert _hash_method_body(["a", "b"], 3, 5) == ""
 
 
 def test_read_source_lines_missing_file_returns_none(tmp_path: Path):

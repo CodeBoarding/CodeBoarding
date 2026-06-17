@@ -7,6 +7,7 @@ from langchain_core.language_models import BaseChatModel
 from agents.agent import CodeBoardingAgent
 from agents.agent_responses import (
     AnalysisInsights,
+    AnalysisInsightsLLM,
     ClusterAnalysis,
     Component,
     MetaAnalysisInsights,
@@ -178,7 +179,7 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
             return cached
         result = self._validation_invoke(
             prompt,
-            AnalysisInsights,
+            AnalysisInsightsLLM,
             validators=[
                 validate_relation_component_names,
                 validate_group_name_coverage,
@@ -187,12 +188,13 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
             context=context,
             max_validation_attempts=3,
         )
+        analysis = AnalysisInsights.from_llm(result)
         self._analysis_cache.store(
             cache_key,
-            result,
+            analysis,
             run_id=self.run_id,
         )
-        return result
+        return analysis
 
     def run(self, component: Component):
         """
