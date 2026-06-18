@@ -1,0 +1,29 @@
+<!-- codeboarding_web/static/index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CodeBoarding</title>
+  <link rel="stylesheet" href="/static/app.css" />
+  <script src="https://unpkg.com/dagre@0.8.5/dist/dagre.min.js"></script>
+  <script src="https://unpkg.com/cytoscape@3.23.0/dist/cytoscape.min.js"></script>
+  <script src="https://unpkg.com/cytoscape-dagre@2.4.0/cytoscape-dagre.js"></script>
+</head>
+<body>
+  <header>
+    <span id="project"></span>
+    <span id="phase" class="phase idle">idle</span>
+    <select id="scope">
+      <option value="full">Full</option>
+      <option value="incremental">Incremental</option>
+    </select>
+    <button id="run">Run analysis</button>
+  </header>
+  <main>
+    <div id="cy"></div>
+    <aside id="log"></aside>
+  </main>
+  <script src="/static/app.js"></script>
+</body>
+</html>

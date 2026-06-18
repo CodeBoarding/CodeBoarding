@@ -74,6 +74,9 @@ all = [
     "memory-profiler>=0.61",
 ]
 
+[tool.setuptools.package-data]
+codeboarding_web = ["static/*"]
+
 [tool.setuptools]
 packages = [
     "agents",
