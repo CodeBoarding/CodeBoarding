@@ -9,7 +9,8 @@ from pathlib import Path
 from codeboarding_web.diagram import load_cytoscape
 from codeboarding_web.events import EventBus, TraceLogHandler
 from codeboarding_web.state import RunState
-from codeboarding_workflows.analysis import run_full, run_incremental
+from codeboarding_workflows.analysis import BaselineUnavailableError, run_full, run_incremental
+from diagram_analysis.exceptions import IncrementalCacheMissingError
 from codeboarding_workflows.orchestration import run_analysis_pipeline
 from codeboarding_workflows.sources import SourceContext, local_source
 from diagram_analysis import RunContext
@@ -83,6 +84,50 @@ class AnalysisRunner:
             else:
                 self.bus.publish_threadsafe("run_end", {"run_id": run_id})
 
+    def _run_full(self, src: SourceContext, run_context: RunContext, progress_callback: Callable[[], None]) -> None:
+        """Delegate to the full-analysis workflow."""
+        run_full(
+            repo_name=src.project_name,
+            repo_path=src.repo_path,
+            output_dir=src.artifact_dir,
+            depth_level=self.depth_level,
+            run_id=run_context.run_id,
+            log_path=run_context.log_path,
+            progress_callback=progress_callback,
+        )
+
+    def _run_scope(
+        self,
+        scope: str,
+        src: SourceContext,
+        run_context: RunContext,
+        progress_callback: Callable[[], None],
+        base_ref: str,
+        target_ref: str,
+    ) -> None:
+        """Dispatch full or incremental analysis; fall back to full when cache/baseline missing."""
+        if scope == "full":
+            self._run_full(src, run_context, progress_callback)
+            return
+        try:
+            run_incremental(
+                repo_path=src.repo_path,
+                output_dir=src.artifact_dir,
+                project_name=src.project_name,
+                run_id=run_context.run_id,
+                log_path=run_context.log_path,
+                base_ref=base_ref,
+                target_ref=target_ref,
+                progress_callback=progress_callback,
+            )
+        except (BaselineUnavailableError, IncrementalCacheMissingError) as exc:
+            logger.warning("incremental unavailable (%s); falling back to full analysis", exc)
+            self.bus.publish_threadsafe(
+                "run_notice",
+                {"message": "Incremental cache not seeded — running a full analysis to seed it."},
+            )
+            self._run_full(src, run_context, progress_callback)
+
     def _drive_pipeline(
         self,
         scope: str,
@@ -97,27 +142,7 @@ class AnalysisRunner:
             monitoring_dir = get_monitoring_run_dir(run_context.log_path, create=True)
             with monitor_execution(run_id=run_context.run_id, output_dir=str(monitoring_dir), enabled=True) as mon:
                 mon.step("analysis")
-                if scope == "full":
-                    run_full(
-                        repo_name=src.project_name,
-                        repo_path=src.repo_path,
-                        output_dir=src.artifact_dir,
-                        depth_level=self.depth_level,
-                        run_id=run_context.run_id,
-                        log_path=run_context.log_path,
-                        progress_callback=progress_callback,
-                    )
-                else:
-                    run_incremental(
-                        repo_path=src.repo_path,
-                        output_dir=src.artifact_dir,
-                        project_name=src.project_name,
-                        run_id=run_context.run_id,
-                        log_path=run_context.log_path,
-                        base_ref=base_ref,
-                        target_ref=target_ref,
-                        progress_callback=progress_callback,
-                    )
+                self._run_scope(scope, src, run_context, progress_callback, base_ref, target_ref)
 
         run_analysis_pipeline(
             source=local_source(

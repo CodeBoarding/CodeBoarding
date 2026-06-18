@@ -84,6 +84,7 @@ function connectEvents() {
   src.addEventListener('diagram_delta', (e) => applyElements(JSON.parse(e.data).elements));
   src.addEventListener('run_end', () => { setPhase('done'); loadDiagram(); });
   src.addEventListener('run_error', (e) => { setPhase('error'); logLine('ERROR: ' + JSON.parse(e.data).error); });
+  src.addEventListener('run_notice', (e) => logLine('ℹ ' + JSON.parse(e.data).message));
   src.addEventListener('watch_triggered', (e) => {
     const d = JSON.parse(e.data);
     if (d.status === 'no_baseline') {
