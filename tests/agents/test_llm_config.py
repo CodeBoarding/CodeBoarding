@@ -572,21 +572,25 @@ class TestTemperatureGating:
 
     @patch("agents.prompts.prompt_factory.initialize_global_factory")
     @patch("agents.agent.MONITORING_CALLBACK")
-    def test_opus_built_without_temperature_attr(self, mock_monitoring_callback, mock_init_factory):
+    def test_opus_built_without_temperature_attr(
+        self, mock_monitoring_callback: MagicMock, mock_init_factory: MagicMock
+    ) -> None:
         # Offline: ChatAnthropic built without temperature exposes .temperature == None.
         env = {"ANTHROPIC_API_KEY": "sk-ant-test", "AGENT_MODEL": "claude-opus-4-8"}
         with patch.dict(os.environ, env, clear=True):
             agent_llm = initialize_agent_llm("claude-opus-4-8")
-            assert agent_llm.temperature is None
+            assert getattr(agent_llm, "temperature") is None
 
     @patch("agents.prompts.prompt_factory.initialize_global_factory")
     @patch("agents.agent.MONITORING_CALLBACK")
-    def test_sonnet_built_with_zero_temperature(self, mock_monitoring_callback, mock_init_factory):
+    def test_sonnet_built_with_zero_temperature(
+        self, mock_monitoring_callback: MagicMock, mock_init_factory: MagicMock
+    ) -> None:
         # Offline: a sampling-capable model keeps the deterministic temperature=0.
         env = {"ANTHROPIC_API_KEY": "sk-ant-test", "AGENT_MODEL": "claude-sonnet-4-6"}
         with patch.dict(os.environ, env, clear=True):
             agent_llm = initialize_agent_llm("claude-sonnet-4-6")
-            assert agent_llm.temperature == 0.0
+            assert getattr(agent_llm, "temperature") == 0.0
 
 
 class TestMonitoringIntegration:
