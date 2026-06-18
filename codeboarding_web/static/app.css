@@ -95,6 +95,8 @@ main {
   text-align: center;
 }
 
+.detail-empty.hidden { display: none; }
+
 .detail-content { display: flex; flex-direction: column; gap: .5rem; }
 .detail-content.hidden { display: none; }
 
