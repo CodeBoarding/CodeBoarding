@@ -13,9 +13,13 @@ def format_sse(event: str, data: dict) -> str:
 class EventBus:
     """Fan-in from a worker thread to any number of asyncio subscribers."""
 
-    def __init__(self, loop: asyncio.AbstractEventLoop) -> None:
+    def __init__(self, loop: asyncio.AbstractEventLoop | None = None) -> None:
         self._loop = loop
         self._subscribers: set[asyncio.Queue] = set()
+
+    def set_loop(self, loop: asyncio.AbstractEventLoop) -> None:
+        """Rebind to the loop that will actually serve requests."""
+        self._loop = loop
 
     def subscribe(self) -> asyncio.Queue:
         """Register a new subscriber queue and return it."""
@@ -28,7 +32,9 @@ class EventBus:
         self._subscribers.discard(q)
 
     def publish_threadsafe(self, event: str, data: dict) -> None:
-        """Publish from any thread; marshals onto the event loop."""
+        """Publish from any thread; marshals onto the event loop. No-op if loop not yet bound."""
+        if self._loop is None:
+            return
         self._loop.call_soon_threadsafe(self._publish, event, data)
 
     def _publish(self, event: str, data: dict) -> None:
