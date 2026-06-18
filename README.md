@@ -150,7 +150,11 @@ If an analysis already exists it renders immediately; click **Run analysis**
 (full or incremental) to regenerate it. Progress and the diagram stream in live
 as each component is analyzed, and your pan/zoom is preserved across updates.
 
-Flags: `--host`, `--port` (default `8050`), `--no-open`, `--depth-level`.
+Watch-on-save is on by default: editing a source file auto-triggers an
+incremental re-analysis (toggle it from the header or disable with `--no-watch`).
+
+Flags: `--host`, `--port` (default `8050`), `--no-open`, `--depth-level`,
+`--watch`/`--no-watch`.
 
 ## Where to use it
 
