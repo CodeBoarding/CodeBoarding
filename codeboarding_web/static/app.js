@@ -63,6 +63,12 @@ const STYLE = [
 const cy = cytoscape({ container: document.getElementById('cy'), elements: [], style: STYLE });
 let hasLaidOut = false;
 
+// ── In-flight navigation guard ───────────────────────────────────────────────
+let navSeq = 0;
+
+// ── SSE connection state ─────────────────────────────────────────────────────
+let sseDown = false;
+
 // ── Breadcrumb state ─────────────────────────────────────────────────────────
 // Each entry: { id: string|null, label: string }
 // index 0 is always Overview (id=null).
@@ -171,25 +177,38 @@ async function navigateTo(index) {
 
   const entry = breadcrumbStack[index];
   const url = entry.id === null ? '/api/diagram.json' : '/api/diagram/' + entry.id;
-  const res = await fetch(url);
-  if (!res.ok) {
-    logLine('Failed to load diagram for: ' + (entry.label || 'overview'));
-    return;
+  const token = ++navSeq;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) {
+      logLine('Failed to load diagram for: ' + (entry.label || 'overview'));
+      return;
+    }
+    if (token !== navSeq) return; // superseded by a newer navigation
+    const data = await res.json();
+    renderGraph(data.elements, { fit: true });
+  } catch (_) {
+    logLine('request failed: ' + url);
   }
-  const data = await res.json();
-  renderGraph(data.elements, { fit: true });
 }
 
 async function drillInto(componentId, label) {
-  const res = await fetch('/api/diagram/' + componentId);
-  if (!res.ok) {
-    logLine('No sub-graph for: ' + label);
-    return;
+  const url = '/api/diagram/' + componentId;
+  const token = ++navSeq;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) {
+      logLine('No sub-graph for: ' + label);
+      return;
+    }
+    if (token !== navSeq) return; // superseded by a newer navigation
+    const data = await res.json();
+    breadcrumbStack.push({ id: componentId, label: label });
+    renderBreadcrumb();
+    renderGraph(data.elements, { fit: true });
+  } catch (_) {
+    logLine('request failed: ' + url);
   }
-  const data = await res.json();
-  breadcrumbStack.push({ id: componentId, label: label });
-  renderBreadcrumb();
-  renderGraph(data.elements, { fit: true });
 }
 
 function isAtOverview() {
@@ -291,32 +310,48 @@ document.getElementById('log-toggle').addEventListener('click', () => {
 async function loadDiagram() {
   const entry = breadcrumbStack[breadcrumbStack.length - 1];
   const url = entry.id === null ? '/api/diagram.json' : '/api/diagram/' + entry.id;
-  const res = await fetch(url);
-  if (res.ok) {
-    const data = await res.json();
-    if (isAtOverview()) {
-      applyElements(data.elements);
-    } else {
-      renderGraph(data.elements, { fit: true });
+  try {
+    const res = await fetch(url);
+    if (res.ok) {
+      const data = await res.json();
+      if (isAtOverview()) {
+        applyElements(data.elements);
+      } else {
+        renderGraph(data.elements, { fit: true });
+      }
     }
+  } catch (_) {
+    logLine('request failed: ' + url);
   }
 }
 
 async function refreshStatus() {
-  const s = await (await fetch('/api/status')).json();
-  document.getElementById('project').textContent = s.project;
-  setPhase(s.phase);
-  if (s.has_baseline) loadDiagram();
-  document.getElementById('watch').checked = s.watch_enabled;
+  try {
+    const s = await (await fetch('/api/status')).json();
+    document.getElementById('project').textContent = s.project;
+    setPhase(s.phase);
+    if (s.has_baseline) loadDiagram();
+    document.getElementById('watch').checked = s.watch_enabled;
+  } catch (_) {
+    logLine('request failed: /api/status');
+  }
 }
 
 // ── SSE event listeners ──────────────────────────────────────────────────────
 function connectEvents() {
   const src = new EventSource('/api/events');
 
-  src.addEventListener('step_start', (e) => logLine('▶ ' + JSON.parse(e.data).step));
-  src.addEventListener('step_end', (e) => logLine('✓ ' + JSON.parse(e.data).step));
-  src.addEventListener('phase_change', (e) => { logLine('— ' + JSON.parse(e.data).step); });
+  src.addEventListener('step_start', (e) => { sseDown = false; logLine('▶ ' + JSON.parse(e.data).step); });
+  src.addEventListener('step_end', (e) => { sseDown = false; logLine('✓ ' + JSON.parse(e.data).step); });
+  src.addEventListener('step_error', (e) => { const d = JSON.parse(e.data); logLine('✗ ' + (d.step || 'step') + (d.error ? ': ' + d.error : '')); });
+  src.addEventListener('phase_change', (e) => { sseDown = false; logLine('— ' + JSON.parse(e.data).step); });
+
+  src.addEventListener('error', () => {
+    if (!sseDown && (src.readyState === EventSource.CLOSED || src.readyState === EventSource.CONNECTING)) {
+      sseDown = true;
+      logLine('connection lost; reconnecting…');
+    }
+  });
 
   src.addEventListener('diagram_delta', (e) => {
     // Only apply in-place updates at the overview to avoid clobbering a drilled-in view
@@ -350,27 +385,36 @@ function connectEvents() {
 
 // ── Run / Watch controls (unchanged behavior) ────────────────────────────────
 document.getElementById('watch').addEventListener('change', async (e) => {
-  const res = await fetch('/api/watch', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ enabled: e.target.checked }),
-  });
-  if (!res.ok) {
-    logLine('watch toggle failed');
+  try {
+    const res = await fetch('/api/watch', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: e.target.checked }),
+    });
+    if (!res.ok) {
+      logLine('watch toggle failed');
+      e.target.checked = !e.target.checked;
+      return;
+    }
+    const d = await res.json();
+    logLine('watch ' + (d.watch_enabled ? 'enabled' : 'disabled'));
+  } catch (_) {
+    logLine('request failed: /api/watch');
     e.target.checked = !e.target.checked;
-    return;
   }
-  const d = await res.json();
-  logLine('watch ' + (d.watch_enabled ? 'enabled' : 'disabled'));
 });
 
 document.getElementById('run').addEventListener('click', async () => {
   const scope = document.getElementById('scope').value;
-  const res = await fetch('/api/run', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ scope }),
-  });
-  if (res.status === 409) { logLine('A run is already in progress.'); return; }
-  if (res.status === 400) { logLine('Invalid scope.'); return; }
-  setPhase('running');
+  try {
+    const res = await fetch('/api/run', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ scope }),
+    });
+    if (res.status === 409) { logLine('A run is already in progress.'); return; }
+    if (res.status === 400) { logLine('Invalid scope.'); return; }
+    setPhase('running');
+  } catch (_) {
+    logLine('request failed: /api/run');
+  }
 });
 
 // ── Bootstrap ────────────────────────────────────────────────────────────────
