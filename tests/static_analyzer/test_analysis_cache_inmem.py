@@ -10,12 +10,8 @@ import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from static_analyzer.analysis_cache import (
-    _INVALIDATED_CROSS_BOUNDARY_EDGES,
-    _INVALIDATED_FILES,
-    invalidate_files,
-    merge_results,
-)
+from static_analyzer.analysis_cache import invalidate_files, merge_results
+from static_analyzer.analysis_result import AnalysisData
 from static_analyzer.constants import NodeType
 from static_analyzer.graph import CallGraph, ClusterResult, Edge
 from static_analyzer.node import Node
@@ -48,6 +44,10 @@ def _result(
     }
 
 
+def _analysis_data(result: dict) -> AnalysisData:
+    return AnalysisData.from_dict(result)
+
+
 class TestInvalidateFiles(unittest.TestCase):
     def test_drops_nodes_from_changed_files(self) -> None:
         cg = CallGraph(language="python")
@@ -55,11 +55,11 @@ class TestInvalidateFiles(unittest.TestCase):
         cg.add_node(_node("b.bar", "b.py"))
         cached = _result(cg, source_files=["a.py", "b.py"])
 
-        updated = invalidate_files(cached, {Path("a.py")})
+        updated = invalidate_files(cached, {Path("a.py")}).analysis
 
-        self.assertNotIn("a.foo", updated["call_graph"].nodes)
-        self.assertIn("b.bar", updated["call_graph"].nodes)
-        self.assertEqual([str(p) for p in updated["source_files"]], ["b.py"])
+        self.assertNotIn("a.foo", updated.call_graph.nodes)
+        self.assertIn("b.bar", updated.call_graph.nodes)
+        self.assertEqual([str(p) for p in updated.source_files], ["b.py"])
 
     def test_cascades_edges_when_endpoint_dropped(self) -> None:
         # Edge a.foo -> b.bar must be dropped when a.foo is removed; the
@@ -70,9 +70,9 @@ class TestInvalidateFiles(unittest.TestCase):
         cg.add_edge("a.foo", "b.bar")
         cached = _result(cg, source_files=["a.py", "b.py"])
 
-        updated = invalidate_files(cached, {Path("a.py")})
+        updated = invalidate_files(cached, {Path("a.py")}).analysis
 
-        self.assertEqual(len(updated["call_graph"].edges), 0)
+        self.assertEqual(len(updated.call_graph.edges), 0)
 
     def test_tracks_invalidated_cross_boundary_edges_for_merge(self) -> None:
         cg = CallGraph(language="python")
@@ -83,9 +83,9 @@ class TestInvalidateFiles(unittest.TestCase):
 
         updated = invalidate_files(cached, {Path("a.py")})
 
-        self.assertEqual(updated[_INVALIDATED_FILES], {"a.py"})
+        self.assertEqual(updated.invalidated_files, {"a.py"})
         self.assertEqual(
-            [(src, dst) for src, dst, _src_node, _dst_node in updated[_INVALIDATED_CROSS_BOUNDARY_EDGES]],
+            [(src, dst) for src, dst, _src_node, _dst_node in updated.invalidated_edges],
             [("a.foo", "b.bar")],
         )
 
@@ -103,11 +103,11 @@ class TestInvalidateFiles(unittest.TestCase):
             package_relations={"pkg": {"files": ["a.py", "b.py"]}},
         )
 
-        updated = invalidate_files(cached, {Path("a.py")})
+        updated = invalidate_files(cached, {Path("a.py")}).analysis
 
-        self.assertEqual([r.fully_qualified_name for r in updated["references"]], ["b.bar"])
-        self.assertEqual(set(updated["class_hierarchies"].keys()), {"B"})
-        self.assertEqual(updated["package_relations"]["pkg"]["files"], ["b.py"])
+        self.assertEqual([r.fully_qualified_name for r in updated.references], ["b.bar"])
+        self.assertEqual(set(updated.class_hierarchies.keys()), {"B"})
+        self.assertEqual(updated.package_relations["pkg"]["files"], ["b.py"])
 
     def test_diagnostics_preserved_for_unchanged_files(self) -> None:
         cg = CallGraph(language="python")
@@ -116,9 +116,9 @@ class TestInvalidateFiles(unittest.TestCase):
         cached = _result(cg, source_files=["a.py", "b.py"])
         cached["diagnostics"] = {"a.py": ["d1"], "b.py": ["d2"]}
 
-        updated = invalidate_files(cached, {Path("a.py")})
+        updated = invalidate_files(cached, {Path("a.py")}).analysis
 
-        self.assertEqual(updated["diagnostics"], {"b.py": ["d2"]})
+        self.assertEqual(updated.diagnostics, {"b.py": ["d2"]})
 
 
 class TestMergeResults(unittest.TestCase):
@@ -128,9 +128,11 @@ class TestMergeResults(unittest.TestCase):
         new_cg = CallGraph(language="python")
         new_cg.add_node(_node("b.bar", "b.py"))
 
-        merged = merge_results(_result(cached_cg, source_files=["a.py"]), _result(new_cg, source_files=["b.py"]))
+        merged = merge_results(
+            _analysis_data(_result(cached_cg, source_files=["a.py"])), _result(new_cg, source_files=["b.py"])
+        )
 
-        self.assertEqual(set(merged["call_graph"].nodes), {"a.foo", "b.bar"})
+        self.assertEqual(set(merged.call_graph.nodes), {"a.foo", "b.bar"})
 
     def test_new_overrides_cached_for_same_file_references(self) -> None:
         # ``b.bar`` lives in b.py in both halves; the new half wins.
@@ -145,9 +147,9 @@ class TestMergeResults(unittest.TestCase):
             source_files=["b.py"],
         )
 
-        merged = merge_results(cached, new)
+        merged = merge_results(_analysis_data(cached), new)
 
-        self.assertEqual([(r.fully_qualified_name, r.line_start) for r in merged["references"]], [("b.bar", 20)])
+        self.assertEqual([(r.fully_qualified_name, r.line_start) for r in merged.references], [("b.bar", 20)])
 
     def test_cached_references_for_files_not_in_new_are_kept(self) -> None:
         cached = _result(
@@ -161,9 +163,9 @@ class TestMergeResults(unittest.TestCase):
             source_files=["b.py"],
         )
 
-        merged = merge_results(cached, new)
+        merged = merge_results(_analysis_data(cached), new)
 
-        names = sorted((r.fully_qualified_name, r.line_start) for r in merged["references"])
+        names = sorted((r.fully_qualified_name, r.line_start) for r in merged.references)
         self.assertEqual(names, [("a.foo", 1), ("b.bar", 99)])
 
     def test_diagnostics_merge_with_new_winning(self) -> None:
@@ -172,9 +174,9 @@ class TestMergeResults(unittest.TestCase):
         new = _result(CallGraph(language="python"), source_files=["b.py"])
         new["diagnostics"] = {"b.py": ["new-b"]}
 
-        merged = merge_results(cached, new)
+        merged = merge_results(_analysis_data(cached), new)
 
-        self.assertEqual(merged["diagnostics"], {"a.py": ["old-a"], "b.py": ["new-b"]})
+        self.assertEqual(merged.diagnostics, {"a.py": ["old-a"], "b.py": ["new-b"]})
 
 
 class TestClusterCachePreservation(unittest.TestCase):
@@ -200,10 +202,10 @@ class TestClusterCachePreservation(unittest.TestCase):
     def test_invalidate_files_preserves_cluster_cache_for_kept_files(self) -> None:
         cached = _result(self._cg_with_cluster_cache(), source_files=["a.py", "b.py"])
 
-        updated = invalidate_files(cached, {Path("a.py")})
+        updated = invalidate_files(cached, {Path("a.py")}).analysis
 
-        cc = updated["call_graph"]._cluster_cache
-        self.assertIsNotNone(cc)
+        cc = updated.call_graph._cluster_cache
+        assert cc is not None
         # Cluster 1 had only a.py members -> dropped entirely.
         # Cluster 2 keeps b.qux from b.py.
         self.assertNotIn(1, cc.clusters)
@@ -216,9 +218,10 @@ class TestClusterCachePreservation(unittest.TestCase):
         cached = _result(self._cg_with_cluster_cache(), source_files=["a.py", "b.py"])
         # Only invalidate b.py; cluster 1 (members in a.py) survives whole;
         # cluster 2 (b.qux only) drops.
-        updated = invalidate_files(cached, {Path("b.py")})
+        updated = invalidate_files(cached, {Path("b.py")}).analysis
 
-        cc = updated["call_graph"]._cluster_cache
+        cc = updated.call_graph._cluster_cache
+        assert cc is not None
         self.assertEqual(cc.clusters[1], {"a.foo", "a.bar"})
         self.assertNotIn(2, cc.clusters)
 
@@ -228,9 +231,10 @@ class TestClusterCachePreservation(unittest.TestCase):
         new_cg.add_node(_node("c.new", "c.py"))
         new = _result(new_cg, source_files=["c.py"])
 
-        merged = merge_results(cached, new)
+        merged = merge_results(_analysis_data(cached), new)
 
-        cc = merged["call_graph"]._cluster_cache
+        cc = merged.call_graph._cluster_cache
+        assert cc is not None
         # Cached clusters survive; new node 'c.new' is unclustered (intentional —
         # cluster_delta will pick it up as drift on the next run).
         self.assertEqual(cc.clusters[1], {"a.foo", "a.bar"})

@@ -12,10 +12,8 @@ from pathlib import Path
 from typing import Any
 
 from repo_utils.ignore import RepoIgnoreManager
+from static_analyzer.analysis_result import AnalysisData, InvalidatedEdge
 from static_analyzer.analysis_cache import (
-    _INVALIDATED_CROSS_BOUNDARY_EDGES,
-    _INVALIDATED_FILES,
-    InvalidatedEdge,
     invalidate_files,
     merge_results,
 )
@@ -95,19 +93,19 @@ def update_cfg_for_changed_files(
     if fresh_diagnostics:
         new_analysis["diagnostics"] = fresh_diagnostics
 
-    merged_analysis = merge_results(updated_cache, new_analysis)
+    merged_analysis = merge_results(updated_cache.analysis, new_analysis)
     _restore_persisted_cross_boundary_edges(
         merged_analysis,
-        updated_cache.get(_INVALIDATED_CROSS_BOUNDARY_EDGES, []),
-        updated_cache.get(_INVALIDATED_FILES, set()),
+        updated_cache.invalidated_edges,
+        updated_cache.invalidated_files,
         adapter,
         engine_client,
     )
-    return _filter_to_live_files(merged_analysis)
+    return _filter_to_live_files(merged_analysis).to_dict()
 
 
 def _restore_persisted_cross_boundary_edges(
-    merged_analysis: dict[str, Any],
+    merged_analysis: AnalysisData,
     candidate_edges: list[InvalidatedEdge],
     changed_file_strs: set[str],
     adapter: LanguageAdapter,
@@ -116,7 +114,7 @@ def _restore_persisted_cross_boundary_edges(
     if not candidate_edges:
         return
 
-    call_graph: CallGraph = merged_analysis["call_graph"]
+    call_graph = merged_analysis.call_graph
     source_inspector = SourceInspector()
     restored = 0
     checked = 0
@@ -267,7 +265,7 @@ def _reference_matches_edge_kind(
     return True
 
 
-def _filter_to_live_files(merged_analysis: dict[str, Any]) -> dict[str, Any]:
+def _filter_to_live_files(merged_analysis: AnalysisData) -> AnalysisData:
     """Drop entries whose file no longer exists on disk.
 
     A file in ``source_files`` may have been re-LSPed earlier in the run and
@@ -276,31 +274,28 @@ def _filter_to_live_files(merged_analysis: dict[str, Any]) -> dict[str, Any]:
     """
     # Normalize: ``merge_results`` may contain a mix of Path (from the cached
     # side) and str (from the LSP-rebuilt new side); coerce before ``.exists()``.
-    all_existing = {Path(f) for f in merged_analysis.get("source_files", []) if Path(f).exists()}
+    all_existing = {Path(f) for f in merged_analysis.source_files if Path(f).exists()}
     existing_file_strs = {str(f) for f in all_existing}
 
-    merged_analysis["source_files"] = list(all_existing)
-    merged_analysis["references"] = [
-        ref for ref in merged_analysis.get("references", []) if ref.file_path in existing_file_strs
-    ]
+    merged_analysis.source_files = list(all_existing)
+    merged_analysis.references = [ref for ref in merged_analysis.references if ref.file_path in existing_file_strs]
 
-    merged_cg = merged_analysis.get("call_graph", CallGraph())
-    merged_analysis["call_graph"] = merged_cg.filter(
+    merged_analysis.call_graph = merged_analysis.call_graph.filter(
         lambda node: node.file_path in existing_file_strs,
         on_dropped_edge=lambda _edge: None,
     )
 
-    merged_analysis["class_hierarchies"] = {
+    merged_analysis.class_hierarchies = {
         name: info
-        for name, info in merged_analysis.get("class_hierarchies", {}).items()
+        for name, info in merged_analysis.class_hierarchies.items()
         if info.get("file_path") in existing_file_strs
     }
 
     filtered_packages: dict[str, Any] = {}
-    for pkg_name, pkg_info in merged_analysis.get("package_relations", {}).items():
+    for pkg_name, pkg_info in merged_analysis.package_relations.items():
         existing_pkg_files = [f for f in pkg_info.get("files", []) if f in existing_file_strs]
         if existing_pkg_files:
             filtered_packages[pkg_name] = {**pkg_info, "files": existing_pkg_files}
-    merged_analysis["package_relations"] = filtered_packages
+    merged_analysis.package_relations = filtered_packages
 
     return merged_analysis
