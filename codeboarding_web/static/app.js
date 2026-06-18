@@ -21,22 +21,8 @@ const STYLE = [
     },
   },
   {
-    // Compound parent: labeled box around its children
-    selector: 'node:parent',
-    style: {
-      'text-valign': 'top',
-      'text-halign': 'center',
-      'font-size': 11,
-      'padding': '16px',
-      'background-color': '#1e1e14',
-      'background-opacity': 0.6,
-      'border-color': '#FFC107',
-      'border-width': 2,
-    },
-  },
-  {
-    // Expandable leaf nodes: gold accent border
-    selector: 'node[?expandable]:not(:parent)',
+    // Expandable nodes: gold accent border
+    selector: 'node[?expandable]',
     style: {
       'border-color': '#FFC107',
       'border-width': 2.5,
@@ -56,6 +42,20 @@ const STYLE = [
       'background-color': '#1a2e1a',
       'border-color': '#4CAF50',
       'border-width': 2.5,
+    },
+  },
+  {
+    // Compound parent: labeled box around its children (after expandable so box style wins)
+    selector: 'node:parent',
+    style: {
+      'text-valign': 'top',
+      'text-halign': 'center',
+      'font-size': 11,
+      'padding': '16px',
+      'background-color': '#1e1e14',
+      'background-opacity': 0.6,
+      'border-color': '#FFC107',
+      'border-width': 2,
     },
   },
   {
@@ -564,16 +564,22 @@ document.getElementById('detail-copy').addEventListener('click', () => {
 });
 
 // ── Cytoscape interaction handlers ───────────────────────────────────────────
+let _lastTap = { id: null, t: 0 };
 cy.on('tap', 'node', (evt) => {
-  renderDetail(evt.target);
+  const node = evt.target;
+  renderDetail(node);                 // single tap always selects (unchanged)
+  const id = node.id();
+  const now = Date.now();
+  if (_lastTap.id === id && now - _lastTap.t < 350) {
+    _lastTap = { id: null, t: 0 };
+    if (node.data('expandable')) toggleNode(node);
+  } else {
+    _lastTap = { id, t: now };
+  }
 });
 
 cy.on('tap', (evt) => {
   if (evt.target === cy) clearDetail();
-});
-
-cy.on('dbltap', 'node[?expandable]', (evt) => {
-  toggleNode(evt.target);
 });
 
 // ── Toolbar handlers ─────────────────────────────────────────────────────────
