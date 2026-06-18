@@ -138,17 +138,29 @@ def _edge_set(result: StaticAnalysisResults, repo_path: Path) -> set[tuple[str, 
     return edges
 
 
-def _assert_new_outbound_edge_added(
+def _boundary_edges(edges: set[tuple[str, str, str, str]], changed_files: set[str]) -> set[tuple[str, str, str, str]]:
+    return {edge for edge in edges if edge[2] in changed_files or edge[3] in changed_files}
+
+
+def _assert_boundary_edges_match_full(
     warm_static_analysis: StaticAnalysisResults,
     full_static_analysis: StaticAnalysisResults,
     repo_path: Path,
+    changed_files: set[str],
 ) -> None:
-    expected_edge = ("pkg.new_worker.run_new", "pkg.util.helper", "pkg/new_worker.py", "pkg/util.py")
+    expected_edges = {
+        ("pkg.app.main", "pkg.service.service", "pkg/app.py", "pkg/service.py"),
+        ("pkg.service.service", "pkg.util.helper", "pkg/service.py", "pkg/util.py"),
+        ("pkg.new_worker.run_new", "pkg.util.helper", "pkg/new_worker.py", "pkg/util.py"),
+    }
     warm_edges = _edge_set(warm_static_analysis, repo_path)
     full_edges = _edge_set(full_static_analysis, repo_path)
+    warm_boundary = _boundary_edges(warm_edges, changed_files)
+    full_boundary = _boundary_edges(full_edges, changed_files)
 
-    assert expected_edge in full_edges
-    assert expected_edge in warm_edges
+    assert expected_edges <= full_boundary
+    assert expected_edges <= warm_boundary
+    assert warm_boundary == full_boundary
 
 
 def _removed_cross_boundary_edges(
@@ -315,7 +327,7 @@ def run_new():
 
     full_static_analysis = get_static_analysis(repo_path, fresh_dir, skip_cache=True, source_sha="after-two-changes")
 
-    _assert_new_outbound_edge_added(new_static_analysis, full_static_analysis, repo_path)
+    _assert_boundary_edges_match_full(new_static_analysis, full_static_analysis, repo_path, changed_files)
 
     _assert_graph_changes(
         old_static_analysis,

@@ -94,42 +94,54 @@ def update_cfg_for_changed_files(
         new_analysis["diagnostics"] = fresh_diagnostics
 
     merged_analysis = merge_results(updated_cache.analysis, new_analysis)
-    _restore_persisted_cross_boundary_edges(
+    _rebuild_changed_file_edges(
         merged_analysis,
         updated_cache.invalidated_edges,
         updated_cache.invalidated_files,
+        changed_source_files,
         adapter,
         engine_client,
     )
-    _add_new_outbound_edges_from_changed_files(merged_analysis, changed_source_files, engine_client)
     return _filter_to_live_files(merged_analysis).to_dict()
 
 
-def _restore_persisted_cross_boundary_edges(
+def _rebuild_changed_file_edges(
     merged_analysis: AnalysisData,
-    candidate_edges: list[InvalidatedEdge],
+    invalidated_edges: list[InvalidatedEdge],
     changed_file_strs: set[str],
+    changed_source_files: list[Path],
     adapter: LanguageAdapter,
     engine_client: LSPClient,
 ) -> None:
-    if not candidate_edges:
+    _restore_inbound_edges(
+        merged_analysis.call_graph, invalidated_edges, changed_file_strs, adapter, engine_client, SourceInspector()
+    )
+    _add_outbound_edges_from_changed_files(merged_analysis.call_graph, changed_source_files, engine_client)
+
+
+def _restore_inbound_edges(
+    call_graph: CallGraph,
+    invalidated_edges: list[InvalidatedEdge],
+    changed_file_strs: set[str],
+    adapter: LanguageAdapter,
+    engine_client: LSPClient,
+    source_inspector: SourceInspector,
+) -> None:
+    if not invalidated_edges:
         return
 
-    call_graph = merged_analysis.call_graph
-    source_inspector = SourceInspector()
     restored = 0
     checked = 0
     references_cache: dict[str, list[dict]] = {}
-    definitions_cache: dict[str, list[list[dict]]] = {}
 
-    for src_name, dst_name, _old_src_node, _old_dst_node in candidate_edges:
+    for src_name, dst_name, old_src_node, old_dst_node in invalidated_edges:
+        if old_src_node.file_path in changed_file_strs or old_dst_node.file_path not in changed_file_strs:
+            continue
         if not call_graph.has_node(src_name) or not call_graph.has_node(dst_name):
             continue
 
-        src_node = call_graph.nodes.get(src_name)
-        dst_node = call_graph.nodes.get(dst_name)
-        if src_node is None or dst_node is None:
-            continue
+        src_node = call_graph.nodes[src_name]
+        dst_node = call_graph.nodes[dst_name]
 
         checked += 1
         refs = references_cache.get(dst_name)
@@ -142,16 +154,8 @@ def _restore_persisted_cross_boundary_edges(
                 refs = []
             references_cache[dst_name] = refs
 
-        # Inbound: unchanged B -> changed A is restored by asking "who references A?"
-        # and checking whether one reference still lands inside B.
-        edge_exists = _edge_reference_still_exists(src_node, dst_node, refs, adapter, source_inspector)
-        if not edge_exists and src_node.file_path in changed_file_strs:
-            # Outbound: changed A -> unchanged C falls back to definitions from A's call sites.
-            edge_exists = _outbound_definition_edge_still_exists(
-                src_node, dst_node, definitions_cache, engine_client, source_inspector
-            )
-
-        if edge_exists:
+        # Inbound: unchanged B -> changed A is kept only if references(A) still lands inside B.
+        if _edge_reference_still_exists(src_node, dst_node, refs, adapter, source_inspector):
             try:
                 call_graph.add_edge(src_name, dst_name)
                 restored += 1
@@ -159,8 +163,8 @@ def _restore_persisted_cross_boundary_edges(
                 logger.debug("Failed to restore edge %s -> %s", src_name, dst_name, exc_info=True)
 
     logger.info(
-        "Validated %d cross-boundary cached edge(s), restored %d/%d",
-        len(candidate_edges),
+        "Validated %d inbound cached edge(s), restored %d/%d",
+        len(invalidated_edges),
         restored,
         checked,
     )
@@ -194,49 +198,14 @@ def _edge_reference_still_exists(
     return False
 
 
-def _outbound_definition_edge_still_exists(
-    src_node: Node,
-    dst_node: Node,
-    definitions_cache: dict[str, list[list[dict]]],
-    engine_client: LSPClient,
-    source_inspector: SourceInspector,
-) -> bool:
-    definition_results = definitions_cache.get(src_node.fully_qualified_name)
-    if definition_results is None:
-        file_path = Path(src_node.file_path)
-        call_sites = [
-            (file_path, line, char)
-            for line, char in source_inspector.find_call_sites(file_path)
-            if _position_inside_node(src_node, line, char)
-        ]
-        if not call_sites:
-            definition_results = []
-        else:
-            try:
-                definition_results, _ = engine_client.send_definition_batch(call_sites)
-            except Exception:
-                logger.debug(
-                    "Failed to validate outbound definitions for %s", src_node.fully_qualified_name, exc_info=True
-                )
-                definition_results = []
-        definitions_cache[src_node.fully_qualified_name] = definition_results
-
-    for definitions in definition_results:
-        for definition in definitions:
-            if _definition_points_to_node(definition, dst_node):
-                return True
-    return False
-
-
-def _add_new_outbound_edges_from_changed_files(
-    merged_analysis: AnalysisData,
+def _add_outbound_edges_from_changed_files(
+    call_graph: CallGraph,
     changed_source_files: list[Path],
     engine_client: LSPClient,
 ) -> None:
     if not changed_source_files:
         return
 
-    call_graph = merged_analysis.call_graph
     source_inspector = SourceInspector()
     added = 0
 
@@ -252,44 +221,43 @@ def _add_new_outbound_edges_from_changed_files(
             continue
 
         for (line, char), definitions in zip(call_sites, definition_results):
-            src_node = _find_containing_callable_node(call_graph, file_path, line, char)
-            if src_node is None:
+            containing_nodes = _containing_callable_nodes(call_graph, file_path, line, char)
+            if not containing_nodes:
                 continue
+            src_node = max(
+                containing_nodes, key=lambda node: (node.line_start, node.col_start, len(node.fully_qualified_name))
+            )
             for definition in definitions:
-                dst_node = _find_definition_node(call_graph, definition)
-                if dst_node is None or dst_node.fully_qualified_name == src_node.fully_qualified_name:
-                    continue
-                try:
-                    call_graph.add_edge(src_node.fully_qualified_name, dst_node.fully_qualified_name)
-                    added += 1
-                except ValueError:
-                    logger.debug(
-                        "Failed to add outbound edge %s -> %s",
-                        src_node.fully_qualified_name,
-                        dst_node.fully_qualified_name,
-                        exc_info=True,
-                    )
+                for dst_node in _definition_nodes(call_graph, definition):
+                    if dst_node.fully_qualified_name == src_node.fully_qualified_name:
+                        continue
+                    try:
+                        before = len(call_graph.edges)
+                        call_graph.add_edge(src_node.fully_qualified_name, dst_node.fully_qualified_name)
+                        if len(call_graph.edges) > before:
+                            added += 1
+                    except ValueError:
+                        logger.debug(
+                            "Failed to add outbound edge %s -> %s",
+                            src_node.fully_qualified_name,
+                            dst_node.fully_qualified_name,
+                            exc_info=True,
+                        )
 
     if added:
         logger.info("Added %d new outbound edge(s) from changed files", added)
 
 
-def _find_containing_callable_node(call_graph: CallGraph, file_path: Path, line: int, char: int) -> Node | None:
-    containing = [
+def _containing_callable_nodes(call_graph: CallGraph, file_path: Path, line: int, char: int) -> list[Node]:
+    return [
         node
         for node in call_graph.nodes.values()
         if node.is_callable() and node.file_path == str(file_path) and _position_inside_node(node, line, char)
     ]
-    if not containing:
-        return None
-    return max(containing, key=lambda node: (node.line_start, node.col_start, len(node.fully_qualified_name)))
 
 
-def _find_definition_node(call_graph: CallGraph, definition: dict) -> Node | None:
-    for node in call_graph.nodes.values():
-        if _definition_points_to_node(definition, node):
-            return node
-    return None
+def _definition_nodes(call_graph: CallGraph, definition: dict) -> list[Node]:
+    return [node for node in call_graph.nodes.values() if _definition_points_to_node(definition, node)]
 
 
 def _definition_points_to_node(definition: dict, dst_node: Node) -> bool:
