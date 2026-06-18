@@ -12,7 +12,10 @@ def test_build_generator_forwards_callback(monkeypatch, tmp_path):
             captured.update(kwargs)
 
     monkeypatch.setattr(analysis, "DiagramGenerator", FakeGen)
-    cb = lambda: None
+
+    def cb() -> None:
+        return None
+
     analysis.build_generator(
         repo_name="demo",
         repo_path=tmp_path,

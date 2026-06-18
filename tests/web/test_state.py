@@ -39,3 +39,9 @@ def test_finish_with_error():
     s.finish(error="boom")
     assert s.phase is RunPhase.ERROR
     assert s.error == "boom"
+
+
+def test_finish_from_idle_is_noop():
+    s = RunState()
+    s.finish()
+    assert s.phase is RunPhase.IDLE

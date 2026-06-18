@@ -46,3 +46,19 @@ def test_notify_progress_swallows_exceptions(tmp_path):
         progress_callback=boom,
     )
     gen._notify_progress()  # must not raise
+
+
+def test_notify_progress_invokes_callback(tmp_path):
+    calls = []
+    gen = DiagramGenerator(
+        repo_location=tmp_path,
+        temp_folder=tmp_path,
+        repo_name="demo",
+        output_dir=tmp_path,
+        depth_level=1,
+        run_id="abc123",
+        log_path=str(tmp_path),
+        progress_callback=lambda: calls.append(1),
+    )
+    gen._notify_progress()
+    assert calls == [1]

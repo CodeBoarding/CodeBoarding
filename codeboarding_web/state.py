@@ -36,5 +36,7 @@ class RunState:
         self.error = None
 
     def finish(self, error: str | None = None) -> None:
+        if self.phase is not RunPhase.RUNNING:
+            return
         self.phase = RunPhase.ERROR if error else RunPhase.DONE
         self.error = error

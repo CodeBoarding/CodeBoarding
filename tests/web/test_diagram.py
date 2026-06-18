@@ -8,12 +8,7 @@ _EXPANDABLE_ID = "1"
 
 
 def _write_analysis(output_dir: Path) -> None:
-    """Write a minimal valid unified analysis.json with enrichment-ready fixture data.
-
-    Component "Core" (component_id="1") has a key_entity and a nested sub-component
-    so that parse_unified_analysis yields a non-empty sub_analyses dict, making
-    "Core" expandable and its keyEntities list populated.
-    """
+    """Write a minimal valid unified analysis.json with one expandable, enriched component."""
     data = {
         "metadata": {
             "generated_at": "2024-01-01T00:00:00+00:00",

@@ -81,7 +81,7 @@ def load_cytoscape_component(output_dir: Path, project: str, repo_path: Path, co
         return None
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-        root_analysis, sub_analyses = parse_unified_analysis(data)
+        _, sub_analyses = parse_unified_analysis(data)
     except Exception:
         logger.debug("analysis.json not readable yet", exc_info=True)
         return None

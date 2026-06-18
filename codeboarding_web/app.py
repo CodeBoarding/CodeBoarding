@@ -60,7 +60,7 @@ def create_app(
             return
 
     @asynccontextmanager
-    async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
         bus.set_loop(asyncio.get_running_loop())
         stop = asyncio.Event()
         task = asyncio.create_task(RepoWatcher(repo_path, output_dir, on_change).run(stop))
@@ -117,7 +117,7 @@ def create_app(
         return {"run_id": run_id, "scope": req.scope}
 
     @app.post("/api/watch")
-    def watch_toggle(req: WatchRequest) -> dict:
+    def set_watch(req: WatchRequest) -> dict:
         """Enable or disable the file watcher."""
         app.state.watch_enabled = req.enabled
         return {"watch_enabled": app.state.watch_enabled}
