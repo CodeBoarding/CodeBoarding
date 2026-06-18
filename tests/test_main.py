@@ -65,6 +65,7 @@ class TestGenerateAnalysis(unittest.TestCase):
                 monitoring_enabled=False,
                 static_analyzer=None,
                 changes=None,
+                progress_callback=None,
             )
             mock_generator.generate_analysis.assert_called_once()
 
