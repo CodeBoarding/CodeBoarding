@@ -1,10 +1,12 @@
-"""Pkl warm-start updater: bring a cached per-language analysis up to date in-memory.
+"""Pkl warm-start updater: bring cached per-language analysis up to date.
 
-Given a cached analysis dict (loaded from the SHA-tagged pkl) and the file
-list git reports as changed since the pkl's tag SHA, rerun the LSP for those
-files only and merge the result with the kept-from-cache state. No JSON, no
-disk writes — the only persistence is the pkl save that ``StaticAnalyzer``
-performs after this returns.
+The warm path keeps unchanged files from the pkl and re-LSPs only changed
+files. After merging fresh changed-file data into the cached graph, it rebuilds
+the changed-file edge frontier: inbound cached edges are kept only if LSP
+references still prove ``unchanged -> changed``, and outbound edges are resolved
+from changed-file call sites via LSP definitions. Unchanged-only edges stay
+cached. No JSON or disk writes happen here; ``StaticAnalyzer`` persists the
+updated pkl after this returns.
 """
 
 import logging
