@@ -17,7 +17,7 @@ from static_analyzer.analysis_cache import (
     merge_results,
 )
 from static_analyzer.constants import NodeType
-from static_analyzer.graph import CallGraph, ClusterResult
+from static_analyzer.graph import CallGraph, ClusterResult, Edge
 from static_analyzer.node import Node
 from static_analyzer.incremental_orchestrator import update_cfg_for_changed_files
 
@@ -254,12 +254,14 @@ class TestClusterCachePreservation(unittest.TestCase):
         cg.add_node(_node("a.foo", "a.py"))
         cg.add_node(_node("b.bar", "b.py"))
         cg.add_edge("a.foo", "b.bar")
+        dropped_edges: list[Edge] = []
 
-        filtered = cg.filter(lambda n: n.file_path != "a.py")
+        filtered = cg.filter(lambda n: n.file_path != "a.py", dropped_edges=dropped_edges)
 
         self.assertEqual(len(filtered.edges), 0)
         self.assertNotIn("a.foo", filtered.nodes)
         self.assertIn("b.bar", filtered.nodes)
+        self.assertEqual([(edge.get_source(), edge.get_destination()) for edge in dropped_edges], [("a.foo", "b.bar")])
 
     def test_union_preserves_cached_side_cluster_cache(self) -> None:
         cached = self._cg_with_cluster_cache()

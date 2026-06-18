@@ -32,7 +32,7 @@ from filelock import FileLock
 from static_analyzer.constants import NodeType
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.utils import uri_to_path
-from static_analyzer.graph import CallGraph
+from static_analyzer.graph import CallGraph, Edge
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
 from static_analyzer.node import Node
 from utils import to_absolute_path, to_relative_path
@@ -353,8 +353,9 @@ def invalidate_files(analysis_result: dict[str, Any], changed_files: set[Path]) 
     changed_file_strs = {str(path) for path in changed_files}
 
     call_graph: CallGraph = analysis_result["call_graph"]
-    invalidated_edges = _collect_cross_boundary_edges(call_graph, changed_file_strs)
-    filtered_cg = call_graph.filter(lambda node: node.file_path not in changed_file_strs)
+    dropped_edges: list[Edge] = []
+    filtered_cg = call_graph.filter(lambda node: node.file_path not in changed_file_strs, dropped_edges=dropped_edges)
+    invalidated_edges = _cross_boundary_edges(dropped_edges, changed_file_strs)
 
     updated_result: dict[str, Any] = {
         "call_graph": filtered_cg,
@@ -470,9 +471,9 @@ def merge_results(
     return merged_result
 
 
-def _collect_cross_boundary_edges(call_graph: CallGraph, changed_file_strs: set[str]) -> list[InvalidatedEdge]:
+def _cross_boundary_edges(dropped_edges: list[Edge], changed_file_strs: set[str]) -> list[InvalidatedEdge]:
     edges: list[InvalidatedEdge] = []
-    for edge in call_graph.edges:
+    for edge in dropped_edges:
         src_node = edge.src_node
         dst_node = edge.dst_node
         src_changed = src_node.file_path in changed_file_strs
