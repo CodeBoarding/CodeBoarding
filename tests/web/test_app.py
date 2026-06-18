@@ -1,11 +1,75 @@
 """Tests for the FastAPI app factory and routes."""
 
+import json
 from pathlib import Path
 
 from fastapi.testclient import TestClient
 
 from codeboarding_web.app import create_app
 from codeboarding_web.state import RunBusyError
+
+# component_id of the expandable component used across tests
+_EXPANDABLE_ID = "1"
+
+
+def _write_analysis(output_dir: Path) -> None:
+    """Write a minimal valid unified analysis.json with enrichment-ready fixture data.
+
+    Component "Core" (component_id="1") has a key_entity and a nested sub-component
+    so that parse_unified_analysis yields a non-empty sub_analyses dict, making
+    "Core" expandable and its keyEntities list populated.
+    """
+    data = {
+        "metadata": {
+            "generated_at": "2024-01-01T00:00:00+00:00",
+            "commit_hash": "",
+            "repo_name": "test",
+            "depth_level": 2,
+            "file_coverage_summary": {
+                "total_files": 0,
+                "analyzed": 0,
+                "not_analyzed": 0,
+                "not_analyzed_by_reason": {},
+            },
+        },
+        "description": "test",
+        "files": {},
+        "methods_index": {},
+        "components": [
+            {
+                "component_id": _EXPANDABLE_ID,
+                "name": "Core",
+                "description": "core",
+                "key_entities": [
+                    {
+                        "qualified_name": "core.main",
+                        "reference_file": "core/main.py",
+                        "reference_start_line": 10,
+                        "reference_end_line": 20,
+                    }
+                ],
+                "source_cluster_ids": [],
+                "file_methods": [],
+                "can_expand": True,
+                # nested sub-components make parse_unified_analysis register this id
+                "components": [
+                    {
+                        "component_id": "1.1",
+                        "name": "SubCore",
+                        "description": "sub",
+                        "key_entities": [],
+                        "source_cluster_ids": [],
+                        "file_methods": [],
+                        "can_expand": False,
+                    }
+                ],
+                "components_relations": [],
+            }
+        ],
+        "components_relations": [],
+    }
+    output_dir.mkdir(parents=True, exist_ok=True)
+    (output_dir / "analysis.json").write_text(json.dumps(data), encoding="utf-8")
 
 
 def _client(tmp_path: Path) -> TestClient:
@@ -57,3 +121,12 @@ def test_diagram_component_404_when_absent(tmp_path: Path) -> None:
     """GET /api/diagram/<id> → 404 when no analysis.json exists."""
     c = _client(tmp_path)
     assert c.get("/api/diagram/some_component").status_code == 404
+
+
+def test_diagram_component_200_for_valid_id(tmp_path: Path) -> None:
+    """GET /api/diagram/<id> → 200 with elements key when component exists."""
+    _write_analysis(tmp_path)
+    c = TestClient(create_app(repo_path=tmp_path, output_dir=tmp_path, project_name="demo"))
+    r = c.get(f"/api/diagram/{_EXPANDABLE_ID}")
+    assert r.status_code == 200
+    assert "elements" in r.json()

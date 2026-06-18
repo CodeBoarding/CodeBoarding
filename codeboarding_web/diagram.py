@@ -4,6 +4,7 @@ import json
 import logging
 from pathlib import Path
 
+from agents.agent_responses import AnalysisInsights, SourceCodeReference
 from diagram_analysis.io_utils import parse_unified_analysis
 from output_generators.html import generate_cytoscape_data
 from utils import sanitize
@@ -11,7 +12,7 @@ from utils import sanitize
 logger = logging.getLogger(__name__)
 
 
-def _open_url(repo_path: Path, ref) -> str | None:
+def _open_url(repo_path: Path, ref: SourceCodeReference) -> str | None:
     """Return a vscode://file URI for *ref*, or None when location data is missing."""
     if not ref.reference_file or ref.reference_start_line is None:
         return None
@@ -22,7 +23,7 @@ def _open_url(repo_path: Path, ref) -> str | None:
     return f"vscode://file/{abs_path}:{ref.reference_start_line}"
 
 
-def _entity(ref, repo_path: Path) -> dict:
+def _entity(repo_path: Path, ref: SourceCodeReference) -> dict:
     """Serialize a SourceCodeReference to the keyEntities wire format."""
     return {
         "qname": ref.qualified_name,
@@ -33,7 +34,9 @@ def _entity(ref, repo_path: Path) -> dict:
     }
 
 
-def _enrich(elements: dict, analysis, sub_analyses: dict, repo_path: Path) -> None:
+def _enrich(
+    elements: dict, analysis: AnalysisInsights, sub_analyses: dict[str, AnalysisInsights], repo_path: Path
+) -> None:
     """Mutate node data in *elements* to add componentId, expandable, and keyEntities."""
     by_id = {sanitize(c.name): c for c in analysis.components}
     expandable_ids = set(sub_analyses.keys())
@@ -46,7 +49,7 @@ def _enrich(elements: dict, analysis, sub_analyses: dict, repo_path: Path) -> No
             continue
         data["componentId"] = comp.component_id
         data["expandable"] = comp.component_id in expandable_ids
-        data["keyEntities"] = [_entity(ref, repo_path) for ref in comp.key_entities]
+        data["keyEntities"] = [_entity(repo_path, ref) for ref in comp.key_entities]
 
 
 def load_cytoscape(output_dir: Path, project: str, repo_path: Path) -> dict | None:
