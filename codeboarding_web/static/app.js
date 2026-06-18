@@ -84,6 +84,26 @@ let sseDown = false;
 // Set of node ids that are currently expanded (have children in the graph).
 const expanded = new Set();
 
+// ── Repo path (from /api/status) ─────────────────────────────────────────────
+let repoPath = '';
+
+// ── File link helper ─────────────────────────────────────────────────────────
+// Returns a DOM element: <a vscode://file/…> when repoPath is known, else <code>.
+// XSS-safe: all paths are set via textContent/setAttribute, never innerHTML.
+function fileLink(relFile, line) {
+  if (repoPath) {
+    const a = document.createElement('a');
+    const abs = repoPath + '/' + relFile;
+    a.href = 'vscode://file/' + abs + (line ? ':' + line : '');
+    a.textContent = relFile;
+    a.title = relFile;
+    return a;
+  }
+  const code = document.createElement('code');
+  code.textContent = relFile;
+  return code;
+}
+
 // ── Log helpers ──────────────────────────────────────────────────────────────
 function logLine(text) {
   const el = document.createElement('div');
@@ -366,9 +386,7 @@ function _loadDiffIfNeeded() {
 
       files.forEach((f) => {
         const li = document.createElement('li');
-        const code = document.createElement('code');
-        code.textContent = f;
-        li.appendChild(code);
+        li.appendChild(fileLink(f));
         fileList.appendChild(li);
       });
 
@@ -451,7 +469,7 @@ function renderDetail(node) {
     list.appendChild(li);
   });
 
-  // Source Files (Overview tab)
+  // Source Files (Overview tab) — F3: clickable vscode:// links
   const sourceFiles = d.sourceFiles || [];
   const sourcesSection = document.getElementById('detail-sources');
   const sourceList = document.getElementById('detail-source-list');
@@ -462,28 +480,31 @@ function renderDetail(node) {
     sourcesHeader.textContent = 'Source Files (' + sourceFiles.length + ')';
     sourceFiles.forEach((f) => {
       const li = document.createElement('li');
-      const code = document.createElement('code');
-      code.textContent = f;
-      li.appendChild(code);
+      li.appendChild(fileLink(f));
       sourceList.appendChild(li);
     });
   } else {
     sourcesSection.classList.add('hidden');
   }
 
-  // Warnings tab
+  // Warnings tab — F2: per-file detail from fileWarnings
   const warnings = d.warnings || 0;
+  const fileWarnings = d.fileWarnings || [];
   document.getElementById('warnings-summary').textContent = warnings + (warnings === 1 ? ' warning' : ' warnings');
   const warningsFileList = document.getElementById('warnings-file-list');
   warningsFileList.innerHTML = '';
-  if (warnings > 0) {
-    sourceFiles.forEach((f) => {
+  if (warnings > 0 && fileWarnings.length > 0) {
+    fileWarnings.forEach(({ file, warnings: count }) => {
       const li = document.createElement('li');
-      const code = document.createElement('code');
-      code.textContent = f;
-      li.appendChild(code);
+      li.appendChild(fileLink(file));
+      const sep = document.createTextNode(' — ' + count);
+      li.appendChild(sep);
       warningsFileList.appendChild(li);
     });
+  } else if (warnings === 0) {
+    const li = document.createElement('li');
+    li.textContent = 'No warnings.';
+    warningsFileList.appendChild(li);
   }
 
   // Modifications tab — clear display (loaded lazily)
@@ -595,6 +616,7 @@ async function refreshStatus() {
     const s = await (await fetch('/api/status')).json();
     document.getElementById('project').textContent = s.project;
     setPhase(s.phase);
+    if (s.repo_path) repoPath = s.repo_path;
     if (s.has_baseline) loadOverview();
     document.getElementById('watch').checked = s.watch_enabled;
   } catch (_) {
@@ -625,10 +647,22 @@ function connectEvents() {
     }
   });
 
-  src.addEventListener('run_end', () => {
+  src.addEventListener('run_end', async () => {
+    // Capture expansion order before reloading (parents before their children).
+    const saved = [...expanded];
+    await loadOverview();
+    // Re-expand in insertion order so parent compounds exist before children.
+    for (const id of saved) {
+      try {
+        const n = cy.getElementById(id);
+        if (n.nonempty() && n.data('expandable') && !expanded.has(n.id())) {
+          await expandNode(n);
+        }
+      } catch (_) {
+        // Skip nodes that no longer exist in the updated graph.
+      }
+    }
     setPhase('done');
-    // Re-fetch the overview (clears any expanded state).
-    loadOverview();
   });
 
   src.addEventListener('run_error', (e) => {
