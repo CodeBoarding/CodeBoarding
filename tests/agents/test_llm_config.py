@@ -8,6 +8,7 @@ import pytest
 from agents.llm_config import (
     LLM_PROVIDERS,
     LLMConfigError,
+    _model_accepts_temperature,
     initialize_agent_llm,
     initialize_llms,
     initialize_parsing_llm,
@@ -542,6 +543,50 @@ class TestEnvironmentVariables:
                     # Second call is for parsing LLM
                     parsing_call_kwargs = mock_chat_class.call_args_list[1][1]
                     assert parsing_call_kwargs["model"] == "gpt-4o-mini"
+
+
+class TestTemperatureGating:
+    """temperature must be omitted for Anthropic models that reject sampling params (Opus 4.7+)."""
+
+    @pytest.mark.parametrize(
+        "model_name",
+        [
+            "claude-opus-4-7",
+            "claude-opus-4-8",
+            "claude-fable-5",
+            "claude-mythos-5",
+            "anthropic.claude-opus-4-8",  # Bedrock prefix
+            "us.anthropic.claude-opus-4-8-v1:0",  # Bedrock with region
+            "CLAUDE-OPUS-4-8",  # case-insensitive
+        ],
+    )
+    def test_sampling_param_free_models_omit_temperature(self, model_name):
+        assert _model_accepts_temperature(model_name) is False
+
+    @pytest.mark.parametrize(
+        "model_name",
+        ["claude-sonnet-4-6", "claude-haiku-4-5", "anthropic.claude-sonnet-4-6", "gpt-4o", "gemini-3-flash"],
+    )
+    def test_other_models_accept_temperature(self, model_name):
+        assert _model_accepts_temperature(model_name) is True
+
+    @patch("agents.prompts.prompt_factory.initialize_global_factory")
+    @patch("agents.agent.MONITORING_CALLBACK")
+    def test_opus_built_without_temperature_attr(self, mock_monitoring_callback, mock_init_factory):
+        # Offline: ChatAnthropic built without temperature exposes .temperature == None.
+        env = {"ANTHROPIC_API_KEY": "sk-ant-test", "AGENT_MODEL": "claude-opus-4-8"}
+        with patch.dict(os.environ, env, clear=True):
+            agent_llm = initialize_agent_llm("claude-opus-4-8")
+            assert agent_llm.temperature is None
+
+    @patch("agents.prompts.prompt_factory.initialize_global_factory")
+    @patch("agents.agent.MONITORING_CALLBACK")
+    def test_sonnet_built_with_zero_temperature(self, mock_monitoring_callback, mock_init_factory):
+        # Offline: a sampling-capable model keeps the deterministic temperature=0.
+        env = {"ANTHROPIC_API_KEY": "sk-ant-test", "AGENT_MODEL": "claude-sonnet-4-6"}
+        with patch.dict(os.environ, env, clear=True):
+            agent_llm = initialize_agent_llm("claude-sonnet-4-6")
+            assert agent_llm.temperature == 0.0
 
 
 class TestMonitoringIntegration:
