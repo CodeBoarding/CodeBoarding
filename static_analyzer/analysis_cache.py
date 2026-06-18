@@ -410,41 +410,23 @@ def merge_results(
     nodes present in the merged graph are kept.
     """
     new = AnalysisData.from_dict(new_result)
-    merged = AnalysisData(
-        call_graph=cached_result.call_graph.union(new.call_graph),
-        class_hierarchies={},
-        package_relations={},
-        references=[],
-        source_files=[],
-    )
-
-    merged.class_hierarchies.update(cached_result.class_hierarchies)
-    merged.class_hierarchies.update(new.class_hierarchies)
-
-    merged.package_relations.update(cached_result.package_relations)
-    merged.package_relations.update(new.package_relations)
-
     new_file_paths = {str(path) for path in new.source_files}
-
-    for ref in cached_result.references:
-        if ref.file_path not in new_file_paths:
-            merged.references.append(ref)
-    merged.references.extend(new.references)
-
-    for file_path in cached_result.source_files:
-        if str(file_path) not in new_file_paths:
-            merged.source_files.append(file_path)
-    merged.source_files.extend(new.source_files)
-
     cached_diagnostics = cached_result.diagnostics or {}
     new_diagnostics = new.diagnostics or {}
     merged_diagnostics: FileDiagnosticsMap = {
         fp: diags for fp, diags in cached_diagnostics.items() if fp not in new_file_paths
     }
     merged_diagnostics.update(new_diagnostics)
-    if merged_diagnostics:
-        merged.diagnostics = merged_diagnostics
 
+    merged = AnalysisData(
+        call_graph=cached_result.call_graph.union(new.call_graph),
+        class_hierarchies={**cached_result.class_hierarchies, **new.class_hierarchies},
+        package_relations={**cached_result.package_relations, **new.package_relations},
+        references=[ref for ref in cached_result.references if ref.file_path not in new_file_paths] + new.references,
+        source_files=[path for path in cached_result.source_files if str(path) not in new_file_paths]
+        + new.source_files,
+        diagnostics=merged_diagnostics or None,
+    )
     return merged
 
 
