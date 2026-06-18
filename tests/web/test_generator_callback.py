@@ -26,6 +26,7 @@ def test_progress_callback_is_stored(tmp_path):
         log_path=str(tmp_path),
         progress_callback=lambda: calls.append(1),
     )
+    assert gen.progress_callback is not None
     gen.progress_callback()
     assert calls == [1]
 
