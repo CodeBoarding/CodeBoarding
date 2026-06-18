@@ -141,8 +141,11 @@ def _restore_persisted_cross_boundary_edges(
                 refs = []
             references_cache[dst_name] = refs
 
+        # Inbound: unchanged B -> changed A is restored by asking "who references A?"
+        # and checking whether one reference still lands inside B.
         edge_exists = _edge_reference_still_exists(src_node, dst_node, refs, adapter, source_inspector)
         if not edge_exists and src_node.file_path in changed_file_strs:
+            # Outbound: changed A -> unchanged C falls back to definitions from A's call sites.
             edge_exists = _outbound_definition_edge_still_exists(
                 src_node, dst_node, definitions_cache, engine_client, source_inspector
             )
