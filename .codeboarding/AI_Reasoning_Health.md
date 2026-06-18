@@ -135,7 +135,7 @@ Provides the set of tools and interfaces that agents use to interact with the co
 
 
 ### Agentic Orchestration Core
-The execution framework that initializes and manages specialized agents, providing them with the necessary repository context and tools to interact with the codebase.
+Manages the high-level reasoning loops, state transitions, and prompt sequencing for the AI agents. Includes agents.abstraction_agent.AbstractionAgent, which orchestrates complex workflows such as grouping, final analysis, and validation.
 
 
 **Related Classes/Methods**:
@@ -258,7 +258,7 @@ The execution framework that initializes and manages specialized agents, providi
 
 
 ### Semantic Reasoning Engine
-Performs deep semantic analysis of code clusters using LLMs to identify architectural patterns, component responsibilities, and high-level abstractions.
+Handles the transformation of raw code data into semantic insights using LLM prompts and validation logic. Key classes include agents.prompts.prompt_factory and agents.agent_responses.MetaAnalysisInsights, which facilitate the reasoning phase of the pipeline.
 
 
 **Related Classes/Methods**:
