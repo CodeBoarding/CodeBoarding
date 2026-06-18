@@ -29,7 +29,8 @@ from typing import TYPE_CHECKING, Any
 
 from filelock import FileLock
 
-from static_analyzer.graph import CallGraph
+from static_analyzer.analysis_result import AnalysisData, InvalidatedAnalysis, InvalidatedEdge
+from static_analyzer.graph import Edge
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
 from static_analyzer.node import Node
 from utils import to_absolute_path, to_relative_path
@@ -332,67 +333,67 @@ def _atomic_copy(src: Path, dest: Path) -> None:
         raise
 
 
-def invalidate_files(analysis_result: dict[str, Any], changed_files: set[Path]) -> dict[str, Any]:
+def invalidate_files(analysis_result: dict[str, Any], changed_files: set[Path]) -> InvalidatedAnalysis:
     """Return a copy of *analysis_result* with every entry from *changed_files* removed.
 
     Drops nodes whose ``file_path`` is in the change set, cascades edges that
-    reference dropped nodes, drops class hierarchies and references from the
-    same files, prunes package relations to surviving files, and filters
-    ``source_files`` / ``diagnostics`` accordingly. Raises ``ValueError`` if
-    the result has dangling edges or references after filtering.
+    reference dropped nodes, remembers cross-boundary edges for later LSP
+    validation, drops class hierarchies and references from the same files,
+    prunes package relations to surviving files, and filters ``source_files`` /
+    ``diagnostics`` accordingly. Raises ``ValueError`` if the result has
+    dangling edges or references after filtering.
     """
     changed_file_strs = {str(path) for path in changed_files}
 
-    call_graph: CallGraph = analysis_result["call_graph"]
-    filtered_cg = call_graph.filter(lambda node: node.file_path not in changed_file_strs)
+    cached = AnalysisData.from_dict(analysis_result)
+    call_graph = cached.call_graph
+    invalidated_edges: list[InvalidatedEdge] = []
+    filtered_cg = call_graph.filter(
+        lambda node: node.file_path not in changed_file_strs,
+        on_dropped_edge=lambda edge: _collect_invalidated_edge(edge, changed_file_strs, invalidated_edges),
+    )
 
-    updated_result: dict[str, Any] = {
-        "call_graph": filtered_cg,
-        "class_hierarchies": {},
-        "package_relations": {},
-        "references": [],
-        "source_files": [],
+    diagnostics = None
+    if cached.diagnostics is not None:
+        diagnostics = {fp: diags for fp, diags in cached.diagnostics.items() if fp not in changed_file_strs}
+
+    class_hierarchies = {
+        class_name: class_info.copy()
+        for class_name, class_info in cached.class_hierarchies.items()
+        if class_info.get("file_path", "") not in changed_file_strs
     }
 
-    if "diagnostics" in analysis_result:
-        updated_result["diagnostics"] = {
-            fp: diags for fp, diags in analysis_result["diagnostics"].items() if fp not in changed_file_strs
-        }
+    package_relations: dict[str, Any] = {}
+    for package_name, package_info in cached.package_relations.items():
+        remaining_files = [f for f in package_info.get("files", []) if f not in changed_file_strs]
+        if remaining_files:
+            package_relations[package_name] = {**package_info, "files": remaining_files}
 
-    class_hierarchies: dict[str, Any] = analysis_result["class_hierarchies"]
-    for class_name, class_info in class_hierarchies.items():
-        if class_info.get("file_path", "") not in changed_file_strs:
-            updated_result["class_hierarchies"][class_name] = class_info.copy()
+    references = [ref for ref in cached.references if ref.file_path not in changed_file_strs]
+    source_files = [file_path for file_path in cached.source_files if str(file_path) not in changed_file_strs]
 
-    package_relations: dict[str, Any] = analysis_result["package_relations"]
-    for package_name, package_info in package_relations.items():
-        original_files = package_info.get("files", [])
-        remaining = [f for f in original_files if f not in changed_file_strs]
-        if remaining:
-            updated_package_info = package_info.copy()
-            updated_package_info["files"] = remaining
-            updated_result["package_relations"][package_name] = updated_package_info
-
-    references: list[Node] = analysis_result["references"]
-    for ref in references:
-        if ref.file_path not in changed_file_strs:
-            updated_result["references"].append(ref)
-
-    source_files: list[Path] = analysis_result["source_files"]
-    for file_path in source_files:
-        if str(file_path) not in changed_file_strs:
-            updated_result["source_files"].append(file_path)
+    updated_result = AnalysisData(
+        call_graph=filtered_cg,
+        class_hierarchies=class_hierarchies,
+        package_relations=package_relations,
+        references=references,
+        source_files=source_files,
+        diagnostics=diagnostics,
+    )
 
     _validate_no_dangling_references(updated_result)
 
     logger.info(
         f"Invalidated {len(changed_files)} files: kept {len(filtered_cg.nodes)} nodes, "
-        f"{len(filtered_cg.edges)} edges, {len(updated_result['references'])} references"
+        f"{len(filtered_cg.edges)} edges, {len(updated_result.references)} references"
     )
-    return updated_result
+    return InvalidatedAnalysis(updated_result, invalidated_edges, changed_file_strs)
 
 
-def merge_results(cached_result: dict[str, Any], new_result: dict[str, Any]) -> dict[str, Any]:
+def merge_results(
+    cached_result: AnalysisData,
+    new_result: dict[str, Any],
+) -> AnalysisData:
     """Union ``cached_result`` (post-invalidation) with ``new_result`` (fresh re-LSP).
 
     For overlapping keys (same file appearing in both), the new result wins
@@ -400,51 +401,44 @@ def merge_results(cached_result: dict[str, Any], new_result: dict[str, Any]) -> 
     nodes from both sides merge; edges from either side that reference
     nodes present in the merged graph are kept.
     """
-    merged_result: dict[str, Any] = {
-        "call_graph": cached_result["call_graph"].union(new_result["call_graph"]),
-        "class_hierarchies": {},
-        "package_relations": {},
-        "references": [],
-        "source_files": [],
-    }
-
-    merged_result["class_hierarchies"].update(cached_result["class_hierarchies"])
-    merged_result["class_hierarchies"].update(new_result["class_hierarchies"])
-
-    merged_result["package_relations"].update(cached_result["package_relations"])
-    merged_result["package_relations"].update(new_result["package_relations"])
-
-    new_source_files: list[Path] = new_result.get("source_files", [])
-    new_file_paths = {str(path) for path in new_source_files}
-
-    for ref in cached_result["references"]:
-        if ref.file_path not in new_file_paths:
-            merged_result["references"].append(ref)
-    merged_result["references"].extend(new_result["references"])
-
-    for file_path in cached_result["source_files"]:
-        if str(file_path) not in new_file_paths:
-            merged_result["source_files"].append(file_path)
-    merged_result["source_files"].extend(new_source_files)
-
-    cached_diagnostics: FileDiagnosticsMap = cached_result.get("diagnostics", {})
-    new_diagnostics: FileDiagnosticsMap = new_result.get("diagnostics", {})
+    new = AnalysisData.from_dict(new_result)
+    new_file_paths = {str(path) for path in new.source_files}
+    cached_diagnostics = cached_result.diagnostics or {}
+    new_diagnostics = new.diagnostics or {}
     merged_diagnostics: FileDiagnosticsMap = {
         fp: diags for fp, diags in cached_diagnostics.items() if fp not in new_file_paths
     }
     merged_diagnostics.update(new_diagnostics)
-    if merged_diagnostics:
-        merged_result["diagnostics"] = merged_diagnostics
 
-    return merged_result
+    merged = AnalysisData(
+        call_graph=cached_result.call_graph.union(new.call_graph),
+        class_hierarchies={**cached_result.class_hierarchies, **new.class_hierarchies},
+        package_relations={**cached_result.package_relations, **new.package_relations},
+        references=[ref for ref in cached_result.references if ref.file_path not in new_file_paths] + new.references,
+        source_files=[path for path in cached_result.source_files if str(path) not in new_file_paths]
+        + new.source_files,
+        diagnostics=merged_diagnostics or None,
+    )
+    return merged
 
 
-def _validate_no_dangling_references(analysis_result: dict[str, Any]) -> None:
+def _collect_invalidated_edge(
+    edge: Edge, changed_file_strs: set[str], invalidated_edges: list[InvalidatedEdge]
+) -> None:
+    src_node = edge.src_node
+    dst_node = edge.dst_node
+    src_changed = src_node.file_path in changed_file_strs
+    dst_changed = dst_node.file_path in changed_file_strs
+    if src_changed != dst_changed:
+        invalidated_edges.append((edge.get_source(), edge.get_destination(), src_node, dst_node))
+
+
+def _validate_no_dangling_references(analysis_result: AnalysisData) -> None:
     """Sanity-check: every edge reaches existing nodes, every reference / class /
     package points at a file in ``source_files``. Raises on violations."""
-    call_graph: CallGraph = analysis_result["call_graph"]
+    call_graph = analysis_result.call_graph
     existing_nodes = set(call_graph.nodes.keys())
-    source_file_strs = {str(path) for path in analysis_result["source_files"]}
+    source_file_strs = {str(path) for path in analysis_result.source_files}
     errors: list[str] = []
 
     for edge in call_graph.edges:
@@ -455,16 +449,16 @@ def _validate_no_dangling_references(analysis_result: dict[str, Any]) -> None:
         if dst_name not in existing_nodes:
             errors.append(f"Edge destination '{dst_name}' references non-existent node")
 
-    for ref in analysis_result["references"]:
+    for ref in analysis_result.references:
         if ref.file_path not in source_file_strs:
             errors.append(f"Reference '{ref.fully_qualified_name}' from '{ref.file_path}' references non-existent file")
 
-    for class_name, class_info in analysis_result["class_hierarchies"].items():
+    for class_name, class_info in analysis_result.class_hierarchies.items():
         class_file_path = class_info.get("file_path", "")
         if class_file_path and class_file_path not in source_file_strs:
             errors.append(f"Class hierarchy '{class_name}' references non-existent file '{class_file_path}'")
 
-    for package_name, package_info in analysis_result["package_relations"].items():
+    for package_name, package_info in analysis_result.package_relations.items():
         for package_file in package_info.get("files", []):
             if package_file not in source_file_strs:
                 errors.append(f"Package '{package_name}' references non-existent file '{package_file}'")

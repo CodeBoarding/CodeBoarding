@@ -2,6 +2,8 @@ import logging
 import re
 from collections.abc import Iterator
 from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
 
 from static_analyzer.constants import Language
 from static_analyzer.graph import CallGraph
@@ -31,6 +33,48 @@ _WORD_RE = re.compile(r"\b([a-z]+)\b")
 # Matches a standalone single lowercase letter (not preceded or followed by a word char).
 # Used to detect generic type params like T or E in lowercased method signatures.
 _STANDALONE_SINGLE_LETTER_RE = re.compile(r"(?<![a-z])([a-z])(?!\w)")
+
+InvalidatedEdge = tuple[str, str, Node, Node]
+
+
+@dataclass
+class AnalysisData:
+    call_graph: CallGraph
+    class_hierarchies: dict[str, Any]
+    package_relations: dict[str, Any]
+    references: list[Node]
+    source_files: list[Path]
+    diagnostics: FileDiagnosticsMap | None = None
+
+    @classmethod
+    def from_dict(cls, analysis: dict[str, Any]) -> "AnalysisData":
+        return cls(
+            call_graph=analysis["call_graph"],
+            class_hierarchies=analysis["class_hierarchies"],
+            package_relations=analysis["package_relations"],
+            references=analysis["references"],
+            source_files=analysis["source_files"],
+            diagnostics=analysis.get("diagnostics"),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        analysis: dict[str, Any] = {
+            "call_graph": self.call_graph,
+            "class_hierarchies": self.class_hierarchies,
+            "package_relations": self.package_relations,
+            "references": self.references,
+            "source_files": self.source_files,
+        }
+        if self.diagnostics is not None:
+            analysis["diagnostics"] = self.diagnostics
+        return analysis
+
+
+@dataclass
+class InvalidatedAnalysis:
+    analysis: AnalysisData
+    invalidated_edges: list[InvalidatedEdge]
+    invalidated_files: set[str]
 
 
 def _strip_java_generics(name: str) -> str:
