@@ -62,6 +62,7 @@ dependencies = [
     "tree-sitter-typescript>=0.23",
     "trustcall>=0.0.39",
     "uvicorn>=0.23",
+    "watchfiles>=1.2.0",
 ]
 
 [project.optional-dependencies]
