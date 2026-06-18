@@ -5,6 +5,7 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from codeboarding_web.app import create_app
+from codeboarding_web.state import RunBusyError
 
 
 def _client(tmp_path: Path) -> TestClient:
@@ -34,7 +35,6 @@ def test_run_rejects_bad_scope(tmp_path: Path) -> None:
 def test_run_conflict_when_busy(tmp_path: Path, monkeypatch) -> None:
     app = create_app(repo_path=tmp_path, output_dir=tmp_path, project_name="demo")
     c = TestClient(app)
-    from codeboarding_web.state import RunBusyError
 
     monkeypatch.setattr(app.state.runner, "start", lambda *a, **k: (_ for _ in ()).throw(RunBusyError()))
     r = c.post("/api/run", json={"scope": "full"})

@@ -8,7 +8,7 @@ from pathlib import Path
 
 from codeboarding_web.diagram import load_cytoscape
 from codeboarding_web.events import EventBus, TraceLogHandler
-from codeboarding_web.state import RunBusyError, RunState
+from codeboarding_web.state import RunState
 from codeboarding_workflows.analysis import run_full, run_incremental
 from codeboarding_workflows.orchestration import run_analysis_pipeline
 from codeboarding_workflows.sources import SourceContext, local_source

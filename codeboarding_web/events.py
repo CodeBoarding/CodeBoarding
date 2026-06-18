@@ -4,6 +4,8 @@ import asyncio
 import json
 import logging
 
+logger = logging.getLogger(__name__)
+
 
 def format_sse(event: str, data: dict) -> str:
     """Encode one Server-Sent Event frame."""
@@ -34,6 +36,7 @@ class EventBus:
     def publish_threadsafe(self, event: str, data: dict) -> None:
         """Publish from any thread; marshals onto the event loop. No-op if loop not yet bound."""
         if self._loop is None:
+            logger.warning("publish_threadsafe called before loop bound; dropping %s event", event)
             return
         self._loop.call_soon_threadsafe(self._publish, event, data)
 
