@@ -422,7 +422,7 @@ function _loadDiffIfNeeded() {
 
 // ── Detail sidebar ───────────────────────────────────────────────────────────
 function clearDetail() {
-  _selectedId = null;
+  _lastTappedNode = null;
   document.getElementById('detail-empty').classList.remove('hidden');
   document.getElementById('detail-content').classList.add('hidden');
   cy.nodes().unselect();
@@ -565,21 +565,24 @@ document.getElementById('detail-copy').addEventListener('click', () => {
 });
 
 // ── Cytoscape interaction handlers ───────────────────────────────────────────
-let _selectedId = null;
+let _lastTappedNode = null;
 cy.on('tap', 'node', (evt) => {
-  const node = evt.target;
-  const repeat = node.id() === _selectedId;
-  renderDetail(node);          // every click shows/refreshes the sidebar
-  _selectedId = node.id();
-  if (repeat && node.data('expandable')) {
-    toggleNode(node);          // clicking an already-selected expandable node toggles it
-  }
+  renderDetail(evt.target);        // single click selects / shows details only
+  _lastTappedNode = evt.target;
 });
 
 cy.on('tap', (evt) => {
   if (evt.target === cy) {
-    _selectedId = null;
+    _lastTappedNode = null;
     clearDetail();
+  }
+});
+
+document.getElementById('cy').addEventListener('dblclick', (ev) => {
+  ev.preventDefault();
+  const node = _lastTappedNode;   // the two clicks of the dblclick each fired a tap, setting this
+  if (node && node.nonempty && node.nonempty() && node.data('expandable')) {
+    toggleNode(node);
   }
 });
 
