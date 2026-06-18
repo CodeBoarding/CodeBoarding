@@ -25,6 +25,23 @@ logger = logging.getLogger(__name__)
 
 _OPENROUTER_FALLBACK_CONTEXT_WINDOW = ContextWindow(1_048_576, 65_536, is_fallback=True)
 
+# Model families that reject sampling params (temperature/top_p/top_k) with HTTP 400.
+# Why: Anthropic removed them starting with Opus 4.7; sending temperature (even 0) 400s.
+# Substrings match bare IDs and Bedrock-prefixed forms (e.g. us.anthropic.claude-opus-4-8-v1:0).
+_SAMPLING_PARAM_FREE_MODEL_SUBSTRINGS = (
+    "claude-opus-4-7",
+    "claude-opus-4-8",
+    "claude-fable-5",
+    "claude-mythos-5",
+)
+
+
+def _model_accepts_temperature(model_name: str) -> bool:
+    """False for models that reject sampling params; temperature must be omitted for those."""
+    lowered = model_name.lower()
+    return not any(s in lowered for s in _SAMPLING_PARAM_FREE_MODEL_SUBSTRINGS)
+
+
 # ---------------------------------------------------------------------------
 # Module-level model overrides – set once by the orchestrator (main.py) and
 # consumed by initialize_llms() without needing to thread the values through
@@ -341,10 +358,9 @@ def _initialize_llm(
 
     logger.info(f"Using {name.title()} {log_prefix}LLM with model: {model_name}")
 
-    kwargs = {
-        "model": model_name,
-        "temperature": getattr(config, temperature_attr),
-    }
+    kwargs: dict[str, Any] = {"model": model_name}
+    if _model_accepts_temperature(model_name):
+        kwargs["temperature"] = getattr(config, temperature_attr)
     kwargs.update(config.get_resolved_extra_args())
 
     # ChatBedrockConverse and ChatOllama take no api_key kwarg; their SDKs read

@@ -36,7 +36,7 @@ class FileStructureTool(BaseRepoTool):
         # Ensure they are sorted by depth for is_subsequence logic
         return sorted(dirs, key=lambda x: len(x.parts))
 
-    def _run(self, dir: str) -> str:
+    def _run(self, dir: str = ".") -> str:
         """
         Run the tool with the given input.
         """

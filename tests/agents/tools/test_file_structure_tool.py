@@ -1,3 +1,4 @@
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -40,3 +41,21 @@ class TestFileStructureTool(unittest.TestCase):
         self.assertTrue(len(content) > 0)
         # If it's an error, it should mention "Error" or if it's a fallback, show "file tree"
         self.assertTrue("Error" in content or "file tree" in content)
+
+
+class TestFileStructureToolDefaultDir(unittest.TestCase):
+    def test_run_without_dir_argument_defaults_to_root(self):
+        # The args schema makes `dir` optional (default "."), so the agent may call
+        # the tool with no arguments. _run must honor that default rather than raise.
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            (repo / "module.py").write_text("x = 1\n")
+            tool = FileStructureTool(context=RepoContext(repo_dir=repo, ignore_manager=RepoIgnoreManager(repo)))
+
+            direct = tool._run()
+            self.assertIn("The file tree", direct)
+            self.assertIn("module.py", direct)
+
+            # The agent invokes tools with empty args; this is the path that failed in production.
+            via_invoke = tool.invoke({})
+            self.assertIn("The file tree", via_invoke)
