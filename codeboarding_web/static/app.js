@@ -422,6 +422,7 @@ function _loadDiffIfNeeded() {
 
 // ── Detail sidebar ───────────────────────────────────────────────────────────
 function clearDetail() {
+  _selectedId = null;
   document.getElementById('detail-empty').classList.remove('hidden');
   document.getElementById('detail-content').classList.add('hidden');
   cy.nodes().unselect();
@@ -564,22 +565,22 @@ document.getElementById('detail-copy').addEventListener('click', () => {
 });
 
 // ── Cytoscape interaction handlers ───────────────────────────────────────────
-let _lastTap = { id: null, t: 0 };
+let _selectedId = null;
 cy.on('tap', 'node', (evt) => {
   const node = evt.target;
-  renderDetail(node);                 // single tap always selects (unchanged)
-  const id = node.id();
-  const now = Date.now();
-  if (_lastTap.id === id && now - _lastTap.t < 350) {
-    _lastTap = { id: null, t: 0 };
-    if (node.data('expandable')) toggleNode(node);
-  } else {
-    _lastTap = { id, t: now };
+  const repeat = node.id() === _selectedId;
+  renderDetail(node);          // every click shows/refreshes the sidebar
+  _selectedId = node.id();
+  if (repeat && node.data('expandable')) {
+    toggleNode(node);          // clicking an already-selected expandable node toggles it
   }
 });
 
 cy.on('tap', (evt) => {
-  if (evt.target === cy) clearDetail();
+  if (evt.target === cy) {
+    _selectedId = null;
+    clearDetail();
+  }
 });
 
 // ── Toolbar handlers ─────────────────────────────────────────────────────────
