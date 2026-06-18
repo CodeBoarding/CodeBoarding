@@ -99,6 +99,11 @@ document.getElementById('watch').addEventListener('change', async (e) => {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ enabled: e.target.checked }),
   });
+  if (!res.ok) {
+    logLine('watch toggle failed');
+    e.target.checked = !e.target.checked;
+    return;
+  }
   const d = await res.json();
   logLine('watch ' + (d.watch_enabled ? 'enabled' : 'disabled'));
 });
