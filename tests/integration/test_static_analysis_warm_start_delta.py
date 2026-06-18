@@ -138,6 +138,19 @@ def _edge_set(result: StaticAnalysisResults, repo_path: Path) -> set[tuple[str, 
     return edges
 
 
+def _assert_new_outbound_edge_added(
+    warm_static_analysis: StaticAnalysisResults,
+    full_static_analysis: StaticAnalysisResults,
+    repo_path: Path,
+) -> None:
+    expected_edge = ("pkg.new_worker.run_new", "pkg.util.helper", "pkg/new_worker.py", "pkg/util.py")
+    warm_edges = _edge_set(warm_static_analysis, repo_path)
+    full_edges = _edge_set(full_static_analysis, repo_path)
+
+    assert expected_edge in full_edges
+    assert expected_edge in warm_edges
+
+
 def _removed_cross_boundary_edges(
     old_result: StaticAnalysisResults,
     new_result: StaticAnalysisResults,
@@ -284,11 +297,25 @@ def workflow(value):
 """
         },
     )
-    changed_files = change_1_files | change_2_files
+    change_3_files = _apply_changes(
+        repo_path,
+        "change_3_new_file_adds_outbound_edge_to_existing_method",
+        {
+            "pkg/new_worker.py": """from pkg.util import helper
+
+
+def run_new():
+    return helper()
+"""
+        },
+    )
+    changed_files = change_1_files | change_2_files | change_3_files
 
     new_static_analysis = get_static_analysis(repo_path, artifact_dir, skip_cache=False, source_sha="after-two-changes")
 
     full_static_analysis = get_static_analysis(repo_path, fresh_dir, skip_cache=True, source_sha="after-two-changes")
+
+    _assert_new_outbound_edge_added(new_static_analysis, full_static_analysis, repo_path)
 
     _assert_graph_changes(
         old_static_analysis,
