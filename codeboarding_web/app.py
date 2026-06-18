@@ -11,7 +11,7 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from codeboarding_web.diagram import load_cytoscape
+from codeboarding_web.diagram import load_cytoscape, load_cytoscape_component
 from codeboarding_web.events import EventBus, format_sse
 from codeboarding_web.runner import AnalysisRunner
 from codeboarding_web.state import RunBusyError, RunState
@@ -92,9 +92,17 @@ def create_app(
     @app.get("/api/diagram.json")
     def diagram() -> JSONResponse:
         """Return Cytoscape elements for the current analysis, or 404."""
-        elements = load_cytoscape(output_dir, project_name)
+        elements = load_cytoscape(output_dir, project_name, repo_path)
         if elements is None:
             raise HTTPException(status_code=404, detail="no analysis yet")
+        return JSONResponse(elements)
+
+    @app.get("/api/diagram/{component_id}")
+    def diagram_component(component_id: str) -> JSONResponse:
+        """Return Cytoscape elements for a component sub-graph, or 404."""
+        elements = load_cytoscape_component(output_dir, project_name, repo_path, component_id)
+        if elements is None:
+            raise HTTPException(status_code=404, detail="component not found")
         return JSONResponse(elements)
 
     @app.post("/api/run")

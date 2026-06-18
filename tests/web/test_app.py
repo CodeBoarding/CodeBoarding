@@ -51,3 +51,9 @@ def test_watch_toggle(tmp_path: Path) -> None:
     r = c.post("/api/watch", json={"enabled": True})
     assert r.status_code == 200 and r.json()["watch_enabled"] is True
     assert c.get("/api/status").json()["watch_enabled"] is True
+
+
+def test_diagram_component_404_when_absent(tmp_path: Path) -> None:
+    """GET /api/diagram/<id> → 404 when no analysis.json exists."""
+    c = _client(tmp_path)
+    assert c.get("/api/diagram/some_component").status_code == 404

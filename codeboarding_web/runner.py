@@ -59,7 +59,7 @@ class AnalysisRunner:
 
     def _progress_callback(self) -> None:
         """Load current Cytoscape snapshot and publish it as a diagram_delta event."""
-        elements = load_cytoscape(self.output_dir, self.project_name)
+        elements = load_cytoscape(self.output_dir, self.project_name, self.repo_path)
         if elements is not None:
             self.bus.publish_threadsafe("diagram_delta", elements)
 

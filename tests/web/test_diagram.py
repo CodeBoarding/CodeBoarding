@@ -1,19 +1,25 @@
 import json
 from pathlib import Path
 
-from codeboarding_web.diagram import load_cytoscape
+from codeboarding_web.diagram import load_cytoscape, load_cytoscape_component
+
+# component_id of the expandable component used across tests
+_EXPANDABLE_ID = "1"
 
 
 def _write_analysis(output_dir: Path) -> None:
-    """Write a minimal valid unified analysis.json with one root component."""
-    # Components live at the top level — no "analysis" wrapper.
-    # Shape matches build_unified_analysis_json / parse_unified_analysis expectations.
+    """Write a minimal valid unified analysis.json with enrichment-ready fixture data.
+
+    Component "Core" (component_id="1") has a key_entity and a nested sub-component
+    so that parse_unified_analysis yields a non-empty sub_analyses dict, making
+    "Core" expandable and its keyEntities list populated.
+    """
     data = {
         "metadata": {
             "generated_at": "2024-01-01T00:00:00+00:00",
             "commit_hash": "",
             "repo_name": "test",
-            "depth_level": 1,
+            "depth_level": 2,
             "file_coverage_summary": {
                 "total_files": 0,
                 "analyzed": 0,
@@ -26,13 +32,33 @@ def _write_analysis(output_dir: Path) -> None:
         "methods_index": {},
         "components": [
             {
-                "component_id": "1",
+                "component_id": _EXPANDABLE_ID,
                 "name": "Core",
                 "description": "core",
-                "key_entities": [],
+                "key_entities": [
+                    {
+                        "qualified_name": "core.main",
+                        "reference_file": "core/main.py",
+                        "reference_start_line": 10,
+                        "reference_end_line": 20,
+                    }
+                ],
                 "source_cluster_ids": [],
                 "file_methods": [],
-                "can_expand": False,
+                "can_expand": True,
+                # nested sub-components make parse_unified_analysis register this id
+                "components": [
+                    {
+                        "component_id": "1.1",
+                        "name": "SubCore",
+                        "description": "sub",
+                        "key_entities": [],
+                        "source_cluster_ids": [],
+                        "file_methods": [],
+                        "can_expand": False,
+                    }
+                ],
+                "components_relations": [],
             }
         ],
         "components_relations": [],
@@ -42,12 +68,12 @@ def _write_analysis(output_dir: Path) -> None:
 
 
 def test_returns_none_when_absent(tmp_path):
-    assert load_cytoscape(tmp_path, "demo") is None
+    assert load_cytoscape(tmp_path, "demo", tmp_path) is None
 
 
 def test_returns_elements_for_present_analysis(tmp_path):
     _write_analysis(tmp_path)
-    result = load_cytoscape(tmp_path, "demo")
+    result = load_cytoscape(tmp_path, "demo", tmp_path)
     assert result is not None
     ids = {e["data"]["id"] for e in result["elements"]}
     assert "Core" in ids
@@ -56,4 +82,52 @@ def test_returns_elements_for_present_analysis(tmp_path):
 def test_returns_none_on_corrupt_json(tmp_path):
     tmp_path.mkdir(parents=True, exist_ok=True)
     (tmp_path / "analysis.json").write_text("{not json", encoding="utf-8")
-    assert load_cytoscape(tmp_path, "demo") is None
+    assert load_cytoscape(tmp_path, "demo", tmp_path) is None
+
+
+def test_overview_nodes_enriched(tmp_path):
+    _write_analysis(tmp_path)
+    result = load_cytoscape(tmp_path, "demo", tmp_path)
+    assert result is not None
+    node = next(e for e in result["elements"] if "source" not in e["data"])
+    assert "componentId" in node["data"]
+    assert "expandable" in node["data"]
+    assert "keyEntities" in node["data"]
+
+
+def test_overview_node_expandable_flag(tmp_path):
+    _write_analysis(tmp_path)
+    result = load_cytoscape(tmp_path, "demo", tmp_path)
+    assert result is not None
+    node = next(e for e in result["elements"] if "source" not in e["data"])
+    assert node["data"]["expandable"] is True
+
+
+def test_overview_node_key_entities_populated(tmp_path):
+    _write_analysis(tmp_path)
+    result = load_cytoscape(tmp_path, "demo", tmp_path)
+    assert result is not None
+    node = next(e for e in result["elements"] if "source" not in e["data"])
+    entities = node["data"]["keyEntities"]
+    assert len(entities) == 1
+    assert entities[0]["qname"] == "core.main"
+    assert entities[0]["startLine"] == 10
+    # openUrl uses tmp_path as repo_path so it should be set
+    assert entities[0]["openUrl"] is not None
+    assert entities[0]["openUrl"].startswith("vscode://file/")
+
+
+def test_component_subgraph_loads(tmp_path):
+    _write_analysis(tmp_path)
+    sub = load_cytoscape_component(tmp_path, "demo", tmp_path, _EXPANDABLE_ID)
+    assert sub is not None
+    assert "elements" in sub
+
+
+def test_component_subgraph_missing_returns_none(tmp_path):
+    _write_analysis(tmp_path)
+    assert load_cytoscape_component(tmp_path, "demo", tmp_path, "nonexistent") is None
+
+
+def test_component_subgraph_absent_file_returns_none(tmp_path):
+    assert load_cytoscape_component(tmp_path, "demo", tmp_path, _EXPANDABLE_ID) is None

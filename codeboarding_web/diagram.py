@@ -6,12 +6,51 @@ from pathlib import Path
 
 from diagram_analysis.io_utils import parse_unified_analysis
 from output_generators.html import generate_cytoscape_data
+from utils import sanitize
 
 logger = logging.getLogger(__name__)
 
 
-def load_cytoscape(output_dir: Path, project: str) -> dict | None:
-    """Read ``analysis.json`` from *output_dir* and return overview Cytoscape JSON.
+def _open_url(repo_path: Path, ref) -> str | None:
+    """Return a vscode://file URI for *ref*, or None when location data is missing."""
+    if not ref.reference_file or ref.reference_start_line is None:
+        return None
+    if Path(ref.reference_file).is_absolute():
+        abs_path = ref.reference_file
+    else:
+        abs_path = str((repo_path / ref.reference_file).resolve())
+    return f"vscode://file/{abs_path}:{ref.reference_start_line}"
+
+
+def _entity(ref, repo_path: Path) -> dict:
+    """Serialize a SourceCodeReference to the keyEntities wire format."""
+    return {
+        "qname": ref.qualified_name,
+        "file": ref.reference_file,
+        "startLine": ref.reference_start_line,
+        "endLine": ref.reference_end_line,
+        "openUrl": _open_url(repo_path, ref),
+    }
+
+
+def _enrich(elements: dict, analysis, sub_analyses: dict, repo_path: Path) -> None:
+    """Mutate node data in *elements* to add componentId, expandable, and keyEntities."""
+    by_id = {sanitize(c.name): c for c in analysis.components}
+    expandable_ids = set(sub_analyses.keys())
+    for el in elements["elements"]:
+        data = el["data"]
+        if "source" in data:
+            continue
+        comp = by_id.get(data["id"])
+        if comp is None:
+            continue
+        data["componentId"] = comp.component_id
+        data["expandable"] = comp.component_id in expandable_ids
+        data["keyEntities"] = [_entity(ref, repo_path) for ref in comp.key_entities]
+
+
+def load_cytoscape(output_dir: Path, project: str, repo_path: Path) -> dict | None:
+    """Read ``analysis.json`` from *output_dir* and return enriched overview Cytoscape JSON.
 
     Returns None when the file is missing or unreadable (e.g. mid-write).
     Why: the writer re-saves during a run; a transient parse failure must not
@@ -27,4 +66,26 @@ def load_cytoscape(output_dir: Path, project: str) -> dict | None:
         logger.debug("analysis.json not readable yet", exc_info=True)
         return None
     expanded = set(sub_analyses.keys())
-    return generate_cytoscape_data(root_analysis, expanded, project, demo=False)
+    elements = generate_cytoscape_data(root_analysis, expanded, project, demo=False)
+    _enrich(elements, root_analysis, sub_analyses, repo_path)
+    return elements
+
+
+def load_cytoscape_component(output_dir: Path, project: str, repo_path: Path, component_id: str) -> dict | None:
+    """Return enriched Cytoscape JSON for a single component's sub-graph, or None if absent."""
+    path = output_dir / "analysis.json"
+    if not path.exists():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        root_analysis, sub_analyses = parse_unified_analysis(data)
+    except Exception:
+        logger.debug("analysis.json not readable yet", exc_info=True)
+        return None
+    sub = sub_analyses.get(component_id)
+    if sub is None:
+        return None
+    sub_expanded = {c.component_id for c in sub.components if c.component_id in sub_analyses}
+    elements = generate_cytoscape_data(sub, sub_expanded, project, demo=False)
+    _enrich(elements, sub, sub_analyses, repo_path)
+    return elements
