@@ -39,3 +39,15 @@ def test_run_conflict_when_busy(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(app.state.runner, "start", lambda *a, **k: (_ for _ in ()).throw(RunBusyError()))
     r = c.post("/api/run", json={"scope": "full"})
     assert r.status_code == 409
+
+
+def test_status_includes_watch_enabled(tmp_path: Path) -> None:
+    c = _client(tmp_path)
+    assert c.get("/api/status").json()["watch_enabled"] is False
+
+
+def test_watch_toggle(tmp_path: Path) -> None:
+    c = _client(tmp_path)
+    r = c.post("/api/watch", json={"enabled": True})
+    assert r.status_code == 200 and r.json()["watch_enabled"] is True
+    assert c.get("/api/status").json()["watch_enabled"] is True

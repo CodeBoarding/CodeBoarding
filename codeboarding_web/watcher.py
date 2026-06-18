@@ -1,5 +1,6 @@
 """Watch a repo's source tree and fire a callback on debounced source changes."""
 
+import asyncio
 import logging
 from collections.abc import Callable
 from pathlib import Path
@@ -32,7 +33,7 @@ class RepoWatcher:
     def _watch_filter(self, change: Change, path: str) -> bool:
         return self._should_watch(path)
 
-    async def run(self, stop_event) -> None:
+    async def run(self, stop_event: asyncio.Event) -> None:
         """Watch until *stop_event* is set, firing on_change per debounced batch."""
         async for _ in awatch(self.repo_path, watch_filter=self._watch_filter, stop_event=stop_event):
             try:
