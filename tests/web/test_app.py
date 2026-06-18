@@ -169,3 +169,9 @@ def test_component_diff_200_has_files_and_diff_keys(tmp_path: Path) -> None:
     # which means files will be empty after intersection with component files
     assert isinstance(body["files"], list)
     assert isinstance(body["diff"], str)
+
+
+def test_no_cache_header_scoped(tmp_path: Path) -> None:
+    c = _client(tmp_path)
+    # API responses must not get the no-store header from the static-assets middleware
+    assert "no-store" not in c.get("/api/status").headers.get("cache-control", "")

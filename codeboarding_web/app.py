@@ -94,6 +94,14 @@ def create_app(
     app.state.bus = bus
     app.state.watch_enabled = watch
 
+    @app.middleware("http")
+    async def _no_cache_static(request, call_next):
+        response = await call_next(request)
+        path = request.url.path
+        if path == "/" or path.startswith("/static"):
+            response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        return response
+
     @app.get("/api/status")
     def status() -> dict:
         """Return current run state and project metadata."""
