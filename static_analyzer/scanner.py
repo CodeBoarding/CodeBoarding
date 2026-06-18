@@ -80,7 +80,7 @@ class ProjectScanner:
             )
 
             logger.debug(f"Found: {pl}")
-            if pl.percentage >= 1:
+            if pl.is_supported_lang():
                 programming_languages.append(pl)
 
         self.all_text_files = all_files
