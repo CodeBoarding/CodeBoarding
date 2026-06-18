@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from agents.agent_responses import AnalysisInsights, Component
-from codeboarding_web.component_data import component_diff, component_files
+from codeboarding_web.component_data import changed_files, component_diff, component_files
 from codeboarding_web.diagram import load_cytoscape, load_cytoscape_component
 from codeboarding_web.events import EventBus, format_sse
 from codeboarding_web.runner import AnalysisRunner
@@ -137,7 +137,8 @@ def create_app(
         comp = _find_component(root_analysis, sub_analyses, component_id)
         if comp is None:
             raise HTTPException(status_code=404, detail="component not found")
-        files = sorted(component_files(comp, repo_path))
+        changed = changed_files(repo_path)
+        files = sorted(component_files(comp, repo_path) & changed)
         diff = component_diff(repo_path, files)
         return JSONResponse({"component_id": component_id, "files": files, "diff": diff})
 
