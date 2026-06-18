@@ -11,6 +11,7 @@ baseline resolution.
 """
 
 import logging
+from collections.abc import Callable
 from pathlib import Path
 
 from diagram_analysis import DiagramGenerator
@@ -43,6 +44,7 @@ def build_generator(
     monitoring_enabled: bool = False,
     static_analyzer=None,
     changes=None,
+    progress_callback: Callable[[], None] | None = None,
 ) -> DiagramGenerator:
     return DiagramGenerator(
         repo_location=repo_path,
@@ -55,6 +57,7 @@ def build_generator(
         monitoring_enabled=monitoring_enabled,
         static_analyzer=static_analyzer,
         changes=changes,
+        progress_callback=progress_callback,
     )
 
 
@@ -69,6 +72,7 @@ def run_full(
     force_full: bool = False,
     static_analyzer=None,
     source_sha: str | None = None,
+    progress_callback: Callable[[], None] | None = None,
 ) -> Path:
     """Full analysis scope — rebuild the whole diagram from scratch.
 
@@ -86,6 +90,7 @@ def run_full(
         depth_level=depth_level,
         monitoring_enabled=monitoring_enabled,
         static_analyzer=static_analyzer,
+        progress_callback=progress_callback,
     )
     generator.force_full_analysis = force_full
     generator.source_sha = source_sha
@@ -172,6 +177,7 @@ def run_incremental(
     monitoring_enabled: bool = False,
     static_analyzer=None,
     source_sha: str | None = None,
+    progress_callback: Callable[[], None] | None = None,
 ) -> Path:
     """Incremental scope — cluster-driven update of an existing ``analysis.json``.
 
@@ -208,6 +214,7 @@ def run_incremental(
         monitoring_enabled=monitoring_enabled,
         static_analyzer=static_analyzer,
         changes=changes,
+        progress_callback=progress_callback,
     )
     generator.source_sha = source_sha
     return run_incremental_workflow(generator)
