@@ -147,3 +147,24 @@ def test_full_scope_calls_run_full(tmp_path, monkeypatch):
     assert full_calls == ["called"]
     assert incremental_calls == []
     loop.close()
+
+
+def test_run_full_passes_source_sha(tmp_path, monkeypatch):
+    loop = asyncio.new_event_loop()
+    bus = EventBus(loop)
+    r = _make(tmp_path, bus)
+    fake_src, fake_ctx = _make_fake_src_ctx(tmp_path)
+
+    monkeypatch.setattr(runner_module, "get_current_commit", lambda _path: "deadbeef")
+
+    captured: dict[str, object] = {}
+
+    def fake_run_full(**kwargs: object) -> None:
+        captured.update(kwargs)
+
+    monkeypatch.setattr(runner_module, "run_full", fake_run_full)
+
+    r._run_full(fake_src, fake_ctx, lambda: None)
+
+    assert captured.get("source_sha") == "deadbeef"
+    loop.close()

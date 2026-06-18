@@ -16,6 +16,7 @@ from codeboarding_workflows.sources import SourceContext, local_source
 from diagram_analysis import RunContext
 from monitoring import monitor_execution
 from monitoring.paths import get_monitoring_run_dir
+from repo_utils.git_ops import get_current_commit
 
 logger = logging.getLogger(__name__)
 
@@ -94,6 +95,7 @@ class AnalysisRunner:
             run_id=run_context.run_id,
             log_path=run_context.log_path,
             progress_callback=progress_callback,
+            source_sha=get_current_commit(self.repo_path),
         )
 
     def _run_scope(
