@@ -31,12 +31,14 @@ class AnalysisRunner:
         project_name: str,
         state: RunState,
         bus: EventBus,
+        depth_level: int = 1,
     ) -> None:
         self.repo_path = repo_path
         self.output_dir = output_dir
         self.project_name = project_name
         self.state = state
         self.bus = bus
+        self.depth_level = depth_level
         self._thread: threading.Thread | None = None
 
     def start(self, scope: str, base_ref: str = "HEAD~1", target_ref: str = "HEAD") -> str:
@@ -100,7 +102,7 @@ class AnalysisRunner:
                         repo_name=src.project_name,
                         repo_path=src.repo_path,
                         output_dir=src.artifact_dir,
-                        depth_level=1,
+                        depth_level=self.depth_level,
                         run_id=run_context.run_id,
                         log_path=run_context.log_path,
                         progress_callback=progress_callback,

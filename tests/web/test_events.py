@@ -28,15 +28,19 @@ def test_trace_handler_publishes_parsed_records():
         bus = EventBus(loop)
         q = bus.subscribe()
         handler = TraceLogHandler(bus)
-        logger = logging.getLogger("traces")
-        logger.setLevel(logging.DEBUG)
-        logger.addHandler(handler)
-        logger.propagate = False
+        traces_logger = logging.getLogger("traces")
+        original_level = traces_logger.level
+        original_propagate = traces_logger.propagate
+        traces_logger.setLevel(logging.DEBUG)
+        traces_logger.addHandler(handler)
+        traces_logger.propagate = False
         try:
-            logger.info(json.dumps({"event": "phase_change", "step": "code_generation"}))
+            traces_logger.info(json.dumps({"event": "phase_change", "step": "code_generation"}))
             return await asyncio.wait_for(q.get(), timeout=1.0)
         finally:
-            logger.removeHandler(handler)
+            traces_logger.removeHandler(handler)
+            traces_logger.setLevel(original_level)
+            traces_logger.propagate = original_propagate
 
     event = asyncio.run(scenario())
     assert event["event"] == "phase_change"

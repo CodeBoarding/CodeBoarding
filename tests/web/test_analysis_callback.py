@@ -5,7 +5,6 @@ from codeboarding_workflows import analysis
 
 
 def test_build_generator_forwards_callback(monkeypatch, tmp_path):
-    """Verify build_generator passes progress_callback through to DiagramGenerator."""
     captured = {}
 
     class FakeGen:
@@ -27,10 +26,8 @@ def test_build_generator_forwards_callback(monkeypatch, tmp_path):
 
 
 def test_run_full_accepts_callback():
-    """Verify run_full signature includes progress_callback."""
     assert "progress_callback" in inspect.signature(analysis.run_full).parameters
 
 
 def test_run_incremental_accepts_callback():
-    """Verify run_incremental signature includes progress_callback."""
     assert "progress_callback" in inspect.signature(analysis.run_incremental).parameters

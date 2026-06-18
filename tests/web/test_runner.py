@@ -3,7 +3,6 @@ import pytest
 from pathlib import Path
 from codeboarding_web.state import RunState, RunBusyError
 from codeboarding_web.events import EventBus
-from codeboarding_web import runner as runner_mod
 from codeboarding_web.runner import AnalysisRunner
 
 
@@ -33,6 +32,21 @@ def test_start_when_busy_raises(tmp_path, monkeypatch):
     r.state.begin("existing", "full")
     with pytest.raises(RunBusyError):
         r.start("full")
+    loop.close()
+
+
+def test_depth_level_stored(tmp_path):
+    loop = asyncio.new_event_loop()
+    bus = EventBus(loop)
+    runner = AnalysisRunner(
+        repo_path=tmp_path,
+        output_dir=tmp_path,
+        project_name="demo",
+        state=RunState(),
+        bus=bus,
+        depth_level=2,
+    )
+    assert runner.depth_level == 2
     loop.close()
 
 

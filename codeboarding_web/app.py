@@ -29,11 +29,11 @@ class RunRequest(BaseModel):
     target_ref: str = "HEAD"
 
 
-def create_app(repo_path: Path, output_dir: Path, project_name: str) -> FastAPI:
+def create_app(repo_path: Path, output_dir: Path, project_name: str, depth_level: int = 1) -> FastAPI:
     """Build and return the FastAPI application."""
     state = RunState()
     bus = EventBus()
-    runner = AnalysisRunner(repo_path, output_dir, project_name, state, bus)
+    runner = AnalysisRunner(repo_path, output_dir, project_name, state, bus, depth_level)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
