@@ -172,6 +172,7 @@ function applyElements(elements) {
 
 // ── Navigation ───────────────────────────────────────────────────────────────
 async function navigateTo(index) {
+  const prevStack = breadcrumbStack.slice();
   breadcrumbStack = breadcrumbStack.slice(0, index + 1);
   renderBreadcrumb();
 
@@ -188,6 +189,8 @@ async function navigateTo(index) {
     const data = await res.json();
     renderGraph(data.elements, { fit: true });
   } catch (_) {
+    breadcrumbStack = prevStack;
+    renderBreadcrumb();
     logLine('request failed: ' + url);
   }
 }
@@ -343,7 +346,7 @@ function connectEvents() {
 
   src.addEventListener('step_start', (e) => { sseDown = false; logLine('▶ ' + JSON.parse(e.data).step); });
   src.addEventListener('step_end', (e) => { sseDown = false; logLine('✓ ' + JSON.parse(e.data).step); });
-  src.addEventListener('step_error', (e) => { const d = JSON.parse(e.data); logLine('✗ ' + (d.step || 'step') + (d.error ? ': ' + d.error : '')); });
+  src.addEventListener('step_error', (e) => { sseDown = false; const d = JSON.parse(e.data); logLine('✗ ' + (d.step || 'step') + (d.error ? ': ' + d.error : '')); });
   src.addEventListener('phase_change', (e) => { sseDown = false; logLine('— ' + JSON.parse(e.data).step); });
 
   src.addEventListener('error', () => {
