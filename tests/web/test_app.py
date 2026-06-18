@@ -110,6 +110,16 @@ def test_status_includes_watch_enabled(tmp_path: Path) -> None:
     assert c.get("/api/status").json()["watch_enabled"] is False
 
 
+def test_status_includes_repo_path(tmp_path: Path) -> None:
+    """GET /api/status must include repo_path as a non-empty absolute path string."""
+    c = _client(tmp_path)
+    body = c.get("/api/status").json()
+    assert "repo_path" in body
+    repo_path = body["repo_path"]
+    assert isinstance(repo_path, str) and repo_path
+    assert Path(repo_path).is_absolute()
+
+
 def test_watch_toggle(tmp_path: Path) -> None:
     c = _client(tmp_path)
     r = c.post("/api/watch", json={"enabled": True})

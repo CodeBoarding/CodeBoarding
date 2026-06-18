@@ -129,7 +129,7 @@ def test_component_subgraph_absent_file_returns_none(tmp_path):
 
 
 def test_overview_node_has_source_files_warnings_modifications(tmp_path):
-    """Overview nodes must carry sourceFiles, warnings, and modifications keys."""
+    """Overview nodes must carry sourceFiles, warnings, modifications, and fileWarnings keys."""
     _write_analysis(tmp_path)
     result = load_cytoscape(tmp_path, "demo", tmp_path)
     assert result is not None
@@ -143,3 +143,43 @@ def test_overview_node_has_source_files_warnings_modifications(tmp_path):
     # No health_report.json or git changes in tmp_path → defaults to 0
     assert data["warnings"] == 0
     assert data["modifications"] == 0
+
+
+def test_overview_node_has_file_warnings_key(tmp_path):
+    """fileWarnings must be a list; empty when no health_report.json exists."""
+    _write_analysis(tmp_path)
+    result = load_cytoscape(tmp_path, "demo", tmp_path)
+    assert result is not None
+    node = next(e for e in result["elements"] if "source" not in e["data"])
+    fw = node["data"]["fileWarnings"]
+    assert isinstance(fw, list)
+    # No health_report.json → no entries
+    assert fw == []
+
+
+def test_overview_node_file_warnings_with_health_report(tmp_path):
+    """fileWarnings entries have {file, warnings} shape, sorted by count desc then path."""
+    _write_analysis(tmp_path)
+    # Write a health report that matches the fixture's component file "core/main.py"
+    health_dir = tmp_path / "health"
+    health_dir.mkdir(parents=True, exist_ok=True)
+    (health_dir / "health_report.json").write_text(
+        json.dumps(
+            {
+                "file_summaries": [
+                    {"file_path": "core/main.py", "warning_findings": 3},
+                    {"file_path": "other/unrelated.py", "warning_findings": 5},
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    result = load_cytoscape(tmp_path, "demo", tmp_path)
+    assert result is not None
+    node = next(e for e in result["elements"] if "source" not in e["data"])
+    fw = node["data"]["fileWarnings"]
+    assert isinstance(fw, list)
+    # Only "core/main.py" belongs to the component; "other/unrelated.py" does not
+    assert len(fw) == 1
+    assert fw[0]["file"] == "core/main.py"
+    assert fw[0]["warnings"] == 3

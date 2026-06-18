@@ -105,6 +105,7 @@ def create_app(
             "project": project_name,
             "has_baseline": (output_dir / "analysis.json").exists(),
             "watch_enabled": app.state.watch_enabled,
+            "repo_path": str(repo_path.resolve()),
         }
 
     @app.get("/api/diagram.json")

@@ -43,7 +43,7 @@ def _enrich(
     warning_counts: dict[str, int],
     changed: set[str],
 ) -> None:
-    """Mutate node data in *elements* to add componentId, expandable, keyEntities, warnings, modifications, sourceFiles."""
+    """Mutate node data in *elements* to add componentId, expandable, keyEntities, warnings, fileWarnings, modifications, sourceFiles."""
     by_id = {sanitize(c.name): c for c in analysis.components}
     expandable_ids = set(sub_analyses.keys())
     for el in elements["elements"]:
@@ -59,6 +59,10 @@ def _enrich(
         files = component_files(comp, repo_path)
         data["sourceFiles"] = sorted(files)
         data["warnings"] = sum(warning_counts.get(f, 0) for f in files)
+        file_warnings: list[dict[str, int | str]] = [
+            {"file": f, "warnings": warning_counts[f]} for f in files if warning_counts.get(f, 0) > 0
+        ]
+        data["fileWarnings"] = sorted(file_warnings, key=lambda fw: (-int(fw["warnings"]), fw["file"]))
         data["modifications"] = sum(1 for f in files if f in changed)
 
 
