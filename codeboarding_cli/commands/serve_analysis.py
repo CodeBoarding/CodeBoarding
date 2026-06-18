@@ -24,6 +24,12 @@ def add_arguments(subparsers: argparse._SubParsersAction, parents: list[argparse
     parser.add_argument("--port", type=int, default=8050, help="Port to bind (default: 8050)")
     parser.add_argument("--no-open", action="store_true", help="Do not open a browser tab")
     parser.add_argument("--depth-level", type=int, default=1, help="Depth level (default: 1)")
+    parser.add_argument(
+        "--watch",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Auto re-analyze on source changes (default: on)",
+    )
 
 
 def run_from_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
@@ -39,6 +45,7 @@ def run_from_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> 
         output_dir=run_paths.output_dir,
         project_name=run_paths.project_name,
         depth_level=args.depth_level,
+        watch=args.watch,
     )
 
     url = f"http://{args.host}:{args.port}/"

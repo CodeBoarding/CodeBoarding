@@ -73,6 +73,7 @@ async function refreshStatus() {
   document.getElementById('project').textContent = s.project;
   setPhase(s.phase);
   if (s.has_baseline) loadDiagram();
+  document.getElementById('watch').checked = s.watch_enabled;
 }
 
 function connectEvents() {
@@ -83,7 +84,24 @@ function connectEvents() {
   src.addEventListener('diagram_delta', (e) => applyElements(JSON.parse(e.data).elements));
   src.addEventListener('run_end', () => { setPhase('done'); loadDiagram(); });
   src.addEventListener('run_error', (e) => { setPhase('error'); logLine('ERROR: ' + JSON.parse(e.data).error); });
+  src.addEventListener('watch_triggered', (e) => {
+    const d = JSON.parse(e.data);
+    if (d.status === 'no_baseline') {
+      logLine('no baseline — run a full analysis first');
+    } else {
+      logLine('change detected → re-analyzing');
+    }
+  });
 }
+
+document.getElementById('watch').addEventListener('change', async (e) => {
+  const res = await fetch('/api/watch', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ enabled: e.target.checked }),
+  });
+  const d = await res.json();
+  logLine('watch ' + (d.watch_enabled ? 'enabled' : 'disabled'));
+});
 
 document.getElementById('run').addEventListener('click', async () => {
   const scope = document.getElementById('scope').value;
