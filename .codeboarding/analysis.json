@@ -1,7 +1,7 @@
 {
   "metadata": {
-    "generated_at": "2026-06-17T17:02:51.272263+00:00",
-    "commit_hash": "1d6b89a2d2389f5a4409cc4696c038e1e4b88c82",
+    "generated_at": "2026-06-18T16:38:59.146341+00:00",
+    "commit_hash": "f1075f2ae46cf2505cec7d8f1b509cde5484ca95",
     "repo_name": "CodeBoarding",
     "depth_level": 2,
     "file_coverage_summary": {
@@ -42,6 +42,9 @@
     "agents/llm_config.py": {
       "method_keys": [
         "agents/llm_config.py|agents.llm_config.configure_models",
+        "agents/llm_config.py|agents.llm_config._model_accepts_temperature",
+        "agents/llm_config.py|agents.llm_config._agent_model_override",
+        "agents/llm_config.py|agents.llm_config._parsing_model_override",
         "agents/llm_config.py|agents.llm_config.LLMConfig",
         "agents/llm_config.py|agents.llm_config.LLMConfig.get_api_key",
         "agents/llm_config.py|agents.llm_config.LLMConfig.has_real_api_key",
@@ -221,6 +224,7 @@
       "method_keys": [
         "core/__init__.py|core.__init__.Registries",
         "core/__init__.py|core.__init__.Registries.__init__",
+        "core/__init__.py|core.__init__._registries",
         "core/__init__.py|core.__init__.get_registries",
         "core/__init__.py|core.__init__.reset_registries",
         "core/__init__.py|core.__init__.run_plugin_health_checks",
@@ -276,7 +280,6 @@
     },
     "diagram_analysis/run_context.py": {
       "method_keys": [
-        "diagram_analysis/run_context.py|diagram_analysis.run_context.RunContext",
         "diagram_analysis/run_context.py|diagram_analysis.run_context.RunContext.resolve",
         "diagram_analysis/run_context.py|diagram_analysis.run_context.RunContext.finalize",
         "diagram_analysis/run_context.py|diagram_analysis.run_context._load_existing_run_id"
@@ -1471,7 +1474,6 @@
     "agents/agent.py": {
       "method_keys": [
         "agents/agent.py|agents.agent.EmptyExtractorMessageError",
-        "agents/agent.py|agents.agent.CodeBoardingAgent",
         "agents/agent.py|agents.agent.CodeBoardingAgent.__init__",
         "agents/agent.py|agents.agent.CodeBoardingAgent.read_source_reference",
         "agents/agent.py|agents.agent.CodeBoardingAgent.read_packages_tool",
@@ -1603,7 +1605,6 @@
     },
     "agents/prompts/abstract_prompt_factory.py": {
       "method_keys": [
-        "agents/prompts/abstract_prompt_factory.py|agents.prompts.abstract_prompt_factory.AbstractPromptFactory",
         "agents/prompts/abstract_prompt_factory.py|agents.prompts.abstract_prompt_factory.AbstractPromptFactory.get_system_message",
         "agents/prompts/abstract_prompt_factory.py|agents.prompts.abstract_prompt_factory.AbstractPromptFactory.get_cluster_grouping_message",
         "agents/prompts/abstract_prompt_factory.py|agents.prompts.abstract_prompt_factory.AbstractPromptFactory.get_final_analysis_message",
@@ -1622,145 +1623,42 @@
     },
     "agents/prompts/claude_prompts.py": {
       "method_keys": [
-        "agents/prompts/claude_prompts.py|agents.prompts.claude_prompts.ClaudePromptFactory",
-        "agents/prompts/claude_prompts.py|agents.prompts.claude_prompts.ClaudePromptFactory.get_system_message",
-        "agents/prompts/claude_prompts.py|agents.prompts.claude_prompts.ClaudePromptFactory.get_cluster_grouping_message",
-        "agents/prompts/claude_prompts.py|agents.prompts.claude_prompts.ClaudePromptFactory.get_final_analysis_message",
-        "agents/prompts/claude_prompts.py|agents.prompts.claude_prompts.ClaudePromptFactory.get_planner_system_message",
-        "agents/prompts/claude_prompts.py|agents.prompts.claude_prompts.ClaudePromptFactory.get_expansion_prompt",
-        "agents/prompts/claude_prompts.py|agents.prompts.claude_prompts.ClaudePromptFactory.get_validator_system_message",
-        "agents/prompts/claude_prompts.py|agents.prompts.claude_prompts.ClaudePromptFactory.get_component_validation_component",
-        "agents/prompts/claude_prompts.py|agents.prompts.claude_prompts.ClaudePromptFactory.get_relationships_validation",
-        "agents/prompts/claude_prompts.py|agents.prompts.claude_prompts.ClaudePromptFactory.get_system_meta_analysis_message",
-        "agents/prompts/claude_prompts.py|agents.prompts.claude_prompts.ClaudePromptFactory.get_meta_information_prompt",
-        "agents/prompts/claude_prompts.py|agents.prompts.claude_prompts.ClaudePromptFactory.get_file_classification_message",
-        "agents/prompts/claude_prompts.py|agents.prompts.claude_prompts.ClaudePromptFactory.get_validation_feedback_message",
-        "agents/prompts/claude_prompts.py|agents.prompts.claude_prompts.ClaudePromptFactory.get_system_details_message",
-        "agents/prompts/claude_prompts.py|agents.prompts.claude_prompts.ClaudePromptFactory.get_cfg_details_message",
-        "agents/prompts/claude_prompts.py|agents.prompts.claude_prompts.ClaudePromptFactory.get_incremental_grouping_message",
-        "agents/prompts/claude_prompts.py|agents.prompts.claude_prompts.ClaudePromptFactory.get_scope_relations_message",
-        "agents/prompts/claude_prompts.py|agents.prompts.claude_prompts.ClaudePromptFactory.get_details_message"
+        "agents/prompts/claude_prompts.py|agents.prompts.claude_prompts.ClaudePromptFactory"
       ]
     },
     "agents/prompts/deepseek_prompts.py": {
       "method_keys": [
-        "agents/prompts/deepseek_prompts.py|agents.prompts.deepseek_prompts.DeepSeekPromptFactory",
-        "agents/prompts/deepseek_prompts.py|agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_system_message",
-        "agents/prompts/deepseek_prompts.py|agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_cluster_grouping_message",
-        "agents/prompts/deepseek_prompts.py|agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_final_analysis_message",
-        "agents/prompts/deepseek_prompts.py|agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_planner_system_message",
-        "agents/prompts/deepseek_prompts.py|agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_expansion_prompt",
-        "agents/prompts/deepseek_prompts.py|agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_validator_system_message",
-        "agents/prompts/deepseek_prompts.py|agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_component_validation_component",
-        "agents/prompts/deepseek_prompts.py|agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_relationships_validation",
-        "agents/prompts/deepseek_prompts.py|agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_system_meta_analysis_message",
-        "agents/prompts/deepseek_prompts.py|agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_meta_information_prompt",
-        "agents/prompts/deepseek_prompts.py|agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_file_classification_message",
-        "agents/prompts/deepseek_prompts.py|agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_validation_feedback_message",
-        "agents/prompts/deepseek_prompts.py|agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_system_details_message",
-        "agents/prompts/deepseek_prompts.py|agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_cfg_details_message",
-        "agents/prompts/deepseek_prompts.py|agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_details_message",
-        "agents/prompts/deepseek_prompts.py|agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_incremental_grouping_message",
-        "agents/prompts/deepseek_prompts.py|agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_scope_relations_message"
+        "agents/prompts/deepseek_prompts.py|agents.prompts.deepseek_prompts.DeepSeekPromptFactory"
       ]
     },
     "agents/prompts/gemini_flash_prompts.py": {
       "method_keys": [
-        "agents/prompts/gemini_flash_prompts.py|agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory",
-        "agents/prompts/gemini_flash_prompts.py|agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_system_message",
-        "agents/prompts/gemini_flash_prompts.py|agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_cluster_grouping_message",
-        "agents/prompts/gemini_flash_prompts.py|agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_final_analysis_message",
-        "agents/prompts/gemini_flash_prompts.py|agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_planner_system_message",
-        "agents/prompts/gemini_flash_prompts.py|agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_expansion_prompt",
-        "agents/prompts/gemini_flash_prompts.py|agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_validator_system_message",
-        "agents/prompts/gemini_flash_prompts.py|agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_component_validation_component",
-        "agents/prompts/gemini_flash_prompts.py|agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_relationships_validation",
-        "agents/prompts/gemini_flash_prompts.py|agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_system_meta_analysis_message",
-        "agents/prompts/gemini_flash_prompts.py|agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_meta_information_prompt",
-        "agents/prompts/gemini_flash_prompts.py|agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_file_classification_message",
-        "agents/prompts/gemini_flash_prompts.py|agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_validation_feedback_message",
-        "agents/prompts/gemini_flash_prompts.py|agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_system_details_message",
-        "agents/prompts/gemini_flash_prompts.py|agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_cfg_details_message",
-        "agents/prompts/gemini_flash_prompts.py|agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_details_message",
-        "agents/prompts/gemini_flash_prompts.py|agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_incremental_grouping_message",
-        "agents/prompts/gemini_flash_prompts.py|agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_scope_relations_message"
+        "agents/prompts/gemini_flash_prompts.py|agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory"
       ]
     },
     "agents/prompts/glm_prompts.py": {
       "method_keys": [
-        "agents/prompts/glm_prompts.py|agents.prompts.glm_prompts.GLMPromptFactory",
-        "agents/prompts/glm_prompts.py|agents.prompts.glm_prompts.GLMPromptFactory.get_system_message",
-        "agents/prompts/glm_prompts.py|agents.prompts.glm_prompts.GLMPromptFactory.get_cluster_grouping_message",
-        "agents/prompts/glm_prompts.py|agents.prompts.glm_prompts.GLMPromptFactory.get_final_analysis_message",
-        "agents/prompts/glm_prompts.py|agents.prompts.glm_prompts.GLMPromptFactory.get_planner_system_message",
-        "agents/prompts/glm_prompts.py|agents.prompts.glm_prompts.GLMPromptFactory.get_expansion_prompt",
-        "agents/prompts/glm_prompts.py|agents.prompts.glm_prompts.GLMPromptFactory.get_validator_system_message",
-        "agents/prompts/glm_prompts.py|agents.prompts.glm_prompts.GLMPromptFactory.get_component_validation_component",
-        "agents/prompts/glm_prompts.py|agents.prompts.glm_prompts.GLMPromptFactory.get_relationships_validation",
-        "agents/prompts/glm_prompts.py|agents.prompts.glm_prompts.GLMPromptFactory.get_system_meta_analysis_message",
-        "agents/prompts/glm_prompts.py|agents.prompts.glm_prompts.GLMPromptFactory.get_meta_information_prompt",
-        "agents/prompts/glm_prompts.py|agents.prompts.glm_prompts.GLMPromptFactory.get_file_classification_message",
-        "agents/prompts/glm_prompts.py|agents.prompts.glm_prompts.GLMPromptFactory.get_validation_feedback_message",
-        "agents/prompts/glm_prompts.py|agents.prompts.glm_prompts.GLMPromptFactory.get_system_details_message",
-        "agents/prompts/glm_prompts.py|agents.prompts.glm_prompts.GLMPromptFactory.get_cfg_details_message",
-        "agents/prompts/glm_prompts.py|agents.prompts.glm_prompts.GLMPromptFactory.get_details_message",
-        "agents/prompts/glm_prompts.py|agents.prompts.glm_prompts.GLMPromptFactory.get_incremental_grouping_message",
-        "agents/prompts/glm_prompts.py|agents.prompts.glm_prompts.GLMPromptFactory.get_scope_relations_message"
+        "agents/prompts/glm_prompts.py|agents.prompts.glm_prompts.GLMPromptFactory"
       ]
     },
     "agents/prompts/gpt_prompts.py": {
       "method_keys": [
-        "agents/prompts/gpt_prompts.py|agents.prompts.gpt_prompts.GPTPromptFactory",
-        "agents/prompts/gpt_prompts.py|agents.prompts.gpt_prompts.GPTPromptFactory.get_system_message",
-        "agents/prompts/gpt_prompts.py|agents.prompts.gpt_prompts.GPTPromptFactory.get_cluster_grouping_message",
-        "agents/prompts/gpt_prompts.py|agents.prompts.gpt_prompts.GPTPromptFactory.get_final_analysis_message",
-        "agents/prompts/gpt_prompts.py|agents.prompts.gpt_prompts.GPTPromptFactory.get_planner_system_message",
-        "agents/prompts/gpt_prompts.py|agents.prompts.gpt_prompts.GPTPromptFactory.get_expansion_prompt",
-        "agents/prompts/gpt_prompts.py|agents.prompts.gpt_prompts.GPTPromptFactory.get_validator_system_message",
-        "agents/prompts/gpt_prompts.py|agents.prompts.gpt_prompts.GPTPromptFactory.get_component_validation_component",
-        "agents/prompts/gpt_prompts.py|agents.prompts.gpt_prompts.GPTPromptFactory.get_relationships_validation",
-        "agents/prompts/gpt_prompts.py|agents.prompts.gpt_prompts.GPTPromptFactory.get_system_meta_analysis_message",
-        "agents/prompts/gpt_prompts.py|agents.prompts.gpt_prompts.GPTPromptFactory.get_meta_information_prompt",
-        "agents/prompts/gpt_prompts.py|agents.prompts.gpt_prompts.GPTPromptFactory.get_file_classification_message",
-        "agents/prompts/gpt_prompts.py|agents.prompts.gpt_prompts.GPTPromptFactory.get_validation_feedback_message",
-        "agents/prompts/gpt_prompts.py|agents.prompts.gpt_prompts.GPTPromptFactory.get_system_details_message",
-        "agents/prompts/gpt_prompts.py|agents.prompts.gpt_prompts.GPTPromptFactory.get_cfg_details_message",
-        "agents/prompts/gpt_prompts.py|agents.prompts.gpt_prompts.GPTPromptFactory.get_details_message",
-        "agents/prompts/gpt_prompts.py|agents.prompts.gpt_prompts.GPTPromptFactory.get_incremental_grouping_message",
-        "agents/prompts/gpt_prompts.py|agents.prompts.gpt_prompts.GPTPromptFactory.get_scope_relations_message"
+        "agents/prompts/gpt_prompts.py|agents.prompts.gpt_prompts.GPTPromptFactory"
       ]
     },
     "agents/prompts/kimi_prompts.py": {
       "method_keys": [
-        "agents/prompts/kimi_prompts.py|agents.prompts.kimi_prompts.KimiPromptFactory",
-        "agents/prompts/kimi_prompts.py|agents.prompts.kimi_prompts.KimiPromptFactory.get_system_message",
-        "agents/prompts/kimi_prompts.py|agents.prompts.kimi_prompts.KimiPromptFactory.get_cluster_grouping_message",
-        "agents/prompts/kimi_prompts.py|agents.prompts.kimi_prompts.KimiPromptFactory.get_final_analysis_message",
-        "agents/prompts/kimi_prompts.py|agents.prompts.kimi_prompts.KimiPromptFactory.get_planner_system_message",
-        "agents/prompts/kimi_prompts.py|agents.prompts.kimi_prompts.KimiPromptFactory.get_expansion_prompt",
-        "agents/prompts/kimi_prompts.py|agents.prompts.kimi_prompts.KimiPromptFactory.get_validator_system_message",
-        "agents/prompts/kimi_prompts.py|agents.prompts.kimi_prompts.KimiPromptFactory.get_component_validation_component",
-        "agents/prompts/kimi_prompts.py|agents.prompts.kimi_prompts.KimiPromptFactory.get_relationships_validation",
-        "agents/prompts/kimi_prompts.py|agents.prompts.kimi_prompts.KimiPromptFactory.get_system_meta_analysis_message",
-        "agents/prompts/kimi_prompts.py|agents.prompts.kimi_prompts.KimiPromptFactory.get_meta_information_prompt",
-        "agents/prompts/kimi_prompts.py|agents.prompts.kimi_prompts.KimiPromptFactory.get_file_classification_message",
-        "agents/prompts/kimi_prompts.py|agents.prompts.kimi_prompts.KimiPromptFactory.get_validation_feedback_message",
-        "agents/prompts/kimi_prompts.py|agents.prompts.kimi_prompts.KimiPromptFactory.get_system_details_message",
-        "agents/prompts/kimi_prompts.py|agents.prompts.kimi_prompts.KimiPromptFactory.get_cfg_details_message",
-        "agents/prompts/kimi_prompts.py|agents.prompts.kimi_prompts.KimiPromptFactory.get_details_message",
-        "agents/prompts/kimi_prompts.py|agents.prompts.kimi_prompts.KimiPromptFactory.get_incremental_grouping_message",
-        "agents/prompts/kimi_prompts.py|agents.prompts.kimi_prompts.KimiPromptFactory.get_scope_relations_message"
+        "agents/prompts/kimi_prompts.py|agents.prompts.kimi_prompts.KimiPromptFactory"
       ]
     },
     "agents/prompts/prompt_factory.py": {
       "method_keys": [
-        "agents/prompts/prompt_factory.py|agents.prompts.prompt_factory.LLMType",
         "agents/prompts/prompt_factory.py|agents.prompts.prompt_factory.LLMType.from_model_name",
         "agents/prompts/prompt_factory.py|agents.prompts.prompt_factory.PromptFactory",
         "agents/prompts/prompt_factory.py|agents.prompts.prompt_factory.PromptFactory.__init__",
         "agents/prompts/prompt_factory.py|agents.prompts.prompt_factory.PromptFactory._create_prompt_factory",
         "agents/prompts/prompt_factory.py|agents.prompts.prompt_factory.PromptFactory.get_prompt",
-        "agents/prompts/prompt_factory.py|agents.prompts.prompt_factory.PromptFactory.get_all_prompts",
+        "agents/prompts/prompt_factory.py|agents.prompts.prompt_factory._global_factory",
         "agents/prompts/prompt_factory.py|agents.prompts.prompt_factory.initialize_global_factory",
         "agents/prompts/prompt_factory.py|agents.prompts.prompt_factory.get_global_factory",
         "agents/prompts/prompt_factory.py|agents.prompts.prompt_factory.get_prompt",
@@ -1782,7 +1680,6 @@
     },
     "agents/retry.py": {
       "method_keys": [
-        "agents/retry.py|agents.retry.RetryAction",
         "agents/retry.py|agents.retry.RetryDecision",
         "agents/retry.py|agents.retry.default_backoff",
         "agents/retry.py|agents.retry._default_classify",
@@ -1792,7 +1689,6 @@
     "agents/tools/toolkit.py": {
       "method_keys": [
         "agents/tools/toolkit.py|agents.tools.toolkit.CodeBoardingToolkit",
-        "agents/tools/toolkit.py|agents.tools.toolkit.CodeBoardingToolkit.__init__",
         "agents/tools/toolkit.py|agents.tools.toolkit.CodeBoardingToolkit.read_source_reference",
         "agents/tools/toolkit.py|agents.tools.toolkit.CodeBoardingToolkit.read_packages",
         "agents/tools/toolkit.py|agents.tools.toolkit.CodeBoardingToolkit.read_structure",
@@ -1820,8 +1716,7 @@
     },
     "diagram_analysis/exceptions.py": {
       "method_keys": [
-        "diagram_analysis/exceptions.py|diagram_analysis.exceptions.IncrementalCacheMissingError",
-        "diagram_analysis/exceptions.py|diagram_analysis.exceptions.IncrementalCacheMissingError.__init__"
+        "diagram_analysis/exceptions.py|diagram_analysis.exceptions.IncrementalCacheMissingError"
       ]
     },
     "health/checks/circular_deps.py": {
@@ -1867,11 +1762,9 @@
     },
     "health/checks/unused_code_diagnostics.py": {
       "method_keys": [
-        "health/checks/unused_code_diagnostics.py|health.checks.unused_code_diagnostics.DeadCodeCategory",
         "health/checks/unused_code_diagnostics.py|health.checks.unused_code_diagnostics.DiagnosticIssue",
         "health/checks/unused_code_diagnostics.py|health.checks.unused_code_diagnostics.FileDiagnostic",
         "health/checks/unused_code_diagnostics.py|health.checks.unused_code_diagnostics.LSPDiagnosticsCollector",
-        "health/checks/unused_code_diagnostics.py|health.checks.unused_code_diagnostics.LSPDiagnosticsCollector.__init__",
         "health/checks/unused_code_diagnostics.py|health.checks.unused_code_diagnostics.LSPDiagnosticsCollector.add_diagnostic",
         "health/checks/unused_code_diagnostics.py|health.checks.unused_code_diagnostics.LSPDiagnosticsCollector.process_diagnostics",
         "health/checks/unused_code_diagnostics.py|health.checks.unused_code_diagnostics.LSPDiagnosticsCollector._convert_to_issue",
@@ -1893,14 +1786,10 @@
     },
     "health/models.py": {
       "method_keys": [
-        "health/models.py|health.models.Severity",
         "health/models.py|health.models.FindingEntity",
         "health/models.py|health.models.FindingGroup",
-        "health/models.py|health.models.BaseCheckSummary",
         "health/models.py|health.models.StandardCheckSummary",
-        "health/models.py|health.models.StandardCheckSummary.findings",
         "health/models.py|health.models.CircularDependencyCheck",
-        "health/models.py|health.models.CircularDependencyCheck.score",
         "health/models.py|health.models.FileHealthSummary",
         "health/models.py|health.models.HealthReport",
         "health/models.py|health.models.HealthCheckConfig"
@@ -1937,7 +1826,6 @@
     "monitoring/callbacks.py": {
       "method_keys": [
         "monitoring/callbacks.py|monitoring.callbacks.MonitoringCallback",
-        "monitoring/callbacks.py|monitoring.callbacks.MonitoringCallback.__init__",
         "monitoring/callbacks.py|monitoring.callbacks.MonitoringCallback.model_name",
         "monitoring/callbacks.py|monitoring.callbacks.MonitoringCallback.stats",
         "monitoring/callbacks.py|monitoring.callbacks.MonitoringCallback.on_llm_end",
@@ -1947,6 +1835,15 @@
         "monitoring/callbacks.py|monitoring.callbacks.MonitoringCallback._extract_usage",
         "monitoring/callbacks.py|monitoring.callbacks.MonitoringCallback._extract_usage._coerce_int",
         "monitoring/callbacks.py|monitoring.callbacks.MonitoringCallback._extract_usage._extract_usage_from_mapping"
+      ]
+    },
+    "monitoring/stats.py": {
+      "method_keys": [
+        "monitoring/stats.py|monitoring.stats.RunStats",
+        "monitoring/stats.py|monitoring.stats.RunStats.__init__",
+        "monitoring/stats.py|monitoring.stats.RunStats.reset",
+        "monitoring/stats.py|monitoring.stats.RunStats.to_dict",
+        "monitoring/stats.py|monitoring.stats.current_stats"
       ]
     },
     "agents/planner_agent.py": {
@@ -2093,14 +1990,6 @@
         "monitoring/mixin.py|monitoring.mixin.MonitoringMixin.get_monitoring_results"
       ]
     },
-    "monitoring/stats.py": {
-      "method_keys": [
-        "monitoring/stats.py|monitoring.stats.RunStats",
-        "monitoring/stats.py|monitoring.stats.RunStats.__init__",
-        "monitoring/stats.py|monitoring.stats.RunStats.reset",
-        "monitoring/stats.py|monitoring.stats.RunStats.to_dict"
-      ]
-    },
     "telemetry/device_id.py": {
       "method_keys": [
         "telemetry/device_id.py|telemetry.device_id._sha256",
@@ -2213,130 +2102,151 @@
       "end_line": 63,
       "type": "FUNCTION"
     },
+    "agents/llm_config.py|agents.llm_config._model_accepts_temperature": {
+      "file_path": "agents/llm_config.py",
+      "qualified_name": "agents.llm_config._model_accepts_temperature",
+      "start_line": 39,
+      "end_line": 42,
+      "type": "FUNCTION"
+    },
+    "agents/llm_config.py|agents.llm_config._agent_model_override": {
+      "file_path": "agents/llm_config.py",
+      "qualified_name": "agents.llm_config._agent_model_override",
+      "start_line": 50,
+      "end_line": 50,
+      "type": "VARIABLE"
+    },
+    "agents/llm_config.py|agents.llm_config._parsing_model_override": {
+      "file_path": "agents/llm_config.py",
+      "qualified_name": "agents.llm_config._parsing_model_override",
+      "start_line": 51,
+      "end_line": 51,
+      "type": "VARIABLE"
+    },
     "agents/llm_config.py|agents.llm_config.LLMConfig": {
       "file_path": "agents/llm_config.py",
       "qualified_name": "agents.llm_config.LLMConfig",
-      "start_line": 67,
-      "end_line": 123,
+      "start_line": 84,
+      "end_line": 140,
       "type": "CLASS"
     },
     "agents/llm_config.py|agents.llm_config.LLMConfig.get_api_key": {
       "file_path": "agents/llm_config.py",
       "qualified_name": "agents.llm_config.LLMConfig.get_api_key",
-      "start_line": 102,
-      "end_line": 103,
+      "start_line": 119,
+      "end_line": 120,
       "type": "METHOD"
     },
     "agents/llm_config.py|agents.llm_config.LLMConfig.has_real_api_key": {
       "file_path": "agents/llm_config.py",
       "qualified_name": "agents.llm_config.LLMConfig.has_real_api_key",
-      "start_line": 105,
-      "end_line": 111,
+      "start_line": 122,
+      "end_line": 128,
       "type": "METHOD"
     },
     "agents/llm_config.py|agents.llm_config.LLMConfig.is_selected_by_env": {
       "file_path": "agents/llm_config.py",
       "qualified_name": "agents.llm_config.LLMConfig.is_selected_by_env",
-      "start_line": 113,
-      "end_line": 115,
+      "start_line": 130,
+      "end_line": 132,
       "type": "METHOD"
     },
     "agents/llm_config.py|agents.llm_config.LLMConfig.get_resolved_extra_args": {
       "file_path": "agents/llm_config.py",
       "qualified_name": "agents.llm_config.LLMConfig.get_resolved_extra_args",
-      "start_line": 117,
-      "end_line": 123,
+      "start_line": 134,
+      "end_line": 140,
       "type": "METHOD"
     },
     "agents/llm_config.py|agents.llm_config._all_selection_envs": {
       "file_path": "agents/llm_config.py",
       "qualified_name": "agents.llm_config._all_selection_envs",
-      "start_line": 301,
-      "end_line": 302,
+      "start_line": 318,
+      "end_line": 319,
       "type": "FUNCTION"
     },
     "agents/llm_config.py|agents.llm_config._unselected_key_hints": {
       "file_path": "agents/llm_config.py",
       "qualified_name": "agents.llm_config._unselected_key_hints",
-      "start_line": 305,
-      "end_line": 312,
+      "start_line": 322,
+      "end_line": 329,
       "type": "FUNCTION"
     },
     "agents/llm_config.py|agents.llm_config.selected_providers": {
       "file_path": "agents/llm_config.py",
       "qualified_name": "agents.llm_config.selected_providers",
-      "start_line": 315,
-      "end_line": 317,
+      "start_line": 332,
+      "end_line": 334,
       "type": "FUNCTION"
     },
     "agents/llm_config.py|agents.llm_config._initialize_llm": {
       "file_path": "agents/llm_config.py",
       "qualified_name": "agents.llm_config._initialize_llm",
-      "start_line": 320,
-      "end_line": 357,
+      "start_line": 337,
+      "end_line": 373,
       "type": "FUNCTION"
     },
     "agents/llm_config.py|agents.llm_config._resolve_selected_provider": {
       "file_path": "agents/llm_config.py",
       "qualified_name": "agents.llm_config._resolve_selected_provider",
-      "start_line": 360,
-      "end_line": 369,
+      "start_line": 376,
+      "end_line": 385,
       "type": "FUNCTION"
     },
     "agents/llm_config.py|agents.llm_config.LLMConfigError": {
       "file_path": "agents/llm_config.py",
       "qualified_name": "agents.llm_config.LLMConfigError",
-      "start_line": 372,
-      "end_line": 373,
+      "start_line": 388,
+      "end_line": 389,
       "type": "CLASS"
     },
     "agents/llm_config.py|agents.llm_config.validate_api_key_provided": {
       "file_path": "agents/llm_config.py",
       "qualified_name": "agents.llm_config.validate_api_key_provided",
-      "start_line": 376,
-      "end_line": 406,
+      "start_line": 392,
+      "end_line": 422,
       "type": "FUNCTION"
     },
     "agents/llm_config.py|agents.llm_config.initialize_agent_llm": {
       "file_path": "agents/llm_config.py",
       "qualified_name": "agents.llm_config.initialize_agent_llm",
-      "start_line": 409,
-      "end_line": 412,
+      "start_line": 425,
+      "end_line": 428,
       "type": "FUNCTION"
     },
     "agents/llm_config.py|agents.llm_config.get_current_agent_context_window": {
       "file_path": "agents/llm_config.py",
       "qualified_name": "agents.llm_config.get_current_agent_context_window",
-      "start_line": 415,
-      "end_line": 429,
+      "start_line": 431,
+      "end_line": 445,
       "type": "FUNCTION"
     },
     "agents/llm_config.py|agents.llm_config.get_current_agent_model_ref": {
       "file_path": "agents/llm_config.py",
       "qualified_name": "agents.llm_config.get_current_agent_model_ref",
-      "start_line": 432,
-      "end_line": 438,
+      "start_line": 448,
+      "end_line": 454,
       "type": "FUNCTION"
     },
     "agents/llm_config.py|agents.llm_config.initialize_parsing_llm": {
       "file_path": "agents/llm_config.py",
       "qualified_name": "agents.llm_config.initialize_parsing_llm",
-      "start_line": 441,
-      "end_line": 443,
+      "start_line": 457,
+      "end_line": 459,
       "type": "FUNCTION"
     },
     "agents/llm_config.py|agents.llm_config.initialize_llms": {
       "file_path": "agents/llm_config.py",
       "qualified_name": "agents.llm_config.initialize_llms",
-      "start_line": 446,
-      "end_line": 449,
+      "start_line": 462,
+      "end_line": 465,
       "type": "FUNCTION"
     },
     "agents/llm_config.py|agents.llm_config.supports_prompt_caching": {
       "file_path": "agents/llm_config.py",
       "qualified_name": "agents.llm_config.supports_prompt_caching",
-      "start_line": 452,
-      "end_line": 458,
+      "start_line": 468,
+      "end_line": 474,
       "type": "FUNCTION"
     },
     "agents/tools/base.py|agents.tools.base.RepoContext": {
@@ -2962,6 +2872,13 @@
       "end_line": 38,
       "type": "METHOD"
     },
+    "core/__init__.py|core.__init__._registries": {
+      "file_path": "core/__init__.py",
+      "qualified_name": "core.__init__._registries",
+      "start_line": 41,
+      "end_line": 41,
+      "type": "VARIABLE"
+    },
     "core/__init__.py|core.__init__.get_registries": {
       "file_path": "core/__init__.py",
       "qualified_name": "core.__init__.get_registries",
@@ -3206,13 +3123,6 @@
       "start_line": 404,
       "end_line": 411,
       "type": "FUNCTION"
-    },
-    "diagram_analysis/run_context.py|diagram_analysis.run_context.RunContext": {
-      "file_path": "diagram_analysis/run_context.py",
-      "qualified_name": "diagram_analysis.run_context.RunContext",
-      "start_line": 13,
-      "end_line": 40,
-      "type": "CLASS"
     },
     "diagram_analysis/run_context.py|diagram_analysis.run_context.RunContext.resolve": {
       "file_path": "diagram_analysis/run_context.py",
@@ -9500,13 +9410,6 @@
       "end_line": 32,
       "type": "CLASS"
     },
-    "agents/agent.py|agents.agent.CodeBoardingAgent": {
-      "file_path": "agents/agent.py",
-      "qualified_name": "agents.agent.CodeBoardingAgent",
-      "start_line": 35,
-      "end_line": 428,
-      "type": "CLASS"
-    },
     "agents/agent.py|agents.agent.CodeBoardingAgent.__init__": {
       "file_path": "agents/agent.py",
       "qualified_name": "agents.agent.CodeBoardingAgent.__init__",
@@ -10228,13 +10131,6 @@
       "end_line": 49,
       "type": "FUNCTION"
     },
-    "agents/prompts/abstract_prompt_factory.py|agents.prompts.abstract_prompt_factory.AbstractPromptFactory": {
-      "file_path": "agents/prompts/abstract_prompt_factory.py",
-      "qualified_name": "agents.prompts.abstract_prompt_factory.AbstractPromptFactory",
-      "start_line": 10,
-      "end_line": 67,
-      "type": "CLASS"
-    },
     "agents/prompts/abstract_prompt_factory.py|agents.prompts.abstract_prompt_factory.AbstractPromptFactory.get_system_message": {
       "file_path": "agents/prompts/abstract_prompt_factory.py",
       "qualified_name": "agents.prompts.abstract_prompt_factory.AbstractPromptFactory.get_system_message",
@@ -10340,250 +10236,12 @@
       "end_line": 447,
       "type": "CLASS"
     },
-    "agents/prompts/claude_prompts.py|agents.prompts.claude_prompts.ClaudePromptFactory.get_system_message": {
-      "file_path": "agents/prompts/claude_prompts.py",
-      "qualified_name": "agents.prompts.claude_prompts.ClaudePromptFactory.get_system_message",
-      "start_line": 398,
-      "end_line": 399,
-      "type": "METHOD"
-    },
-    "agents/prompts/claude_prompts.py|agents.prompts.claude_prompts.ClaudePromptFactory.get_cluster_grouping_message": {
-      "file_path": "agents/prompts/claude_prompts.py",
-      "qualified_name": "agents.prompts.claude_prompts.ClaudePromptFactory.get_cluster_grouping_message",
-      "start_line": 401,
-      "end_line": 402,
-      "type": "METHOD"
-    },
-    "agents/prompts/claude_prompts.py|agents.prompts.claude_prompts.ClaudePromptFactory.get_final_analysis_message": {
-      "file_path": "agents/prompts/claude_prompts.py",
-      "qualified_name": "agents.prompts.claude_prompts.ClaudePromptFactory.get_final_analysis_message",
-      "start_line": 404,
-      "end_line": 405,
-      "type": "METHOD"
-    },
-    "agents/prompts/claude_prompts.py|agents.prompts.claude_prompts.ClaudePromptFactory.get_planner_system_message": {
-      "file_path": "agents/prompts/claude_prompts.py",
-      "qualified_name": "agents.prompts.claude_prompts.ClaudePromptFactory.get_planner_system_message",
-      "start_line": 407,
-      "end_line": 408,
-      "type": "METHOD"
-    },
-    "agents/prompts/claude_prompts.py|agents.prompts.claude_prompts.ClaudePromptFactory.get_expansion_prompt": {
-      "file_path": "agents/prompts/claude_prompts.py",
-      "qualified_name": "agents.prompts.claude_prompts.ClaudePromptFactory.get_expansion_prompt",
-      "start_line": 410,
-      "end_line": 411,
-      "type": "METHOD"
-    },
-    "agents/prompts/claude_prompts.py|agents.prompts.claude_prompts.ClaudePromptFactory.get_validator_system_message": {
-      "file_path": "agents/prompts/claude_prompts.py",
-      "qualified_name": "agents.prompts.claude_prompts.ClaudePromptFactory.get_validator_system_message",
-      "start_line": 413,
-      "end_line": 414,
-      "type": "METHOD"
-    },
-    "agents/prompts/claude_prompts.py|agents.prompts.claude_prompts.ClaudePromptFactory.get_component_validation_component": {
-      "file_path": "agents/prompts/claude_prompts.py",
-      "qualified_name": "agents.prompts.claude_prompts.ClaudePromptFactory.get_component_validation_component",
-      "start_line": 416,
-      "end_line": 417,
-      "type": "METHOD"
-    },
-    "agents/prompts/claude_prompts.py|agents.prompts.claude_prompts.ClaudePromptFactory.get_relationships_validation": {
-      "file_path": "agents/prompts/claude_prompts.py",
-      "qualified_name": "agents.prompts.claude_prompts.ClaudePromptFactory.get_relationships_validation",
-      "start_line": 419,
-      "end_line": 420,
-      "type": "METHOD"
-    },
-    "agents/prompts/claude_prompts.py|agents.prompts.claude_prompts.ClaudePromptFactory.get_system_meta_analysis_message": {
-      "file_path": "agents/prompts/claude_prompts.py",
-      "qualified_name": "agents.prompts.claude_prompts.ClaudePromptFactory.get_system_meta_analysis_message",
-      "start_line": 422,
-      "end_line": 423,
-      "type": "METHOD"
-    },
-    "agents/prompts/claude_prompts.py|agents.prompts.claude_prompts.ClaudePromptFactory.get_meta_information_prompt": {
-      "file_path": "agents/prompts/claude_prompts.py",
-      "qualified_name": "agents.prompts.claude_prompts.ClaudePromptFactory.get_meta_information_prompt",
-      "start_line": 425,
-      "end_line": 426,
-      "type": "METHOD"
-    },
-    "agents/prompts/claude_prompts.py|agents.prompts.claude_prompts.ClaudePromptFactory.get_file_classification_message": {
-      "file_path": "agents/prompts/claude_prompts.py",
-      "qualified_name": "agents.prompts.claude_prompts.ClaudePromptFactory.get_file_classification_message",
-      "start_line": 428,
-      "end_line": 429,
-      "type": "METHOD"
-    },
-    "agents/prompts/claude_prompts.py|agents.prompts.claude_prompts.ClaudePromptFactory.get_validation_feedback_message": {
-      "file_path": "agents/prompts/claude_prompts.py",
-      "qualified_name": "agents.prompts.claude_prompts.ClaudePromptFactory.get_validation_feedback_message",
-      "start_line": 431,
-      "end_line": 432,
-      "type": "METHOD"
-    },
-    "agents/prompts/claude_prompts.py|agents.prompts.claude_prompts.ClaudePromptFactory.get_system_details_message": {
-      "file_path": "agents/prompts/claude_prompts.py",
-      "qualified_name": "agents.prompts.claude_prompts.ClaudePromptFactory.get_system_details_message",
-      "start_line": 434,
-      "end_line": 435,
-      "type": "METHOD"
-    },
-    "agents/prompts/claude_prompts.py|agents.prompts.claude_prompts.ClaudePromptFactory.get_cfg_details_message": {
-      "file_path": "agents/prompts/claude_prompts.py",
-      "qualified_name": "agents.prompts.claude_prompts.ClaudePromptFactory.get_cfg_details_message",
-      "start_line": 437,
-      "end_line": 438,
-      "type": "METHOD"
-    },
-    "agents/prompts/claude_prompts.py|agents.prompts.claude_prompts.ClaudePromptFactory.get_incremental_grouping_message": {
-      "file_path": "agents/prompts/claude_prompts.py",
-      "qualified_name": "agents.prompts.claude_prompts.ClaudePromptFactory.get_incremental_grouping_message",
-      "start_line": 440,
-      "end_line": 441,
-      "type": "METHOD"
-    },
-    "agents/prompts/claude_prompts.py|agents.prompts.claude_prompts.ClaudePromptFactory.get_scope_relations_message": {
-      "file_path": "agents/prompts/claude_prompts.py",
-      "qualified_name": "agents.prompts.claude_prompts.ClaudePromptFactory.get_scope_relations_message",
-      "start_line": 443,
-      "end_line": 444,
-      "type": "METHOD"
-    },
-    "agents/prompts/claude_prompts.py|agents.prompts.claude_prompts.ClaudePromptFactory.get_details_message": {
-      "file_path": "agents/prompts/claude_prompts.py",
-      "qualified_name": "agents.prompts.claude_prompts.ClaudePromptFactory.get_details_message",
-      "start_line": 446,
-      "end_line": 447,
-      "type": "METHOD"
-    },
     "agents/prompts/deepseek_prompts.py|agents.prompts.deepseek_prompts.DeepSeekPromptFactory": {
       "file_path": "agents/prompts/deepseek_prompts.py",
       "qualified_name": "agents.prompts.deepseek_prompts.DeepSeekPromptFactory",
       "start_line": 404,
       "end_line": 456,
       "type": "CLASS"
-    },
-    "agents/prompts/deepseek_prompts.py|agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_system_message": {
-      "file_path": "agents/prompts/deepseek_prompts.py",
-      "qualified_name": "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_system_message",
-      "start_line": 407,
-      "end_line": 408,
-      "type": "METHOD"
-    },
-    "agents/prompts/deepseek_prompts.py|agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_cluster_grouping_message": {
-      "file_path": "agents/prompts/deepseek_prompts.py",
-      "qualified_name": "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_cluster_grouping_message",
-      "start_line": 410,
-      "end_line": 411,
-      "type": "METHOD"
-    },
-    "agents/prompts/deepseek_prompts.py|agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_final_analysis_message": {
-      "file_path": "agents/prompts/deepseek_prompts.py",
-      "qualified_name": "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_final_analysis_message",
-      "start_line": 413,
-      "end_line": 414,
-      "type": "METHOD"
-    },
-    "agents/prompts/deepseek_prompts.py|agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_planner_system_message": {
-      "file_path": "agents/prompts/deepseek_prompts.py",
-      "qualified_name": "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_planner_system_message",
-      "start_line": 416,
-      "end_line": 417,
-      "type": "METHOD"
-    },
-    "agents/prompts/deepseek_prompts.py|agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_expansion_prompt": {
-      "file_path": "agents/prompts/deepseek_prompts.py",
-      "qualified_name": "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_expansion_prompt",
-      "start_line": 419,
-      "end_line": 420,
-      "type": "METHOD"
-    },
-    "agents/prompts/deepseek_prompts.py|agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_validator_system_message": {
-      "file_path": "agents/prompts/deepseek_prompts.py",
-      "qualified_name": "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_validator_system_message",
-      "start_line": 422,
-      "end_line": 423,
-      "type": "METHOD"
-    },
-    "agents/prompts/deepseek_prompts.py|agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_component_validation_component": {
-      "file_path": "agents/prompts/deepseek_prompts.py",
-      "qualified_name": "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_component_validation_component",
-      "start_line": 425,
-      "end_line": 426,
-      "type": "METHOD"
-    },
-    "agents/prompts/deepseek_prompts.py|agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_relationships_validation": {
-      "file_path": "agents/prompts/deepseek_prompts.py",
-      "qualified_name": "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_relationships_validation",
-      "start_line": 428,
-      "end_line": 429,
-      "type": "METHOD"
-    },
-    "agents/prompts/deepseek_prompts.py|agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_system_meta_analysis_message": {
-      "file_path": "agents/prompts/deepseek_prompts.py",
-      "qualified_name": "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_system_meta_analysis_message",
-      "start_line": 431,
-      "end_line": 432,
-      "type": "METHOD"
-    },
-    "agents/prompts/deepseek_prompts.py|agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_meta_information_prompt": {
-      "file_path": "agents/prompts/deepseek_prompts.py",
-      "qualified_name": "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_meta_information_prompt",
-      "start_line": 434,
-      "end_line": 435,
-      "type": "METHOD"
-    },
-    "agents/prompts/deepseek_prompts.py|agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_file_classification_message": {
-      "file_path": "agents/prompts/deepseek_prompts.py",
-      "qualified_name": "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_file_classification_message",
-      "start_line": 437,
-      "end_line": 438,
-      "type": "METHOD"
-    },
-    "agents/prompts/deepseek_prompts.py|agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_validation_feedback_message": {
-      "file_path": "agents/prompts/deepseek_prompts.py",
-      "qualified_name": "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_validation_feedback_message",
-      "start_line": 440,
-      "end_line": 441,
-      "type": "METHOD"
-    },
-    "agents/prompts/deepseek_prompts.py|agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_system_details_message": {
-      "file_path": "agents/prompts/deepseek_prompts.py",
-      "qualified_name": "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_system_details_message",
-      "start_line": 443,
-      "end_line": 444,
-      "type": "METHOD"
-    },
-    "agents/prompts/deepseek_prompts.py|agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_cfg_details_message": {
-      "file_path": "agents/prompts/deepseek_prompts.py",
-      "qualified_name": "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_cfg_details_message",
-      "start_line": 446,
-      "end_line": 447,
-      "type": "METHOD"
-    },
-    "agents/prompts/deepseek_prompts.py|agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_details_message": {
-      "file_path": "agents/prompts/deepseek_prompts.py",
-      "qualified_name": "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_details_message",
-      "start_line": 449,
-      "end_line": 450,
-      "type": "METHOD"
-    },
-    "agents/prompts/deepseek_prompts.py|agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_incremental_grouping_message": {
-      "file_path": "agents/prompts/deepseek_prompts.py",
-      "qualified_name": "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_incremental_grouping_message",
-      "start_line": 452,
-      "end_line": 453,
-      "type": "METHOD"
-    },
-    "agents/prompts/deepseek_prompts.py|agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_scope_relations_message": {
-      "file_path": "agents/prompts/deepseek_prompts.py",
-      "qualified_name": "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_scope_relations_message",
-      "start_line": 455,
-      "end_line": 456,
-      "type": "METHOD"
     },
     "agents/prompts/gemini_flash_prompts.py|agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory": {
       "file_path": "agents/prompts/gemini_flash_prompts.py",
@@ -10592,250 +10250,12 @@
       "end_line": 411,
       "type": "CLASS"
     },
-    "agents/prompts/gemini_flash_prompts.py|agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_system_message": {
-      "file_path": "agents/prompts/gemini_flash_prompts.py",
-      "qualified_name": "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_system_message",
-      "start_line": 362,
-      "end_line": 363,
-      "type": "METHOD"
-    },
-    "agents/prompts/gemini_flash_prompts.py|agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_cluster_grouping_message": {
-      "file_path": "agents/prompts/gemini_flash_prompts.py",
-      "qualified_name": "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_cluster_grouping_message",
-      "start_line": 365,
-      "end_line": 366,
-      "type": "METHOD"
-    },
-    "agents/prompts/gemini_flash_prompts.py|agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_final_analysis_message": {
-      "file_path": "agents/prompts/gemini_flash_prompts.py",
-      "qualified_name": "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_final_analysis_message",
-      "start_line": 368,
-      "end_line": 369,
-      "type": "METHOD"
-    },
-    "agents/prompts/gemini_flash_prompts.py|agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_planner_system_message": {
-      "file_path": "agents/prompts/gemini_flash_prompts.py",
-      "qualified_name": "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_planner_system_message",
-      "start_line": 371,
-      "end_line": 372,
-      "type": "METHOD"
-    },
-    "agents/prompts/gemini_flash_prompts.py|agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_expansion_prompt": {
-      "file_path": "agents/prompts/gemini_flash_prompts.py",
-      "qualified_name": "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_expansion_prompt",
-      "start_line": 374,
-      "end_line": 375,
-      "type": "METHOD"
-    },
-    "agents/prompts/gemini_flash_prompts.py|agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_validator_system_message": {
-      "file_path": "agents/prompts/gemini_flash_prompts.py",
-      "qualified_name": "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_validator_system_message",
-      "start_line": 377,
-      "end_line": 378,
-      "type": "METHOD"
-    },
-    "agents/prompts/gemini_flash_prompts.py|agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_component_validation_component": {
-      "file_path": "agents/prompts/gemini_flash_prompts.py",
-      "qualified_name": "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_component_validation_component",
-      "start_line": 380,
-      "end_line": 381,
-      "type": "METHOD"
-    },
-    "agents/prompts/gemini_flash_prompts.py|agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_relationships_validation": {
-      "file_path": "agents/prompts/gemini_flash_prompts.py",
-      "qualified_name": "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_relationships_validation",
-      "start_line": 383,
-      "end_line": 384,
-      "type": "METHOD"
-    },
-    "agents/prompts/gemini_flash_prompts.py|agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_system_meta_analysis_message": {
-      "file_path": "agents/prompts/gemini_flash_prompts.py",
-      "qualified_name": "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_system_meta_analysis_message",
-      "start_line": 386,
-      "end_line": 387,
-      "type": "METHOD"
-    },
-    "agents/prompts/gemini_flash_prompts.py|agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_meta_information_prompt": {
-      "file_path": "agents/prompts/gemini_flash_prompts.py",
-      "qualified_name": "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_meta_information_prompt",
-      "start_line": 389,
-      "end_line": 390,
-      "type": "METHOD"
-    },
-    "agents/prompts/gemini_flash_prompts.py|agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_file_classification_message": {
-      "file_path": "agents/prompts/gemini_flash_prompts.py",
-      "qualified_name": "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_file_classification_message",
-      "start_line": 392,
-      "end_line": 393,
-      "type": "METHOD"
-    },
-    "agents/prompts/gemini_flash_prompts.py|agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_validation_feedback_message": {
-      "file_path": "agents/prompts/gemini_flash_prompts.py",
-      "qualified_name": "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_validation_feedback_message",
-      "start_line": 395,
-      "end_line": 396,
-      "type": "METHOD"
-    },
-    "agents/prompts/gemini_flash_prompts.py|agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_system_details_message": {
-      "file_path": "agents/prompts/gemini_flash_prompts.py",
-      "qualified_name": "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_system_details_message",
-      "start_line": 398,
-      "end_line": 399,
-      "type": "METHOD"
-    },
-    "agents/prompts/gemini_flash_prompts.py|agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_cfg_details_message": {
-      "file_path": "agents/prompts/gemini_flash_prompts.py",
-      "qualified_name": "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_cfg_details_message",
-      "start_line": 401,
-      "end_line": 402,
-      "type": "METHOD"
-    },
-    "agents/prompts/gemini_flash_prompts.py|agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_details_message": {
-      "file_path": "agents/prompts/gemini_flash_prompts.py",
-      "qualified_name": "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_details_message",
-      "start_line": 404,
-      "end_line": 405,
-      "type": "METHOD"
-    },
-    "agents/prompts/gemini_flash_prompts.py|agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_incremental_grouping_message": {
-      "file_path": "agents/prompts/gemini_flash_prompts.py",
-      "qualified_name": "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_incremental_grouping_message",
-      "start_line": 407,
-      "end_line": 408,
-      "type": "METHOD"
-    },
-    "agents/prompts/gemini_flash_prompts.py|agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_scope_relations_message": {
-      "file_path": "agents/prompts/gemini_flash_prompts.py",
-      "qualified_name": "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_scope_relations_message",
-      "start_line": 410,
-      "end_line": 411,
-      "type": "METHOD"
-    },
     "agents/prompts/glm_prompts.py|agents.prompts.glm_prompts.GLMPromptFactory": {
       "file_path": "agents/prompts/glm_prompts.py",
       "qualified_name": "agents.prompts.glm_prompts.GLMPromptFactory",
       "start_line": 432,
       "end_line": 484,
       "type": "CLASS"
-    },
-    "agents/prompts/glm_prompts.py|agents.prompts.glm_prompts.GLMPromptFactory.get_system_message": {
-      "file_path": "agents/prompts/glm_prompts.py",
-      "qualified_name": "agents.prompts.glm_prompts.GLMPromptFactory.get_system_message",
-      "start_line": 435,
-      "end_line": 436,
-      "type": "METHOD"
-    },
-    "agents/prompts/glm_prompts.py|agents.prompts.glm_prompts.GLMPromptFactory.get_cluster_grouping_message": {
-      "file_path": "agents/prompts/glm_prompts.py",
-      "qualified_name": "agents.prompts.glm_prompts.GLMPromptFactory.get_cluster_grouping_message",
-      "start_line": 438,
-      "end_line": 439,
-      "type": "METHOD"
-    },
-    "agents/prompts/glm_prompts.py|agents.prompts.glm_prompts.GLMPromptFactory.get_final_analysis_message": {
-      "file_path": "agents/prompts/glm_prompts.py",
-      "qualified_name": "agents.prompts.glm_prompts.GLMPromptFactory.get_final_analysis_message",
-      "start_line": 441,
-      "end_line": 442,
-      "type": "METHOD"
-    },
-    "agents/prompts/glm_prompts.py|agents.prompts.glm_prompts.GLMPromptFactory.get_planner_system_message": {
-      "file_path": "agents/prompts/glm_prompts.py",
-      "qualified_name": "agents.prompts.glm_prompts.GLMPromptFactory.get_planner_system_message",
-      "start_line": 444,
-      "end_line": 445,
-      "type": "METHOD"
-    },
-    "agents/prompts/glm_prompts.py|agents.prompts.glm_prompts.GLMPromptFactory.get_expansion_prompt": {
-      "file_path": "agents/prompts/glm_prompts.py",
-      "qualified_name": "agents.prompts.glm_prompts.GLMPromptFactory.get_expansion_prompt",
-      "start_line": 447,
-      "end_line": 448,
-      "type": "METHOD"
-    },
-    "agents/prompts/glm_prompts.py|agents.prompts.glm_prompts.GLMPromptFactory.get_validator_system_message": {
-      "file_path": "agents/prompts/glm_prompts.py",
-      "qualified_name": "agents.prompts.glm_prompts.GLMPromptFactory.get_validator_system_message",
-      "start_line": 450,
-      "end_line": 451,
-      "type": "METHOD"
-    },
-    "agents/prompts/glm_prompts.py|agents.prompts.glm_prompts.GLMPromptFactory.get_component_validation_component": {
-      "file_path": "agents/prompts/glm_prompts.py",
-      "qualified_name": "agents.prompts.glm_prompts.GLMPromptFactory.get_component_validation_component",
-      "start_line": 453,
-      "end_line": 454,
-      "type": "METHOD"
-    },
-    "agents/prompts/glm_prompts.py|agents.prompts.glm_prompts.GLMPromptFactory.get_relationships_validation": {
-      "file_path": "agents/prompts/glm_prompts.py",
-      "qualified_name": "agents.prompts.glm_prompts.GLMPromptFactory.get_relationships_validation",
-      "start_line": 456,
-      "end_line": 457,
-      "type": "METHOD"
-    },
-    "agents/prompts/glm_prompts.py|agents.prompts.glm_prompts.GLMPromptFactory.get_system_meta_analysis_message": {
-      "file_path": "agents/prompts/glm_prompts.py",
-      "qualified_name": "agents.prompts.glm_prompts.GLMPromptFactory.get_system_meta_analysis_message",
-      "start_line": 459,
-      "end_line": 460,
-      "type": "METHOD"
-    },
-    "agents/prompts/glm_prompts.py|agents.prompts.glm_prompts.GLMPromptFactory.get_meta_information_prompt": {
-      "file_path": "agents/prompts/glm_prompts.py",
-      "qualified_name": "agents.prompts.glm_prompts.GLMPromptFactory.get_meta_information_prompt",
-      "start_line": 462,
-      "end_line": 463,
-      "type": "METHOD"
-    },
-    "agents/prompts/glm_prompts.py|agents.prompts.glm_prompts.GLMPromptFactory.get_file_classification_message": {
-      "file_path": "agents/prompts/glm_prompts.py",
-      "qualified_name": "agents.prompts.glm_prompts.GLMPromptFactory.get_file_classification_message",
-      "start_line": 465,
-      "end_line": 466,
-      "type": "METHOD"
-    },
-    "agents/prompts/glm_prompts.py|agents.prompts.glm_prompts.GLMPromptFactory.get_validation_feedback_message": {
-      "file_path": "agents/prompts/glm_prompts.py",
-      "qualified_name": "agents.prompts.glm_prompts.GLMPromptFactory.get_validation_feedback_message",
-      "start_line": 468,
-      "end_line": 469,
-      "type": "METHOD"
-    },
-    "agents/prompts/glm_prompts.py|agents.prompts.glm_prompts.GLMPromptFactory.get_system_details_message": {
-      "file_path": "agents/prompts/glm_prompts.py",
-      "qualified_name": "agents.prompts.glm_prompts.GLMPromptFactory.get_system_details_message",
-      "start_line": 471,
-      "end_line": 472,
-      "type": "METHOD"
-    },
-    "agents/prompts/glm_prompts.py|agents.prompts.glm_prompts.GLMPromptFactory.get_cfg_details_message": {
-      "file_path": "agents/prompts/glm_prompts.py",
-      "qualified_name": "agents.prompts.glm_prompts.GLMPromptFactory.get_cfg_details_message",
-      "start_line": 474,
-      "end_line": 475,
-      "type": "METHOD"
-    },
-    "agents/prompts/glm_prompts.py|agents.prompts.glm_prompts.GLMPromptFactory.get_details_message": {
-      "file_path": "agents/prompts/glm_prompts.py",
-      "qualified_name": "agents.prompts.glm_prompts.GLMPromptFactory.get_details_message",
-      "start_line": 477,
-      "end_line": 478,
-      "type": "METHOD"
-    },
-    "agents/prompts/glm_prompts.py|agents.prompts.glm_prompts.GLMPromptFactory.get_incremental_grouping_message": {
-      "file_path": "agents/prompts/glm_prompts.py",
-      "qualified_name": "agents.prompts.glm_prompts.GLMPromptFactory.get_incremental_grouping_message",
-      "start_line": 480,
-      "end_line": 481,
-      "type": "METHOD"
-    },
-    "agents/prompts/glm_prompts.py|agents.prompts.glm_prompts.GLMPromptFactory.get_scope_relations_message": {
-      "file_path": "agents/prompts/glm_prompts.py",
-      "qualified_name": "agents.prompts.glm_prompts.GLMPromptFactory.get_scope_relations_message",
-      "start_line": 483,
-      "end_line": 484,
-      "type": "METHOD"
     },
     "agents/prompts/gpt_prompts.py|agents.prompts.gpt_prompts.GPTPromptFactory": {
       "file_path": "agents/prompts/gpt_prompts.py",
@@ -10844,256 +10264,11 @@
       "end_line": 519,
       "type": "CLASS"
     },
-    "agents/prompts/gpt_prompts.py|agents.prompts.gpt_prompts.GPTPromptFactory.get_system_message": {
-      "file_path": "agents/prompts/gpt_prompts.py",
-      "qualified_name": "agents.prompts.gpt_prompts.GPTPromptFactory.get_system_message",
-      "start_line": 470,
-      "end_line": 471,
-      "type": "METHOD"
-    },
-    "agents/prompts/gpt_prompts.py|agents.prompts.gpt_prompts.GPTPromptFactory.get_cluster_grouping_message": {
-      "file_path": "agents/prompts/gpt_prompts.py",
-      "qualified_name": "agents.prompts.gpt_prompts.GPTPromptFactory.get_cluster_grouping_message",
-      "start_line": 473,
-      "end_line": 474,
-      "type": "METHOD"
-    },
-    "agents/prompts/gpt_prompts.py|agents.prompts.gpt_prompts.GPTPromptFactory.get_final_analysis_message": {
-      "file_path": "agents/prompts/gpt_prompts.py",
-      "qualified_name": "agents.prompts.gpt_prompts.GPTPromptFactory.get_final_analysis_message",
-      "start_line": 476,
-      "end_line": 477,
-      "type": "METHOD"
-    },
-    "agents/prompts/gpt_prompts.py|agents.prompts.gpt_prompts.GPTPromptFactory.get_planner_system_message": {
-      "file_path": "agents/prompts/gpt_prompts.py",
-      "qualified_name": "agents.prompts.gpt_prompts.GPTPromptFactory.get_planner_system_message",
-      "start_line": 479,
-      "end_line": 480,
-      "type": "METHOD"
-    },
-    "agents/prompts/gpt_prompts.py|agents.prompts.gpt_prompts.GPTPromptFactory.get_expansion_prompt": {
-      "file_path": "agents/prompts/gpt_prompts.py",
-      "qualified_name": "agents.prompts.gpt_prompts.GPTPromptFactory.get_expansion_prompt",
-      "start_line": 482,
-      "end_line": 483,
-      "type": "METHOD"
-    },
-    "agents/prompts/gpt_prompts.py|agents.prompts.gpt_prompts.GPTPromptFactory.get_validator_system_message": {
-      "file_path": "agents/prompts/gpt_prompts.py",
-      "qualified_name": "agents.prompts.gpt_prompts.GPTPromptFactory.get_validator_system_message",
-      "start_line": 485,
-      "end_line": 486,
-      "type": "METHOD"
-    },
-    "agents/prompts/gpt_prompts.py|agents.prompts.gpt_prompts.GPTPromptFactory.get_component_validation_component": {
-      "file_path": "agents/prompts/gpt_prompts.py",
-      "qualified_name": "agents.prompts.gpt_prompts.GPTPromptFactory.get_component_validation_component",
-      "start_line": 488,
-      "end_line": 489,
-      "type": "METHOD"
-    },
-    "agents/prompts/gpt_prompts.py|agents.prompts.gpt_prompts.GPTPromptFactory.get_relationships_validation": {
-      "file_path": "agents/prompts/gpt_prompts.py",
-      "qualified_name": "agents.prompts.gpt_prompts.GPTPromptFactory.get_relationships_validation",
-      "start_line": 491,
-      "end_line": 492,
-      "type": "METHOD"
-    },
-    "agents/prompts/gpt_prompts.py|agents.prompts.gpt_prompts.GPTPromptFactory.get_system_meta_analysis_message": {
-      "file_path": "agents/prompts/gpt_prompts.py",
-      "qualified_name": "agents.prompts.gpt_prompts.GPTPromptFactory.get_system_meta_analysis_message",
-      "start_line": 494,
-      "end_line": 495,
-      "type": "METHOD"
-    },
-    "agents/prompts/gpt_prompts.py|agents.prompts.gpt_prompts.GPTPromptFactory.get_meta_information_prompt": {
-      "file_path": "agents/prompts/gpt_prompts.py",
-      "qualified_name": "agents.prompts.gpt_prompts.GPTPromptFactory.get_meta_information_prompt",
-      "start_line": 497,
-      "end_line": 498,
-      "type": "METHOD"
-    },
-    "agents/prompts/gpt_prompts.py|agents.prompts.gpt_prompts.GPTPromptFactory.get_file_classification_message": {
-      "file_path": "agents/prompts/gpt_prompts.py",
-      "qualified_name": "agents.prompts.gpt_prompts.GPTPromptFactory.get_file_classification_message",
-      "start_line": 500,
-      "end_line": 501,
-      "type": "METHOD"
-    },
-    "agents/prompts/gpt_prompts.py|agents.prompts.gpt_prompts.GPTPromptFactory.get_validation_feedback_message": {
-      "file_path": "agents/prompts/gpt_prompts.py",
-      "qualified_name": "agents.prompts.gpt_prompts.GPTPromptFactory.get_validation_feedback_message",
-      "start_line": 503,
-      "end_line": 504,
-      "type": "METHOD"
-    },
-    "agents/prompts/gpt_prompts.py|agents.prompts.gpt_prompts.GPTPromptFactory.get_system_details_message": {
-      "file_path": "agents/prompts/gpt_prompts.py",
-      "qualified_name": "agents.prompts.gpt_prompts.GPTPromptFactory.get_system_details_message",
-      "start_line": 506,
-      "end_line": 507,
-      "type": "METHOD"
-    },
-    "agents/prompts/gpt_prompts.py|agents.prompts.gpt_prompts.GPTPromptFactory.get_cfg_details_message": {
-      "file_path": "agents/prompts/gpt_prompts.py",
-      "qualified_name": "agents.prompts.gpt_prompts.GPTPromptFactory.get_cfg_details_message",
-      "start_line": 509,
-      "end_line": 510,
-      "type": "METHOD"
-    },
-    "agents/prompts/gpt_prompts.py|agents.prompts.gpt_prompts.GPTPromptFactory.get_details_message": {
-      "file_path": "agents/prompts/gpt_prompts.py",
-      "qualified_name": "agents.prompts.gpt_prompts.GPTPromptFactory.get_details_message",
-      "start_line": 512,
-      "end_line": 513,
-      "type": "METHOD"
-    },
-    "agents/prompts/gpt_prompts.py|agents.prompts.gpt_prompts.GPTPromptFactory.get_incremental_grouping_message": {
-      "file_path": "agents/prompts/gpt_prompts.py",
-      "qualified_name": "agents.prompts.gpt_prompts.GPTPromptFactory.get_incremental_grouping_message",
-      "start_line": 515,
-      "end_line": 516,
-      "type": "METHOD"
-    },
-    "agents/prompts/gpt_prompts.py|agents.prompts.gpt_prompts.GPTPromptFactory.get_scope_relations_message": {
-      "file_path": "agents/prompts/gpt_prompts.py",
-      "qualified_name": "agents.prompts.gpt_prompts.GPTPromptFactory.get_scope_relations_message",
-      "start_line": 518,
-      "end_line": 519,
-      "type": "METHOD"
-    },
     "agents/prompts/kimi_prompts.py|agents.prompts.kimi_prompts.KimiPromptFactory": {
       "file_path": "agents/prompts/kimi_prompts.py",
       "qualified_name": "agents.prompts.kimi_prompts.KimiPromptFactory",
       "start_line": 397,
       "end_line": 449,
-      "type": "CLASS"
-    },
-    "agents/prompts/kimi_prompts.py|agents.prompts.kimi_prompts.KimiPromptFactory.get_system_message": {
-      "file_path": "agents/prompts/kimi_prompts.py",
-      "qualified_name": "agents.prompts.kimi_prompts.KimiPromptFactory.get_system_message",
-      "start_line": 400,
-      "end_line": 401,
-      "type": "METHOD"
-    },
-    "agents/prompts/kimi_prompts.py|agents.prompts.kimi_prompts.KimiPromptFactory.get_cluster_grouping_message": {
-      "file_path": "agents/prompts/kimi_prompts.py",
-      "qualified_name": "agents.prompts.kimi_prompts.KimiPromptFactory.get_cluster_grouping_message",
-      "start_line": 403,
-      "end_line": 404,
-      "type": "METHOD"
-    },
-    "agents/prompts/kimi_prompts.py|agents.prompts.kimi_prompts.KimiPromptFactory.get_final_analysis_message": {
-      "file_path": "agents/prompts/kimi_prompts.py",
-      "qualified_name": "agents.prompts.kimi_prompts.KimiPromptFactory.get_final_analysis_message",
-      "start_line": 406,
-      "end_line": 407,
-      "type": "METHOD"
-    },
-    "agents/prompts/kimi_prompts.py|agents.prompts.kimi_prompts.KimiPromptFactory.get_planner_system_message": {
-      "file_path": "agents/prompts/kimi_prompts.py",
-      "qualified_name": "agents.prompts.kimi_prompts.KimiPromptFactory.get_planner_system_message",
-      "start_line": 409,
-      "end_line": 410,
-      "type": "METHOD"
-    },
-    "agents/prompts/kimi_prompts.py|agents.prompts.kimi_prompts.KimiPromptFactory.get_expansion_prompt": {
-      "file_path": "agents/prompts/kimi_prompts.py",
-      "qualified_name": "agents.prompts.kimi_prompts.KimiPromptFactory.get_expansion_prompt",
-      "start_line": 412,
-      "end_line": 413,
-      "type": "METHOD"
-    },
-    "agents/prompts/kimi_prompts.py|agents.prompts.kimi_prompts.KimiPromptFactory.get_validator_system_message": {
-      "file_path": "agents/prompts/kimi_prompts.py",
-      "qualified_name": "agents.prompts.kimi_prompts.KimiPromptFactory.get_validator_system_message",
-      "start_line": 415,
-      "end_line": 416,
-      "type": "METHOD"
-    },
-    "agents/prompts/kimi_prompts.py|agents.prompts.kimi_prompts.KimiPromptFactory.get_component_validation_component": {
-      "file_path": "agents/prompts/kimi_prompts.py",
-      "qualified_name": "agents.prompts.kimi_prompts.KimiPromptFactory.get_component_validation_component",
-      "start_line": 418,
-      "end_line": 419,
-      "type": "METHOD"
-    },
-    "agents/prompts/kimi_prompts.py|agents.prompts.kimi_prompts.KimiPromptFactory.get_relationships_validation": {
-      "file_path": "agents/prompts/kimi_prompts.py",
-      "qualified_name": "agents.prompts.kimi_prompts.KimiPromptFactory.get_relationships_validation",
-      "start_line": 421,
-      "end_line": 422,
-      "type": "METHOD"
-    },
-    "agents/prompts/kimi_prompts.py|agents.prompts.kimi_prompts.KimiPromptFactory.get_system_meta_analysis_message": {
-      "file_path": "agents/prompts/kimi_prompts.py",
-      "qualified_name": "agents.prompts.kimi_prompts.KimiPromptFactory.get_system_meta_analysis_message",
-      "start_line": 424,
-      "end_line": 425,
-      "type": "METHOD"
-    },
-    "agents/prompts/kimi_prompts.py|agents.prompts.kimi_prompts.KimiPromptFactory.get_meta_information_prompt": {
-      "file_path": "agents/prompts/kimi_prompts.py",
-      "qualified_name": "agents.prompts.kimi_prompts.KimiPromptFactory.get_meta_information_prompt",
-      "start_line": 427,
-      "end_line": 428,
-      "type": "METHOD"
-    },
-    "agents/prompts/kimi_prompts.py|agents.prompts.kimi_prompts.KimiPromptFactory.get_file_classification_message": {
-      "file_path": "agents/prompts/kimi_prompts.py",
-      "qualified_name": "agents.prompts.kimi_prompts.KimiPromptFactory.get_file_classification_message",
-      "start_line": 430,
-      "end_line": 431,
-      "type": "METHOD"
-    },
-    "agents/prompts/kimi_prompts.py|agents.prompts.kimi_prompts.KimiPromptFactory.get_validation_feedback_message": {
-      "file_path": "agents/prompts/kimi_prompts.py",
-      "qualified_name": "agents.prompts.kimi_prompts.KimiPromptFactory.get_validation_feedback_message",
-      "start_line": 433,
-      "end_line": 434,
-      "type": "METHOD"
-    },
-    "agents/prompts/kimi_prompts.py|agents.prompts.kimi_prompts.KimiPromptFactory.get_system_details_message": {
-      "file_path": "agents/prompts/kimi_prompts.py",
-      "qualified_name": "agents.prompts.kimi_prompts.KimiPromptFactory.get_system_details_message",
-      "start_line": 436,
-      "end_line": 437,
-      "type": "METHOD"
-    },
-    "agents/prompts/kimi_prompts.py|agents.prompts.kimi_prompts.KimiPromptFactory.get_cfg_details_message": {
-      "file_path": "agents/prompts/kimi_prompts.py",
-      "qualified_name": "agents.prompts.kimi_prompts.KimiPromptFactory.get_cfg_details_message",
-      "start_line": 439,
-      "end_line": 440,
-      "type": "METHOD"
-    },
-    "agents/prompts/kimi_prompts.py|agents.prompts.kimi_prompts.KimiPromptFactory.get_details_message": {
-      "file_path": "agents/prompts/kimi_prompts.py",
-      "qualified_name": "agents.prompts.kimi_prompts.KimiPromptFactory.get_details_message",
-      "start_line": 442,
-      "end_line": 443,
-      "type": "METHOD"
-    },
-    "agents/prompts/kimi_prompts.py|agents.prompts.kimi_prompts.KimiPromptFactory.get_incremental_grouping_message": {
-      "file_path": "agents/prompts/kimi_prompts.py",
-      "qualified_name": "agents.prompts.kimi_prompts.KimiPromptFactory.get_incremental_grouping_message",
-      "start_line": 445,
-      "end_line": 446,
-      "type": "METHOD"
-    },
-    "agents/prompts/kimi_prompts.py|agents.prompts.kimi_prompts.KimiPromptFactory.get_scope_relations_message": {
-      "file_path": "agents/prompts/kimi_prompts.py",
-      "qualified_name": "agents.prompts.kimi_prompts.KimiPromptFactory.get_scope_relations_message",
-      "start_line": 448,
-      "end_line": 449,
-      "type": "METHOD"
-    },
-    "agents/prompts/prompt_factory.py|agents.prompts.prompt_factory.LLMType": {
-      "file_path": "agents/prompts/prompt_factory.py",
-      "qualified_name": "agents.prompts.prompt_factory.LLMType",
-      "start_line": 20,
-      "end_line": 46,
       "type": "CLASS"
     },
     "agents/prompts/prompt_factory.py|agents.prompts.prompt_factory.LLMType.from_model_name": {
@@ -11131,12 +10306,12 @@
       "end_line": 87,
       "type": "METHOD"
     },
-    "agents/prompts/prompt_factory.py|agents.prompts.prompt_factory.PromptFactory.get_all_prompts": {
+    "agents/prompts/prompt_factory.py|agents.prompts.prompt_factory._global_factory": {
       "file_path": "agents/prompts/prompt_factory.py",
-      "qualified_name": "agents.prompts.prompt_factory.PromptFactory.get_all_prompts",
-      "start_line": 89,
-      "end_line": 99,
-      "type": "METHOD"
+      "qualified_name": "agents.prompts.prompt_factory._global_factory",
+      "start_line": 103,
+      "end_line": 103,
+      "type": "VARIABLE"
     },
     "agents/prompts/prompt_factory.py|agents.prompts.prompt_factory.initialize_global_factory": {
       "file_path": "agents/prompts/prompt_factory.py",
@@ -11257,13 +10432,6 @@
       "end_line": 183,
       "type": "FUNCTION"
     },
-    "agents/retry.py|agents.retry.RetryAction": {
-      "file_path": "agents/retry.py",
-      "qualified_name": "agents.retry.RetryAction",
-      "start_line": 41,
-      "end_line": 44,
-      "type": "CLASS"
-    },
     "agents/retry.py|agents.retry.RetryDecision": {
       "file_path": "agents/retry.py",
       "qualified_name": "agents.retry.RetryDecision",
@@ -11298,13 +10466,6 @@
       "start_line": 19,
       "end_line": 111,
       "type": "CLASS"
-    },
-    "agents/tools/toolkit.py|agents.tools.toolkit.CodeBoardingToolkit.__init__": {
-      "file_path": "agents/tools/toolkit.py",
-      "qualified_name": "agents.tools.toolkit.CodeBoardingToolkit.__init__",
-      "start_line": 25,
-      "end_line": 27,
-      "type": "METHOD"
     },
     "agents/tools/toolkit.py|agents.tools.toolkit.CodeBoardingToolkit.read_source_reference": {
       "file_path": "agents/tools/toolkit.py",
@@ -11446,13 +10607,6 @@
       "end_line": 43,
       "type": "CLASS"
     },
-    "diagram_analysis/exceptions.py|diagram_analysis.exceptions.IncrementalCacheMissingError.__init__": {
-      "file_path": "diagram_analysis/exceptions.py",
-      "qualified_name": "diagram_analysis.exceptions.IncrementalCacheMissingError.__init__",
-      "start_line": 25,
-      "end_line": 43,
-      "type": "METHOD"
-    },
     "health/checks/circular_deps.py|health.checks.circular_deps.check_circular_dependencies": {
       "file_path": "health/checks/circular_deps.py",
       "qualified_name": "health.checks.circular_deps.check_circular_dependencies",
@@ -11544,13 +10698,6 @@
       "end_line": 77,
       "type": "FUNCTION"
     },
-    "health/checks/unused_code_diagnostics.py|health.checks.unused_code_diagnostics.DeadCodeCategory": {
-      "file_path": "health/checks/unused_code_diagnostics.py",
-      "qualified_name": "health.checks.unused_code_diagnostics.DeadCodeCategory",
-      "start_line": 31,
-      "end_line": 41,
-      "type": "CLASS"
-    },
     "health/checks/unused_code_diagnostics.py|health.checks.unused_code_diagnostics.DiagnosticIssue": {
       "file_path": "health/checks/unused_code_diagnostics.py",
       "qualified_name": "health.checks.unused_code_diagnostics.DiagnosticIssue",
@@ -11571,13 +10718,6 @@
       "start_line": 138,
       "end_line": 262,
       "type": "CLASS"
-    },
-    "health/checks/unused_code_diagnostics.py|health.checks.unused_code_diagnostics.LSPDiagnosticsCollector.__init__": {
-      "file_path": "health/checks/unused_code_diagnostics.py",
-      "qualified_name": "health.checks.unused_code_diagnostics.LSPDiagnosticsCollector.__init__",
-      "start_line": 141,
-      "end_line": 143,
-      "type": "METHOD"
     },
     "health/checks/unused_code_diagnostics.py|health.checks.unused_code_diagnostics.LSPDiagnosticsCollector.add_diagnostic": {
       "file_path": "health/checks/unused_code_diagnostics.py",
@@ -11670,13 +10810,6 @@
       "end_line": 172,
       "type": "FUNCTION"
     },
-    "health/models.py|health.models.Severity": {
-      "file_path": "health/models.py",
-      "qualified_name": "health.models.Severity",
-      "start_line": 10,
-      "end_line": 15,
-      "type": "CLASS"
-    },
     "health/models.py|health.models.FindingEntity": {
       "file_path": "health/models.py",
       "qualified_name": "health.models.FindingEntity",
@@ -11691,13 +10824,6 @@
       "end_line": 48,
       "type": "CLASS"
     },
-    "health/models.py|health.models.BaseCheckSummary": {
-      "file_path": "health/models.py",
-      "qualified_name": "health.models.BaseCheckSummary",
-      "start_line": 51,
-      "end_line": 60,
-      "type": "CLASS"
-    },
     "health/models.py|health.models.StandardCheckSummary": {
       "file_path": "health/models.py",
       "qualified_name": "health.models.StandardCheckSummary",
@@ -11705,26 +10831,12 @@
       "end_line": 85,
       "type": "CLASS"
     },
-    "health/models.py|health.models.StandardCheckSummary.findings": {
-      "file_path": "health/models.py",
-      "qualified_name": "health.models.StandardCheckSummary.findings",
-      "start_line": 76,
-      "end_line": 85,
-      "type": "METHOD"
-    },
     "health/models.py|health.models.CircularDependencyCheck": {
       "file_path": "health/models.py",
       "qualified_name": "health.models.CircularDependencyCheck",
       "start_line": 88,
       "end_line": 103,
       "type": "CLASS"
-    },
-    "health/models.py|health.models.CircularDependencyCheck.score": {
-      "file_path": "health/models.py",
-      "qualified_name": "health.models.CircularDependencyCheck.score",
-      "start_line": 97,
-      "end_line": 103,
-      "type": "METHOD"
     },
     "health/models.py|health.models.FileHealthSummary": {
       "file_path": "health/models.py",
@@ -11866,13 +10978,6 @@
       "end_line": 163,
       "type": "CLASS"
     },
-    "monitoring/callbacks.py|monitoring.callbacks.MonitoringCallback.__init__": {
-      "file_path": "monitoring/callbacks.py",
-      "qualified_name": "monitoring.callbacks.MonitoringCallback.__init__",
-      "start_line": 21,
-      "end_line": 26,
-      "type": "METHOD"
-    },
     "monitoring/callbacks.py|monitoring.callbacks.MonitoringCallback.model_name": {
       "file_path": "monitoring/callbacks.py",
       "qualified_name": "monitoring.callbacks.MonitoringCallback.model_name",
@@ -11935,6 +11040,41 @@
       "start_line": 113,
       "end_line": 131,
       "type": "FUNCTION"
+    },
+    "monitoring/stats.py|monitoring.stats.RunStats": {
+      "file_path": "monitoring/stats.py",
+      "qualified_name": "monitoring.stats.RunStats",
+      "start_line": 10,
+      "end_line": 46,
+      "type": "CLASS"
+    },
+    "monitoring/stats.py|monitoring.stats.RunStats.__init__": {
+      "file_path": "monitoring/stats.py",
+      "qualified_name": "monitoring.stats.RunStats.__init__",
+      "start_line": 13,
+      "end_line": 15,
+      "type": "METHOD"
+    },
+    "monitoring/stats.py|monitoring.stats.RunStats.reset": {
+      "file_path": "monitoring/stats.py",
+      "qualified_name": "monitoring.stats.RunStats.reset",
+      "start_line": 17,
+      "end_line": 26,
+      "type": "METHOD"
+    },
+    "monitoring/stats.py|monitoring.stats.RunStats.to_dict": {
+      "file_path": "monitoring/stats.py",
+      "qualified_name": "monitoring.stats.RunStats.to_dict",
+      "start_line": 28,
+      "end_line": 46,
+      "type": "METHOD"
+    },
+    "monitoring/stats.py|monitoring.stats.current_stats": {
+      "file_path": "monitoring/stats.py",
+      "qualified_name": "monitoring.stats.current_stats",
+      "start_line": 50,
+      "end_line": 50,
+      "type": "VARIABLE"
     },
     "agents/planner_agent.py|agents.planner_agent.should_expand_component": {
       "file_path": "agents/planner_agent.py",
@@ -12578,34 +11718,6 @@
       "qualified_name": "monitoring.mixin.MonitoringMixin.get_monitoring_results",
       "start_line": 14,
       "end_line": 16,
-      "type": "METHOD"
-    },
-    "monitoring/stats.py|monitoring.stats.RunStats": {
-      "file_path": "monitoring/stats.py",
-      "qualified_name": "monitoring.stats.RunStats",
-      "start_line": 10,
-      "end_line": 46,
-      "type": "CLASS"
-    },
-    "monitoring/stats.py|monitoring.stats.RunStats.__init__": {
-      "file_path": "monitoring/stats.py",
-      "qualified_name": "monitoring.stats.RunStats.__init__",
-      "start_line": 13,
-      "end_line": 15,
-      "type": "METHOD"
-    },
-    "monitoring/stats.py|monitoring.stats.RunStats.reset": {
-      "file_path": "monitoring/stats.py",
-      "qualified_name": "monitoring.stats.RunStats.reset",
-      "start_line": 17,
-      "end_line": 26,
-      "type": "METHOD"
-    },
-    "monitoring/stats.py|monitoring.stats.RunStats.to_dict": {
-      "file_path": "monitoring/stats.py",
-      "qualified_name": "monitoring.stats.RunStats.to_dict",
-      "start_line": 28,
-      "end_line": 46,
       "type": "METHOD"
     },
     "telemetry/device_id.py|telemetry.device_id._sha256": {
@@ -16266,7 +15378,9 @@
         13,
         17,
         19,
-        23
+        23,
+        41,
+        42
       ],
       "file_methods": [
         {
@@ -16282,7 +15396,6 @@
           "file_path": "agents/agent.py",
           "methods": [
             "agents.agent.EmptyExtractorMessageError",
-            "agents.agent.CodeBoardingAgent",
             "agents.agent.CodeBoardingAgent.__init__",
             "agents.agent.CodeBoardingAgent.read_source_reference",
             "agents.agent.CodeBoardingAgent.read_packages_tool",
@@ -16396,6 +15509,10 @@
         {
           "file_path": "agents/llm_config.py",
           "methods": [
+            "agents.llm_config._model_accepts_temperature",
+            "agents.llm_config._agent_model_override",
+            "agents.llm_config._parsing_model_override",
+            "agents.llm_config.configure_models",
             "agents.llm_config.LLMConfig",
             "agents.llm_config.LLMConfig.get_api_key",
             "agents.llm_config.LLMConfig.has_real_api_key",
@@ -16438,7 +15555,6 @@
         {
           "file_path": "agents/prompts/abstract_prompt_factory.py",
           "methods": [
-            "agents.prompts.abstract_prompt_factory.AbstractPromptFactory",
             "agents.prompts.abstract_prompt_factory.AbstractPromptFactory.get_system_message",
             "agents.prompts.abstract_prompt_factory.AbstractPromptFactory.get_cluster_grouping_message",
             "agents.prompts.abstract_prompt_factory.AbstractPromptFactory.get_final_analysis_message",
@@ -16458,151 +15574,48 @@
         {
           "file_path": "agents/prompts/claude_prompts.py",
           "methods": [
-            "agents.prompts.claude_prompts.ClaudePromptFactory",
-            "agents.prompts.claude_prompts.ClaudePromptFactory.get_system_message",
-            "agents.prompts.claude_prompts.ClaudePromptFactory.get_cluster_grouping_message",
-            "agents.prompts.claude_prompts.ClaudePromptFactory.get_final_analysis_message",
-            "agents.prompts.claude_prompts.ClaudePromptFactory.get_planner_system_message",
-            "agents.prompts.claude_prompts.ClaudePromptFactory.get_expansion_prompt",
-            "agents.prompts.claude_prompts.ClaudePromptFactory.get_validator_system_message",
-            "agents.prompts.claude_prompts.ClaudePromptFactory.get_component_validation_component",
-            "agents.prompts.claude_prompts.ClaudePromptFactory.get_relationships_validation",
-            "agents.prompts.claude_prompts.ClaudePromptFactory.get_system_meta_analysis_message",
-            "agents.prompts.claude_prompts.ClaudePromptFactory.get_meta_information_prompt",
-            "agents.prompts.claude_prompts.ClaudePromptFactory.get_file_classification_message",
-            "agents.prompts.claude_prompts.ClaudePromptFactory.get_validation_feedback_message",
-            "agents.prompts.claude_prompts.ClaudePromptFactory.get_system_details_message",
-            "agents.prompts.claude_prompts.ClaudePromptFactory.get_cfg_details_message",
-            "agents.prompts.claude_prompts.ClaudePromptFactory.get_incremental_grouping_message",
-            "agents.prompts.claude_prompts.ClaudePromptFactory.get_scope_relations_message",
-            "agents.prompts.claude_prompts.ClaudePromptFactory.get_details_message"
+            "agents.prompts.claude_prompts.ClaudePromptFactory"
           ]
         },
         {
           "file_path": "agents/prompts/deepseek_prompts.py",
           "methods": [
-            "agents.prompts.deepseek_prompts.DeepSeekPromptFactory",
-            "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_system_message",
-            "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_cluster_grouping_message",
-            "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_final_analysis_message",
-            "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_planner_system_message",
-            "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_expansion_prompt",
-            "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_validator_system_message",
-            "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_component_validation_component",
-            "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_relationships_validation",
-            "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_system_meta_analysis_message",
-            "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_meta_information_prompt",
-            "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_file_classification_message",
-            "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_validation_feedback_message",
-            "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_system_details_message",
-            "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_cfg_details_message",
-            "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_details_message",
-            "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_incremental_grouping_message",
-            "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_scope_relations_message"
+            "agents.prompts.deepseek_prompts.DeepSeekPromptFactory"
           ]
         },
         {
           "file_path": "agents/prompts/gemini_flash_prompts.py",
           "methods": [
-            "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory",
-            "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_system_message",
-            "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_cluster_grouping_message",
-            "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_final_analysis_message",
-            "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_planner_system_message",
-            "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_expansion_prompt",
-            "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_validator_system_message",
-            "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_component_validation_component",
-            "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_relationships_validation",
-            "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_system_meta_analysis_message",
-            "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_meta_information_prompt",
-            "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_file_classification_message",
-            "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_validation_feedback_message",
-            "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_system_details_message",
-            "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_cfg_details_message",
-            "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_details_message",
-            "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_incremental_grouping_message",
-            "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_scope_relations_message"
+            "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory"
           ]
         },
         {
           "file_path": "agents/prompts/glm_prompts.py",
           "methods": [
-            "agents.prompts.glm_prompts.GLMPromptFactory",
-            "agents.prompts.glm_prompts.GLMPromptFactory.get_system_message",
-            "agents.prompts.glm_prompts.GLMPromptFactory.get_cluster_grouping_message",
-            "agents.prompts.glm_prompts.GLMPromptFactory.get_final_analysis_message",
-            "agents.prompts.glm_prompts.GLMPromptFactory.get_planner_system_message",
-            "agents.prompts.glm_prompts.GLMPromptFactory.get_expansion_prompt",
-            "agents.prompts.glm_prompts.GLMPromptFactory.get_validator_system_message",
-            "agents.prompts.glm_prompts.GLMPromptFactory.get_component_validation_component",
-            "agents.prompts.glm_prompts.GLMPromptFactory.get_relationships_validation",
-            "agents.prompts.glm_prompts.GLMPromptFactory.get_system_meta_analysis_message",
-            "agents.prompts.glm_prompts.GLMPromptFactory.get_meta_information_prompt",
-            "agents.prompts.glm_prompts.GLMPromptFactory.get_file_classification_message",
-            "agents.prompts.glm_prompts.GLMPromptFactory.get_validation_feedback_message",
-            "agents.prompts.glm_prompts.GLMPromptFactory.get_system_details_message",
-            "agents.prompts.glm_prompts.GLMPromptFactory.get_cfg_details_message",
-            "agents.prompts.glm_prompts.GLMPromptFactory.get_details_message",
-            "agents.prompts.glm_prompts.GLMPromptFactory.get_incremental_grouping_message",
-            "agents.prompts.glm_prompts.GLMPromptFactory.get_scope_relations_message"
+            "agents.prompts.glm_prompts.GLMPromptFactory"
           ]
         },
         {
           "file_path": "agents/prompts/gpt_prompts.py",
           "methods": [
-            "agents.prompts.gpt_prompts.GPTPromptFactory",
-            "agents.prompts.gpt_prompts.GPTPromptFactory.get_system_message",
-            "agents.prompts.gpt_prompts.GPTPromptFactory.get_cluster_grouping_message",
-            "agents.prompts.gpt_prompts.GPTPromptFactory.get_final_analysis_message",
-            "agents.prompts.gpt_prompts.GPTPromptFactory.get_planner_system_message",
-            "agents.prompts.gpt_prompts.GPTPromptFactory.get_expansion_prompt",
-            "agents.prompts.gpt_prompts.GPTPromptFactory.get_validator_system_message",
-            "agents.prompts.gpt_prompts.GPTPromptFactory.get_component_validation_component",
-            "agents.prompts.gpt_prompts.GPTPromptFactory.get_relationships_validation",
-            "agents.prompts.gpt_prompts.GPTPromptFactory.get_system_meta_analysis_message",
-            "agents.prompts.gpt_prompts.GPTPromptFactory.get_meta_information_prompt",
-            "agents.prompts.gpt_prompts.GPTPromptFactory.get_file_classification_message",
-            "agents.prompts.gpt_prompts.GPTPromptFactory.get_validation_feedback_message",
-            "agents.prompts.gpt_prompts.GPTPromptFactory.get_system_details_message",
-            "agents.prompts.gpt_prompts.GPTPromptFactory.get_cfg_details_message",
-            "agents.prompts.gpt_prompts.GPTPromptFactory.get_details_message",
-            "agents.prompts.gpt_prompts.GPTPromptFactory.get_incremental_grouping_message",
-            "agents.prompts.gpt_prompts.GPTPromptFactory.get_scope_relations_message"
+            "agents.prompts.gpt_prompts.GPTPromptFactory"
           ]
         },
         {
           "file_path": "agents/prompts/kimi_prompts.py",
           "methods": [
-            "agents.prompts.kimi_prompts.KimiPromptFactory",
-            "agents.prompts.kimi_prompts.KimiPromptFactory.get_system_message",
-            "agents.prompts.kimi_prompts.KimiPromptFactory.get_cluster_grouping_message",
-            "agents.prompts.kimi_prompts.KimiPromptFactory.get_final_analysis_message",
-            "agents.prompts.kimi_prompts.KimiPromptFactory.get_planner_system_message",
-            "agents.prompts.kimi_prompts.KimiPromptFactory.get_expansion_prompt",
-            "agents.prompts.kimi_prompts.KimiPromptFactory.get_validator_system_message",
-            "agents.prompts.kimi_prompts.KimiPromptFactory.get_component_validation_component",
-            "agents.prompts.kimi_prompts.KimiPromptFactory.get_relationships_validation",
-            "agents.prompts.kimi_prompts.KimiPromptFactory.get_system_meta_analysis_message",
-            "agents.prompts.kimi_prompts.KimiPromptFactory.get_meta_information_prompt",
-            "agents.prompts.kimi_prompts.KimiPromptFactory.get_file_classification_message",
-            "agents.prompts.kimi_prompts.KimiPromptFactory.get_validation_feedback_message",
-            "agents.prompts.kimi_prompts.KimiPromptFactory.get_system_details_message",
-            "agents.prompts.kimi_prompts.KimiPromptFactory.get_cfg_details_message",
-            "agents.prompts.kimi_prompts.KimiPromptFactory.get_details_message",
-            "agents.prompts.kimi_prompts.KimiPromptFactory.get_incremental_grouping_message",
-            "agents.prompts.kimi_prompts.KimiPromptFactory.get_scope_relations_message"
+            "agents.prompts.kimi_prompts.KimiPromptFactory"
           ]
         },
         {
           "file_path": "agents/prompts/prompt_factory.py",
           "methods": [
-            "agents.prompts.prompt_factory.LLMType",
             "agents.prompts.prompt_factory.LLMType.from_model_name",
             "agents.prompts.prompt_factory.PromptFactory",
             "agents.prompts.prompt_factory.PromptFactory.__init__",
             "agents.prompts.prompt_factory.PromptFactory._create_prompt_factory",
             "agents.prompts.prompt_factory.PromptFactory.get_prompt",
-            "agents.prompts.prompt_factory.PromptFactory.get_all_prompts",
+            "agents.prompts.prompt_factory._global_factory",
             "agents.prompts.prompt_factory.initialize_global_factory",
             "agents.prompts.prompt_factory.get_global_factory",
             "agents.prompts.prompt_factory.get_prompt",
@@ -16625,7 +15638,6 @@
         {
           "file_path": "agents/retry.py",
           "methods": [
-            "agents.retry.RetryAction",
             "agents.retry.RetryDecision",
             "agents.retry.default_backoff",
             "agents.retry._default_classify",
@@ -16671,7 +15683,11 @@
         {
           "file_path": "agents/tools/read_file_structure.py",
           "methods": [
-            "agents.tools.read_file_structure.FileStructureTool"
+            "agents.tools.read_file_structure.DirInput",
+            "agents.tools.read_file_structure.FileStructureTool",
+            "agents.tools.read_file_structure.FileStructureTool.cached_dirs",
+            "agents.tools.read_file_structure.FileStructureTool._run",
+            "agents.tools.read_file_structure.get_tree_string"
           ]
         },
         {
@@ -16696,7 +15712,6 @@
           "file_path": "agents/tools/toolkit.py",
           "methods": [
             "agents.tools.toolkit.CodeBoardingToolkit",
-            "agents.tools.toolkit.CodeBoardingToolkit.__init__",
             "agents.tools.toolkit.CodeBoardingToolkit.read_source_reference",
             "agents.tools.toolkit.CodeBoardingToolkit.read_packages",
             "agents.tools.toolkit.CodeBoardingToolkit.read_structure",
@@ -16765,6 +15780,7 @@
           "file_path": "core/__init__.py",
           "methods": [
             "core.__init__.Registries",
+            "core.__init__._registries",
             "core.__init__.get_registries",
             "core.__init__.run_plugin_health_checks",
             "core.__init__.load_plugin_tools"
@@ -16804,14 +15820,12 @@
         {
           "file_path": "diagram_analysis/exceptions.py",
           "methods": [
-            "diagram_analysis.exceptions.IncrementalCacheMissingError",
-            "diagram_analysis.exceptions.IncrementalCacheMissingError.__init__"
+            "diagram_analysis.exceptions.IncrementalCacheMissingError"
           ]
         },
         {
           "file_path": "diagram_analysis/run_context.py",
           "methods": [
-            "diagram_analysis.run_context.RunContext",
             "diagram_analysis.run_context._load_existing_run_id"
           ]
         },
@@ -16866,11 +15880,9 @@
         {
           "file_path": "health/checks/unused_code_diagnostics.py",
           "methods": [
-            "health.checks.unused_code_diagnostics.DeadCodeCategory",
             "health.checks.unused_code_diagnostics.DiagnosticIssue",
             "health.checks.unused_code_diagnostics.FileDiagnostic",
             "health.checks.unused_code_diagnostics.LSPDiagnosticsCollector",
-            "health.checks.unused_code_diagnostics.LSPDiagnosticsCollector.__init__",
             "health.checks.unused_code_diagnostics.LSPDiagnosticsCollector.add_diagnostic",
             "health.checks.unused_code_diagnostics.LSPDiagnosticsCollector.process_diagnostics",
             "health.checks.unused_code_diagnostics.LSPDiagnosticsCollector._convert_to_issue",
@@ -16894,14 +15906,10 @@
         {
           "file_path": "health/models.py",
           "methods": [
-            "health.models.Severity",
             "health.models.FindingEntity",
             "health.models.FindingGroup",
-            "health.models.BaseCheckSummary",
             "health.models.StandardCheckSummary",
-            "health.models.StandardCheckSummary.findings",
             "health.models.CircularDependencyCheck",
-            "health.models.CircularDependencyCheck.score",
             "health.models.FileHealthSummary",
             "health.models.HealthReport",
             "health.models.HealthCheckConfig"
@@ -16941,7 +15949,6 @@
         {
           "file_path": "monitoring/callbacks.py",
           "methods": [
-            "monitoring.callbacks.MonitoringCallback.__init__",
             "monitoring.callbacks.MonitoringCallback.model_name",
             "monitoring.callbacks.MonitoringCallback.stats",
             "monitoring.callbacks.MonitoringCallback.on_llm_end",
@@ -16960,6 +15967,12 @@
             "monitoring.context.trace._create_wrapper",
             "monitoring.context.trace._create_wrapper.wrapper",
             "monitoring.context.trace.decorator"
+          ]
+        },
+        {
+          "file_path": "monitoring/stats.py",
+          "methods": [
+            "monitoring.stats.current_stats"
           ]
         },
         {
@@ -17030,8 +16043,208 @@
       "can_expand": true,
       "components": [
         {
-          "name": "Agentic Orchestration & Context Management",
-          "description": "Central controller managing the lifecycle of AI agents, token budgeting, and the high-level reasoning flow from metadata extraction to synthesis.",
+          "name": "Agent Tooling & Repository Interface",
+          "description": "Provides the set of tools and interfaces that agents use to interact with the codebase and file system. This cluster contains the FileStructureTool and get_tree_string logic, allowing agents to perform discovery on the repository's file system, including directory caching and tree string generation.",
+          "key_entities": [
+            {
+              "qualified_name": "agents.tools.toolkit.CodeBoardingToolkit",
+              "reference_file": "agents/tools/toolkit.py",
+              "reference_start_line": 19,
+              "reference_end_line": 111
+            },
+            {
+              "qualified_name": "agents.tools.read_structure.CodeStructureTool",
+              "reference_file": "agents/tools/read_structure.py",
+              "reference_start_line": 14,
+              "reference_end_line": 49
+            },
+            {
+              "qualified_name": "agents.tools.read_source.CodeReferenceReader",
+              "reference_file": "agents/tools/read_source.py",
+              "reference_start_line": 25,
+              "reference_end_line": 85
+            }
+          ],
+          "source_cluster_ids": [
+            7,
+            42
+          ],
+          "file_methods": [
+            {
+              "file_path": "agents/tools/read_file_structure.py",
+              "methods": [
+                "agents.tools.read_file_structure.DirInput",
+                "agents.tools.read_file_structure.FileStructureTool",
+                "agents.tools.read_file_structure.FileStructureTool.cached_dirs",
+                "agents.tools.read_file_structure.FileStructureTool._run",
+                "agents.tools.read_file_structure.get_tree_string"
+              ]
+            },
+            {
+              "file_path": "agents/validation.py",
+              "methods": [
+                "agents.validation._build_cluster_edge_lookup",
+                "agents.validation._check_edge_between_cluster_sets"
+              ]
+            },
+            {
+              "file_path": "static_analyzer/__init__.py",
+              "methods": [
+                "static_analyzer.__init__.StaticAnalysisFatalError",
+                "static_analyzer.__init__.StaticAnalyzer.collect_fresh_diagnostics",
+                "static_analyzer.__init__.StaticAnalyzer.notify_file_changed",
+                "static_analyzer.__init__.StaticAnalyzer.get_file_symbols",
+                "static_analyzer.__init__.StaticAnalyzer.get_adapter_for_file",
+                "static_analyzer.__init__.StaticAnalyzer.analyze",
+                "static_analyzer.__init__.StaticAnalyzer._run_full_lsp_pass",
+                "static_analyzer.__init__.StaticAnalyzer._update_cached_results",
+                "static_analyzer.__init__.StaticAnalyzer._absorb_into_results",
+                "static_analyzer.__init__.StaticAnalyzer._collect_diagnostics_for",
+                "static_analyzer.__init__.StaticAnalyzer._loc_for_adapter",
+                "static_analyzer.__init__.StaticAnalyzer._run_full_analysis",
+                "static_analyzer.__init__.StaticAnalyzer._validate_analysis_results"
+              ]
+            },
+            {
+              "file_path": "static_analyzer/analysis_cache.py",
+              "methods": [
+                "static_analyzer.analysis_cache.invalidate_files",
+                "static_analyzer.analysis_cache.merge_results",
+                "static_analyzer.analysis_cache._validate_no_dangling_references"
+              ]
+            },
+            {
+              "file_path": "static_analyzer/analysis_result.py",
+              "methods": [
+                "static_analyzer.analysis_result.StaticAnalysisResults",
+                "static_analyzer.analysis_result.StaticAnalysisResults._bucket",
+                "static_analyzer.analysis_result.StaticAnalysisResults.add_class_hierarchy",
+                "static_analyzer.analysis_result.StaticAnalysisResults.add_cfg",
+                "static_analyzer.analysis_result.StaticAnalysisResults.add_package_dependencies",
+                "static_analyzer.analysis_result.StaticAnalysisResults.add_references",
+                "static_analyzer.analysis_result.StaticAnalysisResults.add_source_files"
+              ]
+            },
+            {
+              "file_path": "static_analyzer/cluster_relations.py",
+              "methods": [
+                "static_analyzer.cluster_relations.ClusterRelation",
+                "static_analyzer.cluster_relations.build_component_relations"
+              ]
+            },
+            {
+              "file_path": "static_analyzer/constants.py",
+              "methods": [
+                "static_analyzer.constants.NodeType"
+              ]
+            },
+            {
+              "file_path": "static_analyzer/engine/adapters/csharp_adapter.py",
+              "methods": [
+                "static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter.is_reference_worthy"
+              ]
+            },
+            {
+              "file_path": "static_analyzer/engine/adapters/go_adapter.py",
+              "methods": [
+                "static_analyzer.engine.adapters.go_adapter.GoAdapter.discover_source_files",
+                "static_analyzer.engine.adapters.go_adapter.GoAdapter._has_excluding_build_tag"
+              ]
+            },
+            {
+              "file_path": "static_analyzer/engine/adapters/php_adapter.py",
+              "methods": [
+                "static_analyzer.engine.adapters.php_adapter.PHPAdapter.is_reference_worthy"
+              ]
+            },
+            {
+              "file_path": "static_analyzer/engine/call_graph_builder.py",
+              "methods": [
+                "static_analyzer.engine.call_graph_builder.CallGraphBuilder",
+                "static_analyzer.engine.call_graph_builder.CallGraphBuilder.symbol_table"
+              ]
+            },
+            {
+              "file_path": "static_analyzer/engine/language_adapter.py",
+              "methods": [
+                "static_analyzer.engine.language_adapter.LanguageAdapter.language",
+                "static_analyzer.engine.language_adapter.LanguageAdapter.language_enum",
+                "static_analyzer.engine.language_adapter.LanguageAdapter.file_extensions",
+                "static_analyzer.engine.language_adapter.LanguageAdapter.config_key",
+                "static_analyzer.engine.language_adapter.LanguageAdapter.language_id",
+                "static_analyzer.engine.language_adapter.LanguageAdapter.fail_on_empty_symbols",
+                "static_analyzer.engine.language_adapter.LanguageAdapter.wait_for_diagnostics",
+                "static_analyzer.engine.language_adapter.LanguageAdapter.discover_source_files",
+                "static_analyzer.engine.language_adapter.LanguageAdapter.is_reference_worthy"
+              ]
+            },
+            {
+              "file_path": "static_analyzer/engine/lsp_client.py",
+              "methods": [
+                "static_analyzer.engine.lsp_client.LSPClient.get_collected_diagnostics"
+              ]
+            },
+            {
+              "file_path": "static_analyzer/engine/result_converter.py",
+              "methods": [
+                "static_analyzer.engine.result_converter.convert_to_codeboarding_format",
+                "static_analyzer.engine.result_converter._map_symbol_kind"
+              ]
+            },
+            {
+              "file_path": "static_analyzer/graph.py",
+              "methods": [
+                "static_analyzer.graph.LocationKey",
+                "static_analyzer.graph.Edge",
+                "static_analyzer.graph.Edge.get_source",
+                "static_analyzer.graph.Edge.get_destination",
+                "static_analyzer.graph.CallGraph",
+                "static_analyzer.graph.CallGraph.add_node",
+                "static_analyzer.graph.CallGraph.has_node",
+                "static_analyzer.graph.CallGraph._resolve_name",
+                "static_analyzer.graph.CallGraph.add_edge",
+                "static_analyzer.graph.CallGraph.filter",
+                "static_analyzer.graph.CallGraph.union",
+                "static_analyzer.graph.CallGraph._prune_cluster_cache",
+                "static_analyzer.graph.CallGraph.filter_by_files",
+                "static_analyzer.graph.CallGraph.filter_by_nodes",
+                "static_analyzer.graph.CallGraph._llm_str_detailed"
+              ]
+            },
+            {
+              "file_path": "static_analyzer/incremental_orchestrator.py",
+              "methods": [
+                "static_analyzer.incremental_orchestrator.update_cfg_for_changed_files",
+                "static_analyzer.incremental_orchestrator._filter_to_live_files"
+              ]
+            },
+            {
+              "file_path": "static_analyzer/language_results.py",
+              "methods": [
+                "static_analyzer.language_results.ControlFlowGraph.merge",
+                "static_analyzer.language_results.ClassHierarchy.merge",
+                "static_analyzer.language_results.References.add",
+                "static_analyzer.language_results.PackageDependencies.merge",
+                "static_analyzer.language_results.SourceFiles.extend",
+                "static_analyzer.language_results.LanguageResults"
+              ]
+            },
+            {
+              "file_path": "static_analyzer/node.py",
+              "methods": [
+                "static_analyzer.node.Node",
+                "static_analyzer.node.Node.__init__",
+                "static_analyzer.node.Node.entity_label",
+                "static_analyzer.node.Node.added_method_called_by_me"
+              ]
+            }
+          ],
+          "component_id": "3.5",
+          "can_expand": true
+        },
+        {
+          "name": "Agentic Orchestration Core",
+          "description": "The execution framework that initializes and manages specialized agents, providing them with the necessary repository context and tools to interact with the codebase.",
           "key_entities": [
             {
               "qualified_name": "agents.agent.CodeBoardingAgent",
@@ -17040,45 +16253,33 @@
               "reference_end_line": 428
             },
             {
-              "qualified_name": "agents.abstraction_agent.AbstractionAgent",
-              "reference_file": "agents/abstraction_agent.py",
-              "reference_start_line": 38,
-              "reference_end_line": 177
+              "qualified_name": "agents.tools.toolkit.CodeBoardingToolkit",
+              "reference_file": "agents/tools/toolkit.py",
+              "reference_start_line": 19,
+              "reference_end_line": 111
             },
             {
-              "qualified_name": "agents.cluster_budget.ClusterPromptBudget",
-              "reference_file": "agents/cluster_budget.py",
+              "qualified_name": "agents.tools.base.RepoContext",
+              "reference_file": "agents/tools/base.py",
               "reference_start_line": 10,
-              "reference_end_line": 21
-            },
-            {
-              "qualified_name": "agents.agent_responses.AnalysisInsights",
-              "reference_file": "agents/agent_responses.py",
-              "reference_start_line": 342,
-              "reference_end_line": 367
+              "reference_end_line": 54
             }
           ],
           "source_cluster_ids": [
             1,
             2,
-            4,
-            14
+            15
           ],
           "file_methods": [
             {
               "file_path": "agents/abstraction_agent.py",
               "methods": [
-                "agents.abstraction_agent.AbstractionAgent.__init__",
-                "agents.abstraction_agent.AbstractionAgent.step_clusters_grouping",
-                "agents.abstraction_agent.AbstractionAgent.step_final_analysis",
-                "agents.abstraction_agent.AbstractionAgent.run"
+                "agents.abstraction_agent.AbstractionAgent.__init__"
               ]
             },
             {
               "file_path": "agents/agent.py",
               "methods": [
-                "agents.agent.EmptyExtractorMessageError",
-                "agents.agent.CodeBoardingAgent",
                 "agents.agent.CodeBoardingAgent.__init__",
                 "agents.agent.CodeBoardingAgent.read_source_reference",
                 "agents.agent.CodeBoardingAgent.read_packages_tool",
@@ -17088,7 +16289,237 @@
                 "agents.agent.CodeBoardingAgent.read_method_invocations_tool",
                 "agents.agent.CodeBoardingAgent.read_file_tool",
                 "agents.agent.CodeBoardingAgent.read_docs",
-                "agents.agent.CodeBoardingAgent.external_deps_tool",
+                "agents.agent.CodeBoardingAgent.external_deps_tool"
+              ]
+            },
+            {
+              "file_path": "agents/details_agent.py",
+              "methods": [
+                "agents.details_agent.DetailsAgent.__init__"
+              ]
+            },
+            {
+              "file_path": "agents/incremental_agent.py",
+              "methods": [
+                "agents.incremental_agent.IncrementalAgent.__init__"
+              ]
+            },
+            {
+              "file_path": "agents/meta_agent.py",
+              "methods": [
+                "agents.meta_agent.MetaAgent.__init__"
+              ]
+            },
+            {
+              "file_path": "agents/model_capabilities.py",
+              "methods": [
+                "agents.model_capabilities.ContextWindow"
+              ]
+            },
+            {
+              "file_path": "agents/prompts/__init__.py",
+              "methods": [
+                "agents.prompts.__init__.__getattr__"
+              ]
+            },
+            {
+              "file_path": "agents/prompts/abstract_prompt_factory.py",
+              "methods": [
+                "agents.prompts.abstract_prompt_factory.AbstractPromptFactory.get_system_message",
+                "agents.prompts.abstract_prompt_factory.AbstractPromptFactory.get_cluster_grouping_message",
+                "agents.prompts.abstract_prompt_factory.AbstractPromptFactory.get_final_analysis_message",
+                "agents.prompts.abstract_prompt_factory.AbstractPromptFactory.get_planner_system_message",
+                "agents.prompts.abstract_prompt_factory.AbstractPromptFactory.get_expansion_prompt",
+                "agents.prompts.abstract_prompt_factory.AbstractPromptFactory.get_system_meta_analysis_message",
+                "agents.prompts.abstract_prompt_factory.AbstractPromptFactory.get_meta_information_prompt",
+                "agents.prompts.abstract_prompt_factory.AbstractPromptFactory.get_file_classification_message",
+                "agents.prompts.abstract_prompt_factory.AbstractPromptFactory.get_validation_feedback_message",
+                "agents.prompts.abstract_prompt_factory.AbstractPromptFactory.get_system_details_message",
+                "agents.prompts.abstract_prompt_factory.AbstractPromptFactory.get_cfg_details_message",
+                "agents.prompts.abstract_prompt_factory.AbstractPromptFactory.get_details_message",
+                "agents.prompts.abstract_prompt_factory.AbstractPromptFactory.get_incremental_grouping_message",
+                "agents.prompts.abstract_prompt_factory.AbstractPromptFactory.get_scope_relations_message"
+              ]
+            },
+            {
+              "file_path": "agents/prompts/prompt_factory.py",
+              "methods": [
+                "agents.prompts.prompt_factory.LLMType.from_model_name",
+                "agents.prompts.prompt_factory.PromptFactory",
+                "agents.prompts.prompt_factory.PromptFactory.get_prompt",
+                "agents.prompts.prompt_factory.initialize_global_factory",
+                "agents.prompts.prompt_factory.get_global_factory",
+                "agents.prompts.prompt_factory.get_prompt",
+                "agents.prompts.prompt_factory.get_system_message",
+                "agents.prompts.prompt_factory.get_cluster_grouping_message",
+                "agents.prompts.prompt_factory.get_final_analysis_message",
+                "agents.prompts.prompt_factory.get_planner_system_message",
+                "agents.prompts.prompt_factory.get_expansion_prompt",
+                "agents.prompts.prompt_factory.get_system_meta_analysis_message",
+                "agents.prompts.prompt_factory.get_meta_information_prompt",
+                "agents.prompts.prompt_factory.get_file_classification_message",
+                "agents.prompts.prompt_factory.get_validation_feedback_message",
+                "agents.prompts.prompt_factory.get_system_details_message",
+                "agents.prompts.prompt_factory.get_cfg_details_message",
+                "agents.prompts.prompt_factory.get_details_message",
+                "agents.prompts.prompt_factory.get_incremental_grouping_message",
+                "agents.prompts.prompt_factory.get_scope_relations_message"
+              ]
+            },
+            {
+              "file_path": "agents/tools/base.py",
+              "methods": [
+                "agents.tools.base.RepoContext"
+              ]
+            },
+            {
+              "file_path": "agents/tools/get_external_deps.py",
+              "methods": [
+                "agents.tools.get_external_deps.ExternalDepsTool"
+              ]
+            },
+            {
+              "file_path": "agents/tools/get_method_invocations.py",
+              "methods": [
+                "agents.tools.get_method_invocations.MethodInvocationsTool"
+              ]
+            },
+            {
+              "file_path": "agents/tools/read_cfg.py",
+              "methods": [
+                "agents.tools.read_cfg.GetCFGTool"
+              ]
+            },
+            {
+              "file_path": "agents/tools/read_docs.py",
+              "methods": [
+                "agents.tools.read_docs.ReadDocsTool"
+              ]
+            },
+            {
+              "file_path": "agents/tools/read_file.py",
+              "methods": [
+                "agents.tools.read_file.ReadFileTool"
+              ]
+            },
+            {
+              "file_path": "agents/tools/read_file_structure.py",
+              "methods": [
+                "agents.tools.read_file_structure.DirInput",
+                "agents.tools.read_file_structure.FileStructureTool",
+                "agents.tools.read_file_structure.FileStructureTool.cached_dirs",
+                "agents.tools.read_file_structure.FileStructureTool._run",
+                "agents.tools.read_file_structure.get_tree_string"
+              ]
+            },
+            {
+              "file_path": "agents/tools/read_packages.py",
+              "methods": [
+                "agents.tools.read_packages.PackageRelationsTool"
+              ]
+            },
+            {
+              "file_path": "agents/tools/read_source.py",
+              "methods": [
+                "agents.tools.read_source.CodeReferenceReader"
+              ]
+            },
+            {
+              "file_path": "agents/tools/read_structure.py",
+              "methods": [
+                "agents.tools.read_structure.CodeStructureTool"
+              ]
+            },
+            {
+              "file_path": "agents/tools/toolkit.py",
+              "methods": [
+                "agents.tools.toolkit.CodeBoardingToolkit",
+                "agents.tools.toolkit.CodeBoardingToolkit.read_source_reference",
+                "agents.tools.toolkit.CodeBoardingToolkit.read_packages",
+                "agents.tools.toolkit.CodeBoardingToolkit.read_structure",
+                "agents.tools.toolkit.CodeBoardingToolkit.read_file_structure",
+                "agents.tools.toolkit.CodeBoardingToolkit.read_cfg",
+                "agents.tools.toolkit.CodeBoardingToolkit.read_method_invocations",
+                "agents.tools.toolkit.CodeBoardingToolkit.read_file",
+                "agents.tools.toolkit.CodeBoardingToolkit.read_docs",
+                "agents.tools.toolkit.CodeBoardingToolkit.external_deps",
+                "agents.tools.toolkit.CodeBoardingToolkit.get_agent_tools",
+                "agents.tools.toolkit.CodeBoardingToolkit.get_all_tools"
+              ]
+            },
+            {
+              "file_path": "caching/meta_cache.py",
+              "methods": [
+                "caching.meta_cache.MetaCache"
+              ]
+            },
+            {
+              "file_path": "core/__init__.py",
+              "methods": [
+                "core.__init__.Registries",
+                "core.__init__.get_registries",
+                "core.__init__.run_plugin_health_checks",
+                "core.__init__.load_plugin_tools"
+              ]
+            },
+            {
+              "file_path": "core/registry.py",
+              "methods": [
+                "core.registry.Registry.all"
+              ]
+            },
+            {
+              "file_path": "static_analyzer/reference_resolve_mixin.py",
+              "methods": [
+                "static_analyzer.reference_resolve_mixin.ReferenceResolverMixin.__init__"
+              ]
+            }
+          ],
+          "component_id": "3.1",
+          "can_expand": true
+        },
+        {
+          "name": "Semantic Reasoning Engine",
+          "description": "Performs deep semantic analysis of code clusters using LLMs to identify architectural patterns, component responsibilities, and high-level abstractions.",
+          "key_entities": [
+            {
+              "qualified_name": "agents.abstraction_agent.AbstractionAgent",
+              "reference_file": "agents/abstraction_agent.py",
+              "reference_start_line": 38,
+              "reference_end_line": 177
+            },
+            {
+              "qualified_name": "agents.meta_agent.MetaAgent",
+              "reference_file": "agents/meta_agent.py",
+              "reference_start_line": 18,
+              "reference_end_line": 66
+            },
+            {
+              "qualified_name": "agents.agent_responses.LLMBaseModel",
+              "reference_file": "agents/agent_responses.py",
+              "reference_start_line": 15,
+              "reference_end_line": 120
+            }
+          ],
+          "source_cluster_ids": [
+            3,
+            6,
+            7,
+            11
+          ],
+          "file_methods": [
+            {
+              "file_path": "agents/abstraction_agent.py",
+              "methods": [
+                "agents.abstraction_agent.AbstractionAgent.step_clusters_grouping",
+                "agents.abstraction_agent.AbstractionAgent.step_final_analysis",
+                "agents.abstraction_agent.AbstractionAgent.run"
+              ]
+            },
+            {
+              "file_path": "agents/agent.py",
+              "methods": [
+                "agents.agent.EmptyExtractorMessageError",
                 "agents.agent.CodeBoardingAgent._invoke",
                 "agents.agent.CodeBoardingAgent._invoke.call_once",
                 "agents.agent.CodeBoardingAgent._invoke.classify",
@@ -17131,24 +16562,8 @@
               ]
             },
             {
-              "file_path": "agents/cluster_budget.py",
-              "methods": [
-                "agents.cluster_budget.ClusterPromptBudget",
-                "agents.cluster_budget.ClusterPromptBudget.available_chars"
-              ]
-            },
-            {
               "file_path": "agents/cluster_methods_mixin.py",
               "methods": [
-                "agents.cluster_methods_mixin._RenderedClusterString",
-                "agents.cluster_methods_mixin._describe_window",
-                "agents.cluster_methods_mixin._window_telemetry",
-                "agents.cluster_methods_mixin.ClusterMethodsMixin._build_cluster_string",
-                "agents.cluster_methods_mixin.ClusterMethodsMixin._render_cluster_string",
-                "agents.cluster_methods_mixin.ClusterMethodsMixin._plan_skip_sets",
-                "agents.cluster_methods_mixin.ClusterMethodsMixin._language_budget_targets",
-                "agents.cluster_methods_mixin.ClusterMethodsMixin._raise_cluster_budget_error",
-                "agents.cluster_methods_mixin.ClusterMethodsMixin._cluster_prompt_budget",
                 "agents.cluster_methods_mixin.ClusterMethodsMixin._ensure_unique_key_entities",
                 "agents.cluster_methods_mixin.ClusterMethodsMixin._resolve_cluster_ids_from_groups",
                 "agents.cluster_methods_mixin.ClusterMethodsMixin._find_nearest_cluster",
@@ -17158,14 +16573,12 @@
                 "agents.cluster_methods_mixin.ClusterMethodsMixin._find_component_by_file",
                 "agents.cluster_methods_mixin.ClusterMethodsMixin._assign_nodes_to_components",
                 "agents.cluster_methods_mixin.ClusterMethodsMixin._log_node_coverage",
-                "agents.cluster_methods_mixin.ClusterMethodsMixin.build_files_index",
                 "agents.cluster_methods_mixin.ClusterMethodsMixin.populate_file_methods"
               ]
             },
             {
               "file_path": "agents/details_agent.py",
               "methods": [
-                "agents.details_agent.DetailsAgent.__init__",
                 "agents.details_agent.DetailsAgent.step_clusters_grouping",
                 "agents.details_agent.DetailsAgent.step_final_analysis",
                 "agents.details_agent.DetailsAgent.run"
@@ -17174,74 +16587,26 @@
             {
               "file_path": "agents/incremental_agent.py",
               "methods": [
-                "agents.incremental_agent.IncrementalAgent.__init__",
                 "agents.incremental_agent.IncrementalAgent.run",
                 "agents.incremental_agent.IncrementalAgent.generate_scope_relations",
-                "agents.incremental_agent.IncrementalAgent.generate_all_scope_relations"
-              ]
-            },
-            {
-              "file_path": "agents/llm_config.py",
-              "methods": [
-                "agents.llm_config.LLMConfig",
-                "agents.llm_config.LLMConfig.get_api_key",
-                "agents.llm_config.LLMConfig.has_real_api_key",
-                "agents.llm_config.LLMConfig.is_selected_by_env",
-                "agents.llm_config.LLMConfig.get_resolved_extra_args",
-                "agents.llm_config._all_selection_envs",
-                "agents.llm_config._unselected_key_hints",
-                "agents.llm_config.selected_providers",
-                "agents.llm_config._initialize_llm",
-                "agents.llm_config._resolve_selected_provider",
-                "agents.llm_config.LLMConfigError",
-                "agents.llm_config.validate_api_key_provided",
-                "agents.llm_config.initialize_agent_llm",
-                "agents.llm_config.get_current_agent_context_window",
-                "agents.llm_config.get_current_agent_model_ref",
-                "agents.llm_config.initialize_parsing_llm",
-                "agents.llm_config.initialize_llms",
-                "agents.llm_config.supports_prompt_caching"
+                "agents.incremental_agent.IncrementalAgent.generate_all_scope_relations",
+                "agents.incremental_agent._log_routing_summary",
+                "agents.incremental_agent._log_scope_relations_summary"
               ]
             },
             {
               "file_path": "agents/meta_agent.py",
               "methods": [
-                "agents.meta_agent.MetaAgent.__init__",
                 "agents.meta_agent.MetaAgent.analyze_project_metadata"
-              ]
-            },
-            {
-              "file_path": "agents/model_capabilities.py",
-              "methods": [
-                "agents.model_capabilities.ContextWindow"
-              ]
-            },
-            {
-              "file_path": "agents/prompts/prompt_factory.py",
-              "methods": [
-                "agents.prompts.prompt_factory.LLMType.from_model_name"
               ]
             },
             {
               "file_path": "agents/retry.py",
               "methods": [
-                "agents.retry.RetryAction",
                 "agents.retry.RetryDecision",
                 "agents.retry.default_backoff",
                 "agents.retry._default_classify",
                 "agents.retry.with_retries"
-              ]
-            },
-            {
-              "file_path": "agents/tools/base.py",
-              "methods": [
-                "agents.tools.base.RepoContext"
-              ]
-            },
-            {
-              "file_path": "agents/tools/toolkit.py",
-              "methods": [
-                "agents.tools.toolkit.CodeBoardingToolkit"
               ]
             },
             {
@@ -17290,37 +16655,9 @@
               ]
             },
             {
-              "file_path": "caching/meta_cache.py",
-              "methods": [
-                "caching.meta_cache.MetaCache"
-              ]
-            },
-            {
               "file_path": "diagram_analysis/run_context.py",
               "methods": [
-                "diagram_analysis.run_context.RunContext",
                 "diagram_analysis.run_context._load_existing_run_id"
-              ]
-            },
-            {
-              "file_path": "health/checks/cohesion.py",
-              "methods": [
-                "health.checks.cohesion.check_component_cohesion"
-              ]
-            },
-            {
-              "file_path": "monitoring/callbacks.py",
-              "methods": [
-                "monitoring.callbacks.MonitoringCallback.__init__",
-                "monitoring.callbacks.MonitoringCallback.model_name",
-                "monitoring.callbacks.MonitoringCallback.stats",
-                "monitoring.callbacks.MonitoringCallback.on_llm_end",
-                "monitoring.callbacks.MonitoringCallback.on_tool_start",
-                "monitoring.callbacks.MonitoringCallback.on_tool_end",
-                "monitoring.callbacks.MonitoringCallback.on_tool_error",
-                "monitoring.callbacks.MonitoringCallback._extract_usage",
-                "monitoring.callbacks.MonitoringCallback._extract_usage._coerce_int",
-                "monitoring.callbacks.MonitoringCallback._extract_usage._extract_usage_from_mapping"
               ]
             },
             {
@@ -17330,6 +16667,206 @@
                 "monitoring.context.trace._create_wrapper",
                 "monitoring.context.trace._create_wrapper.wrapper",
                 "monitoring.context.trace.decorator"
+              ]
+            },
+            {
+              "file_path": "static_analyzer/cluster_helpers.py",
+              "methods": [
+                "static_analyzer.cluster_helpers.get_all_cluster_ids"
+              ]
+            },
+            {
+              "file_path": "static_analyzer/graph.py",
+              "methods": [
+                "static_analyzer.graph.ClusterResult.get_clusters_for_file"
+              ]
+            },
+            {
+              "file_path": "static_analyzer/reference_resolve_mixin.py",
+              "methods": [
+                "static_analyzer.reference_resolve_mixin.ReferenceResolverMixin.fix_source_code_reference_lines",
+                "static_analyzer.reference_resolve_mixin.ReferenceResolverMixin._remove_unresolved_references",
+                "static_analyzer.reference_resolve_mixin.ReferenceResolverMixin._relative_paths"
+              ]
+            }
+          ],
+          "component_id": "3.2",
+          "can_expand": true
+        },
+        {
+          "name": "LLM Interface & Optimization",
+          "description": "Manages the technical bridge to LLM providers, including prompt generation tailored to specific models and context management strategies to handle large codebases.",
+          "key_entities": [
+            {
+              "qualified_name": "agents.prompts.prompt_factory.PromptFactory",
+              "reference_file": "agents/prompts/prompt_factory.py",
+              "reference_start_line": 49,
+              "reference_end_line": 99
+            },
+            {
+              "qualified_name": "agents.cluster_budget.ClusterPromptBudget",
+              "reference_file": "agents/cluster_budget.py",
+              "reference_start_line": 10,
+              "reference_end_line": 21
+            },
+            {
+              "qualified_name": "diagram_analysis.cluster_delta.ClusterDelta",
+              "reference_file": "diagram_analysis/cluster_delta.py",
+              "reference_start_line": 46,
+              "reference_end_line": 66
+            }
+          ],
+          "source_cluster_ids": [
+            8,
+            9,
+            10,
+            12,
+            13
+          ],
+          "file_methods": [
+            {
+              "file_path": "agents/cluster_budget.py",
+              "methods": [
+                "agents.cluster_budget.ClusterPromptBudget",
+                "agents.cluster_budget.ClusterPromptBudget.available_chars"
+              ]
+            },
+            {
+              "file_path": "agents/cluster_methods_mixin.py",
+              "methods": [
+                "agents.cluster_methods_mixin._RenderedClusterString",
+                "agents.cluster_methods_mixin._describe_window",
+                "agents.cluster_methods_mixin._window_telemetry",
+                "agents.cluster_methods_mixin.ClusterMethodsMixin._build_cluster_string",
+                "agents.cluster_methods_mixin.ClusterMethodsMixin._render_cluster_string",
+                "agents.cluster_methods_mixin.ClusterMethodsMixin._plan_skip_sets",
+                "agents.cluster_methods_mixin.ClusterMethodsMixin._language_budget_targets",
+                "agents.cluster_methods_mixin.ClusterMethodsMixin._raise_cluster_budget_error",
+                "agents.cluster_methods_mixin.ClusterMethodsMixin._cluster_prompt_budget",
+                "agents.cluster_methods_mixin.ClusterMethodsMixin.build_files_index"
+              ]
+            },
+            {
+              "file_path": "agents/incremental_agent.py",
+              "methods": [
+                "agents.incremental_agent.IncrementalAgent",
+                "agents.incremental_agent.remove_deleted_files",
+                "agents.incremental_agent._scrub_one_analysis",
+                "agents.incremental_agent.prune_empty_components",
+                "agents.incremental_agent.prune_empty_components._has_methods",
+                "agents.incremental_agent.prune_empty_components._collect_empty",
+                "agents.incremental_agent._strip_relations"
+              ]
+            },
+            {
+              "file_path": "agents/llm_config.py",
+              "methods": [
+                "agents.llm_config._model_accepts_temperature",
+                "agents.llm_config.configure_models",
+                "agents.llm_config.LLMConfig",
+                "agents.llm_config.LLMConfig.get_api_key",
+                "agents.llm_config.LLMConfig.has_real_api_key",
+                "agents.llm_config.LLMConfig.is_selected_by_env",
+                "agents.llm_config.LLMConfig.get_resolved_extra_args",
+                "agents.llm_config._all_selection_envs",
+                "agents.llm_config._unselected_key_hints",
+                "agents.llm_config.selected_providers",
+                "agents.llm_config._initialize_llm",
+                "agents.llm_config._resolve_selected_provider",
+                "agents.llm_config.LLMConfigError",
+                "agents.llm_config.validate_api_key_provided",
+                "agents.llm_config.initialize_agent_llm",
+                "agents.llm_config.get_current_agent_context_window",
+                "agents.llm_config.get_current_agent_model_ref",
+                "agents.llm_config.initialize_parsing_llm",
+                "agents.llm_config.initialize_llms",
+                "agents.llm_config.supports_prompt_caching"
+              ]
+            },
+            {
+              "file_path": "agents/prompts/claude_prompts.py",
+              "methods": [
+                "agents.prompts.claude_prompts.ClaudePromptFactory"
+              ]
+            },
+            {
+              "file_path": "agents/prompts/deepseek_prompts.py",
+              "methods": [
+                "agents.prompts.deepseek_prompts.DeepSeekPromptFactory"
+              ]
+            },
+            {
+              "file_path": "agents/prompts/gemini_flash_prompts.py",
+              "methods": [
+                "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory"
+              ]
+            },
+            {
+              "file_path": "agents/prompts/glm_prompts.py",
+              "methods": [
+                "agents.prompts.glm_prompts.GLMPromptFactory"
+              ]
+            },
+            {
+              "file_path": "agents/prompts/gpt_prompts.py",
+              "methods": [
+                "agents.prompts.gpt_prompts.GPTPromptFactory"
+              ]
+            },
+            {
+              "file_path": "agents/prompts/kimi_prompts.py",
+              "methods": [
+                "agents.prompts.kimi_prompts.KimiPromptFactory"
+              ]
+            },
+            {
+              "file_path": "agents/prompts/prompt_factory.py",
+              "methods": [
+                "agents.prompts.prompt_factory.PromptFactory.__init__",
+                "agents.prompts.prompt_factory.PromptFactory._create_prompt_factory"
+              ]
+            },
+            {
+              "file_path": "diagram_analysis/cluster_delta.py",
+              "methods": [
+                "diagram_analysis.cluster_delta.LanguageDelta.affected_cluster_ids",
+                "diagram_analysis.cluster_delta.ClusterDelta.has_changes",
+                "diagram_analysis.cluster_delta.ClusterDelta.all_affected_cluster_ids",
+                "diagram_analysis.cluster_delta.ClusterDelta.cluster_results"
+              ]
+            },
+            {
+              "file_path": "diagram_analysis/cluster_snapshot.py",
+              "methods": [
+                "diagram_analysis.cluster_snapshot.ClusterSnapshot.all_cluster_ids"
+              ]
+            },
+            {
+              "file_path": "diagram_analysis/diagram_generator.py",
+              "methods": [
+                "diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
+                "diagram_analysis.diagram_generator._collect_components_by_id",
+                "diagram_analysis.diagram_generator._merge_sub_analyses"
+              ]
+            },
+            {
+              "file_path": "diagram_analysis/exceptions.py",
+              "methods": [
+                "diagram_analysis.exceptions.IncrementalCacheMissingError"
+              ]
+            },
+            {
+              "file_path": "monitoring/callbacks.py",
+              "methods": [
+                "monitoring.callbacks.MonitoringCallback.model_name",
+                "monitoring.callbacks.MonitoringCallback.stats",
+                "monitoring.callbacks.MonitoringCallback.on_llm_end",
+                "monitoring.callbacks.MonitoringCallback.on_tool_start",
+                "monitoring.callbacks.MonitoringCallback.on_tool_end",
+                "monitoring.callbacks.MonitoringCallback.on_tool_error",
+                "monitoring.callbacks.MonitoringCallback._extract_usage",
+                "monitoring.callbacks.MonitoringCallback._extract_usage._coerce_int",
+                "monitoring.callbacks.MonitoringCallback._extract_usage._extract_usage_from_mapping"
               ]
             },
             {
@@ -17344,265 +16881,18 @@
               ]
             },
             {
-              "file_path": "static_analyzer/cluster_helpers.py",
-              "methods": [
-                "static_analyzer.cluster_helpers.get_all_cluster_ids",
-                "static_analyzer.cluster_helpers.get_files_for_cluster_ids"
-              ]
-            },
-            {
               "file_path": "static_analyzer/graph.py",
               "methods": [
-                "static_analyzer.graph.ClusterResult.get_cluster_ids",
-                "static_analyzer.graph.ClusterResult.get_files_for_cluster",
-                "static_analyzer.graph.ClusterResult.get_clusters_for_file"
-              ]
-            },
-            {
-              "file_path": "static_analyzer/reference_resolve_mixin.py",
-              "methods": [
-                "static_analyzer.reference_resolve_mixin.ReferenceResolverMixin.__init__",
-                "static_analyzer.reference_resolve_mixin.ReferenceResolverMixin.fix_source_code_reference_lines",
-                "static_analyzer.reference_resolve_mixin.ReferenceResolverMixin._remove_unresolved_references",
-                "static_analyzer.reference_resolve_mixin.ReferenceResolverMixin._relative_paths"
+                "static_analyzer.graph.ClusterResult.get_cluster_ids"
               ]
             }
           ],
-          "component_id": "3.1",
+          "component_id": "3.3",
           "can_expand": true
         },
         {
-          "name": "Prompt Strategy & LLM Abstraction",
-          "description": "Factory layer abstracting LLM providers to ensure reasoning tasks receive optimized, model-specific instructions.",
-          "key_entities": [
-            {
-              "qualified_name": "agents.prompts.prompt_factory.PromptFactory",
-              "reference_file": "agents/prompts/prompt_factory.py",
-              "reference_start_line": 49,
-              "reference_end_line": 99
-            },
-            {
-              "qualified_name": "agents.prompts.abstract_prompt_factory.AbstractPromptFactory",
-              "reference_file": "agents/prompts/abstract_prompt_factory.py",
-              "reference_start_line": 10,
-              "reference_end_line": 67
-            },
-            {
-              "qualified_name": "agents.prompts.claude_prompts.ClaudePromptFactory",
-              "reference_file": "agents/prompts/claude_prompts.py",
-              "reference_start_line": 395,
-              "reference_end_line": 447
-            }
-          ],
-          "source_cluster_ids": [
-            5,
-            8,
-            9,
-            10,
-            11,
-            12,
-            13
-          ],
-          "file_methods": [
-            {
-              "file_path": "agents/prompts/__init__.py",
-              "methods": [
-                "agents.prompts.__init__.__getattr__"
-              ]
-            },
-            {
-              "file_path": "agents/prompts/abstract_prompt_factory.py",
-              "methods": [
-                "agents.prompts.abstract_prompt_factory.AbstractPromptFactory",
-                "agents.prompts.abstract_prompt_factory.AbstractPromptFactory.get_system_message",
-                "agents.prompts.abstract_prompt_factory.AbstractPromptFactory.get_cluster_grouping_message",
-                "agents.prompts.abstract_prompt_factory.AbstractPromptFactory.get_final_analysis_message",
-                "agents.prompts.abstract_prompt_factory.AbstractPromptFactory.get_planner_system_message",
-                "agents.prompts.abstract_prompt_factory.AbstractPromptFactory.get_expansion_prompt",
-                "agents.prompts.abstract_prompt_factory.AbstractPromptFactory.get_system_meta_analysis_message",
-                "agents.prompts.abstract_prompt_factory.AbstractPromptFactory.get_meta_information_prompt",
-                "agents.prompts.abstract_prompt_factory.AbstractPromptFactory.get_file_classification_message",
-                "agents.prompts.abstract_prompt_factory.AbstractPromptFactory.get_validation_feedback_message",
-                "agents.prompts.abstract_prompt_factory.AbstractPromptFactory.get_system_details_message",
-                "agents.prompts.abstract_prompt_factory.AbstractPromptFactory.get_cfg_details_message",
-                "agents.prompts.abstract_prompt_factory.AbstractPromptFactory.get_details_message",
-                "agents.prompts.abstract_prompt_factory.AbstractPromptFactory.get_incremental_grouping_message",
-                "agents.prompts.abstract_prompt_factory.AbstractPromptFactory.get_scope_relations_message"
-              ]
-            },
-            {
-              "file_path": "agents/prompts/claude_prompts.py",
-              "methods": [
-                "agents.prompts.claude_prompts.ClaudePromptFactory",
-                "agents.prompts.claude_prompts.ClaudePromptFactory.get_system_message",
-                "agents.prompts.claude_prompts.ClaudePromptFactory.get_cluster_grouping_message",
-                "agents.prompts.claude_prompts.ClaudePromptFactory.get_final_analysis_message",
-                "agents.prompts.claude_prompts.ClaudePromptFactory.get_planner_system_message",
-                "agents.prompts.claude_prompts.ClaudePromptFactory.get_expansion_prompt",
-                "agents.prompts.claude_prompts.ClaudePromptFactory.get_validator_system_message",
-                "agents.prompts.claude_prompts.ClaudePromptFactory.get_component_validation_component",
-                "agents.prompts.claude_prompts.ClaudePromptFactory.get_relationships_validation",
-                "agents.prompts.claude_prompts.ClaudePromptFactory.get_system_meta_analysis_message",
-                "agents.prompts.claude_prompts.ClaudePromptFactory.get_meta_information_prompt",
-                "agents.prompts.claude_prompts.ClaudePromptFactory.get_file_classification_message",
-                "agents.prompts.claude_prompts.ClaudePromptFactory.get_validation_feedback_message",
-                "agents.prompts.claude_prompts.ClaudePromptFactory.get_system_details_message",
-                "agents.prompts.claude_prompts.ClaudePromptFactory.get_cfg_details_message",
-                "agents.prompts.claude_prompts.ClaudePromptFactory.get_incremental_grouping_message",
-                "agents.prompts.claude_prompts.ClaudePromptFactory.get_scope_relations_message",
-                "agents.prompts.claude_prompts.ClaudePromptFactory.get_details_message"
-              ]
-            },
-            {
-              "file_path": "agents/prompts/deepseek_prompts.py",
-              "methods": [
-                "agents.prompts.deepseek_prompts.DeepSeekPromptFactory",
-                "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_system_message",
-                "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_cluster_grouping_message",
-                "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_final_analysis_message",
-                "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_planner_system_message",
-                "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_expansion_prompt",
-                "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_validator_system_message",
-                "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_component_validation_component",
-                "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_relationships_validation",
-                "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_system_meta_analysis_message",
-                "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_meta_information_prompt",
-                "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_file_classification_message",
-                "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_validation_feedback_message",
-                "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_system_details_message",
-                "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_cfg_details_message",
-                "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_details_message",
-                "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_incremental_grouping_message",
-                "agents.prompts.deepseek_prompts.DeepSeekPromptFactory.get_scope_relations_message"
-              ]
-            },
-            {
-              "file_path": "agents/prompts/gemini_flash_prompts.py",
-              "methods": [
-                "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory",
-                "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_system_message",
-                "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_cluster_grouping_message",
-                "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_final_analysis_message",
-                "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_planner_system_message",
-                "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_expansion_prompt",
-                "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_validator_system_message",
-                "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_component_validation_component",
-                "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_relationships_validation",
-                "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_system_meta_analysis_message",
-                "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_meta_information_prompt",
-                "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_file_classification_message",
-                "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_validation_feedback_message",
-                "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_system_details_message",
-                "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_cfg_details_message",
-                "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_details_message",
-                "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_incremental_grouping_message",
-                "agents.prompts.gemini_flash_prompts.GeminiFlashPromptFactory.get_scope_relations_message"
-              ]
-            },
-            {
-              "file_path": "agents/prompts/glm_prompts.py",
-              "methods": [
-                "agents.prompts.glm_prompts.GLMPromptFactory",
-                "agents.prompts.glm_prompts.GLMPromptFactory.get_system_message",
-                "agents.prompts.glm_prompts.GLMPromptFactory.get_cluster_grouping_message",
-                "agents.prompts.glm_prompts.GLMPromptFactory.get_final_analysis_message",
-                "agents.prompts.glm_prompts.GLMPromptFactory.get_planner_system_message",
-                "agents.prompts.glm_prompts.GLMPromptFactory.get_expansion_prompt",
-                "agents.prompts.glm_prompts.GLMPromptFactory.get_validator_system_message",
-                "agents.prompts.glm_prompts.GLMPromptFactory.get_component_validation_component",
-                "agents.prompts.glm_prompts.GLMPromptFactory.get_relationships_validation",
-                "agents.prompts.glm_prompts.GLMPromptFactory.get_system_meta_analysis_message",
-                "agents.prompts.glm_prompts.GLMPromptFactory.get_meta_information_prompt",
-                "agents.prompts.glm_prompts.GLMPromptFactory.get_file_classification_message",
-                "agents.prompts.glm_prompts.GLMPromptFactory.get_validation_feedback_message",
-                "agents.prompts.glm_prompts.GLMPromptFactory.get_system_details_message",
-                "agents.prompts.glm_prompts.GLMPromptFactory.get_cfg_details_message",
-                "agents.prompts.glm_prompts.GLMPromptFactory.get_details_message",
-                "agents.prompts.glm_prompts.GLMPromptFactory.get_incremental_grouping_message",
-                "agents.prompts.glm_prompts.GLMPromptFactory.get_scope_relations_message"
-              ]
-            },
-            {
-              "file_path": "agents/prompts/gpt_prompts.py",
-              "methods": [
-                "agents.prompts.gpt_prompts.GPTPromptFactory",
-                "agents.prompts.gpt_prompts.GPTPromptFactory.get_system_message",
-                "agents.prompts.gpt_prompts.GPTPromptFactory.get_cluster_grouping_message",
-                "agents.prompts.gpt_prompts.GPTPromptFactory.get_final_analysis_message",
-                "agents.prompts.gpt_prompts.GPTPromptFactory.get_planner_system_message",
-                "agents.prompts.gpt_prompts.GPTPromptFactory.get_expansion_prompt",
-                "agents.prompts.gpt_prompts.GPTPromptFactory.get_validator_system_message",
-                "agents.prompts.gpt_prompts.GPTPromptFactory.get_component_validation_component",
-                "agents.prompts.gpt_prompts.GPTPromptFactory.get_relationships_validation",
-                "agents.prompts.gpt_prompts.GPTPromptFactory.get_system_meta_analysis_message",
-                "agents.prompts.gpt_prompts.GPTPromptFactory.get_meta_information_prompt",
-                "agents.prompts.gpt_prompts.GPTPromptFactory.get_file_classification_message",
-                "agents.prompts.gpt_prompts.GPTPromptFactory.get_validation_feedback_message",
-                "agents.prompts.gpt_prompts.GPTPromptFactory.get_system_details_message",
-                "agents.prompts.gpt_prompts.GPTPromptFactory.get_cfg_details_message",
-                "agents.prompts.gpt_prompts.GPTPromptFactory.get_details_message",
-                "agents.prompts.gpt_prompts.GPTPromptFactory.get_incremental_grouping_message",
-                "agents.prompts.gpt_prompts.GPTPromptFactory.get_scope_relations_message"
-              ]
-            },
-            {
-              "file_path": "agents/prompts/kimi_prompts.py",
-              "methods": [
-                "agents.prompts.kimi_prompts.KimiPromptFactory",
-                "agents.prompts.kimi_prompts.KimiPromptFactory.get_system_message",
-                "agents.prompts.kimi_prompts.KimiPromptFactory.get_cluster_grouping_message",
-                "agents.prompts.kimi_prompts.KimiPromptFactory.get_final_analysis_message",
-                "agents.prompts.kimi_prompts.KimiPromptFactory.get_planner_system_message",
-                "agents.prompts.kimi_prompts.KimiPromptFactory.get_expansion_prompt",
-                "agents.prompts.kimi_prompts.KimiPromptFactory.get_validator_system_message",
-                "agents.prompts.kimi_prompts.KimiPromptFactory.get_component_validation_component",
-                "agents.prompts.kimi_prompts.KimiPromptFactory.get_relationships_validation",
-                "agents.prompts.kimi_prompts.KimiPromptFactory.get_system_meta_analysis_message",
-                "agents.prompts.kimi_prompts.KimiPromptFactory.get_meta_information_prompt",
-                "agents.prompts.kimi_prompts.KimiPromptFactory.get_file_classification_message",
-                "agents.prompts.kimi_prompts.KimiPromptFactory.get_validation_feedback_message",
-                "agents.prompts.kimi_prompts.KimiPromptFactory.get_system_details_message",
-                "agents.prompts.kimi_prompts.KimiPromptFactory.get_cfg_details_message",
-                "agents.prompts.kimi_prompts.KimiPromptFactory.get_details_message",
-                "agents.prompts.kimi_prompts.KimiPromptFactory.get_incremental_grouping_message",
-                "agents.prompts.kimi_prompts.KimiPromptFactory.get_scope_relations_message"
-              ]
-            },
-            {
-              "file_path": "agents/prompts/prompt_factory.py",
-              "methods": [
-                "agents.prompts.prompt_factory.LLMType",
-                "agents.prompts.prompt_factory.PromptFactory",
-                "agents.prompts.prompt_factory.PromptFactory.__init__",
-                "agents.prompts.prompt_factory.PromptFactory._create_prompt_factory",
-                "agents.prompts.prompt_factory.PromptFactory.get_prompt",
-                "agents.prompts.prompt_factory.PromptFactory.get_all_prompts",
-                "agents.prompts.prompt_factory.initialize_global_factory",
-                "agents.prompts.prompt_factory.get_global_factory",
-                "agents.prompts.prompt_factory.get_prompt",
-                "agents.prompts.prompt_factory.get_system_message",
-                "agents.prompts.prompt_factory.get_cluster_grouping_message",
-                "agents.prompts.prompt_factory.get_final_analysis_message",
-                "agents.prompts.prompt_factory.get_planner_system_message",
-                "agents.prompts.prompt_factory.get_expansion_prompt",
-                "agents.prompts.prompt_factory.get_system_meta_analysis_message",
-                "agents.prompts.prompt_factory.get_meta_information_prompt",
-                "agents.prompts.prompt_factory.get_file_classification_message",
-                "agents.prompts.prompt_factory.get_validation_feedback_message",
-                "agents.prompts.prompt_factory.get_system_details_message",
-                "agents.prompts.prompt_factory.get_cfg_details_message",
-                "agents.prompts.prompt_factory.get_details_message",
-                "agents.prompts.prompt_factory.get_incremental_grouping_message",
-                "agents.prompts.prompt_factory.get_scope_relations_message"
-              ]
-            }
-          ],
-          "component_id": "3.2",
-          "can_expand": true
-        },
-        {
-          "name": "Architectural Health & Quality Guard",
-          "description": "Performs deterministic analysis to evaluate structural integrity and identify anti-patterns like circular dependencies.",
+          "name": "Architectural Health Diagnostics",
+          "description": "Executes deterministic checks for structural integrity, such as circular dependencies and cohesion metrics, integrating LSP data for precise diagnostics.",
           "key_entities": [
             {
               "qualified_name": "health.runner.run_health_checks",
@@ -17617,20 +16907,35 @@
               "reference_end_line": 48
             },
             {
-              "qualified_name": "health.models.HealthReport",
-              "reference_file": "health/models.py",
-              "reference_start_line": 122,
-              "reference_end_line": 135
+              "qualified_name": "health.checks.unused_code_diagnostics.LSPDiagnosticsCollector",
+              "reference_file": "health/checks/unused_code_diagnostics.py",
+              "reference_start_line": 138,
+              "reference_end_line": 262
             }
           ],
           "source_cluster_ids": [
-            3
+            4,
+            5,
+            14
           ],
           "file_methods": [
+            {
+              "file_path": "diagram_analysis/diagram_generator.py",
+              "methods": [
+                "diagram_analysis.diagram_generator.DiagramGenerator._run_health_report",
+                "diagram_analysis.diagram_generator.DiagramGenerator.pre_analysis.get_static_with_new_analyzer"
+              ]
+            },
             {
               "file_path": "health/checks/circular_deps.py",
               "methods": [
                 "health.checks.circular_deps.check_circular_dependencies"
+              ]
+            },
+            {
+              "file_path": "health/checks/cohesion.py",
+              "methods": [
+                "health.checks.cohesion.check_component_cohesion"
               ]
             },
             {
@@ -17672,11 +16977,9 @@
             {
               "file_path": "health/checks/unused_code_diagnostics.py",
               "methods": [
-                "health.checks.unused_code_diagnostics.DeadCodeCategory",
                 "health.checks.unused_code_diagnostics.DiagnosticIssue",
                 "health.checks.unused_code_diagnostics.FileDiagnostic",
                 "health.checks.unused_code_diagnostics.LSPDiagnosticsCollector",
-                "health.checks.unused_code_diagnostics.LSPDiagnosticsCollector.__init__",
                 "health.checks.unused_code_diagnostics.LSPDiagnosticsCollector.add_diagnostic",
                 "health.checks.unused_code_diagnostics.LSPDiagnosticsCollector.process_diagnostics",
                 "health.checks.unused_code_diagnostics.LSPDiagnosticsCollector._convert_to_issue",
@@ -17689,16 +16992,21 @@
               ]
             },
             {
+              "file_path": "health/config.py",
+              "methods": [
+                "health.config._initialize_template",
+                "health.config.initialize_health_dir",
+                "health.config._load_health_exclude_patterns",
+                "health.config.load_health_config"
+              ]
+            },
+            {
               "file_path": "health/models.py",
               "methods": [
-                "health.models.Severity",
                 "health.models.FindingEntity",
                 "health.models.FindingGroup",
-                "health.models.BaseCheckSummary",
                 "health.models.StandardCheckSummary",
-                "health.models.StandardCheckSummary.findings",
                 "health.models.CircularDependencyCheck",
-                "health.models.CircularDependencyCheck.score",
                 "health.models.FileHealthSummary",
                 "health.models.HealthReport",
                 "health.models.HealthCheckConfig"
@@ -17715,105 +17023,6 @@
                 "health.runner._aggregate_file_summaries",
                 "health.runner._relativize_report_paths",
                 "health.runner.run_health_checks"
-              ]
-            },
-            {
-              "file_path": "repo_utils/ignore.py",
-              "methods": [
-                "repo_utils.ignore.RepoIgnoreManager.should_skip_file"
-              ]
-            },
-            {
-              "file_path": "static_analyzer/node.py",
-              "methods": [
-                "static_analyzer.node.Node.is_class",
-                "static_analyzer.node.Node.is_data"
-              ]
-            }
-          ],
-          "component_id": "3.3",
-          "can_expand": true
-        },
-        {
-          "name": "Incremental State & Delta Engine",
-          "description": "Manages analysis evolution by tracking codebase changes to ensure reasoning targets only modified components.",
-          "key_entities": [
-            {
-              "qualified_name": "agents.incremental_agent.IncrementalAgent",
-              "reference_file": "agents/incremental_agent.py",
-              "reference_start_line": 50,
-              "reference_end_line": 241
-            },
-            {
-              "qualified_name": "diagram_analysis.cluster_delta.ClusterDelta",
-              "reference_file": "diagram_analysis/cluster_delta.py",
-              "reference_start_line": 46,
-              "reference_end_line": 66
-            },
-            {
-              "qualified_name": "diagram_analysis.diagram_generator.DiagramGenerator",
-              "reference_file": "diagram_analysis/diagram_generator.py",
-              "reference_start_line": 72,
-              "reference_end_line": 688
-            }
-          ],
-          "source_cluster_ids": [
-            6
-          ],
-          "file_methods": [
-            {
-              "file_path": "agents/incremental_agent.py",
-              "methods": [
-                "agents.incremental_agent.IncrementalAgent",
-                "agents.incremental_agent._log_routing_summary",
-                "agents.incremental_agent._log_scope_relations_summary",
-                "agents.incremental_agent.remove_deleted_files",
-                "agents.incremental_agent._scrub_one_analysis",
-                "agents.incremental_agent.prune_empty_components",
-                "agents.incremental_agent.prune_empty_components._has_methods",
-                "agents.incremental_agent.prune_empty_components._collect_empty",
-                "agents.incremental_agent._strip_relations"
-              ]
-            },
-            {
-              "file_path": "diagram_analysis/cluster_delta.py",
-              "methods": [
-                "diagram_analysis.cluster_delta.LanguageDelta.affected_cluster_ids",
-                "diagram_analysis.cluster_delta.ClusterDelta.has_changes",
-                "diagram_analysis.cluster_delta.ClusterDelta.all_affected_cluster_ids",
-                "diagram_analysis.cluster_delta.ClusterDelta.cluster_results"
-              ]
-            },
-            {
-              "file_path": "diagram_analysis/cluster_snapshot.py",
-              "methods": [
-                "diagram_analysis.cluster_snapshot.ClusterSnapshot.all_cluster_ids"
-              ]
-            },
-            {
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "methods": [
-                "diagram_analysis.diagram_generator.DiagramGenerator._run_health_report",
-                "diagram_analysis.diagram_generator.DiagramGenerator.pre_analysis.get_static_with_new_analyzer",
-                "diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
-                "diagram_analysis.diagram_generator._collect_components_by_id",
-                "diagram_analysis.diagram_generator._merge_sub_analyses"
-              ]
-            },
-            {
-              "file_path": "diagram_analysis/exceptions.py",
-              "methods": [
-                "diagram_analysis.exceptions.IncrementalCacheMissingError",
-                "diagram_analysis.exceptions.IncrementalCacheMissingError.__init__"
-              ]
-            },
-            {
-              "file_path": "health/config.py",
-              "methods": [
-                "health.config._initialize_template",
-                "health.config.initialize_health_dir",
-                "health.config._load_health_exclude_patterns",
-                "health.config.load_health_config"
               ]
             },
             {
@@ -17835,10 +17044,35 @@
               ]
             },
             {
+              "file_path": "repo_utils/ignore.py",
+              "methods": [
+                "repo_utils.ignore.RepoIgnoreManager.should_skip_file"
+              ]
+            },
+            {
               "file_path": "static_analyzer/__init__.py",
               "methods": [
                 "static_analyzer.__init__.StaticAnalyzer",
                 "static_analyzer.__init__.get_static_analysis"
+              ]
+            },
+            {
+              "file_path": "static_analyzer/cluster_helpers.py",
+              "methods": [
+                "static_analyzer.cluster_helpers.get_files_for_cluster_ids"
+              ]
+            },
+            {
+              "file_path": "static_analyzer/graph.py",
+              "methods": [
+                "static_analyzer.graph.ClusterResult.get_files_for_cluster"
+              ]
+            },
+            {
+              "file_path": "static_analyzer/node.py",
+              "methods": [
+                "static_analyzer.node.Node.is_class",
+                "static_analyzer.node.Node.is_data"
               ]
             },
             {
@@ -17852,187 +17086,88 @@
           ],
           "component_id": "3.4",
           "can_expand": true
-        },
-        {
-          "name": "Agent Tooling & Repository Interface",
-          "description": "Provides sensory tools for agents to interact with the physical codebase, including file system and structure inspection.",
-          "key_entities": [
-            {
-              "qualified_name": "agents.tools.toolkit.CodeBoardingToolkit",
-              "reference_file": "agents/tools/toolkit.py",
-              "reference_start_line": 19,
-              "reference_end_line": 111
-            },
-            {
-              "qualified_name": "agents.tools.read_structure.CodeStructureTool",
-              "reference_file": "agents/tools/read_structure.py",
-              "reference_start_line": 14,
-              "reference_end_line": 49
-            },
-            {
-              "qualified_name": "agents.tools.read_source.CodeReferenceReader",
-              "reference_file": "agents/tools/read_source.py",
-              "reference_start_line": 25,
-              "reference_end_line": 85
-            }
-          ],
-          "source_cluster_ids": [
-            7
-          ],
-          "file_methods": [
-            {
-              "file_path": "agents/tools/get_external_deps.py",
-              "methods": [
-                "agents.tools.get_external_deps.ExternalDepsTool"
-              ]
-            },
-            {
-              "file_path": "agents/tools/get_method_invocations.py",
-              "methods": [
-                "agents.tools.get_method_invocations.MethodInvocationsTool"
-              ]
-            },
-            {
-              "file_path": "agents/tools/read_cfg.py",
-              "methods": [
-                "agents.tools.read_cfg.GetCFGTool"
-              ]
-            },
-            {
-              "file_path": "agents/tools/read_docs.py",
-              "methods": [
-                "agents.tools.read_docs.ReadDocsTool"
-              ]
-            },
-            {
-              "file_path": "agents/tools/read_file.py",
-              "methods": [
-                "agents.tools.read_file.ReadFileTool"
-              ]
-            },
-            {
-              "file_path": "agents/tools/read_file_structure.py",
-              "methods": [
-                "agents.tools.read_file_structure.FileStructureTool"
-              ]
-            },
-            {
-              "file_path": "agents/tools/read_packages.py",
-              "methods": [
-                "agents.tools.read_packages.PackageRelationsTool"
-              ]
-            },
-            {
-              "file_path": "agents/tools/read_source.py",
-              "methods": [
-                "agents.tools.read_source.CodeReferenceReader"
-              ]
-            },
-            {
-              "file_path": "agents/tools/read_structure.py",
-              "methods": [
-                "agents.tools.read_structure.CodeStructureTool"
-              ]
-            },
-            {
-              "file_path": "agents/tools/toolkit.py",
-              "methods": [
-                "agents.tools.toolkit.CodeBoardingToolkit.__init__",
-                "agents.tools.toolkit.CodeBoardingToolkit.read_source_reference",
-                "agents.tools.toolkit.CodeBoardingToolkit.read_packages",
-                "agents.tools.toolkit.CodeBoardingToolkit.read_structure",
-                "agents.tools.toolkit.CodeBoardingToolkit.read_file_structure",
-                "agents.tools.toolkit.CodeBoardingToolkit.read_cfg",
-                "agents.tools.toolkit.CodeBoardingToolkit.read_method_invocations",
-                "agents.tools.toolkit.CodeBoardingToolkit.read_file",
-                "agents.tools.toolkit.CodeBoardingToolkit.read_docs",
-                "agents.tools.toolkit.CodeBoardingToolkit.external_deps",
-                "agents.tools.toolkit.CodeBoardingToolkit.get_agent_tools",
-                "agents.tools.toolkit.CodeBoardingToolkit.get_all_tools"
-              ]
-            },
-            {
-              "file_path": "core/__init__.py",
-              "methods": [
-                "core.__init__.Registries",
-                "core.__init__.get_registries",
-                "core.__init__.run_plugin_health_checks",
-                "core.__init__.load_plugin_tools"
-              ]
-            },
-            {
-              "file_path": "core/registry.py",
-              "methods": [
-                "core.registry.Registry.all"
-              ]
-            }
-          ],
-          "component_id": "3.5",
-          "can_expand": true
         }
       ],
       "components_relations": [
         {
-          "relation": "requests structured prompt templates",
-          "src_name": "Agentic Orchestration & Context Management",
-          "dst_name": "Prompt Strategy & LLM Abstraction",
+          "relation": "manages lifecycle and caching for",
+          "src_name": "Agentic Orchestration Core",
+          "dst_name": "Semantic Reasoning Engine",
           "src_id": "3.1",
           "dst_id": "3.2",
-          "edge_count": 13,
+          "edge_count": 2,
           "is_static": true
         },
         {
-          "relation": "invokes tools to retrieve code/structure",
-          "src_name": "Agentic Orchestration & Context Management",
+          "relation": "injects static analysis context into",
+          "src_name": "Agentic Orchestration Core",
           "dst_name": "Agent Tooling & Repository Interface",
           "src_id": "3.1",
           "dst_id": "3.5",
-          "edge_count": 15,
+          "edge_count": 1,
           "is_static": true
         },
         {
-          "relation": "consumes health reports for semantic explanation",
-          "src_name": "Agentic Orchestration & Context Management",
-          "dst_name": "Architectural Health & Quality Guard",
-          "src_id": "3.1",
+          "relation": "provides validation feedback and scope relations to",
+          "src_name": "Semantic Reasoning Engine",
+          "dst_name": "Agentic Orchestration Core",
+          "src_id": "3.2",
+          "dst_id": "3.1",
+          "edge_count": 2,
+          "is_static": true
+        },
+        {
+          "relation": "requests formatted cluster data and prompt budgeting from",
+          "src_name": "Semantic Reasoning Engine",
+          "dst_name": "LLM Interface & Optimization",
+          "src_id": "3.2",
           "dst_id": "3.3",
-          "edge_count": 3,
+          "edge_count": 7,
           "is_static": true
         },
         {
-          "relation": "provides delta information for scoping",
-          "src_name": "Incremental State & Delta Engine",
-          "dst_name": "Agentic Orchestration & Context Management",
+          "relation": "triggers incremental analysis runs for",
+          "src_name": "LLM Interface & Optimization",
+          "dst_name": "Semantic Reasoning Engine",
+          "src_id": "3.3",
+          "dst_id": "3.2",
+          "edge_count": 2,
+          "is_static": true
+        },
+        {
+          "relation": "executes plugin-based health checks via",
+          "src_name": "Architectural Health Diagnostics",
+          "dst_name": "Agentic Orchestration Core",
           "src_id": "3.4",
           "dst_id": "3.1",
-          "edge_count": 4,
+          "edge_count": 1,
           "is_static": true
         },
         {
-          "relation": "uses repository tools for dependency traversal",
-          "src_name": "Architectural Health & Quality Guard",
+          "relation": "utilizes for deep static code analysis",
+          "src_name": "Architectural Health Diagnostics",
           "dst_name": "Agent Tooling & Repository Interface",
-          "src_id": "3.3",
+          "src_id": "3.4",
           "dst_id": "3.5",
           "edge_count": 1,
           "is_static": true
         },
         {
           "relation": "calls",
-          "src_name": "Agentic Orchestration & Context Management",
-          "dst_name": "Incremental State & Delta Engine",
-          "src_id": "3.1",
-          "dst_id": "3.4",
-          "edge_count": 4,
+          "src_name": "Prompt Strategy & LLM Abstraction",
+          "dst_name": "Agent Tooling & Repository Interface",
+          "src_id": "3.2",
+          "dst_id": "3.5",
+          "edge_count": 2,
           "is_static": true
         },
         {
           "relation": "calls",
-          "src_name": "Incremental State & Delta Engine",
-          "dst_name": "Architectural Health & Quality Guard",
-          "src_id": "3.4",
-          "dst_id": "3.3",
-          "edge_count": 3,
+          "src_name": "Agent Tooling & Repository Interface",
+          "dst_name": "Prompt Strategy & LLM Abstraction",
+          "src_id": "3.5",
+          "dst_id": "3.2",
+          "edge_count": 6,
           "is_static": true
         }
       ]
@@ -19686,11 +18821,110 @@
   ],
   "components_relations": [
     {
-      "relation": "triggers analysis pipeline",
+      "relation": "Triggers LSP-based symbol extraction and language checks",
       "src_name": "Orchestration & Infrastructure",
       "dst_name": "Static Analysis & Graph Engine",
       "src_id": "1",
       "dst_id": "2",
+      "edge_count": 5,
+      "is_static": true
+    },
+    {
+      "relation": "Initializes execution monitoring and user configuration",
+      "src_name": "Orchestration & Infrastructure",
+      "dst_name": "Knowledge & Telemetry",
+      "src_id": "1",
+      "dst_id": "5",
+      "edge_count": 2,
+      "is_static": true
+    },
+    {
+      "relation": "Resolves environment-specific SDK paths and file change sets",
+      "src_name": "Static Analysis & Graph Engine",
+      "dst_name": "Orchestration & Infrastructure",
+      "src_id": "2",
+      "dst_id": "1",
+      "edge_count": 8,
+      "is_static": true
+    },
+    {
+      "relation": "Persists call graph data and LSP results to cache",
+      "src_name": "Static Analysis & Graph Engine",
+      "dst_name": "Knowledge & Telemetry",
+      "src_id": "2",
+      "dst_id": "5",
+      "edge_count": 5,
+      "is_static": true
+    },
+    {
+      "relation": "Consumes CFG nodes and cluster partitions for semantic analysis",
+      "src_name": "AI Reasoning & Health",
+      "dst_name": "Static Analysis & Graph Engine",
+      "src_id": "3",
+      "dst_id": "2",
+      "edge_count": 37,
+      "is_static": true
+    },
+    {
+      "relation": "Provides component classifications and architectural health metrics",
+      "src_name": "AI Reasoning & Health",
+      "dst_name": "Synthesis & Output",
+      "src_id": "3",
+      "dst_id": "4",
+      "edge_count": 16,
+      "is_static": true
+    },
+    {
+      "relation": "Orchestrates remote repository cloning for health checks",
+      "src_name": "AI Reasoning & Health",
+      "dst_name": "Orchestration & Infrastructure",
+      "src_id": "3",
+      "dst_id": "1",
+      "edge_count": 5,
+      "is_static": true
+    },
+    {
+      "relation": "Delegates component processing and metadata analysis to LLM agents",
+      "src_name": "Synthesis & Output",
+      "dst_name": "AI Reasoning & Health",
+      "src_id": "4",
+      "dst_id": "3",
+      "edge_count": 7,
+      "is_static": true
+    },
+    {
+      "relation": "Requests source file buckets and language-specific relations",
+      "src_name": "Synthesis & Output",
+      "dst_name": "Static Analysis & Graph Engine",
+      "src_id": "4",
+      "dst_id": "2",
+      "edge_count": 3,
+      "is_static": true
+    },
+    {
+      "relation": "Records tech stack discovery and persists analysis artifacts",
+      "src_name": "Synthesis & Output",
+      "dst_name": "Knowledge & Telemetry",
+      "src_id": "4",
+      "dst_id": "5",
+      "edge_count": 4,
+      "is_static": true
+    },
+    {
+      "relation": "Provides token usage statistics and context window constraints",
+      "src_name": "Knowledge & Telemetry",
+      "dst_name": "AI Reasoning & Health",
+      "src_id": "5",
+      "dst_id": "3",
+      "edge_count": 2,
+      "is_static": true
+    },
+    {
+      "relation": "Manages document rendering lifecycle and analysis file parsing",
+      "src_name": "Orchestration & Infrastructure",
+      "dst_name": "Synthesis & Output",
+      "src_id": "1",
+      "dst_id": "4",
       "edge_count": 5,
       "is_static": true
     },
@@ -19704,147 +18938,39 @@
       "is_static": true
     },
     {
-      "relation": "provides enriched metrics for reporting",
-      "src_name": "AI Reasoning & Health",
-      "dst_name": "Synthesis & Output",
-      "src_id": "3",
-      "dst_id": "4",
-      "edge_count": 16,
-      "is_static": true
-    },
-    {
-      "relation": "provides cached state and config",
-      "src_name": "Knowledge & Telemetry",
-      "dst_name": "Orchestration & Infrastructure",
-      "src_id": "5",
-      "dst_id": "1",
-      "edge_count": 0,
-      "is_static": false
-    },
-    {
-      "relation": "persists graph structures",
-      "src_name": "Static Analysis & Graph Engine",
-      "dst_name": "Knowledge & Telemetry",
-      "src_id": "2",
-      "dst_id": "5",
-      "edge_count": 5,
-      "is_static": true
-    },
-    {
       "relation": "logs execution and token usage",
       "src_name": "AI Reasoning & Health",
       "dst_name": "Knowledge & Telemetry",
       "src_id": "3",
       "dst_id": "5",
-      "edge_count": 4,
-      "is_static": true
-    },
-    {
-      "relation": "calls",
-      "src_name": "Orchestration & Infrastructure",
-      "dst_name": "AI Reasoning & Health",
-      "src_id": "1",
-      "dst_id": "3",
-      "edge_count": 6,
-      "is_static": true
-    },
-    {
-      "relation": "calls",
-      "src_name": "Orchestration & Infrastructure",
-      "dst_name": "Synthesis & Output",
-      "src_id": "1",
-      "dst_id": "4",
-      "edge_count": 5,
-      "is_static": true
-    },
-    {
-      "relation": "calls",
-      "src_name": "Orchestration & Infrastructure",
-      "dst_name": "Knowledge & Telemetry",
-      "src_id": "1",
-      "dst_id": "5",
-      "edge_count": 2,
-      "is_static": true
-    },
-    {
-      "relation": "calls",
-      "src_name": "Static Analysis & Graph Engine",
-      "dst_name": "Orchestration & Infrastructure",
-      "src_id": "2",
-      "dst_id": "1",
-      "edge_count": 8,
-      "is_static": true
-    },
-    {
-      "relation": "calls",
-      "src_name": "Static Analysis & Graph Engine",
-      "dst_name": "Synthesis & Output",
-      "src_id": "2",
-      "dst_id": "4",
-      "edge_count": 6,
-      "is_static": true
-    },
-    {
-      "relation": "calls",
-      "src_name": "AI Reasoning & Health",
-      "dst_name": "Orchestration & Infrastructure",
-      "src_id": "3",
-      "dst_id": "1",
-      "edge_count": 5,
-      "is_static": true
-    },
-    {
-      "relation": "calls",
-      "src_name": "AI Reasoning & Health",
-      "dst_name": "Static Analysis & Graph Engine",
-      "src_id": "3",
-      "dst_id": "2",
-      "edge_count": 37,
-      "is_static": true
-    },
-    {
-      "relation": "calls",
-      "src_name": "Synthesis & Output",
-      "dst_name": "Orchestration & Infrastructure",
-      "src_id": "4",
-      "dst_id": "1",
-      "edge_count": 5,
-      "is_static": true
-    },
-    {
-      "relation": "calls",
-      "src_name": "Synthesis & Output",
-      "dst_name": "Static Analysis & Graph Engine",
-      "src_id": "4",
-      "dst_id": "2",
       "edge_count": 3,
       "is_static": true
     },
     {
       "relation": "calls",
-      "src_name": "Synthesis & Output",
+      "src_name": "Orchestration & Infrastructure",
       "dst_name": "AI Reasoning & Health",
-      "src_id": "4",
+      "src_id": "1",
       "dst_id": "3",
-      "edge_count": 8,
+      "edge_count": 5,
+      "is_static": true
+    },
+    {
+      "relation": "calls",
+      "src_name": "Static Analysis & Graph Engine",
+      "dst_name": "Synthesis & Output",
+      "src_id": "2",
+      "dst_id": "4",
+      "edge_count": 6,
       "is_static": true
     },
     {
       "relation": "calls",
       "src_name": "Synthesis & Output",
-      "dst_name": "Knowledge & Telemetry",
+      "dst_name": "Orchestration & Infrastructure",
       "src_id": "4",
-      "dst_id": "5",
-      "edge_count": 4,
-      "is_static": true
-    },
-    {
-      "relation": "calls",
-      "src_name": "Knowledge & Telemetry",
-      "dst_name": "AI Reasoning & Health",
-      "src_id": "5",
-      "dst_id": "3",
-      "edge_count": 2,
+      "dst_id": "1",
+      "edge_count": 5,
       "is_static": true
     }
   ]

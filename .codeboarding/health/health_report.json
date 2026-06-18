@@ -1,13 +1,13 @@
 {
   "repository_name": "CodeBoarding",
-  "timestamp": "2026-06-17T17:01:30.664142+00:00",
-  "overall_score": 0.9342355175688509,
+  "timestamp": "2026-06-18T16:38:10.749995+00:00",
+  "overall_score": 0.9347826086956522,
   "check_summaries": [
     {
       "check_name": "function_size",
       "description": "Checks that functions/methods do not exceed line count thresholds",
       "check_type": "standard",
-      "total_entities_checked": 1284,
+      "total_entities_checked": 1285,
       "findings_count": 0,
       "warning_count": 0,
       "score": 1.0,
@@ -17,10 +17,10 @@
       "check_name": "fan_out",
       "description": "Checks efferent coupling: how many other functions each function calls",
       "check_type": "standard",
-      "total_entities_checked": 1292,
+      "total_entities_checked": 1293,
       "findings_count": 26,
       "warning_count": 26,
-      "score": 0.9798761609907121,
+      "score": 0.979891724671307,
       "finding_groups": [
         {
           "severity": "warning",
@@ -217,10 +217,10 @@
       "check_name": "fan_in",
       "description": "Checks afferent coupling: how many other functions call each function",
       "check_type": "standard",
-      "total_entities_checked": 1292,
+      "total_entities_checked": 1293,
       "findings_count": 12,
       "warning_count": 12,
-      "score": 0.9907120743034056,
+      "score": 0.9907192575406032,
       "finding_groups": [
         {
           "severity": "warning",
@@ -389,62 +389,6 @@
       ]
     },
     {
-      "check_name": "circular_dependencies",
-      "description": "Detects circular dependencies between packages",
-      "check_type": "circular_dependencies",
-      "cycles": [
-        "static_analyzer -> agents -> agents.tools -> static_analyzer",
-        "static_analyzer -> agents -> diagram_analysis -> health -> health.checks -> static_analyzer",
-        "static_analyzer -> agents -> diagram_analysis -> health -> static_analyzer",
-        "static_analyzer -> agents -> diagram_analysis -> static_analyzer",
-        "static_analyzer -> agents -> static_analyzer",
-        "static_analyzer -> static_analyzer.engine -> static_analyzer",
-        "static_analyzer -> static_analyzer.engine.adapters -> static_analyzer",
-        "static_analyzer -> static_analyzer.engine.adapters -> static_analyzer.engine -> static_analyzer",
-        "agents.tools -> agents -> agents.tools",
-        "agents -> caching -> agents",
-        "agents -> diagram_analysis -> agents",
-        "agents -> diagram_analysis -> caching -> agents",
-        "health.checks -> health -> health.checks"
-      ],
-      "packages_checked": 30,
-      "packages_in_cycles": 9
-    },
-    {
-      "check_name": "package_instability",
-      "description": "Computes Martin's instability metric (I = Ce / (Ca + Ce)) per package",
-      "check_type": "standard",
-      "total_entities_checked": 29,
-      "findings_count": 4,
-      "warning_count": 4,
-      "score": 0.8620689655172413,
-      "finding_groups": [
-        {
-          "severity": "warning",
-          "threshold": 0.8,
-          "description": "Packages with instability >= 0.8 that are depended on by others",
-          "entities": [
-            {
-              "entity_name": "codeboarding_cli.commands",
-              "metric_value": 0.875
-            },
-            {
-              "entity_name": "codeboarding_cli",
-              "metric_value": 0.857
-            },
-            {
-              "entity_name": "static_analyzer.engine.adapters",
-              "metric_value": 0.833
-            },
-            {
-              "entity_name": "agents.tools",
-              "metric_value": 0.8
-            }
-          ]
-        }
-      ]
-    },
-    {
       "check_name": "unused_code_diagnostics",
       "description": "Detects unused imports, variables, functions, and dead code via LSP diagnostics",
       "check_type": "standard",
@@ -458,20 +402,6 @@
           "threshold": 0,
           "description": "Variables declared but never used",
           "entities": [
-            {
-              "entity_name": "[unused_variable] \"_config\" is not accessed",
-              "file_path": "agents/llm_config.py",
-              "line_start": 424,
-              "line_end": 424,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"_config\" is not accessed",
-              "file_path": "agents/llm_config.py",
-              "line_start": 437,
-              "line_end": 437,
-              "metric_value": 0.0
-            },
             {
               "entity_name": "[unused_variable] \"track_analysis\" is not accessed",
               "file_path": "codeboarding_workflows/analysis.py",
@@ -1366,6 +1296,20 @@
               "file_path": "static_analyzer/lsp_client/__init__.py",
               "line_start": 11,
               "line_end": 11,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_config\" is not accessed",
+              "file_path": "agents/llm_config.py",
+              "line_start": 440,
+              "line_end": 440,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_config\" is not accessed",
+              "file_path": "agents/llm_config.py",
+              "line_start": 453,
+              "line_end": 453,
               "metric_value": 0.0
             }
           ]
