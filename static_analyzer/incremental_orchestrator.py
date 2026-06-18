@@ -1,12 +1,11 @@
 """Pkl warm-start updater: bring cached per-language analysis up to date.
 
-The warm path keeps unchanged files from the pkl and re-LSPs only changed
-files. After merging fresh changed-file data into the cached graph, it rebuilds
-the changed-file edge frontier: inbound cached edges are kept only if LSP
-references still prove ``unchanged -> changed``, and outbound edges are resolved
-from changed-file call sites via LSP definitions. Unchanged-only edges stay
-cached. No JSON or disk writes happen here; ``StaticAnalyzer`` persists the
-updated pkl after this returns.
+Warm-start flow:
+1. Keep unchanged files from the pkl and invalidate changed/deleted files.
+2. Re-LSP existing changed files and merge their fresh nodes/references back in.
+3. Rebuild inbound edges: keep ``unchanged -> changed`` only when references still prove it.
+4. Rebuild outbound edges: resolve changed-file call sites with definitions.
+5. Keep unchanged-only edges cached and let ``StaticAnalyzer`` persist the new pkl.
 """
 
 import logging
