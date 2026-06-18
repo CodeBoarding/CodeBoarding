@@ -20,10 +20,37 @@
     </select>
     <button id="run">Run analysis</button>
     <label class="watch"><input type="checkbox" id="watch" /> Watch</label>
+    <nav id="breadcrumb" aria-label="Navigation breadcrumb"></nav>
   </header>
   <main>
-    <div id="cy"></div>
-    <aside id="log"></aside>
+    <aside id="detail">
+      <div id="detail-empty" class="detail-empty">Select a node to see details</div>
+      <div id="detail-content" class="detail-content hidden">
+        <h2 id="detail-name"></h2>
+        <p id="detail-desc" class="detail-desc"></p>
+        <div id="detail-entities" class="detail-entities">
+          <h3>Key Code Entities</h3>
+          <ul id="detail-entity-list"></ul>
+        </div>
+        <button id="detail-expand" class="detail-expand hidden">Expand ›</button>
+      </div>
+    </aside>
+    <div id="graph-wrap">
+      <div id="toolbar">
+        <button id="tb-zoomin" title="Zoom in">+</button>
+        <button id="tb-zoomout" title="Zoom out">−</button>
+        <button id="tb-fit" title="Fit to screen">⤢</button>
+        <button id="tb-relayout" title="Re-run layout">↺</button>
+      </div>
+      <div id="cy"></div>
+    </div>
+    <aside id="log-panel">
+      <div id="log-header" class="log-header">
+        <span>Progress log</span>
+        <button id="log-toggle" class="log-toggle" aria-label="Toggle log">▼</button>
+      </div>
+      <div id="log"></div>
+    </aside>
   </main>
   <script src="/static/app.js"></script>
 </body>
