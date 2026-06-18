@@ -137,6 +137,21 @@ python main.py partial --local ./my-project --component-id "1.2"
 python main.py full https://github.com/pytorch/pytorch
 ```
 
+## Local web visualizer (`codeboarding serve`)
+
+Serve an interactive, live-updating diagram for a local repository:
+
+```bash
+codeboarding serve --local /path/to/repo
+```
+
+This starts a local web app at `http://127.0.0.1:8050/` and opens your browser.
+If an analysis already exists it renders immediately; click **Run analysis**
+(full or incremental) to regenerate it. Progress and the diagram stream in live
+as each component is analyzed, and your pan/zoom is preserved across updates.
+
+Flags: `--host`, `--port` (default `8050`), `--no-open`, `--depth-level`.
+
 ## Where to use it
 
 - [CLI](https://github.com/CodeBoarding/CodeBoarding) for local analysis, automation, and CI workflows.
