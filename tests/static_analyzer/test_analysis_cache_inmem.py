@@ -10,7 +10,12 @@ import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from static_analyzer.analysis_cache import invalidate_files, merge_results
+from static_analyzer.analysis_cache import (
+    _INVALIDATED_CROSS_BOUNDARY_EDGES,
+    _INVALIDATED_FILES,
+    invalidate_files,
+    merge_results,
+)
 from static_analyzer.constants import NodeType
 from static_analyzer.graph import CallGraph, ClusterResult
 from static_analyzer.node import Node
@@ -68,6 +73,21 @@ class TestInvalidateFiles(unittest.TestCase):
         updated = invalidate_files(cached, {Path("a.py")})
 
         self.assertEqual(len(updated["call_graph"].edges), 0)
+
+    def test_tracks_invalidated_cross_boundary_edges_for_merge(self) -> None:
+        cg = CallGraph(language="python")
+        cg.add_node(_node("a.foo", "a.py"))
+        cg.add_node(_node("b.bar", "b.py"))
+        cg.add_edge("a.foo", "b.bar")
+        cached = _result(cg, source_files=["a.py", "b.py"])
+
+        updated = invalidate_files(cached, {Path("a.py")})
+
+        self.assertEqual(updated[_INVALIDATED_FILES], {"a.py"})
+        self.assertEqual(
+            [(src, dst) for src, dst, _src_node, _dst_node in updated[_INVALIDATED_CROSS_BOUNDARY_EDGES]],
+            [("a.foo", "b.bar")],
+        )
 
     def test_drops_references_class_hierarchies_and_packages(self) -> None:
         cg = CallGraph(language="python")

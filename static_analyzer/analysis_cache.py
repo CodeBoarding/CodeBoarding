@@ -29,6 +29,9 @@ from typing import TYPE_CHECKING, Any
 
 from filelock import FileLock
 
+from static_analyzer.constants import NodeType
+from static_analyzer.engine.source_inspector import SourceInspector
+from static_analyzer.engine.utils import uri_to_path
 from static_analyzer.graph import CallGraph
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
 from static_analyzer.node import Node
@@ -36,6 +39,8 @@ from utils import to_absolute_path, to_relative_path
 
 if TYPE_CHECKING:
     from static_analyzer.analysis_result import StaticAnalysisResults
+    from static_analyzer.engine.language_adapter import LanguageAdapter
+    from static_analyzer.engine.lsp_client import LSPClient
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +59,9 @@ _LEGACY_CACHE_SUBDIR = "cache"
 # v2: StaticAnalysisResults switched from dict-of-dicts to LanguageResults
 # dataclass storage. v1 pickles will be treated as cache misses and re-run.
 _TAG_VERSION = "v2"
+_INVALIDATED_CROSS_BOUNDARY_EDGES = "_invalidated_cross_boundary_edges"
+_INVALIDATED_FILES = "_invalidated_files"
+InvalidatedEdge = tuple[str, str, Node, Node]
 
 
 class StaticAnalysisCache:
@@ -336,14 +344,16 @@ def invalidate_files(analysis_result: dict[str, Any], changed_files: set[Path]) 
     """Return a copy of *analysis_result* with every entry from *changed_files* removed.
 
     Drops nodes whose ``file_path`` is in the change set, cascades edges that
-    reference dropped nodes, drops class hierarchies and references from the
-    same files, prunes package relations to surviving files, and filters
-    ``source_files`` / ``diagnostics`` accordingly. Raises ``ValueError`` if
-    the result has dangling edges or references after filtering.
+    reference dropped nodes, remembers cross-boundary edges for later LSP
+    validation, drops class hierarchies and references from the same files,
+    prunes package relations to surviving files, and filters ``source_files`` /
+    ``diagnostics`` accordingly. Raises ``ValueError`` if the result has
+    dangling edges or references after filtering.
     """
     changed_file_strs = {str(path) for path in changed_files}
 
     call_graph: CallGraph = analysis_result["call_graph"]
+    invalidated_edges = _collect_cross_boundary_edges(call_graph, changed_file_strs)
     filtered_cg = call_graph.filter(lambda node: node.file_path not in changed_file_strs)
 
     updated_result: dict[str, Any] = {
@@ -352,6 +362,8 @@ def invalidate_files(analysis_result: dict[str, Any], changed_files: set[Path]) 
         "package_relations": {},
         "references": [],
         "source_files": [],
+        _INVALIDATED_CROSS_BOUNDARY_EDGES: invalidated_edges,
+        _INVALIDATED_FILES: changed_file_strs,
     }
 
     if "diagnostics" in analysis_result:
@@ -392,13 +404,21 @@ def invalidate_files(analysis_result: dict[str, Any], changed_files: set[Path]) 
     return updated_result
 
 
-def merge_results(cached_result: dict[str, Any], new_result: dict[str, Any]) -> dict[str, Any]:
+def merge_results(
+    cached_result: dict[str, Any],
+    new_result: dict[str, Any],
+    *,
+    adapter: "LanguageAdapter | None" = None,
+    engine_client: "LSPClient | None" = None,
+) -> dict[str, Any]:
     """Union ``cached_result`` (post-invalidation) with ``new_result`` (fresh re-LSP).
 
     For overlapping keys (same file appearing in both), the new result wins
     for class hierarchies, packages, references, and diagnostics. Call-graph
-    nodes from both sides merge; edges from either side that reference
-    nodes present in the merged graph are kept.
+    nodes from both sides merge; edges from either side that reference nodes
+    present in the merged graph are kept. Cross-boundary edges removed during
+    invalidation are validated through LSP and restored only when they still
+    exist.
     """
     merged_result: dict[str, Any] = {
         "call_graph": cached_result["call_graph"].union(new_result["call_graph"]),
@@ -436,7 +456,188 @@ def merge_results(cached_result: dict[str, Any], new_result: dict[str, Any]) -> 
     if merged_diagnostics:
         merged_result["diagnostics"] = merged_diagnostics
 
+    invalidated_edges: list[InvalidatedEdge] = cached_result.get(_INVALIDATED_CROSS_BOUNDARY_EDGES, [])
+    invalidated_files: set[str] = cached_result.get(_INVALIDATED_FILES, set())
+    if invalidated_edges and adapter is not None and engine_client is not None:
+        _restore_persisted_cross_boundary_edges(
+            merged_result,
+            invalidated_edges,
+            invalidated_files,
+            adapter,
+            engine_client,
+        )
+
     return merged_result
+
+
+def _collect_cross_boundary_edges(call_graph: CallGraph, changed_file_strs: set[str]) -> list[InvalidatedEdge]:
+    edges: list[InvalidatedEdge] = []
+    for edge in call_graph.edges:
+        src_node = edge.src_node
+        dst_node = edge.dst_node
+        src_changed = src_node.file_path in changed_file_strs
+        dst_changed = dst_node.file_path in changed_file_strs
+        if src_changed != dst_changed:
+            edges.append((edge.get_source(), edge.get_destination(), src_node, dst_node))
+    return edges
+
+
+def _restore_persisted_cross_boundary_edges(
+    merged_analysis: dict[str, Any],
+    candidate_edges: list[InvalidatedEdge],
+    changed_file_strs: set[str],
+    adapter: "LanguageAdapter",
+    engine_client: "LSPClient",
+) -> None:
+    call_graph: CallGraph = merged_analysis["call_graph"]
+    source_inspector = SourceInspector()
+    restored = 0
+    checked = 0
+    references_cache: dict[str, list[dict]] = {}
+    definitions_cache: dict[str, list[list[dict]]] = {}
+
+    for src_name, dst_name, _old_src_node, _old_dst_node in candidate_edges:
+        if not call_graph.has_node(src_name) or not call_graph.has_node(dst_name):
+            continue
+
+        src_node = call_graph.nodes.get(src_name)
+        dst_node = call_graph.nodes.get(dst_name)
+        if src_node is None or dst_node is None:
+            continue
+
+        checked += 1
+        refs = references_cache.get(dst_name)
+        if refs is None:
+            try:
+                engine_client.did_open(Path(dst_node.file_path), adapter.language_id)
+                refs = engine_client.references(Path(dst_node.file_path), dst_node.line_start - 1, dst_node.col_start)
+            except Exception:
+                logger.debug("Failed to validate references for %s", dst_name, exc_info=True)
+                refs = []
+            references_cache[dst_name] = refs
+
+        edge_exists = _edge_reference_still_exists(src_node, dst_node, refs, adapter, source_inspector)
+        if not edge_exists and src_node.file_path in changed_file_strs:
+            edge_exists = _outbound_definition_edge_still_exists(
+                src_node, dst_node, definitions_cache, engine_client, source_inspector
+            )
+
+        if edge_exists:
+            try:
+                call_graph.add_edge(src_name, dst_name)
+                restored += 1
+            except ValueError:
+                logger.debug("Failed to restore edge %s -> %s", src_name, dst_name, exc_info=True)
+
+    logger.info(
+        "Validated %d cross-boundary cached edge(s), restored %d/%d",
+        len(candidate_edges),
+        restored,
+        checked,
+    )
+
+
+def _edge_reference_still_exists(
+    src_node: Node,
+    dst_node: Node,
+    refs: list[dict],
+    adapter: "LanguageAdapter",
+    source_inspector: SourceInspector,
+) -> bool:
+    for ref in refs:
+        ref_file = uri_to_path(ref.get("uri", ""))
+        if ref_file is None or str(ref_file) != src_node.file_path:
+            continue
+
+        ref_range = ref.get("range", {})
+        ref_start = ref_range.get("start", {})
+        ref_end = ref_range.get("end", {})
+        ref_line = ref_start.get("line", -1)
+        ref_char = ref_start.get("character", -1)
+        ref_end_char = ref_end.get("character", -1)
+        if not _position_inside_node(src_node, ref_line, ref_char):
+            continue
+        if not _reference_matches_edge_kind(
+            dst_node, ref_file, ref_line, ref_char, ref_end_char, adapter, source_inspector
+        ):
+            continue
+        return True
+    return False
+
+
+def _outbound_definition_edge_still_exists(
+    src_node: Node,
+    dst_node: Node,
+    definitions_cache: dict[str, list[list[dict]]],
+    engine_client: "LSPClient",
+    source_inspector: SourceInspector,
+) -> bool:
+    definition_results = definitions_cache.get(src_node.fully_qualified_name)
+    if definition_results is None:
+        file_path = Path(src_node.file_path)
+        call_sites = [
+            (file_path, line, char)
+            for line, char in source_inspector.find_call_sites(file_path)
+            if _position_inside_node(src_node, line, char)
+        ]
+        if not call_sites:
+            definition_results = []
+        else:
+            try:
+                definition_results, _ = engine_client.send_definition_batch(call_sites)
+            except Exception:
+                logger.debug(
+                    "Failed to validate outbound definitions for %s", src_node.fully_qualified_name, exc_info=True
+                )
+                definition_results = []
+        definitions_cache[src_node.fully_qualified_name] = definition_results
+
+    for definitions in definition_results:
+        for definition in definitions:
+            if _definition_points_to_node(definition, dst_node):
+                return True
+    return False
+
+
+def _definition_points_to_node(definition: dict, dst_node: Node) -> bool:
+    uri = definition.get("targetUri", definition.get("uri", ""))
+    file_path = uri_to_path(uri)
+    if file_path is None or str(file_path) != dst_node.file_path:
+        return False
+    selection_range = definition.get("targetSelectionRange", definition.get("targetRange", definition.get("range", {})))
+    start = selection_range.get("start", {})
+    line = start.get("line", -1)
+    character = start.get("character", -1)
+    return _position_inside_node(dst_node, line, character)
+
+
+def _position_inside_node(node: Node, zero_based_line: int, character: int) -> bool:
+    line = zero_based_line + 1
+    if line < node.line_start or line > node.line_end:
+        return False
+    if line == node.line_start and character < node.col_start:
+        return False
+    return True
+
+
+def _reference_matches_edge_kind(
+    dst_node: Node,
+    ref_file: Path,
+    ref_line: int,
+    ref_char: int,
+    ref_end_char: int,
+    adapter: "LanguageAdapter",
+    source_inspector: SourceInspector,
+) -> bool:
+    if adapter.is_class_like(dst_node.type) and not source_inspector.is_invocation(ref_file, ref_line, ref_end_char):
+        return False
+    if dst_node.type == NodeType.CONSTANT and not source_inspector.is_invocation(ref_file, ref_line, ref_end_char):
+        return False
+    if dst_node.type == NodeType.VARIABLE and not source_inspector.is_callable_usage(
+        ref_file, ref_line, ref_char, ref_end_char
+    ):
+        return False
+    return True
 
 
 def _validate_no_dangling_references(analysis_result: dict[str, Any]) -> None:
