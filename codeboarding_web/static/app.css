@@ -141,8 +141,25 @@ main {
 }
 #detail-entity-list a:hover { text-decoration: underline; color: #64b5f6; }
 
+.detail-header-row {
+  display: flex;
+  gap: .5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.detail-copy {
+  background: #1e2a35;
+  color: #2196F3;
+  border: 1px solid #2196F3;
+  border-radius: .25rem;
+  padding: .3rem .6rem;
+  font-size: .78rem;
+  cursor: pointer;
+}
+.detail-copy:hover { background: #192533; }
+
 .detail-expand {
-  margin-top: .5rem;
   background: #1e2a35;
   color: #FFC107;
   border: 1px solid #FFC107;
@@ -150,10 +167,86 @@ main {
   padding: .3rem .6rem;
   font-size: .8rem;
   cursor: pointer;
-  align-self: flex-start;
 }
 .detail-expand:hover { background: #2a3a4a; }
 .detail-expand.hidden { display: none; }
+
+/* ── Tab bar ── */
+.tab-bar {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid #333;
+  margin-top: .25rem;
+}
+
+.tab-btn {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  color: #888;
+  font-size: .78rem;
+  padding: .3rem .55rem;
+  cursor: pointer;
+  flex: 1;
+  text-align: center;
+}
+.tab-btn:hover { color: #E6E6E6; background: none; border-color: #555; }
+.tab-btn.active { color: #FFC107; border-bottom-color: #FFC107; background: none; }
+
+/* ── Tab panels ── */
+.tab-panel { display: flex; flex-direction: column; gap: .5rem; padding-top: .5rem; }
+.tab-panel.hidden { display: none; }
+
+/* ── Source files / warnings file list ── */
+.detail-sources h3,
+.detail-sources-header {
+  margin: .5rem 0 .25rem;
+  font-size: .78rem;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: #888;
+}
+
+.detail-sources { display: flex; flex-direction: column; }
+.detail-sources.hidden { display: none; }
+
+#detail-source-list,
+.source-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: .25rem;
+}
+
+#detail-source-list li code,
+.source-list li code {
+  font-size: .75rem;
+  font-family: ui-monospace, monospace;
+  color: #bbb;
+  word-break: break-all;
+}
+
+/* ── Diff view ── */
+pre.diff {
+  margin: .25rem 0 0;
+  padding: .5rem;
+  background: #111;
+  border: 1px solid #333;
+  border-radius: .25rem;
+  font-size: .72rem;
+  font-family: ui-monospace, monospace;
+  overflow: auto;
+  max-height: 340px;
+  white-space: pre;
+  line-height: 1.4;
+}
+
+pre.diff .add { color: #4CAF50; }
+pre.diff .del { color: #F44336; }
+pre.diff .hunk { color: #2196F3; }
 
 /* ── Graph wrapper (toolbar + cy) ── */
 #graph-wrap {

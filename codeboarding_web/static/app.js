@@ -105,13 +105,19 @@ function updateCollapseAll() {
 }
 
 // ── Expand glyph ─────────────────────────────────────────────────────────────
-// Stores the real label in data.baseLabel and appends ⊕/⊖ to data.label.
+// Always recomputes from baseLabel so appends are never cumulative.
+// Appends badge counts (warnings/modifications) and ⊕/⊖ glyph.
 function refreshGlyph(node) {
   const d = node.data();
   if (!d.expandable) return;
   const base = d.baseLabel || d.label;
   node.data('baseLabel', base);
-  node.data('label', base + (expanded.has(node.id()) ? '  ⊖' : '  ⊕'));
+  const badgeParts = [];
+  if (d.warnings > 0) badgeParts.push('⚠' + d.warnings);
+  if (d.modifications > 0) badgeParts.push('✎' + d.modifications);
+  const badges = badgeParts.join('  ');
+  const glyphSuffix = expanded.has(node.id()) ? '  ⊖' : '  ⊕';
+  node.data('label', base + (badges ? '\n' + badges : '') + glyphSuffix);
 }
 
 // Initialize glyph when elements are first added (sets baseLabel once).
@@ -120,7 +126,12 @@ function initGlyphs(nodes) {
     if (node.data('expandable')) {
       const base = node.data('baseLabel') || node.data('label');
       node.data('baseLabel', base);
-      node.data('label', base + '  ⊕');
+      const d = node.data();
+      const badgeParts = [];
+      if (d.warnings > 0) badgeParts.push('⚠' + d.warnings);
+      if (d.modifications > 0) badgeParts.push('✎' + d.modifications);
+      const badges = badgeParts.join('  ');
+      node.data('label', base + (badges ? '\n' + badges : '') + '  ⊕');
     }
   });
 }
@@ -133,7 +144,12 @@ function renderGraph(elements) {
   // Stamp baseLabel before adding so glyphs work correctly.
   const withBase = elements.map((e) => {
     if (e.data && e.data.expandable) {
-      return { ...e, data: { ...e.data, baseLabel: e.data.label, label: e.data.label + '  ⊕' } };
+      const base = e.data.label;
+      const badgeParts = [];
+      if (e.data.warnings > 0) badgeParts.push('⚠' + e.data.warnings);
+      if (e.data.modifications > 0) badgeParts.push('✎' + e.data.modifications);
+      const badges = badgeParts.join('  ');
+      return { ...e, data: { ...e.data, baseLabel: base, label: base + (badges ? '\n' + badges : '') + '  ⊕' } };
     }
     return e;
   });
@@ -230,13 +246,21 @@ async function expandNode(node) {
   const newNodes = subNodes.map((e) => {
     const newId = pid + '::' + e.data.id;
     const baseLabel = e.data.label || e.data.id;
+    let label = baseLabel;
+    if (e.data.expandable) {
+      const badgeParts = [];
+      if (e.data.warnings > 0) badgeParts.push('⚠' + e.data.warnings);
+      if (e.data.modifications > 0) badgeParts.push('✎' + e.data.modifications);
+      const badges = badgeParts.join('  ');
+      label = baseLabel + (badges ? '\n' + badges : '') + '  ⊕';
+    }
     return {
       data: {
         ...e.data,
         id: newId,
         parent: pid,
         baseLabel,
-        label: e.data.expandable ? baseLabel + '  ⊕' : baseLabel,
+        label,
         // Keep componentId and expandable intact for recursive expand.
       },
     };
@@ -291,6 +315,82 @@ function toggleNode(node) {
   }
 }
 
+// ── Detail sidebar state ─────────────────────────────────────────────────────
+// Tracks which componentId has a cached diff so we only fetch once per selection.
+let _diffCachedFor = null;
+
+function _switchTab(tabName) {
+  document.querySelectorAll('.tab-btn').forEach((b) => {
+    b.classList.toggle('active', b.dataset.tab === tabName);
+  });
+  document.querySelectorAll('.tab-panel').forEach((p) => {
+    p.classList.toggle('hidden', p.id !== 'tab-' + tabName);
+  });
+  if (tabName === 'modifications') {
+    _loadDiffIfNeeded();
+  }
+}
+
+function _loadDiffIfNeeded() {
+  const componentId = document.getElementById('detail-content').dataset.componentId;
+  if (!componentId || _diffCachedFor === componentId) return;
+  _diffCachedFor = componentId;
+
+  const summary = document.getElementById('modifications-summary');
+  const fileList = document.getElementById('modifications-file-list');
+  const diffPre = document.getElementById('modifications-diff');
+  summary.textContent = 'Loading…';
+  fileList.innerHTML = '';
+  diffPre.innerHTML = '';
+
+  fetch('/api/component/' + componentId + '/diff')
+    .then((r) => r.json())
+    .then((data) => {
+      const files = data.files || [];
+      const diffText = data.diff || '';
+      fileList.innerHTML = '';
+      diffPre.innerHTML = '';
+
+      if (files.length === 0) {
+        summary.textContent = 'No modifications.';
+        return;
+      }
+
+      files.forEach((f) => {
+        const li = document.createElement('li');
+        const code = document.createElement('code');
+        code.textContent = f;
+        li.appendChild(code);
+        fileList.appendChild(li);
+      });
+
+      if (!diffText) {
+        summary.textContent = 'Modified files (' + files.length + ') — new/untracked, no diff to show';
+        return;
+      }
+
+      summary.textContent = 'Modified files (' + files.length + ')';
+      diffText.split('\n').forEach((line) => {
+        const span = document.createElement('span');
+        if (line.startsWith('+++') || line.startsWith('---')) {
+          // file header lines — plain
+        } else if (line.startsWith('+')) {
+          span.className = 'add';
+        } else if (line.startsWith('-')) {
+          span.className = 'del';
+        } else if (line.startsWith('@@')) {
+          span.className = 'hunk';
+        }
+        span.textContent = line;
+        diffPre.appendChild(span);
+        diffPre.appendChild(document.createTextNode('\n'));
+      });
+    })
+    .catch(() => {
+      document.getElementById('modifications-summary').textContent = 'Failed to load diff.';
+    });
+}
+
 // ── Detail sidebar ───────────────────────────────────────────────────────────
 function clearDetail() {
   document.getElementById('detail-empty').classList.remove('hidden');
@@ -301,11 +401,20 @@ function clearDetail() {
 function renderDetail(node) {
   const d = node.data();
   const nodeId = node.id();
+
+  // Reset tab to Overview and clear diff cache for new selection.
+  _diffCachedFor = null;
+  _switchTab('overview');
+
   document.getElementById('detail-empty').classList.add('hidden');
-  document.getElementById('detail-content').classList.remove('hidden');
+  const content = document.getElementById('detail-content');
+  content.classList.remove('hidden');
+  content.dataset.componentId = d.componentId || '';
+
   document.getElementById('detail-name').textContent = d.baseLabel || d.label || d.id;
   document.getElementById('detail-desc').textContent = d.description || '';
 
+  // Key Entities
   const list = document.getElementById('detail-entity-list');
   list.innerHTML = '';
   const entities = d.keyEntities || [];
@@ -330,6 +439,47 @@ function renderDetail(node) {
     list.appendChild(li);
   });
 
+  // Source Files (Overview tab)
+  const sourceFiles = d.sourceFiles || [];
+  const sourcesSection = document.getElementById('detail-sources');
+  const sourceList = document.getElementById('detail-source-list');
+  const sourcesHeader = document.getElementById('detail-sources-header');
+  sourceList.innerHTML = '';
+  if (sourceFiles.length) {
+    sourcesSection.classList.remove('hidden');
+    sourcesHeader.textContent = 'Source Files (' + sourceFiles.length + ')';
+    sourceFiles.forEach((f) => {
+      const li = document.createElement('li');
+      const code = document.createElement('code');
+      code.textContent = f;
+      li.appendChild(code);
+      sourceList.appendChild(li);
+    });
+  } else {
+    sourcesSection.classList.add('hidden');
+  }
+
+  // Warnings tab
+  const warnings = d.warnings || 0;
+  document.getElementById('warnings-summary').textContent = warnings + (warnings === 1 ? ' warning' : ' warnings');
+  const warningsFileList = document.getElementById('warnings-file-list');
+  warningsFileList.innerHTML = '';
+  if (warnings > 0) {
+    sourceFiles.forEach((f) => {
+      const li = document.createElement('li');
+      const code = document.createElement('code');
+      code.textContent = f;
+      li.appendChild(code);
+      warningsFileList.appendChild(li);
+    });
+  }
+
+  // Modifications tab — clear display (loaded lazily)
+  document.getElementById('modifications-summary').textContent = '';
+  document.getElementById('modifications-file-list').innerHTML = '';
+  document.getElementById('modifications-diff').innerHTML = '';
+
+  // Expand button
   const expandBtn = document.getElementById('detail-expand');
   if (d.expandable) {
     expandBtn.classList.remove('hidden');
@@ -341,6 +491,44 @@ function renderDetail(node) {
     expandBtn.onclick = null;
   }
 }
+
+// ── Tab bar interaction ───────────────────────────────────────────────────────
+document.querySelectorAll('.tab-btn').forEach((btn) => {
+  btn.addEventListener('click', () => _switchTab(btn.dataset.tab));
+});
+
+// ── Copy Context button ───────────────────────────────────────────────────────
+document.getElementById('detail-copy').addEventListener('click', () => {
+  const content = document.getElementById('detail-content');
+  if (content.classList.contains('hidden')) return;
+
+  const name = document.getElementById('detail-name').textContent;
+  const desc = document.getElementById('detail-desc').textContent;
+
+  const entities = [];
+  document.querySelectorAll('#detail-entity-list li').forEach((li) => {
+    const a = li.querySelector('a');
+    const code = li.querySelector('code');
+    entities.push('- `' + (a ? a.textContent : code ? code.textContent : '') + '`');
+  });
+
+  const srcFiles = [];
+  document.querySelectorAll('#detail-source-list li code').forEach((c) => {
+    srcFiles.push('- ' + c.textContent);
+  });
+
+  let md = '## ' + name + '\n\n' + (desc || '') + '\n';
+  if (entities.length) {
+    md += '\n### Key Code Entities\n' + entities.join('\n') + '\n';
+  }
+  if (srcFiles.length) {
+    md += '\n### Source Files\n' + srcFiles.join('\n') + '\n';
+  }
+
+  navigator.clipboard.writeText(md)
+    .then(() => logLine('context copied'))
+    .catch(() => logLine('copy failed'));
+});
 
 // ── Cytoscape interaction handlers ───────────────────────────────────────────
 cy.on('tap', 'node', (evt) => {
@@ -389,19 +577,7 @@ document.getElementById('collapse-all').addEventListener('click', () => {
   loadOverview();
 });
 
-// ── Initial data load ────────────────────────────────────────────────────────
-async function loadDiagram() {
-  try {
-    const res = await fetch('/api/diagram.json');
-    if (res.ok) {
-      const data = await res.json();
-      applyElements(data.elements);
-    }
-  } catch (_) {
-    logLine('request failed: /api/diagram.json');
-  }
-}
-
+// ── Status / bootstrap ───────────────────────────────────────────────────────
 async function refreshStatus() {
   try {
     const s = await (await fetch('/api/status')).json();
