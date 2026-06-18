@@ -27,7 +27,9 @@ def component_files(comp: Component, repo_path: Path) -> set[str]:
             rel = os.path.relpath(f, repo_path)
         else:
             rel = f
-        result.add(rel.replace("\\", "/"))
+        # Normalize both relative and absolute paths: collapse '.', '..', backslashes
+        rel = Path(os.path.normpath(rel)).as_posix()
+        result.add(rel)
     return result
 
 
@@ -74,6 +76,7 @@ def component_diff(repo_path: Path, files: list[str]) -> str:
             cwd=repo_path,
             capture_output=True,
             text=True,
+            timeout=30,
         )
         if result.returncode != 0:
             logger.debug("git diff failed: %s", result.stderr.strip())

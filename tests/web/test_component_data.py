@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
-from codeboarding_web.component_data import changed_files, component_files, load_warning_counts
+from codeboarding_web.component_data import changed_files, component_diff, component_files, load_warning_counts
 
 
 def test_load_warning_counts_absent(tmp_path: Path) -> None:
@@ -69,3 +69,23 @@ def test_component_files_none_skipped(tmp_path: Path) -> None:
     comp = _make_comp(None)
     result = component_files(comp, tmp_path)  # type: ignore[arg-type]
     assert result == set()
+
+
+def test_component_files_normalizes_relative(tmp_path: Path) -> None:
+    """Test that relative paths with ./ and .. are normalized to forward-slash posix form."""
+    ref1 = SimpleNamespace(reference_file="./src/foo.py")
+    ref2 = SimpleNamespace(reference_file="src/bar.py")
+    ref3 = SimpleNamespace(reference_file=None)
+    comp = SimpleNamespace(key_entities=[ref1, ref2, ref3])
+    result = component_files(comp, tmp_path)  # type: ignore[arg-type]
+    assert result == {"src/foo.py", "src/bar.py"}
+
+
+def test_component_diff_empty_files_returns_empty(tmp_path: Path) -> None:
+    """Test that empty file list returns empty string."""
+    assert component_diff(tmp_path, []) == ""
+
+
+def test_component_diff_non_git_returns_empty(tmp_path: Path) -> None:
+    """Test that non-git directory with file paths returns empty string."""
+    assert component_diff(tmp_path, ["main.py"]) == ""
