@@ -171,7 +171,11 @@ class CallGraph:
 
         self.nodes[src_name].added_method_called_by_me(self.nodes[dst_name])
 
-    def filter(self, keep_node: Callable[[Node], bool], dropped_edges: list[Edge] | None = None) -> "CallGraph":
+    def filter(
+        self,
+        keep_node: Callable[[Node], bool],
+        on_dropped_edge: Callable[[Edge], None],
+    ) -> "CallGraph":
         """Return a new CallGraph keeping only nodes matching ``keep_node`` and connecting edges.
 
         ``_cluster_cache`` is preserved and pruned to the surviving qnames so
@@ -190,8 +194,8 @@ class CallGraph:
                     out.add_edge(src, dst)
                 except ValueError as e:
                     logger.warning(f"Failed to add edge {src} -> {dst} during filter: {e}")
-            elif dropped_edges is not None:
-                dropped_edges.append(edge)
+            else:
+                on_dropped_edge(edge)
         out._cluster_cache = self._prune_cluster_cache(out.nodes)
         return out
 

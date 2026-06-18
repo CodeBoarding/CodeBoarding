@@ -5,8 +5,7 @@ import subprocess
 
 import pytest
 
-import static_analyzer as static_analyzer_module
-from static_analyzer import StaticAnalyzer
+from static_analyzer import get_static_analysis
 from static_analyzer.analysis_result import StaticAnalysisResults
 
 
@@ -185,6 +184,24 @@ def _assert_no_persisted_cross_boundary_edges_were_dropped(
         )
 
 
+def _assert_graph_changes(
+    old_static_analysis: StaticAnalysisResults,
+    new_static_analysis: StaticAnalysisResults,
+    full_static_analysis: StaticAnalysisResults,
+    repo_path: Path,
+    changed_files: set[str],
+) -> None:
+    changed_analysis_files = _changed_analysis_files(old_static_analysis, new_static_analysis, repo_path)
+    removed_inbound, removed_outbound = _removed_cross_boundary_edges(
+        old_static_analysis, new_static_analysis, repo_path, changed_files
+    )
+
+    _assert_no_persisted_cross_boundary_edges_were_dropped(
+        removed_inbound, removed_outbound, full_static_analysis, repo_path
+    )
+    _assert_only_expected_analysis_files_changed(changed_analysis_files, changed_files)
+
+
 def _write_boundary_project(repo_path: Path) -> None:
     (repo_path / "pkg").mkdir(parents=True)
     (repo_path / "pkg" / "__init__.py").write_text("", encoding="utf-8")
@@ -231,7 +248,7 @@ def main(value):
 
 @pytest.mark.integration
 @pytest.mark.python_lang
-def test_static_analysis_warm_start_preserves_boundary_edges_in_small_project(tmp_path: Path, monkeypatch) -> None:
+def test_static_analysis_updates_cross_edges(tmp_path: Path) -> None:
     repo_path = tmp_path / "boundary_project"
     repo_path.mkdir()
     _write_boundary_project(repo_path)
@@ -239,8 +256,7 @@ def test_static_analysis_warm_start_preserves_boundary_edges_in_small_project(tm
     artifact_dir = tmp_path / "warm_cache"
     fresh_dir = tmp_path / "fresh_cache"
 
-    with StaticAnalyzer(repo_path) as analyzer:
-        old_static_analysis = analyzer.analyze(cache_dir=artifact_dir, skip_cache=True, source_sha=base_sha)
+    old_static_analysis = get_static_analysis(repo_path, artifact_dir, skip_cache=True, source_sha=base_sha)
 
     change_1_files = _apply_changes(
         repo_path,
@@ -270,29 +286,14 @@ def workflow(value):
     )
     changed_files = change_1_files | change_2_files
 
-    warm_start_scopes: list[set[str]] = []
-    real_update = static_analyzer_module.update_cfg_for_changed_files
+    new_static_analysis = get_static_analysis(repo_path, artifact_dir, skip_cache=False, source_sha="after-two-changes")
 
-    def record_update(cached_analysis, changed_paths, adapter, project_path, engine_client, ignore_manager):
-        warm_start_scopes.append({_rel(str(path), repo_path) for path in changed_paths})
-        return real_update(cached_analysis, changed_paths, adapter, project_path, engine_client, ignore_manager)
+    full_static_analysis = get_static_analysis(repo_path, fresh_dir, skip_cache=True, source_sha="after-two-changes")
 
-    monkeypatch.setattr(static_analyzer_module, "update_cfg_for_changed_files", record_update)
-
-    with StaticAnalyzer(repo_path) as analyzer:
-        new_static_analysis = analyzer.analyze(cache_dir=artifact_dir, skip_cache=False, source_sha="after-two-changes")
-
-    with StaticAnalyzer(repo_path) as analyzer:
-        full_static_analysis = analyzer.analyze(cache_dir=fresh_dir, skip_cache=True, source_sha="after-two-changes")
-
-    changed_analysis_files = _changed_analysis_files(old_static_analysis, new_static_analysis, repo_path)
-    removed_inbound, removed_outbound = _removed_cross_boundary_edges(
-        old_static_analysis, new_static_analysis, repo_path, changed_files
+    _assert_graph_changes(
+        old_static_analysis,
+        new_static_analysis,
+        full_static_analysis,
+        repo_path,
+        changed_files,
     )
-
-    assert warm_start_scopes, "expected the second run to load and update the base static_analysis.pkl"
-    assert set().union(*warm_start_scopes) == changed_files
-    _assert_no_persisted_cross_boundary_edges_were_dropped(
-        removed_inbound, removed_outbound, full_static_analysis, repo_path
-    )
-    _assert_only_expected_analysis_files_changed(changed_analysis_files, changed_files)

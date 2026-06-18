@@ -243,7 +243,7 @@ class TestClusterCachePreservation(unittest.TestCase):
         assert cg._cluster_cache is not None
         original_cluster_ids = set(cg._cluster_cache.clusters.keys())
 
-        cg.filter(lambda n: n.file_path != "a.py")
+        cg.filter(lambda n: n.file_path != "a.py", on_dropped_edge=lambda _edge: None)
 
         self.assertEqual(len(cg.nodes), original_node_count)
         assert cg._cluster_cache is not None
@@ -256,7 +256,7 @@ class TestClusterCachePreservation(unittest.TestCase):
         cg.add_edge("a.foo", "b.bar")
         dropped_edges: list[Edge] = []
 
-        filtered = cg.filter(lambda n: n.file_path != "a.py", dropped_edges=dropped_edges)
+        filtered = cg.filter(lambda n: n.file_path != "a.py", on_dropped_edge=dropped_edges.append)
 
         self.assertEqual(len(filtered.edges), 0)
         self.assertNotIn("a.foo", filtered.nodes)
