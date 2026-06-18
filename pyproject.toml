@@ -94,6 +94,7 @@ packages = [
     "tool_registry",
     "codeboarding_cli",
     "codeboarding_cli.commands",
+    "codeboarding_web",
     "codeboarding_workflows",
     "codeboarding_workflows.sources",
     "telemetry",
