@@ -130,3 +130,32 @@ def test_diagram_component_200_for_valid_id(tmp_path: Path) -> None:
     r = c.get(f"/api/diagram/{_EXPANDABLE_ID}")
     assert r.status_code == 200
     assert "elements" in r.json()
+
+
+def test_component_diff_404_when_no_analysis(tmp_path: Path) -> None:
+    """GET /api/component/<id>/diff → 404 when analysis.json is absent."""
+    c = _client(tmp_path)
+    assert c.get(f"/api/component/{_EXPANDABLE_ID}/diff").status_code == 404
+
+
+def test_component_diff_404_unknown_id(tmp_path: Path) -> None:
+    """GET /api/component/<id>/diff → 404 when component_id is unknown."""
+    _write_analysis(tmp_path)
+    c = TestClient(create_app(repo_path=tmp_path, output_dir=tmp_path, project_name="demo"))
+    assert c.get("/api/component/nonexistent-id/diff").status_code == 404
+
+
+def test_component_diff_200_has_files_and_diff_keys(tmp_path: Path) -> None:
+    """GET /api/component/<id>/diff → 200 with files and diff keys for a known id."""
+    _write_analysis(tmp_path)
+    c = TestClient(create_app(repo_path=tmp_path, output_dir=tmp_path, project_name="demo"))
+    r = c.get(f"/api/component/{_EXPANDABLE_ID}/diff")
+    assert r.status_code == 200
+    body = r.json()
+    assert "files" in body
+    assert "diff" in body
+    assert body["component_id"] == _EXPANDABLE_ID
+    # The fixture component has key_entity with reference_file "core/main.py"
+    assert body["files"] == ["core/main.py"]
+    # tmp_path is not a real git repo so diff is empty string
+    assert isinstance(body["diff"], str)

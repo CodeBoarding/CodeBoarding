@@ -1,6 +1,7 @@
 """FastAPI app factory for the local web visualizer."""
 
 import asyncio
+import json
 import logging
 from contextlib import asynccontextmanager, suppress
 from pathlib import Path
@@ -11,15 +12,32 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from agents.agent_responses import AnalysisInsights, Component
+from codeboarding_web.component_data import component_diff, component_files
 from codeboarding_web.diagram import load_cytoscape, load_cytoscape_component
 from codeboarding_web.events import EventBus, format_sse
 from codeboarding_web.runner import AnalysisRunner
 from codeboarding_web.state import RunBusyError, RunState
 from codeboarding_web.watcher import RepoWatcher
+from diagram_analysis.io_utils import parse_unified_analysis
 
 logger = logging.getLogger(__name__)
 
 _STATIC_DIR = Path(__file__).parent / "static"
+
+
+def _find_component(
+    analysis: AnalysisInsights, sub_analyses: dict[str, AnalysisInsights], component_id: str
+) -> Component | None:
+    """Search root and all sub-analyses for a component whose component_id matches."""
+    for comp in analysis.components:
+        if comp.component_id == component_id:
+            return comp
+    for sub in sub_analyses.values():
+        for comp in sub.components:
+            if comp.component_id == component_id:
+                return comp
+    return None
 
 
 class RunRequest(BaseModel):
@@ -104,6 +122,24 @@ def create_app(
         if elements is None:
             raise HTTPException(status_code=404, detail="component not found")
         return JSONResponse(elements)
+
+    @app.get("/api/component/{component_id}/diff")
+    def component_diff_route(component_id: str) -> JSONResponse:
+        """Return git diff patch for the files belonging to a component, or 404."""
+        path = output_dir / "analysis.json"
+        if not path.exists():
+            raise HTTPException(status_code=404, detail="no analysis yet")
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            root_analysis, sub_analyses = parse_unified_analysis(data)
+        except Exception:
+            raise HTTPException(status_code=404, detail="analysis not readable")
+        comp = _find_component(root_analysis, sub_analyses, component_id)
+        if comp is None:
+            raise HTTPException(status_code=404, detail="component not found")
+        files = sorted(component_files(comp, repo_path))
+        diff = component_diff(repo_path, files)
+        return JSONResponse({"component_id": component_id, "files": files, "diff": diff})
 
     @app.post("/api/run")
     def run(req: RunRequest) -> dict:

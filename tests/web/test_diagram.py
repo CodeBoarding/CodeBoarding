@@ -126,3 +126,20 @@ def test_component_subgraph_missing_returns_none(tmp_path):
 
 def test_component_subgraph_absent_file_returns_none(tmp_path):
     assert load_cytoscape_component(tmp_path, "demo", tmp_path, _EXPANDABLE_ID) is None
+
+
+def test_overview_node_has_source_files_warnings_modifications(tmp_path):
+    """Overview nodes must carry sourceFiles, warnings, and modifications keys."""
+    _write_analysis(tmp_path)
+    result = load_cytoscape(tmp_path, "demo", tmp_path)
+    assert result is not None
+    node = next(e for e in result["elements"] if "source" not in e["data"])
+    data = node["data"]
+    assert "sourceFiles" in data
+    assert "warnings" in data
+    assert "modifications" in data
+    # The fixture has one key_entity with file "core/main.py" → sourceFiles non-empty
+    assert data["sourceFiles"] == ["core/main.py"]
+    # No health_report.json or git changes in tmp_path → defaults to 0
+    assert data["warnings"] == 0
+    assert data["modifications"] == 0

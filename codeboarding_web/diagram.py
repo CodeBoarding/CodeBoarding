@@ -5,6 +5,7 @@ import logging
 from pathlib import Path
 
 from agents.agent_responses import AnalysisInsights, SourceCodeReference
+from codeboarding_web.component_data import changed_files, component_files, load_warning_counts
 from diagram_analysis.io_utils import parse_unified_analysis
 from output_generators.html import generate_cytoscape_data
 from utils import sanitize
@@ -35,9 +36,14 @@ def _entity(repo_path: Path, ref: SourceCodeReference) -> dict:
 
 
 def _enrich(
-    elements: dict, analysis: AnalysisInsights, sub_analyses: dict[str, AnalysisInsights], repo_path: Path
+    elements: dict,
+    analysis: AnalysisInsights,
+    sub_analyses: dict[str, AnalysisInsights],
+    repo_path: Path,
+    warning_counts: dict[str, int],
+    changed: set[str],
 ) -> None:
-    """Mutate node data in *elements* to add componentId, expandable, and keyEntities."""
+    """Mutate node data in *elements* to add componentId, expandable, keyEntities, warnings, modifications, sourceFiles."""
     by_id = {sanitize(c.name): c for c in analysis.components}
     expandable_ids = set(sub_analyses.keys())
     for el in elements["elements"]:
@@ -50,6 +56,10 @@ def _enrich(
         data["componentId"] = comp.component_id
         data["expandable"] = comp.component_id in expandable_ids
         data["keyEntities"] = [_entity(repo_path, ref) for ref in comp.key_entities]
+        files = component_files(comp, repo_path)
+        data["sourceFiles"] = sorted(files)
+        data["warnings"] = sum(warning_counts.get(f, 0) for f in files)
+        data["modifications"] = sum(1 for f in files if f in changed)
 
 
 def load_cytoscape(output_dir: Path, project: str, repo_path: Path) -> dict | None:
@@ -70,7 +80,9 @@ def load_cytoscape(output_dir: Path, project: str, repo_path: Path) -> dict | No
         return None
     expanded = set(sub_analyses.keys())
     elements = generate_cytoscape_data(root_analysis, expanded, project, demo=False)
-    _enrich(elements, root_analysis, sub_analyses, repo_path)
+    warning_counts = load_warning_counts(output_dir)
+    changed = changed_files(repo_path)
+    _enrich(elements, root_analysis, sub_analyses, repo_path, warning_counts, changed)
     return elements
 
 
@@ -90,5 +102,7 @@ def load_cytoscape_component(output_dir: Path, project: str, repo_path: Path, co
         return None
     sub_expanded = {c.component_id for c in sub.components if c.component_id in sub_analyses}
     elements = generate_cytoscape_data(sub, sub_expanded, project, demo=False)
-    _enrich(elements, sub, sub_analyses, repo_path)
+    warning_counts = load_warning_counts(output_dir)
+    changed = changed_files(repo_path)
+    _enrich(elements, sub, sub_analyses, repo_path, warning_counts, changed)
     return elements
