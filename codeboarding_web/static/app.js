@@ -177,7 +177,10 @@ function applyElements(elements) {
   const added = [];
   incoming.forEach((e, id) => {
     if (existing.has(id)) {
-      cy.getElementById(id).data(e.data);
+      const n = cy.getElementById(id);
+      n.data(e.data);
+      n.data('baseLabel', e.data.label);
+      refreshGlyph(n);
     } else {
       const el = cy.add(e);
       if (el.isNode()) added.push(el);
@@ -318,6 +321,8 @@ function toggleNode(node) {
 // ── Detail sidebar state ─────────────────────────────────────────────────────
 // Tracks which componentId has a cached diff so we only fetch once per selection.
 let _diffCachedFor = null;
+// Tracks the currently selected componentId to guard against stale diff fetches.
+let selectedComponentId = null;
 
 function _switchTab(tabName) {
   document.querySelectorAll('.tab-btn').forEach((b) => {
@@ -346,6 +351,9 @@ function _loadDiffIfNeeded() {
   fetch('/api/component/' + componentId + '/diff')
     .then((r) => r.json())
     .then((data) => {
+      // Guard against stale results: discard if selection changed.
+      if (componentId !== selectedComponentId) return;
+
       const files = data.files || [];
       const diffText = data.diff || '';
       fileList.innerHTML = '';
@@ -387,7 +395,10 @@ function _loadDiffIfNeeded() {
       });
     })
     .catch(() => {
-      document.getElementById('modifications-summary').textContent = 'Failed to load diff.';
+      // Guard against stale results on error as well.
+      if (componentId === selectedComponentId) {
+        document.getElementById('modifications-summary').textContent = 'Failed to load diff.';
+      }
     });
 }
 
@@ -404,6 +415,7 @@ function renderDetail(node) {
 
   // Reset tab to Overview and clear diff cache for new selection.
   _diffCachedFor = null;
+  selectedComponentId = d.componentId || null;
   _switchTab('overview');
 
   document.getElementById('detail-empty').classList.add('hidden');
