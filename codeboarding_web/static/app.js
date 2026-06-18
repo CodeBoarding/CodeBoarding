@@ -21,8 +21,22 @@ const STYLE = [
     },
   },
   {
-    // Expandable nodes: gold accent border so they're visually distinct
-    selector: 'node[?expandable]',
+    // Compound parent: labeled box around its children
+    selector: 'node:parent',
+    style: {
+      'text-valign': 'top',
+      'text-halign': 'center',
+      'font-size': 11,
+      'padding': '16px',
+      'background-color': '#1e1e14',
+      'background-opacity': 0.6,
+      'border-color': '#FFC107',
+      'border-width': 2,
+    },
+  },
+  {
+    // Expandable leaf nodes: gold accent border
+    selector: 'node[?expandable]:not(:parent)',
     style: {
       'border-color': '#FFC107',
       'border-width': 2.5,
@@ -63,16 +77,12 @@ const STYLE = [
 const cy = cytoscape({ container: document.getElementById('cy'), elements: [], style: STYLE });
 let hasLaidOut = false;
 
-// ── In-flight navigation guard ───────────────────────────────────────────────
-let navSeq = 0;
-
 // ── SSE connection state ─────────────────────────────────────────────────────
 let sseDown = false;
 
-// ── Breadcrumb state ─────────────────────────────────────────────────────────
-// Each entry: { id: string|null, label: string }
-// index 0 is always Overview (id=null).
-let breadcrumbStack = [{ id: null, label: 'Overview' }];
+// ── Expansion state ──────────────────────────────────────────────────────────
+// Set of node ids that are currently expanded (have children in the graph).
+const expanded = new Set();
 
 // ── Log helpers ──────────────────────────────────────────────────────────────
 function logLine(text) {
@@ -88,52 +98,59 @@ function setPhase(phase) {
   el.className = 'phase ' + phase;
 }
 
-// ── Breadcrumb rendering ─────────────────────────────────────────────────────
-function renderBreadcrumb() {
-  const nav = document.getElementById('breadcrumb');
-  nav.innerHTML = '';
-  breadcrumbStack.forEach((crumb, i) => {
-    if (i > 0) {
-      const sep = document.createElement('span');
-      sep.className = 'crumb-sep';
-      sep.textContent = '›';
-      nav.appendChild(sep);
+// ── Collapse-all control ─────────────────────────────────────────────────────
+function updateCollapseAll() {
+  const btn = document.getElementById('collapse-all');
+  if (btn) btn.style.display = expanded.size > 0 ? '' : 'none';
+}
+
+// ── Expand glyph ─────────────────────────────────────────────────────────────
+// Stores the real label in data.baseLabel and appends ⊕/⊖ to data.label.
+function refreshGlyph(node) {
+  const d = node.data();
+  if (!d.expandable) return;
+  const base = d.baseLabel || d.label;
+  node.data('baseLabel', base);
+  node.data('label', base + (expanded.has(node.id()) ? '  ⊖' : '  ⊕'));
+}
+
+// Initialize glyph when elements are first added (sets baseLabel once).
+function initGlyphs(nodes) {
+  nodes.forEach((node) => {
+    if (node.data('expandable')) {
+      const base = node.data('baseLabel') || node.data('label');
+      node.data('baseLabel', base);
+      node.data('label', base + '  ⊕');
     }
-    const span = document.createElement('span');
-    span.className = 'crumb' + (i === breadcrumbStack.length - 1 ? ' active' : '');
-    span.textContent = crumb.label;
-    if (i < breadcrumbStack.length - 1) {
-      span.addEventListener('click', () => navigateTo(i));
-    }
-    nav.appendChild(span);
   });
 }
 
 // ── Graph rendering ──────────────────────────────────────────────────────────
-function renderGraph(elements, opts) {
-  const fit = opts && opts.fit !== false;
-  const pan = cy.pan();
-  const zoom = cy.zoom();
-
-  // Replace entire graph
+function renderGraph(elements) {
   cy.elements().remove();
-  cy.add(elements);
+  expanded.clear();
 
+  // Stamp baseLabel before adding so glyphs work correctly.
+  const withBase = elements.map((e) => {
+    if (e.data && e.data.expandable) {
+      return { ...e, data: { ...e.data, baseLabel: e.data.label, label: e.data.label + '  ⊕' } };
+    }
+    return e;
+  });
+
+  cy.add(withBase);
   cy.layout({ name: 'dagre', rankDir: 'LR', fit: false }).run();
-
-  if (fit) {
-    cy.fit(undefined, 30);
-  } else {
-    cy.pan(pan);
-    cy.zoom(zoom);
-  }
+  cy.fit(undefined, 30);
   hasLaidOut = true;
   clearDetail();
+  updateCollapseAll();
 }
 
 // In-place apply: preserve pan/zoom, add/remove/update, highlight new nodes.
-// Used ONLY at overview level during live streaming.
+// Used ONLY at overview level during live streaming (gated on expanded.size===0).
 function applyElements(elements) {
+  if (expanded.size > 0) return; // don't clobber an expanded state
+
   const pan = cy.pan();
   const zoom = cy.zoom();
   const incoming = new Map(elements.map((e) => [e.data.id, e]));
@@ -150,6 +167,9 @@ function applyElements(elements) {
       if (el.isNode()) added.push(el);
     }
   });
+
+  // Apply glyphs to any newly added nodes.
+  initGlyphs(added);
 
   if (!hasLaidOut) {
     cy.layout({ name: 'dagre', rankDir: 'LR' }).run();
@@ -170,52 +190,105 @@ function applyElements(elements) {
   });
 }
 
-// ── Navigation ───────────────────────────────────────────────────────────────
-async function navigateTo(index) {
-  const prevStack = breadcrumbStack.slice();
-  breadcrumbStack = breadcrumbStack.slice(0, index + 1);
-  renderBreadcrumb();
-
-  const entry = breadcrumbStack[index];
-  const url = entry.id === null ? '/api/diagram.json' : '/api/diagram/' + entry.id;
-  const token = ++navSeq;
+// ── Overview load ────────────────────────────────────────────────────────────
+async function loadOverview() {
   try {
-    const res = await fetch(url);
-    if (!res.ok) {
-      logLine('Failed to load diagram for: ' + (entry.label || 'overview'));
-      return;
-    }
-    if (token !== navSeq) return; // superseded by a newer navigation
+    const res = await fetch('/api/diagram.json');
+    if (!res.ok) { logLine('Failed to load overview diagram'); return; }
     const data = await res.json();
-    renderGraph(data.elements, { fit: true });
+    renderGraph(data.elements);
   } catch (_) {
-    breadcrumbStack = prevStack;
-    renderBreadcrumb();
-    logLine('request failed: ' + url);
+    logLine('request failed: /api/diagram.json');
   }
 }
 
-async function drillInto(componentId, label) {
-  const url = '/api/diagram/' + componentId;
-  const token = ++navSeq;
+// ── Compound expand/collapse ─────────────────────────────────────────────────
+async function expandNode(node) {
+  const pid = node.id();
+  if (expanded.has(pid)) return;
+
+  const componentId = node.data('componentId');
+  let data;
   try {
-    const res = await fetch(url);
-    if (!res.ok) {
-      logLine('No sub-graph for: ' + label);
-      return;
-    }
-    if (token !== navSeq) return; // superseded by a newer navigation
-    const data = await res.json();
-    breadcrumbStack.push({ id: componentId, label: label });
-    renderBreadcrumb();
-    renderGraph(data.elements, { fit: true });
+    const res = await fetch('/api/diagram/' + componentId);
+    if (!res.ok) { logLine('No sub-graph for: ' + (node.data('baseLabel') || node.data('label'))); return; }
+    data = await res.json();
   } catch (_) {
-    logLine('request failed: ' + url);
+    logLine('request failed: /api/diagram/' + componentId);
+    return;
   }
+
+  const subElements = data.elements || [];
+
+  // Separate nodes and edges so we can validate edge endpoints.
+  const subNodes = subElements.filter((e) => !e.data.source);
+  const subEdges = subElements.filter((e) => e.data.source);
+
+  // Build the set of new node ids (prefixed) for edge validation.
+  const addedIds = new Set(subNodes.map((e) => pid + '::' + e.data.id));
+
+  const newNodes = subNodes.map((e) => {
+    const newId = pid + '::' + e.data.id;
+    const baseLabel = e.data.label || e.data.id;
+    return {
+      data: {
+        ...e.data,
+        id: newId,
+        parent: pid,
+        baseLabel,
+        label: e.data.expandable ? baseLabel + '  ⊕' : baseLabel,
+        // Keep componentId and expandable intact for recursive expand.
+      },
+    };
+  });
+
+  const newEdges = subEdges
+    .filter((e) => addedIds.has(pid + '::' + e.data.source) && addedIds.has(pid + '::' + e.data.target))
+    .map((e) => ({
+      data: {
+        ...e.data,
+        id: pid + '::' + (e.data.id || (e.data.source + '-' + e.data.target)),
+        source: pid + '::' + e.data.source,
+        target: pid + '::' + e.data.target,
+      },
+    }));
+
+  cy.add([...newNodes, ...newEdges]);
+  expanded.add(pid);
+  refreshGlyph(node);
+  cy.layout({ name: 'dagre', rankDir: 'LR', fit: false }).run();
+  cy.fit(cy.getElementById(pid), 50);
+  updateCollapseAll();
 }
 
-function isAtOverview() {
-  return breadcrumbStack.length === 1 && breadcrumbStack[0].id === null;
+function collapseNode(node) {
+  const pid = node.id();
+
+  // Remove all descendant nodes (their edges auto-remove).
+  cy.nodes().filter((n) => n.id().startsWith(pid + '::')).remove();
+
+  // Clean up expanded tracking for this node and all its nested children.
+  [...expanded].forEach((id) => {
+    if (id === pid || id.startsWith(pid + '::')) expanded.delete(id);
+  });
+
+  refreshGlyph(node);
+
+  const pan = cy.pan();
+  const zoom = cy.zoom();
+  cy.layout({ name: 'dagre', rankDir: 'LR', fit: false }).run();
+  cy.pan(pan);
+  cy.zoom(zoom);
+
+  updateCollapseAll();
+}
+
+function toggleNode(node) {
+  if (expanded.has(node.id())) {
+    collapseNode(node);
+  } else {
+    expandNode(node);
+  }
 }
 
 // ── Detail sidebar ───────────────────────────────────────────────────────────
@@ -227,9 +300,10 @@ function clearDetail() {
 
 function renderDetail(node) {
   const d = node.data();
+  const nodeId = node.id();
   document.getElementById('detail-empty').classList.add('hidden');
   document.getElementById('detail-content').classList.remove('hidden');
-  document.getElementById('detail-name').textContent = d.label || d.id;
+  document.getElementById('detail-name').textContent = d.baseLabel || d.label || d.id;
   document.getElementById('detail-desc').textContent = d.description || '';
 
   const list = document.getElementById('detail-entity-list');
@@ -259,7 +333,9 @@ function renderDetail(node) {
   const expandBtn = document.getElementById('detail-expand');
   if (d.expandable) {
     expandBtn.classList.remove('hidden');
-    expandBtn.onclick = () => drillInto(d.componentId, d.label || d.id);
+    const isExpanded = expanded.has(nodeId);
+    expandBtn.textContent = isExpanded ? 'Collapse ⊖' : 'Expand ⊕';
+    expandBtn.onclick = () => toggleNode(cy.getElementById(nodeId));
   } else {
     expandBtn.classList.add('hidden');
     expandBtn.onclick = null;
@@ -276,8 +352,7 @@ cy.on('tap', (evt) => {
 });
 
 cy.on('dbltap', 'node[?expandable]', (evt) => {
-  const d = evt.target.data();
-  drillInto(d.componentId, d.label || d.id);
+  toggleNode(evt.target);
 });
 
 // ── Toolbar handlers ─────────────────────────────────────────────────────────
@@ -309,22 +384,21 @@ document.getElementById('log-toggle').addEventListener('click', () => {
   btn.textContent = collapsed ? '▲' : '▼';
 });
 
+// ── Collapse-all handler ─────────────────────────────────────────────────────
+document.getElementById('collapse-all').addEventListener('click', () => {
+  loadOverview();
+});
+
 // ── Initial data load ────────────────────────────────────────────────────────
 async function loadDiagram() {
-  const entry = breadcrumbStack[breadcrumbStack.length - 1];
-  const url = entry.id === null ? '/api/diagram.json' : '/api/diagram/' + entry.id;
   try {
-    const res = await fetch(url);
+    const res = await fetch('/api/diagram.json');
     if (res.ok) {
       const data = await res.json();
-      if (isAtOverview()) {
-        applyElements(data.elements);
-      } else {
-        renderGraph(data.elements, { fit: true });
-      }
+      applyElements(data.elements);
     }
   } catch (_) {
-    logLine('request failed: ' + url);
+    logLine('request failed: /api/diagram.json');
   }
 }
 
@@ -333,7 +407,7 @@ async function refreshStatus() {
     const s = await (await fetch('/api/status')).json();
     document.getElementById('project').textContent = s.project;
     setPhase(s.phase);
-    if (s.has_baseline) loadDiagram();
+    if (s.has_baseline) loadOverview();
     document.getElementById('watch').checked = s.watch_enabled;
   } catch (_) {
     logLine('request failed: /api/status');
@@ -357,16 +431,16 @@ function connectEvents() {
   });
 
   src.addEventListener('diagram_delta', (e) => {
-    // Only apply in-place updates at the overview to avoid clobbering a drilled-in view
-    if (isAtOverview()) {
+    // Only apply in-place updates at the overview when nothing is expanded.
+    if (expanded.size === 0) {
       applyElements(JSON.parse(e.data).elements);
     }
   });
 
   src.addEventListener('run_end', () => {
     setPhase('done');
-    // Re-fetch the current breadcrumb level (preserves drilled-in view after a run)
-    loadDiagram();
+    // Re-fetch the overview (clears any expanded state).
+    loadOverview();
   });
 
   src.addEventListener('run_error', (e) => {
@@ -386,7 +460,7 @@ function connectEvents() {
   });
 }
 
-// ── Run / Watch controls (unchanged behavior) ────────────────────────────────
+// ── Run / Watch controls ─────────────────────────────────────────────────────
 document.getElementById('watch').addEventListener('change', async (e) => {
   try {
     const res = await fetch('/api/watch', {
@@ -421,6 +495,6 @@ document.getElementById('run').addEventListener('click', async () => {
 });
 
 // ── Bootstrap ────────────────────────────────────────────────────────────────
-renderBreadcrumb();
+updateCollapseAll();
 refreshStatus();
 connectEvents();

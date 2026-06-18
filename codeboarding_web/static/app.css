@@ -45,27 +45,23 @@ button:hover, select:hover { border-color: #666; background: #333; }
   color: #E6E6E6;
 }
 
-/* ── Breadcrumb ── */
-#breadcrumb {
-  display: flex;
-  align-items: center;
-  gap: .3rem;
+/* ── Overview title + collapse-all ── */
+.overview-title {
   font-size: .85rem;
-  flex-wrap: wrap;
+  font-weight: 600;
+  color: #E6E6E6;
 }
 
-.crumb {
-  color: #2196F3;
+#collapse-all {
+  background: #1e2a35;
+  color: #FFC107;
+  border: 1px solid #FFC107;
+  border-radius: .25rem;
+  padding: .3rem .6rem;
+  font-size: .8rem;
   cursor: pointer;
-  text-decoration: none;
-  padding: .1rem .2rem;
-  border-radius: .2rem;
 }
-.crumb:hover { background: #252525; text-decoration: underline; }
-.crumb.active { color: #E6E6E6; cursor: default; font-weight: 600; }
-.crumb.active:hover { background: none; text-decoration: none; }
-
-.crumb-sep { color: #555; user-select: none; }
+#collapse-all:hover { background: #2a3a4a; }
 
 /* ── Main layout ── */
 main {
