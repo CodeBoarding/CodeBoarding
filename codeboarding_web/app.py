@@ -114,6 +114,7 @@ def create_app(
             "has_baseline": (output_dir / "analysis.json").exists(),
             "watch_enabled": app.state.watch_enabled,
             "repo_path": str(repo_path.resolve()),
+            "depth_level": runner.depth_level,
         }
 
     @app.get("/api/diagram.json")
@@ -161,6 +162,14 @@ def create_app(
         except RunBusyError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         return {"run_id": run_id, "scope": req.scope}
+
+    @app.post("/api/cancel")
+    def cancel_run() -> dict:
+        """Signal the current run to stop; no-op if idle."""
+        if state.is_busy:
+            runner.cancel()
+            return {"cancelling": True}
+        return {"cancelling": False}
 
     @app.post("/api/watch")
     def set_watch(req: WatchRequest) -> dict:

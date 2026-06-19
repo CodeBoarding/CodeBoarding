@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import threading
 import time
 from collections import defaultdict
 from collections.abc import Callable
@@ -85,6 +86,7 @@ class DiagramGenerator:
         static_analyzer: StaticAnalyzer | None = None,
         changes: ChangeSet | None = None,
         progress_callback: Callable[[], None] | None = None,
+        cancel_event: threading.Event | None = None,
     ):
         self.repo_location = repo_location
         self.temp_folder = temp_folder
@@ -121,6 +123,7 @@ class DiagramGenerator:
 
         self._monitoring_agents: dict[str, MonitoringMixin] = {}
         self.stats_writer: StreamingStatsWriter | None = None
+        self.cancel_event = cancel_event
 
     def _notify_progress(self) -> None:
         """Fire the optional progress callback; never let it break a run."""
@@ -406,6 +409,8 @@ class DiagramGenerator:
             future_to_task: dict[Future, tuple[Component, int]] = {}
 
             def submit_component(comp: Component, lvl: int):
+                if self.cancel_event is not None and self.cancel_event.is_set():
+                    return
                 future = executor.submit(self._process_component, comp)
                 future_to_task[future] = (comp, lvl)
                 stats["submitted"] += 1

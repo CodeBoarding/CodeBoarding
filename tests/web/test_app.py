@@ -175,3 +175,34 @@ def test_no_cache_header_scoped(tmp_path: Path) -> None:
     c = _client(tmp_path)
     # API responses must not get the no-store header from the static-assets middleware
     assert "no-store" not in c.get("/api/status").headers.get("cache-control", "")
+
+
+def test_cancel_when_idle_returns_not_cancelling(tmp_path: Path) -> None:
+    """POST /api/cancel when idle returns 200 with cancelling=False."""
+    c = _client(tmp_path)
+    r = c.post("/api/cancel")
+    assert r.status_code == 200
+    assert r.json()["cancelling"] is False
+
+
+def test_cancel_when_busy_returns_cancelling(tmp_path: Path, monkeypatch) -> None:
+    """POST /api/cancel when a run is in progress returns cancelling=True."""
+    app = create_app(repo_path=tmp_path, output_dir=tmp_path, project_name="demo")
+    c = TestClient(app)
+    app.state.run_state.begin("run1", "full")
+
+    cancelled = []
+    monkeypatch.setattr(app.state.runner, "cancel", lambda: cancelled.append(True))
+
+    r = c.post("/api/cancel")
+    assert r.status_code == 200
+    assert r.json()["cancelling"] is True
+    assert cancelled == [True]
+
+
+def test_status_includes_depth_level(tmp_path: Path) -> None:
+    """GET /api/status must include depth_level."""
+    c = _client(tmp_path)
+    body = c.get("/api/status").json()
+    assert "depth_level" in body
+    assert isinstance(body["depth_level"], int)

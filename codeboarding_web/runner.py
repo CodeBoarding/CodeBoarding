@@ -42,12 +42,14 @@ class AnalysisRunner:
         self.bus = bus
         self.depth_level = depth_level
         self._thread: threading.Thread | None = None
+        self._cancel = threading.Event()
 
     def start(self, scope: str, base_ref: str = "HEAD~1", target_ref: str = "HEAD") -> str:
         """Validate scope, claim state, and spawn the background thread; returns run_id."""
         if scope not in _SCOPES:
             raise ValueError(f"unknown scope: {scope!r}")
         run_id = uuid.uuid4().hex[:8]
+        self._cancel.clear()
         self.state.begin(run_id, scope)  # raises RunBusyError if busy
         self._thread = threading.Thread(
             target=self._run,
@@ -56,6 +58,10 @@ class AnalysisRunner:
         )
         self._thread.start()
         return run_id
+
+    def cancel(self) -> None:
+        """Signal the running analysis to stop submitting new work."""
+        self._cancel.set()
 
     def _progress_callback(self) -> None:
         """Load current Cytoscape snapshot and publish it as a diagram_delta event."""
@@ -82,6 +88,8 @@ class AnalysisRunner:
             self.state.finish(error=error)
             if error:
                 self.bus.publish_threadsafe("run_error", {"run_id": run_id, "error": error})
+            elif self._cancel.is_set():
+                self.bus.publish_threadsafe("run_cancelled", {"run_id": run_id})
             else:
                 self.bus.publish_threadsafe("run_end", {"run_id": run_id})
 
@@ -96,6 +104,7 @@ class AnalysisRunner:
             log_path=run_context.log_path,
             progress_callback=progress_callback,
             source_sha=get_current_commit(self.repo_path),
+            cancel_event=self._cancel,
         )
 
     def _run_scope(
