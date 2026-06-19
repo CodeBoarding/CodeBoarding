@@ -361,7 +361,6 @@ function _switchTab(tabName) {
 function _loadDiffIfNeeded() {
   const componentId = document.getElementById('detail-content').dataset.componentId;
   if (!componentId || _diffCachedFor === componentId) return;
-  _diffCachedFor = componentId;
 
   const summary = document.getElementById('modifications-summary');
   const fileList = document.getElementById('modifications-file-list');
@@ -375,6 +374,7 @@ function _loadDiffIfNeeded() {
     .then((data) => {
       // Guard against stale results: discard if selection changed.
       if (componentId !== selectedComponentId) return;
+      _diffCachedFor = componentId;  // cache only after a successful fetch
 
       const files = data.files || [];
       const diffText = data.diff || '';
@@ -417,6 +417,7 @@ function _loadDiffIfNeeded() {
     .catch(() => {
       // Guard against stale results on error as well.
       if (componentId === selectedComponentId) {
+        _diffCachedFor = null;  // allow retry on next tab switch
         document.getElementById('modifications-summary').textContent = 'Failed to load diff.';
       }
     });
@@ -548,8 +549,8 @@ document.getElementById('detail-copy').addEventListener('click', () => {
   });
 
   const srcFiles = [];
-  document.querySelectorAll('#detail-source-list li code').forEach((c) => {
-    srcFiles.push('- ' + c.textContent);
+  document.querySelectorAll('#detail-source-list li').forEach((li) => {
+    srcFiles.push('- ' + li.textContent);
   });
 
   let md = '## ' + name + '\n\n' + (desc || '') + '\n';
@@ -732,6 +733,7 @@ document.getElementById('run').addEventListener('click', async () => {
     });
     if (res.status === 409) { logLine('A run is already in progress.'); return; }
     if (res.status === 400) { logLine('Invalid scope.'); return; }
+    if (!res.ok) { logLine('run failed: /api/run returned ' + res.status); return; }
     setPhase('running');
   } catch (_) {
     logLine('request failed: /api/run');

@@ -16,7 +16,7 @@ class RunPhase(str, Enum):
 
 
 class RunState:
-    """Tracks the single active analysis run (v1 allows one at a time)."""
+    """Tracks the single active analysis run; one run at a time."""
 
     def __init__(self) -> None:
         self.phase: RunPhase = RunPhase.IDLE

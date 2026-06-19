@@ -1,3 +1,5 @@
+"""Tests for codeboarding_web.diagram cytoscape loaders."""
+
 import json
 from pathlib import Path
 
@@ -62,11 +64,11 @@ def _write_analysis(output_dir: Path) -> None:
     (output_dir / "analysis.json").write_text(json.dumps(data), encoding="utf-8")
 
 
-def test_returns_none_when_absent(tmp_path):
+def test_returns_none_when_absent(tmp_path: Path) -> None:
     assert load_cytoscape(tmp_path, "demo", tmp_path) is None
 
 
-def test_returns_elements_for_present_analysis(tmp_path):
+def test_returns_elements_for_present_analysis(tmp_path: Path) -> None:
     _write_analysis(tmp_path)
     result = load_cytoscape(tmp_path, "demo", tmp_path)
     assert result is not None
@@ -74,13 +76,13 @@ def test_returns_elements_for_present_analysis(tmp_path):
     assert "Core" in ids
 
 
-def test_returns_none_on_corrupt_json(tmp_path):
+def test_returns_none_on_corrupt_json(tmp_path: Path) -> None:
     tmp_path.mkdir(parents=True, exist_ok=True)
     (tmp_path / "analysis.json").write_text("{not json", encoding="utf-8")
     assert load_cytoscape(tmp_path, "demo", tmp_path) is None
 
 
-def test_overview_nodes_enriched(tmp_path):
+def test_overview_nodes_enriched(tmp_path: Path) -> None:
     _write_analysis(tmp_path)
     result = load_cytoscape(tmp_path, "demo", tmp_path)
     assert result is not None
@@ -90,7 +92,7 @@ def test_overview_nodes_enriched(tmp_path):
     assert "keyEntities" in node["data"]
 
 
-def test_overview_node_expandable_flag(tmp_path):
+def test_overview_node_expandable_flag(tmp_path: Path) -> None:
     _write_analysis(tmp_path)
     result = load_cytoscape(tmp_path, "demo", tmp_path)
     assert result is not None
@@ -98,7 +100,7 @@ def test_overview_node_expandable_flag(tmp_path):
     assert node["data"]["expandable"] is True
 
 
-def test_overview_node_key_entities_populated(tmp_path):
+def test_overview_node_key_entities_populated(tmp_path: Path) -> None:
     _write_analysis(tmp_path)
     result = load_cytoscape(tmp_path, "demo", tmp_path)
     assert result is not None
@@ -112,23 +114,23 @@ def test_overview_node_key_entities_populated(tmp_path):
     assert entities[0]["openUrl"].startswith("vscode://file/")
 
 
-def test_component_subgraph_loads(tmp_path):
+def test_component_subgraph_loads(tmp_path: Path) -> None:
     _write_analysis(tmp_path)
     sub = load_cytoscape_component(tmp_path, "demo", tmp_path, _EXPANDABLE_ID)
     assert sub is not None
     assert "elements" in sub
 
 
-def test_component_subgraph_missing_returns_none(tmp_path):
+def test_component_subgraph_missing_returns_none(tmp_path: Path) -> None:
     _write_analysis(tmp_path)
     assert load_cytoscape_component(tmp_path, "demo", tmp_path, "nonexistent") is None
 
 
-def test_component_subgraph_absent_file_returns_none(tmp_path):
+def test_component_subgraph_absent_file_returns_none(tmp_path: Path) -> None:
     assert load_cytoscape_component(tmp_path, "demo", tmp_path, _EXPANDABLE_ID) is None
 
 
-def test_overview_node_has_source_files_warnings_modifications(tmp_path):
+def test_overview_node_has_source_files_warnings_modifications(tmp_path: Path) -> None:
     """Overview nodes must carry sourceFiles, warnings, modifications, and fileWarnings keys."""
     _write_analysis(tmp_path)
     result = load_cytoscape(tmp_path, "demo", tmp_path)
@@ -145,7 +147,7 @@ def test_overview_node_has_source_files_warnings_modifications(tmp_path):
     assert data["modifications"] == 0
 
 
-def test_overview_node_has_file_warnings_key(tmp_path):
+def test_overview_node_has_file_warnings_key(tmp_path: Path) -> None:
     """fileWarnings must be a list; empty when no health_report.json exists."""
     _write_analysis(tmp_path)
     result = load_cytoscape(tmp_path, "demo", tmp_path)
@@ -157,7 +159,7 @@ def test_overview_node_has_file_warnings_key(tmp_path):
     assert fw == []
 
 
-def test_overview_node_file_warnings_with_health_report(tmp_path):
+def test_overview_node_file_warnings_with_health_report(tmp_path: Path) -> None:
     """fileWarnings entries have {file, warnings} shape, sorted by count desc then path."""
     _write_analysis(tmp_path)
     # Write a health report that matches the fixture's component file "core/main.py"

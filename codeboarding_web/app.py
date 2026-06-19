@@ -161,8 +161,8 @@ def create_app(
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
             root_analysis, sub_analyses = parse_unified_analysis(data)
-        except Exception:
-            raise HTTPException(status_code=404, detail="analysis not readable")
+        except (OSError, json.JSONDecodeError, KeyError, TypeError, ValueError) as err:
+            raise HTTPException(status_code=404, detail="analysis not readable") from err
         comp = _find_component(root_analysis, sub_analyses, component_id)
         if comp is None:
             raise HTTPException(status_code=404, detail="component not found")

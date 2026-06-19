@@ -132,6 +132,8 @@ class AnalysisRunner:
                 base_ref=base_ref,
                 target_ref=target_ref,
                 progress_callback=progress_callback,
+                source_sha=get_current_commit(self.repo_path),
+                cancel_event=self._cancel,
             )
         except (BaselineUnavailableError, IncrementalCacheMissingError) as exc:
             logger.warning("incremental unavailable (%s); falling back to full analysis", exc)

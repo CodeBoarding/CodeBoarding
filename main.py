@@ -29,7 +29,7 @@ def build_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 `full` is the default command: when the first argument is not `full`,
-`incremental`, or `partial`, `full` is inserted automatically.
+`incremental`, `partial`, or `serve`, `full` is inserted automatically.
 
 Examples:
   # Local full analysis (output to <repo>/.codeboarding/); `full` is implied

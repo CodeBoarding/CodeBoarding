@@ -30,7 +30,7 @@ class RepoWatcher:
             return False
         return p.suffix.lower() in SOURCE_EXTENSION_TO_LANGUAGE
 
-    def _watch_filter(self, change: Change, path: str) -> bool:
+    def _watch_filter(self, _change: Change, path: str) -> bool:
         return self._should_watch(path)
 
     async def run(self, stop_event: asyncio.Event) -> None:

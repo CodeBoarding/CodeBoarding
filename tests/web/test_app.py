@@ -3,6 +3,7 @@
 import json
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 from codeboarding_web.app import create_app
@@ -93,10 +94,10 @@ def test_diagram_json_404_when_absent(tmp_path: Path) -> None:
 def test_run_rejects_bad_scope(tmp_path: Path) -> None:
     c = _client(tmp_path)
     r = c.post("/api/run", json={"scope": "nope"})
-    assert r.status_code == 422 or r.status_code == 400
+    assert r.status_code == 400
 
 
-def test_run_conflict_when_busy(tmp_path: Path, monkeypatch) -> None:
+def test_run_conflict_when_busy(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     app = create_app(repo_path=tmp_path, output_dir=tmp_path, project_name="demo")
     c = TestClient(app)
 
@@ -185,7 +186,7 @@ def test_cancel_when_idle_returns_not_cancelling(tmp_path: Path) -> None:
     assert r.json()["cancelling"] is False
 
 
-def test_cancel_when_busy_returns_cancelling(tmp_path: Path, monkeypatch) -> None:
+def test_cancel_when_busy_returns_cancelling(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """POST /api/cancel when a run is in progress returns cancelling=True."""
     app = create_app(repo_path=tmp_path, output_dir=tmp_path, project_name="demo")
     c = TestClient(app)

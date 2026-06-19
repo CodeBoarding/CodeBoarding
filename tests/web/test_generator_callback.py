@@ -1,7 +1,11 @@
+"""Tests that DiagramGenerator stores and invokes progress_callback safely."""
+
+from pathlib import Path
+
 from diagram_analysis.diagram_generator import DiagramGenerator
 
 
-def test_progress_callback_defaults_to_none(tmp_path):
+def test_progress_callback_defaults_to_none(tmp_path: Path) -> None:
     gen = DiagramGenerator(
         repo_location=tmp_path,
         temp_folder=tmp_path,
@@ -14,7 +18,7 @@ def test_progress_callback_defaults_to_none(tmp_path):
     assert gen.progress_callback is None
 
 
-def test_progress_callback_is_stored(tmp_path):
+def test_progress_callback_is_stored(tmp_path: Path) -> None:
     calls = []
     gen = DiagramGenerator(
         repo_location=tmp_path,
@@ -31,7 +35,7 @@ def test_progress_callback_is_stored(tmp_path):
     assert calls == [1]
 
 
-def test_notify_progress_swallows_exceptions(tmp_path):
+def test_notify_progress_swallows_exceptions(tmp_path: Path) -> None:
     def boom() -> None:
         raise RuntimeError("nope")
 
@@ -48,7 +52,7 @@ def test_notify_progress_swallows_exceptions(tmp_path):
     gen._notify_progress()  # must not raise
 
 
-def test_notify_progress_invokes_callback(tmp_path):
+def test_notify_progress_invokes_callback(tmp_path: Path) -> None:
     calls = []
     gen = DiagramGenerator(
         repo_location=tmp_path,

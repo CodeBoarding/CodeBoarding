@@ -202,8 +202,6 @@ def test_start_clears_cancel_event(tmp_path, monkeypatch):
     monkeypatch.setattr(r, "_drive_pipeline", lambda *a, **kw: None)
     r.start("full")
     r._thread.join(timeout=5)
-    # After start the cancel event should have been cleared at dispatch time
-    # (it may have been re-set or not; we assert it was cleared before the thread ran)
-    # We verify indirectly: start must not raise and run_id must be returned.
+    assert r._cancel.is_set() is False
     assert r.state.phase.value in ("done", "error")
     loop.close()

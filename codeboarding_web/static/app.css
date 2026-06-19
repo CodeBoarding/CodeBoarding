@@ -111,7 +111,7 @@ main {
   font-size: 1rem;
   font-weight: 700;
   color: #E6E6E6;
-  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .detail-desc {

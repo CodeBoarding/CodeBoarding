@@ -42,7 +42,6 @@ def test_load_warning_counts_corrupt_json(tmp_path: Path) -> None:
 
 
 def test_changed_files_non_git(tmp_path: Path) -> None:
-    # non-git dir → empty set, no crash
     assert changed_files(tmp_path) == set()
 
 
@@ -72,7 +71,6 @@ def test_component_files_none_skipped(tmp_path: Path) -> None:
 
 
 def test_component_files_normalizes_relative(tmp_path: Path) -> None:
-    """Test that relative paths with ./ and .. are normalized to forward-slash posix form."""
     ref1 = SimpleNamespace(reference_file="./src/foo.py")
     ref2 = SimpleNamespace(reference_file="src/bar.py")
     ref3 = SimpleNamespace(reference_file=None)
@@ -82,10 +80,8 @@ def test_component_files_normalizes_relative(tmp_path: Path) -> None:
 
 
 def test_component_diff_empty_files_returns_empty(tmp_path: Path) -> None:
-    """Test that empty file list returns empty string."""
     assert component_diff(tmp_path, []) == ""
 
 
 def test_component_diff_non_git_returns_empty(tmp_path: Path) -> None:
-    """Test that non-git directory with file paths returns empty string."""
     assert component_diff(tmp_path, ["main.py"]) == ""
