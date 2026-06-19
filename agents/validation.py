@@ -6,7 +6,8 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from difflib import SequenceMatcher
 
-from agents.agent_responses import AnalysisInsights, ClusterAnalysis, ComponentFiles, ScopeRelations
+from agents.agent_responses import ClusterAnalysis, ComponentFiles, ScopeRelations
+from agents.analysis_models import AnalysisInsights
 from repo_utils import normalize_path
 from static_analyzer.graph import CallGraph, ClusterResult
 

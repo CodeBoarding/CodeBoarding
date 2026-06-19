@@ -5,13 +5,8 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.prompts import PromptTemplate
 
 from agents.agent import CodeBoardingAgent
-from agents.agent_responses import (
-    AnalysisInsights,
-    AnalysisInsightsLLM,
-    ClusterAnalysis,
-    MetaAnalysisInsights,
-    assign_component_ids,
-)
+from agents.agent_responses import AnalysisInsightsLLM, ClusterAnalysis, MetaAnalysisInsights
+from agents.analysis_models import AnalysisInsights, assign_component_ids
 from agents.cluster_methods_mixin import ClusterMethodsMixin
 from agents.prompts import (
     get_cluster_grouping_message,

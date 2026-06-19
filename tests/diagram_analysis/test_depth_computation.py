@@ -1,7 +1,8 @@
 """Test script to verify depth computation works correctly with deep nesting."""
 
 from diagram_analysis.analysis_json import _compute_depth_level
-from agents.agent_responses import AnalysisInsights, Component, SourceCodeReference, assign_component_ids
+from agents.agent_responses import SourceCodeReference
+from agents.analysis_models import AnalysisInsights, Component, assign_component_ids
 
 
 def create_analysis_with_components(names: list[str], parent_id: str = "TEST") -> AnalysisInsights:

@@ -2,7 +2,7 @@
 
 import unittest
 
-from agents.agent_responses import (
+from agents.analysis_models import (
     AnalysisInsights,
     Component,
     FileMethodGroup,

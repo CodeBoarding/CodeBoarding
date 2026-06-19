@@ -7,15 +7,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from agents.agent_responses import (
-    AnalysisInsights,
-    ClusterAnalysis,
-    ClustersComponent,
-    Component,
-    FileMethodGroup,
-    MethodEntry,
-    Relation,
-)
+from agents.agent_responses import ClusterAnalysis, ClustersComponent
+from agents.analysis_models import AnalysisInsights, Component, FileMethodGroup, MethodEntry, Relation
 from agents.cluster_methods_mixin import _hash_method_body
 from agents.incremental_agent import (
     _build_node_lookup,
@@ -605,7 +598,7 @@ class TestRefreshComponentFileMethodsPathNormalization(unittest.TestCase):
     in test 04). Reproduces the test 04 misbucketing bug."""
 
     def test_absolute_paths_in_cluster_to_files_normalize_before_matching(self) -> None:
-        from agents.agent_responses import MethodEntry
+        from agents.analysis_models import MethodEntry
         from agents.incremental_agent import _refresh_component_file_methods
         from static_analyzer.graph import ClusterResult
 

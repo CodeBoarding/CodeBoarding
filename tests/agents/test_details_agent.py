@@ -4,16 +4,8 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from agents.details_agent import DetailsAgent
-from agents.agent_responses import (
-    AnalysisInsights,
-    ClusterAnalysis,
-    ClustersComponent,
-    Component,
-    FileMethodGroup,
-    MetaAnalysisInsights,
-    MethodEntry,
-    SourceCodeReference,
-)
+from agents.agent_responses import ClusterAnalysis, ClustersComponent, MetaAnalysisInsights, SourceCodeReference
+from agents.analysis_models import AnalysisInsights, Component, FileMethodGroup, MethodEntry
 
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import NodeType

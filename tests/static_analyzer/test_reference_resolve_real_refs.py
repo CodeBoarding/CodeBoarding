@@ -12,7 +12,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from agents.agent_responses import AnalysisInsights, Component, FileMethodGroup, SourceCodeReference
+from agents.agent_responses import SourceCodeReference
+from agents.analysis_models import AnalysisInsights, Component, FileMethodGroup
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import NodeType
 from static_analyzer.node import Node

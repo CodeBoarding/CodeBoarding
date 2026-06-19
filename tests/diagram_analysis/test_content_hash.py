@@ -1,8 +1,8 @@
 import hashlib
 from pathlib import Path
 
-from agents.agent_responses import FileEntry, MethodEntry
-from agents.agent_responses import FileEntry as _FileEntry
+from agents.analysis_models import FileEntry, MethodEntry
+from agents.analysis_models import FileEntry as _FileEntry
 from agents.cluster_methods_mixin import _hash_method_body, _hash_whole_file, _read_source_lines
 from diagram_analysis.analysis_json import (
     FileEntryJson,

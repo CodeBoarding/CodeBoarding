@@ -1,4 +1,4 @@
-from agents.agent_responses import AnalysisInsights
+from agents.analysis_models import AnalysisInsights
 
 
 def _generate_css_styles() -> str:

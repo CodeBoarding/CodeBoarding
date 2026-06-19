@@ -7,13 +7,13 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
 
-from agents.agent_responses import (
+from agents.agent_responses import SourceCodeReference
+from agents.analysis_models import (
     AnalysisInsights,
     Component,
     FileMethodGroup,
     MethodEntry,
     Relation,
-    SourceCodeReference,
     assign_component_ids,
 )
 from diagram_analysis.analysis_json import (

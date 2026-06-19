@@ -9,7 +9,7 @@ import logging
 from collections import defaultdict
 from dataclasses import dataclass, field
 
-from agents.agent_responses import AnalysisInsights, Relation
+from agents.analysis_models import AnalysisInsights, Relation
 from static_analyzer.graph import CallGraph
 
 logger = logging.getLogger(__name__)

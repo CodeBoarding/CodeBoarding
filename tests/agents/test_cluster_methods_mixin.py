@@ -6,7 +6,8 @@ import networkx as nx
 
 from agents.cluster_budget import ClusterPromptBudget
 from agents.cluster_methods_mixin import ClusterMethodsMixin
-from agents.agent_responses import AnalysisInsights, Component, SourceCodeReference
+from agents.agent_responses import SourceCodeReference
+from agents.analysis_models import AnalysisInsights, Component
 from agents.model_capabilities import ContextWindow
 from static_analyzer.cfg_skip_planner import ContextBudgetExceededError
 from static_analyzer.graph import CallGraph, ClusterResult

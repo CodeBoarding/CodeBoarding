@@ -15,17 +15,13 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.prompts import PromptTemplate
 
 from agents.agent import CodeBoardingAgent
-from agents.agent_responses import (
+from agents.agent_responses import ClusterAnalysis, ClustersComponent, MetaAnalysisInsights, RelationLLM, ScopeRelations
+from agents.analysis_models import (
     AnalysisInsights,
-    ClusterAnalysis,
-    ClustersComponent,
     Component,
     FileMethodGroup,
-    MetaAnalysisInsights,
     MethodEntry,
     Relation,
-    RelationLLM,
-    ScopeRelations,
     assign_component_ids,
     index_components_by_id,
     iter_components,

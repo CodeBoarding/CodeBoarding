@@ -8,14 +8,8 @@ from typing import NoReturn
 
 import networkx as nx
 
-from agents.agent_responses import (
-    AnalysisInsights,
-    ClusterAnalysis,
-    Component,
-    FileEntry,
-    FileMethodGroup,
-    MethodEntry,
-)
+from agents.agent_responses import ClusterAnalysis
+from agents.analysis_models import AnalysisInsights, Component, FileEntry, FileMethodGroup, MethodEntry
 from agents.cluster_budget import ClusterPromptBudget
 from agents.llm_config import get_current_agent_context_window, get_current_agent_model_ref
 from agents.model_capabilities import ContextWindow

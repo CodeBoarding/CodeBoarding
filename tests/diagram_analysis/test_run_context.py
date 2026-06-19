@@ -5,7 +5,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from agents.agent_responses import AnalysisInsights, ClusterAnalysis
+from agents.agent_responses import ClusterAnalysis
+from agents.analysis_models import AnalysisInsights
 from caching.cache import ModelSettings
 from caching.details_cache import ClusterCache, FinalAnalysisCache
 from diagram_analysis.run_context import RunContext, _load_existing_run_id

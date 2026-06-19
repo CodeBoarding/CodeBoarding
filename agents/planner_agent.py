@@ -22,7 +22,7 @@ Example:
 
 import logging
 
-from agents.agent_responses import AnalysisInsights, Component
+from agents.analysis_models import AnalysisInsights, Component
 
 logger = logging.getLogger(__name__)
 

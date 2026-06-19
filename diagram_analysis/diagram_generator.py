@@ -10,7 +10,8 @@ from pathlib import Path
 from typing import Any
 
 from agents.abstraction_agent import AbstractionAgent
-from agents.agent_responses import AnalysisInsights, Component, MetaAnalysisInsights, MethodEntry
+from agents.agent_responses import MetaAnalysisInsights
+from agents.analysis_models import AnalysisInsights, Component, MethodEntry
 from agents.details_agent import DetailsAgent
 from agents.incremental_agent import (
     IncrementalAgent,

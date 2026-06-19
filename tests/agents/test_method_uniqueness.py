@@ -22,11 +22,8 @@ from collections import defaultdict
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from agents.agent_responses import (
-    AnalysisInsights,
-    Component,
-    SourceCodeReference,
-)
+from agents.agent_responses import SourceCodeReference
+from agents.analysis_models import AnalysisInsights, Component
 from agents.cluster_methods_mixin import ClusterMethodsMixin
 from static_analyzer.constants import NodeType
 from static_analyzer.graph import CallGraph, ClusterResult

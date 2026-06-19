@@ -1,18 +1,8 @@
 import json
 import unittest
 
-from agents.agent_responses import (
-    SourceCodeReference,
-    Relation,
-    RelationLLM,
-    Component,
-    ComponentLLM,
-    FileMethodGroup,
-    AnalysisInsights,
-    AnalysisInsightsLLM,
-    ScopeRelations,
-    assign_component_ids,
-)
+from agents.agent_responses import SourceCodeReference, RelationLLM, ComponentLLM, AnalysisInsightsLLM, ScopeRelations
+from agents.analysis_models import Relation, Component, FileMethodGroup, AnalysisInsights, assign_component_ids
 
 
 class TestSourceCodeReference(unittest.TestCase):

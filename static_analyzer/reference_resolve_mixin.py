@@ -3,7 +3,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from agents.agent_responses import AnalysisInsights
+from agents.analysis_models import AnalysisInsights
 from static_analyzer.analysis_result import StaticAnalysisResults
 
 logger = logging.getLogger(__name__)
