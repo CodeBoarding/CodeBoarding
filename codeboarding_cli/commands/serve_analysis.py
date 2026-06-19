@@ -23,7 +23,12 @@ def add_arguments(subparsers: argparse._SubParsersAction, parents: list[argparse
     parser.add_argument("--host", default="127.0.0.1", help="Host to bind (default: 127.0.0.1)")
     parser.add_argument("--port", type=int, default=8050, help="Port to bind (default: 8050)")
     parser.add_argument("--no-open", action="store_true", help="Do not open a browser tab")
-    parser.add_argument("--depth-level", type=int, default=1, help="Depth level (default: 1)")
+    parser.add_argument(
+        "--depth-level",
+        type=int,
+        default=2,
+        help="Analysis depth (default: 2). Depth >=2 generates nested sub-components that can be expanded in the diagram; use 1 for a flat top-level-only view.",
+    )
     parser.add_argument(
         "--watch",
         action=argparse.BooleanOptionalAction,

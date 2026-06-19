@@ -153,7 +153,7 @@ as each component is analyzed, and your pan/zoom is preserved across updates.
 Watch-on-save is on by default: editing a source file auto-triggers an
 incremental re-analysis (toggle it from the header or disable with `--no-watch`).
 
-Flags: `--host`, `--port` (default `8050`), `--no-open`, `--depth-level`,
+Flags: `--host`, `--port` (default `8050`), `--no-open`, `--depth-level` (default `2`; depth ≥ 2 generates nested sub-components that can be expanded in the diagram — use `1` for a quick flat view),
 `--watch`/`--no-watch`.
 
 ## Where to use it

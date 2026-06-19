@@ -13,6 +13,7 @@ def test_add_arguments_registers_serve():
     assert args.command == "serve"
     assert args.port == 9999
     assert args.host == "127.0.0.1"
+    assert parser.parse_args(["serve", "--local", "/tmp/x"]).depth_level == 2
 
 
 def test_serve_in_main_subcommands():
