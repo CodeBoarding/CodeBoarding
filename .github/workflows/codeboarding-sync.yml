@@ -38,6 +38,12 @@ jobs:
         with:
           mode: sync
           force_full: ${{ inputs.force_full || false }}
+          # Desired analysis depth for this repo. Sync is the baseline writer, so
+          # setting it here re-seeds .codeboarding/analysis.json at depth 4 on the
+          # next sync; review then inherits depth 4 from the committed baseline.
+          # Requires the licensed tier (license_key/llm_api_key) — the free tier
+          # caps depth at 3.
+          depth_level: 4
           # Free tier needs no secret — these fall through to the hosted OIDC tier when
           # unset. Add either repo secret (Settings → Secrets and variables → Actions)
           # for more/unmetered usage; no YAML edit required.

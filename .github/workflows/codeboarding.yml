@@ -31,6 +31,11 @@ jobs:
     steps:
       - uses: CodeBoarding/CodeBoarding-action@v1
         with:
+          # Desired analysis depth. Review inherits the committed baseline's depth
+          # once sync has re-seeded it at 4; this is set explicitly too so a review
+          # that runs before the first depth-4 sync still analyzes at depth 4.
+          # Requires the licensed tier (the free tier caps depth at 3).
+          depth_level: 4
           # Free tier needs no secret — these fall through to the hosted OIDC tier when
           # unset. Add either repo secret (Settings → Secrets and variables → Actions)
           # for more/unmetered usage; no YAML edit required.
