@@ -39,6 +39,19 @@ def test_start_when_busy_raises(tmp_path, monkeypatch):
     loop.close()
 
 
+def test_start_while_busy_preserves_cancel(tmp_path):
+    """A second start() while busy must not clear the in-flight run's cancel flag."""
+    loop = asyncio.new_event_loop()
+    bus = EventBus(loop)
+    r = _make(tmp_path, bus)
+    r.state.begin("existing", "full")
+    r.cancel()  # in-flight run asked to stop
+    with pytest.raises(RunBusyError):
+        r.start("full")
+    assert r._cancel.is_set()  # cancellation preserved
+    loop.close()
+
+
 def test_depth_level_stored(tmp_path):
     loop = asyncio.new_event_loop()
     bus = EventBus(loop)

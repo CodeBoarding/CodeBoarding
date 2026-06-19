@@ -200,6 +200,26 @@ def test_cancel_when_busy_returns_cancelling(tmp_path: Path, monkeypatch) -> Non
     assert cancelled == [True]
 
 
+def test_rejects_foreign_host_on_loopback_bind(tmp_path: Path) -> None:
+    """A loopback bind must reject foreign Host headers (DNS-rebinding defense)."""
+    app = create_app(repo_path=tmp_path, output_dir=tmp_path, project_name="demo", bind_host="127.0.0.1")
+    c = TestClient(app, base_url="http://evil.example.com")
+    assert c.get("/api/status").status_code == 400
+
+
+def test_allows_loopback_host_on_loopback_bind(tmp_path: Path) -> None:
+    app = create_app(repo_path=tmp_path, output_dir=tmp_path, project_name="demo", bind_host="127.0.0.1")
+    c = TestClient(app, base_url="http://localhost")
+    assert c.get("/api/status").status_code == 200
+
+
+def test_no_host_guard_when_not_loopback_bind(tmp_path: Path) -> None:
+    """Binding to all interfaces is explicit exposure — no Host guard installed."""
+    app = create_app(repo_path=tmp_path, output_dir=tmp_path, project_name="demo", bind_host="0.0.0.0")
+    c = TestClient(app, base_url="http://evil.example.com")
+    assert c.get("/api/status").status_code == 200
+
+
 def test_status_includes_depth_level(tmp_path: Path) -> None:
     """GET /api/status must include depth_level."""
     c = _client(tmp_path)

@@ -11,6 +11,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from agents.agent_responses import AnalysisInsights, Component
 from codeboarding_web.component_data import changed_files, component_diff, component_files
@@ -24,6 +25,12 @@ from diagram_analysis.io_utils import parse_unified_analysis
 logger = logging.getLogger(__name__)
 
 _STATIC_DIR = Path(__file__).parent / "static"
+
+# Hostnames accepted when the server is bound to a loopback address. The app
+# has no auth and POST /api/run spends real LLM tokens while the diff routes
+# expose working-tree source, so a loopback bind rejects foreign Host headers
+# to defend against DNS-rebinding from any site the user visits.
+_LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "::1"}
 
 
 def _find_component(
@@ -55,9 +62,19 @@ class WatchRequest(BaseModel):
 
 
 def create_app(
-    repo_path: Path, output_dir: Path, project_name: str, depth_level: int = 1, watch: bool = False
+    repo_path: Path,
+    output_dir: Path,
+    project_name: str,
+    depth_level: int = 1,
+    watch: bool = False,
+    bind_host: str | None = None,
 ) -> FastAPI:
-    """Build and return the FastAPI application."""
+    """Build and return the FastAPI application.
+
+    When *bind_host* is a loopback address, a Host-header allowlist is
+    installed (DNS-rebinding defense). A non-loopback bind (e.g. ``0.0.0.0``)
+    is an explicit exposure choice and is left unguarded.
+    """
     state = RunState()
     bus = EventBus()
     runner = AnalysisRunner(repo_path, output_dir, project_name, state, bus, depth_level)
@@ -89,6 +106,8 @@ def create_app(
             await task
 
     app = FastAPI(title="CodeBoarding", lifespan=lifespan)
+    if bind_host in _LOOPBACK_HOSTS:
+        app.add_middleware(TrustedHostMiddleware, allowed_hosts=sorted(_LOOPBACK_HOSTS))
     app.state.runner = runner
     app.state.run_state = state
     app.state.bus = bus

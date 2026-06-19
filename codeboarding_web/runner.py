@@ -49,8 +49,10 @@ class AnalysisRunner:
         if scope not in _SCOPES:
             raise ValueError(f"unknown scope: {scope!r}")
         run_id = uuid.uuid4().hex[:8]
-        self._cancel.clear()
         self.state.begin(run_id, scope)  # raises RunBusyError if busy
+        # Clear only after winning the slot — a busy second caller must not
+        # wipe the in-flight run's pending cancellation.
+        self._cancel.clear()
         self._thread = threading.Thread(
             target=self._run,
             args=(scope, run_id, base_ref, target_ref),

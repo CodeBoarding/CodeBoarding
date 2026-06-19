@@ -51,6 +51,7 @@ def run_from_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> 
         project_name=run_paths.project_name,
         depth_level=args.depth_level,
         watch=args.watch,
+        bind_host=args.host,
     )
 
     url = f"http://{args.host}:{args.port}/"
