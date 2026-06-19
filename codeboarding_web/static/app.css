@@ -27,6 +27,16 @@ header {
 .phase.done    { background: #4CAF50; }
 .phase.error   { background: #F44336; }
 
+.depth { font-size: .75rem; color: #888; padding: .1rem .4rem; }
+.depth.warn { color: #FFC107; }
+
+#stop {
+  background: #2a1a1a;
+  color: #F44336;
+  border: 1px solid #F44336;
+}
+#stop:hover { background: #3a2222; border-color: #F44336; }
+
 button, select {
   background: #2a2a2a;
   color: #E6E6E6;

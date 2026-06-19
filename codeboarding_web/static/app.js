@@ -116,6 +116,8 @@ function setPhase(phase) {
   const el = document.getElementById('phase');
   el.textContent = phase;
   el.className = 'phase ' + phase;
+  const stop = document.getElementById('stop');
+  if (stop) stop.style.display = phase === 'running' ? '' : 'none';
 }
 
 // ── Collapse-all control ─────────────────────────────────────────────────────
@@ -422,7 +424,6 @@ function _loadDiffIfNeeded() {
 
 // ── Detail sidebar ───────────────────────────────────────────────────────────
 function clearDetail() {
-  _lastTappedNode = null;
   document.getElementById('detail-empty').classList.remove('hidden');
   document.getElementById('detail-content').classList.add('hidden');
   cy.nodes().unselect();
@@ -565,24 +566,23 @@ document.getElementById('detail-copy').addEventListener('click', () => {
 });
 
 // ── Cytoscape interaction handlers ───────────────────────────────────────────
-let _lastTappedNode = null;
+const _lastToggleAt = {};
 cy.on('tap', 'node', (evt) => {
-  renderDetail(evt.target);        // single click selects / shows details only
-  _lastTappedNode = evt.target;
+  const node = evt.target;
+  renderDetail(node);                       // always show details
+  if (node.data('expandable')) {
+    const id = node.id();
+    const now = Date.now();
+    if (now - (_lastToggleAt[id] || 0) > 400) {  // debounce: a habitual double-click = ONE toggle, not two
+      _lastToggleAt[id] = now;
+      toggleNode(node);
+    }
+  }
 });
 
 cy.on('tap', (evt) => {
   if (evt.target === cy) {
-    _lastTappedNode = null;
     clearDetail();
-  }
-});
-
-document.getElementById('cy').addEventListener('dblclick', (ev) => {
-  ev.preventDefault();
-  const node = _lastTappedNode;   // the two clicks of the dblclick each fired a tap, setting this
-  if (node && node.nonempty && node.nonempty() && node.data('expandable')) {
-    toggleNode(node);
   }
 });
 
@@ -626,6 +626,12 @@ async function refreshStatus() {
     const s = await (await fetch('/api/status')).json();
     document.getElementById('project').textContent = s.project;
     setPhase(s.phase);
+    const depthEl = document.getElementById('depth');
+    if (depthEl) {
+      depthEl.textContent = 'depth ' + s.depth_level;
+      depthEl.classList.toggle('warn', s.depth_level >= 3);
+      depthEl.title = s.depth_level >= 3 ? 'Deep analysis (≥3) can be slow and costly' : 'Analysis depth';
+    }
     if (s.repo_path) repoPath = s.repo_path;
     if (s.has_baseline) loadOverview();
     document.getElementById('watch').checked = s.watch_enabled;
@@ -673,6 +679,12 @@ function connectEvents() {
       }
     }
     setPhase('done');
+  });
+
+  src.addEventListener('run_cancelled', async () => {
+    setPhase('done');
+    logLine('run stopped');
+    await loadOverview();
   });
 
   src.addEventListener('run_error', (e) => {
@@ -724,6 +736,13 @@ document.getElementById('run').addEventListener('click', async () => {
   } catch (_) {
     logLine('request failed: /api/run');
   }
+});
+
+document.getElementById('stop').addEventListener('click', async () => {
+  try {
+    await fetch('/api/cancel', { method: 'POST' });
+    logLine('stopping… (in-flight work finishes, partial result is kept)');
+  } catch (_) { logLine('request failed: /api/cancel'); }
 });
 
 // ── Bootstrap ────────────────────────────────────────────────────────────────

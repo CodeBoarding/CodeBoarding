@@ -14,11 +14,13 @@
   <header>
     <span id="project"></span>
     <span id="phase" class="phase idle">idle</span>
+    <span id="depth" class="depth" title="Analysis depth"></span>
     <select id="scope">
       <option value="full">Full</option>
       <option value="incremental">Incremental</option>
     </select>
     <button id="run">Run analysis</button>
+    <button id="stop" style="display:none">Stop ◼</button>
     <label class="watch"><input type="checkbox" id="watch" /> Watch</label>
     <span id="overview-title" class="overview-title">Overview</span>
     <button id="collapse-all" style="display:none">Collapse all ⊖</button>
