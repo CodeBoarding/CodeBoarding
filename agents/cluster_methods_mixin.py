@@ -13,7 +13,7 @@ from agents.analysis_models import AnalysisInsights, Component, FileEntry, FileM
 from agents.cluster_budget import ClusterPromptBudget
 from agents.llm_config import get_current_agent_context_window, get_current_agent_model_ref
 from agents.model_capabilities import ContextWindow
-from constants import MIN_CLUSTERS_THRESHOLD
+from constants import CONTENT_HASH_LENGTH, MIN_CLUSTERS_THRESHOLD
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cfg_skip_planner import ContextBudgetExceededError, plan_skip_set
 from static_analyzer.cluster_helpers import (
@@ -33,13 +33,6 @@ from static_analyzer.graph import CallGraph, ClusterResult
 from static_analyzer.node import Node
 
 logger = logging.getLogger(__name__)
-
-
-# 16 hex chars = 64 bits of SHA-256. The hash only flags whether a method body
-# or file changed between two analyses — not a security or uniqueness guarantee
-# — so 64 bits is ample (collisions are astronomically unlikely across a repo's
-# ~10^4-10^5 entries) while keeping analysis.json compact.
-_HASH_LEN = 16
 
 
 def _read_source_lines(repo_dir: Path, rel_path: str, cache: dict[str, list[str] | None]) -> list[str] | None:
@@ -62,14 +55,14 @@ def _hash_method_body(lines: list[str] | None, start_line: int, end_line: int) -
     if lines is None or start_line < 1 or end_line < start_line or end_line > len(lines):
         return ""
     body = "\n".join(lines[start_line - 1 : end_line])
-    return hashlib.sha256(body.encode("utf-8")).hexdigest()[:_HASH_LEN]
+    return hashlib.sha256(body.encode("utf-8")).hexdigest()[:CONTENT_HASH_LENGTH]
 
 
 def _hash_whole_file(lines: list[str] | None) -> str:
     """Truncated SHA-256 of the entire file's source lines. '' when unavailable."""
     if lines is None:
         return ""
-    return hashlib.sha256("\n".join(lines).encode("utf-8")).hexdigest()[:_HASH_LEN]
+    return hashlib.sha256("\n".join(lines).encode("utf-8")).hexdigest()[:CONTENT_HASH_LENGTH]
 
 
 @dataclass(frozen=True)
