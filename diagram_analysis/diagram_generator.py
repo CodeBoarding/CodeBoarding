@@ -624,25 +624,37 @@ class DiagramGenerator:
             self._monitoring_agents["IncrementalAgent"] = incremental_agent
             delta_cluster_analysis = incremental_agent.run(delta, root_analysis, sub_analyses)
 
-            redetail_ids = stitch_delta(root_analysis, sub_analyses, delta_cluster_analysis, delta)
+            update_plan = stitch_delta(root_analysis, sub_analyses, delta_cluster_analysis, delta)
+            refresh_files: set[str] = set()
+            if self.changes is not None:
+                for file_change in self.changes.files:
+                    refresh_files.add(file_change.file_path)
+                    if file_change.old_path:
+                        refresh_files.add(file_change.old_path)
 
             # Refresh first (per-component, siblings untouched), then prune —
             # we only know a component is empty after rebuilding from live CFG.
             touched_scopes = repopulate_touched_scopes(
-                redetail_ids,
+                update_plan.refresh_ids,
                 root_analysis,
                 sub_analyses,
                 delta.cluster_results(),
                 self.abstraction_agent,
+                refresh_files,
             )
 
             removed_ids = prune_empty_components(root_analysis, sub_analyses)
             if removed_ids:
-                redetail_ids -= removed_ids
+                update_plan.refresh_ids -= removed_ids
+                update_plan.expand_ids -= removed_ids
 
-            redetail_components = _collect_components_by_id(redetail_ids, root_analysis, sub_analyses)
-            if redetail_components:
-                _, redetailed_subs = self._generate_subcomponents(root_analysis, redetail_components)
+            expand_components = [
+                component
+                for component in _collect_components_by_id(update_plan.expand_ids, root_analysis, sub_analyses)
+                if _component_depth(component.component_id) < self.depth_level
+            ]
+            if expand_components:
+                _, redetailed_subs = self._generate_subcomponents(root_analysis, expand_components)
                 _merge_sub_analyses(sub_analyses, redetailed_subs)
 
             if touched_scopes:

@@ -11,6 +11,8 @@ from pydantic.fields import FieldInfo
 
 logger = logging.getLogger(__name__)
 
+type ClusterId = int | str
+
 
 class LLMBaseModel(BaseModel, abc.ABC):
     """Base model for LLM-parseable response types."""
@@ -305,7 +307,7 @@ class Component(LLMBaseModel):
         default_factory=list,
     )
 
-    source_cluster_ids: list[int] = Field(
+    source_cluster_ids: list[ClusterId] = Field(
         description="List of cluster IDs from CFG analysis that this component encompasses (populated deterministically from source_group_names).",
         default_factory=list,
         exclude=True,

@@ -16,6 +16,7 @@ from agents.agent_responses import (
     SourceCodeReference,
     assign_component_ids,
 )
+from agents.incremental_agent import IncrementalUpdatePlan
 from diagram_analysis.analysis_json import (
     ComponentFileMethodGroupJson,
     ComponentJson,
@@ -743,6 +744,60 @@ class TestDiagramGenerator(unittest.TestCase):
         self.assertEqual([component.component_id for component in expanded_components], ["1.1"])
         self.assertEqual(set(sub_analyses), {"1.1"})
         self.assertEqual(mock_save_analysis.call_count, 1)
+
+    @patch("diagram_analysis.diagram_generator.get_git_commit_hash", return_value="abc123")
+    @patch("diagram_analysis.diagram_generator.save_analysis")
+    @patch("diagram_analysis.diagram_generator.prune_empty_components", return_value=set())
+    @patch("diagram_analysis.diagram_generator.repopulate_touched_scopes", return_value={""})
+    @patch("diagram_analysis.diagram_generator.stitch_delta")
+    @patch("diagram_analysis.diagram_generator.IncrementalAgent")
+    @patch("diagram_analysis.diagram_generator.initialize_llms", return_value=(Mock(), Mock()))
+    @patch("diagram_analysis.diagram_generator.compute_cluster_delta")
+    @patch("diagram_analysis.diagram_generator.snapshot_from_static_analysis")
+    def test_incremental_refresh_does_not_expand_existing_parent_scope(
+        self,
+        mock_snapshot,
+        mock_delta,
+        _mock_llms,
+        _mock_incremental_agent,
+        mock_stitch_delta,
+        _mock_repopulate,
+        _mock_prune,
+        mock_save_analysis,
+        _mock_git_hash,
+    ):
+        gen = DiagramGenerator(
+            repo_location=self.repo_location,
+            temp_folder=self.temp_folder,
+            repo_name="test_repo",
+            output_dir=self.output_dir,
+            depth_level=2,
+            run_id="test-run-id",
+            log_path="test_repo/test-run-log",
+        )
+        gen.details_agent = Mock()
+        gen.abstraction_agent = Mock()
+        gen.abstraction_agent.build_files_index.return_value = {}
+        gen.static_analysis = Mock()
+        gen.static_analysis.get_languages.return_value = []
+        gen._generate_subcomponents = Mock()
+        gen._persist_static_analysis_artifact = Mock()
+
+        root_component = Component(name="Parent", description="", key_entities=[], component_id="1")
+        child_component = Component(name="Stable Child", description="", key_entities=[], component_id="1.1")
+        root_analysis = AnalysisInsights(description="root", components=[root_component], components_relations=[])
+        sub_analyses = {"1": AnalysisInsights(description="sub", components=[child_component], components_relations=[])}
+
+        mock_snapshot.return_value.all_cluster_ids.return_value = {1}
+        mock_delta.return_value.has_changes = True
+        mock_delta.return_value.cluster_results.return_value = {}
+        mock_stitch_delta.return_value = IncrementalUpdatePlan(refresh_ids={"1"}, expand_ids=set())
+        mock_save_analysis.return_value = self.output_dir / "analysis.json"
+
+        gen.generate_analysis_incremental(root_analysis, sub_analyses)
+
+        gen._generate_subcomponents.assert_not_called()
+        self.assertEqual(sub_analyses["1"].components[0].name, "Stable Child")
 
     def test_persist_static_analysis_artifact_saves_cluster_cache_without_injected_analyzer(self):
         gen = DiagramGenerator(

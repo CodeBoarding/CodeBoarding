@@ -353,6 +353,8 @@ For each cluster shown above, decide which component it belongs to. Work through
 
 Important rules:
 - Identity is tracked by **component_id**, not by name. Reusing an existing component's name without pointing to its component_id will create a duplicate — that is wrong. If clusters belong in an existing component, you must reference its **component_id**.
+- Route each changed cluster to the most specific owning component. If both a parent and one of its children seem relevant, choose the child only; parent/ancestor ownership is updated deterministically after routing. Do not route a cluster to broad callers, registries, or result models just because they import or use the changed implementation.
+- `redetail_needed=False` means the component boundary is unchanged. Do not use a NOOP route to absorb new files, new responsibilities, or clusters that primarily belong to another component.
 - Every cluster id listed in the "Cluster groups to assign" section must appear in exactly one entry's **cluster_ids**."""
 
 

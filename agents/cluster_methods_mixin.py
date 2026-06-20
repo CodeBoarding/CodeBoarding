@@ -614,7 +614,8 @@ class ClusterMethodsMixin:
         cluster_to_component: dict[int, Component] = {}
         for comp in analysis.components:
             for cid in comp.source_cluster_ids:
-                cluster_to_component[cid] = comp
+                if isinstance(cid, int):
+                    cluster_to_component[cid] = comp
         return cluster_to_component
 
     def _build_node_to_cluster_map(self, cluster_results: dict[str, ClusterResult]) -> tuple[dict[str, int], set[int]]:

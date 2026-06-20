@@ -6,6 +6,7 @@ create new ones with a ``parent_id``. Stitching back into the live tree
 """
 
 import logging
+from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
 
@@ -45,6 +46,14 @@ from static_analyzer.constants import Language
 from static_analyzer.graph import ClusterResult
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class IncrementalUpdatePlan:
+    """Deterministic work plan produced by incremental stitching."""
+
+    refresh_ids: set[str] = field(default_factory=set)
+    expand_ids: set[str] = field(default_factory=set)
 
 
 class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
@@ -144,6 +153,7 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
             max_validation_attempts=3,
             include_hidden=True,
         )
+        result = _deduplicate_cluster_routes(result)
         _log_routing_summary(result)
         return result
 
@@ -318,10 +328,15 @@ def _log_routing_summary(result: ClusterAnalysis) -> None:
     logger.info("\n".join([header] + rows))
 
 
-def _log_stitch_summary(routing_rows: list[dict], verdicts: dict[Verdict, int], redetail_ids: set[str]) -> None:
+def _log_stitch_summary(
+    routing_rows: list[dict],
+    verdicts: dict[Verdict, int],
+    refresh_ids: set[str],
+    expand_ids: set[str],
+) -> None:
     lines = [
         f"[stitch] ADD={verdicts[Verdict.ADD]} UPDATE={verdicts[Verdict.UPDATE]} "
-        f"NOOP={verdicts[Verdict.NOOP]}  redetail={sorted(redetail_ids)}"
+        f"NOOP={verdicts[Verdict.NOOP]}  refresh={sorted(refresh_ids)} expand={sorted(expand_ids)}"
     ]
     for r in routing_rows:
         parent_str = f"under {r['parent']}" if r["parent"] else ""
@@ -341,41 +356,31 @@ def _log_scope_relations_summary(all_rels: list[tuple[str, list[Relation]]]) -> 
     logger.info("\n".join(lines))
 
 
-def _ancestor_ids(component_id: str) -> list[str]:
-    """Return the ancestor chain of ``component_id`` from immediate parent up.
+def _deduplicate_cluster_routes(delta_cluster_analysis: ClusterAnalysis) -> ClusterAnalysis:
+    """Keep each changed cluster in exactly one routed component."""
+    seen: set[int] = set()
+    kept_components: list[ClustersComponent] = []
+    dropped: list[str] = []
+    for cc in delta_cluster_analysis.cluster_components:
+        kept_cluster_ids: list[int] = []
+        for cluster_id in cc.cluster_ids:
+            if cluster_id in seen:
+                dropped.append(f"{cluster_id} from {cc.existing_component_id or cc.name}")
+                continue
+            seen.add(cluster_id)
+            kept_cluster_ids.append(cluster_id)
+        if kept_cluster_ids:
+            kept_components.append(cc.model_copy(update={"cluster_ids": kept_cluster_ids}))
 
-    Hierarchical IDs encode ancestry by dotted prefix (``"1.1.3" -> "1.1" -> "1"``).
-    Returns ``[]`` for top-level (depth-1) ids.
-    """
-    parts = component_id.split(".")
-    return [".".join(parts[:i]) for i in range(len(parts) - 1, 0, -1)]
+    if dropped:
+        logger.warning("[incremental] dropped duplicate cluster route(s): %s", "; ".join(dropped))
+    return ClusterAnalysis(cluster_components=kept_components)
 
 
-def _propagate_clusters_to_ancestors(
-    component_id: str,
-    cluster_ids: set[int],
-    component_index: dict[str, Component],
-    redetail_ids: set[str],
-) -> None:
-    """Union ``cluster_ids`` into every ancestor of ``component_id``.
-
-    Maintains the parents-transitively-own-descendants invariant the
-    full-analysis path produces naturally: when a leaf gains a cluster, every
-    enclosing component must reflect it so the next incremental cycle sees
-    the right "affected" set in ``_format_existing_components`` and so
-    ``repopulate_touched_scopes`` rebuilds the ancestors' ``file_methods``.
-    """
-    if not cluster_ids:
-        return
-    for ancestor_id in _ancestor_ids(component_id):
-        ancestor = component_index.get(ancestor_id)
-        if ancestor is None:
-            continue
-        before = set(ancestor.source_cluster_ids)
-        merged = before | cluster_ids
-        if merged != before:
-            ancestor.source_cluster_ids = sorted(merged)
-            redetail_ids.add(ancestor_id)
+def _sort_cluster_ids(cluster_ids) -> list:
+    return sorted(
+        cluster_ids, key=lambda cluster_id: (0, cluster_id) if isinstance(cluster_id, int) else (1, str(cluster_id))
+    )
 
 
 def stitch_delta(
@@ -383,7 +388,7 @@ def stitch_delta(
     sub_analyses: dict[str, AnalysisInsights],
     delta_cluster_analysis: ClusterAnalysis,
     delta: ClusterDelta,
-) -> set[str]:
+) -> IncrementalUpdatePlan:
     """Apply the delta ClusterAnalysis to the live tree.
 
     Routing is by ``existing_component_id`` (decision #4). The LLM either
@@ -391,10 +396,12 @@ def stitch_delta(
     null (create a new component). Name matching is *not* used — that path
     silently forks a duplicate component on every rename.
 
-    Returns the set of component_ids that need to be redetailed (their
-    ``source_cluster_ids`` set changed, or they were newly inserted).
+    Returns component ids that need deterministic refresh separately from ids
+    that may be expanded with ``DetailsAgent``. Updates stay at the routed
+    component's own scope; ancestors already express containment structurally.
     """
     component_index = index_components_by_id(root_analysis, sub_analyses)
+    delta_cluster_analysis = _deduplicate_cluster_routes(delta_cluster_analysis)
 
     cluster_id_remap = delta.merged_cluster_id_remap()
     dropped_cluster_ids = delta.all_dropped_cluster_ids()
@@ -404,18 +411,18 @@ def stitch_delta(
         cluster_id_remap.get(cid, cid) for ld in delta.by_language.values() for cid in ld.changed_cluster_ids
     }
 
-    redetail_ids: set[str] = set()
+    plan = IncrementalUpdatePlan()
 
     for component in component_index.values():
         before = set(component.source_cluster_ids)
-        remapped = {cluster_id_remap.get(cid, cid) for cid in before}
+        remapped = {cluster_id_remap.get(cid, cid) if isinstance(cid, int) else cid for cid in before}
         remapped -= dropped_cluster_ids
         if remapped != before:
-            component.source_cluster_ids = sorted(remapped)
+            component.source_cluster_ids = _sort_cluster_ids(remapped)
             if component.component_id:
-                redetail_ids.add(component.component_id)
+                plan.refresh_ids.add(component.component_id)
         if component.component_id and remapped & changed_cluster_ids:
-            redetail_ids.add(component.component_id)
+            plan.refresh_ids.add(component.component_id)
 
     new_components: list[tuple[Component, str | None]] = []
     verdicts: dict[Verdict, int] = {Verdict.ADD: 0, Verdict.UPDATE: 0, Verdict.NOOP: 0}
@@ -437,7 +444,7 @@ def stitch_delta(
                         "verdict": verdict,
                         "id": existing.component_id,
                         "name": existing.name,
-                        "clusters": sorted(set(cc.cluster_ids)),
+                        "clusters": _sort_cluster_ids(set(cc.cluster_ids)),
                         "redetail": cc.redetail_needed,
                         "parent": None,
                     }
@@ -447,15 +454,11 @@ def stitch_delta(
                         existing.name = cc.name
                     if cc.description and cc.description != existing.description:
                         existing.description = cc.description
-                updated = sorted(set(existing.source_cluster_ids) | set(cc.cluster_ids))
-                if updated != existing.source_cluster_ids:
-                    existing.source_cluster_ids = updated
-                    if existing.component_id and cc.redetail_needed:
-                        redetail_ids.add(existing.component_id)
-                if existing.component_id:
-                    _propagate_clusters_to_ancestors(
-                        existing.component_id, set(cc.cluster_ids), component_index, redetail_ids
-                    )
+                    updated = _sort_cluster_ids(set(existing.source_cluster_ids) | set(cc.cluster_ids))
+                    if updated != existing.source_cluster_ids:
+                        existing.source_cluster_ids = updated
+                        if existing.component_id:
+                            plan.refresh_ids.add(existing.component_id)
                 continue
 
         verdicts[Verdict.ADD] += 1
@@ -464,7 +467,7 @@ def stitch_delta(
                 "verdict": Verdict.ADD,
                 "id": "?",
                 "name": cc.name,
-                "clusters": sorted(set(cc.cluster_ids)),
+                "clusters": _sort_cluster_ids(set(cc.cluster_ids)),
                 "redetail": True,
                 "parent": cc.parent_id,
             }
@@ -474,17 +477,17 @@ def stitch_delta(
             description=cc.description or "",
             key_entities=[],
             source_group_names=[cc.name],
-            source_cluster_ids=sorted(set(cc.cluster_ids)),
+            source_cluster_ids=_sort_cluster_ids(set(cc.cluster_ids)),
         )
         new_components.append((new_component, cc.parent_id))
 
     if new_components:
-        _attach_new_components(new_components, root_analysis, sub_analyses, component_index, redetail_ids)
+        _attach_new_components(new_components, root_analysis, sub_analyses, component_index, plan)
 
     if delta_cluster_analysis.cluster_components:
-        _log_stitch_summary(routing_rows, verdicts, redetail_ids)
+        _log_stitch_summary(routing_rows, verdicts, plan.refresh_ids, plan.expand_ids)
 
-    return redetail_ids
+    return plan
 
 
 def _attach_new_components(
@@ -492,7 +495,7 @@ def _attach_new_components(
     root_analysis: AnalysisInsights,
     sub_analyses: dict[str, AnalysisInsights],
     component_index: dict[str, Component],
-    redetail_ids: set[str],
+    plan: IncrementalUpdatePlan,
 ) -> None:
     """Insert each new component under its requested parent, then assign IDs."""
     for component, parent_id in new_components:
@@ -507,13 +510,8 @@ def _attach_new_components(
 
     for component, _ in new_components:
         if component.component_id:
-            redetail_ids.add(component.component_id)
-            _propagate_clusters_to_ancestors(
-                component.component_id,
-                set(component.source_cluster_ids),
-                component_index,
-                redetail_ids,
-            )
+            plan.refresh_ids.add(component.component_id)
+            plan.expand_ids.add(component.component_id)
 
 
 def _scope_for_parent(
@@ -559,6 +557,7 @@ def repopulate_touched_scopes(
     sub_analyses: dict[str, AnalysisInsights],
     cluster_results: dict[str, ClusterResult],
     helpers: ClusterMethodsMixin,
+    refresh_files: set[str] | frozenset[str] = frozenset(),
 ) -> set[str]:
     """Refresh ``file_methods`` for redetail components and rebuild static relations.
 
@@ -578,7 +577,7 @@ def repopulate_touched_scopes(
         touched_scopes.add("")
         for component in root_analysis.components:
             if component.component_id in redetail_ids:
-                _refresh_component_file_methods(component, cluster_results, node_lookup, repo_dir)
+                _refresh_component_file_methods(component, cluster_results, node_lookup, repo_dir, refresh_files)
         helpers.build_static_relations(root_analysis)
 
     for scope_id, sub in sub_analyses.items():
@@ -586,7 +585,7 @@ def repopulate_touched_scopes(
             touched_scopes.add(scope_id)
             for component in sub.components:
                 if component.component_id in redetail_ids:
-                    _refresh_component_file_methods(component, cluster_results, node_lookup, repo_dir)
+                    _refresh_component_file_methods(component, cluster_results, node_lookup, repo_dir, refresh_files)
             helpers.build_static_relations(sub)
 
     return touched_scopes
@@ -617,19 +616,17 @@ def _refresh_component_file_methods(
     cluster_results: dict[str, ClusterResult],
     node_lookup: dict[str, MethodEntry],
     repo_dir: Path | str | None = None,
+    refresh_files: set[str] | frozenset[str] = frozenset(),
 ) -> None:
     """Rebuild ``component.file_methods`` from live cluster_results, grouped by file.
 
-    Methods missing from ``node_lookup`` (source deleted) are dropped. Paths
-    are normalised to repo-relative posix to match ``analysis.json`` indexes —
-    without this the wrapper's ``file_to_component`` lookup misses on the
-    next incremental cycle. Dedup is by qname (vs. the mixin's
-    span-keyed most-specific-qname dedup), since the incremental path already
-    has canonical qnames from the cluster snapshot.
+    When ``refresh_files`` is set, only those files are replaced from live CFG
+    data; untouched files keep their previous owner even if broad clusters drift.
     """
-    owned_cids = set(component.source_cluster_ids)
+    owned_cids = {cid for cid in component.source_cluster_ids if isinstance(cid, int)}
     if not owned_cids:
-        component.file_methods = []
+        if not refresh_files:
+            component.file_methods = []
         return
 
     repo_root: Path | None
@@ -663,7 +660,7 @@ def _refresh_component_file_methods(
                     continue
                 by_file.setdefault(file_path, []).append(method)
 
-    component.file_methods = [
+    refreshed_groups = [
         FileMethodGroup(
             file_path=fp,
             methods=sorted(
@@ -672,7 +669,16 @@ def _refresh_component_file_methods(
             ),
         )
         for fp, methods in sorted(by_file.items())
+        if not refresh_files or fp in refresh_files
     ]
+    if not refresh_files:
+        component.file_methods = refreshed_groups
+        return
+
+    refreshed_by_file = {group.file_path: group for group in refreshed_groups}
+    merged_groups = [group for group in component.file_methods if group.file_path not in refreshed_by_file]
+    merged_groups.extend(refreshed_groups)
+    component.file_methods = sorted(merged_groups, key=lambda group: group.file_path)
 
 
 def _pick_file_for_qname(

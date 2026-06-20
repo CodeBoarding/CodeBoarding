@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from agents.details_agent import DetailsAgent
+from agents.details_agent import DetailsAgent, _qualify_local_cluster_ids
 from agents.agent_responses import (
     AnalysisInsights,
     ClusterAnalysis,
@@ -285,6 +285,31 @@ class TestDetailsAgent(unittest.TestCase):
         agent._resolve_cluster_ids_from_groups(analysis, cluster_analysis)
 
         self.assertEqual(analysis.components[0].source_cluster_ids, [1, 2])
+
+    def test_qualifies_detail_cluster_ids_with_parent_component_id(self):
+        analysis = AnalysisInsights(
+            description="Test",
+            components=[
+                Component(
+                    name="ChildA",
+                    description="ChildA",
+                    key_entities=[],
+                    source_cluster_ids=[1, 2],
+                ),
+                Component(
+                    name="ChildB",
+                    description="ChildB",
+                    key_entities=[],
+                    source_cluster_ids=[7],
+                ),
+            ],
+            components_relations=[],
+        )
+
+        _qualify_local_cluster_ids(analysis, "5.3")
+
+        self.assertEqual(analysis.components[0].source_cluster_ids, ["5.3.1", "5.3.2"])
+        self.assertEqual(analysis.components[1].source_cluster_ids, ["5.3.7"])
 
     @patch("agents.details_agent.DetailsAgent._validation_invoke")
     @patch("agents.details_agent.DetailsAgent.fix_source_code_reference_lines")
