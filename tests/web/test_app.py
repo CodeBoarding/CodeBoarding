@@ -129,13 +129,13 @@ def test_watch_toggle(tmp_path: Path) -> None:
 
 
 def test_diagram_component_404_when_absent(tmp_path: Path) -> None:
-    """GET /api/diagram/<id> → 404 when no analysis.json exists."""
+    """GET /api/diagram/<id> -> 404 when no analysis.json exists."""
     c = _client(tmp_path)
     assert c.get("/api/diagram/some_component").status_code == 404
 
 
 def test_diagram_component_200_for_valid_id(tmp_path: Path) -> None:
-    """GET /api/diagram/<id> → 200 with elements key when component exists."""
+    """GET /api/diagram/<id> -> 200 with elements key when component exists."""
     _write_analysis(tmp_path)
     c = TestClient(create_app(repo_path=tmp_path, output_dir=tmp_path, project_name="demo"))
     r = c.get(f"/api/diagram/{_EXPANDABLE_ID}")
@@ -144,20 +144,20 @@ def test_diagram_component_200_for_valid_id(tmp_path: Path) -> None:
 
 
 def test_component_diff_404_when_no_analysis(tmp_path: Path) -> None:
-    """GET /api/component/<id>/diff → 404 when analysis.json is absent."""
+    """GET /api/component/<id>/diff -> 404 when analysis.json is absent."""
     c = _client(tmp_path)
     assert c.get(f"/api/component/{_EXPANDABLE_ID}/diff").status_code == 404
 
 
 def test_component_diff_404_unknown_id(tmp_path: Path) -> None:
-    """GET /api/component/<id>/diff → 404 when component_id is unknown."""
+    """GET /api/component/<id>/diff -> 404 when component_id is unknown."""
     _write_analysis(tmp_path)
     c = TestClient(create_app(repo_path=tmp_path, output_dir=tmp_path, project_name="demo"))
     assert c.get("/api/component/nonexistent-id/diff").status_code == 404
 
 
 def test_component_diff_200_has_files_and_diff_keys(tmp_path: Path) -> None:
-    """GET /api/component/<id>/diff → 200 with files and diff keys for a known id."""
+    """GET /api/component/<id>/diff -> 200 with files and diff keys for a known id."""
     _write_analysis(tmp_path)
     c = TestClient(create_app(repo_path=tmp_path, output_dir=tmp_path, project_name="demo"))
     r = c.get(f"/api/component/{_EXPANDABLE_ID}/diff")

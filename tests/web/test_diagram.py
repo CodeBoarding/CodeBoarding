@@ -140,9 +140,9 @@ def test_overview_node_has_source_files_warnings_modifications(tmp_path: Path) -
     assert "sourceFiles" in data
     assert "warnings" in data
     assert "modifications" in data
-    # The fixture has one key_entity with file "core/main.py" → sourceFiles non-empty
+    # The fixture has one key_entity with file "core/main.py" -> sourceFiles non-empty
     assert data["sourceFiles"] == ["core/main.py"]
-    # No health_report.json or git changes in tmp_path → defaults to 0
+    # No health_report.json or git changes in tmp_path -> defaults to 0
     assert data["warnings"] == 0
     assert data["modifications"] == 0
 
@@ -155,7 +155,7 @@ def test_overview_node_has_file_warnings_key(tmp_path: Path) -> None:
     node = next(e for e in result["elements"] if "source" not in e["data"])
     fw = node["data"]["fileWarnings"]
     assert isinstance(fw, list)
-    # No health_report.json → no entries
+    # No health_report.json -> no entries
     assert fw == []
 
 
