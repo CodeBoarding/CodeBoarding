@@ -5,13 +5,8 @@ from langchain_core.prompts import PromptTemplate
 from langchain_core.language_models import BaseChatModel
 
 from agents.agent import CodeBoardingAgent
-from agents.agent_responses import (
-    AnalysisInsights,
-    ClusterAnalysis,
-    Component,
-    MetaAnalysisInsights,
-    assign_component_ids,
-)
+from agents.agent_responses import AnalysisInsightsLLM, ClusterAnalysis, MetaAnalysisInsights
+from agents.analysis_models import AnalysisInsights, Component, assign_component_ids
 from agents.prompts import get_system_details_message, get_cfg_details_message, get_details_message
 from agents.cluster_methods_mixin import ClusterMethodsMixin
 from caching.cache import ModelSettings
@@ -178,7 +173,7 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
             return cached
         result = self._validation_invoke(
             prompt,
-            AnalysisInsights,
+            AnalysisInsightsLLM,
             validators=[
                 validate_relation_component_names,
                 validate_group_name_coverage,
@@ -187,12 +182,13 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
             context=context,
             max_validation_attempts=3,
         )
+        analysis = AnalysisInsights.from_llm(result)
         self._analysis_cache.store(
             cache_key,
-            result,
+            analysis,
             run_id=self.run_id,
         )
-        return result
+        return analysis
 
     def run(self, component: Component):
         """

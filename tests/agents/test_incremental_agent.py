@@ -2,19 +2,16 @@
 ``agents.incremental_agent``. The LLM-call shape (``IncrementalAgent.run``)
 is exercised end-to-end in the diagram_generator tests with a mocked LLM."""
 
+import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import MagicMock
 
-from agents.agent_responses import (
-    AnalysisInsights,
-    ClusterAnalysis,
-    ClustersComponent,
-    Component,
-    FileMethodGroup,
-    MethodEntry,
-    Relation,
-)
+from agents.agent_responses import ClusterAnalysis, ClustersComponent
+from agents.analysis_models import AnalysisInsights, Component, FileMethodGroup, MethodEntry, Relation
+from agents.cluster_methods_mixin import _hash_method_body
 from agents.incremental_agent import (
+    _build_node_lookup,
     _format_existing_components,
     _pick_file_for_qname,
     prune_empty_components,
@@ -22,7 +19,9 @@ from agents.incremental_agent import (
     stitch_delta,
 )
 from diagram_analysis.cluster_delta import ClusterDelta, LanguageDelta
+from static_analyzer.constants import NodeType
 from static_analyzer.graph import ClusterResult
+from static_analyzer.node import Node
 
 
 def _component(name: str, component_id: str, source_cluster_ids: list[int] | None = None) -> Component:
@@ -599,7 +598,7 @@ class TestRefreshComponentFileMethodsPathNormalization(unittest.TestCase):
     in test 04). Reproduces the test 04 misbucketing bug."""
 
     def test_absolute_paths_in_cluster_to_files_normalize_before_matching(self) -> None:
-        from agents.agent_responses import MethodEntry
+        from agents.analysis_models import MethodEntry
         from agents.incremental_agent import _refresh_component_file_methods
         from static_analyzer.graph import ClusterResult
 
@@ -647,14 +646,6 @@ class TestBuildNodeLookupContentHash(unittest.TestCase):
     refresh doesn't round-trip-wipe a previously-computed hash to ''."""
 
     def test_method_entry_carries_content_hash_when_source_available(self) -> None:
-        import tempfile
-        from pathlib import Path
-
-        from agents.cluster_methods_mixin import _hash_method_body
-        from agents.incremental_agent import _build_node_lookup
-        from static_analyzer.constants import NodeType
-        from static_analyzer.node import Node
-
         source = "def foo():\n    return 1\n\n\ndef bar():\n    return 2\n"
         with tempfile.TemporaryDirectory() as tmp:
             repo_dir = Path(tmp)

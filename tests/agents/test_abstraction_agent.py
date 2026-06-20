@@ -4,13 +4,8 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from agents.abstraction_agent import AbstractionAgent
-from agents.agent_responses import (
-    AnalysisInsights,
-    ClusterAnalysis,
-    Component,
-    MetaAnalysisInsights,
-    SourceCodeReference,
-)
+from agents.agent_responses import ClusterAnalysis, MetaAnalysisInsights, SourceCodeReference
+from agents.analysis_models import AnalysisInsights, Component
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.graph import ClusterResult
 

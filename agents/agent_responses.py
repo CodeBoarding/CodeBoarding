@@ -1,123 +1,8 @@
 from __future__ import annotations
 
-import abc
-import logging
-from abc import abstractmethod
-from pathlib import PurePosixPath
-from typing import get_origin, Optional
+from pydantic import Field
 
-from pydantic import BaseModel, Field
-from pydantic.fields import FieldInfo
-
-logger = logging.getLogger(__name__)
-
-
-class LLMBaseModel(BaseModel, abc.ABC):
-    """Base model for LLM-parseable response types."""
-
-    @abstractmethod
-    def llm_str(self):
-        raise NotImplementedError("LLM String has to be implemented.")
-
-    @classmethod
-    def _is_field_hidden(cls, fvalue: FieldInfo) -> bool:
-        if fvalue.exclude:
-            return True
-        extra = fvalue.json_schema_extra
-        if isinstance(extra, dict):
-            return bool(extra.get("hidden"))
-        return False
-
-    @classmethod
-    def _excluded_fields(cls, include_hidden: bool = False) -> set[str]:
-        if include_hidden:
-            return set()
-        names: set[str] = set()
-        for klass in cls.__mro__:
-            if hasattr(klass, "model_fields"):
-                for fname, finfo in klass.model_fields.items():
-                    if cls._is_field_hidden(finfo):
-                        names.add(fname)
-        return names
-
-    @classmethod
-    def _resolve_excluded_by_title(cls, include_hidden: bool = False) -> dict[str, set[str]]:
-        seen: set[type] = set()
-        result: dict[str, set[str]] = {}
-
-        def walk(model: type) -> None:
-            if model in seen or not hasattr(model, "model_fields"):
-                return
-            seen.add(model)
-            title = getattr(model, "__name__", "")
-            excluded = model._excluded_fields(include_hidden)  # type: ignore[attr-defined]
-            if excluded:
-                result[title] = excluded
-            for finfo in getattr(model, "model_fields", {}).values():
-                ann = finfo.annotation
-                for candidate in getattr(ann, "__args__", [ann]):
-                    if isinstance(candidate, type) and issubclass(candidate, LLMBaseModel):
-                        walk(candidate)  # type: ignore[arg-type]
-
-        walk(cls)
-        return result
-
-    @classmethod
-    def _extractor_fields(cls, indent: str = "  ", include_hidden: bool = False) -> str:
-        parts: list[str] = []
-        for fname, fvalue in cls.model_fields.items():
-            if cls._is_field_hidden(fvalue) and not include_hidden:
-                continue
-            ftype = fvalue.annotation
-            if get_origin(ftype) is list:
-                if ftype is not None and hasattr(ftype, "__args__"):
-                    inner = ftype.__args__[0]
-                    if isinstance(inner, type) and issubclass(inner, LLMBaseModel):
-                        parts.append(
-                            f"{indent}- {fname}: a list, where each item has:\n{inner._extractor_fields(indent + '  ', include_hidden)}"
-                        )
-                        continue
-                parts.append(f"{indent}- {fname}: {fvalue.description}")
-            elif isinstance(ftype, type) and issubclass(ftype, LLMBaseModel):
-                parts.append(ftype._extractor_fields(indent, include_hidden))
-            else:
-                parts.append(f"{indent}- {fname}: {fvalue.description}")
-        return "\n".join(parts)
-
-    @classmethod
-    def extractor_str(cls, include_hidden: bool = False) -> str:
-        title = cls.__name__
-        fields = cls._extractor_fields(include_hidden=include_hidden)
-        return (
-            f"You are a JSON extraction expert. "
-            f"Extract a valid JSON object of type `{title}` from the text below.\n"
-            f"The JSON must have these fields:\n{fields}\n\n"
-        )
-
-    @classmethod
-    def model_json_schema(
-        cls,
-        by_alias: bool = True,
-        ref_template: str = "#/$defs/{model}",
-        schema_generator: type | None = None,
-        mode: str = "validation",
-        include_hidden: bool = False,
-        **kwargs,
-    ) -> dict:
-        call_kwargs: dict = {"by_alias": by_alias, "ref_template": ref_template, "mode": mode}
-        if schema_generator is not None:
-            call_kwargs["schema_generator"] = schema_generator
-        call_kwargs.update(kwargs)
-        schema = super().model_json_schema(**call_kwargs)
-        excluded_by_title = cls._resolve_excluded_by_title(include_hidden)
-        for title, excluded in excluded_by_title.items():
-            defn = schema.get("$defs", {}).get(title)
-            if isinstance(defn, dict) and "properties" in defn:
-                defn["properties"] = {k: v for k, v in defn["properties"].items() if k not in excluded}
-        own_excluded = cls._excluded_fields(include_hidden)
-        if "properties" in schema:
-            schema["properties"] = {k: v for k, v in schema["properties"].items() if k not in own_excluded}
-        return schema
+from agents.llm_base import LLMBaseModel
 
 
 class SourceCodeReference(LLMBaseModel):
@@ -162,19 +47,19 @@ class SourceCodeReference(LLMBaseModel):
         return f"`{self.qualified_name}`:{self.reference_start_line}-{self.reference_end_line}"
 
 
-class Relation(LLMBaseModel):
-    """A relationship between two components."""
+def _relation_str(rel) -> str:
+    return f"({rel.src_name}, {rel.relation}, {rel.dst_name})"
+
+
+class RelationLLM(LLMBaseModel):
+    """A relationship between two components, as produced by the LLM."""
 
     relation: str = Field(description="Single phrase used for the relationship of two components.")
     src_name: str = Field(description="Source component name")
     dst_name: str = Field(description="Target component name")
-    src_id: str = Field(default="", description="Component ID of the source.", exclude=True)
-    dst_id: str = Field(default="", description="Component ID of the destination.", exclude=True)
-    edge_count: int = Field(default=0, description="Number of CFG edges backing this relation.", exclude=True)
-    is_static: bool = Field(default=False, description="True if derived from static CFG analysis.", exclude=True)
 
     def llm_str(self):
-        return f"({self.src_name}, {self.relation}, {self.dst_name})"
+        return _relation_str(self)
 
 
 class ClustersComponent(LLMBaseModel):
@@ -243,62 +128,21 @@ class ClusterAnalysis(LLMBaseModel):
         return title + body
 
 
-class MethodEntry(BaseModel):
-    """A single method/function within a file, with its location and identity."""
-
-    qualified_name: str = Field(description="Fully qualified name of the method or function.")
-    start_line: int = Field(description="Starting line number in the file.")
-    end_line: int = Field(description="Ending line number in the file.")
-    node_type: str = Field(description="Node type name matching NodeType enum (e.g. METHOD, FUNCTION, CLASS).")
-    content_hash: str = Field(
-        default="",
-        description="Truncated SHA-256 of the method's source lines; '' when source was unavailable.",
-    )
-
-    def __hash__(self) -> int:
-        return hash(self.qualified_name)
-
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, MethodEntry):
-            return NotImplemented
-        return self.qualified_name == other.qualified_name
-
-    @classmethod
-    def from_node(cls, node) -> MethodEntry:
-        """Build from a ``static_analyzer.Node``. Accepts ``Any`` to avoid a hard dep."""
-        return cls(
-            qualified_name=node.fully_qualified_name,
-            start_line=node.line_start,
-            end_line=node.line_end,
-            node_type=node.type.name,
-        )
+def _component_str(comp) -> str:
+    n = f"**Component:** `{comp.name}`"
+    d = f"   - *Description*: {comp.description}"
+    sg = ""
+    if comp.source_group_names:
+        sg = f"   - *Source Group Names*: {', '.join(comp.source_group_names)}"
+    qn = ""
+    if comp.key_entities:
+        qn += "   - *Key Entities*: "
+        qn += ", ".join(f"`{q.llm_str()}`" for q in comp.key_entities)
+    return "\n".join([n, d, sg, qn]).strip()
 
 
-class FileMethodGroup(BaseModel):
-    """All methods/functions belonging to a component within a single file."""
-
-    file_path: str = Field(description="Relative path to the source file.")
-    methods: list[MethodEntry] = Field(
-        default_factory=list,
-        description="Methods and functions in this file that belong to the component, sorted by start_line.",
-    )
-
-
-class FileEntry(BaseModel):
-    """Single source of truth for methods in one file."""
-
-    methods: list[MethodEntry] = Field(
-        default_factory=list,
-        description="Methods and functions in this file, sorted by start line.",
-    )
-    content_hash: str = Field(
-        default="",
-        description="Truncated SHA-256 of the entire file's bytes; '' when source was unavailable.",
-    )
-
-
-class Component(LLMBaseModel):
-    """A software component with name, description, and key entities."""
+class ComponentLLM(LLMBaseModel):
+    """A software component as produced by the LLM: name, description, key entities."""
 
     name: str = Field(description="Name of the component")
     description: str = Field(description="A short description of the component.")
@@ -313,169 +157,30 @@ class Component(LLMBaseModel):
         default_factory=list,
     )
 
-    source_cluster_ids: list[int] = Field(
-        description="List of cluster IDs from CFG analysis that this component encompasses (populated deterministically from source_group_names).",
-        default_factory=list,
-        exclude=True,
-        json_schema_extra={"hidden": True},
-    )
-
-    file_methods: list[FileMethodGroup] = Field(
-        description="All methods/functions belonging to this component, grouped by file (populated deterministically from cluster results).",
-        default_factory=list,
-        exclude=True,
-        json_schema_extra={"hidden": True},
-    )
-
-    component_id: str = Field(
-        default="",
-        description="Deterministic unique identifier for this component.",
-        exclude=True,
-        json_schema_extra={"hidden": True},
-    )
-
     def llm_str(self):
-        n = f"**Component:** `{self.name}`"
-        d = f"   - *Description*: {self.description}"
-        sg = ""
-        if self.source_group_names:
-            sg = f"   - *Source Group Names*: {', '.join(self.source_group_names)}"
-        qn = ""
-        if self.key_entities:
-            qn += "   - *Key Entities*: "
-            qn += ", ".join(f"`{q.llm_str()}`" for q in self.key_entities)
-        return "\n".join([n, d, sg, qn]).strip()
+        return _component_str(self)
 
 
-class AnalysisInsights(LLMBaseModel):
-    """Project analysis insights including components and their relations."""
+def _analysis_str(analysis) -> str:
+    if not analysis.components:
+        return "No abstract components found."
+    title = "# Abstract Components Overview\n"
+    body = "\n".join(ac.llm_str() for ac in analysis.components)
+    relations = "\n".join(cr.llm_str() for cr in analysis.components_relations)
+    return title + body + relations
+
+
+class AnalysisInsightsLLM(LLMBaseModel):
+    """Project analysis insights as produced by the LLM: components and their relations."""
 
     description: str = Field(
         description="One paragraph explaining the functionality which is represented by this graph. What the main flow is and what is its purpose."
     )
-    files: dict[str, FileEntry] = Field(
-        default_factory=dict,
-        description="Top-level file index keyed by relative file path. Contains all methods and statuses.",
-        exclude=True,
-        json_schema_extra={"hidden": True},
-    )
-    components: list[Component] = Field(description="List of the components identified in the project.")
-    components_relations: list[Relation] = Field(description="List of relations among the components.")
+    components: list[ComponentLLM] = Field(description="List of the components identified in the project.")
+    components_relations: list[RelationLLM] = Field(description="List of relations among the components.")
 
     def llm_str(self):
-        if not self.components:
-            return "No abstract components found."
-        title = "# Abstract Components Overview\n"
-        body = "\n".join(ac.llm_str() for ac in self.components)
-        relations = "\n".join(cr.llm_str() for cr in self.components_relations)
-        return title + body + relations
-
-    def file_to_component(self) -> dict[str, str]:
-        """Build file path -> component_id mapping from root components."""
-        return {str(PurePosixPath(fg.file_path)): c.component_id for c in self.components for fg in c.file_methods}
-
-
-def assign_component_ids(analysis: AnalysisInsights, parent_id: str = "", only_new: bool = False) -> None:
-    """Assign hierarchical component IDs based on sibling index.
-
-    IDs encode structural position in the component tree:
-    - Top-level (parent_id=""): "1", "2", "3"
-    - Under "1" (parent_id="1"): "1.1", "1.2"
-    - Under "1.2" (parent_id="1.2"): "1.2.1", "1.2.2"
-
-    With ``only_new=True`` (incremental path), components that already carry a
-    populated ``component_id`` are preserved verbatim and only siblings with an
-    empty id are assigned a fresh slot — used when stitching new components into
-    an existing tree without renumbering survivors.
-    """
-    if only_new:
-        used_indices: set[int] = set()
-        for component in analysis.components:
-            if not component.component_id:
-                continue
-            tail = component.component_id.split(".")[-1]
-            if tail.isdigit():
-                used_indices.add(int(tail))
-        next_idx = max(used_indices, default=0) + 1
-        for component in analysis.components:
-            if component.component_id:
-                continue
-            component.component_id = f"{parent_id}.{next_idx}" if parent_id else str(next_idx)
-            next_idx += 1
-    else:
-        for idx, component in enumerate(analysis.components, start=1):
-            component.component_id = f"{parent_id}.{idx}" if parent_id else str(idx)
-
-    # Assign relation IDs by looking up component names (first occurrence wins for duplicates)
-    name_to_id: dict[str, str] = {}
-    for c in analysis.components:
-        if c.name in name_to_id:
-            logger.warning(
-                f"Duplicate component name '{c.name}' found during ID assignment; "
-                f"relation lookup will use the first occurrence (ID: {name_to_id[c.name]})"
-            )
-        else:
-            name_to_id[c.name] = c.component_id
-    for relation in analysis.components_relations:
-        relation.src_id = name_to_id.get(relation.src_name, "")
-        relation.dst_id = name_to_id.get(relation.dst_name, "")
-
-
-def iter_components(
-    root_analysis: AnalysisInsights,
-    sub_analyses: dict[str, AnalysisInsights],
-) -> list[Component]:
-    """Return every component across the root and all sub-analyses, in tree order."""
-    components = list(root_analysis.components)
-    for sub in sub_analyses.values():
-        components.extend(sub.components)
-    return components
-
-
-def index_components_by_id(
-    root_analysis: AnalysisInsights,
-    sub_analyses: dict[str, AnalysisInsights],
-) -> dict[str, Component]:
-    """Build a ``component_id -> Component`` lookup across the full tree.
-
-    Components without a ``component_id`` are skipped. Later occurrences of
-    the same id silently override earlier ones (sub-analyses win over root).
-    """
-    return {c.component_id: c for c in iter_components(root_analysis, sub_analyses) if c.component_id}
-
-
-class CFGComponent(LLMBaseModel):
-    """A component derived from control flow graph analysis."""
-
-    name: str = Field(description="Name of the abstract component")
-    description: str = Field(description="One paragraph explaining the component.")
-    referenced_source: list[str] = Field(
-        description="List of the qualified names of the methods and classes that are within this component."
-    )
-
-    def llm_str(self):
-        n = f"**Component:** `{self.name}`"
-        d = f"   - *Description*: {self.description}"
-        qn = ""
-        if self.referenced_source:
-            qn += "   - *Related Classes/Methods*: "
-            qn += ", ".join(f"`{q}`" for q in self.referenced_source)
-        return "\n".join([n, d, qn]).strip()
-
-
-class CFGAnalysisInsights(LLMBaseModel):
-    """Insights from control flow graph analysis including components and relations."""
-
-    components: list[CFGComponent] = Field(description="List of components identified in the CFG.")
-    components_relations: list[Relation] = Field(description="List of relations among the components in the CFG.")
-
-    def llm_str(self):
-        if not self.components:
-            return "No abstract components found in the CFG."
-        title = "# Abstract Components Overview from CFG\n"
-        body = "\n".join(ac.llm_str() for ac in self.components)
-        relations = "\n".join(cr.llm_str() for cr in self.components_relations)
-        return title + body + relations
+        return _analysis_str(self)
 
 
 class ExpandComponent(LLMBaseModel):
@@ -570,7 +275,7 @@ class ComponentFiles(LLMBaseModel):
 class ScopeRelations(LLMBaseModel):
     """Relations between components within a single scope."""
 
-    components_relations: list[Relation] = Field(description="Inter-component relationships within this scope.")
+    components_relations: list[RelationLLM] = Field(description="Inter-component relationships within this scope.")
 
     def llm_str(self):
         if not self.components_relations:

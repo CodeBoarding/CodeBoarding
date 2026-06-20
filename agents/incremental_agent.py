@@ -15,16 +15,13 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.prompts import PromptTemplate
 
 from agents.agent import CodeBoardingAgent
-from agents.agent_responses import (
+from agents.agent_responses import ClusterAnalysis, ClustersComponent, MetaAnalysisInsights, RelationLLM, ScopeRelations
+from agents.analysis_models import (
     AnalysisInsights,
-    ClusterAnalysis,
-    ClustersComponent,
     Component,
     FileMethodGroup,
-    MetaAnalysisInsights,
     MethodEntry,
     Relation,
-    ScopeRelations,
     assign_component_ids,
     index_components_by_id,
     iter_components,
@@ -149,7 +146,7 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
         return result
 
     @trace
-    def generate_scope_relations(self, scope: AnalysisInsights, scope_name: str) -> list[Relation]:
+    def generate_scope_relations(self, scope: AnalysisInsights, scope_name: str) -> list[RelationLLM]:
         """Generate LLM relations for a single scope and merge with existing static ones.
 
         Mutates ``scope.components_relations`` in place. Returns the LLM-generated relations.
@@ -196,7 +193,7 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
         )
 
         existing_static = [r for r in scope.components_relations if r.is_static]
-        merged = merge_relations(result.components_relations, [], scope)
+        merged = merge_relations([Relation.from_llm(r) for r in result.components_relations], [], scope)
         if existing_static:
             for r in existing_static:
                 existing_pair = next(
@@ -226,7 +223,7 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
         direct static edge). Called once after stitching, repopulation, and
         redetail are complete so the full component context is available.
         """
-        all_llm_rels: list[tuple[str, list[Relation]]] = []
+        all_llm_rels: list[tuple[str, list[RelationLLM]]] = []
         if "" in touched_scopes:
             rels = self.generate_scope_relations(root_analysis, "root")
             if rels:
@@ -334,7 +331,7 @@ def _log_stitch_summary(routing_rows: list[dict], verdicts: dict[Verdict, int], 
     logger.info("\n".join(lines))
 
 
-def _log_scope_relations_summary(all_rels: list[tuple[str, list[Relation]]]) -> None:
+def _log_scope_relations_summary(all_rels: list[tuple[str, list[RelationLLM]]]) -> None:
     lines = ["[scope_relations] LLM-generated inter-component relations:"]
     for scope_name, rels in all_rels:
         for r in rels:
@@ -594,7 +591,7 @@ def repopulate_touched_scopes(
 
 
 def _build_node_lookup(
-    static_analysis, cluster_results: dict[str, ClusterResult], repo_dir: Path
+    static_analysis: StaticAnalysisResults, cluster_results: dict[str, ClusterResult], repo_dir: Path
 ) -> dict[str, MethodEntry]:
     """Map qname -> ``MethodEntry`` built from the live CFG (fresh file/line metadata + content_hash)."""
     lookup: dict[str, MethodEntry] = {}

@@ -4,13 +4,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from agents.agent_responses import (
-    AnalysisInsights,
-    Component,
-    Relation,
-    SourceCodeReference,
-    assign_component_ids,
-)
+from agents.agent_responses import SourceCodeReference
+from agents.analysis_models import AnalysisInsights, Component, Relation, assign_component_ids
 from output_generators.mdx import (
     component_header,
     generate_frontmatter,

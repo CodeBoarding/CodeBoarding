@@ -3,7 +3,7 @@
 import json
 from pathlib import Path
 
-from agents.agent_responses import AnalysisInsights
+from agents.analysis_models import AnalysisInsights
 from diagram_analysis.io_utils import load_snapshot_commit, save_analysis
 
 

@@ -14,7 +14,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum
 
-from agents.agent_responses import MethodEntry
+from agents.analysis_models import MethodEntry
 from agents.change_status import ChangeStatus
 
 

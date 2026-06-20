@@ -4,15 +4,8 @@ from datetime import datetime, timezone
 
 from pydantic import BaseModel, Field
 
-from agents.agent_responses import (
-    Component,
-    Relation,
-    AnalysisInsights,
-    FileEntry,
-    FileMethodGroup,
-    MethodEntry,
-    SourceCodeReference,
-)
+from agents.agent_responses import SourceCodeReference
+from agents.analysis_models import Component, Relation, AnalysisInsights, FileEntry, FileMethodGroup, MethodEntry
 
 logger = logging.getLogger(__name__)
 
@@ -120,7 +113,7 @@ class FileEntryJson(BaseModel):
     )
     content_hash: str = Field(
         default="",
-        description="Truncated SHA-256 of the entire file's bytes; '' when unknown.",
+        description="Truncated SHA-256 of the entire file's source lines; '' when unknown.",
     )
 
 

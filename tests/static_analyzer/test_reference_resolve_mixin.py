@@ -5,7 +5,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
 
-from agents.agent_responses import AnalysisInsights, Component, FilePath, SourceCodeReference
+from agents.agent_responses import FilePath, SourceCodeReference
+from agents.analysis_models import AnalysisInsights, Component
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.reference_resolve_mixin import ReferenceResolverMixin
 

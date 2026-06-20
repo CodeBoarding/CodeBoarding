@@ -1,8 +1,8 @@
 import hashlib
 from pathlib import Path
 
-from agents.agent_responses import FileEntry, MethodEntry
-from agents.agent_responses import FileEntry as _FileEntry
+from agents.analysis_models import FileEntry, MethodEntry
+from agents.analysis_models import FileEntry as _FileEntry
 from agents.cluster_methods_mixin import _hash_method_body, _hash_whole_file, _read_source_lines
 from diagram_analysis.analysis_json import (
     FileEntryJson,
@@ -63,6 +63,9 @@ def test_hash_method_body_empty_on_bad_range():
     assert _hash_method_body(["a", "b"], 0, 2) == ""
     assert _hash_method_body(["a", "b"], 3, 2) == ""
     assert _hash_method_body(None, 1, 2) == ""
+    # end_line past the file end (e.g. file truncated since lines were recorded)
+    assert _hash_method_body(["a", "b"], 1, 5) == ""
+    assert _hash_method_body(["a", "b"], 3, 5) == ""
 
 
 def test_read_source_lines_missing_file_returns_none(tmp_path: Path):

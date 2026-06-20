@@ -13,13 +13,8 @@ Expansion Rules:
 import unittest
 
 from agents.planner_agent import should_expand_component, get_expandable_components
-from agents.agent_responses import (
-    AnalysisInsights,
-    Component,
-    FileMethodGroup,
-    MethodEntry,
-    SourceCodeReference,
-)
+from agents.agent_responses import SourceCodeReference
+from agents.analysis_models import AnalysisInsights, Component, FileMethodGroup, MethodEntry
 
 
 class TestShouldExpandComponent(unittest.TestCase):

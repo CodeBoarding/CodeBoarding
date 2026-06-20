@@ -9,15 +9,8 @@ from agents.validation import (
     validate_relation_component_names,
     _check_edge_between_cluster_sets,
 )
-from agents.agent_responses import (
-    ClusterAnalysis,
-    ClustersComponent,
-    AnalysisInsights,
-    Component,
-    Relation,
-    ComponentFiles,
-    FileClassification,
-)
+from agents.agent_responses import ClusterAnalysis, ClustersComponent, ComponentFiles, FileClassification
+from agents.analysis_models import AnalysisInsights, Component, Relation
 from static_analyzer.graph import ClusterResult, CallGraph
 from static_analyzer.node import Node
 

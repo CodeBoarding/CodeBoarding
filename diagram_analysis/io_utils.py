@@ -22,7 +22,7 @@ from pathlib import Path
 
 from filelock import FileLock
 
-from agents.agent_responses import AnalysisInsights, Component, index_components_by_id
+from agents.analysis_models import AnalysisInsights, Component, index_components_by_id
 from agents.planner_agent import should_expand_component
 from diagram_analysis.analysis_json import (
     FileCoverageSummary,

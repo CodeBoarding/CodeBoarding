@@ -8,18 +8,12 @@ from typing import NoReturn
 
 import networkx as nx
 
-from agents.agent_responses import (
-    AnalysisInsights,
-    ClusterAnalysis,
-    Component,
-    FileEntry,
-    FileMethodGroup,
-    MethodEntry,
-)
+from agents.agent_responses import ClusterAnalysis
+from agents.analysis_models import AnalysisInsights, Component, FileEntry, FileMethodGroup, MethodEntry
 from agents.cluster_budget import ClusterPromptBudget
 from agents.llm_config import get_current_agent_context_window, get_current_agent_model_ref
 from agents.model_capabilities import ContextWindow
-from constants import MIN_CLUSTERS_THRESHOLD
+from constants import CONTENT_HASH_LENGTH, MIN_CLUSTERS_THRESHOLD
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cfg_skip_planner import ContextBudgetExceededError, plan_skip_set
 from static_analyzer.cluster_helpers import (
@@ -42,29 +36,33 @@ logger = logging.getLogger(__name__)
 
 
 def _read_source_lines(repo_dir: Path, rel_path: str, cache: dict[str, list[str] | None]) -> list[str] | None:
-    """Read and cache a file's lines (repo-relative path). None if unreadable."""
+    """Read and cache a file's lines (repo-relative path). None if unreadable.
+
+    Why splitlines, not raw bytes: this hash is for change detection, so we
+    deliberately normalize line endings to ignore trailing-newline/CRLF churn.
+    """
     if rel_path not in cache:
         try:
-            # splitlines() normalizes line endings, so trailing-newline-only changes aren't detected.
             cache[rel_path] = (repo_dir / rel_path).read_text(encoding="utf-8", errors="replace").splitlines()
-        except OSError:
+        except OSError as e:
+            logger.debug("content_hash: skipping unreadable file %s: %s", rel_path, e)
             cache[rel_path] = None
     return cache[rel_path]
 
 
 def _hash_method_body(lines: list[str] | None, start_line: int, end_line: int) -> str:
     """Truncated SHA-256 of source lines [start_line-1:end_line]. '' when unavailable."""
-    if lines is None or start_line < 1 or end_line < start_line:
+    if lines is None or start_line < 1 or end_line < start_line or end_line > len(lines):
         return ""
     body = "\n".join(lines[start_line - 1 : end_line])
-    return hashlib.sha256(body.encode("utf-8")).hexdigest()[:16]
+    return hashlib.sha256(body.encode("utf-8")).hexdigest()[:CONTENT_HASH_LENGTH]
 
 
 def _hash_whole_file(lines: list[str] | None) -> str:
-    """Truncated SHA-256 of the entire file's lines. '' when unavailable."""
+    """Truncated SHA-256 of the entire file's source lines. '' when unavailable."""
     if lines is None:
         return ""
-    return hashlib.sha256("\n".join(lines).encode("utf-8")).hexdigest()[:16]
+    return hashlib.sha256("\n".join(lines).encode("utf-8")).hexdigest()[:CONTENT_HASH_LENGTH]
 
 
 @dataclass(frozen=True)

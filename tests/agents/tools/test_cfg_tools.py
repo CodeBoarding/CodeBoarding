@@ -2,7 +2,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from agents.agent_responses import Component, FileMethodGroup
+from agents.analysis_models import Component, FileMethodGroup
 from agents.tools import GetCFGTool, MethodInvocationsTool
 from agents.tools.base import RepoContext
 from repo_utils.ignore import RepoIgnoreManager

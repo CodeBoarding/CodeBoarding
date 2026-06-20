@@ -101,7 +101,7 @@ class TestPartialUpdate(unittest.TestCase):
         self, mock_generator_class, mock_load_metadata, mock_load_full, mock_save_sub_analysis
     ):
         mock_load_metadata.return_value = {"depth_level": 1}
-        from agents.agent_responses import AnalysisInsights, Component
+        from agents.analysis_models import AnalysisInsights, Component
 
         mock_generator = MagicMock()
         mock_generator_class.return_value = mock_generator
@@ -163,7 +163,7 @@ class TestPartialUpdate(unittest.TestCase):
         self, mock_generator_class, mock_load_metadata, mock_load_full, mock_save_sub_analysis
     ):
         mock_load_metadata.return_value = {"depth_level": 2}
-        from agents.agent_responses import AnalysisInsights, Component
+        from agents.analysis_models import AnalysisInsights, Component
 
         mock_generator = MagicMock()
         mock_generator_class.return_value = mock_generator
@@ -373,7 +373,7 @@ class TestLocalSource(unittest.TestCase):
     @patch("codeboarding_workflows.analysis.load_analysis_metadata")
     def test_local_source_composes_with_partial_update(self, mock_load_metadata, mock_load_full, mock_generator_class):
         """Axes are orthogonal: the local source composes with any scope, not just full."""
-        from agents.agent_responses import AnalysisInsights
+        from agents.analysis_models import AnalysisInsights
 
         mock_load_metadata.return_value = {"depth_level": 1}
         # Minimal non-None baseline so run_partial gets past both early-return guards
