@@ -7,6 +7,7 @@ create new ones with a ``parent_id``. Stitching back into the live tree
 
 import logging
 from pathlib import Path
+from typing import cast, overload
 
 from langchain.agents import create_agent
 from langchain_core.language_models import BaseChatModel
@@ -356,13 +357,22 @@ def _deduplicate_cluster_routes(delta_cluster_analysis: ClusterAnalysis) -> Clus
     return ClusterAnalysis(cluster_components=kept_components)
 
 
-def _sort_cluster_ids(cluster_ids) -> list:
+@overload
+def _sort_cluster_ids(cluster_ids: set[int]) -> list[int]: ...
+
+
+@overload
+def _sort_cluster_ids(cluster_ids: set[str]) -> list[str]: ...
+
+
+def _sort_cluster_ids(cluster_ids: set[int] | set[str]) -> list[int] | list[str]:
+    if all(isinstance(cluster_id, int) for cluster_id in cluster_ids):
+        return sorted(cast(set[int], cluster_ids))
     return sorted(
-        cluster_ids,
+        cast(set[str], cluster_ids),
         key=lambda cluster_id: (
-            (0, cluster_id)
-            if isinstance(cluster_id, int)
-            else (1, [int(part) if part.isdigit() else part for part in cluster_id.split(".")])
+            1,
+            [int(part) if part.isdigit() else part for part in cluster_id.split(".")],
         ),
     )
 
@@ -755,7 +765,7 @@ def _refresh_component_file_methods(
     component: Component,
     cluster_results: dict[str, ClusterResult],
     node_lookup: dict[str, MethodEntry],
-    repo_dir: Path | str | None,
+    repo_dir: Path,
     refresh_files: set[str],
 ) -> None:
     """Rebuild ``component.file_methods`` from live cluster_results, grouped by file.
@@ -769,11 +779,7 @@ def _refresh_component_file_methods(
             component.file_methods = []
         return
 
-    repo_root: Path | None
-    try:
-        repo_root = Path(repo_dir).resolve() if repo_dir else None
-    except (TypeError, OSError):
-        repo_root = None
+    repo_root = repo_dir.resolve()
 
     # Normalize paths once so the substring match in _pick_file_for_qname
     # isn't poisoned by absolute snapshot-worktree prefixes.

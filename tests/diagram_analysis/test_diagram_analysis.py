@@ -781,7 +781,7 @@ class TestDiagramGenerator(unittest.TestCase):
         gen.static_analysis = Mock()
         gen.static_analysis.get_languages.return_value = []
         base_static_analysis = Mock()
-        gen.static_analysis._incremental_base_results = base_static_analysis
+        gen.static_analysis.incremental_base_results = base_static_analysis
         gen._generate_subcomponents = Mock()
         gen._persist_static_analysis_artifact = Mock()
 

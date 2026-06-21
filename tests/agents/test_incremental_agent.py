@@ -977,7 +977,7 @@ class TestRefreshComponentFileMethodsPathNormalization(unittest.TestCase):
         from agents.incremental_agent import _refresh_component_file_methods
         from static_analyzer.graph import ClusterResult
 
-        repo_dir = "/tmp/snapshot-worktree"
+        repo_dir = Path("/tmp/snapshot-worktree")
         # Mirror what static_analyzer's CFG produces under a snapshot worktree:
         # every ``cluster_to_files`` entry is an absolute path under repo_dir.
         cluster_to_files = {
@@ -1038,7 +1038,7 @@ class TestRefreshComponentFileMethodsPathNormalization(unittest.TestCase):
             comp,
             {"python": ClusterResult(clusters=clusters, cluster_to_files=cluster_to_files)},
             node_lookup,
-            None,
+            Path("."),
             refresh_files={"changed.py"},
         )
 

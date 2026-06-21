@@ -636,7 +636,7 @@ class StaticAnalyzer:
                 analysis=analysis,
                 diagnostics=self.collected_diagnostics.get(adapter.language_enum, {}),
             )
-        setattr(results, "_incremental_base_results", cached_results)
+        results.incremental_base_results = cached_results
         return results
 
     def _extract_language_dict(self, cached_results: StaticAnalysisResults, language: Language) -> dict:

@@ -173,6 +173,7 @@ class StaticAnalysisResults:
 
     results: dict[Language, LanguageResults] = field(default_factory=dict)
     diagnostics: dict[Language, FileDiagnosticsMap] = field(default_factory=dict)
+    incremental_base_results: "StaticAnalysisResults | None" = None
 
     def _bucket(self, language: Language) -> LanguageResults:
         return self.results.setdefault(language, LanguageResults())
