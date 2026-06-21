@@ -400,13 +400,10 @@ def _stabilize_existing_file_routes(
     delta_cluster_analysis: ClusterAnalysis,
     component_index: dict[str, Component],
     cluster_results: dict[str, ClusterResult],
-    repo_dir: Path | str | None = None,
+    repo_dir: Path,
 ) -> ClusterAnalysis:
     """Route clusters touching already-owned files back to their existing owner."""
-    try:
-        repo_root = Path(repo_dir).resolve() if repo_dir else None
-    except (TypeError, OSError):
-        repo_root = None
+    repo_root = repo_dir.resolve()
 
     file_owners: dict[str, list[Component]] = {}
     for component in component_index.values():
@@ -478,7 +475,7 @@ def stitch_delta(
     sub_analyses: dict[str, AnalysisInsights],
     delta_cluster_analysis: ClusterAnalysis,
     delta: ClusterDelta,
-    repo_dir: Path | str | None = None,
+    repo_dir: Path = Path("."),
 ) -> IncrementalUpdatePlan:
     """Apply the delta ClusterAnalysis to the live tree.
 
