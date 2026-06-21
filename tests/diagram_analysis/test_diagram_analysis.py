@@ -16,7 +16,7 @@ from agents.agent_responses import (
     SourceCodeReference,
     assign_component_ids,
 )
-from agents.incremental_agent import IncrementalUpdatePlan
+from agents.incremental_models import IncrementalUpdatePlan
 from diagram_analysis.analysis_json import (
     ComponentFileMethodGroupJson,
     ComponentJson,

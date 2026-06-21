@@ -6,8 +6,6 @@ create new ones with a ``parent_id``. Stitching back into the live tree
 """
 
 import logging
-from dataclasses import dataclass, field
-from enum import StrEnum
 from pathlib import Path
 
 from langchain.agents import create_agent
@@ -30,6 +28,7 @@ from agents.agent_responses import (
     iter_components,
 )
 from agents.cluster_methods_mixin import ClusterMethodsMixin
+from agents.incremental_models import ClusterRouteBucket, IncrementalUpdatePlan, RouteBucketKind, Verdict
 from agents.prompts import get_incremental_grouping_message, get_scope_relations_message, get_system_message
 from agents.validation import (
     ValidationContext,
@@ -46,14 +45,6 @@ from static_analyzer.constants import Language
 from static_analyzer.graph import ClusterResult
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class IncrementalUpdatePlan:
-    """Deterministic work plan produced by incremental stitching."""
-
-    refresh_ids: set[str] = field(default_factory=set)
-    new_component_ids: set[str] = field(default_factory=set)
 
 
 class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
@@ -290,38 +281,6 @@ def _format_component_line(component: Component, include_description: bool = Tru
         return f'- {cid} "{component.name}"'
     desc = (component.description or "").strip().replace("\n", " ")
     return f'- {cid} "{component.name}" -- {desc}'
-
-
-# ---------------------------------------------------------------------------
-# Stitching (deterministic, no LLM)
-# ---------------------------------------------------------------------------
-class Verdict(StrEnum):
-    """Derived stitching verdict — not part of the LLM schema.
-
-    Why: the verdict is implicit in (existing_component_id, redetail_needed);
-    surfacing it as a derived label keeps logs/stats legible without a
-    second source of truth.
-    """
-
-    ADD = "ADD"
-    UPDATE = "UPDATE"
-    NOOP = "NOOP"
-
-
-class RouteBucketKind(StrEnum):
-    """How a cluster group should be emitted after route stabilization."""
-
-    ADD = "add"
-    ORIGINAL = "original"
-    REROUTED = "rerouted"
-
-
-@dataclass(frozen=True)
-class ClusterRouteBucket:
-    """Bucket key for clusters that share the same stabilized route."""
-
-    kind: RouteBucketKind
-    destination_id: str = ""
 
 
 def _classify_verdict(cc: ClustersComponent, *, existing_found: bool) -> Verdict:
