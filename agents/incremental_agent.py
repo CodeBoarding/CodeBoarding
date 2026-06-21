@@ -308,6 +308,22 @@ class Verdict(StrEnum):
     NOOP = "NOOP"
 
 
+class RouteBucketKind(StrEnum):
+    """How a cluster group should be emitted after route stabilization."""
+
+    ADD = "add"
+    ORIGINAL = "original"
+    REROUTED = "rerouted"
+
+
+@dataclass(frozen=True)
+class ClusterRouteBucket:
+    """Bucket key for clusters that share the same stabilized route."""
+
+    kind: RouteBucketKind
+    destination_id: str = ""
+
+
 def _classify_verdict(cc: ClustersComponent, *, existing_found: bool) -> Verdict:
     if not existing_found:
         return Verdict.ADD
@@ -420,7 +436,7 @@ def _stabilize_existing_file_routes(
     fallback_reroutes: list[ClustersComponent] = []
     rerouted: list[str] = []
     for cc in delta_cluster_analysis.cluster_components:
-        buckets: dict[tuple[str, str | None], list[int]] = {}
+        buckets: dict[ClusterRouteBucket, list[int]] = {}
         for cluster_id in cc.cluster_ids:
             owner = _owner_for_cluster_members(cluster_members.get(cluster_id, set()), method_owners)
             if owner is None:
@@ -467,31 +483,31 @@ def _route_key_for_cluster(
     cluster_id: int,
     owner: Component | None,
     rerouted: list[str],
-) -> tuple[str, str | None]:
+) -> ClusterRouteBucket:
     if cc.existing_component_id is None and owner is not None and owner.component_id:
         rerouted.append(f"{cluster_id} -> {owner.component_id}")
-        return "rerouted", owner.component_id
+        return ClusterRouteBucket(RouteBucketKind.REROUTED, owner.component_id)
     if cc.existing_component_id:
-        return "original", cc.existing_component_id
-    return "add", cc.parent_id
+        return ClusterRouteBucket(RouteBucketKind.ORIGINAL, cc.existing_component_id)
+    return ClusterRouteBucket(RouteBucketKind.ADD, cc.parent_id or "")
 
 
 def _append_bucketed_routes(
     cc: ClustersComponent,
-    buckets: dict[tuple[str, str | None], list[int]],
+    buckets: dict[ClusterRouteBucket, list[int]],
     component_index: dict[str, Component],
     stabilized: list[ClustersComponent],
     fallback_reroutes: list[ClustersComponent],
 ) -> None:
-    for (kind, component_id), cluster_ids in buckets.items():
-        if kind == "rerouted" and component_id in component_index:
+    for bucket, cluster_ids in buckets.items():
+        if bucket.kind == RouteBucketKind.REROUTED and bucket.destination_id in component_index:
             fallback_reroutes.append(
                 cc.model_copy(
                     update={
                         "name": "",
                         "description": "",
                         "cluster_ids": cluster_ids,
-                        "existing_component_id": component_id,
+                        "existing_component_id": bucket.destination_id,
                         "parent_id": None,
                         "redetail_needed": True,
                     }
