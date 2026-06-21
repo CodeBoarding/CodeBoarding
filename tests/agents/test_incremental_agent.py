@@ -470,6 +470,102 @@ class TestStitchDelta(unittest.TestCase):
         self.assertEqual(comp.source_cluster_ids, ["1", "7"])
         self.assertEqual(plan.refresh_ids, {"1.3"})
 
+    def test_new_route_for_existing_method_in_shared_file_uses_method_owner(self) -> None:
+        auth = _component("Authentication", "1.1", source_cluster_ids=["1"])
+        auth.file_methods = [
+            FileMethodGroup(
+                file_path="shared.py",
+                methods=[MethodEntry(qualified_name="shared.login", start_line=1, end_line=2, node_type="FUNCTION")],
+            )
+        ]
+        cli = _component("CLI", "1.2", source_cluster_ids=["2"])
+        cli.file_methods = [
+            FileMethodGroup(
+                file_path="shared.py",
+                methods=[MethodEntry(qualified_name="shared.main", start_line=10, end_line=12, node_type="FUNCTION")],
+            )
+        ]
+        root = AnalysisInsights(description="root", components=[auth, cli], components_relations=[])
+        delta_ca = ClusterAnalysis(
+            cluster_components=[
+                ClustersComponent(
+                    name="Phantom CLI Split",
+                    cluster_ids=[7],
+                    description="LLM tried to split a method that is already owned",
+                    existing_component_id=None,
+                    parent_id=None,
+                )
+            ]
+        )
+        delta = ClusterDelta(
+            by_language={
+                "python": LanguageDelta(
+                    language="python",
+                    cluster_results=ClusterResult(
+                        clusters={7: {"shared.main"}},
+                        cluster_to_files={7: {"shared.py"}},
+                    ),
+                    new_cluster_ids={7},
+                )
+            }
+        )
+
+        plan = stitch_delta(root, {}, delta_ca, delta)
+
+        self.assertEqual(len(root.components), 2)
+        self.assertEqual(auth.source_cluster_ids, ["1"])
+        self.assertEqual(cli.source_cluster_ids, ["2", "7"])
+        self.assertEqual(plan.refresh_ids, {"1.2"})
+        self.assertEqual(plan.new_component_ids, set())
+
+    def test_new_route_for_new_method_in_shared_file_stays_add(self) -> None:
+        auth = _component("Authentication", "1.1", source_cluster_ids=["1"])
+        auth.file_methods = [
+            FileMethodGroup(
+                file_path="shared.py",
+                methods=[MethodEntry(qualified_name="shared.login", start_line=1, end_line=2, node_type="FUNCTION")],
+            )
+        ]
+        cli = _component("CLI", "1.2", source_cluster_ids=["2"])
+        cli.file_methods = [
+            FileMethodGroup(
+                file_path="shared.py",
+                methods=[MethodEntry(qualified_name="shared.main", start_line=10, end_line=12, node_type="FUNCTION")],
+            )
+        ]
+        root = AnalysisInsights(description="root", components=[auth, cli], components_relations=[])
+        delta_ca = ClusterAnalysis(
+            cluster_components=[
+                ClustersComponent(
+                    name="New Shared Helper",
+                    cluster_ids=[7],
+                    description="new method in a shared file",
+                    existing_component_id=None,
+                    parent_id=None,
+                )
+            ]
+        )
+        delta = ClusterDelta(
+            by_language={
+                "python": LanguageDelta(
+                    language="python",
+                    cluster_results=ClusterResult(
+                        clusters={7: {"shared.new_helper"}},
+                        cluster_to_files={7: {"shared.py"}},
+                    ),
+                    new_cluster_ids={7},
+                )
+            }
+        )
+
+        plan = stitch_delta(root, {}, delta_ca, delta)
+
+        self.assertEqual(auth.source_cluster_ids, ["1"])
+        self.assertEqual(cli.source_cluster_ids, ["2"])
+        new_component = next(c for c in root.components if c.component_id not in {"1.1", "1.2"})
+        self.assertEqual(new_component.source_cluster_ids, ["7"])
+        self.assertIn(new_component.component_id, plan.new_component_ids)
+
     def test_new_route_with_mixed_existing_and_new_files_splits_by_ownership(self) -> None:
         comp = _component("Authentication", "1.3", source_cluster_ids=["1"])
         comp.file_methods = [

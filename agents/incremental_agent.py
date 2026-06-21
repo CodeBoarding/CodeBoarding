@@ -404,24 +404,30 @@ def _stabilize_existing_file_routes(
 ) -> ClusterAnalysis:
     """Route phantom ADDs for already-owned files back to the existing owner.
 
-    Incremental routing is LLM-assisted, so an unchanged file can sometimes be
-    proposed as a brand-new component when only one method in that file changed.
-    Before stitching, index existing component file ownership, inspect each
-    routed cluster's files, and rewrite ADD routes that touch owned files into
-    UPDATE routes for the deepest matching owner. Clusters whose files are not
-    already owned remain ADDs, so genuinely new files can still create new
-    components.
+    Incremental routing is LLM-assisted, so existing methods can sometimes be
+    proposed as a brand-new component after a small edit. Before stitching,
+    index existing method ownership, inspect each routed cluster's qnames, and
+    rewrite ADD routes that contain already-owned methods into UPDATE routes for
+    their owner. If a cluster has only new methods, use file ownership only when
+    every touched file has one unambiguous owner; shared files stay with the LLM
+    route because one file can legitimately span multiple components.
     """
     repo_root = repo_dir.resolve()
 
+    method_owners: dict[str, Component] = {}
     file_owners: dict[str, list[Component]] = {}
     for component in component_index.values():
         for group in component.file_methods:
             file_path = normalize_repo_path(group.file_path, repo_root)
             file_owners.setdefault(file_path, []).append(component)
+            for method in group.methods:
+                method_owners[method.qualified_name] = component
 
     cluster_files: dict[int, set[str]] = {}
+    cluster_members: dict[int, set[str]] = {}
     for cr in cluster_results.values():
+        for cluster_id, members in cr.clusters.items():
+            cluster_members.setdefault(cluster_id, set()).update(members)
         for cluster_id, files in cr.cluster_to_files.items():
             cluster_files.setdefault(cluster_id, set()).update(normalize_repo_path(fp, repo_root) for fp in files)
 
@@ -431,7 +437,9 @@ def _stabilize_existing_file_routes(
     for cc in delta_cluster_analysis.cluster_components:
         buckets: dict[tuple[str, str | None], list[int]] = {}
         for cluster_id in cc.cluster_ids:
-            owner = _owner_for_cluster_files(cluster_files.get(cluster_id, set()), file_owners)
+            owner = _owner_for_cluster_members(cluster_members.get(cluster_id, set()), method_owners)
+            if owner is None:
+                owner = _owner_for_cluster_files(cluster_files.get(cluster_id, set()), file_owners)
             if cc.existing_component_id is None and owner is not None and owner.component_id:
                 buckets.setdefault(("rerouted", owner.component_id), []).append(cluster_id)
                 rerouted.append(f"{cluster_id} -> {owner.component_id}")
@@ -461,10 +469,28 @@ def _stabilize_existing_file_routes(
     return ClusterAnalysis(cluster_components=[*stabilized, *fallback_reroutes])
 
 
+def _owner_for_cluster_members(members: set[str], method_owners: dict[str, Component]) -> Component | None:
+    candidates: dict[str, tuple[int, int, Component]] = {}
+    for qname in members:
+        component = method_owners.get(qname)
+        if component is None or not component.component_id:
+            continue
+        previous = candidates.get(component.component_id, (0, 0, component))
+        depth = component.component_id.count(".") + 1
+        candidates[component.component_id] = (previous[0] + 1, depth, component)
+    if not candidates:
+        return None
+    return max(candidates.values(), key=lambda item: (item[0], item[1], item[2].component_id or ""))[2]
+
+
 def _owner_for_cluster_files(files: set[str], file_owners: dict[str, list[Component]]) -> Component | None:
     candidates: dict[str, tuple[int, int, Component]] = {}
     for file_path in files:
-        for component in file_owners.get(file_path, []):
+        owners = file_owners.get(file_path, [])
+        unique_owners = {component.component_id for component in owners if component.component_id}
+        if len(unique_owners) != 1:
+            continue
+        for component in owners:
             if not component.component_id:
                 continue
             previous = candidates.get(component.component_id, (0, 0, component))
