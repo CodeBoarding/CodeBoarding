@@ -609,27 +609,27 @@ class ClusterMethodsMixin:
             groups.append(FileMethodGroup(file_path=file_path, methods=methods))
         return groups
 
-    def _build_cluster_to_component_map(self, analysis: AnalysisInsights) -> dict[int, Component]:
+    def _build_cluster_to_component_map(self, analysis: AnalysisInsights) -> dict[str, Component]:
         """Build cluster_id -> Component mapping from source_cluster_ids."""
-        cluster_to_component: dict[int, Component] = {}
+        cluster_to_component: dict[str, Component] = {}
         for comp in analysis.components:
             for cid in comp.source_cluster_ids:
-                if cid.isdigit():
-                    cluster_to_component[int(cid)] = comp
+                cluster_to_component[cid] = comp
         return cluster_to_component
 
-    def _build_node_to_cluster_map(self, cluster_results: dict[str, ClusterResult]) -> tuple[dict[str, int], set[int]]:
+    def _build_node_to_cluster_map(self, cluster_results: dict[str, ClusterResult]) -> tuple[dict[str, str], set[str]]:
         """Build node_name (qualified name) -> cluster_id mapping and collect all cluster IDs."""
-        all_cluster_ids: set[int] = set()
-        node_to_cluster: dict[str, int] = {}
+        all_cluster_ids: set[str] = set()
+        node_to_cluster: dict[str, str] = {}
         for cr in cluster_results.values():
             for cid, members in cr.clusters.items():
-                all_cluster_ids.add(cid)
+                cluster_id = str(cid)
+                all_cluster_ids.add(cluster_id)
                 for name in members:
-                    node_to_cluster[name] = cid
+                    node_to_cluster[name] = cluster_id
         return node_to_cluster, all_cluster_ids
 
-    def _validate_cluster_coverage(self, cluster_to_component: dict[int, Component], all_cluster_ids: set[int]) -> None:
+    def _validate_cluster_coverage(self, cluster_to_component: dict[str, Component], all_cluster_ids: set[str]) -> None:
         """Log an error if any cluster IDs are not mapped to a component."""
         unmapped_cluster_ids = sorted(all_cluster_ids - set(cluster_to_component.keys()))
         if unmapped_cluster_ids:
@@ -643,7 +643,7 @@ class ClusterMethodsMixin:
         self,
         node: Node,
         cluster_results: dict[str, ClusterResult],
-        cluster_to_component: dict[int, Component],
+        cluster_to_component: dict[str, Component],
     ) -> Component | None:
         """Try to assign a node to a component based on its file already belonging to a cluster."""
         file_path = node.file_path
@@ -652,7 +652,7 @@ class ClusterMethodsMixin:
         for cr in cluster_results.values():
             cluster_ids = cr.get_clusters_for_file(file_path)
             for cid in cluster_ids:
-                comp = cluster_to_component.get(cid)
+                comp = cluster_to_component.get(str(cid))
                 if comp is not None:
                     return comp
         return None
@@ -660,8 +660,8 @@ class ClusterMethodsMixin:
     def _assign_nodes_to_components(
         self,
         all_nodes: dict[str, Node],
-        node_to_cluster: dict[str, int],
-        cluster_to_component: dict[int, Component],
+        node_to_cluster: dict[str, str],
+        cluster_to_component: dict[str, Component],
         cluster_results: dict[str, ClusterResult],
         fallback_component: Component,
         cfg_graphs: dict[str, CallGraph] | None = None,
@@ -700,8 +700,9 @@ class ClusterMethodsMixin:
 
             # 2. Try graph distance: find the nearest cluster in the call graph
             nearest_cid = self._find_nearest_cluster(qname, cluster_results, undirected_graphs)
-            if nearest_cid is not None and nearest_cid in cluster_to_component:
-                comp = cluster_to_component[nearest_cid]
+            nearest_cluster_id = str(nearest_cid) if nearest_cid is not None else ""
+            if nearest_cluster_id in cluster_to_component:
+                comp = cluster_to_component[nearest_cluster_id]
                 assigned_by_graph += 1
                 component_nodes[comp.component_id].append(node)
                 continue
