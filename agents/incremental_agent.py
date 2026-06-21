@@ -402,7 +402,16 @@ def _stabilize_existing_file_routes(
     cluster_results: dict[str, ClusterResult],
     repo_dir: Path,
 ) -> ClusterAnalysis:
-    """Route clusters touching already-owned files back to their existing owner."""
+    """Route phantom ADDs for already-owned files back to the existing owner.
+
+    Incremental routing is LLM-assisted, so an unchanged file can sometimes be
+    proposed as a brand-new component when only one method in that file changed.
+    Before stitching, index existing component file ownership, inspect each
+    routed cluster's files, and rewrite ADD routes that touch owned files into
+    UPDATE routes for the deepest matching owner. Clusters whose files are not
+    already owned remain ADDs, so genuinely new files can still create new
+    components.
+    """
     repo_root = repo_dir.resolve()
 
     file_owners: dict[str, list[Component]] = {}
