@@ -413,23 +413,8 @@ def _stabilize_existing_file_routes(
     route because one file can legitimately span multiple components.
     """
     repo_root = repo_dir.resolve()
-
-    method_owners: dict[str, Component] = {}
-    file_owners: dict[str, list[Component]] = {}
-    for component in component_index.values():
-        for group in component.file_methods:
-            file_path = normalize_repo_path(group.file_path, repo_root)
-            file_owners.setdefault(file_path, []).append(component)
-            for method in group.methods:
-                method_owners[method.qualified_name] = component
-
-    cluster_files: dict[int, set[str]] = {}
-    cluster_members: dict[int, set[str]] = {}
-    for cr in cluster_results.values():
-        for cluster_id, members in cr.clusters.items():
-            cluster_members.setdefault(cluster_id, set()).update(members)
-        for cluster_id, files in cr.cluster_to_files.items():
-            cluster_files.setdefault(cluster_id, set()).update(normalize_repo_path(fp, repo_root) for fp in files)
+    method_owners, file_owners = _index_existing_component_ownership(component_index, repo_root)
+    cluster_members, cluster_files = _index_delta_cluster_contents(cluster_results, repo_root)
 
     stabilized: list[ClustersComponent] = []
     fallback_reroutes: list[ClustersComponent] = []
@@ -440,33 +425,80 @@ def _stabilize_existing_file_routes(
             owner = _owner_for_cluster_members(cluster_members.get(cluster_id, set()), method_owners)
             if owner is None:
                 owner = _owner_for_cluster_files(cluster_files.get(cluster_id, set()), file_owners)
-            if cc.existing_component_id is None and owner is not None and owner.component_id:
-                buckets.setdefault(("rerouted", owner.component_id), []).append(cluster_id)
-                rerouted.append(f"{cluster_id} -> {owner.component_id}")
-            else:
-                key = ("original", cc.existing_component_id) if cc.existing_component_id else ("add", cc.parent_id)
-                buckets.setdefault(key, []).append(cluster_id)
+            key = _route_key_for_cluster(cc, cluster_id, owner, rerouted)
+            buckets.setdefault(key, []).append(cluster_id)
 
-        for (kind, component_id), cluster_ids in buckets.items():
-            if kind == "rerouted" and component_id in component_index:
-                fallback_reroutes.append(
-                    cc.model_copy(
-                        update={
-                            "name": "",
-                            "description": "",
-                            "cluster_ids": cluster_ids,
-                            "existing_component_id": component_id,
-                            "parent_id": None,
-                            "redetail_needed": True,
-                        }
-                    )
-                )
-            else:
-                stabilized.append(cc.model_copy(update={"cluster_ids": cluster_ids}))
+        _append_bucketed_routes(cc, buckets, component_index, stabilized, fallback_reroutes)
 
     if rerouted:
-        logger.warning("[incremental] rerouted existing-file cluster(s): %s", "; ".join(rerouted))
+        logger.warning("[incremental] rerouted existing-owned cluster(s): %s", "; ".join(rerouted))
     return ClusterAnalysis(cluster_components=[*stabilized, *fallback_reroutes])
+
+
+def _index_existing_component_ownership(
+    component_index: dict[str, Component], repo_root: Path
+) -> tuple[dict[str, Component], dict[str, list[Component]]]:
+    method_owners: dict[str, Component] = {}
+    file_owners: dict[str, list[Component]] = {}
+    for component in component_index.values():
+        for group in component.file_methods:
+            file_path = normalize_repo_path(group.file_path, repo_root)
+            file_owners.setdefault(file_path, []).append(component)
+            for method in group.methods:
+                method_owners[method.qualified_name] = component
+    return method_owners, file_owners
+
+
+def _index_delta_cluster_contents(
+    cluster_results: dict[str, ClusterResult], repo_root: Path
+) -> tuple[dict[int, set[str]], dict[int, set[str]]]:
+    cluster_members: dict[int, set[str]] = {}
+    cluster_files: dict[int, set[str]] = {}
+    for cr in cluster_results.values():
+        for cluster_id, members in cr.clusters.items():
+            cluster_members.setdefault(cluster_id, set()).update(members)
+        for cluster_id, files in cr.cluster_to_files.items():
+            cluster_files.setdefault(cluster_id, set()).update(normalize_repo_path(fp, repo_root) for fp in files)
+    return cluster_members, cluster_files
+
+
+def _route_key_for_cluster(
+    cc: ClustersComponent,
+    cluster_id: int,
+    owner: Component | None,
+    rerouted: list[str],
+) -> tuple[str, str | None]:
+    if cc.existing_component_id is None and owner is not None and owner.component_id:
+        rerouted.append(f"{cluster_id} -> {owner.component_id}")
+        return "rerouted", owner.component_id
+    if cc.existing_component_id:
+        return "original", cc.existing_component_id
+    return "add", cc.parent_id
+
+
+def _append_bucketed_routes(
+    cc: ClustersComponent,
+    buckets: dict[tuple[str, str | None], list[int]],
+    component_index: dict[str, Component],
+    stabilized: list[ClustersComponent],
+    fallback_reroutes: list[ClustersComponent],
+) -> None:
+    for (kind, component_id), cluster_ids in buckets.items():
+        if kind == "rerouted" and component_id in component_index:
+            fallback_reroutes.append(
+                cc.model_copy(
+                    update={
+                        "name": "",
+                        "description": "",
+                        "cluster_ids": cluster_ids,
+                        "existing_component_id": component_id,
+                        "parent_id": None,
+                        "redetail_needed": True,
+                    }
+                )
+            )
+        else:
+            stabilized.append(cc.model_copy(update={"cluster_ids": cluster_ids}))
 
 
 def _owner_for_cluster_members(members: set[str], method_owners: dict[str, Component]) -> Component | None:
