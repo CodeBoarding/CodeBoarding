@@ -497,25 +497,27 @@ def stitch_delta(
     )
     delta_cluster_analysis = _deduplicate_cluster_routes(delta_cluster_analysis)
 
-    cluster_id_remap = delta.merged_cluster_id_remap()
-    dropped_cluster_ids = delta.all_dropped_cluster_ids()
+    cluster_id_remap = {str(old_id): str(new_id) for old_id, new_id in delta.merged_cluster_id_remap().items()}
+    dropped_cluster_ids = {str(cluster_id) for cluster_id in delta.all_dropped_cluster_ids()}
     # Member-set churn (id unchanged) still requires redetail: file_methods
     # depends on cluster MEMBERS, not just IDs.
-    changed_cluster_ids: set[int] = {
-        cluster_id_remap.get(cid, cid) for ld in delta.by_language.values() for cid in ld.changed_cluster_ids
+    changed_cluster_ids = {
+        cluster_id_remap.get(str(cluster_id), str(cluster_id))
+        for ld in delta.by_language.values()
+        for cluster_id in ld.changed_cluster_ids
     }
 
     plan = IncrementalUpdatePlan()
 
     for component in component_index.values():
         before = set(component.source_cluster_ids)
-        remapped = {str(cluster_id_remap.get(int(cid), int(cid))) if cid.isdigit() else cid for cid in before}
-        remapped -= {str(cid) for cid in dropped_cluster_ids}
+        remapped = {cluster_id_remap.get(cid, cid) for cid in before}
+        remapped -= dropped_cluster_ids
         if remapped != before:
             component.source_cluster_ids = _sort_cluster_ids(remapped)
             if component.component_id:
                 plan.refresh_ids.add(component.component_id)
-        if component.component_id and _root_cluster_ids(component.source_cluster_ids) & changed_cluster_ids:
+        if component.component_id and set(component.source_cluster_ids) & changed_cluster_ids:
             plan.refresh_ids.add(component.component_id)
 
     new_components: list[tuple[Component, str | None]] = []
