@@ -53,7 +53,7 @@ class IncrementalUpdatePlan:
     """Deterministic work plan produced by incremental stitching."""
 
     refresh_ids: set[str] = field(default_factory=set)
-    expand_ids: set[str] = field(default_factory=set)
+    detail_ids: set[str] = field(default_factory=set)
 
 
 class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
@@ -331,11 +331,11 @@ def _log_stitch_summary(
     routing_rows: list[dict],
     verdicts: dict[Verdict, int],
     refresh_ids: set[str],
-    expand_ids: set[str],
+    detail_ids: set[str],
 ) -> None:
     lines = [
         f"[stitch] ADD={verdicts[Verdict.ADD]} UPDATE={verdicts[Verdict.UPDATE]} "
-        f"NOOP={verdicts[Verdict.NOOP]}  refresh={sorted(refresh_ids)} expand={sorted(expand_ids)}"
+        f"NOOP={verdicts[Verdict.NOOP]}  refresh={sorted(refresh_ids)} detail={sorted(detail_ids)}"
     ]
     for r in routing_rows:
         parent_str = f"under {r['parent']}" if r["parent"] else ""
@@ -356,7 +356,12 @@ def _log_scope_relations_summary(all_rels: list[tuple[str, list[Relation]]]) -> 
 
 
 def _deduplicate_cluster_routes(delta_cluster_analysis: ClusterAnalysis) -> ClusterAnalysis:
-    """Keep each changed cluster in exactly one routed component."""
+    """Keep each changed cluster in exactly one routed component.
+
+    A fresh cluster can overlap multiple previous components when old clusters
+    merged. The route is still applied once; deterministic remapping handles the
+    affected survivors.
+    """
     seen: set[int] = set()
     kept_components: list[ClustersComponent] = []
     dropped: list[str] = []
@@ -378,8 +383,17 @@ def _deduplicate_cluster_routes(delta_cluster_analysis: ClusterAnalysis) -> Clus
 
 def _sort_cluster_ids(cluster_ids) -> list:
     return sorted(
-        cluster_ids, key=lambda cluster_id: (0, cluster_id) if isinstance(cluster_id, int) else (1, str(cluster_id))
+        cluster_ids,
+        key=lambda cluster_id: (
+            (0, cluster_id)
+            if isinstance(cluster_id, int)
+            else (1, [int(part) if part.isdigit() else part for part in cluster_id.split(".")])
+        ),
     )
+
+
+def _source_cluster_ids(cluster_ids: set[int]) -> list[str]:
+    return [str(cluster_id) for cluster_id in _sort_cluster_ids(cluster_ids)]
 
 
 def _stabilize_existing_file_routes(
@@ -455,6 +469,10 @@ def _owner_for_cluster_files(files: set[str], file_owners: dict[str, list[Compon
     return max(candidates.values(), key=lambda item: (item[0], item[1], item[2].component_id or ""))[2]
 
 
+def _root_cluster_ids(source_cluster_ids: list[str]) -> set[int]:
+    return {int(cluster_id) for cluster_id in source_cluster_ids if cluster_id.isdigit()}
+
+
 def stitch_delta(
     root_analysis: AnalysisInsights,
     sub_analyses: dict[str, AnalysisInsights],
@@ -469,9 +487,12 @@ def stitch_delta(
     null (create a new component). Name matching is *not* used — that path
     silently forks a duplicate component on every rename.
 
-    Returns component ids that need deterministic refresh separately from ids
-    that may be expanded with ``DetailsAgent``. Updates stay at the routed
-    component's own scope; ancestors already express containment structurally.
+    Steps:
+    1. Index live components by component id.
+    2. Stabilize ADD routes that touch already-owned files back to the owner.
+    3. Deduplicate merged clusters so each routed cluster is applied once.
+    4. Refresh changed component method lists and detail only newly-created
+       components that can still have child scopes.
     """
     component_index = index_components_by_id(root_analysis, sub_analyses)
     delta_cluster_analysis = _stabilize_existing_file_routes(
@@ -491,13 +512,13 @@ def stitch_delta(
 
     for component in component_index.values():
         before = set(component.source_cluster_ids)
-        remapped = {cluster_id_remap.get(cid, cid) if isinstance(cid, int) else cid for cid in before}
-        remapped -= dropped_cluster_ids
+        remapped = {str(cluster_id_remap.get(int(cid), int(cid))) if cid.isdigit() else cid for cid in before}
+        remapped -= {str(cid) for cid in dropped_cluster_ids}
         if remapped != before:
             component.source_cluster_ids = _sort_cluster_ids(remapped)
             if component.component_id:
                 plan.refresh_ids.add(component.component_id)
-        if component.component_id and remapped & changed_cluster_ids:
+        if component.component_id and _root_cluster_ids(component.source_cluster_ids) & changed_cluster_ids:
             plan.refresh_ids.add(component.component_id)
 
     new_components: list[tuple[Component, str | None]] = []
@@ -530,7 +551,9 @@ def stitch_delta(
                         existing.name = cc.name
                     if cc.description and cc.description != existing.description:
                         existing.description = cc.description
-                    updated = _sort_cluster_ids(set(existing.source_cluster_ids) | set(cc.cluster_ids))
+                    updated = _sort_cluster_ids(
+                        set(existing.source_cluster_ids) | set(_source_cluster_ids(set(cc.cluster_ids)))
+                    )
                     if updated != existing.source_cluster_ids:
                         existing.source_cluster_ids = updated
                         if existing.component_id:
@@ -553,7 +576,7 @@ def stitch_delta(
             description=cc.description or "",
             key_entities=[],
             source_group_names=[cc.name],
-            source_cluster_ids=_sort_cluster_ids(set(cc.cluster_ids)),
+            source_cluster_ids=_source_cluster_ids(set(cc.cluster_ids)),
         )
         new_components.append((new_component, cc.parent_id))
 
@@ -561,7 +584,7 @@ def stitch_delta(
         _attach_new_components(new_components, root_analysis, sub_analyses, component_index, plan)
 
     if delta_cluster_analysis.cluster_components:
-        _log_stitch_summary(routing_rows, verdicts, plan.refresh_ids, plan.expand_ids)
+        _log_stitch_summary(routing_rows, verdicts, plan.refresh_ids, plan.detail_ids)
 
     return plan
 
@@ -587,7 +610,7 @@ def _attach_new_components(
     for component, _ in new_components:
         if component.component_id:
             plan.refresh_ids.add(component.component_id)
-            plan.expand_ids.add(component.component_id)
+            plan.detail_ids.add(component.component_id)
 
 
 def _scope_for_parent(
@@ -633,7 +656,7 @@ def repopulate_touched_scopes(
     sub_analyses: dict[str, AnalysisInsights],
     cluster_results: dict[str, ClusterResult],
     helpers: ClusterMethodsMixin,
-    refresh_files: set[str] | frozenset[str] = frozenset(),
+    refresh_files: set[str],
 ) -> set[str]:
     """Refresh ``file_methods`` for redetail components and rebuild static relations.
 
@@ -691,15 +714,15 @@ def _refresh_component_file_methods(
     component: Component,
     cluster_results: dict[str, ClusterResult],
     node_lookup: dict[str, MethodEntry],
-    repo_dir: Path | str | None = None,
-    refresh_files: set[str] | frozenset[str] = frozenset(),
+    repo_dir: Path | str | None,
+    refresh_files: set[str],
 ) -> None:
     """Rebuild ``component.file_methods`` from live cluster_results, grouped by file.
 
     When ``refresh_files`` is set, only those files are replaced from live CFG
     data; untouched files keep their previous owner even if broad clusters drift.
     """
-    owned_cids = {cid for cid in component.source_cluster_ids if isinstance(cid, int)}
+    owned_cids = _root_cluster_ids(component.source_cluster_ids)
     if not owned_cids:
         if not refresh_files:
             component.file_methods = []

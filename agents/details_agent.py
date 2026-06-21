@@ -240,7 +240,7 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
         # Step 7: Build static inter-component relations from subgraph CFG edges
         self.build_static_relations(analysis, subgraph_cfgs)
 
-        _qualify_local_cluster_ids(analysis, component.component_id)
+        prefix_local_cluster_ids(analysis, component.component_id)
 
         # Step 8: Fix source code reference lines (resolves reference_file paths)
         analysis = self.fix_source_code_reference_lines(analysis)
@@ -251,7 +251,7 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
         return analysis, subgraph_cluster_results
 
 
-def _qualify_local_cluster_ids(analysis: AnalysisInsights, parent_component_id: str) -> None:
+def prefix_local_cluster_ids(analysis: AnalysisInsights, parent_component_id: str) -> None:
     """Prefix detail-subgraph cluster ids with their owning component scope."""
     if not parent_component_id:
         return

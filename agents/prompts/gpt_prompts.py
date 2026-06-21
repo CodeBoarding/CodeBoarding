@@ -433,6 +433,8 @@ For each cluster group above, decide whether it belongs in an existing component
 
 **Important rules:**
 - Identity is tracked by **component_id**, not by name. If clusters belong in an existing component, you must reference its **component_id** explicitly — reusing a name without the correct id will fork a duplicate
+- Route each changed cluster to the most specific owning component. If both a parent and a child seem relevant, choose the child only
+- **redetail_needed=False** means the component boundary is unchanged; do not use it to absorb new files, new responsibilities, or clusters owned by another component
 - Every cluster id listed in the cluster groups above must appear in exactly one routing entry"""
 
 SCOPE_RELATIONS_MESSAGE = """Generate inter-component relationships for the `{scope_name}` scope of `{project_name}`.

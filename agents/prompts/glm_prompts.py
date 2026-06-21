@@ -423,6 +423,10 @@ REQUIRED STEPS (execute in order):
 CRITICAL RULE:
 Identity is by component_id, NOT by name. If clusters belong in an existing component, you MUST reference that component by its exact id — omitting it will fork a duplicate, which is WRONG.
 
+BOUNDARY RULES:
+- Route each changed cluster to the most specific owning component. If both a parent and a child seem relevant, choose the child only.
+- redetail_needed=False means the component boundary is unchanged; do not use it to absorb new files, new responsibilities, or clusters owned by another component.
+
 COVERAGE (MANDATORY):
 Every cluster id listed in the CLUSTER GROUPS TO ASSIGN section MUST appear in exactly one entry.
 

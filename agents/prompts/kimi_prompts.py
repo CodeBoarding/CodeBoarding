@@ -391,6 +391,8 @@ Think aloud first about whether each cluster belongs to an existing component or
 
 A critical note on identity: components are identified by their component_id, not by name. Reusing an existing component's name without explicitly routing to its component_id will fork a duplicate — that is wrong. If clusters belong in an existing component, you must route to it by component_id.
 
+Boundary rules: route each changed cluster to the most specific owning component; if both a parent and a child seem relevant, choose the child only. `redetail_needed=False` means the component boundary is unchanged, so do not use it to absorb new files, new responsibilities, or clusters owned by another component.
+
 Every cluster id listed in the "Cluster groups to assign" section must appear in exactly one routing entry."""
 
 

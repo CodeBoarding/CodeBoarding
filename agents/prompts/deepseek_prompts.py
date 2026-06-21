@@ -397,6 +397,10 @@ Each line shows the component id and its name:
 # Critical rule
 Identity is by component id, not by name. Reusing an existing component's name without explicitly referencing its component id will fork a duplicate — that is wrong. When clusters belong in an existing component, always reference that component by its id.
 
+# Boundary rules
+- Route each changed cluster to the most specific owning component. If both a parent and a child seem relevant, choose the child only.
+- redetail_needed=False means the component boundary is unchanged; do not use it to absorb new files, new responsibilities, or clusters owned by another component.
+
 # Coverage
 Every cluster id listed in the "Cluster groups to assign" section must appear in exactly one output entry."""
 

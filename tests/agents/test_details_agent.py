@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from agents.details_agent import DetailsAgent, _qualify_local_cluster_ids
+from agents.details_agent import DetailsAgent, prefix_local_cluster_ids
 from agents.agent_responses import (
     AnalysisInsights,
     ClusterAnalysis,
@@ -246,8 +246,8 @@ class TestDetailsAgent(unittest.TestCase):
 
         agent._resolve_cluster_ids_from_groups(analysis, cluster_analysis)
 
-        self.assertEqual(analysis.components[0].source_cluster_ids, [1, 2, 3, 4])
-        self.assertEqual(analysis.components[1].source_cluster_ids, [1, 2])
+        self.assertEqual(analysis.components[0].source_cluster_ids, ["1", "2", "3", "4"])
+        self.assertEqual(analysis.components[1].source_cluster_ids, ["1", "2"])
 
     def test_resolve_cluster_ids_from_groups_case_insensitive(self):
         # Test case-insensitive fallback
@@ -284,7 +284,7 @@ class TestDetailsAgent(unittest.TestCase):
 
         agent._resolve_cluster_ids_from_groups(analysis, cluster_analysis)
 
-        self.assertEqual(analysis.components[0].source_cluster_ids, [1, 2])
+        self.assertEqual(analysis.components[0].source_cluster_ids, ["1", "2"])
 
     def test_qualifies_detail_cluster_ids_with_parent_component_id(self):
         analysis = AnalysisInsights(
@@ -306,7 +306,7 @@ class TestDetailsAgent(unittest.TestCase):
             components_relations=[],
         )
 
-        _qualify_local_cluster_ids(analysis, "5.3")
+        prefix_local_cluster_ids(analysis, "5.3")
 
         self.assertEqual(analysis.components[0].source_cluster_ids, ["5.3.1", "5.3.2"])
         self.assertEqual(analysis.components[1].source_cluster_ids, ["5.3.7"])

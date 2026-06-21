@@ -653,15 +653,15 @@ class DiagramGenerator:
             removed_ids = prune_empty_components(root_analysis, sub_analyses)
             if removed_ids:
                 update_plan.refresh_ids -= removed_ids
-                update_plan.expand_ids -= removed_ids
+                update_plan.detail_ids -= removed_ids
 
-            expand_components = [
+            detail_components = [
                 component
-                for component in _collect_components_by_id(update_plan.expand_ids, root_analysis, sub_analyses)
+                for component in _collect_components_by_id(update_plan.detail_ids, root_analysis, sub_analyses)
                 if _component_depth(component.component_id) < self.depth_level
             ]
-            if expand_components:
-                _, redetailed_subs = self._generate_subcomponents(root_analysis, expand_components)
+            if detail_components:
+                _, redetailed_subs = self._generate_subcomponents(root_analysis, detail_components)
                 _merge_sub_analyses(sub_analyses, redetailed_subs)
 
             if touched_scopes:

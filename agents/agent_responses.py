@@ -6,12 +6,12 @@ from abc import abstractmethod
 from pathlib import PurePosixPath
 from typing import get_origin, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from pydantic.fields import FieldInfo
 
 logger = logging.getLogger(__name__)
 
-type ClusterId = int | str
+type ClusterId = str
 
 
 class LLMBaseModel(BaseModel, abc.ABC):
@@ -313,6 +313,11 @@ class Component(LLMBaseModel):
         exclude=True,
         json_schema_extra={"hidden": True},
     )
+
+    @field_validator("source_cluster_ids", mode="before")
+    @classmethod
+    def _coerce_source_cluster_ids(cls, value: list[object]) -> list[str]:
+        return [str(cluster_id) for cluster_id in value]
 
     file_methods: list[FileMethodGroup] = Field(
         description="All methods/functions belonging to this component, grouped by file (populated deterministically from cluster results).",

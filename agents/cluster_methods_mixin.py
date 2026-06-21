@@ -340,7 +340,7 @@ class ClusterMethodsMixin:
                 logger.warning(
                     f"[{self.__class__.__name__}] Unresolved group name '{gname}' for component '{component.name}'"
                 )
-            component.source_cluster_ids = sorted(set(resolved_ids))
+            component.source_cluster_ids = [str(cid) for cid in sorted(set(resolved_ids))]
 
     def _expand_to_method_level_clusters(self, cfg: CallGraph, cluster_result: ClusterResult) -> ClusterResult:
         """
@@ -614,8 +614,8 @@ class ClusterMethodsMixin:
         cluster_to_component: dict[int, Component] = {}
         for comp in analysis.components:
             for cid in comp.source_cluster_ids:
-                if isinstance(cid, int):
-                    cluster_to_component[cid] = comp
+                if cid.isdigit():
+                    cluster_to_component[int(cid)] = comp
         return cluster_to_component
 
     def _build_node_to_cluster_map(self, cluster_results: dict[str, ClusterResult]) -> tuple[dict[str, int], set[int]]:

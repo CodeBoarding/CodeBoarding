@@ -380,6 +380,10 @@ For each cluster, there are two possibilities:
 
 A critical correctness rule: identity is tracked by component id, not by name. If clusters belong in an existing component, you MUST reference its component id explicitly. Reusing an existing component's name without pointing to its component id will fork a duplicate — that is wrong.
 
+Boundary rules:
+- Route each changed cluster to the most specific owning component. If both a parent and a child seem relevant, choose the child only.
+- `redetail_needed=False` means the component boundary is unchanged; do not use it to absorb new files, new responsibilities, or clusters owned by another component.
+
 Focus on:
 - Placing clusters where they belong architecturally, guided by method names, call patterns, and the existing component boundaries
 - Creating cohesive groupings that reflect the actual {project_type} architecture
