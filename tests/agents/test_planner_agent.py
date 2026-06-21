@@ -68,7 +68,7 @@ class TestShouldExpandComponent(unittest.TestCase):
             name=name,
             description=f"Test component {name}",
             key_entities=[ref],
-            source_cluster_ids=cluster_ids or [],
+            source_cluster_ids=[str(cluster_id) for cluster_id in cluster_ids or []],
             file_methods=file_methods,
         )
 
@@ -187,7 +187,7 @@ class TestPlanAnalysis(unittest.TestCase):
             name=name,
             description=f"Test component {name}",
             key_entities=[],
-            source_cluster_ids=cluster_ids or [],
+            source_cluster_ids=[str(cluster_id) for cluster_id in cluster_ids or []],
             file_methods=file_methods,
         )
 

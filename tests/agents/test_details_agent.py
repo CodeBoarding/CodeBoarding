@@ -294,13 +294,13 @@ class TestDetailsAgent(unittest.TestCase):
                     name="ChildA",
                     description="ChildA",
                     key_entities=[],
-                    source_cluster_ids=[1, 2],
+                    source_cluster_ids=["1", "2"],
                 ),
                 Component(
                     name="ChildB",
                     description="ChildB",
                     key_entities=[],
-                    source_cluster_ids=[7],
+                    source_cluster_ids=["7"],
                 ),
             ],
             components_relations=[],
@@ -395,7 +395,7 @@ class TestDetailsAgent(unittest.TestCase):
             name="SubComponent",
             description="Sub component",
             key_entities=[],
-            source_cluster_ids=[1],
+            source_cluster_ids=["1"],
         )
         sub_component.component_id = "1"
 

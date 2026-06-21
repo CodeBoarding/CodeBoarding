@@ -463,21 +463,21 @@ class TestDiagramGenerator(unittest.TestCase):
             name="A",
             description="Root A",
             key_entities=[],
-            source_cluster_ids=[1],
+            source_cluster_ids=["1"],
             file_methods=[FileMethodGroup(file_path="a.py")],
         )
         root_b = Component(
             name="B",
             description="Root B",
             key_entities=[],
-            source_cluster_ids=[2],
+            source_cluster_ids=["2"],
             file_methods=[FileMethodGroup(file_path="b.py")],
         )
         child_a = Component(
             name="A-child",
             description="Child of A",
             key_entities=[],
-            source_cluster_ids=[3],
+            source_cluster_ids=["3"],
             file_methods=[FileMethodGroup(file_path="a_child.py")],
         )
 

@@ -26,13 +26,13 @@ from diagram_analysis.cluster_delta import ClusterDelta, LanguageDelta
 from static_analyzer.graph import ClusterResult
 
 
-def _component(name: str, component_id: str, source_cluster_ids: list[int] | None = None) -> Component:
+def _component(name: str, component_id: str, source_cluster_ids: list[object] | None = None) -> Component:
     return Component(
         name=name,
         description=f"{name} description",
         key_entities=[],
         source_group_names=[name.lower()],
-        source_cluster_ids=source_cluster_ids or [],
+        source_cluster_ids=[str(cluster_id) for cluster_id in source_cluster_ids or []],
         component_id=component_id,
     )
 
