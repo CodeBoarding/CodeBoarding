@@ -79,6 +79,8 @@ class StaticAnalysisCache:
     def _relativize(self, result: "StaticAnalysisResults") -> "StaticAnalysisResults":
         """Return a copy of result with all file paths made repo-relative."""
         result = copy.deepcopy(result)
+        if hasattr(result, "_incremental_base_results"):
+            delattr(result, "_incremental_base_results")
         for lang_data in result.results.values():
             lang_data.visit_paths(self._to_relative)
         result.diagnostics = {

@@ -780,6 +780,8 @@ class TestDiagramGenerator(unittest.TestCase):
         gen.abstraction_agent.build_files_index.return_value = {}
         gen.static_analysis = Mock()
         gen.static_analysis.get_languages.return_value = []
+        base_static_analysis = Mock()
+        gen.static_analysis._incremental_base_results = base_static_analysis
         gen._generate_subcomponents = Mock()
         gen._persist_static_analysis_artifact = Mock()
 
@@ -796,6 +798,7 @@ class TestDiagramGenerator(unittest.TestCase):
 
         gen.generate_analysis_incremental(root_analysis, sub_analyses)
 
+        mock_snapshot.assert_called_once_with(base_static_analysis)
         gen._generate_subcomponents.assert_not_called()
         self.assertEqual(sub_analyses["1"].components[0].name, "Stable Child")
 

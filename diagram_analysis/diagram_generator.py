@@ -575,7 +575,8 @@ class DiagramGenerator:
                         live_files.add(normalize_repo_path(node.file_path, self.repo_location))
             remove_deleted_files(root_analysis, sub_analyses, live_files)
 
-            old_snapshot = snapshot_from_static_analysis(self.static_analysis)
+            snapshot_source = getattr(self.static_analysis, "_incremental_base_results", self.static_analysis)
+            old_snapshot = snapshot_from_static_analysis(snapshot_source)
             if not old_snapshot.all_cluster_ids():
                 # No cluster_cache on the live CFG — no prior pkl, legacy pkl,
                 # or first-ever incremental run. Refuse to silently rebuild

@@ -10,9 +10,9 @@ import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from static_analyzer.analysis_cache import invalidate_files, merge_results
-from static_analyzer.analysis_result import AnalysisData
-from static_analyzer.constants import NodeType
+from static_analyzer.analysis_cache import StaticAnalysisCache, invalidate_files, merge_results
+from static_analyzer.analysis_result import AnalysisData, StaticAnalysisResults
+from static_analyzer.constants import Language, NodeType
 from static_analyzer.graph import CallGraph, ClusterResult, Edge
 from static_analyzer.node import Node
 from static_analyzer.incremental_orchestrator import update_cfg_for_changed_files
@@ -280,6 +280,20 @@ class TestClusterCachePreservation(unittest.TestCase):
         # New node from `other` participates in the graph but not yet in any cluster.
         self.assertIn("c.new", unioned.nodes)
         self.assertNotIn("c.new", {m for members in cc.clusters.values() for m in members})
+
+    def test_static_analysis_cache_does_not_persist_incremental_base_results(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            result = StaticAnalysisResults()
+            result.add_cfg(Language.PYTHON, self._cg_with_cluster_cache())
+            setattr(result, "_incremental_base_results", StaticAnalysisResults())
+
+            cache = StaticAnalysisCache(root / ".codeboarding", root)
+            cache.save(result, source_sha="sha")
+            loaded = cache.get()
+
+            assert loaded is not None
+            self.assertFalse(hasattr(loaded, "_incremental_base_results"))
 
 
 class TestWarmStartDeletion(unittest.TestCase):
