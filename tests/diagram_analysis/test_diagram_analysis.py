@@ -793,7 +793,7 @@ class TestDiagramGenerator(unittest.TestCase):
         mock_snapshot.return_value.all_cluster_ids.return_value = {1}
         mock_delta.return_value.has_changes = True
         mock_delta.return_value.cluster_results.return_value = {}
-        mock_stitch_delta.return_value = IncrementalUpdatePlan(refresh_ids={"1"}, detail_ids=set())
+        mock_stitch_delta.return_value = IncrementalUpdatePlan(refresh_ids={"1"}, new_component_ids=set())
         mock_save_analysis.return_value = self.output_dir / "analysis.json"
 
         gen.generate_analysis_incremental(root_analysis, sub_analyses)

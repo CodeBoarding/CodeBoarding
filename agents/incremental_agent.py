@@ -53,7 +53,7 @@ class IncrementalUpdatePlan:
     """Deterministic work plan produced by incremental stitching."""
 
     refresh_ids: set[str] = field(default_factory=set)
-    detail_ids: set[str] = field(default_factory=set)
+    new_component_ids: set[str] = field(default_factory=set)
 
 
 class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
@@ -331,11 +331,11 @@ def _log_stitch_summary(
     routing_rows: list[dict],
     verdicts: dict[Verdict, int],
     refresh_ids: set[str],
-    detail_ids: set[str],
+    new_component_ids: set[str],
 ) -> None:
     lines = [
         f"[stitch] ADD={verdicts[Verdict.ADD]} UPDATE={verdicts[Verdict.UPDATE]} "
-        f"NOOP={verdicts[Verdict.NOOP]}  refresh={sorted(refresh_ids)} detail={sorted(detail_ids)}"
+        f"NOOP={verdicts[Verdict.NOOP]}  refresh={sorted(refresh_ids)} new={sorted(new_component_ids)}"
     ]
     for r in routing_rows:
         parent_str = f"under {r['parent']}" if r["parent"] else ""
@@ -583,7 +583,7 @@ def stitch_delta(
         _attach_new_components(new_components, root_analysis, sub_analyses, component_index, plan)
 
     if delta_cluster_analysis.cluster_components:
-        _log_stitch_summary(routing_rows, verdicts, plan.refresh_ids, plan.detail_ids)
+        _log_stitch_summary(routing_rows, verdicts, plan.refresh_ids, plan.new_component_ids)
 
     return plan
 
@@ -609,7 +609,7 @@ def _attach_new_components(
     for component, _ in new_components:
         if component.component_id:
             plan.refresh_ids.add(component.component_id)
-            plan.detail_ids.add(component.component_id)
+            plan.new_component_ids.add(component.component_id)
 
 
 def _scope_for_parent(
@@ -650,14 +650,14 @@ def _parent_id_for_scope(
 # Re-resolution helpers (file_methods + relations on touched scopes only)
 # ---------------------------------------------------------------------------
 def repopulate_touched_scopes(
-    redetail_ids: set[str],
+    refresh_ids: set[str],
     root_analysis: AnalysisInsights,
     sub_analyses: dict[str, AnalysisInsights],
     cluster_results: dict[str, ClusterResult],
     helpers: ClusterMethodsMixin,
     refresh_files: set[str],
 ) -> set[str]:
-    """Refresh ``file_methods`` for redetail components and rebuild static relations.
+    """Refresh ``file_methods`` for changed components and rebuild static relations.
 
     Why per-component (not scope-wide ``populate_file_methods``): the latter
     re-routes every node and would dump global orphans into the scope's leaf
@@ -665,24 +665,24 @@ def repopulate_touched_scopes(
     byte-for-byte. Returns the touched scope ids (``""`` for root).
     """
     touched_scopes: set[str] = set()
-    if not redetail_ids:
+    if not refresh_ids:
         return touched_scopes
 
     node_lookup = _build_node_lookup(helpers.static_analysis, cluster_results)
     repo_dir = helpers.repo_dir
 
-    if any(c.component_id in redetail_ids for c in root_analysis.components):
+    if any(c.component_id in refresh_ids for c in root_analysis.components):
         touched_scopes.add("")
         for component in root_analysis.components:
-            if component.component_id in redetail_ids:
+            if component.component_id in refresh_ids:
                 _refresh_component_file_methods(component, cluster_results, node_lookup, repo_dir, refresh_files)
         helpers.build_static_relations(root_analysis)
 
     for scope_id, sub in sub_analyses.items():
-        if any(c.component_id in redetail_ids for c in sub.components):
+        if any(c.component_id in refresh_ids for c in sub.components):
             touched_scopes.add(scope_id)
             for component in sub.components:
-                if component.component_id in redetail_ids:
+                if component.component_id in refresh_ids:
                     _refresh_component_file_methods(component, cluster_results, node_lookup, repo_dir, refresh_files)
             helpers.build_static_relations(sub)
 

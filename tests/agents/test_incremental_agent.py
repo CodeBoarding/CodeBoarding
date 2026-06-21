@@ -113,7 +113,7 @@ class TestStitchDelta(unittest.TestCase):
         plan = stitch_delta(root, {}, delta_ca, _empty_delta())
 
         self.assertIn("1", plan.refresh_ids)
-        self.assertEqual(plan.detail_ids, set())
+        self.assertEqual(plan.new_component_ids, set())
         self.assertEqual(comp.source_cluster_ids, ["1", "2", "3"])
 
     def test_duplicate_cluster_routes_keep_first_owner_only(self) -> None:
@@ -150,7 +150,7 @@ class TestStitchDelta(unittest.TestCase):
         self.assertEqual(second.source_cluster_ids, [])
         self.assertEqual(third.source_cluster_ids, [])
         self.assertEqual(plan.refresh_ids, {"1"})
-        self.assertEqual(plan.detail_ids, set())
+        self.assertEqual(plan.new_component_ids, set())
 
     def test_partially_duplicate_cluster_routes_keep_unique_remainder(self) -> None:
         first = _component("Scanner", "1", source_cluster_ids=[])
@@ -178,7 +178,7 @@ class TestStitchDelta(unittest.TestCase):
         self.assertEqual(first.source_cluster_ids, ["7", "8"])
         self.assertEqual(second.source_cluster_ids, ["9"])
         self.assertEqual(plan.refresh_ids, {"1", "2"})
-        self.assertEqual(plan.detail_ids, set())
+        self.assertEqual(plan.new_component_ids, set())
 
     def test_brand_new_component_attached_under_parent_id(self) -> None:
         parent = _component("Diagram Generator", "1", source_cluster_ids=["1"])
@@ -205,7 +205,7 @@ class TestStitchDelta(unittest.TestCase):
         self.assertEqual(new_component.name, "Brand New Subsystem")
         self.assertTrue(new_component.component_id)
         self.assertIn(new_component.component_id, plan.refresh_ids)
-        self.assertIn(new_component.component_id, plan.detail_ids)
+        self.assertIn(new_component.component_id, plan.new_component_ids)
         self.assertEqual(new_component.source_cluster_ids, ["42"])
 
     def test_existing_component_skips_redetail_when_redetail_needed_false(self) -> None:
@@ -229,7 +229,7 @@ class TestStitchDelta(unittest.TestCase):
         plan = stitch_delta(root, {}, delta_ca, _empty_delta())
 
         self.assertEqual(plan.refresh_ids, set())
-        self.assertEqual(plan.detail_ids, set())
+        self.assertEqual(plan.new_component_ids, set())
         self.assertEqual(comp.source_cluster_ids, ["1", "2"])
         # redetail_needed=False -> existing name/description preserved verbatim.
         self.assertEqual(comp.name, original_name)
@@ -259,7 +259,7 @@ class TestStitchDelta(unittest.TestCase):
         self.assertEqual(leaf.source_cluster_ids, ["2"])
         self.assertEqual(top.source_cluster_ids, ["1"])
         self.assertEqual(plan.refresh_ids, set())
-        self.assertEqual(plan.detail_ids, set())
+        self.assertEqual(plan.new_component_ids, set())
 
     def test_existing_component_description_updated_when_redetail_needed_true(self) -> None:
         comp = _component("Static Analyzer", "1", source_cluster_ids=["1", "2"])
@@ -323,7 +323,7 @@ class TestStitchDelta(unittest.TestCase):
 
         new_component = sub_analyses["1"].components[0]
         self.assertIn(new_component.component_id, plan.refresh_ids)
-        self.assertIn(new_component.component_id, plan.detail_ids)
+        self.assertIn(new_component.component_id, plan.new_component_ids)
 
     def test_deterministic_remap_redetails_regardless_of_flag(self) -> None:
         """Step-1 deterministic remap/drop has no LLM signal to gate on; the cid is always redetailed."""
@@ -333,7 +333,7 @@ class TestStitchDelta(unittest.TestCase):
         plan = stitch_delta(root, {}, ClusterAnalysis(cluster_components=[]), _delta(remap={1: 10}))
 
         self.assertEqual(plan.refresh_ids, {"1"})
-        self.assertEqual(plan.detail_ids, set())
+        self.assertEqual(plan.new_component_ids, set())
 
     def test_dropped_clusters_are_pruned_from_existing_components(self) -> None:
         comp = _component("X", "1", source_cluster_ids=["1", "2", "3"])
@@ -344,7 +344,7 @@ class TestStitchDelta(unittest.TestCase):
 
         self.assertEqual(comp.source_cluster_ids, ["1", "3"])
         self.assertEqual(plan.refresh_ids, {"1"})
-        self.assertEqual(plan.detail_ids, set())
+        self.assertEqual(plan.new_component_ids, set())
 
     def test_cluster_id_remap_rewrites_existing_component_ids(self) -> None:
         comp = _component("X", "1", source_cluster_ids=["1", "2"])
@@ -355,7 +355,7 @@ class TestStitchDelta(unittest.TestCase):
 
         self.assertEqual(comp.source_cluster_ids, ["2", "10"])
         self.assertEqual(plan.refresh_ids, {"1"})
-        self.assertEqual(plan.detail_ids, set())
+        self.assertEqual(plan.new_component_ids, set())
 
     def test_unchanged_component_is_not_redetailed(self) -> None:
         comp = _component("X", "1", source_cluster_ids=["5"])
@@ -364,7 +364,7 @@ class TestStitchDelta(unittest.TestCase):
         plan = stitch_delta(root, {}, ClusterAnalysis(cluster_components=[]), _empty_delta())
 
         self.assertEqual(plan.refresh_ids, set())
-        self.assertEqual(plan.detail_ids, set())
+        self.assertEqual(plan.new_component_ids, set())
         self.assertEqual(comp.source_cluster_ids, ["5"])
 
     def test_routes_by_id_even_when_name_differs(self) -> None:
@@ -440,7 +440,7 @@ class TestStitchDelta(unittest.TestCase):
         self.assertEqual(comp.name, "Authentication")
         self.assertEqual(comp.source_cluster_ids, ["1", "7"])
         self.assertEqual(plan.refresh_ids, {"1.3"})
-        self.assertEqual(plan.detail_ids, set())
+        self.assertEqual(plan.new_component_ids, set())
 
     def test_new_route_touching_existing_file_normalizes_absolute_cluster_path(self) -> None:
         repo_dir = Path("/tmp/repo")
@@ -498,7 +498,7 @@ class TestStitchDelta(unittest.TestCase):
         self.assertEqual(new_component.source_cluster_ids, ["8"])
         self.assertIn("1.3", plan.refresh_ids)
         self.assertIn(new_component.component_id, plan.refresh_ids)
-        self.assertIn(new_component.component_id, plan.detail_ids)
+        self.assertIn(new_component.component_id, plan.new_component_ids)
 
     def test_synthetic_reroute_does_not_override_explicit_update_metadata(self) -> None:
         comp = _component("Authentication", "1.3", source_cluster_ids=["1"])
@@ -613,9 +613,9 @@ class TestStitchDelta(unittest.TestCase):
         second = stitch_delta(root, {}, delta_ca, _empty_delta())
 
         self.assertEqual(first.refresh_ids, {"1"})
-        self.assertEqual(first.detail_ids, set())
+        self.assertEqual(first.new_component_ids, set())
         self.assertEqual(second.refresh_ids, set())
-        self.assertEqual(second.detail_ids, set())
+        self.assertEqual(second.new_component_ids, set())
         self.assertEqual(
             [(c.component_id, c.name, list(c.source_cluster_ids)) for c in root.components],
             snapshot_components,
@@ -632,9 +632,9 @@ class TestStitchDelta(unittest.TestCase):
         second = stitch_delta(root, {}, ClusterAnalysis(cluster_components=[]), delta)
 
         self.assertEqual(first.refresh_ids, {"1"})
-        self.assertEqual(first.detail_ids, set())
+        self.assertEqual(first.new_component_ids, set())
         self.assertEqual(second.refresh_ids, set())
-        self.assertEqual(second.detail_ids, set())
+        self.assertEqual(second.new_component_ids, set())
         self.assertEqual(comp.source_cluster_ids, snapshot)
 
     def test_update_keeps_leaf_clusters_out_of_ancestors(self) -> None:
@@ -666,7 +666,7 @@ class TestStitchDelta(unittest.TestCase):
         self.assertIn("1.1.1", plan.refresh_ids)
         self.assertNotIn("1.1", plan.refresh_ids)
         self.assertNotIn("1", plan.refresh_ids)
-        self.assertEqual(plan.detail_ids, set())
+        self.assertEqual(plan.new_component_ids, set())
 
     def test_qualified_detail_cluster_id_does_not_match_global_changed_cluster(self) -> None:
         top = _component("Top", "1", source_cluster_ids=["1"])
@@ -680,7 +680,7 @@ class TestStitchDelta(unittest.TestCase):
 
         self.assertEqual(child.source_cluster_ids, ["1.7"])
         self.assertEqual(plan.refresh_ids, set())
-        self.assertEqual(plan.detail_ids, set())
+        self.assertEqual(plan.new_component_ids, set())
 
     def test_update_skips_propagation_when_ancestors_already_carry_ids(self) -> None:
         """Idempotency: a second run of the same delta is a no-op for ancestors."""
@@ -710,7 +710,7 @@ class TestStitchDelta(unittest.TestCase):
         self.assertEqual(leaf.source_cluster_ids, ["3", "99"])
         # Leaf's set didn't change; ancestors didn't change. No refresh needed.
         self.assertEqual(plan.refresh_ids, set())
-        self.assertEqual(plan.detail_ids, set())
+        self.assertEqual(plan.new_component_ids, set())
 
     def test_add_new_component_keeps_clusters_out_of_ancestors(self) -> None:
         """A brand-new child component does not mutate ancestor source clusters."""
@@ -737,12 +737,12 @@ class TestStitchDelta(unittest.TestCase):
         self.assertEqual(mid.source_cluster_ids, ["2"])
         self.assertNotIn("1", plan.refresh_ids)
         self.assertNotIn("1.1", plan.refresh_ids)
-        self.assertEqual({"1", "1.1"} & plan.detail_ids, set())
+        self.assertEqual({"1", "1.1"} & plan.new_component_ids, set())
         # The new component should also be present and registered for redetail.
         new_component = sub_analyses["1.1"].components[0]
         self.assertEqual(new_component.name, "Brand New")
         self.assertIn(new_component.component_id, plan.refresh_ids)
-        self.assertIn(new_component.component_id, plan.detail_ids)
+        self.assertIn(new_component.component_id, plan.new_component_ids)
 
     def test_add_top_level_component_does_not_propagate(self) -> None:
         """A new top-level component (parent_id=None) has no ancestors to update."""
