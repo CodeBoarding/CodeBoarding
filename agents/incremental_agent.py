@@ -153,7 +153,6 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
             max_validation_attempts=3,
             include_hidden=True,
         )
-        result = _deduplicate_cluster_routes(result)
         _log_routing_summary(result)
         return result
 
@@ -383,11 +382,85 @@ def _sort_cluster_ids(cluster_ids) -> list:
     )
 
 
+def _stabilize_existing_file_routes(
+    delta_cluster_analysis: ClusterAnalysis,
+    component_index: dict[str, Component],
+    cluster_results: dict[str, ClusterResult],
+    repo_dir: Path | str | None = None,
+) -> ClusterAnalysis:
+    """Route clusters touching already-owned files back to their existing owner."""
+    try:
+        repo_root = Path(repo_dir).resolve() if repo_dir else None
+    except (TypeError, OSError):
+        repo_root = None
+
+    file_owners: dict[str, list[Component]] = {}
+    for component in component_index.values():
+        for group in component.file_methods:
+            file_path = normalize_repo_path(group.file_path, repo_root)
+            file_owners.setdefault(file_path, []).append(component)
+
+    cluster_files: dict[int, set[str]] = {}
+    for cr in cluster_results.values():
+        for cluster_id, files in cr.cluster_to_files.items():
+            cluster_files.setdefault(cluster_id, set()).update(normalize_repo_path(fp, repo_root) for fp in files)
+
+    stabilized: list[ClustersComponent] = []
+    fallback_reroutes: list[ClustersComponent] = []
+    rerouted: list[str] = []
+    for cc in delta_cluster_analysis.cluster_components:
+        buckets: dict[tuple[str, str | None], list[int]] = {}
+        for cluster_id in cc.cluster_ids:
+            owner = _owner_for_cluster_files(cluster_files.get(cluster_id, set()), file_owners)
+            if cc.existing_component_id is None and owner is not None and owner.component_id:
+                buckets.setdefault(("rerouted", owner.component_id), []).append(cluster_id)
+                rerouted.append(f"{cluster_id} -> {owner.component_id}")
+            else:
+                key = ("original", cc.existing_component_id) if cc.existing_component_id else ("add", cc.parent_id)
+                buckets.setdefault(key, []).append(cluster_id)
+
+        for (kind, component_id), cluster_ids in buckets.items():
+            if kind == "rerouted" and component_id in component_index:
+                fallback_reroutes.append(
+                    cc.model_copy(
+                        update={
+                            "name": "",
+                            "description": "",
+                            "cluster_ids": cluster_ids,
+                            "existing_component_id": component_id,
+                            "parent_id": None,
+                            "redetail_needed": True,
+                        }
+                    )
+                )
+            else:
+                stabilized.append(cc.model_copy(update={"cluster_ids": cluster_ids}))
+
+    if rerouted:
+        logger.warning("[incremental] rerouted existing-file cluster(s): %s", "; ".join(rerouted))
+    return ClusterAnalysis(cluster_components=[*stabilized, *fallback_reroutes])
+
+
+def _owner_for_cluster_files(files: set[str], file_owners: dict[str, list[Component]]) -> Component | None:
+    candidates: dict[str, tuple[int, int, Component]] = {}
+    for file_path in files:
+        for component in file_owners.get(file_path, []):
+            if not component.component_id:
+                continue
+            previous = candidates.get(component.component_id, (0, 0, component))
+            depth = component.component_id.count(".") + 1
+            candidates[component.component_id] = (previous[0] + 1, depth, component)
+    if not candidates:
+        return None
+    return max(candidates.values(), key=lambda item: (item[0], item[1], item[2].component_id or ""))[2]
+
+
 def stitch_delta(
     root_analysis: AnalysisInsights,
     sub_analyses: dict[str, AnalysisInsights],
     delta_cluster_analysis: ClusterAnalysis,
     delta: ClusterDelta,
+    repo_dir: Path | str | None = None,
 ) -> IncrementalUpdatePlan:
     """Apply the delta ClusterAnalysis to the live tree.
 
@@ -401,6 +474,9 @@ def stitch_delta(
     component's own scope; ancestors already express containment structurally.
     """
     component_index = index_components_by_id(root_analysis, sub_analyses)
+    delta_cluster_analysis = _stabilize_existing_file_routes(
+        delta_cluster_analysis, component_index, delta.cluster_results(), repo_dir
+    )
     delta_cluster_analysis = _deduplicate_cluster_routes(delta_cluster_analysis)
 
     cluster_id_remap = delta.merged_cluster_id_remap()

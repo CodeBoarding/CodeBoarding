@@ -624,7 +624,13 @@ class DiagramGenerator:
             self._monitoring_agents["IncrementalAgent"] = incremental_agent
             delta_cluster_analysis = incremental_agent.run(delta, root_analysis, sub_analyses)
 
-            update_plan = stitch_delta(root_analysis, sub_analyses, delta_cluster_analysis, delta)
+            update_plan = stitch_delta(
+                root_analysis,
+                sub_analyses,
+                delta_cluster_analysis,
+                delta,
+                self.repo_location,
+            )
             refresh_files: set[str] = set()
             if self.changes is not None:
                 for file_change in self.changes.files:

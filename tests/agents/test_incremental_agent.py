@@ -3,6 +3,7 @@
 is exercised end-to-end in the diagram_generator tests with a mocked LLM."""
 
 import unittest
+from pathlib import Path
 from unittest.mock import MagicMock
 
 from agents.agent_responses import (
@@ -56,6 +57,18 @@ def _component_with_method(name: str, component_id: str) -> Component:
 
 def _empty_delta() -> ClusterDelta:
     return ClusterDelta(by_language={"python": LanguageDelta(language="python", cluster_results=ClusterResult())})
+
+
+def _delta_with_cluster_files(cluster_to_files: dict[int, set[str]]) -> ClusterDelta:
+    return ClusterDelta(
+        by_language={
+            "python": LanguageDelta(
+                language="python",
+                cluster_results=ClusterResult(cluster_to_files=cluster_to_files),
+                new_cluster_ids=set(cluster_to_files),
+            )
+        }
+    )
 
 
 def _delta(
@@ -399,6 +412,159 @@ class TestStitchDelta(unittest.TestCase):
         self.assertEqual(original.source_cluster_ids, [1])
         self.assertEqual(new_one.source_cluster_ids, [2])
         self.assertTrue(new_one.component_id, "new component should have an assigned id")
+
+    def test_new_route_touching_existing_file_updates_existing_owner(self) -> None:
+        comp = _component("Authentication", "1.3", source_cluster_ids=[1])
+        comp.file_methods = [
+            FileMethodGroup(
+                file_path="auth.py",
+                methods=[MethodEntry(qualified_name="auth.login", start_line=1, end_line=2, node_type="FUNCTION")],
+            )
+        ]
+        root = AnalysisInsights(description="root", components=[comp], components_relations=[])
+        delta_ca = ClusterAnalysis(
+            cluster_components=[
+                ClustersComponent(
+                    name="Phantom Authentication Split",
+                    cluster_ids=[7],
+                    description="LLM tried to add a duplicate boundary",
+                    existing_component_id=None,
+                    parent_id=None,
+                )
+            ]
+        )
+
+        plan = stitch_delta(root, {}, delta_ca, _delta_with_cluster_files({7: {"auth.py"}}))
+
+        self.assertEqual(len(root.components), 1)
+        self.assertEqual(comp.name, "Authentication")
+        self.assertEqual(comp.source_cluster_ids, [1, 7])
+        self.assertEqual(plan.refresh_ids, {"1.3"})
+        self.assertEqual(plan.expand_ids, set())
+
+    def test_new_route_touching_existing_file_normalizes_absolute_cluster_path(self) -> None:
+        repo_dir = Path("/tmp/repo")
+        comp = _component("Authentication", "1.3", source_cluster_ids=[1])
+        comp.file_methods = [
+            FileMethodGroup(
+                file_path="auth.py",
+                methods=[MethodEntry(qualified_name="auth.login", start_line=1, end_line=2, node_type="FUNCTION")],
+            )
+        ]
+        root = AnalysisInsights(description="root", components=[comp], components_relations=[])
+        delta_ca = ClusterAnalysis(
+            cluster_components=[
+                ClustersComponent(
+                    name="Phantom Authentication Split",
+                    cluster_ids=[7],
+                    description="LLM tried to add a duplicate boundary",
+                    existing_component_id=None,
+                    parent_id=None,
+                )
+            ]
+        )
+
+        plan = stitch_delta(root, {}, delta_ca, _delta_with_cluster_files({7: {"/tmp/repo/auth.py"}}), repo_dir)
+
+        self.assertEqual(len(root.components), 1)
+        self.assertEqual(comp.source_cluster_ids, [1, 7])
+        self.assertEqual(plan.refresh_ids, {"1.3"})
+
+    def test_new_route_with_mixed_existing_and_new_files_splits_by_ownership(self) -> None:
+        comp = _component("Authentication", "1.3", source_cluster_ids=[1])
+        comp.file_methods = [
+            FileMethodGroup(
+                file_path="auth.py",
+                methods=[MethodEntry(qualified_name="auth.login", start_line=1, end_line=2, node_type="FUNCTION")],
+            )
+        ]
+        root = AnalysisInsights(description="root", components=[comp], components_relations=[])
+        delta_ca = ClusterAnalysis(
+            cluster_components=[
+                ClustersComponent(
+                    name="Auth And New Worker",
+                    cluster_ids=[7, 8],
+                    description="mixed existing and new files",
+                    existing_component_id=None,
+                    parent_id=None,
+                )
+            ]
+        )
+
+        plan = stitch_delta(root, {}, delta_ca, _delta_with_cluster_files({7: {"auth.py"}, 8: {"worker.py"}}))
+
+        self.assertEqual(comp.source_cluster_ids, [1, 7])
+        new_component = next(c for c in root.components if c.component_id != "1.3")
+        self.assertEqual(new_component.source_cluster_ids, [8])
+        self.assertIn("1.3", plan.refresh_ids)
+        self.assertIn(new_component.component_id, plan.refresh_ids)
+        self.assertIn(new_component.component_id, plan.expand_ids)
+
+    def test_synthetic_reroute_does_not_override_explicit_update_metadata(self) -> None:
+        comp = _component("Authentication", "1.3", source_cluster_ids=[1])
+        comp.file_methods = [
+            FileMethodGroup(
+                file_path="auth.py",
+                methods=[MethodEntry(qualified_name="auth.login", start_line=1, end_line=2, node_type="FUNCTION")],
+            )
+        ]
+        root = AnalysisInsights(description="root", components=[comp], components_relations=[])
+        delta_ca = ClusterAnalysis(
+            cluster_components=[
+                ClustersComponent(
+                    name="Authentication Service",
+                    cluster_ids=[7],
+                    description="updated description",
+                    existing_component_id="1.3",
+                ),
+                ClustersComponent(
+                    name="Phantom Authentication Split",
+                    cluster_ids=[8],
+                    description="should not overwrite explicit metadata",
+                    existing_component_id=None,
+                    parent_id=None,
+                ),
+            ]
+        )
+
+        stitch_delta(root, {}, delta_ca, _delta_with_cluster_files({7: {"auth.py"}, 8: {"auth.py"}}))
+
+        self.assertEqual(comp.name, "Authentication Service")
+        self.assertEqual(comp.description, "updated description")
+        self.assertEqual(comp.source_cluster_ids, [1, 7, 8])
+
+    def test_explicit_update_wins_when_phantom_add_duplicates_same_cluster_first(self) -> None:
+        comp = _component("Authentication", "1.3", source_cluster_ids=[1])
+        comp.file_methods = [
+            FileMethodGroup(
+                file_path="auth.py",
+                methods=[MethodEntry(qualified_name="auth.login", start_line=1, end_line=2, node_type="FUNCTION")],
+            )
+        ]
+        root = AnalysisInsights(description="root", components=[comp], components_relations=[])
+        delta_ca = ClusterAnalysis(
+            cluster_components=[
+                ClustersComponent(
+                    name="Phantom Authentication Split",
+                    cluster_ids=[7],
+                    description="should not win just because it appeared first",
+                    existing_component_id=None,
+                    parent_id=None,
+                ),
+                ClustersComponent(
+                    name="Authentication Service",
+                    cluster_ids=[7],
+                    description="updated description",
+                    existing_component_id="1.3",
+                ),
+            ]
+        )
+
+        stitch_delta(root, {}, delta_ca, _delta_with_cluster_files({7: {"auth.py"}}))
+
+        self.assertEqual(comp.name, "Authentication Service")
+        self.assertEqual(comp.description, "updated description")
+        self.assertEqual(comp.source_cluster_ids, [1, 7])
 
     def test_hallucinated_existing_component_id_is_treated_as_new(self) -> None:
         """If an unknown existing_component_id slips past the validator, the
