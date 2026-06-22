@@ -110,6 +110,13 @@ test_*.py
 # Generated code
 *.pb.go
 **/generated_parser*
+# Machine-generated bindings (ctypes/clang2py, protobuf, gRPC): enormous symbol
+# counts, no architectural signal, and they explode the LSP references phase.
+**/autogen/**
+**/_autogen/**
+*_pb2.py
+*_pb2.pyi
+*_pb2_grpc.py
 
 # Java/Kotlin metadata files
 module-info.java
