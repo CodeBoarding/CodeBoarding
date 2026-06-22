@@ -117,6 +117,7 @@ test_*.py
 *_pb2.py
 *_pb2.pyi
 *_pb2_grpc.py
+*_pb2_grpc.pyi
 
 # Java/Kotlin metadata files
 module-info.java
