@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from agents.details_agent import DetailsAgent, prefix_local_cluster_ids
+from agents.details_agent import DetailsAgent
 from agents.agent_responses import (
     AnalysisInsights,
     ClusterAnalysis,
@@ -286,7 +286,18 @@ class TestDetailsAgent(unittest.TestCase):
 
         self.assertEqual(analysis.components[0].source_cluster_ids, ["1", "2"])
 
-    def test_qualifies_detail_cluster_ids_with_parent_component_id(self):
+    def test_static_relation_pass_qualifies_detail_cluster_ids_with_parent_component_id(self):
+        mock_llm = MagicMock()
+        mock_parsing_llm = MagicMock()
+        agent = DetailsAgent(
+            repo_dir=self.repo_dir,
+            static_analysis=self.mock_static_analysis,
+            project_name=self.project_name,
+            meta_context=self.mock_meta_context,
+            agent_llm=mock_llm,
+            parsing_llm=mock_parsing_llm,
+            run_id="test-run-id",
+        )
         analysis = AnalysisInsights(
             description="Test",
             components=[
@@ -306,7 +317,7 @@ class TestDetailsAgent(unittest.TestCase):
             components_relations=[],
         )
 
-        prefix_local_cluster_ids(analysis, "5.3")
+        agent.build_static_relations(analysis, {}, source_cluster_id_prefix="5.3")
 
         self.assertEqual(analysis.components[0].source_cluster_ids, ["5.3.1", "5.3.2"])
         self.assertEqual(analysis.components[1].source_cluster_ids, ["5.3.7"])

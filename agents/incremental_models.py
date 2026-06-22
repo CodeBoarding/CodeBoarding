@@ -1,6 +1,9 @@
 from dataclasses import dataclass, field
 from enum import StrEnum
 
+from agents.agent_responses import Component
+from agents.cluster_ids import GraphClusterId
+
 
 @dataclass
 class IncrementalUpdatePlan:
@@ -32,3 +35,15 @@ class ClusterRouteBucket:
 
     kind: RouteBucketKind
     destination_id: str = ""
+
+
+@dataclass
+class ExistingComponentOwnership:
+    methods: dict[str, Component] = field(default_factory=dict)
+    files: dict[str, list[Component]] = field(default_factory=dict)
+
+
+@dataclass
+class DeltaClusterContents:
+    members: dict[GraphClusterId, set[str]] = field(default_factory=dict)
+    files: dict[GraphClusterId, set[str]] = field(default_factory=dict)

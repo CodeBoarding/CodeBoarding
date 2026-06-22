@@ -78,15 +78,17 @@ class StaticAnalysisCache:
 
     def _relativize(self, result: "StaticAnalysisResults") -> "StaticAnalysisResults":
         """Return a copy of result with all file paths made repo-relative."""
-        result = copy.deepcopy(result)
-        result.incremental_base_results = None
-        for lang_data in result.results.values():
+        portable = copy.copy(result)
+        # Drop runtime-only warm-start context before deep-copying/pickling the cache artifact.
+        portable.incremental_base_results = None
+        portable = copy.deepcopy(portable)
+        for lang_data in portable.results.values():
             lang_data.visit_paths(self._to_relative)
-        result.diagnostics = {
+        portable.diagnostics = {
             lang: {self._to_relative(fp): diags for fp, diags in file_map.items()}
-            for lang, file_map in result.diagnostics.items()
+            for lang, file_map in portable.diagnostics.items()
         }
-        return result
+        return portable
 
     def _absolutize(self, result: "StaticAnalysisResults") -> "StaticAnalysisResults":
         """Expand all repo-relative file paths in result to absolute paths."""

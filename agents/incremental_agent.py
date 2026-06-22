@@ -7,7 +7,6 @@ create new ones with a ``parent_id``. Stitching back into the live tree
 
 import logging
 from pathlib import Path
-from typing import cast, overload
 
 from langchain.agents import create_agent
 from langchain_core.language_models import BaseChatModel
@@ -28,8 +27,16 @@ from agents.agent_responses import (
     index_components_by_id,
     iter_components,
 )
+from agents.cluster_ids import CodeBoardingClusterIds, GraphClusterId, GraphClusterIds
 from agents.cluster_methods_mixin import ClusterMethodsMixin
-from agents.incremental_models import ClusterRouteBucket, IncrementalUpdatePlan, RouteBucketKind, Verdict
+from agents.incremental_models import (
+    ClusterRouteBucket,
+    DeltaClusterContents,
+    ExistingComponentOwnership,
+    IncrementalUpdatePlan,
+    RouteBucketKind,
+    Verdict,
+)
 from agents.prompts import get_incremental_grouping_message, get_scope_relations_message, get_system_message
 from agents.validation import (
     ValidationContext,
@@ -338,11 +345,11 @@ def _deduplicate_cluster_routes(delta_cluster_analysis: ClusterAnalysis) -> Clus
     merged. The route is still applied once; deterministic remapping handles the
     affected survivors.
     """
-    seen: set[int] = set()
+    seen: set[GraphClusterId] = set()
     kept_components: list[ClustersComponent] = []
     dropped: list[str] = []
     for cc in delta_cluster_analysis.cluster_components:
-        kept_cluster_ids: list[int] = []
+        kept_cluster_ids: list[GraphClusterId] = []
         for cluster_id in cc.cluster_ids:
             if cluster_id in seen:
                 dropped.append(f"{cluster_id} from {cc.existing_component_id or cc.name}")
@@ -357,49 +364,21 @@ def _deduplicate_cluster_routes(delta_cluster_analysis: ClusterAnalysis) -> Clus
     return ClusterAnalysis(cluster_components=kept_components)
 
 
-@overload
-def _sort_cluster_ids(cluster_ids: set[int]) -> list[int]: ...
-
-
-@overload
-def _sort_cluster_ids(cluster_ids: set[str]) -> list[str]: ...
-
-
-def _sort_cluster_ids(cluster_ids: set[int] | set[str]) -> list[int] | list[str]:
-    if all(isinstance(cluster_id, int) for cluster_id in cluster_ids):
-        return sorted(cast(set[int], cluster_ids))
-    return sorted(
-        cast(set[str], cluster_ids),
-        key=lambda cluster_id: (
-            1,
-            [int(part) if part.isdigit() else part for part in cluster_id.split(".")],
-        ),
-    )
-
-
-def _source_cluster_ids(cluster_ids: set[int]) -> list[str]:
-    return [str(cluster_id) for cluster_id in _sort_cluster_ids(cluster_ids)]
-
-
 def _stabilize_existing_file_routes(
     delta_cluster_analysis: ClusterAnalysis,
     component_index: dict[str, Component],
     cluster_results: dict[str, ClusterResult],
     repo_dir: Path,
 ) -> ClusterAnalysis:
-    """Route phantom ADDs for already-owned files back to the existing owner.
+    """Prefer existing component ownership over creating duplicate components.
 
-    Incremental routing is LLM-assisted, so existing methods can sometimes be
-    proposed as a brand-new component after a small edit. Before stitching,
-    index existing method ownership, inspect each routed cluster's qnames, and
-    rewrite ADD routes that contain already-owned methods into UPDATE routes for
-    their owner. If a cluster has only new methods, use file ownership only when
-    every touched file has one unambiguous owner; shared files stay with the LLM
-    route because one file can legitimately span multiple components.
+    1. Check whether each changed cluster's methods already belong to an existing component.
+    2. If no method owner is found, use file ownership when all files point to one component.
+    3. If either check finds one clear owner, assign the cluster there; otherwise keep the LLM's choice.
     """
     repo_root = repo_dir.resolve()
-    method_owners, file_owners = _index_existing_component_ownership(component_index, repo_root)
-    cluster_members, cluster_files = _index_delta_cluster_contents(cluster_results, repo_root)
+    existing_ownership = _index_existing_component_ownership(component_index, repo_root)
+    delta_contents = _index_delta_cluster_contents(cluster_results, repo_root)
 
     stabilized: list[ClustersComponent] = []
     fallback_reroutes: list[ClustersComponent] = []
@@ -407,10 +386,14 @@ def _stabilize_existing_file_routes(
     for cc in delta_cluster_analysis.cluster_components:
         buckets: dict[ClusterRouteBucket, list[int]] = {}
         for cluster_id in cc.cluster_ids:
-            owner = _owner_for_cluster_members(cluster_members.get(cluster_id, set()), method_owners)
+            owner = _owner_for_cluster_members(
+                delta_contents.members.get(cluster_id, set()), existing_ownership.methods
+            )
             if owner is None:
-                owner = _owner_for_cluster_files(cluster_files.get(cluster_id, set()), file_owners)
-            key = _route_key_for_cluster(cc, cluster_id, owner, rerouted)
+                owner = _owner_for_cluster_files(delta_contents.files.get(cluster_id, set()), existing_ownership.files)
+            key = _route_key_for_cluster(cc, owner)
+            if key.kind == RouteBucketKind.REROUTED:
+                rerouted.append(f"{cluster_id} -> {key.destination_id}")
             buckets.setdefault(key, []).append(cluster_id)
 
         _append_bucketed_routes(cc, buckets, component_index, stabilized, fallback_reroutes)
@@ -422,39 +405,32 @@ def _stabilize_existing_file_routes(
 
 def _index_existing_component_ownership(
     component_index: dict[str, Component], repo_root: Path
-) -> tuple[dict[str, Component], dict[str, list[Component]]]:
-    method_owners: dict[str, Component] = {}
-    file_owners: dict[str, list[Component]] = {}
+) -> ExistingComponentOwnership:
+    ownership = ExistingComponentOwnership()
     for component in component_index.values():
         for group in component.file_methods:
             file_path = normalize_repo_path(group.file_path, repo_root)
-            file_owners.setdefault(file_path, []).append(component)
+            ownership.files.setdefault(file_path, []).append(component)
             for method in group.methods:
-                method_owners[method.qualified_name] = component
-    return method_owners, file_owners
+                ownership.methods[method.qualified_name] = component
+    return ownership
 
 
-def _index_delta_cluster_contents(
-    cluster_results: dict[str, ClusterResult], repo_root: Path
-) -> tuple[dict[int, set[str]], dict[int, set[str]]]:
-    cluster_members: dict[int, set[str]] = {}
-    cluster_files: dict[int, set[str]] = {}
+def _index_delta_cluster_contents(cluster_results: dict[str, ClusterResult], repo_root: Path) -> DeltaClusterContents:
+    contents = DeltaClusterContents()
     for cr in cluster_results.values():
         for cluster_id, members in cr.clusters.items():
-            cluster_members.setdefault(cluster_id, set()).update(members)
+            contents.members.setdefault(cluster_id, set()).update(members)
         for cluster_id, files in cr.cluster_to_files.items():
-            cluster_files.setdefault(cluster_id, set()).update(normalize_repo_path(fp, repo_root) for fp in files)
-    return cluster_members, cluster_files
+            contents.files.setdefault(cluster_id, set()).update(normalize_repo_path(fp, repo_root) for fp in files)
+    return contents
 
 
 def _route_key_for_cluster(
     cc: ClustersComponent,
-    cluster_id: int,
     owner: Component | None,
-    rerouted: list[str],
 ) -> ClusterRouteBucket:
     if cc.existing_component_id is None and owner is not None and owner.component_id:
-        rerouted.append(f"{cluster_id} -> {owner.component_id}")
         return ClusterRouteBucket(RouteBucketKind.REROUTED, owner.component_id)
     if cc.existing_component_id:
         return ClusterRouteBucket(RouteBucketKind.ORIGINAL, cc.existing_component_id)
@@ -487,39 +463,31 @@ def _append_bucketed_routes(
 
 
 def _owner_for_cluster_members(members: set[str], method_owners: dict[str, Component]) -> Component | None:
-    candidates: dict[str, tuple[int, int, Component]] = {}
+    owner: Component | None = None
     for qname in members:
         component = method_owners.get(qname)
         if component is None or not component.component_id:
-            continue
-        previous = candidates.get(component.component_id, (0, 0, component))
-        depth = component.component_id.count(".") + 1
-        candidates[component.component_id] = (previous[0] + 1, depth, component)
-    if not candidates:
-        return None
-    return max(candidates.values(), key=lambda item: (item[0], item[1], item[2].component_id or ""))[2]
+            return None
+        if owner is not None and owner.component_id != component.component_id:
+            return None
+        owner = component
+    return owner
 
 
 def _owner_for_cluster_files(files: set[str], file_owners: dict[str, list[Component]]) -> Component | None:
-    candidates: dict[str, tuple[int, int, Component]] = {}
+    owner: Component | None = None
     for file_path in files:
         owners = file_owners.get(file_path, [])
         unique_owners = {component.component_id for component in owners if component.component_id}
         if len(unique_owners) != 1:
-            continue
+            return None
         for component in owners:
             if not component.component_id:
                 continue
-            previous = candidates.get(component.component_id, (0, 0, component))
-            depth = component.component_id.count(".") + 1
-            candidates[component.component_id] = (previous[0] + 1, depth, component)
-    if not candidates:
-        return None
-    return max(candidates.values(), key=lambda item: (item[0], item[1], item[2].component_id or ""))[2]
-
-
-def _root_cluster_ids(source_cluster_ids: list[str]) -> set[int]:
-    return {int(cluster_id) for cluster_id in source_cluster_ids if cluster_id.isdigit()}
+            if owner is not None and owner.component_id != component.component_id:
+                return None
+            owner = component
+    return owner
 
 
 def stitch_delta(
@@ -566,7 +534,7 @@ def stitch_delta(
         remapped = {cluster_id_remap.get(cid, cid) for cid in before}
         remapped -= dropped_cluster_ids
         if remapped != before:
-            component.source_cluster_ids = _sort_cluster_ids(remapped)
+            component.source_cluster_ids = CodeBoardingClusterIds.sort(remapped)
             if component.component_id:
                 plan.refresh_ids.add(component.component_id)
         if component.component_id and set(component.source_cluster_ids) & changed_cluster_ids:
@@ -592,7 +560,7 @@ def stitch_delta(
                         "verdict": verdict,
                         "id": existing.component_id,
                         "name": existing.name,
-                        "clusters": _sort_cluster_ids(set(cc.cluster_ids)),
+                        "clusters": GraphClusterIds.sort(set(cc.cluster_ids)),
                         "redetail": cc.redetail_needed,
                         "parent": None,
                     }
@@ -602,8 +570,9 @@ def stitch_delta(
                         existing.name = cc.name
                     if cc.description and cc.description != existing.description:
                         existing.description = cc.description
-                    updated = _sort_cluster_ids(
-                        set(existing.source_cluster_ids) | set(_source_cluster_ids(set(cc.cluster_ids)))
+                    updated = CodeBoardingClusterIds.sort(
+                        set(existing.source_cluster_ids)
+                        | set(CodeBoardingClusterIds.from_graph_ids(set(cc.cluster_ids)))
                     )
                     if updated != existing.source_cluster_ids:
                         existing.source_cluster_ids = updated
@@ -617,7 +586,7 @@ def stitch_delta(
                 "verdict": Verdict.ADD,
                 "id": "?",
                 "name": cc.name,
-                "clusters": _sort_cluster_ids(set(cc.cluster_ids)),
+                "clusters": GraphClusterIds.sort(set(cc.cluster_ids)),
                 "redetail": True,
                 "parent": cc.parent_id,
             }
@@ -627,7 +596,7 @@ def stitch_delta(
             description=cc.description or "",
             key_entities=[],
             source_group_names=[cc.name],
-            source_cluster_ids=_source_cluster_ids(set(cc.cluster_ids)),
+            source_cluster_ids=CodeBoardingClusterIds.from_graph_ids(set(cc.cluster_ids)),
         )
         new_components.append((new_component, cc.parent_id))
 
@@ -735,8 +704,15 @@ def repopulate_touched_scopes(
             touched_scopes.add(scope_id)
             for component in sub.components:
                 if component.component_id in refresh_ids:
-                    _refresh_component_file_methods(component, cluster_results, node_lookup, repo_dir, refresh_files)
-            helpers.build_static_relations(sub)
+                    _refresh_component_file_methods(
+                        component,
+                        cluster_results,
+                        node_lookup,
+                        repo_dir,
+                        refresh_files,
+                        source_cluster_id_prefix=scope_id,
+                    )
+            helpers.build_static_relations(sub, source_cluster_id_prefix=scope_id)
 
     return touched_scopes
 
@@ -767,16 +743,21 @@ def _refresh_component_file_methods(
     node_lookup: dict[str, MethodEntry],
     repo_dir: Path,
     refresh_files: set[str],
+    source_cluster_id_prefix: str = "",
 ) -> None:
     """Rebuild ``component.file_methods`` from live cluster_results, grouped by file.
 
     When ``refresh_files`` is set, only those files are replaced from live CFG
     data; untouched files keep their previous owner even if broad clusters drift.
     """
-    owned_cids = _root_cluster_ids(component.source_cluster_ids)
+    owned_cids = CodeBoardingClusterIds.to_graph_ids_for_scope(component.source_cluster_ids, source_cluster_id_prefix)
     if not owned_cids:
-        if not refresh_files:
-            component.file_methods = []
+        if component.file_methods:
+            logger.warning(
+                "[incremental] component %s has no owned clusters; clearing stale file_methods",
+                component.component_id or component.name,
+            )
+        component.file_methods = []
         return
 
     repo_root = repo_dir.resolve()
@@ -805,6 +786,15 @@ def _refresh_component_file_methods(
                 if not file_path:
                     continue
                 by_file.setdefault(file_path, []).append(method)
+
+    if not by_file and component.file_methods:
+        logger.warning(
+            "[incremental] component %s owns clusters %s but none were found in current cluster results; clearing stale file_methods",
+            component.component_id or component.name,
+            sorted(owned_cids),
+        )
+        component.file_methods = []
+        return
 
     refreshed_groups = [
         FileMethodGroup(
@@ -915,6 +905,7 @@ def prune_empty_components(
     _collect_empty(root_analysis)
     for sub in sub_analyses.values():
         _collect_empty(sub)
+    _collect_descendant_ids(root_analysis, sub_analyses, removed_ids)
 
     if not removed_ids:
         return set()
@@ -931,6 +922,26 @@ def prune_empty_components(
             del sub_analyses[cid]
 
     return removed_ids
+
+
+def _collect_descendant_ids(
+    root_analysis: AnalysisInsights,
+    sub_analyses: dict[str, AnalysisInsights],
+    removed_ids: set[str],
+) -> None:
+    if not removed_ids:
+        return
+    all_component_ids = {
+        component.component_id for component in iter_components(root_analysis, sub_analyses) if component.component_id
+    }
+    all_component_ids.update(sub_analyses.keys())
+    changed = True
+    while changed:
+        changed = False
+        for component_id in all_component_ids - removed_ids:
+            if any(component_id.startswith(f"{removed_id}.") for removed_id in removed_ids):
+                removed_ids.add(component_id)
+                changed = True
 
 
 def _strip_relations(analysis: AnalysisInsights, removed_ids: set[str]) -> None:

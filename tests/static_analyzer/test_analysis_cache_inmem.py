@@ -286,7 +286,8 @@ class TestClusterCachePreservation(unittest.TestCase):
             root = Path(temp_dir)
             result = StaticAnalysisResults()
             result.add_cfg(Language.PYTHON, self._cg_with_cluster_cache())
-            result.incremental_base_results = StaticAnalysisResults()
+            base_results = StaticAnalysisResults()
+            result.incremental_base_results = base_results
 
             cache = StaticAnalysisCache(root / ".codeboarding", root)
             cache.save(result, source_sha="sha")
@@ -294,6 +295,7 @@ class TestClusterCachePreservation(unittest.TestCase):
 
             assert loaded is not None
             self.assertIsNone(loaded.incremental_base_results)
+            self.assertIs(result.incremental_base_results, base_results)
 
 
 class TestWarmStartDeletion(unittest.TestCase):

@@ -9,6 +9,8 @@ from typing import get_origin, Optional
 from pydantic import BaseModel, Field
 from pydantic.fields import FieldInfo
 
+from agents.cluster_ids import CodeBoardingClusterId, GraphClusterId
+
 logger = logging.getLogger(__name__)
 
 
@@ -183,7 +185,7 @@ class ClustersComponent(LLMBaseModel):
     name: str = Field(
         description="Short, descriptive name for this cluster group (e.g., 'Authentication', 'Data Pipeline', 'Request Handling')"
     )
-    cluster_ids: list[int] = Field(
+    cluster_ids: list[GraphClusterId] = Field(
         description="List of cluster IDs from the CFG analysis that are grouped together (e.g., [1, 3, 5])"
     )
     description: str = Field(
@@ -305,7 +307,7 @@ class Component(LLMBaseModel):
         default_factory=list,
     )
 
-    source_cluster_ids: list[str] = Field(
+    source_cluster_ids: list[CodeBoardingClusterId] = Field(
         description="List of cluster IDs from CFG analysis that this component encompasses (populated deterministically from source_group_names).",
         default_factory=list,
         exclude=True,

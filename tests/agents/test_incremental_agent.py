@@ -566,6 +566,49 @@ class TestStitchDelta(unittest.TestCase):
         self.assertEqual(new_component.source_cluster_ids, ["7"])
         self.assertIn(new_component.component_id, plan.new_component_ids)
 
+    def test_new_route_with_reused_helper_and_new_methods_stays_add(self) -> None:
+        helpers = _component("Helpers", "1.1", source_cluster_ids=["1"])
+        helpers.file_methods = [
+            FileMethodGroup(
+                file_path="helpers.py",
+                methods=[
+                    MethodEntry(qualified_name="helpers.format_name", start_line=1, end_line=2, node_type="FUNCTION")
+                ],
+            )
+        ]
+        root = AnalysisInsights(description="root", components=[helpers], components_relations=[])
+        delta_ca = ClusterAnalysis(
+            cluster_components=[
+                ClustersComponent(
+                    name="New Feature",
+                    cluster_ids=[7],
+                    description="new feature that reuses a helper",
+                    existing_component_id=None,
+                    parent_id=None,
+                )
+            ]
+        )
+        delta = ClusterDelta(
+            by_language={
+                "python": LanguageDelta(
+                    language="python",
+                    cluster_results=ClusterResult(
+                        clusters={7: {"helpers.format_name", "feature.create", "feature.render"}},
+                        cluster_to_files={7: {"helpers.py", "feature.py"}},
+                    ),
+                    new_cluster_ids={7},
+                )
+            }
+        )
+
+        plan = stitch_delta(root, {}, delta_ca, delta)
+
+        self.assertEqual(helpers.source_cluster_ids, ["1"])
+        new_component = next(c for c in root.components if c.component_id != "1.1")
+        self.assertEqual(new_component.name, "New Feature")
+        self.assertEqual(new_component.source_cluster_ids, ["7"])
+        self.assertIn(new_component.component_id, plan.new_component_ids)
+
     def test_new_route_with_mixed_existing_and_new_files_splits_by_ownership(self) -> None:
         comp = _component("Authentication", "1.3", source_cluster_ids=["1"])
         comp.file_methods = [
@@ -929,6 +972,22 @@ class TestPruneEmptyComponents(unittest.TestCase):
         self.assertEqual([(r.src_id, r.dst_id) for r in root.components_relations], [("1", "2")])
         self.assertEqual([c.component_id for c in root.components], ["1", "2"])
 
+    def test_pruning_empty_parent_removes_descendant_subtree(self) -> None:
+        parent = _component("Parent", "1")
+        child = _component_with_method("Child", "1.1")
+        grandchild = _component_with_method("Grandchild", "1.1.1")
+        root = AnalysisInsights(description="root", components=[parent], components_relations=[])
+        sub_analyses = {
+            "1": AnalysisInsights(description="parent scope", components=[child], components_relations=[]),
+            "1.1": AnalysisInsights(description="child scope", components=[grandchild], components_relations=[]),
+        }
+
+        removed_ids = prune_empty_components(root, sub_analyses)
+
+        self.assertEqual(removed_ids, {"1", "1.1", "1.1.1"})
+        self.assertEqual(root.components, [])
+        self.assertEqual(sub_analyses, {})
+
 
 class TestRepopulateTouchedScopes(unittest.TestCase):
     def test_only_runs_relation_pass_on_touched_scopes(self) -> None:
@@ -951,7 +1010,24 @@ class TestRepopulateTouchedScopes(unittest.TestCase):
 
         self.assertEqual(touched, {"2"})
         helpers.populate_file_methods.assert_not_called()
-        helpers.build_static_relations.assert_called_once()
+        helpers.build_static_relations.assert_called_once_with(sub, source_cluster_id_prefix="2")
+
+    def test_relation_pass_uses_scope_id_as_detail_cluster_prefix(self) -> None:
+        root_comp = _component("Root", "1", source_cluster_ids=["1"])
+        sub_comp = _component("Sub", "1.3.1", source_cluster_ids=["7"])
+        root = AnalysisInsights(description="r", components=[root_comp], components_relations=[])
+        sub = AnalysisInsights(description="s", components=[sub_comp], components_relations=[])
+        sub_analyses = {"1.3": sub}
+
+        helpers = MagicMock()
+        helpers.repo_dir = Path("/repo")
+        helpers.static_analysis = MagicMock()
+        helpers.static_analysis.get_cfg.return_value = MagicMock(nodes={})
+
+        touched = repopulate_touched_scopes({"1.3.1"}, root, sub_analyses, {"python": ClusterResult()}, helpers, set())
+
+        self.assertEqual(touched, {"1.3"})
+        helpers.build_static_relations.assert_called_once_with(sub, source_cluster_id_prefix="1.3")
 
     def test_no_redetail_skips_all_helpers(self) -> None:
         root = AnalysisInsights(description="r", components=[], components_relations=[])
@@ -1046,6 +1122,76 @@ class TestRefreshComponentFileMethodsPathNormalization(unittest.TestCase):
         self.assertEqual(set(by_file), {"stable.py", "changed.py"})
         self.assertEqual(by_file["stable.py"], ["stable.fn"])
         self.assertEqual(by_file["changed.py"], ["changed.fn"])
+
+    def test_scoped_refresh_resolves_prefixed_detail_cluster_ids(self) -> None:
+        from agents.incremental_agent import _refresh_component_file_methods
+
+        comp = _component("Leaf", "1.3.1", source_cluster_ids=["1.3.7"])
+        cluster_results = {
+            "python": ClusterResult(
+                clusters={7: {"leaf.fn"}},
+                cluster_to_files={7: {"leaf.py"}},
+            )
+        }
+        node_lookup = {"leaf.fn": MethodEntry(qualified_name="leaf.fn", start_line=1, end_line=2, node_type="FUNCTION")}
+
+        _refresh_component_file_methods(
+            comp,
+            cluster_results,
+            node_lookup,
+            Path("."),
+            refresh_files=set(),
+            source_cluster_id_prefix="1.3",
+        )
+
+        self.assertEqual([group.file_path for group in comp.file_methods], ["leaf.py"])
+        self.assertEqual(comp.file_methods[0].methods[0].qualified_name, "leaf.fn")
+
+    def test_scoped_refresh_clears_stale_file_methods_when_component_has_no_clusters(self) -> None:
+        from agents.incremental_agent import _refresh_component_file_methods
+
+        comp = _component("Empty", "1.4", source_cluster_ids=[])
+        comp.file_methods = [
+            FileMethodGroup(
+                file_path="stale.py",
+                methods=[MethodEntry(qualified_name="stale.fn", start_line=1, end_line=2, node_type="FUNCTION")],
+            )
+        ]
+
+        with self.assertLogs("agents.incremental_agent", level="WARNING") as logs:
+            _refresh_component_file_methods(
+                comp,
+                {"python": ClusterResult()},
+                {},
+                Path("."),
+                refresh_files={"changed.py"},
+            )
+
+        self.assertEqual(comp.file_methods, [])
+        self.assertIn("has no owned clusters", "\n".join(logs.output))
+
+    def test_scoped_refresh_clears_stale_file_methods_when_owned_clusters_disappear(self) -> None:
+        from agents.incremental_agent import _refresh_component_file_methods
+
+        comp = _component("Missing", "1.5", source_cluster_ids=["9"])
+        comp.file_methods = [
+            FileMethodGroup(
+                file_path="stale.py",
+                methods=[MethodEntry(qualified_name="stale.fn", start_line=1, end_line=2, node_type="FUNCTION")],
+            )
+        ]
+
+        with self.assertLogs("agents.incremental_agent", level="WARNING") as logs:
+            _refresh_component_file_methods(
+                comp,
+                {"python": ClusterResult(clusters={1: {"other.fn"}}, cluster_to_files={1: {"other.py"}})},
+                {"other.fn": MethodEntry(qualified_name="other.fn", start_line=1, end_line=2, node_type="FUNCTION")},
+                Path("."),
+                refresh_files={"changed.py"},
+            )
+
+        self.assertEqual(comp.file_methods, [])
+        self.assertIn("none were found in current cluster results", "\n".join(logs.output))
 
 
 class TestIncrementalAgentToolkit(unittest.TestCase):

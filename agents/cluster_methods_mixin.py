@@ -16,6 +16,7 @@ from agents.agent_responses import (
     MethodEntry,
 )
 from agents.cluster_budget import ClusterPromptBudget
+from agents.cluster_ids import CodeBoardingClusterId, CodeBoardingClusterIds, GraphClusterId
 from agents.llm_config import get_current_agent_context_window, get_current_agent_model_ref
 from agents.model_capabilities import ContextWindow
 from constants import MIN_CLUSTERS_THRESHOLD
@@ -44,7 +45,7 @@ logger = logging.getLogger(__name__)
 class _RenderedClusterString:
     text: str
     by_language: dict[str, str]
-    cluster_ids: set[int]
+    cluster_ids: set[GraphClusterId]
 
 
 def _describe_window(ctx: ContextWindow) -> str:
@@ -327,7 +328,7 @@ class ClusterMethodsMixin:
 
     def _resolve_cluster_ids_from_groups(self, analysis: AnalysisInsights, cluster_analysis: ClusterAnalysis) -> None:
         """Resolve source_cluster_ids deterministically from source_group_names via case-insensitive lookup."""
-        group_name_to_ids: dict[str, list[int]] = {
+        group_name_to_ids: dict[str, list[GraphClusterId]] = {
             cc.name.lower(): cc.cluster_ids for cc in cluster_analysis.cluster_components
         }
 
@@ -340,7 +341,7 @@ class ClusterMethodsMixin:
                 logger.warning(
                     f"[{self.__class__.__name__}] Unresolved group name '{gname}' for component '{component.name}'"
                 )
-            component.source_cluster_ids = [str(cid) for cid in sorted(set(resolved_ids))]
+            component.source_cluster_ids = CodeBoardingClusterIds.from_graph_ids(set(resolved_ids))
 
     def _expand_to_method_level_clusters(self, cfg: CallGraph, cluster_result: ClusterResult) -> ClusterResult:
         """
@@ -609,27 +610,31 @@ class ClusterMethodsMixin:
             groups.append(FileMethodGroup(file_path=file_path, methods=methods))
         return groups
 
-    def _build_cluster_to_component_map(self, analysis: AnalysisInsights) -> dict[str, Component]:
+    def _build_cluster_to_component_map(self, analysis: AnalysisInsights) -> dict[CodeBoardingClusterId, Component]:
         """Build cluster_id -> Component mapping from source_cluster_ids."""
-        cluster_to_component: dict[str, Component] = {}
+        cluster_to_component: dict[CodeBoardingClusterId, Component] = {}
         for comp in analysis.components:
             for cid in comp.source_cluster_ids:
                 cluster_to_component[cid] = comp
         return cluster_to_component
 
-    def _build_node_to_cluster_map(self, cluster_results: dict[str, ClusterResult]) -> tuple[dict[str, str], set[str]]:
+    def _build_node_to_cluster_map(
+        self, cluster_results: dict[str, ClusterResult]
+    ) -> tuple[dict[str, CodeBoardingClusterId], set[CodeBoardingClusterId]]:
         """Build node_name (qualified name) -> cluster_id mapping and collect all cluster IDs."""
-        all_cluster_ids: set[str] = set()
-        node_to_cluster: dict[str, str] = {}
+        all_cluster_ids: set[CodeBoardingClusterId] = set()
+        node_to_cluster: dict[str, CodeBoardingClusterId] = {}
         for cr in cluster_results.values():
             for cid, members in cr.clusters.items():
-                cluster_id = str(cid)
+                cluster_id = CodeBoardingClusterIds.from_graph_ids({cid})[0]
                 all_cluster_ids.add(cluster_id)
                 for name in members:
                     node_to_cluster[name] = cluster_id
         return node_to_cluster, all_cluster_ids
 
-    def _validate_cluster_coverage(self, cluster_to_component: dict[str, Component], all_cluster_ids: set[str]) -> None:
+    def _validate_cluster_coverage(
+        self, cluster_to_component: dict[CodeBoardingClusterId, Component], all_cluster_ids: set[CodeBoardingClusterId]
+    ) -> None:
         """Log an error if any cluster IDs are not mapped to a component."""
         unmapped_cluster_ids = sorted(all_cluster_ids - set(cluster_to_component.keys()))
         if unmapped_cluster_ids:
@@ -797,6 +802,7 @@ class ClusterMethodsMixin:
         self,
         analysis: AnalysisInsights,
         cfg_graphs: dict[str, CallGraph] | None = None,
+        source_cluster_id_prefix: str = "",
     ) -> None:
         """Build inter-component relations from CFG edges and merge with LLM relations.
 
@@ -812,6 +818,14 @@ class ClusterMethodsMixin:
         node_to_component = build_node_to_component_map(analysis)
         static_relations = build_component_relations(node_to_component, cfg_graphs)
         analysis.components_relations = merge_relations(analysis.components_relations, static_relations, analysis)
+        self._prefix_local_cluster_ids(analysis, source_cluster_id_prefix)
+
+    def _prefix_local_cluster_ids(self, analysis: AnalysisInsights, prefix: str) -> None:
+        """Prefix detail-subgraph cluster ids with their owning component scope."""
+        for component in analysis.components:
+            component.source_cluster_ids = CodeBoardingClusterIds.qualify_local_ids(
+                component.source_cluster_ids, prefix
+            )
 
     def build_scope_cfg_string(self, analysis: AnalysisInsights) -> str:
         """Render cross-component communication edges as a human-readable string for the LLM.
