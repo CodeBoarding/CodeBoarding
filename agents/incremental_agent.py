@@ -490,12 +490,6 @@ def _owner_for_cluster_files(files: set[str], file_owners: dict[str, list[Compon
     return owner
 
 
-def _source_cluster_id_prefix_for_component(component_id: str | None) -> str:
-    if not component_id or "." not in component_id:
-        return ""
-    return component_id.rsplit(".", 1)[0]
-
-
 def stitch_delta(
     root_analysis: AnalysisInsights,
     sub_analyses: dict[str, AnalysisInsights],
@@ -532,33 +526,19 @@ def stitch_delta(
         for ld in delta.by_language.values()
         for cluster_id in ld.changed_cluster_ids
     }
-    changed_graph_cluster_ids = {int(cluster_id) for cluster_id in changed_cluster_ids if cluster_id.isdigit()}
 
     plan = IncrementalUpdatePlan()
 
     for component in component_index.values():
         before = set(component.source_cluster_ids)
-        source_cluster_id_prefix = _source_cluster_id_prefix_for_component(component.component_id)
-        remapped = set(
-            CodeBoardingClusterIds.remap_for_scope(
-                component.source_cluster_ids,
-                cluster_id_remap,
-                dropped_cluster_ids,
-                source_cluster_id_prefix,
-            )
-        )
+        # Qualified ids (e.g. "1.3.7") are detail-local, not root graph ids.
+        remapped = {cluster_id_remap.get(cid, cid) for cid in before}
+        remapped -= dropped_cluster_ids
         if remapped != before:
             component.source_cluster_ids = CodeBoardingClusterIds.sort(remapped)
             if component.component_id:
                 plan.refresh_ids.add(component.component_id)
-        owned_changed_cids = (
-            CodeBoardingClusterIds.to_graph_ids_for_scope(
-                component.source_cluster_ids,
-                source_cluster_id_prefix,
-            )
-            & changed_graph_cluster_ids
-        )
-        if component.component_id and owned_changed_cids:
+        if component.component_id and set(component.source_cluster_ids) & changed_cluster_ids:
             plan.refresh_ids.add(component.component_id)
 
     new_components: list[tuple[Component, str | None]] = []
@@ -591,16 +571,9 @@ def stitch_delta(
                         existing.name = cc.name
                     if cc.description and cc.description != existing.description:
                         existing.description = cc.description
-                    source_cluster_id_prefix = _source_cluster_id_prefix_for_component(existing.component_id)
-                    new_source_cluster_ids = CodeBoardingClusterIds.from_graph_ids(set(cc.cluster_ids))
-                    if source_cluster_id_prefix and any(
-                        cid.startswith(f"{source_cluster_id_prefix}.") for cid in existing.source_cluster_ids
-                    ):
-                        new_source_cluster_ids = CodeBoardingClusterIds.qualify_local_ids(
-                            new_source_cluster_ids, source_cluster_id_prefix
-                        )
                     updated = CodeBoardingClusterIds.sort(
-                        set(existing.source_cluster_ids) | set(new_source_cluster_ids)
+                        set(existing.source_cluster_ids)
+                        | set(CodeBoardingClusterIds.from_graph_ids(set(cc.cluster_ids)))
                     )
                     if updated != existing.source_cluster_ids:
                         existing.source_cluster_ids = updated

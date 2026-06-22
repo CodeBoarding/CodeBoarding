@@ -807,7 +807,7 @@ class TestStitchDelta(unittest.TestCase):
         self.assertNotIn("1", plan.refresh_ids)
         self.assertEqual(plan.new_component_ids, set())
 
-    def test_qualified_detail_cluster_id_refreshes_when_local_cluster_changes(self) -> None:
+    def test_qualified_detail_cluster_id_does_not_match_global_changed_cluster(self) -> None:
         top = _component("Top", "1", source_cluster_ids=["1"])
         child = _component("Child", "1.1", source_cluster_ids=["1.7"])
         root = AnalysisInsights(description="root", components=[top], components_relations=[])
@@ -818,61 +818,7 @@ class TestStitchDelta(unittest.TestCase):
         plan = stitch_delta(root, sub_analyses, ClusterAnalysis(cluster_components=[]), _delta(changed={7}))
 
         self.assertEqual(child.source_cluster_ids, ["1.7"])
-        self.assertEqual(plan.refresh_ids, {"1.1"})
-        self.assertEqual(plan.new_component_ids, set())
-
-    def test_depth_three_qualified_detail_cluster_id_refreshes_when_local_cluster_changes(self) -> None:
-        top = _component("Top", "1", source_cluster_ids=["1"])
-        mid = _component("Mid", "1.3", source_cluster_ids=["1.3.2"])
-        leaf = _component("Leaf", "1.3.1", source_cluster_ids=["1.3.7"])
-        root = AnalysisInsights(description="root", components=[top], components_relations=[])
-        sub_analyses = {
-            "1": AnalysisInsights(description="", components=[mid], components_relations=[]),
-            "1.3": AnalysisInsights(description="", components=[leaf], components_relations=[]),
-        }
-
-        plan = stitch_delta(root, sub_analyses, ClusterAnalysis(cluster_components=[]), _delta(changed={7}))
-
-        self.assertEqual(leaf.source_cluster_ids, ["1.3.7"])
-        self.assertEqual(plan.refresh_ids, {"1.3.1"})
-        self.assertEqual(plan.new_component_ids, set())
-
-    def test_qualified_detail_cluster_id_remap_preserves_scope_prefix(self) -> None:
-        top = _component("Top", "1", source_cluster_ids=["1"])
-        leaf = _component("Leaf", "1.3.1", source_cluster_ids=["1.3.7"])
-        root = AnalysisInsights(description="root", components=[top], components_relations=[])
-        sub_analyses = {
-            "1.3": AnalysisInsights(description="", components=[leaf], components_relations=[]),
-        }
-
-        plan = stitch_delta(root, sub_analyses, ClusterAnalysis(cluster_components=[]), _delta(remap={7: 9}))
-
-        self.assertEqual(leaf.source_cluster_ids, ["1.3.9"])
-        self.assertEqual(plan.refresh_ids, {"1.3.1"})
-        self.assertEqual(plan.new_component_ids, set())
-
-    def test_existing_update_preserves_qualified_detail_cluster_ids(self) -> None:
-        top = _component("Top", "1", source_cluster_ids=["1"])
-        leaf = _component("Leaf", "1.3.1", source_cluster_ids=["1.3.7"])
-        root = AnalysisInsights(description="root", components=[top], components_relations=[])
-        sub_analyses = {
-            "1.3": AnalysisInsights(description="", components=[leaf], components_relations=[]),
-        }
-        delta_ca = ClusterAnalysis(
-            cluster_components=[
-                ClustersComponent(
-                    name="Leaf",
-                    cluster_ids=[9],
-                    description="changed",
-                    existing_component_id="1.3.1",
-                )
-            ]
-        )
-
-        plan = stitch_delta(root, sub_analyses, delta_ca, _empty_delta())
-
-        self.assertEqual(leaf.source_cluster_ids, ["1.3.7", "1.3.9"])
-        self.assertEqual(plan.refresh_ids, {"1.3.1"})
+        self.assertEqual(plan.refresh_ids, set())
         self.assertEqual(plan.new_component_ids, set())
 
     def test_update_skips_propagation_when_ancestors_already_carry_ids(self) -> None:

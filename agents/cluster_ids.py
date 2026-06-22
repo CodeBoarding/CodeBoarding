@@ -50,28 +50,3 @@ class CodeBoardingClusterIds:
                 if local_cluster_id.isdigit():
                     graph_cluster_ids.add(int(local_cluster_id))
         return graph_cluster_ids
-
-    @classmethod
-    def remap_for_scope(
-        cls,
-        source_cluster_ids: list[CodeBoardingClusterId],
-        cluster_id_remap: dict[CodeBoardingClusterId, CodeBoardingClusterId],
-        dropped_cluster_ids: set[CodeBoardingClusterId],
-        source_cluster_id_prefix: str = "",
-    ) -> list[CodeBoardingClusterId]:
-        remapped: set[CodeBoardingClusterId] = set()
-        qualified_prefix = f"{source_cluster_id_prefix}." if source_cluster_id_prefix else ""
-        for cluster_id in source_cluster_ids:
-            local_cluster_id = cluster_id
-            was_qualified = False
-            if qualified_prefix and cluster_id.startswith(qualified_prefix):
-                local_cluster_id = cluster_id.removeprefix(qualified_prefix)
-                was_qualified = True
-            if local_cluster_id in dropped_cluster_ids:
-                continue
-            next_local_cluster_id = cluster_id_remap.get(local_cluster_id, local_cluster_id)
-            if was_qualified:
-                remapped.add(f"{qualified_prefix}{next_local_cluster_id}")
-            else:
-                remapped.add(next_local_cluster_id)
-        return cls.sort(remapped)
