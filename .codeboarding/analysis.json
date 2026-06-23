@@ -1,7 +1,7 @@
 {
   "metadata": {
-    "generated_at": "2026-06-19T22:49:43.850479+00:00",
-    "commit_hash": "e371d5a608d55def80aec292f78897718dfac857",
+    "generated_at": "2026-06-23T13:25:46.254140+00:00",
+    "commit_hash": "600dff06ce0e3312cf7ae13ab259a30234ba197f",
     "repo_name": "CodeBoarding",
     "depth_level": 4,
     "file_coverage_summary": {
@@ -14346,7 +14346,9 @@
                   "key_entities": [
                     {
                       "qualified_name": "diagram_analysis.io_utils",
-                      "reference_file": "diagram_analysis/io_utils.py"
+                      "reference_file": "diagram_analysis/io_utils.py",
+                      "reference_start_line": 0,
+                      "reference_end_line": 0
                     }
                   ],
                   "source_cluster_ids": [
@@ -37866,7 +37868,9 @@
                   "key_entities": [
                     {
                       "qualified_name": "telemetry.events",
-                      "reference_file": "telemetry/events.py"
+                      "reference_file": "telemetry/events.py",
+                      "reference_start_line": 0,
+                      "reference_end_line": 0
                     }
                   ],
                   "source_cluster_ids": [
