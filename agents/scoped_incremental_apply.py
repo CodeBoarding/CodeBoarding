@@ -88,8 +88,12 @@ def _apply_component_update(scope_id: str, component: Component, operation: Scop
 
 
 def _operation_source_cluster_ids(scope_id: str, operation: ScopeOperation) -> list[str]:
-    local_ids = {ref.cluster_id for ref in operation.cluster_refs if ref.scope_id == scope_id}
+    local_ids = {ref.cluster_id for ref in operation.cluster_refs if _normalize_scope_id(ref.scope_id) == scope_id}
     return CodeBoardingClusterIds.qualify_local_ids(CodeBoardingClusterIds.from_graph_ids(local_ids), scope_id)
+
+
+def _normalize_scope_id(scope_id: str) -> str:
+    return "" if scope_id == "root" else scope_id
 
 
 def _assign_new_ids(scope_id: str, scope: AnalysisInsights) -> None:

@@ -76,6 +76,27 @@ def test_validate_scope_update_decision_enforces_cluster_coverage_and_component_
     assert result.is_valid
 
 
+def test_validate_scope_update_decision_accepts_root_scope_alias() -> None:
+    decision = ScopeUpdateDecision(
+        operations=[
+            ScopeOperation(
+                action=ScopeOperationAction.UPDATE_COMPONENT,
+                cluster_refs=[ScopedClusterRef(scope_id="root", language="python", cluster_id=1)],
+                component_id="1",
+                rationale="Root alias should match the empty root scope.",
+            )
+        ]
+    )
+    context = ScopeOperationValidationContext(
+        expected_cluster_refs={ClusterRef(language="python", cluster_id=1, scope_id="")},
+        existing_component_ids={"1"},
+    )
+
+    result = validate_scope_update_decision(decision, context)
+
+    assert result.is_valid
+
+
 def test_validate_scope_update_decision_rejects_missing_duplicate_and_unknown_ids() -> None:
     decision = ScopeUpdateDecision(
         operations=[

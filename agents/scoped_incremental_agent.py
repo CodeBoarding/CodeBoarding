@@ -16,6 +16,7 @@ from agents.agent_responses import (
     ScopeOperation,
     ScopeOperationAction,
     ScopeUpdateDecision,
+    ScopedClusterRef,
 )
 from agents.prompts import get_system_message
 from agents.validation import ValidationResult
@@ -167,7 +168,7 @@ def validate_scope_update_decision(
     errors: list[str] = []
     seen_refs: list[ClusterRef] = []
     for operation in decision.operations:
-        refs = [ClusterRef(ref.language, ref.cluster_id, ref.scope_id) for ref in operation.cluster_refs]
+        refs = [_cluster_ref_from_scoped_ref(ref) for ref in operation.cluster_refs]
         seen_refs.extend(refs)
         if operation.action in {
             ScopeOperationAction.ASSIGN_TO_EXISTING,
@@ -201,6 +202,11 @@ def validate_scope_update_decision(
     if duplicates:
         errors.append(f"Duplicate cluster_refs: {_format_cluster_ref_list(duplicates)}")
     return ValidationResult(is_valid=not errors, feedback_messages=errors)
+
+
+def _cluster_ref_from_scoped_ref(ref: ScopedClusterRef) -> ClusterRef:
+    scope_id = "" if ref.scope_id == "root" else ref.scope_id
+    return ClusterRef(ref.language, ref.cluster_id, scope_id)
 
 
 def format_structural_diff(structural_diff: StructuralClusterDiff) -> str:

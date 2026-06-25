@@ -603,7 +603,6 @@ class DiagramGenerator:
             # it makes no sense to not have changes but still prune?
             if not delta.has_changes:
                 logger.info("Cluster delta is empty; rewriting current analysis without re-detailing.")
-                prune_empty_components(root_analysis, sub_analyses)
                 commit_hash = get_git_commit_hash(self.repo_location)
                 self._strip_ignored(root_analysis, sub_analyses)
                 analysis_path = save_analysis(

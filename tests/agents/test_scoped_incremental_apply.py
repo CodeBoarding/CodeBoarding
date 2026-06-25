@@ -64,6 +64,30 @@ def test_apply_create_component_assigns_root_id_and_clusters() -> None:
     assert result.new_component_ids == {"2"}
 
 
+def test_apply_create_component_accepts_root_scope_alias() -> None:
+    existing = Component(name="API", description="", key_entities=[], component_id="1")
+    scope = AnalysisInsights(description="root", components=[existing], components_relations=[])
+    decision = ScopeUpdateDecision(
+        operations=[
+            ScopeOperation(
+                action=ScopeOperationAction.CREATE_COMPONENT,
+                cluster_refs=[ScopedClusterRef(scope_id="root", language="python", cluster_id=12)],
+                name="Worker",
+                description="Runs jobs.",
+                rationale="New package root.",
+            )
+        ]
+    )
+
+    result = apply_scope_update_decision("", scope, decision)
+
+    created = scope.components[1]
+    assert created.component_id == "2"
+    assert created.source_cluster_ids == ["12"]
+    assert result.refresh_ids == {"2"}
+    assert result.new_component_ids == {"2"}
+
+
 def test_apply_create_component_assigns_nested_id_and_qualified_cluster() -> None:
     existing = Component(name="Leaf", description="", key_entities=[], component_id="1.3.1")
     scope = AnalysisInsights(description="sub", components=[existing], components_relations=[])

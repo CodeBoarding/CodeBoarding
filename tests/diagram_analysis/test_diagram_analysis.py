@@ -807,6 +807,53 @@ class TestDiagramGenerator(unittest.TestCase):
         gen._generate_subcomponents.assert_not_called()
         self.assertEqual(sub_analyses["1"].components[0].name, "Stable Child")
 
+    @patch("diagram_analysis.diagram_generator.get_git_commit_hash", return_value="abc123")
+    @patch("diagram_analysis.diagram_generator.save_analysis")
+    @patch("diagram_analysis.diagram_generator.prune_empty_components")
+    @patch("diagram_analysis.diagram_generator.compute_cluster_delta")
+    @patch("diagram_analysis.diagram_generator.snapshot_from_static_analysis")
+    def test_empty_incremental_delta_does_not_prune_stable_leaf_components(
+        self,
+        mock_snapshot,
+        mock_delta,
+        mock_prune,
+        mock_save_analysis,
+        _mock_git_hash,
+    ):
+        gen = DiagramGenerator(
+            repo_location=self.repo_location,
+            temp_folder=self.temp_folder,
+            repo_name="test_repo",
+            output_dir=self.output_dir,
+            depth_level=3,
+            run_id="test-run-id",
+            log_path="test_repo/test-run-log",
+        )
+        gen.details_agent = Mock()
+        gen.abstraction_agent = Mock()
+        gen.static_analysis = Mock()
+        gen.static_analysis.get_languages.return_value = []
+        gen.static_analysis.incremental_base_results = Mock()
+        gen._persist_static_analysis_artifact = Mock()
+
+        root = Component(name="Root", description="", key_entities=[], component_id="1")
+        parent = Component(name="Parent", description="", key_entities=[], component_id="1.1")
+        empty_leaf = Component(name="Stable Leaf", description="", key_entities=[], component_id="1.1.1")
+        root_analysis = AnalysisInsights(description="root", components=[root], components_relations=[])
+        sub_analyses = {
+            "1": AnalysisInsights(description="sub", components=[parent], components_relations=[]),
+            "1.1": AnalysisInsights(description="leaf", components=[empty_leaf], components_relations=[]),
+        }
+
+        mock_snapshot.return_value.all_cluster_ids.return_value = {1}
+        mock_delta.return_value.has_changes = False
+        mock_save_analysis.return_value = self.output_dir / "analysis.json"
+
+        gen.generate_analysis_incremental(root_analysis, sub_analyses)
+
+        mock_prune.assert_not_called()
+        self.assertEqual(sub_analyses["1.1"].components[0].name, "Stable Leaf")
+
     def test_persist_static_analysis_artifact_saves_cluster_cache_without_injected_analyzer(self):
         gen = DiagramGenerator(
             repo_location=self.repo_location,
