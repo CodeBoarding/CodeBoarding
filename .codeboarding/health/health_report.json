@@ -1,13 +1,13 @@
 {
   "repository_name": "CodeBoarding",
-  "timestamp": "2026-06-24T10:39:59.878440+00:00",
-  "overall_score": 0.934690014197823,
+  "timestamp": "2026-06-25T12:30:33.374746+00:00",
+  "overall_score": 0.935209269330811,
   "check_summaries": [
     {
       "check_name": "function_size",
       "description": "Checks that functions/methods do not exceed line count thresholds",
       "check_type": "standard",
-      "total_entities_checked": 1297,
+      "total_entities_checked": 1298,
       "findings_count": 0,
       "warning_count": 0,
       "score": 1.0,
@@ -17,10 +17,10 @@
       "check_name": "fan_out",
       "description": "Checks efferent coupling: how many other functions each function calls",
       "check_type": "standard",
-      "total_entities_checked": 1305,
-      "findings_count": 26,
-      "warning_count": 26,
-      "score": 0.9800766283524904,
+      "total_entities_checked": 1306,
+      "findings_count": 24,
+      "warning_count": 24,
+      "score": 0.9816232771822359,
       "finding_groups": [
         {
           "severity": "warning",
@@ -98,13 +98,6 @@
               "metric_value": 12
             },
             {
-              "entity_name": "codeboarding_cli.commands.incremental_analysis.run_from_args",
-              "file_path": "codeboarding_cli/commands/incremental_analysis.py",
-              "line_start": 44,
-              "line_end": 123,
-              "metric_value": 12
-            },
-            {
               "entity_name": "static_analyzer.dotnet_sdk.resolve_dotnet_sdk",
               "file_path": "static_analyzer/dotnet_sdk.py",
               "line_start": 87,
@@ -175,13 +168,6 @@
               "metric_value": 10
             },
             {
-              "entity_name": "codeboarding_cli.commands.full_analysis._process_one_remote.scope",
-              "file_path": "codeboarding_cli/commands/full_analysis.py",
-              "line_start": 164,
-              "line_end": 200,
-              "metric_value": 10
-            },
-            {
               "entity_name": "github_action.generate_analysis",
               "file_path": "github_action.py",
               "line_start": 87,
@@ -217,10 +203,10 @@
       "check_name": "fan_in",
       "description": "Checks afferent coupling: how many other functions call each function",
       "check_type": "standard",
-      "total_entities_checked": 1305,
+      "total_entities_checked": 1306,
       "findings_count": 12,
       "warning_count": 12,
-      "score": 0.9908045977011494,
+      "score": 0.9908116385911179,
       "finding_groups": [
         {
           "severity": "warning",
