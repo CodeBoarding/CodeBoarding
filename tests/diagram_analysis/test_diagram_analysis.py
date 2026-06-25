@@ -16,7 +16,7 @@ from agents.agent_responses import (
     SourceCodeReference,
     assign_component_ids,
 )
-from agents.incremental_models import IncrementalUpdatePlan
+from agents.scoped_incremental_apply import ScopeApplyResult
 from diagram_analysis.analysis_json import (
     ComponentFileMethodGroupJson,
     ComponentJson,
@@ -749,7 +749,9 @@ class TestDiagramGenerator(unittest.TestCase):
     @patch("diagram_analysis.diagram_generator.save_analysis")
     @patch("diagram_analysis.diagram_generator.prune_empty_components", return_value=set())
     @patch("diagram_analysis.diagram_generator.repopulate_touched_scopes", return_value={""})
-    @patch("diagram_analysis.diagram_generator.stitch_delta")
+    @patch("diagram_analysis.diagram_generator.apply_scope_update_decision")
+    @patch("diagram_analysis.diagram_generator.structural_diff_from_delta")
+    @patch("diagram_analysis.diagram_generator.ScopedIncrementalAgent")
     @patch("diagram_analysis.diagram_generator.IncrementalAgent")
     @patch("diagram_analysis.diagram_generator.initialize_llms", return_value=(Mock(), Mock()))
     @patch("diagram_analysis.diagram_generator.compute_cluster_delta")
@@ -760,7 +762,9 @@ class TestDiagramGenerator(unittest.TestCase):
         mock_delta,
         _mock_llms,
         _mock_incremental_agent,
-        mock_stitch_delta,
+        mock_scoped_agent,
+        _mock_structural_diff,
+        mock_apply_scope_update,
         _mock_repopulate,
         _mock_prune,
         mock_save_analysis,
@@ -793,7 +797,8 @@ class TestDiagramGenerator(unittest.TestCase):
         mock_snapshot.return_value.all_cluster_ids.return_value = {1}
         mock_delta.return_value.has_changes = True
         mock_delta.return_value.cluster_results.return_value = {}
-        mock_stitch_delta.return_value = IncrementalUpdatePlan(refresh_ids={"1"}, new_component_ids=set())
+        mock_scoped_agent.return_value.decide_scope_update.return_value = Mock()
+        mock_apply_scope_update.return_value = ScopeApplyResult(refresh_ids={"1"}, new_component_ids=set())
         mock_save_analysis.return_value = self.output_dir / "analysis.json"
 
         gen.generate_analysis_incremental(root_analysis, sub_analyses)

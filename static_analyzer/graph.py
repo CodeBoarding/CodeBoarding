@@ -66,6 +66,14 @@ class ClusterResult:
     def get_nodes_for_cluster(self, cluster_id: int) -> set[str]:
         return self.clusters.get(cluster_id, set())
 
+    def node_to_cluster(self) -> dict[str, int]:
+        """Return qname -> cluster_id for this partition."""
+        mapping: dict[str, int] = {}
+        for cluster_id, members in self.clusters.items():
+            for member in members:
+                mapping[member] = cluster_id
+        return mapping
+
 
 class Edge:
     def __init__(self, src_node: Node, dst_node: Node) -> None:
@@ -98,6 +106,8 @@ class CallGraph:
         self.delimiter = ClusteringConfig.QUALIFIED_NAME_DELIMITER
         # Cache for cluster result
         self._cluster_cache: ClusterResult | None = None
+        # qname -> scoped cluster ids it belongs to, e.g. ["1", "1.3", "1.3.6"].
+        self.method_cluster_paths: dict[str, set[str]] = {}
         # Location-based dedup: (file_path, line_start, line_end, type) -> canonical qualified name.
         # When the LSP produces multiple qualified-name aliases for the same
         # physical symbol (e.g. ``src.index.funcA`` vs
@@ -197,6 +207,7 @@ class CallGraph:
             else:
                 on_dropped_edge(edge)
         out._cluster_cache = self._prune_cluster_cache(out.nodes)
+        out.method_cluster_paths = self._prune_method_cluster_paths(out.nodes)
         return out
 
     def union(self, other: "CallGraph") -> "CallGraph":
@@ -223,6 +234,7 @@ class CallGraph:
             except ValueError:
                 pass
         out._cluster_cache = self._prune_cluster_cache(out.nodes)
+        out.method_cluster_paths = self._prune_method_cluster_paths(out.nodes)
         return out
 
     def _prune_cluster_cache(self, surviving_nodes: dict[str, Node]) -> "ClusterResult | None":
@@ -251,6 +263,27 @@ class CallGraph:
             file_to_clusters=pruned_file_to_clusters,
             strategy=self._cluster_cache.strategy,
         )
+
+    def _prune_method_cluster_paths(self, surviving_nodes: dict[str, Node]) -> dict[str, set[str]]:
+        return {qname: set(cluster_ids) for qname, cluster_ids in self.method_cluster_paths.items() if qname in surviving_nodes}
+
+    def record_cluster_paths(self, scope_id: str, cluster_result: ClusterResult) -> None:
+        """Record each member's current cluster id for this scope."""
+        prefix = f"{scope_id}." if scope_id else ""
+        for existing in self.method_cluster_paths.values():
+            existing -= {cluster_id for cluster_id in existing if self._cluster_id_belongs_to_scope(cluster_id, scope_id)}
+        for cluster_id, members in cluster_result.clusters.items():
+            qualified_cluster_id = f"{prefix}{cluster_id}"
+            for member in members:
+                self.method_cluster_paths.setdefault(member, set()).add(qualified_cluster_id)
+
+    def _cluster_id_belongs_to_scope(self, cluster_id: str, scope_id: str) -> bool:
+        if not scope_id:
+            return cluster_id.isdigit()
+        prefix = f"{scope_id}."
+        if not cluster_id.startswith(prefix):
+            return False
+        return cluster_id.removeprefix(prefix).isdigit()
 
     def to_networkx(self) -> nx.DiGraph:
         nx_graph = nx.DiGraph()
@@ -354,6 +387,7 @@ class CallGraph:
         sub_graph = CallGraph(language=self.language)
         sub_graph.nodes = relevant_nodes
         sub_graph.edges = filtered_edges
+        sub_graph.method_cluster_paths = self._prune_method_cluster_paths(relevant_nodes)
 
         return sub_graph
 
@@ -372,6 +406,7 @@ class CallGraph:
         sub_graph = CallGraph(language=self.language)
         sub_graph.nodes = relevant_nodes
         sub_graph.edges = filtered_edges
+        sub_graph.method_cluster_paths = self._prune_method_cluster_paths(relevant_nodes)
         return sub_graph
 
     def to_cluster_string(

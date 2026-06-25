@@ -35,6 +35,7 @@ from agents.incremental_models import (
     ExistingComponentOwnership,
     IncrementalUpdatePlan,
     RouteBucketKind,
+    ScopedClusterArtifacts,
     Verdict,
 )
 from agents.prompts import get_incremental_grouping_message, get_scope_relations_message, get_system_message
@@ -47,10 +48,11 @@ from agents.validation import (
 from diagram_analysis.cluster_delta import ClusterDelta
 from diagram_analysis.io_utils import normalize_repo_path
 from monitoring import trace
+from repo_utils.change_detector import ChangeSet
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cluster_relations import merge_relations
 from static_analyzer.constants import Language
-from static_analyzer.graph import ClusterResult
+from static_analyzer.graph import CallGraph, ClusterResult
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +68,7 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
         meta_context: MetaAnalysisInsights | None,
         agent_llm: BaseChatModel,
         parsing_llm: BaseChatModel,
+        changes: ChangeSet | None = None,
     ):
         super().__init__(
             repo_dir,
@@ -74,11 +77,15 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
             agent_llm,
             parsing_llm,
         )
+        if changes is not None:
+            self.toolkit.context.changes = changes
+            self.toolkit.context.diff_base_ref = changes.base_ref
+            self.toolkit.context.diff_target_ref = changes.target_ref
         # Routing only needs source disambiguation, not the full code-reading
-        # toolkit — narrow the ReAct loop by rebuilding the agent with one tool.
+        # toolkit — narrow the ReAct loop while still allowing git diff reads.
         self.agent = create_agent(
             model=agent_llm,
-            tools=[self.toolkit.read_source_reference],
+            tools=[self.toolkit.read_source_reference, self.toolkit.list_git_changes, self.toolkit.read_git_diff],
         )
         self.project_name = project_name
         self.meta_context = meta_context
@@ -103,7 +110,7 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
         meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
         project_type = self.meta_context.project_type if self.meta_context else "unknown"
         cluster_results = delta.cluster_results()
-        affected_files: set[str] = set()
+        affected_files: set[str] = set()  # affected files sounds wrong considering that we are method lvl
         for cr in cluster_results.values():
             for cid in affected_cluster_ids:
                 affected_files |= cr.cluster_to_files.get(cid, set())
@@ -426,6 +433,46 @@ def _index_delta_cluster_contents(cluster_results: dict[str, ClusterResult], rep
     return contents
 
 
+def _new_package_parent_override(
+    cluster_ids: list[GraphClusterId],
+    delta_contents: DeltaClusterContents,
+    existing_ownership: ExistingComponentOwnership,
+) -> str | None:
+    files = {file_path for cluster_id in cluster_ids for file_path in delta_contents.files.get(cluster_id, set())}
+    package_roots = {_package_root(file_path) for file_path in files}
+    package_roots.discard("")
+    if len(package_roots) != 1:
+        return None
+
+    package_root = next(iter(package_roots))
+    existing_files = set(existing_ownership.files)
+    if any(file_path == package_root or file_path.startswith(f"{package_root}/") for file_path in existing_files):
+        return None
+    return ""
+
+
+def _package_root(file_path: str) -> str:
+    parts = file_path.split("/")
+    if len(parts) >= 2 and parts[0] == "packages":
+        return "/".join(parts[:2])
+    return ""
+
+
+def _index_scope_component_ownership(
+    components: list[Component], repo_root: Path, skip_component_ids: set[str]
+) -> ExistingComponentOwnership:
+    ownership = ExistingComponentOwnership()
+    for component in components:
+        if component.component_id in skip_component_ids:
+            continue
+        for group in component.file_methods:
+            file_path = normalize_repo_path(group.file_path, repo_root)
+            ownership.files.setdefault(file_path, []).append(component)
+            for method in group.methods:
+                ownership.methods[method.qualified_name] = component
+    return ownership
+
+
 def _route_key_for_cluster(
     cc: ClustersComponent,
     owner: Component | None,
@@ -512,6 +559,9 @@ def stitch_delta(
        components that can still have child scopes.
     """
     component_index = index_components_by_id(root_analysis, sub_analyses)
+    repo_root = repo_dir.resolve()
+    existing_ownership = _index_existing_component_ownership(component_index, repo_root)
+    delta_contents = _index_delta_cluster_contents(delta.cluster_results(), repo_root)
     delta_cluster_analysis = _stabilize_existing_file_routes(
         delta_cluster_analysis, component_index, delta.cluster_results(), repo_dir
     )
@@ -581,6 +631,16 @@ def stitch_delta(
                             plan.refresh_ids.add(existing.component_id)
                 continue
 
+        parent_id = cc.parent_id
+        parent_override = _new_package_parent_override(cc.cluster_ids, delta_contents, existing_ownership)
+        if parent_override is not None and parent_id:
+            logger.info(
+                "[incremental] attaching new package component %r at root instead of under %s",
+                cc.name,
+                parent_id,
+            )
+            parent_id = None
+
         verdicts[Verdict.ADD] += 1
         routing_rows.append(
             {
@@ -589,7 +649,7 @@ def stitch_delta(
                 "name": cc.name,
                 "clusters": GraphClusterIds.sort(set(cc.cluster_ids)),
                 "redetail": True,
-                "parent": cc.parent_id,
+                "parent": parent_id,
             }
         )
         new_component = Component(
@@ -599,7 +659,7 @@ def stitch_delta(
             source_group_names=[cc.name],
             source_cluster_ids=CodeBoardingClusterIds.from_graph_ids(set(cc.cluster_ids)),
         )
-        new_components.append((new_component, cc.parent_id))
+        new_components.append((new_component, parent_id))
 
     if new_components:
         _attach_new_components(new_components, root_analysis, sub_analyses, component_index, plan)
@@ -632,6 +692,130 @@ def _attach_new_components(
         if component.component_id:
             plan.refresh_ids.add(component.component_id)
             plan.new_component_ids.add(component.component_id)
+
+
+def apply_scoped_cluster_deltas(
+    root_analysis: AnalysisInsights,
+    sub_analyses: dict[str, AnalysisInsights],
+    cluster_results: dict[str, ClusterResult],
+    helpers: ClusterMethodsMixin,
+    plan: IncrementalUpdatePlan,
+) -> dict[str, ScopedClusterArtifacts]:
+    """Refresh nested cluster ownership using each detail scope's own subgraph."""
+    scoped_artifacts: dict[str, ScopedClusterArtifacts] = {}
+    component_index = index_components_by_id(root_analysis, sub_analyses)
+    repo_root = helpers.repo_dir.resolve()
+
+    for scope_id in CodeBoardingClusterIds.sort(set(sub_analyses)):
+        if scope_id not in plan.refresh_ids or scope_id in plan.new_component_ids:
+            continue
+        sub_analysis = sub_analyses[scope_id]
+        owner = component_index.get(scope_id)
+        if owner is None:
+            continue
+
+        _refresh_scope_owner_file_methods(scope_id, owner, scoped_artifacts, cluster_results, helpers)
+        if not owner.file_methods:
+            continue
+        _subgraph_str, scoped_cluster_results, scoped_cfgs = helpers._create_strict_component_subgraph(
+            owner,
+            source_cluster_id_prefix=scope_id,
+        )
+        if not scoped_cluster_results:
+            continue
+
+        scoped_artifacts[scope_id] = ScopedClusterArtifacts(
+            cluster_results=scoped_cluster_results,
+            cfg_graphs=scoped_cfgs,
+        )
+        _apply_scoped_cluster_delta(
+            scope_id,
+            sub_analysis,
+            scoped_cluster_results,
+            repo_root,
+            plan,
+        )
+
+    return scoped_artifacts
+
+
+def _refresh_scope_owner_file_methods(
+    scope_id: str,
+    owner: Component,
+    scoped_artifacts: dict[str, ScopedClusterArtifacts],
+    root_cluster_results: dict[str, ClusterResult],
+    helpers: ClusterMethodsMixin,
+) -> None:
+    parent_scope_id = scope_id.rpartition(".")[0]
+    if parent_scope_id:
+        parent_artifact = scoped_artifacts.get(parent_scope_id)
+        if parent_artifact is None:
+            return
+        parent_cluster_results = parent_artifact.cluster_results
+    else:
+        parent_cluster_results = root_cluster_results
+
+    _refresh_component_file_methods(
+        owner,
+        parent_cluster_results,
+        _build_node_lookup(helpers.static_analysis, parent_cluster_results),
+        helpers.repo_dir,
+        set(),
+        source_cluster_id_prefix=parent_scope_id,
+    )
+
+
+def _apply_scoped_cluster_delta(
+    scope_id: str,
+    analysis: AnalysisInsights,
+    cluster_results: dict[str, ClusterResult],
+    repo_root: Path,
+    plan: IncrementalUpdatePlan,
+) -> None:
+    ownership = _index_scope_component_ownership(analysis.components, repo_root, plan.new_component_ids)
+    assigned_cluster_ids: dict[str, set[GraphClusterId]] = {}
+
+    for cr in cluster_results.values():
+        for cluster_id, members in cr.clusters.items():
+            owner = _owner_for_cluster_members(members, ownership.methods)
+            if owner is None:
+                files = {normalize_repo_path(fp, repo_root) for fp in cr.cluster_to_files.get(cluster_id, set())}
+                owner = _owner_for_cluster_files(files, ownership.files)
+            if owner is not None and owner.component_id:
+                assigned_cluster_ids.setdefault(owner.component_id, set()).add(cluster_id)
+
+    for component in analysis.components:
+        if component.component_id in plan.new_component_ids:
+            continue
+        old_cluster_ids = CodeBoardingClusterIds.to_graph_ids_for_scope(component.source_cluster_ids, scope_id)
+        new_cluster_ids = assigned_cluster_ids.get(component.component_id or "", set())
+        old_members = _component_method_qnames(component)
+        new_members = _cluster_members(cluster_results, new_cluster_ids)
+
+        if not new_cluster_ids and old_members:
+            if component.component_id in plan.refresh_ids:
+                plan.refresh_ids.remove(component.component_id)
+            logger.warning(
+                "[incremental] kept component %s unchanged; scoped clusters could not be assigned confidently",
+                component.component_id or component.name,
+            )
+            continue
+
+        if old_cluster_ids == new_cluster_ids and old_members == new_members:
+            continue
+        component.source_cluster_ids = CodeBoardingClusterIds.qualify_local_ids(
+            CodeBoardingClusterIds.from_graph_ids(new_cluster_ids), scope_id
+        )
+        if component.component_id:
+            plan.refresh_ids.add(component.component_id)
+
+
+def _component_method_qnames(component: Component) -> set[str]:
+    return {method.qualified_name for group in component.file_methods for method in group.methods}
+
+
+def _cluster_members(cluster_results: dict[str, ClusterResult], cluster_ids: set[GraphClusterId]) -> set[str]:
+    return {qname for cr in cluster_results.values() for cid in cluster_ids for qname in cr.clusters.get(cid, set())}
 
 
 def _scope_for_parent(
@@ -678,44 +862,48 @@ def repopulate_touched_scopes(
     cluster_results: dict[str, ClusterResult],
     helpers: ClusterMethodsMixin,
     refresh_files: set[str],
+    scoped_artifacts: dict[str, ScopedClusterArtifacts] | None = None,
 ) -> set[str]:
-    """Refresh ``file_methods`` for changed components and rebuild static relations.
-
-    Why per-component (not scope-wide ``populate_file_methods``): the latter
-    re-routes every node and would dump global orphans into the scope's leaf
-    fallback. Siblings whose clusters didn't change keep their old file_methods
-    byte-for-byte. Returns the touched scope ids (``""`` for root).
-    """
+    """Refresh touched scopes with the same cluster-to-method assignment as full analysis."""
     touched_scopes: set[str] = set()
     if not refresh_ids:
         return touched_scopes
 
-    node_lookup = _build_node_lookup(helpers.static_analysis, cluster_results)
-    repo_dir = helpers.repo_dir
-
     if any(c.component_id in refresh_ids for c in root_analysis.components):
         touched_scopes.add("")
-        for component in root_analysis.components:
-            if component.component_id in refresh_ids:
-                _refresh_component_file_methods(component, cluster_results, node_lookup, repo_dir, refresh_files)
-        helpers.build_static_relations(root_analysis)
+        root_cfg_graphs = _cfg_graphs_for_cluster_results(helpers.static_analysis, cluster_results)
+        helpers.populate_file_methods(root_analysis, cluster_results, root_cfg_graphs)
+        helpers.build_static_relations(root_analysis, root_cfg_graphs)
 
+    scoped_artifacts = scoped_artifacts or {}
     for scope_id, sub in sub_analyses.items():
         if any(c.component_id in refresh_ids for c in sub.components):
+            scope_artifact = scoped_artifacts.get(scope_id)
+            if scope_artifact is None:
+                logger.warning("[incremental] kept scope %s unchanged; no scoped cluster artifact", scope_id)
+                continue
             touched_scopes.add(scope_id)
-            for component in sub.components:
-                if component.component_id in refresh_ids:
-                    _refresh_component_file_methods(
-                        component,
-                        cluster_results,
-                        node_lookup,
-                        repo_dir,
-                        refresh_files,
-                        source_cluster_id_prefix=scope_id,
-                    )
-            helpers.build_static_relations(sub, source_cluster_id_prefix=scope_id)
+            scope_cluster_results = scope_artifact.cluster_results
+            scope_cfg_graphs = scope_artifact.cfg_graphs
+            helpers.populate_file_methods(
+                sub,
+                scope_cluster_results,
+                scope_cfg_graphs,
+                source_cluster_id_prefix=scope_id,
+            )
+            helpers.build_static_relations(sub, scope_cfg_graphs, source_cluster_id_prefix=scope_id)
 
     return touched_scopes
+
+
+def _cfg_graphs_for_cluster_results(
+    static_analysis: StaticAnalysisResults, cluster_results: dict[str, ClusterResult]
+) -> dict[str, CallGraph]:
+    cfg_graphs: dict[str, CallGraph] = {}
+    for language, cluster_result in cluster_results.items():
+        members = {qname for cluster_members in cluster_result.clusters.values() for qname in cluster_members}
+        cfg_graphs[language] = static_analysis.get_cfg(Language(language)).filter_by_nodes(members)
+    return cfg_graphs
 
 
 def _build_node_lookup(static_analysis, cluster_results: dict[str, ClusterResult]) -> dict[str, MethodEntry]:

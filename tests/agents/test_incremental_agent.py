@@ -16,12 +16,14 @@ from agents.agent_responses import (
     Relation,
 )
 from agents.incremental_agent import (
+    apply_scoped_cluster_deltas,
     _format_existing_components,
     _pick_file_for_qname,
     prune_empty_components,
     repopulate_touched_scopes,
     stitch_delta,
 )
+from agents.incremental_models import IncrementalUpdatePlan, ScopedClusterArtifacts
 from diagram_analysis.cluster_delta import ClusterDelta, LanguageDelta
 from static_analyzer.graph import ClusterResult
 
@@ -207,6 +209,35 @@ class TestStitchDelta(unittest.TestCase):
         self.assertIn(new_component.component_id, plan.refresh_ids)
         self.assertIn(new_component.component_id, plan.new_component_ids)
         self.assertEqual(new_component.source_cluster_ids, ["42"])
+
+    def test_brand_new_package_component_ignores_nested_parent_id(self) -> None:
+        parent = _component("Core Package", "1", source_cluster_ids=["1"])
+        parent.file_methods = [
+            FileMethodGroup(
+                file_path="packages/core/src/core.py",
+                methods=[MethodEntry(qualified_name="core.method", start_line=1, end_line=2, node_type="FUNCTION")],
+            )
+        ]
+        root = AnalysisInsights(description="root", components=[parent], components_relations=[])
+        sub_analyses: dict[str, AnalysisInsights] = {}
+        delta_ca = ClusterAnalysis(
+            cluster_components=[
+                ClustersComponent(
+                    name="New Package",
+                    cluster_ids=[42],
+                    description="fresh package",
+                    parent_id="1",
+                )
+            ]
+        )
+        delta = _delta_with_cluster_files({42: {"packages/new-package/src/new_package/__main__.py"}})
+
+        plan = stitch_delta(root, sub_analyses, delta_ca, delta)
+
+        self.assertEqual([component.name for component in root.components], ["Core Package", "New Package"])
+        self.assertEqual(sub_analyses, {})
+        self.assertEqual(root.components[1].component_id, "2")
+        self.assertIn("2", plan.new_component_ids)
 
     def test_existing_component_skips_redetail_when_redetail_needed_false(self) -> None:
         """Cosmetic deltas preserve prose and component cluster ownership."""
@@ -990,6 +1021,148 @@ class TestPruneEmptyComponents(unittest.TestCase):
 
 
 class TestRepopulateTouchedScopes(unittest.TestCase):
+    def test_scoped_delta_refreshes_nested_component_with_scoped_cluster_results(self) -> None:
+        top = _component("Top", "1", source_cluster_ids=["1"])
+        mid = _component("Mid", "1.3", source_cluster_ids=["1.3.2"])
+        mid.file_methods = [
+            FileMethodGroup(
+                file_path="leaf.py",
+                methods=[MethodEntry(qualified_name="leaf.old", start_line=1, end_line=2, node_type="FUNCTION")],
+            )
+        ]
+        leaf = _component("Leaf", "1.3.1", source_cluster_ids=["1.3.7"])
+        leaf.file_methods = [
+            FileMethodGroup(
+                file_path="leaf.py",
+                methods=[MethodEntry(qualified_name="leaf.old", start_line=1, end_line=2, node_type="FUNCTION")],
+            )
+        ]
+        root = AnalysisInsights(description="r", components=[top], components_relations=[])
+        sub_analyses = {
+            "1": AnalysisInsights(description="", components=[mid], components_relations=[]),
+            "1.3": AnalysisInsights(description="", components=[leaf], components_relations=[]),
+        }
+        scoped_cluster_results = {
+            "python": ClusterResult(
+                clusters={7: {"leaf.old", "leaf.new"}},
+                cluster_to_files={7: {"leaf.py"}},
+            )
+        }
+        helpers = MagicMock()
+        helpers.repo_dir = Path(".")
+        helpers.static_analysis.get_cfg.return_value = MagicMock(nodes={})
+        helpers._create_strict_component_subgraph.return_value = ("", scoped_cluster_results, {})
+
+        plan = IncrementalUpdatePlan()
+        plan.refresh_ids.add("1.3")
+        scoped_artifacts = apply_scoped_cluster_deltas(root, sub_analyses, {}, helpers, plan)
+
+        self.assertIn("1.3", scoped_artifacts)
+        self.assertEqual(leaf.source_cluster_ids, ["1.3.7"])
+        self.assertEqual(plan.refresh_ids, {"1.3", "1.3.1"})
+
+    def test_scoped_delta_only_recomputes_touched_scopes(self) -> None:
+        top = _component("Top", "1", source_cluster_ids=["1"])
+        child = _component_with_method("Child", "1.1")
+        root = AnalysisInsights(description="r", components=[top], components_relations=[])
+        sub_analyses = {"1": AnalysisInsights(description="", components=[child], components_relations=[])}
+        helpers = MagicMock()
+        helpers.repo_dir = Path(".")
+
+        scoped_artifacts = apply_scoped_cluster_deltas(root, sub_analyses, {}, helpers, IncrementalUpdatePlan())
+
+        self.assertEqual(scoped_artifacts, {})
+        helpers._create_strict_component_subgraph.assert_not_called()
+
+    def test_scoped_delta_keeps_component_when_local_clusters_are_ambiguous(self) -> None:
+        top = _component("Top", "4", source_cluster_ids=["4"])
+        top.file_methods = [
+            FileMethodGroup(
+                file_path="epub.py",
+                methods=[MethodEntry(qualified_name="old.EpubConverter", start_line=1, end_line=2, node_type="CLASS")],
+            )
+        ]
+        child = _component("Specialized", "4.3", source_cluster_ids=["4.9"])
+        child.file_methods = [
+            FileMethodGroup(
+                file_path="epub.py",
+                methods=[MethodEntry(qualified_name="old.EpubConverter", start_line=1, end_line=2, node_type="CLASS")],
+            )
+        ]
+        root = AnalysisInsights(description="r", components=[top], components_relations=[])
+        sub_analyses = {"4": AnalysisInsights(description="", components=[child], components_relations=[])}
+        scoped_cluster_results = {
+            "python": ClusterResult(
+                clusters={1: {"new.unowned"}},
+                cluster_to_files={1: {"new.py"}},
+            )
+        }
+        helpers = MagicMock()
+        helpers.repo_dir = Path(".")
+        old_node = MagicMock()
+        old_node.line_start = 1
+        old_node.line_end = 2
+        old_node.type.name = "CLASS"
+        helpers.static_analysis.get_cfg.return_value = MagicMock(nodes={"old.EpubConverter": old_node})
+        helpers._create_strict_component_subgraph.return_value = ("", scoped_cluster_results, {})
+        plan = IncrementalUpdatePlan(refresh_ids={"4", "4.3"})
+
+        apply_scoped_cluster_deltas(
+            root,
+            sub_analyses,
+            {"python": ClusterResult(clusters={4: {"old.EpubConverter"}}, cluster_to_files={4: {"epub.py"}})},
+            helpers,
+            plan,
+        )
+
+        self.assertEqual(child.source_cluster_ids, ["4.9"])
+        self.assertNotIn("4.3", plan.refresh_ids)
+
+    def test_repopulate_uses_scoped_cluster_results_for_nested_refresh(self) -> None:
+        top = _component("Top", "1", source_cluster_ids=["1"])
+        leaf = _component("Leaf", "1.3.1", source_cluster_ids=["1.3.7"])
+        root = AnalysisInsights(description="r", components=[top], components_relations=[])
+        sub = AnalysisInsights(description="s", components=[leaf], components_relations=[])
+        sub_analyses = {"1.3": sub}
+        global_cluster_results = {
+            "python": ClusterResult(
+                clusters={7: {"wrong.global"}},
+                cluster_to_files={7: {"wrong.py"}},
+            )
+        }
+        scoped_cluster_results = {
+            "python": ClusterResult(
+                clusters={7: {"leaf.local"}},
+                cluster_to_files={7: {"leaf.py"}},
+            )
+        }
+        node = MagicMock()
+        node.line_start = 10
+        node.line_end = 12
+        node.type.name = "FUNCTION"
+        helpers = MagicMock()
+        helpers.repo_dir = Path(".")
+        helpers.static_analysis.get_cfg.return_value = MagicMock(nodes={"leaf.local": node})
+
+        touched = repopulate_touched_scopes(
+            {"1.3.1"},
+            root,
+            sub_analyses,
+            global_cluster_results,
+            helpers,
+            set(),
+            {"1.3": ScopedClusterArtifacts(cluster_results=scoped_cluster_results, cfg_graphs={})},
+        )
+
+        self.assertEqual(touched, {"1.3"})
+        helpers.populate_file_methods.assert_called_once_with(
+            sub,
+            scoped_cluster_results,
+            {},
+            source_cluster_id_prefix="1.3",
+        )
+        helpers.build_static_relations.assert_called_once_with(sub, {}, source_cluster_id_prefix="1.3")
+
     def test_only_runs_relation_pass_on_touched_scopes(self) -> None:
         # Per-component file_methods refresh now happens inline (not via the
         # mixin's scope-wide ``populate_file_methods``), so the only mixin
@@ -1008,9 +1181,9 @@ class TestRepopulateTouchedScopes(unittest.TestCase):
 
         touched = repopulate_touched_scopes({"2.1"}, root, sub_analyses, {"python": ClusterResult()}, helpers, set())
 
-        self.assertEqual(touched, {"2"})
+        self.assertEqual(touched, set())
         helpers.populate_file_methods.assert_not_called()
-        helpers.build_static_relations.assert_called_once_with(sub, source_cluster_id_prefix="2")
+        helpers.build_static_relations.assert_not_called()
 
     def test_relation_pass_uses_scope_id_as_detail_cluster_prefix(self) -> None:
         root_comp = _component("Root", "1", source_cluster_ids=["1"])
@@ -1026,8 +1199,8 @@ class TestRepopulateTouchedScopes(unittest.TestCase):
 
         touched = repopulate_touched_scopes({"1.3.1"}, root, sub_analyses, {"python": ClusterResult()}, helpers, set())
 
-        self.assertEqual(touched, {"1.3"})
-        helpers.build_static_relations.assert_called_once_with(sub, source_cluster_id_prefix="1.3")
+        self.assertEqual(touched, set())
+        helpers.build_static_relations.assert_not_called()
 
     def test_no_redetail_skips_all_helpers(self) -> None:
         root = AnalysisInsights(description="r", components=[], components_relations=[])
@@ -1195,15 +1368,13 @@ class TestRefreshComponentFileMethodsPathNormalization(unittest.TestCase):
 
 
 class TestIncrementalAgentToolkit(unittest.TestCase):
-    """Constructor wiring: routing should never see the full ReAct toolkit.
+    """Constructor wiring: routing should see only targeted incremental tools.
 
     The agent shouldn't have ``read_packages`` / ``read_file`` / etc. attached;
-    a ReAct loop with the full kit speculatively wanders for tens of rounds on
-    a routing decision that needs at most a single targeted source read. Only
-    ``read_source_reference`` is appropriate.
+    routing needs source disambiguation plus optional git diff inspection.
     """
 
-    def test_only_read_source_reference_is_attached(self) -> None:
+    def test_only_incremental_routing_tools_are_attached(self) -> None:
         from unittest.mock import patch
         from pathlib import Path
 
@@ -1214,8 +1385,7 @@ class TestIncrementalAgentToolkit(unittest.TestCase):
 
         # The base ``CodeBoardingAgent.__init__`` builds a ReAct agent with the
         # full toolkit; ``IncrementalAgent.__init__`` then overrides ``self.agent``
-        # by rebuilding it with the narrow tool set. Patch both create_agent
-        # references and assert the override call carries the single tool.
+        # by rebuilding it with the narrow incremental tool set.
         with (
             patch("agents.agent.create_agent") as mock_base_create,
             patch("agents.incremental_agent.create_agent") as mock_override_create,
@@ -1233,9 +1403,10 @@ class TestIncrementalAgentToolkit(unittest.TestCase):
 
         mock_override_create.assert_called_once()
         tools = mock_override_create.call_args.kwargs["tools"]
-        # CodeReferenceReader is the BaseRepoTool subclass behind read_source_reference.
-        self.assertEqual(len(tools), 1, f"expected 1 tool, got {len(tools)}: {[type(t).__name__ for t in tools]}")
-        self.assertEqual(type(tools[0]).__name__, "CodeReferenceReader")
+        self.assertEqual(
+            [type(tool).__name__ for tool in tools],
+            ["CodeReferenceReader", "ListGitChangesTool", "ReadGitDiffTool"],
+        )
 
 
 class TestPickFileForQname(unittest.TestCase):

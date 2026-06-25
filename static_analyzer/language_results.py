@@ -29,6 +29,8 @@ class ControlFlowGraph:
                 self.graph.add_edge(edge.get_source(), edge.get_destination())
             except ValueError:
                 pass
+        for qname, cluster_ids in other.method_cluster_paths.items():
+            self.graph.method_cluster_paths.setdefault(qname, set()).update(cluster_ids)
 
     def visit_paths(self, fn: Callable[[str], str]) -> None:
         if self.graph is None:

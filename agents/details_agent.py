@@ -217,7 +217,9 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
 
         # Step 1: Create subgraph from component's assigned files using strict filtering
         # If subgraph has < MIN_CLUSTERS_THRESHOLD clusters, auto-expands to method-level
-        _subgraph_str, subgraph_cluster_results, subgraph_cfgs = self._create_strict_component_subgraph(component)
+        _subgraph_str, subgraph_cluster_results, subgraph_cfgs = self._create_strict_component_subgraph(
+            component, source_cluster_id_prefix=component.component_id
+        )
 
         # Step 2: Group clusters within the subgraph
         cluster_analysis = self.step_clusters_grouping(component, subgraph_cluster_results)

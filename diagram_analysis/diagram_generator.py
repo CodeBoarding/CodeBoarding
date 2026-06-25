@@ -17,18 +17,19 @@ from agents.incremental_agent import (
     prune_empty_components,
     repopulate_touched_scopes,
     remove_deleted_files,
-    stitch_delta,
 )
 from agents.llm_config import initialize_llms
 from agents.meta_agent import MetaAgent
 from agents.planner_agent import get_expandable_components
+from agents.scoped_incremental_agent import ScopedIncrementalAgent
+from agents.scoped_incremental_apply import apply_scope_update_decision
 from telemetry.events import track_analysis
 from diagram_analysis.analysis_json import (
     FileCoverageReport,
     FileCoverageSummary,
     NotAnalyzedFile,
 )
-from diagram_analysis.cluster_delta import compute_cluster_delta
+from diagram_analysis.cluster_delta import compute_cluster_delta, structural_diff_from_delta
 from diagram_analysis.cluster_snapshot import snapshot_from_static_analysis
 from diagram_analysis.exceptions import IncrementalCacheMissingError
 from diagram_analysis.file_coverage import FileCoverage
@@ -244,6 +245,7 @@ class DiagramGenerator:
             except (ValueError, KeyError):
                 continue
             cfg._cluster_cache = cr
+            cfg.record_cluster_paths("", cr)
 
     def _persist_static_analysis_artifact(self) -> None:
         """Persist the post-clustering static-analysis artifact."""
@@ -596,6 +598,9 @@ class DiagramGenerator:
                 changes=self.changes,
                 repo_dir=self.repo_location,
             )
+            # @ivanmilevtues I think this delta should probably have better statuses:
+            # i.e. only_deletions, additions_modifications, adds_mods_dels or something liek that
+            # it makes no sense to not have changes but still prune?
             if not delta.has_changes:
                 logger.info("Cluster delta is empty; rewriting current analysis without re-detailing.")
                 prune_empty_components(root_analysis, sub_analyses)
@@ -614,24 +619,28 @@ class DiagramGenerator:
                 return analysis_path
 
             agent_llm, parsing_llm = initialize_llms()
-            incremental_agent = IncrementalAgent(
+            scoped_agent = ScopedIncrementalAgent(
                 repo_dir=self.repo_location,
                 static_analysis=self.static_analysis,
                 project_name=self.repo_name,
                 meta_context=self.meta_context,
                 agent_llm=agent_llm,
                 parsing_llm=parsing_llm,
+                changes=self.changes,
             )
-            self._monitoring_agents["IncrementalAgent"] = incremental_agent
-            delta_cluster_analysis = incremental_agent.run(delta, root_analysis, sub_analyses)
-
-            update_plan = stitch_delta(
-                root_analysis,
-                sub_analyses,
-                delta_cluster_analysis,
+            self._monitoring_agents["ScopedIncrementalAgent"] = scoped_agent
+            structural_diff = structural_diff_from_delta(
+                old_snapshot,
                 delta,
-                self.repo_location,
+                changes=self.changes,
+                repo_dir=self.repo_location,
             )
+            scope_decision = scoped_agent.decide_scope_update("", root_analysis, structural_diff)
+            apply_result = apply_scope_update_decision("", root_analysis, scope_decision)
+            if apply_result.regenerate_scope:
+                logger.info("Scoped incremental agent requested root regeneration; running full analysis.")
+                return self.generate_analysis()
+
             refresh_files: set[str] = set()
             if self.changes is not None:
                 for file_change in self.changes.files:
@@ -642,7 +651,7 @@ class DiagramGenerator:
             # Refresh first (per-component, siblings untouched), then prune —
             # we only know a component is empty after rebuilding from live CFG.
             touched_scopes = repopulate_touched_scopes(
-                update_plan.refresh_ids,
+                apply_result.refresh_ids,
                 root_analysis,
                 sub_analyses,
                 delta.cluster_results(),
@@ -652,12 +661,12 @@ class DiagramGenerator:
 
             removed_ids = prune_empty_components(root_analysis, sub_analyses)
             if removed_ids:
-                update_plan.refresh_ids -= removed_ids
-                update_plan.new_component_ids -= removed_ids
+                apply_result.refresh_ids -= removed_ids
+                apply_result.new_component_ids -= removed_ids
 
             new_components = [
                 component
-                for component in _collect_components_by_id(update_plan.new_component_ids, root_analysis, sub_analyses)
+                for component in _collect_components_by_id(apply_result.new_component_ids, root_analysis, sub_analyses)
                 if _component_depth(component.component_id) < self.depth_level
             ]
             if new_components:
@@ -665,6 +674,16 @@ class DiagramGenerator:
                 _merge_sub_analyses(sub_analyses, redetailed_subs)
 
             if touched_scopes:
+                incremental_agent = IncrementalAgent(
+                    repo_dir=self.repo_location,
+                    static_analysis=self.static_analysis,
+                    project_name=self.repo_name,
+                    meta_context=self.meta_context,
+                    agent_llm=agent_llm,
+                    parsing_llm=parsing_llm,
+                    changes=self.changes,
+                )
+                self._monitoring_agents["IncrementalAgent"] = incremental_agent
                 incremental_agent.generate_all_scope_relations(root_analysis, sub_analyses, touched_scopes)
 
             # Rebuild the global files index, unioning every sub-analysis's

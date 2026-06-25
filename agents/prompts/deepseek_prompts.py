@@ -375,7 +375,7 @@ Route each changed or new CFG cluster into the correct component — either an e
 - Type: {project_type}
 - Meta: {meta_context}
 
-The previous analysis established the components below. Most clusters are unchanged and stay where they are; this prompt only shows the slice that changed (new clusters or clusters whose member methods changed).
+The previous analysis established the components below. Most clusters are unchanged and stay where they are; this prompt only shows the structural slice that changed: new clusters, removed clusters, or clusters whose member set changed through added/removed methods. A method body edit by itself is not a cluster-boundary change.
 
 # Existing components
 Each line shows the component id and its name:

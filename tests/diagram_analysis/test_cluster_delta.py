@@ -1,14 +1,16 @@
 """Tests for ``diagram_analysis.cluster_delta`` (seeded Leiden, no fallback)."""
 
 import unittest
+from pathlib import Path
 
 from diagram_analysis.cluster_delta import (
+    ClusterRef,
     ClusterDelta,
     LanguageDelta,
-    _absorb_orphans_by_file,
     _affected_frontier,
     _flavor_b_seeded,
     compute_cluster_delta,
+    structural_diff_from_delta,
 )
 from diagram_analysis.cluster_snapshot import ClusterSnapshot, ClusterSnapshotEntry, snapshot_from_cluster_results
 from repo_utils.change_detector import ChangeSet, FileChange
@@ -184,6 +186,142 @@ class TestClusterDeltaAccessors(unittest.TestCase):
         )
         self.assertEqual(delta.all_affected_cluster_ids(), {1, 2, 10})
         self.assertEqual(delta.all_dropped_cluster_ids(), {3, 11})
+
+
+class TestStructuralClusterDiff(unittest.TestCase):
+    def test_classifies_unchanged_and_modified_clusters(self) -> None:
+        old_snapshot = _snapshot(
+            {
+                "python": {
+                    1: ClusterSnapshotEntry(members={"a.foo", "a.bar"}, files={"a.py"}),
+                    2: ClusterSnapshotEntry(members={"b.baz"}, files={"b.py"}),
+                }
+            }
+        )
+        delta = ClusterDelta(
+            by_language={
+                "python": LanguageDelta(
+                    language="python",
+                    cluster_results=ClusterResult(
+                        clusters={1: {"a.foo", "a.bar", "a.new"}, 2: {"b.baz"}},
+                        cluster_to_files={1: {"a.py"}, 2: {"b.py"}},
+                    ),
+                )
+            }
+        )
+
+        structural = structural_diff_from_delta(old_snapshot, delta)
+        lang = structural.by_language["python"]
+
+        self.assertEqual(len(lang.unchanged), 1)
+        self.assertEqual(lang.unchanged[0].old_cluster.cluster_id, 2)
+        self.assertEqual(len(lang.modified), 1)
+        self.assertEqual(lang.modified[0].old_cluster.cluster_id, 1)
+        self.assertEqual(lang.modified[0].added_methods, {"a.new"})
+        self.assertEqual(lang.modified[0].removed_methods, set())
+
+    def test_dirty_unchanged_cluster_is_modified(self) -> None:
+        old_snapshot = _snapshot(
+            {
+                "python": {
+                    1: ClusterSnapshotEntry(
+                        members={"a.foo"},
+                        files={"/repo/a.py"},
+                        member_files={"a.foo": "/repo/a.py"},
+                    ),
+                }
+            }
+        )
+        delta = ClusterDelta(
+            by_language={
+                "python": LanguageDelta(
+                    language="python",
+                    cluster_results=ClusterResult(
+                        clusters={1: {"a.foo"}},
+                        cluster_to_files={1: {"/repo/a.py"}},
+                    ),
+                )
+            }
+        )
+        changes = ChangeSet(
+            base_ref="old",
+            target_ref="new",
+            files=[FileChange(status_code="M", file_path="a.py")],
+        )
+
+        structural = structural_diff_from_delta(old_snapshot, delta, changes=changes, repo_dir=Path("/repo"))
+        lang = structural.by_language["python"]
+
+        self.assertEqual(lang.unchanged, [])
+        self.assertEqual(len(lang.modified), 1)
+        self.assertEqual(lang.modified[0].dirty_files, {"a.py"})
+        self.assertEqual(lang.modified[0].added_methods, set())
+        self.assertEqual(lang.modified[0].removed_methods, set())
+
+    def test_classifies_new_and_removed_clusters(self) -> None:
+        old_snapshot = _snapshot(
+            {
+                "python": {
+                    1: ClusterSnapshotEntry(members={"a.foo"}),
+                    2: ClusterSnapshotEntry(members={"b.gone"}),
+                }
+            }
+        )
+        delta = ClusterDelta(
+            by_language={
+                "python": LanguageDelta(
+                    language="python",
+                    cluster_results=ClusterResult(
+                        clusters={1: {"a.foo"}, 3: {"c.new"}},
+                        cluster_to_files={1: {"a.py"}, 3: {"c.py"}},
+                    ),
+                )
+            }
+        )
+
+        structural = structural_diff_from_delta(old_snapshot, delta)
+        lang = structural.by_language["python"]
+
+        self.assertEqual(lang.new, [ClusterRef(language="python", cluster_id=3)])
+        self.assertEqual(len(lang.new_details), 1)
+        self.assertEqual(lang.new_details[0].new_cluster, ClusterRef(language="python", cluster_id=3))
+        self.assertEqual(lang.new_details[0].added_methods, {"c.new"})
+        self.assertEqual(lang.removed, [ClusterRef(language="python", cluster_id=2)])
+
+    def test_split_or_merge_overlap_becomes_reshaped(self) -> None:
+        old_snapshot = _snapshot(
+            {
+                "python": {
+                    1: ClusterSnapshotEntry(members={"a.one", "a.two"}),
+                    2: ClusterSnapshotEntry(members={"b.one"}),
+                }
+            }
+        )
+        delta = ClusterDelta(
+            by_language={
+                "python": LanguageDelta(
+                    language="python",
+                    cluster_results=ClusterResult(
+                        clusters={10: {"a.one", "b.one"}, 11: {"a.two"}},
+                    ),
+                )
+            }
+        )
+
+        structural = structural_diff_from_delta(old_snapshot, delta)
+        lang = structural.by_language["python"]
+
+        self.assertEqual(lang.modified, [])
+        self.assertEqual(len(lang.reshaped), 1)
+        reshape = lang.reshaped[0]
+        self.assertEqual({ref.cluster_id for ref in reshape.old_clusters}, {1, 2})
+        self.assertEqual({ref.cluster_id for ref in reshape.new_clusters}, {10, 11})
+        self.assertEqual(
+            reshape.overlap_counts[
+                (ClusterRef(language="python", cluster_id=1), ClusterRef(language="python", cluster_id=10))
+            ],
+            1,
+        )
 
 
 class TestSnapshotIntegration(unittest.TestCase):
@@ -455,64 +593,31 @@ class TestSeededLockGuarantee(unittest.TestCase):
         self.assertIn("callee.x", frontier)
 
 
-class TestAbsorbOrphansByFile(unittest.TestCase):
-    """Regression: same-file singleton merging must not unpack-fail when
-    multiple singletons co-locate and one absorbs another.
-    """
-
-    def test_two_same_file_singletons_one_absorbs_other(self) -> None:
-        # Two zero-edge nodes in the same file, each their own singleton
-        # cluster, plus a third populated cluster in a different file. The
-        # first singleton has no same-file neighbour to absorb into; it stays.
-        # The second singleton's same-file peer is now cluster 0 with len=2
-        # — but we need to confirm the loop doesn't crash on it.
+class TestDisconnectedAdditions(unittest.TestCase):
+    def test_same_file_disconnected_addition_stays_structural(self) -> None:
         graph = _build_graph(
             [
-                ("a.foo", "a.py"),
-                ("a.bar", "a.py"),
-                ("b.qux", "b.py"),
-                ("b.baz", "b.py"),
-            ],
-            [("b.qux", "b.baz")],  # b cluster has an edge so it's not orphan-eligible
-        )
-        nx_graph = graph.to_networkx()
-        clusters = {
-            0: {"a.foo"},  # singleton, zero-edge
-            1: {"a.bar"},  # singleton, zero-edge, same file as 0
-            2: {"b.qux", "b.baz"},  # populated, different file
-        }
-
-        # Must not raise.
-        result = _absorb_orphans_by_file(clusters, nx_graph)
-
-        # Either order of iteration must end with both a.* qnames clustered
-        # somewhere — the function shouldn't crash and shouldn't lose nodes.
-        all_qnames: set[str] = set()
-        for members in result.values():
-            all_qnames.update(members)
-        self.assertEqual(all_qnames, {"a.foo", "a.bar", "b.qux", "b.baz"})
-
-    def test_singleton_absorbed_into_populated_same_file_cluster(self) -> None:
-        # Original intent: an orphan singleton merges into a same-file
-        # cluster that already has multiple members. Verify this still works.
-        graph = _build_graph(
-            [
-                ("m.orphan", "m.py"),
                 ("m.alpha", "m.py"),
                 ("m.beta", "m.py"),
+                ("m.orphan", "m.py"),
             ],
             [("m.alpha", "m.beta")],
         )
-        nx_graph = graph.to_networkx()
-        clusters = {
-            0: {"m.orphan"},  # zero-edge singleton, same file as cluster 1
-            1: {"m.alpha", "m.beta"},
-        }
+        snap = _snapshot(
+            {
+                "python": {
+                    1: ClusterSnapshotEntry(members={"m.alpha", "m.beta"}),
+                }
+            }
+        )
 
-        result = _absorb_orphans_by_file(clusters, nx_graph)
+        delta = compute_cluster_delta(snap, _build_static(graph))
+        cluster_results = delta.cluster_results()["python"]
 
-        self.assertNotIn(0, result)
-        self.assertEqual(result[1], {"m.orphan", "m.alpha", "m.beta"})
+        self.assertIn("m.orphan", {qname for members in cluster_results.clusters.values() for qname in members})
+        self.assertFalse(
+            any(members == {"m.alpha", "m.beta", "m.orphan"} for members in cluster_results.clusters.values())
+        )
 
 
 if __name__ == "__main__":

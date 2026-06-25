@@ -20,6 +20,8 @@ from agents.cluster_ids import CodeBoardingClusterId, CodeBoardingClusterIds, Gr
 from agents.llm_config import get_current_agent_context_window, get_current_agent_model_ref
 from agents.model_capabilities import ContextWindow
 from constants import MIN_CLUSTERS_THRESHOLD
+from diagram_analysis.cluster_delta import _delta_for_language
+from diagram_analysis.cluster_snapshot import ClusterSnapshotEntry
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cfg_skip_planner import ContextBudgetExceededError, plan_skip_set
 from static_analyzer.cluster_helpers import (
@@ -46,6 +48,29 @@ class _RenderedClusterString:
     text: str
     by_language: dict[str, str]
     cluster_ids: set[GraphClusterId]
+
+
+def _scoped_snapshot_from_lineage(cfg: CallGraph, scope_id: str) -> dict[int, ClusterSnapshotEntry]:
+    if not scope_id:
+        return {}
+    prefix = f"{scope_id}."
+    entries: dict[int, ClusterSnapshotEntry] = {}
+    for qname, cluster_ids in cfg.method_cluster_paths.items():
+        if qname not in cfg.nodes:
+            continue
+        for cluster_id in cluster_ids:
+            if not cluster_id.startswith(prefix):
+                continue
+            local_id = cluster_id.removeprefix(prefix)
+            if not local_id.isdigit():
+                continue
+            entry = entries.setdefault(int(local_id), ClusterSnapshotEntry())
+            entry.members.add(qname)
+            file_path = cfg.nodes[qname].file_path
+            if file_path:
+                entry.files.add(file_path)
+                entry.member_files[qname] = file_path
+    return entries
 
 
 def _describe_window(ctx: ContextWindow) -> str:
@@ -400,7 +425,9 @@ class ClusterMethodsMixin:
         )
 
     def _create_strict_component_subgraph(
-        self, component: Component
+        self,
+        component: Component,
+        source_cluster_id_prefix: str = "",
     ) -> tuple[str, dict[str, ClusterResult], dict[str, CallGraph]]:
         """
         Create a strict subgraph containing ONLY nodes from the component's file_methods.
@@ -441,8 +468,17 @@ class ClusterMethodsMixin:
             if sub_cfg.nodes:
                 subgraph_cfgs[lang] = sub_cfg
 
-                # Calculate clusters for the subgraph
-                sub_cluster_result = sub_cfg.cluster()
+                seeded_snapshot = _scoped_snapshot_from_lineage(sub_cfg, source_cluster_id_prefix)
+                if seeded_snapshot:
+                    scoped_delta = _delta_for_language(
+                        str(lang),
+                        sub_cfg.to_networkx(),
+                        seeded_snapshot,
+                    )
+                    sub_cluster_result = scoped_delta.cluster_results
+                else:
+                    # Calculate clusters for the subgraph
+                    sub_cluster_result = sub_cfg.cluster()
 
                 # Merge into super-clusters if too many (same limit as AbstractionAgent)
                 if len(sub_cluster_result.clusters) > MAX_LLM_CLUSTERS:
@@ -461,6 +497,12 @@ class ClusterMethodsMixin:
         if len(cluster_results) > 1:
             cfg_nx = {lang: subgraph_cfgs[lang].to_networkx() for lang in cluster_results}
             enforce_cross_language_budget(cluster_results, cfg_nx)
+
+        if source_cluster_id_prefix:
+            for lang, cluster_result in cluster_results.items():
+                self.static_analysis.get_cfg(Language(lang)).record_cluster_paths(
+                    source_cluster_id_prefix, cluster_result
+                )
 
         result_parts = []
         for lang in self.static_analysis.get_languages():
@@ -619,14 +661,16 @@ class ClusterMethodsMixin:
         return cluster_to_component
 
     def _build_node_to_cluster_map(
-        self, cluster_results: dict[str, ClusterResult]
+        self, cluster_results: dict[str, ClusterResult], source_cluster_id_prefix: str = ""
     ) -> tuple[dict[str, CodeBoardingClusterId], set[CodeBoardingClusterId]]:
         """Build node_name (qualified name) -> cluster_id mapping and collect all cluster IDs."""
         all_cluster_ids: set[CodeBoardingClusterId] = set()
         node_to_cluster: dict[str, CodeBoardingClusterId] = {}
         for cr in cluster_results.values():
             for cid, members in cr.clusters.items():
-                cluster_id = CodeBoardingClusterIds.from_graph_ids({cid})[0]
+                cluster_id = CodeBoardingClusterIds.qualify_local_ids(
+                    CodeBoardingClusterIds.from_graph_ids({cid}), source_cluster_id_prefix
+                )[0]
                 all_cluster_ids.add(cluster_id)
                 for name in members:
                     node_to_cluster[name] = cluster_id
@@ -649,6 +693,7 @@ class ClusterMethodsMixin:
         node: Node,
         cluster_results: dict[str, ClusterResult],
         cluster_to_component: dict[str, Component],
+        source_cluster_id_prefix: str = "",
     ) -> Component | None:
         """Try to assign a node to a component based on its file already belonging to a cluster."""
         file_path = node.file_path
@@ -657,7 +702,10 @@ class ClusterMethodsMixin:
         for cr in cluster_results.values():
             cluster_ids = cr.get_clusters_for_file(file_path)
             for cid in cluster_ids:
-                comp = cluster_to_component.get(str(cid))
+                cluster_id = CodeBoardingClusterIds.qualify_local_ids(
+                    CodeBoardingClusterIds.from_graph_ids({cid}), source_cluster_id_prefix
+                )[0]
+                comp = cluster_to_component.get(cluster_id)
                 if comp is not None:
                     return comp
         return None
@@ -670,6 +718,7 @@ class ClusterMethodsMixin:
         cluster_results: dict[str, ClusterResult],
         fallback_component: Component,
         cfg_graphs: dict[str, CallGraph] | None = None,
+        source_cluster_id_prefix: str = "",
     ) -> dict[str, list[Node]]:
         """Assign every node to a component via its cluster, file co-location, graph distance, or fallback."""
         component_nodes: dict[str, list[Node]] = defaultdict(list)
@@ -697,7 +746,7 @@ class ClusterMethodsMixin:
             node = all_nodes[qname]
 
             # 1. Try file co-location: if the node's file already belongs to a cluster/component
-            comp = self._find_component_by_file(node, cluster_results, cluster_to_component)
+            comp = self._find_component_by_file(node, cluster_results, cluster_to_component, source_cluster_id_prefix)
             if comp is not None:
                 assigned_by_file += 1
                 component_nodes[comp.component_id].append(node)
@@ -705,7 +754,13 @@ class ClusterMethodsMixin:
 
             # 2. Try graph distance: find the nearest cluster in the call graph
             nearest_cid = self._find_nearest_cluster(qname, cluster_results, undirected_graphs)
-            nearest_cluster_id = str(nearest_cid) if nearest_cid is not None else ""
+            nearest_cluster_id = (
+                CodeBoardingClusterIds.qualify_local_ids(
+                    CodeBoardingClusterIds.from_graph_ids({nearest_cid}), source_cluster_id_prefix
+                )[0]
+                if nearest_cid is not None
+                else ""
+            )
             if nearest_cluster_id in cluster_to_component:
                 comp = cluster_to_component[nearest_cluster_id]
                 assigned_by_graph += 1
@@ -761,6 +816,7 @@ class ClusterMethodsMixin:
         analysis: AnalysisInsights,
         cluster_results: dict[str, ClusterResult],
         cfg_graphs: dict[str, CallGraph] | None = None,
+        source_cluster_id_prefix: str = "",
     ) -> None:
         """Deterministically populate ``file_methods`` on every component.
 
@@ -784,11 +840,17 @@ class ClusterMethodsMixin:
         # per-component subgraph in DetailsAgent, which runs in parallel).
         all_nodes = self._collect_all_cfg_nodes(cluster_results, cfg_graphs)
         cluster_to_component = self._build_cluster_to_component_map(analysis)
-        node_to_cluster, all_cluster_ids = self._build_node_to_cluster_map(cluster_results)
+        node_to_cluster, all_cluster_ids = self._build_node_to_cluster_map(cluster_results, source_cluster_id_prefix)
         self._validate_cluster_coverage(cluster_to_component, all_cluster_ids)
 
         component_nodes = self._assign_nodes_to_components(
-            all_nodes, node_to_cluster, cluster_to_component, cluster_results, analysis.components[0], cfg_graphs
+            all_nodes,
+            node_to_cluster,
+            cluster_to_component,
+            cluster_results,
+            analysis.components[0],
+            cfg_graphs,
+            source_cluster_id_prefix,
         )
 
         for comp in analysis.components:

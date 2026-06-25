@@ -3,6 +3,7 @@ from __future__ import annotations
 import abc
 import logging
 from abc import abstractmethod
+from enum import StrEnum
 from pathlib import PurePosixPath
 from typing import get_origin, Optional
 
@@ -570,6 +571,60 @@ class ScopeRelations(LLMBaseModel):
         if not self.components_relations:
             return "No relations found."
         return "\n".join(r.llm_str() for r in self.components_relations)
+
+
+class ScopeOperationAction(StrEnum):
+    ASSIGN_TO_EXISTING = "assign_to_existing"
+    CREATE_COMPONENT = "create_component"
+    UPDATE_COMPONENT = "update_component"
+    DELETE_COMPONENT = "delete_component"
+    NOOP = "noop"
+    REGENERATE_SCOPE = "regenerate_scope"
+
+
+class ScopedClusterRef(LLMBaseModel):
+    """A cluster reference scoped by component depth and language."""
+
+    scope_id: str = Field(description="Component scope id; empty string means root scope.")
+    language: str = Field(description="Programming language for this cluster.")
+    cluster_id: int = Field(description="Cluster id within the scope/language cluster result.")
+
+    def llm_str(self):
+        scope = self.scope_id or "root"
+        return f"{scope}:{self.language}:{self.cluster_id}"
+
+
+class ScopeOperation(LLMBaseModel):
+    """One diagram update operation for a single scope."""
+
+    action: ScopeOperationAction = Field(description="Operation to apply in this scope.")
+    cluster_refs: list[ScopedClusterRef] = Field(description="New-side clusters this operation accounts for.")
+    component_id: str | None = Field(
+        default=None,
+        description="Existing component id for assign/update/delete/noop; null when creating a component.",
+    )
+    name: str | None = Field(default=None, description="Component name for create/update operations.")
+    description: str | None = Field(default=None, description="Component description for create/update operations.")
+    recurse: bool = Field(
+        default=False, description="Whether this component should be considered for child-scope update."
+    )
+    rationale: str = Field(description="Short reason for the operation, especially for ambiguous reshapes.")
+
+    def llm_str(self):
+        refs = ", ".join(ref.llm_str() for ref in self.cluster_refs) or "no clusters"
+        target = self.component_id or self.name or "new component"
+        return f"{self.action}: {refs} -> {target}; recurse={self.recurse}; {self.rationale}"
+
+
+class ScopeUpdateDecision(LLMBaseModel):
+    """LLM-selected operations for one incremental scope update."""
+
+    operations: list[ScopeOperation] = Field(description="Operations to apply to the current scope.")
+
+    def llm_str(self):
+        if not self.operations:
+            return "No scope operations."
+        return "\n".join(operation.llm_str() for operation in self.operations)
 
 
 class FilePath(LLMBaseModel):

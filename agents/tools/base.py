@@ -4,6 +4,7 @@ from typing import Optional, List
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field, PrivateAttr
 from repo_utils.ignore import RepoIgnoreManager
+from repo_utils.change_detector import ChangeSet
 from static_analyzer.analysis_result import StaticAnalysisResults
 
 
@@ -15,6 +16,9 @@ class RepoContext(BaseModel):
     repo_dir: Path
     ignore_manager: RepoIgnoreManager
     static_analysis: Optional[StaticAnalysisResults] = None
+    changes: ChangeSet | None = None
+    diff_base_ref: str = ""
+    diff_target_ref: str = ""
     # Shared caches to prevent redundant filesystem walks
     _file_cache: List[Path] = PrivateAttr(default_factory=list)
     _dir_cache: List[Path] = PrivateAttr(default_factory=list)

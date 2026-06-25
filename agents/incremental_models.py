@@ -3,6 +3,7 @@ from enum import StrEnum
 
 from agents.agent_responses import Component
 from agents.cluster_ids import GraphClusterId
+from static_analyzer.graph import CallGraph, ClusterResult
 
 
 @dataclass
@@ -47,3 +48,9 @@ class ExistingComponentOwnership:
 class DeltaClusterContents:
     members: dict[GraphClusterId, set[str]] = field(default_factory=dict)
     files: dict[GraphClusterId, set[str]] = field(default_factory=dict)
+
+
+@dataclass
+class ScopedClusterArtifacts:
+    cluster_results: dict[str, ClusterResult]
+    cfg_graphs: dict[str, CallGraph]
