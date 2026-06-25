@@ -51,6 +51,7 @@ class _RenderedClusterString:
 
 
 def _scoped_snapshot_from_lineage(cfg: CallGraph, scope_id: str) -> dict[int, ClusterSnapshotEntry]:
+    """Build a scoped snapshot from each method's recorded cluster ancestry/path."""
     if not scope_id:
         return {}
     prefix = f"{scope_id}."
@@ -501,7 +502,7 @@ class ClusterMethodsMixin:
         if source_cluster_id_prefix:
             for lang, cluster_result in cluster_results.items():
                 self.static_analysis.get_cfg(Language(lang)).record_cluster_paths(
-                    source_cluster_id_prefix, cluster_result
+                    cluster_result, source_cluster_id_prefix
                 )
 
         result_parts = []

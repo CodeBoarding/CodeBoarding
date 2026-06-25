@@ -265,13 +265,19 @@ class CallGraph:
         )
 
     def _prune_method_cluster_paths(self, surviving_nodes: dict[str, Node]) -> dict[str, set[str]]:
-        return {qname: set(cluster_ids) for qname, cluster_ids in self.method_cluster_paths.items() if qname in surviving_nodes}
+        return {
+            qname: set(cluster_ids)
+            for qname, cluster_ids in self.method_cluster_paths.items()
+            if qname in surviving_nodes
+        }
 
-    def record_cluster_paths(self, scope_id: str, cluster_result: ClusterResult) -> None:
+    def record_cluster_paths(self, cluster_result: ClusterResult, scope_id: str = "") -> None:
         """Record each member's current cluster id for this scope."""
         prefix = f"{scope_id}." if scope_id else ""
         for existing in self.method_cluster_paths.values():
-            existing -= {cluster_id for cluster_id in existing if self._cluster_id_belongs_to_scope(cluster_id, scope_id)}
+            existing -= {
+                cluster_id for cluster_id in existing if self._cluster_id_belongs_to_scope(cluster_id, scope_id)
+            }
         for cluster_id, members in cluster_result.clusters.items():
             qualified_cluster_id = f"{prefix}{cluster_id}"
             for member in members:

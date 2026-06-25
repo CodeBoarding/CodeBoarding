@@ -245,7 +245,7 @@ class DiagramGenerator:
             except (ValueError, KeyError):
                 continue
             cfg._cluster_cache = cr
-            cfg.record_cluster_paths("", cr)
+            cfg.record_cluster_paths(cr)
 
     def _persist_static_analysis_artifact(self) -> None:
         """Persist the post-clustering static-analysis artifact."""
@@ -598,9 +598,6 @@ class DiagramGenerator:
                 changes=self.changes,
                 repo_dir=self.repo_location,
             )
-            # @ivanmilevtues I think this delta should probably have better statuses:
-            # i.e. only_deletions, additions_modifications, adds_mods_dels or something liek that
-            # it makes no sense to not have changes but still prune?
             if not delta.has_changes:
                 logger.info("Cluster delta is empty; rewriting current analysis without re-detailing.")
                 commit_hash = get_git_commit_hash(self.repo_location)
@@ -640,22 +637,14 @@ class DiagramGenerator:
                 logger.info("Scoped incremental agent requested root regeneration; running full analysis.")
                 return self.generate_analysis()
 
-            refresh_files: set[str] = set()
-            if self.changes is not None:
-                for file_change in self.changes.files:
-                    refresh_files.add(file_change.file_path)
-                    if file_change.old_path:
-                        refresh_files.add(file_change.old_path)
-
-            # Refresh first (per-component, siblings untouched), then prune —
-            # we only know a component is empty after rebuilding from live CFG.
+            # Refresh first, then prune — we only know a component is empty
+            # after rebuilding from live CFG.
             touched_scopes = repopulate_touched_scopes(
                 apply_result.refresh_ids,
                 root_analysis,
                 sub_analyses,
                 delta.cluster_results(),
                 self.abstraction_agent,
-                refresh_files,
             )
 
             removed_ids = prune_empty_components(root_analysis, sub_analyses)
@@ -750,10 +739,10 @@ def _merge_sub_analyses(
     """Merge *updates* into *target*, preserving components the redetailer didn't touch.
 
     ``_generate_subcomponents`` produces fresh sub-analyses that only contain
-    components the detailer LLM generated.  In the incremental path, ``stitch_delta``
-    may have inserted brand-new components (e.g. MCP Server Interface) that the
-    detailer never saw because they weren't in its input scope.  A plain
-    ``dict.update()`` would wipe those survivors out.
+    components the detailer LLM generated. In the incremental path, scoped
+    operations may have inserted brand-new components that the detailer never
+    saw because they weren't in its input scope. A plain ``dict.update()``
+    would wipe those survivors out.
 
     For each key in *updates*, we:
       1. Keep old components whose IDs are absent from the new sub-analysis.
