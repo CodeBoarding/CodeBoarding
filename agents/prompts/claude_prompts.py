@@ -396,6 +396,45 @@ For each cluster you're uncertain about, you may read source. Keep each read sma
 </tool_usage_policy>"""
 
 
+SCOPED_INCREMENTAL_MESSAGE = """Update one scope of the `{project_name}` architecture diagram.
+
+<context>
+Scope: `{scope_id}` (`root` means the top-level diagram)
+Project type: {project_type}
+
+Project context:
+{meta_context}
+
+Existing components in this scope:
+{existing_components}
+
+Changed files:
+{changed_files}
+
+Structural cluster diff:
+{structural_diff}
+
+New package-root clusters that must create components:
+{required_create_refs}
+</context>
+
+<instructions>
+Return operations for this scope only.
+
+- Keep unchanged clusters out of the operations unless the diff makes the component semantically dirty.
+- For modified clusters, usually update or assign to the existing owning component.
+- For new clusters, decide whether they belong to an existing component or require a new component.
+- For reshaped groups, explicitly resolve split/merge/move ambiguity.
+- Do not reparent existing components. If reparenting seems required, use regenerate_scope.
+- Every modified/new/reshaped new-side cluster listed below must appear in exactly one operation's cluster_refs.
+- A cluster listed under "must create components" introduces a new package root and must use create_component, not assign_to_existing/update_component.
+</instructions>
+
+<tool_usage_policy>
+Use listGitChanges/readGitDiff only when the structural diff is not enough to judge semantic impact. Keep reads targeted to the uncertain cluster.
+</tool_usage_policy>"""
+
+
 class ClaudePromptFactory(AbstractPromptFactory):
     """Prompt factory for Claude models."""
 
@@ -443,6 +482,9 @@ class ClaudePromptFactory(AbstractPromptFactory):
 
     def get_incremental_grouping_message(self) -> str:
         return INCREMENTAL_GROUPING_MESSAGE
+
+    def get_scoped_incremental_message(self) -> str:
+        return SCOPED_INCREMENTAL_MESSAGE
 
     def get_scope_relations_message(self) -> str:
         return SCOPE_RELATIONS_MESSAGE

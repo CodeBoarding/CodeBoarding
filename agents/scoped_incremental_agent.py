@@ -18,7 +18,7 @@ from agents.agent_responses import (
     ScopeUpdateDecision,
     ScopedClusterRef,
 )
-from agents.prompts import get_system_message
+from agents.prompts import get_scoped_incremental_message, get_system_message
 from agents.validation import ValidationResult
 from diagram_analysis.cluster_delta import (
     ClusterMemberDelta,
@@ -32,40 +32,6 @@ from static_analyzer.analysis_result import StaticAnalysisResults
 
 
 logger = logging.getLogger(__name__)
-
-
-SCOPED_INCREMENTAL_PROMPT = """Update one scope of the `{project_name}` architecture diagram.
-
-Scope: `{scope_id}` (`root` means the top-level diagram)
-Project type: {project_type}
-
-Project context:
-{meta_context}
-
-Existing components in this scope:
-{existing_components}
-
-Changed files:
-{changed_files}
-
-Structural cluster diff:
-{structural_diff}
-
-New package-root clusters that must create components:
-{required_create_refs}
-
-Return operations for this scope only.
-
-Rules:
-- Keep unchanged clusters out of the operations unless the diff makes the component semantically dirty.
-- For modified clusters, usually update or assign to the existing owning component.
-- For new clusters, decide whether they belong to an existing component or require a new component.
-- For reshaped groups, explicitly resolve split/merge/move ambiguity.
-- Use listGitChanges/readGitDiff only when the structural diff is not enough to judge semantic impact.
-- Do not reparent existing components. If reparenting seems required, use regenerate_scope.
-- Every modified/new/reshaped new-side cluster listed below must appear in exactly one operation's cluster_refs.
-- A cluster listed under "must create components" introduces a new package root and must use create_component, not assign_to_existing/update_component.
-"""
 
 
 @dataclass
@@ -100,7 +66,7 @@ class ScopedIncrementalAgent(CodeBoardingAgent):
         self.project_name = project_name
         self.meta_context = meta_context
         self.prompt = PromptTemplate(
-            template=SCOPED_INCREMENTAL_PROMPT,
+            template=get_scoped_incremental_message(),
             input_variables=[
                 "project_name",
                 "scope_id",

@@ -433,6 +433,42 @@ Every cluster id listed in the CLUSTER GROUPS TO ASSIGN section MUST appear in e
 Return one routing decision per cluster group. Each decision MUST clearly indicate whether it routes to an existing component (referenced by its exact id from the list above) or proposes a new component with a distinct name, a description paragraph, and the parent it should attach to."""
 
 
+SCOPED_INCREMENTAL_MESSAGE = """You are a software architecture incremental-update analyst. STRICTLY follow these rules.
+
+TASK:
+Update one scope of the `{project_name}` architecture diagram.
+
+CONTEXT:
+- Scope: `{scope_id}` (`root` means the top-level diagram)
+- Project type: {project_type}
+- Meta: {meta_context}
+
+EXISTING COMPONENTS IN THIS SCOPE:
+{existing_components}
+
+CHANGED FILES:
+{changed_files}
+
+STRUCTURAL CLUSTER DIFF:
+{structural_diff}
+
+NEW PACKAGE-ROOT CLUSTERS THAT MUST CREATE COMPONENTS:
+{required_create_refs}
+
+REQUIRED STEPS:
+1. Return operations for this scope only.
+2. Keep unchanged clusters out of operations unless the diff makes the component semantically dirty.
+3. For modified clusters, update or assign to the existing owning component unless the diff proves the ownership changed.
+4. For new clusters, decide whether they belong to an existing component or require a new component.
+5. For reshaped groups, explicitly resolve split/merge/move ambiguity.
+6. Use listGitChanges/readGitDiff ONLY when the structural diff is not enough to judge semantic impact.
+
+MANDATORY RULES:
+- Do NOT reparent existing components. If reparenting seems required, use regenerate_scope.
+- Every modified/new/reshaped new-side cluster listed below MUST appear in exactly one operation's cluster_refs.
+- A cluster listed under "must create components" introduces a new package root and MUST use create_component, not assign_to_existing/update_component."""
+
+
 class GLMPromptFactory(AbstractPromptFactory):
     """Prompt factory for GLM models optimized for firm directive prompts with strong role-playing."""
 
@@ -483,6 +519,9 @@ class GLMPromptFactory(AbstractPromptFactory):
 
     def get_incremental_grouping_message(self) -> str:
         return INCREMENTAL_GROUPING_MESSAGE
+
+    def get_scoped_incremental_message(self) -> str:
+        return SCOPED_INCREMENTAL_MESSAGE
 
     def get_scope_relations_message(self) -> str:
         return SCOPE_RELATIONS_MESSAGE
