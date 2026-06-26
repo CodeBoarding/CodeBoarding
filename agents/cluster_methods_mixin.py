@@ -669,9 +669,9 @@ class ClusterMethodsMixin:
         node_to_cluster: dict[str, CodeBoardingClusterId] = {}
         for cr in cluster_results.values():
             for cid, members in cr.clusters.items():
-                cluster_id = CodeBoardingClusterIds.qualify_local_ids(
-                    CodeBoardingClusterIds.from_graph_ids({cid}), source_cluster_id_prefix
-                )[0]
+                cluster_id = CodeBoardingClusterIds.qualify_local_id(
+                    CodeBoardingClusterIds.from_graph_id(cid), source_cluster_id_prefix
+                )
                 all_cluster_ids.add(cluster_id)
                 for name in members:
                     node_to_cluster[name] = cluster_id
@@ -703,9 +703,9 @@ class ClusterMethodsMixin:
         for cr in cluster_results.values():
             cluster_ids = cr.get_clusters_for_file(file_path)
             for cid in cluster_ids:
-                cluster_id = CodeBoardingClusterIds.qualify_local_ids(
-                    CodeBoardingClusterIds.from_graph_ids({cid}), source_cluster_id_prefix
-                )[0]
+                cluster_id = CodeBoardingClusterIds.qualify_local_id(
+                    CodeBoardingClusterIds.from_graph_id(cid), source_cluster_id_prefix
+                )
                 comp = cluster_to_component.get(cluster_id)
                 if comp is not None:
                     return comp
@@ -756,9 +756,9 @@ class ClusterMethodsMixin:
             # 2. Try graph distance: find the nearest cluster in the call graph
             nearest_cid = self._find_nearest_cluster(qname, cluster_results, undirected_graphs)
             nearest_cluster_id = (
-                CodeBoardingClusterIds.qualify_local_ids(
-                    CodeBoardingClusterIds.from_graph_ids({nearest_cid}), source_cluster_id_prefix
-                )[0]
+                CodeBoardingClusterIds.qualify_local_id(
+                    CodeBoardingClusterIds.from_graph_id(nearest_cid), source_cluster_id_prefix
+                )
                 if nearest_cid is not None
                 else ""
             )
