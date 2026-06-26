@@ -13,7 +13,6 @@ from agents.agent_responses import (
     AnalysisInsights,
     Component,
     MetaAnalysisInsights,
-    ScopeOperation,
     ScopeOperationAction,
     ScopeUpdateDecision,
     ScopedClusterRef,
@@ -29,6 +28,7 @@ from diagram_analysis.cluster_delta import (
 )
 from repo_utils.change_detector import ChangeSet
 from static_analyzer.analysis_result import StaticAnalysisResults
+from telemetry.service import telemetry
 
 
 logger = logging.getLogger(__name__)
@@ -110,21 +110,26 @@ class ScopedIncrementalAgent(CodeBoardingAgent):
             max_validation_attempts=3,
         )
         validation = validate_scope_update_decision(decision, context)
-        if validation.is_valid:
-            return decision
-        logger.warning(
-            "Scoped incremental decision remained invalid after retries; regenerating scope. Issues: %s",
-            validation.feedback_messages,
-        )
-        return ScopeUpdateDecision(
-            operations=[
-                ScopeOperation(
-                    action=ScopeOperationAction.REGENERATE_SCOPE,
-                    cluster_refs=[],
-                    rationale="Scoped incremental decision did not satisfy structural coverage validation.",
-                )
-            ]
-        )
+        if not validation.is_valid:
+            logger.error(
+                "Scoped incremental decision remained invalid after retries; Will still pass it on, however this is a critical issue. Issues: %s",
+                validation.feedback_messages,
+            )
+            _track_invalid_scoped_incremental_decision(scope_id, validation.feedback_messages)
+        return decision
+
+
+def _track_invalid_scoped_incremental_decision(scope_id: str, feedback_messages: list[str]) -> None:
+    telemetry.capture_exception(
+        RuntimeError("Scoped incremental decision remained invalid after retries"),
+        properties={
+            "error_type": "scoped_incremental_invalid_decision",
+            "scope_id": scope_id or "root",
+            "issue_count": len(feedback_messages),
+            "issues": feedback_messages[:10],
+        },
+    )
+    telemetry.flush()
 
 
 def validate_scope_update_decision(

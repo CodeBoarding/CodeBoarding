@@ -367,7 +367,7 @@ def test_decide_scope_update_passes_structural_diff_to_validator() -> None:
     assert context.existing_component_ids == {"1"}
 
 
-def test_decide_scope_update_regenerates_scope_when_best_decision_is_invalid() -> None:
+def test_decide_scope_update_tracks_invalid_decision_after_retries() -> None:
     static_analysis = MagicMock(spec=StaticAnalysisResults)
     scope = AnalysisInsights(
         description="root",
@@ -407,7 +407,16 @@ def test_decide_scope_update_regenerates_scope_when_best_decision_is_invalid() -
         )
     agent._validation_invoke = MagicMock(return_value=invalid)
 
-    result = agent.decide_scope_update("", scope, structural)
+    with patch("agents.scoped_incremental_agent.telemetry") as mock_telemetry:
+        result = agent.decide_scope_update("", scope, structural)
 
-    assert len(result.operations) == 1
-    assert result.operations[0].action == ScopeOperationAction.REGENERATE_SCOPE
+    assert result is invalid
+    mock_telemetry.capture_exception.assert_called_once()
+    exc = mock_telemetry.capture_exception.call_args.args[0]
+    properties = mock_telemetry.capture_exception.call_args.kwargs["properties"]
+    assert isinstance(exc, RuntimeError)
+    assert properties["error_type"] == "scoped_incremental_invalid_decision"
+    assert properties["scope_id"] == "root"
+    assert properties["issue_count"] == 1
+    assert "Missing cluster_refs" in properties["issues"][0]
+    mock_telemetry.flush.assert_called_once()
