@@ -31,6 +31,23 @@ def exe_suffix() -> str:
     return ".exe" if platform.system() == "Windows" else ""
 
 
+def is_wsl() -> bool:
+    """Return True when running inside Windows Subsystem for Linux."""
+    if platform.system() != "Linux":
+        return False
+
+    release = platform.release().lower()
+    if "microsoft" in release or "wsl" in release:
+        return True
+
+    try:
+        proc_version = Path("/proc/version").read_text(encoding="utf-8").lower()
+    except OSError:
+        return False
+
+    return "microsoft" in proc_version or "wsl" in proc_version
+
+
 def platform_bin_dir(base: Path) -> Path:
     """Return the platform-specific binary directory under base (e.g. base/bin/macos)."""
     system = platform.system().lower()
