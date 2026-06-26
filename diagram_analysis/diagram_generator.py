@@ -15,14 +15,12 @@ from agents.details_agent import DetailsAgent
 from agents.incremental_agent import (
     IncrementalAgent,
     prune_empty_components,
-    repopulate_touched_scopes,
     remove_deleted_files,
 )
 from agents.llm_config import initialize_llms
 from agents.meta_agent import MetaAgent
 from agents.planner_agent import get_expandable_components
 from agents.incremental_planning_agent import IncrementalPlanningAgent
-from agents.scoped_incremental_apply import apply_scope_update_decision
 from telemetry.events import track_analysis
 from diagram_analysis.analysis_json import (
     FileCoverageReport,
@@ -631,21 +629,23 @@ class DiagramGenerator:
                 changes=self.changes,
                 repo_dir=self.repo_location,
             )
+            incremental_agent = IncrementalAgent(
+                repo_dir=self.repo_location,
+                static_analysis=self.static_analysis,
+                project_name=self.repo_name,
+                meta_context=self.meta_context,
+                agent_llm=agent_llm,
+                parsing_llm=parsing_llm,
+                changes=self.changes,
+            )
+            self._monitoring_agents["IncrementalAgent"] = incremental_agent
             scope_decision = planning_agent.decide_scope_update("", root_analysis, structural_diff)
-            apply_result = apply_scope_update_decision("", root_analysis, scope_decision)
+            apply_result = incremental_agent.update_scope("", root_analysis, scope_decision, delta.cluster_results())
             if apply_result.regenerate_scope:
                 logger.info("Incremental planning agent requested root regeneration; running full analysis.")
                 return self.generate_analysis()
 
-            # Refresh first, then prune — we only know a component is empty
-            # after rebuilding from live CFG.
-            touched_scopes = repopulate_touched_scopes(
-                apply_result.refresh_ids,
-                root_analysis,
-                sub_analyses,
-                delta.cluster_results(),
-                self.abstraction_agent,
-            )
+            touched_scopes = {""} if apply_result.refresh_ids else set()
 
             removed_ids = prune_empty_components(root_analysis, sub_analyses)
             if removed_ids:
@@ -662,16 +662,6 @@ class DiagramGenerator:
                 _merge_sub_analyses(sub_analyses, redetailed_subs)
 
             if touched_scopes:
-                incremental_agent = IncrementalAgent(
-                    repo_dir=self.repo_location,
-                    static_analysis=self.static_analysis,
-                    project_name=self.repo_name,
-                    meta_context=self.meta_context,
-                    agent_llm=agent_llm,
-                    parsing_llm=parsing_llm,
-                    changes=self.changes,
-                )
-                self._monitoring_agents["IncrementalAgent"] = incremental_agent
                 incremental_agent.generate_all_scope_relations(root_analysis, sub_analyses, touched_scopes)
 
             # Rebuild the global files index, unioning every sub-analysis's

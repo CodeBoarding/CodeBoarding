@@ -1,8 +1,18 @@
 import unittest
 from unittest.mock import MagicMock
 
-from agents.agent_responses import AnalysisInsights, Component, FileMethodGroup, MethodEntry, Relation
-from agents.incremental_agent import prune_empty_components, remove_deleted_files, repopulate_touched_scopes
+from agents.agent_responses import (
+    AnalysisInsights,
+    Component,
+    FileMethodGroup,
+    MethodEntry,
+    Relation,
+    ScopeOperation,
+    ScopeOperationAction,
+    ScopedClusterRef,
+    ScopeUpdateDecision,
+)
+from agents.incremental_agent import IncrementalAgent, prune_empty_components, remove_deleted_files
 from static_analyzer.graph import ClusterResult
 
 
@@ -107,47 +117,140 @@ class TestRemoveDeletedFiles(unittest.TestCase):
         self.assertEqual(sub_component.file_methods, [])
 
 
-class TestRepopulateTouchedScopes(unittest.TestCase):
-    def test_no_refresh_skips_all_helpers(self) -> None:
-        helpers = MagicMock()
-        touched = repopulate_touched_scopes(
-            set(),
-            AnalysisInsights(description="r", components=[], components_relations=[]),
-            {},
-            {},
-            helpers,
+class TestUpdateScope(unittest.TestCase):
+    def _agent(self) -> IncrementalAgent:
+        agent = object.__new__(IncrementalAgent)
+        agent.static_analysis = MagicMock()
+        agent.static_analysis.get_cfg.return_value.filter_by_nodes.return_value = "cfg"
+
+        def populate(scope, _cluster_results, _cfg_graphs, source_cluster_id_prefix=""):
+            for component in scope.components:
+                if component.source_cluster_ids:
+                    component.file_methods = [
+                        FileMethodGroup(
+                            file_path=f"{component.component_id}.py",
+                            methods=[
+                                MethodEntry(
+                                    qualified_name=f"{component.component_id}.method",
+                                    start_line=1,
+                                    end_line=2,
+                                    node_type="FUNCTION",
+                                )
+                            ],
+                        )
+                    ]
+
+        agent.populate_file_methods = MagicMock(side_effect=populate)
+        agent.build_static_relations = MagicMock()
+        return agent
+
+    def test_update_existing_component_updates_description_clusters_and_key_entities(self) -> None:
+        component = _component("API", "1", source_cluster_ids=["1"])
+        scope = AnalysisInsights(description="root", components=[component], components_relations=[])
+        decision = ScopeUpdateDecision(
+            operations=[
+                ScopeOperation(
+                    action=ScopeOperationAction.UPDATE_COMPONENT,
+                    cluster_refs=[ScopedClusterRef(scope_id="", language="python", cluster_id=2)],
+                    component_id="1",
+                    description="New",
+                    rationale="API gained a cluster.",
+                )
+            ]
         )
 
-        self.assertEqual(touched, set())
-        helpers.populate_file_methods.assert_not_called()
-        helpers.build_static_relations.assert_not_called()
+        result = self._agent().update_scope("", scope, decision, {"python": ClusterResult()})
 
-    def test_root_refresh_rebuilds_file_methods_and_static_relations(self) -> None:
-        root_component = _component("Root", "1", source_cluster_ids=["1"])
-        root = AnalysisInsights(description="r", components=[root_component], components_relations=[])
-        cluster_results = {"python": ClusterResult(clusters={1: {"pkg.fn"}}, cluster_to_files={1: {"pkg.py"}})}
-        helpers = MagicMock()
-        helpers.static_analysis.get_cfg.return_value.filter_by_nodes.return_value = "cfg"
+        self.assertEqual(component.description, "New")
+        self.assertEqual(component.source_cluster_ids, ["1", "2"])
+        self.assertEqual(component.key_entities[0].qualified_name, "1.method")
+        self.assertEqual(result.refresh_ids, {"1"})
+        self.assertEqual(result.new_component_ids, set())
 
-        touched = repopulate_touched_scopes({"1"}, root, {}, cluster_results, helpers)
+    def test_create_component_assigns_id_clusters_methods_and_key_entities(self) -> None:
+        existing = Component(name="API", description="", key_entities=[], component_id="1")
+        scope = AnalysisInsights(description="root", components=[existing], components_relations=[])
+        decision = ScopeUpdateDecision(
+            operations=[
+                ScopeOperation(
+                    action=ScopeOperationAction.CREATE_COMPONENT,
+                    cluster_refs=[ScopedClusterRef(scope_id="root", language="python", cluster_id=7)],
+                    name="Worker",
+                    description="Runs jobs.",
+                    rationale="New isolated responsibility.",
+                )
+            ]
+        )
 
-        self.assertEqual(touched, {""})
-        helpers.populate_file_methods.assert_called_once_with(root, cluster_results, {"python": "cfg"})
-        helpers.build_static_relations.assert_called_once_with(root, {"python": "cfg"})
+        result = self._agent().update_scope("", scope, decision, {"python": ClusterResult()})
 
-    def test_sub_scope_refresh_is_left_unchanged_without_scoped_artifacts(self) -> None:
-        sub_component = _component("Sub", "1.1", source_cluster_ids=["1"])
-        root = AnalysisInsights(description="r", components=[], components_relations=[])
-        sub_analyses = {"1": AnalysisInsights(description="s", components=[sub_component], components_relations=[])}
-        helpers = MagicMock()
+        created = scope.components[1]
+        self.assertEqual(created.component_id, "2")
+        self.assertEqual(created.name, "Worker")
+        self.assertEqual(created.source_cluster_ids, ["7"])
+        self.assertEqual(created.file_methods[0].methods[0].qualified_name, "2.method")
+        self.assertEqual(created.key_entities[0].qualified_name, "2.method")
+        self.assertEqual(result.refresh_ids, {"2"})
+        self.assertEqual(result.new_component_ids, {"2"})
 
-        with self.assertLogs("agents.incremental_agent", level="WARNING") as logs:
-            touched = repopulate_touched_scopes({"1.1"}, root, sub_analyses, {}, helpers)
+    def test_create_component_with_mismatched_scope_is_skipped(self) -> None:
+        scope = AnalysisInsights(description="root", components=[], components_relations=[])
+        decision = ScopeUpdateDecision(
+            operations=[
+                ScopeOperation(
+                    action=ScopeOperationAction.CREATE_COMPONENT,
+                    cluster_refs=[ScopedClusterRef(scope_id="1.3", language="python", cluster_id=8)],
+                    name="Nested Worker",
+                    description="Runs nested jobs.",
+                    rationale="Wrong scope for root apply.",
+                )
+            ]
+        )
 
-        self.assertEqual(touched, set())
-        self.assertIn("kept scope 1 unchanged", "\n".join(logs.output))
-        helpers.populate_file_methods.assert_not_called()
-        helpers.build_static_relations.assert_not_called()
+        result = self._agent().update_scope("", scope, decision, {"python": ClusterResult()})
+
+        self.assertEqual(scope.components, [])
+        self.assertEqual(result.new_component_ids, set())
+
+    def test_delete_component_removes_relations(self) -> None:
+        first = _component("A", "1")
+        second = _component("B", "2")
+        relation = Relation(relation="calls", src_name="A", dst_name="B", src_id="1", dst_id="2")
+        scope = AnalysisInsights(description="root", components=[first, second], components_relations=[relation])
+        decision = ScopeUpdateDecision(
+            operations=[
+                ScopeOperation(
+                    action=ScopeOperationAction.DELETE_COMPONENT,
+                    cluster_refs=[],
+                    component_id="1",
+                    rationale="Removed cluster emptied component.",
+                )
+            ]
+        )
+
+        result = self._agent().update_scope("", scope, decision, {})
+
+        self.assertEqual([component.component_id for component in scope.components], ["2"])
+        self.assertEqual(scope.components_relations, [])
+        self.assertEqual(result.removed_ids, {"1"})
+
+    def test_regenerate_scope_sets_flag_without_mutation(self) -> None:
+        component = _component("A", "1")
+        scope = AnalysisInsights(description="root", components=[component], components_relations=[])
+        decision = ScopeUpdateDecision(
+            operations=[
+                ScopeOperation(
+                    action=ScopeOperationAction.REGENERATE_SCOPE,
+                    cluster_refs=[],
+                    rationale="Ambiguous reparenting required.",
+                )
+            ]
+        )
+
+        result = self._agent().update_scope("", scope, decision, {})
+
+        self.assertTrue(result.regenerate_scope)
+        self.assertEqual(scope.components, [component])
 
 
 if __name__ == "__main__":

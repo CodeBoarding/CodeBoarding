@@ -1,6 +1,7 @@
 """Incremental refresh helpers for scoped structural updates."""
 
 import logging
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from langchain_core.language_models import BaseChatModel
@@ -10,12 +11,18 @@ from agents.agent import CodeBoardingAgent
 from agents.agent_responses import (
     AnalysisInsights,
     Component,
+    SourceCodeReference,
     MetaAnalysisInsights,
     Relation,
+    ScopeOperation,
+    ScopeOperationAction,
     ScopeRelations,
+    ScopeUpdateDecision,
+    assign_component_ids,
     iter_components,
 )
 from agents.cluster_methods_mixin import ClusterMethodsMixin
+from agents.cluster_ids import CodeBoardingClusterIds
 from agents.prompts import get_scope_relations_message, get_system_message
 from agents.validation import ValidationContext, validate_scope_relation_names
 from monitoring import trace
@@ -28,8 +35,18 @@ from static_analyzer.graph import CallGraph, ClusterResult
 logger = logging.getLogger(__name__)
 
 
+@dataclass
+class ScopeUpdateResult:
+    """Result of applying one incremental plan to one analysis scope."""
+
+    refresh_ids: set[str] = field(default_factory=set)
+    new_component_ids: set[str] = field(default_factory=set)
+    removed_ids: set[str] = field(default_factory=set)
+    regenerate_scope: bool = False
+
+
 class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
-    """Regenerate semantic relations for scopes touched by incremental updates."""
+    """Materialize incremental plans and regenerate touched scope relations."""
 
     def __init__(
         self,
@@ -48,6 +65,106 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
             self.toolkit.context.diff_target_ref = changes.target_ref
         self.project_name = project_name
         self.meta_context = meta_context
+
+    @trace
+    def update_scope(
+        self,
+        scope_id: str,
+        scope: AnalysisInsights,
+        decision: ScopeUpdateDecision,
+        cluster_results: dict[str, ClusterResult],
+    ) -> ScopeUpdateResult:
+        """Apply a planning decision to one scope and refresh its derived fields."""
+        result = ScopeUpdateResult()
+        components_by_id = {
+            component.component_id: component for component in scope.components if component.component_id
+        }
+
+        for operation in decision.operations:
+            if operation.action == ScopeOperationAction.REGENERATE_SCOPE:
+                result.regenerate_scope = True
+                continue
+            if operation.action == ScopeOperationAction.CREATE_COMPONENT:
+                self._create_component_from_operation(scope_id, scope, operation, components_by_id, result)
+                continue
+            if operation.action == ScopeOperationAction.DELETE_COMPONENT:
+                if operation.component_id:
+                    result.removed_ids.add(operation.component_id)
+                continue
+            if operation.action == ScopeOperationAction.NOOP:
+                continue
+
+            component = components_by_id.get(operation.component_id or "")
+            if component is None:
+                continue
+            self._update_component_from_operation(scope_id, component, operation)
+            if component.component_id:
+                result.refresh_ids.add(component.component_id)
+
+        if result.removed_ids:
+            scope.components = [
+                component for component in scope.components if component.component_id not in result.removed_ids
+            ]
+            _strip_relations(scope, result.removed_ids)
+
+        touched_ids = result.refresh_ids | result.new_component_ids
+        if touched_ids:
+            cfg_graphs = _cfg_graphs_for_cluster_results(self.static_analysis, cluster_results)
+            self.populate_file_methods(scope, cluster_results, cfg_graphs, source_cluster_id_prefix=scope_id)
+            self.build_static_relations(scope, cfg_graphs)
+            self._refresh_key_entities(scope, touched_ids)
+
+        return result
+
+    def _create_component_from_operation(
+        self,
+        scope_id: str,
+        scope: AnalysisInsights,
+        operation: ScopeOperation,
+        components_by_id: dict[str, Component],
+        result: ScopeUpdateResult,
+    ) -> None:
+        source_cluster_ids = _operation_source_cluster_ids(scope_id, operation)
+        if not source_cluster_ids:
+            logger.error(
+                "[incremental] skipping create_component with no cluster refs for scope %s; refs=%s",
+                scope_id or "root",
+                [ref.llm_str() for ref in operation.cluster_refs],
+            )
+            return
+
+        component = Component(
+            name=operation.name or "New Component",
+            description=operation.description or "",
+            key_entities=[],
+            source_group_names=[operation.name or "New Component"],
+            source_cluster_ids=source_cluster_ids,
+        )
+        scope.components.append(component)
+        assign_component_ids(scope, parent_id=scope_id, only_new=True)
+        if component.component_id:
+            result.refresh_ids.add(component.component_id)
+            result.new_component_ids.add(component.component_id)
+            components_by_id[component.component_id] = component
+
+    def _update_component_from_operation(
+        self,
+        scope_id: str,
+        component: Component,
+        operation: ScopeOperation,
+    ) -> None:
+        if operation.name:
+            component.name = operation.name
+        if operation.description:
+            component.description = operation.description
+        merged_cluster_ids = set(component.source_cluster_ids) | set(_operation_source_cluster_ids(scope_id, operation))
+        component.source_cluster_ids = CodeBoardingClusterIds.sort(merged_cluster_ids)
+
+    def _refresh_key_entities(self, scope: AnalysisInsights, component_ids: set[str]) -> None:
+        for component in scope.components:
+            if component.component_id not in component_ids:
+                continue
+            component.key_entities = _key_entities_from_file_methods(component)
 
     @trace
     def generate_scope_relations(self, scope: AnalysisInsights, scope_name: str) -> list[Relation]:
@@ -137,29 +254,30 @@ def _log_scope_relations_summary(all_rels: list[tuple[str, list[Relation]]]) -> 
     logger.info("\n".join(lines))
 
 
-def repopulate_touched_scopes(
-    refresh_ids: set[str],
-    root_analysis: AnalysisInsights,
-    sub_analyses: dict[str, AnalysisInsights],
-    cluster_results: dict[str, ClusterResult],
-    helpers: ClusterMethodsMixin,
-) -> set[str]:
-    """Refresh root-level component assignments after scoped operations."""
-    if not refresh_ids:
-        return set()
+def _operation_source_cluster_ids(scope_id: str, operation: ScopeOperation) -> list[str]:
+    local_ids = {ref.cluster_id for ref in operation.cluster_refs if _normalize_scope_id(ref.scope_id) == scope_id}
+    return CodeBoardingClusterIds.qualify_local_ids(CodeBoardingClusterIds.from_graph_ids(local_ids), scope_id)
 
-    touched_scopes: set[str] = set()
-    if any(component.component_id in refresh_ids for component in root_analysis.components):
-        touched_scopes.add("")
-        root_cfg_graphs = _cfg_graphs_for_cluster_results(helpers.static_analysis, cluster_results)
-        helpers.populate_file_methods(root_analysis, cluster_results, root_cfg_graphs)
-        helpers.build_static_relations(root_analysis, root_cfg_graphs)
 
-    for scope_id, sub in sub_analyses.items():
-        if any(component.component_id in refresh_ids for component in sub.components):
-            logger.warning("[incremental] kept scope %s unchanged; no scoped cluster artifact", scope_id)
+def _normalize_scope_id(scope_id: str) -> str:
+    return "" if scope_id == "root" else scope_id
 
-    return touched_scopes
+
+def _key_entities_from_file_methods(component: Component) -> list[SourceCodeReference]:
+    refs: list[SourceCodeReference] = []
+    for group in sorted(component.file_methods, key=lambda file_group: file_group.file_path):
+        for method in sorted(group.methods, key=lambda item: (item.start_line, item.end_line, item.qualified_name)):
+            refs.append(
+                SourceCodeReference(
+                    qualified_name=method.qualified_name,
+                    reference_file=group.file_path,
+                    reference_start_line=method.start_line,
+                    reference_end_line=method.end_line,
+                )
+            )
+            if len(refs) == 5:
+                return refs
+    return refs
 
 
 def _cfg_graphs_for_cluster_results(
