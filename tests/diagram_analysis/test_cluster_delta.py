@@ -165,29 +165,6 @@ class TestFlavorB(unittest.TestCase):
         self.assertIn("a.new", ld.cluster_results.clusters[1])
 
 
-class TestClusterDeltaAccessors(unittest.TestCase):
-    def test_all_affected_and_dropped_aggregate_across_languages(self) -> None:
-        delta = ClusterDelta(
-            by_language={
-                "python": LanguageDelta(
-                    language="python",
-                    cluster_results=ClusterResult(),
-                    new_cluster_ids={1},
-                    changed_cluster_ids={2},
-                    dropped_cluster_ids={3},
-                ),
-                "go": LanguageDelta(
-                    language="go",
-                    cluster_results=ClusterResult(),
-                    new_cluster_ids={10},
-                    dropped_cluster_ids={11},
-                ),
-            }
-        )
-        self.assertEqual(delta.all_affected_cluster_ids(), {1, 2, 10})
-        self.assertEqual(delta.all_dropped_cluster_ids(), {3, 11})
-
-
 class TestStructuralClusterDiff(unittest.TestCase):
     def test_classifies_unchanged_and_modified_clusters(self) -> None:
         old_snapshot = _snapshot(

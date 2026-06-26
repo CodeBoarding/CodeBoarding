@@ -50,12 +50,6 @@ class ClusterDelta:
     def has_changes(self) -> bool:
         return any(d.affected_cluster_ids or d.dropped_cluster_ids for d in self.by_language.values())
 
-    def all_affected_cluster_ids(self) -> set[int]:
-        return {cid for d in self.by_language.values() for cid in d.affected_cluster_ids}
-
-    def all_dropped_cluster_ids(self) -> set[int]:
-        return {cid for d in self.by_language.values() for cid in d.dropped_cluster_ids}
-
     def cluster_results(self) -> dict[str, ClusterResult]:
         return {lang: d.cluster_results for lang, d in self.by_language.items()}
 
@@ -375,7 +369,6 @@ def _dirty_files(
     return normalized & diff_files
 
 
-# @ivanmilevtues this is really important focus on it
 def _delta_for_language(
     language: str,
     nx_graph: nx.DiGraph,
