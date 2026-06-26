@@ -6,6 +6,7 @@ from typing import Any
 
 from agents.llm_config import LLMConfigError
 from codeboarding_cli.bootstrap import bootstrap_environment, resolve_local_run_paths
+from codeboarding_cli.view_instructions import print_view_instructions
 from codeboarding_workflows.analysis import BaselineUnavailableError, run_incremental
 from diagram_analysis import RunContext
 from diagram_analysis.io_utils import load_analysis_commit_hash
@@ -119,6 +120,8 @@ def run_from_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> 
                 "analysis_path": str(analysis_path),
             }
         )
+        # Human-facing hint (logs to stderr, so the stdout JSON contract stays clean).
+        print_view_instructions(analysis_path)
     finally:
         run_context.finalize()
 

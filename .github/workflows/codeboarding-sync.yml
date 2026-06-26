@@ -34,10 +34,84 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
+      # Mint the CodeBoarding GitHub App token so the baseline commit lands as
+      # codeboarding[bot] (App avatar = the CodeBoarding logo) instead of the
+      # generic github-actions[bot]. Mirrors the review workflow's token flow.
+      # Fails open: when App credentials are absent/invalid we fall back to
+      # github.token below, and the commit shows the default Actions identity.
+      - name: Detect CodeBoarding GitHub App credentials
+        id: codeboarding-app-config
+        shell: bash
+        env:
+          CLIENT_ID: ${{ vars.CODEBOARDING_APP_CLIENT_ID }}
+          APP_ID: ${{ vars.CODEBOARDING_APP_ID }}
+          PRIVATE_KEY: ${{ secrets.CODEBOARDING_APP_PRIVATE_KEY }}
+        run: |
+          client_id="${CLIENT_ID:-}"
+          app_id="${APP_ID:-}"
+
+          # GitHub App client IDs start with "Iv". If that value was stored in
+          # CODEBOARDING_APP_ID, use it as a client ID to avoid the deprecated
+          # app-id input path.
+          if [ -z "$client_id" ] && [ "${app_id#Iv}" != "$app_id" ]; then
+            client_id="$app_id"
+            app_id=""
+          fi
+
+          has_private_key=false
+          private_key_valid=false
+          if [ -n "$PRIVATE_KEY" ]; then
+            has_private_key=true
+            if printf '%s' "$PRIVATE_KEY" | openssl pkey -noout >/dev/null 2>&1; then
+              private_key_valid=true
+            else
+              echo "::warning::CODEBOARDING_APP_PRIVATE_KEY is not a valid PEM private key, so the sync commit will fall back to github-actions[bot]."
+              if printf '%b' "$PRIVATE_KEY" | openssl pkey -noout >/dev/null 2>&1; then
+                printf '%s\n' "::warning::CODEBOARDING_APP_PRIVATE_KEY looks like it contains literal \\n escapes. Store the downloaded PEM as multi-line secret text instead."
+              fi
+            fi
+          fi
+
+          {
+            [ -n "$client_id" ] && echo "has_client_id=true" || echo "has_client_id=false"
+            [ -n "$app_id" ] && echo "has_app_id=true" || echo "has_app_id=false"
+            echo "client_id=$client_id"
+            echo "has_private_key=$has_private_key"
+            echo "private_key_valid=$private_key_valid"
+          } >> "$GITHUB_OUTPUT"
+      - uses: actions/create-github-app-token@v3
+        id: codeboarding-app-token-client
+        if: steps.codeboarding-app-config.outputs.has_client_id == 'true' && steps.codeboarding-app-config.outputs.private_key_valid == 'true'
+        continue-on-error: true
+        with:
+          client-id: ${{ steps.codeboarding-app-config.outputs.client_id }}
+          private-key: ${{ secrets.CODEBOARDING_APP_PRIVATE_KEY }}
+      - uses: actions/create-github-app-token@v3
+        id: codeboarding-app-token-app
+        if: steps.codeboarding-app-config.outputs.has_client_id != 'true' && steps.codeboarding-app-config.outputs.has_app_id == 'true' && steps.codeboarding-app-config.outputs.private_key_valid == 'true'
+        continue-on-error: true
+        with:
+          app-id: ${{ vars.CODEBOARDING_APP_ID }}
+          private-key: ${{ secrets.CODEBOARDING_APP_PRIVATE_KEY }}
+      - name: Warn when CodeBoarding App token is unavailable
+        if: steps.codeboarding-app-token-client.outputs.token == '' && steps.codeboarding-app-token-app.outputs.token == ''
+        shell: bash
+        run: |
+          echo "::warning::CodeBoarding GitHub App token is unavailable; the sync commit falls back to github-actions[bot]. Check CODEBOARDING_APP_PRIVATE_KEY formatting if app credentials are configured."
       - uses: CodeBoarding/CodeBoarding-action@v1
         with:
           mode: sync
           force_full: ${{ inputs.force_full || false }}
+          # App token authenticates the baseline push so the commit is attributed
+          # to the CodeBoarding App (logo avatar). Falls back to the workflow token,
+          # which can push because this job grants contents: write.
+          push_token: ${{ steps.codeboarding-app-token-client.outputs.token || steps.codeboarding-app-token-app.outputs.token || github.token }}
+          # Desired analysis depth for this repo. Sync is the baseline writer, so
+          # setting it here re-seeds .codeboarding/analysis.json at depth 4 on the
+          # next sync; review then inherits depth 4 from the committed baseline.
+          # Requires the licensed tier (license_key/llm_api_key) — the free tier
+          # caps depth at 3.
+          depth_level: 4
           # Free tier needs no secret — these fall through to the hosted OIDC tier when
           # unset. Add either repo secret (Settings → Secrets and variables → Actions)
           # for more/unmetered usage; no YAML edit required.

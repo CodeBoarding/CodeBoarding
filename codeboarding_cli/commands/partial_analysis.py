@@ -3,11 +3,13 @@ import logging
 
 from agents.llm_config import LLMConfigError
 from codeboarding_cli.bootstrap import bootstrap_environment, resolve_local_run_paths
+from codeboarding_cli.view_instructions import print_view_instructions
 from codeboarding_workflows.analysis import run_partial
 from codeboarding_workflows.orchestration import run_analysis_pipeline
 from codeboarding_workflows.sources import SourceContext, local_source
 from diagram_analysis import RunContext
 from repo_utils.ignore import initialize_codeboardingignore
+from utils import ANALYSIS_FILENAME
 
 logger = logging.getLogger(__name__)
 
@@ -66,3 +68,5 @@ def run_from_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> 
         reuse_latest_run_id=True,
     )
     logger.info(f"Component '{args.component_id}' updated in {run_paths.output_dir}")
+
+    print_view_instructions(run_paths.output_dir / ANALYSIS_FILENAME)

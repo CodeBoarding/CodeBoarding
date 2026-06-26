@@ -1,13 +1,13 @@
 {
   "repository_name": "CodeBoarding",
-  "timestamp": "2026-06-18T23:17:40.434742+00:00",
-  "overall_score": 0.9361097964978703,
+  "timestamp": "2026-06-25T12:30:33.374746+00:00",
+  "overall_score": 0.935209269330811,
   "check_summaries": [
     {
       "check_name": "function_size",
       "description": "Checks that functions/methods do not exceed line count thresholds",
       "check_type": "standard",
-      "total_entities_checked": 1297,
+      "total_entities_checked": 1298,
       "findings_count": 0,
       "warning_count": 0,
       "score": 1.0,
@@ -17,10 +17,10 @@
       "check_name": "fan_out",
       "description": "Checks efferent coupling: how many other functions each function calls",
       "check_type": "standard",
-      "total_entities_checked": 1305,
-      "findings_count": 25,
-      "warning_count": 25,
-      "score": 0.9808429118773946,
+      "total_entities_checked": 1306,
+      "findings_count": 24,
+      "warning_count": 24,
+      "score": 0.9816232771822359,
       "finding_groups": [
         {
           "severity": "warning",
@@ -70,6 +70,13 @@
               "metric_value": 14
             },
             {
+              "entity_name": "static_analyzer.incremental_orchestrator.update_cfg_for_changed_files",
+              "file_path": "static_analyzer/incremental_orchestrator.py",
+              "line_start": 34,
+              "line_end": 106,
+              "metric_value": 14
+            },
+            {
               "entity_name": "static_analyzer.__init__.StaticAnalyzer.start_clients",
               "file_path": "static_analyzer/__init__.py",
               "line_start": 198,
@@ -88,13 +95,6 @@
               "file_path": "agents/details_agent.py",
               "line_start": 68,
               "line_end": 125,
-              "metric_value": 12
-            },
-            {
-              "entity_name": "codeboarding_cli.commands.incremental_analysis.run_from_args",
-              "file_path": "codeboarding_cli/commands/incremental_analysis.py",
-              "line_start": 44,
-              "line_end": 123,
               "metric_value": 12
             },
             {
@@ -168,13 +168,6 @@
               "metric_value": 10
             },
             {
-              "entity_name": "codeboarding_cli.commands.full_analysis._process_one_remote.scope",
-              "file_path": "codeboarding_cli/commands/full_analysis.py",
-              "line_start": 164,
-              "line_end": 200,
-              "metric_value": 10
-            },
-            {
               "entity_name": "github_action.generate_analysis",
               "file_path": "github_action.py",
               "line_start": 87,
@@ -210,16 +203,30 @@
       "check_name": "fan_in",
       "description": "Checks afferent coupling: how many other functions call each function",
       "check_type": "standard",
-      "total_entities_checked": 1305,
-      "findings_count": 7,
-      "warning_count": 7,
-      "score": 0.9946360153256705,
+      "total_entities_checked": 1306,
+      "findings_count": 12,
+      "warning_count": 12,
+      "score": 0.9908116385911179,
       "finding_groups": [
         {
           "severity": "warning",
           "threshold": 10,
           "description": "Functions called by more than 10.0 other functions",
           "entities": [
+            {
+              "entity_name": "static_analyzer.analysis_result.StaticAnalysisResults.get_languages",
+              "file_path": "static_analyzer/analysis_result.py",
+              "line_start": 272,
+              "line_end": 274,
+              "metric_value": 24
+            },
+            {
+              "entity_name": "static_analyzer.analysis_result.StaticAnalysisResults.get_cfg",
+              "file_path": "static_analyzer/analysis_result.py",
+              "line_start": 204,
+              "line_end": 209,
+              "metric_value": 23
+            },
             {
               "entity_name": "agents.prompts.prompt_factory.get_global_factory",
               "file_path": "agents/prompts/prompt_factory.py",
@@ -239,13 +246,27 @@
               "file_path": "repo_utils/ignore.py",
               "line_start": 223,
               "line_end": 251,
-              "metric_value": 12
+              "metric_value": 13
             },
             {
               "entity_name": "static_analyzer.engine.language_adapter.LanguageAdapter.language",
               "file_path": "static_analyzer/engine/language_adapter.py",
               "line_start": 27,
               "line_end": 28,
+              "metric_value": 13
+            },
+            {
+              "entity_name": "static_analyzer.graph.Edge.get_source",
+              "file_path": "static_analyzer/graph.py",
+              "line_start": 75,
+              "line_end": 76,
+              "metric_value": 12
+            },
+            {
+              "entity_name": "static_analyzer.graph.Edge.get_destination",
+              "file_path": "static_analyzer/graph.py",
+              "line_start": 78,
+              "line_end": 79,
               "metric_value": 12
             },
             {
@@ -261,6 +282,13 @@
               "line_start": 42,
               "line_end": 44,
               "metric_value": 11
+            },
+            {
+              "entity_name": "static_analyzer.graph.CallGraph.to_networkx",
+              "file_path": "static_analyzer/graph.py",
+              "line_start": 255,
+              "line_end": 267,
+              "metric_value": 10
             },
             {
               "entity_name": "utils.sanitize",
@@ -360,6 +388,20 @@
           "threshold": 0,
           "description": "Variables declared but never used",
           "entities": [
+            {
+              "entity_name": "[unused_variable] \"_config\" is not accessed",
+              "file_path": "agents/llm_config.py",
+              "line_start": 440,
+              "line_end": 440,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_config\" is not accessed",
+              "file_path": "agents/llm_config.py",
+              "line_start": 453,
+              "line_end": 453,
+              "metric_value": 0.0
+            },
             {
               "entity_name": "[unused_variable] \"track_analysis\" is not accessed",
               "file_path": "codeboarding_workflows/analysis.py",
@@ -1075,10 +1117,31 @@
               "metric_value": 0.0
             },
             {
+              "entity_name": "[unused_variable] \"Node\" is not accessed",
+              "file_path": "static_analyzer/analysis_cache.py",
+              "line_start": 35,
+              "line_end": 35,
+              "metric_value": 0.0
+            },
+            {
               "entity_name": "[unused_variable] \"_saved\" is not accessed",
               "file_path": "static_analyzer/cfg_skip_planner.py",
               "line_start": 105,
               "line_end": 105,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"GRAPH_NODE_TYPES\" is not accessed",
+              "file_path": "static_analyzer/graph.py",
+              "line_start": 11,
+              "line_end": 11,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_edge\" is not accessed",
+              "file_path": "static_analyzer/incremental_orchestrator.py",
+              "line_start": 322,
+              "line_end": 322,
               "metric_value": 0.0
             },
             {
@@ -1247,41 +1310,6 @@
               "file_path": "static_analyzer/lsp_client/__init__.py",
               "line_start": 11,
               "line_end": 11,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"_config\" is not accessed",
-              "file_path": "agents/llm_config.py",
-              "line_start": 440,
-              "line_end": 440,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"_config\" is not accessed",
-              "file_path": "agents/llm_config.py",
-              "line_start": 453,
-              "line_end": 453,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"Node\" is not accessed",
-              "file_path": "static_analyzer/analysis_cache.py",
-              "line_start": 35,
-              "line_end": 35,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"GRAPH_NODE_TYPES\" is not accessed",
-              "file_path": "static_analyzer/graph.py",
-              "line_start": 11,
-              "line_end": 11,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"_edge\" is not accessed",
-              "file_path": "static_analyzer/incremental_orchestrator.py",
-              "line_start": 322,
-              "line_end": 322,
               "metric_value": 0.0
             }
           ]
@@ -1866,6 +1894,20 @@
               "metric_value": 0.0
             },
             {
+              "entity_name": "[unused_import] Import \"Node\" is not accessed",
+              "file_path": "static_analyzer/analysis_cache.py",
+              "line_start": 35,
+              "line_end": 35,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"GRAPH_NODE_TYPES\" is not accessed",
+              "file_path": "static_analyzer/graph.py",
+              "line_start": 11,
+              "line_end": 11,
+              "metric_value": 0.0
+            },
+            {
               "entity_name": "[unused_import] Import \"DiagnosticPosition\" is not accessed",
               "file_path": "static_analyzer/lsp_client/__init__.py",
               "line_start": 8,
@@ -1889,20 +1931,6 @@
             {
               "entity_name": "[unused_import] Import \"LSPDiagnostic\" is not accessed",
               "file_path": "static_analyzer/lsp_client/__init__.py",
-              "line_start": 11,
-              "line_end": 11,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"Node\" is not accessed",
-              "file_path": "static_analyzer/analysis_cache.py",
-              "line_start": 35,
-              "line_end": 35,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"GRAPH_NODE_TYPES\" is not accessed",
-              "file_path": "static_analyzer/graph.py",
               "line_start": 11,
               "line_end": 11,
               "metric_value": 0.0
@@ -2001,6 +2029,12 @@
       "composite_risk_score": 75.0
     },
     {
+      "file_path": "static_analyzer/graph.py",
+      "total_findings": 6,
+      "warning_findings": 5,
+      "composite_risk_score": 75.0
+    },
+    {
       "file_path": "diagram_analysis/diagram_generator.py",
       "total_findings": 6,
       "warning_findings": 4,
@@ -2043,12 +2077,6 @@
       "composite_risk_score": 45.0
     },
     {
-      "file_path": "static_analyzer/graph.py",
-      "total_findings": 3,
-      "warning_findings": 2,
-      "composite_risk_score": 40.0
-    },
-    {
       "file_path": "agents/agent.py",
       "total_findings": 3,
       "warning_findings": 2,
@@ -2085,13 +2113,13 @@
       "composite_risk_score": 30.0
     },
     {
-      "file_path": "static_analyzer/engine/adapters/go_adapter.py",
-      "total_findings": 3,
-      "warning_findings": 0,
+      "file_path": "static_analyzer/analysis_result.py",
+      "total_findings": 2,
+      "warning_findings": 2,
       "composite_risk_score": 30.0
     },
     {
-      "file_path": "static_analyzer/engine/adapters/rust_adapter.py",
+      "file_path": "static_analyzer/engine/adapters/go_adapter.py",
       "total_findings": 3,
       "warning_findings": 0,
       "composite_risk_score": 30.0

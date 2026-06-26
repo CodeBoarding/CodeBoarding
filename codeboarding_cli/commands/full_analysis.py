@@ -6,6 +6,7 @@ from tqdm import tqdm
 
 from agents.llm_config import LLMConfigError
 from codeboarding_cli.bootstrap import bootstrap_environment, resolve_local_run_paths
+from codeboarding_cli.view_instructions import print_view_instructions
 from codeboarding_workflows.analysis import run_full
 from codeboarding_workflows.orchestration import run_analysis_pipeline
 from codeboarding_workflows.rendering import render_docs
@@ -16,7 +17,7 @@ from monitoring.paths import get_monitoring_run_dir
 from repo_utils import get_branch, store_token
 from repo_utils.git_ops import get_current_commit
 from repo_utils.ignore import initialize_codeboardingignore
-from utils import CODEBOARDING_DIR_NAME, copy_files, monitoring_enabled
+from utils import ANALYSIS_FILENAME, CODEBOARDING_DIR_NAME, copy_files, monitoring_enabled
 
 logger = logging.getLogger(__name__)
 
@@ -111,6 +112,8 @@ def _run_local(args: argparse.Namespace) -> None:
         scope=scope,
     )
     logger.info(f"Documentation generated successfully in {run_paths.output_dir}")
+
+    print_view_instructions(run_paths.output_dir / ANALYSIS_FILENAME)
 
 
 def _run_remote(args: argparse.Namespace) -> None:
