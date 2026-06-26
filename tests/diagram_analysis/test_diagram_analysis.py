@@ -751,7 +751,7 @@ class TestDiagramGenerator(unittest.TestCase):
     @patch("diagram_analysis.diagram_generator.repopulate_touched_scopes", return_value={""})
     @patch("diagram_analysis.diagram_generator.apply_scope_update_decision")
     @patch("diagram_analysis.diagram_generator.structural_diff_from_delta")
-    @patch("diagram_analysis.diagram_generator.ScopedIncrementalAgent")
+    @patch("diagram_analysis.diagram_generator.IncrementalPlanningAgent")
     @patch("diagram_analysis.diagram_generator.IncrementalAgent")
     @patch("diagram_analysis.diagram_generator.initialize_llms", return_value=(Mock(), Mock()))
     @patch("diagram_analysis.diagram_generator.compute_cluster_delta")
@@ -762,7 +762,7 @@ class TestDiagramGenerator(unittest.TestCase):
         mock_delta,
         _mock_llms,
         _mock_incremental_agent,
-        mock_scoped_agent,
+        mock_planning_agent,
         _mock_structural_diff,
         mock_apply_scope_update,
         _mock_repopulate,
@@ -797,7 +797,7 @@ class TestDiagramGenerator(unittest.TestCase):
         mock_snapshot.return_value.all_cluster_ids.return_value = {1}
         mock_delta.return_value.has_changes = True
         mock_delta.return_value.cluster_results.return_value = {}
-        mock_scoped_agent.return_value.decide_scope_update.return_value = Mock()
+        mock_planning_agent.return_value.decide_scope_update.return_value = Mock()
         mock_apply_scope_update.return_value = ScopeApplyResult(refresh_ids={"1"}, new_component_ids=set())
         mock_save_analysis.return_value = self.output_dir / "analysis.json"
 

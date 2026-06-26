@@ -21,7 +21,7 @@ from agents.incremental_agent import (
 from agents.llm_config import initialize_llms
 from agents.meta_agent import MetaAgent
 from agents.planner_agent import get_expandable_components
-from agents.scoped_incremental_agent import ScopedIncrementalAgent
+from agents.incremental_planning_agent import IncrementalPlanningAgent
 from agents.scoped_incremental_apply import apply_scope_update_decision
 from telemetry.events import track_analysis
 from diagram_analysis.analysis_json import (
@@ -615,7 +615,7 @@ class DiagramGenerator:
                 return analysis_path
 
             agent_llm, parsing_llm = initialize_llms()
-            scoped_agent = ScopedIncrementalAgent(
+            planning_agent = IncrementalPlanningAgent(
                 repo_dir=self.repo_location,
                 static_analysis=self.static_analysis,
                 project_name=self.repo_name,
@@ -624,17 +624,17 @@ class DiagramGenerator:
                 parsing_llm=parsing_llm,
                 changes=self.changes,
             )
-            self._monitoring_agents["ScopedIncrementalAgent"] = scoped_agent
+            self._monitoring_agents["IncrementalPlanningAgent"] = planning_agent
             structural_diff = structural_diff_from_delta(
                 old_snapshot,
                 delta,
                 changes=self.changes,
                 repo_dir=self.repo_location,
             )
-            scope_decision = scoped_agent.decide_scope_update("", root_analysis, structural_diff)
+            scope_decision = planning_agent.decide_scope_update("", root_analysis, structural_diff)
             apply_result = apply_scope_update_decision("", root_analysis, scope_decision)
             if apply_result.regenerate_scope:
-                logger.info("Scoped incremental agent requested root regeneration; running full analysis.")
+                logger.info("Incremental planning agent requested root regeneration; running full analysis.")
                 return self.generate_analysis()
 
             # Refresh first, then prune — we only know a component is empty

@@ -433,7 +433,7 @@ Every cluster id listed in the CLUSTER GROUPS TO ASSIGN section MUST appear in e
 Return one routing decision per cluster group. Each decision MUST clearly indicate whether it routes to an existing component (referenced by its exact id from the list above) or proposes a new component with a distinct name, a description paragraph, and the parent it should attach to."""
 
 
-SCOPED_INCREMENTAL_MESSAGE = """You are a software architecture incremental-update analyst. STRICTLY follow these rules.
+PLANNING_MESSAGE = """You are a software architecture incremental-update analyst. STRICTLY follow these rules.
 
 TASK:
 Update one scope of the `{project_name}` architecture diagram.
@@ -520,8 +520,8 @@ class GLMPromptFactory(AbstractPromptFactory):
     def get_incremental_grouping_message(self) -> str:
         return INCREMENTAL_GROUPING_MESSAGE
 
-    def get_scoped_incremental_message(self) -> str:
-        return SCOPED_INCREMENTAL_MESSAGE
+    def get_planning_message(self) -> str:
+        return PLANNING_MESSAGE
 
     def get_scope_relations_message(self) -> str:
         return SCOPE_RELATIONS_MESSAGE

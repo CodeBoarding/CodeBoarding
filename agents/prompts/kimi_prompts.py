@@ -396,7 +396,7 @@ Boundary rules: route each changed cluster to the most specific owning component
 Every cluster id listed in the "Cluster groups to assign" section must appear in exactly one routing entry."""
 
 
-SCOPED_INCREMENTAL_MESSAGE = """You are Kimi, an AI assistant created by Moonshot AI.
+PLANNING_MESSAGE = """You are Kimi, an AI assistant created by Moonshot AI.
 
 Update one scope of the `{project_name}` architecture diagram. Reason about ownership, then return operations for this scope only.
 
@@ -479,8 +479,8 @@ class KimiPromptFactory(AbstractPromptFactory):
     def get_incremental_grouping_message(self) -> str:
         return INCREMENTAL_GROUPING_MESSAGE
 
-    def get_scoped_incremental_message(self) -> str:
-        return SCOPED_INCREMENTAL_MESSAGE
+    def get_planning_message(self) -> str:
+        return PLANNING_MESSAGE
 
     def get_scope_relations_message(self) -> str:
         return SCOPE_RELATIONS_MESSAGE

@@ -405,7 +405,7 @@ Identity is by component id, not by name. Reusing an existing component's name w
 Every cluster id listed in the "Cluster groups to assign" section must appear in exactly one output entry."""
 
 
-SCOPED_INCREMENTAL_MESSAGE = """# Task
+PLANNING_MESSAGE = """# Task
 Update one scope of the `{project_name}` architecture diagram.
 
 # Context
@@ -491,8 +491,8 @@ class DeepSeekPromptFactory(AbstractPromptFactory):
     def get_incremental_grouping_message(self) -> str:
         return INCREMENTAL_GROUPING_MESSAGE
 
-    def get_scoped_incremental_message(self) -> str:
-        return SCOPED_INCREMENTAL_MESSAGE
+    def get_planning_message(self) -> str:
+        return PLANNING_MESSAGE
 
     def get_scope_relations_message(self) -> str:
         return SCOPE_RELATIONS_MESSAGE

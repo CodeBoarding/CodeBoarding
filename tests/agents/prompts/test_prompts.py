@@ -32,7 +32,7 @@ class TestAbstractPromptFactory(unittest.TestCase):
             "get_system_details_message",
             "get_cfg_details_message",
             "get_details_message",
-            "get_scoped_incremental_message",
+            "get_planning_message",
         ]
 
         for method_name in expected_methods:
@@ -218,7 +218,7 @@ class TestConvenienceFunctions(unittest.TestCase):
             "get_system_details_message",
             "get_cfg_details_message",
             "get_details_message",
-            "get_scoped_incremental_message",
+            "get_planning_message",
         ]
 
         for func_name in convenience_functions:
@@ -234,7 +234,7 @@ class TestConvenienceFunctions(unittest.TestCase):
         self.assertIsInstance(result, str)
         self.assertGreater(len(result), 0)
 
-    def test_scoped_incremental_prompt_available_for_all_models(self):
+    def test_planning_prompt_available_for_all_models(self):
         required_variables = {
             "{project_name}",
             "{scope_id}",
@@ -247,7 +247,7 @@ class TestConvenienceFunctions(unittest.TestCase):
         }
 
         for llm_type in LLMType:
-            prompt = PromptFactory(llm_type)._prompt_factory.get_scoped_incremental_message()
+            prompt = PromptFactory(llm_type)._prompt_factory.get_planning_message()
             self.assertIsInstance(prompt, str)
             self.assertGreater(len(prompt), 0)
             for variable in required_variables:

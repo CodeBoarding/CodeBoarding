@@ -437,7 +437,7 @@ For each cluster group above, decide whether it belongs in an existing component
 - **redetail_needed=False** means the component boundary is unchanged; do not use it to absorb new files, new responsibilities, or clusters owned by another component
 - Every cluster id listed in the cluster groups above must appear in exactly one routing entry"""
 
-SCOPED_INCREMENTAL_MESSAGE = """**Task:** Update one scope of the `{project_name}` architecture diagram.
+PLANNING_MESSAGE = """**Task:** Update one scope of the `{project_name}` architecture diagram.
 
 **Context:**
 - Scope: `{scope_id}` (`root` means the top-level diagram)
@@ -550,8 +550,8 @@ class GPTPromptFactory(AbstractPromptFactory):
     def get_incremental_grouping_message(self) -> str:
         return INCREMENTAL_GROUPING_MESSAGE
 
-    def get_scoped_incremental_message(self) -> str:
-        return SCOPED_INCREMENTAL_MESSAGE
+    def get_planning_message(self) -> str:
+        return PLANNING_MESSAGE
 
     def get_scope_relations_message(self) -> str:
         return SCOPE_RELATIONS_MESSAGE

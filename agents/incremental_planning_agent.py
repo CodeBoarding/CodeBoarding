@@ -1,4 +1,4 @@
-"""Scoped incremental agent that turns structural cluster diffs into operations."""
+"""Plan scoped analysis updates from structural cluster diffs."""
 
 from dataclasses import dataclass, field
 import logging
@@ -17,7 +17,7 @@ from agents.agent_responses import (
     ScopeUpdateDecision,
     ScopedClusterRef,
 )
-from agents.prompts import get_scoped_incremental_message, get_system_message
+from agents.prompts import get_planning_message, get_system_message
 from agents.validation import ValidationResult
 from diagram_analysis.cluster_delta import (
     ClusterMemberDelta,
@@ -41,7 +41,7 @@ class ScopeOperationValidationContext:
     required_create_cluster_refs: set[ClusterRef] = field(default_factory=set)
 
 
-class ScopedIncrementalAgent(CodeBoardingAgent):
+class IncrementalPlanningAgent(CodeBoardingAgent):
     """Decides diagram operations for one structural-diff scope."""
 
     def __init__(
@@ -66,7 +66,7 @@ class ScopedIncrementalAgent(CodeBoardingAgent):
         self.project_name = project_name
         self.meta_context = meta_context
         self.prompt = PromptTemplate(
-            template=get_scoped_incremental_message(),
+            template=get_planning_message(),
             input_variables=[
                 "project_name",
                 "scope_id",
@@ -112,18 +112,18 @@ class ScopedIncrementalAgent(CodeBoardingAgent):
         validation = validate_scope_update_decision(decision, context)
         if not validation.is_valid:
             logger.error(
-                "Scoped incremental decision remained invalid after retries; Will still pass it on, however this is a critical issue. Issues: %s",
+                "Incremental planning decision remained invalid after retries; will still pass it on. Issues: %s",
                 validation.feedback_messages,
             )
-            _track_invalid_scoped_incremental_decision(scope_id, validation.feedback_messages)
+            _track_invalid_planning_decision(scope_id, validation.feedback_messages)
         return decision
 
 
-def _track_invalid_scoped_incremental_decision(scope_id: str, feedback_messages: list[str]) -> None:
+def _track_invalid_planning_decision(scope_id: str, feedback_messages: list[str]) -> None:
     telemetry.capture_exception(
-        RuntimeError("Scoped incremental decision remained invalid after retries"),
+        RuntimeError("Incremental planning decision remained invalid after retries"),
         properties={
-            "error_type": "scoped_incremental_invalid_decision",
+            "error_type": "incremental_planning_invalid_decision",
             "scope_id": scope_id or "root",
             "issue_count": len(feedback_messages),
             "issues": feedback_messages[:10],

@@ -358,7 +358,7 @@ Important rules:
 - Every cluster id listed in the "Cluster groups to assign" section must appear in exactly one entry's **cluster_ids**."""
 
 
-SCOPED_INCREMENTAL_MESSAGE = """Update one scope of the `{project_name}` architecture diagram.
+PLANNING_MESSAGE = """Update one scope of the `{project_name}` architecture diagram.
 
 Scope: `{scope_id}` (`root` means the top-level diagram)
 Project type: {project_type}
@@ -442,8 +442,8 @@ class GeminiFlashPromptFactory(AbstractPromptFactory):
     def get_incremental_grouping_message(self) -> str:
         return INCREMENTAL_GROUPING_MESSAGE
 
-    def get_scoped_incremental_message(self) -> str:
-        return SCOPED_INCREMENTAL_MESSAGE
+    def get_planning_message(self) -> str:
+        return PLANNING_MESSAGE
 
     def get_scope_relations_message(self) -> str:
         return SCOPE_RELATIONS_MESSAGE

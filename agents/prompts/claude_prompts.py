@@ -396,7 +396,7 @@ For each cluster you're uncertain about, you may read source. Keep each read sma
 </tool_usage_policy>"""
 
 
-SCOPED_INCREMENTAL_MESSAGE = """Update one scope of the `{project_name}` architecture diagram.
+PLANNING_MESSAGE = """Update one scope of the `{project_name}` architecture diagram.
 
 <context>
 Scope: `{scope_id}` (`root` means the top-level diagram)
@@ -483,8 +483,8 @@ class ClaudePromptFactory(AbstractPromptFactory):
     def get_incremental_grouping_message(self) -> str:
         return INCREMENTAL_GROUPING_MESSAGE
 
-    def get_scoped_incremental_message(self) -> str:
-        return SCOPED_INCREMENTAL_MESSAGE
+    def get_planning_message(self) -> str:
+        return PLANNING_MESSAGE
 
     def get_scope_relations_message(self) -> str:
         return SCOPE_RELATIONS_MESSAGE

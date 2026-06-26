@@ -11,9 +11,9 @@ from agents.agent_responses import (
     ScopedClusterRef,
     ScopeUpdateDecision,
 )
-from agents.scoped_incremental_agent import (
+from agents.incremental_planning_agent import (
     ScopeOperationValidationContext,
-    ScopedIncrementalAgent,
+    IncrementalPlanningAgent,
     format_structural_diff,
     validate_scope_update_decision,
 )
@@ -198,9 +198,9 @@ def test_new_package_root_is_marked_required_create_in_prompt_and_context() -> N
 
     with (
         patch("agents.agent.create_agent", return_value=MagicMock()),
-        patch("agents.scoped_incremental_agent.create_agent", return_value=MagicMock()),
+        patch("agents.incremental_planning_agent.create_agent", return_value=MagicMock()),
     ):
-        agent = ScopedIncrementalAgent(
+        agent = IncrementalPlanningAgent(
             repo_dir=Path("/tmp/fake-repo"),
             static_analysis=static_analysis,
             project_name="Test",
@@ -258,9 +258,9 @@ def test_new_cluster_package_root_is_marked_required_create_in_prompt_and_contex
 
     with (
         patch("agents.agent.create_agent", return_value=MagicMock()),
-        patch("agents.scoped_incremental_agent.create_agent", return_value=MagicMock()),
+        patch("agents.incremental_planning_agent.create_agent", return_value=MagicMock()),
     ):
-        agent = ScopedIncrementalAgent(
+        agent = IncrementalPlanningAgent(
             repo_dir=Path("/tmp/fake-repo"),
             static_analysis=static_analysis,
             project_name="Test",
@@ -279,7 +279,7 @@ def test_new_cluster_package_root_is_marked_required_create_in_prompt_and_contex
     assert context.required_create_cluster_refs == {ClusterRef(language="python", cluster_id=12)}
 
 
-def test_scoped_incremental_agent_uses_narrow_diff_aware_toolkit() -> None:
+def test_incremental_planning_agent_uses_narrow_diff_aware_toolkit() -> None:
     static_analysis = MagicMock(spec=StaticAnalysisResults)
     changes = ChangeSet(
         base_ref="base",
@@ -289,11 +289,11 @@ def test_scoped_incremental_agent_uses_narrow_diff_aware_toolkit() -> None:
 
     with (
         patch("agents.agent.create_agent") as mock_base_create,
-        patch("agents.scoped_incremental_agent.create_agent") as mock_scoped_create,
+        patch("agents.incremental_planning_agent.create_agent") as mock_scoped_create,
     ):
         mock_base_create.return_value = MagicMock()
         mock_scoped_create.return_value = MagicMock()
-        agent = ScopedIncrementalAgent(
+        agent = IncrementalPlanningAgent(
             repo_dir=Path("/tmp/fake-repo"),
             static_analysis=static_analysis,
             project_name="Test",
@@ -343,9 +343,9 @@ def test_decide_scope_update_passes_structural_diff_to_validator() -> None:
 
     with (
         patch("agents.agent.create_agent", return_value=MagicMock()),
-        patch("agents.scoped_incremental_agent.create_agent", return_value=MagicMock()),
+        patch("agents.incremental_planning_agent.create_agent", return_value=MagicMock()),
     ):
-        agent = ScopedIncrementalAgent(
+        agent = IncrementalPlanningAgent(
             repo_dir=Path("/tmp/fake-repo"),
             static_analysis=static_analysis,
             project_name="Test",
@@ -395,9 +395,9 @@ def test_decide_scope_update_tracks_invalid_decision_after_retries() -> None:
 
     with (
         patch("agents.agent.create_agent", return_value=MagicMock()),
-        patch("agents.scoped_incremental_agent.create_agent", return_value=MagicMock()),
+        patch("agents.incremental_planning_agent.create_agent", return_value=MagicMock()),
     ):
-        agent = ScopedIncrementalAgent(
+        agent = IncrementalPlanningAgent(
             repo_dir=Path("/tmp/fake-repo"),
             static_analysis=static_analysis,
             project_name="Test",
@@ -407,7 +407,7 @@ def test_decide_scope_update_tracks_invalid_decision_after_retries() -> None:
         )
     agent._validation_invoke = MagicMock(return_value=invalid)
 
-    with patch("agents.scoped_incremental_agent.telemetry") as mock_telemetry:
+    with patch("agents.incremental_planning_agent.telemetry") as mock_telemetry:
         result = agent.decide_scope_update("", scope, structural)
 
     assert result is invalid
@@ -415,7 +415,7 @@ def test_decide_scope_update_tracks_invalid_decision_after_retries() -> None:
     exc = mock_telemetry.capture_exception.call_args.args[0]
     properties = mock_telemetry.capture_exception.call_args.kwargs["properties"]
     assert isinstance(exc, RuntimeError)
-    assert properties["error_type"] == "scoped_incremental_invalid_decision"
+    assert properties["error_type"] == "incremental_planning_invalid_decision"
     assert properties["scope_id"] == "root"
     assert properties["issue_count"] == 1
     assert "Missing cluster_refs" in properties["issues"][0]
