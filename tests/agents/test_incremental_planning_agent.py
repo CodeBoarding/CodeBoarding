@@ -20,6 +20,7 @@ from agents.incremental_planning_agent import (
 from diagram_analysis.cluster_delta import (
     ClusterMemberDelta,
     ClusterRef,
+    ClusterReshape,
     LanguageStructuralDiff,
     StructuralClusterDiff,
 )
@@ -53,6 +54,53 @@ def test_format_structural_diff_includes_modified_new_and_dirty_files() -> None:
     assert "pkg/module.py" in rendered
     assert "### New clusters" in rendered
     assert "root:python:2" in rendered
+
+
+def test_format_structural_diff_sorts_cluster_refs_deterministically() -> None:
+    structural = StructuralClusterDiff(
+        by_language={
+            "python": LanguageStructuralDiff(
+                language="python",
+                new={
+                    ClusterRef(language="python", cluster_id=10),
+                    ClusterRef(language="python", cluster_id=2),
+                },
+                removed={
+                    ClusterRef(language="python", cluster_id=9),
+                    ClusterRef(language="python", cluster_id=1),
+                },
+                reshaped=[
+                    ClusterReshape(
+                        old_clusters={
+                            ClusterRef(language="python", cluster_id=8),
+                            ClusterRef(language="python", cluster_id=3),
+                        },
+                        new_clusters={
+                            ClusterRef(language="python", cluster_id=7),
+                            ClusterRef(language="python", cluster_id=4),
+                        },
+                        overlap_counts={
+                            (
+                                ClusterRef(language="python", cluster_id=8),
+                                ClusterRef(language="python", cluster_id=7),
+                            ): 1,
+                            (
+                                ClusterRef(language="python", cluster_id=3),
+                                ClusterRef(language="python", cluster_id=4),
+                            ): 2,
+                        },
+                    )
+                ],
+            )
+        }
+    )
+
+    rendered = format_structural_diff(structural)
+
+    assert rendered.index("root:python:2") < rendered.index("root:python:10")
+    assert rendered.index("root:python:1") < rendered.index("root:python:9")
+    assert "old=[root:python:3, root:python:8] new=[root:python:4, root:python:7]" in rendered
+    assert rendered.index("root:python:3->root:python:4:2") < rendered.index("root:python:8->root:python:7:1")
 
 
 def test_validate_scope_update_decision_enforces_cluster_coverage_and_component_ids() -> None:
@@ -395,7 +443,15 @@ def test_decide_scope_update_passes_structural_diff_to_validator() -> None:
     static_analysis = MagicMock(spec=StaticAnalysisResults)
     scope = AnalysisInsights(
         description="root",
-        components=[Component(name="API", description="Handles requests", key_entities=[], component_id="1")],
+        components=[
+            Component(
+                name="API",
+                description="Handles requests",
+                key_entities=[],
+                component_id="1",
+                source_cluster_ids=["10", "2", "1.3"],
+            )
+        ],
         components_relations=[],
     )
     structural = StructuralClusterDiff(
@@ -443,7 +499,7 @@ def test_decide_scope_update_passes_structural_diff_to_validator() -> None:
     prompt = agent._validation_invoke.call_args.args[0]
     context = agent._validation_invoke.call_args.kwargs["context"]
     assert "Existing components in this scope" in prompt
-    assert '1 "API"' in prompt
+    assert '1 "API" clusters=[2, 10, 1.3]' in prompt
     assert "api.new" in prompt
     assert context.expected_cluster_refs == {ClusterRef(language="python", cluster_id=1)}
     assert context.existing_component_ids == {"1"}

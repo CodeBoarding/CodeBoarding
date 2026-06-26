@@ -422,9 +422,9 @@ New package-root clusters that must create components:
 Return operations for this scope only.
 
 - Keep unchanged clusters out of the operations unless the diff makes the component semantically dirty.
-- For modified clusters, usually update or assign to the existing owning component.
+- For modified clusters, preserve the existing owning component shown by its clusters=[...] list; use update_component for that owner instead of moving the cluster to another component.
 - For new clusters, first try to assign/update the most specific existing component. At root scope, create a new component only for a brand-new top-level package/product boundary listed under "must create components"; additions under an existing package root belong to an existing component.
-- For reshaped groups, explicitly resolve split/merge/move ambiguity.
+- For reshaped groups, follow overlap counts to keep old cluster ownership stable. Only assign a reshaped new cluster to a different component when the diff proves a real responsibility move.
 - Do not reparent existing components. If reparenting seems required, use regenerate_scope.
 - Every modified/new/reshaped new-side cluster listed below must appear in exactly one operation's cluster_refs.
 - A cluster listed under "must create components" introduces a new package root and must use create_component, not assign_to_existing/update_component.

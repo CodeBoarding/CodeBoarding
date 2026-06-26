@@ -1,6 +1,7 @@
 """Plan scoped analysis updates from structural cluster diffs."""
 
 from dataclasses import dataclass, field
+from collections.abc import Iterable
 import logging
 from pathlib import Path
 
@@ -17,6 +18,7 @@ from agents.agent_responses import (
     ScopeUpdateDecision,
     ScopedClusterRef,
 )
+from agents.cluster_ids import CodeBoardingClusterIds
 from agents.prompts import get_planning_message, get_system_message
 from agents.validation import ValidationResult
 from diagram_analysis.cluster_delta import (
@@ -206,10 +208,10 @@ def _format_language_diff(diff: LanguageStructuralDiff) -> str:
         if diff.new_details:
             lines.extend(_format_new_cluster(delta) for delta in diff.new_details)
         else:
-            lines.extend(f"- {_format_cluster_ref(ref)}" for ref in diff.new)
+            lines.extend(f"- {_format_cluster_ref(ref)}" for ref in _sort_cluster_refs(diff.new))
     if diff.removed:
         lines.append("### Removed clusters")
-        lines.extend(f"- {_format_cluster_ref(ref)}" for ref in diff.removed)
+        lines.extend(f"- {_format_cluster_ref(ref)}" for ref in _sort_cluster_refs(diff.removed))
     if diff.reshaped:
         lines.append("### Reshaped clusters")
         lines.extend(_format_reshape(reshape) for reshape in diff.reshaped)
@@ -239,13 +241,20 @@ def _format_new_cluster(delta: ClusterMemberDelta) -> str:
 
 
 def _format_reshape(reshape: ClusterReshape) -> str:
-    old_refs = ", ".join(_format_cluster_ref(ref) for ref in reshape.old_clusters)
-    new_refs = ", ".join(_format_cluster_ref(ref) for ref in reshape.new_clusters)
+    old_refs = ", ".join(_format_cluster_ref(ref) for ref in _sort_cluster_refs(reshape.old_clusters))
+    new_refs = ", ".join(_format_cluster_ref(ref) for ref in _sort_cluster_refs(reshape.new_clusters))
     overlaps = ", ".join(
         f"{_format_cluster_ref(old_ref)}->{_format_cluster_ref(new_ref)}:{count}"
         for (old_ref, new_ref), count in sorted(
             reshape.overlap_counts.items(),
-            key=lambda item: (item[0][0].language, item[0][0].cluster_id, item[0][1].cluster_id),
+            key=lambda item: (
+                item[0][0].scope_id,
+                item[0][0].language,
+                item[0][0].cluster_id,
+                item[0][1].scope_id,
+                item[0][1].language,
+                item[0][1].cluster_id,
+            ),
         )
     )
     suffix = f"; dirty_files={sorted(reshape.dirty_files)}" if reshape.dirty_files else ""
@@ -313,9 +322,15 @@ def _format_scope_components(components: list[Component]) -> str:
     if not components:
         return "No existing components in this scope."
     return "\n".join(
-        f'- {component.component_id or "?"} "{component.name}" -- {(component.description or "").strip()}'
+        f'- {component.component_id or "?"} "{component.name}" '
+        f"clusters=[{_format_component_cluster_ids(component.source_cluster_ids)}] -- "
+        f"{(component.description or '').strip()}"
         for component in components
     )
+
+
+def _format_component_cluster_ids(cluster_ids: list[str]) -> str:
+    return ", ".join(CodeBoardingClusterIds.sort(set(cluster_ids))) or "None"
 
 
 def _format_changed_files(changes: ChangeSet | None) -> str:
@@ -335,9 +350,11 @@ def _format_cluster_ref(ref: ClusterRef) -> str:
     return f"{scope}:{ref.language}:{ref.cluster_id}"
 
 
+def _sort_cluster_refs(refs: Iterable[ClusterRef]) -> list[ClusterRef]:
+    return sorted(refs, key=lambda ref: (ref.scope_id, ref.language, ref.cluster_id))
+
+
 def _format_cluster_ref_list(refs: set[ClusterRef]) -> str:
     if not refs:
         return "None"
-    return ", ".join(
-        _format_cluster_ref(ref) for ref in sorted(refs, key=lambda ref: (ref.scope_id, ref.language, ref.cluster_id))
-    )
+    return ", ".join(_format_cluster_ref(ref) for ref in _sort_cluster_refs(refs))
