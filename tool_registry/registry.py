@@ -26,11 +26,9 @@ ProgressCallback = Callable[[str, int, int], None]
 TOOLS_REPO = "CodeBoarding/tools"
 TOOLS_TAG = "tools-2026.04.05"
 
-JDTLS_VERSION = "1.44.0"
-JDTLS_BUILD = "202501221502"
-JDTLS_URL_TEMPLATE = (
-    "https://download.eclipse.org/jdtls/milestones/{version}/jdt-language-server-{version}-{build}.tar.gz"
-)
+JDTLS_VERSION = "1.59.0"
+JDTLS_BUILD = "202605111959"
+JDTLS_URL_TEMPLATE = "https://download.eclipse.org/jdtls/snapshots/jdt-language-server-{version}-{build}.tar.gz"
 
 # rust-analyzer is pulled directly from upstream (weekly releases, ~17MB
 # per platform) rather than mirrored. Bumping the tag triggers a reinstall

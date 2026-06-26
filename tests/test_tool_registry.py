@@ -821,14 +821,14 @@ class TestToolSource(unittest.TestCase):
 
     def test_asset_url_direct_upstream(self):
         source = UpstreamToolSource(
-            tag="1.44.0",
-            url_template="https://download.eclipse.org/jdtls/milestones/{version}/jdt-language-server-{version}-{build}.tar.gz",
-            build="202501221502",
+            tag="1.59.0",
+            url_template="https://download.eclipse.org/jdtls/snapshots/jdt-language-server-{version}-{build}.tar.gz",
+            build="202605111959",
         )
         url = asset_url(source, "ignored")
         self.assertEqual(
             url,
-            "https://download.eclipse.org/jdtls/milestones/1.44.0/jdt-language-server-1.44.0-202501221502.tar.gz",
+            "https://download.eclipse.org/jdtls/snapshots/jdt-language-server-1.59.0-202605111959.tar.gz",
         )
 
     @patch("tool_registry.installers.requests.get")
