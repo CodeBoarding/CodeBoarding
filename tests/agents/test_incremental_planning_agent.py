@@ -151,6 +151,88 @@ def test_validate_scope_update_decision_requires_create_for_new_package_roots() 
     assert "must create components" in "\n".join(result.feedback_messages)
 
 
+def test_validate_scope_update_decision_rejects_unrequired_root_create() -> None:
+    decision = ScopeUpdateDecision(
+        operations=[
+            ScopeOperation(
+                action=ScopeOperationAction.CREATE_COMPONENT,
+                cluster_refs=[ScopedClusterRef(scope_id="", language="python", cluster_id=7)],
+                name="Document Utilities",
+                description="Shared document utilities.",
+                rationale="New files under an existing package root.",
+            )
+        ]
+    )
+    context = ScopeOperationValidationContext(
+        expected_cluster_refs={ClusterRef(language="python", cluster_id=7)},
+        existing_component_ids={"3"},
+        required_create_cluster_refs=set(),
+        scope_id="",
+    )
+
+    result = validate_scope_update_decision(decision, context)
+
+    assert not result.is_valid
+    assert "Root-scope create_component is only allowed" in "\n".join(result.feedback_messages)
+
+
+def test_validate_scope_update_decision_allows_required_root_create() -> None:
+    decision = ScopeUpdateDecision(
+        operations=[
+            ScopeOperation(
+                action=ScopeOperationAction.CREATE_COMPONENT,
+                cluster_refs=[ScopedClusterRef(scope_id="", language="python", cluster_id=14)],
+                name="OCR Extensions",
+                description="New OCR package.",
+                rationale="Brand-new package root.",
+            )
+        ]
+    )
+    required = {ClusterRef(language="python", cluster_id=14)}
+    context = ScopeOperationValidationContext(
+        expected_cluster_refs=required,
+        existing_component_ids={"3"},
+        required_create_cluster_refs=required,
+        scope_id="",
+    )
+
+    result = validate_scope_update_decision(decision, context)
+
+    assert result.is_valid
+
+
+def test_validate_scope_update_decision_rejects_mixed_root_create() -> None:
+    decision = ScopeUpdateDecision(
+        operations=[
+            ScopeOperation(
+                action=ScopeOperationAction.CREATE_COMPONENT,
+                cluster_refs=[
+                    ScopedClusterRef(scope_id="", language="python", cluster_id=14),
+                    ScopedClusterRef(scope_id="", language="python", cluster_id=7),
+                ],
+                name="OCR Extensions",
+                description="New OCR package mixed with existing-root utility code.",
+                rationale="Mixed package roots.",
+            )
+        ]
+    )
+    required = {ClusterRef(language="python", cluster_id=14)}
+    context = ScopeOperationValidationContext(
+        expected_cluster_refs={
+            ClusterRef(language="python", cluster_id=14),
+            ClusterRef(language="python", cluster_id=7),
+        },
+        existing_component_ids={"3"},
+        required_create_cluster_refs=required,
+        scope_id="",
+    )
+
+    result = validate_scope_update_decision(decision, context)
+
+    assert not result.is_valid
+    assert "python:7" in "\n".join(result.feedback_messages)
+
+
 def test_new_package_root_is_marked_required_create_in_prompt_and_context() -> None:
     static_analysis = MagicMock(spec=StaticAnalysisResults)
     scope = AnalysisInsights(

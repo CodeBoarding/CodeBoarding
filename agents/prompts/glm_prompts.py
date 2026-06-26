@@ -459,7 +459,7 @@ REQUIRED STEPS:
 1. Return operations for this scope only.
 2. Keep unchanged clusters out of operations unless the diff makes the component semantically dirty.
 3. For modified clusters, update or assign to the existing owning component unless the diff proves the ownership changed.
-4. For new clusters, decide whether they belong to an existing component or require a new component.
+4. For new clusters, first try to assign/update the most specific existing component. At root scope, create a new component ONLY for a brand-new top-level package/product boundary listed under "must create components"; additions under an existing package root belong to an existing component.
 5. For reshaped groups, explicitly resolve split/merge/move ambiguity.
 6. Use listGitChanges/readGitDiff ONLY when the structural diff is not enough to judge semantic impact.
 

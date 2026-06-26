@@ -420,7 +420,7 @@ New package-root clusters that must create components:
 Rules:
 - Keep unchanged clusters out of the operations unless the diff makes the component semantically dirty.
 - For modified clusters, usually update or assign to the existing owning component.
-- For new clusters, decide whether they belong to an existing component or require a new component.
+- For new clusters, first try to assign/update the most specific existing component. At root scope, create a new component only for a brand-new top-level package/product boundary listed under "must create components"; additions under an existing package root belong to an existing component.
 - For reshaped groups, explicitly resolve split/merge/move ambiguity.
 - Use listGitChanges/readGitDiff proactively but narrowly when the structural diff is not enough to judge semantic impact.
 - Do not reparent existing components. If reparenting seems required, use regenerate_scope.

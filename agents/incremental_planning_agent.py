@@ -39,6 +39,7 @@ class ScopeOperationValidationContext:
     expected_cluster_refs: set[ClusterRef] = field(default_factory=set)
     existing_component_ids: set[str] = field(default_factory=set)
     required_create_cluster_refs: set[ClusterRef] = field(default_factory=set)
+    scope_id: str = ""
 
 
 class IncrementalPlanningAgent(CodeBoardingAgent):
@@ -101,6 +102,7 @@ class IncrementalPlanningAgent(CodeBoardingAgent):
             expected_cluster_refs=_actionable_new_cluster_refs(structural_diff),
             existing_component_ids={component.component_id for component in scope.components if component.component_id},
             required_create_cluster_refs=_required_create_refs(structural_diff, scope.components),
+            scope_id=scope_id,
         )
         decision = self._validation_invoke(
             prompt,
@@ -154,6 +156,13 @@ def validate_scope_update_decision(
         if operation.action == ScopeOperationAction.CREATE_COMPONENT:
             if not operation.name or not operation.description:
                 errors.append("create_component operations must include name and description.")
+            if context.scope_id == "":
+                unrequired_root_create_refs = set(refs) - context.required_create_cluster_refs
+                if unrequired_root_create_refs:
+                    errors.append(
+                        "Root-scope create_component is only allowed for clusters listed under "
+                        f"must create components: {_format_cluster_ref_list(unrequired_root_create_refs)}"
+                    )
 
         forbidden_absorbed = set(refs) & context.required_create_cluster_refs
         if forbidden_absorbed and operation.action != ScopeOperationAction.CREATE_COMPONENT:
@@ -327,6 +336,8 @@ def _format_cluster_ref(ref: ClusterRef) -> str:
 
 
 def _format_cluster_ref_list(refs: set[ClusterRef]) -> str:
+    if not refs:
+        return "None"
     return ", ".join(
         _format_cluster_ref(ref) for ref in sorted(refs, key=lambda ref: (ref.scope_id, ref.language, ref.cluster_id))
     )
