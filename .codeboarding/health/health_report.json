@@ -1,13 +1,13 @@
 {
   "repository_name": "CodeBoarding",
-  "timestamp": "2026-06-25T12:30:33.374746+00:00",
-  "overall_score": 0.935209269330811,
+  "timestamp": "2026-06-26T10:34:08.673374+00:00",
+  "overall_score": 0.9356283895307711,
   "check_summaries": [
     {
       "check_name": "function_size",
       "description": "Checks that functions/methods do not exceed line count thresholds",
       "check_type": "standard",
-      "total_entities_checked": 1298,
+      "total_entities_checked": 1302,
       "findings_count": 0,
       "warning_count": 0,
       "score": 1.0,
@@ -17,10 +17,10 @@
       "check_name": "fan_out",
       "description": "Checks efferent coupling: how many other functions each function calls",
       "check_type": "standard",
-      "total_entities_checked": 1306,
+      "total_entities_checked": 1310,
       "findings_count": 24,
       "warning_count": 24,
-      "score": 0.9816232771822359,
+      "score": 0.981679389312977,
       "finding_groups": [
         {
           "severity": "warning",
@@ -203,10 +203,10 @@
       "check_name": "fan_in",
       "description": "Checks afferent coupling: how many other functions call each function",
       "check_type": "standard",
-      "total_entities_checked": 1306,
-      "findings_count": 12,
-      "warning_count": 12,
-      "score": 0.9908116385911179,
+      "total_entities_checked": 1310,
+      "findings_count": 11,
+      "warning_count": 11,
+      "score": 0.9916030534351145,
       "finding_groups": [
         {
           "severity": "warning",
@@ -267,13 +267,6 @@
               "file_path": "static_analyzer/graph.py",
               "line_start": 78,
               "line_end": 79,
-              "metric_value": 12
-            },
-            {
-              "entity_name": "tool_registry.paths.get_servers_dir",
-              "file_path": "tool_registry/paths.py",
-              "line_start": 64,
-              "line_end": 66,
               "metric_value": 12
             },
             {
