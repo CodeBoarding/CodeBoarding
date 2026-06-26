@@ -1,14 +1,64 @@
 import json
 import logging
+import platform
+import shlex
 import subprocess
 from pathlib import Path
-from typing import Set
 
 from static_analyzer.programming_language import ProgrammingLanguage, ProgrammingLanguageBuilder
 from telemetry.events import track_tech_stack
+from tool_registry.paths import is_wsl
 from utils import get_config
 
 logger = logging.getLogger(__name__)
+
+
+def _format_command(command: object) -> str:
+    if isinstance(command, str):
+        return command
+    if isinstance(command, (list, tuple)):
+        return shlex.join([str(part) for part in command])
+    return str(command)
+
+
+def _format_stderr(stderr: object) -> str:
+    if stderr is None:
+        return "no stderr output"
+    if isinstance(stderr, bytes):
+        stderr = stderr.decode(errors="replace")
+    stderr_text = str(stderr).strip()
+    return stderr_text or "no stderr output"
+
+
+def _tokei_failure_message(
+    repo_location: Path,
+    command: object,
+    reason: str,
+    stderr: object,
+    install_hint: bool,
+) -> str:
+    wsl_detected = is_wsl()
+    if wsl_detected:
+        guidance = (
+            "WSL detected: if a Windows tokei binary is being invoked from WSL, "
+            "install and run a Linux tokei binary inside WSL."
+        )
+    elif install_hint:
+        guidance = (
+            "Install tokei and ensure it is available on PATH, then verify that "
+            "'tokei -o json' works in your terminal."
+        )
+    else:
+        guidance = "Verify that 'tokei -o json' works in your terminal."
+
+    return (
+        f"{reason} for repository '{repo_location}'. "
+        f"Platform: {platform.platform()}. "
+        f"WSL detected: {'yes' if wsl_detected else 'no'}. "
+        f"Command: {_format_command(command)}. "
+        f"stderr: {_format_stderr(stderr)}. "
+        f"{guidance}"
+    )
 
 
 class ProjectScanner:
@@ -27,15 +77,38 @@ class ProjectScanner:
         """
 
         commands = get_config("tools")["tokei"]["command"]
-        result = subprocess.run(commands, cwd=self.repo_location, capture_output=True, text=True, check=True)
+        try:
+            result = subprocess.run(commands, cwd=self.repo_location, capture_output=True, text=True, check=True)
+        except FileNotFoundError as exc:
+            raise RuntimeError(
+                _tokei_failure_message(
+                    self.repo_location,
+                    commands,
+                    f"Tokei executable not found ({exc})",
+                    None,
+                    install_hint=True,
+                )
+            ) from exc
+        except subprocess.CalledProcessError as exc:
+            raise RuntimeError(
+                _tokei_failure_message(
+                    self.repo_location,
+                    commands,
+                    f"Tokei command failed with exit code {exc.returncode}",
+                    exc.stderr,
+                    install_hint=False,
+                )
+            ) from exc
 
         if not result.stdout:
-            stderr_msg = result.stderr.strip() if result.stderr else "no stderr output"
             raise RuntimeError(
-                f"Tokei produced no output for repository '{self.repo_location}'. "
-                f"stderr: {stderr_msg}. "
-                f"This may indicate a tokei installation issue (e.g. Windows binary invoked inside WSL). "
-                f"Verify that 'tokei -o json' works in your terminal."
+                _tokei_failure_message(
+                    self.repo_location,
+                    commands,
+                    "Tokei produced no output",
+                    result.stderr,
+                    install_hint=False,
+                )
             )
 
         server_config = get_config("lsp_servers")
@@ -88,7 +161,7 @@ class ProjectScanner:
         return programming_languages
 
     @staticmethod
-    def _extract_suffixes(files: list[str]) -> Set[str]:
+    def _extract_suffixes(files: list[str]) -> set[str]:
         """
         Extract unique file suffixes from a list of files.
 
@@ -96,7 +169,7 @@ class ProjectScanner:
             files (list[str]): list of file paths
 
         Returns:
-            Set[str]: Unique file extensions/suffixes
+            set[str]: Unique file extensions/suffixes
         """
         suffixes = set()
         for file_path in files:
