@@ -5,14 +5,12 @@ import time
 from collections import defaultdict
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from contextlib import nullcontext
-from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from agents.abstraction_agent import AbstractionAgent
-from agents.agent_responses import AnalysisInsights, Component, MetaAnalysisInsights, MethodEntry, ScopeUpdateDecision
-from agents.cluster_methods_mixin import _scoped_snapshot_from_lineage
+from agents.agent_responses import AnalysisInsights, Component, MetaAnalysisInsights, MethodEntry
 from agents.details_agent import DetailsAgent
 from agents.incremental_agent import (
     IncrementalAgent,
@@ -29,18 +27,8 @@ from diagram_analysis.analysis_json import (
     FileCoverageSummary,
     NotAnalyzedFile,
 )
-from diagram_analysis.cluster_delta import (
-    ClusterDelta,
-    ClusterMemberDelta,
-    ClusterRef,
-    ClusterReshape,
-    LanguageDelta,
-    LanguageStructuralDiff,
-    StructuralClusterDiff,
-    compute_cluster_delta,
-    structural_diff_from_delta,
-)
-from diagram_analysis.cluster_snapshot import ClusterSnapshot, snapshot_from_static_analysis
+from diagram_analysis.cluster_delta import compute_cluster_delta, structural_diff_from_delta
+from diagram_analysis.cluster_snapshot import snapshot_from_static_analysis
 from diagram_analysis.exceptions import IncrementalCacheMissingError
 from diagram_analysis.file_coverage import FileCoverage
 from diagram_analysis.io_utils import normalize_repo_path, save_analysis
@@ -78,17 +66,6 @@ def _component_expansion_seeds(components: list[Component], max_depth: int) -> l
         for component in components
         if (depth := _component_depth(component.component_id)) < max_depth
     ]
-
-
-@dataclass
-class RecursiveScopeUpdateResult:
-    """Aggregate recursive incremental scope updates."""
-
-    refresh_ids: set[str] = field(default_factory=set)
-    new_component_ids: set[str] = field(default_factory=set)
-    removed_ids: set[str] = field(default_factory=set)
-    touched_scopes: set[str] = field(default_factory=set)
-    regenerate_scope: bool = False
 
 
 class DiagramGenerator:
@@ -566,78 +543,6 @@ class DiagramGenerator:
             not_analyzed_by_reason=summary["not_analyzed_by_reason"],
         )
 
-    def _apply_incremental_scope_recursively(
-        self,
-        scope_id: str,
-        scope: AnalysisInsights,
-        structural_diff: StructuralClusterDiff,
-        cluster_results: dict[str, ClusterResult],
-        planning_agent: IncrementalPlanningAgent,
-        incremental_agent: IncrementalAgent,
-        sub_analyses: dict[str, AnalysisInsights],
-    ) -> RecursiveScopeUpdateResult:
-        scope_decision = planning_agent.decide_scope_update(scope_id, scope, structural_diff)
-        apply_result = incremental_agent.update_scope(scope_id, scope, scope_decision, cluster_results)
-
-        aggregate = RecursiveScopeUpdateResult(
-            refresh_ids=set(apply_result.refresh_ids),
-            new_component_ids=set(apply_result.new_component_ids),
-            removed_ids=set(apply_result.removed_ids),
-            regenerate_scope=apply_result.regenerate_scope,
-        )
-        if apply_result.refresh_ids:
-            aggregate.touched_scopes.add(scope_id)
-        if aggregate.regenerate_scope:
-            return aggregate
-
-        routed_refs = _operation_cluster_refs_by_component(scope_id, scope_decision)
-        components_by_id = {
-            component.component_id: component for component in scope.components if component.component_id
-        }
-        existing_refresh_ids = apply_result.refresh_ids - apply_result.new_component_ids
-        for component_id in sorted(existing_refresh_ids):
-            child_scope = sub_analyses.get(component_id)
-            component = components_by_id.get(component_id)
-            assigned_refs = routed_refs.get(component_id, set())
-            if (
-                child_scope is None
-                or component is None
-                or not assigned_refs
-                or _component_depth(component_id) >= self.depth_level
-            ):
-                continue
-
-            child_cluster_results, child_diff = _build_child_scope_incremental_inputs(
-                component,
-                component_id,
-                assigned_refs,
-                structural_diff,
-                cluster_results,
-                incremental_agent,
-                self.repo_location,
-                self.changes,
-            )
-            if not child_diff.has_changes:
-                continue
-            child_result = self._apply_incremental_scope_recursively(
-                component_id,
-                child_scope,
-                child_diff,
-                child_cluster_results,
-                planning_agent,
-                incremental_agent,
-                sub_analyses,
-            )
-            aggregate.refresh_ids |= child_result.refresh_ids
-            aggregate.new_component_ids |= child_result.new_component_ids
-            aggregate.removed_ids |= child_result.removed_ids
-            aggregate.touched_scopes |= child_result.touched_scopes
-            aggregate.regenerate_scope = aggregate.regenerate_scope or child_result.regenerate_scope
-            if aggregate.regenerate_scope:
-                return aggregate
-
-        return aggregate
-
     @track_analysis
     def generate_analysis_incremental(
         self,
@@ -734,35 +639,18 @@ class DiagramGenerator:
                 changes=self.changes,
             )
             self._monitoring_agents["IncrementalAgent"] = incremental_agent
-            apply_result = self._apply_incremental_scope_recursively(
-                "",
-                root_analysis,
-                structural_diff,
-                delta.cluster_results(),
-                planning_agent,
-                incremental_agent,
-                sub_analyses,
-            )
+            scope_decision = planning_agent.decide_scope_update("", root_analysis, structural_diff)
+            apply_result = incremental_agent.update_scope("", root_analysis, scope_decision, delta.cluster_results())
             if apply_result.regenerate_scope:
                 logger.info("Incremental planning agent requested root regeneration; running full analysis.")
                 return self.generate_analysis()
 
-            explicitly_removed_ids = _prune_removed_component_ids(root_analysis, sub_analyses, apply_result.removed_ids)
-            if explicitly_removed_ids:
-                apply_result.refresh_ids -= explicitly_removed_ids
-                apply_result.new_component_ids -= explicitly_removed_ids
-                apply_result.removed_ids |= explicitly_removed_ids
-                apply_result.touched_scopes = _filter_live_touched_scopes(
-                    apply_result.touched_scopes,
-                    explicitly_removed_ids,
-                )
+            touched_scopes = {""} if apply_result.refresh_ids else set()
 
             removed_ids = prune_empty_components(root_analysis, sub_analyses)
             if removed_ids:
                 apply_result.refresh_ids -= removed_ids
                 apply_result.new_component_ids -= removed_ids
-                apply_result.removed_ids |= removed_ids
-                apply_result.touched_scopes = _filter_live_touched_scopes(apply_result.touched_scopes, removed_ids)
 
             new_components = [
                 component
@@ -773,8 +661,8 @@ class DiagramGenerator:
                 _, redetailed_subs = self._generate_subcomponents(root_analysis, new_components)
                 _merge_sub_analyses(sub_analyses, redetailed_subs)
 
-            if apply_result.touched_scopes:
-                incremental_agent.generate_all_scope_relations(root_analysis, sub_analyses, apply_result.touched_scopes)
+            if touched_scopes:
+                incremental_agent.generate_all_scope_relations(root_analysis, sub_analyses, touched_scopes)
 
             # Rebuild the global files index, unioning every sub-analysis's
             # files into root. The incremental flow never reruns AbstractionAgent
@@ -832,261 +720,6 @@ def _collect_components_by_id(
                 found.append(component)
                 seen.add(component.component_id)
     return found
-
-
-def _prune_removed_component_ids(
-    root_analysis: AnalysisInsights,
-    sub_analyses: dict[str, AnalysisInsights],
-    removed_ids: set[str],
-) -> set[str]:
-    if not removed_ids:
-        return set()
-    all_removed_ids = set(removed_ids)
-    known_ids = {
-        component.component_id
-        for analysis in [root_analysis, *sub_analyses.values()]
-        for component in analysis.components
-        if component.component_id
-    }
-    known_ids.update(sub_analyses.keys())
-    changed = True
-    while changed:
-        changed = False
-        for component_id in known_ids - all_removed_ids:
-            if any(component_id.startswith(f"{removed_id}.") for removed_id in all_removed_ids):
-                all_removed_ids.add(component_id)
-                changed = True
-
-    for analysis in [root_analysis, *sub_analyses.values()]:
-        analysis.components = [
-            component for component in analysis.components if component.component_id not in all_removed_ids
-        ]
-        _strip_removed_relations(analysis, all_removed_ids)
-    for component_id in list(sub_analyses):
-        if component_id in all_removed_ids:
-            del sub_analyses[component_id]
-    return all_removed_ids
-
-
-def _strip_removed_relations(analysis: AnalysisInsights, removed_ids: set[str]) -> None:
-    analysis.components_relations = [
-        relation
-        for relation in analysis.components_relations
-        if relation.src_id not in removed_ids and relation.dst_id not in removed_ids
-    ]
-
-
-def _filter_live_touched_scopes(touched_scopes: set[str], removed_ids: set[str]) -> set[str]:
-    return {
-        scope_id
-        for scope_id in touched_scopes
-        if scope_id not in removed_ids and not any(scope_id.startswith(f"{removed_id}.") for removed_id in removed_ids)
-    }
-
-
-def _operation_cluster_refs_by_component(
-    scope_id: str,
-    decision: ScopeUpdateDecision,
-) -> dict[str, set[ClusterRef]]:
-    refs_by_component: dict[str, set[ClusterRef]] = defaultdict(set)
-    for operation in decision.operations:
-        if not operation.component_id:
-            continue
-        for ref in operation.cluster_refs:
-            normalized_scope = "" if ref.scope_id == "root" else ref.scope_id
-            if normalized_scope != scope_id:
-                continue
-            refs_by_component[operation.component_id].add(
-                ClusterRef(language=ref.language, cluster_id=ref.cluster_id, scope_id=scope_id)
-            )
-    return refs_by_component
-
-
-def _build_child_scope_incremental_inputs(
-    component: Component,
-    scope_id: str,
-    parent_refs: set[ClusterRef],
-    parent_structural_diff: StructuralClusterDiff,
-    parent_cluster_results: dict[str, ClusterResult],
-    incremental_agent: IncrementalAgent,
-    repo_dir: Path,
-    changes: ChangeSet | None,
-) -> tuple[dict[str, ClusterResult], StructuralClusterDiff]:
-    old_snapshot = _scoped_snapshot_for_component(component, scope_id, incremental_agent)
-    _subgraph_str, child_cluster_results, _subgraph_cfgs = incremental_agent._create_strict_component_subgraph(
-        component,
-        source_cluster_id_prefix=scope_id,
-    )
-    child_delta = ClusterDelta(
-        by_language={
-            language: LanguageDelta(language=language, cluster_results=cluster_result)
-            for language, cluster_result in child_cluster_results.items()
-        }
-    )
-    child_structural_diff = structural_diff_from_delta(
-        old_snapshot,
-        child_delta,
-        changes=changes,
-        repo_dir=repo_dir,
-        scope_id=scope_id,
-    )
-    changed_members, changed_files = _changed_members_and_files_for_refs(
-        parent_refs,
-        parent_structural_diff,
-        parent_cluster_results,
-        repo_dir,
-    )
-    allowed_child_refs = _child_refs_overlapping_changes(
-        child_cluster_results, changed_members, changed_files, repo_dir, scope_id
-    )
-    return child_cluster_results, _filter_structural_diff_for_scope(child_structural_diff, scope_id, allowed_child_refs)
-
-
-def _scoped_snapshot_for_component(
-    component: Component,
-    scope_id: str,
-    incremental_agent: IncrementalAgent,
-) -> ClusterSnapshot:
-    assigned_qnames = {
-        method.qualified_name for group in component.file_methods for method in group.methods if method.qualified_name
-    }
-    by_language = {}
-    for language in incremental_agent.static_analysis.get_languages():
-        cfg = incremental_agent.static_analysis.get_cfg(language)
-        sub_cfg = cfg.filter_by_nodes(assigned_qnames)
-        if sub_cfg.nodes:
-            by_language[str(language)] = _scoped_snapshot_from_lineage(sub_cfg, scope_id)
-    return ClusterSnapshot(by_language=by_language)
-
-
-def _changed_members_and_files_for_refs(
-    refs: set[ClusterRef],
-    structural_diff: StructuralClusterDiff,
-    cluster_results: dict[str, ClusterResult],
-    repo_dir: Path,
-) -> tuple[set[str], set[str]]:
-    ref_keys = {(ref.language, ref.cluster_id) for ref in refs}
-    changed_members: set[str] = set()
-    changed_files: set[str] = set()
-    for ref in refs:
-        cluster_result = cluster_results.get(ref.language)
-        if cluster_result is None:
-            continue
-        changed_members |= set(cluster_result.clusters.get(ref.cluster_id, set()))
-        changed_files |= {
-            normalize_repo_path(file_path, repo_dir)
-            for file_path in cluster_result.cluster_to_files.get(ref.cluster_id, set())
-            if file_path
-        }
-
-    for diff in structural_diff.by_language.values():
-        for delta in [*diff.modified, *diff.new_details]:
-            if (delta.new_cluster.language, delta.new_cluster.cluster_id) not in ref_keys:
-                continue
-            changed_members |= delta.added_methods | delta.removed_methods | delta.unchanged_methods
-            changed_files |= {normalize_repo_path(file_path, repo_dir) for file_path in delta.dirty_files}
-        for reshape in diff.reshaped:
-            if not any((ref.language, ref.cluster_id) in ref_keys for ref in reshape.new_clusters):
-                continue
-            changed_files |= {normalize_repo_path(file_path, repo_dir) for file_path in reshape.dirty_files}
-    return changed_members, changed_files
-
-
-def _child_refs_overlapping_changes(
-    child_cluster_results: dict[str, ClusterResult],
-    changed_members: set[str],
-    changed_files: set[str],
-    repo_dir: Path,
-    scope_id: str,
-) -> set[ClusterRef]:
-    refs: set[ClusterRef] = set()
-    for language, cluster_result in child_cluster_results.items():
-        for cluster_id, members in cluster_result.clusters.items():
-            files = {
-                normalize_repo_path(file_path, repo_dir)
-                for file_path in cluster_result.cluster_to_files.get(cluster_id, set())
-                if file_path
-            }
-            if set(members) & changed_members or files & changed_files:
-                refs.add(ClusterRef(language=language, cluster_id=cluster_id, scope_id=scope_id))
-    return refs
-
-
-def _filter_structural_diff_for_scope(
-    structural_diff: StructuralClusterDiff,
-    scope_id: str,
-    allowed_refs: set[ClusterRef],
-) -> StructuralClusterDiff:
-    allowed_keys = {(ref.language, ref.cluster_id) for ref in allowed_refs}
-    filtered = StructuralClusterDiff()
-    for language, diff in structural_diff.by_language.items():
-        language_diff = LanguageStructuralDiff(language=language)
-        language_diff.modified = [
-            _retarget_member_delta(delta, scope_id)
-            for delta in diff.modified
-            if (delta.new_cluster.language, delta.new_cluster.cluster_id) in allowed_keys
-        ]
-        language_diff.new = [
-            _retarget_cluster_ref(ref, scope_id) for ref in diff.new if (ref.language, ref.cluster_id) in allowed_keys
-        ]
-        language_diff.new_details = [
-            _retarget_member_delta(delta, scope_id)
-            for delta in diff.new_details
-            if (delta.new_cluster.language, delta.new_cluster.cluster_id) in allowed_keys
-        ]
-        language_diff.removed = [
-            _retarget_cluster_ref(ref, scope_id)
-            for ref in diff.removed
-            if (ref.language, ref.cluster_id) in allowed_keys
-        ]
-        language_diff.reshaped = [
-            reshape
-            for reshape in (_retarget_reshape(reshape, scope_id, allowed_keys) for reshape in diff.reshaped)
-            if reshape.new_clusters
-        ]
-        if language_diff.has_changes:
-            filtered.by_language[language] = language_diff
-    return filtered
-
-
-def _retarget_cluster_ref(ref: ClusterRef, scope_id: str) -> ClusterRef:
-    return ClusterRef(language=ref.language, cluster_id=ref.cluster_id, scope_id=scope_id)
-
-
-def _retarget_member_delta(delta: ClusterMemberDelta, scope_id: str) -> ClusterMemberDelta:
-    return ClusterMemberDelta(
-        old_cluster=_retarget_cluster_ref(delta.old_cluster, scope_id),
-        new_cluster=_retarget_cluster_ref(delta.new_cluster, scope_id),
-        unchanged_methods=set(delta.unchanged_methods),
-        added_methods=set(delta.added_methods),
-        removed_methods=set(delta.removed_methods),
-        dirty_files=set(delta.dirty_files),
-    )
-
-
-def _retarget_reshape(
-    reshape: ClusterReshape,
-    scope_id: str,
-    allowed_keys: set[tuple[str, int]],
-) -> ClusterReshape:
-    old_refs = [_retarget_cluster_ref(ref, scope_id) for ref in reshape.old_clusters]
-    new_refs = [
-        _retarget_cluster_ref(ref, scope_id)
-        for ref in reshape.new_clusters
-        if (ref.language, ref.cluster_id) in allowed_keys
-    ]
-    new_keys = {(ref.language, ref.cluster_id) for ref in new_refs}
-    overlaps: dict[tuple[ClusterRef, ClusterRef], int] = {}
-    for (old_ref, new_ref), count in reshape.overlap_counts.items():
-        if (new_ref.language, new_ref.cluster_id) not in new_keys:
-            continue
-        overlaps[(_retarget_cluster_ref(old_ref, scope_id), _retarget_cluster_ref(new_ref, scope_id))] = count
-    return ClusterReshape(
-        old_clusters=old_refs,
-        new_clusters=new_refs,
-        overlap_counts=overlaps,
-        dirty_files=set(reshape.dirty_files),
-    )
 
 
 def _merge_sub_analyses(

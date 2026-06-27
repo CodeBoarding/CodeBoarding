@@ -13,10 +13,6 @@ from agents.agent_responses import (
     FileMethodGroup,
     MethodEntry,
     Relation,
-    ScopeOperation,
-    ScopeOperationAction,
-    ScopedClusterRef,
-    ScopeUpdateDecision,
     SourceCodeReference,
     assign_component_ids,
 )
@@ -29,16 +25,10 @@ from diagram_analysis.analysis_json import (
     from_analysis_to_json,
     from_component_to_json_component,
 )
-from diagram_analysis.diagram_generator import (
-    DiagramGenerator,
-    _component_depth,
-    _component_expansion_seeds,
-    _prune_removed_component_ids,
-)
+from diagram_analysis.diagram_generator import DiagramGenerator, _component_depth, _component_expansion_seeds
 from diagram_analysis.exceptions import IncrementalCacheMissingError
 from diagram_analysis.version import Version
 from repo_utils.change_detector import ChangeSet
-from diagram_analysis.cluster_delta import ClusterMemberDelta, ClusterRef, LanguageStructuralDiff, StructuralClusterDiff
 from static_analyzer.analysis_cache import StaticAnalysisCache
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import Language, NodeType
@@ -715,25 +705,6 @@ class TestDiagramGenerator(unittest.TestCase):
         self.assertEqual([(component.component_id, level) for component, level in seeds], [("1", 1), ("1.1", 2)])
         self.assertEqual(_component_expansion_seeds([root, child, leaf], max_depth=1), [])
 
-    def test_prune_removed_component_ids_removes_descendant_sub_analyses(self):
-        root = Component(name="Root", description="", key_entities=[], component_id="1")
-        parent = Component(name="Parent", description="", key_entities=[], component_id="1.1")
-        leaf = Component(name="Leaf", description="", key_entities=[], component_id="1.1.1")
-        sibling = Component(name="Sibling", description="", key_entities=[], component_id="1.2")
-        relation = Relation(src_id="1.1", dst_id="1.2", src_name="Parent", dst_name="Sibling", relation="calls")
-        root_analysis = AnalysisInsights(description="root", components=[root], components_relations=[])
-        sub_analyses = {
-            "1": AnalysisInsights(description="sub", components=[parent, sibling], components_relations=[relation]),
-            "1.1": AnalysisInsights(description="leaf", components=[leaf], components_relations=[]),
-        }
-
-        removed = _prune_removed_component_ids(root_analysis, sub_analyses, {"1.1"})
-
-        self.assertEqual(removed, {"1.1", "1.1.1"})
-        self.assertEqual([component.component_id for component in sub_analyses["1"].components], ["1.2"])
-        self.assertNotIn("1.1", sub_analyses)
-        self.assertEqual(sub_analyses["1"].components_relations, [])
-
     @patch("diagram_analysis.diagram_generator.get_git_commit_hash", return_value="abc123")
     @patch("diagram_analysis.diagram_generator.save_analysis")
     @patch("diagram_analysis.diagram_generator.get_expandable_components")
@@ -783,7 +754,7 @@ class TestDiagramGenerator(unittest.TestCase):
     @patch("diagram_analysis.diagram_generator.initialize_llms", return_value=(Mock(), Mock()))
     @patch("diagram_analysis.diagram_generator.compute_cluster_delta")
     @patch("diagram_analysis.diagram_generator.snapshot_from_static_analysis")
-    def test_incremental_refresh_recursively_updates_existing_parent_scope(
+    def test_incremental_refresh_does_not_expand_existing_parent_scope(
         self,
         mock_snapshot,
         mock_delta,
@@ -822,84 +793,15 @@ class TestDiagramGenerator(unittest.TestCase):
         mock_snapshot.return_value.all_cluster_ids.return_value = {1}
         mock_delta.return_value.has_changes = True
         mock_delta.return_value.cluster_results.return_value = {}
-        root_structural_diff = StructuralClusterDiff(
-            by_language={
-                "python": LanguageStructuralDiff(
-                    language="python",
-                    modified=[
-                        ClusterMemberDelta(
-                            old_cluster=ClusterRef(language="python", cluster_id=2),
-                            new_cluster=ClusterRef(language="python", cluster_id=2),
-                            added_methods={"pkg.changed"},
-                        )
-                    ],
-                )
-            }
+        mock_planning_agent.return_value.decide_scope_update.return_value = Mock()
+        _mock_incremental_agent.return_value.update_scope.return_value = ScopeUpdateResult(
+            refresh_ids={"1"}, new_component_ids=set()
         )
-        child_structural_diff = StructuralClusterDiff(
-            by_language={
-                "python": LanguageStructuralDiff(
-                    language="python",
-                    new=[ClusterRef(language="python", cluster_id=3, scope_id="1")],
-                    new_details=[
-                        ClusterMemberDelta(
-                            old_cluster=ClusterRef(language="python", cluster_id=3, scope_id="1"),
-                            new_cluster=ClusterRef(language="python", cluster_id=3, scope_id="1"),
-                            added_methods={"pkg.changed"},
-                        )
-                    ],
-                )
-            }
-        )
-        _mock_structural_diff.side_effect = [root_structural_diff, child_structural_diff]
-        root_decision = ScopeUpdateDecision(
-            operations=[
-                ScopeOperation(
-                    action=ScopeOperationAction.UPDATE_COMPONENT,
-                    component_id="1",
-                    cluster_refs=[ScopedClusterRef(scope_id="", language="python", cluster_id=2)],
-                    rationale="Parent owns the changed cluster.",
-                )
-            ]
-        )
-        child_decision = ScopeUpdateDecision(
-            operations=[
-                ScopeOperation(
-                    action=ScopeOperationAction.UPDATE_COMPONENT,
-                    component_id="1.1",
-                    cluster_refs=[ScopedClusterRef(scope_id="1", language="python", cluster_id=3)],
-                    rationale="Child owns the changed cluster inside parent scope.",
-                )
-            ]
-        )
-        mock_planning_agent.return_value.decide_scope_update.side_effect = [root_decision, child_decision]
-        _mock_incremental_agent.return_value.static_analysis = gen.static_analysis
-        _mock_incremental_agent.return_value._create_strict_component_subgraph.return_value = (
-            "child clusters",
-            {
-                "python": ClusterResult(
-                    clusters={3: {"pkg.changed"}},
-                    cluster_to_files={3: {str(self.repo_location / "pkg.py")}},
-                )
-            },
-            {},
-        )
-        _mock_incremental_agent.return_value.update_scope.side_effect = [
-            ScopeUpdateResult(refresh_ids={"1"}, new_component_ids=set()),
-            ScopeUpdateResult(refresh_ids={"1.1"}, new_component_ids=set()),
-        ]
         mock_save_analysis.return_value = self.output_dir / "analysis.json"
 
         gen.generate_analysis_incremental(root_analysis, sub_analyses)
 
         mock_snapshot.assert_called_once_with(base_static_analysis)
-        self.assertEqual(mock_planning_agent.return_value.decide_scope_update.call_count, 2)
-        self.assertEqual(_mock_incremental_agent.return_value.update_scope.call_count, 2)
-        child_call = mock_planning_agent.return_value.decide_scope_update.call_args_list[1]
-        self.assertEqual(child_call.args[0], "1")
-        self.assertEqual(child_call.args[1], sub_analyses["1"])
-        child_diff = child_call.args[2]
-        self.assertEqual(child_diff.by_language["python"].new[0], ClusterRef("python", 3, "1"))
         gen._generate_subcomponents.assert_not_called()
         self.assertEqual(sub_analyses["1"].components[0].name, "Stable Child")
 
