@@ -167,6 +167,28 @@ class TestUpdateScope(unittest.TestCase):
         self.assertEqual(result.refresh_ids, {"1"})
         self.assertEqual(result.new_component_ids, set())
 
+    def test_update_scope_moves_reassigned_clusters_between_siblings(self) -> None:
+        first = _component("Core", "1.1", source_cluster_ids=["1.1", "1.2"])
+        second = _component("Parsers", "1.2", source_cluster_ids=["1.3"])
+        scope = AnalysisInsights(description="nested", components=[first, second], components_relations=[])
+        decision = ScopeUpdateDecision(
+            operations=[
+                ScopeOperation(
+                    action=ScopeOperationAction.UPDATE_COMPONENT,
+                    cluster_refs=[ScopedClusterRef(scope_id="1", language="python", cluster_id=2)],
+                    component_id="1.2",
+                    description="Parsers now own the parser cluster.",
+                    rationale="Cluster 2 moved under parser responsibility.",
+                )
+            ]
+        )
+
+        result = self._agent().update_scope("1", scope, decision, {"python": ClusterResult()})
+
+        self.assertEqual(first.source_cluster_ids, ["1.1"])
+        self.assertEqual(second.source_cluster_ids, ["1.2", "1.3"])
+        self.assertEqual(result.refresh_ids, {"1.1", "1.2"})
+
     def test_create_component_assigns_id_clusters_methods_and_key_entities(self) -> None:
         existing = Component(name="API", description="", key_entities=[], component_id="1")
         scope = AnalysisInsights(description="root", components=[existing], components_relations=[])

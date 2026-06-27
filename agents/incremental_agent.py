@@ -79,6 +79,7 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
         components_by_id = {
             component.component_id: component for component in scope.components if component.component_id
         }
+        result.refresh_ids.update(_remove_reassigned_clusters(scope_id, scope.components, components_by_id, decision))
 
         for operation in decision.operations:
             if operation.action == ScopeOperationAction.REGENERATE_SCOPE:
@@ -113,6 +114,8 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
             self.populate_file_methods(scope, cluster_results, cfg_graphs, source_cluster_id_prefix=scope_id)
             self.build_static_relations(scope, cfg_graphs)
             self._refresh_key_entities(scope, touched_ids)
+
+        _log_duplicate_cluster_ownership(scope_id, scope.components)
 
         return result
 
@@ -257,6 +260,51 @@ def _log_scope_relations_summary(all_rels: list[tuple[str, list[Relation]]]) -> 
 def _operation_source_cluster_ids(scope_id: str, operation: ScopeOperation) -> list[str]:
     local_ids = {ref.cluster_id for ref in operation.cluster_refs if _normalize_scope_id(ref.scope_id) == scope_id}
     return CodeBoardingClusterIds.qualify_local_ids(CodeBoardingClusterIds.from_graph_ids(local_ids), scope_id)
+
+
+def _remove_reassigned_clusters(
+    scope_id: str,
+    components: list[Component],
+    components_by_id: dict[str, Component],
+    decision: ScopeUpdateDecision,
+) -> set[str]:
+    reassigned_cluster_ids: set[str] = set()
+    for operation in decision.operations:
+        if operation.action == ScopeOperationAction.CREATE_COMPONENT or (
+            operation.action in {ScopeOperationAction.ASSIGN_TO_EXISTING, ScopeOperationAction.UPDATE_COMPONENT}
+            and operation.component_id in components_by_id
+        ):
+            reassigned_cluster_ids.update(_operation_source_cluster_ids(scope_id, operation))
+    if not reassigned_cluster_ids:
+        return set()
+
+    changed_component_ids: set[str] = set()
+    for component in components:
+        kept_cluster_ids = [
+            cluster_id for cluster_id in component.source_cluster_ids if cluster_id not in reassigned_cluster_ids
+        ]
+        if kept_cluster_ids == component.source_cluster_ids:
+            continue
+        component.source_cluster_ids = kept_cluster_ids
+        if component.component_id:
+            changed_component_ids.add(component.component_id)
+    return changed_component_ids
+
+
+def _log_duplicate_cluster_ownership(scope_id: str, components: list[Component]) -> None:
+    owners_by_cluster_id: dict[str, list[str]] = {}
+    for component in components:
+        owner = component.component_id or component.name
+        for cluster_id in component.source_cluster_ids:
+            owners_by_cluster_id.setdefault(cluster_id, []).append(owner)
+
+    duplicates = {cluster_id: owners for cluster_id, owners in owners_by_cluster_id.items() if len(owners) > 1}
+    if duplicates:
+        logger.error(
+            "[incremental] duplicate cluster ownership remains in scope %s: %s",
+            scope_id or "root",
+            duplicates,
+        )
 
 
 def _normalize_scope_id(scope_id: str) -> str:
