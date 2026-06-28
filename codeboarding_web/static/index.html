@@ -1,0 +1,92 @@
+<!-- codeboarding_web/static/index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CodeBoarding</title>
+  <link rel="stylesheet" href="/static/app.css" />
+  <script src="https://unpkg.com/dagre@0.8.5/dist/dagre.min.js"
+    integrity="sha384-2IH3T69EIKYC4c+RXZifZRvaH5SRUdacJW7j6HtE5rQbvLhKKdawxq6vpIzJ7j9M"
+    crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/cytoscape@3.23.0/dist/cytoscape.min.js"
+    integrity="sha384-Q20qNhd/ak9c9XLRBwy3jG/XxBWAdfQNYkZ0bYCKxx/9iI9bUVYvLzOf7lviiPKW"
+    crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/cytoscape-dagre@2.4.0/cytoscape-dagre.js"
+    integrity="sha384-Qr0YbXo1xoIf1wj9Fpw0hD7sdhzDpPhcGqWt4akvAQz6RzpGNVtBpb5XPD1hFetq"
+    crossorigin="anonymous"></script>
+</head>
+<body>
+  <header>
+    <span id="project"></span>
+    <span id="phase" class="phase idle">idle</span>
+    <span id="depth" class="depth" title="Analysis depth"></span>
+    <select id="scope">
+      <option value="full">Full</option>
+      <option value="incremental">Incremental</option>
+    </select>
+    <button id="run">Run analysis</button>
+    <button id="stop" style="display:none">Stop ◼</button>
+    <label class="watch"><input type="checkbox" id="watch" /> Watch</label>
+    <span id="overview-title" class="overview-title">Overview</span>
+    <button id="collapse-all" style="display:none">Collapse all ⊖</button>
+  </header>
+  <main>
+    <aside id="detail">
+      <div id="detail-empty" class="detail-empty">Select a node to see details</div>
+      <div id="detail-content" class="detail-content hidden">
+        <h2 id="detail-name"></h2>
+        <div class="detail-header-row">
+          <button id="detail-copy" class="detail-copy" title="Copy context as Markdown">Copy Context</button>
+          <button id="detail-expand" class="detail-expand hidden">Expand ›</button>
+        </div>
+        <nav class="tab-bar">
+          <button class="tab-btn active" data-tab="overview">Overview</button>
+          <button class="tab-btn" data-tab="warnings">Warnings</button>
+          <button class="tab-btn" data-tab="modifications">Modifications</button>
+        </nav>
+        <!-- Overview tab -->
+        <div id="tab-overview" class="tab-panel">
+          <p id="detail-desc" class="detail-desc"></p>
+          <div id="detail-entities" class="detail-entities">
+            <h3>Key Code Entities</h3>
+            <ul id="detail-entity-list"></ul>
+          </div>
+          <div id="detail-sources" class="detail-sources">
+            <h3 id="detail-sources-header">Source Files</h3>
+            <ul id="detail-source-list"></ul>
+          </div>
+        </div>
+        <!-- Warnings tab -->
+        <div id="tab-warnings" class="tab-panel hidden">
+          <p id="warnings-summary" class="detail-desc"></p>
+          <ul id="warnings-file-list" class="source-list"></ul>
+        </div>
+        <!-- Modifications tab -->
+        <div id="tab-modifications" class="tab-panel hidden">
+          <p id="modifications-summary" class="detail-desc"></p>
+          <ul id="modifications-file-list" class="source-list"></ul>
+          <pre id="modifications-diff" class="diff"></pre>
+        </div>
+      </div>
+    </aside>
+    <div id="graph-wrap">
+      <div id="toolbar">
+        <button id="tb-zoomin" title="Zoom in">+</button>
+        <button id="tb-zoomout" title="Zoom out">−</button>
+        <button id="tb-fit" title="Fit to screen">⤢</button>
+        <button id="tb-relayout" title="Re-run layout">↺</button>
+      </div>
+      <div id="cy"></div>
+    </div>
+    <aside id="log-panel">
+      <div id="log-header" class="log-header">
+        <span>Progress log</span>
+        <button id="log-toggle" class="log-toggle" aria-label="Toggle log">▼</button>
+      </div>
+      <div id="log"></div>
+    </aside>
+  </main>
+  <script src="/static/app.js"></script>
+</body>
+</html>

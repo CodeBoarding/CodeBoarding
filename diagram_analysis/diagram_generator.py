@@ -1,8 +1,10 @@
 import json
 import logging
 import os
+import threading
 import time
 from collections import defaultdict
+from collections.abc import Callable
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from contextlib import nullcontext
 from datetime import datetime, timezone
@@ -83,6 +85,8 @@ class DiagramGenerator:
         monitoring_enabled: bool = False,
         static_analyzer: StaticAnalyzer | None = None,
         changes: ChangeSet | None = None,
+        progress_callback: Callable[[], None] | None = None,
+        cancel_event: threading.Event | None = None,
     ):
         self.repo_location = repo_location
         self.temp_folder = temp_folder
@@ -108,6 +112,7 @@ class DiagramGenerator:
         # at run-prepare time. ``None`` is a tag-less save.
         self.source_sha: str | None = None
         self._static_analyzer = static_analyzer
+        self.progress_callback: Callable[[], None] | None = progress_callback
 
         self.details_agent: DetailsAgent | None = None
         self.static_analysis: StaticAnalysisResults | None = None  # Cache static analysis for reuse
@@ -118,6 +123,16 @@ class DiagramGenerator:
 
         self._monitoring_agents: dict[str, MonitoringMixin] = {}
         self.stats_writer: StreamingStatsWriter | None = None
+        self.cancel_event = cancel_event
+
+    def _notify_progress(self) -> None:
+        """Fire the optional progress callback; never let it break a run."""
+        if self.progress_callback is None:
+            return
+        try:
+            self.progress_callback()
+        except Exception:
+            logger.exception("progress_callback raised; ignoring")
 
     @track_analysis
     def process_component(
@@ -394,6 +409,8 @@ class DiagramGenerator:
             future_to_task: dict[Future, tuple[Component, int]] = {}
 
             def submit_component(comp: Component, lvl: int):
+                if self.cancel_event is not None and self.cancel_event.is_set():
+                    return
                 future = executor.submit(self._process_component, comp)
                 future_to_task[future] = (comp, lvl)
                 stats["submitted"] += 1
@@ -432,6 +449,7 @@ class DiagramGenerator:
                                 repo_name=self.repo_name,
                                 commit_hash=commit_hash,
                             )
+                            self._notify_progress()
 
                         if new_components and level + 1 < self.depth_level:
                             for child in new_components:

@@ -137,6 +137,41 @@ python main.py partial --local ./my-project --component-id "1.2"
 python main.py full https://github.com/pytorch/pytorch
 ```
 
+## Local web visualizer (`codeboarding serve`)
+
+Serve an interactive, live-updating diagram for a local repository:
+
+```bash
+codeboarding serve --local /path/to/repo
+```
+
+This starts a local web app at `http://127.0.0.1:8050/` and opens your browser.
+If an analysis already exists it renders immediately; click **Run analysis**
+(full or incremental) to regenerate it. Progress and the diagram stream in live
+as each component is analyzed, and your pan/zoom is preserved across updates.
+
+In the browser you can:
+
+- **Single-click an expandable node** (gold border + `⊕`) to expand it in place
+  into a nested sub-diagram; click again to collapse, or **Collapse all**.
+- **Select a node** to open a detail sidebar with its description, **Key Code
+  Entities** (clickable `vscode://` links), **Source Files**, per-file
+  **Warnings**, and a **Modifications** tab showing the git **diff** for the
+  component. A **Copy Context** button copies it all as Markdown for a coding agent.
+- Watch the **progress log** and live diagram updates during a run, and **Stop**
+  a long run (cooperative cancel — keeps the partial result).
+
+Watch-on-save is on by default: editing a source file auto-triggers an
+incremental re-analysis (toggle it from the header or disable with `--no-watch`).
+Incremental self-heals to a full run when the warm cache isn't seeded yet.
+
+Flags: `--host`, `--port` (default `8050`), `--no-open`, `--depth-level` (default `2`; depth ≥ 2 generates nested sub-components that can be expanded in the diagram — use `1` for a quick flat view),
+`--watch`/`--no-watch`.
+
+See the [web visualizer guide](docs/web-visualizer.md) for the full UI, depth
+guidance, and troubleshooting (e.g. a flat diagram with nothing to expand means
+the analysis ran at depth 1).
+
 ## Where to use it
 
 - [CLI](https://github.com/CodeBoarding/CodeBoarding) for local analysis, automation, and CI workflows.

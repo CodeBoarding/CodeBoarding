@@ -62,6 +62,7 @@ dependencies = [
     "tree-sitter-typescript>=0.23",
     "trustcall>=0.0.39",
     "uvicorn>=0.23",
+    "watchfiles>=1.2.0",
 ]
 
 [project.optional-dependencies]
@@ -73,6 +74,9 @@ all = [
     "pyinstaller>=6.13",
     "memory-profiler>=0.61",
 ]
+
+[tool.setuptools.package-data]
+codeboarding_web = ["static/*"]
 
 [tool.setuptools]
 packages = [
@@ -94,6 +98,7 @@ packages = [
     "tool_registry",
     "codeboarding_cli",
     "codeboarding_cli.commands",
+    "codeboarding_web",
     "codeboarding_workflows",
     "codeboarding_workflows.sources",
     "telemetry",

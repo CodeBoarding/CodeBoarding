@@ -134,18 +134,27 @@ codeboarding full [REPO_URL ...]           # remote: clone + analyze
 codeboarding full --local PATH             # local: analyze in-place
 codeboarding incremental --local PATH      # re-analyze only changed parts
 codeboarding partial --local PATH --component-id ID   # update one component
+codeboarding serve --local PATH            # interactive local web visualizer
 ```
 
 | Option | Description |
 |---|---|
 | `--local PATH` | Analyze a local repository (output: `PATH/.codeboarding/`) |
-| `--depth-level INT` | Diagram depth (default: 1) |
+| `--depth-level INT` | Diagram depth (default: 1; `serve` defaults to 2 for expandable diagrams) |
 | `--force` | (full only) Force full reanalysis, skip cached static analysis |
 | `--base-ref REF` / `--target-ref REF` | (incremental only) Git refs to diff |
 | `--component-id ID` | (partial only) ID of the component to update |
+| `--host HOST` / `--port PORT` | (serve only) Bind address/port (default `127.0.0.1:8050`) |
+| `--no-open` | (serve only) Don't open a browser tab |
+| `--watch` / `--no-watch` | (serve only) Auto re-analyze on source changes (default on) |
 | `--binary-location PATH` | Custom path to language server binaries (overrides `~/.codeboarding/servers/`) |
 | `--upload` | (full, remote only) Upload results to GeneratedOnBoardings repo |
 | `--enable-monitoring` | Enable run monitoring |
+
+`codeboarding serve` opens an interactive diagram in your browser: expand
+components in place, inspect their code entities and git diffs, and re-run
+analysis with live progress. See the
+[web visualizer guide](https://github.com/CodeBoarding/CodeBoarding/blob/main/docs/web-visualizer.md).
 
 ---
 

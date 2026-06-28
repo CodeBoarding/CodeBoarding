@@ -3,9 +3,9 @@ import os
 import sys
 from pathlib import Path
 
-from codeboarding_cli.commands import full_analysis, incremental_analysis, partial_analysis
+from codeboarding_cli.commands import full_analysis, incremental_analysis, partial_analysis, serve_analysis
 
-_SUBCOMMANDS = {"full", "incremental", "partial"}
+_SUBCOMMANDS = {"full", "incremental", "partial", "serve"}
 
 
 def _build_shared_parser() -> argparse.ArgumentParser:
@@ -29,7 +29,7 @@ def build_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 `full` is the default command: when the first argument is not `full`,
-`incremental`, or `partial`, `full` is inserted automatically.
+`incremental`, `partial`, or `serve`, `full` is inserted automatically.
 
 Examples:
   # Local full analysis (output to <repo>/.codeboarding/); `full` is implied
@@ -56,6 +56,7 @@ Examples:
     full_analysis.add_arguments(subparsers, parents=[shared])
     incremental_analysis.add_arguments(subparsers, parents=[shared])
     partial_analysis.add_arguments(subparsers, parents=[shared])
+    serve_analysis.add_arguments(subparsers, parents=[shared])
     return parser
 
 
@@ -82,6 +83,9 @@ def main(argv: list[str] | None = None) -> None:
     argv = _inject_default_subcommand(list(argv))
     parser = build_parser()
     args = parser.parse_args(argv)
+    if args.command == "serve":
+        serve_analysis.run_from_args(args, parser)
+        return
     if args.command == "incremental":
         incremental_analysis.run_from_args(args, parser)
         return
