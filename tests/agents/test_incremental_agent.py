@@ -12,7 +12,7 @@ from agents.agent_responses import (
     ScopedClusterRef,
     ScopeUpdateDecision,
 )
-from agents.incremental_agent import IncrementalAgent, prune_empty_components, remove_deleted_files
+from agents.incremental_agent import IncrementalAgent, _patch_file_methods, prune_empty_components, remove_deleted_files
 from static_analyzer.graph import ClusterResult
 
 
@@ -121,9 +121,10 @@ class TestUpdateScope(unittest.TestCase):
     def _agent(self) -> IncrementalAgent:
         agent = object.__new__(IncrementalAgent)
         agent.static_analysis = MagicMock()
+        agent.static_analysis.get_languages.return_value = []
         agent.static_analysis.get_cfg.return_value.filter_by_nodes.return_value = "cfg"
 
-        def populate(scope, _cluster_results, _cfg_graphs, source_cluster_id_prefix=""):
+        def populate(scope, _cluster_results, _cfg_graphs, _touched_ids, source_cluster_id_prefix=""):
             for component in scope.components:
                 if component.source_cluster_ids:
                     component.file_methods = [
@@ -140,7 +141,7 @@ class TestUpdateScope(unittest.TestCase):
                         )
                     ]
 
-        agent.populate_file_methods = MagicMock(side_effect=populate)
+        agent._patch_scope_file_methods = MagicMock(side_effect=populate)
         agent.build_static_relations = MagicMock()
         return agent
 
@@ -256,6 +257,30 @@ class TestUpdateScope(unittest.TestCase):
         self.assertEqual(scope.components_relations, [])
         self.assertEqual(result.removed_ids, {"1"})
 
+    def test_delete_component_keeps_live_cfg_methods(self) -> None:
+        first = _component_with_method("A", "1")
+        second = _component_with_method("B", "2")
+        scope = AnalysisInsights(description="root", components=[first, second], components_relations=[])
+        decision = ScopeUpdateDecision(
+            operations=[
+                ScopeOperation(
+                    action=ScopeOperationAction.DELETE_COMPONENT,
+                    cluster_refs=[],
+                    component_id="1",
+                    rationale="Planner thought the component was removed.",
+                )
+            ]
+        )
+        agent = self._agent()
+        agent.static_analysis.get_languages.return_value = ["python"]
+        agent.static_analysis.get_cfg.return_value.nodes = {"1.method": object(), "2.method": object()}
+
+        result = agent.update_scope("", scope, decision, {})
+
+        self.assertEqual([component.component_id for component in scope.components], ["1", "2"])
+        self.assertEqual(result.removed_ids, set())
+        self.assertEqual(result.refresh_ids, {"1"})
+
     def test_regenerate_scope_sets_flag_without_mutation(self) -> None:
         component = _component("A", "1")
         scope = AnalysisInsights(description="root", components=[component], components_relations=[])
@@ -273,6 +298,65 @@ class TestUpdateScope(unittest.TestCase):
 
         self.assertTrue(result.regenerate_scope)
         self.assertEqual(scope.components, [component])
+
+
+class TestPatchFileMethods(unittest.TestCase):
+    def test_preserves_untouched_methods_while_replacing_represented_slice(self) -> None:
+        component = _component("API", "1")
+        component.file_methods = [
+            FileMethodGroup(
+                file_path="api.py",
+                methods=[
+                    MethodEntry(qualified_name="api.keep", start_line=1, end_line=2, node_type="FUNCTION"),
+                    MethodEntry(qualified_name="api.changed", start_line=4, end_line=5, node_type="FUNCTION"),
+                ],
+            )
+        ]
+        scope = AnalysisInsights(description="root", components=[component], components_relations=[])
+        updated = FileMethodGroup(
+            file_path="api.py",
+            methods=[MethodEntry(qualified_name="api.changed", start_line=4, end_line=6, node_type="FUNCTION")],
+        )
+
+        _patch_file_methods(scope, {"1": [updated]}, {"1"}, {"api.keep", "api.changed"})
+
+        methods = scope.components[0].file_methods[0].methods
+        self.assertEqual([method.qualified_name for method in methods], ["api.keep", "api.changed"])
+        self.assertEqual(methods[1].end_line, 6)
+
+    def test_moves_represented_method_between_siblings_without_duplicate(self) -> None:
+        first = _component("Old", "1")
+        second = _component("New", "2")
+        first.file_methods = [
+            FileMethodGroup(
+                file_path="shared.py",
+                methods=[MethodEntry(qualified_name="pkg.moved", start_line=10, end_line=12, node_type="FUNCTION")],
+            )
+        ]
+        scope = AnalysisInsights(description="root", components=[first, second], components_relations=[])
+        moved = FileMethodGroup(
+            file_path="shared.py",
+            methods=[MethodEntry(qualified_name="pkg.moved", start_line=10, end_line=12, node_type="FUNCTION")],
+        )
+
+        _patch_file_methods(scope, {"2": [moved]}, {"1", "2"}, {"pkg.moved"})
+
+        self.assertEqual(first.file_methods, [])
+        self.assertEqual(second.file_methods[0].methods[0].qualified_name, "pkg.moved")
+
+    def test_removes_deleted_methods_only_from_touched_components(self) -> None:
+        touched = _component("Touched", "1")
+        untouched = _component("Untouched", "2")
+        stale = MethodEntry(qualified_name="pkg.deleted", start_line=1, end_line=2, node_type="FUNCTION")
+        live = MethodEntry(qualified_name="pkg.live", start_line=3, end_line=4, node_type="FUNCTION")
+        touched.file_methods = [FileMethodGroup(file_path="a.py", methods=[stale, live])]
+        untouched.file_methods = [FileMethodGroup(file_path="b.py", methods=[stale])]
+        scope = AnalysisInsights(description="root", components=[touched, untouched], components_relations=[])
+
+        _patch_file_methods(scope, {}, {"1"}, {"pkg.live"})
+
+        self.assertEqual([method.qualified_name for method in touched.file_methods[0].methods], ["pkg.live"])
+        self.assertEqual(untouched.file_methods[0].methods[0].qualified_name, "pkg.deleted")
 
 
 if __name__ == "__main__":

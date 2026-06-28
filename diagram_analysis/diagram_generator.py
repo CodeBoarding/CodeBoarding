@@ -732,6 +732,7 @@ class DiagramGenerator:
             if removed_ids:
                 apply_result.refresh_ids -= removed_ids
                 apply_result.new_component_ids -= removed_ids
+            _drop_removed_subtree_analyses(sub_analyses, apply_result.removed_ids | removed_ids)
 
             new_components = [
                 component
@@ -801,6 +802,13 @@ def _collect_components_by_id(
                 found.append(component)
                 seen.add(component.component_id)
     return found
+
+
+def _drop_removed_subtree_analyses(sub_analyses: dict[str, AnalysisInsights], removed_ids: set[str]) -> None:
+    for removed_id in removed_ids:
+        for scope_id in list(sub_analyses):
+            if scope_id == removed_id or scope_id.startswith(f"{removed_id}."):
+                del sub_analyses[scope_id]
 
 
 def _build_scope_incremental_inputs(

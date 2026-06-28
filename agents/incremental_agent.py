@@ -11,6 +11,8 @@ from agents.agent import CodeBoardingAgent
 from agents.agent_responses import (
     AnalysisInsights,
     Component,
+    FileMethodGroup,
+    MethodEntry,
     SourceCodeReference,
     MetaAnalysisInsights,
     Relation,
@@ -90,6 +92,12 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
                 continue
             if operation.action == ScopeOperationAction.DELETE_COMPONENT:
                 if operation.component_id:
+                    component = components_by_id.get(operation.component_id)
+                    if component is not None and _component_has_live_cfg_methods(
+                        component, _live_cfg_qnames(self.static_analysis)
+                    ):
+                        result.refresh_ids.add(operation.component_id)
+                        continue
                     result.removed_ids.add(operation.component_id)
                 continue
             if operation.action == ScopeOperationAction.NOOP:
@@ -111,8 +119,8 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
         touched_ids = result.refresh_ids | result.new_component_ids
         if touched_ids:
             cfg_graphs = _cfg_graphs_for_cluster_results(self.static_analysis, cluster_results)
-            self.populate_file_methods(scope, cluster_results, cfg_graphs, source_cluster_id_prefix=scope_id)
-            self.build_static_relations(scope, cfg_graphs)
+            self._patch_scope_file_methods(scope, cluster_results, cfg_graphs, touched_ids, scope_id)
+            self.build_static_relations(scope, _cfg_graphs_for_scope_methods(self.static_analysis, scope))
             self._refresh_key_entities(scope, touched_ids)
 
         _log_duplicate_cluster_ownership(scope_id, scope.components)
@@ -168,6 +176,34 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
             if component.component_id not in component_ids:
                 continue
             component.key_entities = _key_entities_from_file_methods(component)
+
+    def _patch_scope_file_methods(
+        self,
+        scope: AnalysisInsights,
+        cluster_results: dict[str, ClusterResult],
+        cfg_graphs: dict[str, CallGraph],
+        touched_ids: set[str],
+        scope_id: str,
+    ) -> None:
+        all_nodes = self._collect_all_cfg_nodes(cluster_results, cfg_graphs)
+        cluster_to_component = self._build_cluster_to_component_map(scope)
+        node_to_cluster, all_cluster_ids = self._build_node_to_cluster_map(cluster_results, scope_id)
+        self._validate_cluster_coverage(cluster_to_component, all_cluster_ids)
+
+        component_nodes = self._assign_nodes_to_components(
+            all_nodes,
+            node_to_cluster,
+            cluster_to_component,
+            cluster_results,
+            scope.components[0],
+            cfg_graphs,
+            scope_id,
+        )
+        patched_groups = {
+            component_id: self._build_file_methods_from_nodes(nodes) for component_id, nodes in component_nodes.items()
+        }
+        _patch_file_methods(scope, patched_groups, touched_ids, _live_cfg_qnames(self.static_analysis))
+        scope.files = self.build_files_index(scope)
 
     @trace
     def generate_scope_relations(self, scope: AnalysisInsights, scope_name: str) -> list[Relation]:
@@ -328,6 +364,138 @@ def _key_entities_from_file_methods(component: Component) -> list[SourceCodeRefe
     return refs
 
 
+def _patch_file_methods(
+    scope: AnalysisInsights,
+    patched_groups: dict[str, list[FileMethodGroup]],
+    touched_ids: set[str],
+    live_qnames: set[str],
+) -> None:
+    represented_qnames: set[str] = set()
+    represented_physical_keys: set[tuple[str, int, int, str, str]] = set()
+    for groups in patched_groups.values():
+        for group in groups:
+            for method in group.methods:
+                represented_qnames.add(method.qualified_name)
+                represented_physical_keys.add(_method_physical_key(group.file_path, method))
+
+    stale_qnames: set[str] = set()
+    stale_physical_keys: set[tuple[str, int, int, str, str]] = set()
+    for component in scope.components:
+        if component.component_id not in touched_ids:
+            continue
+        for group in component.file_methods:
+            for method in group.methods:
+                if method.qualified_name not in live_qnames:
+                    stale_qnames.add(method.qualified_name)
+                    stale_physical_keys.add(_method_physical_key(group.file_path, method))
+
+    if represented_qnames or represented_physical_keys:
+        for component in scope.components:
+            component.file_methods = _without_methods(
+                component.file_methods,
+                represented_qnames,
+                represented_physical_keys,
+            )
+    if stale_qnames or stale_physical_keys:
+        for component in scope.components:
+            if component.component_id not in touched_ids:
+                continue
+            component.file_methods = _without_methods(
+                component.file_methods,
+                stale_qnames,
+                stale_physical_keys,
+            )
+
+    components_by_id = {component.component_id: component for component in scope.components if component.component_id}
+    for component_id, groups in patched_groups.items():
+        component = components_by_id.get(component_id)
+        if component is None:
+            continue
+        component.file_methods = _merge_file_method_groups(component.file_methods, groups)
+
+
+def _without_methods(
+    groups: list[FileMethodGroup],
+    qnames: set[str],
+    physical_keys: set[tuple[str, int, int, str, str]],
+) -> list[FileMethodGroup]:
+    kept_groups: list[FileMethodGroup] = []
+    for group in groups:
+        kept_methods = [
+            method
+            for method in group.methods
+            if method.qualified_name not in qnames
+            and _method_physical_key(group.file_path, method) not in physical_keys
+        ]
+        if kept_methods:
+            kept_groups.append(FileMethodGroup(file_path=group.file_path, methods=kept_methods))
+    return kept_groups
+
+
+def _merge_file_method_groups(
+    existing_groups: list[FileMethodGroup],
+    new_groups: list[FileMethodGroup],
+) -> list[FileMethodGroup]:
+    by_file: dict[str, dict[str, MethodEntry]] = {}
+    for group in [*existing_groups, *new_groups]:
+        methods = by_file.setdefault(group.file_path, {})
+        for method in group.methods:
+            methods[method.qualified_name] = method
+
+    merged: list[FileMethodGroup] = []
+    for file_path in sorted(by_file):
+        merged.append(
+            FileMethodGroup(
+                file_path=file_path,
+                methods=sorted(
+                    by_file[file_path].values(),
+                    key=lambda method: (method.start_line, method.end_line, method.qualified_name),
+                ),
+            )
+        )
+    return merged
+
+
+def _method_physical_key(file_path: str, method: MethodEntry) -> tuple[str, int, int, str, str]:
+    leaf_name = method.qualified_name.split(".")[-1]
+    return (file_path, method.start_line, method.end_line, method.node_type, leaf_name)
+
+
+def _live_cfg_qnames(static_analysis: StaticAnalysisResults) -> set[str]:
+    qnames: set[str] = set()
+    for language in static_analysis.get_languages():
+        try:
+            qnames.update(static_analysis.get_cfg(language).nodes)
+        except (KeyError, ValueError):
+            continue
+    return qnames
+
+
+def _component_has_live_cfg_methods(component: Component, live_qnames: set[str]) -> bool:
+    return any(method.qualified_name in live_qnames for group in component.file_methods for method in group.methods)
+
+
+def _cfg_graphs_for_scope_methods(
+    static_analysis: StaticAnalysisResults,
+    scope: AnalysisInsights,
+) -> dict[str, CallGraph]:
+    scope_qnames = {
+        method.qualified_name
+        for component in scope.components
+        for group in component.file_methods
+        for method in group.methods
+    }
+    cfg_graphs: dict[str, CallGraph] = {}
+    if not scope_qnames:
+        return cfg_graphs
+    for language in static_analysis.get_languages():
+        try:
+            cfg_graphs[str(language)] = static_analysis.get_cfg(language).filter_by_nodes(scope_qnames)
+        except (KeyError, ValueError):
+            continue
+    return cfg_graphs
+
+
 def _cfg_graphs_for_cluster_results(
     static_analysis: StaticAnalysisResults, cluster_results: dict[str, ClusterResult]
 ) -> dict[str, CallGraph]:
@@ -380,7 +548,7 @@ def prune_empty_components(
     removed_ids: set[str] = set()
 
     def has_methods(component: Component) -> bool:
-        return any(group.methods for group in component.file_methods)
+        return any(group.methods for group in component.file_methods) or bool(component.key_entities)
 
     def collect_empty(analysis: AnalysisInsights) -> None:
         for component in analysis.components:
