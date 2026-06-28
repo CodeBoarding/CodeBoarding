@@ -472,7 +472,9 @@ def _live_cfg_qnames(static_analysis: StaticAnalysisResults) -> set[str]:
 
 
 def _component_has_live_cfg_methods(component: Component, live_qnames: set[str]) -> bool:
-    return any(method.qualified_name in live_qnames for group in component.file_methods for method in group.methods)
+    return any(
+        method.qualified_name in live_qnames for group in component.file_methods for method in group.methods
+    ) or any(entity.qualified_name in live_qnames for entity in component.key_entities if entity.qualified_name)
 
 
 def _cfg_graphs_for_scope_methods(
@@ -543,12 +545,18 @@ def _scrub_one_analysis(analysis: AnalysisInsights, live_files: set[str]) -> set
 def prune_empty_components(
     root_analysis: AnalysisInsights,
     sub_analyses: dict[str, AnalysisInsights],
+    protected_empty_ids: set[str] | None = None,
 ) -> set[str]:
     """Remove components with no methods and strip relations pointing to them."""
     removed_ids: set[str] = set()
+    protected_empty_ids = protected_empty_ids or set()
 
     def has_methods(component: Component) -> bool:
-        return any(group.methods for group in component.file_methods) or bool(component.key_entities)
+        return (
+            any(group.methods for group in component.file_methods)
+            or bool(component.key_entities)
+            or bool(component.component_id in protected_empty_ids and component.source_cluster_ids)
+        )
 
     def collect_empty(analysis: AnalysisInsights) -> None:
         for component in analysis.components:

@@ -7,6 +7,7 @@ from agents.agent_responses import (
     FileMethodGroup,
     MethodEntry,
     Relation,
+    SourceCodeReference,
     ScopeOperation,
     ScopeOperationAction,
     ScopedClusterRef,
@@ -94,6 +95,15 @@ class TestPruneEmptyComponents(unittest.TestCase):
         self.assertEqual(removed_ids, {"1", "1.1", "1.1.1"})
         self.assertEqual(root.components, [])
         self.assertEqual(sub_analyses, {})
+
+    def test_pruning_preserves_cluster_backed_empty_components(self) -> None:
+        empty = _component("Prior Empty Leaf", "1.1", source_cluster_ids=["1.1.0"])
+        root = AnalysisInsights(description="root", components=[empty], components_relations=[])
+
+        removed_ids = prune_empty_components(root, {}, protected_empty_ids={"1.1"})
+
+        self.assertEqual(removed_ids, set())
+        self.assertEqual(root.components, [empty])
 
 
 class TestRemoveDeletedFiles(unittest.TestCase):
@@ -272,8 +282,37 @@ class TestUpdateScope(unittest.TestCase):
             ]
         )
         agent = self._agent()
-        agent.static_analysis.get_languages.return_value = ["python"]
-        agent.static_analysis.get_cfg.return_value.nodes = {"1.method": object(), "2.method": object()}
+        cfg = MagicMock()
+        cfg.nodes = {"1.method": object(), "2.method": object()}
+        agent.static_analysis.get_languages = MagicMock(return_value=["python"])  # type: ignore[method-assign]
+        agent.static_analysis.get_cfg = MagicMock(return_value=cfg)  # type: ignore[method-assign]
+
+        result = agent.update_scope("", scope, decision, {})
+
+        self.assertEqual([component.component_id for component in scope.components], ["1", "2"])
+        self.assertEqual(result.removed_ids, set())
+        self.assertEqual(result.refresh_ids, {"1"})
+
+    def test_delete_component_keeps_live_cfg_key_entities(self) -> None:
+        first = _component("A", "1")
+        first.key_entities = [SourceCodeReference(qualified_name="1.method", reference_file="a.py")]
+        second = _component_with_method("B", "2")
+        scope = AnalysisInsights(description="root", components=[first, second], components_relations=[])
+        decision = ScopeUpdateDecision(
+            operations=[
+                ScopeOperation(
+                    action=ScopeOperationAction.DELETE_COMPONENT,
+                    cluster_refs=[],
+                    component_id="1",
+                    rationale="Planner thought the component was removed.",
+                )
+            ]
+        )
+        agent = self._agent()
+        cfg = MagicMock()
+        cfg.nodes = {"1.method": object(), "2.method": object()}
+        agent.static_analysis.get_languages = MagicMock(return_value=["python"])  # type: ignore[method-assign]
+        agent.static_analysis.get_cfg = MagicMock(return_value=cfg)  # type: ignore[method-assign]
 
         result = agent.update_scope("", scope, decision, {})
 

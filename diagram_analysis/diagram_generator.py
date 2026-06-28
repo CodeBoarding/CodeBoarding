@@ -601,6 +601,8 @@ class DiagramGenerator:
             )
             if not child_diff.has_changes:
                 continue
+            if not _child_scope_needs_recursive_update(child_scope, child_diff):
+                continue
             child_result = self._apply_incremental_scope_recursively(
                 component_id,
                 child_scope,
@@ -715,6 +717,7 @@ class DiagramGenerator:
                 changes=self.changes,
             )
             self._monitoring_agents["IncrementalAgent"] = incremental_agent
+            protected_empty_ids = _cluster_backed_empty_component_ids(root_analysis, sub_analyses)
             apply_result = self._apply_incremental_scope_recursively(
                 "",
                 root_analysis,
@@ -728,7 +731,7 @@ class DiagramGenerator:
                 logger.info("Incremental planning agent requested root regeneration; running full analysis.")
                 return self.generate_analysis()
 
-            removed_ids = prune_empty_components(root_analysis, sub_analyses)
+            removed_ids = prune_empty_components(root_analysis, sub_analyses, protected_empty_ids)
             if removed_ids:
                 apply_result.refresh_ids -= removed_ids
                 apply_result.new_component_ids -= removed_ids
@@ -809,6 +812,41 @@ def _drop_removed_subtree_analyses(sub_analyses: dict[str, AnalysisInsights], re
         for scope_id in list(sub_analyses):
             if scope_id == removed_id or scope_id.startswith(f"{removed_id}."):
                 del sub_analyses[scope_id]
+
+
+def _cluster_backed_empty_component_ids(
+    root_analysis: AnalysisInsights,
+    sub_analyses: dict[str, AnalysisInsights],
+) -> set[str]:
+    protected_ids: set[str] = set()
+    for analysis in [root_analysis, *sub_analyses.values()]:
+        for component in analysis.components:
+            if (
+                component.component_id
+                and component.source_cluster_ids
+                and not component.key_entities
+                and not any(group.methods for group in component.file_methods)
+            ):
+                protected_ids.add(component.component_id)
+    return protected_ids
+
+
+def _child_scope_needs_recursive_update(
+    child_scope: AnalysisInsights,
+    structural_diff: StructuralClusterDiff,
+) -> bool:
+    owned_qnames = {
+        method.qualified_name
+        for component in child_scope.components
+        for group in component.file_methods
+        for method in group.methods
+        if method.qualified_name
+    }
+    removed_qnames: set[str] = set()
+    for diff in structural_diff.by_language.values():
+        for member_delta in [*diff.modified, *diff.new_details]:
+            removed_qnames.update(member_delta.removed_methods)
+    return bool(removed_qnames & owned_qnames)
 
 
 def _build_scope_incremental_inputs(
