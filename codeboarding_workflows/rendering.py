@@ -11,7 +11,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from agents.agent_responses import AnalysisInsights
+from agents.agent_responses import AnalysisInsights, Relation
 from diagram_analysis.analysis_json import build_id_to_name_map, parse_unified_analysis
 from output_generators.html import generate_html_file
 from output_generators.markdown import generate_markdown_file
@@ -20,6 +20,60 @@ from output_generators.sphinx import generate_rst_file
 from utils import sanitize
 
 logger = logging.getLogger(__name__)
+
+
+def _ancestor_in_level(component_id: str, level_ids: set[str]) -> str | None:
+    """Return the closest ancestor (or the id itself) that lives in *level_ids*, else ``None``."""
+    if component_id in level_ids:
+        return component_id
+    parts = component_id.split(".")
+    for i in range(len(parts) - 1, 0, -1):
+        ancestor = ".".join(parts[:i])
+        if ancestor in level_ids:
+            return ancestor
+    return None
+
+
+def project_relations_to_level(
+    global_relations: list[Relation],
+    level_component_ids: set[str],
+    id_to_name: dict[str, str],
+) -> list[Relation]:
+    """Roll up a global leaf-only relation set onto the components visible at a level.
+
+    Each leaf relation's endpoints are projected to the ancestor in
+    ``level_component_ids``; edges that collapse to a self-loop or whose
+    endpoint isn't a descendant of any level component are dropped.
+    Duplicates after roll-up are merged by summing ``edge_count`` and keeping
+    the first label seen.
+
+    Why: cross-boundary relations are stored once at the root as the deepest
+    set. Without this projection, mermaid would emit edges to component names
+    that aren't declared as nodes at the rendered level (phantom nodes).
+    """
+    aggregated: dict[tuple[str, str], Relation] = {}
+    for rel in global_relations:
+        src = _ancestor_in_level(rel.src_id, level_component_ids)
+        dst = _ancestor_in_level(rel.dst_id, level_component_ids)
+        if src is None or dst is None or src == dst:
+            continue
+        key = (src, dst)
+        existing = aggregated.get(key)
+        if existing is None:
+            aggregated[key] = Relation(
+                relation=rel.relation,
+                src_name=id_to_name.get(src, src),
+                dst_name=id_to_name.get(dst, dst),
+                src_id=src,
+                dst_id=dst,
+                edge_count=rel.edge_count,
+                is_static=rel.is_static,
+            )
+        else:
+            existing.edge_count += rel.edge_count
+            existing.is_static = existing.is_static or rel.is_static
+    return list(aggregated.values())
+
 
 # Writer-name lookup (resolved at call time so @patch on this module's names works).
 # Only ``.md`` accepts ``demo``.
@@ -34,19 +88,25 @@ _FORMAT_WRITERS: dict[str, tuple[str, bool]] = {
 def _load_entries(analysis_path: Path) -> list[tuple[str, AnalysisInsights, set[str]]]:
     """Return ``(filename, analysis, expanded_component_ids)`` for root + each sub-analysis.
 
-    The root entry's filename is supplied by the caller (see :func:`render_docs`);
-    here we emit it as ``"__root__"`` for the caller to rename.
+    Each entry's ``components_relations`` is replaced with the root's global
+    leaf set projected to that level (see :func:`project_relations_to_level`).
+    The root entry uses ``"__root__"`` as a placeholder filename for the caller.
     """
     with open(analysis_path, "r", encoding="utf-8") as f:
         data = json.load(f)
 
     root_analysis, sub_analyses = parse_unified_analysis(data)
     id_to_name = build_id_to_name_map(root_analysis, sub_analyses)
+    global_relations = list(root_analysis.components_relations)
 
+    root_ids = {c.component_id for c in root_analysis.components}
+    root_analysis.components_relations = project_relations_to_level(global_relations, root_ids, id_to_name)
     root_expanded = set(sub_analyses.keys())
     entries: list[tuple[str, AnalysisInsights, set[str]]] = [("__root__", root_analysis, root_expanded)]
 
     for comp_id, sub_analysis in sub_analyses.items():
+        sub_ids = {c.component_id for c in sub_analysis.components}
+        sub_analysis.components_relations = project_relations_to_level(global_relations, sub_ids, id_to_name)
         sub_expanded = {c.component_id for c in sub_analysis.components if c.component_id in sub_analyses}
         comp_name = id_to_name.get(comp_id, comp_id)
         entries.append((sanitize(comp_name), sub_analysis, sub_expanded))

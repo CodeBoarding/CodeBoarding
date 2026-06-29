@@ -14,7 +14,7 @@ import logging
 from pathlib import Path
 
 from diagram_analysis import DiagramGenerator
-from diagram_analysis.io_utils import load_analysis_metadata, load_full_analysis, save_sub_analysis
+from diagram_analysis.io_utils import load_analysis_metadata, load_full_analysis, save_analysis
 from repo_utils.diff_parser import detect_changes
 from telemetry.events import track_analysis
 
@@ -152,13 +152,24 @@ def run_partial(
         logger.error(f"Component with ID '{component_id}' not found in analysis")
         return
 
-    _, sub_analysis, __ = generator.process_component(component_to_analyze)
-
-    if sub_analysis:
-        save_sub_analysis(sub_analysis, output_dir, component_id)
-        logger.info(f"Updated component '{component_id}' in analysis.json")
-    else:
+    _comp_id, sub_analysis, _new_components = generator.process_component(component_to_analyze)
+    if sub_analysis is None:
         logger.error(f"Failed to generate sub-analysis for component '{component_id}'")
+        return
+
+    # Mutate the in-memory tree and rebuild global cross-boundary relations.
+    # Why: we work from memory (no save -> reload) because per-sub-analysis
+    # ``components_relations`` is not serialized; a round-trip would drop the
+    # freshly produced LLM labels needed by ``rebuild_global_relations``.
+    sub_analyses[component_id] = sub_analysis
+    generator.rebuild_global_relations(root_analysis, sub_analyses)
+    save_analysis(
+        analysis=root_analysis,
+        output_dir=output_dir,
+        sub_analyses=sub_analyses,
+        repo_name=project_name,
+    )
+    logger.info(f"Updated component '{component_id}' in analysis.json")
 
 
 def run_incremental(
