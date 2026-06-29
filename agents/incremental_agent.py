@@ -1,7 +1,6 @@
 """Incremental refresh helpers for scoped structural updates."""
 
 import logging
-from dataclasses import dataclass, field
 from pathlib import Path
 
 from langchain_core.language_models import BaseChatModel
@@ -25,7 +24,9 @@ from agents.agent_responses import (
 )
 from agents.cluster_methods_mixin import ClusterMethodsMixin
 from agents.cluster_ids import CodeBoardingClusterIds
+from agents.incremental_results import ScopeUpdateResult
 from agents.prompts import get_scope_relations_message, get_system_message
+from agents.scope_ids import ROOT_SCOPE_ID
 from agents.validation import ValidationContext, validate_scope_relation_names
 from monitoring import trace
 from repo_utils.change_detector import ChangeSet
@@ -35,16 +36,6 @@ from static_analyzer.constants import Language
 from static_analyzer.graph import CallGraph, ClusterResult
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class ScopeUpdateResult:
-    """Result of applying one incremental plan to one analysis scope."""
-
-    refresh_ids: set[str] = field(default_factory=set)
-    new_component_ids: set[str] = field(default_factory=set)
-    removed_ids: set[str] = field(default_factory=set)
-    regenerate_scope: bool = False
 
 
 class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
@@ -63,8 +54,6 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
         super().__init__(repo_dir, static_analysis, get_system_message(), agent_llm, parsing_llm)
         if changes is not None:
             self.toolkit.context.changes = changes
-            self.toolkit.context.diff_base_ref = changes.base_ref
-            self.toolkit.context.diff_target_ref = changes.target_ref
         self.project_name = project_name
         self.meta_context = meta_context
 
@@ -152,7 +141,7 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
             source_cluster_ids=source_cluster_ids,
         )
         scope.components.append(component)
-        assign_component_ids(scope, parent_id=scope_id, only_new=True)
+        assign_component_ids(scope, parent_id=_component_id_parent(scope_id), only_new=True)
         if component.component_id:
             result.refresh_ids.add(component.component_id)
             result.new_component_ids.add(component.component_id)
@@ -187,7 +176,8 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
     ) -> None:
         all_nodes = self._collect_all_cfg_nodes(cluster_results, cfg_graphs)
         cluster_to_component = self._build_cluster_to_component_map(scope)
-        node_to_cluster, all_cluster_ids = self._build_node_to_cluster_map(cluster_results, scope_id)
+        cluster_id_prefix = _cluster_id_prefix(scope_id)
+        node_to_cluster, all_cluster_ids = self._build_node_to_cluster_map(cluster_results, cluster_id_prefix)
         self._validate_cluster_coverage(cluster_to_component, all_cluster_ids)
 
         component_nodes = self._assign_nodes_to_components(
@@ -197,7 +187,7 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
             cluster_results,
             scope.components[0],
             cfg_graphs,
-            scope_id,
+            cluster_id_prefix,
         )
         patched_groups = {
             component_id: self._build_file_methods_from_nodes(nodes) for component_id, nodes in component_nodes.items()
@@ -294,8 +284,11 @@ def _log_scope_relations_summary(all_rels: list[tuple[str, list[Relation]]]) -> 
 
 
 def _operation_source_cluster_ids(scope_id: str, operation: ScopeOperation) -> list[str]:
-    local_ids = {ref.cluster_id for ref in operation.cluster_refs if _normalize_scope_id(ref.scope_id) == scope_id}
-    return CodeBoardingClusterIds.qualify_local_ids(CodeBoardingClusterIds.from_graph_ids(local_ids), scope_id)
+    local_ids = {ref.cluster_id for ref in operation.cluster_refs if ref.scope_id == scope_id}
+    return CodeBoardingClusterIds.qualify_local_ids(
+        CodeBoardingClusterIds.from_graph_ids(local_ids),
+        _cluster_id_prefix(scope_id),
+    )
 
 
 def _remove_reassigned_clusters(
@@ -307,8 +300,7 @@ def _remove_reassigned_clusters(
     reassigned_cluster_ids: set[str] = set()
     for operation in decision.operations:
         if operation.action == ScopeOperationAction.CREATE_COMPONENT or (
-            operation.action in {ScopeOperationAction.ASSIGN_TO_EXISTING, ScopeOperationAction.UPDATE_COMPONENT}
-            and operation.component_id in components_by_id
+            operation.action == ScopeOperationAction.UPDATE_COMPONENT and operation.component_id in components_by_id
         ):
             reassigned_cluster_ids.update(_operation_source_cluster_ids(scope_id, operation))
     if not reassigned_cluster_ids:
@@ -343,8 +335,12 @@ def _log_duplicate_cluster_ownership(scope_id: str, components: list[Component])
         )
 
 
-def _normalize_scope_id(scope_id: str) -> str:
-    return "" if scope_id == "root" else scope_id
+def _cluster_id_prefix(scope_id: str) -> str:
+    return "" if scope_id == ROOT_SCOPE_ID else scope_id
+
+
+def _component_id_parent(scope_id: str) -> str:
+    return "" if scope_id == ROOT_SCOPE_ID else scope_id
 
 
 def _key_entities_from_file_methods(component: Component) -> list[SourceCodeReference]:

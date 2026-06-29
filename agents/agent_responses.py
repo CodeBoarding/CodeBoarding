@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 from pydantic.fields import FieldInfo
 
 from agents.cluster_ids import CodeBoardingClusterId, GraphClusterId
+from agents.scope_ids import ROOT_SCOPE_ID
 
 logger = logging.getLogger(__name__)
 
@@ -574,7 +575,6 @@ class ScopeRelations(LLMBaseModel):
 
 
 class ScopeOperationAction(StrEnum):
-    ASSIGN_TO_EXISTING = "assign_to_existing"
     CREATE_COMPONENT = "create_component"
     UPDATE_COMPONENT = "update_component"
     DELETE_COMPONENT = "delete_component"
@@ -585,13 +585,13 @@ class ScopeOperationAction(StrEnum):
 class ScopedClusterRef(LLMBaseModel):
     """A cluster reference scoped by component depth and language."""
 
-    scope_id: str = Field(description="Component scope id; empty string means root scope.")
+    scope_id: str = Field(description="Component scope id; use 'root' for the top-level scope.")
     language: str = Field(description="Programming language for this cluster.")
     cluster_id: int = Field(description="Cluster id within the scope/language cluster result.")
 
     def llm_str(self):
-        scope = self.scope_id or "root"
-        return f"{scope}:{self.language}:{self.cluster_id}"
+        scope_id = self.scope_id or ROOT_SCOPE_ID
+        return f"{scope_id}:{self.language}:{self.cluster_id}"
 
 
 class ScopeOperation(LLMBaseModel):
@@ -601,7 +601,7 @@ class ScopeOperation(LLMBaseModel):
     cluster_refs: list[ScopedClusterRef] = Field(description="New-side clusters this operation accounts for.")
     component_id: str | None = Field(
         default=None,
-        description="Existing component id for assign/update/delete/noop; null when creating a component.",
+        description="Existing component id for update/delete/noop; null when creating a component.",
     )
     name: str | None = Field(default=None, description="Component name for create/update operations.")
     description: str | None = Field(default=None, description="Component description for create/update operations.")

@@ -13,6 +13,7 @@ from static_analyzer.constants import (
     NodeType,
 )
 from static_analyzer.leiden_utils import find_partition as _leiden_find_partition
+from static_analyzer.method_cluster_paths import MethodClusterPaths
 from static_analyzer.node import Node
 
 logger = logging.getLogger(__name__)
@@ -66,13 +67,12 @@ class ClusterResult:
     def get_nodes_for_cluster(self, cluster_id: int) -> set[str]:
         return self.clusters.get(cluster_id, set())
 
-    def node_to_cluster(self) -> dict[str, int]:
-        """Return qname -> cluster_id for this partition."""
-        mapping: dict[str, int] = {}
-        for cluster_id, members in self.clusters.items():
-            for member in members:
-                mapping[member] = cluster_id
-        return mapping
+    def visit_paths(self, fn: Callable[[str], str]) -> None:
+        self.cluster_to_files = {cid: {fn(path) for path in paths} for cid, paths in self.cluster_to_files.items()}
+        remapped_file_to_clusters: dict[str, set[int]] = defaultdict(set)
+        for path, cluster_ids in self.file_to_clusters.items():
+            remapped_file_to_clusters[fn(path)].update(cluster_ids)
+        self.file_to_clusters = dict(remapped_file_to_clusters)
 
 
 class Edge:
@@ -107,7 +107,7 @@ class CallGraph:
         # Cache for cluster result
         self._cluster_cache: ClusterResult | None = None
         # qname -> scoped cluster ids it belongs to, e.g. ["1", "1.3", "1.3.6"].
-        self.method_cluster_paths: dict[str, set[str]] = {}
+        self.method_cluster_paths = MethodClusterPaths()
         # Location-based dedup: (file_path, line_start, line_end, type) -> canonical qualified name.
         # When the LSP produces multiple qualified-name aliases for the same
         # physical symbol (e.g. ``src.index.funcA`` vs
@@ -264,32 +264,21 @@ class CallGraph:
             strategy=self._cluster_cache.strategy,
         )
 
-    def _prune_method_cluster_paths(self, surviving_nodes: dict[str, Node]) -> dict[str, set[str]]:
-        return {
-            qname: set(cluster_ids)
-            for qname, cluster_ids in self.method_cluster_paths.items()
-            if qname in surviving_nodes
-        }
+    def _prune_method_cluster_paths(self, surviving_nodes: dict[str, Node]) -> MethodClusterPaths:
+        return self.method_cluster_paths.prune(surviving_nodes)
+
+    def visit_paths(self, fn: Callable[[str], str]) -> None:
+        for node in self.nodes.values():
+            node.file_path = fn(node.file_path)
+        if self._cluster_cache is not None:
+            self._cluster_cache.visit_paths(fn)
 
     def record_cluster_paths(self, cluster_result: ClusterResult, scope_id: str = "") -> None:
         """Record each member's current cluster id for this scope."""
-        prefix = f"{scope_id}." if scope_id else ""
-        for existing in self.method_cluster_paths.values():
-            existing -= {
-                cluster_id for cluster_id in existing if self._cluster_id_belongs_to_scope(cluster_id, scope_id)
-            }
-        for cluster_id, members in cluster_result.clusters.items():
-            qualified_cluster_id = f"{prefix}{cluster_id}"
-            for member in members:
-                self.method_cluster_paths.setdefault(member, set()).add(qualified_cluster_id)
+        self.method_cluster_paths.record(cluster_result, scope_id)
 
-    def _cluster_id_belongs_to_scope(self, cluster_id: str, scope_id: str) -> bool:
-        if not scope_id:
-            return cluster_id.isdigit()
-        prefix = f"{scope_id}."
-        if not cluster_id.startswith(prefix):
-            return False
-        return cluster_id.removeprefix(prefix).isdigit()
+    def method_cluster_paths_snapshot(self) -> list[tuple[str, set[str]]]:
+        return self.method_cluster_paths.snapshot()
 
     def to_networkx(self) -> nx.DiGraph:
         nx_graph = nx.DiGraph()

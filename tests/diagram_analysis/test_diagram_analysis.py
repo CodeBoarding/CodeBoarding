@@ -20,7 +20,7 @@ from agents.agent_responses import (
     SourceCodeReference,
     assign_component_ids,
 )
-from agents.incremental_agent import ScopeUpdateResult
+from agents.incremental_results import ScopeUpdateResult
 from diagram_analysis.analysis_json import (
     ComponentFileMethodGroupJson,
     ComponentJson,

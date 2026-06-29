@@ -10,6 +10,7 @@ from typing import Callable, Any
 from repo_utils.errors import RepoDontExistError, NoGithubTokenFoundError
 from repo_utils.git_ops import approve_https_credentials
 from repo_utils.ignore import RepoIgnoreManager
+from repo_utils.path_utils import normalize_repo_path, to_absolute_path, to_relative_path
 
 logger = logging.getLogger(__name__)
 NO_REPO_STATE_HASH = "NoRepoStateHash"
@@ -256,9 +257,7 @@ def normalize_path(path: str | Path, root: str | Path | None = None) -> Path:
         except (ValueError, TypeError):
             pass
 
-    # Use normpath to handle '.', '..', redundant separators, then convert back to Path
-    normalized_str = os.path.normpath(str(path_obj))
-    return Path(normalized_str)
+    return Path(normalize_repo_path(path_obj))
 
 
 def normalize_paths(paths: Collection[str | Path], root: str | Path | None = None) -> set[Path]:

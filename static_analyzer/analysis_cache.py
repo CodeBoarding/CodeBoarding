@@ -33,7 +33,7 @@ from static_analyzer.analysis_result import AnalysisData, InvalidatedAnalysis, I
 from static_analyzer.graph import Edge
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
 from static_analyzer.node import Node
-from utils import to_absolute_path, to_relative_path
+from repo_utils.path_utils import to_absolute_path, to_relative_path
 
 if TYPE_CHECKING:
     from static_analyzer.analysis_result import StaticAnalysisResults

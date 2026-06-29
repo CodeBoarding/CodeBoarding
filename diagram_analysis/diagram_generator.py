@@ -5,24 +5,25 @@ import time
 from collections import defaultdict
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from contextlib import nullcontext
-from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from agents.abstraction_agent import AbstractionAgent
 from agents.agent_responses import AnalysisInsights, Component, MetaAnalysisInsights, MethodEntry
-from agents.cluster_methods_mixin import _scoped_snapshot_from_lineage
+from agents.cluster_methods_mixin import scoped_snapshot_from_lineage
 from agents.details_agent import DetailsAgent
 from agents.incremental_agent import (
     IncrementalAgent,
     prune_empty_components,
     remove_deleted_files,
 )
+from agents.incremental_results import RecursiveScopeUpdateResult
 from agents.llm_config import initialize_llms
 from agents.meta_agent import MetaAgent
 from agents.planner_agent import get_expandable_components
 from agents.incremental_planning_agent import IncrementalPlanningAgent
+from agents.scope_ids import ROOT_SCOPE_ID
 from telemetry.events import track_analysis
 from diagram_analysis.analysis_json import (
     FileCoverageReport,
@@ -74,15 +75,6 @@ def _component_expansion_seeds(components: list[Component], max_depth: int) -> l
         for component in components
         if (depth := _component_depth(component.component_id)) < max_depth
     ]
-
-
-@dataclass
-class RecursiveScopeUpdateResult:
-    refresh_ids: set[str] = field(default_factory=set)
-    new_component_ids: set[str] = field(default_factory=set)
-    removed_ids: set[str] = field(default_factory=set)
-    touched_scopes: set[str] = field(default_factory=set)
-    regenerate_scope: bool = False
 
 
 class DiagramGenerator:
@@ -719,7 +711,7 @@ class DiagramGenerator:
             self._monitoring_agents["IncrementalAgent"] = incremental_agent
             protected_empty_ids = _cluster_backed_empty_component_ids(root_analysis, sub_analyses)
             apply_result = self._apply_incremental_scope_recursively(
-                "",
+                ROOT_SCOPE_ID,
                 root_analysis,
                 structural_diff,
                 delta.cluster_results(),
@@ -846,7 +838,7 @@ def _child_scope_needs_recursive_update(
     for diff in structural_diff.by_language.values():
         for member_delta in [*diff.modified, *diff.new_details]:
             removed_qnames.update(member_delta.removed_methods)
-    return bool(removed_qnames & owned_qnames)
+    return bool(removed_qnames.intersection(owned_qnames))
 
 
 def _build_scope_incremental_inputs(
@@ -856,7 +848,7 @@ def _build_scope_incremental_inputs(
     changes: ChangeSet | None,
     repo_dir: Path,
 ) -> tuple[dict[str, ClusterResult], StructuralClusterDiff]:
-    old_snapshot = _scoped_snapshot_for_component(component, scope_id, incremental_agent)
+    old_snapshot = scoped_snapshot_for_component(component, scope_id, incremental_agent)
     if not old_snapshot.all_cluster_ids():
         return {}, StructuralClusterDiff()
 
@@ -880,7 +872,7 @@ def _build_scope_incremental_inputs(
     return cluster_results, structural_diff
 
 
-def _scoped_snapshot_for_component(
+def scoped_snapshot_for_component(
     component: Component,
     scope_id: str,
     incremental_agent: IncrementalAgent,
@@ -893,7 +885,7 @@ def _scoped_snapshot_for_component(
         cfg = incremental_agent.static_analysis.get_cfg(language)
         sub_cfg = cfg.filter_by_nodes(assigned_qnames)
         if sub_cfg.nodes:
-            by_language[str(language)] = _scoped_snapshot_from_lineage(sub_cfg, scope_id)
+            by_language[str(language)] = scoped_snapshot_from_lineage(sub_cfg, scope_id)
     return ClusterSnapshot(by_language=by_language)
 
 

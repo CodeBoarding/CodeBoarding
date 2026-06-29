@@ -1,11 +1,11 @@
 import logging
 import subprocess
-from pathlib import Path
 
 from langchain_core.tools import ArgsSchema
 from pydantic import BaseModel, Field
 
 from agents.tools.base import BaseRepoTool
+from repo_utils.path_utils import to_relative_path
 
 logger = logging.getLogger(__name__)
 
@@ -26,9 +26,9 @@ class ReadGitDiffTool(BaseRepoTool):
     return_direct: bool = False
 
     def _run(self, file_path: str, context_lines: int = 5, max_chars: int = 20000) -> str:
-        if not self.context.diff_base_ref:
-            return "Error: No incremental diff base is configured for this run."
-        normalized_path = self._normalize_tool_path(file_path)
+        if self.context.changes is None:
+            return "Error: No incremental change set is configured for this run."
+        normalized_path = to_relative_path(file_path, self.repo_dir)
         allowed_paths = self._changed_paths()
         if allowed_paths and normalized_path not in allowed_paths:
             return f"Error: '{normalized_path}' is not in the incremental change set."
@@ -42,10 +42,10 @@ class ReadGitDiffTool(BaseRepoTool):
             "-M",
             "-C",
             "--find-renames=50%",
-            self.context.diff_base_ref,
+            self.context.changes.base_ref,
         ]
-        if self.context.diff_target_ref:
-            cmd.append(self.context.diff_target_ref)
+        if self.context.changes.target_ref:
+            cmd.append(self.context.changes.target_ref)
         cmd.extend(["--", normalized_path])
 
         try:
@@ -77,15 +77,6 @@ class ReadGitDiffTool(BaseRepoTool):
             if file_change.old_path:
                 paths.add(file_change.old_path)
         return paths
-
-    def _normalize_tool_path(self, file_path: str) -> str:
-        path = Path(file_path)
-        if path.is_absolute():
-            try:
-                return path.resolve().relative_to(self.repo_dir.resolve()).as_posix()
-            except ValueError:
-                return file_path
-        return file_path.replace("\\", "/").lstrip("./")
 
 
 class ListGitChangesTool(BaseRepoTool):

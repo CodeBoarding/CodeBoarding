@@ -17,8 +17,6 @@ class RepoContext(BaseModel):
     ignore_manager: RepoIgnoreManager
     static_analysis: Optional[StaticAnalysisResults] = None
     changes: ChangeSet | None = None
-    diff_base_ref: str = ""
-    diff_target_ref: str = ""
     # Shared caches to prevent redundant filesystem walks
     _file_cache: List[Path] = PrivateAttr(default_factory=list)
     _dir_cache: List[Path] = PrivateAttr(default_factory=list)

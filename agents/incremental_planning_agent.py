@@ -20,6 +20,7 @@ from agents.agent_responses import (
 )
 from agents.cluster_ids import CodeBoardingClusterIds
 from agents.prompts import get_planning_message, get_system_message
+from agents.scope_ids import ROOT_SCOPE_ID
 from agents.validation import ValidationResult
 from diagram_analysis.cluster_delta import (
     ClusterMemberDelta,
@@ -40,8 +41,7 @@ logger = logging.getLogger(__name__)
 class ScopeOperationValidationContext:
     expected_cluster_refs: set[ClusterRef] = field(default_factory=set)
     existing_component_ids: set[str] = field(default_factory=set)
-    required_create_cluster_refs: set[ClusterRef] = field(default_factory=set)
-    scope_id: str = ""
+    scope_id: str = ROOT_SCOPE_ID
 
 
 class IncrementalPlanningAgent(CodeBoardingAgent):
@@ -60,8 +60,6 @@ class IncrementalPlanningAgent(CodeBoardingAgent):
         super().__init__(repo_dir, static_analysis, get_system_message(), agent_llm, parsing_llm)
         if changes is not None:
             self.toolkit.context.changes = changes
-            self.toolkit.context.diff_base_ref = changes.base_ref
-            self.toolkit.context.diff_target_ref = changes.target_ref
         self.agent = create_agent(
             model=agent_llm,
             tools=[self.toolkit.read_source_reference, self.toolkit.list_git_changes, self.toolkit.read_git_diff],
@@ -78,7 +76,6 @@ class IncrementalPlanningAgent(CodeBoardingAgent):
                 "existing_components",
                 "changed_files",
                 "structural_diff",
-                "required_create_refs",
             ],
         )
 
@@ -92,18 +89,16 @@ class IncrementalPlanningAgent(CodeBoardingAgent):
         project_type = self.meta_context.project_type if self.meta_context else "unknown"
         prompt = self.prompt.format(
             project_name=self.project_name,
-            scope_id=scope_id or "root",
+            scope_id=scope_id,
             project_type=project_type,
             meta_context=meta_context_str,
             existing_components=_format_scope_components(scope.components),
             changed_files=_format_changed_files(self.toolkit.context.changes),
             structural_diff=format_structural_diff(structural_diff),
-            required_create_refs=_format_cluster_ref_list(_required_create_refs(structural_diff, scope.components)),
         )
         context = ScopeOperationValidationContext(
             expected_cluster_refs=_actionable_new_cluster_refs(structural_diff),
             existing_component_ids={component.component_id for component in scope.components if component.component_id},
-            required_create_cluster_refs=_required_create_refs(structural_diff, scope.components),
             scope_id=scope_id,
         )
         decision = self._validation_invoke(
@@ -128,7 +123,7 @@ def _track_invalid_planning_decision(scope_id: str, feedback_messages: list[str]
         RuntimeError("Incremental planning decision remained invalid after retries"),
         properties={
             "error_type": "incremental_planning_invalid_decision",
-            "scope_id": scope_id or "root",
+            "scope_id": scope_id,
             "issue_count": len(feedback_messages),
             "issues": feedback_messages[:10],
         },
@@ -146,7 +141,6 @@ def validate_scope_update_decision(
         refs = [_cluster_ref_from_scoped_ref(ref) for ref in operation.cluster_refs]
         seen_refs.extend(refs)
         if operation.action in {
-            ScopeOperationAction.ASSIGN_TO_EXISTING,
             ScopeOperationAction.UPDATE_COMPONENT,
             ScopeOperationAction.DELETE_COMPONENT,
             ScopeOperationAction.NOOP,
@@ -158,20 +152,6 @@ def validate_scope_update_decision(
         if operation.action == ScopeOperationAction.CREATE_COMPONENT:
             if not operation.name or not operation.description:
                 errors.append("create_component operations must include name and description.")
-            if context.scope_id == "":
-                unrequired_root_create_refs = set(refs) - context.required_create_cluster_refs
-                if unrequired_root_create_refs:
-                    errors.append(
-                        "Root-scope create_component is only allowed for clusters listed under "
-                        f"must create components: {_format_cluster_ref_list(unrequired_root_create_refs)}"
-                    )
-
-        forbidden_absorbed = set(refs) & context.required_create_cluster_refs
-        if forbidden_absorbed and operation.action != ScopeOperationAction.CREATE_COMPONENT:
-            errors.append(
-                f"Cluster_refs must create components, not {operation.action}: "
-                f"{_format_cluster_ref_list(forbidden_absorbed)}"
-            )
 
     seen_set = set(seen_refs)
     missing = context.expected_cluster_refs - seen_set
@@ -187,8 +167,7 @@ def validate_scope_update_decision(
 
 
 def _cluster_ref_from_scoped_ref(ref: ScopedClusterRef) -> ClusterRef:
-    scope_id = "" if ref.scope_id == "root" else ref.scope_id
-    return ClusterRef(ref.language, ref.cluster_id, scope_id)
+    return ClusterRef(ref.language, ref.cluster_id, ref.scope_id)
 
 
 def format_structural_diff(structural_diff: StructuralClusterDiff) -> str:
@@ -271,53 +250,6 @@ def _actionable_new_cluster_refs(structural_diff: StructuralClusterDiff) -> set[
     return refs
 
 
-def _required_create_refs(structural_diff: StructuralClusterDiff, components: list[Component]) -> set[ClusterRef]:
-    existing_roots = _existing_package_roots(components)
-    required: set[ClusterRef] = set()
-    for diff in structural_diff.by_language.values():
-        for member_delta in diff.modified:
-            if _introduced_package_roots(member_delta.added_methods, member_delta.dirty_files) - existing_roots:
-                required.add(member_delta.new_cluster)
-        for member_delta in diff.new_details:
-            if _introduced_package_roots(member_delta.added_methods, member_delta.dirty_files) - existing_roots:
-                required.add(member_delta.new_cluster)
-        for reshape in diff.reshaped:
-            if _introduced_package_roots(set(), reshape.dirty_files) - existing_roots:
-                required.update(reshape.new_clusters)
-    return required
-
-
-def _existing_package_roots(components: list[Component]) -> set[str]:
-    roots: set[str] = set()
-    for component in components:
-        for group in component.file_methods:
-            root = _package_root_from_path(group.file_path)
-            if root:
-                roots.add(root)
-    return roots
-
-
-def _introduced_package_roots(methods: set[str], files: set[str]) -> set[str]:
-    roots = {_package_root_from_qname(method) for method in methods}
-    roots.update(_package_root_from_path(file_path) for file_path in files)
-    roots.discard("")
-    return roots
-
-
-def _package_root_from_path(file_path: str) -> str:
-    parts = file_path.replace("\\", "/").split("/")
-    if len(parts) >= 2 and parts[0] == "packages":
-        return f"packages/{parts[1]}"
-    return ""
-
-
-def _package_root_from_qname(qname: str) -> str:
-    parts = qname.split(".")
-    if len(parts) >= 2 and parts[0] == "packages":
-        return f"packages/{parts[1]}"
-    return ""
-
-
 def _format_scope_components(components: list[Component]) -> str:
     if not components:
         return "No existing components in this scope."
@@ -346,8 +278,7 @@ def _format_changed_files(changes: ChangeSet | None) -> str:
 
 
 def _format_cluster_ref(ref: ClusterRef) -> str:
-    scope = ref.scope_id or "root"
-    return f"{scope}:{ref.language}:{ref.cluster_id}"
+    return f"{ref.scope_id}:{ref.language}:{ref.cluster_id}"
 
 
 def _sort_cluster_refs(refs: Iterable[ClusterRef]) -> list[ClusterRef]:

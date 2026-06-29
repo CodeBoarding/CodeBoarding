@@ -4,8 +4,6 @@ from unittest.mock import MagicMock, patch
 from agents.agent_responses import (
     AnalysisInsights,
     Component,
-    FileMethodGroup,
-    MethodEntry,
     ScopeOperation,
     ScopeOperationAction,
     ScopedClusterRef,
@@ -61,24 +59,24 @@ def test_format_structural_diff_sorts_cluster_refs_deterministically() -> None:
         by_language={
             "python": LanguageStructuralDiff(
                 language="python",
-                new={
+                new=[
                     ClusterRef(language="python", cluster_id=10),
                     ClusterRef(language="python", cluster_id=2),
-                },
-                removed={
+                ],
+                removed=[
                     ClusterRef(language="python", cluster_id=9),
                     ClusterRef(language="python", cluster_id=1),
-                },
+                ],
                 reshaped=[
                     ClusterReshape(
-                        old_clusters={
+                        old_clusters=[
                             ClusterRef(language="python", cluster_id=8),
                             ClusterRef(language="python", cluster_id=3),
-                        },
-                        new_clusters={
+                        ],
+                        new_clusters=[
                             ClusterRef(language="python", cluster_id=7),
                             ClusterRef(language="python", cluster_id=4),
-                        },
+                        ],
                         overlap_counts={
                             (
                                 ClusterRef(language="python", cluster_id=8),
@@ -107,8 +105,8 @@ def test_validate_scope_update_decision_enforces_cluster_coverage_and_component_
     decision = ScopeUpdateDecision(
         operations=[
             ScopeOperation(
-                action=ScopeOperationAction.ASSIGN_TO_EXISTING,
-                cluster_refs=[ScopedClusterRef(scope_id="", language="python", cluster_id=1)],
+                action=ScopeOperationAction.UPDATE_COMPONENT,
+                cluster_refs=[ScopedClusterRef(scope_id="root", language="python", cluster_id=1)],
                 component_id="1",
                 rationale="Same responsibility.",
             )
@@ -124,19 +122,19 @@ def test_validate_scope_update_decision_enforces_cluster_coverage_and_component_
     assert result.is_valid
 
 
-def test_validate_scope_update_decision_accepts_root_scope_alias() -> None:
+def test_validate_scope_update_decision_accepts_root_scope() -> None:
     decision = ScopeUpdateDecision(
         operations=[
             ScopeOperation(
                 action=ScopeOperationAction.UPDATE_COMPONENT,
                 cluster_refs=[ScopedClusterRef(scope_id="root", language="python", cluster_id=1)],
                 component_id="1",
-                rationale="Root alias should match the empty root scope.",
+                rationale="Root scope should match root structural refs.",
             )
         ]
     )
     context = ScopeOperationValidationContext(
-        expected_cluster_refs={ClusterRef(language="python", cluster_id=1, scope_id="")},
+        expected_cluster_refs={ClusterRef(language="python", cluster_id=1)},
         existing_component_ids={"1"},
     )
 
@@ -151,8 +149,8 @@ def test_validate_scope_update_decision_rejects_missing_duplicate_and_unknown_id
             ScopeOperation(
                 action=ScopeOperationAction.UPDATE_COMPONENT,
                 cluster_refs=[
-                    ScopedClusterRef(scope_id="", language="python", cluster_id=1),
-                    ScopedClusterRef(scope_id="", language="python", cluster_id=1),
+                    ScopedClusterRef(scope_id="root", language="python", cluster_id=1),
+                    ScopedClusterRef(scope_id="root", language="python", cluster_id=1),
                 ],
                 component_id="missing",
                 rationale="Bad route.",
@@ -176,72 +174,20 @@ def test_validate_scope_update_decision_rejects_missing_duplicate_and_unknown_id
     assert "Duplicate cluster_refs" in feedback
 
 
-def test_validate_scope_update_decision_requires_create_for_new_package_roots() -> None:
+def test_validate_scope_update_decision_allows_update_for_new_cluster_when_llm_chooses_existing_owner() -> None:
     decision = ScopeUpdateDecision(
         operations=[
             ScopeOperation(
                 action=ScopeOperationAction.UPDATE_COMPONENT,
-                cluster_refs=[ScopedClusterRef(scope_id="", language="python", cluster_id=5)],
+                cluster_refs=[ScopedClusterRef(scope_id="root", language="python", cluster_id=5)],
                 component_id="1",
-                rationale="Absorbed into existing services.",
+                rationale="The structural diff extends the existing services responsibility.",
             )
         ]
     )
     context = ScopeOperationValidationContext(
         expected_cluster_refs={ClusterRef(language="python", cluster_id=5)},
         existing_component_ids={"1"},
-        required_create_cluster_refs={ClusterRef(language="python", cluster_id=5)},
-    )
-
-    result = validate_scope_update_decision(decision, context)
-
-    assert not result.is_valid
-    assert "must create components" in "\n".join(result.feedback_messages)
-
-
-def test_validate_scope_update_decision_rejects_unrequired_root_create() -> None:
-    decision = ScopeUpdateDecision(
-        operations=[
-            ScopeOperation(
-                action=ScopeOperationAction.CREATE_COMPONENT,
-                cluster_refs=[ScopedClusterRef(scope_id="", language="python", cluster_id=7)],
-                name="Document Utilities",
-                description="Shared document utilities.",
-                rationale="New files under an existing package root.",
-            )
-        ]
-    )
-    context = ScopeOperationValidationContext(
-        expected_cluster_refs={ClusterRef(language="python", cluster_id=7)},
-        existing_component_ids={"3"},
-        required_create_cluster_refs=set(),
-        scope_id="",
-    )
-
-    result = validate_scope_update_decision(decision, context)
-
-    assert not result.is_valid
-    assert "Root-scope create_component is only allowed" in "\n".join(result.feedback_messages)
-
-
-def test_validate_scope_update_decision_allows_required_root_create() -> None:
-    decision = ScopeUpdateDecision(
-        operations=[
-            ScopeOperation(
-                action=ScopeOperationAction.CREATE_COMPONENT,
-                cluster_refs=[ScopedClusterRef(scope_id="", language="python", cluster_id=14)],
-                name="OCR Extensions",
-                description="New OCR package.",
-                rationale="Brand-new package root.",
-            )
-        ]
-    )
-    required = {ClusterRef(language="python", cluster_id=14)}
-    context = ScopeOperationValidationContext(
-        expected_cluster_refs=required,
-        existing_component_ids={"3"},
-        required_create_cluster_refs=required,
-        scope_id="",
     )
 
     result = validate_scope_update_decision(decision, context)
@@ -249,164 +195,26 @@ def test_validate_scope_update_decision_allows_required_root_create() -> None:
     assert result.is_valid
 
 
-def test_validate_scope_update_decision_rejects_mixed_root_create() -> None:
+def test_validate_scope_update_decision_allows_create_when_llm_chooses_new_component() -> None:
     decision = ScopeUpdateDecision(
         operations=[
             ScopeOperation(
                 action=ScopeOperationAction.CREATE_COMPONENT,
-                cluster_refs=[
-                    ScopedClusterRef(scope_id="", language="python", cluster_id=14),
-                    ScopedClusterRef(scope_id="", language="python", cluster_id=7),
-                ],
-                name="OCR Extensions",
-                description="New OCR package mixed with existing-root utility code.",
-                rationale="Mixed package roots.",
+                cluster_refs=[ScopedClusterRef(scope_id="root", language="python", cluster_id=7)],
+                name="Document Utilities",
+                description="Shared document utilities.",
+                rationale="The structural diff introduces a distinct responsibility.",
             )
         ]
     )
-    required = {ClusterRef(language="python", cluster_id=14)}
     context = ScopeOperationValidationContext(
-        expected_cluster_refs={
-            ClusterRef(language="python", cluster_id=14),
-            ClusterRef(language="python", cluster_id=7),
-        },
+        expected_cluster_refs={ClusterRef(language="python", cluster_id=7)},
         existing_component_ids={"3"},
-        required_create_cluster_refs=required,
-        scope_id="",
     )
 
     result = validate_scope_update_decision(decision, context)
 
-    assert not result.is_valid
-    assert "python:7" in "\n".join(result.feedback_messages)
-
-
-def test_new_package_root_is_marked_required_create_in_prompt_and_context() -> None:
-    static_analysis = MagicMock(spec=StaticAnalysisResults)
-    scope = AnalysisInsights(
-        description="root",
-        components=[
-            Component(
-                name="Core",
-                description="Core package",
-                key_entities=[],
-                component_id="1",
-                file_methods=[
-                    FileMethodGroup(
-                        file_path="packages/markitdown/src/markitdown/_markitdown.py",
-                        methods=[
-                            MethodEntry(
-                                qualified_name="packages.markitdown.src.markitdown.MarkItDown",
-                                start_line=1,
-                                end_line=2,
-                                node_type="CLASS",
-                            )
-                        ],
-                    )
-                ],
-            )
-        ],
-        components_relations=[],
-    )
-    structural = StructuralClusterDiff(
-        by_language={
-            "python": LanguageStructuralDiff(
-                language="python",
-                modified=[
-                    ClusterMemberDelta(
-                        old_cluster=ClusterRef(language="python", cluster_id=5),
-                        new_cluster=ClusterRef(language="python", cluster_id=5),
-                        added_methods={
-                            "packages.markitdown-mcp.src.markitdown_mcp.__main__.create_starlette_app",
-                            "packages.markitdown-ocr.src.markitdown_ocr._ocr_service.LLMVisionOCRService",
-                        },
-                    )
-                ],
-            )
-        }
-    )
-
-    with (
-        patch("agents.agent.create_agent", return_value=MagicMock()),
-        patch("agents.incremental_planning_agent.create_agent", return_value=MagicMock()),
-    ):
-        agent = IncrementalPlanningAgent(
-            repo_dir=Path("/tmp/fake-repo"),
-            static_analysis=static_analysis,
-            project_name="Test",
-            meta_context=None,
-            agent_llm=MagicMock(),
-            parsing_llm=MagicMock(),
-        )
-    agent._validation_invoke = MagicMock(return_value=ScopeUpdateDecision(operations=[]))
-
-    agent.decide_scope_update("", scope, structural)
-
-    prompt = agent._validation_invoke.call_args.args[0]
-    context = agent._validation_invoke.call_args.kwargs["context"]
-    assert "New package-root clusters that must create components" in prompt
-    assert "root:python:5" in prompt
-    assert context.required_create_cluster_refs == {ClusterRef(language="python", cluster_id=5)}
-
-
-def test_new_cluster_package_root_is_marked_required_create_in_prompt_and_context() -> None:
-    static_analysis = MagicMock(spec=StaticAnalysisResults)
-    scope = AnalysisInsights(
-        description="root",
-        components=[
-            Component(
-                name="Core",
-                description="Core package",
-                key_entities=[],
-                component_id="1",
-                file_methods=[
-                    FileMethodGroup(
-                        file_path="packages/markitdown/src/markitdown/_markitdown.py",
-                        methods=[],
-                    )
-                ],
-            )
-        ],
-        components_relations=[],
-    )
-    structural = StructuralClusterDiff(
-        by_language={
-            "python": LanguageStructuralDiff(
-                language="python",
-                new=[ClusterRef(language="python", cluster_id=12)],
-                new_details=[
-                    ClusterMemberDelta(
-                        old_cluster=ClusterRef(language="python", cluster_id=12),
-                        new_cluster=ClusterRef(language="python", cluster_id=12),
-                        added_methods={"packages.markitdown-mcp.src.markitdown_mcp.__main__.main"},
-                        dirty_files={"packages/markitdown-mcp/src/markitdown_mcp/__main__.py"},
-                    )
-                ],
-            )
-        }
-    )
-
-    with (
-        patch("agents.agent.create_agent", return_value=MagicMock()),
-        patch("agents.incremental_planning_agent.create_agent", return_value=MagicMock()),
-    ):
-        agent = IncrementalPlanningAgent(
-            repo_dir=Path("/tmp/fake-repo"),
-            static_analysis=static_analysis,
-            project_name="Test",
-            meta_context=None,
-            agent_llm=MagicMock(),
-            parsing_llm=MagicMock(),
-        )
-    agent._validation_invoke = MagicMock(return_value=ScopeUpdateDecision(operations=[]))
-
-    agent.decide_scope_update("", scope, structural)
-
-    prompt = agent._validation_invoke.call_args.args[0]
-    context = agent._validation_invoke.call_args.kwargs["context"]
-    assert "packages/markitdown-mcp/src/markitdown_mcp/__main__.py" in prompt
-    assert "root:python:12" in prompt
-    assert context.required_create_cluster_refs == {ClusterRef(language="python", cluster_id=12)}
+    assert result.is_valid
 
 
 def test_incremental_planning_agent_uses_narrow_diff_aware_toolkit() -> None:
@@ -435,8 +243,7 @@ def test_incremental_planning_agent_uses_narrow_diff_aware_toolkit() -> None:
 
     tools = mock_scoped_create.call_args.kwargs["tools"]
     assert [type(tool).__name__ for tool in tools] == ["CodeReferenceReader", "ListGitChangesTool", "ReadGitDiffTool"]
-    assert agent.toolkit.context.diff_base_ref == "base"
-    assert agent.toolkit.context.diff_target_ref == "head"
+    assert agent.toolkit.context.changes is changes
 
 
 def test_decide_scope_update_passes_structural_diff_to_validator() -> None:
@@ -472,7 +279,7 @@ def test_decide_scope_update_passes_structural_diff_to_validator() -> None:
         operations=[
             ScopeOperation(
                 action=ScopeOperationAction.UPDATE_COMPONENT,
-                cluster_refs=[ScopedClusterRef(scope_id="", language="python", cluster_id=1)],
+                cluster_refs=[ScopedClusterRef(scope_id="root", language="python", cluster_id=1)],
                 component_id="1",
                 rationale="API gained a method.",
             )
@@ -493,7 +300,7 @@ def test_decide_scope_update_passes_structural_diff_to_validator() -> None:
         )
     agent._validation_invoke = MagicMock(return_value=expected)
 
-    result = agent.decide_scope_update("", scope, structural)
+    result = agent.decide_scope_update("root", scope, structural)
 
     assert result is expected
     prompt = agent._validation_invoke.call_args.args[0]
@@ -546,7 +353,7 @@ def test_decide_scope_update_tracks_invalid_decision_after_retries() -> None:
     agent._validation_invoke = MagicMock(return_value=invalid)
 
     with patch("agents.incremental_planning_agent.telemetry") as mock_telemetry:
-        result = agent.decide_scope_update("", scope, structural)
+        result = agent.decide_scope_update("root", scope, structural)
 
     assert result is invalid
     mock_telemetry.capture_exception.assert_called_once()

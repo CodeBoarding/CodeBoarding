@@ -453,22 +453,20 @@ PLANNING_MESSAGE = """**Task:** Update one scope of the `{project_name}` archite
 **Structural cluster diff:**
 {structural_diff}
 
-**New package-root clusters that must create components:**
-{required_create_refs}
 
 **Instructions:**
 Return operations for this scope only.
 
 1. Keep unchanged clusters out of the operations unless the diff makes the component semantically dirty.
 2. For modified clusters, preserve the existing owning component shown by its clusters=[...] list; use update_component for that owner instead of moving the cluster to another component.
-3. For new clusters, first try to assign/update the most specific existing component. At root scope, create a new component only for a brand-new top-level package/product boundary listed under "must create components"; additions under an existing package root belong to an existing component.
+3. For new clusters, decide from the structural diff whether they extend an existing responsibility or introduce a new component; do not infer this from file/package layout alone.
 4. For reshaped groups, follow overlap counts to keep old cluster ownership stable. Only assign a reshaped new cluster to a different component when the diff proves a real responsibility move.
 5. Use listGitChanges/readGitDiff only when the structural diff is not enough to judge semantic impact.
 
 **Hard rules:**
 - Do not reparent existing components. If reparenting seems required, use regenerate_scope.
 - Every modified/new/reshaped new-side cluster listed below must appear in exactly one operation's cluster_refs.
-- A cluster listed under "must create components" introduces a new package root and must use create_component, not assign_to_existing/update_component."""
+"""
 
 SCOPE_RELATIONS_MESSAGE = """Generate inter-component relationships for the `{scope_name}` scope of `{project_name}`.
 

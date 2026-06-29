@@ -18,6 +18,7 @@ from pathlib import Path
 
 import networkx as nx
 
+from agents.scope_ids import ROOT_SCOPE_ID
 from diagram_analysis.cluster_snapshot import ClusterSnapshot, ClusterSnapshotEntry
 from diagram_analysis.io_utils import normalize_repo_path
 from repo_utils.change_detector import ChangeSet
@@ -35,7 +36,6 @@ class LanguageDelta:
     new_cluster_ids: set[int] = field(default_factory=set)
     changed_cluster_ids: set[int] = field(default_factory=set)
     dropped_cluster_ids: set[int] = field(default_factory=set)
-    cluster_id_remap: dict[int, int] = field(default_factory=dict)
 
     @property
     def affected_cluster_ids(self) -> set[int]:
@@ -53,18 +53,12 @@ class ClusterDelta:
     def cluster_results(self) -> dict[str, ClusterResult]:
         return {lang: d.cluster_results for lang, d in self.by_language.items()}
 
-    def merged_cluster_id_remap(self) -> dict[int, int]:
-        merged: dict[int, int] = {}
-        for d in self.by_language.values():
-            merged.update(d.cluster_id_remap)
-        return merged
-
 
 @dataclass(frozen=True)
 class ClusterRef:
     language: str
     cluster_id: int
-    scope_id: str = ""
+    scope_id: str = ROOT_SCOPE_ID
 
 
 @dataclass
@@ -144,7 +138,7 @@ def structural_diff_from_delta(
     delta: ClusterDelta,
     changes: ChangeSet | None = None,
     repo_dir: Path | None = None,
-    scope_id: str = "",
+    scope_id: str = ROOT_SCOPE_ID,
 ) -> StructuralClusterDiff:
     """Classify seeded cluster output into scope-local structural facts."""
     diff_files = _changeset_to_path_set(changes) if changes is not None else set()
@@ -544,8 +538,9 @@ def _flavor_b_seeded(
     for v_idx, lcid in enumerate(membership):
         leiden_clusters.setdefault(lcid, set()).add(idx_to_qname[v_idx])
 
-    cluster_id_remap, new_cluster_ids, changed_cluster_ids, dropped_cluster_ids, final_clusters = (
-        _reconcile_seeded_partition(leiden_clusters, old_clusters)
+    new_cluster_ids, changed_cluster_ids, dropped_cluster_ids, final_clusters = _reconcile_seeded_partition(
+        leiden_clusters,
+        old_clusters,
     )
     _absorb_new_file_overlap_clusters(
         final_clusters,
@@ -563,7 +558,6 @@ def _flavor_b_seeded(
         new_cluster_ids=new_cluster_ids,
         changed_cluster_ids=changed_cluster_ids,
         dropped_cluster_ids=dropped_cluster_ids,
-        cluster_id_remap=cluster_id_remap,
     )
 
 
@@ -611,12 +605,11 @@ def _affected_frontier(
 def _reconcile_seeded_partition(
     leiden_clusters: dict[int, set[str]],
     old_clusters: dict[int, ClusterSnapshotEntry],
-) -> tuple[dict[int, int], set[int], set[int], set[int], dict[int, set[str]]]:
+) -> tuple[set[int], set[int], set[int], dict[int, set[str]]]:
     """Map leiden's renumbered output IDs back onto prior IDs by greedy max-overlap.
 
     Leftover leiden clusters get fresh IDs; leftover prior clusters tombstone
-    into ``dropped_cluster_ids``. Returns ``(cluster_id_remap, new_cluster_ids,
-    changed_cluster_ids, dropped_cluster_ids, final_clusters)``.
+    into ``dropped_cluster_ids``.
     """
     overlap_pairs: list[tuple[int, int, int]] = []  # (overlap, leiden_cid, prior_cid)
     for lcid, members in leiden_clusters.items():
@@ -638,13 +631,11 @@ def _reconcile_seeded_partition(
     final_clusters: dict[int, set[str]] = {}
     new_cluster_ids: set[int] = set()
     changed_cluster_ids: set[int] = set()
-    cluster_id_remap: dict[int, int] = {}
 
     for lcid, members in leiden_clusters.items():
         if lcid in leiden_to_prior:
             prior_cid = leiden_to_prior[lcid]
             final_clusters[prior_cid] = members
-            cluster_id_remap[prior_cid] = prior_cid
             if old_clusters[prior_cid].members != members:
                 changed_cluster_ids.add(prior_cid)
         else:
@@ -655,7 +646,7 @@ def _reconcile_seeded_partition(
 
     dropped_cluster_ids = {cid for cid in old_clusters.keys() if cid not in used_prior}
 
-    return cluster_id_remap, new_cluster_ids, changed_cluster_ids, dropped_cluster_ids, final_clusters
+    return new_cluster_ids, changed_cluster_ids, dropped_cluster_ids, final_clusters
 
 
 def _absorb_new_file_overlap_clusters(

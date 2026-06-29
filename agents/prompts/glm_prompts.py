@@ -452,21 +452,19 @@ CHANGED FILES:
 STRUCTURAL CLUSTER DIFF:
 {structural_diff}
 
-NEW PACKAGE-ROOT CLUSTERS THAT MUST CREATE COMPONENTS:
-{required_create_refs}
 
 REQUIRED STEPS:
 1. Return operations for this scope only.
 2. Keep unchanged clusters out of operations unless the diff makes the component semantically dirty.
 3. For modified clusters, preserve the existing owning component shown by its clusters=[...] list; use update_component for that owner instead of moving the cluster to another component.
-4. For new clusters, first try to assign/update the most specific existing component. At root scope, create a new component ONLY for a brand-new top-level package/product boundary listed under "must create components"; additions under an existing package root belong to an existing component.
+4. For new clusters, decide from the structural diff whether they extend an existing responsibility or introduce a new component; do not infer this from file/package layout alone.
 5. For reshaped groups, follow overlap counts to keep old cluster ownership stable. Only assign a reshaped new cluster to a different component when the diff proves a real responsibility move.
 6. Use listGitChanges/readGitDiff ONLY when the structural diff is not enough to judge semantic impact.
 
 MANDATORY RULES:
 - Do NOT reparent existing components. If reparenting seems required, use regenerate_scope.
 - Every modified/new/reshaped new-side cluster listed below MUST appear in exactly one operation's cluster_refs.
-- A cluster listed under "must create components" introduces a new package root and MUST use create_component, not assign_to_existing/update_component."""
+"""
 
 
 class GLMPromptFactory(AbstractPromptFactory):

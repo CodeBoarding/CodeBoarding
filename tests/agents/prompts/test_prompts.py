@@ -243,7 +243,6 @@ class TestConvenienceFunctions(unittest.TestCase):
             "{existing_components}",
             "{changed_files}",
             "{structural_diff}",
-            "{required_create_refs}",
         }
 
         for llm_type in LLMType:

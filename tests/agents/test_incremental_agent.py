@@ -162,7 +162,7 @@ class TestUpdateScope(unittest.TestCase):
             operations=[
                 ScopeOperation(
                     action=ScopeOperationAction.UPDATE_COMPONENT,
-                    cluster_refs=[ScopedClusterRef(scope_id="", language="python", cluster_id=2)],
+                    cluster_refs=[ScopedClusterRef(scope_id="root", language="python", cluster_id=2)],
                     component_id="1",
                     description="New",
                     rationale="API gained a cluster.",
@@ -170,7 +170,7 @@ class TestUpdateScope(unittest.TestCase):
             ]
         )
 
-        result = self._agent().update_scope("", scope, decision, {"python": ClusterResult()})
+        result = self._agent().update_scope("root", scope, decision, {"python": ClusterResult()})
 
         self.assertEqual(component.description, "New")
         self.assertEqual(component.source_cluster_ids, ["1", "2"])
@@ -215,7 +215,7 @@ class TestUpdateScope(unittest.TestCase):
             ]
         )
 
-        result = self._agent().update_scope("", scope, decision, {"python": ClusterResult()})
+        result = self._agent().update_scope("root", scope, decision, {"python": ClusterResult()})
 
         created = scope.components[1]
         self.assertEqual(created.component_id, "2")
@@ -240,7 +240,7 @@ class TestUpdateScope(unittest.TestCase):
             ]
         )
 
-        result = self._agent().update_scope("", scope, decision, {"python": ClusterResult()})
+        result = self._agent().update_scope("root", scope, decision, {"python": ClusterResult()})
 
         self.assertEqual(scope.components, [])
         self.assertEqual(result.new_component_ids, set())
@@ -261,7 +261,7 @@ class TestUpdateScope(unittest.TestCase):
             ]
         )
 
-        result = self._agent().update_scope("", scope, decision, {})
+        result = self._agent().update_scope("root", scope, decision, {})
 
         self.assertEqual([component.component_id for component in scope.components], ["2"])
         self.assertEqual(scope.components_relations, [])
@@ -287,7 +287,7 @@ class TestUpdateScope(unittest.TestCase):
         agent.static_analysis.get_languages = MagicMock(return_value=["python"])  # type: ignore[method-assign]
         agent.static_analysis.get_cfg = MagicMock(return_value=cfg)  # type: ignore[method-assign]
 
-        result = agent.update_scope("", scope, decision, {})
+        result = agent.update_scope("root", scope, decision, {})
 
         self.assertEqual([component.component_id for component in scope.components], ["1", "2"])
         self.assertEqual(result.removed_ids, set())
@@ -314,7 +314,7 @@ class TestUpdateScope(unittest.TestCase):
         agent.static_analysis.get_languages = MagicMock(return_value=["python"])  # type: ignore[method-assign]
         agent.static_analysis.get_cfg = MagicMock(return_value=cfg)  # type: ignore[method-assign]
 
-        result = agent.update_scope("", scope, decision, {})
+        result = agent.update_scope("root", scope, decision, {})
 
         self.assertEqual([component.component_id for component in scope.components], ["1", "2"])
         self.assertEqual(result.removed_ids, set())
@@ -333,7 +333,7 @@ class TestUpdateScope(unittest.TestCase):
             ]
         )
 
-        result = self._agent().update_scope("", scope, decision, {})
+        result = self._agent().update_scope("root", scope, decision, {})
 
         self.assertTrue(result.regenerate_scope)
         self.assertEqual(scope.components, [component])

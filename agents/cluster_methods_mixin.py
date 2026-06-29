@@ -50,13 +50,13 @@ class _RenderedClusterString:
     cluster_ids: set[GraphClusterId]
 
 
-def _scoped_snapshot_from_lineage(cfg: CallGraph, scope_id: str) -> dict[int, ClusterSnapshotEntry]:
+def scoped_snapshot_from_lineage(cfg: CallGraph, scope_id: str) -> dict[int, ClusterSnapshotEntry]:
     """Build a scoped snapshot from each method's recorded cluster ancestry/path."""
     if not scope_id:
         return {}
     prefix = f"{scope_id}."
     entries: dict[int, ClusterSnapshotEntry] = {}
-    for qname, cluster_ids in cfg.method_cluster_paths.items():
+    for qname, cluster_ids in cfg.method_cluster_paths_snapshot():
         if qname not in cfg.nodes:
             continue
         for cluster_id in cluster_ids:
@@ -469,7 +469,7 @@ class ClusterMethodsMixin:
             if sub_cfg.nodes:
                 subgraph_cfgs[lang] = sub_cfg
 
-                seeded_snapshot = _scoped_snapshot_from_lineage(sub_cfg, source_cluster_id_prefix)
+                seeded_snapshot = scoped_snapshot_from_lineage(sub_cfg, source_cluster_id_prefix)
                 if seeded_snapshot:
                     scoped_delta = _delta_for_language(
                         str(lang),
@@ -779,7 +779,7 @@ class ClusterMethodsMixin:
                 f"{assigned_by_graph} by graph distance, {assigned_by_fallback} to fallback"
             )
         if assigned_by_fallback:
-            logger.warning(
+            logger.error(
                 f"{assigned_by_fallback} node(s) fell back to '{fallback_component.name}' "
                 f"— files: {sorted(fallback_files)}"
             )
