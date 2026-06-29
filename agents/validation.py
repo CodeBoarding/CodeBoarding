@@ -6,7 +6,18 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from difflib import SequenceMatcher
 
-from agents.agent_responses import AnalysisInsights, ClusterAnalysis, ComponentFiles, ScopeRelations
+from agents.agent_responses import (
+    AnalysisInsights,
+    ClusterAnalysis,
+    ComponentFiles,
+    ScopeOperation,
+    ScopeOperationAction,
+    ScopeUpdateDecision,
+    ScopedClusterRef,
+    ScopeRelations,
+)
+from agents.scope_ids import ROOT_SCOPE_ID
+from diagram_analysis.cluster_delta import ClusterRef
 from repo_utils import normalize_path
 from static_analyzer.graph import CallGraph, ClusterResult
 
@@ -55,6 +66,18 @@ class ValidationResult:
     feedback_messages: list[str] = field(default_factory=list)
 
 
+@dataclass
+class ScopeOperationValidationContext:
+    """Expected routing facts for incremental scope planning."""
+
+    expected_cluster_refs: set[ClusterRef] = field(default_factory=set)
+    code_added_cluster_refs: set[ClusterRef] = field(default_factory=set)
+    enforce_code_added_creates: bool = False
+    existing_component_ids: set[str] = field(default_factory=set)
+    existing_cluster_owners: dict[tuple[str, int], str] = field(default_factory=dict)
+    scope_id: str = ROOT_SCOPE_ID
+
+
 def score_validation_results(
     validator_results: list[tuple[Callable, ValidationResult]],
 ) -> float:
@@ -76,6 +99,107 @@ def score_validation_results(
         if vr.is_valid:
             score += weight
     return score
+
+
+def validate_scope_update_decision(
+    decision: ScopeUpdateDecision,
+    context: ScopeOperationValidationContext,
+) -> ValidationResult:
+    """Validate cluster coverage and component routing in an incremental plan."""
+    errors: list[str] = []
+    seen_refs: list[ClusterRef] = []
+    for index, operation in enumerate(decision.operations, start=1):
+        refs = [_cluster_ref_from_scoped_ref(ref) for ref in operation.cluster_refs]
+        seen_refs.extend(refs)
+        if operation.action in {
+            ScopeOperationAction.UPDATE_COMPONENT,
+            ScopeOperationAction.DELETE_COMPONENT,
+            ScopeOperationAction.NOOP,
+        }:
+            if operation.component_id not in context.existing_component_ids:
+                errors.append(_invalid_existing_component_feedback(index, operation, context))
+        if operation.action in {ScopeOperationAction.UPDATE_COMPONENT, ScopeOperationAction.CREATE_COMPONENT}:
+            errors.extend(_cluster_ownership_feedback(index, operation, refs, context))
+        if operation.action == ScopeOperationAction.CREATE_COMPONENT:
+            if not refs:
+                errors.append(
+                    f"Operation #{index} create_component has no cluster_refs. Move one or more changed clusters "
+                    "from the structural diff into this operation's cluster_refs, or remove the create_component."
+                )
+            elif context.enforce_code_added_creates and not (set(refs) & context.code_added_cluster_refs):
+                errors.append(
+                    f"Operation #{index} create_component claims only refs that contain methods already present in the "
+                    "baseline analysis. Do not create a new component for scoped cluster reshuffling; update the existing "
+                    "component owner instead."
+                )
+            if not operation.name or not operation.description:
+                errors.append(f"Operation #{index} create_component must include name and description.")
+
+    seen_set = set(seen_refs)
+    missing = context.expected_cluster_refs - seen_set
+    extra = seen_set - context.expected_cluster_refs
+    duplicates = {ref for ref in seen_set if seen_refs.count(ref) > 1}
+    if missing:
+        errors.append(f"Missing cluster_refs: {_format_cluster_ref_list(missing)}")
+    if extra:
+        errors.append(f"Unexpected cluster_refs: {_format_cluster_ref_list(extra)}")
+    if duplicates:
+        errors.append(f"Duplicate cluster_refs: {_format_cluster_ref_list(duplicates)}")
+    return ValidationResult(is_valid=not errors, feedback_messages=errors)
+
+
+def _cluster_ref_from_scoped_ref(ref: ScopedClusterRef) -> ClusterRef:
+    return ClusterRef(ref.language, ref.cluster_id, ref.scope_id)
+
+
+def _invalid_existing_component_feedback(
+    index: int,
+    operation: ScopeOperation,
+    context: ScopeOperationValidationContext,
+) -> str:
+    valid_ids = ", ".join(sorted(context.existing_component_ids)) or "none"
+    hint = ""
+    if operation.name:
+        leading_id = operation.name.split(maxsplit=1)[0].strip('`"')
+        if leading_id in context.existing_component_ids:
+            hint = f" Move {leading_id!r} from name into component_id and leave name null unless renaming."
+    return (
+        f"Operation #{index} {operation.action} must set component_id to one exact existing id. "
+        f"Got component_id={operation.component_id!r}, name={operation.name!r}. "
+        f"Valid component_id values: {valid_ids}.{hint}"
+    )
+
+
+def _cluster_ownership_feedback(
+    index: int,
+    operation: ScopeOperation,
+    refs: list[ClusterRef],
+    context: ScopeOperationValidationContext,
+) -> list[str]:
+    errors: list[str] = []
+    for ref in refs:
+        owner = context.existing_cluster_owners.get((ref.scope_id, ref.cluster_id))
+        if owner is None:
+            continue
+        if operation.action == ScopeOperationAction.UPDATE_COMPONENT and owner == operation.component_id:
+            continue
+        errors.append(
+            f"Operation #{index} {operation.action} claims {_format_cluster_ref(ref)}, but that cluster is already "
+            f"owned by existing component_id={owner!r}. Preserve existing ownership: update component_id={owner!r} "
+            "for that cluster, or omit this cluster_ref from the operation if it is unchanged."
+        )
+    return errors
+
+
+def _format_cluster_ref(ref: ClusterRef) -> str:
+    return f"{ref.scope_id}:{ref.language}:{ref.cluster_id}"
+
+
+def _format_cluster_ref_list(refs: set[ClusterRef]) -> str:
+    if not refs:
+        return "None"
+    sorted_refs = sorted(refs, key=lambda ref: (ref.scope_id, ref.language, ref.cluster_id))
+    return ", ".join(_format_cluster_ref(ref) for ref in sorted_refs)
 
 
 def validate_cluster_coverage(result: ClusterAnalysis, context: ValidationContext) -> ValidationResult:

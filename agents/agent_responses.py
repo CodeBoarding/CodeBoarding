@@ -601,9 +601,18 @@ class ScopeOperation(LLMBaseModel):
     cluster_refs: list[ScopedClusterRef] = Field(description="New-side clusters this operation accounts for.")
     component_id: str | None = Field(
         default=None,
-        description="Existing component id for update/delete/noop; null when creating a component.",
+        description=(
+            "Exact existing component id for update/delete/noop, such as '2.1'. "
+            "Required for those actions. Null only when creating a component."
+        ),
     )
-    name: str | None = Field(default=None, description="Component name for create/update operations.")
+    name: str | None = Field(
+        default=None,
+        description=(
+            "Display name for create_component, or an optional rename for update_component. "
+            "Never include component ids here; put ids only in component_id."
+        ),
+    )
     description: str | None = Field(default=None, description="Component description for create/update operations.")
     recurse: bool = Field(
         default=False, description="Whether this component should be considered for child-scope update."
@@ -612,8 +621,14 @@ class ScopeOperation(LLMBaseModel):
 
     def llm_str(self):
         refs = ", ".join(ref.llm_str() for ref in self.cluster_refs) or "no clusters"
-        target = self.component_id or self.name or "new component"
-        return f"{self.action}: {refs} -> {target}; recurse={self.recurse}; {self.rationale}"
+        fields = [f"action={self.action}", f"cluster_refs=[{refs}]"]
+        if self.component_id is not None:
+            fields.append(f"component_id={self.component_id!r}")
+        if self.name is not None:
+            fields.append(f"name={self.name!r}")
+        fields.append(f"recurse={self.recurse}")
+        fields.append(f"rationale={self.rationale}")
+        return "; ".join(fields)
 
 
 class ScopeUpdateDecision(LLMBaseModel):

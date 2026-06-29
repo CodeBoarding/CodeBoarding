@@ -10,11 +10,10 @@ from agents.agent_responses import (
     ScopeUpdateDecision,
 )
 from agents.incremental_planning_agent import (
-    ScopeOperationValidationContext,
     IncrementalPlanningAgent,
     format_structural_diff,
-    validate_scope_update_decision,
 )
+from agents.validation import ScopeOperationValidationContext, validate_scope_update_decision
 from diagram_analysis.cluster_delta import (
     ClusterMemberDelta,
     ClusterRef,
@@ -169,9 +168,59 @@ def test_validate_scope_update_decision_rejects_missing_duplicate_and_unknown_id
 
     assert not result.is_valid
     feedback = "\n".join(result.feedback_messages)
-    assert "unknown component_id" in feedback
+    assert "must set component_id to one exact existing id" in feedback
     assert "Missing cluster_refs" in feedback
     assert "Duplicate cluster_refs" in feedback
+
+
+def test_validate_scope_update_decision_explains_ids_misplaced_in_name() -> None:
+    decision = ScopeUpdateDecision(
+        operations=[
+            ScopeOperation(
+                action=ScopeOperationAction.UPDATE_COMPONENT,
+                cluster_refs=[ScopedClusterRef(scope_id="2", language="python", cluster_id=1)],
+                name='2.1 "Strategy Registry & Built-in Factory"',
+                rationale="The id was incorrectly emitted as part of the name field.",
+            )
+        ]
+    )
+    context = ScopeOperationValidationContext(
+        expected_cluster_refs={ClusterRef(language="python", cluster_id=1, scope_id="2")},
+        existing_component_ids={"2.1", "2.2"},
+    )
+
+    result = validate_scope_update_decision(decision, context)
+
+    assert not result.is_valid
+    feedback = "\n".join(result.feedback_messages)
+    assert "component_id=None" in feedback
+    assert "name='2.1" in feedback
+    assert "Move '2.1' from name into component_id" in feedback
+
+
+def test_validate_scope_update_decision_rejects_claiming_cluster_owned_by_sibling() -> None:
+    decision = ScopeUpdateDecision(
+        operations=[
+            ScopeOperation(
+                action=ScopeOperationAction.UPDATE_COMPONENT,
+                cluster_refs=[ScopedClusterRef(scope_id="2", language="python", cluster_id=24)],
+                component_id="2.3",
+                rationale="Incorrectly moves an already-owned cluster to another component.",
+            )
+        ]
+    )
+    context = ScopeOperationValidationContext(
+        expected_cluster_refs={ClusterRef(language="python", cluster_id=24, scope_id="2")},
+        existing_component_ids={"2.1", "2.3"},
+        existing_cluster_owners={("2", 24): "2.1"},
+    )
+
+    result = validate_scope_update_decision(decision, context)
+
+    assert not result.is_valid
+    feedback = "\n".join(result.feedback_messages)
+    assert "already owned by existing component_id='2.1'" in feedback
+    assert "Preserve existing ownership" in feedback
 
 
 def test_validate_scope_update_decision_allows_update_for_new_cluster_when_llm_chooses_existing_owner() -> None:
@@ -215,6 +264,54 @@ def test_validate_scope_update_decision_allows_create_when_llm_chooses_new_compo
     result = validate_scope_update_decision(decision, context)
 
     assert result.is_valid
+
+
+def test_validate_scope_update_decision_rejects_create_without_cluster_refs() -> None:
+    decision = ScopeUpdateDecision(
+        operations=[
+            ScopeOperation(
+                action=ScopeOperationAction.CREATE_COMPONENT,
+                cluster_refs=[],
+                name="Ghost Component",
+                description="Should not be materialized without source clusters.",
+                rationale="LLM invented a component without assigning changed clusters.",
+            )
+        ]
+    )
+    context = ScopeOperationValidationContext(expected_cluster_refs=set(), existing_component_ids={"1"})
+
+    result = validate_scope_update_decision(decision, context)
+
+    assert not result.is_valid
+    feedback = "\n".join(result.feedback_messages)
+    assert "has no cluster_refs" in feedback
+    assert "Move one or more changed clusters" in feedback
+
+
+def test_validate_scope_update_decision_rejects_create_from_baseline_only_refs() -> None:
+    ref = ClusterRef(language="python", cluster_id=7)
+    decision = ScopeUpdateDecision(
+        operations=[
+            ScopeOperation(
+                action=ScopeOperationAction.CREATE_COMPONENT,
+                cluster_refs=[ScopedClusterRef(scope_id="root", language="python", cluster_id=7)],
+                name="Moved Existing Code",
+                description="Should not become a new component when only scope ownership changed.",
+                rationale="The cluster is new to this scope but not new to the codebase.",
+            )
+        ]
+    )
+    context = ScopeOperationValidationContext(
+        expected_cluster_refs={ref},
+        code_added_cluster_refs=set(),
+        enforce_code_added_creates=True,
+        existing_component_ids={"1"},
+    )
+
+    result = validate_scope_update_decision(decision, context)
+
+    assert not result.is_valid
+    assert "already present in the baseline" in "\n".join(result.feedback_messages)
 
 
 def test_incremental_planning_agent_uses_narrow_diff_aware_toolkit() -> None:
@@ -310,9 +407,10 @@ def test_decide_scope_update_passes_structural_diff_to_validator() -> None:
     assert "api.new" in prompt
     assert context.expected_cluster_refs == {ClusterRef(language="python", cluster_id=1)}
     assert context.existing_component_ids == {"1"}
+    assert context.existing_cluster_owners == {("root", 10): "1", ("root", 2): "1"}
 
 
-def test_decide_scope_update_tracks_invalid_decision_after_retries() -> None:
+def test_decide_scope_update_filters_invalid_decision_after_retries() -> None:
     static_analysis = MagicMock(spec=StaticAnalysisResults)
     scope = AnalysisInsights(
         description="root",
@@ -355,7 +453,7 @@ def test_decide_scope_update_tracks_invalid_decision_after_retries() -> None:
     with patch("agents.incremental_planning_agent.telemetry") as mock_telemetry:
         result = agent.decide_scope_update("root", scope, structural)
 
-    assert result is invalid
+    assert result.operations == []
     mock_telemetry.capture_exception.assert_called_once()
     exc = mock_telemetry.capture_exception.call_args.args[0]
     properties = mock_telemetry.capture_exception.call_args.kwargs["properties"]
@@ -365,3 +463,138 @@ def test_decide_scope_update_tracks_invalid_decision_after_retries() -> None:
     assert properties["issue_count"] == 1
     assert "Missing cluster_refs" in properties["issues"][0]
     mock_telemetry.flush.assert_called_once()
+
+
+def test_decide_scope_update_keeps_valid_operations_when_filtering_invalid_ones() -> None:
+    static_analysis = MagicMock(spec=StaticAnalysisResults)
+    scope = AnalysisInsights(
+        description="root",
+        components=[Component(name="API", description="Handles requests", key_entities=[], component_id="1")],
+        components_relations=[],
+    )
+    structural = StructuralClusterDiff(
+        by_language={
+            "python": LanguageStructuralDiff(
+                language="python",
+                new=[
+                    ClusterRef(language="python", cluster_id=2),
+                    ClusterRef(language="python", cluster_id=3),
+                ],
+            )
+        }
+    )
+    valid_create = ScopeOperation(
+        action=ScopeOperationAction.CREATE_COMPONENT,
+        cluster_refs=[ScopedClusterRef(scope_id="root", language="python", cluster_id=2)],
+        name="Worker",
+        description="Processes queued jobs.",
+        rationale="Cluster 2 is a new responsibility.",
+    )
+    invalid_create = ScopeOperation(
+        action=ScopeOperationAction.CREATE_COMPONENT,
+        cluster_refs=[ScopedClusterRef(scope_id="root", language="python", cluster_id=99)],
+        name="Invented",
+        description="Claims a cluster outside the scoped diff.",
+        rationale="Invalid ref should be dropped instead of applied.",
+    )
+    invalid = ScopeUpdateDecision(operations=[valid_create, invalid_create])
+
+    with (
+        patch("agents.agent.create_agent", return_value=MagicMock()),
+        patch("agents.incremental_planning_agent.create_agent", return_value=MagicMock()),
+    ):
+        agent = IncrementalPlanningAgent(
+            repo_dir=Path("/tmp/fake-repo"),
+            static_analysis=static_analysis,
+            project_name="Test",
+            meta_context=None,
+            agent_llm=MagicMock(),
+            parsing_llm=MagicMock(),
+        )
+    agent._validation_invoke = MagicMock(return_value=invalid)
+
+    with patch("agents.incremental_planning_agent.telemetry"):
+        result = agent.decide_scope_update("root", scope, structural)
+
+    assert result.operations == [valid_create]
+
+
+def test_decide_scope_update_prompt_includes_routing_facts() -> None:
+    static_analysis = MagicMock(spec=StaticAnalysisResults)
+    scope = AnalysisInsights(
+        description="root",
+        components=[
+            Component(
+                name="API",
+                description="Handles requests",
+                key_entities=[],
+                component_id="1",
+                source_cluster_ids=["4"],
+            )
+        ],
+        components_relations=[],
+    )
+    structural = StructuralClusterDiff(
+        by_language={
+            "python": LanguageStructuralDiff(
+                language="python",
+                new=[ClusterRef(language="python", cluster_id=5)],
+            )
+        }
+    )
+    expected = ScopeUpdateDecision(
+        operations=[
+            ScopeOperation(
+                action=ScopeOperationAction.CREATE_COMPONENT,
+                cluster_refs=[ScopedClusterRef(scope_id="root", language="python", cluster_id=5)],
+                name="Worker",
+                description="Processes jobs.",
+                rationale="New cluster.",
+            )
+        ]
+    )
+
+    with (
+        patch("agents.agent.create_agent", return_value=MagicMock()),
+        patch("agents.incremental_planning_agent.create_agent", return_value=MagicMock()),
+    ):
+        agent = IncrementalPlanningAgent(
+            repo_dir=Path("/tmp/fake-repo"),
+            static_analysis=static_analysis,
+            project_name="Test",
+            meta_context=None,
+            agent_llm=MagicMock(),
+            parsing_llm=MagicMock(),
+        )
+    agent._validation_invoke = MagicMock(return_value=expected)
+
+    agent.decide_scope_update("root", scope, structural)
+
+    prompt = agent._validation_invoke.call_args.args[0]
+    assert "Routing facts" in prompt
+    assert "Actionable cluster_refs" in prompt
+    assert "root:python:5" in prompt
+    assert "root:python:4 -> 1" in prompt
+
+
+def test_format_structural_diff_distinguishes_code_added_from_scope_added() -> None:
+    structural = StructuralClusterDiff(
+        by_language={
+            "python": LanguageStructuralDiff(
+                language="python",
+                new_details=[
+                    ClusterMemberDelta(
+                        old_cluster=ClusterRef(language="python", cluster_id=1),
+                        new_cluster=ClusterRef(language="python", cluster_id=1),
+                        added_methods={"pkg.existing", "pkg.new"},
+                    )
+                ],
+                new=[ClusterRef(language="python", cluster_id=1)],
+            )
+        }
+    )
+
+    rendered = format_structural_diff(structural, base_method_qnames={"pkg.existing"})
+
+    assert "code_added=['pkg.new']" in rendered
+    assert "existing_in_base=['pkg.existing']" in rendered

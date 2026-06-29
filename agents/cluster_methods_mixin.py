@@ -429,6 +429,7 @@ class ClusterMethodsMixin:
         self,
         component: Component,
         source_cluster_id_prefix: str = "",
+        expand_small_clusters: bool = True,
     ) -> tuple[str, dict[str, ClusterResult], dict[str, CallGraph]]:
         """
         Create a strict subgraph containing ONLY nodes from the component's file_methods.
@@ -490,8 +491,10 @@ class ClusterMethodsMixin:
                         f"merged {n_before} -> {len(sub_cluster_result.clusters)} super-clusters"
                     )
 
-                # Expand to method-level if insufficient clusters
-                sub_cluster_result = self._expand_to_method_level_clusters(sub_cfg, sub_cluster_result)
+                # Expand to method-level if insufficient clusters. Incremental
+                # recursive planning disables this so seeded IDs remain stable.
+                if expand_small_clusters:
+                    sub_cluster_result = self._expand_to_method_level_clusters(sub_cfg, sub_cluster_result)
                 cluster_results[lang] = sub_cluster_result
 
         # Cross-language: enforce combined budget and unique IDs

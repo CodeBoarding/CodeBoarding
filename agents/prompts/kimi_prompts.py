@@ -273,7 +273,12 @@ IMPORTANT: You must CORRECT the output below. Do NOT regenerate from scratch —
 {feedback_list}
 
 ## Correction Instructions
-Address EACH issue listed above. Preserve all correct components, relationships, and assignments. Only modify what the feedback specifically calls out.
+Address EACH issue listed above. Preserve all correct components, relationships, cluster_refs/cluster_ids, and assignments. Only modify what the feedback specifically calls out.
+
+If the output is a ScopeUpdateDecision:
+- For update_component/delete_component/noop, put the exact existing id in component_id and leave name null unless intentionally renaming.
+- For create_component, keep at least one changed cluster_ref on the operation; do not create components with an empty cluster_refs list.
+- Do not drop or invent cluster_refs while fixing field placement.
 
 ## Original Task Context (for reference only — do NOT treat as a new task)
 {original_prompt}"""
@@ -408,6 +413,9 @@ Project context:
 Existing components in this scope:
 {existing_components}
 
+Routing facts:
+{routing_facts}
+
 Changed files:
 {changed_files}
 
@@ -417,12 +425,14 @@ Structural cluster diff:
 
 Rules:
 - Keep unchanged clusters out of the operations unless the diff makes the component semantically dirty.
-- For modified clusters, preserve the existing owning component shown by its clusters=[...] list; use update_component for that owner instead of moving the cluster to another component.
-- For new clusters, decide from the structural diff whether they extend an existing responsibility or introduce a new component; do not infer this from file/package layout alone.
+- For modified clusters, preserve the existing owning component shown by its clusters=[...] list; use update_component for that owner instead of moving the cluster to another component. A cluster id already listed in another component's clusters=[...] is already owned; do not assign it to a different component or a new component.
+- For new clusters, first check routing facts and structural diff method status: code_added methods can justify create_component; existing_in_base methods usually mean scope/cluster movement and should update or stay with the existing owner. Do not infer this from file/package layout alone.
 - For reshaped groups, follow overlap counts to keep old cluster ownership stable. Only assign a reshaped new cluster to a different component when the diff proves a real responsibility move.
 - Use listGitChanges/readGitDiff proactively but narrowly when the structural diff is not enough to judge semantic impact.
 - Do not reparent existing components. If reparenting seems required, use regenerate_scope.
-- Every modified/new/reshaped new-side cluster listed below must appear in exactly one operation's cluster_refs.
+- Use only cluster_refs from the actionable list. A ref may be omitted only when it is already owned and the diff is cluster-shape noise that does not change that component's responsibility.
+- Every unowned new/modified/reshaped cluster that represents a real architectural responsibility must appear in exactly one operation's cluster_refs.
+- For update_component/delete_component/noop, set component_id to the exact existing id only (for example `2.1`), and do not put ids or quoted existing names in the name field.
 """
 
 

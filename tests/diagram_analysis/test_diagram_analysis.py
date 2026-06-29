@@ -30,7 +30,14 @@ from diagram_analysis.analysis_json import (
     from_component_to_json_component,
 )
 from diagram_analysis.cluster_delta import ClusterMemberDelta, ClusterRef, LanguageStructuralDiff, StructuralClusterDiff
-from diagram_analysis.diagram_generator import DiagramGenerator, _component_depth, _component_expansion_seeds
+from diagram_analysis.cluster_snapshot import ClusterSnapshot, ClusterSnapshotEntry
+from diagram_analysis.diagram_generator import (
+    DiagramGenerator,
+    _build_scope_incremental_inputs,
+    _child_scope_needs_recursive_update,
+    _component_depth,
+    _component_expansion_seeds,
+)
 from diagram_analysis.exceptions import IncrementalCacheMissingError
 from diagram_analysis.version import Version
 from repo_utils.change_detector import ChangeSet
@@ -710,6 +717,232 @@ class TestDiagramGenerator(unittest.TestCase):
         self.assertEqual([(component.component_id, level) for component, level in seeds], [("1", 1), ("1.1", 2)])
         self.assertEqual(_component_expansion_seeds([root, child, leaf], max_depth=1), [])
 
+    def test_child_scope_needs_recursive_update_for_added_methods(self):
+        child_scope = AnalysisInsights(
+            description="child",
+            components=[
+                Component(
+                    name="Existing",
+                    description="",
+                    key_entities=[],
+                    component_id="1.1",
+                    file_methods=[
+                        FileMethodGroup(
+                            file_path="pkg/existing.py",
+                            methods=[
+                                MethodEntry(
+                                    qualified_name="pkg.existing_method",
+                                    start_line=1,
+                                    end_line=2,
+                                    node_type="FUNCTION",
+                                )
+                            ],
+                        )
+                    ],
+                )
+            ],
+            components_relations=[],
+        )
+        diff = StructuralClusterDiff(
+            by_language={
+                "python": LanguageStructuralDiff(
+                    language="python",
+                    modified=[
+                        ClusterMemberDelta(
+                            old_cluster=ClusterRef(language="python", cluster_id=1, scope_id="1"),
+                            new_cluster=ClusterRef(language="python", cluster_id=1, scope_id="1"),
+                            added_methods={"pkg.new_method"},
+                        )
+                    ],
+                )
+            }
+        )
+
+        self.assertTrue(_child_scope_needs_recursive_update(child_scope, diff))
+
+    def test_child_scope_skips_added_methods_already_owned_by_child(self):
+        child_scope = AnalysisInsights(
+            description="child",
+            components=[
+                Component(
+                    name="Existing",
+                    description="",
+                    key_entities=[],
+                    component_id="1.1",
+                    source_cluster_ids=["1.1"],
+                    file_methods=[
+                        FileMethodGroup(
+                            file_path="pkg/existing.py",
+                            methods=[
+                                MethodEntry(
+                                    qualified_name="pkg.existing_method",
+                                    start_line=1,
+                                    end_line=2,
+                                    node_type="FUNCTION",
+                                )
+                            ],
+                        )
+                    ],
+                )
+            ],
+            components_relations=[],
+        )
+        diff = StructuralClusterDiff(
+            by_language={
+                "python": LanguageStructuralDiff(
+                    language="python",
+                    new=[ClusterRef(language="python", cluster_id=1, scope_id="1")],
+                    new_details=[
+                        ClusterMemberDelta(
+                            old_cluster=ClusterRef(language="python", cluster_id=1, scope_id="1"),
+                            new_cluster=ClusterRef(language="python", cluster_id=1, scope_id="1"),
+                            added_methods={"pkg.existing_method"},
+                        )
+                    ],
+                    reshaped=[],
+                )
+            }
+        )
+
+        self.assertFalse(_child_scope_needs_recursive_update(child_scope, diff))
+
+    def test_child_scope_skips_all_addition_scope(self):
+        child_scope = AnalysisInsights(description="child", components=[], components_relations=[])
+        diff = StructuralClusterDiff(
+            by_language={
+                "python": LanguageStructuralDiff(
+                    language="python",
+                    new=[ClusterRef(language="python", cluster_id=1, scope_id="1")],
+                    new_details=[
+                        ClusterMemberDelta(
+                            old_cluster=ClusterRef(language="python", cluster_id=1, scope_id="1"),
+                            new_cluster=ClusterRef(language="python", cluster_id=1, scope_id="1"),
+                            added_methods={"pkg.new_method"},
+                        )
+                    ],
+                )
+            }
+        )
+
+        self.assertFalse(_child_scope_needs_recursive_update(child_scope, diff))
+
+    def test_child_scope_skips_removed_only_diff(self):
+        child_scope = AnalysisInsights(
+            description="child",
+            components=[
+                Component(
+                    name="Removed",
+                    description="",
+                    key_entities=[],
+                    component_id="1.1",
+                    source_cluster_ids=["1.1"],
+                )
+            ],
+            components_relations=[],
+        )
+        diff = StructuralClusterDiff(
+            by_language={
+                "python": LanguageStructuralDiff(
+                    language="python",
+                    removed=[ClusterRef(language="python", cluster_id=1, scope_id="1")],
+                )
+            }
+        )
+
+        self.assertFalse(_child_scope_needs_recursive_update(child_scope, diff))
+
+    def test_child_scope_needs_recursive_update_for_partial_deletion(self):
+        child_scope = AnalysisInsights(
+            description="child",
+            components=[
+                Component(
+                    name="Existing",
+                    description="",
+                    key_entities=[],
+                    component_id="1.1",
+                    file_methods=[
+                        FileMethodGroup(
+                            file_path="pkg/existing.py",
+                            methods=[
+                                MethodEntry(
+                                    qualified_name="pkg.kept",
+                                    start_line=1,
+                                    end_line=2,
+                                    node_type="FUNCTION",
+                                ),
+                                MethodEntry(
+                                    qualified_name="pkg.removed",
+                                    start_line=4,
+                                    end_line=5,
+                                    node_type="FUNCTION",
+                                ),
+                            ],
+                        )
+                    ],
+                )
+            ],
+            components_relations=[],
+        )
+        diff = StructuralClusterDiff(
+            by_language={
+                "python": LanguageStructuralDiff(
+                    language="python",
+                    modified=[
+                        ClusterMemberDelta(
+                            old_cluster=ClusterRef(language="python", cluster_id=1, scope_id="1"),
+                            new_cluster=ClusterRef(language="python", cluster_id=1, scope_id="1"),
+                            unchanged_methods={"pkg.kept"},
+                            removed_methods={"pkg.removed"},
+                        )
+                    ],
+                )
+            }
+        )
+
+        self.assertTrue(_child_scope_needs_recursive_update(child_scope, diff))
+
+    @patch("diagram_analysis.diagram_generator.scoped_snapshot_for_scope")
+    def test_scope_incremental_inputs_preserve_seeded_clusters_for_recursive_planning(self, mock_snapshot):
+        mock_snapshot.return_value = ClusterSnapshot(
+            by_language={
+                "python": {
+                    1: ClusterSnapshotEntry(
+                        members={"pkg.existing"},
+                        files={"pkg/module.py"},
+                        member_files={"pkg.existing": "pkg/module.py"},
+                    )
+                }
+            }
+        )
+        cluster_result = ClusterResult(
+            clusters={1: {"pkg.existing", "pkg.added"}},
+            cluster_to_files={1: {"pkg/module.py"}},
+            file_to_clusters={"pkg/module.py": {1}},
+        )
+        incremental_agent = Mock()
+        incremental_agent._create_strict_component_subgraph.return_value = ("", {"python": cluster_result}, {})
+        component = Component(name="Parent", description="", key_entities=[], component_id="1")
+
+        _cluster_results, structural_diff = _build_scope_incremental_inputs(
+            component,
+            AnalysisInsights(description="child", components=[], components_relations=[]),
+            "1",
+            incremental_agent,
+            None,
+            Path("/repo"),
+        )
+
+        incremental_agent._create_strict_component_subgraph.assert_called_once_with(
+            component,
+            source_cluster_id_prefix="1",
+            expand_small_clusters=False,
+        )
+        python_diff = structural_diff.by_language["python"]
+        self.assertEqual(len(python_diff.modified), 1)
+        self.assertEqual(python_diff.modified[0].unchanged_methods, {"pkg.existing"})
+        self.assertEqual(python_diff.modified[0].added_methods, {"pkg.added"})
+        self.assertEqual(python_diff.new, [])
+
     @patch("diagram_analysis.diagram_generator.get_git_commit_hash", return_value="abc123")
     @patch("diagram_analysis.diagram_generator.save_analysis")
     @patch("diagram_analysis.diagram_generator.get_expandable_components")
@@ -793,7 +1026,25 @@ class TestDiagramGenerator(unittest.TestCase):
         gen._persist_static_analysis_artifact = Mock()
 
         root_component = Component(name="Parent", description="", key_entities=[], component_id="1")
-        child_component = Component(name="Stable Child", description="", key_entities=[], component_id="1.1")
+        child_component = Component(
+            name="Stable Child",
+            description="",
+            key_entities=[],
+            component_id="1.1",
+            file_methods=[
+                FileMethodGroup(
+                    file_path="pkg/existing.py",
+                    methods=[
+                        MethodEntry(
+                            qualified_name="pkg.existing",
+                            start_line=1,
+                            end_line=2,
+                            node_type="FUNCTION",
+                        )
+                    ],
+                )
+            ],
+        )
         root_analysis = AnalysisInsights(description="root", components=[root_component], components_relations=[])
         sub_analyses = {"1": AnalysisInsights(description="sub", components=[child_component], components_relations=[])}
 
@@ -822,6 +1073,7 @@ class TestDiagramGenerator(unittest.TestCase):
                         ClusterMemberDelta(
                             old_cluster=ClusterRef(language="python", cluster_id=3, scope_id="1"),
                             new_cluster=ClusterRef(language="python", cluster_id=3, scope_id="1"),
+                            unchanged_methods={"pkg.existing"},
                             added_methods={"pkg.changed"},
                         )
                     ],
@@ -864,6 +1116,7 @@ class TestDiagramGenerator(unittest.TestCase):
         self.assertEqual(_mock_incremental_agent.return_value.update_scope.call_count, 2)
         mock_build_scope_inputs.assert_called_once_with(
             root_component,
+            sub_analyses["1"],
             "1",
             _mock_incremental_agent.return_value,
             gen.changes,

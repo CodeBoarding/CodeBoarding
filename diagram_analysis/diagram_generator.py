@@ -32,12 +32,13 @@ from diagram_analysis.analysis_json import (
 )
 from diagram_analysis.cluster_delta import (
     ClusterDelta,
+    ClusterRef,
     LanguageDelta,
     StructuralClusterDiff,
     compute_cluster_delta,
     structural_diff_from_delta,
 )
-from diagram_analysis.cluster_snapshot import ClusterSnapshot, snapshot_from_static_analysis
+from diagram_analysis.cluster_snapshot import ClusterSnapshot, ClusterSnapshotEntry, snapshot_from_static_analysis
 from diagram_analysis.exceptions import IncrementalCacheMissingError
 from diagram_analysis.file_coverage import FileCoverage
 from diagram_analysis.io_utils import normalize_repo_path, save_analysis
@@ -586,14 +587,23 @@ class DiagramGenerator:
                 continue
             child_cluster_results, child_diff = _build_scope_incremental_inputs(
                 child_component,
+                child_scope,
                 component_id,
                 incremental_agent,
                 self.changes,
                 self.repo_location,
             )
             if not child_diff.has_changes:
+                logger.info("[incremental] child scope %s skipped: no local structural changes", component_id)
                 continue
-            if not _child_scope_needs_recursive_update(child_scope, child_diff):
+            should_recurse, recurse_reason = _child_scope_recursive_update_decision(child_scope, child_diff)
+            logger.info(
+                "[incremental] child scope %s recursive update check: recurse=%s reason=%s",
+                component_id,
+                should_recurse,
+                recurse_reason,
+            )
+            if not should_recurse:
                 continue
             child_result = self._apply_incremental_scope_recursively(
                 component_id,
@@ -827,6 +837,14 @@ def _child_scope_needs_recursive_update(
     child_scope: AnalysisInsights,
     structural_diff: StructuralClusterDiff,
 ) -> bool:
+    should_recurse, _reason = _child_scope_recursive_update_decision(child_scope, structural_diff)
+    return should_recurse
+
+
+def _child_scope_recursive_update_decision(
+    child_scope: AnalysisInsights,
+    structural_diff: StructuralClusterDiff,
+) -> tuple[bool, str]:
     owned_qnames = {
         method.qualified_name
         for component in child_scope.components
@@ -834,27 +852,100 @@ def _child_scope_needs_recursive_update(
         for method in group.methods
         if method.qualified_name
     }
+    owned_cluster_ids = {
+        cluster_id for component in child_scope.components for cluster_id in component.source_cluster_ids
+    }
+    added_qnames: set[str] = set()
     removed_qnames: set[str] = set()
+    unchanged_qnames: set[str] = set()
+    removed_cluster_ids: set[str] = set()
+    has_unowned_new_cluster = False
+    has_reshape = False
     for diff in structural_diff.by_language.values():
+        for ref in diff.new:
+            if _qualified_cluster_id(ref) not in owned_cluster_ids:
+                has_unowned_new_cluster = True
+        for member_delta in diff.new_details:
+            if _qualified_cluster_id(member_delta.new_cluster) not in owned_cluster_ids:
+                has_unowned_new_cluster = True
+        has_reshape = has_reshape or bool(diff.reshaped)
+        removed_cluster_ids.update(_qualified_cluster_id(ref) for ref in diff.removed)
         for member_delta in [*diff.modified, *diff.new_details]:
+            added_qnames.update(member_delta.added_methods)
             removed_qnames.update(member_delta.removed_methods)
-    return bool(removed_qnames.intersection(owned_qnames))
+            unchanged_qnames.update(member_delta.unchanged_methods)
+
+    effective_added_qnames = added_qnames - owned_qnames
+    effective_removed_qnames = removed_qnames & owned_qnames
+    effective_removed_cluster_ids = removed_cluster_ids & owned_cluster_ids
+    has_effective_method_change = bool(effective_added_qnames or effective_removed_qnames)
+    has_any_child_change = bool(has_effective_method_change or effective_removed_cluster_ids or has_unowned_new_cluster)
+    is_all_additions = bool(
+        effective_added_qnames
+        and not (
+            owned_qnames or effective_removed_qnames or unchanged_qnames or effective_removed_cluster_ids or has_reshape
+        )
+    )
+    is_all_method_deletions = bool(
+        effective_removed_qnames
+        and owned_qnames
+        and effective_removed_qnames >= owned_qnames
+        and not (effective_added_qnames or unchanged_qnames or has_reshape)
+    )
+    is_all_cluster_deletions = bool(
+        effective_removed_cluster_ids
+        and owned_cluster_ids
+        and effective_removed_cluster_ids >= owned_cluster_ids
+        and not (effective_added_qnames or unchanged_qnames or has_reshape)
+    )
+
+    if not has_any_child_change:
+        return False, (
+            "no_effective_child_changes "
+            f"raw_added_methods={len(added_qnames)} owned_added_methods={len(added_qnames & owned_qnames)} "
+            f"raw_removed_methods={len(removed_qnames)} reshaped={int(has_reshape)}"
+        )
+    if is_all_additions:
+        return False, (
+            f"all_additions added_methods={len(effective_added_qnames)} " f"new_clusters={int(has_unowned_new_cluster)}"
+        )
+    if is_all_method_deletions or is_all_cluster_deletions:
+        return False, (
+            "all_deletions "
+            f"removed_methods={len(effective_removed_qnames)} owned_methods={len(owned_qnames)} "
+            f"removed_clusters={len(effective_removed_cluster_ids)} owned_clusters={len(owned_cluster_ids)}"
+        )
+    return True, (
+        "mixed_existing_scope_change "
+        f"owned_methods={len(owned_qnames)} added_methods={len(effective_added_qnames)} "
+        f"owned_added_methods={len(added_qnames & owned_qnames)} "
+        f"removed_methods={len(effective_removed_qnames)} unchanged_methods={len(unchanged_qnames)} "
+        f"removed_clusters={len(removed_cluster_ids)} reshaped={int(has_reshape)}"
+    )
+
+
+def _qualified_cluster_id(ref: ClusterRef) -> str:
+    if ref.scope_id == ROOT_SCOPE_ID:
+        return str(ref.cluster_id)
+    return f"{ref.scope_id}.{ref.cluster_id}"
 
 
 def _build_scope_incremental_inputs(
     component: Component,
+    child_scope: AnalysisInsights,
     scope_id: str,
     incremental_agent: IncrementalAgent,
     changes: ChangeSet | None,
     repo_dir: Path,
 ) -> tuple[dict[str, ClusterResult], StructuralClusterDiff]:
-    old_snapshot = scoped_snapshot_for_component(component, scope_id, incremental_agent)
+    old_snapshot = scoped_snapshot_for_scope(child_scope, scope_id, incremental_agent)
     if not old_snapshot.all_cluster_ids():
         return {}, StructuralClusterDiff()
 
     _subgraph_str, cluster_results, _subgraph_cfgs = incremental_agent._create_strict_component_subgraph(
         component,
         source_cluster_id_prefix=scope_id,
+        expand_small_clusters=False,
     )
     delta = ClusterDelta(
         by_language={
@@ -869,24 +960,105 @@ def _build_scope_incremental_inputs(
         repo_dir=repo_dir,
         scope_id=scope_id,
     )
+    _log_scope_incremental_inputs(component, scope_id, old_snapshot, cluster_results, structural_diff)
     return cluster_results, structural_diff
 
 
-def scoped_snapshot_for_component(
+def _log_scope_incremental_inputs(
     component: Component,
+    scope_id: str,
+    old_snapshot: ClusterSnapshot,
+    cluster_results: dict[str, ClusterResult],
+    structural_diff: StructuralClusterDiff,
+) -> None:
+    lines = [
+        "[incremental_scope_inputs] "
+        f"scope={scope_id} component={component.component_id or '?'} {component.name!r} "
+        f"source_clusters={component.source_cluster_ids} old_snapshot_clusters={sorted(old_snapshot.all_cluster_ids())}"
+    ]
+    for language in sorted(cluster_results):
+        cluster_result = cluster_results[language]
+        cluster_summaries = []
+        for cluster_id in sorted(cluster_result.clusters)[:12]:
+            members = sorted(cluster_result.clusters[cluster_id])
+            files = sorted(cluster_result.cluster_to_files.get(cluster_id, set()))
+            cluster_summaries.append(
+                f"{cluster_id}:members={len(members)} files={_sample_log_values(files, 3)} "
+                f"sample={_sample_log_values(members, 3)}"
+            )
+        if len(cluster_result.clusters) > 12:
+            cluster_summaries.append(f"...(+{len(cluster_result.clusters) - 12} clusters)")
+        lines.append(f"  clusters {language}: count={len(cluster_result.clusters)} " f"summaries={cluster_summaries}")
+    for language in sorted(structural_diff.by_language):
+        diff = structural_diff.by_language[language]
+        lines.append(
+            f"  structural {language}: modified={len(diff.modified)} new={len(diff.new)} "
+            f"new_details={len(diff.new_details)} removed={len(diff.removed)} reshaped={len(diff.reshaped)}"
+        )
+    logger.info("\n".join(lines))
+
+
+def _sample_log_values(values: list[str], limit: int) -> list[str]:
+    if len(values) <= limit:
+        return values
+    return [*values[:limit], f"...(+{len(values) - limit})"]
+
+
+def scoped_snapshot_for_scope(
+    scope: AnalysisInsights,
     scope_id: str,
     incremental_agent: IncrementalAgent,
 ) -> ClusterSnapshot:
     assigned_qnames = {
-        method.qualified_name for group in component.file_methods for method in group.methods if method.qualified_name
+        method.qualified_name
+        for component in scope.components
+        for group in component.file_methods
+        for method in group.methods
+        if method.qualified_name
     }
-    by_language = {}
+    by_language: dict[str, dict[int, ClusterSnapshotEntry]] = {}
     for language in incremental_agent.static_analysis.get_languages():
         cfg = incremental_agent.static_analysis.get_cfg(language)
         sub_cfg = cfg.filter_by_nodes(assigned_qnames)
         if sub_cfg.nodes:
-            by_language[str(language)] = scoped_snapshot_from_lineage(sub_cfg, scope_id)
+            entries = scoped_snapshot_from_lineage(sub_cfg, scope_id)
+            _fill_snapshot_from_scope_components(entries, scope, scope_id)
+            by_language[str(language)] = entries
     return ClusterSnapshot(by_language=by_language)
+
+
+def _fill_snapshot_from_scope_components(
+    entries: dict[int, ClusterSnapshotEntry],
+    scope: AnalysisInsights,
+    scope_id: str,
+) -> None:
+    represented_qnames = {qname for entry in entries.values() for qname in entry.members}
+    for component in scope.components:
+        local_cluster_ids = _component_local_cluster_ids(component, scope_id)
+        if not local_cluster_ids:
+            continue
+        fallback_cluster_id = local_cluster_ids[0]
+        for group in component.file_methods:
+            for method in group.methods:
+                if not method.qualified_name or method.qualified_name in represented_qnames:
+                    continue
+                entry = entries.setdefault(fallback_cluster_id, ClusterSnapshotEntry())
+                entry.members.add(method.qualified_name)
+                entry.files.add(group.file_path)
+                entry.member_files[method.qualified_name] = group.file_path
+                represented_qnames.add(method.qualified_name)
+
+
+def _component_local_cluster_ids(component: Component, scope_id: str) -> list[int]:
+    local_ids: list[int] = []
+    prefix = "" if scope_id == ROOT_SCOPE_ID else f"{scope_id}."
+    for source_cluster_id in component.source_cluster_ids:
+        if prefix and not source_cluster_id.startswith(prefix):
+            continue
+        local_id = source_cluster_id.removeprefix(prefix) if prefix else source_cluster_id
+        if local_id.isdigit():
+            local_ids.append(int(local_id))
+    return sorted(set(local_ids))
 
 
 def _merge_sub_analyses(
