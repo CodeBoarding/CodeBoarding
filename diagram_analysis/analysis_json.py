@@ -94,6 +94,10 @@ class MethodIndexEntry(BaseModel):
     start_line: int = Field(description="Starting line number in the file.")
     end_line: int = Field(description="Ending line number in the file.")
     type: str = Field(description="Node type name (METHOD, FUNCTION, CLASS, ...).")
+    content_hash: str = Field(
+        default="",
+        description="Truncated SHA-256 of the method's source lines; '' when unknown.",
+    )
 
 
 class ComponentFileMethodGroupJson(BaseModel):
@@ -113,6 +117,10 @@ class FileEntryJson(BaseModel):
     method_keys: list[str] = Field(
         default_factory=list,
         description="Keys into ``methods_index`` ('<file_path>|<qualified_name>'), in declaration order.",
+    )
+    content_hash: str = Field(
+        default="",
+        description="Truncated SHA-256 of the entire file's bytes; '' when unknown.",
     )
 
 
@@ -187,6 +195,7 @@ def _build_methods_index_from_files(files_index: dict[str, FileEntry]) -> dict[s
                 start_line=method.start_line,
                 end_line=method.end_line,
                 type=method.node_type,
+                content_hash=method.content_hash,
             )
     return methods_index
 
@@ -195,6 +204,7 @@ def _build_file_entry_json_from_files(files_index: dict[str, FileEntry]) -> dict
     return {
         file_path: FileEntryJson(
             method_keys=[_method_key(file_path, m.qualified_name) for m in entry.methods],
+            content_hash=entry.content_hash,
         )
         for file_path, entry in files_index.items()
     }
@@ -222,6 +232,7 @@ def _hydrate_component_methods_from_refs(
                         start_line=indexed.start_line,
                         end_line=indexed.end_line,
                         node_type=indexed.type,
+                        content_hash=indexed.content_hash,
                     )
                 )
 
@@ -450,9 +461,13 @@ def _reconstruct_files_index(
                     start_line=indexed.start_line,
                     end_line=indexed.end_line,
                     node_type=indexed.type,
+                    content_hash=indexed.content_hash,
                 )
             )
-        files_index[file_path] = FileEntry(methods=methods)
+        files_index[file_path] = FileEntry(
+            methods=methods,
+            content_hash=entry_raw.get("content_hash", ""),
+        )
     return files_index
 
 
