@@ -16,6 +16,10 @@ from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import Language
 
 
+def _realpaths(paths: list[str]) -> list[str]:
+    return [str(Path(path).resolve()) for path in paths]
+
+
 class TestStaticAnalysisCache(unittest.TestCase):
     """Tests for StaticAnalysisCache save/load functionality."""
 
@@ -56,7 +60,7 @@ class TestStaticAnalysisCache(unittest.TestCase):
         if loaded is None:
             return
 
-        self.assertEqual(loaded.get_source_files(Language.PYTHON), [file1, file2])
+        self.assertEqual(_realpaths(loaded.get_source_files(Language.PYTHON)), _realpaths([file1, file2]))
 
     def test_get_returns_none_for_corrupted_artifact(self):
         self.artifact_dir.mkdir(parents=True)
@@ -82,7 +86,7 @@ class TestStaticAnalysisCache(unittest.TestCase):
         if loaded is None:
             return
 
-        self.assertEqual(loaded.get_source_files(Language.PYTHON), [new_file])
+        self.assertEqual(_realpaths(loaded.get_source_files(Language.PYTHON)), _realpaths([new_file]))
 
     def test_artifact_filenames(self):
         results = StaticAnalysisResults()
@@ -186,8 +190,8 @@ class TestStaticAnalysisCacheLegacyMigration(unittest.TestCase):
         if loaded is None:
             return
         self.assertEqual(
-            loaded.get_source_files(Language.PYTHON),
-            [str(self.repo_root / "src/legacy.py")],
+            _realpaths(loaded.get_source_files(Language.PYTHON)),
+            _realpaths([str(self.repo_root / "src/legacy.py")]),
         )
 
     def test_legacy_fallback_disabled_under_sha_gate(self):
@@ -281,7 +285,10 @@ class TestLoadWithSha(unittest.TestCase):
         if loaded is not None:
             cached_results, cached_sha = loaded
             self.assertEqual(cached_sha, "sha-current")
-            self.assertEqual(cached_results.get_source_files(Language.PYTHON), [str(self.repo_root / "main.py")])
+            self.assertEqual(
+                _realpaths(cached_results.get_source_files(Language.PYTHON)),
+                _realpaths([str(self.repo_root / "main.py")]),
+            )
 
     def test_returns_none_when_tag_absent(self):
         # Untagged save: pkl exists but no SHA tag -> not warm-startable.
@@ -339,7 +346,10 @@ class TestCopyCacheFiles(unittest.TestCase):
         loaded = self.dst_cache.get(expected_sha="sha-current")
         self.assertIsNotNone(loaded)
         if loaded is not None:
-            self.assertEqual(loaded.get_source_files(Language.PYTHON), [str(self.repo_root / "main.py")])
+            self.assertEqual(
+                _realpaths(loaded.get_source_files(Language.PYTHON)),
+                _realpaths([str(self.repo_root / "main.py")]),
+            )
 
     def test_missing_pair_returns_false_without_changes(self):
         # No source pkl/sha at all -> no-op, no destination state.
@@ -371,7 +381,10 @@ class TestCopyCacheFiles(unittest.TestCase):
         loaded = self.dst_cache.get(expected_sha="sha-new")
         self.assertIsNotNone(loaded)
         if loaded is not None:
-            self.assertEqual(loaded.get_source_files(Language.PYTHON), [str(self.repo_root / "new.py")])
+            self.assertEqual(
+                _realpaths(loaded.get_source_files(Language.PYTHON)),
+                _realpaths([str(self.repo_root / "new.py")]),
+            )
 
     def test_sha_copy_failure_removes_destination_pair(self):
         old_results = StaticAnalysisResults()

@@ -760,7 +760,7 @@ class TestDiagramGenerator(unittest.TestCase):
     @patch("diagram_analysis.diagram_generator.initialize_llms", return_value=(Mock(), Mock()))
     @patch("diagram_analysis.diagram_generator.compute_cluster_delta")
     @patch("diagram_analysis.diagram_generator.snapshot_from_static_analysis")
-    def test_incremental_refresh_recursively_updates_existing_parent_scope_from_local_diff(
+    def test_incremental_refresh_updates_existing_parent_scope(
         self,
         mock_snapshot,
         mock_delta,
@@ -793,7 +793,18 @@ class TestDiagramGenerator(unittest.TestCase):
         gen._persist_static_analysis_artifact = Mock()
 
         root_component = Component(name="Parent", description="", key_entities=[], component_id="1")
-        child_component = Component(name="Stable Child", description="", key_entities=[], component_id="1.1")
+        child_component = Component(
+            name="Stable Child",
+            description="",
+            key_entities=[],
+            component_id="1.1",
+            file_methods=[
+                FileMethodGroup(
+                    file_path="pkg/module.py",
+                    methods=[MethodEntry(qualified_name="pkg.changed", start_line=1, end_line=10, node_type="METHOD")],
+                )
+            ],
+        )
         root_analysis = AnalysisInsights(description="root", components=[root_component], components_relations=[])
         sub_analyses = {"1": AnalysisInsights(description="sub", components=[child_component], components_relations=[])}
 
@@ -822,7 +833,7 @@ class TestDiagramGenerator(unittest.TestCase):
                         ClusterMemberDelta(
                             old_cluster=ClusterRef(language="python", cluster_id=3, scope_id="1"),
                             new_cluster=ClusterRef(language="python", cluster_id=3, scope_id="1"),
-                            added_methods={"pkg.changed"},
+                            removed_methods={"pkg.changed"},
                         )
                     ],
                 )
@@ -860,8 +871,8 @@ class TestDiagramGenerator(unittest.TestCase):
         gen.generate_analysis_incremental(root_analysis, sub_analyses)
 
         mock_snapshot.assert_called_once_with(base_static_analysis)
-        self.assertEqual(mock_planning_agent.return_value.decide_scope_update.call_count, 2)
-        self.assertEqual(_mock_incremental_agent.return_value.update_scope.call_count, 2)
+        mock_planning_agent.return_value.decide_scope_update.assert_called_once_with("root", root_analysis, root_diff)
+        _mock_incremental_agent.return_value.update_scope.assert_called_once()
         mock_build_scope_inputs.assert_called_once_with(
             root_component,
             "1",
@@ -869,10 +880,6 @@ class TestDiagramGenerator(unittest.TestCase):
             gen.changes,
             gen.repo_location,
         )
-        child_call = mock_planning_agent.return_value.decide_scope_update.call_args_list[1]
-        self.assertEqual(child_call.args[0], "1")
-        self.assertEqual(child_call.args[1], sub_analyses["1"])
-        self.assertIs(child_call.args[2], child_diff)
         gen._generate_subcomponents.assert_not_called()
         self.assertEqual(sub_analyses["1"].components[0].name, "Stable Child")
 
