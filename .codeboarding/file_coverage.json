@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generated_at": "2026-06-07T01:17:24.147924+00:00",
+  "generated_at": "2026-06-30T17:44:50.240506+00:00",
   "analyzed_files": [
     "agents/__init__.py",
     "agents/abstraction_agent.py",
@@ -8,11 +8,14 @@
     "agents/agent_responses.py",
     "agents/change_status.py",
     "agents/cluster_budget.py",
+    "agents/cluster_ids.py",
     "agents/cluster_methods_mixin.py",
     "agents/constants.py",
     "agents/dependency_discovery.py",
     "agents/details_agent.py",
     "agents/incremental_agent.py",
+    "agents/incremental_planning_agent.py",
+    "agents/incremental_results.py",
     "agents/llm_config.py",
     "agents/meta_agent.py",
     "agents/model_capabilities.py",
@@ -27,6 +30,7 @@
     "agents/prompts/kimi_prompts.py",
     "agents/prompts/prompt_factory.py",
     "agents/retry.py",
+    "agents/scope_ids.py",
     "agents/tools/__init__.py",
     "agents/tools/base.py",
     "agents/tools/get_external_deps.py",
@@ -35,6 +39,7 @@
     "agents/tools/read_docs.py",
     "agents/tools/read_file.py",
     "agents/tools/read_file_structure.py",
+    "agents/tools/read_git_diff.py",
     "agents/tools/read_packages.py",
     "agents/tools/read_source.py",
     "agents/tools/read_structure.py",
@@ -50,6 +55,7 @@
     "codeboarding_cli/commands/full_analysis.py",
     "codeboarding_cli/commands/incremental_analysis.py",
     "codeboarding_cli/commands/partial_analysis.py",
+    "codeboarding_cli/view_instructions.py",
     "codeboarding_workflows/__init__.py",
     "codeboarding_workflows/analysis.py",
     "codeboarding_workflows/orchestration.py",
@@ -110,6 +116,7 @@
     "repo_utils/errors.py",
     "repo_utils/git_ops.py",
     "repo_utils/ignore.py",
+    "repo_utils/path_utils.py",
     "static_analyzer/__init__.py",
     "static_analyzer/analysis_cache.py",
     "static_analyzer/analysis_result.py",
@@ -118,6 +125,7 @@
     "static_analyzer/cluster_relations.py",
     "static_analyzer/constants.py",
     "static_analyzer/csharp_config_scanner.py",
+    "static_analyzer/dotnet_sdk.py",
     "static_analyzer/engine/__init__.py",
     "static_analyzer/engine/adapters/__init__.py",
     "static_analyzer/engine/adapters/csharp_adapter.py",
@@ -149,11 +157,17 @@
     "static_analyzer/leiden_utils.py",
     "static_analyzer/lsp_client/__init__.py",
     "static_analyzer/lsp_client/diagnostics.py",
+    "static_analyzer/method_cluster_paths.py",
     "static_analyzer/node.py",
     "static_analyzer/programming_language.py",
     "static_analyzer/reference_resolve_mixin.py",
     "static_analyzer/scanner.py",
     "static_analyzer/typescript_config_scanner.py",
+    "telemetry/__init__.py",
+    "telemetry/device_id.py",
+    "telemetry/events.py",
+    "telemetry/schemas.py",
+    "telemetry/service.py",
     "tool_registry/__init__.py",
     "tool_registry/installers.py",
     "tool_registry/manifest.py",
@@ -190,6 +204,10 @@
     },
     {
       "path": "REVIEW.md",
+      "reason": "other"
+    },
+    {
+      "path": "TELEMETRY.md",
       "reason": "other"
     },
     {
@@ -258,6 +276,10 @@
     },
     {
       "path": "tests/agents/test_incremental_agent.py",
+      "reason": "codeboardingignore"
+    },
+    {
+      "path": "tests/agents/test_incremental_planning_agent.py",
       "reason": "codeboardingignore"
     },
     {
@@ -334,6 +356,10 @@
     },
     {
       "path": "tests/codeboarding_workflows/test_analysis.py",
+      "reason": "codeboardingignore"
+    },
+    {
+      "path": "tests/conftest.py",
       "reason": "codeboardingignore"
     },
     {
@@ -937,6 +963,10 @@
       "reason": "codeboardingignore"
     },
     {
+      "path": "tests/integration/test_static_analysis_warm_start_delta.py",
+      "reason": "codeboardingignore"
+    },
+    {
       "path": "tests/monitoring/test_context.py",
       "reason": "codeboardingignore"
     },
@@ -1057,6 +1087,10 @@
       "reason": "codeboardingignore"
     },
     {
+      "path": "tests/static_analyzer/test_dotnet_sdk.py",
+      "reason": "codeboardingignore"
+    },
+    {
       "path": "tests/static_analyzer/test_edge_builder.py",
       "reason": "codeboardingignore"
     },
@@ -1165,11 +1199,19 @@
       "reason": "codeboardingignore"
     },
     {
+      "path": "tests/test_telemetry_events.py",
+      "reason": "codeboardingignore"
+    },
+    {
       "path": "tests/test_tool_registry.py",
       "reason": "codeboardingignore"
     },
     {
       "path": "tests/test_user_config.py",
+      "reason": "codeboardingignore"
+    },
+    {
+      "path": "tests/test_view_instructions.py",
       "reason": "codeboardingignore"
     },
     {
@@ -1186,12 +1228,12 @@
     }
   ],
   "summary": {
-    "total_files": 415,
-    "analyzed": 160,
-    "not_analyzed": 255,
+    "total_files": 436,
+    "analyzed": 174,
+    "not_analyzed": 262,
     "not_analyzed_by_reason": {
-      "other": 13,
-      "codeboardingignore": 237,
+      "other": 14,
+      "codeboardingignore": 243,
       "ignored_directory": 5
     }
   }
