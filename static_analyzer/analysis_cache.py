@@ -33,7 +33,7 @@ from static_analyzer.analysis_result import AnalysisData, InvalidatedAnalysis, I
 from static_analyzer.graph import Edge
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
 from static_analyzer.node import Node
-from utils import to_absolute_path, to_relative_path
+from repo_utils.path_utils import to_absolute_path, to_relative_path
 
 if TYPE_CHECKING:
     from static_analyzer.analysis_result import StaticAnalysisResults
@@ -78,14 +78,17 @@ class StaticAnalysisCache:
 
     def _relativize(self, result: "StaticAnalysisResults") -> "StaticAnalysisResults":
         """Return a copy of result with all file paths made repo-relative."""
-        result = copy.deepcopy(result)
-        for lang_data in result.results.values():
+        portable = copy.copy(result)
+        # Drop runtime-only warm-start context before deep-copying/pickling the cache artifact.
+        portable.incremental_base_results = None
+        portable = copy.deepcopy(portable)
+        for lang_data in portable.results.values():
             lang_data.visit_paths(self._to_relative)
-        result.diagnostics = {
+        portable.diagnostics = {
             lang: {self._to_relative(fp): diags for fp, diags in file_map.items()}
-            for lang, file_map in result.diagnostics.items()
+            for lang, file_map in portable.diagnostics.items()
         }
-        return result
+        return portable
 
     def _absolutize(self, result: "StaticAnalysisResults") -> "StaticAnalysisResults":
         """Expand all repo-relative file paths in result to absolute paths."""

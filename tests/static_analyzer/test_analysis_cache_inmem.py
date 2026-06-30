@@ -10,9 +10,9 @@ import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from static_analyzer.analysis_cache import invalidate_files, merge_results
-from static_analyzer.analysis_result import AnalysisData
-from static_analyzer.constants import NodeType
+from static_analyzer.analysis_cache import StaticAnalysisCache, invalidate_files, merge_results
+from static_analyzer.analysis_result import AnalysisData, StaticAnalysisResults
+from static_analyzer.constants import Language, NodeType
 from static_analyzer.graph import CallGraph, ClusterResult, Edge
 from static_analyzer.node import Node
 from static_analyzer.incremental_orchestrator import update_cfg_for_changed_files
@@ -280,6 +280,54 @@ class TestClusterCachePreservation(unittest.TestCase):
         # New node from `other` participates in the graph but not yet in any cluster.
         self.assertIn("c.new", unioned.nodes)
         self.assertNotIn("c.new", {m for members in cc.clusters.values() for m in members})
+
+    def test_static_analysis_cache_does_not_persist_incremental_base_results(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            result = StaticAnalysisResults()
+            result.add_cfg(Language.PYTHON, self._cg_with_cluster_cache())
+            base_results = StaticAnalysisResults()
+            result.incremental_base_results = base_results
+
+            cache = StaticAnalysisCache(root / ".codeboarding", root)
+            cache.save(result, source_sha="sha")
+            loaded = cache.get()
+
+            assert loaded is not None
+            self.assertIsNone(loaded.incremental_base_results)
+            self.assertIs(result.incremental_base_results, base_results)
+
+    def test_static_analysis_cache_round_trips_cluster_cache_paths_between_repo_roots(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            repo_a = temp_path / "repo-a"
+            repo_b = temp_path / "repo-b"
+            artifact_dir = temp_path / "artifact"
+            repo_a.mkdir()
+            repo_b.mkdir()
+
+            source_file = repo_a / "pkg" / "a.py"
+            cg = CallGraph(language="python")
+            cg.add_node(_node("pkg.a.foo", str(source_file)))
+            cg._cluster_cache = ClusterResult(
+                clusters={1: {"pkg.a.foo"}},
+                cluster_to_files={1: {str(source_file)}},
+                file_to_clusters={str(source_file): {1}},
+                strategy="leiden",
+            )
+            result = StaticAnalysisResults()
+            result.add_cfg(Language.PYTHON, cg)
+
+            StaticAnalysisCache(artifact_dir, repo_a).save(result, source_sha="sha")
+            loaded = StaticAnalysisCache(artifact_dir, repo_b).get(expected_sha="sha")
+
+            assert loaded is not None
+            loaded_cfg = loaded.get_cfg(Language.PYTHON)
+            expected_file = str(repo_b.resolve() / "pkg" / "a.py")
+            self.assertEqual(loaded_cfg.nodes["pkg.a.foo"].file_path, expected_file)
+            assert loaded_cfg._cluster_cache is not None
+            self.assertEqual(loaded_cfg._cluster_cache.cluster_to_files, {1: {expected_file}})
+            self.assertEqual(loaded_cfg._cluster_cache.file_to_clusters, {expected_file: {1}})
 
 
 class TestWarmStartDeletion(unittest.TestCase):

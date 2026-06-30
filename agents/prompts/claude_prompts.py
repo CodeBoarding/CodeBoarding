@@ -357,7 +357,7 @@ Project context: {meta_context}
 
 Project Type: {project_type}
 
-The previous analysis established the components below. Most clusters are unchanged and stay where they are; this prompt only shows the slice that changed (new clusters or clusters whose member methods changed).
+The previous analysis established the components below. Most clusters are unchanged and stay where they are; this prompt only shows the structural slice that changed: new clusters, removed clusters, or clusters whose member set changed through added/removed methods. A method body edit by itself is not a cluster-boundary change.
 
 ### Existing components (each line shows `component_id "name"`)
 {existing_components}
@@ -380,6 +380,10 @@ For each cluster, there are two possibilities:
 
 A critical correctness rule: identity is tracked by component id, not by name. If clusters belong in an existing component, you MUST reference its component id explicitly. Reusing an existing component's name without pointing to its component id will fork a duplicate — that is wrong.
 
+Boundary rules:
+- Route each changed cluster to the most specific owning component. If both a parent and a child seem relevant, choose the child only.
+- `redetail_needed=False` means the component boundary is unchanged; do not use it to absorb new files, new responsibilities, or clusters owned by another component.
+
 Focus on:
 - Placing clusters where they belong architecturally, guided by method names, call patterns, and the existing component boundaries
 - Creating cohesive groupings that reflect the actual {project_type} architecture
@@ -389,6 +393,43 @@ Focus on:
 
 <tool_usage_policy>
 For each cluster you're uncertain about, you may read source. Keep each read small and targeted — the source of a single representative qname is usually the right unit. Continue reading further (still in small, focused steps) only while you remain uncertain about that specific cluster's placement, and stop as soon as your confidence is high. Don't broaden the scope of a single read to cover ground you don't yet need.
+</tool_usage_policy>"""
+
+
+PLANNING_MESSAGE = """Update one scope of the `{project_name}` architecture diagram.
+
+<context>
+Scope: `{scope_id}` (`root` means the top-level diagram)
+Project type: {project_type}
+
+Project context:
+{meta_context}
+
+Existing components in this scope:
+{existing_components}
+
+Changed files:
+{changed_files}
+
+Structural cluster diff:
+{structural_diff}
+
+</context>
+
+<instructions>
+Return operations for this scope only.
+
+- Keep unchanged clusters out of the operations unless the diff makes the component semantically dirty.
+- For modified clusters, preserve the existing owning component shown by its clusters=[...] list; use update_component for that owner instead of moving the cluster to another component.
+- For new clusters, decide from the structural diff whether they extend an existing responsibility or introduce a new component; do not infer this from file/package layout alone.
+- For reshaped groups, follow overlap counts to keep old cluster ownership stable. Only assign a reshaped new cluster to a different component when the diff proves a real responsibility move.
+- Do not reparent existing components. If reparenting seems required, use regenerate_scope.
+- Every modified/new/reshaped new-side cluster listed below must appear in exactly one operation's cluster_refs.
+
+</instructions>
+
+<tool_usage_policy>
+Use listGitChanges/readGitDiff only when the structural diff is not enough to judge semantic impact. Keep reads targeted to the uncertain cluster.
 </tool_usage_policy>"""
 
 
@@ -439,6 +480,9 @@ class ClaudePromptFactory(AbstractPromptFactory):
 
     def get_incremental_grouping_message(self) -> str:
         return INCREMENTAL_GROUPING_MESSAGE
+
+    def get_planning_message(self) -> str:
+        return PLANNING_MESSAGE
 
     def get_scope_relations_message(self) -> str:
         return SCOPE_RELATIONS_MESSAGE

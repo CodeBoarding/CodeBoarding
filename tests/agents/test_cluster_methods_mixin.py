@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 import networkx as nx
 
 from agents.cluster_budget import ClusterPromptBudget
+from agents.cluster_ids import CodeBoardingClusterIds
 from agents.cluster_methods_mixin import ClusterMethodsMixin
 from agents.agent_responses import AnalysisInsights, Component, SourceCodeReference
 from agents.model_capabilities import ContextWindow
@@ -65,6 +66,15 @@ class TestClusterResult(unittest.TestCase):
         )
         self.assertEqual(result.get_nodes_for_cluster(1), {"node_a", "node_b"})
         self.assertEqual(result.get_nodes_for_cluster(99), set())
+
+
+class TestCodeBoardingClusterIds(unittest.TestCase):
+    def test_sort_groups_by_depth_then_uses_natural_order(self):
+        self.assertEqual(CodeBoardingClusterIds.sort({"10", "2.1", "3.4", "1", "2"}), ["1", "2", "10", "2.1", "3.4"])
+
+    def test_qualify_local_ids_always_prefixes_non_root_scope(self):
+        self.assertEqual(CodeBoardingClusterIds.qualify_local_ids(["1", "2"], "1.1"), ["1.1.1", "1.1.2"])
+        self.assertEqual(CodeBoardingClusterIds.qualify_local_ids(["1.1.1"], "1.1"), ["1.1.1.1.1"])
 
 
 class TestFindNearestCluster(unittest.TestCase):

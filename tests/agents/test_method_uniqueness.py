@@ -168,7 +168,7 @@ class TestMethodUniquenessWithAliases(unittest.TestCase):
             description="Sandbox agent component",
             key_entities=[SourceCodeReference(qualified_name="src.ipc.handleIpc")],
             source_group_names=["Sandbox Group"],
-            source_cluster_ids=[0],
+            source_cluster_ids=["0"],
             component_id="1",
         )
         comp_orch = Component(
@@ -176,7 +176,7 @@ class TestMethodUniquenessWithAliases(unittest.TestCase):
             description="Orchestration component",
             key_entities=[SourceCodeReference(qualified_name="src.orchestrator.run")],
             source_group_names=["Orchestration Group"],
-            source_cluster_ids=[1],
+            source_cluster_ids=["1"],
             component_id="2",
         )
 
@@ -305,7 +305,7 @@ class TestMethodUniquenessNanoclaw(unittest.TestCase):
                 description=f"Component {idx}",
                 key_entities=[SourceCodeReference(qualified_name=f"src.comp_{idx}.main")],
                 source_group_names=[f"Group_{idx}"],
-                source_cluster_ids=[idx],
+                source_cluster_ids=[str(idx)],
                 component_id=str(idx + 1),
             )
             for idx in range(3)
@@ -380,7 +380,7 @@ class TestMethodUniquenessNoAliases(unittest.TestCase):
             component_id="1",
             key_entities=[SourceCodeReference(qualified_name="src.shared.funcA")],
             source_group_names=["Alpha"],
-            source_cluster_ids=[0, 2],
+            source_cluster_ids=["0", "2"],
         )
         comp_beta = Component(
             name="Beta",
@@ -388,7 +388,7 @@ class TestMethodUniquenessNoAliases(unittest.TestCase):
             component_id="2",
             key_entities=[SourceCodeReference(qualified_name="src.shared.funcC")],
             source_group_names=["Beta"],
-            source_cluster_ids=[1],
+            source_cluster_ids=["1"],
         )
 
         analysis = AnalysisInsights(

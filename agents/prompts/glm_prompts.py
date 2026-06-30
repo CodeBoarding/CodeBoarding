@@ -405,7 +405,7 @@ CONTEXT:
 - Type: {project_type}
 - Meta: {meta_context}
 
-The previous analysis established the components below. Most clusters are unchanged and stay where they are; this prompt only shows the slice that changed (new clusters or clusters whose member methods changed).
+The previous analysis established the components below. Most clusters are unchanged and stay where they are; this prompt only shows the structural slice that changed: new clusters, removed clusters, or clusters whose member set changed through added/removed methods. A method body edit by itself is not a cluster-boundary change.
 
 EXISTING COMPONENTS (each line shows component_id and name):
 {existing_components}
@@ -423,10 +423,48 @@ REQUIRED STEPS (execute in order):
 CRITICAL RULE:
 Identity is by component_id, NOT by name. If clusters belong in an existing component, you MUST reference that component by its exact id — omitting it will fork a duplicate, which is WRONG.
 
+BOUNDARY RULES:
+- Route each changed cluster to the most specific owning component. If both a parent and a child seem relevant, choose the child only.
+- redetail_needed=False means the component boundary is unchanged; do not use it to absorb new files, new responsibilities, or clusters owned by another component.
+
 COVERAGE (MANDATORY):
 Every cluster id listed in the CLUSTER GROUPS TO ASSIGN section MUST appear in exactly one entry.
 
 Return one routing decision per cluster group. Each decision MUST clearly indicate whether it routes to an existing component (referenced by its exact id from the list above) or proposes a new component with a distinct name, a description paragraph, and the parent it should attach to."""
+
+
+PLANNING_MESSAGE = """You are a software architecture incremental-update analyst. STRICTLY follow these rules.
+
+TASK:
+Update one scope of the `{project_name}` architecture diagram.
+
+CONTEXT:
+- Scope: `{scope_id}` (`root` means the top-level diagram)
+- Project type: {project_type}
+- Meta: {meta_context}
+
+EXISTING COMPONENTS IN THIS SCOPE:
+{existing_components}
+
+CHANGED FILES:
+{changed_files}
+
+STRUCTURAL CLUSTER DIFF:
+{structural_diff}
+
+
+REQUIRED STEPS:
+1. Return operations for this scope only.
+2. Keep unchanged clusters out of operations unless the diff makes the component semantically dirty.
+3. For modified clusters, preserve the existing owning component shown by its clusters=[...] list; use update_component for that owner instead of moving the cluster to another component.
+4. For new clusters, decide from the structural diff whether they extend an existing responsibility or introduce a new component; do not infer this from file/package layout alone.
+5. For reshaped groups, follow overlap counts to keep old cluster ownership stable. Only assign a reshaped new cluster to a different component when the diff proves a real responsibility move.
+6. Use listGitChanges/readGitDiff ONLY when the structural diff is not enough to judge semantic impact.
+
+MANDATORY RULES:
+- Do NOT reparent existing components. If reparenting seems required, use regenerate_scope.
+- Every modified/new/reshaped new-side cluster listed below MUST appear in exactly one operation's cluster_refs.
+"""
 
 
 class GLMPromptFactory(AbstractPromptFactory):
@@ -479,6 +517,9 @@ class GLMPromptFactory(AbstractPromptFactory):
 
     def get_incremental_grouping_message(self) -> str:
         return INCREMENTAL_GROUPING_MESSAGE
+
+    def get_planning_message(self) -> str:
+        return PLANNING_MESSAGE
 
     def get_scope_relations_message(self) -> str:
         return SCOPE_RELATIONS_MESSAGE

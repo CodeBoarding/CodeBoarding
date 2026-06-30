@@ -246,8 +246,8 @@ class TestDetailsAgent(unittest.TestCase):
 
         agent._resolve_cluster_ids_from_groups(analysis, cluster_analysis)
 
-        self.assertEqual(analysis.components[0].source_cluster_ids, [1, 2, 3, 4])
-        self.assertEqual(analysis.components[1].source_cluster_ids, [1, 2])
+        self.assertEqual(analysis.components[0].source_cluster_ids, ["1", "2", "3", "4"])
+        self.assertEqual(analysis.components[1].source_cluster_ids, ["1", "2"])
 
     def test_resolve_cluster_ids_from_groups_case_insensitive(self):
         # Test case-insensitive fallback
@@ -284,7 +284,43 @@ class TestDetailsAgent(unittest.TestCase):
 
         agent._resolve_cluster_ids_from_groups(analysis, cluster_analysis)
 
-        self.assertEqual(analysis.components[0].source_cluster_ids, [1, 2])
+        self.assertEqual(analysis.components[0].source_cluster_ids, ["1", "2"])
+
+    def test_static_relation_pass_qualifies_detail_cluster_ids_with_parent_component_id(self):
+        mock_llm = MagicMock()
+        mock_parsing_llm = MagicMock()
+        agent = DetailsAgent(
+            repo_dir=self.repo_dir,
+            static_analysis=self.mock_static_analysis,
+            project_name=self.project_name,
+            meta_context=self.mock_meta_context,
+            agent_llm=mock_llm,
+            parsing_llm=mock_parsing_llm,
+            run_id="test-run-id",
+        )
+        analysis = AnalysisInsights(
+            description="Test",
+            components=[
+                Component(
+                    name="ChildA",
+                    description="ChildA",
+                    key_entities=[],
+                    source_cluster_ids=["1", "2"],
+                ),
+                Component(
+                    name="ChildB",
+                    description="ChildB",
+                    key_entities=[],
+                    source_cluster_ids=["7"],
+                ),
+            ],
+            components_relations=[],
+        )
+
+        agent.build_static_relations(analysis, {}, source_cluster_id_prefix="5.3")
+
+        self.assertEqual(analysis.components[0].source_cluster_ids, ["5.3.1", "5.3.2"])
+        self.assertEqual(analysis.components[1].source_cluster_ids, ["5.3.7"])
 
     @patch("agents.details_agent.DetailsAgent._validation_invoke")
     @patch("agents.details_agent.DetailsAgent.fix_source_code_reference_lines")
@@ -370,7 +406,7 @@ class TestDetailsAgent(unittest.TestCase):
             name="SubComponent",
             description="Sub component",
             key_entities=[],
-            source_cluster_ids=[1],
+            source_cluster_ids=["1"],
         )
         sub_component.component_id = "1"
 

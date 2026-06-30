@@ -1,54 +1,45 @@
-"""Incremental grouping agent + deterministic stitching helpers.
-
-One LLM call: route the cluster delta to existing components by name, or
-create new ones with a ``parent_id``. Stitching back into the live tree
-(``stitch_delta``) and downstream refresh/prune is deterministic.
-"""
+"""Incremental refresh helpers for scoped structural updates."""
 
 import logging
-from enum import StrEnum
 from pathlib import Path
 
-from langchain.agents import create_agent
 from langchain_core.language_models import BaseChatModel
 from langchain_core.prompts import PromptTemplate
 
 from agents.agent import CodeBoardingAgent
 from agents.agent_responses import (
     AnalysisInsights,
-    ClusterAnalysis,
-    ClustersComponent,
     Component,
     FileMethodGroup,
-    MetaAnalysisInsights,
     MethodEntry,
+    SourceCodeReference,
+    MetaAnalysisInsights,
     Relation,
+    ScopeOperation,
+    ScopeOperationAction,
     ScopeRelations,
+    ScopeUpdateDecision,
     assign_component_ids,
-    index_components_by_id,
     iter_components,
 )
 from agents.cluster_methods_mixin import ClusterMethodsMixin
-from agents.prompts import get_incremental_grouping_message, get_scope_relations_message, get_system_message
-from agents.validation import (
-    ValidationContext,
-    validate_cluster_coverage,
-    validate_existing_component_ids,
-    validate_scope_relation_names,
-)
-from diagram_analysis.cluster_delta import ClusterDelta
-from diagram_analysis.io_utils import normalize_repo_path
+from agents.cluster_ids import CodeBoardingClusterIds
+from agents.incremental_results import ScopeUpdateResult
+from agents.prompts import get_scope_relations_message, get_system_message
+from agents.scope_ids import ROOT_SCOPE_ID
+from agents.validation import ValidationContext, validate_scope_relation_names
 from monitoring import trace
+from repo_utils.change_detector import ChangeSet
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cluster_relations import merge_relations
 from static_analyzer.constants import Language
-from static_analyzer.graph import ClusterResult
+from static_analyzer.graph import CallGraph, ClusterResult
 
 logger = logging.getLogger(__name__)
 
 
 class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
-    """One LLM call: route delta clusters to existing or new components."""
+    """Materialize incremental plans and regenerate touched scope relations."""
 
     def __init__(
         self,
@@ -58,113 +49,165 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
         meta_context: MetaAnalysisInsights | None,
         agent_llm: BaseChatModel,
         parsing_llm: BaseChatModel,
+        changes: ChangeSet | None = None,
     ):
-        super().__init__(
-            repo_dir,
-            static_analysis,
-            get_system_message(),
-            agent_llm,
-            parsing_llm,
-        )
-        # Routing only needs source disambiguation, not the full code-reading
-        # toolkit — narrow the ReAct loop by rebuilding the agent with one tool.
-        self.agent = create_agent(
-            model=agent_llm,
-            tools=[self.toolkit.read_source_reference],
-        )
+        super().__init__(repo_dir, static_analysis, get_system_message(), agent_llm, parsing_llm)
+        if changes is not None:
+            self.toolkit.context.changes = changes
         self.project_name = project_name
         self.meta_context = meta_context
-        self.prompts = {
-            "group_delta": PromptTemplate(
-                template=get_incremental_grouping_message(),
-                input_variables=["project_name", "meta_context", "project_type", "existing_components", "cfg_clusters"],
-            ),
-        }
 
     @trace
-    def run(
+    def update_scope(
         self,
-        delta: ClusterDelta,
-        root_analysis: AnalysisInsights,
-        sub_analyses: dict[str, AnalysisInsights],
-    ) -> ClusterAnalysis:
-        affected_cluster_ids = delta.all_affected_cluster_ids()
-        if not affected_cluster_ids:
-            return ClusterAnalysis(cluster_components=[])
-
-        meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
-        project_type = self.meta_context.project_type if self.meta_context else "unknown"
-        cluster_results = delta.cluster_results()
-        affected_files: set[str] = set()
-        for cr in cluster_results.values():
-            for cid in affected_cluster_ids:
-                affected_files |= cr.cluster_to_files.get(cid, set())
-        existing_components_str = _format_existing_components(
-            root_analysis, sub_analyses, affected_files=affected_files
-        )
-
-        programming_langs = self.static_analysis.get_languages()
-
-        overhead_chars = len(str(self.system_message.content)) + len(
-            self.prompts["group_delta"].format(
-                project_name=self.project_name,
-                meta_context=meta_context_str,
-                project_type=project_type,
-                existing_components=existing_components_str,
-                cfg_clusters="",
-            )
-        )
-        cluster_str = self._build_cluster_string(
-            programming_langs,
-            cluster_results,
-            cluster_ids=affected_cluster_ids,
-            prompt_overhead_chars=overhead_chars,
-        )
-
-        prompt = self.prompts["group_delta"].format(
-            project_name=self.project_name,
-            meta_context=meta_context_str,
-            project_type=project_type,
-            existing_components=existing_components_str,
-            cfg_clusters=cluster_str,
-        )
-
-        existing_component_ids = {
-            c.component_id for c in iter_components(root_analysis, sub_analyses) if c.component_id
+        scope_id: str,
+        scope: AnalysisInsights,
+        decision: ScopeUpdateDecision,
+        cluster_results: dict[str, ClusterResult],
+    ) -> ScopeUpdateResult:
+        """Apply a planning decision to one scope and refresh its derived fields."""
+        result = ScopeUpdateResult()
+        components_by_id = {
+            component.component_id: component for component in scope.components if component.component_id
         }
-        result = self._validation_invoke(
-            prompt,
-            ClusterAnalysis,
-            validators=[validate_cluster_coverage, validate_existing_component_ids],
-            context=ValidationContext(
-                cluster_results=cluster_results,
-                expected_cluster_ids=affected_cluster_ids,
-                existing_component_ids=existing_component_ids,
-            ),
-            max_validation_attempts=3,
-            include_hidden=True,
-        )
-        _log_routing_summary(result)
+        result.refresh_ids.update(_remove_reassigned_clusters(scope_id, scope.components, components_by_id, decision))
+
+        for operation in decision.operations:
+            if operation.action == ScopeOperationAction.REGENERATE_SCOPE:
+                result.regenerate_scope = True
+                continue
+            if operation.action == ScopeOperationAction.CREATE_COMPONENT:
+                self._create_component_from_operation(scope_id, scope, operation, components_by_id, result)
+                continue
+            if operation.action == ScopeOperationAction.DELETE_COMPONENT:
+                if operation.component_id:
+                    component = components_by_id.get(operation.component_id)
+                    if component is not None and _component_has_live_cfg_methods(
+                        component, _live_cfg_qnames(self.static_analysis)
+                    ):
+                        result.refresh_ids.add(operation.component_id)
+                        continue
+                    result.removed_ids.add(operation.component_id)
+                continue
+            if operation.action == ScopeOperationAction.NOOP:
+                continue
+
+            component = components_by_id.get(operation.component_id or "")
+            if component is None:
+                continue
+            self._update_component_from_operation(scope_id, component, operation)
+            if component.component_id:
+                result.refresh_ids.add(component.component_id)
+
+        if result.removed_ids:
+            scope.components = [
+                component for component in scope.components if component.component_id not in result.removed_ids
+            ]
+            _strip_relations(scope, result.removed_ids)
+
+        touched_ids = result.refresh_ids | result.new_component_ids
+        if touched_ids:
+            cfg_graphs = _cfg_graphs_for_cluster_results(self.static_analysis, cluster_results)
+            self._patch_scope_file_methods(scope, cluster_results, cfg_graphs, touched_ids, scope_id)
+            self.build_static_relations(scope, _cfg_graphs_for_scope_methods(self.static_analysis, scope))
+            self._refresh_key_entities(scope, touched_ids)
+
+        _log_duplicate_cluster_ownership(scope_id, scope.components)
+
         return result
+
+    def _create_component_from_operation(
+        self,
+        scope_id: str,
+        scope: AnalysisInsights,
+        operation: ScopeOperation,
+        components_by_id: dict[str, Component],
+        result: ScopeUpdateResult,
+    ) -> None:
+        source_cluster_ids = _operation_source_cluster_ids(scope_id, operation)
+        if not source_cluster_ids:
+            logger.error(
+                "[incremental] skipping create_component with no cluster refs for scope %s; refs=%s",
+                scope_id or "root",
+                [ref.llm_str() for ref in operation.cluster_refs],
+            )
+            return
+
+        component = Component(
+            name=operation.name or "New Component",
+            description=operation.description or "",
+            key_entities=[],
+            source_group_names=[operation.name or "New Component"],
+            source_cluster_ids=source_cluster_ids,
+        )
+        scope.components.append(component)
+        assign_component_ids(scope, parent_id=_component_id_parent(scope_id), only_new=True)
+        if component.component_id:
+            result.refresh_ids.add(component.component_id)
+            result.new_component_ids.add(component.component_id)
+            components_by_id[component.component_id] = component
+
+    def _update_component_from_operation(
+        self,
+        scope_id: str,
+        component: Component,
+        operation: ScopeOperation,
+    ) -> None:
+        if operation.name:
+            component.name = operation.name
+        if operation.description:
+            component.description = operation.description
+        merged_cluster_ids = set(component.source_cluster_ids) | set(_operation_source_cluster_ids(scope_id, operation))
+        component.source_cluster_ids = CodeBoardingClusterIds.sort(merged_cluster_ids)
+
+    def _refresh_key_entities(self, scope: AnalysisInsights, component_ids: set[str]) -> None:
+        for component in scope.components:
+            if component.component_id not in component_ids:
+                continue
+            component.key_entities = _key_entities_from_file_methods(component)
+
+    def _patch_scope_file_methods(
+        self,
+        scope: AnalysisInsights,
+        cluster_results: dict[str, ClusterResult],
+        cfg_graphs: dict[str, CallGraph],
+        touched_ids: set[str],
+        scope_id: str,
+    ) -> None:
+        all_nodes = self._collect_all_cfg_nodes(cluster_results, cfg_graphs)
+        cluster_to_component = self._build_cluster_to_component_map(scope)
+        cluster_id_prefix = _cluster_id_prefix(scope_id)
+        node_to_cluster, all_cluster_ids = self._build_node_to_cluster_map(cluster_results, cluster_id_prefix)
+        self._validate_cluster_coverage(cluster_to_component, all_cluster_ids)
+
+        component_nodes = self._assign_nodes_to_components(
+            all_nodes,
+            node_to_cluster,
+            cluster_to_component,
+            cluster_results,
+            scope.components[0],
+            cfg_graphs,
+            cluster_id_prefix,
+        )
+        patched_groups = {
+            component_id: self._build_file_methods_from_nodes(nodes) for component_id, nodes in component_nodes.items()
+        }
+        _patch_file_methods(scope, patched_groups, touched_ids, _live_cfg_qnames(self.static_analysis))
+        scope.files = self.build_files_index(scope)
 
     @trace
     def generate_scope_relations(self, scope: AnalysisInsights, scope_name: str) -> list[Relation]:
-        """Generate LLM relations for a single scope and merge with existing static ones.
-
-        Mutates ``scope.components_relations`` in place. Returns the LLM-generated relations.
-        """
+        """Generate LLM relations for a single scope and merge with static relations."""
         if len(scope.components) < 2:
             return []
 
         meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
         project_type = self.meta_context.project_type if self.meta_context else "unknown"
-
         component_summaries = "\n".join(c.llm_str() for c in scope.components)
         cross_calls = self.build_scope_cfg_string(scope)
 
-        template = get_scope_relations_message()
         prompt_template = PromptTemplate(
-            template=template,
+            template=get_scope_relations_message(),
             input_variables=[
                 "scope_name",
                 "project_name",
@@ -184,29 +227,26 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
         )
 
         valid_names = {c.name for c in scope.components}
-        context = ValidationContext(valid_component_names=valid_names)
-
         result: ScopeRelations = self._validation_invoke(
             prompt,
             ScopeRelations,
             validators=[validate_scope_relation_names],
-            context=context,
+            context=ValidationContext(valid_component_names=valid_names),
             max_validation_attempts=3,
         )
 
         existing_static = [r for r in scope.components_relations if r.is_static]
         merged = merge_relations(result.components_relations, [], scope)
-        if existing_static:
-            for r in existing_static:
-                existing_pair = next(
-                    (m for m in merged if m.src_id == r.src_id and m.dst_id == r.dst_id),
-                    None,
-                )
-                if existing_pair is None:
-                    merged.append(r)
-                elif existing_pair.edge_count == 0 and r.edge_count > 0:
-                    existing_pair.edge_count = r.edge_count
-                    existing_pair.is_static = True
+        for relation in existing_static:
+            existing_pair = next(
+                (m for m in merged if m.src_id == relation.src_id and m.dst_id == relation.dst_id),
+                None,
+            )
+            if existing_pair is None:
+                merged.append(relation)
+            elif existing_pair.edge_count == 0 and relation.edge_count > 0:
+                existing_pair.edge_count = relation.edge_count
+                existing_pair.is_static = True
 
         scope.components_relations = merged
         return result.components_relations
@@ -218,13 +258,7 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
         sub_analyses: dict[str, AnalysisInsights],
         touched_scopes: set[str],
     ) -> None:
-        """Generate LLM relations for every touched scope with >= 2 components.
-
-        The LLM infers semantic connections that CFG-only ``build_static_relations``
-        misses (e.g. a component that registers callbacks siblings call, with no
-        direct static edge). Called once after stitching, repopulation, and
-        redetail are complete so the full component context is available.
-        """
+        """Generate LLM relations for every touched scope with at least two components."""
         all_llm_rels: list[tuple[str, list[Relation]]] = []
         if "" in touched_scopes:
             rels = self.generate_scope_relations(root_analysis, "root")
@@ -241,475 +275,235 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
             _log_scope_relations_summary(all_llm_rels)
 
 
-def _format_existing_components(
-    root_analysis: AnalysisInsights,
-    sub_analyses: dict[str, AnalysisInsights],
-    affected_files: set[str] | None = None,
-) -> str:
-    """Render existing components for the incremental grouping prompt.
-
-    Components owning a file in *affected_files* get full info; others get a
-    single ``id "name"`` line. ``affected_files=None`` renders everything full.
-    """
-    all_components: list[Component] = list(iter_components(root_analysis, sub_analyses))
-
-    if not all_components:
-        return "(no existing components -- incremental run on an empty baseline)"
-
-    if affected_files is None:
-        return "\n".join(_format_component_line(c, include_description=True) for c in all_components)
-
-    affected: list[Component] = []
-    other: list[Component] = []
-    for component in all_components:
-        owns_relevant = any(g.file_path in affected_files for g in component.file_methods)
-        (affected if owns_relevant else other).append(component)
-
-    sections: list[str] = []
-    if affected:
-        sections.append("### Affected components (full info)")
-        sections.extend(_format_component_line(c, include_description=True) for c in affected)
-    if other:
-        sections.append("\n### Other components (routing targets, names only)")
-        sections.extend(_format_component_line(c, include_description=False) for c in other)
-    return "\n".join(sections)
-
-
-def _format_component_line(component: Component, include_description: bool = True) -> str:
-    cid = component.component_id or "?"
-    if not include_description:
-        return f'- {cid} "{component.name}"'
-    desc = (component.description or "").strip().replace("\n", " ")
-    return f'- {cid} "{component.name}" -- {desc}'
-
-
-# ---------------------------------------------------------------------------
-# Stitching (deterministic, no LLM)
-# ---------------------------------------------------------------------------
-class Verdict(StrEnum):
-    """Derived stitching verdict — not part of the LLM schema.
-
-    Why: the verdict is implicit in (existing_component_id, redetail_needed);
-    surfacing it as a derived label keeps logs/stats legible without a
-    second source of truth.
-    """
-
-    ADD = "ADD"
-    UPDATE = "UPDATE"
-    NOOP = "NOOP"
-
-
-def _classify_verdict(cc: ClustersComponent, *, existing_found: bool) -> Verdict:
-    if not existing_found:
-        return Verdict.ADD
-    return Verdict.UPDATE if cc.redetail_needed else Verdict.NOOP
-
-
-def _log_routing_summary(result: ClusterAnalysis) -> None:
-    if not result.cluster_components:
-        return
-    rows = []
-    for cc in result.cluster_components:
-        action = (
-            f"UPDATE {cc.existing_component_id}" if cc.existing_component_id else f"ADD under {cc.parent_id or 'root'}"
-        )
-        rows.append(f"  {action:25s}  {cc.name:40s}  clusters={cc.cluster_ids}")
-    header = f"[incremental] Routing decisions ({len(result.cluster_components)} groups):"
-    logger.info("\n".join([header] + rows))
-
-
-def _log_stitch_summary(routing_rows: list[dict], verdicts: dict[Verdict, int], redetail_ids: set[str]) -> None:
-    lines = [
-        f"[stitch] ADD={verdicts[Verdict.ADD]} UPDATE={verdicts[Verdict.UPDATE]} "
-        f"NOOP={verdicts[Verdict.NOOP]}  redetail={sorted(redetail_ids)}"
-    ]
-    for r in routing_rows:
-        parent_str = f"under {r['parent']}" if r["parent"] else ""
-        redetail_str = "redetail" if r["redetail"] else "keep"
-        lines.append(
-            f"  {r['verdict']:8s}  {r['id']:5s} {r['name']:40s}  "
-            f"clusters={r['clusters']}  {redetail_str}  {parent_str}"
-        )
-    logger.info("\n".join(lines))
-
-
 def _log_scope_relations_summary(all_rels: list[tuple[str, list[Relation]]]) -> None:
     lines = ["[scope_relations] LLM-generated inter-component relations:"]
     for scope_name, rels in all_rels:
-        for r in rels:
-            lines.append(f"  {scope_name:8s}  {r.src_name:40s} --{r.relation}--> {r.dst_name}")
+        for relation in rels:
+            lines.append(f"  {scope_name:8s}  {relation.src_name:40s} --{relation.relation}--> {relation.dst_name}")
     logger.info("\n".join(lines))
 
 
-def _ancestor_ids(component_id: str) -> list[str]:
-    """Return the ancestor chain of ``component_id`` from immediate parent up.
-
-    Hierarchical IDs encode ancestry by dotted prefix (``"1.1.3" -> "1.1" -> "1"``).
-    Returns ``[]`` for top-level (depth-1) ids.
-    """
-    parts = component_id.split(".")
-    return [".".join(parts[:i]) for i in range(len(parts) - 1, 0, -1)]
-
-
-def _propagate_clusters_to_ancestors(
-    component_id: str,
-    cluster_ids: set[int],
-    component_index: dict[str, Component],
-    redetail_ids: set[str],
-) -> None:
-    """Union ``cluster_ids`` into every ancestor of ``component_id``.
-
-    Maintains the parents-transitively-own-descendants invariant the
-    full-analysis path produces naturally: when a leaf gains a cluster, every
-    enclosing component must reflect it so the next incremental cycle sees
-    the right "affected" set in ``_format_existing_components`` and so
-    ``repopulate_touched_scopes`` rebuilds the ancestors' ``file_methods``.
-    """
-    if not cluster_ids:
-        return
-    for ancestor_id in _ancestor_ids(component_id):
-        ancestor = component_index.get(ancestor_id)
-        if ancestor is None:
-            continue
-        before = set(ancestor.source_cluster_ids)
-        merged = before | cluster_ids
-        if merged != before:
-            ancestor.source_cluster_ids = sorted(merged)
-            redetail_ids.add(ancestor_id)
-
-
-def stitch_delta(
-    root_analysis: AnalysisInsights,
-    sub_analyses: dict[str, AnalysisInsights],
-    delta_cluster_analysis: ClusterAnalysis,
-    delta: ClusterDelta,
-) -> set[str]:
-    """Apply the delta ClusterAnalysis to the live tree.
-
-    Routing is by ``existing_component_id`` (decision #4). The LLM either
-    sets it to a live component_id (route into that component) or leaves it
-    null (create a new component). Name matching is *not* used — that path
-    silently forks a duplicate component on every rename.
-
-    Returns the set of component_ids that need to be redetailed (their
-    ``source_cluster_ids`` set changed, or they were newly inserted).
-    """
-    component_index = index_components_by_id(root_analysis, sub_analyses)
-
-    cluster_id_remap = delta.merged_cluster_id_remap()
-    dropped_cluster_ids = delta.all_dropped_cluster_ids()
-    # Member-set churn (id unchanged) still requires redetail: file_methods
-    # depends on cluster MEMBERS, not just IDs.
-    changed_cluster_ids: set[int] = {
-        cluster_id_remap.get(cid, cid) for ld in delta.by_language.values() for cid in ld.changed_cluster_ids
-    }
-
-    redetail_ids: set[str] = set()
-
-    for component in component_index.values():
-        before = set(component.source_cluster_ids)
-        remapped = {cluster_id_remap.get(cid, cid) for cid in before}
-        remapped -= dropped_cluster_ids
-        if remapped != before:
-            component.source_cluster_ids = sorted(remapped)
-            if component.component_id:
-                redetail_ids.add(component.component_id)
-        if component.component_id and remapped & changed_cluster_ids:
-            redetail_ids.add(component.component_id)
-
-    new_components: list[tuple[Component, str | None]] = []
-    verdicts: dict[Verdict, int] = {Verdict.ADD: 0, Verdict.UPDATE: 0, Verdict.NOOP: 0}
-    routing_rows: list[dict] = []
-    for cc in delta_cluster_analysis.cluster_components:
-        if cc.existing_component_id is not None:
-            existing = component_index.get(cc.existing_component_id)
-            if existing is None:
-                logger.warning(
-                    "[stitch] hallucinated existing_component_id=%r, treating %r as ADD",
-                    cc.existing_component_id,
-                    cc.name,
-                )
-            else:
-                verdict = _classify_verdict(cc, existing_found=True)
-                verdicts[verdict] += 1
-                routing_rows.append(
-                    {
-                        "verdict": verdict,
-                        "id": existing.component_id,
-                        "name": existing.name,
-                        "clusters": sorted(set(cc.cluster_ids)),
-                        "redetail": cc.redetail_needed,
-                        "parent": None,
-                    }
-                )
-                if cc.redetail_needed:
-                    if cc.name and cc.name != existing.name:
-                        existing.name = cc.name
-                    if cc.description and cc.description != existing.description:
-                        existing.description = cc.description
-                updated = sorted(set(existing.source_cluster_ids) | set(cc.cluster_ids))
-                if updated != existing.source_cluster_ids:
-                    existing.source_cluster_ids = updated
-                    if existing.component_id and cc.redetail_needed:
-                        redetail_ids.add(existing.component_id)
-                if existing.component_id:
-                    _propagate_clusters_to_ancestors(
-                        existing.component_id, set(cc.cluster_ids), component_index, redetail_ids
-                    )
-                continue
-
-        verdicts[Verdict.ADD] += 1
-        routing_rows.append(
-            {
-                "verdict": Verdict.ADD,
-                "id": "?",
-                "name": cc.name,
-                "clusters": sorted(set(cc.cluster_ids)),
-                "redetail": True,
-                "parent": cc.parent_id,
-            }
-        )
-        new_component = Component(
-            name=cc.name,
-            description=cc.description or "",
-            key_entities=[],
-            source_group_names=[cc.name],
-            source_cluster_ids=sorted(set(cc.cluster_ids)),
-        )
-        new_components.append((new_component, cc.parent_id))
-
-    if new_components:
-        _attach_new_components(new_components, root_analysis, sub_analyses, component_index, redetail_ids)
-
-    if delta_cluster_analysis.cluster_components:
-        _log_stitch_summary(routing_rows, verdicts, redetail_ids)
-
-    return redetail_ids
-
-
-def _attach_new_components(
-    new_components: list[tuple[Component, str | None]],
-    root_analysis: AnalysisInsights,
-    sub_analyses: dict[str, AnalysisInsights],
-    component_index: dict[str, Component],
-    redetail_ids: set[str],
-) -> None:
-    """Insert each new component under its requested parent, then assign IDs."""
-    for component, parent_id in new_components:
-        target_analysis = _scope_for_parent(parent_id, root_analysis, sub_analyses, component_index)
-        target_analysis.components.append(component)
-
-    # Assign hierarchical IDs only to brand-new components (preserves survivors).
-    for analysis in [root_analysis, *sub_analyses.values()]:
-        if any(not c.component_id for c in analysis.components):
-            parent_id_for_scope = _parent_id_for_scope(analysis, root_analysis, sub_analyses)
-            assign_component_ids(analysis, parent_id=parent_id_for_scope, only_new=True)
-
-    for component, _ in new_components:
-        if component.component_id:
-            redetail_ids.add(component.component_id)
-            _propagate_clusters_to_ancestors(
-                component.component_id,
-                set(component.source_cluster_ids),
-                component_index,
-                redetail_ids,
-            )
-
-
-def _scope_for_parent(
-    parent_id: str | None,
-    root_analysis: AnalysisInsights,
-    sub_analyses: dict[str, AnalysisInsights],
-    component_index: dict[str, Component],
-) -> AnalysisInsights:
-    """Pick the analysis scope (root or a sub-analysis) under which to insert a new component.
-
-    When ``parent_id`` references a leaf with no child scope yet, create one
-    on the fly — falling through to ``root_analysis`` would silently re-root
-    the new component and break its hierarchical id assignment.
-    """
-    if not parent_id or parent_id not in component_index:
-        return root_analysis
-    return sub_analyses.setdefault(
-        parent_id,
-        AnalysisInsights(description="", components=[], components_relations=[]),
+def _operation_source_cluster_ids(scope_id: str, operation: ScopeOperation) -> list[str]:
+    local_ids = {ref.cluster_id for ref in operation.cluster_refs if ref.scope_id == scope_id}
+    return CodeBoardingClusterIds.qualify_local_ids(
+        CodeBoardingClusterIds.from_graph_ids(local_ids),
+        _cluster_id_prefix(scope_id),
     )
 
 
-def _parent_id_for_scope(
-    analysis: AnalysisInsights,
-    root_analysis: AnalysisInsights,
-    sub_analyses: dict[str, AnalysisInsights],
-) -> str:
-    """Recover the component_id that owns a sub-analysis (so child IDs nest under it)."""
-    if analysis is root_analysis:
-        return ""
-    for component_id, sub in sub_analyses.items():
-        if sub is analysis:
-            return component_id
-    return ""
-
-
-# ---------------------------------------------------------------------------
-# Re-resolution helpers (file_methods + relations on touched scopes only)
-# ---------------------------------------------------------------------------
-def repopulate_touched_scopes(
-    redetail_ids: set[str],
-    root_analysis: AnalysisInsights,
-    sub_analyses: dict[str, AnalysisInsights],
-    cluster_results: dict[str, ClusterResult],
-    helpers: ClusterMethodsMixin,
+def _remove_reassigned_clusters(
+    scope_id: str,
+    components: list[Component],
+    components_by_id: dict[str, Component],
+    decision: ScopeUpdateDecision,
 ) -> set[str]:
-    """Refresh ``file_methods`` for redetail components and rebuild static relations.
+    reassigned_cluster_ids: set[str] = set()
+    for operation in decision.operations:
+        if operation.action == ScopeOperationAction.CREATE_COMPONENT or (
+            operation.action == ScopeOperationAction.UPDATE_COMPONENT and operation.component_id in components_by_id
+        ):
+            reassigned_cluster_ids.update(_operation_source_cluster_ids(scope_id, operation))
+    if not reassigned_cluster_ids:
+        return set()
 
-    Why per-component (not scope-wide ``populate_file_methods``): the latter
-    re-routes every node and would dump global orphans into the scope's leaf
-    fallback. Siblings whose clusters didn't change keep their old file_methods
-    byte-for-byte. Returns the touched scope ids (``""`` for root).
-    """
-    touched_scopes: set[str] = set()
-    if not redetail_ids:
-        return touched_scopes
-
-    node_lookup = _build_node_lookup(helpers.static_analysis, cluster_results)
-    repo_dir = helpers.repo_dir
-
-    if any(c.component_id in redetail_ids for c in root_analysis.components):
-        touched_scopes.add("")
-        for component in root_analysis.components:
-            if component.component_id in redetail_ids:
-                _refresh_component_file_methods(component, cluster_results, node_lookup, repo_dir)
-        helpers.build_static_relations(root_analysis)
-
-    for scope_id, sub in sub_analyses.items():
-        if any(c.component_id in redetail_ids for c in sub.components):
-            touched_scopes.add(scope_id)
-            for component in sub.components:
-                if component.component_id in redetail_ids:
-                    _refresh_component_file_methods(component, cluster_results, node_lookup, repo_dir)
-            helpers.build_static_relations(sub)
-
-    return touched_scopes
-
-
-def _build_node_lookup(static_analysis, cluster_results: dict[str, ClusterResult]) -> dict[str, MethodEntry]:
-    """Map qname -> ``MethodEntry`` built from the live CFG (fresh file/line metadata)."""
-    lookup: dict[str, MethodEntry] = {}
-    for language in cluster_results:
-        try:
-            cfg = static_analysis.get_cfg(Language(language))
-        except (ValueError, KeyError):
+    changed_component_ids: set[str] = set()
+    for component in components:
+        kept_cluster_ids = [
+            cluster_id for cluster_id in component.source_cluster_ids if cluster_id not in reassigned_cluster_ids
+        ]
+        if kept_cluster_ids == component.source_cluster_ids:
             continue
-        for qname, node in cfg.nodes.items():
-            if qname in lookup:
-                continue
-            lookup[qname] = MethodEntry(
-                qualified_name=qname,
-                start_line=node.line_start,
-                end_line=node.line_end,
-                node_type=node.type.name,
-            )
-    return lookup
+        component.source_cluster_ids = kept_cluster_ids
+        if component.component_id:
+            changed_component_ids.add(component.component_id)
+    return changed_component_ids
 
 
-def _refresh_component_file_methods(
-    component: Component,
-    cluster_results: dict[str, ClusterResult],
-    node_lookup: dict[str, MethodEntry],
-    repo_dir: Path | str | None = None,
-) -> None:
-    """Rebuild ``component.file_methods`` from live cluster_results, grouped by file.
+def _log_duplicate_cluster_ownership(scope_id: str, components: list[Component]) -> None:
+    owners_by_cluster_id: dict[str, list[str]] = {}
+    for component in components:
+        owner = component.component_id or component.name
+        for cluster_id in component.source_cluster_ids:
+            owners_by_cluster_id.setdefault(cluster_id, []).append(owner)
 
-    Methods missing from ``node_lookup`` (source deleted) are dropped. Paths
-    are normalised to repo-relative posix to match ``analysis.json`` indexes —
-    without this the wrapper's ``file_to_component`` lookup misses on the
-    next incremental cycle. Dedup is by qname (vs. the mixin's
-    span-keyed most-specific-qname dedup), since the incremental path already
-    has canonical qnames from the cluster snapshot.
-    """
-    owned_cids = set(component.source_cluster_ids)
-    if not owned_cids:
-        component.file_methods = []
-        return
-
-    repo_root: Path | None
-    try:
-        repo_root = Path(repo_dir).resolve() if repo_dir else None
-    except (TypeError, OSError):
-        repo_root = None
-
-    # Normalize paths once so the substring match in _pick_file_for_qname
-    # isn't poisoned by absolute snapshot-worktree prefixes.
-    qname_to_files: dict[str, set[str]] = {}
-    for cr in cluster_results.values():
-        for cid, members in cr.clusters.items():
-            files = {normalize_repo_path(fp, repo_root) for fp in cr.cluster_to_files.get(cid, set())}
-            for qname in members:
-                qname_to_files.setdefault(qname, set()).update(files)
-
-    by_file: dict[str, list[MethodEntry]] = {}
-    for cr in cluster_results.values():
-        for cid in owned_cids:
-            members = cr.clusters.get(cid)
-            if not members:
-                continue
-            files_for_cluster = {normalize_repo_path(fp, repo_root) for fp in cr.cluster_to_files.get(cid, set())}
-            for qname in members:
-                method = node_lookup.get(qname)
-                if method is None:
-                    continue
-                file_path = _pick_file_for_qname(qname, files_for_cluster, qname_to_files)
-                if not file_path:
-                    continue
-                by_file.setdefault(file_path, []).append(method)
-
-    component.file_methods = [
-        FileMethodGroup(
-            file_path=fp,
-            methods=sorted(
-                _dedup_methods(methods),
-                key=lambda m: (m.start_line, m.end_line, m.qualified_name),
-            ),
+    duplicates = {cluster_id: owners for cluster_id, owners in owners_by_cluster_id.items() if len(owners) > 1}
+    if duplicates:
+        logger.error(
+            "[incremental] duplicate cluster ownership remains in scope %s: %s",
+            scope_id or "root",
+            duplicates,
         )
-        for fp, methods in sorted(by_file.items())
-    ]
 
 
-def _pick_file_for_qname(
-    qname: str,
-    files_for_cluster: set[str],
-    qname_to_files: dict[str, set[str]],
-) -> str:
-    """Resolve which file in *files_for_cluster* a particular qname lives in.
-
-    Prefers a dotted-path substring match (longest wins for specificity).
-    Falls back to any file the qname is associated with, then to the first
-    file in the cluster.
-    """
-    dotted = lambda fp: fp.replace("/", ".").rsplit(".", 1)[0]
-    matches = [fp for fp in files_for_cluster if dotted(fp) and dotted(fp) in qname]
-    if matches:
-        return max(matches, key=lambda fp: len(dotted(fp)))
-    other = qname_to_files.get(qname, set())
-    if other:
-        return sorted(other)[0]
-    return next(iter(sorted(files_for_cluster)), "")
+def _cluster_id_prefix(scope_id: str) -> str:
+    return "" if scope_id == ROOT_SCOPE_ID else scope_id
 
 
-def _dedup_methods(methods: list[MethodEntry]) -> list[MethodEntry]:
-    seen: set[str] = set()
-    out: list[MethodEntry] = []
-    for method in methods:
-        if method.qualified_name in seen:
+def _component_id_parent(scope_id: str) -> str:
+    return "" if scope_id == ROOT_SCOPE_ID else scope_id
+
+
+def _key_entities_from_file_methods(component: Component) -> list[SourceCodeReference]:
+    refs: list[SourceCodeReference] = []
+    for group in sorted(component.file_methods, key=lambda file_group: file_group.file_path):
+        for method in sorted(group.methods, key=lambda item: (item.start_line, item.end_line, item.qualified_name)):
+            refs.append(
+                SourceCodeReference(
+                    qualified_name=method.qualified_name,
+                    reference_file=group.file_path,
+                    reference_start_line=method.start_line,
+                    reference_end_line=method.end_line,
+                )
+            )
+            if len(refs) == 5:
+                return refs
+    return refs
+
+
+def _patch_file_methods(
+    scope: AnalysisInsights,
+    patched_groups: dict[str, list[FileMethodGroup]],
+    touched_ids: set[str],
+    live_qnames: set[str],
+) -> None:
+    represented_qnames: set[str] = set()
+    represented_physical_keys: set[tuple[str, int, int, str, str]] = set()
+    for groups in patched_groups.values():
+        for group in groups:
+            for method in group.methods:
+                represented_qnames.add(method.qualified_name)
+                represented_physical_keys.add(_method_physical_key(group.file_path, method))
+
+    stale_qnames: set[str] = set()
+    stale_physical_keys: set[tuple[str, int, int, str, str]] = set()
+    for component in scope.components:
+        if component.component_id not in touched_ids:
             continue
-        seen.add(method.qualified_name)
-        out.append(method)
-    return out
+        for group in component.file_methods:
+            for method in group.methods:
+                if method.qualified_name not in live_qnames:
+                    stale_qnames.add(method.qualified_name)
+                    stale_physical_keys.add(_method_physical_key(group.file_path, method))
+
+    if represented_qnames or represented_physical_keys:
+        for component in scope.components:
+            component.file_methods = _without_methods(
+                component.file_methods,
+                represented_qnames,
+                represented_physical_keys,
+            )
+    if stale_qnames or stale_physical_keys:
+        for component in scope.components:
+            if component.component_id not in touched_ids:
+                continue
+            component.file_methods = _without_methods(
+                component.file_methods,
+                stale_qnames,
+                stale_physical_keys,
+            )
+
+    components_by_id = {component.component_id: component for component in scope.components if component.component_id}
+    for component_id, groups in patched_groups.items():
+        component = components_by_id.get(component_id)
+        if component is None:
+            continue
+        component.file_methods = _merge_file_method_groups(component.file_methods, groups)
 
 
-# ---------------------------------------------------------------------------
-# Prune (deterministic, no LLM)
-# ---------------------------------------------------------------------------
+def _without_methods(
+    groups: list[FileMethodGroup],
+    qnames: set[str],
+    physical_keys: set[tuple[str, int, int, str, str]],
+) -> list[FileMethodGroup]:
+    kept_groups: list[FileMethodGroup] = []
+    for group in groups:
+        kept_methods = [
+            method
+            for method in group.methods
+            if method.qualified_name not in qnames
+            and _method_physical_key(group.file_path, method) not in physical_keys
+        ]
+        if kept_methods:
+            kept_groups.append(FileMethodGroup(file_path=group.file_path, methods=kept_methods))
+    return kept_groups
+
+
+def _merge_file_method_groups(
+    existing_groups: list[FileMethodGroup],
+    new_groups: list[FileMethodGroup],
+) -> list[FileMethodGroup]:
+    by_file: dict[str, dict[str, MethodEntry]] = {}
+    for group in [*existing_groups, *new_groups]:
+        methods = by_file.setdefault(group.file_path, {})
+        for method in group.methods:
+            methods[method.qualified_name] = method
+
+    merged: list[FileMethodGroup] = []
+    for file_path in sorted(by_file):
+        merged.append(
+            FileMethodGroup(
+                file_path=file_path,
+                methods=sorted(
+                    by_file[file_path].values(),
+                    key=lambda method: (method.start_line, method.end_line, method.qualified_name),
+                ),
+            )
+        )
+    return merged
+
+
+def _method_physical_key(file_path: str, method: MethodEntry) -> tuple[str, int, int, str, str]:
+    leaf_name = method.qualified_name.split(".")[-1]
+    return (file_path, method.start_line, method.end_line, method.node_type, leaf_name)
+
+
+def _live_cfg_qnames(static_analysis: StaticAnalysisResults) -> set[str]:
+    qnames: set[str] = set()
+    for language in static_analysis.get_languages():
+        try:
+            qnames.update(static_analysis.get_cfg(language).nodes)
+        except (KeyError, ValueError):
+            continue
+    return qnames
+
+
+def _component_has_live_cfg_methods(component: Component, live_qnames: set[str]) -> bool:
+    return any(
+        method.qualified_name in live_qnames for group in component.file_methods for method in group.methods
+    ) or any(entity.qualified_name in live_qnames for entity in component.key_entities if entity.qualified_name)
+
+
+def _cfg_graphs_for_scope_methods(
+    static_analysis: StaticAnalysisResults,
+    scope: AnalysisInsights,
+) -> dict[str, CallGraph]:
+    scope_qnames = {
+        method.qualified_name
+        for component in scope.components
+        for group in component.file_methods
+        for method in group.methods
+    }
+    cfg_graphs: dict[str, CallGraph] = {}
+    if not scope_qnames:
+        return cfg_graphs
+    for language in static_analysis.get_languages():
+        try:
+            cfg_graphs[str(language)] = static_analysis.get_cfg(language).filter_by_nodes(scope_qnames)
+        except (KeyError, ValueError):
+            continue
+    return cfg_graphs
+
+
+def _cfg_graphs_for_cluster_results(
+    static_analysis: StaticAnalysisResults, cluster_results: dict[str, ClusterResult]
+) -> dict[str, CallGraph]:
+    cfg_graphs: dict[str, CallGraph] = {}
+    for language, cluster_result in cluster_results.items():
+        members = {qname for cluster_members in cluster_result.clusters.values() for qname in cluster_members}
+        cfg_graphs[language] = static_analysis.get_cfg(Language(language)).filter_by_nodes(members)
+    return cfg_graphs
+
+
 def remove_deleted_files(
     root_analysis: AnalysisInsights,
     sub_analyses: dict[str, AnalysisInsights],
@@ -724,7 +518,7 @@ def remove_deleted_files(
 
 
 def _scrub_one_analysis(analysis: AnalysisInsights, live_files: set[str]) -> set[str]:
-    """Drop dead-file references in one ``AnalysisInsights``; returns the dropped paths."""
+    """Drop dead-file references in one analysis and return dropped paths."""
     dropped: set[str] = set()
     for component in analysis.components:
         kept_groups = []
@@ -735,53 +529,80 @@ def _scrub_one_analysis(analysis: AnalysisInsights, live_files: set[str]) -> set
                 dropped.add(group.file_path)
         component.file_methods = kept_groups
         component.key_entities = [
-            ke for ke in component.key_entities if ke.reference_file is None or ke.reference_file in live_files
+            key_entity
+            for key_entity in component.key_entities
+            if key_entity.reference_file is None or key_entity.reference_file in live_files
         ]
-    dropped |= {fp for fp in analysis.files if fp not in live_files}
-    analysis.files = {fp: entry for fp, entry in analysis.files.items() if fp in live_files}
+    dropped |= {file_path for file_path in analysis.files if file_path not in live_files}
+    analysis.files = {file_path: entry for file_path, entry in analysis.files.items() if file_path in live_files}
     return dropped
 
 
 def prune_empty_components(
     root_analysis: AnalysisInsights,
     sub_analyses: dict[str, AnalysisInsights],
+    protected_empty_ids: set[str] | None = None,
 ) -> set[str]:
-    """Remove components with no methods after scrub+repopulation; cascades into sub-analyses.
-
-    Also strips relations referencing removed components by id.
-    """
+    """Remove components with no methods and strip relations pointing to them."""
     removed_ids: set[str] = set()
+    protected_empty_ids = protected_empty_ids or set()
 
-    def _has_methods(component: Component) -> bool:
-        return any(group.methods for group in component.file_methods)
+    def has_methods(component: Component) -> bool:
+        return (
+            any(group.methods for group in component.file_methods)
+            or bool(component.key_entities)
+            or bool(component.component_id in protected_empty_ids and component.source_cluster_ids)
+        )
 
-    def _collect_empty(analysis: AnalysisInsights) -> None:
+    def collect_empty(analysis: AnalysisInsights) -> None:
         for component in analysis.components:
-            if component.component_id and not _has_methods(component):
+            if component.component_id and not has_methods(component):
                 removed_ids.add(component.component_id)
 
-    _collect_empty(root_analysis)
+    collect_empty(root_analysis)
     for sub in sub_analyses.values():
-        _collect_empty(sub)
+        collect_empty(sub)
+    _collect_descendant_ids(root_analysis, sub_analyses, removed_ids)
 
     if not removed_ids:
         return set()
 
-    root_analysis.components = [c for c in root_analysis.components if c.component_id not in removed_ids]
+    root_analysis.components = [
+        component for component in root_analysis.components if component.component_id not in removed_ids
+    ]
     _strip_relations(root_analysis, removed_ids)
-
     for sub in sub_analyses.values():
-        sub.components = [c for c in sub.components if c.component_id not in removed_ids]
+        sub.components = [component for component in sub.components if component.component_id not in removed_ids]
         _strip_relations(sub, removed_ids)
-
-    for cid in list(sub_analyses.keys()):
-        if cid in removed_ids:
-            del sub_analyses[cid]
-
+    for component_id in list(sub_analyses.keys()):
+        if component_id in removed_ids:
+            del sub_analyses[component_id]
     return removed_ids
+
+
+def _collect_descendant_ids(
+    root_analysis: AnalysisInsights,
+    sub_analyses: dict[str, AnalysisInsights],
+    removed_ids: set[str],
+) -> None:
+    if not removed_ids:
+        return
+    all_component_ids = {
+        component.component_id for component in iter_components(root_analysis, sub_analyses) if component.component_id
+    }
+    all_component_ids.update(sub_analyses.keys())
+    changed = True
+    while changed:
+        changed = False
+        for component_id in all_component_ids - removed_ids:
+            if any(component_id.startswith(f"{removed_id}.") for removed_id in removed_ids):
+                removed_ids.add(component_id)
+                changed = True
 
 
 def _strip_relations(analysis: AnalysisInsights, removed_ids: set[str]) -> None:
     analysis.components_relations = [
-        rel for rel in analysis.components_relations if rel.src_id not in removed_ids and rel.dst_id not in removed_ids
+        relation
+        for relation in analysis.components_relations
+        if relation.src_id not in removed_ids and relation.dst_id not in removed_ids
     ]

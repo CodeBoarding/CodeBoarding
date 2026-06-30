@@ -29,28 +29,10 @@ from diagram_analysis.analysis_json import (
     build_unified_analysis_json,
     parse_unified_analysis,
 )
+from repo_utils.path_utils import normalize_repo_path
 from utils import ANALYSIS_FILENAME
 
 logger = logging.getLogger(__name__)
-
-
-def normalize_repo_path(path: str, repo_root: Path | str | None) -> str:
-    """Convert a CFG file path into a repo-relative posix form.
-
-    ``analysis.json`` indexes (``files``, ``methods_index``, ``file_methods``)
-    use repo-relative posix paths; CFG nodes carry either an absolute path
-    under ``repo_root`` or an already-relative one.
-    """
-    posix = path.replace("\\", "/")
-    candidate = Path(posix)
-    if candidate.is_absolute() and repo_root is not None:
-        try:
-            return candidate.resolve().relative_to(Path(repo_root).resolve()).as_posix()
-        except ValueError:
-            return posix
-    while posix.startswith("./"):
-        posix = posix[2:]
-    return posix
 
 
 class _AnalysisFileStore:

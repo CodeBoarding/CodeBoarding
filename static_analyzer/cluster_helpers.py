@@ -98,7 +98,9 @@ def _sync_cluster_cache(static_analysis: StaticAnalysisResults, cluster_results:
     """Keep each CFG cache aligned with returned cluster IDs."""
     for lang, result in cluster_results.items():
         try:
-            static_analysis.get_cfg(Language(lang))._cluster_cache = result
+            cfg = static_analysis.get_cfg(Language(lang))
+            cfg._cluster_cache = result
+            cfg.record_cluster_paths(result)
         except ValueError:
             logger.warning("Could not sync cluster cache for missing language %s", lang)
 

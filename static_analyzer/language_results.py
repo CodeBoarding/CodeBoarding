@@ -29,12 +29,12 @@ class ControlFlowGraph:
                 self.graph.add_edge(edge.get_source(), edge.get_destination())
             except ValueError:
                 pass
+        self.graph.method_cluster_paths.merge(other.method_cluster_paths)
 
     def visit_paths(self, fn: Callable[[str], str]) -> None:
         if self.graph is None:
             return
-        for node in self.graph.nodes.values():
-            node.file_path = fn(node.file_path)
+        self.graph.visit_paths(fn)
 
 
 @dataclass

@@ -1,31 +1,23 @@
-"""Tests for the deterministic stitching/repopulation helpers in
-``agents.incremental_agent``. The LLM-call shape (``IncrementalAgent.run``)
-is exercised end-to-end in the diagram_generator tests with a mocked LLM."""
-
 import unittest
 from unittest.mock import MagicMock
 
 from agents.agent_responses import (
     AnalysisInsights,
-    ClusterAnalysis,
-    ClustersComponent,
     Component,
     FileMethodGroup,
     MethodEntry,
     Relation,
+    SourceCodeReference,
+    ScopeOperation,
+    ScopeOperationAction,
+    ScopedClusterRef,
+    ScopeUpdateDecision,
 )
-from agents.incremental_agent import (
-    _format_existing_components,
-    _pick_file_for_qname,
-    prune_empty_components,
-    repopulate_touched_scopes,
-    stitch_delta,
-)
-from diagram_analysis.cluster_delta import ClusterDelta, LanguageDelta
+from agents.incremental_agent import IncrementalAgent, _patch_file_methods, prune_empty_components, remove_deleted_files
 from static_analyzer.graph import ClusterResult
 
 
-def _component(name: str, component_id: str, source_cluster_ids: list[int] | None = None) -> Component:
+def _component(name: str, component_id: str, source_cluster_ids: list[str] | None = None) -> Component:
     return Component(
         name=name,
         description=f"{name} description",
@@ -42,478 +34,11 @@ def _component_with_method(name: str, component_id: str) -> Component:
         FileMethodGroup(
             file_path=f"{component_id}.py",
             methods=[
-                MethodEntry(
-                    qualified_name=f"{component_id}.method",
-                    start_line=1,
-                    end_line=2,
-                    node_type="FUNCTION",
-                )
+                MethodEntry(qualified_name=f"{component_id}.method", start_line=1, end_line=2, node_type="FUNCTION")
             ],
         )
     ]
     return component
-
-
-def _empty_delta() -> ClusterDelta:
-    return ClusterDelta(by_language={"python": LanguageDelta(language="python", cluster_results=ClusterResult())})
-
-
-def _delta(
-    new: set[int] | None = None,
-    changed: set[int] | None = None,
-    dropped: set[int] | None = None,
-    remap: dict[int, int] | None = None,
-) -> ClusterDelta:
-    return ClusterDelta(
-        by_language={
-            "python": LanguageDelta(
-                language="python",
-                cluster_results=ClusterResult(),
-                new_cluster_ids=new or set(),
-                changed_cluster_ids=changed or set(),
-                dropped_cluster_ids=dropped or set(),
-                cluster_id_remap=remap or {},
-            )
-        }
-    )
-
-
-class TestStitchDelta(unittest.TestCase):
-    def test_existing_component_absorbs_delta_clusters_and_redetails(self) -> None:
-        comp = _component("Static Analyzer", "1", source_cluster_ids=[1, 2])
-        root = AnalysisInsights(
-            description="root",
-            components=[comp],
-            components_relations=[],
-        )
-        delta_ca = ClusterAnalysis(
-            cluster_components=[
-                ClustersComponent(
-                    name="Static Analyzer",
-                    cluster_ids=[3],
-                    description=comp.description,  # LLM reused verbatim
-                    existing_component_id="1",
-                )
-            ]
-        )
-
-        redetail = stitch_delta(root, {}, delta_ca, _empty_delta())
-
-        self.assertIn("1", redetail)
-        self.assertEqual(comp.source_cluster_ids, [1, 2, 3])
-
-    def test_brand_new_component_attached_under_parent_id(self) -> None:
-        parent = _component("Diagram Generator", "1", source_cluster_ids=[1])
-        root = AnalysisInsights(description="root", components=[parent], components_relations=[])
-        sub_analyses: dict[str, AnalysisInsights] = {}
-        delta_ca = ClusterAnalysis(
-            cluster_components=[
-                ClustersComponent(
-                    name="Brand New Subsystem",
-                    cluster_ids=[42],
-                    description="freshly seen cluster",
-                    parent_id="1",
-                )
-            ]
-        )
-
-        redetail = stitch_delta(root, sub_analyses, delta_ca, _empty_delta())
-
-        # Parent "1" was a leaf with no sub_analyses scope; stitch_delta creates one.
-        self.assertEqual(len(root.components), 1)
-        self.assertIn("1", sub_analyses)
-        self.assertEqual(len(sub_analyses["1"].components), 1)
-        new_component = sub_analyses["1"].components[0]
-        self.assertEqual(new_component.name, "Brand New Subsystem")
-        self.assertTrue(new_component.component_id)
-        self.assertIn(new_component.component_id, redetail)
-        self.assertEqual(new_component.source_cluster_ids, [42])
-
-    def test_existing_component_skips_redetail_when_redetail_needed_false(self) -> None:
-        """LLM-tagged cosmetic deltas update source_cluster_ids but skip the redetail step."""
-        comp = _component("Static Analyzer", "1", source_cluster_ids=[1, 2])
-        root = AnalysisInsights(description="root", components=[comp], components_relations=[])
-        original_description = comp.description
-        original_name = comp.name
-        delta_ca = ClusterAnalysis(
-            cluster_components=[
-                ClustersComponent(
-                    name="Renamed By LLM",
-                    cluster_ids=[3],
-                    description="cosmetic",
-                    existing_component_id="1",
-                    redetail_needed=False,
-                )
-            ]
-        )
-
-        redetail = stitch_delta(root, {}, delta_ca, _empty_delta())
-
-        self.assertNotIn("1", redetail)
-        self.assertEqual(comp.source_cluster_ids, [1, 2, 3])
-        # redetail_needed=False -> existing name/description preserved verbatim.
-        self.assertEqual(comp.name, original_name)
-        self.assertEqual(comp.description, original_description)
-
-    def test_existing_component_description_updated_when_redetail_needed_true(self) -> None:
-        comp = _component("Static Analyzer", "1", source_cluster_ids=[1, 2])
-        root = AnalysisInsights(description="root", components=[comp], components_relations=[])
-        delta_ca = ClusterAnalysis(
-            cluster_components=[
-                ClustersComponent(
-                    name="Static Analyzer & Cluster Engine",
-                    cluster_ids=[3],
-                    description="now also performs Leiden clustering",
-                    existing_component_id="1",
-                    redetail_needed=True,
-                )
-            ]
-        )
-
-        stitch_delta(root, {}, delta_ca, _empty_delta())
-
-        self.assertEqual(comp.name, "Static Analyzer & Cluster Engine")
-        self.assertEqual(comp.description, "now also performs Leiden clustering")
-
-    def test_existing_component_name_update_skipped_when_cc_name_empty(self) -> None:
-        """Empty cc.name (LLM signalling reuse) must not blank out the existing name."""
-        comp = _component("Static Analyzer", "1", source_cluster_ids=[1])
-        root = AnalysisInsights(description="root", components=[comp], components_relations=[])
-        delta_ca = ClusterAnalysis(
-            cluster_components=[
-                ClustersComponent(
-                    name="",
-                    cluster_ids=[2],
-                    description="",
-                    existing_component_id="1",
-                    redetail_needed=True,
-                )
-            ]
-        )
-
-        stitch_delta(root, {}, delta_ca, _empty_delta())
-
-        self.assertEqual(comp.name, "Static Analyzer")
-        self.assertEqual(comp.description, "Static Analyzer description")
-
-    def test_brand_new_component_redetails_regardless_of_flag(self) -> None:
-        """redetail_needed is meaningful only on existing-component routes; new ones always redetail."""
-        parent = _component("Diagram Generator", "1", source_cluster_ids=[1])
-        root = AnalysisInsights(description="root", components=[parent], components_relations=[])
-        sub_analyses: dict[str, AnalysisInsights] = {}
-        delta_ca = ClusterAnalysis(
-            cluster_components=[
-                ClustersComponent(
-                    name="Brand New Subsystem",
-                    cluster_ids=[42],
-                    description="freshly seen cluster",
-                    parent_id="1",
-                    redetail_needed=False,  # ignored for new components
-                )
-            ]
-        )
-
-        redetail = stitch_delta(root, sub_analyses, delta_ca, _empty_delta())
-
-        new_component = sub_analyses["1"].components[0]
-        self.assertIn(new_component.component_id, redetail)
-
-    def test_deterministic_remap_redetails_regardless_of_flag(self) -> None:
-        """Step-1 deterministic remap/drop has no LLM signal to gate on; the cid is always redetailed."""
-        comp = _component("X", "1", source_cluster_ids=[1, 2])
-        root = AnalysisInsights(description="root", components=[comp], components_relations=[])
-        # No cluster_components entry — the remap path runs in step 1 only.
-        redetail = stitch_delta(root, {}, ClusterAnalysis(cluster_components=[]), _delta(remap={1: 10}))
-
-        self.assertEqual(redetail, {"1"})
-
-    def test_dropped_clusters_are_pruned_from_existing_components(self) -> None:
-        comp = _component("X", "1", source_cluster_ids=[1, 2, 3])
-        root = AnalysisInsights(description="root", components=[comp], components_relations=[])
-        delta = _delta(dropped={2})
-
-        redetail = stitch_delta(root, {}, ClusterAnalysis(cluster_components=[]), delta)
-
-        self.assertEqual(comp.source_cluster_ids, [1, 3])
-        self.assertEqual(redetail, {"1"})
-
-    def test_cluster_id_remap_rewrites_existing_component_ids(self) -> None:
-        comp = _component("X", "1", source_cluster_ids=[1, 2])
-        root = AnalysisInsights(description="root", components=[comp], components_relations=[])
-        delta = _delta(remap={1: 10, 2: 2})  # remap one, leave the other identity
-
-        redetail = stitch_delta(root, {}, ClusterAnalysis(cluster_components=[]), delta)
-
-        self.assertEqual(comp.source_cluster_ids, [2, 10])
-        self.assertEqual(redetail, {"1"})
-
-    def test_unchanged_component_is_not_redetailed(self) -> None:
-        comp = _component("X", "1", source_cluster_ids=[5])
-        root = AnalysisInsights(description="root", components=[comp], components_relations=[])
-
-        redetail = stitch_delta(root, {}, ClusterAnalysis(cluster_components=[]), _empty_delta())
-
-        self.assertEqual(redetail, set())
-        self.assertEqual(comp.source_cluster_ids, [5])
-
-    def test_routes_by_id_even_when_name_differs(self) -> None:
-        """LLM-renamed component routed by id MUST update the existing component, not fork."""
-        comp = _component("Authentication", "1.3", source_cluster_ids=[1])
-        root = AnalysisInsights(description="root", components=[comp], components_relations=[])
-        delta_ca = ClusterAnalysis(
-            cluster_components=[
-                ClustersComponent(
-                    name="Auth Service",  # different name; id is what counts
-                    cluster_ids=[2],
-                    description="renamed for clarity",
-                    existing_component_id="1.3",
-                )
-            ]
-        )
-
-        stitch_delta(root, {}, delta_ca, _empty_delta())
-
-        self.assertEqual(len(root.components), 1)
-        self.assertEqual(comp.source_cluster_ids, [1, 2])
-
-    def test_creates_new_component_when_existing_id_is_null(self) -> None:
-        """Identity is by id. A null existing_component_id forks a new component
-        even when the name collides with an existing one."""
-        comp = _component("Authentication", "1.3", source_cluster_ids=[1])
-        root = AnalysisInsights(description="root", components=[comp], components_relations=[])
-        delta_ca = ClusterAnalysis(
-            cluster_components=[
-                ClustersComponent(
-                    name="Authentication",  # matches existing name
-                    cluster_ids=[2],
-                    description="brand-new component that happens to share the name",
-                    existing_component_id=None,
-                    parent_id=None,
-                )
-            ]
-        )
-
-        stitch_delta(root, {}, delta_ca, _empty_delta())
-
-        self.assertEqual(len(root.components), 2)
-        original = next(c for c in root.components if c.component_id == "1.3")
-        new_one = next(c for c in root.components if c.component_id != "1.3")
-        self.assertEqual(original.source_cluster_ids, [1])
-        self.assertEqual(new_one.source_cluster_ids, [2])
-        self.assertTrue(new_one.component_id, "new component should have an assigned id")
-
-    def test_hallucinated_existing_component_id_is_treated_as_new(self) -> None:
-        """If an unknown existing_component_id slips past the validator, the
-        stitcher must not crash and must not silently lose the cluster_ids."""
-        comp = _component("Existing", "1", source_cluster_ids=[1])
-        root = AnalysisInsights(description="root", components=[comp], components_relations=[])
-        delta_ca = ClusterAnalysis(
-            cluster_components=[
-                ClustersComponent(
-                    name="Hallucinated Routing",
-                    cluster_ids=[42],
-                    description="LLM made up an id",
-                    existing_component_id="9.99",  # does not exist
-                    parent_id=None,
-                )
-            ]
-        )
-
-        stitch_delta(root, {}, delta_ca, _empty_delta())
-
-        self.assertEqual(len(root.components), 2)
-        self.assertEqual(comp.source_cluster_ids, [1])  # untouched
-        new_one = next(c for c in root.components if c.name == "Hallucinated Routing")
-        self.assertEqual(new_one.source_cluster_ids, [42])
-
-    def test_replaying_same_delta_is_idempotent(self) -> None:
-        """Replay safety: if save_analysis succeeds but the cluster_cache seed
-        crashes, the next run re-applies the same delta. Second application
-        must not duplicate components or re-mutate cluster ids."""
-        comp = _component("Static Analyzer", "1", source_cluster_ids=[1, 2])
-        root = AnalysisInsights(description="root", components=[comp], components_relations=[])
-        delta_ca = ClusterAnalysis(
-            cluster_components=[
-                ClustersComponent(
-                    name="Static Analyzer",
-                    cluster_ids=[3],
-                    description="d",
-                    existing_component_id="1",
-                )
-            ]
-        )
-
-        first = stitch_delta(root, {}, delta_ca, _empty_delta())
-        snapshot_components = [(c.component_id, c.name, list(c.source_cluster_ids)) for c in root.components]
-
-        second = stitch_delta(root, {}, delta_ca, _empty_delta())
-
-        self.assertEqual(first, {"1"})
-        self.assertEqual(second, set())
-        self.assertEqual(
-            [(c.component_id, c.name, list(c.source_cluster_ids)) for c in root.components],
-            snapshot_components,
-        )
-
-    def test_replaying_delta_with_dropped_clusters_is_idempotent(self) -> None:
-        comp = _component("X", "1", source_cluster_ids=[1, 2, 3])
-        root = AnalysisInsights(description="root", components=[comp], components_relations=[])
-        delta = _delta(dropped={2})
-
-        first = stitch_delta(root, {}, ClusterAnalysis(cluster_components=[]), delta)
-        snapshot = list(comp.source_cluster_ids)
-
-        second = stitch_delta(root, {}, ClusterAnalysis(cluster_components=[]), delta)
-
-        self.assertEqual(first, {"1"})
-        self.assertEqual(second, set())
-        self.assertEqual(comp.source_cluster_ids, snapshot)
-
-    def test_update_propagates_new_clusters_to_ancestors(self) -> None:
-        """Routing a new cluster into a leaf must surface it in every ancestor.
-
-        Why: the next incremental cycle's ``_format_existing_components`` keys
-        on each component's own ``file_methods``. If the parent doesn't reflect
-        descendant clusters, it falls into the "names only" tier and the LLM
-        loses the description it would route by.
-        """
-        top = _component("Top", "1", source_cluster_ids=[1])
-        mid = _component("Mid", "1.1", source_cluster_ids=[2])
-        leaf = _component("Leaf", "1.1.1", source_cluster_ids=[3])
-        root = AnalysisInsights(description="root", components=[top], components_relations=[])
-        sub_analyses = {
-            "1": AnalysisInsights(description="", components=[mid], components_relations=[]),
-            "1.1": AnalysisInsights(description="", components=[leaf], components_relations=[]),
-        }
-        delta_ca = ClusterAnalysis(
-            cluster_components=[
-                ClustersComponent(
-                    name="Leaf",
-                    cluster_ids=[99],
-                    description="d",
-                    existing_component_id="1.1.1",
-                )
-            ]
-        )
-
-        redetail = stitch_delta(root, sub_analyses, delta_ca, _empty_delta())
-
-        self.assertEqual(leaf.source_cluster_ids, [3, 99])
-        self.assertEqual(mid.source_cluster_ids, [2, 99])
-        self.assertEqual(top.source_cluster_ids, [1, 99])
-        # Every ancestor that gained a cluster id must be redetailed so its
-        # file_methods get rebuilt from the merged source_cluster_ids.
-        self.assertIn("1.1.1", redetail)
-        self.assertIn("1.1", redetail)
-        self.assertIn("1", redetail)
-
-    def test_update_skips_propagation_when_ancestors_already_carry_ids(self) -> None:
-        """Idempotency: a second run of the same delta is a no-op for ancestors."""
-        top = _component("Top", "1", source_cluster_ids=[1, 99])
-        mid = _component("Mid", "1.1", source_cluster_ids=[2, 99])
-        leaf = _component("Leaf", "1.1.1", source_cluster_ids=[3, 99])
-        root = AnalysisInsights(description="root", components=[top], components_relations=[])
-        sub_analyses = {
-            "1": AnalysisInsights(description="", components=[mid], components_relations=[]),
-            "1.1": AnalysisInsights(description="", components=[leaf], components_relations=[]),
-        }
-        delta_ca = ClusterAnalysis(
-            cluster_components=[
-                ClustersComponent(
-                    name="Leaf",
-                    cluster_ids=[99],
-                    description="d",
-                    existing_component_id="1.1.1",
-                )
-            ]
-        )
-
-        redetail = stitch_delta(root, sub_analyses, delta_ca, _empty_delta())
-
-        self.assertEqual(top.source_cluster_ids, [1, 99])
-        self.assertEqual(mid.source_cluster_ids, [2, 99])
-        self.assertEqual(leaf.source_cluster_ids, [3, 99])
-        # Leaf's set didn't change; ancestors didn't change. No redetail needed.
-        self.assertEqual(redetail, set())
-
-    def test_add_new_component_propagates_clusters_to_ancestors(self) -> None:
-        """A brand-new component under '1.1' must surface its clusters in '1.1' and '1'."""
-        top = _component("Top", "1", source_cluster_ids=[1])
-        mid = _component("Mid", "1.1", source_cluster_ids=[2])
-        root = AnalysisInsights(description="root", components=[top], components_relations=[])
-        sub_analyses: dict[str, AnalysisInsights] = {
-            "1": AnalysisInsights(description="", components=[mid], components_relations=[]),
-        }
-        delta_ca = ClusterAnalysis(
-            cluster_components=[
-                ClustersComponent(
-                    name="Brand New",
-                    cluster_ids=[42],
-                    description="freshly seen cluster",
-                    parent_id="1.1",
-                )
-            ]
-        )
-
-        redetail = stitch_delta(root, sub_analyses, delta_ca, _empty_delta())
-
-        self.assertEqual(top.source_cluster_ids, [1, 42])
-        self.assertEqual(mid.source_cluster_ids, [2, 42])
-        self.assertIn("1", redetail)
-        self.assertIn("1.1", redetail)
-        # The new component should also be present and registered for redetail.
-        new_component = sub_analyses["1.1"].components[0]
-        self.assertEqual(new_component.name, "Brand New")
-        self.assertIn(new_component.component_id, redetail)
-
-    def test_add_top_level_component_does_not_propagate(self) -> None:
-        """A new top-level component (parent_id=None) has no ancestors to update."""
-        existing = _component("Existing", "1", source_cluster_ids=[1])
-        root = AnalysisInsights(description="root", components=[existing], components_relations=[])
-        delta_ca = ClusterAnalysis(
-            cluster_components=[
-                ClustersComponent(
-                    name="New Top",
-                    cluster_ids=[99],
-                    description="d",
-                    parent_id=None,
-                )
-            ]
-        )
-
-        stitch_delta(root, {}, delta_ca, _empty_delta())
-
-        # The existing top-level component is a sibling, not an ancestor.
-        # Its source_cluster_ids must stay untouched.
-        self.assertEqual(existing.source_cluster_ids, [1])
-
-
-class TestFormatExistingComponents(unittest.TestCase):
-    def test_renders_id_name_and_description_in_full(self) -> None:
-        # Why no truncation: the cluster-string budget downstream
-        # (``_build_cluster_string``) accounts for component-section overhead
-        # when planning skip sets, so descriptions render in full and the
-        # cluster body trims itself to fit.
-        long_desc = "x" * 500
-        comp = Component(
-            name="Big",
-            description=long_desc,
-            key_entities=[],
-            component_id="3",
-        )
-        analysis = AnalysisInsights(description="r", components=[comp], components_relations=[])
-
-        rendered = _format_existing_components(analysis, {})
-
-        self.assertIn("3", rendered)
-        self.assertIn("Big", rendered)
-        self.assertIn(long_desc, rendered)
-        self.assertFalse(rendered.endswith("..."))
-
-    def test_empty_baseline_message(self) -> None:
-        empty = AnalysisInsights(description="r", components=[], components_relations=[])
-        rendered = _format_existing_components(empty, {})
-        self.assertIn("no existing components", rendered)
 
 
 class TestPruneEmptyComponents(unittest.TestCase):
@@ -555,175 +80,322 @@ class TestPruneEmptyComponents(unittest.TestCase):
         self.assertEqual([(r.src_id, r.dst_id) for r in root.components_relations], [("1", "2")])
         self.assertEqual([c.component_id for c in root.components], ["1", "2"])
 
-
-class TestRepopulateTouchedScopes(unittest.TestCase):
-    def test_only_runs_relation_pass_on_touched_scopes(self) -> None:
-        # Per-component file_methods refresh now happens inline (not via the
-        # mixin's scope-wide ``populate_file_methods``), so the only mixin
-        # method we expect to be called is ``build_static_relations`` — and
-        # only on the touched scope (the sub-analysis containing "2.1"),
-        # never on the untouched root.
-        root_comp = _component("Root", "1", source_cluster_ids=[1])
-        sub_comp = _component("Sub", "2.1", source_cluster_ids=[2])
-        root = AnalysisInsights(description="r", components=[root_comp], components_relations=[])
-        sub = AnalysisInsights(description="s", components=[sub_comp], components_relations=[])
-        sub_analyses = {"2": sub}
-
-        helpers = MagicMock()
-        helpers.static_analysis = MagicMock()
-        helpers.static_analysis.get_cfg.return_value = MagicMock(nodes={})
-
-        touched = repopulate_touched_scopes({"2.1"}, root, sub_analyses, {"python": ClusterResult()}, helpers)
-
-        self.assertEqual(touched, {"2"})
-        helpers.populate_file_methods.assert_not_called()
-        helpers.build_static_relations.assert_called_once()
-
-    def test_no_redetail_skips_all_helpers(self) -> None:
-        root = AnalysisInsights(description="r", components=[], components_relations=[])
-        helpers = MagicMock()
-        helpers.static_analysis = MagicMock()
-        helpers.static_analysis.get_cfg.return_value = MagicMock(nodes={})
-        touched = repopulate_touched_scopes(set(), root, {}, {}, helpers)
-        self.assertEqual(touched, set())
-        helpers.populate_file_methods.assert_not_called()
-        helpers.build_static_relations.assert_not_called()
-
-
-class TestRefreshComponentFileMethodsPathNormalization(unittest.TestCase):
-    """``_refresh_component_file_methods`` must normalize absolute snapshot-
-    worktree paths before substring-matching against qnames. Without that
-    normalization the absolute prefix poisons the match and every qname
-    falls through to the alphabetical fallback, bucketing 100s of methods
-    under whichever file sorts first (e.g. ``shared/incrementalTypes.ts``
-    in test 04). Reproduces the test 04 misbucketing bug."""
-
-    def test_absolute_paths_in_cluster_to_files_normalize_before_matching(self) -> None:
-        from agents.agent_responses import MethodEntry
-        from agents.incremental_agent import _refresh_component_file_methods
-        from static_analyzer.graph import ClusterResult
-
-        repo_dir = "/tmp/snapshot-worktree"
-        # Mirror what static_analyzer's CFG produces under a snapshot worktree:
-        # every ``cluster_to_files`` entry is an absolute path under repo_dir.
-        cluster_to_files = {
-            1: {
-                f"{repo_dir}/shared/incrementalTypes.ts",
-                f"{repo_dir}/webview-ui/src/components/HealthSummary.tsx",
-            }
-        }
-        clusters = {
-            1: {
-                "shared.incrementalTypes.MethodChange",
-                "webview-ui.src.components.HealthSummary.HealthSummaryProps",
-            }
-        }
-        cluster_results = {"typescript": ClusterResult(clusters=clusters, cluster_to_files=cluster_to_files)}
-        node_lookup = {
-            qname: MethodEntry(qualified_name=qname, start_line=1, end_line=1, node_type="FUNCTION")
-            for qname in clusters[1]
+    def test_pruning_empty_parent_removes_descendant_subtree(self) -> None:
+        parent = _component("Parent", "1")
+        child = _component_with_method("Child", "1.1")
+        grandchild = _component_with_method("Grandchild", "1.1.1")
+        root = AnalysisInsights(description="root", components=[parent], components_relations=[])
+        sub_analyses = {
+            "1": AnalysisInsights(description="parent scope", components=[child], components_relations=[]),
+            "1.1": AnalysisInsights(description="child scope", components=[grandchild], components_relations=[]),
         }
 
-        comp = _component("UI Bridge", "1", source_cluster_ids=[1])
-        _refresh_component_file_methods(comp, cluster_results, node_lookup, repo_dir)
+        removed_ids = prune_empty_components(root, sub_analyses)
 
-        by_file = {g.file_path: [m.qualified_name for m in g.methods] for g in comp.file_methods}
-        self.assertIn("shared/incrementalTypes.ts", by_file)
-        self.assertIn("webview-ui/src/components/HealthSummary.tsx", by_file)
-        self.assertEqual(
-            by_file["shared/incrementalTypes.ts"],
-            ["shared.incrementalTypes.MethodChange"],
-            "incrementalTypes qname must NOT pull in HealthSummary qnames via fallback",
-        )
-        self.assertEqual(
-            by_file["webview-ui/src/components/HealthSummary.tsx"],
-            ["webview-ui.src.components.HealthSummary.HealthSummaryProps"],
-            "HealthSummary qname must bucket to its own file via substring match (post-normalization)",
-        )
+        self.assertEqual(removed_ids, {"1", "1.1", "1.1.1"})
+        self.assertEqual(root.components, [])
+        self.assertEqual(sub_analyses, {})
+
+    def test_pruning_preserves_cluster_backed_empty_components(self) -> None:
+        empty = _component("Prior Empty Leaf", "1.1", source_cluster_ids=["1.1.0"])
+        root = AnalysisInsights(description="root", components=[empty], components_relations=[])
+
+        removed_ids = prune_empty_components(root, {}, protected_empty_ids={"1.1"})
+
+        self.assertEqual(removed_ids, set())
+        self.assertEqual(root.components, [empty])
 
 
-class TestIncrementalAgentToolkit(unittest.TestCase):
-    """Constructor wiring: routing should never see the full ReAct toolkit.
-
-    The agent shouldn't have ``read_packages`` / ``read_file`` / etc. attached;
-    a ReAct loop with the full kit speculatively wanders for tens of rounds on
-    a routing decision that needs at most a single targeted source read. Only
-    ``read_source_reference`` is appropriate.
-    """
-
-    def test_only_read_source_reference_is_attached(self) -> None:
-        from unittest.mock import patch
-        from pathlib import Path
-
-        from agents.incremental_agent import IncrementalAgent
-        from static_analyzer.analysis_result import StaticAnalysisResults
-
-        static_analysis = MagicMock(spec=StaticAnalysisResults)
-
-        # The base ``CodeBoardingAgent.__init__`` builds a ReAct agent with the
-        # full toolkit; ``IncrementalAgent.__init__`` then overrides ``self.agent``
-        # by rebuilding it with the narrow tool set. Patch both create_agent
-        # references and assert the override call carries the single tool.
-        with (
-            patch("agents.agent.create_agent") as mock_base_create,
-            patch("agents.incremental_agent.create_agent") as mock_override_create,
-        ):
-            mock_base_create.return_value = MagicMock()
-            mock_override_create.return_value = MagicMock()
-            IncrementalAgent(
-                repo_dir=Path("/tmp/fake-repo"),
-                static_analysis=static_analysis,
-                project_name="Test",
-                meta_context=None,
-                agent_llm=MagicMock(),
-                parsing_llm=MagicMock(),
+class TestRemoveDeletedFiles(unittest.TestCase):
+    def test_scrubs_deleted_file_references_from_root_and_sub_analysis(self) -> None:
+        root_component = _component_with_method("Root", "1")
+        root_component.file_methods.append(
+            FileMethodGroup(
+                file_path="deleted.py",
+                methods=[MethodEntry(qualified_name="deleted.fn", start_line=1, end_line=2, node_type="FUNCTION")],
             )
-
-        mock_override_create.assert_called_once()
-        tools = mock_override_create.call_args.kwargs["tools"]
-        # CodeReferenceReader is the BaseRepoTool subclass behind read_source_reference.
-        self.assertEqual(len(tools), 1, f"expected 1 tool, got {len(tools)}: {[type(t).__name__ for t in tools]}")
-        self.assertEqual(type(tools[0]).__name__, "CodeReferenceReader")
-
-
-class TestPickFileForQname(unittest.TestCase):
-    """Substring-match tie-break: longest dotted prefix wins.
-
-    Why these matter: any other tie-break (alphabetical, set order) would
-    randomly route ``foo.py`` and ``foo_test.py`` methods between the two,
-    producing churn across runs.
-    """
-
-    def test_dotted_prefix_match_picks_correct_file(self) -> None:
-        files = {"a/b/foo.py", "a/b/bar.py"}
-        chosen = _pick_file_for_qname("a.b.foo.fn", files, qname_to_files={})
-        self.assertEqual(chosen, "a/b/foo.py")
-
-    def test_longer_dotted_match_wins_over_shorter(self) -> None:
-        # ``a.b.foo`` is a proper prefix of ``a.b.foo_x``; both files match
-        # the qname ``a.b.foo_x.run`` via substring (``a.b.foo`` is contained
-        # in ``a.b.foo_x.run``). The longer dotted form must win.
-        files = {"a/b/foo.py", "a/b/foo_x.py"}
-        chosen = _pick_file_for_qname("a.b.foo_x.run", files, qname_to_files={})
-        self.assertEqual(chosen, "a/b/foo_x.py")
-
-    def test_no_match_falls_back_to_qname_to_files(self) -> None:
-        # No file in files_for_cluster matches; qname_to_files knows the qname.
-        chosen = _pick_file_for_qname(
-            "totally.unrelated.fn",
-            files_for_cluster={"x/y/z.py"},
-            qname_to_files={"totally.unrelated.fn": {"some/other/file.py"}},
         )
-        self.assertEqual(chosen, "some/other/file.py")
+        sub_component = _component_with_method("Sub", "1.1")
+        root = AnalysisInsights(description="r", components=[root_component], components_relations=[])
+        sub = AnalysisInsights(description="s", components=[sub_component], components_relations=[])
+        sub_analyses = {"1": sub}
 
-    def test_no_match_anywhere_falls_back_to_first_cluster_file(self) -> None:
-        files = {"x/y/z.py", "a/b/c.py"}
-        chosen = _pick_file_for_qname("totally.unrelated", files, qname_to_files={})
-        # Sorted-first deterministic choice.
-        self.assertEqual(chosen, "a/b/c.py")
+        dropped = remove_deleted_files(root, sub_analyses, {"1.py"})
 
-    def test_empty_inputs_return_empty_string(self) -> None:
-        self.assertEqual(_pick_file_for_qname("foo.bar", set(), qname_to_files={}), "")
+        self.assertEqual(dropped, {"deleted.py", "1.1.py"})
+        self.assertEqual([group.file_path for group in root_component.file_methods], ["1.py"])
+        self.assertEqual(sub_component.file_methods, [])
+
+
+class TestUpdateScope(unittest.TestCase):
+    def _agent(self) -> IncrementalAgent:
+        agent = object.__new__(IncrementalAgent)
+        agent.static_analysis = MagicMock()
+        agent.static_analysis.get_languages.return_value = []
+        agent.static_analysis.get_cfg.return_value.filter_by_nodes.return_value = "cfg"
+
+        def populate(scope, _cluster_results, _cfg_graphs, _touched_ids, source_cluster_id_prefix=""):
+            for component in scope.components:
+                if component.source_cluster_ids:
+                    component.file_methods = [
+                        FileMethodGroup(
+                            file_path=f"{component.component_id}.py",
+                            methods=[
+                                MethodEntry(
+                                    qualified_name=f"{component.component_id}.method",
+                                    start_line=1,
+                                    end_line=2,
+                                    node_type="FUNCTION",
+                                )
+                            ],
+                        )
+                    ]
+
+        agent._patch_scope_file_methods = MagicMock(side_effect=populate)
+        agent.build_static_relations = MagicMock()
+        return agent
+
+    def test_update_existing_component_updates_description_clusters_and_key_entities(self) -> None:
+        component = _component("API", "1", source_cluster_ids=["1"])
+        scope = AnalysisInsights(description="root", components=[component], components_relations=[])
+        decision = ScopeUpdateDecision(
+            operations=[
+                ScopeOperation(
+                    action=ScopeOperationAction.UPDATE_COMPONENT,
+                    cluster_refs=[ScopedClusterRef(scope_id="root", language="python", cluster_id=2)],
+                    component_id="1",
+                    description="New",
+                    rationale="API gained a cluster.",
+                )
+            ]
+        )
+
+        result = self._agent().update_scope("root", scope, decision, {"python": ClusterResult()})
+
+        self.assertEqual(component.description, "New")
+        self.assertEqual(component.source_cluster_ids, ["1", "2"])
+        self.assertEqual(component.key_entities[0].qualified_name, "1.method")
+        self.assertEqual(result.refresh_ids, {"1"})
+        self.assertEqual(result.new_component_ids, set())
+
+    def test_update_scope_moves_reassigned_clusters_between_siblings(self) -> None:
+        first = _component("Core", "1.1", source_cluster_ids=["1.1", "1.2"])
+        second = _component("Parsers", "1.2", source_cluster_ids=["1.3"])
+        scope = AnalysisInsights(description="nested", components=[first, second], components_relations=[])
+        decision = ScopeUpdateDecision(
+            operations=[
+                ScopeOperation(
+                    action=ScopeOperationAction.UPDATE_COMPONENT,
+                    cluster_refs=[ScopedClusterRef(scope_id="1", language="python", cluster_id=2)],
+                    component_id="1.2",
+                    description="Parsers now own the parser cluster.",
+                    rationale="Cluster 2 moved under parser responsibility.",
+                )
+            ]
+        )
+
+        result = self._agent().update_scope("1", scope, decision, {"python": ClusterResult()})
+
+        self.assertEqual(first.source_cluster_ids, ["1.1"])
+        self.assertEqual(second.source_cluster_ids, ["1.2", "1.3"])
+        self.assertEqual(result.refresh_ids, {"1.1", "1.2"})
+
+    def test_create_component_assigns_id_clusters_methods_and_key_entities(self) -> None:
+        existing = Component(name="API", description="", key_entities=[], component_id="1")
+        scope = AnalysisInsights(description="root", components=[existing], components_relations=[])
+        decision = ScopeUpdateDecision(
+            operations=[
+                ScopeOperation(
+                    action=ScopeOperationAction.CREATE_COMPONENT,
+                    cluster_refs=[ScopedClusterRef(scope_id="root", language="python", cluster_id=7)],
+                    name="Worker",
+                    description="Runs jobs.",
+                    rationale="New isolated responsibility.",
+                )
+            ]
+        )
+
+        result = self._agent().update_scope("root", scope, decision, {"python": ClusterResult()})
+
+        created = scope.components[1]
+        self.assertEqual(created.component_id, "2")
+        self.assertEqual(created.name, "Worker")
+        self.assertEqual(created.source_cluster_ids, ["7"])
+        self.assertEqual(created.file_methods[0].methods[0].qualified_name, "2.method")
+        self.assertEqual(created.key_entities[0].qualified_name, "2.method")
+        self.assertEqual(result.refresh_ids, {"2"})
+        self.assertEqual(result.new_component_ids, {"2"})
+
+    def test_create_component_with_mismatched_scope_is_skipped(self) -> None:
+        scope = AnalysisInsights(description="root", components=[], components_relations=[])
+        decision = ScopeUpdateDecision(
+            operations=[
+                ScopeOperation(
+                    action=ScopeOperationAction.CREATE_COMPONENT,
+                    cluster_refs=[ScopedClusterRef(scope_id="1.3", language="python", cluster_id=8)],
+                    name="Nested Worker",
+                    description="Runs nested jobs.",
+                    rationale="Wrong scope for root apply.",
+                )
+            ]
+        )
+
+        result = self._agent().update_scope("root", scope, decision, {"python": ClusterResult()})
+
+        self.assertEqual(scope.components, [])
+        self.assertEqual(result.new_component_ids, set())
+
+    def test_delete_component_removes_relations(self) -> None:
+        first = _component("A", "1")
+        second = _component("B", "2")
+        relation = Relation(relation="calls", src_name="A", dst_name="B", src_id="1", dst_id="2")
+        scope = AnalysisInsights(description="root", components=[first, second], components_relations=[relation])
+        decision = ScopeUpdateDecision(
+            operations=[
+                ScopeOperation(
+                    action=ScopeOperationAction.DELETE_COMPONENT,
+                    cluster_refs=[],
+                    component_id="1",
+                    rationale="Removed cluster emptied component.",
+                )
+            ]
+        )
+
+        result = self._agent().update_scope("root", scope, decision, {})
+
+        self.assertEqual([component.component_id for component in scope.components], ["2"])
+        self.assertEqual(scope.components_relations, [])
+        self.assertEqual(result.removed_ids, {"1"})
+
+    def test_delete_component_keeps_live_cfg_methods(self) -> None:
+        first = _component_with_method("A", "1")
+        second = _component_with_method("B", "2")
+        scope = AnalysisInsights(description="root", components=[first, second], components_relations=[])
+        decision = ScopeUpdateDecision(
+            operations=[
+                ScopeOperation(
+                    action=ScopeOperationAction.DELETE_COMPONENT,
+                    cluster_refs=[],
+                    component_id="1",
+                    rationale="Planner thought the component was removed.",
+                )
+            ]
+        )
+        agent = self._agent()
+        cfg = MagicMock()
+        cfg.nodes = {"1.method": object(), "2.method": object()}
+        agent.static_analysis.get_languages = MagicMock(return_value=["python"])  # type: ignore[method-assign]
+        agent.static_analysis.get_cfg = MagicMock(return_value=cfg)  # type: ignore[method-assign]
+
+        result = agent.update_scope("root", scope, decision, {})
+
+        self.assertEqual([component.component_id for component in scope.components], ["1", "2"])
+        self.assertEqual(result.removed_ids, set())
+        self.assertEqual(result.refresh_ids, {"1"})
+
+    def test_delete_component_keeps_live_cfg_key_entities(self) -> None:
+        first = _component("A", "1")
+        first.key_entities = [SourceCodeReference(qualified_name="1.method", reference_file="a.py")]
+        second = _component_with_method("B", "2")
+        scope = AnalysisInsights(description="root", components=[first, second], components_relations=[])
+        decision = ScopeUpdateDecision(
+            operations=[
+                ScopeOperation(
+                    action=ScopeOperationAction.DELETE_COMPONENT,
+                    cluster_refs=[],
+                    component_id="1",
+                    rationale="Planner thought the component was removed.",
+                )
+            ]
+        )
+        agent = self._agent()
+        cfg = MagicMock()
+        cfg.nodes = {"1.method": object(), "2.method": object()}
+        agent.static_analysis.get_languages = MagicMock(return_value=["python"])  # type: ignore[method-assign]
+        agent.static_analysis.get_cfg = MagicMock(return_value=cfg)  # type: ignore[method-assign]
+
+        result = agent.update_scope("root", scope, decision, {})
+
+        self.assertEqual([component.component_id for component in scope.components], ["1", "2"])
+        self.assertEqual(result.removed_ids, set())
+        self.assertEqual(result.refresh_ids, {"1"})
+
+    def test_regenerate_scope_sets_flag_without_mutation(self) -> None:
+        component = _component("A", "1")
+        scope = AnalysisInsights(description="root", components=[component], components_relations=[])
+        decision = ScopeUpdateDecision(
+            operations=[
+                ScopeOperation(
+                    action=ScopeOperationAction.REGENERATE_SCOPE,
+                    cluster_refs=[],
+                    rationale="Ambiguous reparenting required.",
+                )
+            ]
+        )
+
+        result = self._agent().update_scope("root", scope, decision, {})
+
+        self.assertTrue(result.regenerate_scope)
+        self.assertEqual(scope.components, [component])
+
+
+class TestPatchFileMethods(unittest.TestCase):
+    def test_preserves_untouched_methods_while_replacing_represented_slice(self) -> None:
+        component = _component("API", "1")
+        component.file_methods = [
+            FileMethodGroup(
+                file_path="api.py",
+                methods=[
+                    MethodEntry(qualified_name="api.keep", start_line=1, end_line=2, node_type="FUNCTION"),
+                    MethodEntry(qualified_name="api.changed", start_line=4, end_line=5, node_type="FUNCTION"),
+                ],
+            )
+        ]
+        scope = AnalysisInsights(description="root", components=[component], components_relations=[])
+        updated = FileMethodGroup(
+            file_path="api.py",
+            methods=[MethodEntry(qualified_name="api.changed", start_line=4, end_line=6, node_type="FUNCTION")],
+        )
+
+        _patch_file_methods(scope, {"1": [updated]}, {"1"}, {"api.keep", "api.changed"})
+
+        methods = scope.components[0].file_methods[0].methods
+        self.assertEqual([method.qualified_name for method in methods], ["api.keep", "api.changed"])
+        self.assertEqual(methods[1].end_line, 6)
+
+    def test_moves_represented_method_between_siblings_without_duplicate(self) -> None:
+        first = _component("Old", "1")
+        second = _component("New", "2")
+        first.file_methods = [
+            FileMethodGroup(
+                file_path="shared.py",
+                methods=[MethodEntry(qualified_name="pkg.moved", start_line=10, end_line=12, node_type="FUNCTION")],
+            )
+        ]
+        scope = AnalysisInsights(description="root", components=[first, second], components_relations=[])
+        moved = FileMethodGroup(
+            file_path="shared.py",
+            methods=[MethodEntry(qualified_name="pkg.moved", start_line=10, end_line=12, node_type="FUNCTION")],
+        )
+
+        _patch_file_methods(scope, {"2": [moved]}, {"1", "2"}, {"pkg.moved"})
+
+        self.assertEqual(first.file_methods, [])
+        self.assertEqual(second.file_methods[0].methods[0].qualified_name, "pkg.moved")
+
+    def test_removes_deleted_methods_only_from_touched_components(self) -> None:
+        touched = _component("Touched", "1")
+        untouched = _component("Untouched", "2")
+        stale = MethodEntry(qualified_name="pkg.deleted", start_line=1, end_line=2, node_type="FUNCTION")
+        live = MethodEntry(qualified_name="pkg.live", start_line=3, end_line=4, node_type="FUNCTION")
+        touched.file_methods = [FileMethodGroup(file_path="a.py", methods=[stale, live])]
+        untouched.file_methods = [FileMethodGroup(file_path="b.py", methods=[stale])]
+        scope = AnalysisInsights(description="root", components=[touched, untouched], components_relations=[])
+
+        _patch_file_methods(scope, {}, {"1"}, {"pkg.live"})
+
+        self.assertEqual([method.qualified_name for method in touched.file_methods[0].methods], ["pkg.live"])
+        self.assertEqual(untouched.file_methods[0].methods[0].qualified_name, "pkg.deleted")
 
 
 if __name__ == "__main__":

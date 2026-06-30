@@ -217,7 +217,9 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
 
         # Step 1: Create subgraph from component's assigned files using strict filtering
         # If subgraph has < MIN_CLUSTERS_THRESHOLD clusters, auto-expands to method-level
-        _subgraph_str, subgraph_cluster_results, subgraph_cfgs = self._create_strict_component_subgraph(component)
+        _subgraph_str, subgraph_cluster_results, subgraph_cfgs = self._create_strict_component_subgraph(
+            component, source_cluster_id_prefix=component.component_id
+        )
 
         # Step 2: Group clusters within the subgraph
         cluster_analysis = self.step_clusters_grouping(component, subgraph_cluster_results)
@@ -238,7 +240,7 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
         self.populate_file_methods(analysis, subgraph_cluster_results, subgraph_cfgs)
 
         # Step 7: Build static inter-component relations from subgraph CFG edges
-        self.build_static_relations(analysis, subgraph_cfgs)
+        self.build_static_relations(analysis, subgraph_cfgs, source_cluster_id_prefix=component.component_id)
 
         # Step 8: Fix source code reference lines (resolves reference_file paths)
         analysis = self.fix_source_code_reference_lines(analysis)

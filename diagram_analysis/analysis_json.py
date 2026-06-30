@@ -29,7 +29,7 @@ class RelationJson(Relation):
 class ComponentJson(Component):
     # Override to include in JSON serialization (parent has exclude=True)
     component_id: str = Field(description="Deterministic unique identifier for this component.")
-    source_cluster_ids: list[int] = Field(
+    source_cluster_ids: list[str] = Field(
         description="List of cluster IDs from CFG analysis that this component encompasses.",
         default_factory=list,
     )

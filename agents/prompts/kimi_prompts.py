@@ -373,7 +373,7 @@ Project context:
 - Type: {project_type}
 - Meta: {meta_context}
 
-The previous analysis established the components below. Most clusters are unchanged and stay where they are; this prompt only shows the slice that changed (new clusters or clusters whose member methods changed).
+The previous analysis established the components below. Most clusters are unchanged and stay where they are; this prompt only shows the structural slice that changed: new clusters, removed clusters, or clusters whose member set changed through added/removed methods. A method body edit by itself is not a cluster-boundary change.
 
 Existing components (each line shows component_id "name"):
 {existing_components}
@@ -391,7 +391,39 @@ Think aloud first about whether each cluster belongs to an existing component or
 
 A critical note on identity: components are identified by their component_id, not by name. Reusing an existing component's name without explicitly routing to its component_id will fork a duplicate — that is wrong. If clusters belong in an existing component, you must route to it by component_id.
 
+Boundary rules: route each changed cluster to the most specific owning component; if both a parent and a child seem relevant, choose the child only. `redetail_needed=False` means the component boundary is unchanged, so do not use it to absorb new files, new responsibilities, or clusters owned by another component.
+
 Every cluster id listed in the "Cluster groups to assign" section must appear in exactly one routing entry."""
+
+
+PLANNING_MESSAGE = """You are Kimi, an AI assistant created by Moonshot AI.
+
+Update one scope of the `{project_name}` architecture diagram. Reason about ownership, then return operations for this scope only.
+
+Project context:
+- Scope: `{scope_id}` (`root` means the top-level diagram)
+- Type: {project_type}
+- Meta: {meta_context}
+
+Existing components in this scope:
+{existing_components}
+
+Changed files:
+{changed_files}
+
+Structural cluster diff:
+{structural_diff}
+
+
+Rules:
+- Keep unchanged clusters out of the operations unless the diff makes the component semantically dirty.
+- For modified clusters, preserve the existing owning component shown by its clusters=[...] list; use update_component for that owner instead of moving the cluster to another component.
+- For new clusters, decide from the structural diff whether they extend an existing responsibility or introduce a new component; do not infer this from file/package layout alone.
+- For reshaped groups, follow overlap counts to keep old cluster ownership stable. Only assign a reshaped new cluster to a different component when the diff proves a real responsibility move.
+- Use listGitChanges/readGitDiff proactively but narrowly when the structural diff is not enough to judge semantic impact.
+- Do not reparent existing components. If reparenting seems required, use regenerate_scope.
+- Every modified/new/reshaped new-side cluster listed below must appear in exactly one operation's cluster_refs.
+"""
 
 
 class KimiPromptFactory(AbstractPromptFactory):
@@ -444,6 +476,9 @@ class KimiPromptFactory(AbstractPromptFactory):
 
     def get_incremental_grouping_message(self) -> str:
         return INCREMENTAL_GROUPING_MESSAGE
+
+    def get_planning_message(self) -> str:
+        return PLANNING_MESSAGE
 
     def get_scope_relations_message(self) -> str:
         return SCOPE_RELATIONS_MESSAGE
