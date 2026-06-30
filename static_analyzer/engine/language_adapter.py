@@ -18,6 +18,34 @@ from utils import get_config
 
 logger = logging.getLogger(__name__)
 
+# A generated ctypes binding dwarfs any hand-written module: pylint flags hand-written modules
+# at 1000 lines (~80 KB) and real hand-written sources top out around a few thousand lines, while
+# clang2py/ctypesgen binding dumps run 10k-26k lines (0.4-1 MB+, e.g. tinygrad's 888 KB cupti.py).
+# 512 KB sits well above any plausible hand-written file and below the binding dumps; combined with
+# the `import ctypes` requirement a false positive on real code is effectively impossible. Biased
+# high on purpose: a missed binding only slows analysis, but excluding real code loses signal.
+_GENERATED_CTYPES_MIN_BYTES = 512 * 1024
+
+
+def _is_generated_source(path: Path) -> bool:
+    """Heuristic: a machine-generated ctypes binding dump (clang2py / ctypesgen).
+
+    Why: these carry enormous symbol counts but no architectural signal and explode the LSP
+    references phase (one query per symbol position) — e.g. tinygrad's runtime/autogen bindings.
+    Generated dirs/files by convention (``autogen/``, ``*_pb2.*``) are handled by ignore patterns;
+    this catches binding dumps that live outside those conventions (e.g. tinygrad's
+    ``extra/.../cupti.py``). Gated on size first (a cheap stat, no read) AND ``import ctypes`` in
+    the file's top-of-file import block, so the small head read only happens for the rare big file.
+    """
+    try:
+        if path.stat().st_size <= _GENERATED_CTYPES_MIN_BYTES:
+            return False
+        with path.open("rb") as fh:
+            head = fh.read(4096)  # imports live at the top; 4 KB covers any module's docstring+imports
+    except OSError:
+        return False
+    return b"import ctypes" in head
+
 
 class LanguageAdapter(ABC):
     """Strategy interface for language-specific behavior."""
@@ -239,14 +267,23 @@ class LanguageAdapter(ABC):
         project_root = project_root.resolve()
         extensions = set(self.file_extensions)
         files: list[Path] = []
+        skipped_generated = 0
 
         for path in self._walk(project_root, ignore_manager):
-            if path.suffix in extensions:
-                files.append(path)
+            if path.suffix not in extensions:
+                continue
+            if _is_generated_source(path):
+                skipped_generated += 1
+                continue
+            files.append(path)
 
         files.sort()
         if files:
             logger.info("Found %d %s files in %s", len(files), self.language, project_root)
+        if skipped_generated:
+            logger.info(
+                "Skipped %d machine-generated %s files (excluded from analysis)", skipped_generated, self.language
+            )
         return files
 
     def _walk(self, root: Path, ignore_manager: RepoIgnoreManager):
