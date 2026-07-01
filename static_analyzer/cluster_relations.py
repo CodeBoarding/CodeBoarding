@@ -216,6 +216,12 @@ def build_global_relations(
                     )
                 )
 
+    # Stable order: the static portion is already sorted, but the LLM-only tail
+    # is appended in sub_analyses completion order (nondeterministic across runs).
+    # Sort the whole set so the serialized analysis.json and any rolled-up label
+    # choice are reproducible.
+    result.sort(key=lambda r: (r.src_id, r.dst_id, r.relation))
+
     logger.info(f"Built {len(result)} global relations ({len(static_relations)} static, rest LLM-only)")
     return result
 

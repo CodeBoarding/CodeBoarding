@@ -565,3 +565,35 @@ class TestPartialExpansion(unittest.TestCase):
         # lvl1 -> lvl2
         self.assertIn(("3", "4.2"), ids, "Storage -> Push")
         self.assertIn(("3", "2.1"), ids, "Storage -> Users")
+
+
+class TestDeterministicOrder(unittest.TestCase):
+    """build_global_relations output order must not depend on sub_analyses insertion order.
+
+    Why: sub_analyses is populated in ThreadPoolExecutor completion order on a full
+    run, so an unsorted result produced analysis.json diff churn and a nondeterministic
+    rolled-up label when two pairs collide at a render level.
+    """
+
+    def _serialize(self, rels):
+        return [(r.src_id, r.dst_id, r.relation, r.edge_count, r.is_static) for r in rels]
+
+    def test_order_independent_of_sub_analyses_insertion_order(self):
+        root = _build_root_analysis()
+        cfg = {"python": _build_cfg()}
+        subs = _build_sub_analyses()
+
+        forward = build_global_relations(root, dict(subs), cfg)
+        reversed_subs = dict(reversed(list(subs.items())))
+        backward = build_global_relations(_build_root_analysis(), reversed_subs, cfg)
+
+        self.assertEqual(self._serialize(forward), self._serialize(backward))
+
+    def test_result_is_sorted(self):
+        rels = build_global_relations(_build_root_analysis(), _build_sub_analyses(), {"python": _build_cfg()})
+        keys = [(r.src_id, r.dst_id, r.relation) for r in rels]
+        self.assertEqual(keys, sorted(keys))
+
+
+if __name__ == "__main__":
+    unittest.main()
