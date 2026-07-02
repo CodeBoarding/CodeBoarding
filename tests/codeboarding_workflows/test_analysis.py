@@ -91,3 +91,172 @@ def test_run_incremental_diff_error_raises(tmp_path: Path, patched) -> None:
         _invoke(tmp_path, base_ref="deadbeef")
 
     gen_cls.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# run_partial tests
+# ---------------------------------------------------------------------------
+
+from agents.agent_responses import AnalysisInsights, Component
+from codeboarding_workflows.analysis import run_partial
+
+
+@pytest.fixture
+def partial_patched(tmp_path: Path):
+    """Stub the IO + generator collaborators of ``run_partial``.
+
+    ``run_partial`` reads metadata, loads the full in-memory tree, calls
+    ``process_component`` on the target, then rebuilds global relations and
+    writes the unified analysis. We stub the IO and the generator so the
+    test stays on the workflow's control flow.
+    """
+    with ExitStack() as stack:
+        gen_cls = stack.enter_context(patch("codeboarding_workflows.analysis.DiagramGenerator"))
+        stack.enter_context(
+            patch("codeboarding_workflows.analysis.load_analysis_metadata", return_value={"depth_level": 2})
+        )
+        load_full = stack.enter_context(patch("codeboarding_workflows.analysis.load_full_analysis"))
+        save = stack.enter_context(patch("codeboarding_workflows.analysis.save_analysis"))
+        yield gen_cls, load_full, save
+
+
+def _stub_generator(gen_cls, sub_analysis) -> MagicMock:
+    gen = MagicMock()
+    gen.process_component.return_value = ("ignored", sub_analysis, [])
+    gen_cls.return_value = gen
+    return gen
+
+
+def test_run_partial_processes_root_component_and_rebuilds_relations(tmp_path: Path, partial_patched) -> None:
+    """A root-level component_id is found, process_component runs, then global relations are rebuilt and saved."""
+    gen_cls, load_full, save = partial_patched
+    root_comp = Component(
+        name="API",
+        component_id="1",
+        description="API root",
+        key_entities=[],
+        file_methods=[],
+    )
+    root_analysis = AnalysisInsights(description="fake", components=[root_comp], components_relations=[])
+    load_full.return_value = (root_analysis, {})
+    sub = AnalysisInsights(description="API sub", components=[], components_relations=[])
+    gen = _stub_generator(gen_cls, sub)
+
+    run_partial(
+        repo_path=tmp_path,
+        output_dir=tmp_path / "out",
+        project_name="proj",
+        component_id="1",
+        run_id="rid",
+        log_path="logs/run.log",
+    )
+
+    gen.pre_analysis.assert_called_once()
+    gen.process_component.assert_called_once_with(root_comp)
+    gen.rebuild_global_relations.assert_called_once_with(root_analysis, {"1": sub})
+    save.assert_called_once()
+
+
+def test_run_partial_processes_nested_component(tmp_path: Path, partial_patched) -> None:
+    """A nested component_id is located inside a sub-analysis and passed to process_component."""
+    gen_cls, load_full, _save = partial_patched
+    nested = Component(
+        name="Auth",
+        component_id="1.1",
+        description="Auth",
+        key_entities=[],
+        file_methods=[],
+    )
+    root_comp = Component(
+        name="API",
+        component_id="1",
+        description="API root",
+        key_entities=[],
+        file_methods=[],
+    )
+    root_analysis = AnalysisInsights(description="fake", components=[root_comp], components_relations=[])
+    api_sub = AnalysisInsights(description="API sub", components=[nested], components_relations=[])
+    load_full.return_value = (root_analysis, {"1": api_sub})
+    new_sub = AnalysisInsights(description="Auth sub", components=[], components_relations=[])
+    gen = _stub_generator(gen_cls, new_sub)
+
+    run_partial(
+        repo_path=tmp_path,
+        output_dir=tmp_path / "out",
+        project_name="proj",
+        component_id="1.1",
+        run_id="rid",
+        log_path="logs/run.log",
+    )
+
+    gen.process_component.assert_called_once_with(nested)
+    # The new sub-analysis is slotted in next to (not replacing) the API sub.
+    rebuild_call = gen.rebuild_global_relations.call_args
+    assert rebuild_call.args[1] == {"1": api_sub, "1.1": new_sub}
+
+
+def test_run_partial_unknown_component_does_not_process(tmp_path: Path, partial_patched) -> None:
+    """An unknown component_id logs an error and never invokes the generator's expansion path."""
+    gen_cls, load_full, save = partial_patched
+    root_analysis = AnalysisInsights(description="fake", components=[], components_relations=[])
+    load_full.return_value = (root_analysis, {})
+
+    gen = MagicMock()
+    gen_cls.return_value = gen
+
+    run_partial(
+        repo_path=tmp_path,
+        output_dir=tmp_path / "out",
+        project_name="proj",
+        component_id="99",
+        run_id="rid",
+        log_path="logs/run.log",
+    )
+
+    gen.process_component.assert_not_called()
+    gen.rebuild_global_relations.assert_not_called()
+    save.assert_not_called()
+
+
+def test_run_partial_failed_process_does_not_save(tmp_path: Path, partial_patched) -> None:
+    """If process_component returns None (LLM failure), don't rebuild relations and don't overwrite analysis.json."""
+    gen_cls, load_full, save = partial_patched
+    root_comp = Component(
+        name="API",
+        component_id="1",
+        description="API root",
+        key_entities=[],
+        file_methods=[],
+    )
+    root_analysis = AnalysisInsights(description="fake", components=[root_comp], components_relations=[])
+    load_full.return_value = (root_analysis, {})
+    gen = MagicMock()
+    gen.process_component.return_value = (None, None, [])
+    gen_cls.return_value = gen
+
+    run_partial(
+        repo_path=tmp_path,
+        output_dir=tmp_path / "out",
+        project_name="proj",
+        component_id="1",
+        run_id="rid",
+        log_path="logs/run.log",
+    )
+
+    gen.process_component.assert_called_once()
+    gen.rebuild_global_relations.assert_not_called()
+    save.assert_not_called()
+
+
+def test_run_partial_missing_baseline_raises(tmp_path: Path) -> None:
+    """No metadata on disk means no baseline; run_partial must refuse to proceed."""
+    with patch("codeboarding_workflows.analysis.load_analysis_metadata", return_value=None):
+        with pytest.raises(BaselineUnavailableError):
+            run_partial(
+                repo_path=tmp_path,
+                output_dir=tmp_path / "out",
+                project_name="proj",
+                component_id="1",
+                run_id="rid",
+                log_path="logs/run.log",
+            )

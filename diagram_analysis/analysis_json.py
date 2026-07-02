@@ -47,10 +47,8 @@ class ComponentJson(Component):
     components: list["ComponentJson"] | None = Field(
         description="Sub-components if expanded, None otherwise.", default=None
     )
-    components_relations: list[RelationJson] | None = Field(
-        description="Relations among sub-components if expanded, None otherwise.",
-        default=None,
-    )
+    # No per-level ``components_relations`` field: all relations live once on the
+    # root analysis as a global leaf-only set, projected to each level at render time.
 
 
 class NotAnalyzedFile(BaseModel):
@@ -265,7 +263,6 @@ def from_component_to_json_component(
         can_expand = any(c.component_id == component.component_id for c in expandable_components)
 
     nested_components: list[ComponentJson] | None = None
-    nested_relations: list[RelationJson] | None = None
 
     if can_expand and sub_analyses and component.component_id in sub_analyses:
         sub_analysis, sub_expandable = sub_analyses[component.component_id]
@@ -273,7 +270,6 @@ def from_component_to_json_component(
             from_component_to_json_component(c, sub_expandable, sub_analyses, processed_ids)
             for c in sub_analysis.components
         ]
-        nested_relations = [_relation_to_json(r) for r in sub_analysis.components_relations]
 
     return ComponentJson(
         name=component.name,
@@ -284,7 +280,6 @@ def from_component_to_json_component(
         file_methods=_to_component_file_method_refs(component.file_methods),
         can_expand=can_expand,
         components=nested_components,
-        components_relations=nested_relations,
     )
 
 

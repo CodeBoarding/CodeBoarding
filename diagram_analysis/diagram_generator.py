@@ -54,6 +54,7 @@ from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer import StaticAnalyzer, get_static_analysis
 from static_analyzer.analysis_cache import StaticAnalysisCache
 from static_analyzer.analysis_result import StaticAnalysisResults
+from static_analyzer.cluster_relations import build_global_relations
 from static_analyzer.constants import Language
 from static_analyzer.graph import ClusterResult
 from static_analyzer.scanner import ProjectScanner
@@ -489,6 +490,9 @@ class DiagramGenerator:
             # Process components using a frontier queue: submit children as soon as parent finishes.
             expanded_components, sub_analyses = self._generate_subcomponents(analysis, root_components)
 
+            if sub_analyses:
+                self.rebuild_global_relations(analysis, sub_analyses)
+
             commit_hash = get_git_commit_hash(self.repo_location)
             self._strip_ignored(analysis, sub_analyses)
             analysis_path = save_analysis(
@@ -508,6 +512,24 @@ class DiagramGenerator:
             self._persist_static_analysis_artifact()
 
             return analysis_path
+
+    def rebuild_global_relations(
+        self,
+        root_analysis: AnalysisInsights,
+        sub_analyses: dict[str, AnalysisInsights],
+    ) -> list:
+        """Rebuild cross-boundary component relations at the deepest available granularity.
+
+        Walks the full CFG with a global node->deepest-component-id map so we
+        catch edges like ``1.1.1 -> 2.1.2`` that per-level analysis cannot see.
+        Mutates ``root_analysis.components_relations`` in place.
+        """
+        if not self.static_analysis:
+            return []
+        cfg_graphs = {str(lang): self.static_analysis.get_cfg(lang) for lang in self.static_analysis.get_languages()}
+        global_relations = build_global_relations(root_analysis, sub_analyses, cfg_graphs)
+        root_analysis.components_relations = global_relations
+        return global_relations
 
     def _collect_method_entries_from_static_analysis(self) -> dict[str, list]:
         assert self.static_analysis is not None
@@ -740,6 +762,10 @@ class DiagramGenerator:
 
             if apply_result.touched_scopes:
                 incremental_agent.generate_all_scope_relations(root_analysis, sub_analyses, apply_result.touched_scopes)
+
+            # generate_all_scope_relations seeded per-scope LLM labels above;
+            # this overlay merges them into the deepest-granularity global set.
+            self.rebuild_global_relations(root_analysis, sub_analyses)
 
             # Rebuild the global files index, unioning every sub-analysis's
             # files into root. The incremental flow never reruns AbstractionAgent
