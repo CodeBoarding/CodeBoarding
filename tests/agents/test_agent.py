@@ -547,6 +547,30 @@ class TestIncludeHidden(unittest.TestCase):
         for field in ("existing_component_id", "parent_id", "redetail_needed"):
             self.assertIn(field, props)
 
+    def test_relation_static_evidence_hidden_from_llm_schema_by_default(self):
+        from agents.agent_responses import AnalysisInsights, Relation
+
+        schema = AnalysisInsights.model_json_schema()
+        relation_props = schema.get("$defs", {}).get("Relation", {}).get("properties", {})
+        for field in ("src_id", "dst_id", "edge_count", "is_static", "bridge_edges"):
+            self.assertNotIn(field, relation_props)
+
+        prompt = Relation.extractor_str()
+        for field in ("src_id", "dst_id", "edge_count", "is_static", "bridge_edges"):
+            self.assertNotIn(field, prompt)
+
+    def test_relation_static_evidence_available_when_hidden_fields_requested(self):
+        from agents.agent_responses import AnalysisInsights, Relation
+
+        schema = AnalysisInsights.model_json_schema(include_hidden=True)
+        relation_props = schema.get("$defs", {}).get("Relation", {}).get("properties", {})
+        for field in ("src_id", "dst_id", "edge_count", "is_static", "bridge_edges"):
+            self.assertIn(field, relation_props)
+
+        prompt = Relation.extractor_str(include_hidden=True)
+        for field in ("src_id", "dst_id", "edge_count", "is_static", "bridge_edges"):
+            self.assertIn(field, prompt)
+
     def test_parse_response_uses_hidden_schema_for_structured_parse(self):
         from agents.agent_responses import ClusterAnalysis
 

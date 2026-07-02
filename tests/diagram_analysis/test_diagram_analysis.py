@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, Mock, patch
 
 from agents.agent_responses import (
     AnalysisInsights,
+    BridgeEdge,
     Component,
     FileMethodGroup,
     MethodEntry,
@@ -26,8 +27,10 @@ from diagram_analysis.analysis_json import (
     ComponentJson,
     RelationJson,
     UnifiedAnalysisJson,
+    build_unified_analysis_json,
     from_analysis_to_json,
     from_component_to_json_component,
+    parse_unified_analysis,
 )
 from diagram_analysis.cluster_delta import ClusterMemberDelta, ClusterRef, LanguageStructuralDiff, StructuralClusterDiff
 from diagram_analysis.diagram_generator import DiagramGenerator, _component_depth, _component_expansion_seeds
@@ -262,6 +265,73 @@ class TestAnalysisJsonConversion(unittest.TestCase):
 
         self.assertTrue(comp1_data["can_expand"])
         self.assertFalse(comp2_data["can_expand"])
+
+    def test_from_analysis_to_json_includes_bridge_edges(self):
+        self.analysis.components_relations = [
+            Relation(
+                src_name="Component1",
+                dst_name="Component2",
+                relation="calls",
+                src_id="1",
+                dst_id="2",
+                edge_count=1,
+                is_static=True,
+                bridge_edges=[
+                    BridgeEdge(
+                        src_qualified_name="component1.run",
+                        dst_qualified_name="component2.load",
+                        src_file="component1.py",
+                        dst_file="component2.py",
+                        src_start_line=10,
+                        src_end_line=20,
+                        dst_start_line=30,
+                        dst_end_line=40,
+                    )
+                ],
+            )
+        ]
+
+        data = json.loads(from_analysis_to_json(self.analysis, []))
+
+        relation = data["components_relations"][0]
+        self.assertEqual(relation["edge_count"], 1)
+        self.assertTrue(relation["is_static"])
+        self.assertEqual(relation["bridge_edges"][0]["src_qualified_name"], "component1.run")
+        self.assertEqual(relation["bridge_edges"][0]["dst_file"], "component2.py")
+
+    def test_unified_analysis_parse_preserves_bridge_edges(self):
+        self.analysis.components_relations = [
+            Relation(
+                src_name="Component1",
+                dst_name="Component2",
+                relation="calls",
+                src_id="1",
+                dst_id="2",
+                edge_count=1,
+                is_static=True,
+                bridge_edges=[
+                    BridgeEdge(
+                        src_qualified_name="component1.run",
+                        dst_qualified_name="component2.load",
+                        src_file="component1.py",
+                        dst_file="component2.py",
+                        src_start_line=10,
+                        src_end_line=20,
+                        dst_start_line=30,
+                        dst_end_line=40,
+                    )
+                ],
+            )
+        ]
+
+        data = json.loads(build_unified_analysis_json(self.analysis, [], "repo"))
+        parsed, _ = parse_unified_analysis(data)
+
+        relation = parsed.components_relations[0]
+        self.assertEqual(relation.edge_count, 1)
+        self.assertTrue(relation.is_static)
+        self.assertEqual(relation.bridge_edges[0].src_qualified_name, "component1.run")
+        self.assertEqual(relation.bridge_edges[0].dst_file, "component2.py")
 
     def test_from_analysis_to_json_empty(self):
         # Test with empty analysis

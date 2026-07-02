@@ -22,12 +22,12 @@ from static_analyzer.graph import CallGraph, Edge
 from static_analyzer.node import Node
 
 
-def _make_node(name: str, file_path: str = "src/file.py") -> Node:
-    return Node(name, NodeType.FUNCTION, file_path, 1, 10)
+def _make_node(name: str, file_path: str = "src/file.py", line_start: int = 1, line_end: int = 10) -> Node:
+    return Node(name, NodeType.FUNCTION, file_path, line_start, line_end)
 
 
-def _make_edge(src_name: str, dst_name: str) -> Edge:
-    return Edge(_make_node(src_name), _make_node(dst_name), [])
+def _make_edge(src_name: str, dst_name: str, src_file: str = "src/file.py", dst_file: str = "src/file.py") -> Edge:
+    return Edge(_make_node(src_name, src_file, 1, 10), _make_node(dst_name, dst_file, 20, 30), [])
 
 
 def _make_component(name: str, methods: list[tuple[str, str]], component_id: str = "") -> Component:
@@ -86,6 +86,9 @@ class TestBuildComponentRelations(unittest.TestCase):
         self.assertEqual(relations[0].src_cluster_id, "1")
         self.assertEqual(relations[0].dst_cluster_id, "2")
         self.assertEqual(relations[0].edge_count, 1)
+        self.assertEqual(len(relations[0].bridge_edges), 1)
+        self.assertEqual(relations[0].bridge_edges[0].src_qualified_name, "a.func1")
+        self.assertEqual(relations[0].bridge_edges[0].dst_qualified_name, "b.func1")
 
     def test_no_self_relations(self):
         """Edges within the same component should not create relations."""
@@ -117,18 +120,33 @@ class TestBuildComponentRelations(unittest.TestCase):
 
         self.assertEqual(len(relations), 1)
         self.assertEqual(relations[0].edge_count, 3)
-        self.assertEqual(len(relations[0].sample_edges), 3)
+        self.assertEqual(len(relations[0].bridge_edges), 3)
 
-    def test_sample_edges_capped(self):
-        """Sample edges should be capped at max_samples."""
+    def test_bridge_edges_capped_when_requested(self):
+        """Bridge edges should be capped when max_bridge_edges is provided."""
         node_to_comp = {f"a.f{i}": "1" for i in range(10)}
         node_to_comp.update({f"b.f{i}": "2" for i in range(10)})
         edges = [_make_edge(f"a.f{i}", f"b.f{i}") for i in range(10)]
         cfg = CallGraph(edges=edges)
-        relations = build_component_relations(node_to_comp, {"python": cfg}, max_samples=3)
+        relations = build_component_relations(node_to_comp, {"python": cfg}, max_bridge_edges=3)
 
         self.assertEqual(relations[0].edge_count, 10)
-        self.assertEqual(len(relations[0].sample_edges), 3)
+        self.assertEqual(len(relations[0].bridge_edges), 3)
+
+    def test_bridge_edges_include_locations(self):
+        """Bridge edges include source and destination method locations."""
+        node_to_comp = {"a.func": "1", "b.func": "2"}
+        cfg = CallGraph(edges=[_make_edge("a.func", "b.func", "src/a.py", "src/b.py")])
+
+        relations = build_component_relations(node_to_comp, {"python": cfg})
+
+        bridge = relations[0].bridge_edges[0]
+        self.assertEqual(bridge.src_file, "src/a.py")
+        self.assertEqual(bridge.dst_file, "src/b.py")
+        self.assertEqual(bridge.src_start_line, 1)
+        self.assertEqual(bridge.src_end_line, 10)
+        self.assertEqual(bridge.dst_start_line, 20)
+        self.assertEqual(bridge.dst_end_line, 30)
 
     def test_multiple_languages(self):
         """Edges across multiple language CFGs should be collected."""
@@ -174,6 +192,20 @@ class TestMergeRelations(unittest.TestCase):
         self.assertEqual(merged[0].relation, "depends on")
         self.assertEqual(merged[0].edge_count, 5)
         self.assertTrue(merged[0].is_static)
+
+    def test_llm_with_static_backing_keeps_bridge_edges(self):
+        analysis = self._make_analysis()
+        llm_rels = [Relation(relation="depends on", src_name="A", dst_name="B")]
+        static_rels = build_component_relations(
+            {"a.func": "1", "b.func": "2"},
+            {"python": CallGraph(edges=[_make_edge("a.func", "b.func", "src/a.py", "src/b.py")])},
+        )
+
+        merged = merge_relations(llm_rels, static_rels, analysis)
+
+        self.assertEqual(len(merged[0].bridge_edges), 1)
+        self.assertEqual(merged[0].bridge_edges[0].src_file, "src/a.py")
+        self.assertEqual(merged[0].bridge_edges[0].dst_file, "src/b.py")
 
     def test_llm_without_static_backing_kept(self):
         """LLM relation with no static evidence should be kept as LLM-only."""

@@ -902,31 +902,25 @@ class ClusterMethodsMixin:
         """
         node_to_component = build_node_to_component_map(analysis)
         id_to_name = {c.component_id: c.name for c in analysis.components}
-        cfg_graphs = {lang: self.static_analysis.get_cfg(lang) for lang in self.static_analysis.get_languages()}
+        cfg_graphs = {str(lang): self.static_analysis.get_cfg(lang) for lang in self.static_analysis.get_languages()}
+        static_relations = build_component_relations(node_to_component, cfg_graphs)
 
-        cross_edges: dict[tuple[str, str], list[tuple[str, str]]] = defaultdict(list)
-        for cfg in cfg_graphs.values():
-            for edge in cfg.edges:
-                src_name = edge.get_source()
-                dst_name = edge.get_destination()
-                src_comp = node_to_component.get(src_name)
-                dst_comp = node_to_component.get(dst_name)
-                if src_comp and dst_comp and src_comp != dst_comp:
-                    cross_edges[(src_comp, dst_comp)].append((src_name, dst_name))
-
-        if not cross_edges:
+        if not static_relations:
             return "No cross-component communication edges found."
 
         lines: list[str] = []
-        for (src_id, dst_id), edges in sorted(cross_edges.items()):
+        for relation in static_relations:
+            src_id = relation.src_cluster_id
+            dst_id = relation.dst_cluster_id
             src_label = id_to_name.get(src_id, src_id)
             dst_label = id_to_name.get(dst_id, dst_id)
-            lines.append(f"\n{src_label} -> {dst_label} ({len(edges)} edge{'s' if len(edges) != 1 else ''}):")
-            for s, d in edges[:10]:
-                short_s = s.split(".")[-1]
-                short_d = d.split(".")[-1]
+            edge_count = relation.edge_count
+            lines.append(f"\n{src_label} -> {dst_label} ({edge_count} edge{'s' if edge_count != 1 else ''}):")
+            for edge in relation.bridge_edges[:10]:
+                short_s = edge.src_qualified_name.split(".")[-1]
+                short_d = edge.dst_qualified_name.split(".")[-1]
                 lines.append(f"  {short_s} -> {short_d}")
-            if len(edges) > 10:
-                lines.append(f"  ... and {len(edges) - 10} more")
+            if edge_count > 10:
+                lines.append(f"  ... and {edge_count - 10} more")
 
         return "\n".join(lines)

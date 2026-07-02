@@ -10,8 +10,8 @@ from collections import defaultdict
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 
-from agents.agent_responses import AnalysisInsights, Relation
-from static_analyzer.graph import CallGraph
+from agents.agent_responses import AnalysisInsights, BridgeEdge, Relation
+from static_analyzer.graph import CallGraph, Edge
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +23,20 @@ class ClusterRelation:
     src_cluster_id: str  # component's component_id, e.g. "1.2"
     dst_cluster_id: str  # e.g. "3"
     edge_count: int = 0  # number of CFG edges crossing this boundary
-    sample_edges: list[tuple[str, str]] = field(default_factory=list)  # representative (src, dst) node pairs
+    bridge_edges: list[BridgeEdge] = field(default_factory=list)
+
+
+def _bridge_edge_from_cfg_edge(edge: Edge) -> BridgeEdge:
+    return BridgeEdge(
+        src_qualified_name=edge.src_node.fully_qualified_name,
+        dst_qualified_name=edge.dst_node.fully_qualified_name,
+        src_file=edge.src_node.file_path,
+        dst_file=edge.dst_node.file_path,
+        src_start_line=edge.src_node.line_start,
+        src_end_line=edge.src_node.line_end,
+        dst_start_line=edge.dst_node.line_start,
+        dst_end_line=edge.dst_node.line_end,
+    )
 
 
 def build_node_to_component_map(analysis: AnalysisInsights) -> dict[str, str]:
@@ -43,22 +56,23 @@ def build_node_to_component_map(analysis: AnalysisInsights) -> dict[str, str]:
 def build_component_relations(
     node_to_component: dict[str, str],
     cfg_graphs: dict[str, CallGraph],
-    max_samples: int = 5,
+    max_bridge_edges: int | None = None,
 ) -> list[ClusterRelation]:
     """Build inter-component relations from actual CFG edges.
 
     For every CFG edge where src and dst belong to different components,
-    count and collect sample edges.
+    count and collect the concrete bridge methods.
 
     Args:
         node_to_component: Mapping from node qualified_name to component_id.
         cfg_graphs: Mapping from language to CallGraph.
-        max_samples: Maximum number of sample edges to collect per relation.
+        max_bridge_edges: Optional cap on bridge edges stored per relation.
 
     Returns:
         List of ClusterRelation objects, one per (src_component, dst_component) pair.
     """
-    edge_pairs: dict[tuple[str, str], list[tuple[str, str]]] = defaultdict(list)
+    edge_pairs: dict[tuple[str, str], list[BridgeEdge]] = defaultdict(list)
+    edge_counts: dict[tuple[str, str], int] = defaultdict(int)
 
     for cfg in cfg_graphs.values():
         for edge in cfg.edges:
@@ -67,7 +81,10 @@ def build_component_relations(
             src_comp = node_to_component.get(src_name)
             dst_comp = node_to_component.get(dst_name)
             if src_comp and dst_comp and src_comp != dst_comp:
-                edge_pairs[(src_comp, dst_comp)].append((src_name, dst_name))
+                key = (src_comp, dst_comp)
+                edge_counts[key] += 1
+                if max_bridge_edges is None or len(edge_pairs[key]) < max_bridge_edges:
+                    edge_pairs[key].append(_bridge_edge_from_cfg_edge(edge))
 
     relations = []
     for (src_c, dst_c), edges in sorted(edge_pairs.items()):
@@ -75,8 +92,8 @@ def build_component_relations(
             ClusterRelation(
                 src_cluster_id=src_c,
                 dst_cluster_id=dst_c,
-                edge_count=len(edges),
-                sample_edges=edges[:max_samples],
+                edge_count=edge_counts[(src_c, dst_c)],
+                bridge_edges=edges,
             )
         )
 
@@ -314,6 +331,7 @@ def merge_relations(
                     dst_id=dst_id,
                     edge_count=static_rel.edge_count,
                     is_static=True,
+                    bridge_edges=static_rel.bridge_edges,
                 )
             )
             matched_static_keys.add((static_rel.src_cluster_id, static_rel.dst_cluster_id))
@@ -328,6 +346,7 @@ def merge_relations(
                     dst_id=dst_id,
                     edge_count=0,
                     is_static=False,
+                    bridge_edges=[],
                 )
             )
 
@@ -345,6 +364,7 @@ def merge_relations(
                     dst_id=dst_id,
                     edge_count=sr.edge_count,
                     is_static=True,
+                    bridge_edges=sr.bridge_edges,
                 )
             )
 

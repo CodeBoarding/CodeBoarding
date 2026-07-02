@@ -166,6 +166,19 @@ class SourceCodeReference(LLMBaseModel):
         return f"`{self.qualified_name}`:{self.reference_start_line}-{self.reference_end_line}"
 
 
+class BridgeEdge(BaseModel):
+    """Concrete CFG edge crossing a component boundary."""
+
+    src_qualified_name: str = Field(description="Fully qualified name of the source method/function.")
+    dst_qualified_name: str = Field(description="Fully qualified name of the destination method/function.")
+    src_file: str = Field(description="Relative path to the source method/function file.")
+    dst_file: str = Field(description="Relative path to the destination method/function file.")
+    src_start_line: int = Field(description="Starting line of the source method/function.")
+    src_end_line: int = Field(description="Ending line of the source method/function.")
+    dst_start_line: int = Field(description="Starting line of the destination method/function.")
+    dst_end_line: int = Field(description="Ending line of the destination method/function.")
+
+
 class Relation(LLMBaseModel):
     """A relationship between two components."""
 
@@ -176,6 +189,12 @@ class Relation(LLMBaseModel):
     dst_id: str = Field(default="", description="Component ID of the destination.", exclude=True)
     edge_count: int = Field(default=0, description="Number of CFG edges backing this relation.", exclude=True)
     is_static: bool = Field(default=False, description="True if derived from static CFG analysis.", exclude=True)
+    bridge_edges: list[BridgeEdge] = Field(
+        default_factory=list,
+        description="Concrete CFG method/function edges crossing this component boundary.",
+        exclude=True,
+        json_schema_extra={"hidden": True},
+    )
 
     def llm_str(self):
         return f"({self.src_name}, {self.relation}, {self.dst_name})"

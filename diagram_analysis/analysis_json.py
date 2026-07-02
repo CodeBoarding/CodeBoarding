@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from pydantic import BaseModel, Field
 
 from agents.agent_responses import (
+    BridgeEdge,
     Component,
     Relation,
     AnalysisInsights,
@@ -24,6 +25,10 @@ class RelationJson(Relation):
     dst_id: str = Field(default="", description="Component ID of the destination.")
     edge_count: int = Field(default=0, description="Number of CFG edges backing this relation.")
     is_static: bool = Field(default=False, description="True if derived from static CFG analysis.")
+    bridge_edges: list[BridgeEdge] = Field(
+        default_factory=list,
+        description="Concrete CFG method/function edges crossing this component boundary.",
+    )
 
 
 class ComponentJson(Component):
@@ -240,6 +245,7 @@ def _relation_to_json(r: Relation) -> RelationJson:
         dst_id=r.dst_id,
         edge_count=r.edge_count,
         is_static=r.is_static,
+        bridge_edges=r.bridge_edges,
     )
 
 
@@ -528,6 +534,7 @@ def _extract_analysis_recursive(
                 dst_id=r.get("dst_id", ""),
                 edge_count=r.get("edge_count", 0),
                 is_static=r.get("is_static", False),
+                bridge_edges=[BridgeEdge(**edge) for edge in r.get("bridge_edges", [])],
             )
             for r in data.get("components_relations", [])
         ],
