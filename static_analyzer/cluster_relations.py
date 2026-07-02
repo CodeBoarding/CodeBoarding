@@ -56,7 +56,6 @@ def build_node_to_component_map(analysis: AnalysisInsights) -> dict[str, str]:
 def build_component_relations(
     node_to_component: dict[str, str],
     cfg_graphs: dict[str, CallGraph],
-    max_bridge_edges: int | None = None,
 ) -> list[ClusterRelation]:
     """Build inter-component relations from actual CFG edges.
 
@@ -66,7 +65,6 @@ def build_component_relations(
     Args:
         node_to_component: Mapping from node qualified_name to component_id.
         cfg_graphs: Mapping from language to CallGraph.
-        max_bridge_edges: Optional cap on bridge edges stored per relation.
 
     Returns:
         List of ClusterRelation objects, one per (src_component, dst_component) pair.
@@ -83,8 +81,7 @@ def build_component_relations(
             if src_comp and dst_comp and src_comp != dst_comp:
                 key = (src_comp, dst_comp)
                 edge_counts[key] += 1
-                if max_bridge_edges is None or len(edge_pairs[key]) < max_bridge_edges:
-                    edge_pairs[key].append(_bridge_edge_from_cfg_edge(edge))
+                edge_pairs[key].append(_bridge_edge_from_cfg_edge(edge))
 
     relations = []
     for (src_c, dst_c), edges in sorted(edge_pairs.items()):

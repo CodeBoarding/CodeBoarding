@@ -122,19 +122,18 @@ class TestBuildComponentRelations(unittest.TestCase):
         self.assertEqual(relations[0].edge_count, 3)
         self.assertEqual(len(relations[0].bridge_edges), 3)
 
-    def test_bridge_edges_capped_when_requested(self):
-        """Bridge edges should be capped when max_bridge_edges is provided."""
-        node_to_comp = {f"a.f{i}": "1" for i in range(10)}
-        node_to_comp.update({f"b.f{i}": "2" for i in range(10)})
-        edges = [_make_edge(f"a.f{i}", f"b.f{i}") for i in range(10)]
+    def test_bridge_edges_include_all_cross_component_edges(self):
+        edge_total = 55
+        node_to_comp = {f"a.f{i}": "1" for i in range(edge_total)}
+        node_to_comp.update({f"b.f{i}": "2" for i in range(edge_total)})
+        edges = [_make_edge(f"a.f{i}", f"b.f{i}") for i in range(edge_total)]
         cfg = CallGraph(edges=edges)
-        relations = build_component_relations(node_to_comp, {"python": cfg}, max_bridge_edges=3)
+        relations = build_component_relations(node_to_comp, {"python": cfg})
 
-        self.assertEqual(relations[0].edge_count, 10)
-        self.assertEqual(len(relations[0].bridge_edges), 3)
+        self.assertEqual(relations[0].edge_count, edge_total)
+        self.assertEqual(len(relations[0].bridge_edges), edge_total)
 
     def test_bridge_edges_include_locations(self):
-        """Bridge edges include source and destination method locations."""
         node_to_comp = {"a.func": "1", "b.func": "2"}
         cfg = CallGraph(edges=[_make_edge("a.func", "b.func", "src/a.py", "src/b.py")])
 

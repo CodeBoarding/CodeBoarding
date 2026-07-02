@@ -233,7 +233,7 @@ def main():
         for rel in sorted(relations, key=lambda r: -r.edge_count):
             print(f"  {rel.src_cluster_id} -> {rel.dst_cluster_id}: {rel.edge_count} edges")
             for edge in rel.bridge_edges[:2]:
-                print(f"    e.g. {edge.src_qualified_name} -> {edge.dst_qualified_name}")
+                logger.info("    e.g. %s -> %s", edge.src_qualified_name, edge.dst_qualified_name)
 
 
 if __name__ == "__main__":

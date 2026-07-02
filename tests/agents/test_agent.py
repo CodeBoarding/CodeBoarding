@@ -10,6 +10,7 @@ from langchain_core.language_models import BaseChatModel
 from pydantic import BaseModel
 
 from agents.agent import CodeBoardingAgent
+from agents.agent_responses import AnalysisInsights, ClusterAnalysis, ClustersComponent, Relation
 from static_analyzer.analysis_result import StaticAnalysisResults
 from monitoring.stats import RunStats, current_stats
 
@@ -334,8 +335,6 @@ class TestCodeBoardingAgent(unittest.TestCase):
     @patch("agents.agent.create_extractor")
     @patch("agents.agent.create_agent")
     def test_parse_response_cluster_analysis_bug_shape(self, mock_create_agent, mock_create_extractor):
-        from agents.agent_responses import ClusterAnalysis
-
         mock_create_agent.return_value = Mock()
 
         mock_extractor = Mock()
@@ -515,22 +514,16 @@ class TestCodeBoardingAgent(unittest.TestCase):
 
 class TestIncludeHidden(unittest.TestCase):
     def test_extractor_str_hides_hidden_fields_by_default(self):
-        from agents.agent_responses import ClustersComponent
-
         prompt = ClustersComponent.extractor_str()
         for field in ("existing_component_id", "parent_id", "redetail_needed"):
             self.assertNotIn(field, prompt)
 
     def test_extractor_str_shows_hidden_fields_when_requested(self):
-        from agents.agent_responses import ClustersComponent
-
         prompt = ClustersComponent.extractor_str(include_hidden=True)
         for field in ("existing_component_id", "parent_id", "redetail_needed"):
             self.assertIn(field, prompt)
 
     def test_model_json_schema_hides_hidden_fields_by_default(self):
-        from agents.agent_responses import ClustersComponent
-
         schema = ClustersComponent.model_json_schema()
         props = schema.get("properties", {})
         for field in ("existing_component_id", "parent_id", "redetail_needed"):
@@ -540,16 +533,12 @@ class TestIncludeHidden(unittest.TestCase):
             self.assertNotIn(field, defs)
 
     def test_model_json_schema_shows_hidden_fields_when_requested(self):
-        from agents.agent_responses import ClustersComponent
-
         schema = ClustersComponent.model_json_schema(include_hidden=True)
         props = schema.get("properties", {})
         for field in ("existing_component_id", "parent_id", "redetail_needed"):
             self.assertIn(field, props)
 
     def test_relation_static_evidence_hidden_from_llm_schema_by_default(self):
-        from agents.agent_responses import AnalysisInsights, Relation
-
         schema = AnalysisInsights.model_json_schema()
         relation_props = schema.get("$defs", {}).get("Relation", {}).get("properties", {})
         for field in ("src_id", "dst_id", "edge_count", "is_static", "bridge_edges"):
@@ -560,8 +549,6 @@ class TestIncludeHidden(unittest.TestCase):
             self.assertNotIn(field, prompt)
 
     def test_relation_static_evidence_available_when_hidden_fields_requested(self):
-        from agents.agent_responses import AnalysisInsights, Relation
-
         schema = AnalysisInsights.model_json_schema(include_hidden=True)
         relation_props = schema.get("$defs", {}).get("Relation", {}).get("properties", {})
         for field in ("src_id", "dst_id", "edge_count", "is_static", "bridge_edges"):
@@ -570,10 +557,10 @@ class TestIncludeHidden(unittest.TestCase):
         prompt = Relation.extractor_str(include_hidden=True)
         for field in ("src_id", "dst_id", "edge_count", "is_static", "bridge_edges"):
             self.assertIn(field, prompt)
+        for field in ("src_qualified_name", "dst_qualified_name", "src_file", "dst_file"):
+            self.assertIn(field, prompt)
 
     def test_parse_response_uses_hidden_schema_for_structured_parse(self):
-        from agents.agent_responses import ClusterAnalysis
-
         mock_create_agent = Mock(return_value=Mock())
         with patch("agents.agent.create_agent", mock_create_agent):
             mock_parsing_llm = Mock(spec=BaseChatModel)
@@ -606,8 +593,6 @@ class TestIncludeHidden(unittest.TestCase):
         self.assertIn("redetail_needed", instructions)
 
     def test_parse_response_hides_fields_by_default(self):
-        from agents.agent_responses import ClusterAnalysis
-
         mock_create_agent = Mock(return_value=Mock())
         with patch("agents.agent.create_agent", mock_create_agent):
             mock_parsing_llm = Mock(spec=BaseChatModel)

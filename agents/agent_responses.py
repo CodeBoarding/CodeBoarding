@@ -166,7 +166,7 @@ class SourceCodeReference(LLMBaseModel):
         return f"`{self.qualified_name}`:{self.reference_start_line}-{self.reference_end_line}"
 
 
-class BridgeEdge(BaseModel):
+class BridgeEdge(LLMBaseModel):
     """Concrete CFG edge crossing a component boundary."""
 
     src_qualified_name: str = Field(description="Fully qualified name of the source method/function.")
@@ -177,6 +177,9 @@ class BridgeEdge(BaseModel):
     src_end_line: int = Field(description="Ending line of the source method/function.")
     dst_start_line: int = Field(description="Starting line of the destination method/function.")
     dst_end_line: int = Field(description="Ending line of the destination method/function.")
+
+    def llm_str(self):
+        return f"{self.src_qualified_name} -> {self.dst_qualified_name}"
 
 
 class Relation(LLMBaseModel):
