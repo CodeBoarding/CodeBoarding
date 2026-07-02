@@ -47,8 +47,6 @@ class ComponentJson(Component):
     components: list["ComponentJson"] | None = Field(
         description="Sub-components if expanded, None otherwise.", default=None
     )
-    # No per-level ``components_relations`` field: all relations live once on the
-    # root analysis as a global leaf-only set, projected to each level at render time.
 
 
 class NotAnalyzedFile(BaseModel):

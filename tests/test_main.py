@@ -93,11 +93,10 @@ class TestGenerateAnalysis(unittest.TestCase):
 
 
 class TestPartialUpdate(unittest.TestCase):
-    @patch("codeboarding_workflows.analysis.save_analysis")
     @patch("codeboarding_workflows.analysis.load_full_analysis")
     @patch("codeboarding_workflows.analysis.load_analysis_metadata")
     @patch("codeboarding_workflows.analysis.DiagramGenerator")
-    def test_partial_update_success(self, mock_generator_class, mock_load_metadata, mock_load_full, mock_save_analysis):
+    def test_partial_update_success(self, mock_generator_class, mock_load_metadata, mock_load_full):
         mock_load_metadata.return_value = {"depth_level": 1}
         from agents.agent_responses import AnalysisInsights, Component
 
@@ -145,18 +144,14 @@ class TestPartialUpdate(unittest.TestCase):
 
             mock_generator.pre_analysis.assert_called_once()
             mock_generator.process_component.assert_called_once_with(root_component)
-            mock_generator.rebuild_global_relations.assert_called_once_with(
-                root_analysis, {"test_comp_id": mock_sub_analysis}
+            mock_generator.finalize_and_save.assert_called_once_with(
+                root_analysis, {"test_comp_id": mock_sub_analysis}, persist_side_artifacts=False
             )
-            mock_save_analysis.assert_called_once()
 
-    @patch("codeboarding_workflows.analysis.save_analysis")
     @patch("codeboarding_workflows.analysis.load_full_analysis")
     @patch("codeboarding_workflows.analysis.load_analysis_metadata")
     @patch("codeboarding_workflows.analysis.DiagramGenerator")
-    def test_partial_update_nested_component_success(
-        self, mock_generator_class, mock_load_metadata, mock_load_full, mock_save_analysis
-    ):
+    def test_partial_update_nested_component_success(self, mock_generator_class, mock_load_metadata, mock_load_full):
         mock_load_metadata.return_value = {"depth_level": 2}
         from agents.agent_responses import AnalysisInsights, Component
 
@@ -212,7 +207,7 @@ class TestPartialUpdate(unittest.TestCase):
             mock_generator.pre_analysis.assert_called_once()
             mock_generator.process_component.assert_called_once_with(nested_component)
             self.assertEqual(mock_generator_class.call_args.kwargs["depth_level"], 2)
-            mock_save_analysis.assert_called_once()
+            mock_generator.finalize_and_save.assert_called_once()
 
     @patch("codeboarding_workflows.analysis.load_analysis_metadata")
     @patch("codeboarding_workflows.analysis.DiagramGenerator")

@@ -17,6 +17,7 @@ from output_generators.html import generate_html_file
 from output_generators.markdown import generate_markdown_file
 from output_generators.mdx import generate_mdx_file
 from output_generators.sphinx import generate_rst_file
+from static_analyzer.cluster_relations import iter_ancestor_ids
 from utils import sanitize
 
 logger = logging.getLogger(__name__)
@@ -24,11 +25,7 @@ logger = logging.getLogger(__name__)
 
 def _ancestor_in_level(component_id: str, level_ids: set[str]) -> str | None:
     """Return the closest ancestor (or the id itself) that lives in *level_ids*, else ``None``."""
-    if component_id in level_ids:
-        return component_id
-    parts = component_id.split(".")
-    for i in range(len(parts) - 1, 0, -1):
-        ancestor = ".".join(parts[:i])
+    for ancestor in iter_ancestor_ids(component_id):
         if ancestor in level_ids:
             return ancestor
     return None
@@ -41,15 +38,18 @@ def project_relations_to_level(
 ) -> list[Relation]:
     """Roll up a global leaf-only relation set onto the components visible at a level.
 
-    Each leaf relation's endpoints are projected to the ancestor in
-    ``level_component_ids``; edges that collapse to a self-loop or whose
-    endpoint isn't a descendant of any level component are dropped.
-    Duplicates after roll-up are merged by summing ``edge_count`` and keeping
-    the first label seen.
+    Each endpoint is projected to its ancestor in ``level_component_ids`` so the
+    edge connects two nodes that actually exist at this level. Edges that collapse
+    to a self-loop or whose endpoint isn't under any level component are dropped;
+    edges that collapse to the same pair are merged (edge_count summed, first
+    label kept).
 
-    Why: cross-boundary relations are stored once at the root as the deepest
-    set. Without this projection, mermaid would emit edges to component names
-    that aren't declared as nodes at the rendered level (phantom nodes).
+    Example, rendering the root level ``{"1", "2", "3"}`` from leaf relations::
+
+        1.1 -> 2.3   =>  1 -> 2
+        1.2 -> 2.1   =>  1 -> 2   (merged into the above)
+        3   -> 1.1   =>  3 -> 1
+        1.1 -> 1.2   =>  dropped  (both roll up to "1": self-loop)
     """
     aggregated: dict[tuple[str, str], Relation] = {}
     for rel in global_relations:

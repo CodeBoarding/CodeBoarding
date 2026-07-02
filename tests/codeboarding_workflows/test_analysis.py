@@ -106,9 +106,10 @@ def partial_patched(tmp_path: Path):
     """Stub the IO + generator collaborators of ``run_partial``.
 
     ``run_partial`` reads metadata, loads the full in-memory tree, calls
-    ``process_component`` on the target, then rebuilds global relations and
-    writes the unified analysis. We stub the IO and the generator so the
-    test stays on the workflow's control flow.
+    ``process_component`` on the target, then hands the tree to
+    ``generator.finalize_and_save`` (finalize + persist). We stub the IO and the
+    generator so the test stays on the workflow's control flow; the save itself
+    lives inside the mocked generator.
     """
     with ExitStack() as stack:
         gen_cls = stack.enter_context(patch("codeboarding_workflows.analysis.DiagramGenerator"))
@@ -116,8 +117,7 @@ def partial_patched(tmp_path: Path):
             patch("codeboarding_workflows.analysis.load_analysis_metadata", return_value={"depth_level": 2})
         )
         load_full = stack.enter_context(patch("codeboarding_workflows.analysis.load_full_analysis"))
-        save = stack.enter_context(patch("codeboarding_workflows.analysis.save_analysis"))
-        yield gen_cls, load_full, save
+        yield gen_cls, load_full
 
 
 def _stub_generator(gen_cls, sub_analysis) -> MagicMock:
@@ -128,8 +128,8 @@ def _stub_generator(gen_cls, sub_analysis) -> MagicMock:
 
 
 def test_run_partial_processes_root_component_and_rebuilds_relations(tmp_path: Path, partial_patched) -> None:
-    """A root-level component_id is found, process_component runs, then global relations are rebuilt and saved."""
-    gen_cls, load_full, save = partial_patched
+    """A root-level component_id is found, process_component runs, then the tree is finalized and saved."""
+    gen_cls, load_full = partial_patched
     root_comp = Component(
         name="API",
         component_id="1",
@@ -153,13 +153,14 @@ def test_run_partial_processes_root_component_and_rebuilds_relations(tmp_path: P
 
     gen.pre_analysis.assert_called_once()
     gen.process_component.assert_called_once_with(root_comp)
-    gen.rebuild_global_relations.assert_called_once_with(root_analysis, {"1": sub})
-    save.assert_called_once()
+    # persist_side_artifacts=False: expansion must not touch the static-analysis
+    # cache/SHA tag or rewrite file_coverage.json.
+    gen.finalize_and_save.assert_called_once_with(root_analysis, {"1": sub}, persist_side_artifacts=False)
 
 
 def test_run_partial_processes_nested_component(tmp_path: Path, partial_patched) -> None:
     """A nested component_id is located inside a sub-analysis and passed to process_component."""
-    gen_cls, load_full, _save = partial_patched
+    gen_cls, load_full = partial_patched
     nested = Component(
         name="Auth",
         component_id="1.1",
@@ -191,13 +192,13 @@ def test_run_partial_processes_nested_component(tmp_path: Path, partial_patched)
 
     gen.process_component.assert_called_once_with(nested)
     # The new sub-analysis is slotted in next to (not replacing) the API sub.
-    rebuild_call = gen.rebuild_global_relations.call_args
-    assert rebuild_call.args[1] == {"1": api_sub, "1.1": new_sub}
+    finalize_call = gen.finalize_and_save.call_args
+    assert finalize_call.args[1] == {"1": api_sub, "1.1": new_sub}
 
 
 def test_run_partial_unknown_component_does_not_process(tmp_path: Path, partial_patched) -> None:
     """An unknown component_id logs an error and never invokes the generator's expansion path."""
-    gen_cls, load_full, save = partial_patched
+    gen_cls, load_full = partial_patched
     root_analysis = AnalysisInsights(description="fake", components=[], components_relations=[])
     load_full.return_value = (root_analysis, {})
 
@@ -214,13 +215,12 @@ def test_run_partial_unknown_component_does_not_process(tmp_path: Path, partial_
     )
 
     gen.process_component.assert_not_called()
-    gen.rebuild_global_relations.assert_not_called()
-    save.assert_not_called()
+    gen.finalize_and_save.assert_not_called()
 
 
 def test_run_partial_failed_process_does_not_save(tmp_path: Path, partial_patched) -> None:
-    """If process_component returns None (LLM failure), don't rebuild relations and don't overwrite analysis.json."""
-    gen_cls, load_full, save = partial_patched
+    """If process_component returns None (LLM failure), don't finalize or overwrite analysis.json."""
+    gen_cls, load_full = partial_patched
     root_comp = Component(
         name="API",
         component_id="1",
@@ -244,8 +244,7 @@ def test_run_partial_failed_process_does_not_save(tmp_path: Path, partial_patche
     )
 
     gen.process_component.assert_called_once()
-    gen.rebuild_global_relations.assert_not_called()
-    save.assert_not_called()
+    gen.finalize_and_save.assert_not_called()
 
 
 def test_run_partial_missing_baseline_raises(tmp_path: Path) -> None:

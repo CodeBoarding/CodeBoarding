@@ -1045,6 +1045,51 @@ class TestDiagramGenerator(unittest.TestCase):
         self.assertEqual(cached_sha, "sha-current")
         self.assertIsNotNone(loaded_results.get_cfg(Language.PYTHON)._cluster_cache)
 
+    def _finalize_gen(self):
+        gen = DiagramGenerator(
+            repo_location=self.repo_location,
+            temp_folder=self.temp_folder,
+            repo_name="test_repo",
+            output_dir=self.output_dir,
+            depth_level=1,
+            run_id="test-run-id",
+            log_path="test_repo/test-run-log",
+        )
+        gen.finalize_for_save = Mock()
+        gen._write_file_coverage = Mock()
+        gen._persist_static_analysis_artifact = Mock()
+        return gen
+
+    @patch("diagram_analysis.diagram_generator.save_analysis")
+    @patch("diagram_analysis.diagram_generator.get_git_commit_hash", return_value="abc")
+    def test_finalize_and_save_persists_side_artifacts_by_default(self, _hash, mock_save):
+        mock_save.return_value = self.output_dir / "analysis.json"
+        gen = self._finalize_gen()
+        analysis = AnalysisInsights(description="d", components=[], components_relations=[])
+
+        gen.finalize_and_save(analysis, {})
+
+        gen._write_file_coverage.assert_called_once()
+        gen._persist_static_analysis_artifact.assert_called_once()
+
+    @patch("diagram_analysis.diagram_generator.save_analysis")
+    @patch("diagram_analysis.diagram_generator.get_git_commit_hash", return_value="abc")
+    def test_finalize_and_save_skips_side_artifacts_for_partial(self, _hash, mock_save):
+        """Component expansion (partial) must not rewrite file_coverage.json or touch
+        the static-analysis cache/SHA tag — that would regress the next incremental run."""
+        mock_save.return_value = self.output_dir / "analysis.json"
+        gen = self._finalize_gen()
+        analysis = AnalysisInsights(description="d", components=[], components_relations=[])
+
+        gen.finalize_and_save(analysis, {}, persist_side_artifacts=False)
+
+        # The analysis itself is still finalized + saved...
+        gen.finalize_for_save.assert_called_once_with(analysis, {})
+        mock_save.assert_called_once()
+        # ...but the external side artifacts are left untouched.
+        gen._write_file_coverage.assert_not_called()
+        gen._persist_static_analysis_artifact.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

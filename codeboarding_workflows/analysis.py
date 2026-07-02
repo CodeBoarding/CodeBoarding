@@ -14,7 +14,7 @@ import logging
 from pathlib import Path
 
 from diagram_analysis import DiagramGenerator
-from diagram_analysis.io_utils import load_analysis_metadata, load_full_analysis, save_analysis
+from diagram_analysis.io_utils import load_analysis_metadata, load_full_analysis
 from repo_utils.diff_parser import detect_changes
 from telemetry.events import track_analysis
 
@@ -152,23 +152,18 @@ def run_partial(
         logger.error(f"Component with ID '{component_id}' not found in analysis")
         return
 
-    _comp_id, sub_analysis, _new_components = generator.process_component(component_to_analyze)
+    _, sub_analysis, _ = generator.process_component(component_to_analyze)
     if sub_analysis is None:
         logger.error(f"Failed to generate sub-analysis for component '{component_id}'")
         return
 
-    # Mutate the in-memory tree and rebuild global cross-boundary relations.
-    # Why: we work from memory (no save -> reload) because per-sub-analysis
-    # ``components_relations`` is not serialized; a round-trip would drop the
-    # freshly produced LLM labels needed by ``rebuild_global_relations``.
+    # Add the new sub-analysis in memory (not save -> reload: per-sub-analysis
+    # LLM relation labels aren't serialized and would be lost on a round-trip).
+    # persist_side_artifacts=False: a component expansion must not touch the
+    # static-analysis cache/SHA tag (would regress the next incremental) or
+    # rewrite file_coverage.json — those belong to full/incremental runs.
     sub_analyses[component_id] = sub_analysis
-    generator.rebuild_global_relations(root_analysis, sub_analyses)
-    save_analysis(
-        analysis=root_analysis,
-        output_dir=output_dir,
-        sub_analyses=sub_analyses,
-        repo_name=project_name,
-    )
+    generator.finalize_and_save(root_analysis, sub_analyses, persist_side_artifacts=False)
     logger.info(f"Updated component '{component_id}' in analysis.json")
 
 

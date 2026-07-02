@@ -7,6 +7,7 @@ edges — no LLM needed.
 
 import logging
 from collections import defaultdict
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 
 from agents.agent_responses import AnalysisInsights, Relation
@@ -110,6 +111,47 @@ def build_global_node_to_component_map(
     return node_to_component
 
 
+def _collect_id_to_name(
+    root_analysis: AnalysisInsights,
+    sub_analyses: dict[str, AnalysisInsights],
+) -> dict[str, str]:
+    """Map component_id -> name across the root and every nested sub-analysis."""
+    id_to_name: dict[str, str] = {}
+    stack: list[AnalysisInsights] = [root_analysis]
+    while stack:
+        analysis = stack.pop()
+        for comp in analysis.components:
+            id_to_name[comp.component_id] = comp.name
+            if comp.component_id in sub_analyses:
+                stack.append(sub_analyses[comp.component_id])
+    return id_to_name
+
+
+def iter_ancestor_ids(component_id: str) -> Iterator[str]:
+    """Yield component_id then each shorter dotted-prefix ancestor, longest first.
+
+    ``"1.2.3"`` -> ``"1.2.3"``, ``"1.2"``, ``"1"``.
+    """
+    parts = component_id.split(".")
+    for i in range(len(parts), 0, -1):
+        yield ".".join(parts[:i])
+
+
+def find_llm_label(src_id: str, dst_id: str, llm_by_ids: dict[tuple[str, str], Relation]) -> str | None:
+    """Best LLM label for a static edge: direct (src_id, dst_id), else nearest ancestor pair.
+
+    A parent-level relation like ``"1" -> "2"`` supplies the label for a finer
+    static edge like ``"1.1" -> "2.3"``. Ancestors are tried deepest-first on
+    both endpoints so the most specific declared label wins.
+    """
+    for src_ancestor in iter_ancestor_ids(src_id):
+        for dst_ancestor in iter_ancestor_ids(dst_id):
+            rel = llm_by_ids.get((src_ancestor, dst_ancestor))
+            if rel is not None:
+                return rel.relation
+    return None
+
+
 def build_global_relations(
     root_analysis: AnalysisInsights,
     sub_analyses: dict[str, AnalysisInsights],
@@ -136,45 +178,17 @@ def build_global_relations(
         all_llm_relations.extend(sub_analysis.components_relations)
 
     # Build id-to-name map across all levels
-    id_to_name: dict[str, str] = {}
+    id_to_name = _collect_id_to_name(root_analysis, sub_analyses)
 
-    def collect_names(analysis: AnalysisInsights) -> None:
-        for comp in analysis.components:
-            id_to_name[comp.component_id] = comp.name
-            if comp.component_id in sub_analyses:
-                collect_names(sub_analyses[comp.component_id])
-
-    collect_names(root_analysis)
-
-    # Index LLM relations by (src_id, dst_id) for label matching.
-    # A parent-level relation like "1" -> "2" should provide labels for
-    # child relations like "1.1" -> "2.3". We match by checking if the
-    # static relation's src/dst are descendants of the LLM relation's src/dst.
+    # Index LLM relations by (src_id, dst_id) so find_llm_label can match a
+    # static edge directly or via the nearest ancestor pair.
     llm_by_ids: dict[tuple[str, str], Relation] = {}
     for rel in all_llm_relations:
         llm_by_ids[(rel.src_id, rel.dst_id)] = rel
 
-    def find_llm_label(src_id: str, dst_id: str) -> str | None:
-        """Find the best LLM label for a static relation, checking ancestors."""
-        # Direct match
-        if (src_id, dst_id) in llm_by_ids:
-            return llm_by_ids[(src_id, dst_id)].relation
-
-        # Check ancestor combinations: e.g., for "1.2.3" -> "4.5",
-        # try "1.2" -> "4", "1" -> "4", etc.
-        src_parts = src_id.split(".")
-        dst_parts = dst_id.split(".")
-        for si in range(len(src_parts), 0, -1):
-            src_ancestor = ".".join(src_parts[:si])
-            for di in range(len(dst_parts), 0, -1):
-                dst_ancestor = ".".join(dst_parts[:di])
-                if (src_ancestor, dst_ancestor) in llm_by_ids:
-                    return llm_by_ids[(src_ancestor, dst_ancestor)].relation
-        return None
-
     result: list[Relation] = []
     for sr in static_relations:
-        label = find_llm_label(sr.src_cluster_id, sr.dst_cluster_id)
+        label = find_llm_label(sr.src_cluster_id, sr.dst_cluster_id, llm_by_ids)
         result.append(
             Relation(
                 relation=label or "calls",
@@ -190,11 +204,12 @@ def build_global_relations(
     # Also include LLM-only relations (no static backing) — these are architectural
     # relations the LLM identified that may not have direct CFG edges.
     #
-    # Only keep those whose BOTH endpoints resolve to a live component id. This
-    # drops relations to components deleted in a deep sub-scope (the incremental
-    # path re-reads the prior root set, which can still name a removed component)
-    # and relations whose names never resolved to an id (src_id/dst_id == "").
-    # Both would otherwise persist as dangling endpoints in analysis.json.
+    # Keep only those whose BOTH endpoints resolve to a live component id.
+    # ``validate_relation_component_names`` already rejects unresolved names at
+    # generation time, but this set is assembled from *persisted* relations across
+    # every level: the incremental path re-reads the prior root set, which can
+    # still name a component deleted in a deep sub-scope. Such a relation would
+    # otherwise persist as a dangling endpoint in analysis.json.
     static_keys = {(sr.src_cluster_id, sr.dst_cluster_id) for sr in static_relations}
     llm_only_seen: set[tuple[str, str]] = set()
     # Sort so that, when the same (src_id, dst_id) is declared at multiple levels
