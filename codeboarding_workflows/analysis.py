@@ -157,12 +157,13 @@ def run_partial(
         logger.error(f"Failed to generate sub-analysis for component '{component_id}'")
         return
 
-    # Add the new sub-analysis in memory (not save -> reload: per-sub-analysis
-    # LLM relation labels aren't serialized and would be lost on a round-trip).
-    # persist_side_artifacts=False: a component expansion must not touch the
-    # static-analysis cache/SHA tag (would regress the next incremental) or
-    # rewrite file_coverage.json — those belong to full/incremental runs.
+    # Add the sub-analysis to the in-memory tree so global relations rebuild with
+    # its subcomponents. Rebuild reads each sub's LLM relation labels, which live
+    # only in memory (they aren't serialized), so it must run before the save.
     sub_analyses[component_id] = sub_analysis
+    # persist_side_artifacts=False: an expansion must not rewrite file_coverage.json
+    # or the static-analysis cache. The latter would drop the static_analysis.sha
+    # tag (no source_sha here) and force the next incremental run to cold-start.
     generator.finalize_and_save(root_analysis, sub_analyses, persist_side_artifacts=False)
     logger.info(f"Updated component '{component_id}' in analysis.json")
 
