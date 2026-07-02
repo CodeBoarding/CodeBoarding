@@ -181,7 +181,9 @@ def _build_root_analysis() -> AnalysisInsights:
             _comp("Messaging", _methods_for("msg/email.py", "msg/push.py")),
         ],
         components_relations=[
-            Relation(relation="calls", src_name="API", dst_name="Core", src_id="1", dst_id="2"),
+            # Distinctive label (not the "calls" default) so label-inheritance tests
+            # can tell successful root->grandchild inheritance from the fallback.
+            Relation(relation="orchestrates", src_name="API", dst_name="Core", src_id="1", dst_id="2"),
             Relation(relation="caches via", src_name="Core", dst_name="Storage", src_id="2", dst_id="3"),
             Relation(relation="notifies via", src_name="Core", dst_name="Messaging", src_id="2", dst_id="4"),
         ],
@@ -396,9 +398,20 @@ class TestLabelInheritance(unittest.TestCase):
         self.by_pair = {(r.src_id, r.dst_id): r for r in self.rels}
 
     def test_root_label_inherited(self):
-        # Root LLM "1"->"2" label "calls" -> inherited by 1.1.1->2.1.2
+        # Root LLM "1"->"2" label "orchestrates" -> inherited two levels down by
+        # 1.1.1->2.1.2. A distinctive (non-default) label proves the ancestor
+        # search ran; "calls" would also be the fallback and hide a regression.
         r = self.by_pair[("1.1.1", "2.1.2")]
-        self.assertEqual(r.relation, "calls")
+        self.assertEqual(r.relation, "orchestrates")
+
+    def test_llm_only_relation_survives_with_payload(self):
+        # "2.1"->"2.2" ("bills") has no CFG edge crossing Users->Billing, so it
+        # must survive as an LLM-only relation with its label, is_static=False,
+        # edge_count=0 — not a fabricated static edge or the "calls" default.
+        r = self.by_pair[("2.1", "2.2")]
+        self.assertEqual(r.relation, "bills")
+        self.assertFalse(r.is_static)
+        self.assertEqual(r.edge_count, 0)
 
     def test_depth2_label_inherited(self):
         # Depth-2 LLM "2.2.2"->"2.2.1" label "triggers"
@@ -571,8 +584,10 @@ class TestDeterministicOrder(unittest.TestCase):
     """build_global_relations output order must not depend on sub_analyses insertion order.
 
     Why: sub_analyses is populated in ThreadPoolExecutor completion order on a full
-    run, so an unsorted result produced analysis.json diff churn and a nondeterministic
-    rolled-up label when two pairs collide at a render level.
+    run, so an unsorted result produced analysis.json diff churn. The final sort by
+    (src_id, dst_id, relation) makes the serialized leaf set reproducible regardless
+    of completion order. (The render-time rolled-up label choice is covered
+    separately in test_rendering.py.)
     """
 
     def _serialize(self, rels):
@@ -593,6 +608,54 @@ class TestDeterministicOrder(unittest.TestCase):
         rels = build_global_relations(_build_root_analysis(), _build_sub_analyses(), {"python": _build_cfg()})
         keys = [(r.src_id, r.dst_id, r.relation) for r in rels]
         self.assertEqual(keys, sorted(keys))
+
+
+class TestLlmOnlyRelations(unittest.TestCase):
+    """Unbacked (LLM-only) relations: deduped by pair, and filtered to live endpoints."""
+
+    def test_duplicate_llm_only_pairs_deduped(self):
+        # Root and a sub-analysis both declare the same unbacked (1 -> 2) relation
+        # with different labels. Only one survives, deterministically (post-sort).
+        root = AnalysisInsights(
+            description="root",
+            components=[_comp("A", []), _comp("B", [])],
+            components_relations=[Relation(relation="calls", src_name="A", dst_name="B", src_id="1", dst_id="2")],
+        )
+        assign_component_ids(root)  # A -> "1", B -> "2"
+        # Sub-analysis of component "1": its children are 1.1/1.2, but it also
+        # re-declares the sibling relation 1 -> 2 with a different label.
+        sub = AnalysisInsights(
+            description="sub",
+            components=[_comp("A.pub", []), _comp("A.int", [])],
+            components_relations=[Relation(relation="delegates", src_name="A", dst_name="B", src_id="1", dst_id="2")],
+        )
+        assign_component_ids(sub, parent_id="1")  # children -> 1.1/1.2
+        # Re-pin the sibling relation to 1->2 after assign (name lookup would have
+        # blanked it, since A/B aren't components of this sub-scope).
+        sub.components_relations[0].src_id, sub.components_relations[0].dst_id = "1", "2"
+
+        rels = build_global_relations(root, {"1": sub}, {"python": CallGraph()})
+        pairs = [(r.src_id, r.dst_id) for r in rels]
+        self.assertEqual(pairs.count(("1", "2")), 1, "duplicate LLM-only pair must be deduped")
+        # Surviving label is deterministic (smallest by relation), not input-order dependent.
+        survivor = next(r for r in rels if (r.src_id, r.dst_id) == ("1", "2"))
+        self.assertEqual(survivor.relation, "calls")
+
+    def test_llm_only_relation_to_missing_component_dropped(self):
+        # An LLM relation whose endpoint id has no matching live component (e.g. a
+        # component deleted in a deep sub-scope, left dangling in a reloaded root
+        # set) must not survive into the global set.
+        root = AnalysisInsights(
+            description="root",
+            components=[_comp("A", [])],
+            components_relations=[Relation(relation="calls", src_name="A", dst_name="Ghost", src_id="1", dst_id="9")],
+        )
+        assign_component_ids(root)
+        # Force a dangling dst id that resolves to no component.
+        root.components_relations[0].src_id, root.components_relations[0].dst_id = "1", "9"
+
+        rels = build_global_relations(root, {}, {"python": CallGraph()})
+        self.assertNotIn(("1", "9"), {(r.src_id, r.dst_id) for r in rels})
 
 
 if __name__ == "__main__":

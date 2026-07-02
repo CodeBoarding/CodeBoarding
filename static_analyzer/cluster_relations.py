@@ -189,32 +189,48 @@ def build_global_relations(
 
     # Also include LLM-only relations (no static backing) — these are architectural
     # relations the LLM identified that may not have direct CFG edges.
+    #
+    # Only keep those whose BOTH endpoints resolve to a live component id. This
+    # drops relations to components deleted in a deep sub-scope (the incremental
+    # path re-reads the prior root set, which can still name a removed component)
+    # and relations whose names never resolved to an id (src_id/dst_id == "").
+    # Both would otherwise persist as dangling endpoints in analysis.json.
     static_keys = {(sr.src_cluster_id, sr.dst_cluster_id) for sr in static_relations}
-    for rel in all_llm_relations:
-        if (rel.src_id, rel.dst_id) not in static_keys:
-            # Check this isn't a parent-level relation superseded by a child-level one.
-            # E.g., skip "1" -> "2" if "1.1" -> "2.3" exists in static_keys.
-            is_superseded = (
-                any(
-                    src.startswith(rel.src_id + ".") or src == rel.src_id
-                    for src, dst in static_keys
-                    if dst.startswith(rel.dst_id + ".") or dst == rel.dst_id
+    llm_only_seen: set[tuple[str, str]] = set()
+    # Sort so that, when the same (src_id, dst_id) is declared at multiple levels
+    # with different labels, the surviving label is deterministic (smallest by
+    # relation) rather than dependent on sub_analyses completion order.
+    sorted_llm_relations = sorted(all_llm_relations, key=lambda r: (r.src_id, r.dst_id, r.relation))
+    for rel in sorted_llm_relations:
+        if not (rel.src_id and rel.dst_id):
+            continue
+        if rel.src_id not in id_to_name or rel.dst_id not in id_to_name:
+            continue
+        key = (rel.src_id, rel.dst_id)
+        if key in static_keys or key in llm_only_seen:
+            # Already emitted (static-backed above, or a duplicate LLM pair from
+            # another level); keep only the first (smallest-label) occurrence.
+            continue
+        # Check this isn't a parent-level relation superseded by a child-level one.
+        # E.g., skip "1" -> "2" if "1.1" -> "2.3" exists in static_keys.
+        is_superseded = any(
+            src.startswith(rel.src_id + ".") or src == rel.src_id
+            for src, dst in static_keys
+            if dst.startswith(rel.dst_id + ".") or dst == rel.dst_id
+        )
+        if not is_superseded:
+            llm_only_seen.add(key)
+            result.append(
+                Relation(
+                    relation=rel.relation,
+                    src_name=rel.src_name,
+                    dst_name=rel.dst_name,
+                    src_id=rel.src_id,
+                    dst_id=rel.dst_id,
+                    edge_count=0,
+                    is_static=False,
                 )
-                if rel.src_id and rel.dst_id
-                else False
             )
-            if not is_superseded:
-                result.append(
-                    Relation(
-                        relation=rel.relation,
-                        src_name=rel.src_name,
-                        dst_name=rel.dst_name,
-                        src_id=rel.src_id,
-                        dst_id=rel.dst_id,
-                        edge_count=0,
-                        is_static=False,
-                    )
-                )
 
     # Stable order: the static portion is already sorted, but the LLM-only tail
     # is appended in sub_analyses completion order (nondeterministic across runs).

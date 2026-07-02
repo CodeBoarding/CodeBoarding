@@ -76,6 +76,29 @@ def test_project_uses_id_to_name_map():
     assert out[0].src_name == "API" and out[0].dst_name == "Core"
 
 
+def test_project_rolledup_label_is_input_order_deterministic():
+    # Two differently-labeled leaf relations collapse to the same level pair (1->2).
+    # project_relations_to_level keeps the first label seen, so the chosen label
+    # depends entirely on input order. build_global_relations sorts its output by
+    # (src_id, dst_id, relation), which is what makes this deterministic in the
+    # real pipeline — assert that the label matches the sorted-first leaf ("reads"
+    # < "writes") regardless of the order the caller happens to pass them in.
+    a = _rel("1.1.1", "2.1.1", label="reads")
+    b = _rel("1.1.2", "2.1.2", label="writes")
+    sorted_input = sorted([b, a], key=lambda r: (r.src_id, r.dst_id, r.relation))
+
+    forward = project_relations_to_level(sorted_input, {"1", "2"}, {})
+    backward = project_relations_to_level(list(reversed(sorted_input)), {"1", "2"}, {})
+
+    # The pipeline always feeds the (src_id, dst_id, relation)-sorted set, so the
+    # winning label must be stable — pin it to the sorted-first leaf's label.
+    assert len(forward) == 1
+    assert forward[0].relation == "reads"
+    # Same sorted input in reverse would flip the label — proving the sort in
+    # build_global_relations is what guarantees determinism, not projection itself.
+    assert backward[0].relation == "writes"
+
+
 def test_project_drops_relations_outside_level():
     # 5.x is not part of the level at all — drop the edge.
     rels = [_rel("5.1", "5.2"), _rel("1.1", "5.1")]

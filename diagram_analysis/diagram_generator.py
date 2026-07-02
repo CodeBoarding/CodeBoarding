@@ -930,7 +930,9 @@ def _merge_sub_analyses(
     For each key in *updates*, we:
       1. Keep old components whose IDs are absent from the new sub-analysis.
       2. Replace everything else with the new sub-analysis data.
-      3. Union the relations (old relations referencing surviving components are kept).
+
+    Relations are not merged here: they live once on the root as the global set
+    and are rebuilt wholesale by ``rebuild_global_relations`` after this merge.
     """
     for key, new_sub in updates.items():
         old_sub = target.get(key)
@@ -940,14 +942,7 @@ def _merge_sub_analyses(
 
         new_ids = {c.component_id for c in new_sub.components}
         surviving = [c for c in old_sub.components if c.component_id not in new_ids]
-        surviving_ids = {c.component_id for c in surviving}
         if surviving:
             new_sub.components = surviving + new_sub.components
-
-        kept_relations = [
-            r for r in old_sub.components_relations if (r.src_id in surviving_ids or r.dst_id in surviving_ids)
-        ]
-        if kept_relations:
-            new_sub.components_relations = kept_relations + new_sub.components_relations
 
         target[key] = new_sub
