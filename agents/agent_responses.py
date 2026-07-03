@@ -188,6 +188,13 @@ class Relation(LLMBaseModel):
     relation: str = Field(description="Single phrase used for the relationship of two components.")
     src_name: str = Field(description="Source component name")
     dst_name: str = Field(description="Target component name")
+    evidence: str = Field(
+        default="",
+        description=(
+            "Optional concrete evidence for relations that are not direct static calls, "
+            "such as REST endpoints, queues, plugin registration, subprocesses, reflection, or config-driven wiring."
+        ),
+    )
     src_id: str = Field(default="", description="Component ID of the source.", exclude=True)
     dst_id: str = Field(default="", description="Component ID of the destination.", exclude=True)
     edge_count: int = Field(default=0, description="Number of CFG edges backing this relation.", exclude=True)

@@ -127,6 +127,7 @@ Create final component architecture for `{project_name}` optimized for flow repr
 - Merge related cluster groups that serve a common purpose
 - Each component must have clear boundaries
 - Include only architecturally significant relationships
+- Static call relationships are added automatically; if you include a non-static/runtime relationship, add concise concrete evidence
 
 # Required outputs
 - Description: One paragraph explaining the main flow and purpose
@@ -353,6 +354,7 @@ Create final sub-component architecture for the `{component}` subsystem of `{pro
 - Merge related cluster groups that serve a common purpose
 - Each sub-component must have clear boundaries
 - Include only architecturally significant relationships
+- Static call relationships are added automatically; if you include a non-static/runtime relationship, add concise concrete evidence
 
 # Required outputs (complete all)
 - Description: One paragraph explaining the subsystem's main flow and purpose

@@ -130,6 +130,7 @@ Guidelines for {project_type} projects:
 - Merge related cluster groups that serve a common purpose
 - Each component should have clear boundaries
 - Include only architecturally significant relationships
+- Static call relationships are added automatically; if you include a non-static/runtime relationship, add concise concrete evidence
 
 Constraints:
 - Focus on highest level architectural components
@@ -342,6 +343,7 @@ Guidelines for {project_type} projects:
 - Merge related cluster groups that serve a common purpose
 - Each sub-component should have clear boundaries
 - Include only architecturally significant relationships
+- Static call relationships are added automatically; if you include a non-static/runtime relationship, add concise concrete evidence
 
 Constraints:
 - Focus on subsystem-specific functionality

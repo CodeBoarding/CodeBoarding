@@ -288,7 +288,8 @@ def merge_relations(
 
     Strategy (Supplement):
     - Static + matching LLM: keep LLM's human-readable label, attach edge_count, is_static=True
-    - LLM only (no static backing): keep with is_static=False
+    - LLM only with explicit evidence: keep with is_static=False
+    - LLM only without evidence: drop
     - Static only (no LLM label): add with auto-generated label "calls" + edge_count
 
     Matching is done by component ID in the same direction (src -> dst).
@@ -324,6 +325,7 @@ def merge_relations(
                     relation=llm_rel.relation,
                     src_name=llm_rel.src_name,
                     dst_name=llm_rel.dst_name,
+                    evidence=llm_rel.evidence,
                     src_id=src_id,
                     dst_id=dst_id,
                     edge_count=static_rel.edge_count,
@@ -333,12 +335,14 @@ def merge_relations(
             )
             matched_static_keys.add((static_rel.src_cluster_id, static_rel.dst_cluster_id))
         else:
-            # LLM relation with no static backing — keep as LLM-only
+            if not llm_rel.evidence.strip():
+                continue
             merged.append(
                 Relation(
                     relation=llm_rel.relation,
                     src_name=llm_rel.src_name,
                     dst_name=llm_rel.dst_name,
+                    evidence=llm_rel.evidence,
                     src_id=src_id,
                     dst_id=dst_id,
                     edge_count=0,
@@ -357,6 +361,7 @@ def merge_relations(
                     relation="calls",
                     src_name=src_name,
                     dst_name=dst_name,
+                    evidence="",
                     src_id=src_id,
                     dst_id=dst_id,
                     edge_count=sr.edge_count,

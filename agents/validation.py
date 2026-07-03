@@ -23,6 +23,7 @@ VALIDATOR_WEIGHTS: dict[str, float] = {
     "validate_group_name_coverage": 20.0,
     "validate_key_entities": 5.0,
     "validate_relation_component_names": 5.0,
+    "validate_relation_evidence": 10.0,
     "validate_file_classifications": 5.0,
 }
 DEFAULT_VALIDATOR_WEIGHT = 5.0
@@ -554,6 +555,39 @@ def validate_relation_component_names(result: AnalysisInsights, _context: Valida
     return ValidationResult(is_valid=False, feedback_messages=[feedback])
 
 
+def validate_relation_evidence(result: AnalysisInsights, context: ValidationContext) -> ValidationResult:
+    """Validate LLM relations against directed CFG edges or explicit runtime evidence."""
+    if not context.llm_cluster_analysis or not context.cluster_results or not context.cfg_graphs:
+        logger.warning("[Validation] Missing static context for relation evidence validation")
+        return ValidationResult(is_valid=True)
+
+    component_to_clusters = _component_cluster_ids(result, context.llm_cluster_analysis)
+    cluster_edge_lookup = _build_cluster_edge_lookup(context.cluster_results, context.cfg_graphs)
+    unsupported: list[str] = []
+
+    for relation in result.components_relations:
+        src_clusters = component_to_clusters.get(relation.src_name, [])
+        dst_clusters = component_to_clusters.get(relation.dst_name, [])
+        if _check_directed_edge_between_cluster_sets(src_clusters, dst_clusters, cluster_edge_lookup):
+            continue
+        if relation.evidence.strip():
+            continue
+        unsupported.append(f"{relation.src_name} -> {relation.dst_name}: {relation.relation}")
+
+    if not unsupported:
+        logger.info("[Validation] All relations have static backing or explicit evidence")
+        return ValidationResult(is_valid=True)
+
+    feedback = (
+        "The following relations have no directed static CFG edge between their components: "
+        f"{'; '.join(unsupported)}. Remove them, or keep only if they represent a real runtime/non-static "
+        "interaction and add concise concrete evidence (for example an endpoint, queue/topic, plugin registration, "
+        "subprocess, reflection/import hook, or config-driven wiring)."
+    )
+    logger.warning("[Validation] Relations without static backing or evidence: %s", "; ".join(unsupported))
+    return ValidationResult(is_valid=False, feedback_messages=[feedback])
+
+
 def validate_scope_relation_names(result: ScopeRelations, _context: ValidationContext) -> ValidationResult:
     """Validate that src_name/dst_name in scope relations match known component names."""
     known_names = _context.valid_component_names
@@ -611,6 +645,34 @@ def _build_cluster_edge_lookup(
         cluster_edge_lookup[lang] = cluster_edges
 
     return cluster_edge_lookup
+
+
+def _component_cluster_ids(result: AnalysisInsights, cluster_analysis: ClusterAnalysis) -> dict[str, list[int]]:
+    group_to_cluster_ids = {group.name: group.cluster_ids for group in cluster_analysis.cluster_components}
+    component_to_clusters: dict[str, list[int]] = {}
+    for component in result.components:
+        cluster_ids: list[int] = []
+        for group_name in component.source_group_names:
+            cluster_ids.extend(group_to_cluster_ids.get(group_name, []))
+        component_to_clusters[component.name] = cluster_ids
+    return component_to_clusters
+
+
+def _check_directed_edge_between_cluster_sets(
+    src_cluster_ids: list[int],
+    dst_cluster_ids: list[int],
+    cluster_edge_lookup: dict[str, set[tuple[int, int]]],
+) -> bool:
+    if not src_cluster_ids or not dst_cluster_ids:
+        return False
+
+    src_set = set(src_cluster_ids)
+    dst_set = set(dst_cluster_ids)
+    for cluster_edges in cluster_edge_lookup.values():
+        for src_cluster, dst_cluster in cluster_edges:
+            if src_cluster in src_set and dst_cluster in dst_set:
+                return True
+    return False
 
 
 def _check_edge_between_cluster_sets(

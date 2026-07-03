@@ -97,6 +97,7 @@ Guidelines for {project_type} projects:
 - Merge related cluster groups that serve a common purpose
 - Each component should have clear boundaries
 - Include only architecturally significant relationships
+- Static call relationships are added automatically; if you include a non-static/runtime relationship, add concise concrete evidence
 
 For each component provide: a clear name, a description of what it does, the exact named cluster group names it encompasses, and 2-5 key entities (mentioning their qualified names and source files). Provide one paragraph describing the overall main flow and purpose. Define relationships between components (max 2 per pair, avoiding bidirectional sends/returns pairs).
 
@@ -397,6 +398,7 @@ Guidelines for {project_type} projects:
 - Merge related cluster groups that serve a common purpose
 - Each sub-component should have clear boundaries
 - Include only architecturally significant relationships
+- Static call relationships are added automatically; if you include a non-static/runtime relationship, add concise concrete evidence
 
 For each sub-component provide: a clear name, a description of what it does, the exact named cluster group names it encompasses, and 2-5 key entities (mentioning their qualified names and source files). Provide one paragraph describing the subsystem's main flow and purpose. Define relationships between sub-components (max 2 per pair, avoiding bidirectional sends/returns pairs).
 

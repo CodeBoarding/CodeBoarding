@@ -7,6 +7,7 @@ from agents.validation import (
     validate_cluster_coverage,
     validate_file_classifications,
     validate_relation_component_names,
+    validate_relation_evidence,
     _check_edge_between_cluster_sets,
 )
 from agents.agent_responses import (
@@ -20,6 +21,7 @@ from agents.agent_responses import (
 )
 from static_analyzer.graph import ClusterResult, CallGraph
 from static_analyzer.node import Node
+from static_analyzer.constants import NodeType
 
 
 class TestValidationContext(unittest.TestCase):
@@ -535,6 +537,70 @@ class TestValidateRelationComponentNames(unittest.TestCase):
         self.assertFalse(result.is_valid)
         self.assertIn("LLM Agent Core", result.feedback_messages[0])
         self.assertIn("Agent Tooling Interface", result.feedback_messages[0])
+
+
+class TestValidateRelationEvidence(unittest.TestCase):
+    def _make_context(self, edge_direction: tuple[str, str]) -> ValidationContext:
+        cfg = CallGraph(language="python")
+        cfg.add_node(Node("a.run", NodeType.FUNCTION, "a.py", 1, 2))
+        cfg.add_node(Node("b.load", NodeType.FUNCTION, "b.py", 1, 2))
+        cfg.add_edge(*edge_direction)
+        cluster_result = ClusterResult(
+            clusters={1: {"a.run"}, 2: {"b.load"}},
+            file_to_clusters={},
+            cluster_to_files={},
+            strategy="test",
+        )
+        cluster_analysis = ClusterAnalysis(
+            cluster_components=[
+                ClustersComponent(name="GroupA", cluster_ids=[1], description="A"),
+                ClustersComponent(name="GroupB", cluster_ids=[2], description="B"),
+            ]
+        )
+        return ValidationContext(
+            cluster_results={"python": cluster_result},
+            cfg_graphs={"python": cfg},
+            llm_cluster_analysis=cluster_analysis,
+        )
+
+    def _make_analysis(self, relation: Relation) -> AnalysisInsights:
+        return AnalysisInsights(
+            description="test",
+            components=[
+                Component(name="A", description="A", key_entities=[], source_group_names=["GroupA"]),
+                Component(name="B", description="B", key_entities=[], source_group_names=["GroupB"]),
+            ],
+            components_relations=[relation],
+        )
+
+    def test_directed_static_edge_passes_without_evidence(self):
+        analysis = self._make_analysis(Relation(relation="calls", src_name="A", dst_name="B"))
+
+        result = validate_relation_evidence(analysis, self._make_context(("a.run", "b.load")))
+
+        self.assertTrue(result.is_valid)
+
+    def test_reverse_static_edge_does_not_validate_wrong_direction(self):
+        analysis = self._make_analysis(Relation(relation="calls", src_name="A", dst_name="B"))
+
+        result = validate_relation_evidence(analysis, self._make_context(("b.load", "a.run")))
+
+        self.assertFalse(result.is_valid)
+        self.assertIn("A -> B", result.feedback_messages[0])
+
+    def test_runtime_evidence_allows_relation_without_static_edge(self):
+        analysis = self._make_analysis(
+            Relation(
+                relation="sends REST requests to",
+                src_name="A",
+                dst_name="B",
+                evidence="A calls B through POST /convert configured in routes.py",
+            )
+        )
+
+        result = validate_relation_evidence(analysis, self._make_context(("b.load", "a.run")))
+
+        self.assertTrue(result.is_valid)
 
 
 if __name__ == "__main__":

@@ -207,9 +207,10 @@ class TestMergeRelations(unittest.TestCase):
         self.assertEqual(merged[0].bridge_edges[0].dst_file, "src/b.py")
 
     def test_llm_without_static_backing_kept(self):
-        """LLM relation with no static evidence should be kept as LLM-only."""
         analysis = self._make_analysis()
-        llm_rels = [Relation(relation="uses", src_name="A", dst_name="B")]
+        llm_rels = [
+            Relation(relation="uses", src_name="A", dst_name="B", evidence="Configured through plugin entry point")
+        ]
         static_rels: list[ClusterRelation] = []  # No static evidence
 
         merged = merge_relations(llm_rels, static_rels, analysis)
@@ -220,6 +221,15 @@ class TestMergeRelations(unittest.TestCase):
         self.assertEqual(merged[0].dst_name, "B")
         self.assertEqual(merged[0].edge_count, 0)
         self.assertFalse(merged[0].is_static)
+        self.assertEqual(merged[0].evidence, "Configured through plugin entry point")
+
+    def test_llm_without_static_backing_or_evidence_dropped(self):
+        analysis = self._make_analysis()
+        llm_rels = [Relation(relation="uses", src_name="A", dst_name="B")]
+
+        merged = merge_relations(llm_rels, [], analysis)
+
+        self.assertEqual(merged, [])
 
     def test_static_only_auto_labeled(self):
         """Static relation without LLM label should get auto-label 'calls'."""
@@ -236,17 +246,18 @@ class TestMergeRelations(unittest.TestCase):
         self.assertEqual(merged[0].edge_count, 8)
         self.assertTrue(merged[0].is_static)
 
-    def test_bidirectional_matching(self):
-        """LLM relation should match static relation even if direction is reversed."""
+    def test_reverse_direction_does_not_match_static_relation(self):
         analysis = self._make_analysis()
         llm_rels = [Relation(relation="used by", src_name="B", dst_name="A")]
         static_rels = [ClusterRelation(src_cluster_id="1", dst_cluster_id="2", edge_count=3)]
 
         merged = merge_relations(llm_rels, static_rels, analysis)
 
-        # The LLM relation B->A should match static 1->2 via reverse lookup
         matching = [r for r in merged if r.relation == "used by"]
-        self.assertEqual(len(matching), 1)
+        self.assertEqual(matching, [])
+        static_only = [r for r in merged if r.src_id == "1" and r.dst_id == "2"]
+        self.assertEqual(len(static_only), 1)
+        self.assertTrue(static_only[0].is_static)
 
     def test_mixed_scenario(self):
         """Test a mix of backed, unbacked, and static-only relations."""
@@ -262,16 +273,11 @@ class TestMergeRelations(unittest.TestCase):
 
         merged = merge_relations(llm_rels, static_rels, analysis)
 
-        # A->B (backed) + A->C (LLM-only) + B->C (static-only) = 3 relations
-        self.assertEqual(len(merged), 3)
+        # A->B (backed) + B->C (static-only); A->C is dropped because it has no evidence
+        self.assertEqual(len(merged), 2)
         src_dst = {(r.src_name, r.dst_name) for r in merged}
         self.assertIn(("A", "B"), src_dst)
-        self.assertIn(("A", "C"), src_dst)
         self.assertIn(("B", "C"), src_dst)
-        # A->C should be LLM-only (not static)
-        ac_rel = [r for r in merged if r.src_name == "A" and r.dst_name == "C"][0]
-        self.assertFalse(ac_rel.is_static)
-        self.assertEqual(ac_rel.edge_count, 0)
 
     def test_empty_inputs(self):
         """Empty LLM and static relations should produce empty result."""

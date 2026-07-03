@@ -31,7 +31,7 @@ from agents.validation import ValidationContext, validate_scope_relation_names
 from monitoring import trace
 from repo_utils.change_detector import ChangeSet
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.cluster_relations import merge_relations
+from static_analyzer.cluster_relations import ClusterRelation, merge_relations
 from static_analyzer.constants import Language
 from static_analyzer.graph import CallGraph, ClusterResult
 
@@ -236,17 +236,16 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
         )
 
         existing_static = [r for r in scope.components_relations if r.is_static]
-        merged = merge_relations(result.components_relations, [], scope)
-        for relation in existing_static:
-            existing_pair = next(
-                (m for m in merged if m.src_id == relation.src_id and m.dst_id == relation.dst_id),
-                None,
+        static_relations = [
+            ClusterRelation(
+                src_cluster_id=relation.src_id,
+                dst_cluster_id=relation.dst_id,
+                edge_count=relation.edge_count,
+                bridge_edges=relation.bridge_edges,
             )
-            if existing_pair is None:
-                merged.append(relation)
-            elif existing_pair.edge_count == 0 and relation.edge_count > 0:
-                existing_pair.edge_count = relation.edge_count
-                existing_pair.is_static = True
+            for relation in existing_static
+        ]
+        merged = merge_relations(result.components_relations, static_relations, scope)
 
         scope.components_relations = merged
         return result.components_relations
