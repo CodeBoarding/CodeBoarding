@@ -85,6 +85,10 @@ class _AnalysisFileStore:
         result = self.read()
         return result[0] if result else None
 
+    def exists(self) -> bool:
+        """True when a parseable ``analysis.json`` is present on disk."""
+        return self.read_root() is not None
+
     def read_sub(self, component_id: str) -> AnalysisInsights | None:
         """Load a sub-analysis for a specific component by component_id."""
         result = self.read()
@@ -278,6 +282,11 @@ def _get_store(output_dir: Path) -> _AnalysisFileStore:
 def load_root_analysis(output_dir: Path) -> AnalysisInsights | None:
     """Load the root analysis from the unified analysis.json file."""
     return _get_store(output_dir).read_root()
+
+
+def analysis_exists(output_dir: Path) -> bool:
+    """True when *output_dir* holds a parseable ``analysis.json``."""
+    return _get_store(output_dir).exists()
 
 
 def load_full_analysis(output_dir: Path) -> tuple[AnalysisInsights, dict[str, AnalysisInsights]] | None:

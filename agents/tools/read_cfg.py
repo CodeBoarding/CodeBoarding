@@ -41,7 +41,7 @@ class GetCFGTool(BaseRepoTool):
             return "No static analysis data available."
         items = 0
         result = f"Control flow graph for {component.name}:\n"
-        component_files = {fmg.file_path for fmg in component.file_methods}
+        component_files = set(component.file_paths())
         for lang in self.static_analysis.get_languages():
             logger.info(f"[CFG Tool] Filtering CFG for component {component.name} in {lang}")
             cfg = self.static_analysis.get_cfg(lang)

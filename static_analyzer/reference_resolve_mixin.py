@@ -30,7 +30,7 @@ class ReferenceResolverMixin:
                     continue
 
                 # Extract file paths from file_methods as candidates
-                file_candidates = [fm.file_path for fm in component.file_methods] if component.file_methods else None
+                file_candidates = component.file_paths() or None
                 self._resolve_single_reference(reference, file_candidates)
 
         # Remove unresolved references

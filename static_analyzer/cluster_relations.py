@@ -137,6 +137,14 @@ def iter_ancestor_ids(component_id: str) -> Iterator[str]:
         yield ".".join(parts[:i])
 
 
+def is_self_or_descendant(component_id: str, ancestor_id: str) -> bool:
+    """True when *component_id* is *ancestor_id* itself or a dotted descendant of it.
+
+    ``("1.2", "1")`` and ``("1", "1")`` -> True; ``("10", "1")`` -> False.
+    """
+    return component_id == ancestor_id or component_id.startswith(f"{ancestor_id}.")
+
+
 def find_llm_label(src_id: str, dst_id: str, llm_by_ids: dict[tuple[str, str], Relation]) -> str | None:
     """Best LLM label for a static edge: direct (src_id, dst_id), else nearest ancestor pair.
 

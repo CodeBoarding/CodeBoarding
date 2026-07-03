@@ -329,8 +329,8 @@ class ClusterMethodsMixin:
                     original_component = seen_entities[qname]
                     ref_file = key_entity.reference_file
 
-                    component_files = [group.file_path for group in component.file_methods]
-                    original_files = [group.file_path for group in original_component.file_methods]
+                    component_files = component.file_paths()
+                    original_files = original_component.file_paths()
                     current_has_file = ref_file and any(ref_file in f for f in component_files)
                     original_has_file = ref_file and any(ref_file in f for f in original_files)
 
@@ -446,7 +446,7 @@ class ClusterMethodsMixin:
             where cluster_results maps language -> ClusterResult for the subgraph
             and subgraph_cfgs maps language -> filtered CallGraph for the subgraph
         """
-        component_files = [group.file_path for group in component.file_methods]
+        component_files = component.file_paths()
         if not component_files:
             logger.warning(f"Component {component.name} has no assigned files")
             return "No assigned files found for this component.", {}, {}

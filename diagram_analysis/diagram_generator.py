@@ -60,7 +60,7 @@ from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer import StaticAnalyzer, get_static_analysis
 from static_analyzer.analysis_cache import StaticAnalysisCache
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.cluster_relations import build_global_relations
+from static_analyzer.cluster_relations import build_global_relations, is_self_or_descendant
 from static_analyzer.constants import Language
 from static_analyzer.graph import ClusterResult
 from static_analyzer.scanner import ProjectScanner
@@ -837,7 +837,7 @@ def _collect_components_by_id(
 def _drop_removed_subtree_analyses(sub_analyses: dict[str, AnalysisInsights], removed_ids: set[str]) -> None:
     for removed_id in removed_ids:
         for scope_id in list(sub_analyses):
-            if scope_id == removed_id or scope_id.startswith(f"{removed_id}."):
+            if is_self_or_descendant(scope_id, removed_id):
                 del sub_analyses[scope_id]
 
 

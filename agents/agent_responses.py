@@ -330,6 +330,10 @@ class Component(LLMBaseModel):
         json_schema_extra={"hidden": True},
     )
 
+    def file_paths(self) -> list[str]:
+        """File paths this component spans, one per ``file_methods`` group."""
+        return [group.file_path for group in self.file_methods]
+
     def llm_str(self):
         n = f"**Component:** `{self.name}`"
         d = f"   - *Description*: {self.description}"
