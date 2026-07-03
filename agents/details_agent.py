@@ -30,7 +30,7 @@ from agents.validation import (
 from monitoring import trace
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cluster_helpers import get_all_cluster_ids
-from static_analyzer.graph import ClusterResult
+from static_analyzer.graph import CallGraph, ClusterResult
 
 logger = logging.getLogger(__name__)
 
@@ -131,6 +131,7 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
         component: Component,
         cluster_analysis: ClusterAnalysis,
         subgraph_cluster_results: dict[str, ClusterResult],
+        subgraph_cfgs: dict[str, CallGraph],
     ) -> AnalysisInsights:
         """
         Generate detailed final analysis from grouped clusters.
@@ -165,10 +166,14 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
                 f"Every one of these names: {group_names} must appear in exactly one component's source_group_names\n"
             )
 
+        self.toolkit.context.cluster_analysis = cluster_analysis
+        self.toolkit.context.cluster_results = subgraph_cluster_results
+        self.toolkit.context.cfg_graphs = subgraph_cfgs
+
         # Build validation context with subgraph CFG graphs for edge checking
         context = ValidationContext(
             cluster_results=subgraph_cluster_results,
-            cfg_graphs={lang: self.static_analysis.get_cfg(lang) for lang in self.static_analysis.get_languages()},
+            cfg_graphs=subgraph_cfgs,
             static_analysis=self.static_analysis,
             llm_cluster_analysis=cluster_analysis,
         )
@@ -228,7 +233,7 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
 
         # Step 3: Generate detailed analysis from grouped clusters
         # Validation ensures key_entities are within cluster scope (no rescue needed)
-        analysis = self.step_final_analysis(component, cluster_analysis, subgraph_cluster_results)
+        analysis = self.step_final_analysis(component, cluster_analysis, subgraph_cluster_results, subgraph_cfgs)
 
         # Step 4: Assign hierarchical component IDs (e.g., "1.1", "1.2" under parent "1")
         assign_component_ids(analysis, parent_id=component.component_id)

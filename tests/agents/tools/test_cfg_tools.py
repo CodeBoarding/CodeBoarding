@@ -2,11 +2,14 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from agents.agent_responses import Component, FileMethodGroup
-from agents.tools import GetCFGTool, MethodInvocationsTool
+from agents.agent_responses import ClusterAnalysis, ClustersComponent, Component, FileMethodGroup
+from agents.tools import ComponentBridgeEdgesTool, GetCFGTool, MethodInvocationsTool
 from agents.tools.base import RepoContext
 from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer import StaticAnalyzer
+from static_analyzer.constants import NodeType
+from static_analyzer.graph import CallGraph, ClusterResult, Edge
+from static_analyzer.node import Node
 from utils import get_artifact_dir
 
 
@@ -135,3 +138,53 @@ class TestCFGTools(unittest.TestCase):
             # Should contain "is called by" somewhere
             if "No method invocations found" not in content:
                 self.assertTrue("is calling" in content or "is called by" in content)
+
+
+class TestComponentBridgeEdgesTool(unittest.TestCase):
+    def _make_tool(self) -> ComponentBridgeEdgesTool:
+        src = Node("pkg.source.call", NodeType.FUNCTION, "src.py", 10, 12)
+        dst = Node("pkg.destination.handle", NodeType.FUNCTION, "dst.py", 20, 22)
+        other = Node("pkg.other.handle", NodeType.FUNCTION, "other.py", 30, 32)
+        cfg = CallGraph(
+            nodes={
+                src.fully_qualified_name: src,
+                dst.fully_qualified_name: dst,
+                other.fully_qualified_name: other,
+            },
+            edges=[Edge(src, dst), Edge(dst, other)],
+        )
+        cluster_results = {
+            "python": ClusterResult(
+                clusters={1: {src.fully_qualified_name}, 2: {dst.fully_qualified_name}, 3: {other.fully_qualified_name}}
+            )
+        }
+        cluster_analysis = ClusterAnalysis(
+            cluster_components=[
+                ClustersComponent(name="Source Group", cluster_ids=[1], description="source"),
+                ClustersComponent(name="Destination Group", cluster_ids=[2], description="destination"),
+                ClustersComponent(name="Other Group", cluster_ids=[3], description="other"),
+            ]
+        )
+        context = RepoContext(
+            repo_dir=Path("."),
+            ignore_manager=RepoIgnoreManager(Path(".")),
+            cluster_analysis=cluster_analysis,
+            cluster_results=cluster_results,
+            cfg_graphs={"python": cfg},
+        )
+        return ComponentBridgeEdgesTool(context=context)
+
+    def test_returns_directed_edges_between_component_groups(self):
+        tool = self._make_tool()
+        result = tool._run(["Source Group"], ["Destination Group"])
+
+        self.assertIn("Directed static bridge edges (1)", result)
+        self.assertIn("pkg.source.call", result)
+        self.assertIn("pkg.destination.handle", result)
+        self.assertIn("src.py:10", result)
+
+    def test_reverse_direction_is_not_reported(self):
+        tool = self._make_tool()
+        result = tool._run(["Destination Group"], ["Source Group"])
+
+        self.assertEqual(result, "No directed static bridge edges found between these component groups.")

@@ -83,6 +83,10 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         return self.toolkit.read_method_invocations
 
     @property
+    def read_component_edges_tool(self):
+        return self.toolkit.read_component_edges
+
+    @property
     def read_file_tool(self):
         return self.toolkit.read_file
 

@@ -117,6 +117,7 @@ Guidelines for {project_type} projects:
 - Each component should have clear boundaries
 - Include only architecturally significant relationships
 - Static call relationships are added automatically; if you include a non-static/runtime relationship, add concise concrete evidence
+- Use getComponentBridgeEdges with source_group_names when you need to inspect directed static calls between two candidate components
 
 Each component must have a clear name, a description of what it does, and reference the exact named cluster groups it encompasses (use exact group names). Include 2-5 key entities per component — the most important classes/methods — mentioning their qualified names and source files. Describe the overall architecture in one paragraph explaining the main flow and purpose. Define relationships between components, but limit to at most 2 per component pair and avoid paired sends/returns (e.g. ComponentA sends a message to ComponentB and ComponentB returns the result).
 
@@ -318,6 +319,7 @@ Guidelines for {project_type} projects:
 - Each sub-component should have clear boundaries
 - Include only architecturally significant relationships
 - Static call relationships are added automatically; if you include a non-static/runtime relationship, add concise concrete evidence
+- Use getComponentBridgeEdges with source_group_names when you need to inspect directed static calls between two candidate sub-components
 
 Each sub-component must have a clear name, a description of what it does, and reference the exact named cluster groups it encompasses (use exact group names). Include 2-5 key entities per sub-component — the most important classes/methods — mentioning their qualified names and source files. Describe the subsystem's main flow and purpose in one paragraph. Define relationships between sub-components, but limit to at most 2 per component pair and avoid paired sends/returns (e.g. ComponentA sends a message to ComponentB and ComponentB returns the result).
 

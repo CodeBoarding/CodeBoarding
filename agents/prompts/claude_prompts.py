@@ -131,6 +131,7 @@ Guidelines for {project_type} projects:
 - Each component should have clear boundaries
 - Include only architecturally significant relationships
 - Static call relationships are added automatically; if you include a non-static/runtime relationship, add concise concrete evidence
+- Use getComponentBridgeEdges with source_group_names when you need to inspect directed static calls between two candidate components
 
 Constraints:
 - Focus on highest level architectural components
@@ -344,6 +345,7 @@ Guidelines for {project_type} projects:
 - Each sub-component should have clear boundaries
 - Include only architecturally significant relationships
 - Static call relationships are added automatically; if you include a non-static/runtime relationship, add concise concrete evidence
+- Use getComponentBridgeEdges with source_group_names when you need to inspect directed static calls between two candidate sub-components
 
 Constraints:
 - Focus on subsystem-specific functionality

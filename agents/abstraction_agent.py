@@ -131,10 +131,15 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
                 f"Every one of these names must appear in exactly one component's source_group_names: {group_names}\n"
             )
 
+        cfg_graphs = {str(lang): self.static_analysis.get_cfg(lang) for lang in self.static_analysis.get_languages()}
+        self.toolkit.context.cluster_analysis = llm_cluster_analysis
+        self.toolkit.context.cluster_results = cluster_results
+        self.toolkit.context.cfg_graphs = cfg_graphs
+
         # Build validation context with CFG graphs for edge checking
         context = ValidationContext(
             cluster_results=cluster_results,
-            cfg_graphs={lang: self.static_analysis.get_cfg(lang) for lang in self.static_analysis.get_languages()},
+            cfg_graphs=cfg_graphs,
             static_analysis=self.static_analysis,
             llm_cluster_analysis=llm_cluster_analysis,
         )
