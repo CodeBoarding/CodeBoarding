@@ -925,6 +925,39 @@
       ]
     },
     {
+      "source": "src.main.java.core.Services.createDogs(List)",
+      "destination": "src.main.java.core.Dog.Dog",
+      "call_sites": [
+        {
+          "file": "src/main/java/core/Services.java",
+          "line": 58,
+          "column": 35
+        }
+      ]
+    },
+    {
+      "source": "src.main.java.core.Services.createDogs(List)",
+      "destination": "src.main.java.core.Dog.Dog(String)",
+      "call_sites": [
+        {
+          "file": "src/main/java/core/Services.java",
+          "line": 58,
+          "column": 35
+        }
+      ]
+    },
+    {
+      "source": "src.main.java.core.Services.createDogs(List)",
+      "destination": "src.main.java.core.Dog.Dog(String, int)",
+      "call_sites": [
+        {
+          "file": "src/main/java/core/Services.java",
+          "line": 58,
+          "column": 35
+        }
+      ]
+    },
+    {
       "source": "src.main.java.core.Services.nameComparator().new Comparator() {...}.compare(Animal, Animal)",
       "destination": "src.main.java.core.Animal.getName()",
       "call_sites": [

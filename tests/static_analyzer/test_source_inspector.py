@@ -62,8 +62,8 @@ class TestIsInvocation:
         f = tmp_path / "test.py"
         f.write_text("    foo\n    (bar)\n")
         si = SourceInspector()
-        # "foo" ends at char 7, rest of line is empty
-        assert si.is_invocation(f, 0, 7) is True
+        # This is not a valid Python call expression, so tree-sitter does not treat it as an invocation.
+        assert si.is_invocation(f, 0, 7) is False
 
     def test_no_call_on_next_line(self, tmp_path: Path):
         f = tmp_path / "test.py"
@@ -143,20 +143,20 @@ class TestFindCallSites:
 
     def test_skips_comments(self, tmp_path: Path):
         f = tmp_path / "test.java"
-        f.write_text("// foo()\n* bar()\n/* baz() */\nreal()\n")
+        f.write_text("// foo()\n/* bar()\n   baz() */\nclass A { void m(){ real(); } }\n")
         si = SourceInspector()
         sites = si.find_call_sites(f)
-        assert (3, 0) in sites  # real
+        assert (3, 20) in sites  # real
         # Comment lines should be skipped entirely
         assert not any(s[0] in (0, 1, 2) for s in sites)
 
     def test_finds_super_and_this(self, tmp_path: Path):
         f = tmp_path / "test.java"
-        f.write_text("super(name)\nthis(x)\n")
+        f.write_text("class A extends B { A(){ super(name); } }\nclass C { C(){ this(1); } }\n")
         si = SourceInspector()
         sites = si.find_call_sites(f)
-        assert (0, 0) in sites  # super
-        assert (1, 0) in sites  # this
+        assert (0, 25) in sites  # super
+        assert (1, 15) in sites  # this
 
     def test_deduplicates_positions(self, tmp_path: Path):
         f = tmp_path / "test.java"
