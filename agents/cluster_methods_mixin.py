@@ -27,8 +27,6 @@ from static_analyzer.cfg_skip_planner import ContextBudgetExceededError, plan_sk
 from static_analyzer.cluster_helpers import (
     MAX_LLM_CLUSTERS,
     enforce_cross_language_budget,
-    get_all_cluster_ids,
-    get_files_for_cluster_ids,
     merge_clusters,
 )
 from static_analyzer.cluster_relations import (
@@ -36,7 +34,7 @@ from static_analyzer.cluster_relations import (
     build_node_to_component_map,
     merge_relations,
 )
-from static_analyzer.constants import CALLABLE_TYPES, CLASS_TYPES, Language, NodeType
+from static_analyzer.constants import CALLABLE_TYPES, CLASS_TYPES, Language
 from static_analyzer.graph import CallGraph, ClusterResult
 from static_analyzer.node import Node
 
@@ -869,10 +867,10 @@ class ClusterMethodsMixin:
     ) -> None:
         """Build inter-component relations from CFG edges and merge with LLM relations.
 
-        Replaces LLM-only relations with statically-backed ones:
-        - LLM + static match: keep LLM label, attach edge_count
-        - LLM only (no static backing): drop
-        - Static only: add with auto-label "calls"
+        Static analysis supplies evidence for LLM-discovered architectural relations:
+        - LLM + static match: keep LLM label and attach all matching edges.
+        - LLM only with evidence/key_edges: keep as runtime or external communication.
+        - Static only: keep out of user-facing relations unless the LLM selected the pair.
 
         If cfg_graphs is not provided, builds them from self.static_analysis.
         """
@@ -918,9 +916,9 @@ class ClusterMethodsMixin:
             dst_label = id_to_name.get(dst_id, dst_id)
             edge_count = relation.edge_count
             lines.append(f"\n{src_label} -> {dst_label} ({edge_count} edge{'s' if edge_count != 1 else ''}):")
-            for edge in relation.bridge_edges[:10]:
-                short_s = edge.src_qualified_name.split(".")[-1]
-                short_d = edge.dst_qualified_name.split(".")[-1]
+            for edge in relation.all_edges[:10]:
+                short_s = edge.source.qualified_name.split(".")[-1]
+                short_d = edge.target.qualified_name.split(".")[-1]
                 lines.append(f"  {short_s} -> {short_d}")
             if edge_count > 10:
                 lines.append(f"  ... and {edge_count - 10} more")

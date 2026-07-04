@@ -47,19 +47,19 @@ class ComponentBridgeEdgesTool(BaseRepoTool):
 
         source_nodes = self._nodes_for_clusters(source_clusters)
         destination_nodes = self._nodes_for_clusters(destination_clusters)
-        bridge_edges: list[str] = []
+        all_edges: list[str] = []
 
         for language, cfg in cfg_graphs.items():
             for edge in cfg.edges:
                 src_name = edge.get_source()
                 dst_name = edge.get_destination()
                 if src_name in source_nodes and dst_name in destination_nodes:
-                    bridge_edges.append(
+                    all_edges.append(
                         f"{language}: {src_name} ({edge.src_node.file_path}:{edge.src_node.line_start}) "
                         f"-> {dst_name} ({edge.dst_node.file_path}:{edge.dst_node.line_start})"
                     )
 
-        if not bridge_edges:
+        if not all_edges:
             logger.info(
                 "[ComponentBridgeEdgesTool] No bridge edges found for %s -> %s",
                 source_group_names,
@@ -67,8 +67,8 @@ class ComponentBridgeEdgesTool(BaseRepoTool):
             )
             return "No directed static bridge edges found between these component groups."
 
-        header = f"Directed static bridge edges ({len(bridge_edges)}):"
-        return "\n".join([header, *sorted(bridge_edges)])
+        header = f"Directed static bridge edges ({len(all_edges)}):"
+        return "\n".join([header, *sorted(all_edges)])
 
     def _cluster_ids_for_groups(self, group_names: list[str]) -> set[int]:
         requested = set(group_names)

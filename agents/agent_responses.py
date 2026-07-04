@@ -166,20 +166,15 @@ class SourceCodeReference(LLMBaseModel):
         return f"`{self.qualified_name}`:{self.reference_start_line}-{self.reference_end_line}"
 
 
-class BridgeEdge(LLMBaseModel):
-    """Concrete CFG edge crossing a component boundary."""
+class RelationEdge(LLMBaseModel):
+    """A source-to-target code reference that supports a component relation."""
 
-    src_qualified_name: str = Field(description="Fully qualified name of the source method/function.")
-    dst_qualified_name: str = Field(description="Fully qualified name of the destination method/function.")
-    src_file: str = Field(description="Relative path to the source method/function file.")
-    dst_file: str = Field(description="Relative path to the destination method/function file.")
-    src_start_line: int = Field(description="Starting line of the source method/function.")
-    src_end_line: int = Field(description="Ending line of the source method/function.")
-    dst_start_line: int = Field(description="Starting line of the destination method/function.")
-    dst_end_line: int = Field(description="Ending line of the destination method/function.")
+    source: SourceCodeReference = Field(description="Source method/class/config reference for this interaction.")
+    target: SourceCodeReference = Field(description="Target method/class/config reference for this interaction.")
+    description: str = Field(default="", description="Short explanation of how source reaches or configures target.")
 
     def llm_str(self):
-        return f"{self.src_qualified_name} -> {self.dst_qualified_name}"
+        return f"{self.source} -> {self.target}: {self.description}"
 
 
 class Relation(LLMBaseModel):
@@ -195,13 +190,20 @@ class Relation(LLMBaseModel):
             "such as REST endpoints, queues, plugin registration, subprocesses, reflection, or config-driven wiring."
         ),
     )
+    key_edges: list[RelationEdge] = Field(
+        default_factory=list,
+        description=(
+            "Small set of architecturally important source-to-target edges for this relation. "
+            "Use SourceCodeReference objects, similar to key_entities, so references can be resolved to real methods."
+        ),
+    )
     src_id: str = Field(default="", description="Component ID of the source.", exclude=True)
     dst_id: str = Field(default="", description="Component ID of the destination.", exclude=True)
     edge_count: int = Field(default=0, description="Number of CFG edges backing this relation.", exclude=True)
     is_static: bool = Field(default=False, description="True if derived from static CFG analysis.", exclude=True)
-    bridge_edges: list[BridgeEdge] = Field(
+    all_edges: list[RelationEdge] = Field(
         default_factory=list,
-        description="Concrete CFG method/function edges crossing this component boundary.",
+        description="All known source-to-target edges for this relation, populated deterministically when available.",
         exclude=True,
         json_schema_extra={"hidden": True},
     )
@@ -412,6 +414,81 @@ class AnalysisInsights(LLMBaseModel):
         return {str(PurePosixPath(fg.file_path)): c.component_id for c in self.components for fg in c.file_methods}
 
 
+class ComponentArchitecture(LLMBaseModel):
+    """Component-only architecture before relation discovery."""
+
+    description: str = Field(
+        description="One paragraph explaining the functionality represented by this graph, its main flow, and purpose."
+    )
+    components: list[Component] = Field(description="List of the components identified in the project.")
+
+    def llm_str(self):
+        if not self.components:
+            return "No abstract components found."
+        title = "# Abstract Components Overview\n"
+        body = "\n".join(ac.llm_str() for ac in self.components)
+        return title + body
+
+
+class ComponentApiSurface(LLMBaseModel):
+    """The public/consumed API surface and communication mechanisms for one component."""
+
+    component_name: str = Field(description="Exact component name this API surface describes.")
+    provided_interfaces: list[SourceCodeReference] = Field(
+        default_factory=list,
+        description="Methods/classes/config symbols this component exposes or uses as entrypoints.",
+    )
+    consumed_interfaces: list[SourceCodeReference] = Field(
+        default_factory=list,
+        description="Methods/classes/config symbols this component calls, configures, imports, or expects from others.",
+    )
+    incoming_mechanisms: list[str] = Field(
+        default_factory=list,
+        description="How other components communicate with this component, such as direct calls, registry dispatch, REST, queues, plugins, files, or config.",
+    )
+    outgoing_mechanisms: list[str] = Field(
+        default_factory=list,
+        description="How this component communicates with others, such as direct calls, registry dispatch, REST, queues, plugins, files, or config.",
+    )
+    notes: str = Field(default="", description="Short notes about the component's communication role.")
+
+    def llm_str(self):
+        provided = ", ".join(ref.llm_str() for ref in self.provided_interfaces) or "none"
+        consumed = ", ".join(ref.llm_str() for ref in self.consumed_interfaces) or "none"
+        incoming = ", ".join(self.incoming_mechanisms) or "none"
+        outgoing = ", ".join(self.outgoing_mechanisms) or "none"
+        return (
+            f"**{self.component_name}**\n"
+            f"  Provided: {provided}\n"
+            f"  Consumed: {consumed}\n"
+            f"  Incoming mechanisms: {incoming}\n"
+            f"  Outgoing mechanisms: {outgoing}\n"
+            f"  Notes: {self.notes}"
+        )
+
+
+class ComponentApiSurfaces(LLMBaseModel):
+    """API surfaces for all components in a scope."""
+
+    api_surfaces: list[ComponentApiSurface] = Field(description="API surface for each component in this scope.")
+
+    def llm_str(self):
+        if not self.api_surfaces:
+            return "No component API surfaces found."
+        return "\n".join(surface.llm_str() for surface in self.api_surfaces)
+
+
+class ComponentRelations(LLMBaseModel):
+    """Relations discovered from component API surfaces."""
+
+    components_relations: list[Relation] = Field(description="List of relations among the components.")
+
+    def llm_str(self):
+        if not self.components_relations:
+            return "No component relations found."
+        return "\n".join(relation.llm_str() for relation in self.components_relations)
+
+
 def assign_component_ids(analysis: AnalysisInsights, parent_id: str = "", only_new: bool = False) -> None:
     """Assign hierarchical component IDs based on sibling index.
 
@@ -443,7 +520,11 @@ def assign_component_ids(analysis: AnalysisInsights, parent_id: str = "", only_n
         for idx, component in enumerate(analysis.components, start=1):
             component.component_id = f"{parent_id}.{idx}" if parent_id else str(idx)
 
-    # Assign relation IDs by looking up component names (first occurrence wins for duplicates)
+    assign_relation_ids(analysis)
+
+
+def assign_relation_ids(analysis: AnalysisInsights) -> None:
+    """Assign relation component IDs by looking up component names."""
     name_to_id: dict[str, str] = {}
     for c in analysis.components:
         if c.name in name_to_id:

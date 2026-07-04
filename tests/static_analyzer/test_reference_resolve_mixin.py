@@ -5,7 +5,14 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
 
-from agents.agent_responses import AnalysisInsights, Component, FilePath, SourceCodeReference
+from agents.agent_responses import (
+    AnalysisInsights,
+    Component,
+    FilePath,
+    Relation,
+    RelationEdge,
+    SourceCodeReference,
+)
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.reference_resolve_mixin import ReferenceResolverMixin
 
@@ -74,6 +81,136 @@ class TestReferenceResolverMixin(unittest.TestCase):
 
         # Should not try to resolve since file exists
         self.assertEqual(reference.reference_file, "test.py")  # Should be converted to relative path
+
+    def test_fix_source_code_reference_lines_resolves_relation_key_edges(self):
+        source_node = MagicMock()
+        source_node.file_path = str(self.repo_dir / "test.py")
+        source_node.line_start = 1
+        source_node.line_end = 2
+        target_node = MagicMock()
+        target_node.file_path = str(self.repo_dir / "module" / "file.py")
+        target_node.line_start = 1
+        target_node.line_end = 2
+
+        self.mock_static_analysis.get_reference.side_effect = [source_node, target_node]
+        source_component = Component(name="Source", description="", key_entities=[])
+        target_component = Component(name="Target", description="", key_entities=[])
+        relation = Relation(
+            relation="dispatches to",
+            src_name="Source",
+            dst_name="Target",
+            key_edges=[
+                RelationEdge(
+                    source=SourceCodeReference(qualified_name="test.TestClass"),
+                    target=SourceCodeReference(qualified_name="module.file.test_function"),
+                    description="dispatches through registry",
+                )
+            ],
+        )
+        analysis = AnalysisInsights(
+            description="Test",
+            components=[source_component, target_component],
+            components_relations=[relation],
+        )
+
+        result = self.resolver.fix_source_code_reference_lines(analysis)
+
+        edge = result.components_relations[0].key_edges[0]
+        self.assertEqual(edge.source.reference_file, "test.py")
+        self.assertEqual(edge.source.reference_start_line, 1)
+        self.assertEqual(edge.target.reference_file, os.path.join("module", "file.py"))
+        self.assertEqual(edge.target.reference_start_line, 1)
+
+    def test_fix_source_code_reference_lines_drops_relation_when_key_edges_do_not_resolve(self):
+        self.mock_static_analysis.get_reference.side_effect = ValueError("not found")
+        self.mock_static_analysis.get_loose_reference.return_value = ("", None)
+        source_component = Component(name="Source", description="", key_entities=[])
+        target_component = Component(name="Target", description="", key_entities=[])
+        relation = Relation(
+            relation="provides data to",
+            src_name="Source",
+            dst_name="Target",
+            key_edges=[
+                RelationEdge(
+                    source=SourceCodeReference(qualified_name="missing.Source"),
+                    target=SourceCodeReference(qualified_name="missing.Target"),
+                    description="runtime hook",
+                )
+            ],
+        )
+        analysis = AnalysisInsights(
+            description="Test",
+            components=[source_component, target_component],
+            components_relations=[relation],
+        )
+
+        result = self.resolver.fix_source_code_reference_lines(analysis)
+
+        self.assertEqual(result.components_relations, [])
+
+    def test_fix_source_code_reference_lines_drops_evidence_backed_relation_when_key_edges_do_not_resolve(self):
+        self.mock_static_analysis.get_reference.side_effect = ValueError("not found")
+        self.mock_static_analysis.get_loose_reference.return_value = ("", None)
+        source_component = Component(name="Source", description="", key_entities=[])
+        target_component = Component(name="Target", description="", key_entities=[])
+        relation = Relation(
+            relation="provides data to",
+            src_name="Source",
+            dst_name="Target",
+            evidence="Runtime registry dispatch in Source.configure wires Target without a direct CFG edge.",
+            key_edges=[
+                RelationEdge(
+                    source=SourceCodeReference(qualified_name="missing.Source"),
+                    target=SourceCodeReference(qualified_name="missing.Target"),
+                    description="runtime hook",
+                )
+            ],
+        )
+        analysis = AnalysisInsights(
+            description="Test",
+            components=[source_component, target_component],
+            components_relations=[relation],
+        )
+
+        result = self.resolver.fix_source_code_reference_lines(analysis)
+
+        self.assertEqual(result.components_relations, [])
+
+    def test_fix_source_code_reference_lines_drops_same_endpoint_key_edge(self):
+        existing_file = str(self.repo_dir / "test.py")
+        source_component = Component(name="Source", description="", key_entities=[])
+        target_component = Component(name="Target", description="", key_entities=[])
+        relation = Relation(
+            relation="provides data to",
+            src_name="Source",
+            dst_name="Target",
+            key_edges=[
+                RelationEdge(
+                    source=SourceCodeReference(
+                        qualified_name="test.TestClass",
+                        reference_file=existing_file,
+                        reference_start_line=1,
+                        reference_end_line=2,
+                    ),
+                    target=SourceCodeReference(
+                        qualified_name="test.TestClass",
+                        reference_file=existing_file,
+                        reference_start_line=1,
+                        reference_end_line=2,
+                    ),
+                    description="self edge",
+                )
+            ],
+        )
+        analysis = AnalysisInsights(
+            description="Test",
+            components=[source_component, target_component],
+            components_relations=[relation],
+        )
+
+        result = self.resolver.fix_source_code_reference_lines(analysis)
+
+        self.assertEqual(result.components_relations, [])
 
     def test_try_exact_match_success(self):
         """Test exact reference matching succeeds"""

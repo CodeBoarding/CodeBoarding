@@ -1,5 +1,6 @@
 import os
 import unittest
+from unittest.mock import MagicMock
 
 from agents.validation import (
     ValidationContext,
@@ -16,6 +17,8 @@ from agents.agent_responses import (
     AnalysisInsights,
     Component,
     Relation,
+    RelationEdge,
+    SourceCodeReference,
     ComponentFiles,
     FileClassification,
 )
@@ -588,7 +591,7 @@ class TestValidateRelationEvidence(unittest.TestCase):
         self.assertFalse(result.is_valid)
         self.assertIn("A -> B", result.feedback_messages[0])
 
-    def test_runtime_evidence_allows_relation_without_static_edge(self):
+    def test_runtime_evidence_without_key_edges_does_not_allow_relation_without_static_edge(self):
         analysis = self._make_analysis(
             Relation(
                 relation="sends REST requests to",
@@ -600,7 +603,110 @@ class TestValidateRelationEvidence(unittest.TestCase):
 
         result = validate_relation_evidence(analysis, self._make_context(("b.load", "a.run")))
 
+        self.assertFalse(result.is_valid)
+        self.assertIn("Evidence text alone is not enough", result.feedback_messages[0])
+
+    def test_runtime_key_edges_allow_relation_without_static_edge(self):
+        analysis = self._make_analysis(
+            Relation(
+                relation="dispatches through registry",
+                src_name="A",
+                dst_name="B",
+                key_edges=[
+                    RelationEdge(
+                        source=SourceCodeReference(qualified_name="a.run"),
+                        target=SourceCodeReference(qualified_name="b.load"),
+                        description="A dispatches to B through a registry",
+                    )
+                ],
+            )
+        )
+
+        result = validate_relation_evidence(analysis, self._make_context(("b.load", "a.run")))
+
         self.assertTrue(result.is_valid)
+
+    def test_unresolvable_key_edges_do_not_allow_relation_without_static_edge(self):
+        analysis = self._make_analysis(
+            Relation(
+                relation="dispatches through registry",
+                src_name="A",
+                dst_name="B",
+                key_edges=[
+                    RelationEdge(
+                        source=SourceCodeReference(qualified_name="missing.source"),
+                        target=SourceCodeReference(qualified_name="missing.target"),
+                        description="A dispatches to B through a registry",
+                    )
+                ],
+            )
+        )
+        context = self._make_context(("b.load", "a.run"))
+        context.static_analysis = MagicMock()
+        context.static_analysis.get_languages.return_value = ["python"]
+        context.static_analysis.get_reference.side_effect = ValueError("not found")
+        context.static_analysis.get_loose_reference.return_value = ("", None)
+
+        result = validate_relation_evidence(analysis, context)
+
+        self.assertFalse(result.is_valid)
+        self.assertIn("A -> B", result.feedback_messages[0])
+
+    def test_resolvable_key_edges_allow_relation_without_static_edge(self):
+        analysis = self._make_analysis(
+            Relation(
+                relation="dispatches through registry",
+                src_name="A",
+                dst_name="B",
+                key_edges=[
+                    RelationEdge(
+                        source=SourceCodeReference(qualified_name="a.run"),
+                        target=SourceCodeReference(qualified_name="b.load"),
+                        description="A dispatches to B through a registry",
+                    )
+                ],
+            )
+        )
+        source_node = MagicMock()
+        target_node = MagicMock()
+        context = self._make_context(("b.load", "a.run"))
+        context.static_analysis = MagicMock()
+        context.static_analysis.get_languages.return_value = ["python"]
+        context.static_analysis.get_reference.side_effect = [source_node, target_node]
+
+        result = validate_relation_evidence(analysis, context)
+
+        self.assertTrue(result.is_valid)
+
+    def test_same_endpoint_key_edge_is_rejected(self):
+        analysis = self._make_analysis(
+            Relation(
+                relation="dispatches through registry",
+                src_name="A",
+                dst_name="B",
+                key_edges=[
+                    RelationEdge(
+                        source=SourceCodeReference(qualified_name="a.run"),
+                        target=SourceCodeReference(qualified_name="a.run"),
+                        description="self edge",
+                    )
+                ],
+            )
+        )
+        node = MagicMock()
+        node.fully_qualified_name = "a.run"
+        node.file_path = "a.py"
+        node.line_start = 1
+        node.line_end = 2
+        context = self._make_context(("b.load", "a.run"))
+        context.static_analysis = MagicMock()
+        context.static_analysis.get_languages.return_value = ["python"]
+        context.static_analysis.get_reference.return_value = node
+
+        result = validate_relation_evidence(analysis, context)
+
+        self.assertFalse(result.is_valid)
+        self.assertTrue(any("same method/symbol" in feedback for feedback in result.feedback_messages))
 
 
 if __name__ == "__main__":

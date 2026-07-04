@@ -1,12 +1,13 @@
 """Validation utilities for LLM agent outputs."""
 
 import logging
+import os
 import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from difflib import SequenceMatcher
 
-from agents.agent_responses import AnalysisInsights, ClusterAnalysis, ComponentFiles, ScopeRelations
+from agents.agent_responses import AnalysisInsights, ClusterAnalysis, Component, ComponentFiles, ScopeRelations
 from repo_utils import normalize_path
 from static_analyzer.graph import CallGraph, ClusterResult
 
@@ -46,6 +47,7 @@ class ValidationContext:
     repo_dir: str | None = None  # For path normalization
     static_analysis: StaticAnalysisResults | None = None  # For qualified name validation
     llm_cluster_analysis: ClusterAnalysis | None = None  # For group name coverage validation
+    components: list[Component] = field(default_factory=list)  # For relation-only validation steps
 
 
 @dataclass
@@ -525,7 +527,8 @@ def validate_relation_component_names(result: AnalysisInsights, _context: Valida
     Returns:
         ValidationResult with feedback listing every relation whose src_name or dst_name is unknown
     """
-    known_names = {component.name for component in result.components}
+    components = result.components if hasattr(result, "components") else _context.components
+    known_names = {component.name for component in components}
 
     invalid_relations: list[str] = []
     for relation in result.components_relations:
@@ -561,31 +564,114 @@ def validate_relation_evidence(result: AnalysisInsights, context: ValidationCont
         logger.warning("[Validation] Missing static context for relation evidence validation")
         return ValidationResult(is_valid=True)
 
-    component_to_clusters = _component_cluster_ids(result, context.llm_cluster_analysis)
+    components = result.components if hasattr(result, "components") else context.components
+    component_to_clusters = _component_cluster_ids(components, context.llm_cluster_analysis)
     cluster_edge_lookup = _build_cluster_edge_lookup(context.cluster_results, context.cfg_graphs)
     unsupported: list[str] = []
+    invalid_key_edges: list[str] = []
 
     for relation in result.components_relations:
         src_clusters = component_to_clusters.get(relation.src_name, [])
         dst_clusters = component_to_clusters.get(relation.dst_name, [])
         if _check_directed_edge_between_cluster_sets(src_clusters, dst_clusters, cluster_edge_lookup):
+            same_endpoint_edges = _same_endpoint_key_edges(relation, context)
+            if same_endpoint_edges:
+                invalid_key_edges.append(
+                    f"{relation.src_name} -> {relation.dst_name}: {', '.join(same_endpoint_edges)}"
+                )
             continue
-        if relation.evidence.strip():
+        valid_key_edges, same_endpoint_edges = _valid_key_edge_descriptions(relation, context)
+        if same_endpoint_edges:
+            invalid_key_edges.append(f"{relation.src_name} -> {relation.dst_name}: {', '.join(same_endpoint_edges)}")
+        if valid_key_edges:
             continue
         unsupported.append(f"{relation.src_name} -> {relation.dst_name}: {relation.relation}")
 
-    if not unsupported:
+    feedback_messages: list[str] = []
+    if unsupported:
+        feedback_messages.append(
+            "The following relations have no directed static CFG edge between their components, and any supplied "
+            "key_edges could not be resolved to source code: "
+            f"{'; '.join(unsupported)}. Remove them, or keep only if they represent a real runtime/non-static "
+            "interaction and add key_edges with resolvable source/target code references plus concise concrete evidence "
+            "(for example an endpoint, queue/topic, plugin registration, subprocess, reflection/import hook, or "
+            "config-driven wiring). Evidence text alone is not enough."
+        )
+    if invalid_key_edges:
+        feedback_messages.append(
+            "The following relation key_edges resolve source and target to the same method/symbol: "
+            f"{'; '.join(invalid_key_edges)}. Replace each with a real bridge edge whose source is the calling, "
+            "registering, routing, or configuring code and whose target is the distinct invoked/registered/routed endpoint."
+        )
+
+    if not feedback_messages:
         logger.info("[Validation] All relations have static backing or explicit evidence")
         return ValidationResult(is_valid=True)
 
-    feedback = (
-        "The following relations have no directed static CFG edge between their components: "
-        f"{'; '.join(unsupported)}. Remove them, or keep only if they represent a real runtime/non-static "
-        "interaction and add concise concrete evidence (for example an endpoint, queue/topic, plugin registration, "
-        "subprocess, reflection/import hook, or config-driven wiring)."
-    )
-    logger.warning("[Validation] Relations without static backing or evidence: %s", "; ".join(unsupported))
-    return ValidationResult(is_valid=False, feedback_messages=[feedback])
+    if unsupported:
+        logger.warning("[Validation] Relations without static backing or evidence: %s", "; ".join(unsupported))
+    if invalid_key_edges:
+        logger.warning("[Validation] Relations with degenerate key edges: %s", "; ".join(invalid_key_edges))
+    return ValidationResult(is_valid=False, feedback_messages=feedback_messages)
+
+
+def _valid_key_edge_descriptions(relation, context: ValidationContext) -> tuple[list[str], list[str]]:
+    """Return valid and same-endpoint key edge descriptions."""
+    if context.static_analysis is None:
+        return ([edge.llm_str() for edge in relation.key_edges], [])
+    valid: list[str] = []
+    same_endpoint: list[str] = []
+    for edge in relation.key_edges:
+        source_identity = _source_reference_identity(edge.source, context)
+        target_identity = _source_reference_identity(edge.target, context)
+        if not source_identity or not target_identity:
+            continue
+        if source_identity == target_identity:
+            same_endpoint.append(edge.llm_str())
+            continue
+        valid.append(edge.llm_str())
+    return valid, same_endpoint
+
+
+def _same_endpoint_key_edges(relation, context: ValidationContext) -> list[str]:
+    """Return key edges whose endpoints resolve to the same symbol."""
+    return _valid_key_edge_descriptions(relation, context)[1]
+
+
+def _source_reference_identity(reference, context: ValidationContext) -> str:
+    """Resolve a source reference to a stable identity without mutating it."""
+    static_analysis = context.static_analysis
+    if static_analysis is None:
+        return reference.qualified_name
+
+    qname = reference.qualified_name.replace(os.sep, ".")
+    for lang in static_analysis.get_languages():
+        try:
+            node = static_analysis.get_reference(lang, qname)
+            return _node_identity(node)
+        except (ValueError, FileExistsError):
+            pass
+
+    for lang in static_analysis.get_languages():
+        try:
+            _, node = static_analysis.get_loose_reference(lang, qname)
+            if node is not None:
+                return _node_identity(node)
+        except Exception:
+            pass
+
+    if context.repo_dir and reference.reference_file:
+        reference_file = reference.reference_file
+        path = reference_file if os.path.isabs(reference_file) else os.path.join(context.repo_dir, reference_file)
+        if os.path.exists(path):
+            return f"file:{os.path.abspath(path)}:{reference.qualified_name}"
+
+    return ""
+
+
+def _node_identity(node) -> str:
+    """Return a stable identity for a static-analysis node."""
+    return f"{node.fully_qualified_name}:{node.file_path}:{node.line_start}:{node.line_end}"
 
 
 def validate_scope_relation_names(result: ScopeRelations, _context: ValidationContext) -> ValidationResult:
@@ -647,10 +733,10 @@ def _build_cluster_edge_lookup(
     return cluster_edge_lookup
 
 
-def _component_cluster_ids(result: AnalysisInsights, cluster_analysis: ClusterAnalysis) -> dict[str, list[int]]:
+def _component_cluster_ids(components: list[Component], cluster_analysis: ClusterAnalysis) -> dict[str, list[int]]:
     group_to_cluster_ids = {group.name: group.cluster_ids for group in cluster_analysis.cluster_components}
     component_to_clusters: dict[str, list[int]] = {}
-    for component in result.components:
+    for component in components:
         cluster_ids: list[int] = []
         for group_name in component.source_group_names:
             cluster_ids.extend(group_to_cluster_ids.get(group_name, []))

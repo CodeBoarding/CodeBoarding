@@ -5,13 +5,13 @@ from datetime import datetime, timezone
 from pydantic import BaseModel, Field
 
 from agents.agent_responses import (
-    BridgeEdge,
     Component,
     Relation,
     AnalysisInsights,
     FileEntry,
     FileMethodGroup,
     MethodEntry,
+    RelationEdge,
     SourceCodeReference,
 )
 
@@ -25,9 +25,9 @@ class RelationJson(Relation):
     dst_id: str = Field(default="", description="Component ID of the destination.")
     edge_count: int = Field(default=0, description="Number of CFG edges backing this relation.")
     is_static: bool = Field(default=False, description="True if derived from static CFG analysis.")
-    bridge_edges: list[BridgeEdge] = Field(
+    all_edges: list[RelationEdge] = Field(
         default_factory=list,
-        description="Concrete CFG method/function edges crossing this component boundary.",
+        description="All known source-to-target edges for this relation.",
     )
 
 
@@ -242,11 +242,12 @@ def _relation_to_json(r: Relation) -> RelationJson:
         src_name=r.src_name,
         dst_name=r.dst_name,
         evidence=r.evidence,
+        key_edges=r.key_edges,
         src_id=r.src_id,
         dst_id=r.dst_id,
         edge_count=r.edge_count,
         is_static=r.is_static,
-        bridge_edges=r.bridge_edges,
+        all_edges=r.all_edges,
     )
 
 
@@ -532,11 +533,12 @@ def _extract_analysis_recursive(
                 src_name=r["src_name"],
                 dst_name=r["dst_name"],
                 evidence=r.get("evidence", ""),
+                key_edges=r.get("key_edges", []),
                 src_id=r.get("src_id", ""),
                 dst_id=r.get("dst_id", ""),
                 edge_count=r.get("edge_count", 0),
                 is_static=r.get("is_static", False),
-                bridge_edges=[BridgeEdge(**edge) for edge in r.get("bridge_edges", [])],
+                all_edges=[RelationEdge(**edge) for edge in r.get("all_edges", [])],
             )
             for r in data.get("components_relations", [])
         ],

@@ -10,7 +10,7 @@ from collections import defaultdict
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 
-from agents.agent_responses import AnalysisInsights, BridgeEdge, Relation
+from agents.agent_responses import AnalysisInsights, Relation, RelationEdge, SourceCodeReference
 from static_analyzer.graph import CallGraph, Edge
 
 logger = logging.getLogger(__name__)
@@ -23,20 +23,51 @@ class ClusterRelation:
     src_cluster_id: str  # component's component_id, e.g. "1.2"
     dst_cluster_id: str  # e.g. "3"
     edge_count: int = 0  # number of CFG edges crossing this boundary
-    bridge_edges: list[BridgeEdge] = field(default_factory=list)
+    all_edges: list[RelationEdge] = field(default_factory=list)
 
 
-def _bridge_edge_from_cfg_edge(edge: Edge) -> BridgeEdge:
-    return BridgeEdge(
-        src_qualified_name=edge.src_node.fully_qualified_name,
-        dst_qualified_name=edge.dst_node.fully_qualified_name,
-        src_file=edge.src_node.file_path,
-        dst_file=edge.dst_node.file_path,
-        src_start_line=edge.src_node.line_start,
-        src_end_line=edge.src_node.line_end,
-        dst_start_line=edge.dst_node.line_start,
-        dst_end_line=edge.dst_node.line_end,
+def _relation_edge_from_cfg_edge(edge: Edge) -> RelationEdge:
+    return RelationEdge(
+        source=SourceCodeReference(
+            qualified_name=edge.src_node.fully_qualified_name,
+            reference_file=edge.src_node.file_path,
+            reference_start_line=edge.src_node.line_start,
+            reference_end_line=edge.src_node.line_end,
+        ),
+        target=SourceCodeReference(
+            qualified_name=edge.dst_node.fully_qualified_name,
+            reference_file=edge.dst_node.file_path,
+            reference_start_line=edge.dst_node.line_start,
+            reference_end_line=edge.dst_node.line_end,
+        ),
     )
+
+
+def _edge_identity(edge: RelationEdge) -> tuple[str, str, str, str, int | None, int | None, int | None, int | None]:
+    return (
+        edge.source.qualified_name,
+        edge.target.qualified_name,
+        edge.source.reference_file or "",
+        edge.target.reference_file or "",
+        edge.source.reference_start_line,
+        edge.source.reference_end_line,
+        edge.target.reference_start_line,
+        edge.target.reference_end_line,
+    )
+
+
+def _merge_relation_edges(
+    key_edges: list[RelationEdge], static_edges: list[RelationEdge]
+) -> tuple[list[RelationEdge], list[RelationEdge]]:
+    selected_key_edges = key_edges or static_edges[:3]
+    all_edges = list(static_edges)
+    all_edge_ids = {_edge_identity(edge) for edge in all_edges}
+    for edge in selected_key_edges:
+        edge_id = _edge_identity(edge)
+        if edge_id not in all_edge_ids:
+            all_edges.append(edge)
+            all_edge_ids.add(edge_id)
+    return selected_key_edges, all_edges
 
 
 def build_node_to_component_map(analysis: AnalysisInsights) -> dict[str, str]:
@@ -69,7 +100,7 @@ def build_component_relations(
     Returns:
         List of ClusterRelation objects, one per (src_component, dst_component) pair.
     """
-    edge_pairs: dict[tuple[str, str], list[BridgeEdge]] = defaultdict(list)
+    edge_pairs: dict[tuple[str, str], list[RelationEdge]] = defaultdict(list)
     edge_counts: dict[tuple[str, str], int] = defaultdict(int)
 
     for cfg in cfg_graphs.values():
@@ -81,7 +112,7 @@ def build_component_relations(
             if src_comp and dst_comp and src_comp != dst_comp:
                 key = (src_comp, dst_comp)
                 edge_counts[key] += 1
-                edge_pairs[key].append(_bridge_edge_from_cfg_edge(edge))
+                edge_pairs[key].append(_relation_edge_from_cfg_edge(edge))
 
     relations = []
     for (src_c, dst_c), edges in sorted(edge_pairs.items()):
@@ -90,7 +121,7 @@ def build_component_relations(
                 src_cluster_id=src_c,
                 dst_cluster_id=dst_c,
                 edge_count=edge_counts[(src_c, dst_c)],
-                bridge_edges=edges,
+                all_edges=edges,
             )
         )
 
@@ -287,10 +318,12 @@ def merge_relations(
     """Merge LLM-generated relations with static analysis evidence.
 
     Strategy (Supplement):
-    - Static + matching LLM: keep LLM's human-readable label, attach edge_count, is_static=True
-    - LLM only with explicit evidence: keep with is_static=False
-    - LLM only without evidence: drop
-    - Static only (no LLM label): add with auto-generated label "calls" + edge_count
+    - Static + matching LLM: keep LLM label, attach edge_count, is_static=True, and populate missing key_edges
+      from the top static bridge edges.
+    - LLM + static match: attach all_edges, ensuring all_edges includes every key_edge.
+    - LLM only with explicit evidence or key_edges: keep with is_static=False
+    - LLM only without evidence/key_edges: drop
+    - Static only (no LLM label): drop from final user-facing relations
 
     Matching is done by component ID in the same direction (src -> dst).
     """
@@ -320,22 +353,24 @@ def merge_relations(
 
         if static_rel:
             # LLM relation backed by static evidence — keep with static info
+            key_edges, all_edges = _merge_relation_edges(llm_rel.key_edges, static_rel.all_edges)
             merged.append(
                 Relation(
                     relation=llm_rel.relation,
                     src_name=llm_rel.src_name,
                     dst_name=llm_rel.dst_name,
                     evidence=llm_rel.evidence,
+                    key_edges=key_edges,
                     src_id=src_id,
                     dst_id=dst_id,
                     edge_count=static_rel.edge_count,
                     is_static=True,
-                    bridge_edges=static_rel.bridge_edges,
+                    all_edges=all_edges,
                 )
             )
             matched_static_keys.add((static_rel.src_cluster_id, static_rel.dst_cluster_id))
         else:
-            if not llm_rel.evidence.strip():
+            if not llm_rel.key_edges:
                 continue
             merged.append(
                 Relation(
@@ -343,37 +378,18 @@ def merge_relations(
                     src_name=llm_rel.src_name,
                     dst_name=llm_rel.dst_name,
                     evidence=llm_rel.evidence,
+                    key_edges=llm_rel.key_edges,
                     src_id=src_id,
                     dst_id=dst_id,
                     edge_count=0,
                     is_static=False,
-                    bridge_edges=[],
-                )
-            )
-
-    # Add static relations that weren't matched by any LLM relation
-    for (src_id, dst_id), sr in static_by_ids.items():
-        if (src_id, dst_id) not in matched_static_keys:
-            src_name = id_to_name.get(src_id, src_id)
-            dst_name = id_to_name.get(dst_id, dst_id)
-            merged.append(
-                Relation(
-                    relation="calls",
-                    src_name=src_name,
-                    dst_name=dst_name,
-                    evidence="",
-                    src_id=src_id,
-                    dst_id=dst_id,
-                    edge_count=sr.edge_count,
-                    is_static=True,
-                    bridge_edges=sr.bridge_edges,
+                    all_edges=llm_rel.key_edges,
                 )
             )
 
     logger.info(
         f"Merged relations: {len(merged)} total "
         f"({len(matched_static_keys)} LLM+static, "
-        f"{len(merged) - len(matched_static_keys) - (len(llm_relations) - len(matched_static_keys))} static-only, "
         f"{len(llm_relations) - len(matched_static_keys)} LLM-only)"
     )
     return merged

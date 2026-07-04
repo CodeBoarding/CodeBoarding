@@ -232,7 +232,7 @@ def main():
         print(f"\n--- build_component_relations result: {len(relations)} relations ---")
         for rel in sorted(relations, key=lambda r: -r.edge_count):
             print(f"  {rel.src_cluster_id} -> {rel.dst_cluster_id}: {rel.edge_count} edges")
-            for edge in rel.bridge_edges[:2]:
+            for edge in rel.all_edges[:2]:
                 logger.info("    e.g. %s -> %s", edge.src_qualified_name, edge.dst_qualified_name)
 
 

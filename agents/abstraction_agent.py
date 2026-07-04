@@ -7,14 +7,20 @@ from langchain_core.prompts import PromptTemplate
 from agents.agent import CodeBoardingAgent
 from agents.agent_responses import (
     AnalysisInsights,
+    ComponentApiSurfaces,
+    ComponentArchitecture,
+    ComponentRelations,
     ClusterAnalysis,
     MetaAnalysisInsights,
     assign_component_ids,
+    assign_relation_ids,
 )
 from agents.cluster_methods_mixin import ClusterMethodsMixin
 from agents.prompts import (
     get_cluster_grouping_message,
     get_final_analysis_message,
+    get_api_surfaces_message,
+    get_relation_analysis_message,
     get_system_message,
 )
 from agents.validation import (
@@ -59,6 +65,27 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
             "final_analysis": PromptTemplate(
                 template=get_final_analysis_message(),
                 input_variables=["project_name", "cluster_analysis", "meta_context", "project_type"],
+            ),
+            "api_surfaces": PromptTemplate(
+                template=get_api_surfaces_message(),
+                input_variables=[
+                    "project_name",
+                    "component_summaries",
+                    "static_call_evidence",
+                    "meta_context",
+                    "project_type",
+                ],
+            ),
+            "relation_analysis": PromptTemplate(
+                template=get_relation_analysis_message(),
+                input_variables=[
+                    "project_name",
+                    "component_summaries",
+                    "api_surfaces",
+                    "static_call_evidence",
+                    "meta_context",
+                    "project_type",
+                ],
             ),
         }
 
@@ -109,7 +136,7 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
     def step_final_analysis(
         self, llm_cluster_analysis: ClusterAnalysis, cluster_results: dict[str, ClusterResult]
     ) -> AnalysisInsights:
-        logger.info(f"[AbstractionAgent] Generating final analysis for: {self.project_name}")
+        logger.info(f"[AbstractionAgent] Generating final component analysis for: {self.project_name}")
 
         meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
         project_type = self.meta_context.project_type if self.meta_context else "unknown"
@@ -131,31 +158,90 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
                 f"Every one of these names must appear in exactly one component's source_group_names: {group_names}\n"
             )
 
-        cfg_graphs = {str(lang): self.static_analysis.get_cfg(lang) for lang in self.static_analysis.get_languages()}
-        self.toolkit.context.cluster_analysis = llm_cluster_analysis
-        self.toolkit.context.cluster_results = cluster_results
-        self.toolkit.context.cfg_graphs = cfg_graphs
-
-        # Build validation context with CFG graphs for edge checking
         context = ValidationContext(
             cluster_results=cluster_results,
-            cfg_graphs=cfg_graphs,
             static_analysis=self.static_analysis,
             llm_cluster_analysis=llm_cluster_analysis,
         )
 
-        return self._validation_invoke(
+        architecture = self._validation_invoke(
             prompt,
-            AnalysisInsights,
+            ComponentArchitecture,
             validators=[
-                validate_relation_component_names,
                 validate_group_name_coverage,
-                validate_relation_evidence,
                 validate_key_entities,
             ],
             context=context,
             max_validation_attempts=3,
         )
+        return AnalysisInsights(
+            description=architecture.description,
+            components=architecture.components,
+            components_relations=[],
+        )
+
+    @trace
+    def step_api_surfaces(self, analysis: AnalysisInsights) -> ComponentApiSurfaces:
+        logger.info(f"[AbstractionAgent] Analyzing component API surfaces for: {self.project_name}")
+        meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
+        project_type = self.meta_context.project_type if self.meta_context else "unknown"
+        static_call_evidence = self.build_scope_cfg_string(analysis)
+        prompt = self.prompts["api_surfaces"].format(
+            project_name=self.project_name,
+            component_summaries=analysis.llm_str(),
+            static_call_evidence=static_call_evidence,
+            meta_context=meta_context_str,
+            project_type=project_type,
+        )
+        return self._validation_invoke(
+            prompt,
+            ComponentApiSurfaces,
+            validators=[],
+            context=ValidationContext(static_analysis=self.static_analysis),
+            max_validation_attempts=2,
+        )
+
+    @trace
+    def step_relation_analysis(
+        self,
+        analysis: AnalysisInsights,
+        api_surfaces: ComponentApiSurfaces,
+        cluster_analysis: ClusterAnalysis,
+        cluster_results: dict[str, ClusterResult],
+    ) -> None:
+        logger.info(f"[AbstractionAgent] Discovering component relations for: {self.project_name}")
+        meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
+        project_type = self.meta_context.project_type if self.meta_context else "unknown"
+        static_call_evidence = self.build_scope_cfg_string(analysis)
+        cfg_graphs = {str(lang): self.static_analysis.get_cfg(lang) for lang in self.static_analysis.get_languages()}
+        self.toolkit.context.cluster_analysis = cluster_analysis
+        self.toolkit.context.cluster_results = cluster_results
+        self.toolkit.context.cfg_graphs = cfg_graphs
+        prompt = self.prompts["relation_analysis"].format(
+            project_name=self.project_name,
+            component_summaries=analysis.llm_str(),
+            api_surfaces=api_surfaces.llm_str(),
+            static_call_evidence=static_call_evidence,
+            meta_context=meta_context_str,
+            project_type=project_type,
+        )
+        relation_result = self._validation_invoke(
+            prompt,
+            ComponentRelations,
+            validators=[validate_relation_component_names, validate_relation_evidence],
+            context=ValidationContext(
+                cluster_results=cluster_results,
+                cfg_graphs=cfg_graphs,
+                repo_dir=str(self.repo_dir),
+                static_analysis=self.static_analysis,
+                llm_cluster_analysis=cluster_analysis,
+                components=analysis.components,
+            ),
+            max_validation_attempts=3,
+        )
+        analysis.components_relations = relation_result.components_relations
+        assign_relation_ids(analysis)
+        self.build_static_relations(analysis)
 
     def run(self):
         # Build full cluster results dict for all languages ONCE
@@ -173,12 +259,15 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
         # Step 5: Populate file_methods deterministically from cluster results + orphan assignment
         self.populate_file_methods(analysis, cluster_results)
 
-        # Step 6: Build static inter-component relations from CFG edges
-        self.build_static_relations(analysis)
+        # Step 6: Analyze component API surfaces and communication mechanisms
+        api_surfaces = self.step_api_surfaces(analysis)
 
-        # Step 7: Fix source code reference lines (resolves reference_file paths for key_entities)
+        # Step 7: Discover relations from API surfaces and attach deterministic all_edges
+        self.step_relation_analysis(analysis, api_surfaces, cluster_analysis, cluster_results)
+
+        # Step 8: Fix source code reference lines (resolves reference_file paths for key_entities and key_edges)
         analysis = self.fix_source_code_reference_lines(analysis)
-        # Step 8: Ensure unique key entities across components
+        # Step 9: Ensure unique key entities across components
         self._ensure_unique_key_entities(analysis)
 
         return analysis, cluster_results

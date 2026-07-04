@@ -542,23 +542,23 @@ class TestIncludeHidden(unittest.TestCase):
     def test_relation_static_evidence_hidden_from_llm_schema_by_default(self):
         schema = AnalysisInsights.model_json_schema()
         relation_props = schema.get("$defs", {}).get("Relation", {}).get("properties", {})
-        for field in ("src_id", "dst_id", "edge_count", "is_static", "bridge_edges"):
+        for field in ("src_id", "dst_id", "edge_count", "is_static", "all_edges"):
             self.assertNotIn(field, relation_props)
 
         prompt = Relation.extractor_str()
-        for field in ("src_id", "dst_id", "edge_count", "is_static", "bridge_edges"):
+        for field in ("src_id", "dst_id", "edge_count", "is_static", "all_edges"):
             self.assertNotIn(field, prompt)
 
     def test_relation_static_evidence_available_when_hidden_fields_requested(self):
         schema = AnalysisInsights.model_json_schema(include_hidden=True)
         relation_props = schema.get("$defs", {}).get("Relation", {}).get("properties", {})
-        for field in ("src_id", "dst_id", "edge_count", "is_static", "bridge_edges"):
+        for field in ("src_id", "dst_id", "edge_count", "is_static", "all_edges"):
             self.assertIn(field, relation_props)
 
         prompt = Relation.extractor_str(include_hidden=True)
-        for field in ("src_id", "dst_id", "edge_count", "is_static", "bridge_edges"):
+        for field in ("src_id", "dst_id", "edge_count", "is_static", "all_edges"):
             self.assertIn(field, prompt)
-        for field in ("src_qualified_name", "dst_qualified_name", "src_file", "dst_file"):
+        for field in ("source", "target", "description"):
             self.assertIn(field, prompt)
 
     def test_parse_response_uses_hidden_schema_for_structured_parse(self):

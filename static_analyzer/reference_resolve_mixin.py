@@ -33,6 +33,16 @@ class ReferenceResolverMixin:
                 file_candidates = component.file_paths() or None
                 self._resolve_single_reference(reference, file_candidates)
 
+        component_by_name = {component.name: component for component in analysis.components}
+        for relation in analysis.components_relations:
+            src_component = component_by_name.get(relation.src_name)
+            dst_component = component_by_name.get(relation.dst_name)
+            src_candidates = [fm.file_path for fm in src_component.file_methods] if src_component else []
+            dst_candidates = [fm.file_path for fm in dst_component.file_methods] if dst_component else []
+            for edge in relation.key_edges:
+                self._resolve_single_reference(edge.source, src_candidates)
+                self._resolve_single_reference(edge.target, dst_candidates)
+
         # Remove unresolved references
         self._remove_unresolved_references(analysis)
 
@@ -87,7 +97,7 @@ class ReferenceResolverMixin:
                 reference.reference_file = node.file_path
                 reference.reference_start_line = node.line_start
                 reference.reference_end_line = node.line_end
-                reference.qualified_name = qname
+                reference.qualified_name = node.fully_qualified_name
                 logger.info(
                     f"[Reference Resolution] Loosely matched {reference.qualified_name} in {lang} at {reference.reference_file}"
                 )
@@ -182,10 +192,63 @@ class ReferenceResolverMixin:
                     f"from component '{component.name}'"
                 )
 
+        resolved_relations = []
+        for relation in analysis.components_relations:
+            original_edge_count = len(relation.key_edges)
+            relation.key_edges = [
+                edge
+                for edge in relation.key_edges
+                if edge.source.reference_file is not None
+                and os.path.exists(edge.source.reference_file)
+                and edge.target.reference_file is not None
+                and os.path.exists(edge.target.reference_file)
+                and not self._same_resolved_relation_endpoint(edge)
+            ]
+            removed_edge_count = original_edge_count - len(relation.key_edges)
+            if removed_edge_count > 0:
+                logger.info(
+                    f"[Reference Resolution] Removed {removed_edge_count} unresolved key edge(s) "
+                    f"from relation '{relation.src_name}' -> '{relation.dst_name}'"
+                )
+            if not relation.is_static:
+                relation.all_edges = relation.key_edges
+                if not relation.key_edges:
+                    logger.info(
+                        f"[Reference Resolution] Removed unsupported relation '{relation.src_name}' -> "
+                        f"'{relation.dst_name}' after all key edges failed to resolve"
+                    )
+                    continue
+            resolved_relations.append(relation)
+        analysis.components_relations = resolved_relations
+
+    def _same_resolved_relation_endpoint(self, edge) -> bool:
+        """Return true when a relation edge points to the same resolved symbol."""
+        source = edge.source
+        target = edge.target
+        if source.qualified_name != target.qualified_name:
+            return False
+        if source.reference_file != target.reference_file:
+            return False
+        return (
+            source.reference_start_line == target.reference_start_line
+            and source.reference_end_line == target.reference_end_line
+        )
+
     def _relative_paths(self, analysis: AnalysisInsights):
         """Convert all reference file paths to relative paths."""
         for component in analysis.components:
             for reference in component.key_entities:
                 if reference.reference_file and reference.reference_file.startswith(str(self.repo_dir)):
                     reference.reference_file = os.path.relpath(reference.reference_file, self.repo_dir)
+        for relation in analysis.components_relations:
+            for edge in relation.key_edges:
+                if edge.source.reference_file and edge.source.reference_file.startswith(str(self.repo_dir)):
+                    edge.source.reference_file = os.path.relpath(edge.source.reference_file, self.repo_dir)
+                if edge.target.reference_file and edge.target.reference_file.startswith(str(self.repo_dir)):
+                    edge.target.reference_file = os.path.relpath(edge.target.reference_file, self.repo_dir)
+            for edge in relation.all_edges:
+                if edge.source.reference_file and edge.source.reference_file.startswith(str(self.repo_dir)):
+                    edge.source.reference_file = os.path.relpath(edge.source.reference_file, self.repo_dir)
+                if edge.target.reference_file and edge.target.reference_file.startswith(str(self.repo_dir)):
+                    edge.target.reference_file = os.path.relpath(edge.target.reference_file, self.repo_dir)
         return analysis

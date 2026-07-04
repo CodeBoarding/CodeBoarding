@@ -120,20 +120,17 @@ Create final component architecture for `{project_name}` optimized for flow repr
 2. Decide which named groups should be merged into final components.
 3. For each component, specify which named cluster groups it encompasses via source_group_names.
 4. Add key entities (2-5 most important classes/methods) for each component, referencing the source file where they are defined.
-5. Define relationships between components.
+5. Do not define relationships yet; relationships are discovered in a later API-surface step.
 
 # Guidelines for {project_type} projects
 - Aim for 5-8 final components
 - Merge related cluster groups that serve a common purpose
 - Each component must have clear boundaries
-- Include only architecturally significant relationships
-- Static call relationships are added automatically; if you include a non-static/runtime relationship, add concise concrete evidence
-- Use getComponentBridgeEdges with source_group_names when you need to inspect directed static calls between two candidate components
+- Focus on component boundaries; relationships are discovered after components are finalized
 
 # Required outputs
 - Description: One paragraph explaining the main flow and purpose
 - Components: Each with a clear name, a description of what it does, the exact named cluster groups it encompasses, and 2-5 key entities mentioning their qualified names and source files
-- Relations: Max 2 relationships per component pair (avoid bidirectional relations like ComponentA sends message to ComponentB and ComponentB returns result to ComponentA)
 
 # Constraints
 - Focus on highest level architectural components
@@ -348,20 +345,17 @@ Create final sub-component architecture for the `{component}` subsystem of `{pro
 2. Decide which named groups should be merged into final sub-components.
 3. For each sub-component, specify which named cluster groups it encompasses via source_group_names.
 4. Add key entities (2-5 most important classes/methods) for each sub-component, referencing the source file where they are defined.
-5. Define relationships between sub-components.
+5. Do not define relationships yet; relationships are discovered in a later API-surface step.
 
 # Guidelines for {project_type} projects
 - Aim for 3-8 final sub-components
 - Merge related cluster groups that serve a common purpose
 - Each sub-component must have clear boundaries
-- Include only architecturally significant relationships
-- Static call relationships are added automatically; if you include a non-static/runtime relationship, add concise concrete evidence
-- Use getComponentBridgeEdges with source_group_names when you need to inspect directed static calls between two candidate sub-components
+- Focus on component boundaries; relationships are discovered after components are finalized
 
 # Required outputs (complete all)
 - Description: One paragraph explaining the subsystem's main flow and purpose
 - Components: Each with a clear name, a description of what it does, the exact named cluster groups it encompasses, and 2-5 key entities mentioning their qualified names and source files
-- Relations: Max 2 relationships per component pair (avoid bidirectional relations like ComponentA sends message to ComponentB and ComponentB returns result to ComponentA)
 
 # Constraints
 - Focus on subsystem-specific functionality

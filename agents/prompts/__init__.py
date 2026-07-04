@@ -30,6 +30,8 @@ from .prompt_factory import (
     get_incremental_grouping_message,
     get_planning_message,
     get_scope_relations_message,
+    get_api_surfaces_message,
+    get_relation_analysis_message,
 )
 
 
@@ -74,6 +76,8 @@ __all__ = [
     "get_incremental_grouping_message",
     "get_planning_message",
     "get_scope_relations_message",
+    "get_api_surfaces_message",
+    "get_relation_analysis_message",
     # Prompt constants (available via __getattr__)
     "SYSTEM_MESSAGE",
     "CLUSTER_GROUPING_MESSAGE",

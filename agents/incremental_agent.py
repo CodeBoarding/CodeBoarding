@@ -241,7 +241,7 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
                 src_cluster_id=relation.src_id,
                 dst_cluster_id=relation.dst_id,
                 edge_count=relation.edge_count,
-                bridge_edges=relation.bridge_edges,
+                all_edges=relation.all_edges,
             )
             for relation in existing_static
         ]
