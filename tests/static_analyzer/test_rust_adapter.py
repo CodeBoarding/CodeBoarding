@@ -78,7 +78,7 @@ class TestGetLspCommandCargoCheck:
                 RustAdapter().get_lsp_command(tmp_path)
 
     def test_raises_when_cargo_is_broken(self, tmp_path: Path) -> None:
-        (tmp_path / "Cargo.toml").write_text("[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n")
+        (tmp_path / "Cargo.toml").write_text('[package]\nname = "demo"\nversion = "0.1.0"\nedition = "2021"\n')
 
         def broken_cargo(*args, **kwargs):
             raise subprocess.CalledProcessError(134, args[0], stderr="dyld: Library not loaded")
@@ -89,7 +89,7 @@ class TestGetLspCommandCargoCheck:
                     RustAdapter().get_lsp_command(tmp_path)
 
     def test_raises_when_cargo_metadata_fails(self, tmp_path: Path) -> None:
-        (tmp_path / "Cargo.toml").write_text("[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n")
+        (tmp_path / "Cargo.toml").write_text('[package]\nname = "demo"\nversion = "0.1.0"\nedition = "2021"\n')
 
         def run_cargo(args, **kwargs):
             if args[:2] == ["cargo", "metadata"]:

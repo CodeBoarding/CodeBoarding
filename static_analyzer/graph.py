@@ -252,7 +252,9 @@ class CallGraph:
         for edge in self.edges:
             try:
                 out.add_edge(edge.get_source(), edge.get_destination())
-                out_edge = out._edge_by_key[(out._resolve_name(edge.get_source()), out._resolve_name(edge.get_destination()))]
+                out_edge = out._edge_by_key[
+                    (out._resolve_name(edge.get_source()), out._resolve_name(edge.get_destination()))
+                ]
                 for site in edge.call_sites:
                     out_edge.add_call_site(dict(site))
             except ValueError:
@@ -260,7 +262,9 @@ class CallGraph:
         for edge in other.edges:
             try:
                 out.add_edge(edge.get_source(), edge.get_destination())
-                out_edge = out._edge_by_key[(out._resolve_name(edge.get_source()), out._resolve_name(edge.get_destination()))]
+                out_edge = out._edge_by_key[
+                    (out._resolve_name(edge.get_source()), out._resolve_name(edge.get_destination()))
+                ]
                 for site in edge.call_sites:
                     out_edge.add_call_site(dict(site))
             except ValueError:

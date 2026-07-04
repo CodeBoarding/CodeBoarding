@@ -156,7 +156,9 @@ class RustAdapter(LanguageAdapter):
     def _check_cargo_usable(self, project_root: Path) -> None:
         """Reject broken Cargo installs before rust-analyzer returns empty edges."""
         try:
-            subprocess.run(["cargo", "--version"], cwd=project_root, check=True, capture_output=True, text=True, timeout=30)
+            subprocess.run(
+                ["cargo", "--version"], cwd=project_root, check=True, capture_output=True, text=True, timeout=30
+            )
         except (subprocess.SubprocessError, OSError) as exc:
             raise RuntimeError(
                 "cargo is installed but failed to run. rust-analyzer requires a working Cargo toolchain "
