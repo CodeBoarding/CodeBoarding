@@ -11,7 +11,12 @@ from langchain_core.messages import AIMessage
 from langchain_core.language_models import BaseChatModel
 from pydantic import BaseModel
 
-from agents.agent import CodeBoardingAgent, _AgentInvocationCancelled, _CancellationCallback
+from agents.agent import (
+    CodeBoardingAgent,
+    _AgentInvocationCancelled,
+    _AgentInvocationStillRunning,
+    _CancellationCallback,
+)
 from static_analyzer.analysis_result import StaticAnalysisResults
 from monitoring.stats import RunStats, current_stats
 
@@ -296,6 +301,76 @@ class TestCodeBoardingAgent(unittest.TestCase):
         time.sleep(0.02)
         self.assertEqual(step_count, stopped_at)
         self.assertTrue(any("cancelled after caller timeout" in message for message in logs.output))
+
+    @patch("agents.agent.create_agent")
+    def test_invoke_with_timeout_raises_still_running_when_provider_call_blocks(self, mock_create_agent):
+        mock_agent_executor = Mock()
+        started = threading.Event()
+        release = threading.Event()
+        invoke_returned = threading.Event()
+        callbacks_seen = []
+
+        def invoke(_payload, config):
+            callbacks_seen.extend(config["callbacks"])
+            started.set()
+            release.wait(1)
+            invoke_returned.set()
+            return {"messages": [AIMessage(content="late")]}
+
+        mock_agent_executor.invoke.side_effect = invoke
+        agent = self._create_agent_with_executor(mock_create_agent, mock_agent_executor)
+
+        with patch("agents.agent._TIMED_OUT_THREAD_JOIN_TIMEOUT_SECONDS", 0.01):
+            with self.assertLogs("agents.agent", level="INFO") as logs:
+                try:
+                    with self.assertRaisesRegex(
+                        _AgentInvocationStillRunning, "Agent invocation exceeded 0.05s timeout"
+                    ):
+                        agent._invoke_with_timeout(timeout_seconds=0.05, callback_list=[], prompt="Test prompt")
+                finally:
+                    release.set()
+                self.assertTrue(invoke_returned.wait(1))
+                time.sleep(0.02)
+
+        self.assertTrue(started.is_set())
+        cancellation_callback = next(c for c in callbacks_seen if isinstance(c, _CancellationCallback))
+        self.assertTrue(cancellation_callback.cancellation_event.is_set())
+        self.assertEqual(mock_agent_executor.invoke.call_count, 1)
+        self.assertTrue(
+            any("Discarding agent invoke response after caller timeout" in message for message in logs.output)
+        )
+
+    @patch("agents.agent.create_agent")
+    def test_invoke_does_not_retry_when_timed_out_worker_remains_blocked(self, mock_create_agent):
+        mock_agent_executor = Mock()
+        started = threading.Event()
+        release = threading.Event()
+        invoke_returned = threading.Event()
+
+        def invoke(_payload, config):
+            started.set()
+            release.wait(1)
+            invoke_returned.set()
+            return {"messages": [AIMessage(content="late")]}
+
+        mock_agent_executor.invoke.side_effect = invoke
+        agent = self._create_agent_with_executor(mock_create_agent, mock_agent_executor)
+
+        try:
+            with (
+                patch("agents.agent._AGENT_INVOKE_INITIAL_TIMEOUT_SECONDS", 0.05),
+                patch("agents.agent._TIMED_OUT_THREAD_JOIN_TIMEOUT_SECONDS", 0.01),
+                patch("agents.retry.time.sleep") as mock_sleep,
+            ):
+                with self.assertRaisesRegex(TimeoutError, "Agent invocation exceeded 0.05s timeout"):
+                    agent._invoke("Test prompt")
+
+            self.assertTrue(started.is_set())
+            self.assertEqual(mock_agent_executor.invoke.call_count, 1)
+            mock_sleep.assert_not_called()
+        finally:
+            release.set()
+            self.assertTrue(invoke_returned.wait(1))
 
     @patch("agents.agent.create_agent")
     def test_invoke_with_timeout_returns_fast_response_unchanged(self, mock_create_agent):
