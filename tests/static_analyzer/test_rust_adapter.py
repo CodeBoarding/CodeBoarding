@@ -92,7 +92,7 @@ class TestGetLspCommandCargoCheck:
         (tmp_path / "Cargo.toml").write_text('[package]\nname = "demo"\nversion = "0.1.0"\nedition = "2021"\n')
 
         def run_cargo(args, **kwargs):
-            if args[:2] == ["cargo", "metadata"]:
+            if args[1] == "metadata":
                 raise subprocess.CalledProcessError(101, args, stderr="metadata failed")
             return subprocess.CompletedProcess(args, 0, stdout="cargo 1.0.0", stderr="")
 

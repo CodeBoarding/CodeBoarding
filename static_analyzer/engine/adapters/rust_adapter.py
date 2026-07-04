@@ -144,20 +144,21 @@ class RustAdapter(LanguageAdapter):
         and the toolchain is too large to bundle, so we mirror Java's
         pattern of requiring a user-installed toolchain.
         """
-        if shutil.which("cargo") is None:
+        cargo_path = shutil.which("cargo")
+        if cargo_path is None:
             raise RuntimeError(
                 "cargo not found on PATH. rust-analyzer requires a Rust "
                 "toolchain to index Cargo projects. Install one via "
                 "https://rustup.rs/ and re-run the analysis."
             )
-        self._check_cargo_usable(project_root)
+        self._check_cargo_usable(project_root, cargo_path)
         return super().get_lsp_command(project_root)
 
-    def _check_cargo_usable(self, project_root: Path) -> None:
+    def _check_cargo_usable(self, project_root: Path, cargo_path: str) -> None:
         """Reject broken Cargo installs before rust-analyzer returns empty edges."""
         try:
             subprocess.run(
-                ["cargo", "--version"], cwd=project_root, check=True, capture_output=True, text=True, timeout=30
+                [cargo_path, "--version"], cwd=project_root, check=True, capture_output=True, text=True, timeout=30
             )
         except (subprocess.SubprocessError, OSError) as exc:
             raise RuntimeError(
@@ -170,7 +171,7 @@ class RustAdapter(LanguageAdapter):
             return
         try:
             subprocess.run(
-                ["cargo", "metadata", "--format-version", "1", "--no-deps", "--manifest-path", str(manifest)],
+                [cargo_path, "metadata", "--format-version", "1", "--no-deps", "--manifest-path", str(manifest)],
                 cwd=project_root,
                 check=True,
                 capture_output=True,

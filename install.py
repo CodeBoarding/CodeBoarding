@@ -64,10 +64,11 @@ class LanguageSupportCheck:
 
 def check_rust_toolchain() -> tuple[bool, str | None]:
     """Check whether Cargo can run, which rust-analyzer requires for references."""
-    if shutil.which("cargo") is None:
+    cargo_path = shutil.which("cargo")
+    if cargo_path is None:
         return False, "cargo not found; Rust call-graph analysis requires a working Cargo toolchain"
     try:
-        subprocess.run(["cargo", "--version"], capture_output=True, text=True, check=True, timeout=30)
+        subprocess.run([cargo_path, "--version"], capture_output=True, text=True, check=True, timeout=30)
     except (subprocess.SubprocessError, OSError) as exc:
         detail = getattr(exc, "stderr", "") or str(exc)
         detail = " ".join(str(detail).split())
