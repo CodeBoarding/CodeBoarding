@@ -19,7 +19,7 @@
     "execution_time_seconds_by_os": {
       "Linux": 18,
       "Darwin": 15,
-      "Windows": 21
+      "Windows": 400
     }
   },
   "sample_references": [
