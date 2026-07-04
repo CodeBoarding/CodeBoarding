@@ -9,9 +9,12 @@ empty containers) so callers can distinguish "never populated" (raises
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
+import logging
 
 from static_analyzer.graph import CallGraph
 from static_analyzer.node import Node
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -26,9 +29,27 @@ class ControlFlowGraph:
             self.graph.add_node(node)
         for edge in other.edges:
             if not edge.call_sites:
-                raise ValueError(f"Edge {edge.get_source()} -> {edge.get_destination()} has no call-site metadata")
-            for site in edge.call_sites:
-                self.graph.add_edge(edge.get_source(), edge.get_destination(), call_sites=[dict(site)])
+                logger.warning(
+                    "Merging CFG edge without call-site metadata: %s -> %s",
+                    edge.get_source(),
+                    edge.get_destination(),
+                )
+                self.graph.add_edge(edge.get_source(), edge.get_destination())
+                continue
+            try:
+                self.graph.add_edge(
+                    edge.get_source(),
+                    edge.get_destination(),
+                    call_sites=[dict(site) for site in edge.call_sites],
+                )
+            except (TypeError, ValueError):
+                logger.warning(
+                    "Merging CFG edge with invalid call-site metadata: %s -> %s",
+                    edge.get_source(),
+                    edge.get_destination(),
+                    exc_info=True,
+                )
+                self.graph.add_edge(edge.get_source(), edge.get_destination())
         self.graph.method_cluster_paths.merge(other.method_cluster_paths)
 
     def visit_paths(self, fn: Callable[[str], str]) -> None:
