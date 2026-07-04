@@ -15,6 +15,7 @@ from pathlib import Path
 
 from diagram_analysis import DiagramGenerator
 from diagram_analysis.io_utils import load_analysis_metadata, load_full_analysis
+from repo_utils.change_detector import ChangeSet
 from repo_utils.diff_parser import detect_changes
 from telemetry.events import track_analysis
 
@@ -204,6 +205,49 @@ def run_incremental(
     if detected.error:
         raise BaselineUnavailableError(f"Could not compute diff against baseline {base_ref!r}: {detected.error}")
     changes = detected
+
+    generator = build_generator(
+        repo_name=project_name,
+        repo_path=repo_path,
+        output_dir=output_dir,
+        run_id=run_id,
+        log_path=log_path,
+        depth_level=depth_level,
+        monitoring_enabled=monitoring_enabled,
+        static_analyzer=static_analyzer,
+        changes=changes,
+    )
+    generator.source_sha = source_sha
+    return run_incremental_workflow(generator)
+
+
+def run_incremental_with_changes(
+    repo_path: Path,
+    output_dir: Path,
+    project_name: str,
+    run_id: str,
+    log_path: str,
+    changes: ChangeSet,
+    monitoring_enabled: bool = False,
+    static_analyzer=None,
+    source_sha: str | None = None,
+) -> Path:
+    """Git-free incremental — scope from a caller-supplied ``ChangeSet``.
+
+    The wrapper computes the changed-file set by diffing two per-file content-hash
+    maps and passes it here, so no git diff is run. Otherwise identical to
+    ``run_incremental``: depth comes from the baseline ``analysis.json`` and the
+    same ``run_incremental_workflow`` kernel drives the update.
+    """
+    logger.info(
+        f"Running INCREMENTAL (changes-supplied) analysis workflow for project '{project_name}' "
+        f"({len(changes.files)} changed file(s))."
+    )
+
+    metadata = load_analysis_metadata(output_dir)
+    if metadata is None:
+        raise BaselineUnavailableError(f"No baseline analysis.json found in '{output_dir}'. Run a full analysis first.")
+    depth_level = int(metadata.get("depth_level", 1))
 
     generator = build_generator(
         repo_name=project_name,

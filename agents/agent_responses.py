@@ -262,6 +262,10 @@ class MethodEntry(BaseModel):
     start_line: int = Field(description="Starting line number in the file.")
     end_line: int = Field(description="Ending line number in the file.")
     node_type: str = Field(description="Node type name matching NodeType enum (e.g. METHOD, FUNCTION, CLASS).")
+    content_hash: str = Field(
+        default="",
+        description="Truncated SHA-256 of the method's source lines; '' when source was unavailable.",
+    )
 
     def __hash__(self) -> int:
         return hash(self.qualified_name)
@@ -298,6 +302,10 @@ class FileEntry(BaseModel):
     methods: list[MethodEntry] = Field(
         default_factory=list,
         description="Methods and functions in this file, sorted by start line.",
+    )
+    content_hash: str = Field(
+        default="",
+        description="Truncated SHA-256 of the entire file's bytes; '' when source was unavailable.",
     )
 
 

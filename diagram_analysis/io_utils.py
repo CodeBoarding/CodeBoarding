@@ -56,6 +56,9 @@ class _AnalysisFileStore:
         output_dir.mkdir(parents=True, exist_ok=True)
         self._output_dir = output_dir
         self._analysis_path = output_dir / ANALYSIS_FILENAME
+        # Last repo_dir written, reused by write_sub so sub-analysis saves keep
+        # the same whole-tree source_tree_hash the root write computed.
+        self._repo_dir: Path | None = None
         # 30s rather than 10s: cold-start LSP runs on Windows under AV scans
         # routinely steal multi-second cycles from contended writers.
         self._lock = FileLock(output_dir / f"{ANALYSIS_FILENAME}.lock", timeout=30)
@@ -109,7 +112,7 @@ class _AnalysisFileStore:
         repo_name: str = "",
         file_coverage_summary: FileCoverageSummary | None = None,
         commit_hash: str = "",
-        snapshot_commit: str | None = None,
+        repo_dir: Path | None = None,
     ) -> Path:
         """Write the full analysis to ``analysis.json`` with file locking.
 
@@ -124,7 +127,7 @@ class _AnalysisFileStore:
                 repo_name,
                 file_coverage_summary,
                 commit_hash,
-                snapshot_commit,
+                repo_dir,
             )
 
     def write_sub(
@@ -159,6 +162,17 @@ class _AnalysisFileStore:
 
             return self._write_with_lock_held(root_analysis, all_expandable_ids, sub_analyses, repo_name)
 
+    def _read_existing_source_tree_hash(self) -> str:
+        """The ``metadata.source_tree_hash`` currently on disk, or '' if absent."""
+        try:
+            with open(self._analysis_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except (OSError, ValueError):
+            return ""
+        metadata = data.get("metadata", {}) if isinstance(data, dict) else {}
+        value = metadata.get("source_tree_hash", "")
+        return value if isinstance(value, str) else ""
+
     def detect_expanded_components(self, analysis: AnalysisInsights) -> list[str]:
         """Find component IDs that have sub-analyses in the unified ``analysis.json``."""
         result = self.read()
@@ -176,9 +190,19 @@ class _AnalysisFileStore:
         repo_name: str = "",
         file_coverage_summary: FileCoverageSummary | None = None,
         commit_hash: str = "",
-        snapshot_commit: str | None = None,
+        repo_dir: Path | None = None,
     ) -> Path:
         """Write ``analysis.json`` — caller must already hold ``self._lock``."""
+        if repo_dir is not None:
+            self._repo_dir = repo_dir
+        else:
+            repo_dir = self._repo_dir
+        # If no repo_dir is available (e.g. a bare sub-analysis write), preserve the
+        # existing whole-tree source_tree_hash from disk rather than let the JSON
+        # builder downgrade it to a component-only hash.
+        source_tree_hash_override = ""
+        if repo_dir is None:
+            source_tree_hash_override = self._read_existing_source_tree_hash()
         # Keep caller-provided expandables, but also preserve deterministic planner eligibility.
         expandable_ids = set(expandable_component_ids or [])
         expandable_ids.update(
@@ -187,22 +211,12 @@ class _AnalysisFileStore:
         expandable = [c for c in analysis.components if c.component_id in expandable_ids]
 
         # Preserve existing metadata fields from disk when not explicitly provided
-        if (
-            sub_analyses is None
-            or file_coverage_summary is None
-            or not repo_name
-            or not commit_hash
-            or snapshot_commit is None
-        ):
+        if sub_analyses is None or file_coverage_summary is None or not repo_name or not commit_hash:
             existing = self.read()
             if existing:
                 _, existing_subs, existing_data = existing
                 if sub_analyses is None:
                     sub_analyses = existing_subs
-                if snapshot_commit is None:
-                    existing_snapshot = existing_data.get("snapshotCommit")
-                    if isinstance(existing_snapshot, str) and existing_snapshot:
-                        snapshot_commit = existing_snapshot
                 metadata = existing_data.get("metadata", {})
                 if not repo_name:
                     repo_name = metadata.get("repo_name", "")
@@ -231,10 +245,7 @@ class _AnalysisFileStore:
 
         # Atomic write: build the JSON in a sibling temp file, then rename
         # over the destination.  A crashed process leaves either the prior
-        # complete file or no file at all — never a half-written one.  The
-        # wrapper's snapshot promotion path hashes whatever it sees here, so
-        # a truncated file would otherwise be cryptographically promoted as
-        # if it were a real result.
+        # complete file or no file at all — never a half-written one.
         payload = build_unified_analysis_json(
             analysis=analysis,
             expandable_components=expandable,
@@ -242,7 +253,8 @@ class _AnalysisFileStore:
             sub_analyses=sub_analyses_tuples,
             file_coverage_summary=file_coverage_summary,
             commit_hash=commit_hash,
-            snapshot_commit=snapshot_commit,
+            repo_dir=repo_dir,
+            source_tree_hash_override=source_tree_hash_override,
         )
         tmp_fd, tmp_name = tempfile.mkstemp(
             prefix=f".{self._analysis_path.name}.",
@@ -340,17 +352,17 @@ def load_analysis_commit_hash(output_dir: Path) -> str | None:
     return sha if isinstance(sha, str) and sha else None
 
 
-def load_snapshot_commit(output_dir: Path) -> str | None:
-    """Return the top-level ``snapshotCommit`` from live ``analysis.json``.
+def load_source_tree_hash(output_dir: Path) -> str | None:
+    """Return ``metadata.source_tree_hash`` from live ``analysis.json``.
 
-    The single source of truth for the incremental baseline. The wrapper
-    stamps this field at promote time; reading it here lets callers find
-    the prior analysis without walking git refs or sidecar files.
+    The content-derived source-state version key: the wrapper compares it
+    against a freshly computed hash to decide "have I analyzed this exact
+    source before?" without touching git.
 
     Returns ``None`` when the file is absent, unreadable, not a JSON
     object, or the field is missing or empty. Reads raw JSON (not via the
-    Pydantic store) so a partially-malformed analysis.json still yields
-    a usable baseline pointer.
+    Pydantic store) so a partially-malformed analysis.json still yields a
+    usable version pointer.
     """
     path = Path(output_dir) / ANALYSIS_FILENAME
     if not path.is_file():
@@ -361,7 +373,10 @@ def load_snapshot_commit(output_dir: Path) -> str | None:
         return None
     if not isinstance(data, dict):
         return None
-    sha = data.get("snapshotCommit")
+    metadata = data.get("metadata")
+    if not isinstance(metadata, dict):
+        return None
+    sha = metadata.get("source_tree_hash")
     return sha if isinstance(sha, str) and sha else None
 
 
@@ -373,9 +388,13 @@ def save_analysis(
     repo_name: str = "",
     file_coverage_summary: FileCoverageSummary | None = None,
     commit_hash: str = "",
-    snapshot_commit: str | None = None,
+    repo_dir: Path | None = None,
 ) -> Path:
-    """Save the analysis to a unified analysis.json file with file locking."""
+    """Save the analysis to a unified analysis.json file with file locking.
+
+    Pass ``repo_dir`` so ``source_tree_hash`` covers the whole analyzable tree
+    (reproducible by consumers that fingerprint the working tree).
+    """
     return _get_store(output_dir).write(
         analysis,
         expandable_component_ids,
@@ -383,7 +402,7 @@ def save_analysis(
         repo_name,
         file_coverage_summary,
         commit_hash,
-        snapshot_commit,
+        repo_dir,
     )
 
 

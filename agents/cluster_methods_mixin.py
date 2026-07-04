@@ -16,6 +16,7 @@ from agents.agent_responses import (
     MethodEntry,
 )
 from agents.cluster_budget import ClusterPromptBudget
+from agents.content_hash import hash_method_body, hash_whole_file, read_source_lines
 from agents.cluster_ids import CodeBoardingClusterId, CodeBoardingClusterIds, GraphClusterId
 from agents.llm_config import get_current_agent_context_window, get_current_agent_model_ref
 from agents.model_capabilities import ContextWindow
@@ -41,6 +42,10 @@ from static_analyzer.graph import CallGraph, ClusterResult
 from static_analyzer.node import Node
 
 logger = logging.getLogger(__name__)
+
+# Re-exported from the leaf module so existing importers keep working while the
+# helpers stay free of this module's heavy analysis imports.
+_read_source_lines = read_source_lines
 
 
 @dataclass(frozen=True)
@@ -613,6 +618,7 @@ class ClusterMethodsMixin:
         """
         allowed_types = CALLABLE_TYPES | CLASS_TYPES
         by_file: dict[str, dict[tuple[int, int, str, str], MethodEntry]] = defaultdict(dict)
+        source_cache: dict[str, list[str] | None] = {}
 
         def _is_more_specific(candidate: str, current: str) -> bool:
             """Prefer the most specific qualified name for the same symbol span.
@@ -641,6 +647,11 @@ class ClusterMethodsMixin:
                 start_line=node.line_start,
                 end_line=node.line_end,
                 node_type=node.type.name,
+                content_hash=hash_method_body(
+                    _read_source_lines(self.repo_dir, rel_path, source_cache),
+                    node.line_start,
+                    node.line_end,
+                ),
             )
 
             existing = by_file[rel_path].get(dedupe_key)
@@ -793,24 +804,70 @@ class ClusterMethodsMixin:
         logger.info(f"Node coverage: {assigned_nodes}/{total_nodes} ({pct:.1f}%) nodes assigned to components")
 
     def build_files_index(self, analysis: AnalysisInsights) -> dict[str, FileEntry]:
+        file_cache: dict[str, list[str] | None] = {}
+        live_spans = self._live_cfg_method_spans()
         files: dict[str, FileEntry] = {}
         for component in analysis.components:
             for fmg in component.file_methods:
                 entry = files.get(fmg.file_path)
                 if entry is None:
-                    entry = FileEntry(methods=[])
+                    entry = FileEntry(
+                        methods=[],
+                        content_hash=hash_whole_file(_read_source_lines(self.repo_dir, fmg.file_path, file_cache)),
+                    )
                     files[fmg.file_path] = entry
 
                 methods_by_qname = {m.qualified_name: m for m in entry.methods}
                 for method in fmg.methods:
                     if method.qualified_name not in methods_by_qname:
-                        methods_by_qname[method.qualified_name] = method.model_copy(deep=True)
+                        copied = method.model_copy(deep=True)
+                        # Recompute from live source rather than trust a hash carried
+                        # forward from a prior analysis: on the incremental path a
+                        # method in an untouched component keeps its old hash, which
+                        # would mask a body-only edit at diff time. Prefer the live
+                        # CFG span so a method that only moved (edit above it) hashes
+                        # its real current body, not stale line numbers.
+                        start, end = live_spans.get(
+                            (fmg.file_path, method.qualified_name), (method.start_line, method.end_line)
+                        )
+                        copied.start_line, copied.end_line = start, end
+                        copied.content_hash = hash_method_body(
+                            _read_source_lines(self.repo_dir, fmg.file_path, file_cache),
+                            start,
+                            end,
+                        )
+                        methods_by_qname[method.qualified_name] = copied
 
                 entry.methods = sorted(
                     methods_by_qname.values(),
                     key=lambda m: (m.start_line, m.end_line, m.qualified_name),
                 )
         return files
+
+    def _live_cfg_method_spans(self) -> dict[tuple[str, str], tuple[int, int]]:
+        """Map ``(rel_path, qualified_name) -> (start_line, end_line)`` from the live CFG.
+
+        Lets ``build_files_index`` refresh line spans for methods whose owning
+        component wasn't re-detailed, so their content hash reflects the current
+        source. Keyed by (file, qname) — not qname alone — so a qualified name that
+        collides across languages/files can't borrow the wrong file's span. Empty
+        when no static analysis is attached.
+        """
+        spans: dict[tuple[str, str], tuple[int, int]] = {}
+        static_analysis = getattr(self, "static_analysis", None)
+        if static_analysis is None:
+            return spans
+        for language in static_analysis.get_languages():
+            try:
+                cfg = static_analysis.get_cfg(language)
+            except (KeyError, ValueError):
+                continue
+            for qname, node in cfg.nodes.items():
+                rel_path = (
+                    os.path.relpath(node.file_path, self.repo_dir) if os.path.isabs(node.file_path) else node.file_path
+                )
+                spans.setdefault((rel_path, qname), (node.line_start, node.line_end))
+        return spans
 
     def populate_file_methods(
         self,

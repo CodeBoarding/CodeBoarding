@@ -448,6 +448,7 @@ class DiagramGenerator:
                                 sub_analyses=sub_analyses,
                                 repo_name=self.repo_name,
                                 commit_hash=commit_hash,
+                                repo_dir=self.repo_location,
                             )
 
                         if new_components and level + 1 < self.depth_level:
@@ -562,6 +563,7 @@ class DiagramGenerator:
             repo_name=self.repo_name,
             file_coverage_summary=self._build_file_coverage_summary(),
             commit_hash=get_git_commit_hash(self.repo_location),
+            repo_dir=self.repo_location,
         ).resolve()
         if seed_delta is not None:
             self._seed_incremental_cluster_cache(seed_delta)

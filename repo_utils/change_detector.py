@@ -291,6 +291,29 @@ class ChangeSet:
             "target_ref": self.target_ref,
         }
 
+    @classmethod
+    def from_changed_files(
+        cls,
+        added: list[str],
+        modified: list[str],
+        deleted: list[str],
+        *,
+        base_ref: str = "",
+        target_ref: str = "",
+    ) -> ChangeSet:
+        """Build a hunk-less ChangeSet from explicit changed-file lists.
+
+        The git-free path: the wrapper diffs two per-file content-hash maps and
+        hands us the result. Incremental scoping (``cluster_delta``) reads only
+        ``file_path`` / ``old_path``, so the absent hunks/patch text are fine.
+        """
+        files = (
+            [FileChange(status_code="A", file_path=p) for p in added]
+            + [FileChange(status_code="M", file_path=p) for p in modified]
+            + [FileChange(status_code="D", file_path=p) for p in deleted]
+        )
+        return cls(base_ref=base_ref, target_ref=target_ref, files=files)
+
 
 # ---------------------------------------------------------------------------
 # Method-range helpers (used by FileChange.classify_method_statuses)

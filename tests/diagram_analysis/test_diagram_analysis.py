@@ -595,6 +595,8 @@ class TestDiagramGenerator(unittest.TestCase):
             file_coverage_summary=None,
             commit_hash="",
             snapshot_commit=None,
+            repo_dir=None,
+            source_tree_hash_override="",
         ):
             captured["expandable_components"] = expandable_components
             return "{}"

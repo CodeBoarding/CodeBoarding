@@ -1,6 +1,8 @@
+import hashlib
 import logging
 import json
 from datetime import datetime, timezone
+from pathlib import Path
 
 from pydantic import BaseModel, Field
 
@@ -13,8 +15,14 @@ from agents.agent_responses import (
     MethodEntry,
     SourceCodeReference,
 )
+from agents.content_hash import hash_whole_file
+from repo_utils.ignore import RepoIgnoreManager
 
 logger = logging.getLogger(__name__)
+
+# Bumped whenever the on-disk analysis.json shape changes incompatibly.
+# Consumers (VSCode, wrapper) validate this to detect stale files.
+SCHEMA_VERSION = 2
 
 
 class RelationJson(Relation):
@@ -73,6 +81,14 @@ class FileCoverageReport(BaseModel):
 
 class AnalysisMetadata(BaseModel):
     generated_at: str = Field(description="ISO timestamp of when the analysis was generated.")
+    schema_version: int = Field(
+        default=SCHEMA_VERSION,
+        description="Version of the analysis.json on-disk schema.",
+    )
+    source_tree_hash: str = Field(
+        default="",
+        description="SHA-256 over the sorted per-file content hashes; the source-state version key.",
+    )
     commit_hash: str = Field(default="", description="Git commit hash at which the analysis was generated.")
     repo_name: str = Field(description="Name of the analyzed repository.")
     depth_level: int = Field(description="Maximum depth level of the analysis.")
@@ -90,6 +106,10 @@ class MethodIndexEntry(BaseModel):
     start_line: int = Field(description="Starting line number in the file.")
     end_line: int = Field(description="Ending line number in the file.")
     type: str = Field(description="Node type name (METHOD, FUNCTION, CLASS, ...).")
+    content_hash: str = Field(
+        default="",
+        description="Truncated SHA-256 of the method's source lines; '' when unknown.",
+    )
 
 
 class ComponentFileMethodGroupJson(BaseModel):
@@ -110,13 +130,13 @@ class FileEntryJson(BaseModel):
         default_factory=list,
         description="Keys into ``methods_index`` ('<file_path>|<qualified_name>'), in declaration order.",
     )
+    content_hash: str = Field(
+        default="",
+        description="Truncated SHA-256 of the entire file's bytes; '' when unknown.",
+    )
 
 
 class UnifiedAnalysisJson(BaseModel):
-    snapshotCommit: str | None = Field(
-        default=None,
-        description="Wrapper-owned snapshot ref used as the next incremental diff baseline.",
-    )
     metadata: AnalysisMetadata = Field(description="Metadata about the analysis run.")
     description: str = Field(
         description="One paragraph explaining the functionality which is represented by this graph."
@@ -138,8 +158,13 @@ def _build_files_index_from_analysis(analysis: AnalysisInsights) -> dict[str, Fi
     return {file_path: entry.model_copy(deep=True) for file_path, entry in analysis.files.items()}
 
 
-def _method_key(file_path: str, qualified_name: str) -> str:
+def method_key(file_path: str, qualified_name: str) -> str:
+    """Canonical ``methods_index`` key. Public so the wrapper builds keys identically."""
     return f"{file_path}|{qualified_name}"
+
+
+# Backward-compatible internal alias.
+_method_key = method_key
 
 
 def _to_method_qualified_name(method: MethodEntry) -> str:
@@ -183,6 +208,7 @@ def _build_methods_index_from_files(files_index: dict[str, FileEntry]) -> dict[s
                 start_line=method.start_line,
                 end_line=method.end_line,
                 type=method.node_type,
+                content_hash=method.content_hash,
             )
     return methods_index
 
@@ -191,9 +217,64 @@ def _build_file_entry_json_from_files(files_index: dict[str, FileEntry]) -> dict
     return {
         file_path: FileEntryJson(
             method_keys=[_method_key(file_path, m.qualified_name) for m in entry.methods],
+            content_hash=entry.content_hash,
         )
         for file_path, entry in files_index.items()
     }
+
+
+def tree_hash_from_file_hashes(file_hashes: dict[str, str]) -> str:
+    """SHA-256 over sorted ``path:hash`` lines. '' when no files carry a hash.
+
+    Why: the aggregate source-state key. Files with an unknown ('') hash are
+    skipped so a partial read can't silently collide two different trees. Public
+    so the wrapper can reproduce ``source_tree_hash`` from a fingerprint map.
+    """
+    parts = [f"{path}:{digest}" for path, digest in sorted(file_hashes.items()) if digest]
+    if not parts:
+        return ""
+    return hashlib.sha256("\n".join(parts).encode("utf-8")).hexdigest()
+
+
+def hash_repo_source_files(repo_dir: Path) -> dict[str, str]:
+    """Fingerprint every non-ignored file under *repo_dir* as ``{posix_path: sha16}``.
+
+    Why: the source-tree hash must cover the WHOLE analyzable tree (docs, configs,
+    unclustered source), not just files that landed in a component. Otherwise a
+    consumer that fingerprints the working tree (the wrapper) can never reproduce
+    this hash. Uses the same ignore rules + whole-file hashing as clustering.
+    """
+    ignore = RepoIgnoreManager(repo_dir)
+    result: dict[str, str] = {}
+    for path in repo_dir.rglob("*"):
+        if not path.is_file():
+            continue
+        rel = path.relative_to(repo_dir)
+        if ignore.should_ignore(rel):
+            continue
+        try:
+            lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+        except OSError:
+            continue
+        digest = hash_whole_file(lines)
+        if digest:
+            result[rel.as_posix()] = digest
+    return result
+
+
+def compute_source_tree_hash(repo_dir: Path) -> str:
+    """The canonical source-tree version key: whole-repo walk, hashed and aggregated."""
+    return tree_hash_from_file_hashes(hash_repo_source_files(repo_dir))
+
+
+def _compute_source_tree_hash(files_index: dict[str, FileEntry]) -> str:
+    """Fallback source-tree hash from a component-only files index.
+
+    Why: used only when no ``repo_dir`` is available (e.g. tests). Prefer
+    :func:`compute_source_tree_hash` which walks the full tree so the hash is
+    reproducible by consumers that fingerprint the working tree.
+    """
+    return tree_hash_from_file_hashes({path: entry.content_hash for path, entry in files_index.items()})
 
 
 def _hydrate_component_methods_from_refs(
@@ -218,6 +299,7 @@ def _hydrate_component_methods_from_refs(
                         start_line=indexed.start_line,
                         end_line=indexed.end_line,
                         node_type=indexed.type,
+                        content_hash=indexed.content_hash,
                     )
                 )
 
@@ -357,18 +439,27 @@ def build_unified_analysis_json(
     sub_analyses: dict[str, tuple[AnalysisInsights, list[Component]]] | None = None,
     file_coverage_summary: FileCoverageSummary | None = None,
     commit_hash: str = "",
-    snapshot_commit: str | None = None,
+    repo_dir: Path | None = None,
+    source_tree_hash_override: str = "",
 ) -> str:
     """Build the full unified analysis JSON with metadata and nested sub-analyses.
 
     The depth_level metadata is computed automatically from the sub_analyses structure
-    if not provided explicitly.
+    if not provided explicitly. ``source_tree_hash`` precedence: whole-tree walk when
+    ``repo_dir`` is given; else ``source_tree_hash_override`` (e.g. the existing on-disk
+    value, so a sub-analysis write doesn't downgrade it); else the component-only index.
     """
     components_json = [
         from_component_to_json_component(c, expandable_components, sub_analyses, None) for c in analysis.components
     ]
     files_index = _build_files_index_from_analysis(analysis)
     methods_index = _build_methods_index_from_files(files_index)
+    if repo_dir is not None:
+        source_tree_hash = compute_source_tree_hash(repo_dir)
+    elif source_tree_hash_override:
+        source_tree_hash = source_tree_hash_override
+    else:
+        source_tree_hash = _compute_source_tree_hash(files_index)
 
     # Use default summary if none provided
     if file_coverage_summary is None:
@@ -378,9 +469,10 @@ def build_unified_analysis_json(
 
     relations_json = [_relation_to_json(r) for r in analysis.components_relations]
     unified = UnifiedAnalysisJson(
-        snapshotCommit=snapshot_commit,
         metadata=AnalysisMetadata(
             generated_at=datetime.now(timezone.utc).isoformat(),
+            schema_version=SCHEMA_VERSION,
+            source_tree_hash=source_tree_hash,
             commit_hash=commit_hash,
             repo_name=repo_name,
             depth_level=_compute_depth_level(sub_analyses),
@@ -443,9 +535,13 @@ def _reconstruct_files_index(
                     start_line=indexed.start_line,
                     end_line=indexed.end_line,
                     node_type=indexed.type,
+                    content_hash=indexed.content_hash,
                 )
             )
-        files_index[file_path] = FileEntry(methods=methods)
+        files_index[file_path] = FileEntry(
+            methods=methods,
+            content_hash=entry_raw.get("content_hash", ""),
+        )
     return files_index
 
 
