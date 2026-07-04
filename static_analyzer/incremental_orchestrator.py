@@ -234,7 +234,11 @@ def _add_outbound_edges_from_changed_files(
                         continue
                     try:
                         before = len(call_graph.edges)
-                        call_graph.add_edge(src_node.fully_qualified_name, dst_node.fully_qualified_name)
+                        call_graph.add_edge(
+                            src_node.fully_qualified_name,
+                            dst_node.fully_qualified_name,
+                            call_site={"file": str(file_path), "line": line + 1, "column": char + 1},
+                        )
                         if len(call_graph.edges) > before:
                             added += 1
                     except ValueError:

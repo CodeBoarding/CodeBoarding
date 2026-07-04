@@ -86,7 +86,7 @@ class TestEdge(unittest.TestCase):
         src = Node("module.src", 12, "/file.py", 1, 10)
         dst = Node("module.dst", 12, "/file.py", 20, 30)
 
-        edge = Edge(src, dst)
+        edge = Edge(src, dst, [])
 
         self.assertEqual(edge.src_node, src)
         self.assertEqual(edge.dst_node, dst)
@@ -96,7 +96,7 @@ class TestEdge(unittest.TestCase):
         src = Node("module.src", 12, "/file.py", 1, 10)
         dst = Node("module.dst", 12, "/file.py", 20, 30)
 
-        edge = Edge(src, dst)
+        edge = Edge(src, dst, [])
 
         self.assertEqual(edge.get_source(), "module.src")
 
@@ -105,7 +105,7 @@ class TestEdge(unittest.TestCase):
         src = Node("module.src", 12, "/file.py", 1, 10)
         dst = Node("module.dst", 12, "/file.py", 20, 30)
 
-        edge = Edge(src, dst)
+        edge = Edge(src, dst, [])
 
         self.assertEqual(edge.get_destination(), "module.dst")
 
@@ -114,7 +114,7 @@ class TestEdge(unittest.TestCase):
         src = Node("module.src", 12, "/file.py", 1, 10)
         dst = Node("module.dst", 12, "/file.py", 20, 30)
 
-        edge = Edge(src, dst)
+        edge = Edge(src, dst, [])
         repr_str = repr(edge)
 
         self.assertIn("module.src", repr_str)

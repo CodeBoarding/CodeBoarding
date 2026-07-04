@@ -31,11 +31,21 @@ class SymbolInfo:
 
 
 @dataclass
+class CallSite:
+    """A physical source location where an edge is invoked."""
+
+    file: str
+    line: int
+    column: int
+
+
+@dataclass
 class Edge:
     """A directed edge in the call flow graph."""
 
     source: str
     destination: str
+    call_sites: list[CallSite] = field(default_factory=list)
 
 
 @dataclass
@@ -46,14 +56,14 @@ class CallFlowGraph:
     edges: list[Edge] = field(default_factory=list)
 
     @classmethod
-    def from_edge_set(cls, edge_set: set[tuple[str, str]]) -> CallFlowGraph:
-        """Build a CFG from a set of (source, destination) tuples."""
+    def from_edge_set(cls, edge_set: dict[tuple[str, str], list[CallSite]]) -> CallFlowGraph:
+        """Build a CFG from edge tuples with call-site metadata."""
         nodes_set: set[str] = set()
         edges = []
-        for src, dst in sorted(edge_set):
+        for (src, dst), call_sites in sorted(edge_set.items()):
             nodes_set.add(src)
             nodes_set.add(dst)
-            edges.append(Edge(source=src, destination=dst))
+            edges.append(Edge(source=src, destination=dst, call_sites=list(call_sites)))
         return cls(nodes=sorted(nodes_set), edges=edges)
 
 

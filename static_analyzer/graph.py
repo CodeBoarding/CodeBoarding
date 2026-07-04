@@ -76,9 +76,18 @@ class ClusterResult:
 
 
 class Edge:
-    def __init__(self, src_node: Node, dst_node: Node) -> None:
+    def __init__(self, src_node: Node, dst_node: Node, call_sites: list[dict]) -> None:
         self.src_node = src_node
         self.dst_node = dst_node
+        self._call_sites = call_sites
+
+    @property
+    def call_sites(self) -> list[dict]:
+        return self._call_sites
+
+    @call_sites.setter
+    def call_sites(self, value: list[dict]) -> None:
+        self._call_sites = value
 
     def get_source(self) -> str:
         return self.src_node.fully_qualified_name
@@ -88,6 +97,10 @@ class Edge:
 
     def __repr__(self) -> str:
         return f"Edge({self.src_node.fully_qualified_name} -> {self.dst_node.fully_qualified_name})"
+
+    def add_call_site(self, call_site: dict | None) -> None:
+        if call_site not in self.call_sites:
+            self.call_sites.append(call_site)
 
 
 class CallGraph:
@@ -100,6 +113,11 @@ class CallGraph:
         self.nodes = nodes if nodes is not None else {}
         self.edges = edges if edges is not None else []
         self._edge_set: set[tuple[str, str]] = set()
+        self._edge_by_key: dict[tuple[str, str], Edge] = {}
+        for edge in self.edges:
+            edge_key = (edge.get_source(), edge.get_destination())
+            self._edge_set.add(edge_key)
+            self._edge_by_key[edge_key] = edge
         self.language = language.lower()
         # Every adapter currently emits ``.``-separated qualified names; see
         # ``constants.QUALIFIED_NAME_DELIMITER`` for the language-switch caveat.
@@ -147,6 +165,7 @@ class CallGraph:
                         src_node.methods_called_by_me.discard(existing_name)
                         src_node.methods_called_by_me.add(canonical)
                 self._edge_set = new_edge_set
+                self._edge_by_key = {(edge.get_source(), edge.get_destination()): edge for edge in self.edges}
             else:
                 # Existing name is already the most specific — record alias.
                 self._alias_to_canonical[node.fully_qualified_name] = existing_name
@@ -164,7 +183,7 @@ class CallGraph:
         """Resolve a possibly-aliased name to the canonical name in the graph."""
         return self._alias_to_canonical.get(name, name)
 
-    def add_edge(self, src_name: str, dst_name: str) -> None:
+    def add_edge(self, src_name: str, dst_name: str, call_site: dict | None = None) -> None:
         src_name = self._resolve_name(src_name)
         dst_name = self._resolve_name(dst_name)
 
@@ -173,11 +192,14 @@ class CallGraph:
 
         edge_key = (src_name, dst_name)
         if edge_key in self._edge_set:
+            self._edge_by_key[edge_key].add_call_site(call_site)
             return
 
-        edge = Edge(self.nodes[src_name], self.nodes[dst_name])
+        edge = Edge(self.nodes[src_name], self.nodes[dst_name], [])
+        edge.add_call_site(call_site)
         self.edges.append(edge)
         self._edge_set.add(edge_key)
+        self._edge_by_key[edge_key] = edge
 
         self.nodes[src_name].added_method_called_by_me(self.nodes[dst_name])
 
@@ -202,6 +224,8 @@ class CallGraph:
             if out.has_node(src) and out.has_node(dst):
                 try:
                     out.add_edge(src, dst)
+                    out_edge = out._edge_by_key[(out._resolve_name(src), out._resolve_name(dst))]
+                    out_edge.call_sites = [dict(site) for site in edge.call_sites]
                 except ValueError as e:
                     logger.warning(f"Failed to add edge {src} -> {dst} during filter: {e}")
             else:
@@ -226,11 +250,17 @@ class CallGraph:
         for edge in self.edges:
             try:
                 out.add_edge(edge.get_source(), edge.get_destination())
+                out_edge = out._edge_by_key[(out._resolve_name(edge.get_source()), out._resolve_name(edge.get_destination()))]
+                for site in edge.call_sites:
+                    out_edge.add_call_site(dict(site))
             except ValueError:
                 pass
         for edge in other.edges:
             try:
                 out.add_edge(edge.get_source(), edge.get_destination())
+                out_edge = out._edge_by_key[(out._resolve_name(edge.get_source()), out._resolve_name(edge.get_destination()))]
+                for site in edge.call_sites:
+                    out_edge.add_call_site(dict(site))
             except ValueError:
                 pass
         out._cluster_cache = self._prune_cluster_cache(out.nodes)
@@ -270,6 +300,12 @@ class CallGraph:
     def visit_paths(self, fn: Callable[[str], str]) -> None:
         for node in self.nodes.values():
             node.file_path = fn(node.file_path)
+        for edge in self.edges:
+            for site in edge.call_sites:
+                if "file" in site:
+                    site["file"] = fn(site["file"])
+                elif "file_path" in site:
+                    site["file_path"] = fn(site["file_path"])
         if self._cluster_cache is not None:
             self._cluster_cache.visit_paths(fn)
 
@@ -372,16 +408,16 @@ class CallGraph:
             target_name = edge.get_destination()
 
             if self.nodes[source_name].file_path in file_paths and self.nodes[target_name].file_path in file_paths:
-                relevant_edges.append((source_name, target_name))
+                relevant_edges.append(edge)
 
         filtered_edges = []
-        for src, dst in relevant_edges:
-            filtered_edges.append(Edge(self.nodes[src], self.nodes[dst]))
+        for edge in relevant_edges:
+            src = edge.get_source()
+            dst = edge.get_destination()
+            filtered_edges.append(Edge(self.nodes[src], self.nodes[dst], [dict(site) for site in edge.call_sites]))
 
         # Create new graph, preserving the source language
-        sub_graph = CallGraph(language=self.language)
-        sub_graph.nodes = relevant_nodes
-        sub_graph.edges = filtered_edges
+        sub_graph = CallGraph(nodes=relevant_nodes, edges=filtered_edges, language=self.language)
         sub_graph.method_cluster_paths = self._prune_method_cluster_paths(relevant_nodes)
 
         return sub_graph
@@ -396,11 +432,15 @@ class CallGraph:
         filtered_edges = []
         for edge in self.edges:
             if edge.get_source() in relevant_nodes and edge.get_destination() in relevant_nodes:
-                filtered_edges.append(Edge(self.nodes[edge.get_source()], self.nodes[edge.get_destination()]))
+                filtered_edges.append(
+                    Edge(
+                        self.nodes[edge.get_source()],
+                        self.nodes[edge.get_destination()],
+                        [dict(site) for site in edge.call_sites],
+                    )
+                )
 
-        sub_graph = CallGraph(language=self.language)
-        sub_graph.nodes = relevant_nodes
-        sub_graph.edges = filtered_edges
+        sub_graph = CallGraph(nodes=relevant_nodes, edges=filtered_edges, language=self.language)
         sub_graph.method_cluster_paths = self._prune_method_cluster_paths(relevant_nodes)
         return sub_graph
 

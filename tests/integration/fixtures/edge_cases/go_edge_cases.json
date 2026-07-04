@@ -134,111 +134,306 @@
   ],
   "expected_hierarchy": {},
   "expected_edges": [
-    ["main.main", "models.base.(Disposable).Dispose"],
-    ["main.main", "models.base.(Disposable).IsDisposed"],
-    ["main.main", "models.base.(Entity).GetType"],
-    ["main.main", "models.base.(Speaker).Speak"],
-    ["main.main", "models.base.(Swimmer).Swim"],
-    ["main.main", "models.entities.(*Repository).Add"],
-    ["main.main", "models.entities.(*Repository).Count"],
-    ["main.main", "models.entities.(*Task).Dispose"],
-    ["main.main", "models.entities.(Cat).Speak"],
-    ["main.main", "models.entities.(Dog).Speak"],
-    ["main.main", "models.entities.(Duck).Speak"],
-    ["main.main", "models.entities.(Duck).Swim"],
-    ["main.main", "models.entities.(Task).IsDisposed"],
-    ["main.main", "models.entities.(Task).IsOverdue"],
-    ["main.main", "models.entities.(Task).Serialize"],
-    ["main.main", "models.entities.NewCat"],
-    ["main.main", "models.entities.NewDog"],
-    ["main.main", "models.entities.NewDuck"],
-    ["main.main", "models.entities.NewEventEmitter"],
-    ["main.main", "models.entities.NewRepository"],
-    ["main.main", "models.entities.NewTask"],
-    ["main.main", "services.builder.BuildQuery"],
-    ["main.main", "services.processor.ApplyMultiplier"],
-    ["main.main", "services.processor.ComputeNested"],
-    ["main.main", "services.processor.CreateTask"],
-    ["main.main", "services.processor.DescribeTask"],
-    ["main.main", "services.processor.Dispatch"],
-    ["main.main", "services.processor.Double"],
-    ["main.main", "services.processor.GetTaskInfo"],
-    ["main.main", "services.processor.IsHighPriority"],
-    ["main.main", "services.processor.ProcessTask"],
-    ["main.main", "services.processor.ProcessTaskChain"],
-    ["main.main", "services.processor.SafeGetLabel"],
-    ["main.main", "services.processor.SetupEventProcessing"],
-    ["main.main", "services.processor.SummarizeTasks"],
-    ["main.main", "utils.helpers.Add"],
-    ["main.main", "utils.helpers.Compose"],
-    ["main.main", "utils.helpers.CreateMultiplier"],
-    ["main.main", "utils.helpers.FormatLabel"],
-    ["main.main", "utils.helpers.Identity"],
-    ["models.base.(Entity).String", "models.base.(Entity).GetType"],
-    ["models.entities.(*Repository).FindBy", "models.entities.(*Repository).GetAll"],
-    ["models.entities.(Task).GetLabel", "utils.helpers.FormatLabel"],
-    ["models.entities.NewCat", "models.base.(*Entity).SetType"],
-    ["models.entities.NewDog", "models.base.(*Entity).SetType"],
-    ["models.entities.NewDuck", "models.base.(*Entity).SetType"],
-    ["models.entities.NewTask", "models.base.(*Entity).SetType"],
-    ["services.builder.BuildQuery", "services.builder.(*QueryBuilder).Build"],
-    ["services.builder.BuildQuery", "services.builder.(*QueryBuilder).Limit"],
-    ["services.builder.BuildQuery", "services.builder.(*QueryBuilder).OrderBy"],
-    ["services.builder.BuildQuery", "services.builder.(*QueryBuilder).Where"],
-    ["services.processor.ApplyMultiplier", "utils.helpers.CreateMultiplier"],
-    ["services.processor.ComputeNested", "utils.helpers.Add"],
-    ["services.processor.ComputeNested", "utils.helpers.Clamp"],
-    ["services.processor.CreateTask", "models.entities.NewTask"],
-    ["services.processor.DefaultHandler", "utils.helpers.Add"],
-    ["services.processor.DescribeTask", "models.entities.(Task).GetLabel"],
-    ["services.processor.Double", "utils.helpers.Add"],
-    ["services.processor.ProcessTask", "models.entities.(Task).GetLabel"],
-    ["services.processor.ProcessTaskChain", "services.processor.IsHighPriority"],
-    ["services.processor.ProcessTaskChain", "services.processor.ProcessTask"],
-    ["services.processor.SafeGetLabel", "models.entities.(Task).GetLabel"],
-    ["services.processor.SetupEventProcessing", "models.entities.(*EventEmitter).Emit"],
-    ["services.processor.SetupEventProcessing", "models.entities.(*EventEmitter).On"],
-    ["services.processor.SummarizeTasks", "services.processor.IsHighPriority"]
+    [
+      "main.main",
+      "models.base.(Disposable).Dispose"
+    ],
+    [
+      "main.main",
+      "models.base.(Disposable).IsDisposed"
+    ],
+    [
+      "main.main",
+      "models.base.(Entity).GetType"
+    ],
+    [
+      "main.main",
+      "models.base.(Speaker).Speak"
+    ],
+    [
+      "main.main",
+      "models.base.(Swimmer).Swim"
+    ],
+    [
+      "main.main",
+      "models.entities.(*Repository).Add"
+    ],
+    [
+      "main.main",
+      "models.entities.(*Repository).Count"
+    ],
+    [
+      "main.main",
+      "models.entities.(*Task).Dispose"
+    ],
+    [
+      "main.main",
+      "models.entities.(Cat).Speak"
+    ],
+    [
+      "main.main",
+      "models.entities.(Dog).Speak"
+    ],
+    [
+      "main.main",
+      "models.entities.(Duck).Speak"
+    ],
+    [
+      "main.main",
+      "models.entities.(Duck).Swim"
+    ],
+    [
+      "main.main",
+      "models.entities.(Task).IsDisposed"
+    ],
+    [
+      "main.main",
+      "models.entities.(Task).IsOverdue"
+    ],
+    [
+      "main.main",
+      "models.entities.(Task).Serialize"
+    ],
+    [
+      "main.main",
+      "models.entities.NewCat"
+    ],
+    [
+      "main.main",
+      "models.entities.NewDog"
+    ],
+    [
+      "main.main",
+      "models.entities.NewDuck"
+    ],
+    [
+      "main.main",
+      "models.entities.NewEventEmitter"
+    ],
+    [
+      "main.main",
+      "models.entities.NewRepository"
+    ],
+    [
+      "main.main",
+      "models.entities.NewTask"
+    ],
+    [
+      "main.main",
+      "services.builder.BuildQuery"
+    ],
+    [
+      "main.main",
+      "services.processor.ApplyMultiplier"
+    ],
+    [
+      "main.main",
+      "services.processor.ComputeNested"
+    ],
+    [
+      "main.main",
+      "services.processor.CreateTask"
+    ],
+    [
+      "main.main",
+      "services.processor.DescribeTask"
+    ],
+    [
+      "main.main",
+      "services.processor.Dispatch"
+    ],
+    [
+      "main.main",
+      "services.processor.Double"
+    ],
+    [
+      "main.main",
+      "services.processor.GetTaskInfo"
+    ],
+    [
+      "main.main",
+      "services.processor.IsHighPriority"
+    ],
+    [
+      "main.main",
+      "services.processor.ProcessTask"
+    ],
+    [
+      "main.main",
+      "services.processor.ProcessTaskChain"
+    ],
+    [
+      "main.main",
+      "services.processor.SafeGetLabel"
+    ],
+    [
+      "main.main",
+      "services.processor.SetupEventProcessing"
+    ],
+    [
+      "main.main",
+      "services.processor.SummarizeTasks"
+    ],
+    [
+      "main.main",
+      "utils.helpers.Add"
+    ],
+    [
+      "main.main",
+      "utils.helpers.Compose"
+    ],
+    [
+      "main.main",
+      "utils.helpers.CreateMultiplier"
+    ],
+    [
+      "main.main",
+      "utils.helpers.FormatLabel"
+    ],
+    [
+      "main.main",
+      "utils.helpers.Identity"
+    ],
+    [
+      "models.base.(Entity).String",
+      "models.base.(Entity).GetType"
+    ],
+    [
+      "models.entities.(*Repository).FindBy",
+      "models.entities.(*Repository).GetAll"
+    ],
+    [
+      "models.entities.(Task).GetLabel",
+      "utils.helpers.FormatLabel"
+    ],
+    [
+      "models.entities.NewCat",
+      "models.base.(*Entity).SetType"
+    ],
+    [
+      "models.entities.NewDog",
+      "models.base.(*Entity).SetType"
+    ],
+    [
+      "models.entities.NewDuck",
+      "models.base.(*Entity).SetType"
+    ],
+    [
+      "models.entities.NewTask",
+      "models.base.(*Entity).SetType"
+    ],
+    [
+      "services.builder.BuildQuery",
+      "services.builder.(*QueryBuilder).Build"
+    ],
+    [
+      "services.builder.BuildQuery",
+      "services.builder.(*QueryBuilder).Limit"
+    ],
+    [
+      "services.builder.BuildQuery",
+      "services.builder.(*QueryBuilder).OrderBy"
+    ],
+    [
+      "services.builder.BuildQuery",
+      "services.builder.(*QueryBuilder).Where"
+    ],
+    [
+      "services.processor.ApplyMultiplier",
+      "utils.helpers.CreateMultiplier"
+    ],
+    [
+      "services.processor.ComputeNested",
+      "utils.helpers.Add"
+    ],
+    [
+      "services.processor.ComputeNested",
+      "utils.helpers.Clamp"
+    ],
+    [
+      "services.processor.CreateTask",
+      "models.entities.NewTask"
+    ],
+    [
+      "services.processor.DefaultHandler",
+      "utils.helpers.Add"
+    ],
+    [
+      "services.processor.DescribeTask",
+      "models.entities.(Task).GetLabel"
+    ],
+    [
+      "services.processor.Double",
+      "utils.helpers.Add"
+    ],
+    [
+      "services.processor.ProcessTask",
+      "models.entities.(Task).GetLabel"
+    ],
+    [
+      "services.processor.ProcessTaskChain",
+      "services.processor.IsHighPriority"
+    ],
+    [
+      "services.processor.ProcessTaskChain",
+      "services.processor.ProcessTask"
+    ],
+    [
+      "services.processor.SafeGetLabel",
+      "models.entities.(Task).GetLabel"
+    ],
+    [
+      "services.processor.SetupEventProcessing",
+      "models.entities.(*EventEmitter).Emit"
+    ],
+    [
+      "services.processor.SetupEventProcessing",
+      "models.entities.(*EventEmitter).On"
+    ],
+    [
+      "services.processor.SummarizeTasks",
+      "services.processor.IsHighPriority"
+    ]
   ],
   "expected_package_deps": {
-      "main": {
-          "imports": [
-              "models",
-              "services",
-              "utils"
-          ],
-          "imported_by": []
-      },
-      "models": {
-          "imports": [
-              "utils"
-          ],
-          "imported_by": [
-              "main",
-              "services"
-          ]
-      },
-      "services": {
-          "imports": [
-              "models",
-              "utils"
-          ],
-          "imported_by": [
-              "main"
-          ]
-      },
-      "unused": {
-          "imports": [],
-          "imported_by": []
-      },
-      "utils": {
-          "imports": [],
-          "imported_by": [
-              "main",
-              "models",
-              "services"
-          ]
-      }
+    "main": {
+      "imports": [
+        "models",
+        "services",
+        "utils"
+      ],
+      "imported_by": []
+    },
+    "models": {
+      "imports": [
+        "utils"
+      ],
+      "imported_by": [
+        "main",
+        "services"
+      ]
+    },
+    "services": {
+      "imports": [
+        "models",
+        "utils"
+      ],
+      "imported_by": [
+        "main"
+      ]
+    },
+    "unused": {
+      "imports": [],
+      "imported_by": []
+    },
+    "utils": {
+      "imports": [],
+      "imported_by": [
+        "main",
+        "models",
+        "services"
+      ]
+    }
   },
   "expected_source_files": [
     "main.go",
@@ -249,5 +444,285 @@
     "unused/orphan.go",
     "utils/constants.go",
     "utils/helpers.go"
+  ],
+  "expected_call_sites": [
+    {
+      "file": "main.go",
+      "line": 70,
+      "column": 16,
+      "caller": "main.main",
+      "qname": "models.entities.NewDog"
+    },
+    {
+      "file": "main.go",
+      "line": 71,
+      "column": 16,
+      "caller": "main.main",
+      "qname": "models.entities.NewCat"
+    },
+    {
+      "file": "main.go",
+      "line": 72,
+      "column": 17,
+      "caller": "main.main",
+      "qname": "models.entities.NewDuck"
+    },
+    {
+      "file": "main.go",
+      "line": 76,
+      "column": 22,
+      "caller": "main.main",
+      "qnames": [
+        "models.base.(Speaker).Speak",
+        "models.entities.(Dog).Speak"
+      ]
+    },
+    {
+      "file": "main.go",
+      "line": 78,
+      "column": 18,
+      "caller": "main.main",
+      "qname": "models.entities.(Cat).Speak"
+    },
+    {
+      "file": "main.go",
+      "line": 79,
+      "column": 19,
+      "caller": "main.main",
+      "qname": "models.entities.(Duck).Speak"
+    },
+    {
+      "file": "main.go",
+      "line": 80,
+      "column": 19,
+      "caller": "main.main",
+      "qnames": [
+        "models.base.(Swimmer).Swim",
+        "models.entities.(Duck).Swim"
+      ]
+    },
+    {
+      "file": "main.go",
+      "line": 83,
+      "column": 17,
+      "caller": "main.main",
+      "qname": "services.processor.CreateTask"
+    },
+    {
+      "file": "main.go",
+      "line": 84,
+      "column": 15,
+      "caller": "main.main",
+      "qname": "models.entities.NewTask"
+    },
+    {
+      "file": "main.go",
+      "line": 85,
+      "column": 15,
+      "caller": "main.main",
+      "qname": "models.entities.NewTask"
+    },
+    {
+      "file": "main.go",
+      "line": 87,
+      "column": 17,
+      "caller": "main.main",
+      "qname": "models.entities.(Task).Serialize"
+    },
+    {
+      "file": "main.go",
+      "line": 88,
+      "column": 17,
+      "caller": "main.main",
+      "qname": "models.entities.(Task).IsOverdue"
+    },
+    {
+      "file": "main.go",
+      "line": 89,
+      "column": 5,
+      "caller": "main.main",
+      "qnames": [
+        "models.base.(Disposable).Dispose",
+        "models.entities.(*Task).Dispose"
+      ]
+    },
+    {
+      "file": "main.go",
+      "line": 90,
+      "column": 17,
+      "caller": "main.main",
+      "qnames": [
+        "models.base.(Disposable).IsDisposed",
+        "models.entities.(Task).IsDisposed"
+      ]
+    },
+    {
+      "file": "main.go",
+      "line": 93,
+      "column": 17,
+      "caller": "main.main",
+      "qname": "models.base.(Entity).GetType"
+    },
+    {
+      "file": "main.go",
+      "line": 96,
+      "column": 17,
+      "caller": "main.main",
+      "qname": "models.entities.NewRepository"
+    },
+    {
+      "file": "main.go",
+      "line": 97,
+      "column": 7,
+      "caller": "main.main",
+      "qname": "models.entities.(*Repository).Add"
+    },
+    {
+      "file": "main.go",
+      "line": 98,
+      "column": 7,
+      "caller": "main.main",
+      "qname": "models.entities.(*Repository).Add"
+    },
+    {
+      "file": "main.go",
+      "line": 99,
+      "column": 29,
+      "caller": "main.main",
+      "qname": "models.entities.(*Repository).Count"
+    },
+    {
+      "file": "main.go",
+      "line": 102,
+      "column": 20,
+      "caller": "main.main",
+      "qname": "models.entities.NewEventEmitter"
+    },
+    {
+      "file": "main.go",
+      "line": 103,
+      "column": 11,
+      "caller": "main.main",
+      "qname": "services.processor.SetupEventProcessing"
+    },
+    {
+      "file": "main.go",
+      "line": 106,
+      "column": 11,
+      "caller": "main.main",
+      "qname": "services.processor.Dispatch"
+    },
+    {
+      "file": "main.go",
+      "line": 107,
+      "column": 16,
+      "caller": "main.main",
+      "qname": "services.builder.BuildQuery"
+    },
+    {
+      "file": "main.go",
+      "line": 108,
+      "column": 11,
+      "caller": "main.main",
+      "qname": "services.processor.ProcessTask"
+    },
+    {
+      "file": "main.go",
+      "line": 109,
+      "column": 11,
+      "caller": "main.main",
+      "qname": "services.processor.ProcessTaskChain"
+    },
+    {
+      "file": "main.go",
+      "line": 110,
+      "column": 11,
+      "caller": "main.main",
+      "qname": "services.processor.SummarizeTasks"
+    },
+    {
+      "file": "main.go",
+      "line": 111,
+      "column": 11,
+      "caller": "main.main",
+      "qname": "services.processor.ApplyMultiplier"
+    },
+    {
+      "file": "main.go",
+      "line": 112,
+      "column": 11,
+      "caller": "main.main",
+      "qname": "services.processor.ComputeNested"
+    },
+    {
+      "file": "main.go",
+      "line": 113,
+      "column": 11,
+      "caller": "main.main",
+      "qname": "services.processor.Double"
+    },
+    {
+      "file": "main.go",
+      "line": 114,
+      "column": 11,
+      "caller": "main.main",
+      "qname": "services.processor.IsHighPriority"
+    },
+    {
+      "file": "main.go",
+      "line": 115,
+      "column": 11,
+      "caller": "main.main",
+      "qname": "services.processor.SafeGetLabel"
+    },
+    {
+      "file": "main.go",
+      "line": 116,
+      "column": 11,
+      "caller": "main.main",
+      "qname": "services.processor.DescribeTask"
+    },
+    {
+      "file": "main.go",
+      "line": 119,
+      "column": 25,
+      "caller": "main.main",
+      "qname": "services.processor.GetTaskInfo"
+    },
+    {
+      "file": "main.go",
+      "line": 123,
+      "column": 18,
+      "caller": "main.main",
+      "qname": "utils.helpers.CreateMultiplier"
+    },
+    {
+      "file": "main.go",
+      "line": 124,
+      "column": 20,
+      "caller": "main.main",
+      "qname": "utils.helpers.Compose"
+    },
+    {
+      "file": "main.go",
+      "line": 125,
+      "column": 8,
+      "caller": "main.main",
+      "qname": "utils.helpers.FormatLabel"
+    },
+    {
+      "file": "main.go",
+      "line": 126,
+      "column": 8,
+      "caller": "main.main",
+      "qname": "utils.helpers.Identity"
+    },
+    {
+      "file": "main.go",
+      "line": 127,
+      "column": 20,
+      "caller": "main.main",
+      "qname": "utils.helpers.Add"
+    }
   ]
 }

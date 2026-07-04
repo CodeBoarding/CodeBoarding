@@ -128,108 +128,282 @@
   ],
   "expected_hierarchy": {},
   "expected_edges": [
-    ["src.index.main", "src.index.main.pipeline"],
-    ["src.index.main", "src.models.entities.Event"],
-    ["src.index.main", "src.models.entities.Event.constructor"],
-    ["src.index.main", "src.models.entities.EventEmitter"],
-    ["src.index.main", "src.models.entities.Repository"],
-    ["src.index.main", "src.models.entities.Repository.add"],
-    ["src.index.main", "src.models.entities.Repository.count"],
-    ["src.index.main", "src.models.entities.Task"],
-    ["src.index.main", "src.models.entities.Task.constructor"],
-    ["src.index.main", "src.models.entities.UrgentTask"],
-    ["src.index.main", "src.models.entities.UrgentTask.constructor"],
-    ["src.index.main", "src.models.entities.Validator"],
-    ["src.index.main", "src.models.entities.Validator.addRule"],
-    ["src.index.main", "src.models.entities.Validator.validate"],
-    ["src.index.main", "src.services.builder.buildQuery"],
-    ["src.index.main", "src.services.processor.applyMultiplier"],
-    ["src.index.main", "src.services.processor.computeNested"],
-    ["src.index.main", "src.services.processor.createTask"],
-    ["src.index.main", "src.services.processor.describeTask"],
-    ["src.index.main", "src.services.processor.dispatch"],
-    ["src.index.main", "src.services.processor.double"],
-    ["src.index.main", "src.services.processor.filterEntities"],
-    ["src.index.main", "src.services.processor.getTaskInfo"],
-    ["src.index.main", "src.services.processor.isHighPriority"],
-    ["src.index.main", "src.services.processor.processTask"],
-    ["src.index.main", "src.services.processor.processTaskChain"],
-    ["src.index.main", "src.services.processor.safeGetLabel"],
-    ["src.index.main", "src.services.processor.setupEventProcessing"],
-    ["src.index.main", "src.services.processor.summarizeTasks"],
-    ["src.index.main", "src.utils.helpers.createMultiplier"],
-    ["src.index.main", "src.utils.helpers.formatLabel"],
-    ["src.index.main", "src.utils.helpers.identity"],
-    ["src.models.base.Entity.toString", "src.models.base.Entity.getType"],
-    ["src.models.base.Entity.toString", "src.models.entities.Task.getType"],
-    ["src.models.entities.Repository.findBy", "src.models.entities.Repository.getAll"],
-    ["src.models.entities.Task.constructor", "src.models.base.Entity.constructor"],
-    ["src.models.entities.Task.getLabel", "src.utils.helpers.formatLabel"],
-    ["src.models.entities.UrgentTask.constructor", "src.models.entities.Task.constructor"],
-    ["src.models.entities.getLabel", "src.utils.helpers.formatLabel"],
-    ["src.services.builder.buildQuery", "src.services.builder.QueryBuilder"],
-    ["src.services.builder.buildQuery", "src.services.builder.QueryBuilder.build"],
-    ["src.services.builder.buildQuery", "src.services.builder.QueryBuilder.limit"],
-    ["src.services.builder.buildQuery", "src.services.builder.QueryBuilder.orderBy"],
-    ["src.services.builder.buildQuery", "src.services.builder.QueryBuilder.where"],
-    ["src.services.processor.applyMultiplier", "src.utils.helpers.createMultiplier"],
-    ["src.services.processor.computeNested", "src.utils.helpers.add"],
-    ["src.services.processor.computeNested", "src.utils.helpers.clamp"],
-    ["src.services.processor.createTask", "src.models.entities.Task"],
-    ["src.services.processor.createTask", "src.models.entities.Task.constructor"],
-    ["src.services.processor.describeTask", "src.models.entities.getLabel"],
-    ["src.services.processor.double", "src.utils.helpers.add"],
-    ["src.services.processor.processTask", "src.models.entities.getLabel"],
-    ["src.services.processor.processTaskChain", "src.services.processor.isHighPriority"],
-    ["src.services.processor.safeGetLabel", "src.models.entities.getLabel"],
-    ["src.services.processor.setupEventProcessing", "src.models.entities.EventEmitter.emit"],
-    ["src.services.processor.setupEventProcessing", "src.models.entities.EventEmitter.on"],
-    ["src.services.processor.summarizeTasks", "src.services.processor.isHighPriority"],
-    ["src.utils.helpers.createMultiplier", "src.utils.helpers.createMultiplier.multiplier"]
+    [
+      "src.index.main",
+      "src.index.main.pipeline"
+    ],
+    [
+      "src.index.main",
+      "src.models.entities.Event"
+    ],
+    [
+      "src.index.main",
+      "src.models.entities.Event.constructor"
+    ],
+    [
+      "src.index.main",
+      "src.models.entities.EventEmitter"
+    ],
+    [
+      "src.index.main",
+      "src.models.entities.Repository"
+    ],
+    [
+      "src.index.main",
+      "src.models.entities.Repository.add"
+    ],
+    [
+      "src.index.main",
+      "src.models.entities.Repository.count"
+    ],
+    [
+      "src.index.main",
+      "src.models.entities.Task"
+    ],
+    [
+      "src.index.main",
+      "src.models.entities.Task.constructor"
+    ],
+    [
+      "src.index.main",
+      "src.models.entities.UrgentTask"
+    ],
+    [
+      "src.index.main",
+      "src.models.entities.UrgentTask.constructor"
+    ],
+    [
+      "src.index.main",
+      "src.models.entities.Validator"
+    ],
+    [
+      "src.index.main",
+      "src.models.entities.Validator.addRule"
+    ],
+    [
+      "src.index.main",
+      "src.models.entities.Validator.validate"
+    ],
+    [
+      "src.index.main",
+      "src.services.builder.buildQuery"
+    ],
+    [
+      "src.index.main",
+      "src.services.processor.applyMultiplier"
+    ],
+    [
+      "src.index.main",
+      "src.services.processor.computeNested"
+    ],
+    [
+      "src.index.main",
+      "src.services.processor.createTask"
+    ],
+    [
+      "src.index.main",
+      "src.services.processor.describeTask"
+    ],
+    [
+      "src.index.main",
+      "src.services.processor.dispatch"
+    ],
+    [
+      "src.index.main",
+      "src.services.processor.double"
+    ],
+    [
+      "src.index.main",
+      "src.services.processor.filterEntities"
+    ],
+    [
+      "src.index.main",
+      "src.services.processor.getTaskInfo"
+    ],
+    [
+      "src.index.main",
+      "src.services.processor.isHighPriority"
+    ],
+    [
+      "src.index.main",
+      "src.services.processor.processTask"
+    ],
+    [
+      "src.index.main",
+      "src.services.processor.processTaskChain"
+    ],
+    [
+      "src.index.main",
+      "src.services.processor.safeGetLabel"
+    ],
+    [
+      "src.index.main",
+      "src.services.processor.setupEventProcessing"
+    ],
+    [
+      "src.index.main",
+      "src.services.processor.summarizeTasks"
+    ],
+    [
+      "src.index.main",
+      "src.utils.helpers.createMultiplier"
+    ],
+    [
+      "src.index.main",
+      "src.utils.helpers.formatLabel"
+    ],
+    [
+      "src.index.main",
+      "src.utils.helpers.identity"
+    ],
+    [
+      "src.models.base.Entity.toString",
+      "src.models.base.Entity.getType"
+    ],
+    [
+      "src.models.base.Entity.toString",
+      "src.models.entities.Task.getType"
+    ],
+    [
+      "src.models.entities.Repository.findBy",
+      "src.models.entities.Repository.getAll"
+    ],
+    [
+      "src.models.entities.Task.constructor",
+      "src.models.base.Entity.constructor"
+    ],
+    [
+      "src.models.entities.Task.getLabel",
+      "src.utils.helpers.formatLabel"
+    ],
+    [
+      "src.models.entities.UrgentTask.constructor",
+      "src.models.entities.Task.constructor"
+    ],
+    [
+      "src.models.entities.getLabel",
+      "src.utils.helpers.formatLabel"
+    ],
+    [
+      "src.services.builder.buildQuery",
+      "src.services.builder.QueryBuilder"
+    ],
+    [
+      "src.services.builder.buildQuery",
+      "src.services.builder.QueryBuilder.build"
+    ],
+    [
+      "src.services.builder.buildQuery",
+      "src.services.builder.QueryBuilder.limit"
+    ],
+    [
+      "src.services.builder.buildQuery",
+      "src.services.builder.QueryBuilder.orderBy"
+    ],
+    [
+      "src.services.builder.buildQuery",
+      "src.services.builder.QueryBuilder.where"
+    ],
+    [
+      "src.services.processor.applyMultiplier",
+      "src.utils.helpers.createMultiplier"
+    ],
+    [
+      "src.services.processor.computeNested",
+      "src.utils.helpers.add"
+    ],
+    [
+      "src.services.processor.computeNested",
+      "src.utils.helpers.clamp"
+    ],
+    [
+      "src.services.processor.createTask",
+      "src.models.entities.Task"
+    ],
+    [
+      "src.services.processor.createTask",
+      "src.models.entities.Task.constructor"
+    ],
+    [
+      "src.services.processor.describeTask",
+      "src.models.entities.getLabel"
+    ],
+    [
+      "src.services.processor.double",
+      "src.utils.helpers.add"
+    ],
+    [
+      "src.services.processor.processTask",
+      "src.models.entities.getLabel"
+    ],
+    [
+      "src.services.processor.processTaskChain",
+      "src.services.processor.isHighPriority"
+    ],
+    [
+      "src.services.processor.safeGetLabel",
+      "src.models.entities.getLabel"
+    ],
+    [
+      "src.services.processor.setupEventProcessing",
+      "src.models.entities.EventEmitter.emit"
+    ],
+    [
+      "src.services.processor.setupEventProcessing",
+      "src.models.entities.EventEmitter.on"
+    ],
+    [
+      "src.services.processor.summarizeTasks",
+      "src.services.processor.isHighPriority"
+    ],
+    [
+      "src.utils.helpers.createMultiplier",
+      "src.utils.helpers.createMultiplier.multiplier"
+    ]
   ],
   "expected_package_deps": {
-      "src": {
-          "imports": [
-              "src.models",
-              "src.models.entities",
-              "src.services",
-              "src.utils"
-          ],
-          "imported_by": []
-      },
-      "src.models": {
-          "imports": [
-              "src.utils"
-          ],
-          "imported_by": [
-              "src",
-              "src.services"
-          ]
-      },
-      "src.services": {
-          "imports": [
-              "src.models",
-              "src.models.entities",
-              "src.services.builder",
-              "src.utils"
-          ],
-          "imported_by": [
-              "src"
-          ]
-      },
-      "src.unused": {
-          "imports": [],
-          "imported_by": []
-      },
-      "src.utils": {
-          "imports": [],
-          "imported_by": [
-              "src",
-              "src.models",
-              "src.models.entities",
-              "src.services"
-          ]
-      }
+    "src": {
+      "imports": [
+        "src.models",
+        "src.models.entities",
+        "src.services",
+        "src.utils"
+      ],
+      "imported_by": []
+    },
+    "src.models": {
+      "imports": [
+        "src.utils"
+      ],
+      "imported_by": [
+        "src",
+        "src.services"
+      ]
+    },
+    "src.services": {
+      "imports": [
+        "src.models",
+        "src.models.entities",
+        "src.services.builder",
+        "src.utils"
+      ],
+      "imported_by": [
+        "src"
+      ]
+    },
+    "src.unused": {
+      "imports": [],
+      "imported_by": []
+    },
+    "src.utils": {
+      "imports": [],
+      "imported_by": [
+        "src",
+        "src.models",
+        "src.models.entities",
+        "src.services"
+      ]
+    }
   },
   "expected_source_files": [
     "src/index.js",
@@ -243,5 +417,358 @@
     "src/utils/constants.js",
     "src/utils/helpers.js",
     "src/utils/index.js"
+  ],
+  "expected_call_sites": [
+    {
+      "file": "src/index.js",
+      "line": 48,
+      "column": 16,
+      "qname": "src.services.processor.createTask"
+    },
+    {
+      "file": "src/index.js",
+      "line": 49,
+      "column": 20,
+      "qname": "src.models.entities.Task"
+    },
+    {
+      "file": "src/index.js",
+      "line": 49,
+      "column": 20,
+      "qname": "src.models.entities.Task.constructor"
+    },
+    {
+      "file": "src/index.js",
+      "line": 50,
+      "column": 20,
+      "qname": "src.models.entities.UrgentTask"
+    },
+    {
+      "file": "src/index.js",
+      "line": 50,
+      "column": 20,
+      "qname": "src.models.entities.UrgentTask.constructor"
+    },
+    {
+      "file": "src/index.js",
+      "line": 51,
+      "column": 20,
+      "qname": "src.models.entities.Event"
+    },
+    {
+      "file": "src/index.js",
+      "line": 51,
+      "column": 20,
+      "qname": "src.models.entities.Event.constructor"
+    },
+    {
+      "file": "src/index.js",
+      "line": 53,
+      "column": 22,
+      "qname": "src.models.entities.Repository"
+    },
+    {
+      "file": "src/index.js",
+      "line": 54,
+      "column": 10,
+      "caller": "src.index.main",
+      "qname": "src.models.entities.Repository.add"
+    },
+    {
+      "file": "src/index.js",
+      "line": 55,
+      "column": 10,
+      "caller": "src.index.main",
+      "qname": "src.models.entities.Repository.add"
+    },
+    {
+      "file": "src/index.js",
+      "line": 56,
+      "column": 10,
+      "caller": "src.index.main",
+      "qname": "src.models.entities.Repository.add"
+    },
+    {
+      "file": "src/index.js",
+      "line": 58,
+      "column": 27,
+      "qname": "src.models.entities.Validator"
+    },
+    {
+      "file": "src/index.js",
+      "line": 59,
+      "column": 15,
+      "qname": "src.models.entities.Validator.addRule"
+    },
+    {
+      "file": "src/index.js",
+      "line": 61,
+      "column": 25,
+      "qname": "src.models.entities.EventEmitter"
+    },
+    {
+      "file": "src/index.js",
+      "line": 64,
+      "column": 5,
+      "qname": "src.services.processor.dispatch"
+    },
+    {
+      "file": "src/index.js",
+      "line": 65,
+      "column": 15,
+      "qname": "src.services.builder.buildQuery"
+    },
+    {
+      "file": "src/index.js",
+      "line": 66,
+      "column": 5,
+      "qname": "src.services.processor.processTask"
+    },
+    {
+      "file": "src/index.js",
+      "line": 67,
+      "column": 5,
+      "qname": "src.services.processor.processTaskChain"
+    },
+    {
+      "file": "src/index.js",
+      "line": 68,
+      "column": 5,
+      "qname": "src.services.processor.summarizeTasks"
+    },
+    {
+      "file": "src/index.js",
+      "line": 69,
+      "column": 5,
+      "qname": "src.services.processor.applyMultiplier"
+    },
+    {
+      "file": "src/index.js",
+      "line": 70,
+      "column": 5,
+      "qname": "src.services.processor.computeNested"
+    },
+    {
+      "file": "src/index.js",
+      "line": 71,
+      "column": 5,
+      "qname": "src.services.processor.double"
+    },
+    {
+      "file": "src/index.js",
+      "line": 72,
+      "column": 5,
+      "qname": "src.services.processor.isHighPriority"
+    },
+    {
+      "file": "src/index.js",
+      "line": 73,
+      "column": 5,
+      "qname": "src.services.processor.safeGetLabel"
+    },
+    {
+      "file": "src/index.js",
+      "line": 74,
+      "column": 5,
+      "qname": "src.services.processor.getTaskInfo"
+    },
+    {
+      "file": "src/index.js",
+      "line": 75,
+      "column": 5,
+      "qname": "src.services.processor.describeTask"
+    },
+    {
+      "file": "src/index.js",
+      "line": 76,
+      "column": 5,
+      "qname": "src.services.processor.filterEntities"
+    },
+    {
+      "file": "src/index.js",
+      "line": 77,
+      "column": 5,
+      "qname": "src.services.processor.setupEventProcessing"
+    },
+    {
+      "file": "src/index.js",
+      "line": 80,
+      "column": 20,
+      "qname": "src.utils.helpers.createMultiplier"
+    },
+    {
+      "file": "src/index.js",
+      "line": 82,
+      "column": 5,
+      "qname": "src.utils.helpers.formatLabel"
+    },
+    {
+      "file": "src/index.js",
+      "line": 83,
+      "column": 5,
+      "qname": "src.utils.helpers.identity"
+    },
+    {
+      "file": "src/index.js",
+      "line": 85,
+      "column": 34,
+      "qname": "src.models.entities.Repository.count"
+    },
+    {
+      "file": "src/index.js",
+      "line": 85,
+      "column": 53,
+      "qname": "src.models.entities.Validator.validate"
+    },
+    {
+      "file": "src/models/base.js",
+      "line": 67,
+      "column": 24,
+      "qname": "src.models.base.Entity.getType"
+    },
+    {
+      "file": "src/models/base.js",
+      "line": 67,
+      "column": 24,
+      "qname": "src.models.entities.Task.getType"
+    },
+    {
+      "file": "src/models/entities.js",
+      "line": 53,
+      "column": 9,
+      "qname": "src.models.base.Entity.constructor"
+    },
+    {
+      "file": "src/models/entities.js",
+      "line": 66,
+      "column": 16,
+      "qname": "src.utils.helpers.formatLabel"
+    },
+    {
+      "file": "src/models/entities.js",
+      "line": 100,
+      "column": 9,
+      "qname": "src.models.entities.Task.constructor"
+    },
+    {
+      "file": "src/models/entities.js",
+      "line": 146,
+      "column": 21,
+      "qname": "src.models.entities.Repository.getAll"
+    },
+    {
+      "file": "src/models/entities.js",
+      "line": 220,
+      "column": 12,
+      "qname": "src.utils.helpers.formatLabel"
+    },
+    {
+      "file": "src/services/builder.js",
+      "line": 79,
+      "column": 16,
+      "qname": "src.services.builder.QueryBuilder"
+    },
+    {
+      "file": "src/services/builder.js",
+      "line": 79,
+      "column": 31,
+      "qname": "src.services.builder.QueryBuilder.where"
+    },
+    {
+      "file": "src/services/builder.js",
+      "line": 79,
+      "column": 58,
+      "qname": "src.services.builder.QueryBuilder.orderBy"
+    },
+    {
+      "file": "src/services/builder.js",
+      "line": 79,
+      "column": 78,
+      "qname": "src.services.builder.QueryBuilder.limit"
+    },
+    {
+      "file": "src/services/builder.js",
+      "line": 79,
+      "column": 88,
+      "qname": "src.services.builder.QueryBuilder.build"
+    },
+    {
+      "file": "src/services/processor.js",
+      "line": 43,
+      "column": 12,
+      "qname": "src.utils.helpers.add"
+    },
+    {
+      "file": "src/services/processor.js",
+      "line": 85,
+      "column": 19,
+      "qname": "src.models.entities.getLabel"
+    },
+    {
+      "file": "src/services/processor.js",
+      "line": 105,
+      "column": 36,
+      "qname": "src.services.processor.isHighPriority"
+    },
+    {
+      "file": "src/services/processor.js",
+      "line": 116,
+      "column": 16,
+      "qname": "src.utils.helpers.createMultiplier"
+    },
+    {
+      "file": "src/services/processor.js",
+      "line": 127,
+      "column": 12,
+      "qname": "src.utils.helpers.clamp"
+    },
+    {
+      "file": "src/services/processor.js",
+      "line": 127,
+      "column": 18,
+      "qname": "src.utils.helpers.add"
+    },
+    {
+      "file": "src/services/processor.js",
+      "line": 136,
+      "column": 19,
+      "qname": "src.models.entities.getLabel"
+    },
+    {
+      "file": "src/services/processor.js",
+      "line": 145,
+      "column": 16,
+      "qname": "src.models.entities.Task"
+    },
+    {
+      "file": "src/services/processor.js",
+      "line": 145,
+      "column": 16,
+      "qname": "src.models.entities.Task.constructor"
+    },
+    {
+      "file": "src/services/processor.js",
+      "line": 162,
+      "column": 20,
+      "qname": "src.models.entities.getLabel"
+    },
+    {
+      "file": "src/services/processor.js",
+      "line": 186,
+      "column": 13,
+      "qname": "src.models.entities.EventEmitter.on"
+    },
+    {
+      "file": "src/services/processor.js",
+      "line": 189,
+      "column": 13,
+      "qname": "src.models.entities.EventEmitter.emit"
+    },
+    {
+      "file": "src/utils/helpers.js",
+      "line": 55,
+      "column": 12,
+      "qname": "src.utils.helpers.createMultiplier.multiplier"
+    }
   ]
 }

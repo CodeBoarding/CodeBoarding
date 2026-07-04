@@ -41,37 +41,95 @@
   ],
   "expected_hierarchy": {},
   "expected_edges": [
-    ["src.main", "src.models.entities.Cat.new"],
-    ["src.main", "src.models.entities.Dog.new"],
-    ["src.main", "src.models.entities.Cat.speak"],
-    ["src.main", "src.models.entities.Dog.speak"],
-    ["src.main", "src.models.base.Speaker.speak"],
-    ["src.main", "src.models.entities.Task.new"],
-    ["src.main", "src.models.entities.Task.get_label"],
-    ["src.main", "src.services.processor.summarize"],
-    ["src.main", "src.utils.helpers.add"],
-    ["src.models.base.Speaker.shout", "src.models.base.Speaker.speak"],
-    ["src.models.entities.Cat.new", "src.models.base.Entity.new"],
-    ["src.models.entities.Dog.new", "src.models.base.Entity.new"],
-    ["src.models.entities.Task.get_label", "src.utils.helpers.format_label"],
-    ["src.services.processor.summarize", "src.models.entities.Task.get_label"]
+    [
+      "src.main",
+      "src.models.entities.Cat.new"
+    ],
+    [
+      "src.main",
+      "src.models.entities.Dog.new"
+    ],
+    [
+      "src.main",
+      "src.models.entities.Cat.speak"
+    ],
+    [
+      "src.main",
+      "src.models.entities.Dog.speak"
+    ],
+    [
+      "src.main",
+      "src.models.base.Speaker.speak"
+    ],
+    [
+      "src.main",
+      "src.models.entities.Task.new"
+    ],
+    [
+      "src.main",
+      "src.models.entities.Task.get_label"
+    ],
+    [
+      "src.main",
+      "src.services.processor.summarize"
+    ],
+    [
+      "src.main",
+      "src.utils.helpers.add"
+    ],
+    [
+      "src.models.base.Speaker.shout",
+      "src.models.base.Speaker.speak"
+    ],
+    [
+      "src.models.entities.Cat.new",
+      "src.models.base.Entity.new"
+    ],
+    [
+      "src.models.entities.Dog.new",
+      "src.models.base.Entity.new"
+    ],
+    [
+      "src.models.entities.Task.get_label",
+      "src.utils.helpers.format_label"
+    ],
+    [
+      "src.services.processor.summarize",
+      "src.models.entities.Task.get_label"
+    ]
   ],
   "expected_package_deps": {
     "src": {
-      "imports_contain": ["src.models", "src.services", "src.utils"],
+      "imports_contain": [
+        "src.models",
+        "src.services",
+        "src.utils"
+      ],
       "imported_by_contain": []
     },
     "src.models": {
-      "imports_contain": ["src.utils"],
-      "imported_by_contain": ["src", "src.services"]
+      "imports_contain": [
+        "src.utils"
+      ],
+      "imported_by_contain": [
+        "src",
+        "src.services"
+      ]
     },
     "src.services": {
-      "imports_contain": ["src.models"],
-      "imported_by_contain": ["src"]
+      "imports_contain": [
+        "src.models"
+      ],
+      "imported_by_contain": [
+        "src"
+      ]
     },
     "src.utils": {
       "imports_contain": [],
-      "imported_by_contain": ["src", "src.models"]
+      "imported_by_contain": [
+        "src",
+        "src.models"
+      ]
     }
   },
   "expected_source_files": [
@@ -83,5 +141,112 @@
     "src/services/processor.rs",
     "src/utils/helpers.rs",
     "src/utils/mod.rs"
+  ],
+  "expected_call_sites": [
+    {
+      "file": "src/main.rs",
+      "line": 16,
+      "column": 20,
+      "caller": "src.main",
+      "callee": "src.models.entities.Cat.new"
+    },
+    {
+      "file": "src/main.rs",
+      "line": 17,
+      "column": 20,
+      "caller": "src.main",
+      "callee": "src.models.entities.Dog.new"
+    },
+    {
+      "file": "src/main.rs",
+      "line": 19,
+      "column": 24,
+      "caller": "src.main",
+      "callee": "src.models.entities.Cat.speak"
+    },
+    {
+      "file": "src/main.rs",
+      "line": 20,
+      "column": 24,
+      "caller": "src.main",
+      "callee": "src.models.entities.Dog.speak"
+    },
+    {
+      "file": "src/main.rs",
+      "line": 24,
+      "column": 26,
+      "caller": "src.main",
+      "callee": "src.models.base.Speaker.speak"
+    },
+    {
+      "file": "src/main.rs",
+      "line": 27,
+      "column": 22,
+      "caller": "src.main",
+      "callee": "src.models.entities.Task.new"
+    },
+    {
+      "file": "src/main.rs",
+      "line": 28,
+      "column": 22,
+      "caller": "src.main",
+      "callee": "src.models.entities.Task.get_label"
+    },
+    {
+      "file": "src/main.rs",
+      "line": 31,
+      "column": 30,
+      "caller": "src.main",
+      "callee": "src.services.processor.summarize"
+    },
+    {
+      "file": "src/main.rs",
+      "line": 34,
+      "column": 22,
+      "caller": "src.main",
+      "callee": "src.utils.helpers.add"
+    },
+    {
+      "file": "src/main.rs",
+      "line": 36,
+      "column": 31,
+      "caller": "src.main",
+      "callee": "src.utils.helpers.add"
+    },
+    {
+      "file": "src/models/base.rs",
+      "line": 26,
+      "column": 25,
+      "caller": "src.models.base.Speaker.shout",
+      "callee": "src.models.base.Speaker.speak"
+    },
+    {
+      "file": "src/models/entities.rs",
+      "line": 18,
+      "column": 29,
+      "caller": "src.models.entities.Cat.new",
+      "callee": "src.models.base.Entity.new"
+    },
+    {
+      "file": "src/models/entities.rs",
+      "line": 38,
+      "column": 29,
+      "caller": "src.models.entities.Dog.new",
+      "callee": "src.models.base.Entity.new"
+    },
+    {
+      "file": "src/models/entities.rs",
+      "line": 64,
+      "column": 18,
+      "caller": "src.models.entities.Task.get_label",
+      "callee": "src.utils.helpers.format_label"
+    },
+    {
+      "file": "src/services/processor.rs",
+      "line": 14,
+      "column": 20,
+      "caller": "src.services.processor.summarize",
+      "callee": "src.models.entities.Task.get_label"
+    }
   ]
 }

@@ -68,6 +68,52 @@ def _relative_path(file_path: str, repo_path: Path) -> str:
         return file_path
 
 
+def _edge_call_site_dicts(edge, repo_path: Path) -> list[dict]:
+    """Return normalized call-site dictionaries for an edge."""
+    sites = getattr(edge, "call_sites", [])
+    normalized = []
+    for site in sites:
+        if isinstance(site, dict):
+            file_value = site.get("file") or site.get("file_path")
+            line = site.get("line")
+            column = site.get("column")
+        else:
+            file_value = getattr(site, "file", None) or getattr(site, "file_path", None)
+            line = getattr(site, "line", None)
+            column = getattr(site, "column", None)
+
+        if file_value is None or line is None or column is None:
+            continue
+        normalized.append(
+            {
+                "file": _relative_path(str(file_value), repo_path),
+                "line": int(line),
+                "column": int(column),
+            }
+        )
+    return sorted(normalized, key=lambda item: (item["file"], item["line"], item["column"]))
+
+
+def _expected_call_site_edges(fixture: dict) -> list[dict]:
+    expected_edges = list(fixture.get("expected_call_site_occurrences", []))
+    for site in fixture.get("expected_call_sites", []):
+        source = site.get("source") or site.get("caller") or site.get("caller_qname")
+        destinations = []
+        for key in ("destination", "callee", "target_qname", "qname"):
+            if key in site:
+                destinations.append(site[key])
+        destinations.extend(site.get("destinations", []))
+        destinations.extend(site.get("callees", []))
+        destinations.extend(site.get("qnames", []))
+        for destination in destinations:
+            occurrence = {"file": site["file"], "line": site["line"], "column": site["column"]}
+            if source:
+                expected_edges.append({"source": source, "destination": destination, "occurrences": [occurrence]})
+            else:
+                expected_edges.append({"destination": destination, "occurrences": [occurrence]})
+    return expected_edges
+
+
 def _write_snapshot(
     static_analysis: StaticAnalysisResults, language: Language, config_name: str, repo_path: Path
 ) -> Path:
@@ -95,9 +141,25 @@ def _write_snapshot(
     try:
         cfg = static_analysis.get_cfg(language)
         edges_snapshot = sorted([e.get_source(), e.get_destination()] for e in cfg.edges)
+        call_site_occurrences_snapshot = []
+        for edge in cfg.edges:
+            occurrences = _edge_call_site_dicts(edge, repo_path)
+            if occurrences:
+                call_site_occurrences_snapshot.append(
+                    {
+                        "source": edge.get_source(),
+                        "destination": edge.get_destination(),
+                        "occurrences": occurrences,
+                    }
+                )
+        call_site_occurrences_snapshot = sorted(
+            call_site_occurrences_snapshot,
+            key=lambda item: (item["source"], item["destination"]),
+        )
         nodes_snapshot = sorted(cfg.nodes.keys())
     except ValueError:
         edges_snapshot = []
+        call_site_occurrences_snapshot = []
         nodes_snapshot = []
 
     # Package dependencies
@@ -129,6 +191,7 @@ def _write_snapshot(
         "references": references_snapshot,
         "call_graph_nodes": nodes_snapshot,
         "call_graph_edges": edges_snapshot,
+        "call_site_occurrences": call_site_occurrences_snapshot,
         "package_dependencies": packages_snapshot,
         "source_files": source_files_rel,
     }
@@ -324,6 +387,14 @@ class TestStaticAnalysisConsistency:
                 "references",
             )
 
+        if "expected_call_site_occurrences" in expected or "expected_call_sites" in expected:
+            self._verify_call_site_occurrences(
+                static_analysis,
+                Language(config.language.lower()),
+                expected,
+                repo_path,
+            )
+
     def _check_metric_within_tolerance(
         self,
         actual: int | float,
@@ -412,3 +483,42 @@ class TestStaticAnalysisConsistency:
 
         for cls in sample_classes:
             assert cls in hierarchy_keys, f"Expected class '{cls}' not found in {language} hierarchy"
+
+    def _verify_call_site_occurrences(
+        self,
+        static_analysis: StaticAnalysisResults,
+        language: Language,
+        expected: dict,
+        repo_path: Path,
+    ):
+        cfg = static_analysis.get_cfg(language)
+        actual_by_edge = {(e.get_source(), e.get_destination()): _edge_call_site_dicts(e, repo_path) for e in cfg.edges}
+        actual_by_destination: dict[str, set[tuple[str, int, int]]] = {}
+        for (_, destination), sites in actual_by_edge.items():
+            actual_by_destination.setdefault(destination, set()).update(
+                (site["file"], site["line"], site["column"]) for site in sites
+            )
+
+        errors = []
+        for expected_edge in _expected_call_site_edges(expected):
+            destination = expected_edge["destination"]
+            source = expected_edge.get("source")
+            edge_key = (source, destination) if source else None
+            if edge_key:
+                actual_sites = {
+                    (site["file"], site["line"], site["column"]) for site in actual_by_edge.get(edge_key, [])
+                }
+            else:
+                actual_sites = actual_by_destination.get(destination, set())
+            expected_sites = {
+                (site["file"], site["line"], site["column"]) for site in expected_edge.get("occurrences", [])
+            }
+            missing = sorted(expected_sites - actual_sites)
+            if missing:
+                edge_label = f"{source} -> {destination}" if source else f"* -> {destination}"
+                errors.append(
+                    f"{edge_label} is missing {len(missing)} call-site occurrence(s):\n"
+                    + "\n".join(f"  - {file}:{line}:{column}" for file, line, column in missing)
+                )
+
+        assert not errors, "\n\n".join(errors)

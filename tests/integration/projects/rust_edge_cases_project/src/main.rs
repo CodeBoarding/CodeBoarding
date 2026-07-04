@@ -32,5 +32,8 @@ fn main() {
     println!("count: {}", summary.count);
 
     let r = helpers::add(2, 3);
+    if r == 5 {
+        let _again = helpers::add(3, 4);
+    }
     println!("{}", r);
 }

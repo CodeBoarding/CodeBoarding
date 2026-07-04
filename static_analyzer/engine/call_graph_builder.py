@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 
 from static_analyzer.engine.edge_build_context import EdgeBuildContext
-from static_analyzer.engine.edge_builder import build_edges_via_definitions, build_edges_via_references
+from static_analyzer.engine.edge_builder import EdgeMap, build_edges_via_definitions, build_edges_via_references
 from static_analyzer.engine.progress import ProgressLogger
 from static_analyzer.engine.hierarchy_builder import HierarchyBuilder
 from static_analyzer.engine.language_adapter import LanguageAdapter
@@ -117,7 +117,7 @@ class CallGraphBuilder:
             source_files=abs_files,
         )
 
-    def _build_edges(self, ctx: EdgeBuildContext, source_files: list[Path]) -> set[tuple[str, str]]:
+    def _build_edges(self, ctx: EdgeBuildContext, source_files: list[Path]) -> EdgeMap:
         """Dispatch to the edge-building strategy specified by the adapter."""
         if self._adapter.edge_strategy == EdgeStrategy.DEFINITIONS:
             return build_edges_via_definitions(self._adapter, ctx, source_files)
@@ -215,7 +215,7 @@ class CallGraphBuilder:
             logger.warning("Warmup probe failed (non-fatal): %s", e)
         logger.info("Phase 1.5 (warmup): completed in %.1fs", time.monotonic() - t_warmup)
 
-    def _postprocess_edges(self, edge_set: set[tuple[str, str]]) -> set[tuple[str, str]]:
+    def _postprocess_edges(self, edge_set: EdgeMap) -> EdgeMap:
         """Deduplicate edges by definition location and expand constructor edges.
 
         Dual registration creates multiple qualified names for the same symbol
@@ -233,6 +233,7 @@ class CallGraphBuilder:
         st = self._symbol_table
 
         pos_to_edge: dict[tuple, tuple[str, str]] = {}
+        edge_sites: EdgeMap = {}
         alias_self_edges = 0
         for src, dst in edge_set:
             src_sym = st.symbols.get(src)
@@ -245,35 +246,47 @@ class CallGraphBuilder:
                 existing = pos_to_edge.get(edge_key)
                 # Replace with the longest qualified names (most specific form,
                 # e.g. "module.Class.method" wins over "module.method").
+                kept_edge = existing or (src, dst)
                 if existing is None or (len(src) + len(dst), src, dst) > (
                     len(existing[0]) + len(existing[1]),
                     existing[0],
                     existing[1],
                 ):
                     pos_to_edge[edge_key] = (src, dst)
+                    if existing is not None and existing in edge_sites:
+                        edge_sites[(src, dst)] = edge_sites.pop(existing)
+                    kept_edge = (src, dst)
+                edge_sites.setdefault(kept_edge, [])
+                for site in edge_set[(src, dst)]:
+                    if site not in edge_sites[kept_edge]:
+                        edge_sites[kept_edge].append(site)
             else:
                 edge_key = (src, dst)
                 if edge_key not in pos_to_edge:
                     pos_to_edge[edge_key] = (src, dst)
-        edge_set = set(pos_to_edge.values())
+                edge_sites.setdefault((src, dst), [])
+                for site in edge_set[(src, dst)]:
+                    if site not in edge_sites[(src, dst)]:
+                        edge_sites[(src, dst)].append(site)
+        edge_set = {edge: edge_sites.get(edge, []) for edge in pos_to_edge.values()}
         if alias_self_edges:
             logger.info("Removed %d alias self-edges (same definition location)", alias_self_edges)
 
         # Constructor expansion: when a class has real constructors in the
         # symbol table, add edges to those constructors alongside the class edge.
-        constructor_edges: set[tuple[str, str]] = set()
+        constructor_edges: EdgeMap = {}
         for src, dst in edge_set:
             dst_sym = st.symbols.get(dst)
             if dst_sym and self._adapter.is_class_like(dst_sym.kind):
                 ctors = st.class_to_ctors.get(dst)
                 if ctors:
                     for ctor_name in ctors:
-                        constructor_edges.add((src, ctor_name))
-        edge_set |= constructor_edges
+                        constructor_edges[(src, ctor_name)] = list(edge_set[(src, dst)])
+        edge_set.update(constructor_edges)
 
         return edge_set
 
-    def _build_package_deps(self, edge_set: set[tuple[str, str]], source_files: list[Path]) -> dict[str, dict]:
+    def _build_package_deps(self, edge_set: EdgeMap, source_files: list[Path]) -> dict[str, dict]:
         """Phase 4: Infer package dependencies from cross-package edges."""
         all_packages = self._adapter.get_all_packages(source_files, self._root)
 
