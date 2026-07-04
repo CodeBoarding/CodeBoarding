@@ -94,23 +94,19 @@ def _edge_call_site_dicts(edge, repo_path: Path) -> list[dict]:
     return sorted(normalized, key=lambda item: (item["file"], item["line"], item["column"]))
 
 
+def _expected_edge_key(edge: dict | list) -> tuple[str, str]:
+    if isinstance(edge, dict):
+        return edge["source"], edge["destination"]
+    return edge[0], edge[1]
+
+
 def _expected_call_site_edges(fixture: dict) -> list[dict]:
-    expected_edges = list(fixture.get("expected_call_site_occurrences", []))
-    for site in fixture.get("expected_call_sites", []):
-        source = site.get("source") or site.get("caller") or site.get("caller_qname")
-        destinations = []
-        for key in ("destination", "callee", "target_qname", "qname"):
-            if key in site:
-                destinations.append(site[key])
-        destinations.extend(site.get("destinations", []))
-        destinations.extend(site.get("callees", []))
-        destinations.extend(site.get("qnames", []))
-        for destination in destinations:
-            occurrence = {"file": site["file"], "line": site["line"], "column": site["column"]}
-            if source:
-                expected_edges.append({"source": source, "destination": destination, "occurrences": [occurrence]})
-            else:
-                expected_edges.append({"destination": destination, "occurrences": [occurrence]})
+    expected_edges = []
+    for edge in fixture.get("expected_edges", []):
+        if not isinstance(edge, dict) or not edge.get("call_sites"):
+            continue
+        source, destination = _expected_edge_key(edge)
+        expected_edges.append({"source": source, "destination": destination, "occurrences": edge["call_sites"]})
     return expected_edges
 
 
@@ -387,7 +383,7 @@ class TestStaticAnalysisConsistency:
                 "references",
             )
 
-        if "expected_call_site_occurrences" in expected or "expected_call_sites" in expected:
+        if _expected_call_site_edges(expected):
             self._verify_call_site_occurrences(
                 static_analysis,
                 Language(config.language.lower()),

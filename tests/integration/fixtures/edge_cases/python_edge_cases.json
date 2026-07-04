@@ -118,246 +118,382 @@
     }
   },
   "expected_edges": [
-    [
-      "core.base.Animal.__repr__",
-      "core.base.Animal.__str__"
-    ],
-    [
-      "core.base.Duck.actions",
-      "core.base.Duck.speak"
-    ],
-    [
-      "core.base.Duck.actions",
-      "core.base.SwimmingMixin.swim"
-    ],
-    [
-      "core.models.UserProfile.get_summary",
-      "core.models.UserProfile.Address.full_address"
-    ],
-    [
-      "core.models.UserProfile.set_address",
-      "core.models.UserProfile.Address"
-    ],
-    [
-      "core.pipeline._handle_cat",
-      "core.base.Animal.speak"
-    ],
-    [
-      "core.pipeline._handle_default",
-      "core.base.Animal.speak"
-    ],
-    [
-      "core.pipeline._handle_dog",
-      "core.base.Animal.speak"
-    ],
-    [
-      "core.pipeline.animal_names",
-      "utils.helpers.format_name"
-    ],
-    [
-      "core.pipeline.build_query",
-      "core.pipeline.QueryBuilder"
-    ],
-    [
-      "core.pipeline.build_query",
-      "core.pipeline.QueryBuilder.build"
-    ],
-    [
-      "core.pipeline.build_query",
-      "core.pipeline.QueryBuilder.limit"
-    ],
-    [
-      "core.pipeline.build_query",
-      "core.pipeline.QueryBuilder.order_by"
-    ],
-    [
-      "core.pipeline.build_query",
-      "core.pipeline.QueryBuilder.where"
-    ],
-    [
-      "core.pipeline.compute_nested",
-      "utils.helpers.add"
-    ],
-    [
-      "core.pipeline.compute_nested",
-      "utils.helpers.subtract"
-    ],
-    [
-      "core.pipeline.conditional_dispatch",
-      "core.pipeline.dispatch"
-    ],
-    [
-      "core.pipeline.conditional_dispatch",
-      "utils.helpers.format_name"
-    ],
-    [
-      "core.pipeline.create_and_summarize",
-      "core.models.UserProfile.get_summary"
-    ],
-    [
-      "core.pipeline.create_and_summarize",
-      "core.pipeline.create_profile"
-    ],
-    [
-      "core.pipeline.create_profile",
-      "core.models.UserProfile"
-    ],
-    [
-      "core.pipeline.dispatch",
-      "core.pipeline._handle_default"
-    ],
-    [
-      "core.pipeline.double",
-      "utils.helpers.add"
-    ],
-    [
-      "core.pipeline.generate_animals",
-      "core.base.Cat"
-    ],
-    [
-      "core.pipeline.generate_animals",
-      "core.base.Dog"
-    ],
-    [
-      "core.pipeline.generate_animals",
-      "core.base.Duck"
-    ],
-    [
-      "core.pipeline.get_profile_city",
-      "core.models.UserProfile"
-    ],
-    [
-      "core.pipeline.get_profile_city",
-      "core.models.UserProfile.get_summary"
-    ],
-    [
-      "core.pipeline.get_profile_city",
-      "core.models.UserProfile.set_address"
-    ],
-    [
-      "core.pipeline.is_positive",
-      "utils.helpers.subtract"
-    ],
-    [
-      "core.pipeline.pipeline",
-      "core.pipeline.animal_names"
-    ],
-    [
-      "core.pipeline.pipeline",
-      "core.pipeline.generate_animals"
-    ],
-    [
-      "core.pipeline.transform_list",
-      "core.pipeline.double"
-    ],
-    [
-      "core.pipeline.transform_list",
-      "core.pipeline.is_positive"
-    ],
-    [
-      "core.services.build_profile",
-      "core.models.UserProfile"
-    ],
-    [
-      "core.services.build_profile",
-      "core.models.UserProfile.set_address"
-    ],
-    [
-      "core.services.compute",
-      "utils.helpers.add"
-    ],
-    [
-      "core.services.compute",
-      "utils.helpers.clamp"
-    ],
-    [
-      "core.services.create_dog",
-      "core.base.Dog.create"
-    ],
-    [
-      "core.services.log_call",
-      "core.services.log_call.wrapper"
-    ],
-    [
-      "core.services.make_multiplier",
-      "core.services.make_multiplier.multiplier"
-    ],
-    [
-      "core.services.process_animals",
-      "core.base.Animal.speak"
-    ],
-    [
-      "main.main",
-      "core.base.Cat"
-    ],
-    [
-      "main.main",
-      "core.base.Duck"
-    ],
-    [
-      "main.main",
-      "core.models.Config"
-    ],
-    [
-      "main.main",
-      "core.models.UserProfile.get_summary"
-    ],
-    [
-      "main.main",
-      "core.pipeline.build_query"
-    ],
-    [
-      "main.main",
-      "core.pipeline.compute_nested"
-    ],
-    [
-      "main.main",
-      "core.pipeline.conditional_dispatch"
-    ],
-    [
-      "main.main",
-      "core.pipeline.create_and_summarize"
-    ],
-    [
-      "main.main",
-      "core.pipeline.dispatch"
-    ],
-    [
-      "main.main",
-      "core.pipeline.get_profile_city"
-    ],
-    [
-      "main.main",
-      "core.pipeline.pipeline"
-    ],
-    [
-      "main.main",
-      "core.pipeline.transform_list"
-    ],
-    [
-      "main.main",
-      "core.services.apply_config"
-    ],
-    [
-      "main.main",
-      "core.services.build_profile"
-    ],
-    [
-      "main.main",
-      "core.services.compute"
-    ],
-    [
-      "main.main",
-      "core.services.create_dog"
-    ],
-    [
-      "main.main",
-      "core.services.make_multiplier"
-    ],
-    [
-      "main.main",
-      "core.services.process_animals"
-    ]
+    {
+      "source": "core.base.Animal.__repr__",
+      "destination": "core.base.Animal.__str__"
+    },
+    {
+      "source": "core.base.Duck.actions",
+      "destination": "core.base.Duck.speak"
+    },
+    {
+      "source": "core.base.Duck.actions",
+      "destination": "core.base.SwimmingMixin.swim"
+    },
+    {
+      "source": "core.models.UserProfile.get_summary",
+      "destination": "core.models.UserProfile.Address.full_address"
+    },
+    {
+      "source": "core.models.UserProfile.set_address",
+      "destination": "core.models.UserProfile.Address"
+    },
+    {
+      "source": "core.pipeline._handle_cat",
+      "destination": "core.base.Animal.speak"
+    },
+    {
+      "source": "core.pipeline._handle_default",
+      "destination": "core.base.Animal.speak"
+    },
+    {
+      "source": "core.pipeline._handle_dog",
+      "destination": "core.base.Animal.speak"
+    },
+    {
+      "source": "core.pipeline.animal_names",
+      "destination": "utils.helpers.format_name"
+    },
+    {
+      "source": "core.pipeline.build_query",
+      "destination": "core.pipeline.QueryBuilder"
+    },
+    {
+      "source": "core.pipeline.build_query",
+      "destination": "core.pipeline.QueryBuilder.build"
+    },
+    {
+      "source": "core.pipeline.build_query",
+      "destination": "core.pipeline.QueryBuilder.limit"
+    },
+    {
+      "source": "core.pipeline.build_query",
+      "destination": "core.pipeline.QueryBuilder.order_by"
+    },
+    {
+      "source": "core.pipeline.build_query",
+      "destination": "core.pipeline.QueryBuilder.where"
+    },
+    {
+      "source": "core.pipeline.compute_nested",
+      "destination": "utils.helpers.add"
+    },
+    {
+      "source": "core.pipeline.compute_nested",
+      "destination": "utils.helpers.subtract"
+    },
+    {
+      "source": "core.pipeline.conditional_dispatch",
+      "destination": "core.pipeline.dispatch"
+    },
+    {
+      "source": "core.pipeline.conditional_dispatch",
+      "destination": "utils.helpers.format_name"
+    },
+    {
+      "source": "core.pipeline.create_and_summarize",
+      "destination": "core.models.UserProfile.get_summary"
+    },
+    {
+      "source": "core.pipeline.create_and_summarize",
+      "destination": "core.pipeline.create_profile"
+    },
+    {
+      "source": "core.pipeline.create_profile",
+      "destination": "core.models.UserProfile"
+    },
+    {
+      "source": "core.pipeline.dispatch",
+      "destination": "core.pipeline._handle_default"
+    },
+    {
+      "source": "core.pipeline.double",
+      "destination": "utils.helpers.add"
+    },
+    {
+      "source": "core.pipeline.generate_animals",
+      "destination": "core.base.Cat"
+    },
+    {
+      "source": "core.pipeline.generate_animals",
+      "destination": "core.base.Dog"
+    },
+    {
+      "source": "core.pipeline.generate_animals",
+      "destination": "core.base.Duck"
+    },
+    {
+      "source": "core.pipeline.get_profile_city",
+      "destination": "core.models.UserProfile"
+    },
+    {
+      "source": "core.pipeline.get_profile_city",
+      "destination": "core.models.UserProfile.get_summary"
+    },
+    {
+      "source": "core.pipeline.get_profile_city",
+      "destination": "core.models.UserProfile.set_address"
+    },
+    {
+      "source": "core.pipeline.is_positive",
+      "destination": "utils.helpers.subtract"
+    },
+    {
+      "source": "core.pipeline.pipeline",
+      "destination": "core.pipeline.animal_names"
+    },
+    {
+      "source": "core.pipeline.pipeline",
+      "destination": "core.pipeline.generate_animals"
+    },
+    {
+      "source": "core.pipeline.transform_list",
+      "destination": "core.pipeline.double"
+    },
+    {
+      "source": "core.pipeline.transform_list",
+      "destination": "core.pipeline.is_positive"
+    },
+    {
+      "source": "core.services.build_profile",
+      "destination": "core.models.UserProfile"
+    },
+    {
+      "source": "core.services.build_profile",
+      "destination": "core.models.UserProfile.set_address"
+    },
+    {
+      "source": "core.services.compute",
+      "destination": "utils.helpers.add"
+    },
+    {
+      "source": "core.services.compute",
+      "destination": "utils.helpers.clamp"
+    },
+    {
+      "source": "core.services.create_dog",
+      "destination": "core.base.Dog.create"
+    },
+    {
+      "source": "core.services.log_call",
+      "destination": "core.services.log_call.wrapper"
+    },
+    {
+      "source": "core.services.make_multiplier",
+      "destination": "core.services.make_multiplier.multiplier"
+    },
+    {
+      "source": "core.services.process_animals",
+      "destination": "core.base.Animal.speak"
+    },
+    {
+      "source": "main.main",
+      "destination": "core.base.Cat",
+      "call_sites": [
+        {
+          "file": "main.py",
+          "line": 37,
+          "column": 11
+        }
+      ]
+    },
+    {
+      "source": "main.main",
+      "destination": "core.base.Duck",
+      "call_sites": [
+        {
+          "file": "main.py",
+          "line": 38,
+          "column": 12
+        }
+      ]
+    },
+    {
+      "source": "main.main",
+      "destination": "core.models.Config",
+      "call_sites": [
+        {
+          "file": "main.py",
+          "line": 51,
+          "column": 14
+        }
+      ]
+    },
+    {
+      "source": "main.main",
+      "destination": "core.models.UserProfile.get_summary",
+      "call_sites": [
+        {
+          "file": "main.py",
+          "line": 44,
+          "column": 23
+        }
+      ]
+    },
+    {
+      "source": "main.main",
+      "destination": "core.pipeline.build_query",
+      "call_sites": [
+        {
+          "file": "main.py",
+          "line": 60,
+          "column": 13
+        }
+      ]
+    },
+    {
+      "source": "main.main",
+      "destination": "core.pipeline.compute_nested",
+      "call_sites": [
+        {
+          "file": "main.py",
+          "line": 75,
+          "column": 21
+        }
+      ]
+    },
+    {
+      "source": "main.main",
+      "destination": "core.pipeline.conditional_dispatch",
+      "call_sites": [
+        {
+          "file": "main.py",
+          "line": 78,
+          "column": 21
+        }
+      ]
+    },
+    {
+      "source": "main.main",
+      "destination": "core.pipeline.create_and_summarize",
+      "call_sites": [
+        {
+          "file": "main.py",
+          "line": 69,
+          "column": 25
+        }
+      ]
+    },
+    {
+      "source": "main.main",
+      "destination": "core.pipeline.dispatch",
+      "call_sites": [
+        {
+          "file": "main.py",
+          "line": 55,
+          "column": 17
+        },
+        {
+          "file": "main.py",
+          "line": 56,
+          "column": 17
+        },
+        {
+          "file": "main.py",
+          "line": 57,
+          "column": 18
+        }
+      ]
+    },
+    {
+      "source": "main.main",
+      "destination": "core.pipeline.get_profile_city",
+      "call_sites": [
+        {
+          "file": "main.py",
+          "line": 63,
+          "column": 12
+        }
+      ]
+    },
+    {
+      "source": "main.main",
+      "destination": "core.pipeline.pipeline",
+      "call_sites": [
+        {
+          "file": "main.py",
+          "line": 72,
+          "column": 13
+        }
+      ]
+    },
+    {
+      "source": "main.main",
+      "destination": "core.pipeline.transform_list",
+      "call_sites": [
+        {
+          "file": "main.py",
+          "line": 66,
+          "column": 19
+        }
+      ]
+    },
+    {
+      "source": "main.main",
+      "destination": "core.services.apply_config",
+      "call_sites": [
+        {
+          "file": "main.py",
+          "line": 52,
+          "column": 16
+        }
+      ]
+    },
+    {
+      "source": "main.main",
+      "destination": "core.services.build_profile",
+      "call_sites": [
+        {
+          "file": "main.py",
+          "line": 43,
+          "column": 15
+        }
+      ]
+    },
+    {
+      "source": "main.main",
+      "destination": "core.services.compute",
+      "call_sites": [
+        {
+          "file": "main.py",
+          "line": 46,
+          "column": 14
+        }
+      ]
+    },
+    {
+      "source": "main.main",
+      "destination": "core.services.create_dog",
+      "call_sites": [
+        {
+          "file": "main.py",
+          "line": 36,
+          "column": 11
+        }
+      ]
+    },
+    {
+      "source": "main.main",
+      "destination": "core.services.make_multiplier",
+      "call_sites": [
+        {
+          "file": "main.py",
+          "line": 48,
+          "column": 15
+        }
+      ]
+    },
+    {
+      "source": "main.main",
+      "destination": "core.services.process_animals",
+      "call_sites": [
+        {
+          "file": "main.py",
+          "line": 41,
+          "column": 14
+        }
+      ]
+    }
   ],
   "expected_package_deps": {
     "core": {
@@ -396,147 +532,5 @@
     "unused/dead_code.py",
     "utils/__init__.py",
     "utils/helpers.py"
-  ],
-  "expected_call_sites": [
-    {
-      "file": "main.py",
-      "line": 36,
-      "column": 11,
-      "caller": "main.main",
-      "qname": "core.services.create_dog"
-    },
-    {
-      "file": "main.py",
-      "line": 37,
-      "column": 11,
-      "caller": "main.main",
-      "qname": "core.base.Cat"
-    },
-    {
-      "file": "main.py",
-      "line": 38,
-      "column": 12,
-      "caller": "main.main",
-      "qname": "core.base.Duck"
-    },
-    {
-      "file": "main.py",
-      "line": 41,
-      "column": 14,
-      "caller": "main.main",
-      "qname": "core.services.process_animals"
-    },
-    {
-      "file": "main.py",
-      "line": 43,
-      "column": 15,
-      "caller": "main.main",
-      "qname": "core.services.build_profile"
-    },
-    {
-      "file": "main.py",
-      "line": 44,
-      "column": 23,
-      "caller": "main.main",
-      "qname": "core.models.UserProfile.get_summary"
-    },
-    {
-      "file": "main.py",
-      "line": 46,
-      "column": 14,
-      "caller": "main.main",
-      "qname": "core.services.compute"
-    },
-    {
-      "file": "main.py",
-      "line": 48,
-      "column": 15,
-      "caller": "main.main",
-      "qname": "core.services.make_multiplier"
-    },
-    {
-      "file": "main.py",
-      "line": 51,
-      "column": 14,
-      "caller": "main.main",
-      "qname": "core.models.Config"
-    },
-    {
-      "file": "main.py",
-      "line": 52,
-      "column": 16,
-      "caller": "main.main",
-      "qname": "core.services.apply_config"
-    },
-    {
-      "file": "main.py",
-      "line": 55,
-      "column": 17,
-      "caller": "main.main",
-      "qname": "core.pipeline.dispatch"
-    },
-    {
-      "file": "main.py",
-      "line": 56,
-      "column": 17,
-      "caller": "main.main",
-      "qname": "core.pipeline.dispatch"
-    },
-    {
-      "file": "main.py",
-      "line": 57,
-      "column": 18,
-      "caller": "main.main",
-      "qname": "core.pipeline.dispatch"
-    },
-    {
-      "file": "main.py",
-      "line": 60,
-      "column": 13,
-      "caller": "main.main",
-      "qname": "core.pipeline.build_query"
-    },
-    {
-      "file": "main.py",
-      "line": 63,
-      "column": 12,
-      "caller": "main.main",
-      "qname": "core.pipeline.get_profile_city"
-    },
-    {
-      "file": "main.py",
-      "line": 66,
-      "column": 19,
-      "caller": "main.main",
-      "qname": "core.pipeline.transform_list"
-    },
-    {
-      "file": "main.py",
-      "line": 69,
-      "column": 25,
-      "caller": "main.main",
-      "qname": "core.pipeline.create_and_summarize"
-    },
-    {
-      "file": "main.py",
-      "line": 72,
-      "column": 13,
-      "caller": "main.main",
-      "qname": "core.pipeline.pipeline"
-    },
-    {
-      "file": "main.py",
-      "line": 75,
-      "column": 21,
-      "caller": "main.main",
-      "qname": "core.pipeline.compute_nested"
-    },
-    {
-      "file": "main.py",
-      "line": 78,
-      "column": 21,
-      "caller": "main.main",
-      "qname": "core.pipeline.conditional_dispatch"
-    }
   ]
 }

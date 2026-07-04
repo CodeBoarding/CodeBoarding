@@ -92,33 +92,23 @@ def _edge_call_site_tuples(edge, project_path: Path) -> set[tuple[str, int, int]
     return actual
 
 
+def _expected_edge_key(edge: dict | list) -> tuple[str, str]:
+    if isinstance(edge, dict):
+        return edge["source"], edge["destination"]
+    return edge[0], edge[1]
+
+
+def _expected_edges(fixture: dict) -> set[tuple[str, str]]:
+    return {_expected_edge_key(edge) for edge in fixture.get("expected_edges", [])}
+
+
 def _expected_call_site_edges(fixture: dict) -> list[dict]:
-    expected_edges = list(fixture.get("expected_call_site_occurrences", []))
-    for site in fixture.get("expected_call_sites", []):
-        source = site.get("source") or site.get("caller") or site.get("caller_qname")
-        destinations = []
-        for key in ("destination", "callee", "target_qname", "qname"):
-            if key in site:
-                destinations.append(site[key])
-        destinations.extend(site.get("destinations", []))
-        destinations.extend(site.get("callees", []))
-        destinations.extend(site.get("qnames", []))
-        for destination in destinations:
-            if not source:
-                expected_edges.append(
-                    {
-                        "destination": destination,
-                        "occurrences": [{"file": site["file"], "line": site["line"], "column": site["column"]}],
-                    }
-                )
-                continue
-            expected_edges.append(
-                {
-                    "source": source,
-                    "destination": destination,
-                    "occurrences": [{"file": site["file"], "line": site["line"], "column": site["column"]}],
-                }
-            )
+    expected_edges = []
+    for edge in fixture.get("expected_edges", []):
+        if not isinstance(edge, dict) or not edge.get("call_sites"):
+            continue
+        source, destination = _expected_edge_key(edge)
+        expected_edges.append({"source": source, "destination": destination, "occurrences": edge["call_sites"]})
     return expected_edges
 
 
@@ -311,7 +301,7 @@ class TestEdgeCases:
         language = Language(analysis.fixture["language"].lower())
         cfg = analysis.all_results[0].get_cfg(language)
         actual_edges = {(e.get_source(), e.get_destination()) for e in cfg.edges}
-        expected_edges = {(s, d) for s, d in analysis.fixture.get("expected_edges", [])}
+        expected_edges = _expected_edges(analysis.fixture)
         missing = sorted(f"{s} -> {d}" for s, d in expected_edges - actual_edges)
         unexpected = sorted(f"{s} -> {d}" for s, d in actual_edges - expected_edges)
         errors = []

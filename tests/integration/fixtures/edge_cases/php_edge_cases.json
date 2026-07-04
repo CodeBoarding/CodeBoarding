@@ -150,306 +150,608 @@
     }
   },
   "expected_edges": [
-    [
-      "main.main",
-      "src.models.base.Disposable.dispose"
-    ],
-    [
-      "main.main",
-      "src.models.base.Disposable.isDisposed"
-    ],
-    [
-      "main.main",
-      "src.models.base.Entity.__construct"
-    ],
-    [
-      "main.main",
-      "src.models.base.Entity.getId"
-    ],
-    [
-      "main.main",
-      "src.models.base.Entity.getType"
-    ],
-    [
-      "main.main",
-      "src.models.base.Speakable.speak"
-    ],
-    [
-      "main.main",
-      "src.models.base.Swimmable.swim"
-    ],
-    [
-      "main.main",
-      "src.models.base.SwimmingTrait.swim"
-    ],
-    [
-      "main.main",
-      "src.models.entities.Cat"
-    ],
-    [
-      "main.main",
-      "src.models.entities.Cat.__construct"
-    ],
-    [
-      "main.main",
-      "src.models.entities.Cat.speak"
-    ],
-    [
-      "main.main",
-      "src.models.entities.Dog"
-    ],
-    [
-      "main.main",
-      "src.models.entities.Dog.__construct"
-    ],
-    [
-      "main.main",
-      "src.models.entities.Dog.speak"
-    ],
-    [
-      "main.main",
-      "src.models.entities.Duck"
-    ],
-    [
-      "main.main",
-      "src.models.entities.Duck.__construct"
-    ],
-    [
-      "main.main",
-      "src.models.entities.Duck.speak"
-    ],
-    [
-      "main.main",
-      "src.models.entities.EventEmitter"
-    ],
-    [
-      "main.main",
-      "src.models.entities.Repository"
-    ],
-    [
-      "main.main",
-      "src.models.entities.Repository.add"
-    ],
-    [
-      "main.main",
-      "src.models.entities.Repository.count"
-    ],
-    [
-      "main.main",
-      "src.models.entities.Task"
-    ],
-    [
-      "main.main",
-      "src.models.entities.Task.__construct"
-    ],
-    [
-      "main.main",
-      "src.models.entities.Task.dispose"
-    ],
-    [
-      "main.main",
-      "src.models.entities.Task.isDisposed"
-    ],
-    [
-      "main.main",
-      "src.models.entities.Task.isOverdue"
-    ],
-    [
-      "main.main",
-      "src.models.entities.Task.serialize"
-    ],
-    [
-      "main.main",
-      "src.services.builder.buildQuery"
-    ],
-    [
-      "main.main",
-      "src.services.processor.applyMultiplier"
-    ],
-    [
-      "main.main",
-      "src.services.processor.computeNested"
-    ],
-    [
-      "main.main",
-      "src.services.processor.createTask"
-    ],
-    [
-      "main.main",
-      "src.services.processor.describeTask"
-    ],
-    [
-      "main.main",
-      "src.services.processor.dispatch"
-    ],
-    [
-      "main.main",
-      "src.services.processor.double"
-    ],
-    [
-      "main.main",
-      "src.services.processor.getTaskInfo"
-    ],
-    [
-      "main.main",
-      "src.services.processor.isHighPriority"
-    ],
-    [
-      "main.main",
-      "src.services.processor.processTask"
-    ],
-    [
-      "main.main",
-      "src.services.processor.processTaskChain"
-    ],
-    [
-      "main.main",
-      "src.services.processor.safeGetLabel"
-    ],
-    [
-      "main.main",
-      "src.services.processor.setupEventProcessing"
-    ],
-    [
-      "main.main",
-      "src.services.processor.summarizeTasks"
-    ],
-    [
-      "main.main",
-      "src.utils.constants.Priority.label"
-    ],
-    [
-      "main.main",
-      "src.utils.helpers.add"
-    ],
-    [
-      "main.main",
-      "src.utils.helpers.compose"
-    ],
-    [
-      "main.main",
-      "src.utils.helpers.createMultiplier"
-    ],
-    [
-      "main.main",
-      "src.utils.helpers.formatLabel"
-    ],
-    [
-      "main.main",
-      "src.utils.helpers.identity"
-    ],
-    [
-      "src.models.base.Entity.__toString",
-      "src.models.base.Entity.getType"
-    ],
-    [
-      "src.models.entities.Cat.__construct",
-      "src.models.base.Entity.setType"
-    ],
-    [
-      "src.models.entities.Dog.__construct",
-      "src.models.base.Entity.setType"
-    ],
-    [
-      "src.models.entities.Duck.__construct",
-      "src.models.base.Entity.setType"
-    ],
-    [
-      "src.models.entities.Repository.findBy",
-      "src.models.entities.Repository.getAll"
-    ],
-    [
-      "src.models.entities.Task.__construct",
-      "src.models.base.Entity.setType"
-    ],
-    [
-      "src.models.entities.Task.getLabel",
-      "src.utils.helpers.formatLabel"
-    ],
-    [
-      "src.models.entities.Task.serialize",
-      "src.models.base.Entity.getId"
-    ],
-    [
-      "src.services.builder.buildQuery",
-      "src.services.builder.QueryBuilder"
-    ],
-    [
-      "src.services.builder.buildQuery",
-      "src.services.builder.QueryBuilder.build"
-    ],
-    [
-      "src.services.builder.buildQuery",
-      "src.services.builder.QueryBuilder.limit"
-    ],
-    [
-      "src.services.builder.buildQuery",
-      "src.services.builder.QueryBuilder.orderBy"
-    ],
-    [
-      "src.services.builder.buildQuery",
-      "src.services.builder.QueryBuilder.where"
-    ],
-    [
-      "src.services.processor.applyMultiplier",
-      "src.utils.helpers.createMultiplier"
-    ],
-    [
-      "src.services.processor.computeNested",
-      "src.utils.helpers.add"
-    ],
-    [
-      "src.services.processor.computeNested",
-      "src.utils.helpers.clamp"
-    ],
-    [
-      "src.services.processor.createTask",
-      "src.models.base.Entity.__construct"
-    ],
-    [
-      "src.services.processor.createTask",
-      "src.models.entities.Task"
-    ],
-    [
-      "src.services.processor.createTask",
-      "src.models.entities.Task.__construct"
-    ],
-    [
-      "src.services.processor.describeTask",
-      "src.models.entities.Task.getLabel"
-    ],
-    [
-      "src.services.processor.double",
-      "src.utils.helpers.add"
-    ],
-    [
-      "src.services.processor.processTask",
-      "src.models.entities.Task.getLabel"
-    ],
-    [
-      "src.services.processor.processTaskChain",
-      "src.services.processor.isHighPriority"
-    ],
-    [
-      "src.services.processor.processTaskChain",
-      "src.services.processor.processTask"
-    ],
-    [
-      "src.services.processor.safeGetLabel",
-      "src.models.entities.Task.getLabel"
-    ],
-    [
-      "src.services.processor.setupEventProcessing",
-      "src.models.entities.EventEmitter.emit"
-    ],
-    [
-      "src.services.processor.setupEventProcessing",
-      "src.models.entities.EventEmitter.on"
-    ],
-    [
-      "src.services.processor.summarizeTasks",
-      "src.services.processor.isHighPriority"
-    ]
+    {
+      "source": "main.main",
+      "destination": "src.models.base.Disposable.dispose",
+      "call_sites": [
+        {
+          "file": "main.php",
+          "line": 94,
+          "column": 10
+        }
+      ]
+    },
+    {
+      "source": "main.main",
+      "destination": "src.models.base.Disposable.isDisposed",
+      "call_sites": [
+        {
+          "file": "main.php",
+          "line": 95,
+          "column": 15
+        }
+      ]
+    },
+    {
+      "source": "main.main",
+      "destination": "src.models.base.Entity.__construct"
+    },
+    {
+      "source": "main.main",
+      "destination": "src.models.base.Entity.getId",
+      "call_sites": [
+        {
+          "file": "main.php",
+          "line": 102,
+          "column": 21
+        },
+        {
+          "file": "main.php",
+          "line": 103,
+          "column": 21
+        }
+      ]
+    },
+    {
+      "source": "main.main",
+      "destination": "src.models.base.Entity.getType",
+      "call_sites": [
+        {
+          "file": "main.php",
+          "line": 98,
+          "column": 15
+        }
+      ]
+    },
+    {
+      "source": "main.main",
+      "destination": "src.models.base.Speakable.speak"
+    },
+    {
+      "source": "main.main",
+      "destination": "src.models.base.Swimmable.swim",
+      "call_sites": [
+        {
+          "file": "main.php",
+          "line": 85,
+          "column": 17
+        }
+      ]
+    },
+    {
+      "source": "main.main",
+      "destination": "src.models.base.SwimmingTrait.swim",
+      "call_sites": [
+        {
+          "file": "main.php",
+          "line": 85,
+          "column": 17
+        }
+      ]
+    },
+    {
+      "source": "main.main",
+      "destination": "src.models.entities.Cat"
+    },
+    {
+      "source": "main.main",
+      "destination": "src.models.entities.Cat.__construct",
+      "call_sites": [
+        {
+          "file": "main.php",
+          "line": 78,
+          "column": 16
+        }
+      ]
+    },
+    {
+      "source": "main.main",
+      "destination": "src.models.entities.Cat.speak",
+      "call_sites": [
+        {
+          "file": "main.php",
+          "line": 83,
+          "column": 16
+        }
+      ]
+    },
+    {
+      "source": "main.main",
+      "destination": "src.models.entities.Dog"
+    },
+    {
+      "source": "main.main",
+      "destination": "src.models.entities.Dog.__construct",
+      "call_sites": [
+        {
+          "file": "main.php",
+          "line": 77,
+          "column": 16
+        }
+      ]
+    },
+    {
+      "source": "main.main",
+      "destination": "src.models.entities.Dog.speak",
+      "call_sites": [
+        {
+          "file": "main.php",
+          "line": 82,
+          "column": 16
+        }
+      ]
+    },
+    {
+      "source": "main.main",
+      "destination": "src.models.entities.Duck"
+    },
+    {
+      "source": "main.main",
+      "destination": "src.models.entities.Duck.__construct",
+      "call_sites": [
+        {
+          "file": "main.php",
+          "line": 79,
+          "column": 17
+        }
+      ]
+    },
+    {
+      "source": "main.main",
+      "destination": "src.models.entities.Duck.speak",
+      "call_sites": [
+        {
+          "file": "main.php",
+          "line": 84,
+          "column": 17
+        }
+      ]
+    },
+    {
+      "source": "main.main",
+      "destination": "src.models.entities.EventEmitter",
+      "call_sites": [
+        {
+          "file": "main.php",
+          "line": 107,
+          "column": 20
+        }
+      ]
+    },
+    {
+      "source": "main.main",
+      "destination": "src.models.entities.Repository",
+      "call_sites": [
+        {
+          "file": "main.php",
+          "line": 101,
+          "column": 17
+        }
+      ]
+    },
+    {
+      "source": "main.main",
+      "destination": "src.models.entities.Repository.add",
+      "call_sites": [
+        {
+          "file": "main.php",
+          "line": 102,
+          "column": 12
+        },
+        {
+          "file": "main.php",
+          "line": 103,
+          "column": 12
+        }
+      ]
+    },
+    {
+      "source": "main.main",
+      "destination": "src.models.entities.Repository.count",
+      "call_sites": [
+        {
+          "file": "main.php",
+          "line": 104,
+          "column": 29
+        }
+      ]
+    },
+    {
+      "source": "main.main",
+      "destination": "src.models.entities.Task"
+    },
+    {
+      "source": "main.main",
+      "destination": "src.models.entities.Task.__construct",
+      "call_sites": [
+        {
+          "file": "main.php",
+          "line": 89,
+          "column": 15
+        },
+        {
+          "file": "main.php",
+          "line": 90,
+          "column": 15
+        }
+      ]
+    },
+    {
+      "source": "main.main",
+      "destination": "src.models.entities.Task.dispose",
+      "call_sites": [
+        {
+          "file": "main.php",
+          "line": 94,
+          "column": 10
+        }
+      ]
+    },
+    {
+      "source": "main.main",
+      "destination": "src.models.entities.Task.isDisposed",
+      "call_sites": [
+        {
+          "file": "main.php",
+          "line": 95,
+          "column": 15
+        }
+      ]
+    },
+    {
+      "source": "main.main",
+      "destination": "src.models.entities.Task.isOverdue",
+      "call_sites": [
+        {
+          "file": "main.php",
+          "line": 93,
+          "column": 15
+        }
+      ]
+    },
+    {
+      "source": "main.main",
+      "destination": "src.models.entities.Task.serialize",
+      "call_sites": [
+        {
+          "file": "main.php",
+          "line": 92,
+          "column": 18
+        }
+      ]
+    },
+    {
+      "source": "main.main",
+      "destination": "src.services.builder.buildQuery",
+      "call_sites": [
+        {
+          "file": "main.php",
+          "line": 112,
+          "column": 10
+        }
+      ]
+    },
+    {
+      "source": "main.main",
+      "destination": "src.services.processor.applyMultiplier",
+      "call_sites": [
+        {
+          "file": "main.php",
+          "line": 116,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "source": "main.main",
+      "destination": "src.services.processor.computeNested",
+      "call_sites": [
+        {
+          "file": "main.php",
+          "line": 117,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "source": "main.main",
+      "destination": "src.services.processor.createTask",
+      "call_sites": [
+        {
+          "file": "main.php",
+          "line": 88,
+          "column": 11
+        }
+      ]
+    },
+    {
+      "source": "main.main",
+      "destination": "src.services.processor.describeTask",
+      "call_sites": [
+        {
+          "file": "main.php",
+          "line": 121,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "source": "main.main",
+      "destination": "src.services.processor.dispatch",
+      "call_sites": [
+        {
+          "file": "main.php",
+          "line": 111,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "source": "main.main",
+      "destination": "src.services.processor.double",
+      "call_sites": [
+        {
+          "file": "main.php",
+          "line": 118,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "source": "main.main",
+      "destination": "src.services.processor.getTaskInfo",
+      "call_sites": [
+        {
+          "file": "main.php",
+          "line": 124,
+          "column": 22
+        }
+      ]
+    },
+    {
+      "source": "main.main",
+      "destination": "src.services.processor.isHighPriority",
+      "call_sites": [
+        {
+          "file": "main.php",
+          "line": 119,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "source": "main.main",
+      "destination": "src.services.processor.processTask",
+      "call_sites": [
+        {
+          "file": "main.php",
+          "line": 113,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "source": "main.main",
+      "destination": "src.services.processor.processTaskChain",
+      "call_sites": [
+        {
+          "file": "main.php",
+          "line": 114,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "source": "main.main",
+      "destination": "src.services.processor.safeGetLabel",
+      "call_sites": [
+        {
+          "file": "main.php",
+          "line": 120,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "source": "main.main",
+      "destination": "src.services.processor.setupEventProcessing",
+      "call_sites": [
+        {
+          "file": "main.php",
+          "line": 108,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "source": "main.main",
+      "destination": "src.services.processor.summarizeTasks",
+      "call_sites": [
+        {
+          "file": "main.php",
+          "line": 115,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "source": "main.main",
+      "destination": "src.utils.constants.Priority.label",
+      "call_sites": [
+        {
+          "file": "main.php",
+          "line": 137,
+          "column": 26
+        }
+      ]
+    },
+    {
+      "source": "main.main",
+      "destination": "src.utils.helpers.add",
+      "call_sites": [
+        {
+          "file": "main.php",
+          "line": 132,
+          "column": 10
+        }
+      ]
+    },
+    {
+      "source": "main.main",
+      "destination": "src.utils.helpers.compose",
+      "call_sites": [
+        {
+          "file": "main.php",
+          "line": 129,
+          "column": 17
+        }
+      ]
+    },
+    {
+      "source": "main.main",
+      "destination": "src.utils.helpers.createMultiplier",
+      "call_sites": [
+        {
+          "file": "main.php",
+          "line": 128,
+          "column": 15
+        }
+      ]
+    },
+    {
+      "source": "main.main",
+      "destination": "src.utils.helpers.formatLabel",
+      "call_sites": [
+        {
+          "file": "main.php",
+          "line": 130,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "source": "main.main",
+      "destination": "src.utils.helpers.identity",
+      "call_sites": [
+        {
+          "file": "main.php",
+          "line": 131,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "source": "src.models.base.Entity.__toString",
+      "destination": "src.models.base.Entity.getType"
+    },
+    {
+      "source": "src.models.entities.Cat.__construct",
+      "destination": "src.models.base.Entity.setType"
+    },
+    {
+      "source": "src.models.entities.Dog.__construct",
+      "destination": "src.models.base.Entity.setType"
+    },
+    {
+      "source": "src.models.entities.Duck.__construct",
+      "destination": "src.models.base.Entity.setType"
+    },
+    {
+      "source": "src.models.entities.Repository.findBy",
+      "destination": "src.models.entities.Repository.getAll"
+    },
+    {
+      "source": "src.models.entities.Task.__construct",
+      "destination": "src.models.base.Entity.setType"
+    },
+    {
+      "source": "src.models.entities.Task.getLabel",
+      "destination": "src.utils.helpers.formatLabel"
+    },
+    {
+      "source": "src.models.entities.Task.serialize",
+      "destination": "src.models.base.Entity.getId"
+    },
+    {
+      "source": "src.services.builder.buildQuery",
+      "destination": "src.services.builder.QueryBuilder"
+    },
+    {
+      "source": "src.services.builder.buildQuery",
+      "destination": "src.services.builder.QueryBuilder.build"
+    },
+    {
+      "source": "src.services.builder.buildQuery",
+      "destination": "src.services.builder.QueryBuilder.limit"
+    },
+    {
+      "source": "src.services.builder.buildQuery",
+      "destination": "src.services.builder.QueryBuilder.orderBy"
+    },
+    {
+      "source": "src.services.builder.buildQuery",
+      "destination": "src.services.builder.QueryBuilder.where"
+    },
+    {
+      "source": "src.services.processor.applyMultiplier",
+      "destination": "src.utils.helpers.createMultiplier"
+    },
+    {
+      "source": "src.services.processor.computeNested",
+      "destination": "src.utils.helpers.add"
+    },
+    {
+      "source": "src.services.processor.computeNested",
+      "destination": "src.utils.helpers.clamp"
+    },
+    {
+      "source": "src.services.processor.createTask",
+      "destination": "src.models.base.Entity.__construct"
+    },
+    {
+      "source": "src.services.processor.createTask",
+      "destination": "src.models.entities.Task"
+    },
+    {
+      "source": "src.services.processor.createTask",
+      "destination": "src.models.entities.Task.__construct"
+    },
+    {
+      "source": "src.services.processor.describeTask",
+      "destination": "src.models.entities.Task.getLabel"
+    },
+    {
+      "source": "src.services.processor.double",
+      "destination": "src.utils.helpers.add"
+    },
+    {
+      "source": "src.services.processor.processTask",
+      "destination": "src.models.entities.Task.getLabel"
+    },
+    {
+      "source": "src.services.processor.processTaskChain",
+      "destination": "src.services.processor.isHighPriority"
+    },
+    {
+      "source": "src.services.processor.processTaskChain",
+      "destination": "src.services.processor.processTask"
+    },
+    {
+      "source": "src.services.processor.safeGetLabel",
+      "destination": "src.models.entities.Task.getLabel"
+    },
+    {
+      "source": "src.services.processor.setupEventProcessing",
+      "destination": "src.models.entities.EventEmitter.emit"
+    },
+    {
+      "source": "src.services.processor.setupEventProcessing",
+      "destination": "src.models.entities.EventEmitter.on"
+    },
+    {
+      "source": "src.services.processor.summarizeTasks",
+      "destination": "src.services.processor.isHighPriority"
+    }
   ],
   "expected_package_deps": {
     "src": {
@@ -497,303 +799,5 @@
     "src/utils/constants.php",
     "src/utils/helpers.php",
     "src/unused/orphan.php"
-  ],
-  "expected_call_sites": [
-    {
-      "file": "main.php",
-      "line": 77,
-      "column": 16,
-      "caller": "main.main",
-      "qname": "src.models.entities.Dog.__construct"
-    },
-    {
-      "file": "main.php",
-      "line": 78,
-      "column": 16,
-      "caller": "main.main",
-      "qname": "src.models.entities.Cat.__construct"
-    },
-    {
-      "file": "main.php",
-      "line": 79,
-      "column": 17,
-      "caller": "main.main",
-      "qname": "src.models.entities.Duck.__construct"
-    },
-    {
-      "file": "main.php",
-      "line": 82,
-      "column": 16,
-      "caller": "main.main",
-      "qname": "src.models.entities.Dog.speak"
-    },
-    {
-      "file": "main.php",
-      "line": 83,
-      "column": 16,
-      "caller": "main.main",
-      "qname": "src.models.entities.Cat.speak"
-    },
-    {
-      "file": "main.php",
-      "line": 84,
-      "column": 17,
-      "caller": "main.main",
-      "qname": "src.models.entities.Duck.speak"
-    },
-    {
-      "file": "main.php",
-      "line": 85,
-      "column": 17,
-      "caller": "main.main",
-      "qnames": [
-        "src.models.base.Swimmable.swim",
-        "src.models.base.SwimmingTrait.swim"
-      ]
-    },
-    {
-      "file": "main.php",
-      "line": 88,
-      "column": 11,
-      "caller": "main.main",
-      "qname": "src.services.processor.createTask"
-    },
-    {
-      "file": "main.php",
-      "line": 89,
-      "column": 15,
-      "caller": "main.main",
-      "qname": "src.models.entities.Task.__construct"
-    },
-    {
-      "file": "main.php",
-      "line": 90,
-      "column": 15,
-      "caller": "main.main",
-      "qname": "src.models.entities.Task.__construct"
-    },
-    {
-      "file": "main.php",
-      "line": 92,
-      "column": 18,
-      "caller": "main.main",
-      "qname": "src.models.entities.Task.serialize"
-    },
-    {
-      "file": "main.php",
-      "line": 93,
-      "column": 15,
-      "caller": "main.main",
-      "qname": "src.models.entities.Task.isOverdue"
-    },
-    {
-      "file": "main.php",
-      "line": 94,
-      "column": 10,
-      "caller": "main.main",
-      "qnames": [
-        "src.models.base.Disposable.dispose",
-        "src.models.entities.Task.dispose"
-      ]
-    },
-    {
-      "file": "main.php",
-      "line": 95,
-      "column": 15,
-      "caller": "main.main",
-      "qnames": [
-        "src.models.base.Disposable.isDisposed",
-        "src.models.entities.Task.isDisposed"
-      ]
-    },
-    {
-      "file": "main.php",
-      "line": 98,
-      "column": 15,
-      "caller": "main.main",
-      "qname": "src.models.base.Entity.getType"
-    },
-    {
-      "file": "main.php",
-      "line": 101,
-      "column": 17,
-      "caller": "main.main",
-      "qname": "src.models.entities.Repository"
-    },
-    {
-      "file": "main.php",
-      "line": 102,
-      "column": 12,
-      "caller": "main.main",
-      "qname": "src.models.entities.Repository.add"
-    },
-    {
-      "file": "main.php",
-      "line": 102,
-      "column": 21,
-      "caller": "main.main",
-      "qname": "src.models.base.Entity.getId"
-    },
-    {
-      "file": "main.php",
-      "line": 103,
-      "column": 12,
-      "caller": "main.main",
-      "qname": "src.models.entities.Repository.add"
-    },
-    {
-      "file": "main.php",
-      "line": 103,
-      "column": 21,
-      "caller": "main.main",
-      "qname": "src.models.base.Entity.getId"
-    },
-    {
-      "file": "main.php",
-      "line": 104,
-      "column": 29,
-      "caller": "main.main",
-      "qname": "src.models.entities.Repository.count"
-    },
-    {
-      "file": "main.php",
-      "line": 107,
-      "column": 20,
-      "caller": "main.main",
-      "qname": "src.models.entities.EventEmitter"
-    },
-    {
-      "file": "main.php",
-      "line": 108,
-      "column": 5,
-      "caller": "main.main",
-      "qname": "src.services.processor.setupEventProcessing"
-    },
-    {
-      "file": "main.php",
-      "line": 111,
-      "column": 5,
-      "caller": "main.main",
-      "qname": "src.services.processor.dispatch"
-    },
-    {
-      "file": "main.php",
-      "line": 112,
-      "column": 10,
-      "caller": "main.main",
-      "qname": "src.services.builder.buildQuery"
-    },
-    {
-      "file": "main.php",
-      "line": 113,
-      "column": 5,
-      "caller": "main.main",
-      "qname": "src.services.processor.processTask"
-    },
-    {
-      "file": "main.php",
-      "line": 114,
-      "column": 5,
-      "caller": "main.main",
-      "qname": "src.services.processor.processTaskChain"
-    },
-    {
-      "file": "main.php",
-      "line": 115,
-      "column": 5,
-      "caller": "main.main",
-      "qname": "src.services.processor.summarizeTasks"
-    },
-    {
-      "file": "main.php",
-      "line": 116,
-      "column": 5,
-      "caller": "main.main",
-      "qname": "src.services.processor.applyMultiplier"
-    },
-    {
-      "file": "main.php",
-      "line": 117,
-      "column": 5,
-      "caller": "main.main",
-      "qname": "src.services.processor.computeNested"
-    },
-    {
-      "file": "main.php",
-      "line": 118,
-      "column": 5,
-      "caller": "main.main",
-      "qname": "src.services.processor.double"
-    },
-    {
-      "file": "main.php",
-      "line": 119,
-      "column": 5,
-      "caller": "main.main",
-      "qname": "src.services.processor.isHighPriority"
-    },
-    {
-      "file": "main.php",
-      "line": 120,
-      "column": 5,
-      "caller": "main.main",
-      "qname": "src.services.processor.safeGetLabel"
-    },
-    {
-      "file": "main.php",
-      "line": 121,
-      "column": 5,
-      "caller": "main.main",
-      "qname": "src.services.processor.describeTask"
-    },
-    {
-      "file": "main.php",
-      "line": 124,
-      "column": 22,
-      "caller": "main.main",
-      "qname": "src.services.processor.getTaskInfo"
-    },
-    {
-      "file": "main.php",
-      "line": 128,
-      "column": 15,
-      "caller": "main.main",
-      "qname": "src.utils.helpers.createMultiplier"
-    },
-    {
-      "file": "main.php",
-      "line": 129,
-      "column": 17,
-      "caller": "main.main",
-      "qname": "src.utils.helpers.compose"
-    },
-    {
-      "file": "main.php",
-      "line": 130,
-      "column": 5,
-      "caller": "main.main",
-      "qname": "src.utils.helpers.formatLabel"
-    },
-    {
-      "file": "main.php",
-      "line": 131,
-      "column": 5,
-      "caller": "main.main",
-      "qname": "src.utils.helpers.identity"
-    },
-    {
-      "file": "main.php",
-      "line": 132,
-      "column": 10,
-      "caller": "main.main",
-      "qname": "src.utils.helpers.add"
-    },
-    {
-      "file": "main.php",
-      "line": 137,
-      "column": 26,
-      "caller": "main.main",
-      "qname": "src.utils.constants.Priority.label"
-    }
   ]
 }
