@@ -516,7 +516,7 @@ def _extract_analysis_recursive(
             description=comp_data.get("description", ""),
             key_entities=key_entities,
             file_methods=file_methods,
-            source_cluster_ids=comp_data.get("source_cluster_ids", []),
+            source_cluster_ids=[str(cluster_id) for cluster_id in comp_data.get("source_cluster_ids", [])],
         )
         components.append(component)
 
