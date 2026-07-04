@@ -1,8 +1,12 @@
 import json
 import logging
+import threading
+from queue import Empty, Queue
 from pathlib import Path
+from typing import Any
 
 from google.api_core.exceptions import ResourceExhausted
+from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.exceptions import OutputParserException
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, ToolMessage
@@ -30,6 +34,32 @@ logger = logging.getLogger(__name__)
 
 class EmptyExtractorMessageError(ValueError):
     """Raised when extractor returns an empty message payload."""
+
+
+class _AgentInvocationCancelled(TimeoutError):
+    """Raised inside an abandoned agent thread after caller timeout."""
+
+
+class _CancellationCallback(BaseCallbackHandler):
+    """Stops LangGraph at the next LLM or tool boundary after timeout."""
+
+    raise_error = True
+
+    def __init__(self, cancellation_event: threading.Event):
+        self.cancellation_event = cancellation_event
+
+    def _raise_if_cancelled(self) -> None:
+        if self.cancellation_event.is_set():
+            raise _AgentInvocationCancelled("Agent invocation cancelled after timeout")
+
+    def on_llm_start(self, serialized: dict[str, Any], prompts: list[str], **_kwargs: Any) -> None:
+        self._raise_if_cancelled()
+
+    def on_chat_model_start(self, serialized: dict[str, Any], messages: list[list[Any]], **_kwargs: Any) -> None:
+        self._raise_if_cancelled()
+
+    def on_tool_start(self, serialized: dict[str, Any], input_str: str, **_kwargs: Any) -> None:
+        self._raise_if_cancelled()
 
 
 class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
@@ -161,21 +191,23 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
             log_prefix="Agent invocation",
         )
 
-    def _invoke_with_timeout(self, timeout_seconds: int, callback_list: list, prompt: str):
+    def _invoke_with_timeout(self, timeout_seconds: float, callback_list: list, prompt: str):
         """Invoke agent with a timeout using threading."""
-        import threading
-        from queue import Queue, Empty
-
         result_queue: Queue = Queue()
         exception_queue: Queue = Queue()
+        cancellation_event = threading.Event()
+        cancellation_callback = _CancellationCallback(cancellation_event)
+        invoke_callbacks = [*callback_list, cancellation_callback]
 
         def invoke_target():
             try:
                 response = self.agent.invoke(
                     {"messages": [self.system_message, HumanMessage(content=prompt)]},
-                    config={"callbacks": callback_list, "recursion_limit": 40},
+                    config={"callbacks": invoke_callbacks, "recursion_limit": 40},
                 )
                 result_queue.put(response)
+            except _AgentInvocationCancelled:
+                logger.info("Agent invoke thread cancelled after caller timeout")
             except Exception as e:
                 exception_queue.put(e)
 
@@ -186,6 +218,7 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         if thread.is_alive():
             # Thread is still running - timeout occurred
             logger.error(f"Agent invoke thread still running after {timeout_seconds}s timeout")
+            cancellation_event.set()
             raise TimeoutError(f"Agent invocation exceeded {timeout_seconds}s timeout")
 
         # Check for exceptions

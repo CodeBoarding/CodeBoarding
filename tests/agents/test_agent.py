@@ -1,6 +1,8 @@
 import os
 import shutil
 import tempfile
+import threading
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import Mock, MagicMock, patch
@@ -9,7 +11,7 @@ from langchain_core.messages import AIMessage
 from langchain_core.language_models import BaseChatModel
 from pydantic import BaseModel
 
-from agents.agent import CodeBoardingAgent
+from agents.agent import CodeBoardingAgent, _AgentInvocationCancelled, _CancellationCallback
 from static_analyzer.analysis_result import StaticAnalysisResults
 from monitoring.stats import RunStats, current_stats
 
@@ -53,6 +55,17 @@ class TestCodeBoardingAgent(unittest.TestCase):
 
         # Reset monitoring context
         current_stats.reset(self.token)
+
+    def _create_agent_with_executor(self, mock_create_agent, mock_agent_executor):
+        mock_create_agent.return_value = mock_agent_executor
+        mock_parsing_llm = Mock(spec=BaseChatModel)
+        return CodeBoardingAgent(
+            repo_dir=self.repo_dir,
+            static_analysis=self.mock_analysis,
+            system_message="Test",
+            agent_llm=self.mock_llm,
+            parsing_llm=mock_parsing_llm,
+        )
 
     @patch("agents.llm_config.LLM_PROVIDERS")
     @patch("agents.agent.create_agent")
@@ -223,9 +236,100 @@ class TestCodeBoardingAgent(unittest.TestCase):
         call_args = mock_agent_executor.invoke.call_args
         config = call_args[1]["config"]
         self.assertIn("callbacks", config)
-        # Should have 2 callbacks: module-level MONITORING_CALLBACK and agent_monitoring_callback
-        self.assertEqual(len(config["callbacks"]), 2)
+        # Monitoring callbacks plus per-call cancellation callback.
+        self.assertEqual(len(config["callbacks"]), 3)
         self.assertIn(agent.agent_monitoring_callback, config["callbacks"])
+        cancellation_callback = next(c for c in config["callbacks"] if isinstance(c, _CancellationCallback))
+        self.assertFalse(cancellation_callback.cancellation_event.is_set())
+
+    def test_cancellation_callback_raises_only_after_event_set(self):
+        cancellation_event = threading.Event()
+        callback = _CancellationCallback(cancellation_event)
+
+        callback.on_llm_start({}, ["prompt"])
+        callback.on_chat_model_start({}, [[AIMessage(content="message")]])
+        callback.on_tool_start({"name": "tool"}, "input")
+
+        cancellation_event.set()
+
+        with self.assertRaises(_AgentInvocationCancelled):
+            callback.on_llm_start({}, ["prompt"])
+        with self.assertRaises(_AgentInvocationCancelled):
+            callback.on_chat_model_start({}, [[AIMessage(content="message")]])
+        with self.assertRaises(_AgentInvocationCancelled):
+            callback.on_tool_start({"name": "tool"}, "input")
+
+    @patch("agents.agent.create_agent")
+    def test_invoke_with_timeout_sets_cancellation_event_and_stops_worker(self, mock_create_agent):
+        mock_agent_executor = Mock()
+        started = threading.Event()
+        stopped = threading.Event()
+        callbacks_seen = []
+        step_count = 0
+
+        def invoke(_payload, config):
+            nonlocal step_count
+            callbacks_seen.extend(config["callbacks"])
+            cancellation_callback = next(c for c in config["callbacks"] if isinstance(c, _CancellationCallback))
+            started.set()
+            try:
+                while True:
+                    step_count += 1
+                    cancellation_callback.on_tool_start({"name": "fake_tool"}, "input")
+                    time.sleep(0.005)
+            finally:
+                stopped.set()
+
+        mock_agent_executor.invoke.side_effect = invoke
+        agent = self._create_agent_with_executor(mock_create_agent, mock_agent_executor)
+
+        with self.assertLogs("agents.agent", level="INFO") as logs:
+            with self.assertRaisesRegex(TimeoutError, "Agent invocation exceeded 0.05s timeout"):
+                agent._invoke_with_timeout(timeout_seconds=0.05, callback_list=[], prompt="Test prompt")
+            self.assertTrue(started.wait(1))
+            self.assertTrue(stopped.wait(1))
+
+        cancellation_callback = next(c for c in callbacks_seen if isinstance(c, _CancellationCallback))
+        self.assertTrue(cancellation_callback.cancellation_event.is_set())
+        self.assertGreater(step_count, 0)
+        stopped_at = step_count
+        time.sleep(0.02)
+        self.assertEqual(step_count, stopped_at)
+        self.assertTrue(any("cancelled after caller timeout" in message for message in logs.output))
+
+    @patch("agents.agent.create_agent")
+    def test_invoke_with_timeout_returns_fast_response_unchanged(self, mock_create_agent):
+        mock_agent_executor = Mock()
+        response = {"messages": [AIMessage(content="fast")]}
+        captured_config = {}
+
+        def invoke(_payload, config):
+            captured_config.update(config)
+            return response
+
+        mock_agent_executor.invoke.side_effect = invoke
+        agent = self._create_agent_with_executor(mock_create_agent, mock_agent_executor)
+        callback_marker = Mock()
+
+        result = agent._invoke_with_timeout(timeout_seconds=1, callback_list=[callback_marker], prompt="Test prompt")
+
+        self.assertIs(result, response)
+        callbacks = captured_config["callbacks"]
+        self.assertIn(callback_marker, callbacks)
+        cancellation_callback = next(c for c in callbacks if isinstance(c, _CancellationCallback))
+        self.assertFalse(cancellation_callback.cancellation_event.is_set())
+
+    @patch("agents.agent.create_agent")
+    def test_invoke_with_timeout_surfaces_original_exception(self, mock_create_agent):
+        mock_agent_executor = Mock()
+        error = ValueError("boom")
+        mock_agent_executor.invoke.side_effect = error
+        agent = self._create_agent_with_executor(mock_create_agent, mock_agent_executor)
+
+        with self.assertRaises(ValueError) as raised:
+            agent._invoke_with_timeout(timeout_seconds=1, callback_list=[], prompt="Test prompt")
+
+        self.assertIs(raised.exception, error)
 
     @patch("agents.agent.create_extractor")
     @patch("agents.agent.create_agent")
