@@ -2,7 +2,7 @@ import logging
 import json
 from datetime import datetime, timezone
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
 from agents.agent_responses import (
     Component,
@@ -33,14 +33,6 @@ class ComponentJson(Component):
         description="List of cluster IDs from CFG analysis that this component encompasses.",
         default_factory=list,
     )
-
-    @field_validator("source_cluster_ids", mode="before")
-    @classmethod
-    def _coerce_source_cluster_ids(cls, value: object) -> object:
-        if isinstance(value, list):
-            return [str(cluster_id) for cluster_id in value]
-        return value
-
     can_expand: bool = Field(
         description="Whether the component can be expanded in detail or not.",
         default=False,
@@ -516,7 +508,7 @@ def _extract_analysis_recursive(
             description=comp_data.get("description", ""),
             key_entities=key_entities,
             file_methods=file_methods,
-            source_cluster_ids=[str(cluster_id) for cluster_id in comp_data.get("source_cluster_ids", [])],
+            source_cluster_ids=comp_data.get("source_cluster_ids", []),
         )
         components.append(component)
 
