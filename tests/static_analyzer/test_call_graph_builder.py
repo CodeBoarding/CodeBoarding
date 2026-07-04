@@ -4,7 +4,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from static_analyzer.engine.call_graph_builder import CallGraphBuilder
-from static_analyzer.engine.edge_builder import build_edges_via_references
+from static_analyzer.engine.edge_builder import EdgeMap, build_edges_via_references
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.constants import NodeType
 from static_analyzer.engine.lsp_constants import DID_OPEN_BATCH_SIZE
@@ -308,7 +308,7 @@ class TestPostprocessEdges:
         st._primary_file_symbols[file_key] = [caller, cls, ctor]
         st.build_indices()
 
-        edge_set = {("app.main", "app.Dog"): []}
+        edge_set: EdgeMap = {("app.main", "app.Dog"): []}
         result = builder._postprocess_edges(edge_set)
 
         assert ("app.main", "app.Dog") in result
@@ -333,7 +333,7 @@ class TestPostprocessEdges:
 
         direct_site = CallSite(file="/project/app.py", line=2, column=5)
         class_site = CallSite(file="/project/app.py", line=3, column=9)
-        edge_set = {
+        edge_set: EdgeMap = {
             ("app.main", "app.Dog(__init__)"): [direct_site],
             ("app.main", "app.Dog"): [class_site],
         }
@@ -357,7 +357,7 @@ class TestBuildPackageDeps:
         adapter.get_all_packages.return_value = {"pkg_a", "pkg_b"}
         adapter.get_package_for_file.side_effect = lambda fp, root: "pkg_a" if "pkg_a" in str(fp) else "pkg_b"
 
-        edge_set = {("pkg_a.foo", "pkg_b.bar"): []}
+        edge_set: EdgeMap = {("pkg_a.foo", "pkg_b.bar"): []}
         source_files = [Path("/project/pkg_a/mod.py"), Path("/project/pkg_b/mod.py")]
         deps = builder._build_package_deps(edge_set, source_files)
 
@@ -378,7 +378,7 @@ class TestBuildPackageDeps:
         adapter.get_all_packages.return_value = {"pkg"}
         adapter.get_package_for_file.return_value = "pkg"
 
-        edge_set = {("pkg.foo", "pkg.bar"): []}
+        edge_set: EdgeMap = {("pkg.foo", "pkg.bar"): []}
         deps = builder._build_package_deps(edge_set, [Path("/project/pkg/a.py")])
 
         assert deps["pkg"]["imports"] == []
@@ -391,7 +391,7 @@ class TestBuildPackageDeps:
 
         adapter.get_all_packages.return_value = {"pkg"}
 
-        edge_set = {("unknown.foo", "unknown.bar"): []}
+        edge_set: EdgeMap = {("unknown.foo", "unknown.bar"): []}
         deps = builder._build_package_deps(edge_set, [])
 
         assert deps["pkg"]["imports"] == []

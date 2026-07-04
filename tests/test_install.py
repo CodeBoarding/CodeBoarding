@@ -70,6 +70,7 @@ class TestRustToolchainCheck(unittest.TestCase):
         ok, reason = install.check_rust_toolchain()
 
         self.assertFalse(ok)
+        assert reason is not None
         self.assertIn("cargo not found", reason)
 
     @patch("install.subprocess.run")
@@ -80,6 +81,7 @@ class TestRustToolchainCheck(unittest.TestCase):
         ok, reason = install.check_rust_toolchain()
 
         self.assertFalse(ok)
+        assert reason is not None
         self.assertIn("cargo failed to run", reason)
         self.assertIn("dyld missing", reason)
 
