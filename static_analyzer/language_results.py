@@ -28,7 +28,7 @@ class ControlFlowGraph:
             if not edge.call_sites:
                 raise ValueError(f"Edge {edge.get_source()} -> {edge.get_destination()} has no call-site metadata")
             for site in edge.call_sites:
-                self.graph.add_edge(edge.get_source(), edge.get_destination(), call_site=dict(site))
+                self.graph.add_edge(edge.get_source(), edge.get_destination(), call_sites=[dict(site)])
         self.graph.method_cluster_paths.merge(other.method_cluster_paths)
 
     def visit_paths(self, fn: Callable[[str], str]) -> None:

@@ -15,12 +15,12 @@ def test_call_graph_preserves_multiple_call_sites_for_same_edge():
     graph.add_edge(
         "module.caller",
         "module.target",
-        call_site={"file": "/repo/module.py", "line": 3, "column": 9},
+        call_sites=[{"file": "/repo/module.py", "line": 3, "column": 9}],
     )
     graph.add_edge(
         "module.caller",
         "module.target",
-        call_site={"file": "/repo/module.py", "line": 7, "column": 13},
+        call_sites=[{"file": "/repo/module.py", "line": 7, "column": 13}],
     )
 
     assert len(graph.edges) == 1

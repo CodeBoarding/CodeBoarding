@@ -1,7 +1,8 @@
 import logging
 from collections import defaultdict
-from collections.abc import Callable
+from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass, field
+from types import MappingProxyType
 
 import networkx as nx
 import networkx.algorithms.community as nx_comm
@@ -17,6 +18,8 @@ from static_analyzer.method_cluster_paths import MethodClusterPaths
 from static_analyzer.node import Node
 
 logger = logging.getLogger(__name__)
+
+_EMPTY_NODES: Mapping[str, Node] = MappingProxyType({})
 
 
 def detect_communities[T](
@@ -98,9 +101,7 @@ class Edge:
     def __repr__(self) -> str:
         return f"Edge({self.src_node.fully_qualified_name} -> {self.dst_node.fully_qualified_name})"
 
-    def add_call_site(self, call_site: dict | None) -> None:
-        if call_site is None:
-            return
+    def add_call_site(self, call_site: dict) -> None:
         if call_site not in self.call_sites:
             self.call_sites.append(call_site)
 
@@ -108,12 +109,12 @@ class Edge:
 class CallGraph:
     def __init__(
         self,
-        nodes: dict[str, Node] | None = None,
-        edges: list[Edge] | None = None,
+        nodes: Mapping[str, Node] = _EMPTY_NODES,
+        edges: Sequence[Edge] = (),
         language: str = "python",
     ) -> None:
-        self.nodes = nodes if nodes is not None else {}
-        self.edges = edges if edges is not None else []
+        self.nodes = dict(nodes)
+        self.edges = list(edges)
         self._edge_set: set[tuple[str, str]] = set()
         self._edge_by_key: dict[tuple[str, str], Edge] = {}
         for edge in self.edges:
@@ -185,7 +186,7 @@ class CallGraph:
         """Resolve a possibly-aliased name to the canonical name in the graph."""
         return self._alias_to_canonical.get(name, name)
 
-    def add_edge(self, src_name: str, dst_name: str, call_site: dict | None = None) -> None:
+    def add_edge(self, src_name: str, dst_name: str, call_sites: Sequence[dict] = ()) -> None:
         src_name = self._resolve_name(src_name)
         dst_name = self._resolve_name(dst_name)
 
@@ -194,11 +195,13 @@ class CallGraph:
 
         edge_key = (src_name, dst_name)
         if edge_key in self._edge_set:
-            self._edge_by_key[edge_key].add_call_site(call_site)
+            for call_site in call_sites:
+                self._edge_by_key[edge_key].add_call_site(dict(call_site))
             return
 
         edge = Edge(self.nodes[src_name], self.nodes[dst_name], [])
-        edge.add_call_site(call_site)
+        for call_site in call_sites:
+            edge.add_call_site(dict(call_site))
         self.edges.append(edge)
         self._edge_set.add(edge_key)
         self._edge_by_key[edge_key] = edge
@@ -225,9 +228,7 @@ class CallGraph:
             src, dst = edge.get_source(), edge.get_destination()
             if out.has_node(src) and out.has_node(dst):
                 try:
-                    out.add_edge(src, dst)
-                    out_edge = out._edge_by_key[(out._resolve_name(src), out._resolve_name(dst))]
-                    out_edge.call_sites = [dict(site) for site in edge.call_sites]
+                    out.add_edge(src, dst, call_sites=edge.call_sites)
                 except ValueError as e:
                     logger.warning(f"Failed to add edge {src} -> {dst} during filter: {e}")
             else:
@@ -251,22 +252,12 @@ class CallGraph:
             out.add_node(node)
         for edge in self.edges:
             try:
-                out.add_edge(edge.get_source(), edge.get_destination())
-                out_edge = out._edge_by_key[
-                    (out._resolve_name(edge.get_source()), out._resolve_name(edge.get_destination()))
-                ]
-                for site in edge.call_sites:
-                    out_edge.add_call_site(dict(site))
+                out.add_edge(edge.get_source(), edge.get_destination(), call_sites=edge.call_sites)
             except ValueError:
                 pass
         for edge in other.edges:
             try:
-                out.add_edge(edge.get_source(), edge.get_destination())
-                out_edge = out._edge_by_key[
-                    (out._resolve_name(edge.get_source()), out._resolve_name(edge.get_destination()))
-                ]
-                for site in edge.call_sites:
-                    out_edge.add_call_site(dict(site))
+                out.add_edge(edge.get_source(), edge.get_destination(), call_sites=edge.call_sites)
             except ValueError:
                 pass
         out._cluster_cache = self._prune_cluster_cache(out.nodes)
@@ -452,9 +443,9 @@ class CallGraph:
 
     def to_cluster_string(
         self,
-        cluster_ids: set[int] | None = None,
+        cluster_ids: Collection[int] = frozenset(),
         cluster_result: ClusterResult | None = None,
-        skip_nodes: set[str] | None = None,
+        skip_nodes: Collection[str] = frozenset(),
     ) -> str:
         """
         Generate a human-readable string representation of clusters.
@@ -463,12 +454,12 @@ class CallGraph:
         Uses provided cluster_result or calls cluster() if not provided.
 
         Args:
-            cluster_ids: Optional set of cluster IDs to include. If None, includes all.
+            cluster_ids: Set of cluster IDs to include. Empty includes all.
             cluster_result: Optional pre-computed ClusterResult. If None, calls cluster().
-            skip_nodes: Optional set of qualified names to omit from the rendered
-                output (both cluster members and edges). The graph itself is not
-                mutated; this is a serialization-layer filter used by
-                ``cfg_skip_planner`` to keep the LLM prompt under budget.
+            skip_nodes: Qualified names to omit from the rendered output (both
+                cluster members and edges). The graph itself is not mutated;
+                this is a serialization-layer filter used by ``cfg_skip_planner``
+                to keep the LLM prompt under budget.
 
         Returns:
             Formatted string with cluster definitions and inter-cluster connections
@@ -480,7 +471,7 @@ class CallGraph:
             return cluster_result.strategy if cluster_result.strategy in ("empty", "none") else "No clusters found."
 
         cfg_graph_x = self.to_networkx()
-        skip = skip_nodes or set()
+        skip = set(skip_nodes)
 
         # Filter clusters if specific IDs requested
         if cluster_ids:
@@ -805,10 +796,7 @@ class CallGraph:
                 result += f"Method {node.fully_qualified_name} is calling the following methods: {', '.join(node.methods_called_by_me)}\n"
         return result
 
-    def llm_str(self, size_limit: int = 2_500_000, skip_nodes: list[Node] | None = None) -> str:
-        if skip_nodes is None:
-            skip_nodes = []
-
+    def llm_str(self, size_limit: int = 2_500_000, skip_nodes: Sequence[Node] = ()) -> str:
         skip_set = set(skip_nodes)
 
         # Level 1: Full method-level detail (default __str__ but with file grouping)

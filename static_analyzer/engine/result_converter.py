@@ -70,7 +70,7 @@ def convert_to_codeboarding_format(
                         call_graph.add_edge(
                             src,
                             dst,
-                            call_site={"file": site.file, "line": site.line, "column": site.column},
+                            call_sites=[{"file": site.file, "line": site.line, "column": site.column}],
                         )
                 else:
                     logger.warning(
