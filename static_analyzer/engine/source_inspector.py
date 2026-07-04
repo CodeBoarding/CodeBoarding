@@ -11,6 +11,8 @@ from tree_sitter import Language as TreeSitterLanguage
 from tree_sitter import Node as TreeSitterNode
 from tree_sitter import Parser, Tree
 
+from static_analyzer.engine.models import CallSite
+
 import tree_sitter_c_sharp
 import tree_sitter_go
 import tree_sitter_java
@@ -127,13 +129,13 @@ class SourceInspector:
             return True
         return self._node_is_call_argument(target)
 
-    def find_call_sites(self, file_path: Path) -> list[tuple[int, int]]:
+    def find_call_sites(self, file_path: Path) -> list[CallSite]:
         """Find definition-query positions for identifiers used at call sites."""
         parsed = self._parse(file_path)
         if parsed is None:
             return []
 
-        sites: list[tuple[int, int]] = []
+        sites: list[CallSite] = []
         seen: set[tuple[int, int]] = set()
         for node in self._walk(parsed.tree.root_node):
             target = self._call_target_node(node)
@@ -143,7 +145,7 @@ class SourceInspector:
             if pos in seen:
                 continue
             seen.add(pos)
-            sites.append(pos)
+            sites.append(CallSite(file=str(file_path), line=pos[0] + 1, column=pos[1] + 1))
         return sites
 
     def _read_file_bytes(self, file_path: Path) -> bytes | None:

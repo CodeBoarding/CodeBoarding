@@ -2,7 +2,12 @@
 
 from pathlib import Path
 
+from static_analyzer.engine.models import CallSite
 from static_analyzer.engine.source_inspector import SourceInspector
+
+
+def _positions(sites: list[CallSite]) -> set[tuple[int, int]]:
+    return {(site.line, site.column) for site in sites}
 
 
 class TestGetSourceLine:
@@ -115,22 +120,23 @@ class TestFindCallSites:
         f.write_text("foo()\nbar(x)\n")
         si = SourceInspector()
         sites = si.find_call_sites(f)
-        assert (0, 0) in sites  # foo
-        assert (1, 0) in sites  # bar
+        positions = _positions(sites)
+        assert (1, 1) in positions  # foo
+        assert (2, 1) in positions  # bar
 
     def test_finds_new_constructor(self, tmp_path: Path):
         f = tmp_path / "test.java"
         f.write_text("new Dog(name)\n")
         si = SourceInspector()
         sites = si.find_call_sites(f)
-        assert (0, 4) in sites  # Dog in "new Dog("
+        assert (1, 5) in _positions(sites)  # Dog in "new Dog("
 
     def test_finds_method_reference(self, tmp_path: Path):
         f = tmp_path / "test.java"
         f.write_text("String::valueOf\n")
         si = SourceInspector()
         sites = si.find_call_sites(f)
-        assert (0, 8) in sites  # valueOf
+        assert (1, 9) in _positions(sites)  # valueOf
 
     def test_skips_keywords(self, tmp_path: Path):
         f = tmp_path / "test.java"
@@ -138,25 +144,27 @@ class TestFindCallSites:
         si = SourceInspector()
         sites = si.find_call_sites(f)
         # "if" and "return" are keywords, should be skipped
-        assert not any(s for s in sites if s == (0, 0))  # "if" at 0,0
-        assert (1, 11) in sites  # foo
+        positions = _positions(sites)
+        assert (1, 1) not in positions  # "if" at 1,1
+        assert (2, 12) in positions  # foo
 
     def test_skips_comments(self, tmp_path: Path):
         f = tmp_path / "test.java"
         f.write_text("// foo()\n/* bar()\n   baz() */\nclass A { void m(){ real(); } }\n")
         si = SourceInspector()
         sites = si.find_call_sites(f)
-        assert (3, 20) in sites  # real
+        assert (4, 21) in _positions(sites)  # real
         # Comment lines should be skipped entirely
-        assert not any(s[0] in (0, 1, 2) for s in sites)
+        assert not any(site.line in (1, 2, 3) for site in sites)
 
     def test_finds_super_and_this(self, tmp_path: Path):
         f = tmp_path / "test.java"
         f.write_text("class A extends B { A(){ super(name); } }\nclass C { C(){ this(1); } }\n")
         si = SourceInspector()
         sites = si.find_call_sites(f)
-        assert (0, 25) in sites  # super
-        assert (1, 15) in sites  # this
+        positions = _positions(sites)
+        assert (1, 26) in positions  # super
+        assert (2, 16) in positions  # this
 
     def test_deduplicates_positions(self, tmp_path: Path):
         f = tmp_path / "test.java"
@@ -165,7 +173,7 @@ class TestFindCallSites:
         si = SourceInspector()
         sites = si.find_call_sites(f)
         # Dog position should appear only once
-        dog_positions = [s for s in sites if s == (0, 4)]
+        dog_positions = [site for site in sites if (site.line, site.column) == (1, 5)]
         assert len(dog_positions) == 1
 
     def test_returns_empty_for_missing_file(self):
@@ -178,4 +186,4 @@ class TestFindCallSites:
         si = SourceInspector()
         sites = si.find_call_sites(f)
         # "sort" should be found via the call pattern
-        assert any(s[0] == 0 for s in sites)
+        assert any(site.line == 1 for site in sites)

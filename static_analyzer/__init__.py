@@ -465,7 +465,7 @@ class StaticAnalyzer:
             if not call_sites:
                 return []
 
-            queries = [(file_path, line, char) for line, char in call_sites]
+            queries = [(file_path, site.line - 1, site.column - 1) for site in call_sites]
             results, _ = client.send_definition_batch(queries)
 
             resolved = file_path.resolve()

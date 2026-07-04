@@ -323,7 +323,7 @@ def _resolve_definitions(
 
         for batch_start in range(0, len(call_sites), batch_size):
             batch = call_sites[batch_start : batch_start + batch_size]
-            queries = [(file_path, line, col) for line, col in batch]
+            queries = [(file_path, site.line - 1, site.column - 1) for site in batch]
 
             try:
                 results, _ = ctx.lsp.send_definition_batch(queries)
@@ -331,7 +331,9 @@ def _resolve_definitions(
                 logger.warning("Definition batch failed for %s: %s", file_path.name, e)
                 continue
 
-            for i, (site_line, site_col) in enumerate(batch):
+            for i, call_site in enumerate(batch):
+                site_line = call_site.line - 1
+                site_col = call_site.column - 1
                 defs = results[i] if i < len(results) else []
                 if not defs:
                     continue
@@ -352,10 +354,7 @@ def _resolve_definitions(
                     if not _is_valid_edge(caller, target):
                         continue
 
-                    call_site = _call_site(file_path, site_line, site_col)
-                    _add_edge_site(
-                        edge_set, caller.qualified_name, target.qualified_name, file_path, site_line, site_col
-                    )
+                    _add_edge_call_site(edge_set, caller.qualified_name, target.qualified_name, call_site)
 
                     # If target is a callable with a class-like parent, also add edge to the parent class
                     if adapter.is_callable(target.kind) and target.parent_chain:
@@ -368,9 +367,7 @@ def _resolve_definitions(
                             if parent_qname in st.symbols:
                                 parent_sym = st.symbols[parent_qname]
                                 if _is_valid_edge(caller, parent_sym):
-                                    _add_edge_site(
-                                        edge_set, caller.qualified_name, parent_qname, file_path, site_line, site_col
-                                    )
+                                    _add_edge_call_site(edge_set, caller.qualified_name, parent_qname, call_site)
 
                     # Queue implementation query for polymorphic dispatch
                     if adapter.is_callable(target.kind):
