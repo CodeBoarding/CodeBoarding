@@ -9,7 +9,7 @@ from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.constants import NodeType
 from static_analyzer.engine.lsp_constants import DID_OPEN_BATCH_SIZE
 from static_analyzer.engine.edge_build_context import EdgeBuildContext
-from static_analyzer.engine.models import SymbolInfo
+from static_analyzer.engine.models import CallSite, SymbolInfo
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.symbol_table import SymbolTable
 
@@ -313,6 +313,33 @@ class TestPostprocessEdges:
 
         assert ("app.main", "app.Dog") in result
         assert ("app.main", "app.Dog(__init__)") in result
+
+    def test_constructor_expansion_preserves_existing_ctor_call_sites(self):
+        lsp = _make_lsp()
+        adapter = _make_adapter()
+        builder = CallGraphBuilder(lsp, adapter, Path("/project"))
+
+        caller = SymbolInfo("main", "app.main", NodeType.FUNCTION, Path("/project/app.py"), 0, 0, 20, 0)
+        cls = SymbolInfo("Dog", "app.Dog", NodeType.CLASS, Path("/project/app.py"), 25, 0, 50, 0)
+        ctor = SymbolInfo("__init__", "app.Dog(__init__)", NodeType.CONSTRUCTOR, Path("/project/app.py"), 30, 4, 40, 0)
+        st = builder._symbol_table
+        st._symbols["app.main"] = caller
+        st._symbols["app.Dog"] = cls
+        st._symbols["app.Dog(__init__)"] = ctor
+        file_key = str(Path("/project/app.py"))
+        st._file_symbols[file_key] = [caller, cls, ctor]
+        st._primary_file_symbols[file_key] = [caller, cls, ctor]
+        st.build_indices()
+
+        direct_site = CallSite(file="/project/app.py", line=2, column=5)
+        class_site = CallSite(file="/project/app.py", line=3, column=9)
+        edge_set = {
+            ("app.main", "app.Dog(__init__)"): [direct_site],
+            ("app.main", "app.Dog"): [class_site],
+        }
+        result = builder._postprocess_edges(edge_set)
+
+        assert result[("app.main", "app.Dog(__init__)")] == [direct_site, class_site]
 
 
 class TestBuildPackageDeps:

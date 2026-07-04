@@ -281,8 +281,13 @@ class CallGraphBuilder:
                 ctors = st.class_to_ctors.get(dst)
                 if ctors:
                     for ctor_name in ctors:
-                        constructor_edges[(src, ctor_name)] = list(edge_set[(src, dst)])
-        edge_set.update(constructor_edges)
+                        ctor_key = (src, ctor_name)
+                        sites = constructor_edges.setdefault(ctor_key, list(edge_set.get(ctor_key, [])))
+                        for site in edge_set[(src, dst)]:
+                            if site not in sites:
+                                sites.append(site)
+        for edge, sites in constructor_edges.items():
+            edge_set[edge] = sites
 
         return edge_set
 
