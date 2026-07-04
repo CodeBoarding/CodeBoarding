@@ -99,6 +99,8 @@ class Edge:
         return f"Edge({self.src_node.fully_qualified_name} -> {self.dst_node.fully_qualified_name})"
 
     def add_call_site(self, call_site: dict | None) -> None:
+        if call_site is None:
+            return
         if call_site not in self.call_sites:
             self.call_sites.append(call_site)
 

@@ -1,7 +1,9 @@
 """Tests for the Rust language adapter."""
 
 import shutil
+import subprocess
 from pathlib import Path
+from unittest.mock import Mock
 from unittest.mock import patch
 
 import pytest
@@ -75,6 +77,30 @@ class TestGetLspCommandCargoCheck:
             with pytest.raises(RuntimeError, match=r"cargo not found.*rustup\.rs"):
                 RustAdapter().get_lsp_command(tmp_path)
 
+    def test_raises_when_cargo_is_broken(self, tmp_path: Path) -> None:
+        (tmp_path / "Cargo.toml").write_text("[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n")
+
+        def broken_cargo(*args, **kwargs):
+            raise subprocess.CalledProcessError(134, args[0], stderr="dyld: Library not loaded")
+
+        with patch("static_analyzer.engine.adapters.rust_adapter.shutil.which", return_value="/usr/local/bin/cargo"):
+            with patch("static_analyzer.engine.adapters.rust_adapter.subprocess.run", side_effect=broken_cargo):
+                with pytest.raises(RuntimeError, match="cargo is installed but failed to run"):
+                    RustAdapter().get_lsp_command(tmp_path)
+
+    def test_raises_when_cargo_metadata_fails(self, tmp_path: Path) -> None:
+        (tmp_path / "Cargo.toml").write_text("[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n")
+
+        def run_cargo(args, **kwargs):
+            if args[:2] == ["cargo", "metadata"]:
+                raise subprocess.CalledProcessError(101, args, stderr="metadata failed")
+            return subprocess.CompletedProcess(args, 0, stdout="cargo 1.0.0", stderr="")
+
+        with patch("static_analyzer.engine.adapters.rust_adapter.shutil.which", return_value="/usr/local/bin/cargo"):
+            with patch("static_analyzer.engine.adapters.rust_adapter.subprocess.run", side_effect=run_cargo):
+                with pytest.raises(RuntimeError, match="cargo metadata failed"):
+                    RustAdapter().get_lsp_command(tmp_path)
+
     def test_returns_command_when_cargo_present(self, tmp_path: Path) -> None:
         # Selective patch: ``cargo`` resolves to a fake path, every other
         # binary lookup (including the ``rust-analyzer`` lookup performed
@@ -91,7 +117,9 @@ class TestGetLspCommandCargoCheck:
             return real_which(name)
 
         with patch("static_analyzer.engine.adapters.rust_adapter.shutil.which", side_effect=selective):
-            cmd = RustAdapter().get_lsp_command(tmp_path)
+            with patch("static_analyzer.engine.adapters.rust_adapter.subprocess.run") as run:
+                run.return_value = subprocess.CompletedProcess(["cargo", "--version"], 0, stdout="cargo 1.0.0")
+                cmd = RustAdapter().get_lsp_command(tmp_path)
         # The base resolver returns whatever ``build_config`` produces:
         # an absolute ``rust-analyzer`` path if installed, otherwise the
         # bare ``["rust-analyzer"]`` from ``VSCODE_CONFIG``. Both contain
@@ -167,6 +195,19 @@ class TestWaitForDiagnostics:
         adapter.wait_for_diagnostics(FakeClient())  # type: ignore[arg-type]
         assert "reset" in events
         assert "quiesce" in events, "should fall back to debounce when no signal arrives"
+
+
+class TestValidateWorkspaceReady:
+    def test_raises_when_rust_analyzer_health_is_error(self):
+        client = Mock(server_health="error", server_health_message="cargo metadata failed")
+
+        with pytest.raises(RuntimeError, match="rust-analyzer reported an unusable workspace"):
+            RustAdapter().validate_workspace_ready(client)
+
+    def test_allows_warning_health(self):
+        client = Mock(server_health="warning", server_health_message="diagnostics present")
+
+        RustAdapter().validate_workspace_ready(client)
 
 
 class TestBuildQualifiedName:

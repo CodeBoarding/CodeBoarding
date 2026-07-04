@@ -258,6 +258,7 @@ class StaticAnalyzer:
                 # check doesn't keep growing.
                 if adapter.wait_for_workspace_ready:
                     engine_client.wait_for_server_ready()
+                    adapter.validate_workspace_ready(engine_client)
                     logger.info(f"{adapter.language} workspace ready: {time.monotonic() - t_lsp_started:.1f}s")
 
                 started.append((engine_config, engine_client))

@@ -577,6 +577,19 @@ class TestHandleNotification:
         )
 
         assert client._server_ready.is_set()
+        assert client.server_health == "warning"
+
+    def test_rust_analyzer_records_error_health_message(self):
+        client = LSPClient(["cmd"], Path("/root"))
+
+        client._handle_notification(
+            "experimental/serverStatus",
+            {"health": "error", "quiescent": True, "message": "cargo metadata failed"},
+        )
+
+        assert client._server_ready.is_set()
+        assert client.server_health == "error"
+        assert client.server_health_message == "cargo metadata failed"
 
     def test_rust_analyzer_non_quiescent_does_not_mark_ready(self):
         """Status updates during indexing should not unblock waiters."""
