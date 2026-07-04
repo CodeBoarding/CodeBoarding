@@ -8,6 +8,7 @@ Two strategies are provided:
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from pathlib import Path
 
 from static_analyzer.engine.edge_build_context import EdgeBuildContext
@@ -25,6 +26,23 @@ from static_analyzer.engine.utils import uri_to_path
 logger = logging.getLogger(__name__)
 
 EdgeMap = dict[tuple[str, str], list[CallSite]]
+
+
+@dataclass(frozen=True)
+class ImplementationQuery:
+    caller_qname: str
+    target_file: Path
+    target_line: int
+    target_char: int
+    call_site: CallSite
+
+
+@dataclass(frozen=True)
+class DefinitionResolution:
+    edge_set: EdgeMap
+    impl_queries_pending: list[ImplementationQuery]
+    total_sites: int
+    total_resolved: int
 
 
 # ---------------------------------------------------------------------------
@@ -241,20 +259,20 @@ def build_edges_via_definitions(
 
     pos_to_sym, line_to_syms = _build_definition_lookups(st)
 
-    edge_set, impl_queries_pending, total_sites, total_resolved = _resolve_definitions(
-        adapter, ctx, source_files, pos_to_sym, line_to_syms
-    )
+    resolution = _resolve_definitions(adapter, ctx, source_files, pos_to_sym, line_to_syms)
 
-    total_impl_resolved = _resolve_implementations(ctx, edge_set, impl_queries_pending, pos_to_sym, line_to_syms)
+    total_impl_resolved = _resolve_implementations(
+        ctx, resolution.edge_set, resolution.impl_queries_pending, pos_to_sym, line_to_syms
+    )
 
     logger.info(
         "Phase 2 summary: %d call sites, %d def resolved, %d impl resolved, %d raw edges",
-        total_sites,
-        total_resolved,
+        resolution.total_sites,
+        resolution.total_resolved,
         total_impl_resolved,
-        len(edge_set),
+        len(resolution.edge_set),
     )
-    return edge_set
+    return resolution.edge_set
 
 
 def _build_definition_lookups(
@@ -284,18 +302,15 @@ def _resolve_definitions(
     source_files: list[Path],
     pos_to_sym: dict[tuple[str, int, int], SymbolInfo],
     line_to_syms: dict[tuple[str, int], list[SymbolInfo]],
-) -> tuple[EdgeMap, list[tuple[str, Path, int, int, CallSite]], int, int]:
-    """Phase 2a: Resolve call sites via textDocument/definition.
-
-    Returns (edge_set, impl_queries_pending, total_sites, total_resolved).
-    """
+) -> DefinitionResolution:
+    """Phase 2a: Resolve call sites via textDocument/definition."""
     edge_set: EdgeMap = {}
     st = ctx.symbol_table
     total_files = len(source_files)
     total_sites = 0
     total_resolved = 0
     batch_size = 50
-    impl_queries_pending: list[tuple[str, Path, int, int, CallSite]] = []
+    impl_queries_pending: list[ImplementationQuery] = []
 
     pbar = ProgressLogger("Phase 2 (definitions)", total_files, unit="file")
     for file_path in source_files:
@@ -360,12 +375,12 @@ def _resolve_definitions(
                     # Queue implementation query for polymorphic dispatch
                     if adapter.is_callable(target.kind):
                         impl_queries_pending.append(
-                            (
-                                caller.qualified_name,
-                                target.file_path,
-                                target.start_line,
-                                target.start_char,
-                                call_site,
+                            ImplementationQuery(
+                                caller_qname=caller.qualified_name,
+                                target_file=target.file_path,
+                                target_line=target.start_line,
+                                target_char=target.start_char,
+                                call_site=call_site,
                             )
                         )
 
@@ -373,13 +388,18 @@ def _resolve_definitions(
         pbar.update(1)
     pbar.finish()
 
-    return edge_set, impl_queries_pending, total_sites, total_resolved
+    return DefinitionResolution(
+        edge_set=edge_set,
+        impl_queries_pending=impl_queries_pending,
+        total_sites=total_sites,
+        total_resolved=total_resolved,
+    )
 
 
 def _resolve_implementations(
     ctx: EdgeBuildContext,
     edge_set: EdgeMap,
-    impl_queries_pending: list[tuple[str, Path, int, int, CallSite]],
+    impl_queries_pending: list[ImplementationQuery],
     pos_to_sym: dict[tuple[str, int, int], SymbolInfo],
     line_to_syms: dict[tuple[str, int], list[SymbolInfo]],
 ) -> int:
@@ -391,9 +411,9 @@ def _resolve_implementations(
     batch_size = 50
 
     target_pos_to_callers: dict[tuple[str, int, int], list[tuple[str, CallSite]]] = {}
-    for caller_qname, tgt_file, tgt_line, tgt_char, call_site in impl_queries_pending:
-        tgt_key = (str(tgt_file), tgt_line, tgt_char)
-        target_pos_to_callers.setdefault(tgt_key, []).append((caller_qname, call_site))
+    for query in impl_queries_pending:
+        tgt_key = (str(query.target_file), query.target_line, query.target_char)
+        target_pos_to_callers.setdefault(tgt_key, []).append((query.caller_qname, query.call_site))
 
     unique_impl_targets = list(target_pos_to_callers.keys())
     total_impl_queries = len(unique_impl_targets)
