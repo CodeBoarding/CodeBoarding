@@ -82,7 +82,7 @@ class Edge:
     def __init__(self, src_node: Node, dst_node: Node, call_sites: list[dict]) -> None:
         self.src_node = src_node
         self.dst_node = dst_node
-        self._call_sites = call_sites
+        self._call_sites = [self._normalize_call_site(site) for site in call_sites]
 
     @property
     def call_sites(self) -> list[dict]:
@@ -90,7 +90,7 @@ class Edge:
 
     @call_sites.setter
     def call_sites(self, value: list[dict]) -> None:
-        self._call_sites = value
+        self._call_sites = [self._normalize_call_site(site) for site in value]
 
     def get_source(self) -> str:
         return self.src_node.fully_qualified_name
@@ -102,8 +102,16 @@ class Edge:
         return f"Edge({self.src_node.fully_qualified_name} -> {self.dst_node.fully_qualified_name})"
 
     def add_call_site(self, call_site: dict) -> None:
+        call_site = self._normalize_call_site(call_site)
         if call_site not in self.call_sites:
             self.call_sites.append(call_site)
+
+    @staticmethod
+    def _normalize_call_site(call_site: dict) -> dict:
+        normalized = dict(call_site)
+        if "file" not in normalized and "file_path" in normalized:
+            normalized["file"] = normalized.pop("file_path")
+        return normalized
 
 
 class CallGraph:
@@ -294,8 +302,6 @@ class CallGraph:
             for site in edge.call_sites:
                 if "file" in site:
                     site["file"] = fn(site["file"])
-                elif "file_path" in site:
-                    site["file_path"] = fn(site["file_path"])
         if self._cluster_cache is not None:
             self._cluster_cache.visit_paths(fn)
 
