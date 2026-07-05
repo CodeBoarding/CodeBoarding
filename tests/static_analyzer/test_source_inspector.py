@@ -10,6 +10,17 @@ def _positions(sites: list[CallSite]) -> set[tuple[int, int]]:
     return {(site.line, site.column) for site in sites}
 
 
+def test_call_site_exposes_human_and_lsp_positions() -> None:
+    site = CallSite.from_lsp_position(file="/tmp/app.py", line=0, column=4)
+
+    assert site.line == 1
+    assert site.column == 5
+    assert site.human_line == 1
+    assert site.human_column == 5
+    assert site.lsp_line == 0
+    assert site.lsp_column == 4
+
+
 class TestGetSourceLine:
     def test_reads_existing_line(self, tmp_path: Path):
         f = tmp_path / "test.py"
@@ -187,3 +198,10 @@ class TestFindCallSites:
         sites = si.find_call_sites(f)
         # "sort" should be found via the call pattern
         assert any(site.line == 1 for site in sites)
+
+    def test_uses_shared_constants_for_module_suffixes(self, tmp_path: Path):
+        f = tmp_path / "test.mjs"
+        f.write_text("foo()\n")
+        si = SourceInspector()
+
+        assert (1, 1) in _positions(si.find_call_sites(f))

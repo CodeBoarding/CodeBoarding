@@ -11,6 +11,7 @@ from tree_sitter import Language as TreeSitterLanguage
 from tree_sitter import Node as TreeSitterNode
 from tree_sitter import Parser, Tree
 
+from static_analyzer.constants import LANGUAGE_EXTENSIONS, Language
 from static_analyzer.engine.models import CallSite
 
 import tree_sitter_c_sharp
@@ -27,18 +28,25 @@ logger = logging.getLogger(__name__)
 
 LanguageFactory = Callable[[], object]
 
-_LANGUAGE_BY_SUFFIX: dict[str, LanguageFactory] = {
-    ".py": tree_sitter_python.language,
-    ".js": tree_sitter_javascript.language,
-    ".jsx": tree_sitter_javascript.language,
-    ".ts": tree_sitter_typescript.language_typescript,
-    ".tsx": tree_sitter_typescript.language_tsx,
-    ".php": tree_sitter_php.language_php,
-    ".go": tree_sitter_go.language,
-    ".java": tree_sitter_java.language,
-    ".rs": tree_sitter_rust.language,
-    ".cs": tree_sitter_c_sharp.language,
+_LANGUAGE_FACTORY_BY_LANGUAGE: dict[Language, LanguageFactory] = {
+    Language.PYTHON: tree_sitter_python.language,
+    Language.JAVASCRIPT: tree_sitter_javascript.language,
+    Language.GO: tree_sitter_go.language,
+    Language.JAVA: tree_sitter_java.language,
+    Language.PHP: tree_sitter_php.language_php,
+    Language.RUST: tree_sitter_rust.language,
+    Language.CSHARP: tree_sitter_c_sharp.language,
 }
+_LANGUAGE_BY_SUFFIX: dict[str, LanguageFactory] = {
+    suffix: _LANGUAGE_FACTORY_BY_LANGUAGE[language]
+    for language, suffixes in LANGUAGE_EXTENSIONS.items()
+    if language in _LANGUAGE_FACTORY_BY_LANGUAGE
+    for suffix in suffixes
+}
+_LANGUAGE_BY_SUFFIX[".ts"] = tree_sitter_typescript.language_typescript
+_LANGUAGE_BY_SUFFIX[".mts"] = tree_sitter_typescript.language_typescript
+_LANGUAGE_BY_SUFFIX[".cts"] = tree_sitter_typescript.language_typescript
+_LANGUAGE_BY_SUFFIX[".tsx"] = tree_sitter_typescript.language_tsx
 
 _CALL_NODE_TYPES = frozenset(
     {
@@ -145,7 +153,7 @@ class SourceInspector:
             if pos in seen:
                 continue
             seen.add(pos)
-            sites.append(CallSite(file=str(file_path), line=pos[0] + 1, column=pos[1] + 1))
+            sites.append(CallSite.from_lsp_position(file=str(file_path), line=pos[0], column=pos[1]))
         return sites
 
     def _read_file_bytes(self, file_path: Path) -> bytes | None:

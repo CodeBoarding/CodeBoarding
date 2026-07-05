@@ -323,7 +323,7 @@ def _resolve_definitions(
 
         for batch_start in range(0, len(call_sites), batch_size):
             batch = call_sites[batch_start : batch_start + batch_size]
-            queries = [(file_path, site.line - 1, site.column - 1) for site in batch]
+            queries = [(file_path, site.lsp_line, site.lsp_column) for site in batch]
 
             try:
                 results, _ = ctx.lsp.send_definition_batch(queries)
@@ -332,8 +332,8 @@ def _resolve_definitions(
                 continue
 
             for i, call_site in enumerate(batch):
-                site_line = call_site.line - 1
-                site_col = call_site.column - 1
+                site_line = call_site.lsp_line
+                site_col = call_site.lsp_column
                 defs = results[i] if i < len(results) else []
                 if not defs:
                     continue
@@ -463,7 +463,7 @@ def _resolve_implementations(
 
 def _call_site(file_path: Path, line: int, column: int) -> CallSite:
     """Convert LSP's zero-based position to the public one-based call-site shape."""
-    return CallSite(file=str(file_path), line=line + 1, column=column + 1)
+    return CallSite.from_lsp_position(file=str(file_path), line=line, column=column)
 
 
 def _add_edge_site(edge_set: EdgeMap, source: str, destination: str, file_path: Path, line: int, column: int) -> None:

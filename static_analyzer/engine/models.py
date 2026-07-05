@@ -38,6 +38,26 @@ class CallSite:
     line: int
     column: int
 
+    @classmethod
+    def from_lsp_position(cls, file: str, line: int, column: int) -> "CallSite":
+        return cls(file=file, line=line + 1, column=column + 1)
+
+    @property
+    def human_line(self) -> int:
+        return self.line
+
+    @property
+    def human_column(self) -> int:
+        return self.column
+
+    @property
+    def lsp_line(self) -> int:
+        return self.line - 1
+
+    @property
+    def lsp_column(self) -> int:
+        return self.column - 1
+
 
 @dataclass
 class Edge:

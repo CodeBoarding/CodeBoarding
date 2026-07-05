@@ -115,11 +115,9 @@ class CallGraph:
     ) -> None:
         self.nodes = dict(nodes)
         self.edges = list(edges)
-        self._edge_set: set[tuple[str, str]] = set()
         self._edge_by_key: dict[tuple[str, str], Edge] = {}
         for edge in self.edges:
             edge_key = (edge.get_source(), edge.get_destination())
-            self._edge_set.add(edge_key)
             self._edge_by_key[edge_key] = edge
         self.language = language.lower()
         # Every adapter currently emits ``.``-separated qualified names; see
@@ -156,18 +154,14 @@ class CallGraph:
                     if target == existing_name:
                         self._alias_to_canonical[alias] = canonical
                 self._alias_to_canonical[existing_name] = canonical
-                # Rewrite _edge_set so dedup works under the new canonical name
-                new_edge_set: set[tuple[str, str]] = set()
-                for s, d in self._edge_set:
+                for s, d in self._edge_by_key:
                     new_s = canonical if s == existing_name else s
                     new_d = canonical if d == existing_name else d
-                    new_edge_set.add((new_s, new_d))
                     # Update methods_called_by_me on source nodes
                     if d == existing_name and new_s in self.nodes:
                         src_node = self.nodes[new_s]
                         src_node.methods_called_by_me.discard(existing_name)
                         src_node.methods_called_by_me.add(canonical)
-                self._edge_set = new_edge_set
                 self._edge_by_key = {(edge.get_source(), edge.get_destination()): edge for edge in self.edges}
             else:
                 # Existing name is already the most specific — record alias.
@@ -194,7 +188,7 @@ class CallGraph:
             raise ValueError("Both source and destination nodes must exist in the graph.")
 
         edge_key = (src_name, dst_name)
-        if edge_key in self._edge_set:
+        if edge_key in self._edge_by_key:
             for call_site in call_sites:
                 self._edge_by_key[edge_key].add_call_site(dict(call_site))
             return
@@ -203,7 +197,6 @@ class CallGraph:
         for call_site in call_sites:
             edge.add_call_site(dict(call_site))
         self.edges.append(edge)
-        self._edge_set.add(edge_key)
         self._edge_by_key[edge_key] = edge
 
         self.nodes[src_name].added_method_called_by_me(self.nodes[dst_name])
