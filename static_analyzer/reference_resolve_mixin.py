@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 from pathlib import Path
 from typing import Any
 
@@ -42,6 +43,7 @@ class ReferenceResolverMixin:
             for edge in relation.key_edges:
                 self._resolve_single_reference(edge.source, src_candidates)
                 self._resolve_single_reference(edge.target, dst_candidates)
+                self._attach_static_call_sites(edge)
 
         # Remove unresolved references
         self._remove_unresolved_references(analysis)
@@ -64,6 +66,10 @@ class ReferenceResolverMixin:
 
         for lang in languages:
             if self._try_loose_match(reference, qname, lang):
+                return
+
+        for lang in languages:
+            if self._try_symbol_token_match(reference, qname, lang):
                 return
 
         for lang in languages:
@@ -94,10 +100,7 @@ class ReferenceResolverMixin:
         try:
             _, node = self.static_analysis.get_loose_reference(lang, qname)
             if node is not None:
-                reference.reference_file = node.file_path
-                reference.reference_start_line = node.line_start
-                reference.reference_end_line = node.line_end
-                reference.qualified_name = node.fully_qualified_name
+                self._apply_resolved_node(reference, node)
                 logger.info(
                     f"[Reference Resolution] Loosely matched {reference.qualified_name} in {lang} at {reference.reference_file}"
                 )
@@ -105,6 +108,62 @@ class ReferenceResolverMixin:
         except Exception as e:
             logger.warning(f"[Reference Resolution] Loose match failed for {qname} in {lang}: {e}")
         return False
+
+    def _try_symbol_token_match(self, reference, qname, lang):
+        """Resolve malformed qualified names by unique backwards token match."""
+        query_tokens = self._symbol_tokens(qname)
+        if not query_tokens:
+            return False
+
+        candidates = [
+            node
+            for node in self.static_analysis.iter_reference_nodes(lang)
+            if self._candidate_tokens_match(query_tokens, self._symbol_tokens(node.fully_qualified_name))
+        ]
+        if not candidates:
+            return False
+
+        selected = self._unique_backwards_token_match(query_tokens, candidates)
+        if selected is None:
+            return False
+
+        self._apply_resolved_node(reference, selected)
+        logger.info(
+            f"[Reference Resolution] Token matched {qname} -> {reference.qualified_name} in {lang} at {reference.reference_file}"
+        )
+        return True
+
+    def _apply_resolved_node(self, reference, node) -> None:
+        reference.reference_file = node.file_path
+        reference.reference_start_line = node.line_start
+        reference.reference_end_line = node.line_end
+        reference.qualified_name = node.fully_qualified_name
+
+    def _unique_backwards_token_match(self, query_tokens: list[str], candidates: list[Any]):
+        matching = candidates
+        for suffix_len in range(1, len(query_tokens) + 1):
+            query_suffix = query_tokens[-suffix_len:]
+            narrowed = [
+                node
+                for node in matching
+                if len(self._symbol_tokens(node.fully_qualified_name)) >= suffix_len
+                and self._symbol_tokens(node.fully_qualified_name)[-suffix_len:] == query_suffix
+            ]
+            if len(narrowed) == 1:
+                return narrowed[0]
+            if narrowed:
+                matching = narrowed
+        return None
+
+    def _symbol_tokens(self, qualified_name: str) -> list[str]:
+        return [token.lower() for token in re.split(r"[.:/\\]+", qualified_name) if token]
+
+    def _candidate_tokens_match(self, query_tokens: list[str], candidate_tokens: list[str]) -> bool:
+        """Return true when the final symbol and explicit module tokens match."""
+        if candidate_tokens[-1:] != query_tokens[-1:]:
+            return False
+        required_context = [token for token in query_tokens[:-1] if token.startswith("_")]
+        return all(token in candidate_tokens for token in required_context)
 
     def _try_file_path_resolution(self, reference, qname, lang, file_candidates: list[str] | None = None):
         """Attempts to resolve reference through file path matching."""
@@ -183,7 +242,7 @@ class ReferenceResolverMixin:
             component.key_entities = [
                 ref
                 for ref in component.key_entities
-                if ref.reference_file is not None and os.path.exists(ref.reference_file)
+                if ref.reference_file is not None and self._reference_file_exists(ref.reference_file)
             ]
             removed_ref_count = original_ref_count - len(component.key_entities)
             if removed_ref_count > 0:
@@ -195,15 +254,7 @@ class ReferenceResolverMixin:
         resolved_relations = []
         for relation in analysis.components_relations:
             original_edge_count = len(relation.key_edges)
-            relation.key_edges = [
-                edge
-                for edge in relation.key_edges
-                if edge.source.reference_file is not None
-                and os.path.exists(edge.source.reference_file)
-                and edge.target.reference_file is not None
-                and os.path.exists(edge.target.reference_file)
-                and not self._same_resolved_relation_endpoint(edge)
-            ]
+            relation.key_edges = [edge for edge in relation.key_edges if self._keep_relation_edge(edge, relation)]
             removed_edge_count = original_edge_count - len(relation.key_edges)
             if removed_edge_count > 0:
                 logger.info(
@@ -213,13 +264,99 @@ class ReferenceResolverMixin:
             if not relation.is_static:
                 relation.all_edges = relation.key_edges
                 if not relation.key_edges:
-                    logger.info(
-                        f"[Reference Resolution] Removed unsupported relation '{relation.src_name}' -> "
-                        f"'{relation.dst_name}' after all key edges failed to resolve"
-                    )
-                    continue
+                    if not relation.evidence.strip():
+                        logger.info(
+                            f"[Reference Resolution] Removed unsupported relation '{relation.src_name}' -> "
+                            f"'{relation.dst_name}' after all key edges failed to resolve"
+                        )
+                        continue
             resolved_relations.append(relation)
         analysis.components_relations = resolved_relations
+
+    def _keep_relation_edge(self, edge, relation) -> bool:
+        """Keep static edges and evidence-backed LLM edges."""
+        if self._same_resolved_relation_endpoint(edge):
+            return False
+        if self._resolved_relation_edge(edge):
+            return True
+        return self._external_relation_edge(edge)
+
+    def _resolved_relation_edge(self, edge) -> bool:
+        """Return true when both edge endpoints resolve to existing files."""
+        return (
+            edge.source.reference_file is not None
+            and self._reference_file_exists(edge.source.reference_file)
+            and edge.target.reference_file is not None
+            and self._reference_file_exists(edge.target.reference_file)
+        )
+
+    def _external_relation_edge(self, edge) -> bool:
+        """Return true when one endpoint is repo code and the other is external."""
+        source_resolved = edge.source.reference_file is not None and self._reference_file_exists(
+            edge.source.reference_file
+        )
+        target_resolved = edge.target.reference_file is not None and self._reference_file_exists(
+            edge.target.reference_file
+        )
+        if source_resolved == target_resolved:
+            return False
+        unresolved = edge.target if source_resolved else edge.source
+        return not self._looks_internal_reference(unresolved.qualified_name)
+
+    def _looks_internal_reference(self, qualified_name: str) -> bool:
+        """Return true when an unresolved name appears to refer to repo code."""
+        tokens = self._symbol_tokens(qualified_name)
+        if not tokens:
+            return False
+        if tokens[0] in self._internal_reference_roots():
+            return True
+        internal_tokens = self._internal_reference_tokens()
+        return any(token.startswith("_") and token in internal_tokens for token in tokens)
+
+    def _internal_reference_roots(self) -> set[str]:
+        return {token for token in self._internal_reference_tokens() if token not in {"packages", "src", "lib"}}
+
+    def _internal_reference_tokens(self) -> set[str]:
+        tokens: set[str] = set()
+        for lang in self.static_analysis.get_languages():
+            for node in self.static_analysis.iter_reference_nodes(lang):
+                tokens.update(self._symbol_tokens(node.fully_qualified_name))
+        return tokens
+
+    def _reference_file_exists(self, reference_file: str) -> bool:
+        """Return true for absolute paths or paths relative to the analyzed repo."""
+        path = Path(reference_file)
+        if path.is_absolute():
+            return path.exists()
+        return (self.repo_dir / path).exists()
+
+    def _attach_static_call_sites(self, edge) -> None:
+        """Copy call-site metadata from the exact static CFG edge when present."""
+        static_edge = self._find_static_edge(edge)
+        if static_edge is None:
+            return
+        edge.call_sites = [
+            {"line": int(site.get("line", 0)), "column": int(site.get("column", 0))} for site in static_edge.call_sites
+        ]
+
+    def _has_static_edge(self, edge) -> bool:
+        """Return true when a resolved relation edge exists in the static CFG."""
+        return self._find_static_edge(edge) is not None
+
+    def _find_static_edge(self, relation_edge):
+        source_qname = relation_edge.source.qualified_name
+        target_qname = relation_edge.target.qualified_name
+        if not source_qname or not target_qname:
+            return None
+        for lang in self.static_analysis.get_languages():
+            try:
+                cfg = self.static_analysis.get_cfg(lang)
+            except ValueError:
+                continue
+            for edge in cfg.edges:
+                if edge.get_source() == source_qname and edge.get_destination() == target_qname:
+                    return edge
+        return None
 
     def _same_resolved_relation_endpoint(self, edge) -> bool:
         """Return true when a relation edge points to the same resolved symbol."""

@@ -629,7 +629,7 @@ class TestValidateRelationEvidence(unittest.TestCase):
         self.assertFalse(result.is_valid)
         self.assertIn("A -> B", result.feedback_messages[0])
 
-    def test_runtime_evidence_without_key_edges_does_not_allow_relation_without_static_edge(self):
+    def test_runtime_evidence_without_key_edges_allows_llm_only_relation(self):
         analysis = self._make_analysis(
             Relation(
                 relation="sends REST requests to",
@@ -641,8 +641,7 @@ class TestValidateRelationEvidence(unittest.TestCase):
 
         result = validate_relation_evidence(analysis, self._make_context(("b.load", "a.run")))
 
-        self.assertFalse(result.is_valid)
-        self.assertIn("Evidence text alone is not enough", result.feedback_messages[0])
+        self.assertTrue(result.is_valid)
 
     def test_runtime_key_edges_allow_relation_without_static_edge(self):
         analysis = self._make_analysis(
@@ -664,7 +663,7 @@ class TestValidateRelationEvidence(unittest.TestCase):
 
         self.assertTrue(result.is_valid)
 
-    def test_unresolvable_key_edges_do_not_allow_relation_without_static_edge(self):
+    def test_unresolvable_key_edges_with_description_are_rejected_as_hallucinated(self):
         analysis = self._make_analysis(
             Relation(
                 relation="dispatches through registry",
@@ -688,7 +687,70 @@ class TestValidateRelationEvidence(unittest.TestCase):
         result = validate_relation_evidence(analysis, context)
 
         self.assertFalse(result.is_valid)
-        self.assertIn("A -> B", result.feedback_messages[0])
+        self.assertIn("look hallucinated", result.feedback_messages[0])
+
+    def test_external_unresolved_key_edge_endpoint_allows_relation(self):
+        analysis = self._make_analysis(
+            Relation(
+                relation="calls external LLM API",
+                src_name="A",
+                dst_name="B",
+                key_edges=[
+                    RelationEdge(
+                        source=SourceCodeReference(qualified_name="service.OCR.extract_text"),
+                        target=SourceCodeReference(qualified_name="openai.OpenAI"),
+                        description="External OpenAI client call",
+                    )
+                ],
+            )
+        )
+        source_node = MagicMock()
+        source_node.fully_qualified_name = "service.OCR.extract_text"
+        source_node.file_path = "service.py"
+        source_node.line_start = 1
+        source_node.line_end = 2
+        context = self._make_context(("b.load", "a.run"))
+        context.static_analysis = MagicMock()
+        context.static_analysis.get_languages.return_value = ["python"]
+        context.static_analysis.get_reference.side_effect = [source_node, ValueError("not found")]
+        context.static_analysis.get_loose_reference.return_value = ("", None)
+        context.static_analysis.iter_reference_nodes.return_value = [source_node]
+
+        result = validate_relation_evidence(analysis, context)
+
+        self.assertTrue(result.is_valid)
+
+    def test_internal_unresolved_key_edge_endpoint_is_rejected(self):
+        analysis = self._make_analysis(
+            Relation(
+                relation="calls helper",
+                src_name="A",
+                dst_name="B",
+                key_edges=[
+                    RelationEdge(
+                        source=SourceCodeReference(qualified_name="service.OCR.extract_text"),
+                        target=SourceCodeReference(qualified_name="service._missing_helper"),
+                        description="Internal helper call",
+                    )
+                ],
+            )
+        )
+        source_node = MagicMock()
+        source_node.fully_qualified_name = "service.OCR.extract_text"
+        source_node.file_path = "service.py"
+        source_node.line_start = 1
+        source_node.line_end = 2
+        context = self._make_context(("b.load", "a.run"))
+        context.static_analysis = MagicMock()
+        context.static_analysis.get_languages.return_value = ["python"]
+        context.static_analysis.get_reference.side_effect = [source_node, ValueError("not found")]
+        context.static_analysis.get_loose_reference.return_value = ("", None)
+        context.static_analysis.iter_reference_nodes.return_value = [source_node]
+
+        result = validate_relation_evidence(analysis, context)
+
+        self.assertFalse(result.is_valid)
+        self.assertIn("look hallucinated", result.feedback_messages[0])
 
     def test_partially_supported_relation_set_gets_partial_score(self):
         analysis = AnalysisInsights(
@@ -708,7 +770,7 @@ class TestValidateRelationEvidence(unittest.TestCase):
         self.assertFalse(result.is_valid)
         self.assertEqual(result.score, 0.5)
 
-    def test_resolvable_key_edges_allow_relation_without_static_edge(self):
+    def test_resolvable_key_edges_with_description_allow_llm_only_relation(self):
         analysis = self._make_analysis(
             Relation(
                 relation="dispatches through registry",
@@ -724,8 +786,50 @@ class TestValidateRelationEvidence(unittest.TestCase):
             )
         )
         source_node = MagicMock()
+        source_node.fully_qualified_name = "a.run"
+        source_node.file_path = "a.py"
+        source_node.line_start = 1
+        source_node.line_end = 2
         target_node = MagicMock()
+        target_node.fully_qualified_name = "b.load"
+        target_node.file_path = "b.py"
+        target_node.line_start = 1
+        target_node.line_end = 2
         context = self._make_context(("b.load", "a.run"))
+        context.static_analysis = MagicMock()
+        context.static_analysis.get_languages.return_value = ["python"]
+        context.static_analysis.get_reference.side_effect = [source_node, target_node]
+
+        result = validate_relation_evidence(analysis, context)
+
+        self.assertTrue(result.is_valid)
+
+    def test_resolvable_key_edges_with_cfg_edge_allow_relation(self):
+        analysis = self._make_analysis(
+            Relation(
+                relation="dispatches through registry",
+                src_name="A",
+                dst_name="B",
+                key_edges=[
+                    RelationEdge(
+                        source=SourceCodeReference(qualified_name="a.run"),
+                        target=SourceCodeReference(qualified_name="b.load"),
+                        description="A dispatches to B through a registry",
+                    )
+                ],
+            )
+        )
+        source_node = MagicMock()
+        source_node.fully_qualified_name = "a.run"
+        source_node.file_path = "a.py"
+        source_node.line_start = 1
+        source_node.line_end = 2
+        target_node = MagicMock()
+        target_node.fully_qualified_name = "b.load"
+        target_node.file_path = "b.py"
+        target_node.line_start = 1
+        target_node.line_end = 2
+        context = self._make_context(("a.run", "b.load"))
         context.static_analysis = MagicMock()
         context.static_analysis.get_languages.return_value = ["python"]
         context.static_analysis.get_reference.side_effect = [source_node, target_node]

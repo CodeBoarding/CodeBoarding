@@ -488,7 +488,7 @@ class TestAnalysisJsonConversion(unittest.TestCase):
         self.assertEqual(edge.description, "dispatches through registry")
         self.assertEqual(edge.call_sites, [{"line": 14, "column": 6}, {"line": 16, "column": 10}])
 
-    def test_from_analysis_to_json_infers_multiple_llm_key_edge_call_sites(self):
+    def test_from_analysis_to_json_does_not_infer_unproven_key_edge_call_sites(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
             source_file = Path(tmp_dir) / "component1.py"
             source_file.write_text(
@@ -548,7 +548,7 @@ class TestAnalysisJsonConversion(unittest.TestCase):
             data = json.loads(from_analysis_to_json(self.analysis, []))
 
         key_edge = data["components_relations"][0]["key_edges"][0]
-        self.assertEqual(key_edge["call_sites"], [{"line": 3, "column": 9}, {"line": 5, "column": 9}])
+        self.assertEqual(key_edge["call_sites"], [{"line": 0, "column": 0}])
 
     def test_from_analysis_to_json_normalizes_absolute_relation_edge_paths(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -592,7 +592,7 @@ class TestAnalysisJsonConversion(unittest.TestCase):
         key_edge = data["components_relations"][0]["key_edges"][0]
         self.assertEqual(key_edge["source"], "component1.py|component1.run")
         self.assertEqual(key_edge["target"], "component1.py|component1.load")
-        self.assertEqual(key_edge["call_sites"], [{"line": 2, "column": 5}])
+        self.assertEqual(key_edge["call_sites"], [{"line": 0, "column": 0}])
 
     def test_from_analysis_to_json_empty(self):
         # Test with empty analysis

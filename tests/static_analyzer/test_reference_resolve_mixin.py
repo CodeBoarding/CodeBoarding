@@ -14,6 +14,9 @@ from agents.agent_responses import (
     SourceCodeReference,
 )
 from static_analyzer.analysis_result import StaticAnalysisResults
+from static_analyzer.constants import NodeType
+from static_analyzer.graph import CallGraph, Edge
+from static_analyzer.node import Node
 from static_analyzer.reference_resolve_mixin import ReferenceResolverMixin
 
 
@@ -83,16 +86,16 @@ class TestReferenceResolverMixin(unittest.TestCase):
         self.assertEqual(reference.reference_file, "test.py")  # Should be converted to relative path
 
     def test_fix_source_code_reference_lines_resolves_relation_key_edges(self):
-        source_node = MagicMock()
+        source_node = Node("test.TestClass", NodeType.FUNCTION, str(self.repo_dir / "test.py"), 1, 2)
         source_node.file_path = str(self.repo_dir / "test.py")
-        source_node.line_start = 1
-        source_node.line_end = 2
-        target_node = MagicMock()
+        target_node = Node(
+            "module.file.test_function", NodeType.FUNCTION, str(self.repo_dir / "module" / "file.py"), 1, 2
+        )
         target_node.file_path = str(self.repo_dir / "module" / "file.py")
-        target_node.line_start = 1
-        target_node.line_end = 2
+        cfg = CallGraph(edges=[Edge(source_node, target_node, [{"line": 2, "column": 5}])])
 
         self.mock_static_analysis.get_reference.side_effect = [source_node, target_node]
+        self.mock_static_analysis.get_cfg.return_value = cfg
         source_component = Component(name="Source", description="", key_entities=[])
         target_component = Component(name="Target", description="", key_entities=[])
         relation = Relation(
@@ -120,10 +123,81 @@ class TestReferenceResolverMixin(unittest.TestCase):
         self.assertEqual(edge.source.reference_start_line, 1)
         self.assertEqual(edge.target.reference_file, os.path.join("module", "file.py"))
         self.assertEqual(edge.target.reference_start_line, 1)
+        self.assertEqual(edge.call_sites, [{"line": 2, "column": 5}])
 
-    def test_fix_source_code_reference_lines_drops_relation_when_key_edges_do_not_resolve(self):
+    def test_fix_source_code_reference_lines_keeps_key_edge_without_static_edge(self):
+        source_node = Node("test.TestClass", NodeType.FUNCTION, str(self.repo_dir / "test.py"), 1, 2)
+        target_node = Node(
+            "module.file.test_function", NodeType.FUNCTION, str(self.repo_dir / "module" / "file.py"), 1, 2
+        )
+
+        self.mock_static_analysis.get_reference.side_effect = [source_node, target_node]
+        self.mock_static_analysis.get_cfg.return_value = CallGraph()
+        source_component = Component(name="Source", description="", key_entities=[])
+        target_component = Component(name="Target", description="", key_entities=[])
+        relation = Relation(
+            relation="dispatches to",
+            src_name="Source",
+            dst_name="Target",
+            key_edges=[
+                RelationEdge(
+                    source=SourceCodeReference(qualified_name="test.TestClass"),
+                    target=SourceCodeReference(qualified_name="module.file.test_function"),
+                    description="dispatches through registry",
+                )
+            ],
+        )
+        analysis = AnalysisInsights(
+            description="Test",
+            components=[source_component, target_component],
+            components_relations=[relation],
+        )
+
+        result = self.resolver.fix_source_code_reference_lines(analysis)
+
+        edge = result.components_relations[0].key_edges[0]
+        self.assertEqual(edge.source.reference_file, "test.py")
+        self.assertEqual(edge.target.reference_file, os.path.join("module", "file.py"))
+        self.assertEqual(edge.call_sites, [])
+
+    def test_fix_source_code_reference_lines_keeps_external_target_edge(self):
+        source_node = Node("service.OCR.extract_text", NodeType.FUNCTION, str(self.repo_dir / "test.py"), 1, 2)
+        self.mock_static_analysis.get_reference.side_effect = [source_node, ValueError("not found")]
+        self.mock_static_analysis.get_loose_reference.return_value = ("", None)
+        self.mock_static_analysis.iter_reference_nodes.return_value = [source_node]
+        self.mock_static_analysis.get_cfg.return_value = CallGraph()
+        source_component = Component(name="Source", description="", key_entities=[])
+        target_component = Component(name="Target", description="", key_entities=[])
+        relation = Relation(
+            relation="calls external LLM API",
+            src_name="Source",
+            dst_name="Target",
+            key_edges=[
+                RelationEdge(
+                    source=SourceCodeReference(qualified_name="service.OCR.extract_text"),
+                    target=SourceCodeReference(qualified_name="openai.OpenAI"),
+                    description="External OpenAI client call",
+                )
+            ],
+        )
+        analysis = AnalysisInsights(
+            description="Test",
+            components=[source_component, target_component],
+            components_relations=[relation],
+        )
+
+        result = self.resolver.fix_source_code_reference_lines(analysis)
+
+        edge = result.components_relations[0].key_edges[0]
+        self.assertEqual(edge.source.reference_file, "test.py")
+        self.assertEqual(edge.target.qualified_name, "openai.OpenAI")
+        self.assertIsNone(edge.target.reference_file)
+        self.assertEqual(edge.call_sites, [])
+
+    def test_fix_source_code_reference_lines_drops_described_relation_when_key_edges_do_not_resolve(self):
         self.mock_static_analysis.get_reference.side_effect = ValueError("not found")
         self.mock_static_analysis.get_loose_reference.return_value = ("", None)
+        self.mock_static_analysis.iter_reference_nodes.return_value = []
         source_component = Component(name="Source", description="", key_entities=[])
         target_component = Component(name="Target", description="", key_entities=[])
         relation = Relation(
@@ -148,9 +222,10 @@ class TestReferenceResolverMixin(unittest.TestCase):
 
         self.assertEqual(result.components_relations, [])
 
-    def test_fix_source_code_reference_lines_drops_evidence_backed_relation_when_key_edges_do_not_resolve(self):
+    def test_fix_source_code_reference_lines_keeps_evidence_backed_relation_when_key_edges_do_not_resolve(self):
         self.mock_static_analysis.get_reference.side_effect = ValueError("not found")
         self.mock_static_analysis.get_loose_reference.return_value = ("", None)
+        self.mock_static_analysis.iter_reference_nodes.return_value = []
         source_component = Component(name="Source", description="", key_entities=[])
         target_component = Component(name="Target", description="", key_entities=[])
         relation = Relation(
@@ -174,7 +249,112 @@ class TestReferenceResolverMixin(unittest.TestCase):
 
         result = self.resolver.fix_source_code_reference_lines(analysis)
 
+        relation = result.components_relations[0]
+        self.assertEqual(relation.key_edges, [])
+        self.assertEqual(
+            relation.evidence, "Runtime registry dispatch in Source.configure wires Target without a direct CFG edge."
+        )
+
+    def test_fix_source_code_reference_lines_drops_unsupported_relation_without_evidence(self):
+        self.mock_static_analysis.get_reference.side_effect = ValueError("not found")
+        self.mock_static_analysis.get_loose_reference.return_value = ("", None)
+        self.mock_static_analysis.iter_reference_nodes.return_value = []
+        source_component = Component(name="Source", description="", key_entities=[])
+        target_component = Component(name="Target", description="", key_entities=[])
+        relation = Relation(
+            relation="provides data to",
+            src_name="Source",
+            dst_name="Target",
+            key_edges=[
+                RelationEdge(
+                    source=SourceCodeReference(qualified_name="missing.Source"),
+                    target=SourceCodeReference(qualified_name="missing.Target"),
+                )
+            ],
+        )
+        analysis = AnalysisInsights(
+            description="Test",
+            components=[source_component, target_component],
+            components_relations=[relation],
+        )
+
+        result = self.resolver.fix_source_code_reference_lines(analysis)
+
         self.assertEqual(result.components_relations, [])
+
+    def test_symbol_token_match_resolves_unique_final_token(self):
+        node = Node(
+            "packages.markitdown.src.markitdown._markitdown.MarkItDown.enable_builtins",
+            NodeType.FUNCTION,
+            str(self.repo_dir / "test.py"),
+            10,
+            20,
+        )
+        self.mock_static_analysis.get_reference.side_effect = ValueError("not found")
+        self.mock_static_analysis.get_loose_reference.return_value = ("", None)
+        self.mock_static_analysis.iter_reference_nodes.return_value = [node]
+        reference = SourceCodeReference(qualified_name="markitdown.MarkItDown:enable_builtins")
+
+        self.resolver._resolve_single_reference(reference)
+
+        self.assertEqual(reference.qualified_name, node.fully_qualified_name)
+        self.assertEqual(reference.reference_file, str(self.repo_dir / "test.py"))
+        self.assertEqual(reference.reference_start_line, 10)
+
+    def test_symbol_token_match_uses_backwards_tokens_to_disambiguate(self):
+        markitdown_node = Node(
+            "packages.markitdown.src.markitdown._markitdown.MarkItDown.enable_builtins",
+            NodeType.FUNCTION,
+            str(self.repo_dir / "test.py"),
+            10,
+            20,
+        )
+        other_node = Node(
+            "packages.other.src.other.Other.enable_builtins",
+            NodeType.FUNCTION,
+            str(self.repo_dir / "module" / "file.py"),
+            30,
+            40,
+        )
+        self.mock_static_analysis.get_reference.side_effect = ValueError("not found")
+        self.mock_static_analysis.get_loose_reference.return_value = ("", None)
+        self.mock_static_analysis.iter_reference_nodes.return_value = [other_node, markitdown_node]
+        reference = SourceCodeReference(qualified_name="markitdown.MarkItDown:enable_builtins")
+
+        self.resolver._resolve_single_reference(reference)
+
+        self.assertEqual(reference.qualified_name, markitdown_node.fully_qualified_name)
+
+    def test_symbol_token_match_leaves_ambiguous_references_unresolved(self):
+        first = Node("pkg.one.Service.run", NodeType.FUNCTION, str(self.repo_dir / "test.py"), 1, 2)
+        second = Node("pkg.two.Service.run", NodeType.FUNCTION, str(self.repo_dir / "module" / "file.py"), 3, 4)
+        self.mock_static_analysis.get_reference.side_effect = ValueError("not found")
+        self.mock_static_analysis.get_loose_reference.return_value = ("", None)
+        self.mock_static_analysis.iter_reference_nodes.return_value = [first, second]
+        reference = SourceCodeReference(qualified_name="Service:run")
+
+        self.resolver._resolve_single_reference(reference)
+
+        self.assertIsNone(reference.reference_file)
+
+    def test_symbol_token_match_respects_explicit_module_token(self):
+        wrong_module = Node(
+            "packages.markitdown.src.markitdown.converters._cu_converter._is_analyzer_compatible",
+            NodeType.FUNCTION,
+            str(self.repo_dir / "module" / "file.py"),
+            3,
+            4,
+        )
+        self.mock_static_analysis.get_reference.side_effect = ValueError("not found")
+        self.mock_static_analysis.get_loose_reference.return_value = ("", None)
+        self.mock_static_analysis.iter_reference_nodes.return_value = [wrong_module]
+        reference = SourceCodeReference(
+            qualified_name="packages.markitdown.src.markitdown.converters._doc_intel_converter._is_analyzer_compatible"
+        )
+
+        self.resolver._resolve_single_reference(reference)
+
+        self.assertIsNone(reference.reference_file)
 
     def test_fix_source_code_reference_lines_drops_same_endpoint_key_edge(self):
         existing_file = str(self.repo_dir / "test.py")

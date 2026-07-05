@@ -15,7 +15,7 @@ from agents.agent_responses import (
     RelationEdge,
     SourceCodeReference,
 )
-from repo_utils.path_utils import normalize_repo_path, to_absolute_path
+from repo_utils.path_utils import normalize_repo_path
 from static_analyzer.engine.source_inspector import SourceInspector
 
 logger = logging.getLogger(__name__)
@@ -177,26 +177,7 @@ def _call_site_from_dict(call_site: dict[str, int]) -> RelationCallSiteJson:
 def _infer_call_sites(
     reference: SourceCodeReference, source_inspector: SourceInspector, repo_dir: Path | None
 ) -> list[RelationCallSiteJson]:
-    if not reference.reference_file:
-        return [RelationCallSiteJson()]
-
-    file_path = (
-        Path(to_absolute_path(reference.reference_file, repo_dir))
-        if repo_dir is not None
-        else Path(reference.reference_file)
-    )
-    if not file_path.exists():
-        return [RelationCallSiteJson()]
-
-    sites = source_inspector.find_call_sites(file_path)
-    if not sites:
-        return [RelationCallSiteJson()]
-
-    start_line = reference.reference_start_line or 0
-    end_line = reference.reference_end_line or 0
-    matching_sites = [site for site in sites if start_line and end_line and start_line <= site.line <= end_line]
-    selected_sites = matching_sites or sites
-    return [RelationCallSiteJson(line=site.line, column=site.column) for site in selected_sites]
+    return [RelationCallSiteJson()]
 
 
 def _relation_edge_to_json(

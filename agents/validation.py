@@ -578,25 +578,28 @@ def validate_relation_evidence(result: AnalysisInsights, context: ValidationCont
     cluster_edge_lookup = _build_cluster_edge_lookup(context.cluster_results, context.cfg_graphs)
     unsupported: list[str] = []
     invalid_key_edges: list[str] = []
+    unresolved_key_edges: list[str] = []
     valid_relation_count = 0
     total_relations = len(result.components_relations)
 
     for relation in result.components_relations:
         src_clusters = component_to_clusters.get(relation.src_name, [])
         dst_clusters = component_to_clusters.get(relation.dst_name, [])
-        if _check_directed_edge_between_cluster_sets(src_clusters, dst_clusters, cluster_edge_lookup):
-            same_endpoint_edges = _same_endpoint_key_edges(relation, context)
-            if same_endpoint_edges:
-                invalid_key_edges.append(
-                    f"{relation.src_name} -> {relation.dst_name}: {', '.join(same_endpoint_edges)}"
-                )
-            else:
-                valid_relation_count += 1
-            continue
-        valid_key_edges, same_endpoint_edges = _valid_key_edge_descriptions(relation, context)
+        valid_key_edges, same_endpoint_edges, unresolved_edges = _valid_key_edge_descriptions(relation, context)
         if same_endpoint_edges:
             invalid_key_edges.append(f"{relation.src_name} -> {relation.dst_name}: {', '.join(same_endpoint_edges)}")
+        if unresolved_edges:
+            unresolved_key_edges.append(f"{relation.src_name} -> {relation.dst_name}: {', '.join(unresolved_edges)}")
+        if _check_directed_edge_between_cluster_sets(src_clusters, dst_clusters, cluster_edge_lookup):
+            if not same_endpoint_edges and not unresolved_edges:
+                valid_relation_count += 1
+            continue
+        if unresolved_edges:
+            continue
         if valid_key_edges:
+            valid_relation_count += 1
+            continue
+        if _has_relation_evidence(relation) and not relation.key_edges:
             valid_relation_count += 1
             continue
         unsupported.append(f"{relation.src_name} -> {relation.dst_name}: {relation.relation}")
@@ -605,17 +608,23 @@ def validate_relation_evidence(result: AnalysisInsights, context: ValidationCont
     if unsupported:
         feedback_messages.append(
             "The following relations have no directed static CFG edge between their components, and any supplied "
-            "key_edges could not be resolved to source code: "
+            "key_edges/evidence could not support the relation: "
             f"{'; '.join(unsupported)}. Remove them, or keep only if they represent a real runtime/non-static "
-            "interaction and add key_edges with resolvable source/target code references plus concise concrete evidence "
+            "interaction and add key_edges or relation evidence with a concise concrete reason "
             "(for example an endpoint, queue/topic, plugin registration, subprocess, reflection/import hook, or "
-            "config-driven wiring). Evidence text alone is not enough."
+            "config-driven wiring)."
         )
     if invalid_key_edges:
         feedback_messages.append(
             "The following relation key_edges resolve source and target to the same method/symbol: "
             f"{'; '.join(invalid_key_edges)}. Replace each with a real bridge edge whose source is the calling, "
             "registering, routing, or configuring code and whose target is the distinct invoked/registered/routed endpoint."
+        )
+    if unresolved_key_edges:
+        feedback_messages.append(
+            "The following relation key_edges could not be resolved to known source symbols and look hallucinated: "
+            f"{'; '.join(unresolved_key_edges)}. Drop them, or replace them with exact existing symbols from the code. "
+            "If the relation is runtime/config/plugin-driven and has no direct code edge, use relation-level evidence instead."
         )
 
     if not feedback_messages:
@@ -626,6 +635,8 @@ def validate_relation_evidence(result: AnalysisInsights, context: ValidationCont
         logger.warning("[Validation] Relations without static backing or evidence: %s", "; ".join(unsupported))
     if invalid_key_edges:
         logger.warning("[Validation] Relations with degenerate key edges: %s", "; ".join(invalid_key_edges))
+    if unresolved_key_edges:
+        logger.warning("[Validation] Relations with unresolved key edges: %s", "; ".join(unresolved_key_edges))
     return ValidationResult(
         is_valid=False,
         feedback_messages=feedback_messages,
@@ -661,22 +672,85 @@ def validate_relations(result: AnalysisInsights, context: ValidationContext) -> 
     )
 
 
-def _valid_key_edge_descriptions(relation, context: ValidationContext) -> tuple[list[str], list[str]]:
-    """Return valid and same-endpoint key edge descriptions."""
+def _valid_key_edge_descriptions(relation, context: ValidationContext) -> tuple[list[str], list[str], list[str]]:
+    """Return valid, same-endpoint, and unresolved key edge descriptions."""
     if context.static_analysis is None:
-        return ([edge.llm_str() for edge in relation.key_edges], [])
+        return ([edge.llm_str() for edge in relation.key_edges], [], [])
     valid: list[str] = []
     same_endpoint: list[str] = []
+    unresolved: list[str] = []
     for edge in relation.key_edges:
-        source_identity = _source_reference_identity(edge.source, context)
-        target_identity = _source_reference_identity(edge.target, context)
-        if not source_identity or not target_identity:
+        source_node = _source_reference_node(edge.source, context)
+        target_node = _source_reference_node(edge.target, context)
+        if source_node is None or target_node is None:
+            if _has_external_unresolved_endpoint(edge, source_node, target_node, context):
+                valid.append(edge.llm_str())
+                continue
+            unresolved.append(edge.llm_str())
             continue
-        if source_identity == target_identity:
+        if _node_identity(source_node) == _node_identity(target_node):
             same_endpoint.append(edge.llm_str())
             continue
+        if (
+            not _has_cfg_edge(source_node.fully_qualified_name, target_node.fully_qualified_name, context)
+            and not edge.description.strip()
+        ):
+            continue
         valid.append(edge.llm_str())
-    return valid, same_endpoint
+    return valid, same_endpoint, unresolved
+
+
+def _has_relation_evidence(relation) -> bool:
+    """Return true when an LLM-only relation has concrete textual evidence."""
+    if relation.evidence.strip():
+        return True
+    return any(edge.description.strip() for edge in relation.key_edges)
+
+
+def _has_external_unresolved_endpoint(edge, source_node, target_node, context: ValidationContext) -> bool:
+    """Return true when one endpoint is repo code and the other looks external."""
+    if source_node is not None and target_node is None:
+        return not _looks_internal_reference(edge.target, context)
+    if source_node is None and target_node is not None:
+        return not _looks_internal_reference(edge.source, context)
+    return False
+
+
+def _looks_internal_reference(reference, context: ValidationContext) -> bool:
+    """Return true when an unresolved reference appears to name repo code."""
+    tokens = _reference_tokens(reference.qualified_name)
+    if not tokens:
+        return False
+    if tokens[0] in _internal_reference_roots(context):
+        return True
+    return any(token.startswith("_") and token in _internal_reference_tokens(context) for token in tokens)
+
+
+def _internal_reference_roots(context: ValidationContext) -> set[str]:
+    roots: set[str] = set()
+    for token in _internal_reference_tokens(context):
+        if token not in {"packages", "src", "lib"}:
+            roots.add(token)
+    return roots
+
+
+def _internal_reference_tokens(context: ValidationContext) -> set[str]:
+    static_analysis = context.static_analysis
+    if static_analysis is None:
+        return set()
+    tokens: set[str] = set()
+    for lang in static_analysis.get_languages():
+        try:
+            nodes = static_analysis.iter_reference_nodes(lang)
+        except Exception:
+            continue
+        for node in nodes:
+            tokens.update(_reference_tokens(node.fully_qualified_name))
+    return tokens
+
+
+def _reference_tokens(qualified_name: str) -> list[str]:
+    return [token.lower() for token in re.split(r"[.:/\\]+", qualified_name) if token]
 
 
 def _same_endpoint_key_edges(relation, context: ValidationContext) -> list[str]:
@@ -684,17 +758,16 @@ def _same_endpoint_key_edges(relation, context: ValidationContext) -> list[str]:
     return _valid_key_edge_descriptions(relation, context)[1]
 
 
-def _source_reference_identity(reference, context: ValidationContext) -> str:
-    """Resolve a source reference to a stable identity without mutating it."""
+def _source_reference_node(reference, context: ValidationContext):
+    """Resolve a source reference to a static-analysis node without mutating it."""
     static_analysis = context.static_analysis
     if static_analysis is None:
-        return reference.qualified_name
+        return None
 
     qname = reference.qualified_name.replace(os.sep, ".")
     for lang in static_analysis.get_languages():
         try:
-            node = static_analysis.get_reference(lang, qname)
-            return _node_identity(node)
+            return static_analysis.get_reference(lang, qname)
         except (ValueError, FileExistsError):
             pass
 
@@ -702,17 +775,35 @@ def _source_reference_identity(reference, context: ValidationContext) -> str:
         try:
             _, node = static_analysis.get_loose_reference(lang, qname)
             if node is not None:
-                return _node_identity(node)
+                return node
         except Exception:
             pass
 
-    if context.repo_dir and reference.reference_file:
-        reference_file = reference.reference_file
-        path = reference_file if os.path.isabs(reference_file) else os.path.join(context.repo_dir, reference_file)
-        if os.path.exists(path):
-            return f"file:{os.path.abspath(path)}:{reference.qualified_name}"
+    return None
 
-    return ""
+
+def _source_reference_identity(reference, context: ValidationContext) -> str:
+    """Resolve a source reference to a stable identity without mutating it."""
+    node = _source_reference_node(reference, context)
+    return _node_identity(node) if node is not None else ""
+
+
+def _has_cfg_edge(source_qname: str, target_qname: str, context: ValidationContext) -> bool:
+    """Return true when the static CFG has this exact source-to-target edge."""
+    for cfg in context.cfg_graphs.values():
+        for edge in cfg.edges:
+            if edge.get_source() == source_qname and edge.get_destination() == target_qname:
+                return True
+    if context.static_analysis is not None:
+        for lang in context.static_analysis.get_languages():
+            try:
+                cfg = context.static_analysis.get_cfg(lang)
+            except ValueError:
+                continue
+            for edge in cfg.edges:
+                if edge.get_source() == source_qname and edge.get_destination() == target_qname:
+                    return True
+    return False
 
 
 def _node_identity(node) -> str:
