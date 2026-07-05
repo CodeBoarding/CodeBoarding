@@ -34,8 +34,7 @@ from agents.validation import (
     validate_cluster_coverage,
     validate_group_name_coverage,
     validate_key_entities,
-    validate_relation_component_names,
-    validate_relation_evidence,
+    validate_relations,
 )
 from monitoring import trace
 from static_analyzer.analysis_result import StaticAnalysisResults
@@ -282,7 +281,7 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
         relation_result = self._validation_invoke(
             prompt,
             ComponentRelations,
-            validators=[validate_relation_component_names, validate_relation_evidence],
+            validators=[validate_relations],
             context=ValidationContext(
                 cluster_results=cluster_results,
                 cfg_graphs=cfg_graphs,

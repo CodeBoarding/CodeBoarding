@@ -60,6 +60,13 @@ class _AnalysisFileStore:
         # routinely steal multi-second cycles from contended writers.
         self._lock = FileLock(output_dir / f"{ANALYSIS_FILENAME}.lock", timeout=30)
 
+    def _repo_dir_for_source_lookup(self) -> Path:
+        if self._output_dir.name == "run-output" and self._output_dir.parent.name == ".codeboarding":
+            return self._output_dir.parent.parent
+        if self._output_dir.name == ".codeboarding":
+            return self._output_dir.parent
+        return self._output_dir
+
     def read(self) -> tuple[AnalysisInsights, dict[str, AnalysisInsights], dict] | None:
         """Load the unified ``analysis.json`` from disk.
 
@@ -243,6 +250,7 @@ class _AnalysisFileStore:
             file_coverage_summary=file_coverage_summary,
             commit_hash=commit_hash,
             snapshot_commit=snapshot_commit,
+            repo_dir=self._repo_dir_for_source_lookup(),
         )
         tmp_fd, tmp_name = tempfile.mkstemp(
             prefix=f".{self._analysis_path.name}.",
@@ -285,7 +293,7 @@ def load_root_analysis(output_dir: Path) -> AnalysisInsights | None:
 
 
 def analysis_exists(output_dir: Path) -> bool:
-    """True when *output_dir* holds a parseable ``analysis.json``."""
+    """True when output_dir holds a parseable ``analysis.json``."""
     return _get_store(output_dir).exists()
 
 

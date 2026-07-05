@@ -240,7 +240,6 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
             ClusterRelation(
                 src_cluster_id=relation.src_id,
                 dst_cluster_id=relation.dst_id,
-                edge_count=relation.edge_count,
                 all_edges=relation.all_edges,
             )
             for relation in existing_static

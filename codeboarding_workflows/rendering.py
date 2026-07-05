@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 
 def _ancestor_in_level(component_id: str, level_ids: set[str]) -> str | None:
-    """Return the closest ancestor (or the id itself) that lives in *level_ids*, else ``None``."""
+    """Return the closest ancestor present in level_ids."""
     for ancestor in iter_ancestor_ids(component_id):
         if ancestor in level_ids:
             return ancestor
@@ -36,21 +36,7 @@ def project_relations_to_level(
     level_component_ids: set[str],
     id_to_name: dict[str, str],
 ) -> list[Relation]:
-    """Roll up a global leaf-only relation set onto the components visible at a level.
-
-    Each endpoint is projected to its ancestor in ``level_component_ids`` so the
-    edge connects two nodes that actually exist at this level. Edges that collapse
-    to a self-loop or whose endpoint isn't under any level component are dropped;
-    edges that collapse to the same pair are merged (edge_count summed, first
-    label kept).
-
-    Example, rendering the root level ``{"1", "2", "3"}`` from leaf relations::
-
-        1.1 -> 2.3   =>  1 -> 2
-        1.2 -> 2.1   =>  1 -> 2   (merged into the above)
-        3   -> 1.1   =>  3 -> 1
-        1.1 -> 1.2   =>  dropped  (both roll up to "1": self-loop)
-    """
+    """Roll up global leaf relations onto the components visible at a level."""
     aggregated: dict[tuple[str, str], Relation] = {}
     for rel in global_relations:
         src = _ancestor_in_level(rel.src_id, level_component_ids)
@@ -66,11 +52,13 @@ def project_relations_to_level(
                 dst_name=id_to_name.get(dst, dst),
                 src_id=src,
                 dst_id=dst,
-                edge_count=rel.edge_count,
+                key_edges=rel.key_edges,
                 is_static=rel.is_static,
+                all_edges=rel.all_edges,
             )
         else:
-            existing.edge_count += rel.edge_count
+            existing.key_edges.extend(rel.key_edges)
+            existing.all_edges.extend(rel.all_edges)
             existing.is_static = existing.is_static or rel.is_static
     return list(aggregated.values())
 

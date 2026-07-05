@@ -172,6 +172,12 @@ class RelationEdge(LLMBaseModel):
     source: SourceCodeReference = Field(description="Source method/class/config reference for this interaction.")
     target: SourceCodeReference = Field(description="Target method/class/config reference for this interaction.")
     description: str = Field(default="", description="Short explanation of how source reaches or configures target.")
+    call_sites: list[dict[str, int]] = Field(
+        default_factory=list,
+        description="Call-site line and column pairs for this edge.",
+        exclude=True,
+        json_schema_extra={"hidden": True},
+    )
 
     def llm_str(self):
         return f"{self.source} -> {self.target}: {self.description}"
@@ -199,7 +205,6 @@ class Relation(LLMBaseModel):
     )
     src_id: str = Field(default="", description="Component ID of the source.", exclude=True)
     dst_id: str = Field(default="", description="Component ID of the destination.", exclude=True)
-    edge_count: int = Field(default=0, description="Number of CFG edges backing this relation.", exclude=True)
     is_static: bool = Field(default=False, description="True if derived from static CFG analysis.", exclude=True)
     all_edges: list[RelationEdge] = Field(
         default_factory=list,

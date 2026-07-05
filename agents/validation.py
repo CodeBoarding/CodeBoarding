@@ -16,13 +16,13 @@ from static_analyzer.analysis_result import StaticAnalysisResults
 logger = logging.getLogger(__name__)
 
 # Validator weight configuration.
-# Coverage validators (cluster + group name) are the most critical — they
-# determine whether every cluster is accounted for and properly assigned.
-# Key-entity validation is secondary (auto-correctable, less structural).
+# Coverage and relation evidence validators are the most critical structural
+# checks. Key-entity validation is secondary (auto-correctable, less structural).
 VALIDATOR_WEIGHTS: dict[str, float] = {
     "validate_cluster_coverage": 20.0,
     "validate_group_name_coverage": 20.0,
     "validate_key_entities": 5.0,
+    "validate_relations": 30.0,
     "validate_relation_component_names": 5.0,
     "validate_relation_evidence": 10.0,
     "validate_file_classifications": 5.0,
@@ -56,6 +56,7 @@ class ValidationResult:
 
     is_valid: bool
     feedback_messages: list[str] = field(default_factory=list)
+    score: float | None = None
 
 
 def score_validation_results(
@@ -78,6 +79,8 @@ def score_validation_results(
         weight = VALIDATOR_WEIGHTS.get(validator_fn.__name__, DEFAULT_VALIDATOR_WEIGHT)
         if vr.is_valid:
             score += weight
+        elif vr.score is not None:
+            score += weight * max(0.0, min(1.0, vr.score))
     return score
 
 
@@ -531,6 +534,7 @@ def validate_relation_component_names(result: AnalysisInsights, _context: Valida
     known_names = {component.name for component in components}
 
     invalid_relations: list[str] = []
+    total_relations = len(result.components_relations)
     for relation in result.components_relations:
         unknown: list[str] = []
         if relation.src_name not in known_names:
@@ -555,7 +559,12 @@ def validate_relation_component_names(result: AnalysisInsights, _context: Valida
     )
 
     logger.warning(f"[Validation] Relations with unknown component names: {invalid_str}")
-    return ValidationResult(is_valid=False, feedback_messages=[feedback])
+    valid_count = max(0, total_relations - len(invalid_relations))
+    return ValidationResult(
+        is_valid=False,
+        feedback_messages=[feedback],
+        score=(valid_count / total_relations) if total_relations else 0.0,
+    )
 
 
 def validate_relation_evidence(result: AnalysisInsights, context: ValidationContext) -> ValidationResult:
@@ -569,6 +578,8 @@ def validate_relation_evidence(result: AnalysisInsights, context: ValidationCont
     cluster_edge_lookup = _build_cluster_edge_lookup(context.cluster_results, context.cfg_graphs)
     unsupported: list[str] = []
     invalid_key_edges: list[str] = []
+    valid_relation_count = 0
+    total_relations = len(result.components_relations)
 
     for relation in result.components_relations:
         src_clusters = component_to_clusters.get(relation.src_name, [])
@@ -579,11 +590,14 @@ def validate_relation_evidence(result: AnalysisInsights, context: ValidationCont
                 invalid_key_edges.append(
                     f"{relation.src_name} -> {relation.dst_name}: {', '.join(same_endpoint_edges)}"
                 )
+            else:
+                valid_relation_count += 1
             continue
         valid_key_edges, same_endpoint_edges = _valid_key_edge_descriptions(relation, context)
         if same_endpoint_edges:
             invalid_key_edges.append(f"{relation.src_name} -> {relation.dst_name}: {', '.join(same_endpoint_edges)}")
         if valid_key_edges:
+            valid_relation_count += 1
             continue
         unsupported.append(f"{relation.src_name} -> {relation.dst_name}: {relation.relation}")
 
@@ -612,7 +626,39 @@ def validate_relation_evidence(result: AnalysisInsights, context: ValidationCont
         logger.warning("[Validation] Relations without static backing or evidence: %s", "; ".join(unsupported))
     if invalid_key_edges:
         logger.warning("[Validation] Relations with degenerate key edges: %s", "; ".join(invalid_key_edges))
-    return ValidationResult(is_valid=False, feedback_messages=feedback_messages)
+    return ValidationResult(
+        is_valid=False,
+        feedback_messages=feedback_messages,
+        score=(valid_relation_count / total_relations) if total_relations else 0.0,
+    )
+
+
+def validate_relations(result: AnalysisInsights, context: ValidationContext) -> ValidationResult:
+    """Validate relation endpoints and edge evidence as one structural check."""
+    name_result = validate_relation_component_names(result, context)
+    evidence_result = validate_relation_evidence(result, context)
+
+    if name_result.is_valid and evidence_result.is_valid:
+        return ValidationResult(is_valid=True)
+
+    feedback_parts: list[str] = []
+    if not name_result.is_valid:
+        feedback_parts.extend(name_result.feedback_messages)
+    if not evidence_result.is_valid:
+        feedback_parts.extend(evidence_result.feedback_messages)
+
+    return ValidationResult(
+        is_valid=False,
+        feedback_messages=[
+            "Fix the component relations as a single edge set: every relation must use exact existing component "
+            "names on both sides, and every relation must be backed by a directed CFG edge or resolvable key_edges. "
+            + " ".join(feedback_parts)
+        ],
+        score=min(
+            name_result.score if name_result.score is not None else 1.0,
+            evidence_result.score if evidence_result.score is not None else 1.0,
+        ),
+    )
 
 
 def _valid_key_edge_descriptions(relation, context: ValidationContext) -> tuple[list[str], list[str]]:

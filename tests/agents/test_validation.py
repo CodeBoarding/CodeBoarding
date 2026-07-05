@@ -3,12 +3,16 @@ import unittest
 from unittest.mock import MagicMock
 
 from agents.validation import (
+    VALIDATOR_WEIGHTS,
     ValidationContext,
     ValidationResult,
+    score_validation_results,
     validate_cluster_coverage,
     validate_file_classifications,
+    validate_key_entities,
     validate_relation_component_names,
     validate_relation_evidence,
+    validate_relations,
     _check_edge_between_cluster_sets,
 )
 from agents.agent_responses import (
@@ -77,6 +81,40 @@ class TestValidationResult(unittest.TestCase):
         result = ValidationResult(is_valid=False, feedback_messages=feedback)
         self.assertFalse(result.is_valid)
         self.assertEqual(result.feedback_messages, feedback)
+
+    def test_invalid_result_can_carry_partial_score(self):
+        result = ValidationResult(is_valid=False, feedback_messages=["partial"], score=0.5)
+
+        self.assertEqual(result.score, 0.5)
+
+
+class TestValidationScoring(unittest.TestCase):
+    def test_relation_validation_is_single_high_weight_structural_check(self):
+        self.assertGreater(VALIDATOR_WEIGHTS["validate_relations"], VALIDATOR_WEIGHTS["validate_key_entities"])
+
+        score_with_edges = score_validation_results(
+            [
+                (validate_relations, ValidationResult(True)),
+                (validate_key_entities, ValidationResult(False, ["bad entities"])),
+            ]
+        )
+        score_with_key_entities_only = score_validation_results(
+            [
+                (validate_relations, ValidationResult(False, ["bad relations"])),
+                (validate_key_entities, ValidationResult(True)),
+            ]
+        )
+
+        self.assertGreater(score_with_edges, score_with_key_entities_only)
+
+    def test_partial_validator_score_contributes_weighted_points(self):
+        score = score_validation_results(
+            [
+                (validate_relations, ValidationResult(False, ["one relation failed"], score=0.75)),
+            ]
+        )
+
+        self.assertEqual(score, VALIDATOR_WEIGHTS["validate_relations"] * 0.75)
 
 
 class TestValidateClusterCoverage(unittest.TestCase):
@@ -652,6 +690,24 @@ class TestValidateRelationEvidence(unittest.TestCase):
         self.assertFalse(result.is_valid)
         self.assertIn("A -> B", result.feedback_messages[0])
 
+    def test_partially_supported_relation_set_gets_partial_score(self):
+        analysis = AnalysisInsights(
+            description="test",
+            components=[
+                Component(name="A", description="A", key_entities=[], source_group_names=["GroupA"]),
+                Component(name="B", description="B", key_entities=[], source_group_names=["GroupB"]),
+            ],
+            components_relations=[
+                Relation(relation="calls", src_name="A", dst_name="B"),
+                Relation(relation="runtime hook", src_name="B", dst_name="A"),
+            ],
+        )
+
+        result = validate_relation_evidence(analysis, self._make_context(("a.run", "b.load")))
+
+        self.assertFalse(result.is_valid)
+        self.assertEqual(result.score, 0.5)
+
     def test_resolvable_key_edges_allow_relation_without_static_edge(self):
         analysis = self._make_analysis(
             Relation(
@@ -707,6 +763,17 @@ class TestValidateRelationEvidence(unittest.TestCase):
 
         self.assertFalse(result.is_valid)
         self.assertTrue(any("same method/symbol" in feedback for feedback in result.feedback_messages))
+
+    def test_combined_relation_validator_returns_single_feedback_item(self):
+        analysis = self._make_analysis(Relation(relation="calls", src_name="Missing", dst_name="B"))
+
+        result = validate_relations(analysis, self._make_context(("b.load", "a.run")))
+
+        self.assertFalse(result.is_valid)
+        self.assertEqual(len(result.feedback_messages), 1)
+        self.assertIn("single edge set", result.feedback_messages[0])
+        self.assertIn("exact existing component names", result.feedback_messages[0])
+        self.assertIn("directed CFG edge or resolvable key_edges", result.feedback_messages[0])
 
 
 if __name__ == "__main__":

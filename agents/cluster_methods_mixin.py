@@ -914,7 +914,7 @@ class ClusterMethodsMixin:
             dst_id = relation.dst_cluster_id
             src_label = id_to_name.get(src_id, src_id)
             dst_label = id_to_name.get(dst_id, dst_id)
-            edge_count = relation.edge_count
+            edge_count = len(relation.all_edges)
             lines.append(f"\n{src_label} -> {dst_label} ({edge_count} edge{'s' if edge_count != 1 else ''}):")
             for edge in relation.all_edges[:10]:
                 short_s = edge.source.qualified_name.split(".")[-1]
