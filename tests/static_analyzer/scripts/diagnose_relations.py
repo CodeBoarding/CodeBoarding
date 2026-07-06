@@ -233,7 +233,7 @@ def main():
         for rel in sorted(relations, key=lambda r: -len(r.all_edges)):
             print(f"  {rel.src_cluster_id} -> {rel.dst_cluster_id}: {len(rel.all_edges)} edges")
             for edge in rel.all_edges[:2]:
-                logger.info("    e.g. %s -> %s", edge.src_qualified_name, edge.dst_qualified_name)
+                logger.info("    e.g. %s -> %s", edge.source.qualified_name, edge.target.qualified_name)
 
 
 if __name__ == "__main__":

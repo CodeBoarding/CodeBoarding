@@ -875,9 +875,7 @@ class ClusterMethodsMixin:
         If cfg_graphs is not provided, builds them from self.static_analysis.
         """
         if cfg_graphs is None:
-            cfg_graphs = {
-                str(lang): self.static_analysis.get_cfg(lang) for lang in self.static_analysis.get_languages()
-            }
+            cfg_graphs = self.static_analysis.available_cfgs()
         node_to_component = build_node_to_component_map(analysis)
         static_relations = build_component_relations(node_to_component, cfg_graphs)
         analysis.components_relations = merge_relations(analysis.components_relations, static_relations, analysis)
@@ -902,7 +900,7 @@ class ClusterMethodsMixin:
         """
         node_to_component = build_node_to_component_map(analysis)
         id_to_name = {c.component_id: c.name for c in analysis.components}
-        cfg_graphs = {str(lang): self.static_analysis.get_cfg(lang) for lang in self.static_analysis.get_languages()}
+        cfg_graphs = self.static_analysis.available_cfgs()
         static_relations = build_component_relations(node_to_component, cfg_graphs)
 
         if not static_relations:

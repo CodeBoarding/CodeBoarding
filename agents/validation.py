@@ -740,11 +740,7 @@ def _internal_reference_tokens(context: ValidationContext) -> set[str]:
         return set()
     tokens: set[str] = set()
     for lang in static_analysis.get_languages():
-        try:
-            nodes = static_analysis.iter_reference_nodes(lang)
-        except Exception:
-            continue
-        for node in nodes:
+        for node in static_analysis.iter_reference_nodes(lang):
             tokens.update(_reference_tokens(node.fully_qualified_name))
     return tokens
 
@@ -772,12 +768,9 @@ def _source_reference_node(reference, context: ValidationContext):
             pass
 
     for lang in static_analysis.get_languages():
-        try:
-            _, node = static_analysis.get_loose_reference(lang, qname)
-            if node is not None:
-                return node
-        except Exception:
-            pass
+        _, node = static_analysis.get_loose_reference(lang, qname)
+        if node is not None:
+            return node
 
     return None
 

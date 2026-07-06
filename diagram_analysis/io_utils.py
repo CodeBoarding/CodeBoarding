@@ -294,6 +294,8 @@ def load_root_analysis(output_dir: Path) -> AnalysisInsights | None:
 
 def analysis_exists(output_dir: Path) -> bool:
     """True when output_dir holds a parseable ``analysis.json``."""
+    if not (output_dir / ANALYSIS_FILENAME).is_file():
+        return False
     return _get_store(output_dir).exists()
 
 

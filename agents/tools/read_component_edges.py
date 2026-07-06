@@ -41,9 +41,7 @@ class ComponentBridgeEdgesTool(BaseRepoTool):
         if not cfg_graphs:
             if not self.static_analysis:
                 return "No static analysis data available."
-            cfg_graphs = {
-                str(lang): self.static_analysis.get_cfg(lang) for lang in self.static_analysis.get_languages()
-            }
+            cfg_graphs = self.static_analysis.available_cfgs()
 
         source_nodes = self._nodes_for_clusters(source_clusters)
         destination_nodes = self._nodes_for_clusters(destination_clusters)

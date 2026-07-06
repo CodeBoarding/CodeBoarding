@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from agents.agent_responses import AnalysisInsights, Relation
+from agents.relation_edges import append_or_merge_relation
 from diagram_analysis.analysis_json import build_id_to_name_map, parse_unified_analysis
 from output_generators.html import generate_html_file
 from output_generators.markdown import generate_markdown_file
@@ -37,30 +38,22 @@ def project_relations_to_level(
     id_to_name: dict[str, str],
 ) -> list[Relation]:
     """Roll up global leaf relations onto the components visible at a level."""
-    aggregated: dict[tuple[str, str], Relation] = {}
+    aggregated: list[Relation] = []
     for rel in global_relations:
         src = _ancestor_in_level(rel.src_id, level_component_ids)
         dst = _ancestor_in_level(rel.dst_id, level_component_ids)
         if src is None or dst is None or src == dst:
             continue
-        key = (src, dst)
-        existing = aggregated.get(key)
-        if existing is None:
-            aggregated[key] = Relation(
-                relation=rel.relation,
-                src_name=id_to_name.get(src, src),
-                dst_name=id_to_name.get(dst, dst),
-                src_id=src,
-                dst_id=dst,
-                key_edges=rel.key_edges,
-                is_static=rel.is_static,
-                all_edges=rel.all_edges,
-            )
-        else:
-            existing.key_edges.extend(rel.key_edges)
-            existing.all_edges.extend(rel.all_edges)
-            existing.is_static = existing.is_static or rel.is_static
-    return list(aggregated.values())
+        append_or_merge_relation(
+            aggregated,
+            rel,
+            key=(src, dst),
+            src_id=src,
+            dst_id=dst,
+            src_name=id_to_name.get(src, src),
+            dst_name=id_to_name.get(dst, dst),
+        )
+    return aggregated
 
 
 # Writer-name lookup (resolved at call time so @patch on this module's names works).

@@ -548,7 +548,7 @@ class TestAnalysisJsonConversion(unittest.TestCase):
             data = json.loads(from_analysis_to_json(self.analysis, []))
 
         key_edge = data["components_relations"][0]["key_edges"][0]
-        self.assertEqual(key_edge["call_sites"], [{"line": 0, "column": 0}])
+        self.assertEqual(key_edge["call_sites"], [])
 
     def test_from_analysis_to_json_normalizes_absolute_relation_edge_paths(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -592,7 +592,7 @@ class TestAnalysisJsonConversion(unittest.TestCase):
         key_edge = data["components_relations"][0]["key_edges"][0]
         self.assertEqual(key_edge["source"], "component1.py|component1.run")
         self.assertEqual(key_edge["target"], "component1.py|component1.load")
-        self.assertEqual(key_edge["call_sites"], [{"line": 0, "column": 0}])
+        self.assertEqual(key_edge["call_sites"], [])
 
     def test_from_analysis_to_json_empty(self):
         # Test with empty analysis

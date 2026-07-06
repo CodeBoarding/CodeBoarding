@@ -212,7 +212,7 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
         meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
         project_type = self.meta_context.project_type if self.meta_context else "unknown"
         static_call_evidence = self.build_scope_cfg_string(analysis)
-        cfg_graphs = {str(lang): self.static_analysis.get_cfg(lang) for lang in self.static_analysis.get_languages()}
+        cfg_graphs = self.static_analysis.available_cfgs()
         self.toolkit.context.cluster_analysis = cluster_analysis
         self.toolkit.context.cluster_results = cluster_results
         self.toolkit.context.cfg_graphs = cfg_graphs

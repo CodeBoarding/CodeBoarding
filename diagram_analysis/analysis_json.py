@@ -15,8 +15,8 @@ from agents.agent_responses import (
     RelationEdge,
     SourceCodeReference,
 )
+from agents.relation_edges import merge_relations_by_pair
 from repo_utils.path_utils import normalize_repo_path
-from static_analyzer.engine.source_inspector import SourceInspector
 
 logger = logging.getLogger(__name__)
 
@@ -174,20 +174,8 @@ def _call_site_from_dict(call_site: dict[str, int]) -> RelationCallSiteJson:
     return RelationCallSiteJson(line=int(call_site.get("line", 0)), column=int(call_site.get("column", 0)))
 
 
-def _infer_call_sites(
-    reference: SourceCodeReference, source_inspector: SourceInspector, repo_dir: Path | None
-) -> list[RelationCallSiteJson]:
-    return [RelationCallSiteJson()]
-
-
-def _relation_edge_to_json(
-    edge: RelationEdge, source_inspector: SourceInspector, repo_dir: Path | None
-) -> RelationEdgeJson:
-    call_sites = (
-        [_call_site_from_dict(site) for site in edge.call_sites]
-        if edge.call_sites
-        else _infer_call_sites(edge.source, source_inspector, repo_dir)
-    )
+def _relation_edge_to_json(edge: RelationEdge, repo_dir: Path | None) -> RelationEdgeJson:
+    call_sites = [_call_site_from_dict(site) for site in edge.call_sites]
     return RelationEdgeJson(
         source=_source_reference_method_key(edge.source, repo_dir),
         target=_source_reference_method_key(edge.target, repo_dir),
@@ -197,28 +185,25 @@ def _relation_edge_to_json(
 
 
 def _relation_edge_from_json(edge: dict, methods_index: dict[str, MethodIndexEntry]) -> RelationEdge:
-    if isinstance(edge.get("source"), dict) and isinstance(edge.get("target"), dict):
-        return RelationEdge(**edge)
-
-    source_key = edge.get("source", "")
-    target_key = edge.get("target", "")
-    source = methods_index.get(source_key)
-    target = methods_index.get(target_key)
-    call_sites = edge.get("call_sites")
-    if call_sites is None:
-        call_sites = [edge.get("call_site", {}) or {}]
+    source_key = edge.get("source")
+    target_key = edge.get("target")
+    if not isinstance(source_key, str) or not isinstance(target_key, str):
+        raise ValueError("Relation edge endpoints must be method-index keys")
+    source = methods_index[source_key]
+    target = methods_index[target_key]
+    call_sites = edge.get("call_sites") or []
     return RelationEdge(
         source=SourceCodeReference(
-            qualified_name=source.qualified_name if source else source_key.split("|", 1)[-1],
-            reference_file=source.file_path if source else source_key.split("|", 1)[0],
-            reference_start_line=source.start_line if source else 0,
-            reference_end_line=source.end_line if source else 0,
+            qualified_name=source.qualified_name,
+            reference_file=source.file_path,
+            reference_start_line=source.start_line,
+            reference_end_line=source.end_line,
         ),
         target=SourceCodeReference(
-            qualified_name=target.qualified_name if target else target_key.split("|", 1)[-1],
-            reference_file=target.file_path if target else target_key.split("|", 1)[0],
-            reference_start_line=target.start_line if target else 0,
-            reference_end_line=target.end_line if target else 0,
+            qualified_name=target.qualified_name,
+            reference_file=target.file_path,
+            reference_start_line=target.start_line,
+            reference_end_line=target.end_line,
         ),
         description=edge.get("description", ""),
         call_sites=[{"line": int(site.get("line", 0)), "column": int(site.get("column", 0))} for site in call_sites],
@@ -313,74 +298,23 @@ def _hydrate_component_methods_from_refs(
         logger.warning("Missing method index entry for %d ref(s): %s", len(missing), missing)
 
 
-def _relation_to_json(r: Relation, source_inspector: SourceInspector, repo_dir: Path | None = None) -> RelationJson:
+def _relation_to_json(r: Relation, repo_dir: Path | None = None) -> RelationJson:
     """Convert a Relation to RelationJson, preserving all fields including static analysis evidence."""
     return RelationJson(
         relation=r.relation,
         src_name=r.src_name,
         dst_name=r.dst_name,
         evidence=r.evidence,
-        key_edges=[_relation_edge_to_json(edge, source_inspector, repo_dir) for edge in r.key_edges],
+        key_edges=[_relation_edge_to_json(edge, repo_dir) for edge in r.key_edges],
         src_id=r.src_id,
         dst_id=r.dst_id,
         is_static=r.is_static,
-        all_edges=[_relation_edge_to_json(edge, source_inspector, repo_dir) for edge in r.all_edges],
+        all_edges=[_relation_edge_to_json(edge, repo_dir) for edge in r.all_edges],
     )
-
-
-def _relation_edge_identity(
-    edge: RelationEdge,
-) -> tuple[str, str, str, str, int | None, int | None, int | None, int | None, tuple[tuple[int, int], ...]]:
-    return (
-        edge.source.qualified_name,
-        edge.target.qualified_name,
-        edge.source.reference_file or "",
-        edge.target.reference_file or "",
-        edge.source.reference_start_line,
-        edge.source.reference_end_line,
-        edge.target.reference_start_line,
-        edge.target.reference_end_line,
-        tuple(sorted((int(site.get("line", 0)), int(site.get("column", 0))) for site in edge.call_sites)),
-    )
-
-
-def _unique_relation_edges(edges: list[RelationEdge]) -> list[RelationEdge]:
-    unique_edges: list[RelationEdge] = []
-    seen: set[tuple] = set()
-    for edge in edges:
-        edge_id = _relation_edge_identity(edge)
-        if edge_id in seen:
-            continue
-        unique_edges.append(edge)
-        seen.add(edge_id)
-    return unique_edges
 
 
 def _collapse_component_relations(relations: list[Relation]) -> list[Relation]:
-    collapsed: dict[tuple[str, str], Relation] = {}
-    for relation in relations:
-        key = (relation.src_id or relation.src_name, relation.dst_id or relation.dst_name)
-        existing = collapsed.get(key)
-        if existing is None:
-            collapsed[key] = Relation(
-                relation=relation.relation,
-                src_name=relation.src_name,
-                dst_name=relation.dst_name,
-                evidence=relation.evidence,
-                key_edges=_unique_relation_edges(relation.key_edges),
-                src_id=relation.src_id,
-                dst_id=relation.dst_id,
-                is_static=relation.is_static,
-                all_edges=_unique_relation_edges([*relation.all_edges, *relation.key_edges]),
-            )
-            continue
-
-        existing.key_edges = _unique_relation_edges([*existing.key_edges, *relation.key_edges])
-        existing.all_edges = _unique_relation_edges([*existing.all_edges, *relation.all_edges, *relation.key_edges])
-        existing.is_static = existing.is_static or relation.is_static
-        if not existing.evidence:
-            existing.evidence = relation.evidence
-    return list(collapsed.values())
+    return merge_relations_by_pair(relations, fallback_to_names=True)
 
 
 def from_component_to_json_component(
@@ -388,13 +322,10 @@ def from_component_to_json_component(
     expandable_components: list[Component],
     sub_analyses: dict[str, tuple[AnalysisInsights, list[Component]]] | None = None,
     processed_ids: set[str] | None = None,
-    source_inspector: SourceInspector | None = None,
     repo_dir: Path | None = None,
 ) -> ComponentJson:
     if processed_ids is None:
         processed_ids = set()
-    if source_inspector is None:
-        source_inspector = SourceInspector()
 
     component_id_val: str = component.component_id
     if component_id_val in processed_ids:
@@ -409,12 +340,11 @@ def from_component_to_json_component(
     if can_expand and sub_analyses and component.component_id in sub_analyses:
         sub_analysis, sub_expandable = sub_analyses[component.component_id]
         nested_components = [
-            from_component_to_json_component(c, sub_expandable, sub_analyses, processed_ids, source_inspector, repo_dir)
+            from_component_to_json_component(c, sub_expandable, sub_analyses, processed_ids, repo_dir)
             for c in sub_analysis.components
         ]
         nested_relations = [
-            _relation_to_json(r, source_inspector, repo_dir)
-            for r in _collapse_component_relations(sub_analysis.components_relations)
+            _relation_to_json(r, repo_dir) for r in _collapse_component_relations(sub_analysis.components_relations)
         ]
 
     return ComponentJson(
@@ -436,15 +366,13 @@ def from_analysis_to_json(
     repo_dir: Path | None = None,
 ) -> str:
     """Convert an AnalysisInsights to a flat JSON string (no metadata wrapper)."""
-    source_inspector = SourceInspector()
     components_json = [
-        from_component_to_json_component(c, expandable_components, sub_analyses, None, source_inspector, repo_dir)
+        from_component_to_json_component(c, expandable_components, sub_analyses, None, repo_dir)
         for c in analysis.components
     ]
     # Build a dict matching the old AnalysisInsightsJson shape but with nested components
     relations_json = [
-        _relation_to_json(r, source_inspector, repo_dir)
-        for r in _collapse_component_relations(analysis.components_relations)
+        _relation_to_json(r, repo_dir) for r in _collapse_component_relations(analysis.components_relations)
     ]
     files_index = _build_files_index_from_analysis(analysis)
     methods_index = _build_methods_index_from_files(files_index)
@@ -519,9 +447,8 @@ def build_unified_analysis_json(
     The depth_level metadata is computed automatically from the sub_analyses structure
     if not provided explicitly.
     """
-    source_inspector = SourceInspector()
     components_json = [
-        from_component_to_json_component(c, expandable_components, sub_analyses, None, source_inspector, repo_dir)
+        from_component_to_json_component(c, expandable_components, sub_analyses, None, repo_dir)
         for c in analysis.components
     ]
     files_index = _build_files_index_from_analysis(analysis)
@@ -534,8 +461,7 @@ def build_unified_analysis_json(
         summary = file_coverage_summary
 
     relations_json = [
-        _relation_to_json(r, source_inspector, repo_dir)
-        for r in _collapse_component_relations(analysis.components_relations)
+        _relation_to_json(r, repo_dir) for r in _collapse_component_relations(analysis.components_relations)
     ]
     unified = UnifiedAnalysisJson(
         snapshotCommit=snapshot_commit,

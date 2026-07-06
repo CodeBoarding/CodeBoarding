@@ -156,7 +156,7 @@ class SourceInspector:
         if file_key not in self._file_bytes_cache:
             try:
                 self._file_bytes_cache[file_key] = file_path.read_bytes()
-            except Exception:
+            except OSError:
                 return None
         return self._file_bytes_cache[file_key]
 
@@ -287,6 +287,64 @@ class SourceInspector:
         if parent is None:
             return False
         return parent.type in _CALL_NODE_TYPES or parent.type in _CONSTRUCTOR_NODE_TYPES
+
+    def _smallest_named_node_ending_at(self, node: TreeSitterNode, line: int, column: int) -> TreeSitterNode | None:
+        best: TreeSitterNode | None = None
+        if not self._node_contains_point(node, line, column):
+            return None
+        candidates = [node]
+        while candidates:
+            candidate = candidates.pop()
+            if candidate.is_named and candidate.end_point.row == line and candidate.end_point.column == column:
+                if best is None or self._node_size(candidate) < self._node_size(best):
+                    best = candidate
+            candidates.extend(child for child in candidate.children if self._node_contains_point(child, line, column))
+        return best
+
+    def _smallest_named_node_covering_range(
+        self, node: TreeSitterNode, line: int, start_column: int, end_column: int
+    ) -> TreeSitterNode | None:
+        best: TreeSitterNode | None = None
+        if not self._node_covers_range(node, line, start_column, end_column):
+            return None
+        candidates = [node]
+        while candidates:
+            candidate = candidates.pop()
+            if candidate.is_named:
+                if best is None or self._node_size(candidate) < self._node_size(best):
+                    best = candidate
+            candidates.extend(
+                child for child in candidate.children if self._node_covers_range(child, line, start_column, end_column)
+            )
+        return best
+
+    @staticmethod
+    def _node_contains_point(node: TreeSitterNode, line: int, column: int) -> bool:
+        start = node.start_point
+        end = node.end_point
+        if start.row > line or end.row < line:
+            return False
+        if start.row == line and start.column > column:
+            return False
+        if end.row == line and end.column < column:
+            return False
+        return True
+
+    @staticmethod
+    def _node_covers_range(node: TreeSitterNode, line: int, start_column: int, end_column: int) -> bool:
+        start = node.start_point
+        end = node.end_point
+        if start.row > line or end.row < line:
+            return False
+        if start.row == line and start.column > start_column:
+            return False
+        if end.row == line and end.column < end_column:
+            return False
+        return True
+
+    @staticmethod
+    def _node_size(node: TreeSitterNode) -> int:
+        return node.end_byte - node.start_byte
 
     def _first_named_child_of_type(self, node: TreeSitterNode, node_types: frozenset[str]) -> TreeSitterNode | None:
         for child in self._walk(node):
