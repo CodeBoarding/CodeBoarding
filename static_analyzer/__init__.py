@@ -592,7 +592,21 @@ class StaticAnalyzer:
                     analysis={},
                     diagnostics={},
                 )
-        logger.info(f"Static analysis complete: {results}")
+        summaries = []
+        for language in results.get_languages():
+            try:
+                cfg = results.get_cfg(language)
+                node_count = len(cfg.nodes)
+                edge_count = len(cfg.edges)
+            except ValueError:
+                node_count = 0
+                edge_count = 0
+            summaries.append(
+                f"{language.value}: {len(results.get_source_files(language))} files, "
+                f"{sum(1 for _ in results.iter_reference_nodes(language))} references, "
+                f"{node_count} nodes, {edge_count} edges"
+            )
+        logger.info("Static analysis complete: %s", "; ".join(summaries) or "no languages")
         return results
 
     def _update_cached_results(self, cached_results: StaticAnalysisResults, cached_sha: str) -> StaticAnalysisResults:
