@@ -85,6 +85,12 @@ class ParsedSource:
     tree: Tree
 
 
+@dataclass(frozen=True)
+class SourceUsageIndex:
+    invocation_end_positions: set[tuple[int, int]]
+    callable_ranges: set[tuple[int, int, int]]
+
+
 class SourceInspector:
     """Reads source files and finds call sites from tree-sitter ASTs."""
 
@@ -93,6 +99,7 @@ class SourceInspector:
         self._file_bytes_cache: dict[str, bytes] = {}
         self._parsed_cache: dict[str, ParsedSource] = {}
         self._parser_by_suffix: dict[str, Parser] = {}
+        self._usage_index_cache: dict[str, SourceUsageIndex] = {}
 
     def get_source_line(self, file_path: Path, line: int) -> str | None:
         """Get a source line from cache, loading the file if needed."""
@@ -113,29 +120,17 @@ class SourceInspector:
 
     def is_invocation(self, file_path: Path, ref_line: int, ref_end_char: int) -> bool:
         """Check whether a reference is the target of a call-like AST node."""
-        parsed = self._parse(file_path)
-        if parsed is None:
+        usage_index = self._usage_index(file_path)
+        if usage_index is None:
             return True
-
-        target = self._smallest_named_node_ending_at(parsed.tree.root_node, ref_line, ref_end_char)
-        if target is None:
-            return False
-        return self._node_is_call_target(target)
+        return (ref_line, ref_end_char) in usage_index.invocation_end_positions
 
     def is_callable_usage(self, file_path: Path, ref_line: int, ref_start_char: int, ref_end_char: int) -> bool:
         """Check whether a variable/constant reference is used in a callable context."""
-        parsed = self._parse(file_path)
-        if parsed is None:
+        usage_index = self._usage_index(file_path)
+        if usage_index is None:
             return True
-
-        target = self._smallest_named_node_covering_range(parsed.tree.root_node, ref_line, ref_start_char, ref_end_char)
-        if target is None:
-            return False
-        if self._node_is_call_target(target):
-            return True
-        if self._node_is_return_value(target):
-            return True
-        return self._node_is_call_argument(target)
+        return (ref_line, ref_start_char, ref_end_char) in usage_index.callable_ranges
 
     def find_call_sites(self, file_path: Path) -> list[CallSite]:
         """Find definition-query positions for identifiers used at call sites."""
@@ -180,6 +175,36 @@ class SourceInspector:
         parsed = ParsedSource(content=content, tree=parser.parse(content))
         self._parsed_cache[file_key] = parsed
         return parsed
+
+    def _usage_index(self, file_path: Path) -> SourceUsageIndex | None:
+        file_key = str(file_path)
+        if file_key in self._usage_index_cache:
+            return self._usage_index_cache[file_key]
+
+        parsed = self._parse(file_path)
+        if parsed is None:
+            return None
+
+        invocation_end_positions: set[tuple[int, int]] = set()
+        callable_ranges: set[tuple[int, int, int]] = set()
+        for node in self._walk(parsed.tree.root_node):
+            target = self._call_target_node(node)
+            if target is not None:
+                invocation_end_positions.add((target.end_point.row, target.end_point.column))
+                callable_ranges.add((target.start_point.row, target.start_point.column, target.end_point.column))
+                continue
+
+            if not node.is_named:
+                continue
+            if self._node_is_return_value(node) or self._node_is_call_argument(node):
+                callable_ranges.add((node.start_point.row, node.start_point.column, node.end_point.column))
+
+        usage_index = SourceUsageIndex(
+            invocation_end_positions=invocation_end_positions,
+            callable_ranges=callable_ranges,
+        )
+        self._usage_index_cache[file_key] = usage_index
+        return usage_index
 
     def _parser_for(self, file_path: Path) -> Parser | None:
         suffix = file_path.suffix.lower()
@@ -262,38 +287,6 @@ class SourceInspector:
         if parent is None:
             return False
         return parent.type in _CALL_NODE_TYPES or parent.type in _CONSTRUCTOR_NODE_TYPES
-
-    def _smallest_named_node_ending_at(self, node: TreeSitterNode, line: int, column: int) -> TreeSitterNode | None:
-        best: TreeSitterNode | None = None
-        for candidate in self._walk(node):
-            if not candidate.is_named:
-                continue
-            if candidate.end_point.row != line or candidate.end_point.column != column:
-                continue
-            if best is None or self._node_size(candidate) < self._node_size(best):
-                best = candidate
-        return best
-
-    def _smallest_named_node_covering_range(
-        self, node: TreeSitterNode, line: int, start_column: int, end_column: int
-    ) -> TreeSitterNode | None:
-        best: TreeSitterNode | None = None
-        for candidate in self._walk(node):
-            if not candidate.is_named:
-                continue
-            if candidate.start_point.row > line or candidate.end_point.row < line:
-                continue
-            if candidate.start_point.row == line and candidate.start_point.column > start_column:
-                continue
-            if candidate.end_point.row == line and candidate.end_point.column < end_column:
-                continue
-            if best is None or self._node_size(candidate) < self._node_size(best):
-                best = candidate
-        return best
-
-    @staticmethod
-    def _node_size(node: TreeSitterNode) -> int:
-        return node.end_byte - node.start_byte
 
     def _first_named_child_of_type(self, node: TreeSitterNode, node_types: frozenset[str]) -> TreeSitterNode | None:
         for child in self._walk(node):
