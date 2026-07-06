@@ -216,6 +216,10 @@ class Relation(LLMBaseModel):
     def llm_str(self):
         return f"({self.src_name}, {self.relation}, {self.dst_name})"
 
+    @property
+    def edge_count(self) -> int:
+        return len(self.all_edges)
+
     def analysis_dump(self) -> dict:
         data = self.model_dump(exclude_none=True)
         data["src_id"] = self.src_id
