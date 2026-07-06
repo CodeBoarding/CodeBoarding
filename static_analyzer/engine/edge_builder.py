@@ -8,6 +8,7 @@ Two strategies are provided:
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from pathlib import Path
 
 from static_analyzer.engine.edge_build_context import EdgeBuildContext
@@ -17,12 +18,31 @@ from static_analyzer.engine.lsp_constants import (
     CALLABLE_KINDS,
     CLASS_LIKE_KINDS,
 )
-from static_analyzer.engine.models import SymbolInfo
+from static_analyzer.engine.models import CallSite, SymbolInfo
 from static_analyzer.engine.protocols import EdgeBuildAdapter
 from static_analyzer.engine.symbol_table import SymbolTable
 from static_analyzer.engine.utils import uri_to_path
 
 logger = logging.getLogger(__name__)
+
+EdgeMap = dict[tuple[str, str], list[CallSite]]
+
+
+@dataclass(frozen=True)
+class ImplementationQuery:
+    caller_qname: str
+    target_file: Path
+    target_line: int
+    target_char: int
+    call_site: CallSite
+
+
+@dataclass(frozen=True)
+class DefinitionResolution:
+    edge_set: EdgeMap
+    impl_queries_pending: list[ImplementationQuery]
+    total_sites: int
+    total_resolved: int
 
 
 # ---------------------------------------------------------------------------
@@ -34,7 +54,7 @@ def build_edges_via_references(
     adapter: EdgeBuildAdapter,
     ctx: EdgeBuildContext,
     source_files: list[Path],
-) -> set[tuple[str, str]]:
+) -> EdgeMap:
     """Build call-graph edges by querying textDocument/references for each symbol.
 
     For each trackable symbol, sends batched references queries and filters
@@ -56,7 +76,7 @@ def build_edges_via_references(
     batch_size = adapter.references_batch_size
     per_query_timeout = adapter.references_per_query_timeout
 
-    edge_set: set[tuple[str, str]] = set()
+    edge_set: EdgeMap = {}
     refs_total = 0
     refs_call_sites = 0
 
@@ -161,7 +181,7 @@ def _process_references_for_position(
     ctx: EdgeBuildContext,
     syms_at_pos: list[SymbolInfo],
     refs: list[dict],
-    edge_set: set[tuple[str, str]],
+    edge_set: EdgeMap,
 ) -> tuple[int, int]:
     """Process reference results for symbols at a single position.
 
@@ -213,7 +233,7 @@ def _process_references_for_position(
                 continue
             if sym.qualified_name.startswith(container.qualified_name + "."):
                 continue
-            edge_set.add((container.qualified_name, sym.qualified_name))
+            _add_edge_site(edge_set, container.qualified_name, sym.qualified_name, ref_file, ref_line, ref_char)
 
     return refs_total, refs_call_sites
 
@@ -227,7 +247,7 @@ def build_edges_via_definitions(
     adapter: EdgeBuildAdapter,
     ctx: EdgeBuildContext,
     source_files: list[Path],
-) -> set[tuple[str, str]]:
+) -> EdgeMap:
     """Build edges via textDocument/definition instead of references.
 
     JDTLS serializes references requests (~1-10s each), making the default
@@ -239,20 +259,20 @@ def build_edges_via_definitions(
 
     pos_to_sym, line_to_syms = _build_definition_lookups(st)
 
-    edge_set, impl_queries_pending, total_sites, total_resolved = _resolve_definitions(
-        adapter, ctx, source_files, pos_to_sym, line_to_syms
-    )
+    resolution = _resolve_definitions(adapter, ctx, source_files, pos_to_sym, line_to_syms)
 
-    total_impl_resolved = _resolve_implementations(ctx, edge_set, impl_queries_pending, pos_to_sym, line_to_syms)
+    total_impl_resolved = _resolve_implementations(
+        ctx, resolution.edge_set, resolution.impl_queries_pending, pos_to_sym, line_to_syms
+    )
 
     logger.info(
         "Phase 2 summary: %d call sites, %d def resolved, %d impl resolved, %d raw edges",
-        total_sites,
-        total_resolved,
+        resolution.total_sites,
+        resolution.total_resolved,
         total_impl_resolved,
-        len(edge_set),
+        len(resolution.edge_set),
     )
-    return edge_set
+    return resolution.edge_set
 
 
 def _build_definition_lookups(
@@ -282,18 +302,15 @@ def _resolve_definitions(
     source_files: list[Path],
     pos_to_sym: dict[tuple[str, int, int], SymbolInfo],
     line_to_syms: dict[tuple[str, int], list[SymbolInfo]],
-) -> tuple[set[tuple[str, str]], list[tuple[str, Path, int, int]], int, int]:
-    """Phase 2a: Resolve call sites via textDocument/definition.
-
-    Returns (edge_set, impl_queries_pending, total_sites, total_resolved).
-    """
-    edge_set: set[tuple[str, str]] = set()
+) -> DefinitionResolution:
+    """Phase 2a: Resolve call sites via textDocument/definition."""
+    edge_set: EdgeMap = {}
     st = ctx.symbol_table
     total_files = len(source_files)
     total_sites = 0
     total_resolved = 0
     batch_size = 50
-    impl_queries_pending: list[tuple[str, Path, int, int]] = []
+    impl_queries_pending: list[ImplementationQuery] = []
 
     pbar = ProgressLogger("Phase 2 (definitions)", total_files, unit="file")
     for file_path in source_files:
@@ -306,7 +323,7 @@ def _resolve_definitions(
 
         for batch_start in range(0, len(call_sites), batch_size):
             batch = call_sites[batch_start : batch_start + batch_size]
-            queries = [(file_path, line, col) for line, col in batch]
+            queries = [(file_path, site.lsp_line, site.lsp_column) for site in batch]
 
             try:
                 results, _ = ctx.lsp.send_definition_batch(queries)
@@ -314,12 +331,12 @@ def _resolve_definitions(
                 logger.warning("Definition batch failed for %s: %s", file_path.name, e)
                 continue
 
-            for i, (site_line, site_col) in enumerate(batch):
+            for i, call_site in enumerate(batch):
                 defs = results[i] if i < len(results) else []
                 if not defs:
                     continue
 
-                caller = st.find_containing_symbol(file_path, site_line, site_col)
+                caller = st.find_containing_symbol(file_path, call_site.lsp_line, call_site.lsp_column)
                 if not caller:
                     continue
                 caller = st.lift_to_callable(caller)
@@ -335,7 +352,7 @@ def _resolve_definitions(
                     if not _is_valid_edge(caller, target):
                         continue
 
-                    edge_set.add((caller.qualified_name, target.qualified_name))
+                    _add_edge_call_site(edge_set, caller.qualified_name, target.qualified_name, call_site)
 
                     # If target is a callable with a class-like parent, also add edge to the parent class
                     if adapter.is_callable(target.kind) and target.parent_chain:
@@ -348,16 +365,17 @@ def _resolve_definitions(
                             if parent_qname in st.symbols:
                                 parent_sym = st.symbols[parent_qname]
                                 if _is_valid_edge(caller, parent_sym):
-                                    edge_set.add((caller.qualified_name, parent_qname))
+                                    _add_edge_call_site(edge_set, caller.qualified_name, parent_qname, call_site)
 
                     # Queue implementation query for polymorphic dispatch
                     if adapter.is_callable(target.kind):
                         impl_queries_pending.append(
-                            (
-                                caller.qualified_name,
-                                target.file_path,
-                                target.start_line,
-                                target.start_char,
+                            ImplementationQuery(
+                                caller_qname=caller.qualified_name,
+                                target_file=target.file_path,
+                                target_line=target.start_line,
+                                target_char=target.start_char,
+                                call_site=call_site,
                             )
                         )
 
@@ -365,13 +383,18 @@ def _resolve_definitions(
         pbar.update(1)
     pbar.finish()
 
-    return edge_set, impl_queries_pending, total_sites, total_resolved
+    return DefinitionResolution(
+        edge_set=edge_set,
+        impl_queries_pending=impl_queries_pending,
+        total_sites=total_sites,
+        total_resolved=total_resolved,
+    )
 
 
 def _resolve_implementations(
     ctx: EdgeBuildContext,
-    edge_set: set[tuple[str, str]],
-    impl_queries_pending: list[tuple[str, Path, int, int]],
+    edge_set: EdgeMap,
+    impl_queries_pending: list[ImplementationQuery],
     pos_to_sym: dict[tuple[str, int, int], SymbolInfo],
     line_to_syms: dict[tuple[str, int], list[SymbolInfo]],
 ) -> int:
@@ -382,10 +405,10 @@ def _resolve_implementations(
     st = ctx.symbol_table
     batch_size = 50
 
-    target_pos_to_callers: dict[tuple[str, int, int], set[str]] = {}
-    for caller_qname, tgt_file, tgt_line, tgt_char in impl_queries_pending:
-        tgt_key = (str(tgt_file), tgt_line, tgt_char)
-        target_pos_to_callers.setdefault(tgt_key, set()).add(caller_qname)
+    target_pos_to_callers: dict[tuple[str, int, int], list[tuple[str, CallSite]]] = {}
+    for query in impl_queries_pending:
+        tgt_key = (str(query.target_file), query.target_line, query.target_char)
+        target_pos_to_callers.setdefault(tgt_key, []).append((query.caller_qname, query.call_site))
 
     unique_impl_targets = list(target_pos_to_callers.keys())
     total_impl_queries = len(unique_impl_targets)
@@ -419,10 +442,10 @@ def _resolve_implementations(
                     continue
                 total_impl_resolved += 1
 
-                for caller_qname in callers:
+                for caller_qname, call_site in callers:
                     caller_sym = st.symbols.get(caller_qname)
                     if caller_sym and _is_valid_edge(caller_sym, impl_sym):
-                        edge_set.add((caller_qname, impl_sym.qualified_name))
+                        _add_edge_call_site(edge_set, caller_qname, impl_sym.qualified_name, call_site)
 
         pbar.set_postfix(edges=len(edge_set), resolved=total_impl_resolved)
         pbar.update(len(batch_keys))
@@ -434,6 +457,21 @@ def _resolve_implementations(
 # ---------------------------------------------------------------------------
 # Shared helpers
 # ---------------------------------------------------------------------------
+
+
+def _call_site(file_path: Path, line: int, column: int) -> CallSite:
+    """Convert LSP's zero-based position to the public one-based call-site shape."""
+    return CallSite.from_lsp_position(file=str(file_path), line=line, column=column)
+
+
+def _add_edge_site(edge_set: EdgeMap, source: str, destination: str, file_path: Path, line: int, column: int) -> None:
+    _add_edge_call_site(edge_set, source, destination, _call_site(file_path, line, column))
+
+
+def _add_edge_call_site(edge_set: EdgeMap, source: str, destination: str, call_site: CallSite) -> None:
+    sites = edge_set.setdefault((source, destination), [])
+    if call_site not in sites:
+        sites.append(call_site)
 
 
 def _is_valid_edge(caller: SymbolInfo, target: SymbolInfo) -> bool:

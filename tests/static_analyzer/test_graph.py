@@ -86,7 +86,7 @@ class TestEdge(unittest.TestCase):
         src = Node("module.src", 12, "/file.py", 1, 10)
         dst = Node("module.dst", 12, "/file.py", 20, 30)
 
-        edge = Edge(src, dst)
+        edge = Edge(src, dst, [])
 
         self.assertEqual(edge.src_node, src)
         self.assertEqual(edge.dst_node, dst)
@@ -96,7 +96,7 @@ class TestEdge(unittest.TestCase):
         src = Node("module.src", 12, "/file.py", 1, 10)
         dst = Node("module.dst", 12, "/file.py", 20, 30)
 
-        edge = Edge(src, dst)
+        edge = Edge(src, dst, [])
 
         self.assertEqual(edge.get_source(), "module.src")
 
@@ -105,7 +105,7 @@ class TestEdge(unittest.TestCase):
         src = Node("module.src", 12, "/file.py", 1, 10)
         dst = Node("module.dst", 12, "/file.py", 20, 30)
 
-        edge = Edge(src, dst)
+        edge = Edge(src, dst, [])
 
         self.assertEqual(edge.get_destination(), "module.dst")
 
@@ -114,7 +114,7 @@ class TestEdge(unittest.TestCase):
         src = Node("module.src", 12, "/file.py", 1, 10)
         dst = Node("module.dst", 12, "/file.py", 20, 30)
 
-        edge = Edge(src, dst)
+        edge = Edge(src, dst, [])
         repr_str = repr(edge)
 
         self.assertIn("module.src", repr_str)
@@ -129,7 +129,7 @@ class TestCallGraph(unittest.TestCase):
 
         self.assertEqual(len(graph.nodes), 0)
         self.assertEqual(len(graph.edges), 0)
-        self.assertEqual(len(graph._edge_set), 0)
+        self.assertEqual(len(graph._edge_by_key), 0)
 
     def test_callgraph_creation_with_data(self):
         # Test creating CallGraph with initial data
@@ -176,7 +176,7 @@ class TestCallGraph(unittest.TestCase):
         graph.add_edge("module.src", "module.dst")
 
         self.assertEqual(len(graph.edges), 1)
-        self.assertIn(("module.src", "module.dst"), graph._edge_set)
+        self.assertIn(("module.src", "module.dst"), graph._edge_by_key)
         # Check that src node's methods_called_by_me is updated
         self.assertIn("module.dst", src.methods_called_by_me)
 
@@ -216,7 +216,7 @@ class TestCallGraph(unittest.TestCase):
 
         # Should only have one edge
         self.assertEqual(len(graph.edges), 1)
-        self.assertEqual(len(graph._edge_set), 1)
+        self.assertEqual(len(graph._edge_by_key), 1)
 
     def test_to_networkx(self):
         # Test converting to NetworkX graph
@@ -716,7 +716,7 @@ class TestCallGraph(unittest.TestCase):
         sub = graph.filter_by_files({"/src/index.py"})
         self.assertGreaterEqual(len(sub.edges), 1)
 
-        # _edge_set must have been rewritten so dedup still works
+        # Edge key lookup must have been rewritten so dedup still works
         graph.add_edge("src.index.funcA", "index.funcB")
         self.assertEqual(len(graph.edges), 1)
 

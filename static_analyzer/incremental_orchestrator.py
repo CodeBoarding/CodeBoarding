@@ -214,14 +214,16 @@ def _add_outbound_edges_from_changed_files(
         call_sites = source_inspector.find_call_sites(file_path)
         if not call_sites:
             continue
-        queries = [(file_path, line, char) for line, char in call_sites]
+        queries = [(file_path, site.lsp_line, site.lsp_column) for site in call_sites]
         try:
             definition_results, _ = engine_client.send_definition_batch(queries)
         except Exception:
             logger.debug("Failed to resolve outbound definitions for %s", file_path, exc_info=True)
             continue
 
-        for (line, char), definitions in zip(call_sites, definition_results):
+        for site, definitions in zip(call_sites, definition_results):
+            line = site.lsp_line
+            char = site.lsp_column
             containing_nodes = _containing_callable_nodes(call_graph, file_path, line, char)
             if not containing_nodes:
                 continue
@@ -234,7 +236,11 @@ def _add_outbound_edges_from_changed_files(
                         continue
                     try:
                         before = len(call_graph.edges)
-                        call_graph.add_edge(src_node.fully_qualified_name, dst_node.fully_qualified_name)
+                        call_graph.add_edge(
+                            src_node.fully_qualified_name,
+                            dst_node.fully_qualified_name,
+                            call_sites=[{"file": site.file, "line": site.line, "column": site.column}],
+                        )
                         if len(call_graph.edges) > before:
                             added += 1
                     except ValueError:

@@ -57,7 +57,7 @@ def _relative_path(file_path: str, repo_path: Path) -> str:
     """Return a repo-relative path string, falling back to the original if it's not under repo_path.
 
     Uses as_posix() so snapshots written on Windows are byte-identical to
-    those written on macOS / Linux — otherwise a Windows-authored snapshot
+    those written on macOS / Linux - otherwise a Windows-authored snapshot
     would diff against the repo version on every subsequent CI run.
     """
     if not file_path:
@@ -68,13 +68,55 @@ def _relative_path(file_path: str, repo_path: Path) -> str:
         return file_path
 
 
+def _edge_call_site_dicts(edge, repo_path: Path) -> list[dict]:
+    """Return normalized call-site dictionaries for an edge."""
+    sites = getattr(edge, "call_sites", [])
+    normalized = []
+    for site in sites:
+        if isinstance(site, dict):
+            file_value = site.get("file") or site.get("file_path")
+            line = site.get("line")
+            column = site.get("column")
+        else:
+            file_value = getattr(site, "file", None) or getattr(site, "file_path", None)
+            line = getattr(site, "line", None)
+            column = getattr(site, "column", None)
+
+        if file_value is None or line is None or column is None:
+            continue
+        normalized.append(
+            {
+                "file": _relative_path(str(file_value), repo_path),
+                "line": int(line),
+                "column": int(column),
+            }
+        )
+    return sorted(normalized, key=lambda item: (item["file"], item["line"], item["column"]))
+
+
+def _expected_edge_key(edge: dict | list) -> tuple[str, str]:
+    if isinstance(edge, dict):
+        return edge["source"], edge["destination"]
+    return edge[0], edge[1]
+
+
+def _expected_call_site_edges(fixture: dict) -> list[dict]:
+    expected_edges = []
+    for edge in fixture.get("expected_edges", []):
+        if not isinstance(edge, dict) or not edge.get("call_sites"):
+            continue
+        source, destination = _expected_edge_key(edge)
+        expected_edges.append({"source": source, "destination": destination, "occurrences": edge["call_sites"]})
+    return expected_edges
+
+
 def _write_snapshot(
     static_analysis: StaticAnalysisResults, language: Language, config_name: str, repo_path: Path
 ) -> Path:
     """Write a detailed snapshot of the analysis results to a JSON file for manual validation.
 
     The snapshot includes all references, hierarchy, call graph edges, package dependencies,
-    and source files — everything needed to verify correctness by inspection.
+    and source files - everything needed to verify correctness by inspection.
     """
     SNAPSHOT_DIR.mkdir(parents=True, exist_ok=True)
     repo_path = repo_path.resolve()
@@ -95,9 +137,25 @@ def _write_snapshot(
     try:
         cfg = static_analysis.get_cfg(language)
         edges_snapshot = sorted([e.get_source(), e.get_destination()] for e in cfg.edges)
+        call_site_occurrences_snapshot = []
+        for edge in cfg.edges:
+            occurrences = _edge_call_site_dicts(edge, repo_path)
+            if occurrences:
+                call_site_occurrences_snapshot.append(
+                    {
+                        "source": edge.get_source(),
+                        "destination": edge.get_destination(),
+                        "occurrences": occurrences,
+                    }
+                )
+        call_site_occurrences_snapshot = sorted(
+            call_site_occurrences_snapshot,
+            key=lambda item: (item["source"], item["destination"]),
+        )
         nodes_snapshot = sorted(cfg.nodes.keys())
     except ValueError:
         edges_snapshot = []
+        call_site_occurrences_snapshot = []
         nodes_snapshot = []
 
     # Package dependencies
@@ -129,6 +187,7 @@ def _write_snapshot(
         "references": references_snapshot,
         "call_graph_nodes": nodes_snapshot,
         "call_graph_edges": edges_snapshot,
+        "call_site_occurrences": call_site_occurrences_snapshot,
         "package_dependencies": packages_snapshot,
         "source_files": source_files_rel,
     }
@@ -151,10 +210,18 @@ MIN_ABSOLUTE_TOLERANCE = 2
 EXECUTION_TIME_TOLERANCE = 0.15
 
 # Minimum absolute tolerance for execution-time comparisons; the larger
-# of this and EXECUTION_TIME_TOLERANCE applies. Set to 150s to absorb
-# JDTLS warm-up variance on shared macOS runners (observed 177s-295s
-# range for the same mockito_java test across consecutive runs).
-MIN_EXECUTION_TIME_TOLERANCE = 150
+# of this and EXECUTION_TIME_TOLERANCE applies.
+MIN_EXECUTION_TIME_TOLERANCE = 250
+
+
+def _expected_metric_value(expected_metrics: dict, metric_name: str, current_os: str):
+    by_os_key = f"{metric_name}_by_os"
+    if by_os_key in expected_metrics:
+        try:
+            return expected_metrics[by_os_key][current_os]
+        except KeyError as e:
+            raise AssertionError(f"Fixture is missing {by_os_key}[{current_os!r}] (got {e})") from None
+    return expected_metrics[metric_name]
 
 
 def get_language_marker(language: str):
@@ -238,7 +305,7 @@ class TestStaticAnalysisConsistency:
         mock_scan = create_mock_scanner(config.mock_language)
         start_time = time.perf_counter()
         with patch("static_analyzer.scanner.ProjectScanner.scan", mock_scan):
-            static_analysis = get_static_analysis(repo_path, cache_dir=get_artifact_dir(repo_path))
+            static_analysis = get_static_analysis(repo_path, cache_dir=get_artifact_dir(repo_path), persist_cache=False)
         end_time = time.perf_counter()
         actual_execution_time = end_time - start_time
 
@@ -262,28 +329,14 @@ class TestStaticAnalysisConsistency:
         ]
 
         current_os = platform.system()
-        # Metrics that vary across OSes (LSP servers report slightly
-        # different reference counts on Windows; execution time tracks
-        # runner hardware) are stored as ``<name>_by_os`` dicts keyed by
-        # ``platform.system()``. All other metrics are flat scalars.
-        per_os_metrics = {"references_count", "execution_time_seconds"}
         results = []
         for metric_name in metric_names:
             actual = actual_metrics[metric_name]
-            if metric_name in per_os_metrics:
-                by_os_key = f"{metric_name}_by_os"
-                try:
-                    expected_val = expected_metrics[by_os_key][current_os]
-                except KeyError as e:
-                    raise AssertionError(
-                        f"Fixture {config.fixture_file} is missing " f"{by_os_key}[{current_os!r}] (got {e})"
-                    ) from None
-            else:
-                expected_val = expected_metrics[metric_name]
+            expected_val = _expected_metric_value(expected_metrics, metric_name, current_os)
             if metric_name == "execution_time_seconds":
                 tolerance = EXECUTION_TIME_TOLERANCE
                 min_absolute = MIN_EXECUTION_TIME_TOLERANCE
-                # Faster-than-baseline runs are a win, not a regression — only
+                # Faster-than-baseline runs are a win, not a regression - only
                 # flag when ``actual`` exceeds the upper tolerance bound.
                 upper_only = True
             else:
@@ -324,6 +377,14 @@ class TestStaticAnalysisConsistency:
                 "references",
             )
 
+        if _expected_call_site_edges(expected):
+            self._verify_call_site_occurrences(
+                static_analysis,
+                Language(config.language.lower()),
+                expected,
+                repo_path,
+            )
+
     def _check_metric_within_tolerance(
         self,
         actual: int | float,
@@ -334,7 +395,7 @@ class TestStaticAnalysisConsistency:
     ) -> tuple[bool, str]:
         """Check if actual value is within tolerance of expected.
 
-        When ``upper_only`` is True, ``actual < expected`` is always a pass —
+        When ``upper_only`` is True, ``actual < expected`` is always a pass -
         used for metrics (e.g. execution time) where beating the baseline
         is a win rather than a regression.
 
@@ -412,3 +473,42 @@ class TestStaticAnalysisConsistency:
 
         for cls in sample_classes:
             assert cls in hierarchy_keys, f"Expected class '{cls}' not found in {language} hierarchy"
+
+    def _verify_call_site_occurrences(
+        self,
+        static_analysis: StaticAnalysisResults,
+        language: Language,
+        expected: dict,
+        repo_path: Path,
+    ):
+        cfg = static_analysis.get_cfg(language)
+        actual_by_edge = {(e.get_source(), e.get_destination()): _edge_call_site_dicts(e, repo_path) for e in cfg.edges}
+        actual_by_destination: dict[str, set[tuple[str, int, int]]] = {}
+        for (_, destination), sites in actual_by_edge.items():
+            actual_by_destination.setdefault(destination, set()).update(
+                (site["file"], site["line"], site["column"]) for site in sites
+            )
+
+        errors = []
+        for expected_edge in _expected_call_site_edges(expected):
+            destination = expected_edge["destination"]
+            source = expected_edge.get("source")
+            edge_key = (source, destination) if source else None
+            if edge_key:
+                actual_sites = {
+                    (site["file"], site["line"], site["column"]) for site in actual_by_edge.get(edge_key, [])
+                }
+            else:
+                actual_sites = actual_by_destination.get(destination, set())
+            expected_sites = {
+                (site["file"], site["line"], site["column"]) for site in expected_edge.get("occurrences", [])
+            }
+            missing = sorted(expected_sites - actual_sites)
+            if missing:
+                edge_label = f"{source} -> {destination}" if source else f"* -> {destination}"
+                errors.append(
+                    f"{edge_label} is missing {len(missing)} call-site occurrence(s):\n"
+                    + "\n".join(f"  - {file}:{line}:{column}" for file, line, column in missing)
+                )
+
+        assert not errors, "\n\n".join(errors)

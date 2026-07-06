@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import sys
 import tarfile
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
@@ -46,16 +47,35 @@ class LanguageSupportCheck:
     fallback_available: bool = False
     reason_if_requirement_missing: str = ""
     reason_if_binary_missing: str = ""
+    health_check: Callable[[], tuple[bool, str | None]] | None = None
 
     def evaluate(self, npm_available: bool) -> tuple[bool, str | None]:
         requirement_ok = (not self.requires_npm) or npm_available
         path_exists = any(path.exists() for path in self.paths)
         is_available = (path_exists and requirement_ok) or self.fallback_available
+        if is_available and self.health_check is not None:
+            return self.health_check()
         if is_available:
             return True, None
 
         reason = self.reason_if_requirement_missing if not requirement_ok else self.reason_if_binary_missing
         return False, reason
+
+
+def check_rust_toolchain() -> tuple[bool, str | None]:
+    """Check whether Cargo can run, which rust-analyzer requires for references."""
+    cargo_path = shutil.which("cargo")
+    if cargo_path is None:
+        return False, "cargo not found; Rust call-graph analysis requires a working Cargo toolchain"
+    try:
+        subprocess.run([cargo_path, "--version"], capture_output=True, text=True, check=True, timeout=30)
+    except (subprocess.SubprocessError, OSError) as exc:
+        detail = getattr(exc, "stderr", "") or str(exc)
+        detail = " ".join(str(detail).split())
+        if detail:
+            return False, f"cargo failed to run; Rust call-graph analysis unavailable ({detail})"
+        return False, "cargo failed to run; Rust call-graph analysis unavailable"
+    return True, None
 
 
 def check_npm(target_dir: Path | None = None) -> bool:
@@ -631,6 +651,7 @@ def _language_checks_from_registry(target_dir: Path) -> list[LanguageSupportChec
                 reason_requirement = f"{dep.binary_name} not installed ({manager} unavailable or install failed)"
             reason_binary = reason_requirement
 
+        health_check = check_rust_toolchain if dep.key == "rust" else None
         for lang in languages:
             checks.append(
                 LanguageSupportCheck(
@@ -640,6 +661,7 @@ def _language_checks_from_registry(target_dir: Path) -> list[LanguageSupportChec
                     fallback_available=fallback_available,
                     reason_if_requirement_missing=reason_requirement,
                     reason_if_binary_missing=reason_binary,
+                    health_check=health_check,
                 )
             )
     return checks

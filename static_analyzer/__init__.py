@@ -178,6 +178,7 @@ class StaticAnalyzer:
         self.collected_diagnostics: dict[Language, FileDiagnosticsMap] = {}
         self._clients_started: bool = False
         self._cached_results: StaticAnalysisResults | None = None
+        self._persist_cache: bool = True
         # ``stop_clients`` writes the pkl using ``_pending_source_sha`` as the
         # tag value (a diff-base for the next warm-start, NOT a cache gate).
         # ``analyze()`` updates it on every call so the latest run's SHA
@@ -258,6 +259,7 @@ class StaticAnalyzer:
                 # check doesn't keep growing.
                 if adapter.wait_for_workspace_ready:
                     engine_client.wait_for_server_ready()
+                    adapter.validate_workspace_ready(engine_client)
                     logger.info(f"{adapter.language} workspace ready: {time.monotonic() - t_lsp_started:.1f}s")
 
                 started.append((engine_config, engine_client))
@@ -306,7 +308,8 @@ class StaticAnalyzer:
         """
         if not self._clients_started:
             return
-        self.flush_cache()
+        if self._persist_cache:
+            self.flush_cache()
         for engine_config, client in self._engine_clients:
             try:
                 client.shutdown()
@@ -464,7 +467,7 @@ class StaticAnalyzer:
             if not call_sites:
                 return []
 
-            queries = [(file_path, line, char) for line, char in call_sites]
+            queries = [(file_path, site.lsp_line, site.lsp_column) for site in call_sites]
             results, _ = client.send_definition_batch(queries)
 
             resolved = file_path.resolve()
@@ -492,6 +495,7 @@ class StaticAnalyzer:
         cache_dir: Path,
         skip_cache: bool = False,
         source_sha: str | None = None,
+        persist_cache: bool = True,
     ) -> StaticAnalysisResults:
         """Analyze the repository, warm-starting from the SHA-tagged pkl when present.
 
@@ -515,6 +519,7 @@ class StaticAnalyzer:
                 "LSP clients are not running. Call start_clients() or use StaticAnalyzer as a context manager "
                 "('with StaticAnalyzer(...) as sa:') before calling analyze()."
             )
+        self._persist_cache = persist_cache
 
         if not skip_cache and self._cached_results is not None:
             logger.info("static_analysis_cache: outcome=memhit")
@@ -587,7 +592,21 @@ class StaticAnalyzer:
                     analysis={},
                     diagnostics={},
                 )
-        logger.info(f"Static analysis complete: {results}")
+        summaries = []
+        for language in results.get_languages():
+            try:
+                cfg = results.get_cfg(language)
+                node_count = len(cfg.nodes)
+                edge_count = len(cfg.edges)
+            except ValueError:
+                node_count = 0
+                edge_count = 0
+            summaries.append(
+                f"{language.value}: {len(results.get_source_files(language))} files, "
+                f"{sum(1 for _ in results.iter_reference_nodes(language))} references, "
+                f"{node_count} nodes, {edge_count} edges"
+            )
+        logger.info("Static analysis complete: %s", "; ".join(summaries) or "no languages")
         return results
 
     def _update_cached_results(self, cached_results: StaticAnalysisResults, cached_sha: str) -> StaticAnalysisResults:
@@ -777,6 +796,7 @@ def get_static_analysis(
     cache_dir: Path,
     skip_cache: bool = False,
     source_sha: str | None = None,
+    persist_cache: bool = True,
 ) -> StaticAnalysisResults:
     """CLI orchestrator: get static analysis results with full LSP lifecycle management.
 
@@ -792,12 +812,18 @@ def get_static_analysis(
         source_sha: Canonical source-state identifier (typically a git tree SHA)
             stamped onto the freshly-saved pkl as a diff base for the next
             warm-start.
+        persist_cache: If False, skip writing the run artifact on teardown.
 
     Returns:
         StaticAnalysisResults reflecting the live source state.
     """
     analyzer = StaticAnalyzer(repo_path)
     with analyzer:
-        results = analyzer.analyze(skip_cache=skip_cache, source_sha=source_sha, cache_dir=cache_dir)
+        results = analyzer.analyze(
+            cache_dir=cache_dir,
+            skip_cache=skip_cache,
+            source_sha=source_sha,
+            persist_cache=persist_cache,
+        )
     results.diagnostics = analyzer.collected_diagnostics
     return results

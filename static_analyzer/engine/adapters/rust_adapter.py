@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import shutil
+import subprocess
 from pathlib import Path
 
 from repo_utils.ignore import RepoIgnoreManager
@@ -119,6 +120,15 @@ class RustAdapter(LanguageAdapter):
             # No quiescent transition observed; debounce instead.
             client.wait_for_diagnostics_quiesce(idle_seconds=3.0, max_wait=60.0)
 
+    def validate_workspace_ready(self, client: LSPClient) -> None:
+        """Reject rust-analyzer workspaces that loaded with fatal health."""
+        if client.server_health == "error":
+            detail = client.server_health_message or "workspace health=error"
+            raise RuntimeError(
+                "rust-analyzer reported an unusable workspace. Cargo metadata or toolchain setup failed, "
+                f"so references and call-graph edges would be incomplete: {detail}"
+            )
+
     @property
     def lsp_command(self) -> list[str]:
         return ["rust-analyzer"]
@@ -134,13 +144,45 @@ class RustAdapter(LanguageAdapter):
         and the toolchain is too large to bundle, so we mirror Java's
         pattern of requiring a user-installed toolchain.
         """
-        if shutil.which("cargo") is None:
+        cargo_path = shutil.which("cargo")
+        if cargo_path is None:
             raise RuntimeError(
                 "cargo not found on PATH. rust-analyzer requires a Rust "
                 "toolchain to index Cargo projects. Install one via "
                 "https://rustup.rs/ and re-run the analysis."
             )
+        self._check_cargo_usable(project_root, cargo_path)
         return super().get_lsp_command(project_root)
+
+    def _check_cargo_usable(self, project_root: Path, cargo_path: str) -> None:
+        """Reject broken Cargo installs before rust-analyzer returns empty edges."""
+        try:
+            subprocess.run(
+                [cargo_path, "--version"], cwd=project_root, check=True, capture_output=True, text=True, timeout=30
+            )
+        except (subprocess.SubprocessError, OSError) as exc:
+            raise RuntimeError(
+                "cargo is installed but failed to run. rust-analyzer requires a working Cargo toolchain "
+                "to build references and call-graph edges. Fix cargo and re-run the analysis."
+            ) from exc
+
+        manifest = project_root / "Cargo.toml"
+        if not manifest.exists():
+            return
+        try:
+            subprocess.run(
+                [cargo_path, "metadata", "--format-version", "1", "--no-deps", "--manifest-path", str(manifest)],
+                cwd=project_root,
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+        except (subprocess.SubprocessError, OSError) as exc:
+            raise RuntimeError(
+                "cargo metadata failed for this Rust project. rust-analyzer cannot reliably resolve "
+                "references or call-graph edges until the Cargo workspace loads successfully."
+            ) from exc
 
     def get_lsp_init_options(self, ignore_manager: RepoIgnoreManager | None = None) -> dict:
         """Tune rust-analyzer for batch analysis: enable build scripts and

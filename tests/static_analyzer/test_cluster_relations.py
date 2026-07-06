@@ -26,7 +26,7 @@ def _make_node(name: str, file_path: str = "src/file.py") -> Node:
 
 
 def _make_edge(src_name: str, dst_name: str) -> Edge:
-    return Edge(_make_node(src_name), _make_node(dst_name))
+    return Edge(_make_node(src_name), _make_node(dst_name), [])
 
 
 def _make_component(name: str, methods: list[tuple[str, str]], component_id: str = "") -> Component:

@@ -412,7 +412,7 @@ class TestCallGraphConversion:
                 _lsp_sym("bar", NodeType.FUNCTION, 7, 12),
             ],
         )
-        cfg = CallFlowGraph.from_edge_set({("mod.foo", "mod.bar")})
+        cfg = CallFlowGraph.from_edge_set({("mod.foo", "mod.bar"): []})
         result = LanguageAnalysisResult(cfg=cfg)
         out = convert_to_codeboarding_format(st, result, adapter)
 
@@ -426,7 +426,7 @@ class TestCallGraphConversion:
         adapter = _make_adapter()
         st = SymbolTable(adapter)
         _register(st, [_lsp_sym("foo", NodeType.FUNCTION, 0, 5)])
-        cfg = CallFlowGraph.from_edge_set({("mod.foo", "mod.nonexistent")})
+        cfg = CallFlowGraph.from_edge_set({("mod.foo", "mod.nonexistent"): []})
         result = LanguageAnalysisResult(cfg=cfg)
         out = convert_to_codeboarding_format(st, result, adapter)
 
@@ -444,7 +444,7 @@ class TestCallGraphConversion:
                 _lsp_sym("process", NodeType.FUNCTION, 5, 15),
             ],
         )
-        cfg = CallFlowGraph.from_edge_set({("mod.handler", "mod.process")})
+        cfg = CallFlowGraph.from_edge_set({("mod.handler", "mod.process"): []})
         result = LanguageAnalysisResult(cfg=cfg)
         out = convert_to_codeboarding_format(st, result, adapter)
 

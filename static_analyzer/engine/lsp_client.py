@@ -78,6 +78,8 @@ class LSPClient:
 
         # JDTLS import tracking
         self._server_ready = threading.Event()
+        self._server_health: str | None = None
+        self._server_health_message: str | None = None
         # Set when ``initialize`` returned an error response. ``wait_for_server_ready``
         # bails out immediately when this is set so callers don't burn 5 minutes
         # waiting on an LSP that already reported a fatal startup error
@@ -473,6 +475,14 @@ class LSPClient:
         """
         self._server_ready.clear()
 
+    @property
+    def server_health(self) -> str | None:
+        return self._server_health
+
+    @property
+    def server_health_message(self) -> str | None:
+        return self._server_health_message
+
     # ---- Internal protocol implementation ----
 
     def _position_params(self, file_path: Path, line: int, character: int) -> dict:
@@ -754,6 +764,9 @@ class LSPClient:
             # reference index, just with diagnostics flagged).
             quiescent = bool(params.get("quiescent", False))
             health = params.get("health", "")
+            message = params.get("message", "")
+            self._server_health = health
+            self._server_health_message = message
             logger.debug("rust-analyzer status: health=%s, quiescent=%s", health, quiescent)
             if quiescent:
                 self._server_ready.set()

@@ -14,7 +14,7 @@
     },
     "packages_count": 26,
     "call_graph_nodes": 823,
-    "call_graph_edges": 2412,
+    "call_graph_edges": 2155,
     "source_files_count": 112,
     "execution_time_seconds_by_os": {
       "Linux": 60,

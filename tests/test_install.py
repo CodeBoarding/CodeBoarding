@@ -1,4 +1,5 @@
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -61,6 +62,38 @@ class TestResolveNpmAvailability(unittest.TestCase):
         self.assertTrue(result)
         mock_check_npm.assert_called_once_with(target_dir)
         mock_resolve_missing_npm.assert_called_once_with(auto_install_npm=True, target_dir=target_dir)
+
+
+class TestRustToolchainCheck(unittest.TestCase):
+    @patch("install.shutil.which", return_value=None)
+    def test_missing_cargo_disables_rust_support(self, mock_which):
+        ok, reason = install.check_rust_toolchain()
+
+        self.assertFalse(ok)
+        assert reason is not None
+        self.assertIn("cargo not found", reason)
+
+    @patch("install.subprocess.run")
+    @patch("install.shutil.which", return_value="/usr/local/bin/cargo")
+    def test_broken_cargo_disables_rust_support(self, mock_which, mock_run):
+        mock_run.side_effect = subprocess.CalledProcessError(134, ["cargo", "--version"], stderr="dyld missing")
+
+        ok, reason = install.check_rust_toolchain()
+
+        self.assertFalse(ok)
+        assert reason is not None
+        self.assertIn("cargo failed to run", reason)
+        self.assertIn("dyld missing", reason)
+
+    @patch("install.subprocess.run")
+    @patch("install.shutil.which", return_value="/usr/local/bin/cargo")
+    def test_working_cargo_enables_rust_support(self, mock_which, mock_run):
+        mock_run.return_value = subprocess.CompletedProcess(["cargo", "--version"], 0, stdout="cargo 1.0.0")
+
+        ok, reason = install.check_rust_toolchain()
+
+        self.assertTrue(ok)
+        self.assertIsNone(reason)
 
 
 class TestBootstrapNpm(unittest.TestCase):

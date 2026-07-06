@@ -213,6 +213,10 @@ class LanguageAdapter(ABC):
         """
         return None
 
+    def validate_workspace_ready(self, client: LSPClient) -> None:
+        """Raise if a ready signal represents an unusable workspace state."""
+        return None
+
     def get_lsp_env(self, project_root: Path | None = None) -> dict[str, str]:
         """Return extra environment variables for the LSP server process."""
         return {}

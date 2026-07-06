@@ -1,19 +1,105 @@
-"""Source code reading and call-site detection utilities."""
+"""Source code reading and tree-sitter call-site detection utilities."""
 
 from __future__ import annotations
 
-import re
+import logging
+from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
+
+from tree_sitter import Language as TreeSitterLanguage
+from tree_sitter import Node as TreeSitterNode
+from tree_sitter import Parser, Tree
+
+from static_analyzer.constants import LANGUAGE_EXTENSIONS, Language
+from static_analyzer.engine.models import CallSite
+
+import tree_sitter_c_sharp
+import tree_sitter_go
+import tree_sitter_java
+import tree_sitter_javascript
+import tree_sitter_php
+import tree_sitter_python
+import tree_sitter_rust
+import tree_sitter_typescript
+
+logger = logging.getLogger(__name__)
+
+
+LanguageFactory = Callable[[], object]
+
+_LANGUAGE_FACTORY_BY_LANGUAGE: dict[Language, LanguageFactory] = {
+    Language.PYTHON: tree_sitter_python.language,
+    Language.JAVASCRIPT: tree_sitter_javascript.language,
+    Language.GO: tree_sitter_go.language,
+    Language.JAVA: tree_sitter_java.language,
+    Language.PHP: tree_sitter_php.language_php,
+    Language.RUST: tree_sitter_rust.language,
+    Language.CSHARP: tree_sitter_c_sharp.language,
+}
+_LANGUAGE_BY_SUFFIX: dict[str, LanguageFactory] = {
+    suffix: _LANGUAGE_FACTORY_BY_LANGUAGE[language]
+    for language, suffixes in LANGUAGE_EXTENSIONS.items()
+    if language in _LANGUAGE_FACTORY_BY_LANGUAGE
+    for suffix in suffixes
+}
+_LANGUAGE_BY_SUFFIX[".ts"] = tree_sitter_typescript.language_typescript
+_LANGUAGE_BY_SUFFIX[".mts"] = tree_sitter_typescript.language_typescript
+_LANGUAGE_BY_SUFFIX[".cts"] = tree_sitter_typescript.language_typescript
+_LANGUAGE_BY_SUFFIX[".tsx"] = tree_sitter_typescript.language_tsx
+
+_CALL_NODE_TYPES = frozenset(
+    {
+        "call",
+        "call_expression",
+        "function_call_expression",
+        "member_call_expression",
+        "scoped_call_expression",
+        "method_invocation",
+        "invocation_expression",
+        "explicit_constructor_invocation",
+    }
+)
+_CONSTRUCTOR_NODE_TYPES = frozenset({"object_creation_expression", "new_expression"})
+_METHOD_REFERENCE_NODE_TYPES = frozenset({"method_reference"})
+_CALLABLE_USAGE_ANCESTORS = frozenset({"argument_list", "arguments"})
+_NAME_NODE_TYPES = frozenset(
+    {
+        "identifier",
+        "name",
+        "property_identifier",
+        "field_identifier",
+        "type_identifier",
+        "super",
+        "this",
+    }
+)
+_GENERIC_TYPE_NODE_TYPES = frozenset({"generic_name", "generic_type"})
+_CALL_TARGET_FIELD_NAMES = ("function", "constructor", "name", "field", "property", "attribute")
+_CONSTRUCTOR_FIELD_NAMES = ("type", "name")
+
+
+@dataclass(frozen=True)
+class ParsedSource:
+    content: bytes
+    tree: Tree
+
+
+@dataclass(frozen=True)
+class SourceUsageIndex:
+    invocation_end_positions: set[tuple[int, int]]
+    callable_ranges: set[tuple[int, int, int]]
 
 
 class SourceInspector:
-    """Reads source files and determines whether references are call sites.
-
-    Maintains a file content cache to avoid re-reading files.
-    """
+    """Reads source files and finds call sites from tree-sitter ASTs."""
 
     def __init__(self) -> None:
         self._file_content_cache: dict[str, list[str]] = {}
+        self._file_bytes_cache: dict[str, bytes] = {}
+        self._parsed_cache: dict[str, ParsedSource] = {}
+        self._parser_by_suffix: dict[str, Parser] = {}
+        self._usage_index_cache: dict[str, SourceUsageIndex] = {}
 
     def get_source_line(self, file_path: Path, line: int) -> str | None:
         """Get a source line from cache, loading the file if needed."""
@@ -26,178 +112,196 @@ class SourceInspector:
         """Get all lines of a file from cache, loading if needed."""
         file_key = str(file_path)
         if file_key not in self._file_content_cache:
-            try:
-                self._file_content_cache[file_key] = file_path.read_text(errors="replace").splitlines()
-            except Exception:
+            content = self._read_file_bytes(file_path)
+            if content is None:
                 return None
+            self._file_content_cache[file_key] = content.decode(errors="replace").splitlines()
         return self._file_content_cache[file_key]
 
     def is_invocation(self, file_path: Path, ref_line: int, ref_end_char: int) -> bool:
-        """Check whether a reference is directly invoked (followed by '(').
-
-        Also handles generic instantiation patterns: Name<T>(...).
-        """
-        line = self.get_source_line(file_path, ref_line)
-        if line is None:
-            return True  # Conservative: include if we can't read
-
-        rest = line[ref_end_char:]
-        stripped = rest.lstrip()
-        if stripped:
-            if stripped[0] == "(":
-                return True
-            # Generic instantiation: Name<T>(...) or Name<T, U>(...)
-            if stripped[0] == "<":
-                close = stripped.find(">")
-                if close != -1:
-                    after_generic = stripped[close + 1 :].lstrip()
-                    return bool(after_generic) and after_generic[0] == "("
-            return False
-
-        # If the reference is at end of line, check subsequent lines for '('
-        lines = self.get_file_lines(file_path)
-        if lines is None:
+        """Check whether a reference is the target of a call-like AST node."""
+        usage_index = self._usage_index(file_path)
+        if usage_index is None:
             return True
-        for subsequent_line_idx in range(ref_line + 1, min(ref_line + 3, len(lines))):
-            stripped = lines[subsequent_line_idx].lstrip()
-            if stripped:
-                return stripped[0] == "("
-
-        return False
+        return (ref_line, ref_end_char) in usage_index.invocation_end_positions
 
     def is_callable_usage(self, file_path: Path, ref_line: int, ref_start_char: int, ref_end_char: int) -> bool:
-        """Check whether a variable/constant reference is used in a callable context.
-
-        Returns True for:
-        - Direct invocation: ``func(args)``
-        - Callback argument: ``filter(func)``, ``map(func, ...)``
-        - Return value: ``return func``
-        - Assignment to another callable context: ``handler = func``
-        - Method chaining argument: ``.then(func)``
-
-        This is broader than is_invocation because variables often hold
-        arrow functions or closures that are passed around without being
-        directly called at the reference site.
-        """
-        # First check: is it directly invoked?
-        if self.is_invocation(file_path, ref_line, ref_end_char):
+        """Check whether a variable/constant reference is used in a callable context."""
+        usage_index = self._usage_index(file_path)
+        if usage_index is None:
             return True
+        return (ref_line, ref_start_char, ref_end_char) in usage_index.callable_ranges
 
-        line = self.get_source_line(file_path, ref_line)
-        if line is None:
-            return True  # Conservative
+    def find_call_sites(self, file_path: Path) -> list[CallSite]:
+        """Find definition-query positions for identifiers used at call sites."""
+        parsed = self._parse(file_path)
+        if parsed is None:
+            return []
 
-        # Check if preceded by 'return' (closure/factory pattern)
-        prefix = line[:ref_start_char].rstrip()
-        if prefix.endswith("return"):
-            return True
+        sites: list[CallSite] = []
+        seen: set[tuple[int, int]] = set()
+        for node in self._walk(parsed.tree.root_node):
+            target = self._call_target_node(node)
+            if target is None:
+                continue
+            pos = (target.start_point.row, target.start_point.column)
+            if pos in seen:
+                continue
+            seen.add(pos)
+            sites.append(CallSite.from_lsp_position(file=str(file_path), line=pos[0], column=pos[1]))
+        return sites
 
-        # Check if the reference is inside a function call's argument list
-        if self._is_inside_call_arguments(line, ref_start_char):
-            return True
+    def _read_file_bytes(self, file_path: Path) -> bytes | None:
+        file_key = str(file_path)
+        if file_key not in self._file_bytes_cache:
+            try:
+                self._file_bytes_cache[file_key] = file_path.read_bytes()
+            except Exception:
+                return None
+        return self._file_bytes_cache[file_key]
 
+    def _parse(self, file_path: Path) -> ParsedSource | None:
+        file_key = str(file_path)
+        if file_key in self._parsed_cache:
+            return self._parsed_cache[file_key]
+
+        content = self._read_file_bytes(file_path)
+        if content is None:
+            return None
+        parser = self._parser_for(file_path)
+        if parser is None:
+            return None
+
+        parsed = ParsedSource(content=content, tree=parser.parse(content))
+        self._parsed_cache[file_key] = parsed
+        return parsed
+
+    def _usage_index(self, file_path: Path) -> SourceUsageIndex | None:
+        file_key = str(file_path)
+        if file_key in self._usage_index_cache:
+            return self._usage_index_cache[file_key]
+
+        parsed = self._parse(file_path)
+        if parsed is None:
+            return None
+
+        invocation_end_positions: set[tuple[int, int]] = set()
+        callable_ranges: set[tuple[int, int, int]] = set()
+        for node in self._walk(parsed.tree.root_node):
+            target = self._call_target_node(node)
+            if target is not None:
+                invocation_end_positions.add((target.end_point.row, target.end_point.column))
+                callable_ranges.add((target.start_point.row, target.start_point.column, target.end_point.column))
+                continue
+
+            if not node.is_named:
+                continue
+            if self._node_is_return_value(node) or self._node_is_call_argument(node):
+                callable_ranges.add((node.start_point.row, node.start_point.column, node.end_point.column))
+
+        usage_index = SourceUsageIndex(
+            invocation_end_positions=invocation_end_positions,
+            callable_ranges=callable_ranges,
+        )
+        self._usage_index_cache[file_key] = usage_index
+        return usage_index
+
+    def _parser_for(self, file_path: Path) -> Parser | None:
+        suffix = file_path.suffix.lower()
+        factory = _LANGUAGE_BY_SUFFIX.get(suffix)
+        if factory is None:
+            return None
+        if suffix not in self._parser_by_suffix:
+            parser = Parser()
+            parser.language = TreeSitterLanguage(factory())
+            self._parser_by_suffix[suffix] = parser
+        return self._parser_by_suffix[suffix]
+
+    def _call_target_node(self, node: TreeSitterNode) -> TreeSitterNode | None:
+        if node.type in _CALL_NODE_TYPES:
+            function = (
+                node.child_by_field_name("function")
+                or node.child_by_field_name("constructor")
+                or node.child_by_field_name("name")
+            )
+            return self._select_query_node(function)
+        if node.type in _CONSTRUCTOR_NODE_TYPES:
+            for field_name in _CONSTRUCTOR_FIELD_NAMES:
+                target = self._select_query_node(node.child_by_field_name(field_name))
+                if target is not None:
+                    return target
+            return self._first_named_child_of_type(node, _NAME_NODE_TYPES)
+        if node.type in _METHOD_REFERENCE_NODE_TYPES:
+            return self._last_named_child_of_type(node, _NAME_NODE_TYPES)
+        return None
+
+    def _select_query_node(self, node: TreeSitterNode | None) -> TreeSitterNode | None:
+        if node is None:
+            return None
+        for field_name in _CALL_TARGET_FIELD_NAMES:
+            child = node.child_by_field_name(field_name)
+            selected = self._select_query_node(child)
+            if selected is not None:
+                return selected
+        if node.type in _GENERIC_TYPE_NODE_TYPES:
+            return self._first_named_child_of_type(node, _NAME_NODE_TYPES)
+        if node.type in _NAME_NODE_TYPES:
+            return node
+        return self._last_named_child_of_type(node, _NAME_NODE_TYPES)
+
+    def _node_is_call_target(self, target: TreeSitterNode) -> bool:
+        node = target
+        while node.parent is not None:
+            parent = node.parent
+            if self._call_target_node(parent) == target:
+                return True
+            node = parent
         return False
 
     @staticmethod
-    def _is_inside_call_arguments(line: str, char_offset: int) -> bool:
-        """Check if a position is inside a function call's argument list.
-
-        Walks backwards from char_offset looking for an unmatched '(' which
-        indicates the reference is passed as an argument to a function call.
-        Handles: filter(func), map(func, ...), setTimeout(func, 100), .then(func)
-        """
-        depth = 0
-        for ch in reversed(line[:char_offset]):
-            if ch == ")":
-                depth += 1
-            elif ch == "(":
-                if depth == 0:
-                    return True
-                depth -= 1
+    def _node_is_return_value(target: TreeSitterNode) -> bool:
+        node = target
+        while node.parent is not None:
+            parent = node.parent
+            if parent.type in {"return_statement", "return_statement2"}:
+                return True
+            if parent.type in _CALLABLE_USAGE_ANCESTORS:
+                return False
+            node = parent
         return False
 
-    def find_call_sites(self, file_path: Path) -> list[tuple[int, int]]:
-        """Find (line, character) positions of identifiers at call sites.
+    def _node_is_call_argument(self, target: TreeSitterNode) -> bool:
+        node = target
+        while node.parent is not None:
+            parent = node.parent
+            if parent.type in _CALLABLE_USAGE_ANCESTORS and self._parent_is_call_like(parent):
+                return True
+            if self._call_target_node(parent) == target:
+                return False
+            node = parent
+        return False
 
-        Scans source for patterns like:
-        - ``name(`` / ``name<T>(`` — regular function/method calls
-        - ``new Name(`` / ``new Name<T>(`` — constructor calls (returns Name position)
-        - ``super(`` / ``this(`` — constructor chaining (returns super/this position)
-        - ``Class::method`` — method references (returns method position)
+    @staticmethod
+    def _parent_is_call_like(node: TreeSitterNode) -> bool:
+        parent = node.parent
+        if parent is None:
+            return False
+        return parent.type in _CALL_NODE_TYPES or parent.type in _CONSTRUCTOR_NODE_TYPES
 
-        Returns positions suitable for ``textDocument/definition`` queries.
-        """
-        lines = self.get_file_lines(file_path)
-        if lines is None:
-            return []
+    def _first_named_child_of_type(self, node: TreeSitterNode, node_types: frozenset[str]) -> TreeSitterNode | None:
+        for child in self._walk(node):
+            if child is not node and child.type in node_types:
+                return child
+        return None
 
-        # Pattern 1: identifier before '(' or '<...>('
-        call_pattern = re.compile(r"\b([A-Za-z_]\w*)\s*(?:<[^>]*>)?\s*\(")
-        # Pattern 2: new ClassName<...>( — capture the class name
-        new_pattern = re.compile(r"\bnew\s+([A-Za-z_]\w*)\s*(?:<[^>]*>)?\s*\(")
-        # Pattern 3: Class::method — method references
-        method_ref_pattern = re.compile(r"\b[A-Za-z_]\w*\s*::\s*([A-Za-z_]\w*)")
+    def _last_named_child_of_type(self, node: TreeSitterNode, node_types: frozenset[str]) -> TreeSitterNode | None:
+        result: TreeSitterNode | None = None
+        for child in self._walk(node):
+            if child is not node and child.type in node_types:
+                result = child
+        return result
 
-        # Keywords that look like calls but aren't
-        keywords = frozenset(
-            {
-                "if",
-                "else",
-                "for",
-                "while",
-                "switch",
-                "case",
-                "catch",
-                "return",
-                "new",
-                "throw",
-                "import",
-                "package",
-                "class",
-                "interface",
-                "enum",
-                "extends",
-                "implements",
-                "void",
-                "assert",
-                "synchronized",
-                "try",
-                "instanceof",
-                "typeof",
-                "sizeof",
-                "default",
-            }
-        )
-
-        sites: list[tuple[int, int]] = []
-        seen: set[tuple[int, int]] = set()
-        for line_num, line in enumerate(lines):
-            stripped = line.lstrip()
-            if stripped.startswith("//") or stripped.startswith("*") or stripped.startswith("/*"):
-                continue
-
-            # Regular calls (including super/this)
-            for match in call_pattern.finditer(line):
-                ident = match.group(1)
-                if ident in keywords:
-                    continue
-                pos = (line_num, match.start(1))
-                if pos not in seen:
-                    sites.append(pos)
-                    seen.add(pos)
-
-            # new ClassName(...) — definition on the class name resolves to constructor
-            for match in new_pattern.finditer(line):
-                pos = (line_num, match.start(1))
-                if pos not in seen:
-                    sites.append(pos)
-                    seen.add(pos)
-
-            # Class::method — method references
-            for match in method_ref_pattern.finditer(line):
-                pos = (line_num, match.start(1))
-                if pos not in seen:
-                    sites.append(pos)
-                    seen.add(pos)
-
-        return sites
+    def _walk(self, node: TreeSitterNode):
+        yield node
+        for child in node.children:
+            yield from self._walk(child)

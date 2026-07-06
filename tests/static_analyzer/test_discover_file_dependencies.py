@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, patch
 
 from static_analyzer import StaticAnalyzer
 from static_analyzer import EngineConfig
+from static_analyzer.engine.models import CallSite
 
 
 class TestDiscoverFileDependencies(unittest.TestCase):
@@ -30,7 +31,7 @@ class TestDiscoverFileDependencies(unittest.TestCase):
         )
 
         with patch("static_analyzer.SourceInspector") as MockInspector:
-            MockInspector.return_value.find_call_sites.return_value = [(1, 0)]
+            MockInspector.return_value.find_call_sites.return_value = [CallSite(file=str(src), line=2, column=1)]
             result = analyzer.discover_file_dependencies(src)
 
         self.assertEqual(result, [str(dep)])
@@ -47,7 +48,7 @@ class TestDiscoverFileDependencies(unittest.TestCase):
         )
 
         with patch("static_analyzer.SourceInspector") as MockInspector:
-            MockInspector.return_value.find_call_sites.return_value = [(5, 10)]
+            MockInspector.return_value.find_call_sites.return_value = [CallSite(file=str(src), line=6, column=11)]
             result = analyzer.discover_file_dependencies(src)
 
         self.assertEqual(result, [str(dep)])
@@ -68,7 +69,10 @@ class TestDiscoverFileDependencies(unittest.TestCase):
         )
 
         with patch("static_analyzer.SourceInspector") as MockInspector:
-            MockInspector.return_value.find_call_sites.return_value = [(1, 0), (2, 0)]
+            MockInspector.return_value.find_call_sites.return_value = [
+                CallSite(file=str(src), line=2, column=1),
+                CallSite(file=str(src), line=3, column=1),
+            ]
             result = analyzer.discover_file_dependencies(src)
 
         self.assertEqual(sorted(result), sorted([str(dep_a), str(dep_b)]))

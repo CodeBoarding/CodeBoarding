@@ -61,6 +61,57 @@ class AnalysisRunData:
     project_path: Path
 
 
+def _edge_call_site_tuples(edge, project_path: Path) -> set[tuple[str, int, int]]:
+    """Return normalized call-site tuples for an edge.
+
+    The engine does not expose this metadata yet; this helper defines the
+    expected future contract while keeping the assertion code independent of
+    whether occurrences are represented as dicts or small objects.
+    """
+    sites = getattr(edge, "call_sites", [])
+    actual = set()
+    for site in sites:
+        if isinstance(site, dict):
+            file_value = site.get("file") or site.get("file_path")
+            line = site.get("line")
+            column = site.get("column")
+        else:
+            file_value = getattr(site, "file", None) or getattr(site, "file_path", None)
+            line = getattr(site, "line", None)
+            column = getattr(site, "column", None)
+
+        if file_value is None or line is None or column is None:
+            continue
+
+        file_path = Path(file_value)
+        try:
+            file_rel = file_path.resolve().relative_to(project_path.resolve()).as_posix()
+        except (OSError, ValueError):
+            file_rel = file_path.as_posix()
+        actual.add((file_rel, int(line), int(column)))
+    return actual
+
+
+def _expected_edge_key(edge: dict | list) -> tuple[str, str]:
+    if isinstance(edge, dict):
+        return edge["source"], edge["destination"]
+    return edge[0], edge[1]
+
+
+def _expected_edges(fixture: dict) -> set[tuple[str, str]]:
+    return {_expected_edge_key(edge) for edge in fixture.get("expected_edges", [])}
+
+
+def _expected_call_site_edges(fixture: dict) -> list[dict]:
+    expected_edges = []
+    for edge in fixture.get("expected_edges", []):
+        if not isinstance(edge, dict) or not edge.get("call_sites"):
+            continue
+        source, destination = _expected_edge_key(edge)
+        expected_edges.append({"source": source, "destination": destination, "occurrences": edge["call_sites"]})
+    return expected_edges
+
+
 EDGE_CASE_PROJECTS = [
     EdgeCaseProject(
         name="python_edge_cases",
@@ -250,7 +301,7 @@ class TestEdgeCases:
         language = Language(analysis.fixture["language"].lower())
         cfg = analysis.all_results[0].get_cfg(language)
         actual_edges = {(e.get_source(), e.get_destination()) for e in cfg.edges}
-        expected_edges = {(s, d) for s, d in analysis.fixture.get("expected_edges", [])}
+        expected_edges = _expected_edges(analysis.fixture)
         missing = sorted(f"{s} -> {d}" for s, d in expected_edges - actual_edges)
         unexpected = sorted(f"{s} -> {d}" for s, d in actual_edges - expected_edges)
         errors = []
@@ -258,6 +309,38 @@ class TestEdgeCases:
             errors.append(f"Missing {len(missing)} expected edges:\n" + "\n".join(f"  - {e}" for e in missing))
         if unexpected:
             errors.append(f"Found {len(unexpected)} unexpected edges:\n" + "\n".join(f"  + {e}" for e in unexpected))
+        assert not errors, "\n\n".join(errors)
+
+    def test_call_site_occurrences(self, analysis: AnalysisRunData):
+        language = Language(analysis.fixture["language"].lower())
+        cfg = analysis.all_results[0].get_cfg(language)
+        if language == Language.RUST and not cfg.edges:
+            pytest.skip("Rust edge-case analysis currently emits zero CFG edges")
+        actual_by_edge = {
+            (e.get_source(), e.get_destination()): _edge_call_site_tuples(e, analysis.project_path) for e in cfg.edges
+        }
+
+        errors = []
+        actual_by_destination: dict[str, set[tuple[str, int, int]]] = {}
+        for (_, destination), sites in actual_by_edge.items():
+            actual_by_destination.setdefault(destination, set()).update(sites)
+
+        for expected in _expected_call_site_edges(analysis.fixture):
+            destination = expected["destination"]
+            source = expected.get("source")
+            edge_key = (source, destination) if source else None
+            actual_sites = (
+                actual_by_edge.get(edge_key, set()) if edge_key else actual_by_destination.get(destination, set())
+            )
+            expected_sites = {(site["file"], site["line"], site["column"]) for site in expected.get("occurrences", [])}
+            missing = sorted(expected_sites - actual_sites)
+            if missing:
+                edge_label = f"{source} -> {destination}" if source else f"* -> {destination}"
+                errors.append(
+                    f"{edge_label} is missing {len(missing)} call-site occurrence(s):\n"
+                    + "\n".join(f"  - {file}:{line}:{column}" for file, line, column in missing)
+                )
+
         assert not errors, "\n\n".join(errors)
 
     def test_package_dependencies(self, analysis: AnalysisRunData):

@@ -180,6 +180,14 @@ class Relation(LLMBaseModel):
     def llm_str(self):
         return f"({self.src_name}, {self.relation}, {self.dst_name})"
 
+    def analysis_dump(self) -> dict:
+        data = self.model_dump(exclude_none=True)
+        data["src_id"] = self.src_id
+        data["dst_id"] = self.dst_id
+        data["edge_count"] = self.edge_count
+        data["is_static"] = self.is_static
+        return data
+
 
 class ClustersComponent(LLMBaseModel):
     """A grouped component from cluster analysis - may contain multiple clusters."""
