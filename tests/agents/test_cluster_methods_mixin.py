@@ -34,6 +34,7 @@ class TestBuildScopeCfgString(unittest.TestCase):
         static = MagicMock()
         static.get_languages.return_value = ["python"]
         static.get_cfg.return_value = cfg
+        static.available_cfgs.return_value = {"python": cfg}
         mixin = MockMixin(repo_dir=Path("/repo"), static_analysis=static)
         analysis = AnalysisInsights(
             description="test",
@@ -172,6 +173,7 @@ class TestFindNearestCluster(unittest.TestCase):
     def _make_mixin(self, cfg: CallGraph) -> MockMixin:
         static = MagicMock()
         static.get_cfg.return_value = cfg
+        static.available_cfgs.return_value = {"python": cfg}
         return MockMixin(repo_dir=Path("/repo"), static_analysis=static)
 
     def test_finds_nearest_cluster_by_graph_distance(self):
