@@ -57,7 +57,7 @@ def _relative_path(file_path: str, repo_path: Path) -> str:
     """Return a repo-relative path string, falling back to the original if it's not under repo_path.
 
     Uses as_posix() so snapshots written on Windows are byte-identical to
-    those written on macOS / Linux — otherwise a Windows-authored snapshot
+    those written on macOS / Linux - otherwise a Windows-authored snapshot
     would diff against the repo version on every subsequent CI run.
     """
     if not file_path:
@@ -116,7 +116,7 @@ def _write_snapshot(
     """Write a detailed snapshot of the analysis results to a JSON file for manual validation.
 
     The snapshot includes all references, hierarchy, call graph edges, package dependencies,
-    and source files — everything needed to verify correctness by inspection.
+    and source files - everything needed to verify correctness by inspection.
     """
     SNAPSHOT_DIR.mkdir(parents=True, exist_ok=True)
     repo_path = repo_path.resolve()
@@ -336,7 +336,7 @@ class TestStaticAnalysisConsistency:
             if metric_name == "execution_time_seconds":
                 tolerance = EXECUTION_TIME_TOLERANCE
                 min_absolute = MIN_EXECUTION_TIME_TOLERANCE
-                # Faster-than-baseline runs are a win, not a regression — only
+                # Faster-than-baseline runs are a win, not a regression - only
                 # flag when ``actual`` exceeds the upper tolerance bound.
                 upper_only = True
             else:
@@ -395,7 +395,7 @@ class TestStaticAnalysisConsistency:
     ) -> tuple[bool, str]:
         """Check if actual value is within tolerance of expected.
 
-        When ``upper_only`` is True, ``actual < expected`` is always a pass —
+        When ``upper_only`` is True, ``actual < expected`` is always a pass -
         used for metrics (e.g. execution time) where beating the baseline
         is a win rather than a regression.
 
