@@ -20,6 +20,11 @@
       "Linux": 261,
       "Darwin": 154,
       "Windows": 264
+    },
+    "call_graph_nodes_by_os": {
+      "Linux": 19646,
+      "Darwin": 19646,
+      "Windows": 19088
     }
   },
   "sample_references": [
