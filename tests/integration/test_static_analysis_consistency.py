@@ -297,7 +297,7 @@ class TestStaticAnalysisConsistency:
         mock_scan = create_mock_scanner(config.mock_language)
         start_time = time.perf_counter()
         with patch("static_analyzer.scanner.ProjectScanner.scan", mock_scan):
-            static_analysis = get_static_analysis(repo_path, cache_dir=get_artifact_dir(repo_path))
+            static_analysis = get_static_analysis(repo_path, cache_dir=get_artifact_dir(repo_path), persist_cache=False)
         end_time = time.perf_counter()
         actual_execution_time = end_time - start_time
 

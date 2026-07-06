@@ -178,6 +178,7 @@ class StaticAnalyzer:
         self.collected_diagnostics: dict[Language, FileDiagnosticsMap] = {}
         self._clients_started: bool = False
         self._cached_results: StaticAnalysisResults | None = None
+        self._persist_cache: bool = True
         # ``stop_clients`` writes the pkl using ``_pending_source_sha`` as the
         # tag value (a diff-base for the next warm-start, NOT a cache gate).
         # ``analyze()`` updates it on every call so the latest run's SHA
@@ -307,7 +308,8 @@ class StaticAnalyzer:
         """
         if not self._clients_started:
             return
-        self.flush_cache()
+        if self._persist_cache:
+            self.flush_cache()
         for engine_config, client in self._engine_clients:
             try:
                 client.shutdown()
@@ -493,6 +495,7 @@ class StaticAnalyzer:
         cache_dir: Path,
         skip_cache: bool = False,
         source_sha: str | None = None,
+        persist_cache: bool = True,
     ) -> StaticAnalysisResults:
         """Analyze the repository, warm-starting from the SHA-tagged pkl when present.
 
@@ -516,6 +519,7 @@ class StaticAnalyzer:
                 "LSP clients are not running. Call start_clients() or use StaticAnalyzer as a context manager "
                 "('with StaticAnalyzer(...) as sa:') before calling analyze()."
             )
+        self._persist_cache = persist_cache
 
         if not skip_cache and self._cached_results is not None:
             logger.info("static_analysis_cache: outcome=memhit")
@@ -778,6 +782,7 @@ def get_static_analysis(
     cache_dir: Path,
     skip_cache: bool = False,
     source_sha: str | None = None,
+    persist_cache: bool = True,
 ) -> StaticAnalysisResults:
     """CLI orchestrator: get static analysis results with full LSP lifecycle management.
 
@@ -793,12 +798,18 @@ def get_static_analysis(
         source_sha: Canonical source-state identifier (typically a git tree SHA)
             stamped onto the freshly-saved pkl as a diff base for the next
             warm-start.
+        persist_cache: If False, skip writing the run artifact on teardown.
 
     Returns:
         StaticAnalysisResults reflecting the live source state.
     """
     analyzer = StaticAnalyzer(repo_path)
     with analyzer:
-        results = analyzer.analyze(skip_cache=skip_cache, source_sha=source_sha, cache_dir=cache_dir)
+        results = analyzer.analyze(
+            cache_dir=cache_dir,
+            skip_cache=skip_cache,
+            source_sha=source_sha,
+            persist_cache=persist_cache,
+        )
     results.diagnostics = analyzer.collected_diagnostics
     return results
