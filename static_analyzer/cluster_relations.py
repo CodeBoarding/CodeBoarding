@@ -7,7 +7,7 @@ edges — no LLM needed.
 
 import logging
 from collections import defaultdict
-from collections.abc import Iterator
+from collections.abc import Hashable, Iterator
 from dataclasses import dataclass, field
 
 from agents.agent_responses import AnalysisInsights, Relation, RelationEdge, SourceCodeReference
@@ -31,9 +31,17 @@ class ClusterRelation:
     all_edges: list[RelationEdge] = field(default_factory=list)
 
 
+def _call_site_int(value: Hashable | None) -> int:
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str):
+        return int(value)
+    return 0
+
+
 def _call_sites_from_cfg_edge(edge: Edge) -> list[dict[str, int]]:
     return [
-        {"line": int(call_site.get("line", 0)), "column": int(call_site.get("column", 0))}
+        {"line": _call_site_int(call_site.get("line")), "column": _call_site_int(call_site.get("column"))}
         for call_site in edge.call_sites
     ]
 
