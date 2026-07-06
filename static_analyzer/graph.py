@@ -1,6 +1,6 @@
 import logging
 from collections import defaultdict
-from collections.abc import Callable, Collection, Mapping, Sequence
+from collections.abc import Callable, Collection, Hashable, Mapping, Sequence
 from dataclasses import dataclass, field
 from types import MappingProxyType
 
@@ -79,18 +79,17 @@ class ClusterResult:
 
 
 class Edge:
-    def __init__(self, src_node: Node, dst_node: Node, call_sites: list[dict]) -> None:
+    def __init__(self, src_node: Node, dst_node: Node, call_sites: Sequence[Mapping[str, Hashable]] = ()) -> None:
         self.src_node = src_node
         self.dst_node = dst_node
-        self._call_sites = [self._normalize_call_site(site) for site in call_sites]
+        self._call_sites: list[dict[str, Hashable]] = []
+        self._call_site_keys: set[tuple[tuple[str, Hashable], ...]] = set()
+        for site in call_sites:
+            self.add_call_site(site)
 
     @property
-    def call_sites(self) -> list[dict]:
-        return self._call_sites
-
-    @call_sites.setter
-    def call_sites(self, value: list[dict]) -> None:
-        self._call_sites = [self._normalize_call_site(site) for site in value]
+    def call_sites(self) -> list[dict[str, Hashable]]:
+        return [dict(site) for site in self._call_sites]
 
     def get_source(self) -> str:
         return self.src_node.fully_qualified_name
@@ -101,17 +100,22 @@ class Edge:
     def __repr__(self) -> str:
         return f"Edge({self.src_node.fully_qualified_name} -> {self.dst_node.fully_qualified_name})"
 
-    def add_call_site(self, call_site: dict) -> None:
+    def add_call_site(self, call_site: Mapping[str, Hashable]) -> None:
         call_site = self._normalize_call_site(call_site)
-        if call_site not in self.call_sites:
-            self.call_sites.append(call_site)
+        call_site_key = tuple(sorted(call_site.items()))
+        if call_site_key not in self._call_site_keys:
+            self._call_site_keys.add(call_site_key)
+            self._call_sites.append(call_site)
 
     @staticmethod
-    def _normalize_call_site(call_site: dict) -> dict:
-        normalized = dict(call_site)
-        if "file" not in normalized and "file_path" in normalized:
-            normalized["file"] = normalized.pop("file_path")
-        return normalized
+    def _normalize_call_site(call_site: Mapping[str, Hashable]) -> dict[str, Hashable]:
+        return dict(call_site)
+
+    def visit_paths(self, fn: Callable[[str], str]) -> None:
+        for site in self._call_sites:
+            if "file" in site:
+                site["file"] = fn(str(site["file"]))
+        self._call_site_keys = {tuple(sorted(site.items())) for site in self._call_sites}
 
 
 class CallGraph:
@@ -188,7 +192,7 @@ class CallGraph:
         """Resolve a possibly-aliased name to the canonical name in the graph."""
         return self._alias_to_canonical.get(name, name)
 
-    def add_edge(self, src_name: str, dst_name: str, call_sites: Sequence[dict] = ()) -> None:
+    def add_edge(self, src_name: str, dst_name: str, call_sites: Sequence[Mapping[str, Hashable]] = ()) -> None:
         src_name = self._resolve_name(src_name)
         dst_name = self._resolve_name(dst_name)
 
@@ -299,9 +303,7 @@ class CallGraph:
         for node in self.nodes.values():
             node.file_path = fn(node.file_path)
         for edge in self.edges:
-            for site in edge.call_sites:
-                if "file" in site:
-                    site["file"] = fn(site["file"])
+            edge.visit_paths(fn)
         if self._cluster_cache is not None:
             self._cluster_cache.visit_paths(fn)
 

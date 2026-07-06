@@ -66,12 +66,13 @@ def convert_to_codeboarding_format(
         if call_graph.has_node(src) and call_graph.has_node(dst):
             try:
                 if edge.call_sites:
-                    for site in edge.call_sites:
-                        call_graph.add_edge(
-                            src,
-                            dst,
-                            call_sites=[{"file": site.file, "line": site.line, "column": site.column}],
-                        )
+                    call_graph.add_edge(
+                        src,
+                        dst,
+                        call_sites=[
+                            {"file": site.file, "line": site.line, "column": site.column} for site in edge.call_sites
+                        ],
+                    )
                 else:
                     logger.warning(
                         "edge_with_no_site language=%s source=%s destination=%s",

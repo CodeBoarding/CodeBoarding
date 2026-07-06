@@ -30,14 +30,6 @@ def test_call_graph_preserves_multiple_call_sites_for_same_edge():
     ]
 
 
-def test_call_graph_normalizes_legacy_call_site_file_path_key():
-    src = Node("module.caller", NodeType.FUNCTION, "/repo/module.py", 1, 10)
-    dst = Node("module.target", NodeType.FUNCTION, "/repo/module.py", 20, 25)
-    edge = Edge(src, dst, [{"file_path": "/repo/module.py", "line": 3, "column": 9}])
-
-    assert edge.call_sites == [{"file": "/repo/module.py", "line": 3, "column": 9}]
-
-
 def test_call_graph_visit_paths_rewrites_canonical_call_site_file_key():
     graph = CallGraph()
     src = Node("module.caller", NodeType.FUNCTION, "/repo/module.py", 1, 10)
@@ -48,7 +40,7 @@ def test_call_graph_visit_paths_rewrites_canonical_call_site_file_key():
     graph.add_edge(
         "module.caller",
         "module.target",
-        call_sites=[{"file_path": "/repo/module.py", "line": 3, "column": 9}],
+        call_sites=[{"file": "/repo/module.py", "line": 3, "column": 9}],
     )
     graph.visit_paths(lambda path: path.replace("/repo/", ""))
 

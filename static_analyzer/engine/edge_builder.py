@@ -332,13 +332,11 @@ def _resolve_definitions(
                 continue
 
             for i, call_site in enumerate(batch):
-                site_line = call_site.lsp_line
-                site_col = call_site.lsp_column
                 defs = results[i] if i < len(results) else []
                 if not defs:
                     continue
 
-                caller = st.find_containing_symbol(file_path, site_line, site_col)
+                caller = st.find_containing_symbol(file_path, call_site.lsp_line, call_site.lsp_column)
                 if not caller:
                     continue
                 caller = st.lift_to_callable(caller)
