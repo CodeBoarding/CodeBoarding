@@ -149,6 +149,11 @@ class TestComponent(unittest.TestCase):
         )
 
         self.assertEqual(len(component.file_methods), 2)
+        self.assertEqual(component.file_paths(), ["myapp/service.py", "myapp/utils.py"])
+
+    def test_component_file_paths_empty(self):
+        component = Component(name="Empty", description="No files", key_entities=[])
+        self.assertEqual(component.file_paths(), [])
 
 
 class TestAnalysisInsights(unittest.TestCase):

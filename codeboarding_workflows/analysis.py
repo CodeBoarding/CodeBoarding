@@ -14,7 +14,7 @@ import logging
 from pathlib import Path
 
 from diagram_analysis import DiagramGenerator
-from diagram_analysis.io_utils import load_analysis_metadata, load_full_analysis, save_sub_analysis
+from diagram_analysis.io_utils import load_analysis_metadata, load_full_analysis
 from repo_utils.diff_parser import detect_changes
 from telemetry.events import track_analysis
 
@@ -152,13 +152,20 @@ def run_partial(
         logger.error(f"Component with ID '{component_id}' not found in analysis")
         return
 
-    _, sub_analysis, __ = generator.process_component(component_to_analyze)
-
-    if sub_analysis:
-        save_sub_analysis(sub_analysis, output_dir, component_id)
-        logger.info(f"Updated component '{component_id}' in analysis.json")
-    else:
+    _, sub_analysis, _ = generator.process_component(component_to_analyze)
+    if sub_analysis is None:
         logger.error(f"Failed to generate sub-analysis for component '{component_id}'")
+        return
+
+    # Add the sub-analysis to the in-memory tree so global relations rebuild with
+    # its subcomponents. Rebuild reads each sub's LLM relation labels, which live
+    # only in memory (they aren't serialized), so it must run before the save.
+    sub_analyses[component_id] = sub_analysis
+    # persist_side_artifacts=False: an expansion must not rewrite file_coverage.json
+    # or the static-analysis cache. The latter would drop the static_analysis.sha
+    # tag (no source_sha here) and force the next incremental run to cold-start.
+    generator.finalize_and_save(root_analysis, sub_analyses, persist_side_artifacts=False)
+    logger.info(f"Updated component '{component_id}' in analysis.json")
 
 
 def run_incremental(

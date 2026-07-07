@@ -14,6 +14,7 @@ from static_analyzer.cluster_relations import (
     ClusterRelation,
     build_node_to_component_map,
     build_component_relations,
+    is_self_or_descendant,
     merge_relations,
 )
 from static_analyzer.constants import NodeType
@@ -282,3 +283,21 @@ class TestAssignComponentIdsIntegration(unittest.TestCase):
         src_dst = {(r.src_cluster_id, r.dst_cluster_id) for r in relations}
         self.assertIn(("1.1", "2"), src_dst)
         self.assertIn(("1.1", "1.2"), src_dst)  # These ARE different component IDs
+
+
+class TestIsSelfOrDescendant(unittest.TestCase):
+
+    def test_self(self):
+        self.assertTrue(is_self_or_descendant("1", "1"))
+        self.assertTrue(is_self_or_descendant("1.2", "1.2"))
+
+    def test_descendant(self):
+        self.assertTrue(is_self_or_descendant("1.2", "1"))
+        self.assertTrue(is_self_or_descendant("1.2.3", "1"))
+        self.assertTrue(is_self_or_descendant("1.2.3", "1.2"))
+
+    def test_not_descendant(self):
+        # Shared prefix but not a dotted-boundary descendant.
+        self.assertFalse(is_self_or_descendant("10", "1"))
+        self.assertFalse(is_self_or_descendant("1", "1.2"))
+        self.assertFalse(is_self_or_descendant("2.1", "1"))

@@ -93,13 +93,10 @@ class TestGenerateAnalysis(unittest.TestCase):
 
 
 class TestPartialUpdate(unittest.TestCase):
-    @patch("codeboarding_workflows.analysis.save_sub_analysis")
     @patch("codeboarding_workflows.analysis.load_full_analysis")
     @patch("codeboarding_workflows.analysis.load_analysis_metadata")
     @patch("codeboarding_workflows.analysis.DiagramGenerator")
-    def test_partial_update_success(
-        self, mock_generator_class, mock_load_metadata, mock_load_full, mock_save_sub_analysis
-    ):
+    def test_partial_update_success(self, mock_generator_class, mock_load_metadata, mock_load_full):
         mock_load_metadata.return_value = {"depth_level": 1}
         from agents.agent_responses import AnalysisInsights, Component
 
@@ -118,11 +115,7 @@ class TestPartialUpdate(unittest.TestCase):
             ],
             components_relations=[],
         )
-        mock_generator.process_component.return_value = (
-            "test_comp_id",
-            mock_sub_analysis,
-            [],
-        )
+        mock_generator.process_component.return_value = ("test_comp_id", mock_sub_analysis, [])
 
         root_component = Component(
             name="TestComponent",
@@ -131,10 +124,8 @@ class TestPartialUpdate(unittest.TestCase):
             key_entities=[],
             source_cluster_ids=[],
         )
-        mock_load_full.return_value = (
-            AnalysisInsights(description="test", components=[root_component], components_relations=[]),
-            {},
-        )
+        root_analysis = AnalysisInsights(description="test", components=[root_component], components_relations=[])
+        mock_load_full.return_value = (root_analysis, {})
 
         with tempfile.TemporaryDirectory() as temp_dir:
             repo_path = Path(temp_dir) / "repo"
@@ -152,16 +143,15 @@ class TestPartialUpdate(unittest.TestCase):
             )
 
             mock_generator.pre_analysis.assert_called_once()
-            mock_generator.process_component.assert_called_once()
-            mock_save_sub_analysis.assert_called_once_with(mock_sub_analysis, output_dir, "test_comp_id")
+            mock_generator.process_component.assert_called_once_with(root_component)
+            mock_generator.finalize_and_save.assert_called_once_with(
+                root_analysis, {"test_comp_id": mock_sub_analysis}, persist_side_artifacts=False
+            )
 
-    @patch("codeboarding_workflows.analysis.save_sub_analysis")
     @patch("codeboarding_workflows.analysis.load_full_analysis")
     @patch("codeboarding_workflows.analysis.load_analysis_metadata")
     @patch("codeboarding_workflows.analysis.DiagramGenerator")
-    def test_partial_update_nested_component_success(
-        self, mock_generator_class, mock_load_metadata, mock_load_full, mock_save_sub_analysis
-    ):
+    def test_partial_update_nested_component_success(self, mock_generator_class, mock_load_metadata, mock_load_full):
         mock_load_metadata.return_value = {"depth_level": 2}
         from agents.agent_responses import AnalysisInsights, Component
 
@@ -173,11 +163,7 @@ class TestPartialUpdate(unittest.TestCase):
             components=[],
             components_relations=[],
         )
-        mock_generator.process_component.return_value = (
-            "nested_comp_id",
-            mock_sub_analysis_result,
-            [],
-        )
+        mock_generator.process_component.return_value = ("nested_comp_id", mock_sub_analysis_result, [])
 
         root_component = Component(
             name="RootComponent",
@@ -220,8 +206,8 @@ class TestPartialUpdate(unittest.TestCase):
 
             mock_generator.pre_analysis.assert_called_once()
             mock_generator.process_component.assert_called_once_with(nested_component)
-            mock_save_sub_analysis.assert_called_once_with(mock_sub_analysis_result, output_dir, "nested_comp_id")
             self.assertEqual(mock_generator_class.call_args.kwargs["depth_level"], 2)
+            mock_generator.finalize_and_save.assert_called_once()
 
     @patch("codeboarding_workflows.analysis.load_analysis_metadata")
     @patch("codeboarding_workflows.analysis.DiagramGenerator")
