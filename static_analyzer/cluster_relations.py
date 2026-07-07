@@ -105,6 +105,19 @@ def build_node_to_component_map(analysis: AnalysisInsights) -> dict[str, str]:
     return node_to_component
 
 
+def build_global_node_to_component_map(
+    root_analysis: AnalysisInsights,
+    sub_analyses: dict[str, AnalysisInsights],
+) -> dict[str, str]:
+    """Map each node to the deepest currently expanded component that owns it."""
+    node_to_component = build_node_to_component_map(root_analysis)
+    for parent_id, sub_analysis in sorted(sub_analyses.items(), key=lambda item: (item[0].count("."), item[0])):
+        for node_name, component_id in build_node_to_component_map(sub_analysis).items():
+            if component_id.startswith(f"{parent_id}."):
+                node_to_component[node_name] = component_id
+    return node_to_component
+
+
 def build_component_relations(
     node_to_component: dict[str, str],
     cfg_graphs: dict[str, CallGraph],
@@ -156,6 +169,92 @@ def iter_ancestor_ids(component_id: str) -> Iterator[str]:
 def is_self_or_descendant(component_id: str, ancestor_id: str) -> bool:
     """True when component_id is ancestor_id or one of its dotted descendants."""
     return component_id == ancestor_id or component_id.startswith(f"{ancestor_id}.")
+
+
+def _collect_component_names(
+    root_analysis: AnalysisInsights, sub_analyses: dict[str, AnalysisInsights]
+) -> dict[str, str]:
+    id_to_name = {comp.component_id: comp.name for comp in root_analysis.components}
+    for sub_analysis in sub_analyses.values():
+        id_to_name.update({comp.component_id: comp.name for comp in sub_analysis.components})
+    return id_to_name
+
+
+def _collect_llm_relations(
+    root_analysis: AnalysisInsights, sub_analyses: dict[str, AnalysisInsights]
+) -> list[Relation]:
+    relations = list(root_analysis.components_relations)
+    for _, sub_analysis in sorted(sub_analyses.items()):
+        relations.extend(sub_analysis.components_relations)
+    return relations
+
+
+def _ancestor_relation_label(src_id: str, dst_id: str, llm_relations: list[Relation]) -> str:
+    candidates = [
+        rel
+        for rel in llm_relations
+        if rel.src_id
+        and rel.dst_id
+        and is_self_or_descendant(src_id, rel.src_id)
+        and is_self_or_descendant(dst_id, rel.dst_id)
+    ]
+    if not candidates:
+        return "calls"
+    candidates.sort(
+        key=lambda rel: (-(rel.src_id.count(".") + rel.dst_id.count(".")), rel.src_id, rel.dst_id, rel.relation)
+    )
+    return candidates[0].relation
+
+
+def build_global_relations(
+    root_analysis: AnalysisInsights,
+    sub_analyses: dict[str, AnalysisInsights],
+    cfg_graphs: dict[str, CallGraph],
+) -> list[Relation]:
+    """Build deterministic project-wide relations at the current expansion frontier."""
+    node_to_component = build_global_node_to_component_map(root_analysis, sub_analyses)
+    static_relations = build_component_relations(node_to_component, cfg_graphs)
+    id_to_name = _collect_component_names(root_analysis, sub_analyses)
+    live_ids = set(id_to_name)
+    llm_relations = _collect_llm_relations(root_analysis, sub_analyses)
+
+    global_relations: list[Relation] = []
+    static_pairs = {(rel.src_cluster_id, rel.dst_cluster_id) for rel in static_relations}
+    superseded_llm_pairs: set[tuple[str, str]] = set()
+
+    for static_rel in static_relations:
+        src_id = static_rel.src_cluster_id
+        dst_id = static_rel.dst_cluster_id
+        for llm_rel in llm_relations:
+            if (
+                llm_rel.src_id
+                and llm_rel.dst_id
+                and is_self_or_descendant(src_id, llm_rel.src_id)
+                and is_self_or_descendant(dst_id, llm_rel.dst_id)
+            ):
+                superseded_llm_pairs.add((llm_rel.src_id, llm_rel.dst_id))
+        append_or_merge_relation(
+            global_relations,
+            _relation_with_edges(
+                _ancestor_relation_label(src_id, dst_id, llm_relations),
+                id_to_name.get(src_id, src_id),
+                id_to_name.get(dst_id, dst_id),
+                src_id,
+                dst_id,
+                static_rel.all_edges,
+                True,
+            ),
+        )
+
+    for llm_rel in sorted(llm_relations, key=lambda rel: (rel.src_id, rel.dst_id, rel.relation)):
+        pair = (llm_rel.src_id, llm_rel.dst_id)
+        if not llm_rel.src_id or not llm_rel.dst_id or llm_rel.src_id not in live_ids or llm_rel.dst_id not in live_ids:
+            continue
+        if pair in static_pairs or pair in superseded_llm_pairs:
+            continue
+        append_or_merge_relation(global_relations, llm_rel)
+
+    return sorted(global_relations, key=lambda rel: (rel.src_id, rel.dst_id, rel.relation))
 
 
 def merge_relations(

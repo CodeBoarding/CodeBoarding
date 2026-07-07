@@ -10,7 +10,7 @@ import json
 import re
 from pathlib import Path
 
-from agents.agent_responses import Relation
+from agents.agent_responses import Relation, RelationEdge, SourceCodeReference
 from codeboarding_workflows.rendering import (
     _ancestor_in_level,
     _load_entries,
@@ -25,13 +25,20 @@ from codeboarding_workflows.rendering import (
 
 
 def _rel(src_id: str, dst_id: str, label: str = "calls", edge_count: int = 1) -> Relation:
+    edges = [
+        RelationEdge(
+            source=SourceCodeReference(qualified_name=f"{src_id}.source{i}"),
+            target=SourceCodeReference(qualified_name=f"{dst_id}.target{i}"),
+        )
+        for i in range(edge_count)
+    ]
     return Relation(
         relation=label,
         src_name=src_id,
         dst_name=dst_id,
         src_id=src_id,
         dst_id=dst_id,
-        edge_count=edge_count,
+        all_edges=edges,
     )
 
 
