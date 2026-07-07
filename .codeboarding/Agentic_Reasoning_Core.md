@@ -84,28 +84,28 @@ The central control plane that manages the lifecycle of architectural analysis u
   - `agents.agent_responses.ClustersComponent.llm_str` ([L238-L240](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L238-L240)) - Method
   - `agents.agent_responses.ClusterAnalysis` ([L243-L255](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L243-L255)) - Class
   - `agents.agent_responses.ClusterAnalysis.llm_str` ([L250-L255](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L250-L255)) - Method
-  - `agents.agent_responses.assign_component_ids` ([L382-L425](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L382-L425)) - Function
-  - `agents.agent_responses.CFGComponent` ([L451-L467](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L451-L467)) - Class
-  - `agents.agent_responses.CFGAnalysisInsights` ([L470-L482](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L470-L482)) - Class
-  - `agents.agent_responses.ExpandComponent` ([L485-L492](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L485-L492)) - Class
-  - `agents.agent_responses.ExpandComponent.llm_str` ([L491-L492](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L491-L492)) - Method
-  - `agents.agent_responses.ValidationInsights` ([L495-L505](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L495-L505)) - Class
-  - `agents.agent_responses.ValidationInsights.llm_str` ([L504-L505](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L504-L505)) - Method
-  - `agents.agent_responses.UpdateAnalysis` ([L508-L517](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L508-L517)) - Class
-  - `agents.agent_responses.UpdateAnalysis.llm_str` ([L516-L517](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L516-L517)) - Method
-  - `agents.agent_responses.MetaAnalysisInsights` ([L520-L546](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L520-L546)) - Class
-  - `agents.agent_responses.MetaAnalysisInsights.llm_str` ([L536-L546](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L536-L546)) - Method
-  - `agents.agent_responses.FileClassification` ([L549-L556](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L549-L556)) - Class
-  - `agents.agent_responses.FileClassification.llm_str` ([L555-L556](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L555-L556)) - Method
-  - `agents.agent_responses.ComponentFiles` ([L559-L571](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L559-L571)) - Class
-  - `agents.agent_responses.ComponentFiles.llm_str` ([L566-L571](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L566-L571)) - Method
-  - `agents.agent_responses.ScopeRelations` ([L574-L582](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L574-L582)) - Class
-  - `agents.agent_responses.ScopeOperationAction` ([L585-L590](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L585-L590)) - Class
-  - `agents.agent_responses.ScopedClusterRef` ([L593-L602](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L593-L602)) - Class
-  - `agents.agent_responses.ScopeOperation` ([L605-L624](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L605-L624)) - Class
-  - `agents.agent_responses.ScopeUpdateDecision` ([L627-L635](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L627-L635)) - Class
-  - `agents.agent_responses.FilePath` ([L638-L652](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L638-L652)) - Class
-  - `agents.agent_responses.FilePath.llm_str` ([L651-L652](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L651-L652)) - Method
+  - `agents.agent_responses.assign_component_ids` ([L386-L429](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L386-L429)) - Function
+  - `agents.agent_responses.CFGComponent` ([L455-L471](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L455-L471)) - Class
+  - `agents.agent_responses.CFGAnalysisInsights` ([L474-L486](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L474-L486)) - Class
+  - `agents.agent_responses.ExpandComponent` ([L489-L496](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L489-L496)) - Class
+  - `agents.agent_responses.ExpandComponent.llm_str` ([L495-L496](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L495-L496)) - Method
+  - `agents.agent_responses.ValidationInsights` ([L499-L509](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L499-L509)) - Class
+  - `agents.agent_responses.ValidationInsights.llm_str` ([L508-L509](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L508-L509)) - Method
+  - `agents.agent_responses.UpdateAnalysis` ([L512-L521](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L512-L521)) - Class
+  - `agents.agent_responses.UpdateAnalysis.llm_str` ([L520-L521](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L520-L521)) - Method
+  - `agents.agent_responses.MetaAnalysisInsights` ([L524-L550](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L524-L550)) - Class
+  - `agents.agent_responses.MetaAnalysisInsights.llm_str` ([L540-L550](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L540-L550)) - Method
+  - `agents.agent_responses.FileClassification` ([L553-L560](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L553-L560)) - Class
+  - `agents.agent_responses.FileClassification.llm_str` ([L559-L560](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L559-L560)) - Method
+  - `agents.agent_responses.ComponentFiles` ([L563-L575](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L563-L575)) - Class
+  - `agents.agent_responses.ComponentFiles.llm_str` ([L570-L575](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L570-L575)) - Method
+  - `agents.agent_responses.ScopeRelations` ([L578-L586](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L578-L586)) - Class
+  - `agents.agent_responses.ScopeOperationAction` ([L589-L594](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L589-L594)) - Class
+  - `agents.agent_responses.ScopedClusterRef` ([L597-L606](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L597-L606)) - Class
+  - `agents.agent_responses.ScopeOperation` ([L609-L628](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L609-L628)) - Class
+  - `agents.agent_responses.ScopeUpdateDecision` ([L631-L639](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L631-L639)) - Class
+  - `agents.agent_responses.FilePath` ([L642-L656](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L642-L656)) - Class
+  - `agents.agent_responses.FilePath.llm_str` ([L655-L656](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L655-L656)) - Method
 - [`agents/details_agent.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/details_agent.py)
   - `agents.details_agent.DetailsAgent.__init__` ([L38-L65](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/details_agent.py#L38-L65)) - Method
   - `agents.details_agent.DetailsAgent.step_clusters_grouping` ([L68-L125](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/details_agent.py#L68-L125)) - Method
@@ -470,8 +470,8 @@ Manages Tool-Augmented Generation constraints by calculating token budgets and p
 - [`static_analyzer/cluster_helpers.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/cluster_helpers.py)
   - `static_analyzer.cluster_helpers.get_all_cluster_ids` ([L480-L493](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/cluster_helpers.py#L480-L493)) - Function
 - [`static_analyzer/cluster_relations.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/cluster_relations.py)
-  - `static_analyzer.cluster_relations.build_node_to_component_map` ([L28-L39](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/cluster_relations.py#L28-L39)) - Function
-  - `static_analyzer.cluster_relations.merge_relations` ([L86-L175](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/cluster_relations.py#L86-L175)) - Function
+  - `static_analyzer.cluster_relations.build_node_to_component_map` ([L29-L40](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/cluster_relations.py#L29-L40)) - Function
+  - `static_analyzer.cluster_relations.merge_relations` ([L268-L357](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/cluster_relations.py#L268-L357)) - Function
 - [`static_analyzer/graph.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/graph.py)
   - `static_analyzer.graph.ClusterResult.get_cluster_ids` ([L61-L62](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/graph.py#L61-L62)) - Method
   - `static_analyzer.graph.ClusterResult.get_nodes_for_cluster` ([L70-L71](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/graph.py#L70-L71)) - Method
@@ -589,12 +589,12 @@ Maps fuzzy LLM references back to exact source code locations and structures arc
   - `agents.agent_responses.MethodEntry.__hash__` ([L266-L267](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L266-L267)) - Method
   - `agents.agent_responses.MethodEntry.__eq__` ([L269-L272](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L269-L272)) - Method
   - `agents.agent_responses.MethodEntry.from_node` ([L275-L282](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L275-L282)) - Method
-  - `agents.agent_responses.Component.llm_str` ([L341-L351](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L341-L351)) - Method
-  - `agents.agent_responses.AnalysisInsights.llm_str` ([L369-L375](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L369-L375)) - Method
-  - `agents.agent_responses.AnalysisInsights.file_to_component` ([L377-L379](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L377-L379)) - Method
-  - `agents.agent_responses.CFGComponent.llm_str` ([L460-L467](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L460-L467)) - Method
-  - `agents.agent_responses.CFGAnalysisInsights.llm_str` ([L476-L482](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L476-L482)) - Method
-  - `agents.agent_responses.ScopeRelations.llm_str` ([L579-L582](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L579-L582)) - Method
+  - `agents.agent_responses.Component.llm_str` ([L345-L355](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L345-L355)) - Method
+  - `agents.agent_responses.AnalysisInsights.llm_str` ([L373-L379](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L373-L379)) - Method
+  - `agents.agent_responses.AnalysisInsights.file_to_component` ([L381-L383](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L381-L383)) - Method
+  - `agents.agent_responses.CFGComponent.llm_str` ([L464-L471](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L464-L471)) - Method
+  - `agents.agent_responses.CFGAnalysisInsights.llm_str` ([L480-L486](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L480-L486)) - Method
+  - `agents.agent_responses.ScopeRelations.llm_str` ([L583-L586](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L583-L586)) - Method
 - [`static_analyzer/graph.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/graph.py)
   - `static_analyzer.graph.Edge.__init__` ([L82-L88](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/graph.py#L82-L88)) - Method
   - `static_analyzer.graph.Edge.__repr__` ([L100-L101](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/graph.py#L100-L101)) - Method
