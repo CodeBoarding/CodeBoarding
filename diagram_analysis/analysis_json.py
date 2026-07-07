@@ -67,8 +67,12 @@ class ComponentJson(Component):
     # Exclude intermediate field from JSON output
     source_group_names: list[str] = Field(default_factory=list, exclude=True)
     # Nested sub-analysis for expanded components
-    components: list["ComponentJson"] | None = Field(
-        description="Sub-components if expanded, None otherwise.", default=None
+    components: list["ComponentJson"] = Field(
+        description="Sub-components if expanded, empty otherwise.", default_factory=list
+    )
+    components_relations: list[RelationJson] = Field(
+        description="Relations among sub-components if expanded, empty otherwise.",
+        default_factory=list,
     )
 
 
@@ -313,10 +317,6 @@ def _relation_to_json(r: Relation, repo_dir: Path | None = None) -> RelationJson
     )
 
 
-def _collapse_component_relations(relations: list[Relation]) -> list[Relation]:
-    return merge_relations_by_pair(relations, fallback_to_names=True)
-
-
 def from_component_to_json_component(
     component: Component,
     expandable_components: list[Component],
@@ -335,7 +335,8 @@ def from_component_to_json_component(
         processed_ids.add(component_id_val)
         can_expand = any(c.component_id == component.component_id for c in expandable_components)
 
-    nested_components: list[ComponentJson] | None = None
+    nested_components: list[ComponentJson] = []
+    nested_relations: list[RelationJson] = []
 
     if can_expand and sub_analyses and component.component_id in sub_analyses:
         sub_analysis, sub_expandable = sub_analyses[component.component_id]
@@ -344,7 +345,10 @@ def from_component_to_json_component(
             for c in sub_analysis.components
         ]
         nested_relations = [
-            _relation_to_json(r, repo_dir) for r in _collapse_component_relations(sub_analysis.components_relations)
+            _relation_to_json(r, repo_dir)
+            for r in merge_relations_by_pair(
+                sub_analysis.components_relations, fallback_to_names=True, include_relation=True
+            )
         ]
 
     return ComponentJson(
@@ -372,7 +376,8 @@ def from_analysis_to_json(
     ]
     # Build a dict matching the old AnalysisInsightsJson shape but with nested components
     relations_json = [
-        _relation_to_json(r, repo_dir) for r in _collapse_component_relations(analysis.components_relations)
+        _relation_to_json(r, repo_dir)
+        for r in merge_relations_by_pair(analysis.components_relations, fallback_to_names=True, include_relation=True)
     ]
     files_index = _build_files_index_from_analysis(analysis)
     methods_index = _build_methods_index_from_files(files_index)
@@ -461,7 +466,8 @@ def build_unified_analysis_json(
         summary = file_coverage_summary
 
     relations_json = [
-        _relation_to_json(r, repo_dir) for r in _collapse_component_relations(analysis.components_relations)
+        _relation_to_json(r, repo_dir)
+        for r in merge_relations_by_pair(analysis.components_relations, fallback_to_names=True, include_relation=True)
     ]
     unified = UnifiedAnalysisJson(
         snapshotCommit=snapshot_commit,

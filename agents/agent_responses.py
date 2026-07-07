@@ -3,6 +3,7 @@ from __future__ import annotations
 import abc
 import logging
 from abc import abstractmethod
+from collections.abc import Hashable
 from enum import StrEnum
 from pathlib import PurePosixPath
 from typing import get_origin, Optional
@@ -20,7 +21,7 @@ class LLMBaseModel(BaseModel, abc.ABC):
     """Base model for LLM-parseable response types."""
 
     @abstractmethod
-    def llm_str(self):
+    def llm_str(self) -> str:
         raise NotImplementedError("LLM String has to be implemented.")
 
     @classmethod
@@ -145,7 +146,7 @@ class SourceCodeReference(LLMBaseModel):
         description="The line number in the source code where the reference ends. Only if you are absolutely sure add this, otherwise None.",
     )
 
-    def llm_str(self):
+    def llm_str(self) -> str:
         if self.reference_start_line is None or self.reference_end_line is None:
             return f"QName:`{self.qualified_name}` FileRef: `{self.reference_file}`"
         if (
@@ -155,7 +156,7 @@ class SourceCodeReference(LLMBaseModel):
             return f"QName:`{self.qualified_name}` FileRef: `{self.reference_file}`"
         return f"QName:`{self.qualified_name}` FileRef: `{self.reference_file}`, Lines:({self.reference_start_line}:{self.reference_end_line})"
 
-    def __str__(self):
+    def __str__(self) -> str:
         if self.reference_start_line is None or self.reference_end_line is None:
             return f"`{self.qualified_name}`"
         if (
@@ -179,8 +180,23 @@ class RelationEdge(LLMBaseModel):
         json_schema_extra={"hidden": True},
     )
 
-    def llm_str(self):
+    def llm_str(self) -> str:
         return f"{self.source} -> {self.target}: {self.description}"
+
+    def identity(
+        self,
+    ) -> tuple[str, str, str, str, int | None, int | None, int | None, int | None, tuple[tuple[int, int], ...]]:
+        return (
+            self.source.qualified_name,
+            self.target.qualified_name,
+            self.source.reference_file or "",
+            self.target.reference_file or "",
+            self.source.reference_start_line,
+            self.source.reference_end_line,
+            self.target.reference_start_line,
+            self.target.reference_end_line,
+            tuple(sorted((int(site.get("line", 0)), int(site.get("column", 0))) for site in self.call_sites)),
+        )
 
 
 class Relation(LLMBaseModel):
@@ -213,8 +229,66 @@ class Relation(LLMBaseModel):
         json_schema_extra={"hidden": True},
     )
 
-    def llm_str(self):
+    def llm_str(self) -> str:
         return f"({self.src_name}, {self.relation}, {self.dst_name})"
+
+    def pair_key(
+        self, fallback_to_names: bool = False, include_relation: bool = False
+    ) -> tuple[str, str] | tuple[str, str, str]:
+        src = self.src_id or self.src_name if fallback_to_names else self.src_id
+        dst = self.dst_id or self.dst_name if fallback_to_names else self.dst_id
+        if include_relation:
+            return (src, dst, self.relation)
+        return (src, dst)
+
+    def with_merged_edges(
+        self,
+        *,
+        src_id: str | None = None,
+        dst_id: str | None = None,
+        src_name: str | None = None,
+        dst_name: str | None = None,
+    ) -> "Relation":
+        key_edges, all_edges = self._merge_edges(self.key_edges, self.all_edges)
+        return Relation(
+            relation=self.relation,
+            src_name=src_name if src_name is not None else self.src_name,
+            dst_name=dst_name if dst_name is not None else self.dst_name,
+            evidence=self.evidence,
+            key_edges=key_edges,
+            src_id=src_id if src_id is not None else self.src_id,
+            dst_id=dst_id if dst_id is not None else self.dst_id,
+            is_static=self.is_static,
+            all_edges=all_edges,
+        )
+
+    def merge_edges_from(self, relation: "Relation") -> None:
+        self.key_edges, self.all_edges = self._merge_edges(
+            [*self.key_edges, *relation.key_edges], [*self.all_edges, *relation.all_edges]
+        )
+        self.is_static = self.is_static or relation.is_static
+        if not self.evidence:
+            self.evidence = relation.evidence
+
+    @staticmethod
+    def _merge_edges(
+        key_edges: list[RelationEdge], all_edges: list[RelationEdge]
+    ) -> tuple[list[RelationEdge], list[RelationEdge]]:
+        merged_key_edges = Relation._unique_edges(key_edges)
+        merged_all_edges = Relation._unique_edges([*all_edges, *merged_key_edges])
+        return merged_key_edges, merged_all_edges
+
+    @staticmethod
+    def _unique_edges(edges: list[RelationEdge]) -> list[RelationEdge]:
+        unique_edges: list[RelationEdge] = []
+        seen: set[Hashable] = set()
+        for edge in edges:
+            edge_id = edge.identity()
+            if edge_id in seen:
+                continue
+            unique_edges.append(edge)
+            seen.add(edge_id)
+        return unique_edges
 
     @property
     def edge_count(self) -> int:

@@ -4,8 +4,9 @@ import re
 from pathlib import Path
 from typing import Any
 
-from agents.agent_responses import AnalysisInsights
+from agents.agent_responses import AnalysisInsights, RelationEdge, SourceCodeReference
 from static_analyzer.analysis_result import StaticAnalysisResults
+from static_analyzer.constants import Language
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +20,16 @@ class ReferenceResolverMixin:
 
     def fix_source_code_reference_lines(self, analysis: AnalysisInsights):
         logger.info(f"Fixing source code reference lines for the analysis: {analysis.llm_str()}")
+        self.fix_key_entities_refs(analysis)
+        self.fix_edge_refs(analysis)
+
+        # Remove unresolved references
+        self._remove_unresolved_references(analysis)
+
+        return self._relative_paths(analysis)
+
+    def fix_key_entities_refs(self, analysis: AnalysisInsights) -> None:
+        """Resolve component key entity references."""
         for component in analysis.components:
             for reference in component.key_entities:
                 # Check if the reference is already fully resolved (file + line numbers)
@@ -34,6 +45,8 @@ class ReferenceResolverMixin:
                 file_candidates = component.file_paths() or None
                 self._resolve_single_reference(reference, file_candidates)
 
+    def fix_edge_refs(self, analysis: AnalysisInsights) -> None:
+        """Resolve relation edge endpoint references."""
         component_by_name = {component.name: component for component in analysis.components}
         for relation in analysis.components_relations:
             src_component = component_by_name.get(relation.src_name)
@@ -45,12 +58,9 @@ class ReferenceResolverMixin:
                 self._resolve_single_reference(edge.target, dst_candidates)
                 self._attach_static_call_sites(edge)
 
-        # Remove unresolved references
-        self._remove_unresolved_references(analysis)
-
-        return self._relative_paths(analysis)
-
-    def _resolve_single_reference(self, reference, file_candidates: list[str] | None = None):
+    def _resolve_single_reference(
+        self, reference: SourceCodeReference, file_candidates: list[str] | None = None
+    ) -> None:
         """Orchestrates different resolution strategies for a single reference."""
         assert self.static_analysis is not None, "static_analysis required for reference resolution"
         qname = reference.qualified_name.replace(os.sep, ".")
@@ -79,7 +89,7 @@ class ReferenceResolverMixin:
         # No resolution found - will be cleaned up later
         logger.warning(f"[Reference Resolution] Could not resolve reference {reference.qualified_name} in any language")
 
-    def _try_exact_match(self, reference, qname, lang):
+    def _try_exact_match(self, reference: SourceCodeReference, qname: str, lang: Language) -> bool:
         """Attempts exact reference matching."""
         try:
             node = self.static_analysis.get_reference(lang, qname)
@@ -95,7 +105,7 @@ class ReferenceResolverMixin:
             logger.warning(f"[Reference Resolution] Exact match failed for {reference.qualified_name} in {lang}: {e}")
             return False
 
-    def _try_loose_match(self, reference, qname, lang):
+    def _try_loose_match(self, reference: SourceCodeReference, qname: str, lang: Language) -> bool:
         """Attempts loose reference matching."""
         try:
             _, node = self.static_analysis.get_loose_reference(lang, qname)
@@ -133,13 +143,13 @@ class ReferenceResolverMixin:
         )
         return True
 
-    def _apply_resolved_node(self, reference, node) -> None:
+    def _apply_resolved_node(self, reference: SourceCodeReference, node: Any) -> None:
         reference.reference_file = node.file_path
         reference.reference_start_line = node.line_start
         reference.reference_end_line = node.line_end
         reference.qualified_name = node.fully_qualified_name
 
-    def _unique_backwards_token_match(self, query_tokens: list[str], candidates: list[Any]):
+    def _unique_backwards_token_match(self, query_tokens: list[str], candidates: list[Any]) -> Any | None:
         matching = candidates
         for suffix_len in range(1, len(query_tokens) + 1):
             query_suffix = query_tokens[-suffix_len:]
@@ -165,7 +175,9 @@ class ReferenceResolverMixin:
         required_context = [token for token in query_tokens[:-1] if token.startswith("_")]
         return all(token in candidate_tokens for token in required_context)
 
-    def _try_file_path_resolution(self, reference, qname, lang, file_candidates: list[str] | None = None):
+    def _try_file_path_resolution(
+        self, reference: SourceCodeReference, qname: str, lang: Language, file_candidates: list[str] | None = None
+    ) -> bool:
         """Attempts to resolve reference through file path matching."""
         # First try existing reference file path
         if self._try_existing_reference_file(reference, lang):
@@ -174,7 +186,7 @@ class ReferenceResolverMixin:
         # Then try qualified name as file path
         return self._try_qualified_name_as_path(reference, qname, lang, file_candidates)
 
-    def _try_existing_reference_file(self, reference, lang):
+    def _try_existing_reference_file(self, reference: SourceCodeReference, lang: Language) -> bool:
         """Tries to resolve using existing reference file path."""
         if (reference.reference_file is not None) and (not Path(reference.reference_file).is_absolute()):
             joined_path = os.path.join(self.repo_dir, reference.reference_file)
@@ -188,7 +200,9 @@ class ReferenceResolverMixin:
                 reference.reference_file = None
         return False
 
-    def _try_qualified_name_as_path(self, reference, qname, lang, file_candidates: list[str] | None = None):
+    def _try_qualified_name_as_path(
+        self, reference: SourceCodeReference, qname: str, lang: Language, file_candidates: list[str] | None = None
+    ) -> bool:
         """Tries to resolve qualified name as various file path patterns."""
         file_path = qname.replace(".", os.sep)  # Get file path
         full_path = os.path.join(self.repo_dir, file_path)
@@ -254,7 +268,7 @@ class ReferenceResolverMixin:
         resolved_relations = []
         for relation in analysis.components_relations:
             original_edge_count = len(relation.key_edges)
-            relation.key_edges = [edge for edge in relation.key_edges if self._keep_relation_edge(edge, relation)]
+            relation.key_edges = [edge for edge in relation.key_edges if self._keep_relation_edge(edge)]
             removed_edge_count = original_edge_count - len(relation.key_edges)
             if removed_edge_count > 0:
                 logger.info(
@@ -270,10 +284,12 @@ class ReferenceResolverMixin:
                             f"'{relation.dst_name}' after all key edges failed to resolve"
                         )
                         continue
+            else:
+                relation.all_edges = [edge for edge in relation.all_edges if self._keep_relation_edge(edge)]
             resolved_relations.append(relation)
         analysis.components_relations = resolved_relations
 
-    def _keep_relation_edge(self, edge, relation) -> bool:
+    def _keep_relation_edge(self, edge: RelationEdge) -> bool:
         """Keep static edges and evidence-backed LLM edges."""
         if self._same_resolved_relation_endpoint(edge):
             return False
@@ -281,7 +297,7 @@ class ReferenceResolverMixin:
             return True
         return self._external_relation_edge(edge)
 
-    def _resolved_relation_edge(self, edge) -> bool:
+    def _resolved_relation_edge(self, edge: RelationEdge) -> bool:
         """Return true when both edge endpoints resolve to existing files."""
         return (
             edge.source.reference_file is not None
@@ -290,7 +306,7 @@ class ReferenceResolverMixin:
             and self._reference_file_exists(edge.target.reference_file)
         )
 
-    def _external_relation_edge(self, edge) -> bool:
+    def _external_relation_edge(self, edge: RelationEdge) -> bool:
         """Return true when one endpoint is repo code and the other is external."""
         source_resolved = edge.source.reference_file is not None and self._reference_file_exists(
             edge.source.reference_file
@@ -330,7 +346,7 @@ class ReferenceResolverMixin:
             return path.exists()
         return (self.repo_dir / path).exists()
 
-    def _attach_static_call_sites(self, edge) -> None:
+    def _attach_static_call_sites(self, edge: RelationEdge) -> None:
         """Copy call-site metadata from the exact static CFG edge when present."""
         static_edge = self._find_static_edge(edge)
         if static_edge is None:
@@ -339,11 +355,11 @@ class ReferenceResolverMixin:
             {"line": int(site.get("line", 0)), "column": int(site.get("column", 0))} for site in static_edge.call_sites
         ]
 
-    def _has_static_edge(self, edge) -> bool:
+    def _has_static_edge(self, edge: RelationEdge) -> bool:
         """Return true when a resolved relation edge exists in the static CFG."""
         return self._find_static_edge(edge) is not None
 
-    def _find_static_edge(self, relation_edge):
+    def _find_static_edge(self, relation_edge: RelationEdge):
         source_qname = relation_edge.source.qualified_name
         target_qname = relation_edge.target.qualified_name
         if not source_qname or not target_qname:
@@ -358,7 +374,7 @@ class ReferenceResolverMixin:
                     return edge
         return None
 
-    def _same_resolved_relation_endpoint(self, edge) -> bool:
+    def _same_resolved_relation_endpoint(self, edge: RelationEdge) -> bool:
         """Return true when a relation edge points to the same resolved symbol."""
         source = edge.source
         target = edge.target

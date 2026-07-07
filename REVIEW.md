@@ -41,6 +41,7 @@
 
 ### Code Clarity
 - [ ] **Descriptive naming:** Variable/function names clearly indicate purpose (avoid `data`, `temp`, `x`)
+- [ ] **No trivial pass-through methods:** Inline one-line wrappers that only delegate to another helper with fixed arguments, unless they define a real domain boundary used in multiple places
 - [ ] **Early returns:** Use guard clauses instead of deep nesting
 - [ ] **Function length:** Functions under 50 lines (preferably under 30)
 - [ ] **Cyclomatic complexity:** No excessive branching (keep complexity < 10)

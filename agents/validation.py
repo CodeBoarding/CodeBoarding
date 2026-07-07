@@ -56,7 +56,14 @@ class ValidationResult:
 
     is_valid: bool
     feedback_messages: list[str] = field(default_factory=list)
-    score: float | None = None
+    score: float = 0.0
+
+
+def _effective_validation_score(result: ValidationResult) -> float:
+    """Return a normalized score where a passing validator counts as complete."""
+    if result.is_valid:
+        return 1.0
+    return max(0.0, min(1.0, result.score))
 
 
 def score_validation_results(
@@ -77,10 +84,7 @@ def score_validation_results(
     score = 0.0
     for validator_fn, vr in validator_results:
         weight = VALIDATOR_WEIGHTS.get(validator_fn.__name__, DEFAULT_VALIDATOR_WEIGHT)
-        if vr.is_valid:
-            score += weight
-        elif vr.score is not None:
-            score += weight * max(0.0, min(1.0, vr.score))
+        score += weight * _effective_validation_score(vr)
     return score
 
 
@@ -665,10 +669,7 @@ def validate_relations(result: AnalysisInsights, context: ValidationContext) -> 
             "names on both sides, and every relation must be backed by a directed CFG edge or resolvable key_edges. "
             + " ".join(feedback_parts)
         ],
-        score=min(
-            name_result.score if name_result.score is not None else 1.0,
-            evidence_result.score if evidence_result.score is not None else 1.0,
-        ),
+        score=min(_effective_validation_score(name_result), _effective_validation_score(evidence_result)),
     )
 
 
@@ -879,6 +880,16 @@ def _check_directed_edge_between_cluster_sets(
     dst_cluster_ids: list[int],
     cluster_edge_lookup: dict[str, set[tuple[int, int]]],
 ) -> bool:
+    return _has_cluster_edge(src_cluster_ids, dst_cluster_ids, cluster_edge_lookup, bidirectional=False)
+
+
+def _has_cluster_edge(
+    src_cluster_ids: list[int],
+    dst_cluster_ids: list[int],
+    cluster_edge_lookup: dict[str, set[tuple[int, int]]],
+    *,
+    bidirectional: bool,
+) -> bool:
     if not src_cluster_ids or not dst_cluster_ids:
         return False
 
@@ -887,6 +898,8 @@ def _check_directed_edge_between_cluster_sets(
     for cluster_edges in cluster_edge_lookup.values():
         for src_cluster, dst_cluster in cluster_edges:
             if src_cluster in src_set and dst_cluster in dst_set:
+                return True
+            if bidirectional and src_cluster in dst_set and dst_cluster in src_set:
                 return True
     return False
 
@@ -917,16 +930,4 @@ def _check_edge_between_cluster_sets(
     if cluster_edge_lookup is None:
         cluster_edge_lookup = _build_cluster_edge_lookup(cluster_results, cfg_graphs)
 
-    src_set = set(src_cluster_ids)
-    dst_set = set(dst_cluster_ids)
-
-    for cluster_edges in cluster_edge_lookup.values():
-        for src_cluster, dst_cluster in cluster_edges:
-            # Check both directions: the LLM's relation direction may not match
-            # the call graph edge direction (e.g. "A uses B" vs B.method() calls A.method())
-            if (src_cluster in src_set and dst_cluster in dst_set) or (
-                src_cluster in dst_set and dst_cluster in src_set
-            ):
-                return True
-
-    return False
+    return _has_cluster_edge(src_cluster_ids, dst_cluster_ids, cluster_edge_lookup, bidirectional=True)

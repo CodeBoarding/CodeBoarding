@@ -302,6 +302,10 @@ class TestAnalysisJsonConversion(unittest.TestCase):
 
         self.assertTrue(comp1_data["can_expand"])
         self.assertFalse(comp2_data["can_expand"])
+        self.assertEqual(comp1_data["components"], [])
+        self.assertEqual(comp1_data["components_relations"], [])
+        self.assertEqual(comp2_data["components"], [])
+        self.assertEqual(comp2_data["components_relations"], [])
 
     def test_from_analysis_to_json_includes_all_edges(self):
         self._add_edge_methods_to_index()
@@ -400,15 +404,13 @@ class TestAnalysisJsonConversion(unittest.TestCase):
 
         data = json.loads(from_analysis_to_json(self.analysis, []))
 
-        self.assertEqual(len(data["components_relations"]), 1)
-        relation = data["components_relations"][0]
-        self.assertEqual(relation["relation"], "calls")
-        self.assertEqual(len(relation["key_edges"]), 1)
-        self.assertEqual(len(relation["all_edges"]), 2)
-        self.assertEqual(relation["key_edges"][0]["source"], "component1.py|component1.dispatch")
+        self.assertEqual(len(data["components_relations"]), 2)
+        relations_by_label = {relation["relation"]: relation for relation in data["components_relations"]}
+        self.assertEqual(len(relations_by_label["calls"]["all_edges"]), 1)
+        self.assertEqual(relations_by_label["calls"]["all_edges"][0]["source"], "component1.py|component1.run")
+        self.assertEqual(len(relations_by_label["dispatches to"]["key_edges"]), 1)
         self.assertEqual(
-            [edge["source"] for edge in relation["all_edges"]],
-            ["component1.py|component1.run", "component1.py|component1.dispatch"],
+            relations_by_label["dispatches to"]["key_edges"][0]["source"], "component1.py|component1.dispatch"
         )
 
     def test_unified_analysis_parse_preserves_all_edges(self):

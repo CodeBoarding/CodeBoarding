@@ -31,7 +31,7 @@ class ClusterRelation:
     all_edges: list[RelationEdge] = field(default_factory=list)
 
 
-def _call_site_int(value: Hashable | None) -> int:
+def _call_site_int(value: Hashable) -> int:
     if isinstance(value, int):
         return value
     if isinstance(value, str):
@@ -41,7 +41,7 @@ def _call_site_int(value: Hashable | None) -> int:
 
 def _call_sites_from_cfg_edge(edge: Edge) -> list[dict[str, int]]:
     return [
-        {"line": _call_site_int(call_site.get("line")), "column": _call_site_int(call_site.get("column"))}
+        {"line": _call_site_int(call_site.get("line", 0)), "column": _call_site_int(call_site.get("column", 0))}
         for call_site in edge.call_sites
     ]
 
