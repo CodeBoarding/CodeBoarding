@@ -14,7 +14,7 @@ from agents.agent_responses import (
     SourceCodeReference,
 )
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.constants import NodeType
+from static_analyzer.constants import Language, NodeType
 from static_analyzer.graph import CallGraph, Edge
 from static_analyzer.node import Node
 from static_analyzer.reference_resolve_mixin import ReferenceResolverMixin
@@ -405,7 +405,7 @@ class TestReferenceResolverMixin(unittest.TestCase):
         mock_node.line_end = 3
         self.mock_static_analysis.get_reference.return_value = mock_node
 
-        result = self.resolver._try_exact_match(reference, "test.TestClass", "python")
+        result = self.resolver._try_exact_match(reference, "test.TestClass", Language.PYTHON)
 
         self.assertTrue(result)
         self.assertEqual(reference.reference_file, str(self.repo_dir / "test.py"))
@@ -420,7 +420,7 @@ class TestReferenceResolverMixin(unittest.TestCase):
 
         self.mock_static_analysis.get_reference.side_effect = ValueError("Not found")
 
-        result = self.resolver._try_exact_match(reference, "nonexistent.Class", "python")
+        result = self.resolver._try_exact_match(reference, "nonexistent.Class", Language.PYTHON)
 
         self.assertFalse(result)
         self.assertIsNone(reference.reference_file)
@@ -438,7 +438,7 @@ class TestReferenceResolverMixin(unittest.TestCase):
         mock_node.line_end = 3
         self.mock_static_analysis.get_loose_reference.return_value = ("test.TestClass", mock_node)
 
-        result = self.resolver._try_loose_match(reference, "TestClass", "python")
+        result = self.resolver._try_loose_match(reference, "TestClass", Language.PYTHON)
 
         self.assertTrue(result)
         self.assertEqual(reference.reference_file, str(self.repo_dir / "test.py"))
@@ -451,7 +451,7 @@ class TestReferenceResolverMixin(unittest.TestCase):
 
         self.mock_static_analysis.get_loose_reference.side_effect = Exception("Not found")
 
-        result = self.resolver._try_loose_match(reference, "NonExistent", "python")
+        result = self.resolver._try_loose_match(reference, "NonExistent", Language.PYTHON)
 
         self.assertFalse(result)
 
@@ -464,7 +464,7 @@ class TestReferenceResolverMixin(unittest.TestCase):
             reference_end_line=2,
         )
 
-        result = self.resolver._try_existing_reference_file(reference, "python")
+        result = self.resolver._try_existing_reference_file(reference, Language.PYTHON)
 
         self.assertTrue(result)
         self.assertEqual(reference.reference_file, str(self.repo_dir / "test.py"))
@@ -478,7 +478,7 @@ class TestReferenceResolverMixin(unittest.TestCase):
             reference_end_line=2,
         )
 
-        result = self.resolver._try_existing_reference_file(reference, "python")
+        result = self.resolver._try_existing_reference_file(reference, Language.PYTHON)
 
         self.assertFalse(result)
         self.assertIsNone(reference.reference_file)  # Should be cleared
@@ -493,7 +493,7 @@ class TestReferenceResolverMixin(unittest.TestCase):
             qualified_name="module.file", reference_file=None, reference_start_line=None, reference_end_line=None
         )
 
-        result = self.resolver._try_qualified_name_as_path(reference, "module.file", "python")
+        result = self.resolver._try_qualified_name_as_path(reference, "module.file", Language.PYTHON)
 
         self.assertTrue(result)
         # Should find via the file_ref pattern
@@ -514,7 +514,7 @@ class TestReferenceResolverMixin(unittest.TestCase):
             reference_end_line=None,
         )
 
-        result = self.resolver._try_qualified_name_as_path(reference, "nested.deep.module", "python")
+        result = self.resolver._try_qualified_name_as_path(reference, "nested.deep.module", Language.PYTHON)
 
         self.assertTrue(result)
         # Should find the directory path
