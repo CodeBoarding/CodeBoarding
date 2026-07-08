@@ -196,8 +196,8 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
             prompt,
             ComponentApiSurfaces,
             validators=[],
-            context=ValidationContext(static_analysis=self.static_analysis),
-            max_validation_attempts=2,
+            context=None,
+            max_validation_attempts=1,
         )
 
     @trace
