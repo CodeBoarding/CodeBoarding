@@ -982,6 +982,9 @@ class TestDiagramGenerator(unittest.TestCase):
         )
         gen.details_agent = Mock()
         gen.abstraction_agent = Mock()
+        # The empty-delta path rebuilds the files index from live source; return a
+        # plain dict so the union in _refresh_files_index is iterable.
+        gen.abstraction_agent.build_files_index.return_value = {}
         gen.static_analysis = Mock()
         gen.static_analysis.get_languages.return_value = []
         gen.static_analysis.incremental_base_results = Mock()
@@ -1004,6 +1007,10 @@ class TestDiagramGenerator(unittest.TestCase):
 
         mock_prune.assert_not_called()
         self.assertEqual(sub_analyses["1.1"].components[0].name, "Stable Leaf")
+        # Even with an empty delta (body-only edit, no structural change), the
+        # files index is rebuilt from live source so content_hash / source_tree_hash
+        # don't go stale. Root + each sub-analysis => 3 rebuilds here.
+        self.assertEqual(gen.abstraction_agent.build_files_index.call_count, 1 + len(sub_analyses))
 
     def test_persist_static_analysis_artifact_saves_cluster_cache_without_injected_analyzer(self):
         gen = DiagramGenerator(

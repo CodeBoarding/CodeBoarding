@@ -731,8 +731,14 @@ class DiagramGenerator:
             )
             if not delta.has_changes:
                 logger.info("Cluster delta is empty; rewriting current analysis without re-detailing.")
-                # No structural change: the loaded baseline's relations already
-                # are the global set, so finalize's rebuild is a no-op here.
+                # No STRUCTURAL change, but a body-only edit still changes content
+                # hashes. Rebuild the files index from live source so file/method
+                # content_hash (and source_tree_hash) reflect the current bytes;
+                # otherwise a carried-forward hash goes stale and a later commit-
+                # diff compares against the wrong baseline. The loaded baseline's
+                # relations already are the global set, so finalize's rebuild is a
+                # no-op there.
+                self._refresh_files_index(root_analysis, sub_analyses)
                 return self.finalize_and_save(root_analysis, sub_analyses)
 
             agent_llm, parsing_llm = initialize_llms()
@@ -794,18 +800,7 @@ class DiagramGenerator:
             if apply_result.touched_scopes:
                 incremental_agent.generate_all_scope_relations(root_analysis, sub_analyses, apply_result.touched_scopes)
 
-            # Rebuild the global files index, unioning every sub-analysis's
-            # files into root. The incremental flow never reruns AbstractionAgent
-            # over the full CFG, so root.files lags behind deeper levels;
-            # build_unified_analysis_json reads only root.files for the top
-            # index, so we must surface every depth's files there.
-            for sub in sub_analyses.values():
-                sub.files = self.abstraction_agent.build_files_index(sub)
-            unified_files = self.abstraction_agent.build_files_index(root_analysis)
-            for sub in sub_analyses.values():
-                for fp, entry in sub.files.items():
-                    unified_files.setdefault(fp, entry)
-            root_analysis.files = unified_files
+            self._refresh_files_index(root_analysis, sub_analyses)
 
             analysis_path = self.finalize_and_save(root_analysis, sub_analyses, seed_delta=delta.cluster_results())
             n_subs = sum(len(sub.components) for sub in sub_analyses.values())
@@ -816,6 +811,30 @@ class DiagramGenerator:
                 len(root_analysis.components_relations),
             )
             return analysis_path
+
+    def _refresh_files_index(
+        self,
+        root_analysis: AnalysisInsights,
+        sub_analyses: dict[str, AnalysisInsights],
+    ) -> None:
+        """Rebuild the global files index from live source, unioning every
+        sub-analysis's files into root.
+
+        The incremental flow never reruns AbstractionAgent over the full CFG, so
+        root.files lags behind deeper levels; build_unified_analysis_json reads
+        only root.files for the top index, so we must surface every depth's files
+        there. build_files_index recomputes each file/method content_hash from
+        live source, so a body-only edit is reflected even when no component was
+        re-detailed.
+        """
+        assert self.abstraction_agent is not None
+        for sub in sub_analyses.values():
+            sub.files = self.abstraction_agent.build_files_index(sub)
+        unified_files = self.abstraction_agent.build_files_index(root_analysis)
+        for sub in sub_analyses.values():
+            for fp, entry in sub.files.items():
+                unified_files.setdefault(fp, entry)
+        root_analysis.files = unified_files
 
 
 def _collect_components_by_id(
