@@ -824,18 +824,23 @@ class ClusterMethodsMixin:
                         # Recompute from live source rather than trust a hash carried
                         # forward from a prior analysis: on the incremental path a
                         # method in an untouched component keeps its old hash, which
-                        # would mask a body-only edit at diff time. Prefer the live
-                        # CFG span so a method that only moved (edit above it) hashes
-                        # its real current body, not stale line numbers.
-                        start, end = live_spans.get(
-                            (fmg.file_path, method.qualified_name), (method.start_line, method.end_line)
-                        )
-                        copied.start_line, copied.end_line = start, end
-                        copied.content_hash = hash_method_body(
-                            _read_source_lines(self.repo_dir, fmg.file_path, file_cache),
-                            start,
-                            end,
-                        )
+                        # would mask a body-only edit at diff time. Only the live CFG
+                        # span is trustworthy — carried-forward line numbers can point
+                        # at unrelated code after an edit above the method, so hashing
+                        # them would produce a stable-but-wrong hash. When the method
+                        # is absent from the live CFG, leave the hash empty (the
+                        # ''-unavailable sentinel) rather than hash a stale span.
+                        live_span = live_spans.get((fmg.file_path, method.qualified_name))
+                        if live_span is not None:
+                            start, end = live_span
+                            copied.start_line, copied.end_line = start, end
+                            copied.content_hash = hash_method_body(
+                                _read_source_lines(self.repo_dir, fmg.file_path, file_cache),
+                                start,
+                                end,
+                            )
+                        else:
+                            copied.content_hash = ""
                         methods_by_qname[method.qualified_name] = copied
 
                 entry.methods = sorted(

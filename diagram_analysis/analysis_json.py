@@ -15,7 +15,7 @@ from agents.agent_responses import (
     MethodEntry,
     SourceCodeReference,
 )
-from agents.content_hash import hash_whole_file
+from agents.content_hash import SOURCE_DECODE_ERRORS, SOURCE_ENCODING, hash_whole_file
 from repo_utils.ignore import RepoIgnoreManager
 
 logger = logging.getLogger(__name__)
@@ -253,7 +253,7 @@ def hash_repo_source_files(repo_dir: Path) -> dict[str, str]:
         if ignore.should_ignore(rel):
             continue
         try:
-            lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+            lines = path.read_text(encoding=SOURCE_ENCODING, errors=SOURCE_DECODE_ERRORS).splitlines()
         except OSError:
             continue
         digest = hash_whole_file(lines)
@@ -447,7 +447,7 @@ def build_unified_analysis_json(
     The depth_level metadata is computed automatically from the sub_analyses structure
     if not provided explicitly. ``source_tree_hash`` precedence: whole-tree walk when
     ``repo_dir`` is given; else ``source_tree_hash_override`` (e.g. the existing on-disk
-    value, so a sub-analysis write doesn't downgrade it); else the component-only index.
+    value, so a sub-analysis write doesn't downgrade it); else empty.
     """
     components_json = [
         from_component_to_json_component(c, expandable_components, sub_analyses, None) for c in analysis.components
@@ -459,7 +459,16 @@ def build_unified_analysis_json(
     elif source_tree_hash_override:
         source_tree_hash = source_tree_hash_override
     else:
-        source_tree_hash = _compute_source_tree_hash(files_index)
+        # Neither a repo to walk nor a prior whole-tree hash to carry forward. A
+        # component-only hash here would NOT reproduce the wrapper's whole-tree
+        # fingerprint, so it would break idempotency (a false full re-analysis)
+        # while looking authoritative. Emit empty ("unknown") instead — the
+        # wrapper treats an empty source_tree_hash as "can't skip", which is safe.
+        logger.warning(
+            "build_unified_analysis_json called without repo_dir or source_tree_hash_override; "
+            "writing an empty source_tree_hash (idempotency skip disabled for this write)."
+        )
+        source_tree_hash = ""
 
     # Use default summary if none provided
     if file_coverage_summary is None:

@@ -1,8 +1,13 @@
 import hashlib
 from pathlib import Path
 
-from agents.agent_responses import FileEntry, MethodEntry
-from agents.cluster_methods_mixin import _read_source_lines, hash_method_body, hash_whole_file
+from agents.agent_responses import AnalysisInsights, Component, FileEntry, FileMethodGroup, MethodEntry
+from agents.cluster_methods_mixin import (
+    ClusterMethodsMixin,
+    _read_source_lines,
+    hash_method_body,
+    hash_whole_file,
+)
 from diagram_analysis.analysis_json import (
     FileEntryJson,
     MethodIndexEntry,
@@ -168,3 +173,79 @@ def test_source_tree_hash_reproducible_from_fingerprint_map(tmp_path: Path):
     (tmp_path / "docs.md").write_text("hello\n", encoding="utf-8")
     fps = hash_repo_source_files(tmp_path)
     assert tree_hash_from_file_hashes(fps) == compute_source_tree_hash(tmp_path)
+
+
+class _StubMixin:
+    """Minimal host for ``build_files_index`` — it only reads ``repo_dir`` and
+    ``_live_cfg_method_spans``."""
+
+    def __init__(self, repo_dir: Path, live_spans: dict):
+        self.repo_dir = repo_dir
+        self._spans = live_spans
+
+    def _live_cfg_method_spans(self):
+        return self._spans
+
+    build_files_index = ClusterMethodsMixin.build_files_index
+
+
+def _analysis_with_method(file_path: str, qname: str, start: int, end: int) -> AnalysisInsights:
+    return AnalysisInsights(
+        description="",
+        components=[
+            Component(
+                name="C",
+                description="d",
+                key_entities=[],
+                component_id="c1",
+                file_methods=[
+                    FileMethodGroup(
+                        file_path=file_path,
+                        methods=[
+                            MethodEntry(qualified_name=qname, start_line=start, end_line=end, node_type="FUNCTION")
+                        ],
+                    )
+                ],
+            )
+        ],
+        components_relations=[],
+    )
+
+
+def test_build_files_index_uses_live_cfg_span(tmp_path: Path):
+    # The method moved down (edit above it); the live CFG knows its real span, so
+    # the hash reflects the CURRENT body, not the stale line numbers.
+    (tmp_path / "m.py").write_text("# added line\ndef foo():\n    return 1\n", encoding="utf-8")
+    analysis = _analysis_with_method("m.py", "foo", start=1, end=2)  # stale carried-forward span
+    live = {("m.py", "foo"): (2, 3)}  # live CFG span of foo() now
+    files = _StubMixin(tmp_path, live).build_files_index(analysis)
+    method = files["m.py"].methods[0]
+    assert method.content_hash == hash_method_body(["# added line", "def foo():", "    return 1"], 2, 3)
+    assert method.content_hash != ""
+
+
+def test_build_files_index_empty_hash_when_method_absent_from_live_cfg(tmp_path: Path):
+    # The carried-forward method is NOT in the live CFG (e.g. deleted/renamed in
+    # source). Its stored line numbers may now point at unrelated code, so hashing
+    # them would be stable-but-wrong. Expect the ''-unavailable sentinel instead.
+    (tmp_path / "m.py").write_text("def something_else():\n    return 42\n", encoding="utf-8")
+    analysis = _analysis_with_method("m.py", "foo", start=1, end=2)
+    files = _StubMixin(tmp_path, live_spans={}).build_files_index(analysis)
+    method = files["m.py"].methods[0]
+    assert method.content_hash == ""
+
+
+def test_invalid_utf8_bytes_do_not_collide(tmp_path: Path):
+    # Two files differing ONLY in an invalid UTF-8 byte must hash differently.
+    # With errors='replace' both bytes fold to U+FFFD and the hashes collide,
+    # silently masking a real change; surrogateescape keeps them distinct.
+    (tmp_path / "a.bin").write_bytes(b"x\xff\n")
+    (tmp_path / "b.bin").write_bytes(b"x\x80\n")
+    fps = hash_repo_source_files(tmp_path)
+    assert fps["a.bin"] != fps["b.bin"]
+
+
+def test_invalid_utf8_whole_file_hash_distinct():
+    a = "x\udcff".splitlines()  # decoded via surrogateescape from b'x\xff'
+    b = "x\udc80".splitlines()  # decoded via surrogateescape from b'x\x80'
+    assert hash_whole_file(a) != hash_whole_file(b)
