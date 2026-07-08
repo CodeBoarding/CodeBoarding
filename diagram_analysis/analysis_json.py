@@ -445,11 +445,9 @@ def build_unified_analysis_json(
     elif source_tree_hash_override:
         source_tree_hash = source_tree_hash_override
     else:
-        # Neither a repo to walk nor a prior whole-tree hash to carry forward. A
-        # component-only hash here would NOT reproduce the wrapper's whole-tree
-        # fingerprint, so it would break idempotency (a false full re-analysis)
-        # while looking authoritative. Emit empty ("unknown") instead — the
-        # wrapper treats an empty source_tree_hash as "can't skip", which is safe.
+        # No repo to walk and no prior hash to carry forward. A component-only
+        # hash wouldn't reproduce the wrapper's whole-tree fingerprint, so emit
+        # empty ("unknown") — the wrapper reads that as "can't skip", which is safe.
         logger.warning(
             "build_unified_analysis_json called without repo_dir or source_tree_hash_override; "
             "writing an empty source_tree_hash (idempotency skip disabled for this write)."

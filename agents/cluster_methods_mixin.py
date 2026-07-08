@@ -16,7 +16,14 @@ from agents.agent_responses import (
     MethodEntry,
 )
 from agents.cluster_budget import ClusterPromptBudget
-from agents.content_hash import hash_method_body, hash_whole_file, read_source_lines
+from agents.content_hash import (
+    MethodRef,
+    MethodSpan,
+    SourceCache,
+    hash_method_body,
+    hash_whole_file,
+    read_source_lines,
+)
 from agents.cluster_ids import CodeBoardingClusterId, CodeBoardingClusterIds, GraphClusterId
 from agents.llm_config import get_current_agent_context_window, get_current_agent_model_ref
 from agents.model_capabilities import ContextWindow
@@ -614,7 +621,7 @@ class ClusterMethodsMixin:
         """
         allowed_types = CALLABLE_TYPES | CLASS_TYPES
         by_file: dict[str, dict[tuple[int, int, str, str], MethodEntry]] = defaultdict(dict)
-        source_cache: dict[str, list[str] | None] = {}
+        source_cache: SourceCache = {}
 
         def _is_more_specific(candidate: str, current: str) -> bool:
             """Prefer the most specific qualified name for the same symbol span.
@@ -800,7 +807,7 @@ class ClusterMethodsMixin:
         logger.info(f"Node coverage: {assigned_nodes}/{total_nodes} ({pct:.1f}%) nodes assigned to components")
 
     def build_files_index(self, analysis: AnalysisInsights) -> dict[str, FileEntry]:
-        file_cache: dict[str, list[str] | None] = {}
+        file_cache: SourceCache = {}
         live_spans = self._live_cfg_method_spans()
         files: dict[str, FileEntry] = {}
         for component in analysis.components:
@@ -817,23 +824,17 @@ class ClusterMethodsMixin:
                 for method in fmg.methods:
                     if method.qualified_name not in methods_by_qname:
                         copied = method.model_copy(deep=True)
-                        # Recompute from live source rather than trust a hash carried
-                        # forward from a prior analysis: on the incremental path a
-                        # method in an untouched component keeps its old hash, which
-                        # would mask a body-only edit at diff time. Only the live CFG
-                        # span is trustworthy — carried-forward line numbers can point
-                        # at unrelated code after an edit above the method, so hashing
-                        # them would produce a stable-but-wrong hash. When the method
-                        # is absent from the live CFG, leave the hash empty (the
-                        # ''-unavailable sentinel) rather than hash a stale span.
-                        live_span = live_spans.get((fmg.file_path, method.qualified_name))
+                        # Rehash from the live CFG span, not the carried-forward one:
+                        # a stale span can point at unrelated code (edit above the
+                        # method) and a carried hash would mask a body-only edit.
+                        # Absent from the live CFG -> '' rather than hash a stale span.
+                        live_span = live_spans.get(MethodRef(fmg.file_path, method.qualified_name))
                         if live_span is not None:
-                            start, end = live_span
-                            copied.start_line, copied.end_line = start, end
+                            copied.start_line, copied.end_line = live_span
                             copied.content_hash = hash_method_body(
                                 read_source_lines(self.repo_dir, fmg.file_path, file_cache),
-                                start,
-                                end,
+                                live_span.start_line,
+                                live_span.end_line,
                             )
                         else:
                             copied.content_hash = ""
@@ -845,16 +846,11 @@ class ClusterMethodsMixin:
                 )
         return files
 
-    def _live_cfg_method_spans(self) -> dict[tuple[str, str], tuple[int, int]]:
-        """Map ``(rel_path, qualified_name) -> (start_line, end_line)`` from the live CFG.
-
-        Lets ``build_files_index`` refresh line spans for methods whose owning
-        component wasn't re-detailed, so their content hash reflects the current
-        source. Keyed by (file, qname) — not qname alone — so a qualified name that
-        collides across languages/files can't borrow the wrong file's span. Empty
-        when no static analysis is attached.
-        """
-        spans: dict[tuple[str, str], tuple[int, int]] = {}
+    def _live_cfg_method_spans(self) -> dict[MethodRef, MethodSpan]:
+        """Live-CFG line span per method, so ``build_files_index`` can refresh
+        spans for methods whose component wasn't re-detailed. Empty when no static
+        analysis is attached."""
+        spans: dict[MethodRef, MethodSpan] = {}
         static_analysis = getattr(self, "static_analysis", None)
         if static_analysis is None:
             return spans
@@ -867,7 +863,7 @@ class ClusterMethodsMixin:
                 rel_path = (
                     os.path.relpath(node.file_path, self.repo_dir) if os.path.isabs(node.file_path) else node.file_path
                 )
-                spans.setdefault((rel_path, qname), (node.line_start, node.line_end))
+                spans.setdefault(MethodRef(rel_path, qname), MethodSpan(node.line_start, node.line_end))
         return spans
 
     def populate_file_methods(

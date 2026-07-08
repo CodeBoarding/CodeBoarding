@@ -3,7 +3,7 @@ from pathlib import Path
 
 from agents.agent_responses import AnalysisInsights, Component, FileEntry, FileMethodGroup, MethodEntry
 from agents.cluster_methods_mixin import ClusterMethodsMixin
-from agents.content_hash import hash_method_body, hash_whole_file, read_source_lines
+from agents.content_hash import MethodRef, MethodSpan, hash_method_body, hash_whole_file, read_source_lines
 from diagram_analysis.analysis_json import (
     FileEntryJson,
     MethodIndexEntry,
@@ -209,7 +209,7 @@ def test_build_files_index_uses_live_cfg_span(tmp_path: Path):
     # the hash reflects the CURRENT body, not the stale line numbers.
     (tmp_path / "m.py").write_text("# added line\ndef foo():\n    return 1\n", encoding="utf-8")
     analysis = _analysis_with_method("m.py", "foo", start=1, end=2)  # stale carried-forward span
-    live = {("m.py", "foo"): (2, 3)}  # live CFG span of foo() now
+    live = {MethodRef("m.py", "foo"): MethodSpan(2, 3)}  # live CFG span of foo() now
     files = _StubMixin(tmp_path, live).build_files_index(analysis)
     method = files["m.py"].methods[0]
     assert method.content_hash == hash_method_body(["# added line", "def foo():", "    return 1"], 2, 3)

@@ -746,13 +746,9 @@ class DiagramGenerator:
             )
             if not delta.has_changes:
                 logger.info("Cluster delta is empty; rewriting current analysis without re-detailing.")
-                # No STRUCTURAL change, but a body-only edit still changes content
-                # hashes. Rebuild the files index from live source so file/method
-                # content_hash (and source_tree_hash) reflect the current bytes;
-                # otherwise a carried-forward hash goes stale and a later commit-
-                # diff compares against the wrong baseline. The loaded baseline's
-                # relations already are the global set, so finalize's rebuild is a
-                # no-op there.
+                # No structural change, but a body-only edit still moves content
+                # hashes — refresh the files index from live source so they don't
+                # go stale (relations are already the global set here).
                 self._refresh_files_index(root_analysis, sub_analyses)
                 return self.finalize_and_save(root_analysis, sub_analyses)
 

@@ -1,27 +1,40 @@
 """Content fingerprinting helpers — a dependency-free leaf module.
 
-Why standalone: these are imported by clustering, the incremental agent, the
-JSON layer, and the wrapper. Keeping them free of heavy analysis imports avoids
-the ``analysis_json`` <-> ``cluster_methods_mixin`` import cycle.
-
-``splitlines()`` normalizes line endings, so a trailing-newline-only or CRLF/LF
-edit is not detected — an accepted trade-off for change detection at this level.
-
-Decoding uses ``surrogateescape`` (not ``replace``) so invalid UTF-8 bytes map to
-distinct, reversible code points. ``replace`` would fold every undecodable byte to
-the same U+FFFD, letting two different binary-ish files hash equal and silently
-mask a real change. The matching ``surrogateescape`` on encode round-trips them.
+Standalone (no heavy analysis imports) so clustering, the JSON layer, and the
+wrapper can all import it without an ``analysis_json`` <-> ``cluster_methods_mixin``
+cycle. ``splitlines()`` folds line-ending-only edits — accepted for change
+detection. Decode/encode both use ``surrogateescape`` so invalid UTF-8 bytes stay
+distinct (``replace`` would collapse them to U+FFFD and mask real changes).
 """
 
 import hashlib
 from pathlib import Path
+from typing import NamedTuple
 
 SOURCE_ENCODING = "utf-8"
-# surrogateescape (not replace): distinct invalid bytes stay distinct + reversible.
 SOURCE_DECODE_ERRORS = "surrogateescape"
 
+# Repo-relative path -> cached lines (None when unreadable). Shared line cache
+# threaded through the hashing helpers to avoid re-reading the same file.
+SourceCache = dict[str, list[str] | None]
 
-def read_source_lines(repo_dir: Path, rel_path: str, cache: dict[str, list[str] | None]) -> list[str] | None:
+
+class MethodRef(NamedTuple):
+    """A method's identity across files: keyed by path so a qualified name that
+    collides across files can't borrow the wrong file's hash/span."""
+
+    file_path: str
+    qualified_name: str
+
+
+class MethodSpan(NamedTuple):
+    """A method's 1-based inclusive line range in its file."""
+
+    start_line: int
+    end_line: int
+
+
+def read_source_lines(repo_dir: Path, rel_path: str, cache: SourceCache) -> list[str] | None:
     """Read and cache a file's lines (repo-relative path). None if unreadable."""
     if rel_path not in cache:
         try:
@@ -36,9 +49,8 @@ def read_source_lines(repo_dir: Path, rel_path: str, cache: dict[str, list[str] 
 def hash_method_body(lines: list[str] | None, start_line: int, end_line: int) -> str:
     """Truncated SHA-256 of source lines [start_line-1:end_line]. '' when unavailable.
 
-    Returns '' (the unavailable sentinel) rather than hashing a partial slice when
-    the span falls outside the file, so a stale line range can't produce a stable
-    but meaningless hash that compares equal across unrelated code.
+    Why '' on an out-of-range span: a stale line range must not hash to a stable
+    but meaningless value that compares equal across unrelated code.
     """
     if lines is None or start_line < 1 or end_line < start_line or end_line > len(lines):
         return ""
