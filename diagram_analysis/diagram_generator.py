@@ -33,6 +33,8 @@ from diagram_analysis.analysis_json import (
     FileCoverageReport,
     FileCoverageSummary,
     NotAnalyzedFile,
+    compute_source_tree_hash,
+    hash_repo_source_files,
 )
 from diagram_analysis.cluster_delta import (
     ClusterDelta,
@@ -47,7 +49,7 @@ from diagram_analysis.cluster_snapshot import (
 )
 from diagram_analysis.exceptions import IncrementalCacheMissingError
 from diagram_analysis.file_coverage import FileCoverage
-from diagram_analysis.io_utils import normalize_repo_path, save_analysis
+from diagram_analysis.io_utils import normalize_repo_path, save_analysis, write_fingerprint
 from diagram_analysis.version import Version
 from health.config import initialize_health_dir, load_health_config
 from health.runner import run_health_checks
@@ -233,12 +235,12 @@ class DiagramGenerator:
         logger.info(f"File coverage report written to {coverage_path}")
 
     def _changed_files_for_static_analysis(self) -> set[Path] | None:
-        """Absolute changed-file paths from the caller-supplied ChangeSet, or None.
+        """Absolute changed-file paths from the incremental ChangeSet, or None.
 
-        The wrapper hands us a git-free ``ChangeSet`` (its fingerprint diff). We
-        hand those files to the static-analysis warm-start so it re-LSPs exactly
-        them without shelling out to ``git diff`` — which can't run against the
-        frozen, non-git copy. None (no ChangeSet) keeps the legacy git path.
+        Incremental analysis always carries a git-free ``ChangeSet`` (the
+        fingerprint diff). We hand those files to the static-analysis warm-start
+        so it re-LSPs exactly them without shelling out to git. None (full run,
+        or an empty ChangeSet) leaves the warm-start to its own scoping.
         """
         if self.changes is None or self.changes.is_empty():
             return None
@@ -287,6 +289,12 @@ class DiagramGenerator:
 
     def pre_analysis(self):
         analysis_start_time = time.time()
+
+        # Compute the source-state tag from live source when a caller didn't
+        # supply one, so the pkl always gets a .sha sibling for the next
+        # warm-start — no caller has to thread source_sha in.
+        if self.source_sha is None:
+            self.source_sha = compute_source_tree_hash(self.repo_location) or None
 
         # Initialize LLMs before spawning threads so both share the same instances
         agent_llm, parsing_llm = initialize_llms()
@@ -585,6 +593,10 @@ class DiagramGenerator:
         if persist_side_artifacts:
             self._write_file_coverage()
             self._persist_static_analysis_artifact()
+            # Whole-tree fingerprint sidecar: the next incremental diffs against
+            # the same file set source_tree_hash covers (not the component-only
+            # files block). Same hasher, so the digest matches metadata.source_tree_hash.
+            write_fingerprint(Path(self.output_dir), hash_repo_source_files(self.repo_location))
         return analysis_path
 
     def _collect_method_entries_from_static_analysis(self) -> dict[str, list]:

@@ -594,7 +594,6 @@ class TestDiagramGenerator(unittest.TestCase):
             sub_analyses,
             file_coverage_summary=None,
             commit_hash="",
-            snapshot_commit=None,
             repo_dir=None,
             source_tree_hash_override="",
         ):

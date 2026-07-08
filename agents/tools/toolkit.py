@@ -11,7 +11,7 @@ from .get_method_invocations import MethodInvocationsTool
 from .read_file import ReadFileTool
 from .read_docs import ReadDocsTool
 from .get_external_deps import ExternalDepsTool
-from .read_git_diff import ListGitChangesTool, ReadGitDiffTool
+from .read_git_diff import ListGitChangesTool
 from core import load_plugin_tools
 
 logger = logging.getLogger(__name__)
@@ -87,12 +87,6 @@ class CodeBoardingToolkit:
             self._tools["list_git_changes"] = ListGitChangesTool(context=self.context)
         return cast(ListGitChangesTool, self._tools["list_git_changes"])
 
-    @property
-    def read_git_diff(self) -> ReadGitDiffTool:
-        if "read_git_diff" not in self._tools:
-            self._tools["read_git_diff"] = ReadGitDiffTool(context=self.context)
-        return cast(ReadGitDiffTool, self._tools["read_git_diff"])
-
     def get_agent_tools(self) -> list[BaseRepoTool]:
         """
         Returns the set of tools traditionally used by the React agent.
@@ -120,7 +114,6 @@ class CodeBoardingToolkit:
             self.read_docs,
             self.external_deps,
             self.list_git_changes,
-            self.read_git_diff,
         ]
         tools.extend(load_plugin_tools(self.context))
         return tools

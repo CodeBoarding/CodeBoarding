@@ -62,7 +62,7 @@ class IncrementalPlanningAgent(CodeBoardingAgent):
             self.toolkit.context.changes = changes
         self.agent = create_agent(
             model=agent_llm,
-            tools=[self.toolkit.read_source_reference, self.toolkit.list_git_changes, self.toolkit.read_git_diff],
+            tools=[self.toolkit.read_source_reference, self.toolkit.list_git_changes],
         )
         self.project_name = project_name
         self.meta_context = meta_context

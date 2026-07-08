@@ -43,12 +43,12 @@ def detect_changes(
     try:
         output = _run_diff_with_fetch_retry(repo_dir, base_ref, target_ref)
     except subprocess.CalledProcessError as exc:
-        return ChangeSet(base_ref=base_ref, target_ref=target_ref, error=(exc.stderr or str(exc)).strip())
+        return ChangeSet(error=(exc.stderr or str(exc)).strip())
     except FileNotFoundError:
         logger.error("Git not found in PATH")
-        return ChangeSet(base_ref=base_ref, target_ref=target_ref, error="Git not found in PATH")
+        return ChangeSet(error="Git not found in PATH")
 
-    parsed = _parse_diff_output(output, base_ref, target_ref)
+    parsed = _parse_diff_output(output)
 
     if not target_ref:
         _append_untracked_files(parsed, repo_dir)
@@ -224,7 +224,7 @@ def _split_patch_bodies(lines: list[str]) -> dict[str, list[str]]:
     return bodies
 
 
-def _parse_diff_output(output: str, base_ref: str, target_ref: str) -> ChangeSet:
+def _parse_diff_output(output: str) -> ChangeSet:
     """Parse ``git diff --raw -U<n>`` into a :class:`ChangeSet`.
 
     The format is two concatenated sections:
@@ -263,7 +263,7 @@ def _parse_diff_output(output: str, base_ref: str, target_ref: str) -> ChangeSet
         if _file_is_relevant(finalized):
             files.append(finalized)
 
-    return ChangeSet(base_ref=base_ref, target_ref=target_ref, files=files)
+    return ChangeSet(files=files)
 
 
 def _append_untracked_files(parsed: ChangeSet, repo_dir: Path) -> None:

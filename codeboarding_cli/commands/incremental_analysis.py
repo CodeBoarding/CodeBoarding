@@ -9,31 +9,17 @@ from codeboarding_cli.bootstrap import bootstrap_environment, resolve_local_run_
 from codeboarding_cli.view_instructions import print_view_instructions
 from codeboarding_workflows.analysis import BaselineUnavailableError, run_incremental
 from diagram_analysis import RunContext
-from diagram_analysis.io_utils import load_analysis_commit_hash
 from diagram_analysis.run_mode import RunMode
-from repo_utils.git_ops import get_current_commit, resolve_ref
 from utils import monitoring_enabled
 
 logger = logging.getLogger(__name__)
 
 
 def add_arguments(subparsers: argparse._SubParsersAction, parents: list[argparse.ArgumentParser]) -> None:
-    parser = subparsers.add_parser(
+    subparsers.add_parser(
         "incremental",
         parents=parents,
-        help="Run a cluster-driven incremental update on a local repository.",
-    )
-    parser.add_argument(
-        "--base-ref",
-        type=str,
-        default=None,
-        help="Override the diff baseline. Default: last successful commit from analysis metadata.",
-    )
-    parser.add_argument(
-        "--target-ref",
-        type=str,
-        default=None,
-        help="Override the diff target. Default: HEAD. Pass an empty string to diff the working tree.",
+        help="Update an existing analysis for what changed since it was generated (no git needed).",
     )
 
 
@@ -59,27 +45,6 @@ def run_from_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> 
         _emit_error(str(exc))
         return
 
-    base_ref = args.base_ref if args.base_ref is not None else load_analysis_commit_hash(run_paths.output_dir)
-    if base_ref is None:
-        logger.error("Incremental run aborted: no baseline ref available")
-        _emit_error(
-            "No baseline ref available: pass --base-ref or run a full analysis first "
-            "to record a baseline (analysis metadata commit hash)."
-        )
-        return
-
-    target_ref = args.target_ref if args.target_ref is not None else get_current_commit(run_paths.repo_path)
-    if target_ref is None:
-        logger.error("Incremental run aborted: could not resolve current commit for diff target")
-        _emit_error("Could not resolve target ref: pass --target-ref or run inside a git repository with a valid HEAD.")
-        return
-
-    source_sha = (
-        (resolve_ref(run_paths.repo_path, target_ref) or target_ref)
-        if target_ref
-        else get_current_commit(run_paths.repo_path)
-    )
-
     try:
         run_context = RunContext.resolve(
             repo_dir=run_paths.repo_path,
@@ -99,9 +64,6 @@ def run_from_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> 
             run_id=run_context.run_id,
             log_path=run_context.log_path,
             monitoring_enabled=args.enable_monitoring or monitoring_enabled(),
-            base_ref=base_ref,
-            target_ref=target_ref,
-            source_sha=source_sha,
         )
     except BaselineUnavailableError as exc:
         # Expected: no baseline, or diff failed against the requested base ref.

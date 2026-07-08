@@ -222,15 +222,14 @@ class FileChange:
 
 @dataclass
 class ChangeSet:
-    """The set of file changes detected between two git refs.
+    """A set of file (and per-file method) changes between two source states.
 
-    Built from ``git diff --raw`` output by :func:`repo_utils.diff_parser.detect_changes`.
-    Empty ``files`` + non-None ``error`` means the diff invocation failed —
-    callers check ``error`` first.
+    Source-agnostic: produced either from a git diff
+    (:func:`repo_utils.diff_parser.detect_changes`) or from a content-hash
+    fingerprint diff (:meth:`from_changed_files`). Empty ``files`` + non-None
+    ``error`` means detection failed — callers check ``error`` first.
     """
 
-    base_ref: str
-    target_ref: str
     files: list[FileChange] = field(default_factory=list)
     error: str | None = None
 
@@ -287,24 +286,14 @@ class ChangeSet:
                 }
                 for f in self.files
             ],
-            "base_ref": self.base_ref,
-            "target_ref": self.target_ref,
         }
 
     @classmethod
-    def from_changed_files(
-        cls,
-        added: list[str],
-        modified: list[str],
-        deleted: list[str],
-        *,
-        base_ref: str = "",
-        target_ref: str = "",
-    ) -> ChangeSet:
+    def from_changed_files(cls, added: list[str], modified: list[str], deleted: list[str]) -> ChangeSet:
         """Build a hunk-less ChangeSet from explicit changed-file lists.
 
-        The git-free path: the wrapper diffs two per-file content-hash maps and
-        hands us the result. Incremental scoping (``cluster_delta``) reads only
+        The content-hash path diffs two per-file fingerprint maps and hands us
+        the result. Incremental scoping (``cluster_delta``) reads only
         ``file_path`` / ``old_path``, so the absent hunks/patch text are fine.
         """
         files = (
@@ -312,7 +301,7 @@ class ChangeSet:
             + [FileChange(status_code="M", file_path=p) for p in modified]
             + [FileChange(status_code="D", file_path=p) for p in deleted]
         )
-        return cls(base_ref=base_ref, target_ref=target_ref, files=files)
+        return cls(files=files)
 
 
 # ---------------------------------------------------------------------------

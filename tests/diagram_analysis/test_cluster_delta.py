@@ -221,8 +221,6 @@ class TestStructuralClusterDiff(unittest.TestCase):
             }
         )
         changes = ChangeSet(
-            base_ref="old",
-            target_ref="new",
             files=[FileChange(status_code="M", file_path="a.py")],
         )
 
@@ -317,8 +315,6 @@ class TestDiffScoping(unittest.TestCase):
 
     def _changeset(self, paths: list[str]) -> ChangeSet:
         return ChangeSet(
-            base_ref="prev",
-            target_ref="curr",
             files=[FileChange(status_code="M", file_path=p) for p in paths],
         )
 

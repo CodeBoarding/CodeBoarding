@@ -258,19 +258,17 @@ class TestIncrementalDepthSource(unittest.TestCase):
                     project_name="test_project",
                     run_id="r",
                     log_path="l",
-                    base_ref="abc",
-                    target_ref="HEAD",
                 )
 
     @patch("codeboarding_workflows.analysis.run_incremental_workflow")
-    @patch("codeboarding_workflows.analysis.detect_changes")
+    @patch("codeboarding_workflows.analysis.detect_changes_from_fingerprint")
     @patch("codeboarding_workflows.analysis.DiagramGenerator")
     @patch("codeboarding_workflows.analysis.load_analysis_metadata")
     def test_depth_level_taken_from_metadata(
         self, mock_load_metadata, mock_generator_class, mock_detect, mock_workflow
     ):
         mock_load_metadata.return_value = {"depth_level": 3}
-        mock_detect.return_value = MagicMock(error=None)
+        mock_detect.return_value = MagicMock(files=[])
         mock_workflow.return_value = Path("analysis.json")
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -285,8 +283,6 @@ class TestIncrementalDepthSource(unittest.TestCase):
                 project_name="test_project",
                 run_id="r",
                 log_path="l",
-                base_ref="abc",
-                target_ref="HEAD",
             )
 
         self.assertEqual(mock_generator_class.call_args.kwargs["depth_level"], 3)

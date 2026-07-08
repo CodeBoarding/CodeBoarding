@@ -1,6 +1,7 @@
 import hashlib
 import logging
 import json
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -19,10 +20,6 @@ from agents.content_hash import SOURCE_DECODE_ERRORS, SOURCE_ENCODING, hash_whol
 from repo_utils.ignore import RepoIgnoreManager
 
 logger = logging.getLogger(__name__)
-
-# Bumped whenever the on-disk analysis.json shape changes incompatibly.
-# Consumers (VSCode, wrapper) validate this to detect stale files.
-SCHEMA_VERSION = 2
 
 
 class RelationJson(Relation):
@@ -81,10 +78,6 @@ class FileCoverageReport(BaseModel):
 
 class AnalysisMetadata(BaseModel):
     generated_at: str = Field(description="ISO timestamp of when the analysis was generated.")
-    schema_version: int = Field(
-        default=SCHEMA_VERSION,
-        description="Version of the analysis.json on-disk schema.",
-    )
     source_tree_hash: str = Field(
         default="",
         description="SHA-256 over the sorted per-file content hashes; the source-state version key.",
@@ -239,22 +232,26 @@ def hash_repo_source_files(repo_dir: Path) -> dict[str, str]:
     unclustered source), not just files that landed in a component. Otherwise a
     consumer that fingerprints the working tree (the wrapper) can never reproduce
     this hash. Uses the same ignore rules + whole-file hashing as clustering.
+
+    Ignored directories are pruned during the walk, so ``.git`` / ``node_modules``
+    are never descended into.
     """
     ignore = RepoIgnoreManager(repo_dir)
     result: dict[str, str] = {}
-    for path in repo_dir.rglob("*"):
-        if not path.is_file():
-            continue
-        rel = path.relative_to(repo_dir)
-        if ignore.should_ignore(rel):
-            continue
-        try:
-            lines = path.read_text(encoding=SOURCE_ENCODING, errors=SOURCE_DECODE_ERRORS).splitlines()
-        except OSError:
-            continue
-        digest = hash_whole_file(lines)
-        if digest:
-            result[rel.as_posix()] = digest
+    for dirpath, dirnames, filenames in os.walk(repo_dir):
+        base = Path(dirpath)
+        dirnames[:] = [d for d in dirnames if not ignore.should_ignore((base / d).relative_to(repo_dir))]
+        for name in filenames:
+            rel = (base / name).relative_to(repo_dir)
+            if ignore.should_ignore(rel):
+                continue
+            try:
+                lines = (base / name).read_text(encoding=SOURCE_ENCODING, errors=SOURCE_DECODE_ERRORS).splitlines()
+            except OSError:
+                continue
+            digest = hash_whole_file(lines)
+            if digest:
+                result[rel.as_posix()] = digest
     return result
 
 
@@ -464,7 +461,6 @@ def build_unified_analysis_json(
     unified = UnifiedAnalysisJson(
         metadata=AnalysisMetadata(
             generated_at=datetime.now(timezone.utc).isoformat(),
-            schema_version=SCHEMA_VERSION,
             source_tree_hash=source_tree_hash,
             commit_hash=commit_hash,
             repo_name=repo_name,

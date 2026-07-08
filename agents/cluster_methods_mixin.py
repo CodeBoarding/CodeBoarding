@@ -848,15 +848,11 @@ class ClusterMethodsMixin:
 
     def _live_cfg_method_spans(self) -> dict[MethodRef, MethodSpan]:
         """Live-CFG line span per method, so ``build_files_index`` can refresh
-        spans for methods whose component wasn't re-detailed. Empty when no static
-        analysis is attached."""
+        spans for methods whose component wasn't re-detailed."""
         spans: dict[MethodRef, MethodSpan] = {}
-        static_analysis = getattr(self, "static_analysis", None)
-        if static_analysis is None:
-            return spans
-        for language in static_analysis.get_languages():
+        for language in self.static_analysis.get_languages():
             try:
-                cfg = static_analysis.get_cfg(language)
+                cfg = self.static_analysis.get_cfg(language)
             except (KeyError, ValueError):
                 continue
             for qname, node in cfg.nodes.items():

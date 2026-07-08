@@ -352,32 +352,32 @@ def load_analysis_commit_hash(output_dir: Path) -> str | None:
     return sha if isinstance(sha, str) and sha else None
 
 
-def load_source_tree_hash(output_dir: Path) -> str | None:
-    """Return ``metadata.source_tree_hash`` from live ``analysis.json``.
+# Whole-tree fingerprint sidecar. analysis.json's ``files`` block covers only
+# component-assigned files; the sidecar covers the whole analyzable tree, so the
+# incremental diff also sees changes to docs/configs/unclustered source.
+FINGERPRINT_FILENAME = "fingerprint.json"
 
-    The content-derived source-state version key: the wrapper compares it
-    against a freshly computed hash to decide "have I analyzed this exact
-    source before?" without touching git.
 
-    Returns ``None`` when the file is absent, unreadable, not a JSON
-    object, or the field is missing or empty. Reads raw JSON (not via the
-    Pydantic store) so a partially-malformed analysis.json still yields a
-    usable version pointer.
-    """
-    path = Path(output_dir) / ANALYSIS_FILENAME
-    if not path.is_file():
-        return None
+def write_fingerprint(output_dir: Path, file_hashes: dict[str, str]) -> None:
+    """Persist the whole-tree fingerprint next to ``analysis.json``. Best-effort."""
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
+        (Path(output_dir) / FINGERPRINT_FILENAME).write_text(
+            json.dumps({"files": file_hashes}, indent=2), encoding="utf-8"
+        )
+    except OSError as exc:
+        logger.warning("Failed to write fingerprint sidecar (continuing): %s", exc)
+
+
+def read_fingerprint(output_dir: Path) -> dict[str, str] | None:
+    """Read the whole-tree fingerprint sidecar. ``None`` when absent/unreadable."""
+    try:
+        data = json.loads((Path(output_dir) / FINGERPRINT_FILENAME).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
-    if not isinstance(data, dict):
+    files = data.get("files") if isinstance(data, dict) else None
+    if not isinstance(files, dict):
         return None
-    metadata = data.get("metadata")
-    if not isinstance(metadata, dict):
-        return None
-    sha = metadata.get("source_tree_hash")
-    return sha if isinstance(sha, str) and sha else None
+    return {str(k): str(v) for k, v in files.items() if isinstance(v, str) and v}
 
 
 def save_analysis(

@@ -429,7 +429,7 @@ Return operations for this scope only.
 </instructions>
 
 <tool_usage_policy>
-Use listGitChanges/readGitDiff only when the structural diff is not enough to judge semantic impact. Keep reads targeted to the uncertain cluster.
+Use listGitChanges only when the structural diff is not enough to judge semantic impact. Keep reads targeted to the uncertain cluster.
 </tool_usage_policy>"""
 
 

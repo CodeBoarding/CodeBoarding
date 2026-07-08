@@ -461,7 +461,7 @@ Return operations for this scope only.
 2. For modified clusters, preserve the existing owning component shown by its clusters=[...] list; use update_component for that owner instead of moving the cluster to another component.
 3. For new clusters, decide from the structural diff whether they extend an existing responsibility or introduce a new component; do not infer this from file/package layout alone.
 4. For reshaped groups, follow overlap counts to keep old cluster ownership stable. Only assign a reshaped new cluster to a different component when the diff proves a real responsibility move.
-5. Use listGitChanges/readGitDiff only when the structural diff is not enough to judge semantic impact.
+5. Use listGitChanges only when the structural diff is not enough to judge semantic impact.
 
 **Hard rules:**
 - Do not reparent existing components. If reparenting seems required, use regenerate_scope.
