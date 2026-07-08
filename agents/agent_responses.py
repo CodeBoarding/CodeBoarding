@@ -231,6 +231,30 @@ class RelationEdge(LLMBaseModel):
             ],
         )
 
+    @classmethod
+    def from_edge(cls, edge) -> RelationEdge:
+        return cls(
+            source=SourceCodeReference(
+                qualified_name=edge.src_node.fully_qualified_name,
+                reference_file=edge.src_node.file_path,
+                reference_start_line=edge.src_node.line_start,
+                reference_end_line=edge.src_node.line_end,
+            ),
+            target=SourceCodeReference(
+                qualified_name=edge.dst_node.fully_qualified_name,
+                reference_file=edge.dst_node.file_path,
+                reference_start_line=edge.dst_node.line_start,
+                reference_end_line=edge.dst_node.line_end,
+            ),
+            call_sites=[
+                {
+                    "line": _call_site_coordinate(call_site.get("line", 0)),
+                    "column": _call_site_coordinate(call_site.get("column", 0)),
+                }
+                for call_site in edge.call_sites
+            ],
+        )
+
     def llm_str(self) -> str:
         return f"{self.source} -> {self.target}: {self.description}"
 
@@ -282,6 +306,30 @@ class Relation(LLMBaseModel):
         exclude=True,
         json_schema_extra={"hidden": True},
     )
+
+    @classmethod
+    def from_edges(
+        cls,
+        relation: str,
+        src_name: str,
+        dst_name: str,
+        src_id: str,
+        dst_id: str,
+        edges: list[RelationEdge],
+        is_static: bool,
+        evidence: str = "",
+    ) -> Relation:
+        return cls(
+            relation=relation,
+            src_name=src_name,
+            dst_name=dst_name,
+            evidence=evidence,
+            key_edges=[],
+            src_id=src_id,
+            dst_id=dst_id,
+            is_static=is_static,
+            all_edges=cls._unique_edges(edges),
+        )
 
     def llm_str(self) -> str:
         return f"({self.src_name}, {self.relation}, {self.dst_name})"

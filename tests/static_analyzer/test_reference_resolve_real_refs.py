@@ -116,9 +116,11 @@ class TestRelativePathAlreadyResolved(unittest.TestCase):
         result = self.resolver.fix_source_code_reference_lines(analysis)
 
         for ref in result.components[0].key_entities:
+            reference_file = ref.reference_file
+            assert reference_file is not None, f"{ref.qualified_name} unresolved"
             self.assertFalse(
-                os.path.isabs(ref.reference_file),
-                f"{ref.qualified_name} has absolute reference_file: {ref.reference_file}",
+                os.path.isabs(reference_file),
+                f"{ref.qualified_name} has absolute reference_file: {reference_file}",
             )
 
 
@@ -433,8 +435,9 @@ class TestMultiComponentAnalysis(unittest.TestCase):
 
         for comp in result.components:
             for ref in comp.key_entities:
-                self.assertIsNotNone(ref.reference_file, f"{ref.qualified_name} unresolved")
-                self.assertFalse(os.path.isabs(ref.reference_file))
+                reference_file = ref.reference_file
+                assert reference_file is not None, f"{ref.qualified_name} unresolved"
+                self.assertFalse(os.path.isabs(reference_file))
 
     def test_output_paths_are_all_relative(self):
         """No matter the resolution strategy, output paths must be relative."""
@@ -446,9 +449,11 @@ class TestMultiComponentAnalysis(unittest.TestCase):
 
         for comp in result.components:
             for ref in comp.key_entities:
+                reference_file = ref.reference_file
+                assert reference_file is not None, f"{ref.qualified_name} unresolved"
                 self.assertFalse(
-                    os.path.isabs(ref.reference_file),
-                    f"{ref.qualified_name} -> {ref.reference_file} is absolute",
+                    os.path.isabs(reference_file),
+                    f"{ref.qualified_name} -> {reference_file} is absolute",
                 )
 
 

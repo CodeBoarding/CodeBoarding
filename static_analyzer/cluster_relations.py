@@ -7,10 +7,10 @@ edges — no LLM needed.
 
 import logging
 from collections import defaultdict
-from collections.abc import Hashable, Iterator
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 
-from agents.agent_responses import AnalysisInsights, Relation, RelationEdge, SourceCodeReference
+from agents.agent_responses import AnalysisInsights, Relation, RelationEdge
 from agents.relation_edges import (
     append_or_merge_relation,
     merge_relation_edges,
@@ -27,62 +27,6 @@ class ClusterRelation:
     src_cluster_id: str  # component's component_id, e.g. "1.2"
     dst_cluster_id: str  # e.g. "3"
     all_edges: list[RelationEdge] = field(default_factory=list)
-
-
-def _call_site_int(value: Hashable) -> int:
-    if isinstance(value, int):
-        return value
-    if isinstance(value, str):
-        return int(value)
-    raise ValueError(f"Unexpected call site value type: {type(value)} ({value})")
-
-
-def _call_sites_from_cfg_edge(edge: Edge) -> list[dict[str, Hashable]]:
-    return [
-        {"line": _call_site_int(call_site.get("line", 0)), "column": _call_site_int(call_site.get("column", 0))}
-        for call_site in edge.call_sites
-    ]
-
-
-def _relation_edge_from_cfg_edge(edge: Edge) -> RelationEdge:
-    return RelationEdge(
-        source=SourceCodeReference(
-            qualified_name=edge.src_node.fully_qualified_name,
-            reference_file=edge.src_node.file_path,
-            reference_start_line=edge.src_node.line_start,
-            reference_end_line=edge.src_node.line_end,
-        ),
-        target=SourceCodeReference(
-            qualified_name=edge.dst_node.fully_qualified_name,
-            reference_file=edge.dst_node.file_path,
-            reference_start_line=edge.dst_node.line_start,
-            reference_end_line=edge.dst_node.line_end,
-        ),
-        call_sites=_call_sites_from_cfg_edge(edge),
-    )
-
-
-def _relation_with_edges(
-    relation: str,
-    src_name: str,
-    dst_name: str,
-    src_id: str,
-    dst_id: str,
-    edges: list[RelationEdge],
-    is_static: bool,
-    evidence: str = "",
-) -> Relation:
-    return Relation(
-        relation=relation,
-        src_name=src_name,
-        dst_name=dst_name,
-        evidence=evidence,
-        key_edges=[],
-        src_id=src_id,
-        dst_id=dst_id,
-        is_static=is_static,
-        all_edges=Relation._unique_edges(edges),
-    )
 
 
 def build_node_to_component_map(analysis: AnalysisInsights) -> dict[str, str]:
@@ -137,7 +81,7 @@ def build_component_relations(
             dst_comp = node_to_component.get(dst_name)
             if src_comp and dst_comp and src_comp != dst_comp:
                 key = (src_comp, dst_comp)
-                edge_pairs[key].append(_relation_edge_from_cfg_edge(edge))
+                edge_pairs[key].append(RelationEdge.from_edge(edge))
 
     relations = []
     for (src_c, dst_c), edges in sorted(edge_pairs.items()):
@@ -229,7 +173,7 @@ def build_global_relations(
                 superseded_llm_pairs.add((llm_rel.src_id, llm_rel.dst_id))
         append_or_merge_relation(
             global_relations,
-            _relation_with_edges(
+            Relation.from_edges(
                 _ancestor_relation_label(src_id, dst_id, llm_relations),
                 id_to_name.get(src_id, src_id),
                 id_to_name.get(dst_id, dst_id),
@@ -319,7 +263,7 @@ def merge_relations(
         if unmatched_edges:
             append_or_merge_relation(
                 merged,
-                _relation_with_edges(
+                Relation.from_edges(
                     "calls",
                     src_name,
                     dst_name,
