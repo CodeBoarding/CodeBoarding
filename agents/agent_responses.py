@@ -167,13 +167,26 @@ class SourceCodeReference(LLMBaseModel):
         return f"`{self.qualified_name}`:{self.reference_start_line}-{self.reference_end_line}"
 
 
+type RelationEdgeIdentity = tuple[
+    str, str, str, str, int | None, int | None, int | None, int | None, tuple[tuple[int, int], ...]
+]
+
+
+def _call_site_coordinate(value: Hashable) -> int:
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str):
+        return int(value)
+    return 0
+
+
 class RelationEdge(LLMBaseModel):
     """A source-to-target code reference that supports a component relation."""
 
     source: SourceCodeReference = Field(description="Source method/class/config reference for this interaction.")
     target: SourceCodeReference = Field(description="Target method/class/config reference for this interaction.")
     description: str = Field(default="", description="Short explanation of how source reaches or configures target.")
-    call_sites: list[dict[str, int]] = Field(
+    call_sites: list[dict[str, Hashable]] = Field(
         default_factory=list,
         description="Call-site line and column pairs for this edge.",
         exclude=True,
@@ -183,9 +196,7 @@ class RelationEdge(LLMBaseModel):
     def llm_str(self) -> str:
         return f"{self.source} -> {self.target}: {self.description}"
 
-    def identity(
-        self,
-    ) -> tuple[str, str, str, str, int | None, int | None, int | None, int | None, tuple[tuple[int, int], ...]]:
+    def identity(self) -> RelationEdgeIdentity:
         return (
             self.source.qualified_name,
             self.target.qualified_name,
@@ -195,7 +206,12 @@ class RelationEdge(LLMBaseModel):
             self.source.reference_end_line,
             self.target.reference_start_line,
             self.target.reference_end_line,
-            tuple(sorted((int(site.get("line", 0)), int(site.get("column", 0))) for site in self.call_sites)),
+            tuple(
+                sorted(
+                    (_call_site_coordinate(site.get("line", 0)), _call_site_coordinate(site.get("column", 0)))
+                    for site in self.call_sites
+                )
+            ),
         )
 
 

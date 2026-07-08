@@ -37,7 +37,7 @@ def _call_site_int(value: Hashable) -> int:
     return 0
 
 
-def _call_sites_from_cfg_edge(edge: Edge) -> list[dict[str, int]]:
+def _call_sites_from_cfg_edge(edge: Edge) -> list[dict[str, Hashable]]:
     return [
         {"line": _call_site_int(call_site.get("line", 0)), "column": _call_site_int(call_site.get("column", 0))}
         for call_site in edge.call_sites

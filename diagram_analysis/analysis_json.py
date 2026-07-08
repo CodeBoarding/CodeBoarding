@@ -1,5 +1,6 @@
 import logging
 import json
+from collections.abc import Hashable
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -174,8 +175,18 @@ def _source_reference_method_key(reference: SourceCodeReference, repo_dir: Path 
     return _method_key(file_path, reference.qualified_name)
 
 
-def _call_site_from_dict(call_site: dict[str, int]) -> RelationCallSiteJson:
-    return RelationCallSiteJson(line=int(call_site.get("line", 0)), column=int(call_site.get("column", 0)))
+def _call_site_int(value: Hashable) -> int:
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str):
+        return int(value)
+    return 0
+
+
+def _call_site_from_dict(call_site: dict[str, Hashable]) -> RelationCallSiteJson:
+    return RelationCallSiteJson(
+        line=_call_site_int(call_site.get("line", 0)), column=_call_site_int(call_site.get("column", 0))
+    )
 
 
 def _relation_edge_to_json(edge: RelationEdge, repo_dir: Path | None) -> RelationEdgeJson:
