@@ -23,6 +23,7 @@
 
 ### 4. Execution Flow and Tool Patterns
 - **Understand the analysis pipeline**: CodeBoarding processes repositories in stages: ProjectScanner → StaticAnalyzer (via LSP clients) → DiagramGenerator (LLM agents) → Output generators. When investigating issues, trace through this pipeline in order.
+- **Web visualizer (`codeboarding_web/`)**: the `codeboarding serve` command runs a local FastAPI app that drives the same pipeline on a background thread, streams progress/diagram updates over SSE, and serves an interactive diagram (in-place expand, detail sidebar, git diffs). It is additive — the analysis engine is unchanged except an optional `progress_callback`/`cancel_event` seam. See `docs/web-visualizer.md`.
 - **Multiple LLM providers supported**: The system supports OpenAI, Anthropic Claude, Google Gemini, AWS Bedrock, Ollama, and others. Configuration is provider-agnostic via environment variables; verify the correct provider is set in `.env`.
 - **Language Server Protocol (LSP) integration**: Static analysis runs via LSP servers configured in `static_analysis_config.yml`. Supported languages include Python, TypeScript, Go, PHP, and Java. LSP servers are installed by `setup.py`.
 

@@ -1,0 +1,229 @@
+"""Tests for the FastAPI app factory and routes."""
+
+import json
+from pathlib import Path
+
+import pytest
+from fastapi.testclient import TestClient
+
+from codeboarding_web.app import create_app
+from codeboarding_web.state import RunBusyError
+
+# component_id of the expandable component used across tests
+_EXPANDABLE_ID = "1"
+
+
+def _write_analysis(output_dir: Path) -> None:
+    """Write a minimal valid unified analysis.json with enrichment-ready fixture data.
+
+    Component "Core" (component_id="1") has a key_entity and a nested sub-component
+    so that parse_unified_analysis yields a non-empty sub_analyses dict, making
+    "Core" expandable and its keyEntities list populated.
+    """
+    data = {
+        "metadata": {
+            "generated_at": "2024-01-01T00:00:00+00:00",
+            "commit_hash": "",
+            "repo_name": "test",
+            "depth_level": 2,
+            "file_coverage_summary": {
+                "total_files": 0,
+                "analyzed": 0,
+                "not_analyzed": 0,
+                "not_analyzed_by_reason": {},
+            },
+        },
+        "description": "test",
+        "files": {},
+        "methods_index": {},
+        "components": [
+            {
+                "component_id": _EXPANDABLE_ID,
+                "name": "Core",
+                "description": "core",
+                "key_entities": [
+                    {
+                        "qualified_name": "core.main",
+                        "reference_file": "core/main.py",
+                        "reference_start_line": 10,
+                        "reference_end_line": 20,
+                    }
+                ],
+                "source_cluster_ids": [],
+                "file_methods": [],
+                "can_expand": True,
+                # nested sub-components make parse_unified_analysis register this id
+                "components": [
+                    {
+                        "component_id": "1.1",
+                        "name": "SubCore",
+                        "description": "sub",
+                        "key_entities": [],
+                        "source_cluster_ids": [],
+                        "file_methods": [],
+                        "can_expand": False,
+                    }
+                ],
+                "components_relations": [],
+            }
+        ],
+        "components_relations": [],
+    }
+    output_dir.mkdir(parents=True, exist_ok=True)
+    (output_dir / "analysis.json").write_text(json.dumps(data), encoding="utf-8")
+
+
+def _client(tmp_path: Path) -> TestClient:
+    return TestClient(create_app(repo_path=tmp_path, output_dir=tmp_path, project_name="demo"))
+
+
+def test_status_idle_no_baseline(tmp_path: Path) -> None:
+    c = _client(tmp_path)
+    r = c.get("/api/status")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["phase"] == "idle"
+    assert body["has_baseline"] is False
+
+
+def test_diagram_json_404_when_absent(tmp_path: Path) -> None:
+    c = _client(tmp_path)
+    assert c.get("/api/diagram.json").status_code == 404
+
+
+def test_run_rejects_bad_scope(tmp_path: Path) -> None:
+    c = _client(tmp_path)
+    r = c.post("/api/run", json={"scope": "nope"})
+    assert r.status_code == 400
+
+
+def test_run_conflict_when_busy(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    app = create_app(repo_path=tmp_path, output_dir=tmp_path, project_name="demo")
+    c = TestClient(app)
+
+    monkeypatch.setattr(app.state.runner, "start", lambda *a, **k: (_ for _ in ()).throw(RunBusyError()))
+    r = c.post("/api/run", json={"scope": "full"})
+    assert r.status_code == 409
+
+
+def test_status_includes_watch_enabled(tmp_path: Path) -> None:
+    c = _client(tmp_path)
+    assert c.get("/api/status").json()["watch_enabled"] is False
+
+
+def test_status_includes_repo_path(tmp_path: Path) -> None:
+    """GET /api/status must include repo_path as a non-empty absolute path string."""
+    c = _client(tmp_path)
+    body = c.get("/api/status").json()
+    assert "repo_path" in body
+    repo_path = body["repo_path"]
+    assert isinstance(repo_path, str) and repo_path
+    assert Path(repo_path).is_absolute()
+
+
+def test_watch_toggle(tmp_path: Path) -> None:
+    c = _client(tmp_path)
+    r = c.post("/api/watch", json={"enabled": True})
+    assert r.status_code == 200 and r.json()["watch_enabled"] is True
+    assert c.get("/api/status").json()["watch_enabled"] is True
+
+
+def test_diagram_component_404_when_absent(tmp_path: Path) -> None:
+    """GET /api/diagram/<id> -> 404 when no analysis.json exists."""
+    c = _client(tmp_path)
+    assert c.get("/api/diagram/some_component").status_code == 404
+
+
+def test_diagram_component_200_for_valid_id(tmp_path: Path) -> None:
+    """GET /api/diagram/<id> -> 200 with elements key when component exists."""
+    _write_analysis(tmp_path)
+    c = TestClient(create_app(repo_path=tmp_path, output_dir=tmp_path, project_name="demo"))
+    r = c.get(f"/api/diagram/{_EXPANDABLE_ID}")
+    assert r.status_code == 200
+    assert "elements" in r.json()
+
+
+def test_component_diff_404_when_no_analysis(tmp_path: Path) -> None:
+    """GET /api/component/<id>/diff -> 404 when analysis.json is absent."""
+    c = _client(tmp_path)
+    assert c.get(f"/api/component/{_EXPANDABLE_ID}/diff").status_code == 404
+
+
+def test_component_diff_404_unknown_id(tmp_path: Path) -> None:
+    """GET /api/component/<id>/diff -> 404 when component_id is unknown."""
+    _write_analysis(tmp_path)
+    c = TestClient(create_app(repo_path=tmp_path, output_dir=tmp_path, project_name="demo"))
+    assert c.get("/api/component/nonexistent-id/diff").status_code == 404
+
+
+def test_component_diff_200_has_files_and_diff_keys(tmp_path: Path) -> None:
+    """GET /api/component/<id>/diff -> 200 with files and diff keys for a known id."""
+    _write_analysis(tmp_path)
+    c = TestClient(create_app(repo_path=tmp_path, output_dir=tmp_path, project_name="demo"))
+    r = c.get(f"/api/component/{_EXPANDABLE_ID}/diff")
+    assert r.status_code == 200
+    body = r.json()
+    assert "files" in body
+    assert "diff" in body
+    assert body["component_id"] == _EXPANDABLE_ID
+    # tmp_path is not a real git repo so changed_files returns empty set,
+    # which means files will be empty after intersection with component files
+    assert isinstance(body["files"], list)
+    assert isinstance(body["diff"], str)
+
+
+def test_no_cache_header_scoped(tmp_path: Path) -> None:
+    c = _client(tmp_path)
+    # API responses must not get the no-store header from the static-assets middleware
+    assert "no-store" not in c.get("/api/status").headers.get("cache-control", "")
+
+
+def test_cancel_when_idle_returns_not_cancelling(tmp_path: Path) -> None:
+    """POST /api/cancel when idle returns 200 with cancelling=False."""
+    c = _client(tmp_path)
+    r = c.post("/api/cancel")
+    assert r.status_code == 200
+    assert r.json()["cancelling"] is False
+
+
+def test_cancel_when_busy_returns_cancelling(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """POST /api/cancel when a run is in progress returns cancelling=True."""
+    app = create_app(repo_path=tmp_path, output_dir=tmp_path, project_name="demo")
+    c = TestClient(app)
+    app.state.run_state.begin("run1", "full")
+
+    cancelled = []
+    monkeypatch.setattr(app.state.runner, "cancel", lambda: cancelled.append(True))
+
+    r = c.post("/api/cancel")
+    assert r.status_code == 200
+    assert r.json()["cancelling"] is True
+    assert cancelled == [True]
+
+
+def test_rejects_foreign_host_on_loopback_bind(tmp_path: Path) -> None:
+    """A loopback bind must reject foreign Host headers (DNS-rebinding defense)."""
+    app = create_app(repo_path=tmp_path, output_dir=tmp_path, project_name="demo", bind_host="127.0.0.1")
+    c = TestClient(app, base_url="http://evil.example.com")
+    assert c.get("/api/status").status_code == 400
+
+
+def test_allows_loopback_host_on_loopback_bind(tmp_path: Path) -> None:
+    app = create_app(repo_path=tmp_path, output_dir=tmp_path, project_name="demo", bind_host="127.0.0.1")
+    c = TestClient(app, base_url="http://localhost")
+    assert c.get("/api/status").status_code == 200
+
+
+def test_no_host_guard_when_not_loopback_bind(tmp_path: Path) -> None:
+    """Binding to all interfaces is explicit exposure — no Host guard installed."""
+    app = create_app(repo_path=tmp_path, output_dir=tmp_path, project_name="demo", bind_host="0.0.0.0")
+    c = TestClient(app, base_url="http://evil.example.com")
+    assert c.get("/api/status").status_code == 200
+
+
+def test_status_includes_depth_level(tmp_path: Path) -> None:
+    """GET /api/status must include depth_level."""
+    c = _client(tmp_path)
+    body = c.get("/api/status").json()
+    assert "depth_level" in body
+    assert isinstance(body["depth_level"], int)
