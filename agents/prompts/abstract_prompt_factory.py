@@ -87,10 +87,10 @@ Components:
 Known static call evidence between components (incomplete; do not treat as the full communication model):
 {static_call_evidence}
 
-Identify each component's communication surface. For every component, describe:
+Identify each component's API surface. For every component, describe:
 - provided_interfaces: important methods/classes/config symbols it exposes or uses as entrypoints
 - consumed_interfaces: important methods/classes/config symbols it calls, configures, imports, or expects from others
-- incoming_mechanisms and outgoing_mechanisms: direct calls, runtime dispatch, plugin hooks, REST, queues, files, config, reflection/import, subprocesses, etc.
+- incoming_api_paths and outgoing_api_paths: how other components enter this component's API, and how this component reaches other components' APIs; include direct calls, runtime dispatch, plugin hooks, REST, queues, files, config, reflection/import, subprocesses, etc.
 
 Static call evidence is incomplete. Reason from component APIs, registries, protocols, runtime dispatch, plugin hooks, configuration, and data flow."""
 
@@ -108,7 +108,7 @@ Component API surfaces:
 Known static call evidence between components (incomplete; use as evidence only):
 {static_call_evidence}
 
-Create the component relations. Do not limit relations to static calls. First reason from component APIs, runtime dispatch, plugin hooks, REST/queues/files/config, reflection/imports, and data flow. Use static calls only as one evidence source.
+Create the component relations. Do not limit relations to static calls. First reason from component API surfaces, including runtime dispatch, plugin hooks, REST/queues/files/config, reflection/imports, and data flow. Use static calls only as one evidence source.
 
 For each relation:
 - src_name and dst_name must exactly match component names

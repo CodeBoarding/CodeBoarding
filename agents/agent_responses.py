@@ -521,7 +521,7 @@ class ComponentArchitecture(LLMBaseModel):
 
 
 class ComponentApiSurface(LLMBaseModel):
-    """The public/consumed API surface and communication mechanisms for one component."""
+    """The provided and consumed APIs for one component."""
 
     component_name: str = Field(description="Exact component name this API surface describes.")
     provided_interfaces: list[SourceCodeReference] = Field(
@@ -532,27 +532,27 @@ class ComponentApiSurface(LLMBaseModel):
         default_factory=list,
         description="Methods/classes/config symbols this component calls, configures, imports, or expects from others.",
     )
-    incoming_mechanisms: list[str] = Field(
+    incoming_api_paths: list[str] = Field(
         default_factory=list,
-        description="How other components communicate with this component, such as direct calls, registry dispatch, REST, queues, plugins, files, or config.",
+        description="How other components enter this component's API, such as direct calls, registry dispatch, REST, queues, plugins, files, or config.",
     )
-    outgoing_mechanisms: list[str] = Field(
+    outgoing_api_paths: list[str] = Field(
         default_factory=list,
-        description="How this component communicates with others, such as direct calls, registry dispatch, REST, queues, plugins, files, or config.",
+        description="How this component reaches other components' APIs, such as direct calls, registry dispatch, REST, queues, plugins, files, or config.",
     )
-    notes: str = Field(default="", description="Short notes about the component's communication role.")
+    notes: str = Field(default="", description="Short notes about the component's API role.")
 
     def llm_str(self):
         provided = ", ".join(ref.llm_str() for ref in self.provided_interfaces) or "none"
         consumed = ", ".join(ref.llm_str() for ref in self.consumed_interfaces) or "none"
-        incoming = ", ".join(self.incoming_mechanisms) or "none"
-        outgoing = ", ".join(self.outgoing_mechanisms) or "none"
+        incoming = ", ".join(self.incoming_api_paths) or "none"
+        outgoing = ", ".join(self.outgoing_api_paths) or "none"
         return (
             f"**{self.component_name}**\n"
             f"  Provided: {provided}\n"
             f"  Consumed: {consumed}\n"
-            f"  Incoming mechanisms: {incoming}\n"
-            f"  Outgoing mechanisms: {outgoing}\n"
+            f"  Incoming API paths: {incoming}\n"
+            f"  Outgoing API paths: {outgoing}\n"
             f"  Notes: {self.notes}"
         )
 

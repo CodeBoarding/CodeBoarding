@@ -341,7 +341,7 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
         # With method-level expansion, each method has its own cluster -> deterministic assignment
         self.populate_file_methods(analysis, subgraph_cluster_results, subgraph_cfgs)
 
-        # Step 7: Analyze component API surfaces and communication mechanisms
+        # Step 7: Analyze component API surfaces
         api_surfaces = self.step_api_surfaces(analysis)
 
         # Step 8: Discover relations from API surfaces and attach deterministic all_edges

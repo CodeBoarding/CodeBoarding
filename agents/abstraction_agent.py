@@ -258,7 +258,7 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
         # Step 5: Populate file_methods deterministically from cluster results + orphan assignment
         self.populate_file_methods(analysis, cluster_results)
 
-        # Step 6: Analyze component API surfaces and communication mechanisms
+        # Step 6: Analyze component API surfaces
         api_surfaces = self.step_api_surfaces(analysis)
 
         # Step 7: Discover relations from API surfaces and attach deterministic all_edges
