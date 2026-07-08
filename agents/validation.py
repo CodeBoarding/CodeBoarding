@@ -853,15 +853,13 @@ def _check_directed_edge_between_cluster_sets(
     dst_cluster_ids: list[int],
     cluster_edge_lookup: dict[str, set[tuple[int, int]]],
 ) -> bool:
-    return _has_cluster_edge(src_cluster_ids, dst_cluster_ids, cluster_edge_lookup, bidirectional=False)
+    return _cluster_sets_have_edge(src_cluster_ids, dst_cluster_ids, cluster_edge_lookup)
 
 
-def _has_cluster_edge(
+def _cluster_sets_have_edge(
     src_cluster_ids: list[int],
     dst_cluster_ids: list[int],
     cluster_edge_lookup: dict[str, set[tuple[int, int]]],
-    *,
-    bidirectional: bool,
 ) -> bool:
     if not src_cluster_ids or not dst_cluster_ids:
         return False
@@ -871,8 +869,6 @@ def _has_cluster_edge(
     for cluster_edges in cluster_edge_lookup.values():
         for src_cluster, dst_cluster in cluster_edges:
             if src_cluster in src_set and dst_cluster in dst_set:
-                return True
-            if bidirectional and src_cluster in dst_set and dst_cluster in src_set:
                 return True
     return False
 
@@ -903,4 +899,6 @@ def _check_edge_between_cluster_sets(
     if cluster_edge_lookup is None:
         cluster_edge_lookup = _build_cluster_edge_lookup(cluster_results, cfg_graphs)
 
-    return _has_cluster_edge(src_cluster_ids, dst_cluster_ids, cluster_edge_lookup, bidirectional=True)
+    return _cluster_sets_have_edge(src_cluster_ids, dst_cluster_ids, cluster_edge_lookup) or _cluster_sets_have_edge(
+        dst_cluster_ids, src_cluster_ids, cluster_edge_lookup
+    )

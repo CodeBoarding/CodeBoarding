@@ -217,17 +217,13 @@ def _relation_edge_from_json(edge: dict, methods_index: dict[str, MethodIndexEnt
     )
 
 
-def _to_method_qualified_name(method: MethodEntry) -> str:
-    return method.qualified_name
-
-
 def _to_component_file_method_refs(file_methods: list[FileMethodGroup]) -> list[ComponentFileMethodGroupJson]:
     refs: list[ComponentFileMethodGroupJson] = []
     for group in file_methods:
         qnames: list[str] = []
         seen: set[str] = set()
         for method in group.methods:
-            qname = _to_method_qualified_name(method)
+            qname = method.qualified_name
             if qname in seen:
                 continue
             seen.add(qname)
@@ -282,7 +278,7 @@ def _hydrate_component_methods_from_refs(
             file_path = group.file_path
             methods: list[MethodEntry] = []
             for method in group.methods:
-                qname = _to_method_qualified_name(method)
+                qname = method.qualified_name
                 indexed = methods_index.get(_method_key(file_path, qname))
                 if indexed is None:
                     missing.append(f"{file_path}|{qname}")

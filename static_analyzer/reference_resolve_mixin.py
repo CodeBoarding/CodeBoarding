@@ -336,10 +336,6 @@ class ReferenceResolverMixin:
             {"line": int(site.get("line", 0)), "column": int(site.get("column", 0))} for site in static_edge.call_sites
         ]
 
-    def _has_static_edge(self, edge: RelationEdge) -> bool:
-        """Return true when a resolved relation edge exists in the static CFG."""
-        return self._find_static_edge(edge) is not None
-
     def _find_static_edge(self, relation_edge: RelationEdge):
         source_qname = relation_edge.source.qualified_name
         target_qname = relation_edge.target.qualified_name
