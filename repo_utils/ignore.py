@@ -4,7 +4,7 @@ from typing import Any
 
 import pathspec
 
-from utils import CODEBOARDING_DIR_NAME
+from constants import CODEBOARDING_DIR_NAME
 
 logger = logging.getLogger(__name__)
 

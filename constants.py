@@ -1,5 +1,7 @@
 """Application-level constants for CodeBoarding."""
 
+CODEBOARDING_DIR_NAME = ".codeboarding"
+
 
 class AppConfig:
     MAX_CONCURRENT_JOBS = 5
