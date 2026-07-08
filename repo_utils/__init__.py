@@ -47,10 +47,14 @@ def require_git_import(default: Any | None = None) -> Callable:
             try:
                 return func(*args, **kwargs)
             except GitError as e:
-                # Handle the cases in which there is no repository, or the repository state is invalid
-                logger.error(f"Invalid Git repository: {e}")
+                # No repository / invalid repo state. When a default is provided the
+                # caller is git-optional (e.g. analysing a non-git frozen copy), so
+                # this is an expected fallback, not an error — log it quietly. Only
+                # a default-less caller genuinely failed.
                 if default is not None:
+                    logger.debug(f"{func.__name__}: no usable git repository ({e}); using default {default!r}")
                     return default
+                logger.error(f"Invalid Git repository: {e}")
                 raise e
 
         return wrapper
