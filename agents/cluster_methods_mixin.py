@@ -43,10 +43,6 @@ from static_analyzer.node import Node
 
 logger = logging.getLogger(__name__)
 
-# Re-exported from the leaf module so existing importers keep working while the
-# helpers stay free of this module's heavy analysis imports.
-_read_source_lines = read_source_lines
-
 
 @dataclass(frozen=True)
 class _RenderedClusterString:
@@ -648,7 +644,7 @@ class ClusterMethodsMixin:
                 end_line=node.line_end,
                 node_type=node.type.name,
                 content_hash=hash_method_body(
-                    _read_source_lines(self.repo_dir, rel_path, source_cache),
+                    read_source_lines(self.repo_dir, rel_path, source_cache),
                     node.line_start,
                     node.line_end,
                 ),
@@ -813,7 +809,7 @@ class ClusterMethodsMixin:
                 if entry is None:
                     entry = FileEntry(
                         methods=[],
-                        content_hash=hash_whole_file(_read_source_lines(self.repo_dir, fmg.file_path, file_cache)),
+                        content_hash=hash_whole_file(read_source_lines(self.repo_dir, fmg.file_path, file_cache)),
                     )
                     files[fmg.file_path] = entry
 
@@ -835,7 +831,7 @@ class ClusterMethodsMixin:
                             start, end = live_span
                             copied.start_line, copied.end_line = start, end
                             copied.content_hash = hash_method_body(
-                                _read_source_lines(self.repo_dir, fmg.file_path, file_cache),
+                                read_source_lines(self.repo_dir, fmg.file_path, file_cache),
                                 start,
                                 end,
                             )

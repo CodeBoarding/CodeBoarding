@@ -158,13 +158,9 @@ def _build_files_index_from_analysis(analysis: AnalysisInsights) -> dict[str, Fi
     return {file_path: entry.model_copy(deep=True) for file_path, entry in analysis.files.items()}
 
 
-def method_key(file_path: str, qualified_name: str) -> str:
-    """Canonical ``methods_index`` key. Public so the wrapper builds keys identically."""
+def _method_key(file_path: str, qualified_name: str) -> str:
+    """Canonical ``methods_index`` key ('<file_path>|<qualified_name>')."""
     return f"{file_path}|{qualified_name}"
-
-
-# Backward-compatible internal alias.
-_method_key = method_key
 
 
 def _to_method_qualified_name(method: MethodEntry) -> str:
@@ -265,16 +261,6 @@ def hash_repo_source_files(repo_dir: Path) -> dict[str, str]:
 def compute_source_tree_hash(repo_dir: Path) -> str:
     """The canonical source-tree version key: whole-repo walk, hashed and aggregated."""
     return tree_hash_from_file_hashes(hash_repo_source_files(repo_dir))
-
-
-def _compute_source_tree_hash(files_index: dict[str, FileEntry]) -> str:
-    """Fallback source-tree hash from a component-only files index.
-
-    Why: used only when no ``repo_dir`` is available (e.g. tests). Prefer
-    :func:`compute_source_tree_hash` which walks the full tree so the hash is
-    reproducible by consumers that fingerprint the working tree.
-    """
-    return tree_hash_from_file_hashes({path: entry.content_hash for path, entry in files_index.items()})
 
 
 def _hydrate_component_methods_from_refs(

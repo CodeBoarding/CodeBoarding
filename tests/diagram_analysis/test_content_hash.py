@@ -2,21 +2,17 @@ import hashlib
 from pathlib import Path
 
 from agents.agent_responses import AnalysisInsights, Component, FileEntry, FileMethodGroup, MethodEntry
-from agents.cluster_methods_mixin import (
-    ClusterMethodsMixin,
-    _read_source_lines,
-    hash_method_body,
-    hash_whole_file,
-)
+from agents.cluster_methods_mixin import ClusterMethodsMixin
+from agents.content_hash import hash_method_body, hash_whole_file, read_source_lines
 from diagram_analysis.analysis_json import (
     FileEntryJson,
     MethodIndexEntry,
     _build_file_entry_json_from_files,
     _build_methods_index_from_files,
-    _compute_source_tree_hash,
     _reconstruct_files_index,
     compute_source_tree_hash,
     hash_repo_source_files,
+    tree_hash_from_file_hashes,
 )
 
 
@@ -74,13 +70,13 @@ def test_hash_method_body_empty_on_bad_range():
 
 def test_read_source_lines_missing_file_returns_none(tmp_path: Path):
     cache: dict[str, list[str] | None] = {}
-    assert _read_source_lines(tmp_path, "nope.py", cache) is None
+    assert read_source_lines(tmp_path, "nope.py", cache) is None
 
 
 def test_read_source_lines_reads_and_caches(tmp_path: Path):
     (tmp_path / "f.py").write_text("a\nb\nc\n", encoding="utf-8")
     cache: dict[str, list[str] | None] = {}
-    assert _read_source_lines(tmp_path, "f.py", cache) == ["a", "b", "c"]
+    assert read_source_lines(tmp_path, "f.py", cache) == ["a", "b", "c"]
     assert "f.py" in cache
 
 
@@ -120,20 +116,20 @@ def test_hash_whole_file_hashes_all_lines():
     assert hash_whole_file(lines) == expected
 
 
-def test_source_tree_hash_stable_and_order_independent():
-    a = {"a.py": FileEntry(methods=[], content_hash="11"), "b.py": FileEntry(methods=[], content_hash="22")}
-    b = {"b.py": FileEntry(methods=[], content_hash="22"), "a.py": FileEntry(methods=[], content_hash="11")}
-    assert _compute_source_tree_hash(a) == _compute_source_tree_hash(b) != ""
+def test_tree_hash_stable_and_order_independent():
+    a = {"a.py": "11", "b.py": "22"}
+    b = {"b.py": "22", "a.py": "11"}
+    assert tree_hash_from_file_hashes(a) == tree_hash_from_file_hashes(b) != ""
 
 
-def test_source_tree_hash_changes_when_a_file_hash_changes():
-    a = {"a.py": FileEntry(methods=[], content_hash="11"), "b.py": FileEntry(methods=[], content_hash="22")}
-    b = {"a.py": FileEntry(methods=[], content_hash="11"), "b.py": FileEntry(methods=[], content_hash="33")}
-    assert _compute_source_tree_hash(a) != _compute_source_tree_hash(b)
+def test_tree_hash_changes_when_a_file_hash_changes():
+    a = {"a.py": "11", "b.py": "22"}
+    b = {"a.py": "11", "b.py": "33"}
+    assert tree_hash_from_file_hashes(a) != tree_hash_from_file_hashes(b)
 
 
-def test_source_tree_hash_empty_when_no_hashes():
-    assert _compute_source_tree_hash({"a.py": FileEntry(methods=[])}) == ""
+def test_tree_hash_empty_when_no_hashes():
+    assert tree_hash_from_file_hashes({"a.py": ""}) == ""
 
 
 def test_hash_method_body_returns_sentinel_when_span_past_eof():
@@ -167,15 +163,13 @@ def test_compute_source_tree_hash_stable_and_change_sensitive(tmp_path: Path):
 def test_source_tree_hash_reproducible_from_fingerprint_map(tmp_path: Path):
     # The invariant the wrapper relies on: aggregating the per-file fingerprint
     # map reproduces the whole-tree hash byte-for-byte.
-    from diagram_analysis.analysis_json import tree_hash_from_file_hashes
-
     (tmp_path / "a.py").write_text("x = 1\n", encoding="utf-8")
     (tmp_path / "docs.md").write_text("hello\n", encoding="utf-8")
     fps = hash_repo_source_files(tmp_path)
     assert tree_hash_from_file_hashes(fps) == compute_source_tree_hash(tmp_path)
 
 
-class _StubMixin:
+class _StubMixin(ClusterMethodsMixin):
     """Minimal host for ``build_files_index`` — it only reads ``repo_dir`` and
     ``_live_cfg_method_spans``."""
 
@@ -185,8 +179,6 @@ class _StubMixin:
 
     def _live_cfg_method_spans(self):
         return self._spans
-
-    build_files_index = ClusterMethodsMixin.build_files_index
 
 
 def _analysis_with_method(file_path: str, qname: str, start: int, end: int) -> AnalysisInsights:
