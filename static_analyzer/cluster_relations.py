@@ -34,7 +34,7 @@ def _call_site_int(value: Hashable) -> int:
         return value
     if isinstance(value, str):
         return int(value)
-    return 0
+    raise ValueError(f"Unexpected call site value type: {type(value)} ({value})")
 
 
 def _call_sites_from_cfg_edge(edge: Edge) -> list[dict[str, Hashable]]:
