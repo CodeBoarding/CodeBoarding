@@ -355,7 +355,7 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
         )
 
         # Step 9: Fix source code reference lines (resolves reference_file paths)
-        analysis = self.fix_source_code_reference_lines(analysis)
+        analysis = self.reference_resolver.fix_source_code_reference_lines(analysis)
 
         # Step 10: Ensure unique key entities across components
         self._ensure_unique_key_entities(analysis)

@@ -14,6 +14,7 @@ from static_analyzer.analysis_cache import (
 )
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import Language
+from utils import CODEBOARDING_DIR_NAME
 
 
 def _realpaths(paths: list[str]) -> list[str]:
@@ -28,7 +29,7 @@ class TestStaticAnalysisCache(unittest.TestCase):
         # Artifact dir is the sibling-of-analysis.json directory; tests use a
         # subdir under temp so the legacy ``cache/`` migration fallback can
         # also be exercised at ``<artifact_dir>/cache/``.
-        self.artifact_dir = Path(self.temp_dir) / ".codeboarding"
+        self.artifact_dir = Path(self.temp_dir) / CODEBOARDING_DIR_NAME
         self.repo_root = Path(self.temp_dir)
         self.cache = StaticAnalysisCache(self.artifact_dir, self.repo_root)
 
@@ -101,7 +102,7 @@ class TestStaticAnalysisCacheShaGate(unittest.TestCase):
 
     def setUp(self):
         self.temp_dir = tempfile.mkdtemp()
-        self.artifact_dir = Path(self.temp_dir) / ".codeboarding"
+        self.artifact_dir = Path(self.temp_dir) / CODEBOARDING_DIR_NAME
         self.repo_root = Path(self.temp_dir)
         self.cache = StaticAnalysisCache(self.artifact_dir, self.repo_root)
 
@@ -164,7 +165,7 @@ class TestStaticAnalysisCacheLegacyMigration(unittest.TestCase):
 
     def setUp(self):
         self.temp_dir = tempfile.mkdtemp()
-        self.artifact_dir = Path(self.temp_dir) / ".codeboarding"
+        self.artifact_dir = Path(self.temp_dir) / CODEBOARDING_DIR_NAME
         self.repo_root = Path(self.temp_dir)
         self.cache = StaticAnalysisCache(self.artifact_dir, self.repo_root)
 
@@ -214,7 +215,7 @@ class TestStaticAnalysisCacheAtomicWrite(unittest.TestCase):
 
     def setUp(self):
         self.temp_dir = tempfile.mkdtemp()
-        self.artifact_dir = Path(self.temp_dir) / ".codeboarding"
+        self.artifact_dir = Path(self.temp_dir) / CODEBOARDING_DIR_NAME
         self.repo_root = Path(self.temp_dir)
         self.cache = StaticAnalysisCache(self.artifact_dir, self.repo_root)
 
@@ -234,7 +235,7 @@ class TestStaticAnalysisCacheReadTagSha(unittest.TestCase):
 
     def setUp(self):
         self.temp_dir = tempfile.mkdtemp()
-        self.artifact_dir = Path(self.temp_dir) / ".codeboarding"
+        self.artifact_dir = Path(self.temp_dir) / CODEBOARDING_DIR_NAME
         self.repo_root = Path(self.temp_dir)
         self.cache = StaticAnalysisCache(self.artifact_dir, self.repo_root)
 
@@ -267,7 +268,7 @@ class TestLoadWithSha(unittest.TestCase):
 
     def setUp(self):
         self.temp_dir = tempfile.mkdtemp()
-        self.artifact_dir = Path(self.temp_dir) / ".codeboarding"
+        self.artifact_dir = Path(self.temp_dir) / CODEBOARDING_DIR_NAME
         self.repo_root = Path(self.temp_dir)
         self.cache = StaticAnalysisCache(self.artifact_dir, self.repo_root)
 
@@ -319,8 +320,8 @@ class TestCopyCacheFiles(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.mkdtemp()
         self.repo_root = Path(self.temp_dir)
-        self.src_dir = Path(self.temp_dir) / "src" / ".codeboarding"
-        self.dst_dir = Path(self.temp_dir) / "dst" / ".codeboarding"
+        self.src_dir = Path(self.temp_dir) / "src" / CODEBOARDING_DIR_NAME
+        self.dst_dir = Path(self.temp_dir) / "dst" / CODEBOARDING_DIR_NAME
         self.src_cache = StaticAnalysisCache(self.src_dir, self.repo_root)
         self.dst_cache = StaticAnalysisCache(self.dst_dir, self.repo_root)
 

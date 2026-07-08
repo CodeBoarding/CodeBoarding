@@ -6,6 +6,7 @@ from unittest.mock import patch, MagicMock
 
 from repo_utils import get_repo_state_hash
 from repo_utils.ignore import RepoIgnoreManager
+from utils import CODEBOARDING_DIR_NAME
 
 
 class TestCacheInvalidationWithIgnorePatterns(unittest.TestCase):
@@ -67,7 +68,7 @@ class TestIgnorePatternEdgeCases(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.mkdtemp()
         self.repo_path = Path(self.temp_dir)
-        (self.repo_path / ".codeboarding").mkdir()
+        (self.repo_path / CODEBOARDING_DIR_NAME).mkdir()
         self.ignore_manager = RepoIgnoreManager(self.repo_path)
 
     def tearDown(self):

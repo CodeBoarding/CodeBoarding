@@ -16,6 +16,7 @@ from static_analyzer.constants import Language, NodeType
 from static_analyzer.graph import CallGraph, ClusterResult, Edge
 from static_analyzer.node import Node
 from static_analyzer.incremental_orchestrator import update_cfg_for_changed_files
+from utils import CODEBOARDING_DIR_NAME
 
 
 def _node(qname: str, file_path: str, line_start: int = 1) -> Node:
@@ -289,7 +290,7 @@ class TestClusterCachePreservation(unittest.TestCase):
             base_results = StaticAnalysisResults()
             result.incremental_base_results = base_results
 
-            cache = StaticAnalysisCache(root / ".codeboarding", root)
+            cache = StaticAnalysisCache(root / CODEBOARDING_DIR_NAME, root)
             cache.save(result, source_sha="sha")
             loaded = cache.get()
 

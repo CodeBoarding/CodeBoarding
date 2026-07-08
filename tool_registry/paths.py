@@ -8,6 +8,8 @@ import shutil
 import subprocess
 from pathlib import Path
 
+from utils import CODEBOARDING_DIR_NAME
+
 logger = logging.getLogger(__name__)
 
 
@@ -75,7 +77,7 @@ def native_binary_ok(path: Path) -> bool:
 
 def user_data_dir() -> Path:
     """Return the user-level persistent storage directory (~/.codeboarding)."""
-    return Path.home() / ".codeboarding"
+    return Path.home() / CODEBOARDING_DIR_NAME
 
 
 def get_servers_dir() -> Path:

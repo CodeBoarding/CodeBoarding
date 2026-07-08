@@ -40,7 +40,7 @@ from repo_utils.ignore import initialize_codeboardingignore
 from static_analyzer import get_static_analysis
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import Language
-from utils import get_artifact_dir
+from utils import CODEBOARDING_DIR_NAME, get_artifact_dir
 
 from .conftest import (
     REPOSITORY_CONFIGS,
@@ -291,7 +291,7 @@ class TestStaticAnalysisConsistency:
 
         # Ensure the current .codeboardingignore template is used, not whatever
         # the cloned repo might have from an older version.
-        codeboarding_dir = repo_path / ".codeboarding"
+        codeboarding_dir = repo_path / CODEBOARDING_DIR_NAME
         codeboarding_dir.mkdir(parents=True, exist_ok=True)
         ignore_file = codeboarding_dir / ".codeboardingignore"
         ignore_file.unlink(missing_ok=True)

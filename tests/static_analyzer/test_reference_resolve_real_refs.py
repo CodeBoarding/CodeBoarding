@@ -1,4 +1,4 @@
-"""Tests for ReferenceResolverMixin using real key_entities from analysis.json.
+"""Tests for StaticReferenceResolver using real key_entities from analysis.json.
 
 These tests mirror the actual CodeBoarding repository structure and the
 references produced by the LLM to verify that fix_source_code_reference_lines
@@ -16,17 +16,7 @@ from agents.agent_responses import AnalysisInsights, Component, FileMethodGroup,
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import NodeType
 from static_analyzer.node import Node
-from static_analyzer.reference_resolve_mixin import ReferenceResolverMixin
-
-
-class ConcreteResolver(ReferenceResolverMixin):
-    """Concrete test implementation of the mixin."""
-
-    def __init__(self, repo_dir: Path, static_analysis: StaticAnalysisResults):
-        super().__init__(repo_dir, static_analysis)
-
-    def _parse_invoke(self, prompt, type):
-        return None
+from static_analyzer.reference_resolver import StaticReferenceResolver
 
 
 # ---------------------------------------------------------------------------
@@ -100,7 +90,7 @@ class TestRelativePathAlreadyResolved(unittest.TestCase):
         self.sa.get_languages.return_value = ["python"]
         self.sa.get_reference.side_effect = ValueError("not found")
         self.sa.get_loose_reference.side_effect = Exception("not found")
-        self.resolver = ConcreteResolver(self.tmp, self.sa)
+        self.resolver = StaticReferenceResolver(self.tmp, self.sa)
 
     def tearDown(self):
         shutil.rmtree(self.tmp, ignore_errors=True)
@@ -143,7 +133,7 @@ class TestResolveFromQualifiedNameOnly(unittest.TestCase):
         _make_repo_tree(self.tmp)
         self.sa = MagicMock(spec=StaticAnalysisResults)
         self.sa.get_languages.return_value = ["python"]
-        self.resolver = ConcreteResolver(self.tmp, self.sa)
+        self.resolver = StaticReferenceResolver(self.tmp, self.sa)
 
     def tearDown(self):
         shutil.rmtree(self.tmp, ignore_errors=True)
@@ -265,7 +255,7 @@ class TestRelativePathCWDBug(unittest.TestCase):
         _make_repo_tree(self.tmp)
         self.sa = MagicMock(spec=StaticAnalysisResults)
         self.sa.get_languages.return_value = ["python"]
-        self.resolver = ConcreteResolver(self.tmp, self.sa)
+        self.resolver = StaticReferenceResolver(self.tmp, self.sa)
 
     def tearDown(self):
         shutil.rmtree(self.tmp, ignore_errors=True)
@@ -351,7 +341,7 @@ class TestMultiComponentAnalysis(unittest.TestCase):
         _make_repo_tree(self.tmp)
         self.sa = MagicMock(spec=StaticAnalysisResults)
         self.sa.get_languages.return_value = ["python"]
-        self.resolver = ConcreteResolver(self.tmp, self.sa)
+        self.resolver = StaticReferenceResolver(self.tmp, self.sa)
 
     def tearDown(self):
         shutil.rmtree(self.tmp, ignore_errors=True)

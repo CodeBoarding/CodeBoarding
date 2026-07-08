@@ -20,7 +20,7 @@ from health.config import initialize_health_dir, load_health_config
 from logging_config import setup_logging
 from repo_utils import clone_repository, get_repo_name
 from static_analyzer import get_static_analysis
-from utils import get_artifact_dir
+from utils import CODEBOARDING_DIR_NAME, get_artifact_dir
 from vscode_constants import update_config
 
 logger = logging.getLogger(__name__)
@@ -41,7 +41,7 @@ def run_health_check_local(
         raise ValueError(f"Repository path does not exist: {resolved_repo_path}")
 
     resolved_project_name = project_name or resolved_repo_path.name
-    output_dir = resolved_repo_path / ".codeboarding"
+    output_dir = resolved_repo_path / CODEBOARDING_DIR_NAME
 
     output_dir.mkdir(parents=True, exist_ok=True)
     setup_logging(log_dir=output_dir)
@@ -63,7 +63,7 @@ def run_health_check_remote(
     repo_name = clone_repository(repo_url, repo_root)
     resolved_repo_path = repo_root / repo_name
     resolved_project_name = project_name or get_repo_name(repo_url)
-    output_dir = Path.cwd() / repo_name / ".codeboarding"
+    output_dir = Path.cwd() / repo_name / CODEBOARDING_DIR_NAME
 
     output_dir.mkdir(parents=True, exist_ok=True)
     setup_logging(log_dir=output_dir)

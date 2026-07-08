@@ -6,7 +6,7 @@ from abc import abstractmethod
 from collections.abc import Hashable
 from enum import StrEnum
 from pathlib import PurePosixPath
-from typing import get_origin, Optional
+from typing import TYPE_CHECKING, get_origin, Optional
 
 from pydantic import BaseModel, Field
 from pydantic.fields import FieldInfo
@@ -15,6 +15,9 @@ from agents.cluster_ids import CodeBoardingClusterId, GraphClusterId
 from agents.scope_ids import ROOT_SCOPE_ID
 
 logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from diagram_analysis.analysis_json import MethodIndexEntry
 
 
 class LLMBaseModel(BaseModel, abc.ABC):
@@ -192,6 +195,41 @@ class RelationEdge(LLMBaseModel):
         exclude=True,
         json_schema_extra={"hidden": True},
     )
+
+    @classmethod
+    def from_dict(cls, edge: dict, methods_index: dict[str, MethodIndexEntry]) -> RelationEdge:
+        source_key = edge.get("source")
+        target_key = edge.get("target")
+        if not isinstance(source_key, str) or not isinstance(target_key, str):
+            raise ValueError("Relation edge endpoints must be method-index keys")
+        source = methods_index.get(source_key)
+        target = methods_index.get(target_key)
+        if source is None or target is None:
+            missing = source_key if source is None else target_key
+            raise ValueError(f"Relation edge endpoint is missing from methods_index: {missing}")
+        call_sites = edge.get("call_sites") or []
+        return cls(
+            source=SourceCodeReference(
+                qualified_name=source.qualified_name,
+                reference_file=source.file_path,
+                reference_start_line=source.start_line,
+                reference_end_line=source.end_line,
+            ),
+            target=SourceCodeReference(
+                qualified_name=target.qualified_name,
+                reference_file=target.file_path,
+                reference_start_line=target.start_line,
+                reference_end_line=target.end_line,
+            ),
+            description=edge.get("description", ""),
+            call_sites=[
+                {
+                    "line": _call_site_coordinate(site.get("line", 0)),
+                    "column": _call_site_coordinate(site.get("column", 0)),
+                }
+                for site in call_sites
+            ],
+        )
 
     def llm_str(self) -> str:
         return f"{self.source} -> {self.target}: {self.description}"

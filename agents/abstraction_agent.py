@@ -265,7 +265,7 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
         self.step_relation_analysis(analysis, api_surfaces, cluster_analysis, cluster_results)
 
         # Step 8: Fix source code reference lines (resolves reference_file paths for key_entities and key_edges)
-        analysis = self.fix_source_code_reference_lines(analysis)
+        analysis = self.reference_resolver.fix_source_code_reference_lines(analysis)
         # Step 9: Ensure unique key entities across components
         self._ensure_unique_key_entities(analysis)
 

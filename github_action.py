@@ -7,7 +7,7 @@ from codeboarding_workflows.analysis import run_incremental_workflow
 from codeboarding_workflows.rendering import render_docs
 from diagram_analysis import DiagramGenerator, RunContext
 from repo_utils import checkout_repo, clone_repository
-from utils import ANALYSIS_FILENAME, create_temp_repo_folder
+from utils import ANALYSIS_FILENAME, CODEBOARDING_DIR_NAME, create_temp_repo_folder
 
 logger = logging.getLogger(__name__)
 
@@ -89,7 +89,7 @@ def generate_analysis(
     source_branch: str,
     target_branch: str,
     extension: str,
-    output_dir: str = ".codeboarding",
+    output_dir: str = CODEBOARDING_DIR_NAME,
     existing_analysis_dir: str | None = None,
 ) -> Path:
     """Generate analysis for a GitHub repository URL (GitHub Action entry point)."""

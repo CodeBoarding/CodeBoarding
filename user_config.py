@@ -14,7 +14,9 @@ import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 
-CONFIG_PATH = Path.home() / ".codeboarding" / "config.toml"
+from utils import CODEBOARDING_DIR_NAME
+
+CONFIG_PATH = Path.home() / CODEBOARDING_DIR_NAME / "config.toml"
 
 # Both dicts feed config.toml's [provider] table; values are injected into
 # os.environ at startup. Provider selection itself is decided solely by

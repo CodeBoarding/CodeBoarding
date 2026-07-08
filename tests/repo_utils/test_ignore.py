@@ -4,6 +4,7 @@ import shutil
 from pathlib import Path
 
 from repo_utils.ignore import RepoIgnoreManager
+from utils import CODEBOARDING_DIR_NAME
 
 
 class TestRepoIgnoreManagerRealWorldScenario(unittest.TestCase):
@@ -28,7 +29,7 @@ class TestRepoIgnoreManagerRealWorldScenario(unittest.TestCase):
         (self.repo_path / "spec").mkdir()
         (self.repo_path / "dist").mkdir()
         (self.repo_path / "node_modules").mkdir()
-        (self.repo_path / ".codeboarding").mkdir()
+        (self.repo_path / CODEBOARDING_DIR_NAME).mkdir()
 
         # Create actual files that should be analyzed
         (self.repo_path / "src" / "main.py").write_text("# Main app code")
@@ -64,7 +65,7 @@ dist/
 *.chunk.js
 *.chunk.js.map
 """
-        (self.repo_path / ".codeboarding" / ".codeboardingignore").write_text(codeboardingignore_content)
+        (self.repo_path / CODEBOARDING_DIR_NAME / ".codeboardingignore").write_text(codeboardingignore_content)
 
         # Create files matching gitignore patterns
         (self.repo_path / "build.log").write_text("Build log content")
@@ -95,7 +96,7 @@ dist/
         # Default ignored directories
         self.assertTrue(self.ignore_manager.should_ignore(Path("node_modules/react/index.js")))
         self.assertTrue(self.ignore_manager.should_ignore(Path("dist/bundle.js")))
-        self.assertTrue(self.ignore_manager.should_ignore(Path(".codeboarding/config.json")))
+        self.assertTrue(self.ignore_manager.should_ignore(Path(CODEBOARDING_DIR_NAME) / "config.json"))
 
         # Default ignored file patterns (build artifacts, minified files)
         self.assertTrue(self.ignore_manager.should_ignore(Path("src/app.bundle.js")))

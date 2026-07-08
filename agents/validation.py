@@ -1,11 +1,11 @@
 """Validation utilities for LLM agent outputs."""
 
 import logging
-import os
 import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from difflib import SequenceMatcher
+from pathlib import Path
 from typing import Protocol
 
 from agents.agent_responses import (
@@ -17,7 +17,7 @@ from agents.agent_responses import (
     ScopeRelations,
 )
 from repo_utils import normalize_path
-from static_analyzer.internal_references import looks_internal_reference
+from static_analyzer.reference_resolver import StaticReferenceResolver
 from static_analyzer.graph import CallGraph, ClusterResult
 
 from static_analyzer.analysis_result import StaticAnalysisResults
@@ -692,27 +692,20 @@ def _valid_key_edge_descriptions(relation, context: ValidationContext) -> tuple[
     """Return valid, same-endpoint, and unresolved key edge descriptions."""
     if context.static_analysis is None:
         return ([edge.llm_str() for edge in relation.key_edges], [], [])
+    resolver = StaticReferenceResolver(Path(context.repo_dir or "."), context.static_analysis)
     valid: list[str] = []
     same_endpoint: list[str] = []
     unresolved: list[str] = []
     for edge in relation.key_edges:
-        source_node = _source_reference_node(edge.source, context)
-        target_node = _source_reference_node(edge.target, context)
-        if source_node is None or target_node is None:
-            if _has_external_unresolved_endpoint(edge, source_node, target_node, context):
-                valid.append(edge.llm_str())
-                continue
-            unresolved.append(edge.llm_str())
+        resolution = resolver.classify_key_edge(edge, context.cfg_graphs)
+        if resolution.valid:
+            valid.append(resolution.description)
             continue
-        if _node_identity(source_node) == _node_identity(target_node):
-            same_endpoint.append(edge.llm_str())
+        if resolution.same_endpoint:
+            same_endpoint.append(resolution.description)
             continue
-        if (
-            not _has_cfg_edge(source_node.fully_qualified_name, target_node.fully_qualified_name, context)
-            and not edge.description.strip()
-        ):
-            continue
-        valid.append(edge.llm_str())
+        if resolution.unresolved:
+            unresolved.append(resolution.description)
     return valid, same_endpoint, unresolved
 
 
@@ -721,61 +714,6 @@ def _has_relation_evidence(relation) -> bool:
     if relation.evidence.strip():
         return True
     return any(edge.description.strip() for edge in relation.key_edges)
-
-
-def _has_external_unresolved_endpoint(edge, source_node, target_node, context: ValidationContext) -> bool:
-    """Return true when one endpoint is repo code and the other looks external."""
-    if context.static_analysis is None:
-        return False
-    if source_node is not None and target_node is None:
-        return not looks_internal_reference(context.static_analysis, edge.target.qualified_name)
-    if source_node is None and target_node is not None:
-        return not looks_internal_reference(context.static_analysis, edge.source.qualified_name)
-    return False
-
-
-def _source_reference_node(reference, context: ValidationContext):
-    """Resolve a source reference to a static-analysis node without mutating it."""
-    static_analysis = context.static_analysis
-    if static_analysis is None:
-        return None
-
-    qname = reference.qualified_name.replace(os.sep, ".")
-    for lang in static_analysis.get_languages():
-        try:
-            return static_analysis.get_reference(lang, qname)
-        except (ValueError, FileExistsError):
-            pass
-
-    for lang in static_analysis.get_languages():
-        _, node = static_analysis.get_loose_reference(lang, qname)
-        if node is not None:
-            return node
-
-    return None
-
-
-def _has_cfg_edge(source_qname: str, target_qname: str, context: ValidationContext) -> bool:
-    """Return true when the static CFG has this exact source-to-target edge."""
-    for cfg in context.cfg_graphs.values():
-        for edge in cfg.edges:
-            if edge.get_source() == source_qname and edge.get_destination() == target_qname:
-                return True
-    if context.static_analysis is not None:
-        for lang in context.static_analysis.get_languages():
-            try:
-                cfg = context.static_analysis.get_cfg(lang)
-            except ValueError:
-                continue
-            for edge in cfg.edges:
-                if edge.get_source() == source_qname and edge.get_destination() == target_qname:
-                    return True
-    return False
-
-
-def _node_identity(node) -> str:
-    """Return a stable identity for a static-analysis node."""
-    return f"{node.fully_qualified_name}:{node.file_path}:{node.line_start}:{node.line_end}"
 
 
 def validate_scope_relation_names(result: ScopeRelations, _context: ValidationContext) -> ValidationResult:

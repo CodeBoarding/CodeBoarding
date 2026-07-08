@@ -12,6 +12,7 @@ from repo_utils.path_utils import to_absolute_path, to_relative_path
 logger = logging.getLogger(__name__)
 
 CODEBOARDING_DIR_NAME = ".codeboarding"
+RUN_OUTPUT_DIR_NAME = "run-output"
 ANALYSIS_FILENAME = "analysis.json"
 
 

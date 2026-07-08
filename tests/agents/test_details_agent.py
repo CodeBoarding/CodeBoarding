@@ -325,7 +325,7 @@ class TestDetailsAgent(unittest.TestCase):
         self.assertEqual(analysis.components[1].source_cluster_ids, ["5.3.7"])
 
     @patch("agents.details_agent.DetailsAgent._validation_invoke")
-    @patch("agents.details_agent.DetailsAgent.fix_source_code_reference_lines")
+    @patch("static_analyzer.reference_resolver.StaticReferenceResolver.fix_source_code_reference_lines")
     def test_run(self, mock_fix_ref, mock_validation_invoke):
         mock_llm = MagicMock()
         mock_parsing_llm = MagicMock()

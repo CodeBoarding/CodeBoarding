@@ -30,7 +30,7 @@ from diagram_analysis.analysis_json import (
     parse_unified_analysis,
 )
 from repo_utils.path_utils import normalize_repo_path
-from utils import ANALYSIS_FILENAME
+from utils import ANALYSIS_FILENAME, CODEBOARDING_DIR_NAME, RUN_OUTPUT_DIR_NAME
 
 logger = logging.getLogger(__name__)
 
@@ -61,9 +61,9 @@ class _AnalysisFileStore:
         self._lock = FileLock(output_dir / f"{ANALYSIS_FILENAME}.lock", timeout=30)
 
     def _repo_dir_for_source_lookup(self) -> Path:
-        if self._output_dir.name == "run-output" and self._output_dir.parent.name == ".codeboarding":
+        if self._output_dir.name == RUN_OUTPUT_DIR_NAME and self._output_dir.parent.name == CODEBOARDING_DIR_NAME:
             return self._output_dir.parent.parent
-        if self._output_dir.name == ".codeboarding":
+        if self._output_dir.name == CODEBOARDING_DIR_NAME:
             return self._output_dir.parent
         return self._output_dir
 
@@ -246,11 +246,11 @@ class _AnalysisFileStore:
             analysis=analysis,
             expandable_components=expandable,
             repo_name=repo_name,
+            repo_dir=self._repo_dir_for_source_lookup(),
             sub_analyses=sub_analyses_tuples,
             file_coverage_summary=file_coverage_summary,
             commit_hash=commit_hash,
             snapshot_commit=snapshot_commit,
-            repo_dir=self._repo_dir_for_source_lookup(),
         )
         tmp_fd, tmp_name = tempfile.mkstemp(
             prefix=f".{self._analysis_path.name}.",

@@ -26,6 +26,13 @@ class RelationCallSiteJson(BaseModel):
     line: int = Field(default=0, description="One-based line number of the call site in the source file.")
     column: int = Field(default=0, description="One-based column number of the call site in the source file.")
 
+    @classmethod
+    def from_dict(cls, call_site: dict[str, Hashable]) -> "RelationCallSiteJson":
+        return cls(
+            line=_call_site_int(call_site.get("line", 0)),
+            column=_call_site_int(call_site.get("column", 0)),
+        )
+
 
 class RelationEdgeJson(BaseModel):
     source: str = Field(description="Key into methods_index for the source method.")
@@ -170,7 +177,7 @@ def _method_key(file_path: str, qualified_name: str) -> str:
     return f"{file_path}|{qualified_name}"
 
 
-def _source_reference_method_key(reference: SourceCodeReference, repo_dir: Path | None) -> str:
+def _source_reference_method_key(reference: SourceCodeReference, repo_dir: Path) -> str:
     file_path = normalize_repo_path(reference.reference_file or "", repo_dir)
     return _method_key(file_path, reference.qualified_name)
 
@@ -183,48 +190,13 @@ def _call_site_int(value: Hashable) -> int:
     return 0
 
 
-def _call_site_from_dict(call_site: dict[str, Hashable]) -> RelationCallSiteJson:
-    return RelationCallSiteJson(
-        line=_call_site_int(call_site.get("line", 0)), column=_call_site_int(call_site.get("column", 0))
-    )
-
-
-def _relation_edge_to_json(edge: RelationEdge, repo_dir: Path | None) -> RelationEdgeJson:
-    call_sites = [_call_site_from_dict(site) for site in edge.call_sites]
+def _relation_edge_to_json(edge: RelationEdge, repo_dir: Path) -> RelationEdgeJson:
+    call_sites = [RelationCallSiteJson.from_dict(site) for site in edge.call_sites]
     return RelationEdgeJson(
         source=_source_reference_method_key(edge.source, repo_dir),
         target=_source_reference_method_key(edge.target, repo_dir),
         call_sites=call_sites,
         description=edge.description,
-    )
-
-
-def _relation_edge_from_json(edge: dict, methods_index: dict[str, MethodIndexEntry]) -> RelationEdge:
-    source_key = edge.get("source")
-    target_key = edge.get("target")
-    if not isinstance(source_key, str) or not isinstance(target_key, str):
-        raise ValueError("Relation edge endpoints must be method-index keys")
-    source = methods_index.get(source_key)
-    target = methods_index.get(target_key)
-    if source is None or target is None:
-        missing = source_key if source is None else target_key
-        raise ValueError(f"Relation edge endpoint is missing from methods_index: {missing}")
-    call_sites = edge.get("call_sites") or []
-    return RelationEdge(
-        source=SourceCodeReference(
-            qualified_name=source.qualified_name,
-            reference_file=source.file_path,
-            reference_start_line=source.start_line,
-            reference_end_line=source.end_line,
-        ),
-        target=SourceCodeReference(
-            qualified_name=target.qualified_name,
-            reference_file=target.file_path,
-            reference_start_line=target.start_line,
-            reference_end_line=target.end_line,
-        ),
-        description=edge.get("description", ""),
-        call_sites=[{"line": int(site.get("line", 0)), "column": int(site.get("column", 0))} for site in call_sites],
     )
 
 
@@ -312,7 +284,7 @@ def _hydrate_component_methods_from_refs(
         logger.warning("Missing method index entry for %d ref(s): %s", len(missing), missing)
 
 
-def _relation_to_json(r: Relation, repo_dir: Path | None = None) -> RelationJson:
+def _relation_to_json(r: Relation, repo_dir: Path) -> RelationJson:
     """Convert a Relation to RelationJson, preserving all fields including static analysis evidence."""
     return RelationJson(
         relation=r.relation,
@@ -330,9 +302,9 @@ def _relation_to_json(r: Relation, repo_dir: Path | None = None) -> RelationJson
 def from_component_to_json_component(
     component: Component,
     expandable_components: list[Component],
+    repo_dir: Path,
     sub_analyses: dict[str, tuple[AnalysisInsights, list[Component]]] | None = None,
     processed_ids: set[str] | None = None,
-    repo_dir: Path | None = None,
 ) -> ComponentJson:
     if processed_ids is None:
         processed_ids = set()
@@ -351,7 +323,7 @@ def from_component_to_json_component(
     if can_expand and sub_analyses and component.component_id in sub_analyses:
         sub_analysis, sub_expandable = sub_analyses[component.component_id]
         nested_components = [
-            from_component_to_json_component(c, sub_expandable, sub_analyses, processed_ids, repo_dir)
+            from_component_to_json_component(c, sub_expandable, repo_dir, sub_analyses, processed_ids)
             for c in sub_analysis.components
         ]
         nested_relations = [
@@ -375,13 +347,12 @@ def from_component_to_json_component(
 def from_analysis_to_json(
     analysis: AnalysisInsights,
     expandable_components: list[Component],
+    repo_dir: Path,
     sub_analyses: dict[str, tuple[AnalysisInsights, list[Component]]] | None = None,
-    repo_dir: Path | None = None,
 ) -> str:
     """Convert an AnalysisInsights to a flat JSON string (no metadata wrapper)."""
     components_json = [
-        from_component_to_json_component(c, expandable_components, sub_analyses, None, repo_dir)
-        for c in analysis.components
+        from_component_to_json_component(c, expandable_components, repo_dir, sub_analyses) for c in analysis.components
     ]
     # Build a dict matching the old AnalysisInsightsJson shape but with nested components
     relations_json = [
@@ -450,11 +421,11 @@ def build_unified_analysis_json(
     analysis: AnalysisInsights,
     expandable_components: list[Component],
     repo_name: str,
+    repo_dir: Path,
     sub_analyses: dict[str, tuple[AnalysisInsights, list[Component]]] | None = None,
     file_coverage_summary: FileCoverageSummary | None = None,
     commit_hash: str = "",
     snapshot_commit: str | None = None,
-    repo_dir: Path | None = None,
 ) -> str:
     """Build the full unified analysis JSON with metadata and nested sub-analyses.
 
@@ -462,8 +433,7 @@ def build_unified_analysis_json(
     if not provided explicitly.
     """
     components_json = [
-        from_component_to_json_component(c, expandable_components, sub_analyses, None, repo_dir)
-        for c in analysis.components
+        from_component_to_json_component(c, expandable_components, repo_dir, sub_analyses) for c in analysis.components
     ]
     files_index = _build_files_index_from_analysis(analysis)
     methods_index = _build_methods_index_from_files(files_index)
@@ -562,8 +532,8 @@ def build_id_to_name_map(root_analysis: AnalysisInsights, sub_analyses: dict[str
 def _extract_analysis_recursive(
     data: dict,
     sub_analyses: dict[str, AnalysisInsights],
+    methods_index: dict[str, MethodIndexEntry],
     parent_component_id: str = "",
-    methods_index: dict[str, MethodIndexEntry] | None = None,
 ) -> AnalysisInsights:
     """Recursively extract AnalysisInsights from data dict, collecting all sub-analyses.
 
@@ -615,7 +585,7 @@ def _extract_analysis_recursive(
                 "components": nested_components,
                 "components_relations": comp_data.get("components_relations", []),
             }
-            sub_analysis = _extract_analysis_recursive(nested_data, sub_analyses, component.component_id, methods_index)
+            sub_analysis = _extract_analysis_recursive(nested_data, sub_analyses, methods_index, component.component_id)
             sub_analyses[component.component_id] = sub_analysis
 
     relations: list[Relation] = []
@@ -624,12 +594,12 @@ def _extract_analysis_recursive(
         all_edges: list[RelationEdge] = []
         for edge in r.get("key_edges", []):
             try:
-                key_edges.append(_relation_edge_from_json(edge, methods_index or {}))
+                key_edges.append(RelationEdge.from_dict(edge, methods_index))
             except ValueError as exc:
                 logger.warning("Skipping relation key edge: %s", exc)
         for edge in r.get("all_edges", []):
             try:
-                all_edges.append(_relation_edge_from_json(edge, methods_index or {}))
+                all_edges.append(RelationEdge.from_dict(edge, methods_index))
             except ValueError as exc:
                 logger.warning("Skipping relation all edge: %s", exc)
         relations.append(

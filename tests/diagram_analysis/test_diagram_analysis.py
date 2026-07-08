@@ -177,6 +177,8 @@ class TestUnifiedAnalysisJson(unittest.TestCase):
 
 class TestAnalysisJsonConversion(unittest.TestCase):
     def setUp(self):
+        self.repo_dir = Path(".")
+
         # Create sample components
         self.comp1 = Component(
             name="Component1",
@@ -242,7 +244,7 @@ class TestAnalysisJsonConversion(unittest.TestCase):
         # Test when component can be expanded
         new_components = [self.comp1]  # comp1 can be expanded
 
-        result = from_component_to_json_component(self.comp1, new_components)
+        result = from_component_to_json_component(self.comp1, new_components, self.repo_dir)
 
         self.assertIsInstance(result, ComponentJson)
         self.assertEqual(result.name, "Component1")
@@ -252,7 +254,7 @@ class TestAnalysisJsonConversion(unittest.TestCase):
         # Test when component cannot be expanded
         new_components: list[Component] = []  # No new components
 
-        result = from_component_to_json_component(self.comp1, new_components)
+        result = from_component_to_json_component(self.comp1, new_components, self.repo_dir)
 
         self.assertIsInstance(result, ComponentJson)
         self.assertEqual(result.name, "Component1")
@@ -276,7 +278,7 @@ class TestAnalysisJsonConversion(unittest.TestCase):
             key_entities=[ref],
         )
 
-        result = from_component_to_json_component(comp, [])
+        result = from_component_to_json_component(comp, [], self.repo_dir)
 
         self.assertEqual(result.name, "TestComp")
         self.assertEqual(result.description, "Test description")
@@ -287,7 +289,7 @@ class TestAnalysisJsonConversion(unittest.TestCase):
         # Test full analysis conversion to JSON
         new_components = [self.comp1]  # Only comp1 can expand
 
-        json_str = from_analysis_to_json(self.analysis, new_components)
+        json_str = from_analysis_to_json(self.analysis, new_components, self.repo_dir)
 
         # Parse JSON to verify it's valid
         data = json.loads(json_str)
@@ -337,7 +339,7 @@ class TestAnalysisJsonConversion(unittest.TestCase):
             )
         ]
 
-        data = json.loads(from_analysis_to_json(self.analysis, []))
+        data = json.loads(from_analysis_to_json(self.analysis, [], self.repo_dir))
 
         relation = data["components_relations"][0]
         self.assertNotIn("edge_count", relation)
@@ -402,7 +404,7 @@ class TestAnalysisJsonConversion(unittest.TestCase):
             ),
         ]
 
-        data = json.loads(from_analysis_to_json(self.analysis, []))
+        data = json.loads(from_analysis_to_json(self.analysis, [], self.repo_dir))
 
         self.assertEqual(len(data["components_relations"]), 2)
         relations_by_label = {relation["relation"]: relation for relation in data["components_relations"]}
@@ -443,7 +445,7 @@ class TestAnalysisJsonConversion(unittest.TestCase):
             )
         ]
 
-        data = json.loads(build_unified_analysis_json(self.analysis, [], "repo"))
+        data = json.loads(build_unified_analysis_json(self.analysis, [], "repo", self.repo_dir))
         parsed, _ = parse_unified_analysis(data)
 
         relation = parsed.components_relations[0]
@@ -481,7 +483,7 @@ class TestAnalysisJsonConversion(unittest.TestCase):
             )
         ]
 
-        data = json.loads(build_unified_analysis_json(self.analysis, [], "repo"))
+        data = json.loads(build_unified_analysis_json(self.analysis, [], "repo", self.repo_dir))
         parsed, _ = parse_unified_analysis(data)
 
         edge = parsed.components_relations[0].key_edges[0]
@@ -491,7 +493,7 @@ class TestAnalysisJsonConversion(unittest.TestCase):
         self.assertEqual(edge.call_sites, [{"line": 14, "column": 6}, {"line": 16, "column": 10}])
 
     def test_unified_analysis_parse_skips_edges_missing_from_methods_index(self):
-        data = json.loads(build_unified_analysis_json(self.analysis, [], "repo"))
+        data = json.loads(build_unified_analysis_json(self.analysis, [], "repo", self.repo_dir))
         data["components_relations"] = [
             {
                 "relation": "calls",
@@ -573,7 +575,7 @@ class TestAnalysisJsonConversion(unittest.TestCase):
                 )
             ]
 
-            data = json.loads(from_analysis_to_json(self.analysis, []))
+            data = json.loads(from_analysis_to_json(self.analysis, [], self.repo_dir))
 
         key_edge = data["components_relations"][0]["key_edges"][0]
         self.assertEqual(key_edge["call_sites"], [])
@@ -626,7 +628,7 @@ class TestAnalysisJsonConversion(unittest.TestCase):
         # Test with empty analysis
         empty_analysis = AnalysisInsights(description="Empty", components=[], components_relations=[])
 
-        json_str = from_analysis_to_json(empty_analysis, [])
+        json_str = from_analysis_to_json(empty_analysis, [], self.repo_dir)
 
         data = json.loads(json_str)
         self.assertEqual(data["description"], "Empty")
@@ -656,7 +658,7 @@ class TestAnalysisJsonConversion(unittest.TestCase):
 
         analysis = AnalysisInsights(description="Test", components=[comp], components_relations=[])
 
-        json_str = from_analysis_to_json(analysis, [])
+        json_str = from_analysis_to_json(analysis, [], self.repo_dir)
         data = json.loads(json_str)
 
         comp_data = data["components"][0]
@@ -664,7 +666,7 @@ class TestAnalysisJsonConversion(unittest.TestCase):
 
     def test_from_analysis_to_json_formatting(self):
         # Test that JSON is properly formatted with indentation
-        json_str = from_analysis_to_json(self.analysis, [])
+        json_str = from_analysis_to_json(self.analysis, [], self.repo_dir)
 
         # Check that it's indented (contains newlines and spaces)
         self.assertIn("\n", json_str)
@@ -950,11 +952,11 @@ class TestDiagramGenerator(unittest.TestCase):
             analysis,
             expandable_components,
             repo_name,
+            repo_dir,
             sub_analyses,
             file_coverage_summary=None,
             commit_hash="",
             snapshot_commit=None,
-            repo_dir=None,
         ):
             captured["expandable_components"] = expandable_components
             return "{}"
