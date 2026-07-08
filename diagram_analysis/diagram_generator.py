@@ -232,6 +232,19 @@ class DiagramGenerator:
             f.write(report.model_dump_json(indent=2, exclude_none=True))
         logger.info(f"File coverage report written to {coverage_path}")
 
+    def _changed_files_for_static_analysis(self) -> set[Path] | None:
+        """Absolute changed-file paths from the caller-supplied ChangeSet, or None.
+
+        The wrapper hands us a git-free ``ChangeSet`` (its fingerprint diff). We
+        hand those files to the static-analysis warm-start so it re-LSPs exactly
+        them without shelling out to ``git diff`` — which can't run against the
+        frozen, non-git copy. None (no ChangeSet) keeps the legacy git path.
+        """
+        if self.changes is None or self.changes.is_empty():
+            return None
+        rel_paths = self.changes.added_files + self.changes.modified_files + self.changes.deleted_files
+        return {(self.repo_location / rel).resolve() for rel in rel_paths}
+
     def _get_static_from_injected_analyzer(
         self,
         skip_cache: bool = False,
@@ -241,6 +254,7 @@ class DiagramGenerator:
             skip_cache=skip_cache,
             source_sha=source_sha,
             cache_dir=self.output_dir,
+            changed_files=self._changed_files_for_static_analysis(),
         )
         result.diagnostics = self._static_analyzer.collected_diagnostics  # type: ignore[union-attr]
         return result
@@ -307,6 +321,7 @@ class DiagramGenerator:
                 skip_cache=skip_cache,
                 source_sha=self.source_sha,
                 cache_dir=self.output_dir,
+                changed_files=self._changed_files_for_static_analysis(),
             )
 
         # Decide how to obtain static analysis results, then run it in parallel
