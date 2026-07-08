@@ -7,6 +7,7 @@ from typing import Any
 from agents.agent_responses import AnalysisInsights, RelationEdge, SourceCodeReference
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import Language
+from static_analyzer.internal_references import looks_internal_reference
 
 logger = logging.getLogger(__name__)
 
@@ -317,27 +318,7 @@ class ReferenceResolverMixin:
         if source_resolved == target_resolved:
             return False
         unresolved = edge.target if source_resolved else edge.source
-        return not self._looks_internal_reference(unresolved.qualified_name)
-
-    def _looks_internal_reference(self, qualified_name: str) -> bool:
-        """Return true when an unresolved name appears to refer to repo code."""
-        tokens = self._symbol_tokens(qualified_name)
-        if not tokens:
-            return False
-        if tokens[0] in self._internal_reference_roots():
-            return True
-        internal_tokens = self._internal_reference_tokens()
-        return any(token.startswith("_") and token in internal_tokens for token in tokens)
-
-    def _internal_reference_roots(self) -> set[str]:
-        return {token for token in self._internal_reference_tokens() if token not in {"packages", "src", "lib"}}
-
-    def _internal_reference_tokens(self) -> set[str]:
-        tokens: set[str] = set()
-        for lang in self.static_analysis.get_languages():
-            for node in self.static_analysis.iter_reference_nodes(lang):
-                tokens.update(self._symbol_tokens(node.fully_qualified_name))
-        return tokens
+        return not looks_internal_reference(self.static_analysis, unresolved.qualified_name)
 
     def _reference_file_exists(self, reference_file: str) -> bool:
         """Return true for absolute paths or paths relative to the analyzed repo."""

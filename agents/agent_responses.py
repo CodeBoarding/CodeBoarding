@@ -232,32 +232,23 @@ class Relation(LLMBaseModel):
     def llm_str(self) -> str:
         return f"({self.src_name}, {self.relation}, {self.dst_name})"
 
-    def pair_key(
-        self, fallback_to_names: bool = False, include_relation: bool = False
-    ) -> tuple[str, str] | tuple[str, str, str]:
-        src = self.src_id or self.src_name if fallback_to_names else self.src_id
-        dst = self.dst_id or self.dst_name if fallback_to_names else self.dst_id
+    def pair_key(self, include_relation: bool = False) -> tuple[str, str] | tuple[str, str, str]:
+        src = self.src_id
+        dst = self.dst_id
         if include_relation:
             return (src, dst, self.relation)
         return (src, dst)
 
-    def with_merged_edges(
-        self,
-        *,
-        src_id: str | None = None,
-        dst_id: str | None = None,
-        src_name: str | None = None,
-        dst_name: str | None = None,
-    ) -> "Relation":
+    def with_merged_edges(self) -> "Relation":
         key_edges, all_edges = self._merge_edges(self.key_edges, self.all_edges)
         return Relation(
             relation=self.relation,
-            src_name=src_name if src_name is not None else self.src_name,
-            dst_name=dst_name if dst_name is not None else self.dst_name,
+            src_name=self.src_name,
+            dst_name=self.dst_name,
             evidence=self.evidence,
             key_edges=key_edges,
-            src_id=src_id if src_id is not None else self.src_id,
-            dst_id=dst_id if dst_id is not None else self.dst_id,
+            src_id=self.src_id,
+            dst_id=self.dst_id,
             is_static=self.is_static,
             all_edges=all_edges,
         )

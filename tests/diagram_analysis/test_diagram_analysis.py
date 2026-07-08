@@ -490,6 +490,32 @@ class TestAnalysisJsonConversion(unittest.TestCase):
         self.assertEqual(edge.description, "dispatches through registry")
         self.assertEqual(edge.call_sites, [{"line": 14, "column": 6}, {"line": 16, "column": 10}])
 
+    def test_unified_analysis_parse_skips_edges_missing_from_methods_index(self):
+        data = json.loads(build_unified_analysis_json(self.analysis, [], "repo"))
+        data["components_relations"] = [
+            {
+                "relation": "calls",
+                "src_name": "Component1",
+                "dst_name": "Component2",
+                "src_id": "1",
+                "dst_id": "2",
+                "is_static": True,
+                "key_edges": [
+                    {
+                        "source": "missing.py|missing.call",
+                        "target": "component2.py|component2.load",
+                        "description": "external or stale endpoint",
+                    }
+                ],
+                "all_edges": [],
+            }
+        ]
+
+        parsed, _ = parse_unified_analysis(data)
+
+        self.assertEqual(len(parsed.components_relations), 1)
+        self.assertEqual(parsed.components_relations[0].key_edges, [])
+
     def test_from_analysis_to_json_does_not_infer_unproven_key_edge_call_sites(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
             source_file = Path(tmp_dir) / "component1.py"

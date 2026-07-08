@@ -14,8 +14,6 @@ from agents.agent_responses import AnalysisInsights, Relation, RelationEdge, Sou
 from agents.relation_edges import (
     append_or_merge_relation,
     merge_relation_edges,
-    relation_edge_identity,
-    unique_relation_edges,
 )
 from static_analyzer.graph import CallGraph, Edge
 
@@ -83,12 +81,8 @@ def _relation_with_edges(
         src_id=src_id,
         dst_id=dst_id,
         is_static=is_static,
-        all_edges=unique_relation_edges(edges),
+        all_edges=Relation._unique_edges(edges),
     )
-
-
-def _append_or_merge_relation(relations: list[Relation], relation: Relation) -> None:
-    append_or_merge_relation(relations, relation)
 
 
 def build_node_to_component_map(analysis: AnalysisInsights) -> dict[str, str]:
@@ -291,42 +285,28 @@ def merge_relations(
 
         # Match static relation in the same direction only
         static_rel = static_by_ids.get((src_id, dst_id))
+        static_edges = static_rel.all_edges if static_rel else []
 
-        if static_rel:
-            key_edges, all_edges = merge_relation_edges(llm_rel.key_edges, static_rel.all_edges)
-            for edge in static_rel.all_edges:
-                matched_static_edge_ids.add((src_id, dst_id, relation_edge_identity(edge)))
-            _append_or_merge_relation(
-                merged,
-                Relation(
-                    relation=llm_rel.relation,
-                    src_name=llm_rel.src_name,
-                    dst_name=llm_rel.dst_name,
-                    evidence=llm_rel.evidence,
-                    key_edges=key_edges,
-                    src_id=src_id,
-                    dst_id=dst_id,
-                    is_static=True,
-                    all_edges=all_edges,
-                ),
-            )
-        else:
-            if llm_rel.key_edges:
-                key_edges, all_edges = merge_relation_edges(llm_rel.key_edges, [])
-                _append_or_merge_relation(
-                    merged,
-                    Relation(
-                        relation=llm_rel.relation,
-                        src_name=llm_rel.src_name,
-                        dst_name=llm_rel.dst_name,
-                        evidence=llm_rel.evidence,
-                        key_edges=key_edges,
-                        src_id=src_id,
-                        dst_id=dst_id,
-                        is_static=False,
-                        all_edges=all_edges,
-                    ),
-                )
+        if not static_edges and not llm_rel.key_edges:
+            continue
+
+        key_edges, all_edges = merge_relation_edges(llm_rel.key_edges, static_edges)
+        for edge in static_edges:
+            matched_static_edge_ids.add((src_id, dst_id, edge.identity()))
+        append_or_merge_relation(
+            merged,
+            Relation(
+                relation=llm_rel.relation,
+                src_name=llm_rel.src_name,
+                dst_name=llm_rel.dst_name,
+                evidence=llm_rel.evidence,
+                key_edges=key_edges,
+                src_id=src_id,
+                dst_id=dst_id,
+                is_static=bool(static_edges),
+                all_edges=all_edges,
+            ),
+        )
 
     for static_rel in static_relations:
         src_name = id_to_name.get(static_rel.src_cluster_id, static_rel.src_cluster_id)
@@ -334,11 +314,10 @@ def merge_relations(
         unmatched_edges = [
             edge
             for edge in static_rel.all_edges
-            if (static_rel.src_cluster_id, static_rel.dst_cluster_id, relation_edge_identity(edge))
-            not in matched_static_edge_ids
+            if (static_rel.src_cluster_id, static_rel.dst_cluster_id, edge.identity()) not in matched_static_edge_ids
         ]
         if unmatched_edges:
-            _append_or_merge_relation(
+            append_or_merge_relation(
                 merged,
                 _relation_with_edges(
                     "calls",

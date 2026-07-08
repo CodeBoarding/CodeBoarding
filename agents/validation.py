@@ -6,9 +6,18 @@ import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from difflib import SequenceMatcher
+from typing import Protocol
 
-from agents.agent_responses import AnalysisInsights, ClusterAnalysis, Component, ComponentFiles, ScopeRelations
+from agents.agent_responses import (
+    AnalysisInsights,
+    ClusterAnalysis,
+    Component,
+    ComponentFiles,
+    Relation,
+    ScopeRelations,
+)
 from repo_utils import normalize_path
+from static_analyzer.internal_references import looks_internal_reference
 from static_analyzer.graph import CallGraph, ClusterResult
 
 from static_analyzer.analysis_result import StaticAnalysisResults
@@ -57,6 +66,10 @@ class ValidationResult:
     is_valid: bool
     feedback_messages: list[str] = field(default_factory=list)
     score: float = 0.0
+
+
+class RelationValidationTarget(Protocol):
+    components_relations: list[Relation]
 
 
 def _effective_validation_score(result: ValidationResult) -> float:
@@ -571,13 +584,15 @@ def validate_relation_component_names(result: AnalysisInsights, _context: Valida
     )
 
 
-def validate_relation_evidence(result: AnalysisInsights, context: ValidationContext) -> ValidationResult:
+def validate_relation_evidence(result: RelationValidationTarget, context: ValidationContext) -> ValidationResult:
     """Validate LLM relations against directed CFG edges or explicit runtime evidence."""
     if not context.llm_cluster_analysis or not context.cluster_results or not context.cfg_graphs:
         logger.warning("[Validation] Missing static context for relation evidence validation")
         return ValidationResult(is_valid=True)
 
-    components = result.components if hasattr(result, "components") else context.components
+    components = context.components
+    if not components and isinstance(result, AnalysisInsights):
+        components = result.components
     component_to_clusters = _component_cluster_ids(components, context.llm_cluster_analysis)
     cluster_edge_lookup = _build_cluster_edge_lookup(context.cluster_results, context.cfg_graphs)
     unsupported: list[str] = []
@@ -710,49 +725,13 @@ def _has_relation_evidence(relation) -> bool:
 
 def _has_external_unresolved_endpoint(edge, source_node, target_node, context: ValidationContext) -> bool:
     """Return true when one endpoint is repo code and the other looks external."""
-    if source_node is not None and target_node is None:
-        return not _looks_internal_reference(edge.target, context)
-    if source_node is None and target_node is not None:
-        return not _looks_internal_reference(edge.source, context)
-    return False
-
-
-def _looks_internal_reference(reference, context: ValidationContext) -> bool:
-    """Return true when an unresolved reference appears to name repo code."""
-    tokens = _reference_tokens(reference.qualified_name)
-    if not tokens:
+    if context.static_analysis is None:
         return False
-    if tokens[0] in _internal_reference_roots(context):
-        return True
-    return any(token.startswith("_") and token in _internal_reference_tokens(context) for token in tokens)
-
-
-def _internal_reference_roots(context: ValidationContext) -> set[str]:
-    roots: set[str] = set()
-    for token in _internal_reference_tokens(context):
-        if token not in {"packages", "src", "lib"}:
-            roots.add(token)
-    return roots
-
-
-def _internal_reference_tokens(context: ValidationContext) -> set[str]:
-    static_analysis = context.static_analysis
-    if static_analysis is None:
-        return set()
-    tokens: set[str] = set()
-    for lang in static_analysis.get_languages():
-        for node in static_analysis.iter_reference_nodes(lang):
-            tokens.update(_reference_tokens(node.fully_qualified_name))
-    return tokens
-
-
-def _reference_tokens(qualified_name: str) -> list[str]:
-    return [token.lower() for token in re.split(r"[.:/\\]+", qualified_name) if token]
-
-
-def _same_endpoint_key_edges(relation, context: ValidationContext) -> list[str]:
-    """Return key edges whose endpoints resolve to the same symbol."""
-    return _valid_key_edge_descriptions(relation, context)[1]
+    if source_node is not None and target_node is None:
+        return not looks_internal_reference(context.static_analysis, edge.target.qualified_name)
+    if source_node is None and target_node is not None:
+        return not looks_internal_reference(context.static_analysis, edge.source.qualified_name)
+    return False
 
 
 def _source_reference_node(reference, context: ValidationContext):
@@ -774,12 +753,6 @@ def _source_reference_node(reference, context: ValidationContext):
             return node
 
     return None
-
-
-def _source_reference_identity(reference, context: ValidationContext) -> str:
-    """Resolve a source reference to a stable identity without mutating it."""
-    node = _source_reference_node(reference, context)
-    return _node_identity(node) if node is not None else ""
 
 
 def _has_cfg_edge(source_qname: str, target_qname: str, context: ValidationContext) -> bool:

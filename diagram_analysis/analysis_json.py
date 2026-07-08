@@ -193,8 +193,11 @@ def _relation_edge_from_json(edge: dict, methods_index: dict[str, MethodIndexEnt
     target_key = edge.get("target")
     if not isinstance(source_key, str) or not isinstance(target_key, str):
         raise ValueError("Relation edge endpoints must be method-index keys")
-    source = methods_index[source_key]
-    target = methods_index[target_key]
+    source = methods_index.get(source_key)
+    target = methods_index.get(target_key)
+    if source is None or target is None:
+        missing = source_key if source is None else target_key
+        raise ValueError(f"Relation edge endpoint is missing from methods_index: {missing}")
     call_sites = edge.get("call_sites") or []
     return RelationEdge(
         source=SourceCodeReference(
@@ -346,9 +349,7 @@ def from_component_to_json_component(
         ]
         nested_relations = [
             _relation_to_json(r, repo_dir)
-            for r in merge_relations_by_pair(
-                sub_analysis.components_relations, fallback_to_names=True, include_relation=True
-            )
+            for r in merge_relations_by_pair(sub_analysis.components_relations, include_relation=True)
         ]
 
     return ComponentJson(
@@ -360,6 +361,7 @@ def from_component_to_json_component(
         file_methods=_to_component_file_method_refs(component.file_methods),
         can_expand=can_expand,
         components=nested_components,
+        components_relations=nested_relations,
     )
 
 
@@ -377,7 +379,7 @@ def from_analysis_to_json(
     # Build a dict matching the old AnalysisInsightsJson shape but with nested components
     relations_json = [
         _relation_to_json(r, repo_dir)
-        for r in merge_relations_by_pair(analysis.components_relations, fallback_to_names=True, include_relation=True)
+        for r in merge_relations_by_pair(analysis.components_relations, include_relation=True)
     ]
     files_index = _build_files_index_from_analysis(analysis)
     methods_index = _build_methods_index_from_files(files_index)
@@ -467,7 +469,7 @@ def build_unified_analysis_json(
 
     relations_json = [
         _relation_to_json(r, repo_dir)
-        for r in merge_relations_by_pair(analysis.components_relations, fallback_to_names=True, include_relation=True)
+        for r in merge_relations_by_pair(analysis.components_relations, include_relation=True)
     ]
     unified = UnifiedAnalysisJson(
         snapshotCommit=snapshot_commit,
@@ -609,21 +611,36 @@ def _extract_analysis_recursive(
             sub_analysis = _extract_analysis_recursive(nested_data, sub_analyses, component.component_id, methods_index)
             sub_analyses[component.component_id] = sub_analysis
 
-    return AnalysisInsights(
-        description=data.get("description", ""),
-        components=components,
-        components_relations=[
+    relations: list[Relation] = []
+    for r in data.get("components_relations", []):
+        key_edges: list[RelationEdge] = []
+        all_edges: list[RelationEdge] = []
+        for edge in r.get("key_edges", []):
+            try:
+                key_edges.append(_relation_edge_from_json(edge, methods_index or {}))
+            except ValueError as exc:
+                logger.warning("Skipping relation key edge: %s", exc)
+        for edge in r.get("all_edges", []):
+            try:
+                all_edges.append(_relation_edge_from_json(edge, methods_index or {}))
+            except ValueError as exc:
+                logger.warning("Skipping relation all edge: %s", exc)
+        relations.append(
             Relation(
                 relation=r["relation"],
                 src_name=r["src_name"],
                 dst_name=r["dst_name"],
                 evidence=r.get("evidence", ""),
-                key_edges=[_relation_edge_from_json(edge, methods_index or {}) for edge in r.get("key_edges", [])],
+                key_edges=key_edges,
                 src_id=r.get("src_id", ""),
                 dst_id=r.get("dst_id", ""),
                 is_static=r.get("is_static", False),
-                all_edges=[_relation_edge_from_json(edge, methods_index or {}) for edge in r.get("all_edges", [])],
+                all_edges=all_edges,
             )
-            for r in data.get("components_relations", [])
-        ],
+        )
+
+    return AnalysisInsights(
+        description=data.get("description", ""),
+        components=components,
+        components_relations=relations,
     )

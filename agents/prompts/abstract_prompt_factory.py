@@ -79,9 +79,6 @@ class AbstractPromptFactory(ABC):
 
 API_SURFACES_MESSAGE = """Analyze component API surfaces for `{project_name}`.
 
-Project Context:
-{meta_context}
-
 Project Type: {project_type}
 
 Components:
@@ -99,9 +96,6 @@ Static call evidence is incomplete. Reason from component APIs, registries, prot
 
 
 RELATION_ANALYSIS_MESSAGE = """Discover architectural communication relations for `{project_name}`.
-
-Project Context:
-{meta_context}
 
 Project Type: {project_type}
 
