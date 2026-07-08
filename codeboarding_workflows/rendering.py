@@ -46,12 +46,18 @@ def project_relations_to_level(
             continue
         append_or_merge_relation(
             aggregated,
-            rel,
+            Relation(
+                relation=rel.relation,
+                src_name=id_to_name.get(src, src),
+                dst_name=id_to_name.get(dst, dst),
+                evidence=rel.evidence,
+                key_edges=rel.key_edges,
+                src_id=src,
+                dst_id=dst,
+                is_static=rel.is_static,
+                all_edges=rel.all_edges,
+            ),
             key=(src, dst),
-            src_id=src,
-            dst_id=dst,
-            src_name=id_to_name.get(src, src),
-            dst_name=id_to_name.get(dst, dst),
         )
     return aggregated
 
