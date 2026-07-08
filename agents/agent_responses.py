@@ -255,7 +255,7 @@ class Relation(LLMBaseModel):
             return (src, dst, self.relation)
         return (src, dst)
 
-    def with_merged_edges(self) -> "Relation":
+    def with_merged_edges(self) -> Relation:
         key_edges, all_edges = self._merge_edges(self.key_edges, self.all_edges)
         return Relation(
             relation=self.relation,
@@ -269,7 +269,7 @@ class Relation(LLMBaseModel):
             all_edges=all_edges,
         )
 
-    def merge_edges_from(self, relation: "Relation") -> None:
+    def merge_edges_from(self, relation: Relation) -> None:
         self.key_edges, self.all_edges = self._merge_edges(
             [*self.key_edges, *relation.key_edges], [*self.all_edges, *relation.all_edges]
         )
