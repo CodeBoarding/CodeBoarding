@@ -14,6 +14,7 @@ from agents.agent_responses import (
     FileMethodGroup,
     MethodEntry,
     Relation,
+    RelationCallSite,
     RelationEdge,
     ScopeOperation,
     ScopeOperationAction,
@@ -333,7 +334,7 @@ class TestAnalysisJsonConversion(unittest.TestCase):
                             reference_start_line=30,
                             reference_end_line=40,
                         ),
-                        call_sites=[{"line": 12, "column": 8}, {"line": 18, "column": 12}],
+                        call_sites=[RelationCallSite(line=12, column=8), RelationCallSite(line=18, column=12)],
                     )
                 ],
             )
@@ -374,7 +375,7 @@ class TestAnalysisJsonConversion(unittest.TestCase):
                             reference_start_line=30,
                             reference_end_line=40,
                         ),
-                        call_sites=[{"line": 12, "column": 8}],
+                        call_sites=[RelationCallSite(line=12, column=8)],
                     )
                 ],
             ),
@@ -398,7 +399,7 @@ class TestAnalysisJsonConversion(unittest.TestCase):
                             reference_start_line=30,
                             reference_end_line=40,
                         ),
-                        call_sites=[{"line": 14, "column": 6}],
+                        call_sites=[RelationCallSite(line=14, column=6)],
                     )
                 ],
             ),
@@ -439,7 +440,7 @@ class TestAnalysisJsonConversion(unittest.TestCase):
                             reference_start_line=30,
                             reference_end_line=40,
                         ),
-                        call_sites=[{"line": 12, "column": 8}, {"line": 18, "column": 12}],
+                        call_sites=[RelationCallSite(line=12, column=8), RelationCallSite(line=18, column=12)],
                     )
                 ],
             )
@@ -480,7 +481,7 @@ class TestAnalysisJsonConversion(unittest.TestCase):
                             reference_end_line=40,
                         ),
                         description="dispatches through registry",
-                        call_sites=[{"line": 14, "column": 6}, {"line": 16, "column": 10}],
+                        call_sites=[RelationCallSite(line=14, column=6), RelationCallSite(line=16, column=10)],
                     )
                 ],
             )
