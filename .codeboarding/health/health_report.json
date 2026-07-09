@@ -1,7 +1,7 @@
 {
   "repository_name": "CodeBoarding",
-  "timestamp": "2026-07-07T22:16:47.621289+00:00",
-  "overall_score": 0.9330194805194806,
+  "timestamp": "2026-07-09T18:32:34.725714+00:00",
+  "overall_score": 0.9345366156392222,
   "check_summaries": [
     {
       "check_name": "function_size",
@@ -382,7 +382,7 @@
       "description": "Checks that functions/methods do not exceed line count thresholds",
       "language": "python",
       "check_type": "standard",
-      "total_entities_checked": 1419,
+      "total_entities_checked": 1489,
       "findings_count": 0,
       "warning_count": 0,
       "score": 1.0,
@@ -393,10 +393,10 @@
       "description": "Checks efferent coupling: how many other functions each function calls",
       "language": "python",
       "check_type": "standard",
-      "total_entities_checked": 1427,
-      "findings_count": 40,
-      "warning_count": 40,
-      "score": 0.9719691660826909,
+      "total_entities_checked": 1499,
+      "findings_count": 45,
+      "warning_count": 45,
+      "score": 0.9699799866577719,
       "finding_groups": [
         {
           "severity": "warning",
@@ -420,23 +420,9 @@
             {
               "entity_name": "agents.details_agent.DetailsAgent.step_clusters_grouping",
               "file_path": "agents/details_agent.py",
-              "line_start": 68,
-              "line_end": 125,
-              "metric_value": 18
-            },
-            {
-              "entity_name": "agents.details_agent.DetailsAgent.step_final_analysis",
-              "file_path": "agents/details_agent.py",
-              "line_start": 128,
-              "line_end": 195,
-              "metric_value": 18
-            },
-            {
-              "entity_name": "agents.cluster_methods_mixin.ClusterMethodsMixin._create_strict_component_subgraph",
-              "file_path": "agents/cluster_methods_mixin.py",
-              "line_start": 428,
-              "line_end": 524,
-              "metric_value": 18
+              "line_start": 99,
+              "line_end": 156,
+              "metric_value": 19
             },
             {
               "entity_name": "diagram_analysis.diagram_generator.DiagramGenerator.pre_analysis",
@@ -446,10 +432,31 @@
               "metric_value": 18
             },
             {
+              "entity_name": "agents.details_agent.DetailsAgent.step_final_analysis",
+              "file_path": "agents/details_agent.py",
+              "line_start": 159,
+              "line_end": 233,
+              "metric_value": 18
+            },
+            {
+              "entity_name": "agents.cluster_methods_mixin.ClusterMethodsMixin._create_strict_component_subgraph",
+              "file_path": "agents/cluster_methods_mixin.py",
+              "line_start": 426,
+              "line_end": 522,
+              "metric_value": 18
+            },
+            {
               "entity_name": "static_analyzer.incremental_orchestrator.update_cfg_for_changed_files",
               "file_path": "static_analyzer/incremental_orchestrator.py",
               "line_start": 34,
               "line_end": 106,
+              "metric_value": 17
+            },
+            {
+              "entity_name": "agents.abstraction_agent.AbstractionAgent.step_relation_analysis",
+              "file_path": "agents/abstraction_agent.py",
+              "line_start": 204,
+              "line_end": 243,
               "metric_value": 17
             },
             {
@@ -481,11 +488,32 @@
               "metric_value": 15
             },
             {
+              "entity_name": "agents.details_agent.DetailsAgent.step_relation_analysis",
+              "file_path": "agents/details_agent.py",
+              "line_start": 257,
+              "line_end": 297,
+              "metric_value": 15
+            },
+            {
               "entity_name": "agents.incremental_agent.IncrementalAgent.update_scope",
               "file_path": "agents/incremental_agent.py",
               "line_start": 61,
               "line_end": 117,
               "metric_value": 15
+            },
+            {
+              "entity_name": "agents.tools.toolkit.CodeBoardingToolkit.get_all_tools",
+              "file_path": "agents/tools/toolkit.py",
+              "line_start": 116,
+              "line_end": 135,
+              "metric_value": 14
+            },
+            {
+              "entity_name": "agents.incremental_agent.IncrementalAgent.generate_scope_relations",
+              "file_path": "agents/incremental_agent.py",
+              "line_start": 199,
+              "line_end": 250,
+              "metric_value": 14
             },
             {
               "entity_name": "codeboarding_cli.commands.incremental_analysis.run_from_args",
@@ -502,10 +530,17 @@
               "metric_value": 13
             },
             {
-              "entity_name": "agents.tools.toolkit.CodeBoardingToolkit.get_all_tools",
-              "file_path": "agents/tools/toolkit.py",
-              "line_start": 108,
-              "line_end": 126,
+              "entity_name": "agents.details_agent.DetailsAgent.run",
+              "file_path": "agents/details_agent.py",
+              "line_start": 299,
+              "line_end": 363,
+              "metric_value": 13
+            },
+            {
+              "entity_name": "agents.abstraction_agent.AbstractionAgent.run",
+              "file_path": "agents/abstraction_agent.py",
+              "line_start": 245,
+              "line_end": 272,
               "metric_value": 13
             },
             {
@@ -523,20 +558,6 @@
               "metric_value": 12
             },
             {
-              "entity_name": "agents.incremental_agent.IncrementalAgent._patch_scope_file_methods",
-              "file_path": "agents/incremental_agent.py",
-              "line_start": 169,
-              "line_end": 196,
-              "metric_value": 12
-            },
-            {
-              "entity_name": "agents.incremental_agent.IncrementalAgent.generate_scope_relations",
-              "file_path": "agents/incremental_agent.py",
-              "line_start": 199,
-              "line_end": 252,
-              "metric_value": 12
-            },
-            {
               "entity_name": "agents.incremental_planning_agent.IncrementalPlanningAgent.decide_scope_update",
               "file_path": "agents/incremental_planning_agent.py",
               "line_start": 82,
@@ -544,17 +565,31 @@
               "metric_value": 12
             },
             {
-              "entity_name": "agents.details_agent.DetailsAgent.run",
+              "entity_name": "agents.details_agent.DetailsAgent.__init__",
               "file_path": "agents/details_agent.py",
-              "line_start": 197,
-              "line_end": 251,
+              "line_start": 48,
+              "line_end": 96,
+              "metric_value": 12
+            },
+            {
+              "entity_name": "agents.abstraction_agent.AbstractionAgent.step_clusters_grouping",
+              "file_path": "agents/abstraction_agent.py",
+              "line_start": 92,
+              "line_end": 132,
               "metric_value": 12
             },
             {
               "entity_name": "agents.cluster_methods_mixin.ClusterMethodsMixin._plan_skip_sets",
               "file_path": "agents/cluster_methods_mixin.py",
-              "line_start": 189,
-              "line_end": 265,
+              "line_start": 187,
+              "line_end": 263,
+              "metric_value": 12
+            },
+            {
+              "entity_name": "agents.incremental_agent.IncrementalAgent._patch_scope_file_methods",
+              "file_path": "agents/incremental_agent.py",
+              "line_start": 169,
+              "line_end": 196,
               "metric_value": 12
             },
             {
@@ -602,9 +637,16 @@
             {
               "entity_name": "agents.abstraction_agent.AbstractionAgent.step_final_analysis",
               "file_path": "agents/abstraction_agent.py",
-              "line_start": 108,
-              "line_end": 151,
-              "metric_value": 10
+              "line_start": 135,
+              "line_end": 180,
+              "metric_value": 11
+            },
+            {
+              "entity_name": "github_action.generate_analysis",
+              "file_path": "github_action.py",
+              "line_start": 87,
+              "line_end": 131,
+              "metric_value": 11
             },
             {
               "entity_name": "codeboarding_cli.bootstrap.bootstrap_environment",
@@ -621,24 +663,10 @@
               "metric_value": 10
             },
             {
-              "entity_name": "github_action.generate_analysis",
-              "file_path": "github_action.py",
-              "line_start": 87,
-              "line_end": 131,
-              "metric_value": 10
-            },
-            {
               "entity_name": "static_analyzer.java_config_scanner.JavaConfigScanner.scan",
               "file_path": "static_analyzer/java_config_scanner.py",
               "line_start": 39,
               "line_end": 103,
-              "metric_value": 10
-            },
-            {
-              "entity_name": "static_analyzer.graph.CallGraph.filter",
-              "file_path": "static_analyzer/graph.py",
-              "line_start": 216,
-              "line_end": 243,
               "metric_value": 10
             },
             {
@@ -670,17 +698,24 @@
               "metric_value": 10
             },
             {
-              "entity_name": "agents.details_agent.DetailsAgent.__init__",
-              "file_path": "agents/details_agent.py",
-              "line_start": 38,
-              "line_end": 65,
-              "metric_value": 10
-            },
-            {
               "entity_name": "diagram_analysis.diagram_generator.DiagramGenerator._collect_method_entries_from_static_analysis",
               "file_path": "diagram_analysis/diagram_generator.py",
               "line_start": 573,
               "line_end": 603,
+              "metric_value": 10
+            },
+            {
+              "entity_name": "static_analyzer.graph.CallGraph.filter",
+              "file_path": "static_analyzer/graph.py",
+              "line_start": 219,
+              "line_end": 246,
+              "metric_value": 10
+            },
+            {
+              "entity_name": "diagram_analysis.analysis_json.build_unified_analysis_json",
+              "file_path": "diagram_analysis/analysis_json.py",
+              "line_start": 399,
+              "line_end": 445,
               "metric_value": 10
             }
           ]
@@ -692,10 +727,10 @@
       "description": "Checks afferent coupling: how many other functions call each function",
       "language": "python",
       "check_type": "standard",
-      "total_entities_checked": 1427,
-      "findings_count": 11,
-      "warning_count": 11,
-      "score": 0.9922915206727401,
+      "total_entities_checked": 1499,
+      "findings_count": 14,
+      "warning_count": 14,
+      "score": 0.9906604402935291,
       "finding_groups": [
         {
           "severity": "warning",
@@ -707,20 +742,34 @@
               "file_path": "static_analyzer/analysis_result.py",
               "line_start": 206,
               "line_end": 211,
-              "metric_value": 29
+              "metric_value": 27
             },
             {
               "entity_name": "static_analyzer.analysis_result.StaticAnalysisResults.get_languages",
               "file_path": "static_analyzer/analysis_result.py",
-              "line_start": 274,
-              "line_end": 276,
-              "metric_value": 28
+              "line_start": 282,
+              "line_end": 284,
+              "metric_value": 27
             },
             {
               "entity_name": "agents.prompts.prompt_factory.get_global_factory",
               "file_path": "agents/prompts/prompt_factory.py",
               "line_start": 114,
               "line_end": 121,
+              "metric_value": 18
+            },
+            {
+              "entity_name": "static_analyzer.graph.Edge.get_source",
+              "file_path": "static_analyzer/graph.py",
+              "line_start": 94,
+              "line_end": 95,
+              "metric_value": 16
+            },
+            {
+              "entity_name": "static_analyzer.graph.Edge.get_destination",
+              "file_path": "static_analyzer/graph.py",
+              "line_start": 97,
+              "line_end": 98,
               "metric_value": 16
             },
             {
@@ -731,27 +780,6 @@
               "metric_value": 14
             },
             {
-              "entity_name": "static_analyzer.graph.Edge.get_source",
-              "file_path": "static_analyzer/graph.py",
-              "line_start": 94,
-              "line_end": 95,
-              "metric_value": 14
-            },
-            {
-              "entity_name": "static_analyzer.graph.Edge.get_destination",
-              "file_path": "static_analyzer/graph.py",
-              "line_start": 97,
-              "line_end": 98,
-              "metric_value": 14
-            },
-            {
-              "entity_name": "repo_utils.ignore.RepoIgnoreManager.should_ignore",
-              "file_path": "repo_utils/ignore.py",
-              "line_start": 223,
-              "line_end": 251,
-              "metric_value": 13
-            },
-            {
               "entity_name": "static_analyzer.engine.language_adapter.LanguageAdapter.language",
               "file_path": "static_analyzer/engine/language_adapter.py",
               "line_start": 27,
@@ -759,24 +787,52 @@
               "metric_value": 13
             },
             {
+              "entity_name": "repo_utils.ignore.RepoIgnoreManager.should_ignore",
+              "file_path": "repo_utils/ignore.py",
+              "line_start": 225,
+              "line_end": 253,
+              "metric_value": 13
+            },
+            {
               "entity_name": "tool_registry.paths.get_servers_dir",
               "file_path": "tool_registry/paths.py",
-              "line_start": 81,
-              "line_end": 83,
+              "line_start": 83,
+              "line_end": 85,
               "metric_value": 12
             },
             {
-              "entity_name": "utils.sanitize",
-              "file_path": "utils.py",
-              "line_start": 90,
-              "line_end": 92,
+              "entity_name": "repo_utils.path_utils.normalize_repo_path",
+              "file_path": "repo_utils/path_utils.py",
+              "line_start": 5,
+              "line_end": 20,
+              "metric_value": 10
+            },
+            {
+              "entity_name": "agents.agent_responses.MetaAnalysisInsights.llm_str",
+              "file_path": "agents/agent_responses.py",
+              "line_start": 808,
+              "line_end": 818,
+              "metric_value": 10
+            },
+            {
+              "entity_name": "agents.agent.CodeBoardingAgent._validation_invoke",
+              "file_path": "agents/agent.py",
+              "line_start": 240,
+              "line_end": 335,
               "metric_value": 10
             },
             {
               "entity_name": "static_analyzer.graph.CallGraph.to_networkx",
               "file_path": "static_analyzer/graph.py",
-              "line_start": 317,
-              "line_end": 329,
+              "line_start": 320,
+              "line_end": 332,
+              "metric_value": 10
+            },
+            {
+              "entity_name": "utils.sanitize",
+              "file_path": "utils.py",
+              "line_start": 91,
+              "line_end": 93,
               "metric_value": 10
             }
           ]
@@ -788,10 +844,10 @@
       "description": "Detects classes with too many methods, too much code, or too many outgoing dependencies",
       "language": "python",
       "check_type": "standard",
-      "total_entities_checked": 99,
-      "findings_count": 15,
-      "warning_count": 15,
-      "score": 0.8484848484848485,
+      "total_entities_checked": 102,
+      "findings_count": 17,
+      "warning_count": 17,
+      "score": 0.8333333333333334,
       "finding_groups": [
         {
           "severity": "warning",
@@ -801,7 +857,7 @@
             {
               "entity_name": "agents.cluster_methods_mixin.ClusterMethodsMixin",
               "file_path": "agents/cluster_methods_mixin.py",
-              "metric_value": 819.0
+              "metric_value": 813.0
             },
             {
               "entity_name": "static_analyzer.engine.lsp_client.LSPClient",
@@ -824,6 +880,21 @@
               "metric_value": 619.0
             },
             {
+              "entity_name": "static_analyzer.reference_resolver.StaticReferenceResolver",
+              "file_path": "static_analyzer/reference_resolver.py",
+              "metric_value": 95.0
+            },
+            {
+              "entity_name": "agents.details_agent.DetailsAgent",
+              "file_path": "agents/details_agent.py",
+              "metric_value": 86.0
+            },
+            {
+              "entity_name": "agents.abstraction_agent.AbstractionAgent",
+              "file_path": "agents/abstraction_agent.py",
+              "metric_value": 70.0
+            },
+            {
               "entity_name": "static_analyzer.engine.call_graph_builder.CallGraphBuilder",
               "file_path": "static_analyzer/engine/call_graph_builder.py",
               "metric_value": 61.0
@@ -831,12 +902,17 @@
             {
               "entity_name": "agents.incremental_agent.IncrementalAgent",
               "file_path": "agents/incremental_agent.py",
-              "metric_value": 59.0
+              "metric_value": 61.0
             },
             {
-              "entity_name": "agents.details_agent.DetailsAgent",
-              "file_path": "agents/details_agent.py",
-              "metric_value": 58.0
+              "entity_name": "agents.agent.CodeBoardingAgent",
+              "file_path": "agents/agent.py",
+              "metric_value": 57.0
+            },
+            {
+              "entity_name": "static_analyzer.engine.source_inspector.SourceInspector",
+              "file_path": "static_analyzer/engine/source_inspector.py",
+              "metric_value": 56.0
             },
             {
               "entity_name": "static_analyzer.engine.language_adapter.LanguageAdapter",
@@ -846,17 +922,12 @@
             {
               "entity_name": "static_analyzer.analysis_result.StaticAnalysisResults",
               "file_path": "static_analyzer/analysis_result.py",
-              "metric_value": 47.0
-            },
-            {
-              "entity_name": "static_analyzer.engine.source_inspector.SourceInspector",
-              "file_path": "static_analyzer/engine/source_inspector.py",
-              "metric_value": 47.0
+              "metric_value": 48.0
             },
             {
               "entity_name": "agents.tools.toolkit.CodeBoardingToolkit",
               "file_path": "agents/tools/toolkit.py",
-              "metric_value": 42.0
+              "metric_value": 46.0
             },
             {
               "entity_name": "static_analyzer.analysis_cache.StaticAnalysisCache",
@@ -864,14 +935,9 @@
               "metric_value": 40.0
             },
             {
-              "entity_name": "agents.agent.CodeBoardingAgent",
-              "file_path": "agents/agent.py",
-              "metric_value": 34.0
-            },
-            {
-              "entity_name": "agents.abstraction_agent.AbstractionAgent",
-              "file_path": "agents/abstraction_agent.py",
-              "metric_value": 31.0
+              "entity_name": "static_analyzer.engine.adapters.java_adapter.JavaAdapter",
+              "file_path": "static_analyzer/engine/adapters/java_adapter.py",
+              "metric_value": 30.0
             }
           ]
         }
@@ -882,9 +948,9 @@
       "description": "Detects unused imports, variables, functions, and dead code via LSP diagnostics",
       "language": "python",
       "check_type": "standard",
-      "total_entities_checked": 235,
-      "findings_count": 235,
-      "warning_count": 92,
+      "total_entities_checked": 232,
+      "findings_count": 232,
+      "warning_count": 91,
       "score": 0.0,
       "finding_groups": [
         {
@@ -907,13 +973,6 @@
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"ToolMessage\" is not accessed",
-              "file_path": "agents/agent.py",
-              "line_start": 8,
-              "line_end": 8,
-              "metric_value": 0.0
-            },
-            {
               "entity_name": "[unused_variable] \"provider\" is not accessed",
               "file_path": "agents/model_capabilities.py",
               "line_start": 64,
@@ -925,76 +984,6 @@
               "file_path": "agents/retry.py",
               "line_start": 64,
               "line_end": 64,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"_check_edge_between_cluster_sets\" is not accessed",
-              "file_path": "agents/validation.py",
-              "line_start": 616,
-              "line_end": 616,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"_context\" is not accessed",
-              "file_path": "agents/validation.py",
-              "line_start": 513,
-              "line_end": 513,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"CodeReferenceReader\" is not accessed",
-              "file_path": "agents/tools/__init__.py",
-              "line_start": 1,
-              "line_end": 1,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"CodeStructureTool\" is not accessed",
-              "file_path": "agents/tools/__init__.py",
-              "line_start": 2,
-              "line_end": 2,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"PackageRelationsTool\" is not accessed",
-              "file_path": "agents/tools/__init__.py",
-              "line_start": 3,
-              "line_end": 3,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"FileStructureTool\" is not accessed",
-              "file_path": "agents/tools/__init__.py",
-              "line_start": 4,
-              "line_end": 4,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"GetCFGTool\" is not accessed",
-              "file_path": "agents/tools/__init__.py",
-              "line_start": 5,
-              "line_end": 5,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"MethodInvocationsTool\" is not accessed",
-              "file_path": "agents/tools/__init__.py",
-              "line_start": 6,
-              "line_end": 6,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"ReadFileTool\" is not accessed",
-              "file_path": "agents/tools/__init__.py",
-              "line_start": 7,
-              "line_end": 7,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"ReadDocsTool\" is not accessed",
-              "file_path": "agents/tools/__init__.py",
-              "line_start": 8,
-              "line_end": 8,
               "metric_value": 0.0
             },
             {
@@ -1128,20 +1117,6 @@
               "file_path": "static_analyzer/engine/adapters/go_adapter.py",
               "line_start": 178,
               "line_end": 178,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"symbol_kind\" is not accessed",
-              "file_path": "static_analyzer/engine/adapters/java_adapter.py",
-              "line_start": 137,
-              "line_end": 137,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"detail\" is not accessed",
-              "file_path": "static_analyzer/engine/adapters/java_adapter.py",
-              "line_start": 140,
-              "line_end": 140,
               "metric_value": 0.0
             },
             {
@@ -1615,20 +1590,6 @@
             },
             {
               "entity_name": "[unused_variable] \"to_absolute_path\" is not accessed",
-              "file_path": "utils.py",
-              "line_start": 10,
-              "line_end": 10,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"_subgraph_str\" is not accessed",
-              "file_path": "agents/details_agent.py",
-              "line_start": 220,
-              "line_end": 220,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"to_absolute_path\" is not accessed",
               "file_path": "repo_utils/__init__.py",
               "line_start": 13,
               "line_end": 13,
@@ -1646,20 +1607,6 @@
               "file_path": "static_analyzer/analysis_cache.py",
               "line_start": 35,
               "line_end": 35,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"GRAPH_NODE_TYPES\" is not accessed",
-              "file_path": "static_analyzer/graph.py",
-              "line_start": 12,
-              "line_end": 12,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"new_d\" is not accessed",
-              "file_path": "static_analyzer/graph.py",
-              "line_start": 171,
-              "line_end": 171,
               "metric_value": 0.0
             },
             {
@@ -1761,64 +1708,8 @@
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"Optional\" is not accessed",
-              "file_path": "agents/agent_responses.py",
-              "line_start": 8,
-              "line_end": 8,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"get_all_cluster_ids\" is not accessed",
-              "file_path": "agents/cluster_methods_mixin.py",
-              "line_start": 30,
-              "line_end": 30,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"get_files_for_cluster_ids\" is not accessed",
-              "file_path": "agents/cluster_methods_mixin.py",
-              "line_start": 31,
-              "line_end": 31,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"NodeType\" is not accessed",
-              "file_path": "agents/cluster_methods_mixin.py",
-              "line_start": 39,
-              "line_end": 39,
-              "metric_value": 0.0
-            },
-            {
               "entity_name": "[unused_variable] \"track_analysis\" is not accessed",
               "file_path": "codeboarding_workflows/analysis.py",
-              "line_start": 19,
-              "line_end": 19,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"generate_html_file\" is not accessed",
-              "file_path": "codeboarding_workflows/rendering.py",
-              "line_start": 16,
-              "line_end": 16,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"generate_markdown_file\" is not accessed",
-              "file_path": "codeboarding_workflows/rendering.py",
-              "line_start": 17,
-              "line_end": 17,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"generate_mdx_file\" is not accessed",
-              "file_path": "codeboarding_workflows/rendering.py",
-              "line_start": 18,
-              "line_end": 18,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"generate_rst_file\" is not accessed",
-              "file_path": "codeboarding_workflows/rendering.py",
               "line_start": 19,
               "line_end": 19,
               "metric_value": 0.0
@@ -1845,10 +1736,220 @@
               "metric_value": 0.0
             },
             {
+              "entity_name": "[unused_variable] \"to_absolute_path\" is not accessed",
+              "file_path": "utils.py",
+              "line_start": 11,
+              "line_end": 11,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"ToolMessage\" is not accessed",
+              "file_path": "agents/agent.py",
+              "line_start": 8,
+              "line_end": 8,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"Optional\" is not accessed",
+              "file_path": "agents/agent_responses.py",
+              "line_start": 9,
+              "line_end": 9,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_subgraph_str\" is not accessed",
+              "file_path": "agents/details_agent.py",
+              "line_start": 322,
+              "line_end": 322,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_check_edge_between_cluster_sets\" is not accessed",
+              "file_path": "agents/validation.py",
+              "line_start": 806,
+              "line_end": 806,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"CodeReferenceReader\" is not accessed",
+              "file_path": "agents/tools/__init__.py",
+              "line_start": 1,
+              "line_end": 1,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"CodeStructureTool\" is not accessed",
+              "file_path": "agents/tools/__init__.py",
+              "line_start": 2,
+              "line_end": 2,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"PackageRelationsTool\" is not accessed",
+              "file_path": "agents/tools/__init__.py",
+              "line_start": 3,
+              "line_end": 3,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"FileStructureTool\" is not accessed",
+              "file_path": "agents/tools/__init__.py",
+              "line_start": 4,
+              "line_end": 4,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"GetCFGTool\" is not accessed",
+              "file_path": "agents/tools/__init__.py",
+              "line_start": 5,
+              "line_end": 5,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"MethodInvocationsTool\" is not accessed",
+              "file_path": "agents/tools/__init__.py",
+              "line_start": 6,
+              "line_end": 6,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"ComponentBridgeEdgesTool\" is not accessed",
+              "file_path": "agents/tools/__init__.py",
+              "line_start": 7,
+              "line_end": 7,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"ReadFileTool\" is not accessed",
+              "file_path": "agents/tools/__init__.py",
+              "line_start": 8,
+              "line_end": 8,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"ReadDocsTool\" is not accessed",
+              "file_path": "agents/tools/__init__.py",
+              "line_start": 9,
+              "line_end": 9,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"generate_html_file\" is not accessed",
+              "file_path": "codeboarding_workflows/rendering.py",
+              "line_start": 17,
+              "line_end": 17,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"generate_markdown_file\" is not accessed",
+              "file_path": "codeboarding_workflows/rendering.py",
+              "line_start": 18,
+              "line_end": 18,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"generate_mdx_file\" is not accessed",
+              "file_path": "codeboarding_workflows/rendering.py",
+              "line_start": 19,
+              "line_end": 19,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"generate_rst_file\" is not accessed",
+              "file_path": "codeboarding_workflows/rendering.py",
+              "line_start": 20,
+              "line_end": 20,
+              "metric_value": 0.0
+            },
+            {
               "entity_name": "[unused_variable] \"normalize_repo_path\" is not accessed",
               "file_path": "diagram_analysis/io_utils.py",
               "line_start": 32,
               "line_end": 32,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"Edge\" is not accessed",
+              "file_path": "static_analyzer/cluster_relations.py",
+              "line_start": 19,
+              "line_end": 19,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"GRAPH_NODE_TYPES\" is not accessed",
+              "file_path": "static_analyzer/graph.py",
+              "line_start": 12,
+              "line_end": 12,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"new_d\" is not accessed",
+              "file_path": "static_analyzer/graph.py",
+              "line_start": 174,
+              "line_end": 174,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"symbol_kind\" is not accessed",
+              "file_path": "static_analyzer/engine/adapters/java_adapter.py",
+              "line_start": 137,
+              "line_end": 137,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"detail\" is not accessed",
+              "file_path": "static_analyzer/engine/adapters/java_adapter.py",
+              "line_start": 140,
+              "line_end": 140,
+              "metric_value": 0.0
+            }
+          ]
+        },
+        {
+          "severity": "info",
+          "threshold": 0,
+          "description": "Code that cannot be reached during execution",
+          "entities": [
+            {
+              "entity_name": "[unreachable_code] Type analysis indicates code is unreachable",
+              "file_path": "caching/cache.py",
+              "line_start": 294,
+              "line_end": 294,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unreachable_code] Type analysis indicates code is unreachable",
+              "file_path": "static_analyzer/node.py",
+              "line_start": 63,
+              "line_end": 63,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unreachable_code] Code is unreachable",
+              "file_path": "tool_registry/manifest.py",
+              "line_start": 16,
+              "line_end": 16,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unreachable_code] Code is unreachable",
+              "file_path": "tool_registry/manifest.py",
+              "line_start": 142,
+              "line_end": 153,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unreachable_code] Type analysis indicates code is unreachable",
+              "file_path": "repo_utils/__init__.py",
+              "line_start": 81,
+              "line_end": 81,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unreachable_code] Type analysis indicates code is unreachable",
+              "file_path": "agents/prompts/prompt_factory.py",
+              "line_start": 79,
+              "line_end": 79,
               "metric_value": 0.0
             }
           ]
@@ -1858,69 +1959,6 @@
           "threshold": 0,
           "description": "Unused import statements that should be removed",
           "entities": [
-            {
-              "entity_name": "[unused_import] Import \"ToolMessage\" is not accessed",
-              "file_path": "agents/agent.py",
-              "line_start": 8,
-              "line_end": 8,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"CodeReferenceReader\" is not accessed",
-              "file_path": "agents/tools/__init__.py",
-              "line_start": 1,
-              "line_end": 1,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"CodeStructureTool\" is not accessed",
-              "file_path": "agents/tools/__init__.py",
-              "line_start": 2,
-              "line_end": 2,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"PackageRelationsTool\" is not accessed",
-              "file_path": "agents/tools/__init__.py",
-              "line_start": 3,
-              "line_end": 3,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"FileStructureTool\" is not accessed",
-              "file_path": "agents/tools/__init__.py",
-              "line_start": 4,
-              "line_end": 4,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"GetCFGTool\" is not accessed",
-              "file_path": "agents/tools/__init__.py",
-              "line_start": 5,
-              "line_end": 5,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"MethodInvocationsTool\" is not accessed",
-              "file_path": "agents/tools/__init__.py",
-              "line_start": 6,
-              "line_end": 6,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"ReadFileTool\" is not accessed",
-              "file_path": "agents/tools/__init__.py",
-              "line_start": 7,
-              "line_end": 7,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"ReadDocsTool\" is not accessed",
-              "file_path": "agents/tools/__init__.py",
-              "line_start": 8,
-              "line_end": 8,
-              "metric_value": 0.0
-            },
             {
               "entity_name": "[unused_import] Import \"RunStats\" is not accessed",
               "file_path": "monitoring/__init__.py",
@@ -2399,13 +2437,6 @@
             },
             {
               "entity_name": "[unused_import] Import \"to_absolute_path\" is not accessed",
-              "file_path": "utils.py",
-              "line_start": 10,
-              "line_end": 10,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"to_absolute_path\" is not accessed",
               "file_path": "repo_utils/__init__.py",
               "line_start": 13,
               "line_end": 13,
@@ -2419,41 +2450,6 @@
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_import] Import \"GRAPH_NODE_TYPES\" is not accessed",
-              "file_path": "static_analyzer/graph.py",
-              "line_start": 12,
-              "line_end": 12,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"Optional\" is not accessed",
-              "file_path": "agents/agent_responses.py",
-              "line_start": 8,
-              "line_end": 8,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"get_all_cluster_ids\" is not accessed",
-              "file_path": "agents/cluster_methods_mixin.py",
-              "line_start": 30,
-              "line_end": 30,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"get_files_for_cluster_ids\" is not accessed",
-              "file_path": "agents/cluster_methods_mixin.py",
-              "line_start": 31,
-              "line_end": 31,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"NodeType\" is not accessed",
-              "file_path": "agents/cluster_methods_mixin.py",
-              "line_start": 39,
-              "line_end": 39,
-              "metric_value": 0.0
-            },
-            {
               "entity_name": "[unused_import] Import \"track_analysis\" is not accessed",
               "file_path": "codeboarding_workflows/analysis.py",
               "line_start": 19,
@@ -2461,31 +2457,115 @@
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_import] Import \"generate_html_file\" is not accessed",
-              "file_path": "codeboarding_workflows/rendering.py",
-              "line_start": 16,
-              "line_end": 16,
+              "entity_name": "[unused_import] Import \"to_absolute_path\" is not accessed",
+              "file_path": "utils.py",
+              "line_start": 11,
+              "line_end": 11,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_import] Import \"generate_markdown_file\" is not accessed",
+              "entity_name": "[unused_import] Import \"ToolMessage\" is not accessed",
+              "file_path": "agents/agent.py",
+              "line_start": 8,
+              "line_end": 8,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"Optional\" is not accessed",
+              "file_path": "agents/agent_responses.py",
+              "line_start": 9,
+              "line_end": 9,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"CodeReferenceReader\" is not accessed",
+              "file_path": "agents/tools/__init__.py",
+              "line_start": 1,
+              "line_end": 1,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"CodeStructureTool\" is not accessed",
+              "file_path": "agents/tools/__init__.py",
+              "line_start": 2,
+              "line_end": 2,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"PackageRelationsTool\" is not accessed",
+              "file_path": "agents/tools/__init__.py",
+              "line_start": 3,
+              "line_end": 3,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"FileStructureTool\" is not accessed",
+              "file_path": "agents/tools/__init__.py",
+              "line_start": 4,
+              "line_end": 4,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"GetCFGTool\" is not accessed",
+              "file_path": "agents/tools/__init__.py",
+              "line_start": 5,
+              "line_end": 5,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"MethodInvocationsTool\" is not accessed",
+              "file_path": "agents/tools/__init__.py",
+              "line_start": 6,
+              "line_end": 6,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"ComponentBridgeEdgesTool\" is not accessed",
+              "file_path": "agents/tools/__init__.py",
+              "line_start": 7,
+              "line_end": 7,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"ReadFileTool\" is not accessed",
+              "file_path": "agents/tools/__init__.py",
+              "line_start": 8,
+              "line_end": 8,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"ReadDocsTool\" is not accessed",
+              "file_path": "agents/tools/__init__.py",
+              "line_start": 9,
+              "line_end": 9,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"generate_html_file\" is not accessed",
               "file_path": "codeboarding_workflows/rendering.py",
               "line_start": 17,
               "line_end": 17,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_import] Import \"generate_mdx_file\" is not accessed",
+              "entity_name": "[unused_import] Import \"generate_markdown_file\" is not accessed",
               "file_path": "codeboarding_workflows/rendering.py",
               "line_start": 18,
               "line_end": 18,
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_import] Import \"generate_rst_file\" is not accessed",
+              "entity_name": "[unused_import] Import \"generate_mdx_file\" is not accessed",
               "file_path": "codeboarding_workflows/rendering.py",
               "line_start": 19,
               "line_end": 19,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"generate_rst_file\" is not accessed",
+              "file_path": "codeboarding_workflows/rendering.py",
+              "line_start": 20,
+              "line_end": 20,
               "metric_value": 0.0
             },
             {
@@ -2493,6 +2573,20 @@
               "file_path": "diagram_analysis/io_utils.py",
               "line_start": 32,
               "line_end": 32,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"Edge\" is not accessed",
+              "file_path": "static_analyzer/cluster_relations.py",
+              "line_start": 19,
+              "line_end": 19,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"GRAPH_NODE_TYPES\" is not accessed",
+              "file_path": "static_analyzer/graph.py",
+              "line_start": 12,
+              "line_end": 12,
               "metric_value": 0.0
             }
           ]
@@ -2505,57 +2599,8 @@
             {
               "entity_name": "[unused_function] Function \"_check_edge_between_cluster_sets\" is not accessed",
               "file_path": "agents/validation.py",
-              "line_start": 616,
-              "line_end": 616,
-              "metric_value": 0.0
-            }
-          ]
-        },
-        {
-          "severity": "info",
-          "threshold": 0,
-          "description": "Code that cannot be reached during execution",
-          "entities": [
-            {
-              "entity_name": "[unreachable_code] Type analysis indicates code is unreachable",
-              "file_path": "caching/cache.py",
-              "line_start": 294,
-              "line_end": 294,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unreachable_code] Type analysis indicates code is unreachable",
-              "file_path": "static_analyzer/node.py",
-              "line_start": 63,
-              "line_end": 63,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unreachable_code] Code is unreachable",
-              "file_path": "tool_registry/manifest.py",
-              "line_start": 16,
-              "line_end": 16,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unreachable_code] Code is unreachable",
-              "file_path": "tool_registry/manifest.py",
-              "line_start": 142,
-              "line_end": 153,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unreachable_code] Type analysis indicates code is unreachable",
-              "file_path": "agents/prompts/prompt_factory.py",
-              "line_start": 79,
-              "line_end": 79,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unreachable_code] Type analysis indicates code is unreachable",
-              "file_path": "repo_utils/__init__.py",
-              "line_start": 81,
-              "line_end": 81,
+              "line_start": 806,
+              "line_end": 806,
               "metric_value": 0.0
             }
           ]
@@ -2688,13 +2733,13 @@
     },
     {
       "file_path": "agents/tools/__init__.py",
-      "total_findings": 16,
-      "warning_findings": 8,
-      "composite_risk_score": 90.0
+      "total_findings": 18,
+      "warning_findings": 9,
+      "composite_risk_score": 95.0
     },
     {
-      "file_path": "agents/cluster_methods_mixin.py",
-      "total_findings": 9,
+      "file_path": "agents/details_agent.py",
+      "total_findings": 7,
       "warning_findings": 6,
       "composite_risk_score": 80.0
     },
@@ -2711,8 +2756,8 @@
       "composite_risk_score": 80.0
     },
     {
-      "file_path": "agents/details_agent.py",
-      "total_findings": 6,
+      "file_path": "agents/abstraction_agent.py",
+      "total_findings": 5,
       "warning_findings": 5,
       "composite_risk_score": 75.0
     },
@@ -2753,6 +2798,18 @@
       "composite_risk_score": 60.0
     },
     {
+      "file_path": "agents/agent.py",
+      "total_findings": 4,
+      "warning_findings": 3,
+      "composite_risk_score": 55.0
+    },
+    {
+      "file_path": "agents/cluster_methods_mixin.py",
+      "total_findings": 3,
+      "warning_findings": 3,
+      "composite_risk_score": 45.0
+    },
+    {
       "file_path": "static_analyzer/engine/call_graph_builder.py",
       "total_findings": 3,
       "warning_findings": 3,
@@ -2777,19 +2834,7 @@
       "composite_risk_score": 40.0
     },
     {
-      "file_path": "utils.py",
-      "total_findings": 3,
-      "warning_findings": 2,
-      "composite_risk_score": 40.0
-    },
-    {
-      "file_path": "static_analyzer/analysis_cache.py",
-      "total_findings": 3,
-      "warning_findings": 2,
-      "composite_risk_score": 40.0
-    },
-    {
-      "file_path": "agents/agent.py",
+      "file_path": "agents/agent_responses.py",
       "total_findings": 3,
       "warning_findings": 2,
       "composite_risk_score": 40.0
