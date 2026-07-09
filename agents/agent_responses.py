@@ -170,17 +170,16 @@ class SourceCodeReference(LLMBaseModel):
         return f"`{self.qualified_name}`:{self.reference_start_line}-{self.reference_end_line}"
 
 
-type RelationEdgeIdentity = tuple[
+RelationEdgeIdentity = tuple[
     str, str, str, str, int | None, int | None, int | None, int | None, tuple[tuple[int, int], ...]
 ]
 
 
-def call_site_coordinate(value: Hashable) -> int:
-    if isinstance(value, int):
-        return value
-    if isinstance(value, str):
-        return int(value)
-    raise ValueError(f"Call-site coordinate must be an int or int string, got {type(value).__name__}")
+class RelationCallSite(BaseModel):
+    """Source location for a relation edge occurrence."""
+
+    line: int = Field(description="One-based line number of the call site in the source file.")
+    column: int = Field(description="One-based column number of the call site in the source file.")
 
 
 class RelationEdge(LLMBaseModel):
@@ -189,7 +188,7 @@ class RelationEdge(LLMBaseModel):
     source: SourceCodeReference = Field(description="Source method/class/config reference for this interaction.")
     target: SourceCodeReference = Field(description="Target method/class/config reference for this interaction.")
     description: str = Field(default="", description="Short explanation of how source reaches or configures target.")
-    call_sites: list[dict[str, Hashable]] = Field(
+    call_sites: list[RelationCallSite] = Field(
         default_factory=list,
         description="Call-site line and column pairs for this edge.",
         exclude=True,
@@ -222,13 +221,7 @@ class RelationEdge(LLMBaseModel):
                 reference_end_line=target.end_line,
             ),
             description=edge.get("description", ""),
-            call_sites=[
-                {
-                    "line": call_site_coordinate(site.get("line", 0)),
-                    "column": call_site_coordinate(site.get("column", 0)),
-                }
-                for site in call_sites
-            ],
+            call_sites=[RelationCallSite.model_validate(site) for site in call_sites],
         )
 
     @classmethod
@@ -246,13 +239,7 @@ class RelationEdge(LLMBaseModel):
                 reference_start_line=edge.dst_node.line_start,
                 reference_end_line=edge.dst_node.line_end,
             ),
-            call_sites=[
-                {
-                    "line": call_site_coordinate(call_site.get("line", 0)),
-                    "column": call_site_coordinate(call_site.get("column", 0)),
-                }
-                for call_site in edge.call_sites
-            ],
+            call_sites=[RelationCallSite.model_validate(call_site) for call_site in edge.call_sites],
         )
 
     def llm_str(self) -> str:
@@ -268,12 +255,7 @@ class RelationEdge(LLMBaseModel):
             self.source.reference_end_line,
             self.target.reference_start_line,
             self.target.reference_end_line,
-            tuple(
-                sorted(
-                    (call_site_coordinate(site.get("line", 0)), call_site_coordinate(site.get("column", 0)))
-                    for site in self.call_sites
-                )
-            ),
+            tuple(sorted((site.line, site.column) for site in self.call_sites)),
         )
 
 

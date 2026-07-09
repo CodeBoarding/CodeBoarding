@@ -122,7 +122,7 @@ class TestStaticReferenceResolver(unittest.TestCase):
         edge = result.components_relations[0].key_edges[0]
         self.assertEqual(edge.source.reference_file, "service.py")
         self.assertEqual(edge.target.reference_file, "module/file.py")
-        self.assertEqual(edge.call_sites, [{"line": 7, "column": 8}])
+        self.assertEqual([site.model_dump() for site in edge.call_sites], [{"line": 7, "column": 8}])
 
     def test_fix_source_code_reference_lines_keeps_external_target_edge(self):
         source_node = self._node("service.OCR.extract_text", "service.py", 1, 2)

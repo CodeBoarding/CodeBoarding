@@ -1,6 +1,5 @@
 import logging
 import json
-from collections.abc import Hashable
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -13,9 +12,9 @@ from agents.agent_responses import (
     FileEntry,
     FileMethodGroup,
     MethodEntry,
+    RelationCallSite,
     RelationEdge,
     SourceCodeReference,
-    call_site_coordinate,
 )
 from agents.relation_edges import merge_relations_by_pair
 from repo_utils.path_utils import normalize_repo_path
@@ -23,22 +22,10 @@ from repo_utils.path_utils import normalize_repo_path
 logger = logging.getLogger(__name__)
 
 
-class RelationCallSiteJson(BaseModel):
-    line: int = Field(default=0, description="One-based line number of the call site in the source file.")
-    column: int = Field(default=0, description="One-based column number of the call site in the source file.")
-
-    @classmethod
-    def from_dict(cls, call_site: dict[str, Hashable]) -> "RelationCallSiteJson":
-        return cls(
-            line=call_site_coordinate(call_site.get("line", 0)),
-            column=call_site_coordinate(call_site.get("column", 0)),
-        )
-
-
 class RelationEdgeJson(BaseModel):
     source: str = Field(description="Key into methods_index for the source method.")
     target: str = Field(description="Key into methods_index for the target method.")
-    call_sites: list[RelationCallSiteJson] = Field(default_factory=list)
+    call_sites: list[RelationCallSite] = Field(default_factory=list)
     description: str = Field(default="", description="Short explanation of how source reaches or configures target.")
 
 
@@ -184,11 +171,10 @@ def _source_reference_method_key(reference: SourceCodeReference, repo_dir: Path)
 
 
 def _relation_edge_to_json(edge: RelationEdge, repo_dir: Path) -> RelationEdgeJson:
-    call_sites = [RelationCallSiteJson.from_dict(site) for site in edge.call_sites]
     return RelationEdgeJson(
         source=_source_reference_method_key(edge.source, repo_dir),
         target=_source_reference_method_key(edge.target, repo_dir),
-        call_sites=call_sites,
+        call_sites=edge.call_sites,
         description=edge.description,
     )
 

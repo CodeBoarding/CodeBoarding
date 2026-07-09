@@ -452,7 +452,10 @@ class TestAnalysisJsonConversion(unittest.TestCase):
         self.assertTrue(relation.is_static)
         self.assertEqual(relation.all_edges[0].source.qualified_name, "component1.run")
         self.assertEqual(relation.all_edges[0].target.reference_file, "component2.py")
-        self.assertEqual(relation.all_edges[0].call_sites, [{"line": 12, "column": 8}, {"line": 18, "column": 12}])
+        self.assertEqual(
+            [site.model_dump() for site in relation.all_edges[0].call_sites],
+            [{"line": 12, "column": 8}, {"line": 18, "column": 12}],
+        )
 
     def test_unified_analysis_parse_preserves_key_edges(self):
         self._add_edge_methods_to_index()
@@ -490,7 +493,9 @@ class TestAnalysisJsonConversion(unittest.TestCase):
         self.assertEqual(edge.source.qualified_name, "component1.dispatch")
         self.assertEqual(edge.target.reference_file, "component2.py")
         self.assertEqual(edge.description, "dispatches through registry")
-        self.assertEqual(edge.call_sites, [{"line": 14, "column": 6}, {"line": 16, "column": 10}])
+        self.assertEqual(
+            [site.model_dump() for site in edge.call_sites], [{"line": 14, "column": 6}, {"line": 16, "column": 10}]
+        )
 
     def test_unified_analysis_parse_skips_edges_missing_from_methods_index(self):
         data = json.loads(build_unified_analysis_json(self.analysis, [], "repo", self.repo_dir))
