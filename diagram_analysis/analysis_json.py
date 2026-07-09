@@ -15,6 +15,7 @@ from agents.agent_responses import (
     MethodEntry,
     RelationEdge,
     SourceCodeReference,
+    call_site_coordinate,
 )
 from agents.relation_edges import merge_relations_by_pair
 from repo_utils.path_utils import normalize_repo_path
@@ -29,8 +30,8 @@ class RelationCallSiteJson(BaseModel):
     @classmethod
     def from_dict(cls, call_site: dict[str, Hashable]) -> "RelationCallSiteJson":
         return cls(
-            line=_call_site_int(call_site.get("line", 0)),
-            column=_call_site_int(call_site.get("column", 0)),
+            line=call_site_coordinate(call_site.get("line", 0)),
+            column=call_site_coordinate(call_site.get("column", 0)),
         )
 
 
@@ -180,14 +181,6 @@ def _method_key(file_path: str, qualified_name: str) -> str:
 def _source_reference_method_key(reference: SourceCodeReference, repo_dir: Path) -> str:
     file_path = normalize_repo_path(reference.reference_file or "", repo_dir)
     return _method_key(file_path, reference.qualified_name)
-
-
-def _call_site_int(value: Hashable) -> int:
-    if isinstance(value, int):
-        return value
-    if isinstance(value, str):
-        return int(value)
-    return 0
 
 
 def _relation_edge_to_json(edge: RelationEdge, repo_dir: Path) -> RelationEdgeJson:

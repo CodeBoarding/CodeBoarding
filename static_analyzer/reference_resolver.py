@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from agents.agent_responses import AnalysisInsights, RelationEdge, SourceCodeReference
+from agents.agent_responses import AnalysisInsights, RelationEdge, SourceCodeReference, call_site_coordinate
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import Language
 from static_analyzer.internal_references import looks_internal_reference
@@ -197,7 +197,11 @@ class StaticReferenceResolver:
         if static_edge is None:
             return
         edge.call_sites = [
-            {"line": int(site.get("line", 0)), "column": int(site.get("column", 0))} for site in static_edge.call_sites
+            {
+                "line": call_site_coordinate(site.get("line", 0)),
+                "column": call_site_coordinate(site.get("column", 0)),
+            }
+            for site in static_edge.call_sites
         ]
 
     def find_static_edge(self, relation_edge: RelationEdge):

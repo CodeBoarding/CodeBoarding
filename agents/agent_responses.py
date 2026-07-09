@@ -175,7 +175,7 @@ type RelationEdgeIdentity = tuple[
 ]
 
 
-def _call_site_coordinate(value: Hashable) -> int:
+def call_site_coordinate(value: Hashable) -> int:
     if isinstance(value, int):
         return value
     if isinstance(value, str):
@@ -224,8 +224,8 @@ class RelationEdge(LLMBaseModel):
             description=edge.get("description", ""),
             call_sites=[
                 {
-                    "line": _call_site_coordinate(site.get("line", 0)),
-                    "column": _call_site_coordinate(site.get("column", 0)),
+                    "line": call_site_coordinate(site.get("line", 0)),
+                    "column": call_site_coordinate(site.get("column", 0)),
                 }
                 for site in call_sites
             ],
@@ -248,8 +248,8 @@ class RelationEdge(LLMBaseModel):
             ),
             call_sites=[
                 {
-                    "line": _call_site_coordinate(call_site.get("line", 0)),
-                    "column": _call_site_coordinate(call_site.get("column", 0)),
+                    "line": call_site_coordinate(call_site.get("line", 0)),
+                    "column": call_site_coordinate(call_site.get("column", 0)),
                 }
                 for call_site in edge.call_sites
             ],
@@ -270,7 +270,7 @@ class RelationEdge(LLMBaseModel):
             self.target.reference_end_line,
             tuple(
                 sorted(
-                    (_call_site_coordinate(site.get("line", 0)), _call_site_coordinate(site.get("column", 0)))
+                    (call_site_coordinate(site.get("line", 0)), call_site_coordinate(site.get("column", 0)))
                     for site in self.call_sites
                 )
             ),
