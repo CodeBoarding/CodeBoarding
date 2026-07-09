@@ -15,22 +15,12 @@ from pathlib import Path
 
 from diagram_analysis import DiagramGenerator
 from diagram_analysis.io_utils import load_analysis_metadata, load_full_analysis
-from repo_utils.fingerprint_diff import detect_changes_from_fingerprint
+from repo_utils.fingerprint_diff import BaselineUnavailableError, detect_changes_from_fingerprint
 from telemetry.events import track_analysis
 
 logger = logging.getLogger(__name__)
 
-
-class BaselineUnavailableError(RuntimeError):
-    """Raised when a workflow needs an existing analysis.json baseline but none is usable.
-
-    Covers two control-flow cases:
-    - partial/incremental find no ``analysis.json`` on disk;
-    - incremental can't compute the diff against the requested base ref.
-
-    Callers should surface a "run full analysis" prompt rather than silently
-    degrading to an unscoped run or producing an empty update.
-    """
+__all__ = ["BaselineUnavailableError", "run_full", "run_partial", "run_incremental", "run_incremental_workflow"]
 
 
 def build_generator(

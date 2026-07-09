@@ -137,6 +137,14 @@ python main.py partial --local ./my-project --component-id "1.2"
 python main.py full https://github.com/pytorch/pytorch
 ```
 
+> **Incremental needs a baseline.** `incremental` diffs the working tree against the previous
+> analysis in `.codeboarding/` (`analysis.json` + `fingerprint.json`). That baseline can live
+> purely locally — a prior `full`/`incremental` run in the same output dir is enough. Commit
+> `.codeboarding/` only if you want the baseline to travel with the branch (so a teammate or a
+> fresh checkout can run incremental too). With no baseline at all — or one that predates content
+> versioning — `incremental` fails fast with "run a full analysis first" rather than silently
+> doing a full run.
+
 ## Where to use it
 
 - [CLI](https://github.com/CodeBoarding/CodeBoarding) for local analysis, automation, and CI workflows.

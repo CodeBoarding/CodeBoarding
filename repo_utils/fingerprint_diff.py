@@ -1,22 +1,34 @@
 """Git-free change detection via content-hash fingerprints.
 
 The incremental changed-file set from diffing two ``{posix_path: sha16}`` maps:
-the baseline hashes recorded in ``analysis.json`` vs. a fresh fingerprint of the
+the whole-tree ``fingerprint.json`` sidecar vs. a fresh fingerprint of the
 working tree. Shared by the CLI (default detection) and the wrapper (which passes
 a frozen-copy fingerprint), so neither needs git.
 """
 
-import json
 import logging
 from pathlib import Path
 
 from diagram_analysis.analysis_json import hash_repo_source_files
-from diagram_analysis.io_utils import ANALYSIS_FILENAME, read_fingerprint
+from diagram_analysis.io_utils import read_fingerprint
 from repo_utils.change_detector import ChangeSet
 
 logger = logging.getLogger(__name__)
 
 FileHashMap = dict[str, str]
+
+
+class BaselineUnavailableError(RuntimeError):
+    """Raised when a workflow needs an existing analysis.json baseline but none is usable.
+
+    Covers the cases where incremental/partial cannot trust its starting state: no
+    ``analysis.json`` on disk, or a baseline that predates content versioning (no
+    whole-tree fingerprint to diff against, so an "empty" change set is
+    indistinguishable from "no changes").
+
+    Callers must surface a "run full analysis" prompt rather than silently degrading
+    to an unscoped run or an empty-but-successful update.
+    """
 
 
 def diff_file_maps(old: FileHashMap, new: FileHashMap) -> tuple[list[str], list[str], list[str]]:
@@ -31,30 +43,6 @@ def diff_file_maps(old: FileHashMap, new: FileHashMap) -> tuple[list[str], list[
     return added, modified, deleted
 
 
-def read_baseline_file_hashes(output_dir: Path) -> FileHashMap:
-    """Per-file ``content_hash`` map from the baseline ``analysis.json`` ``files`` block.
-
-    Empty when the file is absent/malformed or predates content hashing. Covers only
-    component-assigned files, so callers restrict the diff domain to these keys.
-    """
-    path = Path(output_dir) / ANALYSIS_FILENAME
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return {}
-    files = data.get("files") if isinstance(data, dict) else None
-    if not isinstance(files, dict):
-        return {}
-    result: FileHashMap = {}
-    for fp, entry in files.items():
-        digest = entry.get("content_hash") if isinstance(entry, dict) else None
-        if isinstance(digest, str) and digest:
-            # Normalize to posix so the diff matches the working-tree fingerprint
-            # (which emits posix keys) regardless of the OS that wrote the baseline.
-            result[fp.replace("\\", "/")] = digest
-    return result
-
-
 def detect_changes_from_fingerprints(baseline: FileHashMap, current: FileHashMap) -> ChangeSet:
     """Build the incremental ``ChangeSet`` from two fingerprint maps."""
     added, modified, deleted = diff_file_maps(baseline, current)
@@ -65,15 +53,19 @@ def detect_changes_from_fingerprints(baseline: FileHashMap, current: FileHashMap
 def detect_changes_from_fingerprint(repo_path: Path, output_dir: Path) -> ChangeSet:
     """Auto-detect the changed-file set without git.
 
-    Fingerprints the working tree and diffs it against the recorded baseline.
-    Prefers the whole-tree ``fingerprint.json`` sidecar; falls back to the
-    component-only hashes in ``analysis.json`` (restricting the current map to
-    those keys so non-clustered files don't read as spuriously added).
+    Requires the whole-tree ``fingerprint.json`` sidecar as the baseline: it is
+    the only record that covers every analyzable file, so a new/added or
+    unclustered-file change surfaces. Raise ``BaselineUnavailableError`` when the
+    sidecar is missing — the component-only hashes in ``analysis.json`` cover
+    only clustered files, so an "empty" diff against them is indistinguishable
+    from "no changes" (a legacy baseline would silently no-op). The caller must
+    prompt for a full run, which rewrites the sidecar.
     """
-    current = hash_repo_source_files(repo_path)
     sidecar = read_fingerprint(output_dir)
-    if sidecar is not None:
-        return detect_changes_from_fingerprints(sidecar, current)
-    baseline = read_baseline_file_hashes(output_dir)
-    scoped = {k: v for k, v in current.items() if k in baseline}
-    return detect_changes_from_fingerprints(baseline, scoped)
+    if sidecar is None:
+        raise BaselineUnavailableError(
+            f"No whole-tree fingerprint sidecar in '{output_dir}' (baseline predates content versioning "
+            "or was never written). Run a full analysis first to seed it."
+        )
+    current = hash_repo_source_files(repo_path)
+    return detect_changes_from_fingerprints(sidecar, current)

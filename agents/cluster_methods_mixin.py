@@ -1,5 +1,4 @@
 import logging
-import os
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
@@ -30,6 +29,7 @@ from agents.model_capabilities import ContextWindow
 from constants import MIN_CLUSTERS_THRESHOLD
 from diagram_analysis.cluster_delta import _delta_for_language
 from diagram_analysis.cluster_snapshot import ClusterSnapshotEntry
+from repo_utils.path_utils import normalize_repo_path
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cfg_skip_planner import ContextBudgetExceededError, plan_skip_set
 from static_analyzer.cluster_helpers import (
@@ -639,9 +639,7 @@ class ClusterMethodsMixin:
             if node.type not in allowed_types:
                 continue
 
-            rel_path = (
-                os.path.relpath(node.file_path, self.repo_dir) if os.path.isabs(node.file_path) else node.file_path
-            )
+            rel_path = normalize_repo_path(node.file_path, self.repo_dir)
 
             method_name = node.fully_qualified_name.split(".")[-1]
             dedupe_key = (node.line_start, node.line_end, node.type.name, method_name)
@@ -856,9 +854,7 @@ class ClusterMethodsMixin:
             except (KeyError, ValueError):
                 continue
             for qname, node in cfg.nodes.items():
-                rel_path = (
-                    os.path.relpath(node.file_path, self.repo_dir) if os.path.isabs(node.file_path) else node.file_path
-                )
+                rel_path = normalize_repo_path(node.file_path, self.repo_dir)
                 spans.setdefault(MethodRef(rel_path, qname), MethodSpan(node.line_start, node.line_end))
         return spans
 

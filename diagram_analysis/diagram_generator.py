@@ -239,10 +239,12 @@ class DiagramGenerator:
 
         Incremental analysis always carries a git-free ``ChangeSet`` (the
         fingerprint diff). We hand those files to the static-analysis warm-start
-        so it re-LSPs exactly them without shelling out to git. None (full run,
-        or an empty ChangeSet) leaves the warm-start to its own scoping.
+        so it re-LSPs exactly them without shelling out to git. None means "no
+        ChangeSet" (a full run) and leaves the warm-start to its own git scoping;
+        an empty set means "incremental, nothing changed" and correctly re-LSPs
+        zero files instead of falling back to a full re-LSP via git.
         """
-        if self.changes is None or self.changes.is_empty():
+        if self.changes is None:
             return None
         rel_paths = self.changes.added_files + self.changes.modified_files + self.changes.deleted_files
         return {(self.repo_location / rel).resolve() for rel in rel_paths}
