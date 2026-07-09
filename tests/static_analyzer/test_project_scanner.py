@@ -1,14 +1,17 @@
 import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.scanner import ProjectScanner
 
 
 class TestProjectScanner(unittest.TestCase):
     def setUp(self):
-        self.scanner = ProjectScanner(Path("/fake/repo"))
+        repo = Path("/fake/repo")
+        self.scanner = ProjectScanner(repo, RepoIgnoreManager(repo))
 
     @patch("static_analyzer.scanner.platform.platform", return_value="Linux-6.8.0")
     @patch("static_analyzer.scanner.is_wsl", return_value=False)
@@ -105,6 +108,41 @@ class TestProjectScanner(unittest.TestCase):
         self.assertEqual(result[0].size, 100)
         self.assertEqual(result[0].suffixes, [".py"])
         self.assertEqual(self.scanner.all_text_files, ["main.py"])
+
+    @patch("static_analyzer.scanner.track_tech_stack")
+    @patch("static_analyzer.scanner.get_config")
+    @patch("static_analyzer.scanner.subprocess.run")
+    def test_scan_ignores_languages_with_only_ignored_files(self, mock_run, mock_get_config, mock_track):
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+        repo = Path(temp_dir.name)
+        (repo / ".codeboarding").mkdir()
+        (repo / ".codeboarding" / ".codeboardingignore").write_text("tests/\n")
+
+        scanner = ProjectScanner(repo, RepoIgnoreManager(repo))
+        mock_get_config.side_effect = [
+            {"tokei": {"command": ["tokei", "-o", "json"]}},
+            {
+                "python": {"command": ["pyright-langserver", "--stdio"], "file_extensions": [".py"]},
+                "csharp": {"command": ["csharp-ls"], "file_extensions": [".cs"]},
+            },
+        ]
+        mock_run.return_value = MagicMock(
+            stdout=(
+                '{"Python": {"code": 12, "reports": [{"name": "main.py", "stats": {"code": 12}}]}, '
+                '"C#": {"code": 7, "reports": [{"name": "tests/Ignored.cs", "stats": {"code": 7}}]}, '
+                '"Total": {"code": 19}}'
+            )
+        )
+
+        result = scanner.scan()
+
+        self.assertEqual([lang.language for lang in result], ["Python"])
+        self.assertEqual(result[0].size, 12)
+        self.assertEqual(result[0].percentage, 100)
+        self.assertEqual(scanner.all_text_files, ["main.py"])
+        mock_track.assert_called_once()
+        self.assertEqual(mock_track.call_args.args[1], 12)
 
 
 if __name__ == "__main__":

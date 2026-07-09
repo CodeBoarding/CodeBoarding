@@ -330,7 +330,7 @@ class DiagramGenerator:
 
         # --- Capture Static Analysis Stats ---
         static_stats: dict[str, Any] = {"repo_name": self.repo_name, "languages": {}}
-        scanner = ProjectScanner(self.repo_location)
+        scanner = ProjectScanner(self.repo_location, RepoIgnoreManager(self.repo_location))
         loc_by_language = {pl.language: pl.size for pl in scanner.scan()}
         for language in static_analysis.get_languages():
             files = static_analysis.get_source_files(language)

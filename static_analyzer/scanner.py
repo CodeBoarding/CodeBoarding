@@ -5,6 +5,7 @@ import shlex
 import subprocess
 from pathlib import Path
 
+from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.programming_language import ProgrammingLanguage, ProgrammingLanguageBuilder
 from telemetry.events import track_tech_stack
 from tool_registry.paths import is_wsl
@@ -62,8 +63,9 @@ def _tokei_failure_message(
 
 
 class ProjectScanner:
-    def __init__(self, repo_location: Path):
+    def __init__(self, repo_location: Path, ignore_manager: RepoIgnoreManager):
         self.repo_location = repo_location
+        self.ignore_manager = ignore_manager
         self.all_text_files: list[str] = []
 
     def scan(self) -> list[ProgrammingLanguage]:
@@ -117,32 +119,41 @@ class ProjectScanner:
         # Parse Tokei JSON output
         tokei_data = json.loads(result.stdout)
 
-        # Compute total code count
-        total_code = tokei_data.get("Total", {}).get("code", 0)
-        if not total_code:
-            logger.warning("No total code count found in Tokei output")
-            return []
-
         programming_languages: list[ProgrammingLanguage] = []
         all_files: list[str] = []
+        language_stats: list[tuple[str, int, list[dict]]] = []
         for technology, stats in tokei_data.items():
             if technology == "Total":
                 continue
 
+            reports = [report for report in stats.get("reports", []) if not self._should_ignore_report(report)]
+            if not reports:
+                continue
+
             # Collect ALL text file paths from Tokei for file coverage,
             # including languages with code_count == 0 (e.g. Markdown is 100% comments)
-            for report in stats.get("reports", []):
+            for report in reports:
                 all_files.append(report["name"])
 
-            code_count = stats.get("code", 0)
+            code_count = self._code_count(stats, reports)
             if code_count == 0:
                 continue
+
+            language_stats.append((technology, code_count, reports))
+
+        total_code = sum(code_count for _, code_count, _ in language_stats)
+        if not total_code:
+            logger.warning("No non-ignored code count found in Tokei output")
+            self.all_text_files = all_files
+            return []
+
+        for technology, code_count, reports in language_stats:
 
             percentage = code_count / total_code * 100
 
             # Extract suffixes from reports
             suffixes = set()
-            for report in stats.get("reports", []):
+            for report in reports:
                 suffixes |= self._extract_suffixes([report["name"]])
 
             pl = builder.build(
@@ -159,6 +170,23 @@ class ProjectScanner:
         self.all_text_files = all_files
         track_tech_stack(self.repo_location, total_code, programming_languages)
         return programming_languages
+
+    def _should_ignore_report(self, report: dict) -> bool:
+        name = report.get("name")
+        return not isinstance(name, str) or self.ignore_manager.should_ignore(Path(name))
+
+    @staticmethod
+    def _code_count(stats: dict, reports: list[dict]) -> int:
+        report_counts: list[int] = []
+        for report in reports:
+            report_stats = report.get("stats", {})
+            code = report_stats.get("code") if isinstance(report_stats, dict) else report.get("code")
+            if isinstance(code, int):
+                report_counts.append(code)
+        if report_counts:
+            return sum(report_counts)
+        code_count = stats.get("code", 0)
+        return code_count if isinstance(code_count, int) else 0
 
     @staticmethod
     def _extract_suffixes(files: list[str]) -> set[str]:

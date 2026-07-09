@@ -9,13 +9,32 @@ def _proc(returncode: int = 0, stdout: str = "", stderr: str = "") -> subprocess
 
 
 def test_find_global_json_uses_nearest_ancestor(tmp_path):
+    (tmp_path / ".git").mkdir()
     (tmp_path / "global.json").write_text('{"sdk": {"version": "10.0.100"}}')
     nested = tmp_path / "src" / "App"
     nested.mkdir(parents=True)
     (tmp_path / "src" / "global.json").write_text('{"sdk": {"version": "10.0.301"}}')
 
-    assert dotnet_sdk.find_global_json(nested) == tmp_path / "src" / "global.json"
+    assert dotnet_sdk.find_global_json(nested, tmp_path) == tmp_path / "src" / "global.json"
     assert dotnet_sdk.read_global_sdk_version(tmp_path / "src" / "global.json") == "10.0.301"
+
+
+def test_find_global_json_ignores_parent_outside_repository(tmp_path):
+    repo = tmp_path / "repo"
+    nested = repo / "src" / "App"
+    nested.mkdir(parents=True)
+    (tmp_path / "global.json").write_text('{"sdk": {"version": "10.0.100"}}')
+
+    assert dotnet_sdk.find_global_json(nested, repo) is None
+
+
+def test_find_global_json_uses_snapshot_worktree_boundary(tmp_path):
+    snapshot = tmp_path / ".codeboarding" / "snapshot-worktree"
+    project = snapshot / "src" / "App"
+    project.mkdir(parents=True)
+    (tmp_path / "global.json").write_text('{"sdk": {"version": "10.0.100"}}')
+
+    assert dotnet_sdk.find_global_json(project, snapshot) is None
 
 
 def test_resolve_uses_satisfying_system_dotnet(tmp_path, monkeypatch):

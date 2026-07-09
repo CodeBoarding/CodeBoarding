@@ -172,7 +172,7 @@ class StaticAnalyzer:
     def __init__(self, repository_path: Path):
         self.repository_path = repository_path.resolve()
         self.ignore_manager = RepoIgnoreManager(self.repository_path)
-        self.programming_langs = ProjectScanner(self.repository_path).scan()
+        self.programming_langs = ProjectScanner(self.repository_path, self.ignore_manager).scan()
         self._engine_configs = _create_engine_configs(self.programming_langs, self.repository_path, self.ignore_manager)
         self._engine_clients: list[tuple[EngineConfig, LSPClient]] = []
         self.collected_diagnostics: dict[Language, FileDiagnosticsMap] = {}

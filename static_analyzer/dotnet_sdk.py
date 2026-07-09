@@ -65,14 +65,30 @@ def private_dotnet_path(install_dir: Path | None = None) -> Path:
     return (install_dir or dotnet_install_dir()) / f"dotnet{exe_suffix()}"
 
 
-def find_global_json(project_root: Path) -> Path | None:
-    """Return the nearest ancestor ``global.json`` that .NET would consider."""
+def find_global_json(project_root: Path, search_root: Path) -> Path | None:
+    """Return the nearest ``global.json`` within the repository boundary."""
     current = project_root.resolve()
+    boundary = search_root.resolve()
     for directory in (current, *current.parents):
+        try:
+            directory.relative_to(boundary)
+        except ValueError:
+            break
         candidate = directory / "global.json"
         if candidate.is_file():
             return candidate
+        if directory == boundary:
+            break
     return None
+
+
+def _global_json_search_root(project_root: Path) -> Path:
+    for directory in (project_root, *project_root.parents):
+        if directory.name == "snapshot-worktree" and directory.parent.name == ".codeboarding":
+            return directory
+        if (directory / ".git").exists():
+            return directory
+    return project_root
 
 
 def read_global_sdk_version(global_json: Path) -> str | None:
@@ -87,7 +103,7 @@ def read_global_sdk_version(global_json: Path) -> str | None:
 def resolve_dotnet_sdk(project_root: Path) -> DotnetSdkResolution:
     """Resolve or install the .NET SDK set needed for a C# project."""
     project_root = project_root.resolve()
-    global_json = find_global_json(project_root)
+    global_json = find_global_json(project_root, _global_json_search_root(project_root))
     requested_version = read_global_sdk_version(global_json) if global_json else None
 
     install_dir = dotnet_install_dir()
