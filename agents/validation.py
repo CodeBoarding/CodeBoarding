@@ -609,7 +609,7 @@ def validate_relation_evidence(result: RelationValidationTarget, context: Valida
             invalid_key_edges.append(f"{relation.src_name} -> {relation.dst_name}: {', '.join(same_endpoint_edges)}")
         if unresolved_edges:
             unresolved_key_edges.append(f"{relation.src_name} -> {relation.dst_name}: {', '.join(unresolved_edges)}")
-        if _check_directed_edge_between_cluster_sets(src_clusters, dst_clusters, cluster_edge_lookup):
+        if _cluster_sets_have_edge(src_clusters, dst_clusters, cluster_edge_lookup):
             if not same_endpoint_edges and not unresolved_edges:
                 valid_relation_count += 1
             continue
@@ -784,14 +784,6 @@ def _component_cluster_ids(components: list[Component], cluster_analysis: Cluste
             cluster_ids.extend(group_to_cluster_ids.get(group_name, []))
         component_to_clusters[component.name] = cluster_ids
     return component_to_clusters
-
-
-def _check_directed_edge_between_cluster_sets(
-    src_cluster_ids: list[int],
-    dst_cluster_ids: list[int],
-    cluster_edge_lookup: dict[str, set[tuple[int, int]]],
-) -> bool:
-    return _cluster_sets_have_edge(src_cluster_ids, dst_cluster_ids, cluster_edge_lookup)
 
 
 def _cluster_sets_have_edge(
