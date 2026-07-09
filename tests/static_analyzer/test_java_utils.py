@@ -67,6 +67,13 @@ class TestGetJavaVersion(unittest.TestCase):
         self.assertEqual(version, 0)
 
     @patch("subprocess.run")
+    def test_get_java_version_permission_denied(self, mock_run):
+        mock_run.side_effect = PermissionError("java permission denied")
+
+        version = get_java_version("java")
+        self.assertEqual(version, 0)
+
+    @patch("subprocess.run")
     def test_get_java_version_timeout(self, mock_run):
         """Test when Java command times out."""
         mock_run.side_effect = subprocess.TimeoutExpired("java", 5)
