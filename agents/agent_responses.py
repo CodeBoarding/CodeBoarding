@@ -180,7 +180,7 @@ def call_site_coordinate(value: Hashable) -> int:
         return value
     if isinstance(value, str):
         return int(value)
-    return 0
+    raise ValueError(f"Call-site coordinate must be an int or int string, got {type(value).__name__}")
 
 
 class RelationEdge(LLMBaseModel):
