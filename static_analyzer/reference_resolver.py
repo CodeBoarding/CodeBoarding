@@ -7,7 +7,7 @@ from typing import Any
 
 from agents.agent_responses import AnalysisInsights, RelationEdge, SourceCodeReference, call_site_coordinate
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.constants import Language
+from static_analyzer.constants import LANGUAGE_EXTENSIONS, Language
 from static_analyzer.internal_references import looks_internal_reference
 
 logger = logging.getLogger(__name__)
@@ -402,18 +402,8 @@ class StaticReferenceResolver:
         file_path = qname.replace(".", os.sep)
         full_path = os.path.join(self.repo_dir, file_path)
         file_ref = ".".join(full_path.rsplit(os.sep, 1))
-        paths = [
-            full_path,
-            f"{file_path}.py",
-            f"{file_path}.ts",
-            f"{file_path}.tsx",
-            f"{file_path}.js",
-            f"{file_path}.jsx",
-            f"{file_path}.java",
-            f"{file_path}.go",
-            f"{file_path}.php",
-            file_ref,
-        ]
+        language_extensions = LANGUAGE_EXTENSIONS[Language(lang)]
+        paths = [full_path, *(f"{file_path}{extension}" for extension in language_extensions), file_ref]
 
         for path in paths:
             if os.path.exists(path):
