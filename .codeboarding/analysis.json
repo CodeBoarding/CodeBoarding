@@ -1,7 +1,7 @@
 {
   "metadata": {
-    "generated_at": "2026-07-09T18:32:54.149033+00:00",
-    "commit_hash": "d30ac10b5769c26d8fcb8ba79fcd8dab1934fb60",
+    "generated_at": "2026-07-09T22:07:45.218515+00:00",
+    "commit_hash": "9f75ab6e3b14aff2c34f0c636f65abe77fc23968",
     "repo_name": "CodeBoarding",
     "depth_level": 2,
     "file_coverage_summary": {
@@ -18469,7 +18469,6 @@
               "methods": [
                 "diagram_analysis.analysis_json.MethodIndexEntry",
                 "diagram_analysis.analysis_json.ComponentFileMethodGroupJson",
-                "diagram_analysis.analysis_json._to_method_qualified_name",
                 "diagram_analysis.analysis_json._to_component_file_method_refs",
                 "diagram_analysis.analysis_json._method_refs_to_placeholders",
                 "diagram_analysis.analysis_json._hydrate_component_methods_from_refs",
