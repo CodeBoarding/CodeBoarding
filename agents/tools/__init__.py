@@ -4,5 +4,6 @@ from .read_packages import PackageRelationsTool
 from .read_file_structure import FileStructureTool
 from .read_cfg import GetCFGTool
 from .get_method_invocations import MethodInvocationsTool
+from .component_bridge_edges import ComponentBridgeEdgesTool
 from .read_file import ReadFileTool
 from .read_docs import ReadDocsTool

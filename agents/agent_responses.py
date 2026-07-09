@@ -3,9 +3,10 @@ from __future__ import annotations
 import abc
 import logging
 from abc import abstractmethod
+from collections.abc import Hashable
 from enum import StrEnum
 from pathlib import PurePosixPath
-from typing import get_origin, Optional
+from typing import TYPE_CHECKING, get_origin, Optional
 
 from pydantic import BaseModel, Field
 from pydantic.fields import FieldInfo
@@ -15,12 +16,15 @@ from agents.scope_ids import ROOT_SCOPE_ID
 
 logger = logging.getLogger(__name__)
 
+if TYPE_CHECKING:
+    from diagram_analysis.analysis_json import MethodIndexEntry
+
 
 class LLMBaseModel(BaseModel, abc.ABC):
     """Base model for LLM-parseable response types."""
 
     @abstractmethod
-    def llm_str(self):
+    def llm_str(self) -> str:
         raise NotImplementedError("LLM String has to be implemented.")
 
     @classmethod
@@ -145,7 +149,7 @@ class SourceCodeReference(LLMBaseModel):
         description="The line number in the source code where the reference ends. Only if you are absolutely sure add this, otherwise None.",
     )
 
-    def llm_str(self):
+    def llm_str(self) -> str:
         if self.reference_start_line is None or self.reference_end_line is None:
             return f"QName:`{self.qualified_name}` FileRef: `{self.reference_file}`"
         if (
@@ -155,7 +159,7 @@ class SourceCodeReference(LLMBaseModel):
             return f"QName:`{self.qualified_name}` FileRef: `{self.reference_file}`"
         return f"QName:`{self.qualified_name}` FileRef: `{self.reference_file}`, Lines:({self.reference_start_line}:{self.reference_end_line})"
 
-    def __str__(self):
+    def __str__(self) -> str:
         if self.reference_start_line is None or self.reference_end_line is None:
             return f"`{self.qualified_name}`"
         if (
@@ -166,19 +170,204 @@ class SourceCodeReference(LLMBaseModel):
         return f"`{self.qualified_name}`:{self.reference_start_line}-{self.reference_end_line}"
 
 
+RelationEdgeIdentity = tuple[
+    str, str, str, str, int | None, int | None, int | None, int | None, tuple[tuple[int, int], ...]
+]
+
+
+class RelationCallSite(BaseModel):
+    """Source location for a relation edge occurrence."""
+
+    line: int = Field(description="One-based line number of the call site in the source file.")
+    column: int = Field(description="One-based column number of the call site in the source file.")
+
+
+class RelationEdge(LLMBaseModel):
+    """A source-to-target code reference that supports a component relation."""
+
+    source: SourceCodeReference = Field(description="Source method/class/config reference for this interaction.")
+    target: SourceCodeReference = Field(description="Target method/class/config reference for this interaction.")
+    description: str = Field(default="", description="Short explanation of how source reaches or configures target.")
+    call_sites: list[RelationCallSite] = Field(
+        default_factory=list,
+        description="Call-site line and column pairs for this edge.",
+        exclude=True,
+        json_schema_extra={"hidden": True},
+    )
+
+    @classmethod
+    def from_dict(cls, edge: dict, methods_index: dict[str, MethodIndexEntry]) -> RelationEdge:
+        source_key = edge.get("source")
+        target_key = edge.get("target")
+        if not isinstance(source_key, str) or not isinstance(target_key, str):
+            raise ValueError("Relation edge endpoints must be method-index keys")
+        source = methods_index.get(source_key)
+        target = methods_index.get(target_key)
+        if source is None or target is None:
+            missing = source_key if source is None else target_key
+            raise ValueError(f"Relation edge endpoint is missing from methods_index: {missing}")
+        call_sites = edge.get("call_sites") or []
+        return cls(
+            source=SourceCodeReference(
+                qualified_name=source.qualified_name,
+                reference_file=source.file_path,
+                reference_start_line=source.start_line,
+                reference_end_line=source.end_line,
+            ),
+            target=SourceCodeReference(
+                qualified_name=target.qualified_name,
+                reference_file=target.file_path,
+                reference_start_line=target.start_line,
+                reference_end_line=target.end_line,
+            ),
+            description=edge.get("description", ""),
+            call_sites=[RelationCallSite.model_validate(site) for site in call_sites],
+        )
+
+    @classmethod
+    def from_edge(cls, edge) -> RelationEdge:
+        return cls(
+            source=SourceCodeReference(
+                qualified_name=edge.src_node.fully_qualified_name,
+                reference_file=edge.src_node.file_path,
+                reference_start_line=edge.src_node.line_start,
+                reference_end_line=edge.src_node.line_end,
+            ),
+            target=SourceCodeReference(
+                qualified_name=edge.dst_node.fully_qualified_name,
+                reference_file=edge.dst_node.file_path,
+                reference_start_line=edge.dst_node.line_start,
+                reference_end_line=edge.dst_node.line_end,
+            ),
+            call_sites=[RelationCallSite.model_validate(call_site) for call_site in edge.call_sites],
+        )
+
+    def llm_str(self) -> str:
+        return f"{self.source} -> {self.target}: {self.description}"
+
+    def identity(self) -> RelationEdgeIdentity:
+        return (
+            self.source.qualified_name,
+            self.target.qualified_name,
+            self.source.reference_file or "",
+            self.target.reference_file or "",
+            self.source.reference_start_line,
+            self.source.reference_end_line,
+            self.target.reference_start_line,
+            self.target.reference_end_line,
+            tuple(sorted((site.line, site.column) for site in self.call_sites)),
+        )
+
+
 class Relation(LLMBaseModel):
     """A relationship between two components."""
 
     relation: str = Field(description="Single phrase used for the relationship of two components.")
     src_name: str = Field(description="Source component name")
     dst_name: str = Field(description="Target component name")
+    evidence: str = Field(
+        default="",
+        description=(
+            "Optional concrete evidence for relations that are not direct static calls, "
+            "such as REST endpoints, queues, plugin registration, subprocesses, reflection, or config-driven wiring."
+        ),
+    )
+    key_edges: list[RelationEdge] = Field(
+        default_factory=list,
+        description=(
+            "Small set of architecturally important source-to-target edges for this relation. "
+            "Use SourceCodeReference objects, similar to key_entities, so references can be resolved to real methods."
+        ),
+    )
     src_id: str = Field(default="", description="Component ID of the source.", exclude=True)
     dst_id: str = Field(default="", description="Component ID of the destination.", exclude=True)
-    edge_count: int = Field(default=0, description="Number of CFG edges backing this relation.", exclude=True)
     is_static: bool = Field(default=False, description="True if derived from static CFG analysis.", exclude=True)
+    all_edges: list[RelationEdge] = Field(
+        default_factory=list,
+        description="All known source-to-target edges for this relation, populated deterministically when available.",
+        exclude=True,
+        json_schema_extra={"hidden": True},
+    )
 
-    def llm_str(self):
+    @classmethod
+    def from_edges(
+        cls,
+        relation: str,
+        src_name: str,
+        dst_name: str,
+        src_id: str,
+        dst_id: str,
+        edges: list[RelationEdge],
+        is_static: bool,
+        evidence: str = "",
+    ) -> Relation:
+        return cls(
+            relation=relation,
+            src_name=src_name,
+            dst_name=dst_name,
+            evidence=evidence,
+            key_edges=[],
+            src_id=src_id,
+            dst_id=dst_id,
+            is_static=is_static,
+            all_edges=cls._unique_edges(edges),
+        )
+
+    def llm_str(self) -> str:
         return f"({self.src_name}, {self.relation}, {self.dst_name})"
+
+    def pair_key(self, include_relation: bool = False) -> tuple[str, str] | tuple[str, str, str]:
+        src = self.src_id
+        dst = self.dst_id
+        if include_relation:
+            return (src, dst, self.relation)
+        return (src, dst)
+
+    def with_merged_edges(self) -> Relation:
+        key_edges, all_edges = self._merge_edges(self.key_edges, self.all_edges)
+        return Relation(
+            relation=self.relation,
+            src_name=self.src_name,
+            dst_name=self.dst_name,
+            evidence=self.evidence,
+            key_edges=key_edges,
+            src_id=self.src_id,
+            dst_id=self.dst_id,
+            is_static=self.is_static,
+            all_edges=all_edges,
+        )
+
+    def merge_edges_from(self, relation: Relation) -> None:
+        self.key_edges, self.all_edges = self._merge_edges(
+            [*self.key_edges, *relation.key_edges], [*self.all_edges, *relation.all_edges]
+        )
+        self.is_static = self.is_static or relation.is_static
+        if not self.evidence:
+            self.evidence = relation.evidence
+
+    @staticmethod
+    def _merge_edges(
+        key_edges: list[RelationEdge], all_edges: list[RelationEdge]
+    ) -> tuple[list[RelationEdge], list[RelationEdge]]:
+        merged_key_edges = Relation._unique_edges(key_edges)
+        merged_all_edges = Relation._unique_edges([*all_edges, *merged_key_edges])
+        return merged_key_edges, merged_all_edges
+
+    @staticmethod
+    def _unique_edges(edges: list[RelationEdge]) -> list[RelationEdge]:
+        unique_edges: list[RelationEdge] = []
+        seen: set[Hashable] = set()
+        for edge in edges:
+            edge_id = edge.identity()
+            if edge_id in seen:
+                continue
+            unique_edges.append(edge)
+            seen.add(edge_id)
+        return unique_edges
+
+    @property
+    def edge_count(self) -> int:
+        return len(self.all_edges)
 
     def analysis_dump(self) -> dict:
         data = self.model_dump(exclude_none=True)
@@ -383,6 +572,81 @@ class AnalysisInsights(LLMBaseModel):
         return {str(PurePosixPath(fg.file_path)): c.component_id for c in self.components for fg in c.file_methods}
 
 
+class ComponentArchitecture(LLMBaseModel):
+    """Component-only architecture before relation discovery."""
+
+    description: str = Field(
+        description="One paragraph explaining the functionality represented by this graph, its main flow, and purpose."
+    )
+    components: list[Component] = Field(description="List of the components identified in the project.")
+
+    def llm_str(self):
+        if not self.components:
+            return "No abstract components found."
+        title = "# Abstract Components Overview\n"
+        body = "\n".join(ac.llm_str() for ac in self.components)
+        return title + body
+
+
+class ComponentApiSurface(LLMBaseModel):
+    """The provided and consumed APIs for one component."""
+
+    component_name: str = Field(description="Exact component name this API surface describes.")
+    provided_interfaces: list[SourceCodeReference] = Field(
+        default_factory=list,
+        description="Methods/classes/config symbols this component exposes or uses as entrypoints.",
+    )
+    consumed_interfaces: list[SourceCodeReference] = Field(
+        default_factory=list,
+        description="Methods/classes/config symbols this component calls, configures, imports, or expects from others.",
+    )
+    incoming_api_paths: list[str] = Field(
+        default_factory=list,
+        description="How other components enter this component's API, such as direct calls, registry dispatch, REST, queues, plugins, files, or config.",
+    )
+    outgoing_api_paths: list[str] = Field(
+        default_factory=list,
+        description="How this component reaches other components' APIs, such as direct calls, registry dispatch, REST, queues, plugins, files, or config.",
+    )
+    notes: str = Field(default="", description="Short notes about the component's API role.")
+
+    def llm_str(self):
+        provided = ", ".join(ref.llm_str() for ref in self.provided_interfaces) or "none"
+        consumed = ", ".join(ref.llm_str() for ref in self.consumed_interfaces) or "none"
+        incoming = ", ".join(self.incoming_api_paths) or "none"
+        outgoing = ", ".join(self.outgoing_api_paths) or "none"
+        return (
+            f"**{self.component_name}**\n"
+            f"  Provided: {provided}\n"
+            f"  Consumed: {consumed}\n"
+            f"  Incoming API paths: {incoming}\n"
+            f"  Outgoing API paths: {outgoing}\n"
+            f"  Notes: {self.notes}"
+        )
+
+
+class ComponentApiSurfaces(LLMBaseModel):
+    """API surfaces for all components in a scope."""
+
+    api_surfaces: list[ComponentApiSurface] = Field(description="API surface for each component in this scope.")
+
+    def llm_str(self):
+        if not self.api_surfaces:
+            return "No component API surfaces found."
+        return "\n".join(surface.llm_str() for surface in self.api_surfaces)
+
+
+class ComponentRelations(LLMBaseModel):
+    """Relations discovered from component API surfaces."""
+
+    components_relations: list[Relation] = Field(description="List of relations among the components.")
+
+    def llm_str(self):
+        if not self.components_relations:
+            return "No component relations found."
+        return "\n".join(relation.llm_str() for relation in self.components_relations)
+
+
 def assign_component_ids(analysis: AnalysisInsights, parent_id: str = "", only_new: bool = False) -> None:
     """Assign hierarchical component IDs based on sibling index.
 
@@ -414,7 +678,11 @@ def assign_component_ids(analysis: AnalysisInsights, parent_id: str = "", only_n
         for idx, component in enumerate(analysis.components, start=1):
             component.component_id = f"{parent_id}.{idx}" if parent_id else str(idx)
 
-    # Assign relation IDs by looking up component names (first occurrence wins for duplicates)
+    assign_relation_ids(analysis)
+
+
+def assign_relation_ids(analysis: AnalysisInsights) -> None:
+    """Assign relation component IDs by looking up component names."""
     name_to_id: dict[str, str] = {}
     for c in analysis.components:
         if c.name in name_to_id:

@@ -8,6 +8,7 @@ import pytest
 
 from static_analyzer.engine.adapters.go_adapter import GoAdapter, _directory_filters_from_ignore_manager
 from repo_utils.ignore import RepoIgnoreManager
+from utils import CODEBOARDING_DIR_NAME
 
 
 class TestGetLspCommandGoCheck:
@@ -105,7 +106,7 @@ class TestGoplsConfiguration:
     def test_init_options_include_directory_filters_from_ignore_manager(self, tmp_path: Path):
         """Directory filters are derived from .codeboardingignore patterns."""
         # Create a .codeboardingignore with directory patterns
-        cb_dir = tmp_path / ".codeboarding"
+        cb_dir = tmp_path / CODEBOARDING_DIR_NAME
         cb_dir.mkdir()
         ignore_file = cb_dir / ".codeboardingignore"
         ignore_file.write_text("vendor/\n**/tests/**\n**/examples/**\n*.test.js\n")
@@ -144,7 +145,7 @@ class TestGoplsConfiguration:
 
     def test_directory_filters_deduplicates(self, tmp_path: Path):
         """Same directory from multiple patterns should only appear once."""
-        cb_dir = tmp_path / ".codeboarding"
+        cb_dir = tmp_path / CODEBOARDING_DIR_NAME
         cb_dir.mkdir()
         ignore_file = cb_dir / ".codeboardingignore"
         ignore_file.write_text("vendor/\n**/vendor/**\n")

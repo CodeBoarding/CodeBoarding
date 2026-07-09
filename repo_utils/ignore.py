@@ -4,6 +4,8 @@ from typing import Any
 
 import pathspec
 
+from constants import CODEBOARDING_DIR_NAME
+
 logger = logging.getLogger(__name__)
 
 CODEBOARDINGIGNORE_TEMPLATE = """# CodeBoarding Ignore File
@@ -149,7 +151,7 @@ _DEFAULT_SPEC = pathspec.PathSpec.from_lines("gitwildmatch", CODEBOARDINGIGNORE_
 _ALWAYS_IGNORED_DIRS = {
     # Version control and tooling
     ".git",
-    ".codeboarding",
+    CODEBOARDING_DIR_NAME,
     # Dependency installs
     "node_modules",
     # Compiled / build output (universal across ecosystems — never source)
@@ -208,7 +210,7 @@ class RepoIgnoreManager:
         first-run analysis still has sensible exclusions even before
         ``initialize_codeboardingignore`` is called.
         """
-        codeboardingignore_path = self.repo_root / ".codeboarding" / ".codeboardingignore"
+        codeboardingignore_path = self.repo_root / CODEBOARDING_DIR_NAME / ".codeboardingignore"
 
         if codeboardingignore_path.exists():
             try:

@@ -22,6 +22,7 @@ from static_analyzer.analysis_cache import (
     STATIC_ANALYSIS_SHA,
     StaticAnalysisCache,
 )
+from utils import CODEBOARDING_DIR_NAME
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import Language
 
@@ -29,7 +30,7 @@ from static_analyzer.constants import Language
 class TestPartialSaveRollback(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.mkdtemp()
-        self.artifact_dir = Path(self.temp_dir) / ".codeboarding"
+        self.artifact_dir = Path(self.temp_dir) / CODEBOARDING_DIR_NAME
         self.repo_root = Path(self.temp_dir)
         self.cache = StaticAnalysisCache(self.artifact_dir, self.repo_root)
 

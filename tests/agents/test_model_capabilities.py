@@ -12,6 +12,7 @@ from agents.model_capabilities import (
     _resolve_ollama,
     get_context_window,
 )
+from utils import CODEBOARDING_DIR_NAME
 
 _FAKE_MODELSDEV = {
     "openai": {
@@ -178,7 +179,7 @@ class TestCorruptCache:
         # Why: clear before AND after so we don't poison the lru_cache for sibling tests.
         model_capabilities._load.cache_clear()
         try:
-            cache_dir = tmp_path / ".codeboarding" / "cache"
+            cache_dir = tmp_path / CODEBOARDING_DIR_NAME / "cache"
             cache_dir.mkdir(parents=True)
             (cache_dir / "openrouter.json").write_text("{ not json ")
             monkeypatch.setattr(model_capabilities, "get_cache_dir", lambda _repo: cache_dir)

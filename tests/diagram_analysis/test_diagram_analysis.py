@@ -10,9 +10,12 @@ from unittest.mock import MagicMock, Mock, patch
 from agents.agent_responses import (
     AnalysisInsights,
     Component,
+    FileEntry,
     FileMethodGroup,
     MethodEntry,
     Relation,
+    RelationCallSite,
+    RelationEdge,
     ScopeOperation,
     ScopeOperationAction,
     ScopedClusterRef,
@@ -26,8 +29,10 @@ from diagram_analysis.analysis_json import (
     ComponentJson,
     RelationJson,
     UnifiedAnalysisJson,
+    build_unified_analysis_json,
     from_analysis_to_json,
     from_component_to_json_component,
+    parse_unified_analysis,
 )
 from diagram_analysis.cluster_delta import ClusterMemberDelta, ClusterRef, LanguageStructuralDiff, StructuralClusterDiff
 from diagram_analysis.diagram_generator import DiagramGenerator, _component_depth, _component_expansion_seeds
@@ -173,6 +178,8 @@ class TestUnifiedAnalysisJson(unittest.TestCase):
 
 class TestAnalysisJsonConversion(unittest.TestCase):
     def setUp(self):
+        self.repo_dir = Path(".")
+
         # Create sample components
         self.comp1 = Component(
             name="Component1",
@@ -198,11 +205,47 @@ class TestAnalysisJsonConversion(unittest.TestCase):
         )
         assign_component_ids(self.analysis)
 
+    def _add_edge_methods_to_index(self) -> None:
+        self.analysis.files = {
+            "component1.py": FileEntry(
+                methods=[
+                    MethodEntry(
+                        qualified_name="component1.run",
+                        start_line=10,
+                        end_line=20,
+                        node_type="FUNCTION",
+                    ),
+                    MethodEntry(
+                        qualified_name="component1.dispatch",
+                        start_line=10,
+                        end_line=20,
+                        node_type="FUNCTION",
+                    ),
+                ]
+            ),
+            "component2.py": FileEntry(
+                methods=[
+                    MethodEntry(
+                        qualified_name="component2.load",
+                        start_line=30,
+                        end_line=40,
+                        node_type="FUNCTION",
+                    ),
+                    MethodEntry(
+                        qualified_name="component2.registry",
+                        start_line=30,
+                        end_line=40,
+                        node_type="FUNCTION",
+                    ),
+                ]
+            ),
+        }
+
     def test_from_component_to_json_component_can_expand_true(self):
         # Test when component can be expanded
         new_components = [self.comp1]  # comp1 can be expanded
 
-        result = from_component_to_json_component(self.comp1, new_components)
+        result = from_component_to_json_component(self.comp1, new_components, self.repo_dir)
 
         self.assertIsInstance(result, ComponentJson)
         self.assertEqual(result.name, "Component1")
@@ -212,7 +255,7 @@ class TestAnalysisJsonConversion(unittest.TestCase):
         # Test when component cannot be expanded
         new_components: list[Component] = []  # No new components
 
-        result = from_component_to_json_component(self.comp1, new_components)
+        result = from_component_to_json_component(self.comp1, new_components, self.repo_dir)
 
         self.assertIsInstance(result, ComponentJson)
         self.assertEqual(result.name, "Component1")
@@ -236,7 +279,7 @@ class TestAnalysisJsonConversion(unittest.TestCase):
             key_entities=[ref],
         )
 
-        result = from_component_to_json_component(comp, [])
+        result = from_component_to_json_component(comp, [], self.repo_dir)
 
         self.assertEqual(result.name, "TestComp")
         self.assertEqual(result.description, "Test description")
@@ -247,7 +290,7 @@ class TestAnalysisJsonConversion(unittest.TestCase):
         # Test full analysis conversion to JSON
         new_components = [self.comp1]  # Only comp1 can expand
 
-        json_str = from_analysis_to_json(self.analysis, new_components)
+        json_str = from_analysis_to_json(self.analysis, new_components, self.repo_dir)
 
         # Parse JSON to verify it's valid
         data = json.loads(json_str)
@@ -262,12 +305,336 @@ class TestAnalysisJsonConversion(unittest.TestCase):
 
         self.assertTrue(comp1_data["can_expand"])
         self.assertFalse(comp2_data["can_expand"])
+        self.assertEqual(comp1_data["components"], [])
+        self.assertEqual(comp1_data["components_relations"], [])
+        self.assertEqual(comp2_data["components"], [])
+        self.assertEqual(comp2_data["components_relations"], [])
+
+    def test_from_analysis_to_json_includes_all_edges(self):
+        self._add_edge_methods_to_index()
+        self.analysis.components_relations = [
+            Relation(
+                src_name="Component1",
+                dst_name="Component2",
+                relation="calls",
+                src_id="1",
+                dst_id="2",
+                is_static=True,
+                all_edges=[
+                    RelationEdge(
+                        source=SourceCodeReference(
+                            qualified_name="component1.run",
+                            reference_file="component1.py",
+                            reference_start_line=10,
+                            reference_end_line=20,
+                        ),
+                        target=SourceCodeReference(
+                            qualified_name="component2.load",
+                            reference_file="component2.py",
+                            reference_start_line=30,
+                            reference_end_line=40,
+                        ),
+                        call_sites=[RelationCallSite(line=12, column=8), RelationCallSite(line=18, column=12)],
+                    )
+                ],
+            )
+        ]
+
+        data = json.loads(from_analysis_to_json(self.analysis, [], self.repo_dir))
+
+        relation = data["components_relations"][0]
+        self.assertNotIn("edge_count", relation)
+        self.assertTrue(relation["is_static"])
+        self.assertEqual(relation["all_edges"][0]["source"], "component1.py|component1.run")
+        self.assertEqual(relation["all_edges"][0]["target"], "component2.py|component2.load")
+        self.assertEqual(
+            relation["all_edges"][0]["call_sites"], [{"line": 12, "column": 8}, {"line": 18, "column": 12}]
+        )
+
+    def test_from_analysis_to_json_collapses_relations_but_keeps_edges(self):
+        self._add_edge_methods_to_index()
+        self.analysis.components_relations = [
+            Relation(
+                src_name="Component1",
+                dst_name="Component2",
+                relation="calls",
+                src_id="1",
+                dst_id="2",
+                is_static=True,
+                all_edges=[
+                    RelationEdge(
+                        source=SourceCodeReference(
+                            qualified_name="component1.run",
+                            reference_file="component1.py",
+                            reference_start_line=10,
+                            reference_end_line=20,
+                        ),
+                        target=SourceCodeReference(
+                            qualified_name="component2.load",
+                            reference_file="component2.py",
+                            reference_start_line=30,
+                            reference_end_line=40,
+                        ),
+                        call_sites=[RelationCallSite(line=12, column=8)],
+                    )
+                ],
+            ),
+            Relation(
+                src_name="Component1",
+                dst_name="Component2",
+                relation="dispatches to",
+                src_id="1",
+                dst_id="2",
+                key_edges=[
+                    RelationEdge(
+                        source=SourceCodeReference(
+                            qualified_name="component1.dispatch",
+                            reference_file="component1.py",
+                            reference_start_line=10,
+                            reference_end_line=20,
+                        ),
+                        target=SourceCodeReference(
+                            qualified_name="component2.registry",
+                            reference_file="component2.py",
+                            reference_start_line=30,
+                            reference_end_line=40,
+                        ),
+                        call_sites=[RelationCallSite(line=14, column=6)],
+                    )
+                ],
+            ),
+        ]
+
+        data = json.loads(from_analysis_to_json(self.analysis, [], self.repo_dir))
+
+        self.assertEqual(len(data["components_relations"]), 2)
+        relations_by_label = {relation["relation"]: relation for relation in data["components_relations"]}
+        self.assertEqual(len(relations_by_label["calls"]["all_edges"]), 1)
+        self.assertEqual(relations_by_label["calls"]["all_edges"][0]["source"], "component1.py|component1.run")
+        self.assertEqual(len(relations_by_label["dispatches to"]["key_edges"]), 1)
+        self.assertEqual(
+            relations_by_label["dispatches to"]["key_edges"][0]["source"], "component1.py|component1.dispatch"
+        )
+
+    def test_unified_analysis_parse_preserves_all_edges(self):
+        self._add_edge_methods_to_index()
+        self.analysis.components_relations = [
+            Relation(
+                src_name="Component1",
+                dst_name="Component2",
+                relation="calls",
+                src_id="1",
+                dst_id="2",
+                is_static=True,
+                all_edges=[
+                    RelationEdge(
+                        source=SourceCodeReference(
+                            qualified_name="component1.run",
+                            reference_file="component1.py",
+                            reference_start_line=10,
+                            reference_end_line=20,
+                        ),
+                        target=SourceCodeReference(
+                            qualified_name="component2.load",
+                            reference_file="component2.py",
+                            reference_start_line=30,
+                            reference_end_line=40,
+                        ),
+                        call_sites=[RelationCallSite(line=12, column=8), RelationCallSite(line=18, column=12)],
+                    )
+                ],
+            )
+        ]
+
+        data = json.loads(build_unified_analysis_json(self.analysis, [], "repo", self.repo_dir))
+        parsed, _ = parse_unified_analysis(data)
+
+        relation = parsed.components_relations[0]
+        self.assertTrue(relation.is_static)
+        self.assertEqual(relation.all_edges[0].source.qualified_name, "component1.run")
+        self.assertEqual(relation.all_edges[0].target.reference_file, "component2.py")
+        self.assertEqual(
+            [site.model_dump() for site in relation.all_edges[0].call_sites],
+            [{"line": 12, "column": 8}, {"line": 18, "column": 12}],
+        )
+
+    def test_unified_analysis_parse_preserves_key_edges(self):
+        self._add_edge_methods_to_index()
+        self.analysis.components_relations = [
+            Relation(
+                src_name="Component1",
+                dst_name="Component2",
+                relation="dispatches to",
+                evidence="Runtime registry dispatch",
+                key_edges=[
+                    RelationEdge(
+                        source=SourceCodeReference(
+                            qualified_name="component1.dispatch",
+                            reference_file="component1.py",
+                            reference_start_line=10,
+                            reference_end_line=20,
+                        ),
+                        target=SourceCodeReference(
+                            qualified_name="component2.registry",
+                            reference_file="component2.py",
+                            reference_start_line=30,
+                            reference_end_line=40,
+                        ),
+                        description="dispatches through registry",
+                        call_sites=[RelationCallSite(line=14, column=6), RelationCallSite(line=16, column=10)],
+                    )
+                ],
+            )
+        ]
+
+        data = json.loads(build_unified_analysis_json(self.analysis, [], "repo", self.repo_dir))
+        parsed, _ = parse_unified_analysis(data)
+
+        edge = parsed.components_relations[0].key_edges[0]
+        self.assertEqual(edge.source.qualified_name, "component1.dispatch")
+        self.assertEqual(edge.target.reference_file, "component2.py")
+        self.assertEqual(edge.description, "dispatches through registry")
+        self.assertEqual(
+            [site.model_dump() for site in edge.call_sites], [{"line": 14, "column": 6}, {"line": 16, "column": 10}]
+        )
+
+    def test_unified_analysis_parse_skips_edges_missing_from_methods_index(self):
+        data = json.loads(build_unified_analysis_json(self.analysis, [], "repo", self.repo_dir))
+        data["components_relations"] = [
+            {
+                "relation": "calls",
+                "src_name": "Component1",
+                "dst_name": "Component2",
+                "src_id": "1",
+                "dst_id": "2",
+                "is_static": True,
+                "key_edges": [
+                    {
+                        "source": "missing.py|missing.call",
+                        "target": "component2.py|component2.load",
+                        "description": "external or stale endpoint",
+                    }
+                ],
+                "all_edges": [],
+            }
+        ]
+
+        parsed, _ = parse_unified_analysis(data)
+
+        self.assertEqual(len(parsed.components_relations), 1)
+        self.assertEqual(parsed.components_relations[0].key_edges, [])
+
+    def test_from_analysis_to_json_does_not_infer_unproven_key_edge_call_sites(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            source_file = Path(tmp_dir) / "component1.py"
+            source_file.write_text(
+                "def dispatch(flag):\n"
+                "    if flag:\n"
+                "        load()\n"
+                "    else:\n"
+                "        load()\n"
+                "\n"
+                "def load():\n"
+                "    pass\n"
+            )
+            source_path = str(source_file)
+            target_path = str(source_file)
+            self.analysis.files = {
+                source_path: FileEntry(
+                    methods=[
+                        MethodEntry(
+                            qualified_name="component1.dispatch",
+                            start_line=1,
+                            end_line=5,
+                            node_type="FUNCTION",
+                        ),
+                        MethodEntry(
+                            qualified_name="component1.load",
+                            start_line=7,
+                            end_line=8,
+                            node_type="FUNCTION",
+                        ),
+                    ]
+                )
+            }
+            self.analysis.components_relations = [
+                Relation(
+                    src_name="Component1",
+                    dst_name="Component2",
+                    relation="dispatches to",
+                    key_edges=[
+                        RelationEdge(
+                            source=SourceCodeReference(
+                                qualified_name="component1.dispatch",
+                                reference_file=source_path,
+                                reference_start_line=1,
+                                reference_end_line=5,
+                            ),
+                            target=SourceCodeReference(
+                                qualified_name="component1.load",
+                                reference_file=target_path,
+                                reference_start_line=7,
+                                reference_end_line=8,
+                            ),
+                        )
+                    ],
+                )
+            ]
+
+            data = json.loads(from_analysis_to_json(self.analysis, [], self.repo_dir))
+
+        key_edge = data["components_relations"][0]["key_edges"][0]
+        self.assertEqual(key_edge["call_sites"], [])
+
+    def test_from_analysis_to_json_normalizes_absolute_relation_edge_paths(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            repo_dir = Path(tmp_dir)
+            source_file = repo_dir / "component1.py"
+            source_file.write_text("def run():\n    load()\n\ndef load():\n    pass\n")
+            self.analysis.files = {
+                "component1.py": FileEntry(
+                    methods=[
+                        MethodEntry(qualified_name="component1.run", start_line=1, end_line=2, node_type="FUNCTION"),
+                        MethodEntry(qualified_name="component1.load", start_line=4, end_line=5, node_type="FUNCTION"),
+                    ]
+                )
+            }
+            self.analysis.components_relations = [
+                Relation(
+                    src_name="Component1",
+                    dst_name="Component2",
+                    relation="calls",
+                    key_edges=[
+                        RelationEdge(
+                            source=SourceCodeReference(
+                                qualified_name="component1.run",
+                                reference_file=str(source_file),
+                                reference_start_line=1,
+                                reference_end_line=2,
+                            ),
+                            target=SourceCodeReference(
+                                qualified_name="component1.load",
+                                reference_file=str(source_file),
+                                reference_start_line=4,
+                                reference_end_line=5,
+                            ),
+                        )
+                    ],
+                )
+            ]
+
+            data = json.loads(from_analysis_to_json(self.analysis, [], repo_dir=repo_dir))
+
+        key_edge = data["components_relations"][0]["key_edges"][0]
+        self.assertEqual(key_edge["source"], "component1.py|component1.run")
+        self.assertEqual(key_edge["target"], "component1.py|component1.load")
+        self.assertEqual(key_edge["call_sites"], [])
 
     def test_from_analysis_to_json_empty(self):
         # Test with empty analysis
         empty_analysis = AnalysisInsights(description="Empty", components=[], components_relations=[])
 
-        json_str = from_analysis_to_json(empty_analysis, [])
+        json_str = from_analysis_to_json(empty_analysis, [], self.repo_dir)
 
         data = json.loads(json_str)
         self.assertEqual(data["description"], "Empty")
@@ -297,7 +664,7 @@ class TestAnalysisJsonConversion(unittest.TestCase):
 
         analysis = AnalysisInsights(description="Test", components=[comp], components_relations=[])
 
-        json_str = from_analysis_to_json(analysis, [])
+        json_str = from_analysis_to_json(analysis, [], self.repo_dir)
         data = json.loads(json_str)
 
         comp_data = data["components"][0]
@@ -305,7 +672,7 @@ class TestAnalysisJsonConversion(unittest.TestCase):
 
     def test_from_analysis_to_json_formatting(self):
         # Test that JSON is properly formatted with indentation
-        json_str = from_analysis_to_json(self.analysis, [])
+        json_str = from_analysis_to_json(self.analysis, [], self.repo_dir)
 
         # Check that it's indented (contains newlines and spaces)
         self.assertIn("\n", json_str)
@@ -591,6 +958,7 @@ class TestDiagramGenerator(unittest.TestCase):
             analysis,
             expandable_components,
             repo_name,
+            repo_dir,
             sub_analyses,
             file_coverage_summary=None,
             commit_hash="",

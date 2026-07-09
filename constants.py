@@ -1,5 +1,8 @@
 """Application-level constants for CodeBoarding."""
 
+CODEBOARDING_DIR_NAME = ".codeboarding"
+DEFAULT_STATIC_RELATION_LABEL = "calls"
+
 
 class AppConfig:
     MAX_CONCURRENT_JOBS = 5

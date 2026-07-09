@@ -5,9 +5,19 @@ import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from difflib import SequenceMatcher
+from pathlib import Path
+from typing import Protocol
 
-from agents.agent_responses import AnalysisInsights, ClusterAnalysis, ComponentFiles, ScopeRelations
+from agents.agent_responses import (
+    AnalysisInsights,
+    ClusterAnalysis,
+    Component,
+    ComponentFiles,
+    Relation,
+    ScopeRelations,
+)
 from repo_utils import normalize_path
+from static_analyzer.reference_resolver import StaticReferenceResolver
 from static_analyzer.graph import CallGraph, ClusterResult
 
 from static_analyzer.analysis_result import StaticAnalysisResults
@@ -15,14 +25,15 @@ from static_analyzer.analysis_result import StaticAnalysisResults
 logger = logging.getLogger(__name__)
 
 # Validator weight configuration.
-# Coverage validators (cluster + group name) are the most critical — they
-# determine whether every cluster is accounted for and properly assigned.
-# Key-entity validation is secondary (auto-correctable, less structural).
+# Coverage and relation evidence validators are the most critical structural
+# checks. Key-entity validation is secondary (auto-correctable, less structural).
 VALIDATOR_WEIGHTS: dict[str, float] = {
     "validate_cluster_coverage": 20.0,
     "validate_group_name_coverage": 20.0,
     "validate_key_entities": 5.0,
+    "validate_relations": 30.0,
     "validate_relation_component_names": 5.0,
+    "validate_relation_evidence": 10.0,
     "validate_file_classifications": 5.0,
 }
 DEFAULT_VALIDATOR_WEIGHT = 5.0
@@ -45,6 +56,7 @@ class ValidationContext:
     repo_dir: str | None = None  # For path normalization
     static_analysis: StaticAnalysisResults | None = None  # For qualified name validation
     llm_cluster_analysis: ClusterAnalysis | None = None  # For group name coverage validation
+    components: list[Component] = field(default_factory=list)  # For relation-only validation steps
 
 
 @dataclass
@@ -53,6 +65,18 @@ class ValidationResult:
 
     is_valid: bool
     feedback_messages: list[str] = field(default_factory=list)
+    score: float = 0.0
+
+
+class RelationValidationTarget(Protocol):
+    components_relations: list[Relation]
+
+
+def _effective_validation_score(result: ValidationResult) -> float:
+    """Return a normalized score where a passing validator counts as complete."""
+    if result.is_valid:
+        return 1.0
+    return max(0.0, min(1.0, result.score))
 
 
 def score_validation_results(
@@ -73,8 +97,7 @@ def score_validation_results(
     score = 0.0
     for validator_fn, vr in validator_results:
         weight = VALIDATOR_WEIGHTS.get(validator_fn.__name__, DEFAULT_VALIDATOR_WEIGHT)
-        if vr.is_valid:
-            score += weight
+        score += weight * _effective_validation_score(vr)
     return score
 
 
@@ -524,9 +547,11 @@ def validate_relation_component_names(result: AnalysisInsights, _context: Valida
     Returns:
         ValidationResult with feedback listing every relation whose src_name or dst_name is unknown
     """
-    known_names = {component.name for component in result.components}
+    components = result.components if hasattr(result, "components") else _context.components
+    known_names = {component.name for component in components}
 
     invalid_relations: list[str] = []
+    total_relations = len(result.components_relations)
     for relation in result.components_relations:
         unknown: list[str] = []
         if relation.src_name not in known_names:
@@ -551,7 +576,144 @@ def validate_relation_component_names(result: AnalysisInsights, _context: Valida
     )
 
     logger.warning(f"[Validation] Relations with unknown component names: {invalid_str}")
-    return ValidationResult(is_valid=False, feedback_messages=[feedback])
+    valid_count = max(0, total_relations - len(invalid_relations))
+    return ValidationResult(
+        is_valid=False,
+        feedback_messages=[feedback],
+        score=(valid_count / total_relations) if total_relations else 0.0,
+    )
+
+
+def validate_relation_evidence(result: RelationValidationTarget, context: ValidationContext) -> ValidationResult:
+    """Validate LLM relations against directed CFG edges or explicit runtime evidence."""
+    if not context.llm_cluster_analysis or not context.cluster_results or not context.cfg_graphs:
+        logger.warning("[Validation] Missing static context for relation evidence validation")
+        return ValidationResult(is_valid=True)
+
+    components = context.components
+    if not components and isinstance(result, AnalysisInsights):
+        components = result.components
+    component_to_clusters = _component_cluster_ids(components, context.llm_cluster_analysis)
+    cluster_edge_lookup = _build_cluster_edge_lookup(context.cluster_results, context.cfg_graphs)
+    unsupported: list[str] = []
+    invalid_key_edges: list[str] = []
+    unresolved_key_edges: list[str] = []
+    valid_relation_count = 0
+    total_relations = len(result.components_relations)
+
+    for relation in result.components_relations:
+        src_clusters = component_to_clusters.get(relation.src_name, [])
+        dst_clusters = component_to_clusters.get(relation.dst_name, [])
+        valid_key_edges, same_endpoint_edges, unresolved_edges = _valid_key_edge_descriptions(relation, context)
+        if same_endpoint_edges:
+            invalid_key_edges.append(f"{relation.src_name} -> {relation.dst_name}: {', '.join(same_endpoint_edges)}")
+        if unresolved_edges:
+            unresolved_key_edges.append(f"{relation.src_name} -> {relation.dst_name}: {', '.join(unresolved_edges)}")
+        if _cluster_sets_have_edge(src_clusters, dst_clusters, cluster_edge_lookup):
+            if not same_endpoint_edges and not unresolved_edges:
+                valid_relation_count += 1
+            continue
+        if unresolved_edges:
+            continue
+        if valid_key_edges:
+            valid_relation_count += 1
+            continue
+        if _has_relation_evidence(relation) and not relation.key_edges:
+            valid_relation_count += 1
+            continue
+        unsupported.append(f"{relation.src_name} -> {relation.dst_name}: {relation.relation}")
+
+    feedback_messages: list[str] = []
+    if unsupported:
+        feedback_messages.append(
+            "The following relations have no directed static CFG edge between their components, and any supplied "
+            "key_edges/evidence could not support the relation: "
+            f"{'; '.join(unsupported)}. Remove them, or keep only if they represent a real runtime/non-static "
+            "interaction and add key_edges or relation evidence with a concise concrete reason "
+            "(for example an endpoint, queue/topic, plugin registration, subprocess, reflection/import hook, or "
+            "config-driven wiring)."
+        )
+    if invalid_key_edges:
+        feedback_messages.append(
+            "The following relation key_edges resolve source and target to the same method/symbol: "
+            f"{'; '.join(invalid_key_edges)}. Replace each with a real bridge edge whose source is the calling, "
+            "registering, routing, or configuring code and whose target is the distinct invoked/registered/routed endpoint."
+        )
+    if unresolved_key_edges:
+        feedback_messages.append(
+            "The following relation key_edges could not be resolved to known source symbols and look hallucinated: "
+            f"{'; '.join(unresolved_key_edges)}. Drop them, or replace them with exact existing symbols from the code. "
+            "If the relation is runtime/config/plugin-driven and has no direct code edge, use relation-level evidence instead."
+        )
+
+    if not feedback_messages:
+        logger.info("[Validation] All relations have static backing or explicit evidence")
+        return ValidationResult(is_valid=True)
+
+    if unsupported:
+        logger.warning("[Validation] Relations without static backing or evidence: %s", "; ".join(unsupported))
+    if invalid_key_edges:
+        logger.warning("[Validation] Relations with degenerate key edges: %s", "; ".join(invalid_key_edges))
+    if unresolved_key_edges:
+        logger.warning("[Validation] Relations with unresolved key edges: %s", "; ".join(unresolved_key_edges))
+    return ValidationResult(
+        is_valid=False,
+        feedback_messages=feedback_messages,
+        score=(valid_relation_count / total_relations) if total_relations else 0.0,
+    )
+
+
+def validate_relations(result: AnalysisInsights, context: ValidationContext) -> ValidationResult:
+    """Validate relation endpoints and edge evidence as one structural check."""
+    name_result = validate_relation_component_names(result, context)
+    evidence_result = validate_relation_evidence(result, context)
+
+    if name_result.is_valid and evidence_result.is_valid:
+        return ValidationResult(is_valid=True)
+
+    feedback_parts: list[str] = []
+    if not name_result.is_valid:
+        feedback_parts.extend(name_result.feedback_messages)
+    if not evidence_result.is_valid:
+        feedback_parts.extend(evidence_result.feedback_messages)
+
+    return ValidationResult(
+        is_valid=False,
+        feedback_messages=[
+            "Fix the component relations as a single edge set: every relation must use exact existing component "
+            "names on both sides, and every relation must be backed by a directed CFG edge or resolvable key_edges. "
+            + " ".join(feedback_parts)
+        ],
+        score=min(_effective_validation_score(name_result), _effective_validation_score(evidence_result)),
+    )
+
+
+def _valid_key_edge_descriptions(relation, context: ValidationContext) -> tuple[list[str], list[str], list[str]]:
+    """Return valid, same-endpoint, and unresolved key edge descriptions."""
+    if context.static_analysis is None:
+        return ([edge.llm_str() for edge in relation.key_edges], [], [])
+    resolver = StaticReferenceResolver(Path(context.repo_dir or "."), context.static_analysis)
+    valid: list[str] = []
+    same_endpoint: list[str] = []
+    unresolved: list[str] = []
+    for edge in relation.key_edges:
+        resolution = resolver.classify_key_edge(edge, context.cfg_graphs)
+        if resolution.valid:
+            valid.append(resolution.description)
+            continue
+        if resolution.same_endpoint:
+            same_endpoint.append(resolution.description)
+            continue
+        if resolution.unresolved:
+            unresolved.append(resolution.description)
+    return valid, same_endpoint, unresolved
+
+
+def _has_relation_evidence(relation) -> bool:
+    """Return true when an LLM-only relation has concrete textual evidence."""
+    if relation.evidence.strip():
+        return True
+    return any(edge.description.strip() for edge in relation.key_edges)
 
 
 def validate_scope_relation_names(result: ScopeRelations, _context: ValidationContext) -> ValidationResult:
@@ -613,6 +775,34 @@ def _build_cluster_edge_lookup(
     return cluster_edge_lookup
 
 
+def _component_cluster_ids(components: list[Component], cluster_analysis: ClusterAnalysis) -> dict[str, list[int]]:
+    group_to_cluster_ids = {group.name: group.cluster_ids for group in cluster_analysis.cluster_components}
+    component_to_clusters: dict[str, list[int]] = {}
+    for component in components:
+        cluster_ids: list[int] = []
+        for group_name in component.source_group_names:
+            cluster_ids.extend(group_to_cluster_ids.get(group_name, []))
+        component_to_clusters[component.name] = cluster_ids
+    return component_to_clusters
+
+
+def _cluster_sets_have_edge(
+    src_cluster_ids: list[int],
+    dst_cluster_ids: list[int],
+    cluster_edge_lookup: dict[str, set[tuple[int, int]]],
+) -> bool:
+    if not src_cluster_ids or not dst_cluster_ids:
+        return False
+
+    src_set = set(src_cluster_ids)
+    dst_set = set(dst_cluster_ids)
+    for cluster_edges in cluster_edge_lookup.values():
+        for src_cluster, dst_cluster in cluster_edges:
+            if src_cluster in src_set and dst_cluster in dst_set:
+                return True
+    return False
+
+
 def _check_edge_between_cluster_sets(
     src_cluster_ids: list[int],
     dst_cluster_ids: list[int],
@@ -639,16 +829,6 @@ def _check_edge_between_cluster_sets(
     if cluster_edge_lookup is None:
         cluster_edge_lookup = _build_cluster_edge_lookup(cluster_results, cfg_graphs)
 
-    src_set = set(src_cluster_ids)
-    dst_set = set(dst_cluster_ids)
-
-    for cluster_edges in cluster_edge_lookup.values():
-        for src_cluster, dst_cluster in cluster_edges:
-            # Check both directions: the LLM's relation direction may not match
-            # the call graph edge direction (e.g. "A uses B" vs B.method() calls A.method())
-            if (src_cluster in src_set and dst_cluster in dst_set) or (
-                src_cluster in dst_set and dst_cluster in src_set
-            ):
-                return True
-
-    return False
+    return _cluster_sets_have_edge(src_cluster_ids, dst_cluster_ids, cluster_edge_lookup) or _cluster_sets_have_edge(
+        dst_cluster_ids, src_cluster_ids, cluster_edge_lookup
+    )

@@ -185,3 +185,11 @@ def get_planning_message() -> str:
 
 def get_scope_relations_message() -> str:
     return get_global_factory()._prompt_factory.get_scope_relations_message()
+
+
+def get_api_surfaces_message() -> str:
+    return get_global_factory()._prompt_factory.get_api_surfaces_message()
+
+
+def get_relation_analysis_message() -> str:
+    return get_global_factory()._prompt_factory.get_relation_analysis_message()

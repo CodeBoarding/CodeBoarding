@@ -128,13 +128,13 @@ REQUIRED STEPS (execute in order):
 2. Decide which named groups MUST be merged into final components.
 3. For each component, specify which named cluster groups it encompasses via source_group_names.
 4. Add key entities (2-5 most important classes/methods) for each component, referencing the source file where they are defined.
-5. Define relationships between components.
+5. Do not define relationships yet; relationships are discovered in a later API-surface step.
 
 GUIDELINES for {project_type} projects (MUST follow):
 - Aim for 5-8 final components
 - Merge related cluster groups that serve a common purpose
 - Each component MUST have clear boundaries
-- Include ONLY architecturally significant relationships
+- Focus on component boundaries; relationships are discovered after components are finalized
 
 REQUIRED OUTPUTS (complete all):
 - Description: One paragraph explaining the main flow and purpose
@@ -143,7 +143,7 @@ REQUIRED OUTPUTS (complete all):
   * description: What this component does
   * source_group_names: Which named cluster groups from the analysis above this component encompasses (MUST use exact group names)
   * key_entities: 2-5 most important classes/methods, mentioning their qualified names and source files
-- Relations: Max 2 relationships per component pair (STRICTLY avoid bidirectional relations like ComponentA sends message to ComponentB and ComponentB returns result to ComponentA)
+
 
 CONSTRAINTS (MUST obey):
 - Focus on highest level architectural components
@@ -370,13 +370,13 @@ REQUIRED STEPS (execute in order):
 2. Decide which named groups MUST be merged into final sub-components.
 3. For each sub-component, specify which named cluster groups it encompasses via source_group_names.
 4. Add key entities (2-5 most important classes/methods) for each sub-component, referencing the source file where they are defined.
-5. Define relationships between sub-components.
+5. Do not define relationships yet; relationships are discovered in a later API-surface step.
 
 GUIDELINES for {project_type} projects (MUST follow):
 - Aim for 3-8 final sub-components
 - Merge related cluster groups that serve a common purpose
 - Each sub-component MUST have clear boundaries
-- Include ONLY architecturally significant relationships
+- Focus on component boundaries; relationships are discovered after components are finalized
 
 REQUIRED OUTPUTS (complete all):
 - Description: One paragraph explaining the subsystem's main flow and purpose
@@ -385,7 +385,7 @@ REQUIRED OUTPUTS (complete all):
   * description: What this sub-component does
   * source_group_names: Which named cluster groups from the analysis above this sub-component encompasses (MUST use exact group names)
   * key_entities: 2-5 most important classes/methods, mentioning their qualified names and source files
-- Relations: Max 2 relationships per component pair (STRICTLY avoid bidirectional relations like ComponentA sends message to ComponentB and ComponentB returns result to ComponentA)
+
 
 CONSTRAINTS (MUST obey):
 - Focus on subsystem-specific functionality
