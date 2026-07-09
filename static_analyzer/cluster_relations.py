@@ -10,6 +10,7 @@ from collections import defaultdict
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 
+from constants import DEFAULT_STATIC_RELATION_LABEL
 from agents.agent_responses import AnalysisInsights, Relation, RelationEdge
 from agents.relation_edges import (
     append_or_merge_relation,
@@ -18,8 +19,6 @@ from agents.relation_edges import (
 from static_analyzer.graph import CallGraph, Edge
 
 logger = logging.getLogger(__name__)
-
-DEFAULT_STATIC_RELATION_LABEL = "calls"
 
 
 @dataclass
