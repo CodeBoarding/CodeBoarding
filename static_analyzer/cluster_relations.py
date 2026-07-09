@@ -19,6 +19,8 @@ from static_analyzer.graph import CallGraph, Edge
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_STATIC_RELATION_LABEL = "calls"
+
 
 @dataclass
 class ClusterRelation:
@@ -137,7 +139,7 @@ def _ancestor_relation_label(src_id: str, dst_id: str, llm_relations: list[Relat
         and is_self_or_descendant(dst_id, rel.dst_id)
     ]
     if not candidates:
-        return "calls"
+        return DEFAULT_STATIC_RELATION_LABEL
     candidates.sort(
         key=lambda rel: (-(rel.src_id.count(".") + rel.dst_id.count(".")), rel.src_id, rel.dst_id, rel.relation)
     )
@@ -273,7 +275,7 @@ def merge_relations(
             append_or_merge_relation(
                 merged,
                 Relation.from_edges(
-                    "calls",
+                    DEFAULT_STATIC_RELATION_LABEL,
                     src_name,
                     dst_name,
                     static_rel.src_cluster_id,
