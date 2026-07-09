@@ -230,9 +230,18 @@ def merge_relations(
         # Match static relation in the same direction only
         static_rel = static_by_ids.get((src_id, dst_id))
         static_edges = static_rel.all_edges if static_rel else []
+        has_evidence = bool(llm_rel.evidence.strip())
 
-        if not static_edges and not llm_rel.key_edges:
+        if not static_edges and not llm_rel.key_edges and not has_evidence:
             continue
+        if not static_edges and not llm_rel.key_edges and has_evidence:
+            logger.warning(
+                "Keeping LLM-only relation without static or key-edge backing: %s -> %s (%s). Evidence: %s",
+                llm_rel.src_name,
+                llm_rel.dst_name,
+                llm_rel.relation,
+                llm_rel.evidence,
+            )
 
         key_edges, all_edges = merge_relation_edges(llm_rel.key_edges, static_edges)
         for edge in static_edges:

@@ -227,16 +227,20 @@ class TestMergeRelations(unittest.TestCase):
         self.assertEqual(merged[0].all_edges[0].source.reference_file, "src/a.py")
         self.assertEqual(merged[0].all_edges[0].target.reference_file, "src/b.py")
 
-    def test_llm_without_static_backing_dropped(self):
+    def test_llm_with_evidence_without_static_backing_kept_with_warning(self):
         analysis = self._make_analysis()
         llm_rels = [
             Relation(relation="uses", src_name="A", dst_name="B", evidence="Configured through plugin entry point")
         ]
         static_rels: list[ClusterRelation] = []  # No static evidence
 
-        merged = merge_relations(llm_rels, static_rels, analysis)
+        with self.assertLogs("static_analyzer.cluster_relations", level="WARNING") as logs:
+            merged = merge_relations(llm_rels, static_rels, analysis)
 
-        self.assertEqual(merged, [])
+        self.assertEqual(len(merged), 1)
+        self.assertEqual(merged[0].evidence, "Configured through plugin entry point")
+        self.assertFalse(merged[0].is_static)
+        self.assertIn("Keeping LLM-only relation without static or key-edge backing", logs.output[0])
 
     def test_llm_without_static_backing_or_evidence_dropped(self):
         analysis = self._make_analysis()
