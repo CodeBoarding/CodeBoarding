@@ -35,7 +35,12 @@ from diagram_analysis.analysis_json import (
     parse_unified_analysis,
 )
 from diagram_analysis.cluster_delta import ClusterMemberDelta, ClusterRef, LanguageStructuralDiff, StructuralClusterDiff
-from diagram_analysis.diagram_generator import DiagramGenerator, _component_depth, _component_expansion_seeds
+from diagram_analysis.diagram_generator import (
+    DiagramGenerator,
+    _build_scope_incremental_inputs,
+    _component_depth,
+    _component_expansion_seeds,
+)
 from diagram_analysis.exceptions import IncrementalCacheMissingError
 from diagram_analysis.version import Version
 from repo_utils.change_detector import ChangeSet
@@ -1370,6 +1375,71 @@ class TestDiagramGenerator(unittest.TestCase):
 
         mock_prune.assert_not_called()
         self.assertEqual(sub_analyses["1.1"].components[0].name, "Stable Leaf")
+
+    @patch("diagram_analysis.diagram_generator.structural_diff_from_delta")
+    def test_recursive_scope_old_snapshot_uses_incremental_base_lineage(self, mock_structural_diff):
+        baseline_cfg = CallGraph(language="python")
+        target_cfg = CallGraph(language="python")
+        for cfg in [baseline_cfg, target_cfg]:
+            cfg.add_node(
+                Node(
+                    fully_qualified_name="pkg.stable_a",
+                    node_type=NodeType.FUNCTION,
+                    file_path="pkg/module.py",
+                    line_start=1,
+                    line_end=5,
+                )
+            )
+            cfg.add_node(
+                Node(
+                    fully_qualified_name="pkg.stable_b",
+                    node_type=NodeType.FUNCTION,
+                    file_path="pkg/module.py",
+                    line_start=7,
+                    line_end=11,
+                )
+            )
+        baseline_cfg.record_cluster_paths(
+            ClusterResult(clusters={1: {"pkg.stable_a"}, 2: {"pkg.stable_b"}}),
+            scope_id="2",
+        )
+        target_cfg.record_cluster_paths(
+            ClusterResult(clusters={19: {"pkg.stable_a", "pkg.stable_b"}}),
+            scope_id="2",
+        )
+
+        baseline_static_analysis = StaticAnalysisResults()
+        baseline_static_analysis.add_cfg(Language.PYTHON, baseline_cfg)
+        target_static_analysis = StaticAnalysisResults()
+        target_static_analysis.add_cfg(Language.PYTHON, target_cfg)
+        target_static_analysis.incremental_base_results = baseline_static_analysis
+
+        incremental_agent = Mock()
+        incremental_agent.static_analysis = target_static_analysis
+        target_cluster_results = {"python": ClusterResult(clusters={19: {"pkg.stable_a", "pkg.stable_b"}})}
+        incremental_agent._create_strict_component_subgraph.return_value = ("", target_cluster_results, {})
+        mock_structural_diff.return_value = StructuralClusterDiff()
+        component = Component(
+            name="Registry",
+            description="",
+            component_id="2",
+            key_entities=[],
+            file_methods=[
+                FileMethodGroup(
+                    file_path="pkg/module.py",
+                    methods=[
+                        MethodEntry(qualified_name="pkg.stable_a", start_line=1, end_line=5, node_type="FUNCTION"),
+                        MethodEntry(qualified_name="pkg.stable_b", start_line=7, end_line=11, node_type="FUNCTION"),
+                    ],
+                )
+            ],
+        )
+
+        _build_scope_incremental_inputs(component, "2", incremental_agent, changes=None, repo_dir=self.repo_location)
+
+        old_snapshot = mock_structural_diff.call_args.args[0]
+        self.assertEqual(old_snapshot.all_cluster_ids(), {1, 2})
+        self.assertNotIn(19, old_snapshot.all_cluster_ids())
 
     def test_persist_static_analysis_artifact_saves_cluster_cache_without_injected_analyzer(self):
         gen = DiagramGenerator(

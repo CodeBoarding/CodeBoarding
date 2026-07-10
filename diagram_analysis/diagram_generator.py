@@ -883,7 +883,10 @@ def _build_scope_incremental_inputs(
     changes: ChangeSet | None,
     repo_dir: Path,
 ) -> tuple[dict[str, ClusterResult], StructuralClusterDiff]:
-    old_snapshot = scoped_snapshot_for_component(component, scope_id, incremental_agent)
+    old_static_analysis = (
+        incremental_agent.static_analysis.incremental_base_results or incremental_agent.static_analysis
+    )
+    old_snapshot = scoped_snapshot_for_component(component, scope_id, old_static_analysis)
     if not old_snapshot.all_cluster_ids():
         return {}, StructuralClusterDiff()
 
@@ -910,14 +913,14 @@ def _build_scope_incremental_inputs(
 def scoped_snapshot_for_component(
     component: Component,
     scope_id: str,
-    incremental_agent: IncrementalAgent,
+    static_analysis: StaticAnalysisResults,
 ) -> ClusterSnapshot:
     assigned_qnames = {
         method.qualified_name for group in component.file_methods for method in group.methods if method.qualified_name
     }
     by_language = {}
-    for language in incremental_agent.static_analysis.get_languages():
-        cfg = incremental_agent.static_analysis.get_cfg(language)
+    for language in static_analysis.get_languages():
+        cfg = static_analysis.get_cfg(language)
         sub_cfg = cfg.filter_by_nodes(assigned_qnames)
         if sub_cfg.nodes:
             by_language[str(language)] = scoped_snapshot_from_lineage(sub_cfg, scope_id)
