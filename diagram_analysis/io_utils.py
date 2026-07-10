@@ -257,6 +257,7 @@ class _AnalysisFileStore:
             analysis=analysis,
             expandable_components=expandable,
             repo_name=repo_name,
+            source_root=self._repo_dir_for_source_lookup(),
             sub_analyses=sub_analyses_tuples,
             file_coverage_summary=file_coverage_summary,
             commit_hash=commit_hash,

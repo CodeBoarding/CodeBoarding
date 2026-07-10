@@ -178,12 +178,12 @@ def _method_key(file_path: str, qualified_name: str) -> str:
     return f"{file_path}|{qualified_name}"
 
 
-def _source_reference_method_key(reference: SourceCodeReference, repo_dir: Path | None) -> str:
+def _source_reference_method_key(reference: SourceCodeReference, repo_dir: Path) -> str:
     file_path = normalize_repo_path(reference.reference_file or "", repo_dir)
     return _method_key(file_path, reference.qualified_name)
 
 
-def _relation_edge_to_json(edge: RelationEdge, repo_dir: Path | None) -> RelationEdgeJson:
+def _relation_edge_to_json(edge: RelationEdge, repo_dir: Path) -> RelationEdgeJson:
     return RelationEdgeJson(
         source=_source_reference_method_key(edge.source, repo_dir),
         target=_source_reference_method_key(edge.target, repo_dir),
@@ -327,7 +327,7 @@ def _hydrate_component_methods_from_refs(
         logger.warning("Missing method index entry for %d ref(s): %s", len(missing), missing)
 
 
-def _relation_to_json(r: Relation, repo_dir: Path | None) -> RelationJson:
+def _relation_to_json(r: Relation, repo_dir: Path) -> RelationJson:
     """Convert a Relation to RelationJson, preserving all fields including static analysis evidence."""
     return RelationJson(
         relation=r.relation,
@@ -345,7 +345,7 @@ def _relation_to_json(r: Relation, repo_dir: Path | None) -> RelationJson:
 def from_component_to_json_component(
     component: Component,
     expandable_components: list[Component],
-    repo_dir: Path | None,
+    repo_dir: Path,
     sub_analyses: dict[str, tuple[AnalysisInsights, list[Component]]] | None = None,
     processed_ids: set[str] | None = None,
 ) -> ComponentJson:
@@ -464,6 +464,7 @@ def build_unified_analysis_json(
     analysis: AnalysisInsights,
     expandable_components: list[Component],
     repo_name: str,
+    source_root: Path,
     sub_analyses: dict[str, tuple[AnalysisInsights, list[Component]]] | None = None,
     file_coverage_summary: FileCoverageSummary | None = None,
     commit_hash: str = "",
@@ -472,13 +473,16 @@ def build_unified_analysis_json(
 ) -> str:
     """Build the full unified analysis JSON with metadata and nested sub-analyses.
 
-    The depth_level metadata is computed automatically from the sub_analyses structure
-    if not provided explicitly. ``source_tree_hash`` precedence: whole-tree walk when
-    ``repo_dir`` is given; else ``source_tree_hash_override`` (e.g. the existing on-disk
-    value, so a sub-analysis write doesn't downgrade it); else empty.
+    ``source_root`` is the repo root used to relativize relation-edge file paths
+    into ``methods_index`` keys — always required. ``repo_dir`` is the optional
+    whole-tree-hash source: ``source_tree_hash`` is the whole-tree walk when it is
+    given; else ``source_tree_hash_override`` (e.g. the existing on-disk value, so a
+    sub-analysis write doesn't downgrade it); else empty. The depth_level metadata
+    is computed automatically from the sub_analyses structure if not provided.
     """
     components_json = [
-        from_component_to_json_component(c, expandable_components, repo_dir, sub_analyses) for c in analysis.components
+        from_component_to_json_component(c, expandable_components, source_root, sub_analyses)
+        for c in analysis.components
     ]
     files_index = _build_files_index_from_analysis(analysis)
     methods_index = _build_methods_index_from_files(files_index)
@@ -503,7 +507,7 @@ def build_unified_analysis_json(
         summary = file_coverage_summary
 
     relations_json = [
-        _relation_to_json(r, repo_dir)
+        _relation_to_json(r, source_root)
         for r in merge_relations_by_pair(analysis.components_relations, include_relation=True)
     ]
     unified = UnifiedAnalysisJson(

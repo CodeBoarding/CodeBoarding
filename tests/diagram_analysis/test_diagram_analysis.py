@@ -446,7 +446,9 @@ class TestAnalysisJsonConversion(unittest.TestCase):
             )
         ]
 
-        data = json.loads(build_unified_analysis_json(self.analysis, [], "repo", repo_dir=self.repo_dir))
+        data = json.loads(
+            build_unified_analysis_json(self.analysis, [], "repo", source_root=self.repo_dir, repo_dir=self.repo_dir)
+        )
         parsed, _ = parse_unified_analysis(data)
 
         relation = parsed.components_relations[0]
@@ -487,7 +489,9 @@ class TestAnalysisJsonConversion(unittest.TestCase):
             )
         ]
 
-        data = json.loads(build_unified_analysis_json(self.analysis, [], "repo", repo_dir=self.repo_dir))
+        data = json.loads(
+            build_unified_analysis_json(self.analysis, [], "repo", source_root=self.repo_dir, repo_dir=self.repo_dir)
+        )
         parsed, _ = parse_unified_analysis(data)
 
         edge = parsed.components_relations[0].key_edges[0]
@@ -499,7 +503,9 @@ class TestAnalysisJsonConversion(unittest.TestCase):
         )
 
     def test_unified_analysis_parse_skips_edges_missing_from_methods_index(self):
-        data = json.loads(build_unified_analysis_json(self.analysis, [], "repo", repo_dir=self.repo_dir))
+        data = json.loads(
+            build_unified_analysis_json(self.analysis, [], "repo", source_root=self.repo_dir, repo_dir=self.repo_dir)
+        )
         data["components_relations"] = [
             {
                 "relation": "calls",
@@ -958,11 +964,12 @@ class TestDiagramGenerator(unittest.TestCase):
             analysis,
             expandable_components,
             repo_name,
-            sub_analyses=None,
-            file_coverage_summary=None,
-            commit_hash="",
-            repo_dir=None,
-            source_tree_hash_override="",
+            source_root,
+            sub_analyses,
+            file_coverage_summary,
+            commit_hash,
+            repo_dir,
+            source_tree_hash_override,
         ):
             captured["expandable_components"] = expandable_components
             return "{}"
