@@ -87,6 +87,11 @@ class Edge:
         for site in call_sites:
             self.add_call_site(site)
 
+    def __setstate__(self, state: dict) -> None:
+        self.__dict__.update(state)
+        self._call_sites = [self._normalize_call_site(site) for site in getattr(self, "_call_sites", [])]
+        self._call_site_keys = {tuple(sorted(site.items())) for site in self._call_sites}
+
     @property
     def call_sites(self) -> list[dict[str, Hashable]]:
         return [dict(site) for site in self._call_sites]

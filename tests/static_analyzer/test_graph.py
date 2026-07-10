@@ -121,6 +121,17 @@ class TestEdge(unittest.TestCase):
         self.assertIn("module.dst", repr_str)
         self.assertIn("->", repr_str)
 
+    def test_edge_unpickle_legacy_state_without_call_sites(self):
+        src = Node("module.src", 12, "/file.py", 1, 10)
+        dst = Node("module.dst", 12, "/file.py", 20, 30)
+        edge = Edge.__new__(Edge)
+
+        edge.__setstate__({"src_node": src, "dst_node": dst})
+
+        self.assertEqual(edge.call_sites, [])
+        edge.add_call_site({"file_path": "/file.py", "line": 5})
+        self.assertEqual(edge.call_sites, [{"file": "/file.py", "line": 5}])
+
 
 class TestCallGraph(unittest.TestCase):
     def test_callgraph_creation_empty(self):
