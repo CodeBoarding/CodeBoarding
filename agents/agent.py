@@ -23,7 +23,7 @@ from repo_utils.ignore import RepoIgnoreManager
 from agents.agent_responses import LLMBaseModel
 from agents.llm_config import MONITORING_CALLBACK
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.reference_resolve_mixin import ReferenceResolverMixin
+from static_analyzer.reference_resolver import StaticReferenceResolver
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +32,7 @@ class EmptyExtractorMessageError(ValueError):
     """Raised when extractor returns an empty message payload."""
 
 
-class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
+class CodeBoardingAgent(MonitoringMixin):
     def __init__(
         self,
         repo_dir: Path,
@@ -41,11 +41,12 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
         agent_llm: BaseChatModel,
         parsing_llm: BaseChatModel,
     ):
-        ReferenceResolverMixin.__init__(self, repo_dir, static_analysis)
         MonitoringMixin.__init__(self)
         self.parsing_llm = parsing_llm
         self.agent_llm = agent_llm
         self.repo_dir = repo_dir
+        self.static_analysis = static_analysis
+        self.reference_resolver = StaticReferenceResolver(repo_dir, static_analysis)
         self.ignore_manager = RepoIgnoreManager(repo_dir)
 
         context = RepoContext(repo_dir=repo_dir, ignore_manager=self.ignore_manager, static_analysis=static_analysis)
@@ -55,7 +56,6 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
             model=agent_llm,
             tools=self.toolkit.get_agent_tools(),
         )
-        self.static_analysis = static_analysis
         self.system_message = SystemMessage(content=system_message)
 
     @property
@@ -81,6 +81,10 @@ class CodeBoardingAgent(ReferenceResolverMixin, MonitoringMixin):
     @property
     def read_method_invocations_tool(self):
         return self.toolkit.read_method_invocations
+
+    @property
+    def component_bridge_edges_tool(self):
+        return self.toolkit.component_bridge_edges
 
     @property
     def read_file_tool(self):

@@ -210,6 +210,14 @@ class StaticAnalysisResults:
             return bucket.cfg.graph
         raise ValueError(f"Control flow graph for language '{language}' not found in results.")
 
+    def available_cfgs(self) -> dict[str, CallGraph]:
+        """Return every language CFG that is already present."""
+        cfgs: dict[str, CallGraph] = {}
+        for language, bucket in self.results.items():
+            if bucket.cfg.graph is not None:
+                cfgs[str(language)] = bucket.cfg.graph
+        return cfgs
+
     def get_hierarchy(self, language: Language) -> dict:
         """Return the class hierarchy dict for ``language`` or raise ``ValueError``.
 

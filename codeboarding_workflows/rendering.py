@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from agents.agent_responses import AnalysisInsights, Relation
+from agents.relation_edges import append_or_merge_relation
 from diagram_analysis.analysis_json import build_id_to_name_map, parse_unified_analysis
 from output_generators.html import generate_html_file
 from output_generators.markdown import generate_markdown_file
@@ -24,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 
 def _ancestor_in_level(component_id: str, level_ids: set[str]) -> str | None:
-    """Return the closest ancestor (or the id itself) that lives in *level_ids*, else ``None``."""
+    """Return the closest ancestor present in level_ids."""
     for ancestor in iter_ancestor_ids(component_id):
         if ancestor in level_ids:
             return ancestor
@@ -36,43 +37,29 @@ def project_relations_to_level(
     level_component_ids: set[str],
     id_to_name: dict[str, str],
 ) -> list[Relation]:
-    """Roll up a global leaf-only relation set onto the components visible at a level.
-
-    Each endpoint is projected to its ancestor in ``level_component_ids`` so the
-    edge connects two nodes that actually exist at this level. Edges that collapse
-    to a self-loop or whose endpoint isn't under any level component are dropped;
-    edges that collapse to the same pair are merged (edge_count summed, first
-    label kept).
-
-    Example, rendering the root level ``{"1", "2", "3"}`` from leaf relations::
-
-        1.1 -> 2.3   =>  1 -> 2
-        1.2 -> 2.1   =>  1 -> 2   (merged into the above)
-        3   -> 1.1   =>  3 -> 1
-        1.1 -> 1.2   =>  dropped  (both roll up to "1": self-loop)
-    """
-    aggregated: dict[tuple[str, str], Relation] = {}
+    """Roll up global leaf relations onto the components visible at a level."""
+    aggregated: list[Relation] = []
     for rel in global_relations:
         src = _ancestor_in_level(rel.src_id, level_component_ids)
         dst = _ancestor_in_level(rel.dst_id, level_component_ids)
         if src is None or dst is None or src == dst:
             continue
-        key = (src, dst)
-        existing = aggregated.get(key)
-        if existing is None:
-            aggregated[key] = Relation(
+        append_or_merge_relation(
+            aggregated,
+            Relation(
                 relation=rel.relation,
                 src_name=id_to_name.get(src, src),
                 dst_name=id_to_name.get(dst, dst),
+                evidence=rel.evidence,
+                key_edges=rel.key_edges,
                 src_id=src,
                 dst_id=dst,
-                edge_count=rel.edge_count,
                 is_static=rel.is_static,
-            )
-        else:
-            existing.edge_count += rel.edge_count
-            existing.is_static = existing.is_static or rel.is_static
-    return list(aggregated.values())
+                all_edges=rel.all_edges,
+            ),
+            key=(src, dst),
+        )
+    return aggregated
 
 
 # Writer-name lookup (resolved at call time so @patch on this module's names works).

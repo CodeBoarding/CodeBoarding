@@ -9,6 +9,7 @@ import logging
 from pathlib import Path
 
 from health.models import HealthCheckConfig
+from utils import CODEBOARDING_DIR_NAME
 
 logger = logging.getLogger(__name__)
 
@@ -141,7 +142,7 @@ def load_health_config(health_config_dir: Path | None = None) -> HealthCheckConf
     """
     if health_config_dir is None:
         cwd = Path.cwd()
-        health_config_dir = cwd / ".codeboarding" / "health"
+        health_config_dir = cwd / CODEBOARDING_DIR_NAME / "health"
         if not health_config_dir.exists():
             logger.debug("No .codeboarding/health directory found")
             return HealthCheckConfig()

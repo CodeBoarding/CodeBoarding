@@ -12,6 +12,7 @@ from github_action import (
     generate_mdx,
     generate_rst,
 )
+from utils import CODEBOARDING_DIR_NAME
 
 UNIFIED_ANALYSIS_JSON = {
     "version": 2,
@@ -45,14 +46,14 @@ class TestGenerateMarkdown(unittest.TestCase):
                 repo_url="https://github.com/test/repo",
                 target_branch="main",
                 temp_repo_folder=temp_path,
-                output_dir=".codeboarding",
+                output_dir=CODEBOARDING_DIR_NAME,
             )
 
             # Check that generate_markdown_file was called
             mock_generate_file.assert_called_once()
             args = mock_generate_file.call_args
             self.assertEqual(args[0][0], "overview")
-            self.assertEqual(args[1]["repo_ref"], "https://github.com/test/repo/blob/main/.codeboarding")
+            self.assertEqual(args[1]["repo_ref"], f"https://github.com/test/repo/blob/main/{CODEBOARDING_DIR_NAME}")
 
     @patch("codeboarding_workflows.rendering.generate_markdown_file")
     def test_generate_markdown_with_components(self, mock_generate_file):
@@ -97,7 +98,7 @@ class TestGenerateMarkdown(unittest.TestCase):
                 repo_url="https://github.com/test/repo",
                 target_branch="main",
                 temp_repo_folder=temp_path,
-                output_dir=".codeboarding",
+                output_dir=CODEBOARDING_DIR_NAME,
             )
 
             # Should be called for overview + ComponentA sub-analysis
@@ -147,7 +148,7 @@ class TestGenerateMdx(unittest.TestCase):
                 repo_url="https://github.com/test/repo",
                 target_branch="main",
                 temp_repo_folder=temp_path,
-                output_dir=".codeboarding",
+                output_dir=CODEBOARDING_DIR_NAME,
             )
 
             mock_generate_file.assert_called_once()
@@ -171,7 +172,7 @@ class TestGenerateRst(unittest.TestCase):
                 repo_url="https://github.com/test/repo",
                 target_branch="main",
                 temp_repo_folder=temp_path,
-                output_dir=".codeboarding",
+                output_dir=CODEBOARDING_DIR_NAME,
             )
 
             mock_generate_file.assert_called_once()
@@ -214,7 +215,7 @@ class TestGenerateAnalysis(unittest.TestCase):
                 source_branch="main",
                 target_branch="main",
                 extension=".md",
-                output_dir=".codeboarding",
+                output_dir=CODEBOARDING_DIR_NAME,
             )
 
             # Check that clone was called
@@ -269,7 +270,7 @@ class TestGenerateAnalysis(unittest.TestCase):
                 source_branch="main",
                 target_branch="main",
                 extension=".html",
-                output_dir=".codeboarding",
+                output_dir=CODEBOARDING_DIR_NAME,
             )
 
             mock_generate_html.assert_called_once()
@@ -306,7 +307,7 @@ class TestGenerateAnalysis(unittest.TestCase):
                 source_branch="main",
                 target_branch="main",
                 extension=".mdx",
-                output_dir=".codeboarding",
+                output_dir=CODEBOARDING_DIR_NAME,
             )
 
             mock_generate_mdx.assert_called_once()
@@ -343,7 +344,7 @@ class TestGenerateAnalysis(unittest.TestCase):
                 source_branch="main",
                 target_branch="main",
                 extension=".rst",
-                output_dir=".codeboarding",
+                output_dir=CODEBOARDING_DIR_NAME,
             )
 
             mock_generate_rst.assert_called_once()
@@ -379,7 +380,7 @@ class TestGenerateAnalysis(unittest.TestCase):
                     source_branch="main",
                     target_branch="main",
                     extension=".unsupported",
-                    output_dir=".codeboarding",
+                    output_dir=CODEBOARDING_DIR_NAME,
                 )
 
             self.assertIn("Unsupported extension", str(context.exception))
@@ -416,7 +417,7 @@ class TestGenerateAnalysis(unittest.TestCase):
                 source_branch="feature-branch",
                 target_branch="main",
                 extension=".md",
-                output_dir=".codeboarding",
+                output_dir=CODEBOARDING_DIR_NAME,
             )
 
             # Check that checkout was called with the source branch

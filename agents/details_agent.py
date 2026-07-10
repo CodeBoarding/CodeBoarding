@@ -8,11 +8,21 @@ from agents.agent import CodeBoardingAgent
 from agents.agent_responses import (
     AnalysisInsights,
     ClusterAnalysis,
+    ComponentApiSurfaces,
+    ComponentArchitecture,
+    ComponentRelations,
     Component,
     MetaAnalysisInsights,
     assign_component_ids,
+    assign_relation_ids,
 )
-from agents.prompts import get_system_details_message, get_cfg_details_message, get_details_message
+from agents.prompts import (
+    get_system_details_message,
+    get_cfg_details_message,
+    get_details_message,
+    get_api_surfaces_message,
+    get_relation_analysis_message,
+)
 from agents.cluster_methods_mixin import ClusterMethodsMixin
 from caching.cache import ModelSettings
 from caching.details_cache import (
@@ -24,12 +34,12 @@ from agents.validation import (
     validate_cluster_coverage,
     validate_group_name_coverage,
     validate_key_entities,
-    validate_relation_component_names,
+    validate_relations,
 )
 from monitoring import trace
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cluster_helpers import get_all_cluster_ids
-from static_analyzer.graph import ClusterResult
+from static_analyzer.graph import CallGraph, ClusterResult
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +71,27 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
             "final_analysis": PromptTemplate(
                 template=get_details_message(),
                 input_variables=["project_name", "cluster_analysis", "component", "meta_context", "project_type"],
+            ),
+            "api_surfaces": PromptTemplate(
+                template=get_api_surfaces_message(),
+                input_variables=[
+                    "project_name",
+                    "component_summaries",
+                    "static_call_evidence",
+                    "meta_context",
+                    "project_type",
+                ],
+            ),
+            "relation_analysis": PromptTemplate(
+                template=get_relation_analysis_message(),
+                input_variables=[
+                    "project_name",
+                    "component_summaries",
+                    "api_surfaces",
+                    "static_call_evidence",
+                    "meta_context",
+                    "project_type",
+                ],
             ),
         }
 
@@ -130,6 +161,7 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
         component: Component,
         cluster_analysis: ClusterAnalysis,
         subgraph_cluster_results: dict[str, ClusterResult],
+        subgraph_cfgs: dict[str, CallGraph],
     ) -> AnalysisInsights:
         """
         Generate detailed final analysis from grouped clusters.
@@ -164,10 +196,12 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
                 f"Every one of these names: {group_names} must appear in exactly one component's source_group_names\n"
             )
 
-        # Build validation context with subgraph CFG graphs for edge checking
+        self.toolkit.context.cluster_analysis = cluster_analysis
+        self.toolkit.context.cluster_results = subgraph_cluster_results
+        self.toolkit.context.cfg_graphs = subgraph_cfgs
+
         context = ValidationContext(
             cluster_results=subgraph_cluster_results,
-            cfg_graphs={lang: self.static_analysis.get_cfg(lang) for lang in self.static_analysis.get_languages()},
             static_analysis=self.static_analysis,
             llm_cluster_analysis=cluster_analysis,
         )
@@ -176,16 +210,20 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
 
         if (cached := self._analysis_cache.load(cache_key)) is not None:
             return cached
-        result = self._validation_invoke(
+        architecture = self._validation_invoke(
             prompt,
-            AnalysisInsights,
+            ComponentArchitecture,
             validators=[
-                validate_relation_component_names,
                 validate_group_name_coverage,
                 validate_key_entities,
             ],
             context=context,
             max_validation_attempts=3,
+        )
+        result = AnalysisInsights(
+            description=architecture.description,
+            components=architecture.components,
+            components_relations=[],
         )
         self._analysis_cache.store(
             cache_key,
@@ -193,6 +231,70 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
             run_id=self.run_id,
         )
         return result
+
+    @trace
+    def step_api_surfaces(self, analysis: AnalysisInsights) -> ComponentApiSurfaces:
+        logger.info(f"[DetailsAgent] Analyzing component API surfaces for: {self.project_name}")
+        meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
+        project_type = self.meta_context.project_type if self.meta_context else "unknown"
+        static_call_evidence = self.build_scope_cfg_string(analysis)
+        prompt = self.prompts["api_surfaces"].format(
+            project_name=self.project_name,
+            component_summaries=analysis.llm_str(),
+            static_call_evidence=static_call_evidence,
+            meta_context=meta_context_str,
+            project_type=project_type,
+        )
+        return self._validation_invoke(
+            prompt,
+            ComponentApiSurfaces,
+            validators=[],
+            context=None,
+            max_validation_attempts=1,
+        )
+
+    @trace
+    def step_relation_analysis(
+        self,
+        analysis: AnalysisInsights,
+        api_surfaces: ComponentApiSurfaces,
+        cluster_analysis: ClusterAnalysis,
+        cluster_results: dict[str, ClusterResult],
+        cfg_graphs: dict[str, CallGraph],
+        source_cluster_id_prefix: str,
+    ) -> None:
+        logger.info(f"[DetailsAgent] Discovering component relations for: {self.project_name}")
+        meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
+        project_type = self.meta_context.project_type if self.meta_context else "unknown"
+        static_call_evidence = self.build_scope_cfg_string(analysis)
+        self.toolkit.context.cluster_analysis = cluster_analysis
+        self.toolkit.context.cluster_results = cluster_results
+        self.toolkit.context.cfg_graphs = cfg_graphs
+        prompt = self.prompts["relation_analysis"].format(
+            project_name=self.project_name,
+            component_summaries=analysis.llm_str(),
+            api_surfaces=api_surfaces.llm_str(),
+            static_call_evidence=static_call_evidence,
+            meta_context=meta_context_str,
+            project_type=project_type,
+        )
+        relation_result = self._validation_invoke(
+            prompt,
+            ComponentRelations,
+            validators=[validate_relations],
+            context=ValidationContext(
+                cluster_results=cluster_results,
+                cfg_graphs=cfg_graphs,
+                repo_dir=str(self.repo_dir),
+                static_analysis=self.static_analysis,
+                llm_cluster_analysis=cluster_analysis,
+                components=analysis.components,
+            ),
+            max_validation_attempts=3,
+        )
+        analysis.components_relations = relation_result.components_relations
+        assign_relation_ids(analysis)
+        self.build_static_relations(analysis, cfg_graphs, source_cluster_id_prefix=source_cluster_id_prefix)
 
     def run(self, component: Component):
         """
@@ -226,7 +328,7 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
 
         # Step 3: Generate detailed analysis from grouped clusters
         # Validation ensures key_entities are within cluster scope (no rescue needed)
-        analysis = self.step_final_analysis(component, cluster_analysis, subgraph_cluster_results)
+        analysis = self.step_final_analysis(component, cluster_analysis, subgraph_cluster_results, subgraph_cfgs)
 
         # Step 4: Assign hierarchical component IDs (e.g., "1.1", "1.2" under parent "1")
         assign_component_ids(analysis, parent_id=component.component_id)
@@ -239,13 +341,23 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
         # With method-level expansion, each method has its own cluster -> deterministic assignment
         self.populate_file_methods(analysis, subgraph_cluster_results, subgraph_cfgs)
 
-        # Step 7: Build static inter-component relations from subgraph CFG edges
-        self.build_static_relations(analysis, subgraph_cfgs, source_cluster_id_prefix=component.component_id)
+        # Step 7: Analyze component API surfaces
+        api_surfaces = self.step_api_surfaces(analysis)
 
-        # Step 8: Fix source code reference lines (resolves reference_file paths)
-        analysis = self.fix_source_code_reference_lines(analysis)
+        # Step 8: Discover relations from API surfaces and attach deterministic all_edges
+        self.step_relation_analysis(
+            analysis,
+            api_surfaces,
+            cluster_analysis,
+            subgraph_cluster_results,
+            subgraph_cfgs,
+            component.component_id,
+        )
 
-        # Step 9: Ensure unique key entities across components
+        # Step 9: Fix source code reference lines (resolves reference_file paths)
+        analysis = self.reference_resolver.fix_source_code_reference_lines(analysis)
+
+        # Step 10: Ensure unique key entities across components
         self._ensure_unique_key_entities(analysis)
 
         return analysis, subgraph_cluster_results

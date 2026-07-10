@@ -8,6 +8,8 @@ from agents.agent_responses import (
     FileMethodGroup,
     MethodEntry,
     Relation,
+    RelationEdge,
+    SourceCodeReference,
     assign_component_ids,
 )
 from static_analyzer.cluster_relations import (
@@ -22,12 +24,32 @@ from static_analyzer.graph import CallGraph, Edge
 from static_analyzer.node import Node
 
 
-def _make_node(name: str, file_path: str = "src/file.py") -> Node:
-    return Node(name, NodeType.FUNCTION, file_path, 1, 10)
+def _make_node(name: str, file_path: str = "src/file.py", line_start: int = 1, line_end: int = 10) -> Node:
+    return Node(name, NodeType.FUNCTION, file_path, line_start, line_end)
 
 
-def _make_edge(src_name: str, dst_name: str) -> Edge:
-    return Edge(_make_node(src_name), _make_node(dst_name), [])
+def _make_edge(src_name: str, dst_name: str, src_file: str = "src/file.py", dst_file: str = "src/file.py") -> Edge:
+    return Edge(_make_node(src_name, src_file, 1, 10), _make_node(dst_name, dst_file, 20, 30), [])
+
+
+def _make_relation_edge(
+    src_name: str, dst_name: str, src_file: str = "src/a.py", dst_file: str = "src/b.py"
+) -> RelationEdge:
+    return RelationEdge(
+        source=SourceCodeReference(
+            qualified_name=src_name,
+            reference_file=src_file,
+            reference_start_line=1,
+            reference_end_line=10,
+        ),
+        target=SourceCodeReference(
+            qualified_name=dst_name,
+            reference_file=dst_file,
+            reference_start_line=20,
+            reference_end_line=30,
+        ),
+        call_sites=[],
+    )
 
 
 def _make_component(name: str, methods: list[tuple[str, str]], component_id: str = "") -> Component:
@@ -85,7 +107,9 @@ class TestBuildComponentRelations(unittest.TestCase):
         self.assertEqual(len(relations), 1)
         self.assertEqual(relations[0].src_cluster_id, "1")
         self.assertEqual(relations[0].dst_cluster_id, "2")
-        self.assertEqual(relations[0].edge_count, 1)
+        self.assertEqual(len(relations[0].all_edges), 1)
+        self.assertEqual(relations[0].all_edges[0].source.qualified_name, "a.func1")
+        self.assertEqual(relations[0].all_edges[0].target.qualified_name, "b.func1")
 
     def test_no_self_relations(self):
         """Edges within the same component should not create relations."""
@@ -116,19 +140,31 @@ class TestBuildComponentRelations(unittest.TestCase):
         relations = build_component_relations(node_to_comp, {"python": cfg})
 
         self.assertEqual(len(relations), 1)
-        self.assertEqual(relations[0].edge_count, 3)
-        self.assertEqual(len(relations[0].sample_edges), 3)
+        self.assertEqual(len(relations[0].all_edges), 3)
 
-    def test_sample_edges_capped(self):
-        """Sample edges should be capped at max_samples."""
-        node_to_comp = {f"a.f{i}": "1" for i in range(10)}
-        node_to_comp.update({f"b.f{i}": "2" for i in range(10)})
-        edges = [_make_edge(f"a.f{i}", f"b.f{i}") for i in range(10)]
+    def test_bridge_edges_include_all_cross_component_edges(self):
+        edge_total = 55
+        node_to_comp = {f"a.f{i}": "1" for i in range(edge_total)}
+        node_to_comp.update({f"b.f{i}": "2" for i in range(edge_total)})
+        edges = [_make_edge(f"a.f{i}", f"b.f{i}") for i in range(edge_total)]
         cfg = CallGraph(edges=edges)
-        relations = build_component_relations(node_to_comp, {"python": cfg}, max_samples=3)
+        relations = build_component_relations(node_to_comp, {"python": cfg})
 
-        self.assertEqual(relations[0].edge_count, 10)
-        self.assertEqual(len(relations[0].sample_edges), 3)
+        self.assertEqual(len(relations[0].all_edges), edge_total)
+
+    def test_bridge_edges_include_locations(self):
+        node_to_comp = {"a.func": "1", "b.func": "2"}
+        cfg = CallGraph(edges=[_make_edge("a.func", "b.func", "src/a.py", "src/b.py")])
+
+        relations = build_component_relations(node_to_comp, {"python": cfg})
+
+        edge = relations[0].all_edges[0]
+        self.assertEqual(edge.source.reference_file, "src/a.py")
+        self.assertEqual(edge.target.reference_file, "src/b.py")
+        self.assertEqual(edge.source.reference_start_line, 1)
+        self.assertEqual(edge.source.reference_end_line, 10)
+        self.assertEqual(edge.target.reference_start_line, 20)
+        self.assertEqual(edge.target.reference_end_line, 30)
 
     def test_multiple_languages(self):
         """Edges across multiple language CFGs should be collected."""
@@ -166,35 +202,61 @@ class TestMergeRelations(unittest.TestCase):
         """LLM relation backed by static evidence should be kept."""
         analysis = self._make_analysis()
         llm_rels = [Relation(relation="depends on", src_name="A", dst_name="B")]
-        static_rels = [ClusterRelation(src_cluster_id="1", dst_cluster_id="2", edge_count=5)]
+        static_rels = [
+            ClusterRelation(src_cluster_id="1", dst_cluster_id="2", all_edges=[_make_relation_edge("a.func", "b.func")])
+        ]
 
         merged = merge_relations(llm_rels, static_rels, analysis)
 
         self.assertEqual(len(merged), 1)
         self.assertEqual(merged[0].relation, "depends on")
-        self.assertEqual(merged[0].edge_count, 5)
+        self.assertEqual(len(merged[0].all_edges), 1)
         self.assertTrue(merged[0].is_static)
 
-    def test_llm_without_static_backing_kept(self):
-        """LLM relation with no static evidence should be kept as LLM-only."""
+    def test_llm_with_static_backing_keeps_bridge_edges(self):
         analysis = self._make_analysis()
-        llm_rels = [Relation(relation="uses", src_name="A", dst_name="B")]
-        static_rels: list[ClusterRelation] = []  # No static evidence
+        llm_rels = [Relation(relation="depends on", src_name="A", dst_name="B")]
+        static_rels = build_component_relations(
+            {"a.func": "1", "b.func": "2"},
+            {"python": CallGraph(edges=[_make_edge("a.func", "b.func", "src/a.py", "src/b.py")])},
+        )
 
         merged = merge_relations(llm_rels, static_rels, analysis)
 
+        self.assertEqual(len(merged[0].all_edges), 1)
+        self.assertEqual(merged[0].all_edges[0].source.reference_file, "src/a.py")
+        self.assertEqual(merged[0].all_edges[0].target.reference_file, "src/b.py")
+
+    def test_llm_with_evidence_without_static_backing_kept_with_warning(self):
+        analysis = self._make_analysis()
+        llm_rels = [
+            Relation(relation="uses", src_name="A", dst_name="B", evidence="Configured through plugin entry point")
+        ]
+        static_rels: list[ClusterRelation] = []  # No static evidence
+
+        with self.assertLogs("static_analyzer.cluster_relations", level="WARNING") as logs:
+            merged = merge_relations(llm_rels, static_rels, analysis)
+
         self.assertEqual(len(merged), 1)
-        self.assertEqual(merged[0].relation, "uses")
-        self.assertEqual(merged[0].src_name, "A")
-        self.assertEqual(merged[0].dst_name, "B")
-        self.assertEqual(merged[0].edge_count, 0)
+        self.assertEqual(merged[0].evidence, "Configured through plugin entry point")
         self.assertFalse(merged[0].is_static)
+        self.assertIn("Keeping LLM-only relation without static or key-edge backing", logs.output[0])
+
+    def test_llm_without_static_backing_or_evidence_dropped(self):
+        analysis = self._make_analysis()
+        llm_rels = [Relation(relation="uses", src_name="A", dst_name="B")]
+
+        merged = merge_relations(llm_rels, [], analysis)
+
+        self.assertEqual(merged, [])
 
     def test_static_only_auto_labeled(self):
         """Static relation without LLM label should get auto-label 'calls'."""
         analysis = self._make_analysis()
         llm_rels: list[Relation] = []
-        static_rels = [ClusterRelation(src_cluster_id="1", dst_cluster_id="2", edge_count=8)]
+        static_rels = [
+            ClusterRelation(src_cluster_id="1", dst_cluster_id="2", all_edges=[_make_relation_edge("a.func", "b.func")])
+        ]
 
         merged = merge_relations(llm_rels, static_rels, analysis)
 
@@ -202,20 +264,23 @@ class TestMergeRelations(unittest.TestCase):
         self.assertEqual(merged[0].relation, "calls")
         self.assertEqual(merged[0].src_name, "A")
         self.assertEqual(merged[0].dst_name, "B")
-        self.assertEqual(merged[0].edge_count, 8)
+        self.assertEqual(len(merged[0].all_edges), 1)
         self.assertTrue(merged[0].is_static)
 
-    def test_bidirectional_matching(self):
-        """LLM relation should match static relation even if direction is reversed."""
+    def test_reverse_direction_does_not_match_static_relation(self):
         analysis = self._make_analysis()
         llm_rels = [Relation(relation="used by", src_name="B", dst_name="A")]
-        static_rels = [ClusterRelation(src_cluster_id="1", dst_cluster_id="2", edge_count=3)]
+        static_rels = [
+            ClusterRelation(src_cluster_id="1", dst_cluster_id="2", all_edges=[_make_relation_edge("a.func", "b.func")])
+        ]
 
         merged = merge_relations(llm_rels, static_rels, analysis)
 
-        # The LLM relation B->A should match static 1->2 via reverse lookup
         matching = [r for r in merged if r.relation == "used by"]
-        self.assertEqual(len(matching), 1)
+        self.assertEqual(matching, [])
+        static_only = [r for r in merged if r.src_id == "1" and r.dst_id == "2"]
+        self.assertEqual(len(static_only), 1)
+        self.assertTrue(static_only[0].is_static)
 
     def test_mixed_scenario(self):
         """Test a mix of backed, unbacked, and static-only relations."""
@@ -225,22 +290,21 @@ class TestMergeRelations(unittest.TestCase):
             Relation(relation="uses", src_name="A", dst_name="C"),  # unbacked
         ]
         static_rels = [
-            ClusterRelation(src_cluster_id="1", dst_cluster_id="2", edge_count=5),  # matches A->B
-            ClusterRelation(src_cluster_id="2", dst_cluster_id="3", edge_count=2),  # static-only
+            ClusterRelation(
+                src_cluster_id="1", dst_cluster_id="2", all_edges=[_make_relation_edge("a.func", "b.func")]
+            ),
+            ClusterRelation(
+                src_cluster_id="2", dst_cluster_id="3", all_edges=[_make_relation_edge("b.func", "c.func")]
+            ),
         ]
 
         merged = merge_relations(llm_rels, static_rels, analysis)
 
-        # A->B (backed) + A->C (LLM-only) + B->C (static-only) = 3 relations
-        self.assertEqual(len(merged), 3)
+        # A->B (backed) + B->C (static-only); A->C is dropped because it has no evidence
+        self.assertEqual(len(merged), 2)
         src_dst = {(r.src_name, r.dst_name) for r in merged}
         self.assertIn(("A", "B"), src_dst)
-        self.assertIn(("A", "C"), src_dst)
         self.assertIn(("B", "C"), src_dst)
-        # A->C should be LLM-only (not static)
-        ac_rel = [r for r in merged if r.src_name == "A" and r.dst_name == "C"][0]
-        self.assertFalse(ac_rel.is_static)
-        self.assertEqual(ac_rel.edge_count, 0)
 
     def test_empty_inputs(self):
         """Empty LLM and static relations should produce empty result."""

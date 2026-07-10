@@ -9,6 +9,8 @@ from agents.agent_responses import (
     ClusterAnalysis,
     ClustersComponent,
     Component,
+    ComponentApiSurfaces,
+    ComponentRelations,
     FileMethodGroup,
     MetaAnalysisInsights,
     MethodEntry,
@@ -199,7 +201,7 @@ class TestDetailsAgent(unittest.TestCase):
         mock_validation_invoke.return_value = mock_response
 
         cluster_analysis = ClusterAnalysis(cluster_components=[])
-        result = agent.step_final_analysis(self.test_component, cluster_analysis, {})
+        result = agent.step_final_analysis(self.test_component, cluster_analysis, {}, {})
 
         self.assertEqual(result, mock_response)
         mock_validation_invoke.assert_called_once()
@@ -323,7 +325,7 @@ class TestDetailsAgent(unittest.TestCase):
         self.assertEqual(analysis.components[1].source_cluster_ids, ["5.3.7"])
 
     @patch("agents.details_agent.DetailsAgent._validation_invoke")
-    @patch("agents.details_agent.DetailsAgent.fix_source_code_reference_lines")
+    @patch("static_analyzer.reference_resolver.StaticReferenceResolver.fix_source_code_reference_lines")
     def test_run(self, mock_fix_ref, mock_validation_invoke):
         mock_llm = MagicMock()
         mock_parsing_llm = MagicMock()
@@ -379,13 +381,15 @@ class TestDetailsAgent(unittest.TestCase):
             components_relations=[],
         )
 
-        mock_validation_invoke.side_effect = [cluster_response, final_response]
+        api_response = ComponentApiSurfaces(api_surfaces=[])
+        relation_response = ComponentRelations(components_relations=[])
+        mock_validation_invoke.side_effect = [cluster_response, final_response, api_response, relation_response]
         mock_fix_ref.return_value = final_response
 
         analysis, subgraph_results = agent.run(self.test_component)
 
         self.assertEqual(analysis, final_response)
-        self.assertEqual(mock_validation_invoke.call_count, 2)
+        self.assertEqual(mock_validation_invoke.call_count, 4)
         mock_fix_ref.assert_called_once()
 
     def test_populate_file_methods(self):

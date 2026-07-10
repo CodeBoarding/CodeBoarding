@@ -14,21 +14,39 @@ from agents.agent_responses import (
     FileEntry,
     FileMethodGroup,
     MethodEntry,
+    RelationCallSite,
+    RelationEdge,
     SourceCodeReference,
 )
 from agents.content_hash import SOURCE_DECODE_ERRORS, SOURCE_ENCODING, hash_whole_file
+from agents.relation_edges import merge_relations_by_pair
 from repo_utils.ignore import RepoIgnoreManager
+from repo_utils.path_utils import normalize_repo_path
 
 logger = logging.getLogger(__name__)
+
+
+class RelationEdgeJson(BaseModel):
+    source: str = Field(description="Key into methods_index for the source method.")
+    target: str = Field(description="Key into methods_index for the target method.")
+    call_sites: list[RelationCallSite] = Field(default_factory=list)
+    description: str = Field(default="", description="Short explanation of how source reaches or configures target.")
 
 
 class RelationJson(Relation):
     """Relation subclass that includes src_id/dst_id and static analysis evidence in JSON serialization."""
 
+    key_edges: list[RelationEdgeJson] = Field(
+        default_factory=list,
+        description="Important source-to-target edges, keyed into methods_index.",
+    )
     src_id: str = Field(default="", description="Component ID of the source.")
     dst_id: str = Field(default="", description="Component ID of the destination.")
-    edge_count: int = Field(default=0, description="Number of CFG edges backing this relation.")
     is_static: bool = Field(default=False, description="True if derived from static CFG analysis.")
+    all_edges: list[RelationEdgeJson] = Field(
+        default_factory=list,
+        description="All known source-to-target edges for this relation.",
+    )
 
 
 class ComponentJson(Component):
@@ -49,8 +67,12 @@ class ComponentJson(Component):
     # Exclude intermediate field from JSON output
     source_group_names: list[str] = Field(default_factory=list, exclude=True)
     # Nested sub-analysis for expanded components
-    components: list["ComponentJson"] | None = Field(
-        description="Sub-components if expanded, None otherwise.", default=None
+    components: list["ComponentJson"] = Field(
+        description="Sub-components if expanded, empty otherwise.", default_factory=list
+    )
+    components_relations: list[RelationJson] = Field(
+        description="Relations among sub-components if expanded, empty otherwise.",
+        default_factory=list,
     )
 
 
@@ -156,8 +178,18 @@ def _method_key(file_path: str, qualified_name: str) -> str:
     return f"{file_path}|{qualified_name}"
 
 
-def _to_method_qualified_name(method: MethodEntry) -> str:
-    return method.qualified_name
+def _source_reference_method_key(reference: SourceCodeReference, repo_dir: Path | None) -> str:
+    file_path = normalize_repo_path(reference.reference_file or "", repo_dir)
+    return _method_key(file_path, reference.qualified_name)
+
+
+def _relation_edge_to_json(edge: RelationEdge, repo_dir: Path | None) -> RelationEdgeJson:
+    return RelationEdgeJson(
+        source=_source_reference_method_key(edge.source, repo_dir),
+        target=_source_reference_method_key(edge.target, repo_dir),
+        call_sites=edge.call_sites,
+        description=edge.description,
+    )
 
 
 def _to_component_file_method_refs(file_methods: list[FileMethodGroup]) -> list[ComponentFileMethodGroupJson]:
@@ -166,7 +198,7 @@ def _to_component_file_method_refs(file_methods: list[FileMethodGroup]) -> list[
         qnames: list[str] = []
         seen: set[str] = set()
         for method in group.methods:
-            qname = _to_method_qualified_name(method)
+            qname = method.qualified_name
             if qname in seen:
                 continue
             seen.add(qname)
@@ -271,7 +303,7 @@ def _hydrate_component_methods_from_refs(
             file_path = group.file_path
             methods: list[MethodEntry] = []
             for method in group.methods:
-                qname = _to_method_qualified_name(method)
+                qname = method.qualified_name
                 indexed = methods_index.get(_method_key(file_path, qname))
                 if indexed is None:
                     missing.append(f"{file_path}|{qname}")
@@ -295,22 +327,25 @@ def _hydrate_component_methods_from_refs(
         logger.warning("Missing method index entry for %d ref(s): %s", len(missing), missing)
 
 
-def _relation_to_json(r: Relation) -> RelationJson:
+def _relation_to_json(r: Relation, repo_dir: Path | None) -> RelationJson:
     """Convert a Relation to RelationJson, preserving all fields including static analysis evidence."""
     return RelationJson(
         relation=r.relation,
         src_name=r.src_name,
         dst_name=r.dst_name,
+        evidence=r.evidence,
+        key_edges=[_relation_edge_to_json(edge, repo_dir) for edge in r.key_edges],
         src_id=r.src_id,
         dst_id=r.dst_id,
-        edge_count=r.edge_count,
         is_static=r.is_static,
+        all_edges=[_relation_edge_to_json(edge, repo_dir) for edge in r.all_edges],
     )
 
 
 def from_component_to_json_component(
     component: Component,
     expandable_components: list[Component],
+    repo_dir: Path | None,
     sub_analyses: dict[str, tuple[AnalysisInsights, list[Component]]] | None = None,
     processed_ids: set[str] | None = None,
 ) -> ComponentJson:
@@ -325,13 +360,18 @@ def from_component_to_json_component(
         processed_ids.add(component_id_val)
         can_expand = any(c.component_id == component.component_id for c in expandable_components)
 
-    nested_components: list[ComponentJson] | None = None
+    nested_components: list[ComponentJson] = []
+    nested_relations: list[RelationJson] = []
 
     if can_expand and sub_analyses and component.component_id in sub_analyses:
         sub_analysis, sub_expandable = sub_analyses[component.component_id]
         nested_components = [
-            from_component_to_json_component(c, sub_expandable, sub_analyses, processed_ids)
+            from_component_to_json_component(c, sub_expandable, repo_dir, sub_analyses, processed_ids)
             for c in sub_analysis.components
+        ]
+        nested_relations = [
+            _relation_to_json(r, repo_dir)
+            for r in merge_relations_by_pair(sub_analysis.components_relations, include_relation=True)
         ]
 
     return ComponentJson(
@@ -343,20 +383,25 @@ def from_component_to_json_component(
         file_methods=_to_component_file_method_refs(component.file_methods),
         can_expand=can_expand,
         components=nested_components,
+        components_relations=nested_relations,
     )
 
 
 def from_analysis_to_json(
     analysis: AnalysisInsights,
     expandable_components: list[Component],
+    repo_dir: Path,
     sub_analyses: dict[str, tuple[AnalysisInsights, list[Component]]] | None = None,
 ) -> str:
     """Convert an AnalysisInsights to a flat JSON string (no metadata wrapper)."""
     components_json = [
-        from_component_to_json_component(c, expandable_components, sub_analyses, None) for c in analysis.components
+        from_component_to_json_component(c, expandable_components, repo_dir, sub_analyses) for c in analysis.components
     ]
     # Build a dict matching the old AnalysisInsightsJson shape but with nested components
-    relations_json = [_relation_to_json(r) for r in analysis.components_relations]
+    relations_json = [
+        _relation_to_json(r, repo_dir)
+        for r in merge_relations_by_pair(analysis.components_relations, include_relation=True)
+    ]
     files_index = _build_files_index_from_analysis(analysis)
     methods_index = _build_methods_index_from_files(files_index)
     files_json = _build_file_entry_json_from_files(files_index)
@@ -433,7 +478,7 @@ def build_unified_analysis_json(
     value, so a sub-analysis write doesn't downgrade it); else empty.
     """
     components_json = [
-        from_component_to_json_component(c, expandable_components, sub_analyses, None) for c in analysis.components
+        from_component_to_json_component(c, expandable_components, repo_dir, sub_analyses) for c in analysis.components
     ]
     files_index = _build_files_index_from_analysis(analysis)
     methods_index = _build_methods_index_from_files(files_index)
@@ -457,7 +502,10 @@ def build_unified_analysis_json(
     else:
         summary = file_coverage_summary
 
-    relations_json = [_relation_to_json(r) for r in analysis.components_relations]
+    relations_json = [
+        _relation_to_json(r, repo_dir)
+        for r in merge_relations_by_pair(analysis.components_relations, include_relation=True)
+    ]
     unified = UnifiedAnalysisJson(
         metadata=AnalysisMetadata(
             generated_at=datetime.now(timezone.utc).isoformat(),
@@ -485,13 +533,13 @@ def parse_unified_analysis(
         (root_analysis, sub_analyses_dict) where sub_analyses_dict maps component_id
         to its nested AnalysisInsights.
     """
-    sub_analyses: dict[str, AnalysisInsights] = {}
-    root_analysis = _extract_analysis_recursive(data, sub_analyses)
-
     methods_index_raw = data.get("methods_index", {})
     methods_index: dict[str, MethodIndexEntry] = {
         key: MethodIndexEntry(**entry) for key, entry in methods_index_raw.items()
     }
+
+    sub_analyses: dict[str, AnalysisInsights] = {}
+    root_analysis = _extract_analysis_recursive(data, sub_analyses, methods_index=methods_index)
 
     files_raw = data.get("files", {})
     files_index = _reconstruct_files_index(files_raw, methods_index)
@@ -546,6 +594,7 @@ def build_id_to_name_map(root_analysis: AnalysisInsights, sub_analyses: dict[str
 def _extract_analysis_recursive(
     data: dict,
     sub_analyses: dict[str, AnalysisInsights],
+    methods_index: dict[str, MethodIndexEntry],
     parent_component_id: str = "",
 ) -> AnalysisInsights:
     """Recursively extract AnalysisInsights from data dict, collecting all sub-analyses.
@@ -598,22 +647,39 @@ def _extract_analysis_recursive(
                 "components": nested_components,
                 "components_relations": comp_data.get("components_relations", []),
             }
-            sub_analysis = _extract_analysis_recursive(nested_data, sub_analyses, component.component_id)
+            sub_analysis = _extract_analysis_recursive(nested_data, sub_analyses, methods_index, component.component_id)
             sub_analyses[component.component_id] = sub_analysis
 
-    return AnalysisInsights(
-        description=data.get("description", ""),
-        components=components,
-        components_relations=[
+    relations: list[Relation] = []
+    for r in data.get("components_relations", []):
+        key_edges: list[RelationEdge] = []
+        all_edges: list[RelationEdge] = []
+        for edge in r.get("key_edges", []):
+            try:
+                key_edges.append(RelationEdge.from_dict(edge, methods_index))
+            except ValueError as exc:
+                logger.warning("Skipping relation key edge: %s", exc)
+        for edge in r.get("all_edges", []):
+            try:
+                all_edges.append(RelationEdge.from_dict(edge, methods_index))
+            except ValueError as exc:
+                logger.warning("Skipping relation all edge: %s", exc)
+        relations.append(
             Relation(
                 relation=r["relation"],
                 src_name=r["src_name"],
                 dst_name=r["dst_name"],
+                evidence=r.get("evidence", ""),
+                key_edges=key_edges,
                 src_id=r.get("src_id", ""),
                 dst_id=r.get("dst_id", ""),
-                edge_count=r.get("edge_count", 0),
                 is_static=r.get("is_static", False),
+                all_edges=all_edges,
             )
-            for r in data.get("components_relations", [])
-        ],
+        )
+
+    return AnalysisInsights(
+        description=data.get("description", ""),
+        components=components,
+        components_relations=relations,
     )

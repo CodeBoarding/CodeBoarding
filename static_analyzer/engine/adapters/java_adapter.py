@@ -17,7 +17,7 @@ from static_analyzer.engine.lsp_constants import (
 )
 from static_analyzer.engine.utils import total_ram_gb
 from static_analyzer.java_utils import create_jdtls_command, find_java_21_or_later
-from utils import get_config
+from utils import CODEBOARDING_DIR_NAME, get_config
 
 logger = logging.getLogger(__name__)
 
@@ -84,7 +84,7 @@ class JavaAdapter(LanguageAdapter):
         # 2. Fallback to well-known locations (platform-specific)
         well_known: list[Path] = [
             Path.home() / ".jdtls",
-            Path.home() / ".codeboarding" / "servers" / "bin" / "jdtls",
+            Path.home() / CODEBOARDING_DIR_NAME / "servers" / "bin" / "jdtls",
         ]
         if platform.system() == "Windows":
             local_app_data = os.environ.get("LOCALAPPDATA", "")

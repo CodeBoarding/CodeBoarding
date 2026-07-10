@@ -7,7 +7,7 @@ import networkx as nx
 from agents.cluster_budget import ClusterPromptBudget
 from agents.cluster_ids import CodeBoardingClusterIds
 from agents.cluster_methods_mixin import ClusterMethodsMixin
-from agents.agent_responses import AnalysisInsights, Component, SourceCodeReference
+from agents.agent_responses import AnalysisInsights, Component, FileMethodGroup, MethodEntry, SourceCodeReference
 from agents.model_capabilities import ContextWindow
 from static_analyzer.cfg_skip_planner import ContextBudgetExceededError
 from static_analyzer.graph import CallGraph, ClusterResult
@@ -21,6 +21,67 @@ class MockMixin(ClusterMethodsMixin):
     def __init__(self, repo_dir: Path, static_analysis: MagicMock):
         self.repo_dir = repo_dir
         self.static_analysis = static_analysis
+
+
+class TestBuildScopeCfgString(unittest.TestCase):
+    def test_keeps_prompt_examples_bounded_while_counting_all_edges(self):
+        cfg = CallGraph(language="python")
+        for i in range(12):
+            cfg.add_node(Node(f"a.f{i}", NodeType.FUNCTION, "src/a.py", i + 1, i + 1))
+            cfg.add_node(Node(f"b.f{i}", NodeType.FUNCTION, "src/b.py", i + 20, i + 20))
+            cfg.add_edge(f"a.f{i}", f"b.f{i}")
+
+        static = MagicMock()
+        static.get_languages.return_value = ["python"]
+        static.get_cfg.return_value = cfg
+        static.available_cfgs.return_value = {"python": cfg}
+        mixin = MockMixin(repo_dir=Path("/repo"), static_analysis=static)
+        analysis = AnalysisInsights(
+            description="test",
+            components=[
+                Component(
+                    name="A",
+                    description="A",
+                    key_entities=[],
+                    component_id="1",
+                    file_methods=[
+                        FileMethodGroup(
+                            file_path="src/a.py",
+                            methods=[
+                                MethodEntry(
+                                    qualified_name=f"a.f{i}", start_line=i + 1, end_line=i + 1, node_type="FUNCTION"
+                                )
+                                for i in range(12)
+                            ],
+                        )
+                    ],
+                ),
+                Component(
+                    name="B",
+                    description="B",
+                    key_entities=[],
+                    component_id="2",
+                    file_methods=[
+                        FileMethodGroup(
+                            file_path="src/b.py",
+                            methods=[
+                                MethodEntry(
+                                    qualified_name=f"b.f{i}", start_line=i + 20, end_line=i + 20, node_type="FUNCTION"
+                                )
+                                for i in range(12)
+                            ],
+                        )
+                    ],
+                ),
+            ],
+            components_relations=[],
+        )
+
+        rendered = mixin.build_scope_cfg_string(analysis)
+
+        self.assertIn("A -> B (12 edges):", rendered)
+        self.assertIn("... and 2 more", rendered)
+        self.assertEqual(rendered.count("  f"), 10)
 
 
 class TestClusterResult(unittest.TestCase):
@@ -112,6 +173,7 @@ class TestFindNearestCluster(unittest.TestCase):
     def _make_mixin(self, cfg: CallGraph) -> MockMixin:
         static = MagicMock()
         static.get_cfg.return_value = cfg
+        static.available_cfgs.return_value = {"python": cfg}
         return MockMixin(repo_dir=Path("/repo"), static_analysis=static)
 
     def test_finds_nearest_cluster_by_graph_distance(self):

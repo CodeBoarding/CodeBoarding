@@ -11,6 +11,7 @@ from static_analyzer.typescript_config_scanner import (
     TypeScriptProject,
     _resolve_system_tsc,
 )
+from utils import CODEBOARDING_DIR_NAME
 
 
 def _force_fallback_walk(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -209,8 +210,8 @@ class TestTscResultsFiltered:
         ``*.test.ts`` files into the analyzer that the user has explicitly asked
         CodeBoarding to skip — Option B already drops them; Option A must too.
         """
-        (tmp_path / ".codeboarding").mkdir()
-        (tmp_path / ".codeboarding" / ".codeboardingignore").write_text("*.test.ts\n")
+        (tmp_path / CODEBOARDING_DIR_NAME).mkdir()
+        (tmp_path / CODEBOARDING_DIR_NAME / ".codeboardingignore").write_text("*.test.ts\n")
         (tmp_path / "tsconfig.json").write_text(json.dumps({}))
         (tmp_path / "a.ts").write_text("export {};")
         (tmp_path / "a.test.ts").write_text("export {};")
@@ -243,8 +244,8 @@ class TestFallbackWhenTscMissing:
 
     def test_fallback_skips_ignored_files(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         _force_fallback_walk(monkeypatch)
-        (tmp_path / ".codeboarding").mkdir()
-        (tmp_path / ".codeboarding" / ".codeboardingignore").write_text("*.spec.ts\n")
+        (tmp_path / CODEBOARDING_DIR_NAME).mkdir()
+        (tmp_path / CODEBOARDING_DIR_NAME / ".codeboardingignore").write_text("*.spec.ts\n")
         (tmp_path / "tsconfig.json").write_text(json.dumps({}))
         (tmp_path / "a.ts").write_text("export {};")
         (tmp_path / "a.spec.ts").write_text("export {};")

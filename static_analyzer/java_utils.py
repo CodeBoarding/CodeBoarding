@@ -29,7 +29,7 @@ def get_java_version(java_cmd: str = "java") -> int:
 
         return 0
 
-    except (FileNotFoundError, subprocess.TimeoutExpired) as e:
+    except (OSError, subprocess.TimeoutExpired) as e:
         logger.debug(f"Failed to get Java version: {e}")
         return 0
 

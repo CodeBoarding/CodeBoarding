@@ -41,6 +41,7 @@ from tests.integration.conftest import (
     extract_metrics,
     FIXTURE_DIR,
 )
+from utils import CODEBOARDING_DIR_NAME
 from vscode_constants import update_config
 
 
@@ -175,7 +176,7 @@ Examples:
     parser.add_argument(
         "--binary-location",
         type=Path,
-        default=Path.home() / ".codeboarding" / "servers",
+        default=Path.home() / CODEBOARDING_DIR_NAME / "servers",
         help="Path to the binary directory for language servers and tools (default: ~/.codeboarding/servers/)",
     )
     args = parser.parse_args()

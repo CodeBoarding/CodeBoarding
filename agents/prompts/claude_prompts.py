@@ -122,14 +122,14 @@ Instructions:
 2. Decide which named groups should be merged into final components
 3. For each component, specify which named cluster groups it encompasses (use exact group names from the analysis above)
 4. Add 2-5 key entities (the most important classes/methods) for each component, mentioning their qualified names and source files
-5. Define relationships between components (max 2 per component pair; avoid paired sends/returns where ComponentA sends a message to ComponentB and ComponentB returns the result)
+5. Do not define relationships yet; relationships are discovered in a later API-surface step
 6. Provide a one-paragraph description of the overall main flow and purpose
 
 Guidelines for {project_type} projects:
 - Aim for 5-8 final components
 - Merge related cluster groups that serve a common purpose
 - Each component should have clear boundaries
-- Include only architecturally significant relationships
+- Focus on component boundaries; relationships are discovered after components are finalized
 
 Constraints:
 - Focus on highest level architectural components
@@ -334,14 +334,14 @@ Instructions:
 2. Decide which named groups should be merged into final sub-components
 3. For each sub-component, specify which named cluster groups it encompasses (use exact group names from the analysis above)
 4. Add 2-5 key entities (the most important classes/methods) for each sub-component, mentioning their qualified names and source files
-5. Define relationships between sub-components (max 2 per component pair; avoid paired sends/returns where ComponentA sends a message to ComponentB and ComponentB returns the result)
+5. Do not define relationships yet; relationships are discovered in a later API-surface step
 6. Provide a one-paragraph description of the subsystem's main flow and purpose
 
 Guidelines for {project_type} projects:
 - Aim for 3-8 final sub-components
 - Merge related cluster groups that serve a common purpose
 - Each sub-component should have clear boundaries
-- Include only architecturally significant relationships
+- Focus on component boundaries; relationships are discovered after components are finalized
 
 Constraints:
 - Focus on subsystem-specific functionality

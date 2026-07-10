@@ -8,6 +8,7 @@ from .read_packages import PackageRelationsTool
 from .read_file_structure import FileStructureTool
 from .read_cfg import GetCFGTool
 from .get_method_invocations import MethodInvocationsTool
+from .component_bridge_edges import ComponentBridgeEdgesTool
 from .read_file import ReadFileTool
 from .read_docs import ReadDocsTool
 from .get_external_deps import ExternalDepsTool
@@ -64,6 +65,12 @@ class CodeBoardingToolkit:
         return cast(MethodInvocationsTool, self._tools["read_method_invocations"])
 
     @property
+    def component_bridge_edges(self) -> ComponentBridgeEdgesTool:
+        if "component_bridge_edges" not in self._tools:
+            self._tools["component_bridge_edges"] = ComponentBridgeEdgesTool(context=self.context)
+        return cast(ComponentBridgeEdgesTool, self._tools["component_bridge_edges"])
+
+    @property
     def read_file(self) -> ReadFileTool:
         if "read_file" not in self._tools:
             self._tools["read_file"] = ReadFileTool(context=self.context)
@@ -97,6 +104,7 @@ class CodeBoardingToolkit:
             self.read_file_structure,
             self.read_structure,
             self.read_packages,
+            self.component_bridge_edges,
         ]
 
     def get_all_tools(self) -> list[BaseRepoTool]:
@@ -110,6 +118,7 @@ class CodeBoardingToolkit:
             self.read_file_structure,
             self.read_cfg,
             self.read_method_invocations,
+            self.component_bridge_edges,
             self.read_file,
             self.read_docs,
             self.external_deps,

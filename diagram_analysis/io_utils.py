@@ -30,7 +30,7 @@ from diagram_analysis.analysis_json import (
     parse_unified_analysis,
 )
 from repo_utils.path_utils import normalize_repo_path
-from utils import ANALYSIS_FILENAME
+from utils import ANALYSIS_FILENAME, CODEBOARDING_DIR_NAME, RUN_OUTPUT_DIR_NAME
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +62,13 @@ class _AnalysisFileStore:
         # 30s rather than 10s: cold-start LSP runs on Windows under AV scans
         # routinely steal multi-second cycles from contended writers.
         self._lock = FileLock(output_dir / f"{ANALYSIS_FILENAME}.lock", timeout=30)
+
+    def _repo_dir_for_source_lookup(self) -> Path:
+        if self._output_dir.name == RUN_OUTPUT_DIR_NAME and self._output_dir.parent.name == CODEBOARDING_DIR_NAME:
+            return self._output_dir.parent.parent
+        if self._output_dir.name == CODEBOARDING_DIR_NAME:
+            return self._output_dir.parent
+        return self._output_dir
 
     def read(self) -> tuple[AnalysisInsights, dict[str, AnalysisInsights], dict] | None:
         """Load the unified ``analysis.json`` from disk.
@@ -297,7 +304,9 @@ def load_root_analysis(output_dir: Path) -> AnalysisInsights | None:
 
 
 def analysis_exists(output_dir: Path) -> bool:
-    """True when *output_dir* holds a parseable ``analysis.json``."""
+    """True when output_dir holds a parseable ``analysis.json``."""
+    if not (output_dir / ANALYSIS_FILENAME).is_file():
+        return False
     return _get_store(output_dir).exists()
 
 

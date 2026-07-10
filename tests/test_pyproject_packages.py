@@ -12,7 +12,7 @@ def _find_packages_on_disk() -> set[str]:
     for init_file in REPO_ROOT.rglob("__init__.py"):
         parts = init_file.relative_to(REPO_ROOT).parts
         # Skip excluded top-level directories
-        if parts[0] in exclude_prefixes:
+        if parts[0] in exclude_prefixes or any(part.startswith(".") for part in parts):
             continue
         # The package path is everything except the __init__.py filename
         pkg = ".".join(parts[:-1])

@@ -109,7 +109,10 @@ class Edge:
 
     @staticmethod
     def _normalize_call_site(call_site: Mapping[str, Hashable]) -> dict[str, Hashable]:
-        return dict(call_site)
+        normalized = dict(call_site)
+        if "file" not in normalized and "file_path" in normalized:
+            normalized["file"] = normalized.pop("file_path")
+        return normalized
 
     def visit_paths(self, fn: Callable[[str], str]) -> None:
         for site in self._call_sites:
