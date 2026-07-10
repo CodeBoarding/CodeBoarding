@@ -7,7 +7,7 @@ from codeboarding_cli.view_instructions import print_view_instructions
 from codeboarding_workflows.analysis import run_partial
 from codeboarding_workflows.orchestration import run_analysis_pipeline
 from codeboarding_workflows.sources import SourceContext, local_source
-from diagram_analysis import RunContext
+from diagram_analysis import RunContext, RunPaths
 from repo_utils.ignore import initialize_codeboardingignore
 from utils import ANALYSIS_FILENAME
 
@@ -50,12 +50,9 @@ def run_from_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> 
 
     def scope(src: SourceContext, run_context: RunContext) -> None:
         run_partial(
-            repo_path=src.repo_path,
-            output_dir=src.artifact_dir,
-            project_name=src.project_name,
+            RunPaths(repo_path=src.repo_path, output_dir=src.artifact_dir, project_name=src.project_name),
+            run_context,
             component_id=args.component_id,
-            run_id=run_context.run_id,
-            log_path=run_context.log_path,
         )
 
     run_analysis_pipeline(

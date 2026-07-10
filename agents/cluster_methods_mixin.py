@@ -10,10 +10,8 @@ from agents.agent_responses import (
     AnalysisInsights,
     ClusterAnalysis,
     Component,
-    FileEntry,
-    FileMethodGroup,
-    MethodEntry,
 )
+from agents.file_index_models import FileEntry, FileMethodGroup, MethodEntry
 from agents.cluster_budget import ClusterPromptBudget
 from agents.content_hash import (
     MethodRef,
@@ -611,15 +609,19 @@ class ClusterMethodsMixin:
 
         return best_cluster
 
-    def _build_file_methods_from_nodes(self, nodes: list[Node]) -> list[FileMethodGroup]:
+    def _build_file_methods_from_nodes(
+        self, nodes: list[Node], source_cache: SourceCache | None = None
+    ) -> list[FileMethodGroup]:
         """Group a flat list of Nodes into FileMethodGroups sorted by file then line.
 
         Only includes methods, functions, and classes/interfaces — variables,
-        constants, properties, and fields are excluded.
+        constants, properties, and fields are excluded. Pass ``source_cache`` to
+        reuse file reads across a whole ``populate_file_methods`` pass.
         """
         allowed_types = CALLABLE_TYPES | CLASS_TYPES
         by_file: dict[str, dict[tuple[int, int, str, str], MethodEntry]] = defaultdict(dict)
-        source_cache: SourceCache = {}
+        if source_cache is None:
+            source_cache = {}
 
         def _is_more_specific(candidate: str, current: str) -> bool:
             """Prefer the most specific qualified name for the same symbol span.
@@ -802,9 +804,16 @@ class ClusterMethodsMixin:
         pct = (assigned_nodes / total_nodes * 100) if total_nodes else 0
         logger.info(f"Node coverage: {assigned_nodes}/{total_nodes} ({pct:.1f}%) nodes assigned to components")
 
-    def build_files_index(self, analysis: AnalysisInsights) -> dict[str, FileEntry]:
-        file_cache: SourceCache = {}
-        live_spans = self._live_cfg_method_spans()
+    def build_files_index(
+        self, analysis: AnalysisInsights, source_cache: SourceCache | None = None
+    ) -> dict[str, FileEntry]:
+        """Assemble the file -> ``FileEntry`` index, hashing each method's span
+        from live source. Each ``MethodEntry`` is hashed at the span it carries,
+        so callers whose spans may be stale (the incremental carry-forward path)
+        must run :meth:`refresh_method_spans_from_cfg` first. Pass ``source_cache``
+        to reuse the reads from an earlier ``_build_file_methods_from_nodes`` pass.
+        """
+        file_cache = source_cache if source_cache is not None else {}
         files: dict[str, FileEntry] = {}
         for component in analysis.components:
             for fmg in component.file_methods:
@@ -820,20 +829,11 @@ class ClusterMethodsMixin:
                 for method in fmg.methods:
                     if method.qualified_name not in methods_by_qname:
                         copied = method.model_copy(deep=True)
-                        # Rehash from the live CFG span, not the carried-forward one:
-                        # a stale span can point at unrelated code (edit above the
-                        # method) and a carried hash would mask a body-only edit.
-                        # Absent from the live CFG -> '' rather than hash a stale span.
-                        live_span = live_spans.get(MethodRef(fmg.file_path, method.qualified_name))
-                        if live_span is not None:
-                            copied.start_line, copied.end_line = live_span
-                            copied.content_hash = hash_method_body(
-                                read_source_lines(self.repo_dir, fmg.file_path, file_cache),
-                                live_span.start_line,
-                                live_span.end_line,
-                            )
-                        else:
-                            copied.content_hash = ""
+                        copied.content_hash = hash_method_body(
+                            read_source_lines(self.repo_dir, fmg.file_path, file_cache),
+                            method.start_line,
+                            method.end_line,
+                        )
                         methods_by_qname[method.qualified_name] = copied
 
                 entry.methods = sorted(
@@ -842,9 +842,28 @@ class ClusterMethodsMixin:
                 )
         return files
 
-    def _live_cfg_method_spans(self) -> dict[MethodRef, MethodSpan]:
-        """Live-CFG line span per method, so ``build_files_index`` can refresh
-        spans for methods whose component wasn't re-detailed."""
+    def refresh_method_spans_from_cfg(self, analysis: AnalysisInsights) -> None:
+        """Update every carried-forward ``MethodEntry`` span from the live CFG.
+
+        The incremental flow reuses component/method assignments from disk while
+        the CFG has been re-analyzed, so an untouched component's spans can point
+        at unrelated code (an edit above the method) and its stored hash can mask
+        a body-only edit. This propagates the current CFG span onto each entry so
+        :meth:`build_files_index` hashes the real body. A method absent from the
+        live CFG gets an out-of-range span, which hashes to '' (unavailable).
+        """
+        spans = self._cfg_method_spans()
+        for component in analysis.components:
+            for fmg in component.file_methods:
+                for method in fmg.methods:
+                    span = spans.get(MethodRef(fmg.file_path, method.qualified_name))
+                    if span is not None:
+                        method.start_line, method.end_line = span
+                    else:
+                        method.start_line, method.end_line = 0, 0
+
+    def _cfg_method_spans(self) -> dict[MethodRef, MethodSpan]:
+        """Live-CFG line span per method, keyed by (repo-relative file, qname)."""
         spans: dict[MethodRef, MethodSpan] = {}
         for language in self.static_analysis.get_languages():
             try:
@@ -898,10 +917,15 @@ class ClusterMethodsMixin:
             source_cluster_id_prefix,
         )
 
+        # One cache shared across the per-component method build and the files
+        # index so each source file is read from disk once, not twice.
+        source_cache: SourceCache = {}
         for comp in analysis.components:
-            comp.file_methods = self._build_file_methods_from_nodes(component_nodes.get(comp.component_id, []))
+            comp.file_methods = self._build_file_methods_from_nodes(
+                component_nodes.get(comp.component_id, []), source_cache
+            )
 
-        analysis.files = self.build_files_index(analysis)
+        analysis.files = self.build_files_index(analysis, source_cache)
 
         self._log_node_coverage(analysis, len(all_nodes))
 

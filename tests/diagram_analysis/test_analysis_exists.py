@@ -10,6 +10,8 @@ def test_true_when_parseable_analysis_present(tmp_path: Path) -> None:
     save_analysis(
         AnalysisInsights(description="d", components=[], components_relations=[]),
         tmp_path,
+        repo_dir=tmp_path,
+        source_tree_hash="",
         repo_name="repo",
         commit_hash="head",
     )

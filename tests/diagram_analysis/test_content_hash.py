@@ -1,18 +1,28 @@
 import hashlib
 from pathlib import Path
 
-from agents.agent_responses import AnalysisInsights, Component, FileEntry, FileMethodGroup, MethodEntry
+from agents.agent_responses import (
+    AnalysisInsights,
+    Component,
+)
+from agents.file_index_models import FileEntry, FileMethodGroup, MethodEntry
 from agents.cluster_methods_mixin import ClusterMethodsMixin
-from agents.content_hash import MethodRef, MethodSpan, hash_method_body, hash_whole_file, read_source_lines
+from agents.content_hash import (
+    MethodRef,
+    MethodSpan,
+    compute_source_tree_hash,
+    hash_method_body,
+    hash_repo_source_files,
+    hash_whole_file,
+    read_source_lines,
+    tree_hash_from_file_hashes,
+)
 from diagram_analysis.analysis_json import (
     FileEntryJson,
     MethodIndexEntry,
     _build_file_entry_json_from_files,
     _build_methods_index_from_files,
     _reconstruct_files_index,
-    compute_source_tree_hash,
-    hash_repo_source_files,
-    tree_hash_from_file_hashes,
 )
 
 
@@ -65,17 +75,17 @@ def test_hash_method_body_hashes_line_range():
 def test_hash_method_body_empty_on_bad_range():
     assert hash_method_body(["a", "b"], 0, 2) == ""
     assert hash_method_body(["a", "b"], 3, 2) == ""
-    assert hash_method_body(None, 1, 2) == ""
+    assert hash_method_body([], 1, 2) == ""
 
 
-def test_read_source_lines_missing_file_returns_none(tmp_path: Path):
-    cache: dict[str, list[str] | None] = {}
-    assert read_source_lines(tmp_path, "nope.py", cache) is None
+def test_read_source_lines_missing_file_returns_empty(tmp_path: Path):
+    cache: dict[str, list[str]] = {}
+    assert read_source_lines(tmp_path, "nope.py", cache) == []
 
 
 def test_read_source_lines_reads_and_caches(tmp_path: Path):
     (tmp_path / "f.py").write_text("a\nb\nc\n", encoding="utf-8")
-    cache: dict[str, list[str] | None] = {}
+    cache: dict[str, list[str]] = {}
     assert read_source_lines(tmp_path, "f.py", cache) == ["a", "b", "c"]
     assert "f.py" in cache
 
@@ -170,14 +180,14 @@ def test_source_tree_hash_reproducible_from_fingerprint_map(tmp_path: Path):
 
 
 class _StubMixin(ClusterMethodsMixin):
-    """Minimal host for ``build_files_index`` — it only reads ``repo_dir`` and
-    ``_live_cfg_method_spans``."""
+    """Minimal host for ``build_files_index`` / ``refresh_method_spans_from_cfg``
+    — it only reads ``repo_dir`` and the live-CFG spans."""
 
-    def __init__(self, repo_dir: Path, live_spans: dict):
+    def __init__(self, repo_dir: Path, cfg_spans: dict):
         self.repo_dir = repo_dir
-        self._spans = live_spans
+        self._spans = cfg_spans
 
-    def _live_cfg_method_spans(self):
+    def _cfg_method_spans(self):
         return self._spans
 
 
@@ -204,25 +214,40 @@ def _analysis_with_method(file_path: str, qname: str, start: int, end: int) -> A
     )
 
 
-def test_build_files_index_uses_live_cfg_span(tmp_path: Path):
-    # The method moved down (edit above it); the live CFG knows its real span, so
-    # the hash reflects the CURRENT body, not the stale line numbers.
+def test_build_files_index_hashes_carried_span(tmp_path: Path):
+    # build_files_index hashes each method at the span it carries — no CFG lookup.
+    (tmp_path / "m.py").write_text("def foo():\n    return 1\n", encoding="utf-8")
+    analysis = _analysis_with_method("m.py", "foo", start=1, end=2)
+    files = _StubMixin(tmp_path, cfg_spans={}).build_files_index(analysis)
+    method = files["m.py"].methods[0]
+    assert method.content_hash == hash_method_body(["def foo():", "    return 1"], 1, 2)
+    assert method.content_hash != ""
+
+
+def test_refresh_spans_then_index_reflects_live_cfg_span(tmp_path: Path):
+    # The method moved down (edit above it). refresh_method_spans_from_cfg pulls
+    # the real span from the live CFG so build_files_index hashes the CURRENT body,
+    # not the stale carried-forward line numbers.
     (tmp_path / "m.py").write_text("# added line\ndef foo():\n    return 1\n", encoding="utf-8")
     analysis = _analysis_with_method("m.py", "foo", start=1, end=2)  # stale carried-forward span
     live = {MethodRef("m.py", "foo"): MethodSpan(2, 3)}  # live CFG span of foo() now
-    files = _StubMixin(tmp_path, live).build_files_index(analysis)
+    mixin = _StubMixin(tmp_path, live)
+    mixin.refresh_method_spans_from_cfg(analysis)
+    files = mixin.build_files_index(analysis)
     method = files["m.py"].methods[0]
     assert method.content_hash == hash_method_body(["# added line", "def foo():", "    return 1"], 2, 3)
     assert method.content_hash != ""
 
 
-def test_build_files_index_empty_hash_when_method_absent_from_live_cfg(tmp_path: Path):
-    # The carried-forward method is NOT in the live CFG (e.g. deleted/renamed in
-    # source). Its stored line numbers may now point at unrelated code, so hashing
-    # them would be stable-but-wrong. Expect the ''-unavailable sentinel instead.
+def test_refresh_spans_empty_hash_when_method_absent_from_live_cfg(tmp_path: Path):
+    # The carried-forward method is NOT in the live CFG (deleted/renamed in source).
+    # refresh_method_spans_from_cfg zeroes its span, so build_files_index hashes it
+    # to the ''-unavailable sentinel rather than a stable-but-wrong value.
     (tmp_path / "m.py").write_text("def something_else():\n    return 42\n", encoding="utf-8")
     analysis = _analysis_with_method("m.py", "foo", start=1, end=2)
-    files = _StubMixin(tmp_path, live_spans={}).build_files_index(analysis)
+    mixin = _StubMixin(tmp_path, cfg_spans={})
+    mixin.refresh_method_spans_from_cfg(analysis)
+    files = mixin.build_files_index(analysis)
     method = files["m.py"].methods[0]
     assert method.content_hash == ""
 

@@ -58,11 +58,8 @@ def run_from_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> 
 
     try:
         analysis_path = run_incremental(
-            repo_path=run_paths.repo_path,
-            output_dir=run_paths.output_dir,
-            project_name=run_paths.project_name,
-            run_id=run_context.run_id,
-            log_path=run_context.log_path,
+            run_paths,
+            run_context,
             monitoring_enabled=args.enable_monitoring or monitoring_enabled(),
         )
     except BaselineUnavailableError as exc:

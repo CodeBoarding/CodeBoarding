@@ -11,7 +11,7 @@ from codeboarding_workflows.analysis import run_full
 from codeboarding_workflows.orchestration import run_analysis_pipeline
 from codeboarding_workflows.rendering import render_docs
 from codeboarding_workflows.sources import SourceContext, local_source, remote_source
-from diagram_analysis import RunContext
+from diagram_analysis import RunContext, RunPaths
 from monitoring import monitor_execution
 from monitoring.paths import get_monitoring_run_dir
 from repo_utils import get_branch, store_token
@@ -92,12 +92,9 @@ def _run_local(args: argparse.Namespace) -> None:
 
     def scope(src: SourceContext, run_context: RunContext) -> None:
         run_full(
-            repo_name=src.project_name,
-            repo_path=src.repo_path,
-            output_dir=src.artifact_dir,
+            RunPaths(repo_path=src.repo_path, output_dir=src.artifact_dir, project_name=src.project_name),
+            run_context,
             depth_level=args.depth_level,
-            run_id=run_context.run_id,
-            log_path=run_context.log_path,
             monitoring_enabled=should_monitor,
             force_full=args.force,
             source_sha=get_current_commit(src.repo_path),
@@ -177,12 +174,9 @@ def _process_one_remote(
         ) as mon:
             mon.step(f"processing_{src.project_name}")
             analysis_path = run_full(
-                repo_name=src.project_name,
-                repo_path=src.repo_path,
-                output_dir=src.artifact_dir,
+                RunPaths(repo_path=src.repo_path, output_dir=src.artifact_dir, project_name=src.project_name),
+                run_context,
                 depth_level=depth_level,
-                run_id=run_context.run_id,
-                log_path=run_context.log_path,
                 monitoring_enabled=should_monitor,
                 source_sha=get_current_commit(src.repo_path),
             )

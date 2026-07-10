@@ -30,7 +30,7 @@ from diagram_analysis.analysis_json import (
     parse_unified_analysis,
 )
 from repo_utils.path_utils import normalize_repo_path
-from utils import ANALYSIS_FILENAME, CODEBOARDING_DIR_NAME, RUN_OUTPUT_DIR_NAME
+from utils import ANALYSIS_FILENAME, CODEBOARDING_DIR_NAME, FINGERPRINT_FILENAME, RUN_OUTPUT_DIR_NAME
 
 logger = logging.getLogger(__name__)
 
@@ -56,14 +56,13 @@ class _AnalysisFileStore:
         output_dir.mkdir(parents=True, exist_ok=True)
         self._output_dir = output_dir
         self._analysis_path = output_dir / ANALYSIS_FILENAME
-        # Last repo_dir written, reused by write_sub so sub-analysis saves keep
-        # the same whole-tree source_tree_hash the root write computed.
-        self._repo_dir: Path | None = None
         # 30s rather than 10s: cold-start LSP runs on Windows under AV scans
         # routinely steal multi-second cycles from contended writers.
         self._lock = FileLock(output_dir / f"{ANALYSIS_FILENAME}.lock", timeout=30)
 
     def _repo_dir_for_source_lookup(self) -> Path:
+        """Recover the repo root from the output_dir layout — the source root a
+        sub-analysis write hashes when the caller doesn't pass its own repo_dir."""
         if self._output_dir.name == RUN_OUTPUT_DIR_NAME and self._output_dir.parent.name == CODEBOARDING_DIR_NAME:
             return self._output_dir.parent.parent
         if self._output_dir.name == CODEBOARDING_DIR_NAME:
@@ -114,12 +113,13 @@ class _AnalysisFileStore:
     def write(
         self,
         analysis: AnalysisInsights,
+        repo_dir: Path,
+        source_tree_hash: str,
         expandable_component_ids: list[str] | None = None,
         sub_analyses: dict[str, AnalysisInsights] | None = None,
         repo_name: str = "",
         file_coverage_summary: FileCoverageSummary | None = None,
         commit_hash: str = "",
-        repo_dir: Path | None = None,
     ) -> Path:
         """Write the full analysis to ``analysis.json`` with file locking.
 
@@ -129,12 +129,13 @@ class _AnalysisFileStore:
         with self._lock:
             return self._write_with_lock_held(
                 analysis,
+                repo_dir,
+                source_tree_hash,
                 expandable_component_ids,
                 sub_analyses,
                 repo_name,
                 file_coverage_summary,
                 commit_hash,
-                repo_dir,
             )
 
     def write_sub(
@@ -159,26 +160,24 @@ class _AnalysisFileStore:
             # Update the sub-analysis for this component
             sub_analyses[component_id] = sub_analysis
 
-            # Determine repo_name from existing metadata
-            repo_name = ""
-            if "metadata" in raw_data:
-                repo_name = raw_data["metadata"].get("repo_name", "")
+            # Carry forward repo_name + source_tree_hash from the on-disk metadata:
+            # a sub-analysis write doesn't recompute source state, so it preserves
+            # the whole-tree hash the root write already stamped.
+            metadata = raw_data.get("metadata", {})
+            repo_name = metadata.get("repo_name", "")
+            source_tree_hash = metadata.get("source_tree_hash", "")
 
             # Determine which root components are expandable
             all_expandable_ids = expandable_component_ids or list(sub_analyses.keys())
 
-            return self._write_with_lock_held(root_analysis, all_expandable_ids, sub_analyses, repo_name)
-
-    def _read_existing_source_tree_hash(self) -> str:
-        """The ``metadata.source_tree_hash`` currently on disk, or '' if absent."""
-        try:
-            with open(self._analysis_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-        except (OSError, ValueError):
-            return ""
-        metadata = data.get("metadata", {}) if isinstance(data, dict) else {}
-        value = metadata.get("source_tree_hash", "")
-        return value if isinstance(value, str) else ""
+            return self._write_with_lock_held(
+                root_analysis,
+                self._repo_dir_for_source_lookup(),
+                source_tree_hash,
+                all_expandable_ids,
+                sub_analyses,
+                repo_name,
+            )
 
     def detect_expanded_components(self, analysis: AnalysisInsights) -> list[str]:
         """Find component IDs that have sub-analyses in the unified ``analysis.json``."""
@@ -192,24 +191,15 @@ class _AnalysisFileStore:
     def _write_with_lock_held(
         self,
         analysis: AnalysisInsights,
+        repo_dir: Path,
+        source_tree_hash: str,
         expandable_component_ids: list[str] | None = None,
         sub_analyses: dict[str, AnalysisInsights] | None = None,
         repo_name: str = "",
         file_coverage_summary: FileCoverageSummary | None = None,
         commit_hash: str = "",
-        repo_dir: Path | None = None,
     ) -> Path:
         """Write ``analysis.json`` — caller must already hold ``self._lock``."""
-        if repo_dir is not None:
-            self._repo_dir = repo_dir
-        else:
-            repo_dir = self._repo_dir
-        # If no repo_dir is available (e.g. a bare sub-analysis write), preserve the
-        # existing whole-tree source_tree_hash from disk rather than let the JSON
-        # builder downgrade it to a component-only hash.
-        source_tree_hash_override = ""
-        if repo_dir is None:
-            source_tree_hash_override = self._read_existing_source_tree_hash()
         # Keep caller-provided expandables, but also preserve deterministic planner eligibility.
         expandable_ids = set(expandable_component_ids or [])
         expandable_ids.update(
@@ -257,12 +247,11 @@ class _AnalysisFileStore:
             analysis=analysis,
             expandable_components=expandable,
             repo_name=repo_name,
-            source_root=self._repo_dir_for_source_lookup(),
+            repo_dir=repo_dir,
+            source_tree_hash=source_tree_hash,
             sub_analyses=sub_analyses_tuples,
             file_coverage_summary=file_coverage_summary,
             commit_hash=commit_hash,
-            repo_dir=repo_dir,
-            source_tree_hash_override=source_tree_hash_override,
         )
         tmp_fd, tmp_name = tempfile.mkstemp(
             prefix=f".{self._analysis_path.name}.",
@@ -365,9 +354,6 @@ def load_analysis_commit_hash(output_dir: Path) -> str | None:
 # Whole-tree fingerprint sidecar. analysis.json's ``files`` block covers only
 # component-assigned files; the sidecar covers the whole analyzable tree, so the
 # incremental diff also sees changes to docs/configs/unclustered source.
-FINGERPRINT_FILENAME = "fingerprint.json"
-
-
 def write_fingerprint(output_dir: Path, file_hashes: dict[str, str]) -> None:
     """Persist the whole-tree fingerprint next to ``analysis.json``. Best-effort."""
     try:
@@ -393,26 +379,28 @@ def read_fingerprint(output_dir: Path) -> dict[str, str] | None:
 def save_analysis(
     analysis: AnalysisInsights,
     output_dir: Path,
+    repo_dir: Path,
+    source_tree_hash: str,
     expandable_component_ids: list[str] | None = None,
     sub_analyses: dict[str, AnalysisInsights] | None = None,
     repo_name: str = "",
     file_coverage_summary: FileCoverageSummary | None = None,
     commit_hash: str = "",
-    repo_dir: Path | None = None,
 ) -> Path:
     """Save the analysis to a unified analysis.json file with file locking.
 
-    Pass ``repo_dir`` so ``source_tree_hash`` covers the whole analyzable tree
-    (reproducible by consumers that fingerprint the working tree).
+    ``repo_dir`` relativizes paths; ``source_tree_hash`` is the precomputed
+    whole-tree version key (reproducible by consumers that fingerprint the tree).
     """
     return _get_store(output_dir).write(
         analysis,
+        repo_dir,
+        source_tree_hash,
         expandable_component_ids,
         sub_analyses,
         repo_name,
         file_coverage_summary,
         commit_hash,
-        repo_dir,
     )
 
 

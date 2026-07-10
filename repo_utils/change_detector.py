@@ -1,6 +1,7 @@
-"""Domain model for git-diff-derived changes.
+"""Domain model for the incremental change set.
 
-Pure data + methods, no I/O. Produced by :func:`repo_utils.diff_parser.detect_changes`,
+Pure data + methods, no I/O. Produced by the content-hash fingerprint diff
+(:func:`repo_utils.fingerprint_diff.detect_changes_from_fingerprint`),
 consumed by the incremental analysis pipeline:
 
 - file-level accessors: ``added_files``, ``modified_files``, ``deleted_files``,
@@ -14,7 +15,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum
 
-from agents.agent_responses import MethodEntry
+from agents.file_index_models import MethodEntry
 from agents.change_status import ChangeStatus
 
 
@@ -224,10 +225,9 @@ class FileChange:
 class ChangeSet:
     """A set of file (and per-file method) changes between two source states.
 
-    Source-agnostic: produced either from a git diff
-    (:func:`repo_utils.diff_parser.detect_changes`) or from a content-hash
-    fingerprint diff (:meth:`from_changed_files`). Empty ``files`` + non-None
-    ``error`` means detection failed — callers check ``error`` first.
+    Produced from a content-hash fingerprint diff (:meth:`from_changed_files`).
+    Empty ``files`` + non-None ``error`` means detection failed — callers check
+    ``error`` first.
     """
 
     files: list[FileChange] = field(default_factory=list)

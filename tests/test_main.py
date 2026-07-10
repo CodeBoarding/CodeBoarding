@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, Mock, patch
 from codeboarding_cli.commands.full_analysis import run_from_args, validate_arguments
 from codeboarding_workflows.analysis import BaselineUnavailableError, run_full, run_incremental, run_partial
 from codeboarding_workflows.sources import local_source, onboarding_materials_exist, remote_source
+from diagram_analysis.run_context import RunContext, RunPaths
 
 
 class TestOnboardingMaterialsExist(unittest.TestCase):
@@ -45,11 +46,8 @@ class TestGenerateAnalysis(unittest.TestCase):
             output_dir.mkdir()
 
             result = run_full(
-                repo_name="test_repo",
-                repo_path=repo_path,
-                output_dir=output_dir,
-                run_id="test-run-id",
-                log_path="test_repo/test-run-log",
+                RunPaths(repo_path=repo_path, output_dir=output_dir, project_name="test_repo"),
+                RunContext(run_id="test-run-id", log_path="test_repo/test-run-log", repo_dir=repo_path),
                 depth_level=2,
             )
 
@@ -81,11 +79,8 @@ class TestGenerateAnalysis(unittest.TestCase):
             output_dir.mkdir()
 
             run_full(
-                repo_name="test_repo",
-                repo_path=repo_path,
-                output_dir=output_dir,
-                run_id="test-run-id",
-                log_path="test_repo/test-run-log",
+                RunPaths(repo_path=repo_path, output_dir=output_dir, project_name="test_repo"),
+                RunContext(run_id="test-run-id", log_path="test_repo/test-run-log", repo_dir=repo_path),
                 force_full=True,
             )
 
@@ -134,12 +129,9 @@ class TestPartialUpdate(unittest.TestCase):
             output_dir.mkdir()
 
             run_partial(
-                repo_path=repo_path,
-                output_dir=output_dir,
-                project_name="test_project",
+                RunPaths(repo_path=repo_path, output_dir=output_dir, project_name="test_project"),
+                RunContext(run_id="test-run-id", log_path="test_project/test-run-log", repo_dir=repo_path),
                 component_id="test_comp_id",
-                run_id="test-run-id",
-                log_path="test_project/test-run-log",
             )
 
             mock_generator.pre_analysis.assert_called_once()
@@ -196,12 +188,9 @@ class TestPartialUpdate(unittest.TestCase):
             output_dir.mkdir()
 
             run_partial(
-                repo_path=repo_path,
-                output_dir=output_dir,
-                project_name="test_project",
+                RunPaths(repo_path=repo_path, output_dir=output_dir, project_name="test_project"),
+                RunContext(run_id="test-run-id", log_path="test_project/test-run-log", repo_dir=repo_path),
                 component_id="nested_comp_id",
-                run_id="test-run-id",
-                log_path="test_project/test-run-log",
             )
 
             mock_generator.pre_analysis.assert_called_once()
@@ -224,12 +213,9 @@ class TestPartialUpdate(unittest.TestCase):
 
             with self.assertRaises(BaselineUnavailableError):
                 run_partial(
-                    repo_path=repo_path,
-                    output_dir=output_dir,
-                    project_name="test_project",
+                    RunPaths(repo_path=repo_path, output_dir=output_dir, project_name="test_project"),
+                    RunContext(run_id="test-run-id", log_path="test_project/test-run-log", repo_dir=repo_path),
                     component_id="TestComponent",
-                    run_id="test-run-id",
-                    log_path="test_project/test-run-log",
                 )
 
             # No metadata: raise before building the generator or touching pre_analysis.
@@ -253,11 +239,8 @@ class TestIncrementalDepthSource(unittest.TestCase):
 
             with self.assertRaises(BaselineUnavailableError):
                 run_incremental(
-                    repo_path=repo_path,
-                    output_dir=output_dir,
-                    project_name="test_project",
-                    run_id="r",
-                    log_path="l",
+                    RunPaths(repo_path=repo_path, output_dir=output_dir, project_name="test_project"),
+                    RunContext(run_id="r", log_path="l", repo_dir=repo_path),
                 )
 
     @patch("codeboarding_workflows.analysis.run_incremental_workflow")
@@ -278,11 +261,8 @@ class TestIncrementalDepthSource(unittest.TestCase):
             output_dir.mkdir()
 
             run_incremental(
-                repo_path=repo_path,
-                output_dir=output_dir,
-                project_name="test_project",
-                run_id="r",
-                log_path="l",
+                RunPaths(repo_path=repo_path, output_dir=output_dir, project_name="test_project"),
+                RunContext(run_id="r", log_path="l", repo_dir=repo_path),
             )
 
         self.assertEqual(mock_generator_class.call_args.kwargs["depth_level"], 3)
@@ -373,12 +353,9 @@ class TestLocalSource(unittest.TestCase):
 
             with local_source(repo_path=repo_path, project_name="proj", artifact_dir=output_dir) as src:
                 run_partial(
-                    repo_path=src.repo_path,
-                    output_dir=src.artifact_dir,
-                    project_name=src.project_name,
+                    RunPaths(repo_path=src.repo_path, output_dir=src.artifact_dir, project_name=src.project_name),
+                    RunContext(run_id="r", log_path="l", repo_dir=src.repo_path),
                     component_id="does-not-matter",
-                    run_id="r",
-                    log_path="l",
                 )
 
             mock_generator_class.return_value.pre_analysis.assert_called_once()
@@ -415,9 +392,9 @@ class TestFullCliLocal(unittest.TestCase):
             run_from_args(self._make_args(repo_path), MagicMock())
 
         mock_run_full.assert_called_once()
-        kwargs = mock_run_full.call_args.kwargs
-        self.assertEqual(kwargs["repo_path"], repo_path.resolve())
-        self.assertFalse(kwargs["force_full"])
+        run_paths = mock_run_full.call_args.args[0]
+        self.assertEqual(run_paths.repo_path, repo_path.resolve())
+        self.assertFalse(mock_run_full.call_args.kwargs["force_full"])
 
     @patch("codeboarding_cli.commands.full_analysis.run_full")
     @patch("codeboarding_workflows.orchestration.RunContext")

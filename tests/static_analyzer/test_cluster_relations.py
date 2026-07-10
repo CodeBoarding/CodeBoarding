@@ -5,13 +5,12 @@ import unittest
 from agents.agent_responses import (
     AnalysisInsights,
     Component,
-    FileMethodGroup,
-    MethodEntry,
     Relation,
     RelationEdge,
     SourceCodeReference,
     assign_component_ids,
 )
+from agents.file_index_models import FileMethodGroup, MethodEntry
 from static_analyzer.cluster_relations import (
     ClusterRelation,
     build_node_to_component_map,

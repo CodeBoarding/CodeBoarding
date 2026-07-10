@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from codeboarding_workflows.analysis import BaselineUnavailableError, run_incremental
+from diagram_analysis.run_context import RunContext, RunPaths
 from repo_utils.change_detector import ChangeSet
 
 
@@ -34,11 +35,8 @@ def patched(tmp_path: Path):
 
 def _invoke(tmp_path: Path, **kwargs) -> None:
     run_incremental(
-        repo_path=tmp_path,
-        output_dir=tmp_path / "out",
-        project_name="proj",
-        run_id="rid",
-        log_path="logs/run.log",
+        RunPaths(repo_path=tmp_path, output_dir=tmp_path / "out", project_name="proj"),
+        RunContext(run_id="rid", log_path="logs/run.log", repo_dir=tmp_path),
         **kwargs,
     )
 

@@ -31,12 +31,9 @@ from unittest.mock import patch
 
 import pytest
 
-from repo_utils.diff_parser import detect_changes
 from repo_utils.git_ops import (
     _list_uncommitted_changed_files,
     get_changed_files_since,
-    list_untracked_files,
-    run_raw_diff,
 )
 
 
@@ -51,21 +48,6 @@ def _completed(stdout: str = "") -> CompletedProcess:
 
 def _argvs(run_mock) -> list[list[str]]:
     return [call.args[0] for call in run_mock.call_args_list]
-
-
-def test_run_raw_diff_argv_disables_quotepath():
-    with patch("repo_utils.git_ops.subprocess.run", side_effect=[_completed("")]) as run:
-        run_raw_diff(Path("/tmp/repo"), "HEAD", "")
-    argv = _argvs(run)[0]
-    assert argv[0] == "git"
-    assert "-c" in argv and "core.quotepath=false" in argv
-
-
-def test_list_untracked_files_argv_disables_quotepath():
-    with patch("repo_utils.git_ops.subprocess.run", side_effect=[_completed("")]) as run:
-        list_untracked_files(Path("/tmp/repo"))
-    argv = _argvs(run)[0]
-    assert "-c" in argv and "core.quotepath=false" in argv
 
 
 def test_get_changed_files_since_argv_disables_quotepath():
@@ -85,8 +67,11 @@ def test_text_decoding_uses_utf8_replace():
     Why: bare ``text=True`` decodes via ``locale.getpreferredencoding()`` and
     raises ``UnicodeDecodeError`` on Windows cp1252 when git emits UTF-8.
     """
-    with patch("repo_utils.git_ops.subprocess.run", side_effect=[_completed("")]) as run:
-        run_raw_diff(Path("/tmp/repo"), "HEAD", "")
+    with patch(
+        "repo_utils.git_ops.subprocess.run",
+        side_effect=[_completed("") for _ in range(4)],
+    ) as run:
+        get_changed_files_since(Path("/tmp/repo"), "HEAD")
     kwargs = run.call_args_list[0].kwargs
     assert kwargs.get("encoding") == "utf-8"
     assert kwargs.get("errors") == "replace"
@@ -213,22 +198,6 @@ def test_get_changed_files_since_includes_both_sides_of_rename(real_repo):
     assert repo / new_name in changed
 
 
-def test_detect_changes_attaches_hunks_to_non_ascii_paths(real_repo):
-    repo, git = real_repo
-    base = git("rev-parse", "HEAD").stdout.strip()
-
-    # Modify one non-ASCII file; we want the parsed ChangeSet to attach hunks
-    # rather than report it as a no-hunks entry (which is the failure mode
-    # the diff-header / raw-line key mismatch produced pre-fix).
-    target = _NON_ASCII_NAMES[0]
-    (repo / target).write_text("# new content line one\n# new content line two\n", encoding="utf-8")
-
-    parsed = detect_changes(repo, base, target_ref="")
-    matched = [f for f in parsed.files if f.file_path.endswith(target)]
-    assert matched, f"non-ASCII path {target!r} missing from parsed.files"
-    assert matched[0].hunks, f"no hunks attached to {target!r}"
-
-
 def test_uncommitted_changed_files_include_non_ascii(real_repo):
     repo, _ = real_repo
     target = _NON_ASCII_NAMES[1]
@@ -237,42 +206,6 @@ def test_uncommitted_changed_files_include_non_ascii(real_repo):
     paths = _list_uncommitted_changed_files(repo)
     names = {p.name for p in paths}
     assert target in names
-
-
-def test_list_untracked_files_returns_non_ascii(real_repo):
-    repo, _ = real_repo
-    untracked_name = chr(0x65B0) + chr(0x898F) + ".py"  # CJK "new" -- distinct from the tracked CJK file
-    if not _can_create_non_ascii_files(repo):  # belt-and-braces re-check
-        pytest.skip("filesystem rejects this filename")
-    (repo / untracked_name).write_text("# untracked\n", encoding="utf-8")
-
-    untracked = list_untracked_files(repo)
-    assert untracked_name in untracked, f"{untracked_name!r} missing from {untracked!r}"
-
-
-# ---------------------------------------------------------------------------
-# Defence: parser still recovers if quotepath gets re-enabled upstream
-# ---------------------------------------------------------------------------
-
-
-def test_parser_recovers_from_quoted_paths():
-    """If an upstream env var or user config flips ``core.quotepath`` back on,
-    the diff parser's defensive ``_strip_git_quotes`` must still produce keys
-    that match the patch-body header (which already strips quotes via regex).
-    """
-    diff_out = (
-        ':100644 100644 aaaa bbbb M\t"\\303\\251.py"\n'
-        'diff --git "a/\\303\\251.py" "b/\\303\\251.py"\n'
-        "@@ -1,1 +1,2 @@\n"
-        "-old\n"
-        "+new\n"
-        "+extra\n"
-    )
-    with patch("repo_utils.git_ops.subprocess.run", side_effect=[_completed(diff_out), _completed("")]):
-        parsed = detect_changes(Path("/tmp/repo"), "HEAD", target_ref="")
-
-    assert len(parsed.files) == 1
-    assert parsed.files[0].hunks, "patch body did not attach to quoted raw-line path"
 
 
 # ---------------------------------------------------------------------------

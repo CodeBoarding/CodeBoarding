@@ -16,10 +16,9 @@ from agents.planner_agent import should_expand_component, get_expandable_compone
 from agents.agent_responses import (
     AnalysisInsights,
     Component,
-    FileMethodGroup,
-    MethodEntry,
     SourceCodeReference,
 )
+from agents.file_index_models import FileMethodGroup, MethodEntry
 
 
 class TestShouldExpandComponent(unittest.TestCase):

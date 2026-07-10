@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-__all__ = ["DiagramGenerator", "RunContext", "configure_models"]
+__all__ = ["DiagramGenerator", "RunContext", "RunPaths", "configure_models"]
 
 
 def __getattr__(name: str):
@@ -15,6 +15,10 @@ def __getattr__(name: str):
         from .run_context import RunContext
 
         return RunContext
+    if name == "RunPaths":
+        from .run_context import RunPaths
+
+        return RunPaths
     if name == "configure_models":
         from agents.llm_config import configure_models
 

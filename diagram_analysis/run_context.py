@@ -10,6 +10,15 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
+class RunPaths:
+    """The repo/output locations + project name a single analysis run operates on."""
+
+    repo_path: Path
+    output_dir: Path
+    project_name: str
+
+
+@dataclass(frozen=True, slots=True)
 class RunContext:
     """Identifiers and repo reference for a single analysis execution."""
 

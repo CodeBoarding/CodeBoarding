@@ -4,7 +4,7 @@ Thin subprocess wrappers callable from any layer. Kept as free functions (rather
 than a class wrapping ``repo_path``) so callers don't have to thread an instance
 around for a handful of calls. Two groups of callers today:
 
-- the semantic incremental pipeline (``diff_parser``, ``run_metadata``, CLI)
+- the semantic incremental pipeline (``run_metadata``, CLI)
 - the static-analysis LSP-cache invalidator (``incremental_orchestrator``)
 
 Contract: functions here **raise** ``subprocess.CalledProcessError`` /
@@ -135,62 +135,6 @@ def get_changed_files_since(repo_dir: Path, from_commit: str) -> set[Path]:
     changed.update(_list_uncommitted_changed_files(repo_dir))
     logger.info("Found %d changed files since commit %s", len(changed), from_commit)
     return changed
-
-
-def run_raw_diff(
-    repo_dir: Path,
-    base_ref: str,
-    target_ref: str,
-    *,
-    context_lines: int = 3,
-    exclude_patterns: Sequence[str] = (),
-) -> str:
-    """Run ``git diff --raw -U<n> -M -C --find-renames=50%`` and return stdout.
-
-    Raises ``subprocess.CalledProcessError`` on git failure (including a bad
-    baseline ref — callers that want to retry after ``git fetch`` should catch
-    and re-invoke). Empty ``target_ref`` diffs the worktree against *base_ref*.
-    """
-    cmd = _git_argv(
-        "diff",
-        "--raw",
-        f"-U{context_lines}",
-        "-M",
-        "-C",
-        "--find-renames=50%",
-        base_ref,
-    )
-    if target_ref:
-        cmd.append(target_ref)
-    cmd.extend(["--", "."])
-    cmd.extend(f":!{pattern}" for pattern in exclude_patterns)
-
-    result = subprocess.run(cmd, cwd=repo_dir, capture_output=True, **_GIT_TEXT_KWARGS, check=True)
-    return result.stdout
-
-
-def fetch_all(repo_dir: Path) -> None:
-    """Run ``git fetch --all --prune --tags``; raises on failure."""
-    subprocess.run(
-        _git_argv("fetch", "--all", "--prune", "--tags"),
-        cwd=repo_dir,
-        capture_output=True,
-        **_GIT_TEXT_KWARGS,
-        check=True,
-    )
-
-
-def list_untracked_files(repo_dir: Path, *, exclude_patterns: Sequence[str] = ()) -> list[str]:
-    """Return repo-relative paths of untracked files respecting ``.gitignore``.
-
-    Uses ``-z`` / NUL-separated output so filenames with embedded newlines
-    stay intact. Distinct from :func:`_list_uncommitted_changed_files`, which
-    also includes staged/unstaged and returns absolute paths.
-    """
-    cmd = _git_argv("ls-files", "--others", "--exclude-standard", "-z", "--", ".")
-    cmd.extend(f":!{pattern}" for pattern in exclude_patterns)
-    result = subprocess.run(cmd, cwd=repo_dir, capture_output=True, **_GIT_TEXT_KWARGS, check=True)
-    return [path for path in result.stdout.split("\0") if path]
 
 
 def read_file_at_ref(repo_dir: Path, ref: str, file_path: str) -> str | None:

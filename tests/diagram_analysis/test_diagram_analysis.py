@@ -10,9 +10,6 @@ from unittest.mock import MagicMock, Mock, patch
 from agents.agent_responses import (
     AnalysisInsights,
     Component,
-    FileEntry,
-    FileMethodGroup,
-    MethodEntry,
     Relation,
     RelationCallSite,
     RelationEdge,
@@ -23,6 +20,7 @@ from agents.agent_responses import (
     SourceCodeReference,
     assign_component_ids,
 )
+from agents.file_index_models import FileEntry, FileMethodGroup, MethodEntry
 from agents.incremental_results import ScopeUpdateResult
 from diagram_analysis.analysis_json import (
     ComponentFileMethodGroupJson,
@@ -447,7 +445,7 @@ class TestAnalysisJsonConversion(unittest.TestCase):
         ]
 
         data = json.loads(
-            build_unified_analysis_json(self.analysis, [], "repo", source_root=self.repo_dir, repo_dir=self.repo_dir)
+            build_unified_analysis_json(self.analysis, [], "repo", repo_dir=self.repo_dir, source_tree_hash="")
         )
         parsed, _ = parse_unified_analysis(data)
 
@@ -490,7 +488,7 @@ class TestAnalysisJsonConversion(unittest.TestCase):
         ]
 
         data = json.loads(
-            build_unified_analysis_json(self.analysis, [], "repo", source_root=self.repo_dir, repo_dir=self.repo_dir)
+            build_unified_analysis_json(self.analysis, [], "repo", repo_dir=self.repo_dir, source_tree_hash="")
         )
         parsed, _ = parse_unified_analysis(data)
 
@@ -504,7 +502,7 @@ class TestAnalysisJsonConversion(unittest.TestCase):
 
     def test_unified_analysis_parse_skips_edges_missing_from_methods_index(self):
         data = json.loads(
-            build_unified_analysis_json(self.analysis, [], "repo", source_root=self.repo_dir, repo_dir=self.repo_dir)
+            build_unified_analysis_json(self.analysis, [], "repo", repo_dir=self.repo_dir, source_tree_hash="")
         )
         data["components_relations"] = [
             {
@@ -529,6 +527,15 @@ class TestAnalysisJsonConversion(unittest.TestCase):
 
         self.assertEqual(len(parsed.components_relations), 1)
         self.assertEqual(parsed.components_relations[0].key_edges, [])
+
+    def test_source_tree_hash_written_to_metadata(self):
+        # The precomputed hash the caller passes is what lands in metadata — the
+        # builder no longer re-walks the tree to recompute it.
+        precomputed = "a1b2c3d4e5f60718"
+        data = json.loads(
+            build_unified_analysis_json(self.analysis, [], "repo", repo_dir=self.repo_dir, source_tree_hash=precomputed)
+        )
+        self.assertEqual(data["metadata"]["source_tree_hash"], precomputed)
 
     def test_from_analysis_to_json_does_not_infer_unproven_key_edge_call_sites(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -964,12 +971,11 @@ class TestDiagramGenerator(unittest.TestCase):
             analysis,
             expandable_components,
             repo_name,
-            source_root,
+            repo_dir,
+            source_tree_hash,
             sub_analyses,
             file_coverage_summary,
             commit_hash,
-            repo_dir,
-            source_tree_hash_override,
         ):
             captured["expandable_components"] = expandable_components
             return "{}"

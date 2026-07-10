@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from diagram_analysis.analysis_json import hash_repo_source_files
+from agents.content_hash import hash_repo_source_files
 from diagram_analysis.io_utils import write_fingerprint
 from repo_utils.fingerprint_diff import (
     BaselineUnavailableError,

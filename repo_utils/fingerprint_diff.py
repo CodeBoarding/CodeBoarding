@@ -9,7 +9,7 @@ a frozen-copy fingerprint), so neither needs git.
 import logging
 from pathlib import Path
 
-from diagram_analysis.analysis_json import hash_repo_source_files
+from agents.content_hash import hash_repo_source_files
 from diagram_analysis.io_utils import read_fingerprint
 from repo_utils.change_detector import ChangeSet
 

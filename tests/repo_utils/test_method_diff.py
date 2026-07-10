@@ -2,7 +2,7 @@
 
 import pytest
 
-from agents.agent_responses import MethodEntry
+from agents.file_index_models import MethodEntry
 from agents.change_status import ChangeStatus
 from repo_utils.change_detector import DiffHunk, FileChange
 

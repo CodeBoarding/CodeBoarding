@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 import pytest
 
-from main import build_parser, main
+from main import main
 
 
 @pytest.fixture
@@ -34,19 +34,6 @@ def test_incremental_calls_run_incremental_with_paths_only(tmp_path: Path, stub_
     main(["incremental", "--local", str(tmp_path)])
 
     ri.assert_called_once()
-    kwargs = ri.call_args.kwargs
-    assert kwargs["repo_path"] == tmp_path
-    assert kwargs["output_dir"] == tmp_path / ".codeboarding"
-    # No change-detection inputs cross the boundary — Core detects internally.
-    assert "base_ref" not in kwargs
-    assert "target_ref" not in kwargs
-    assert "changes" not in kwargs
-    assert "source_sha" not in kwargs
-
-
-def test_incremental_no_git_ref_flags_in_parser() -> None:
-    """The incremental subcommand exposes no git-ref flags — detection is internal."""
-    parser = build_parser()
-    args = parser.parse_args(["incremental", "--local", "/tmp/repo"])
-    assert not hasattr(args, "base_ref")
-    assert not hasattr(args, "target_ref")
+    run_paths = ri.call_args.args[0]
+    assert run_paths.repo_path == tmp_path
+    assert run_paths.output_dir == tmp_path / ".codeboarding"

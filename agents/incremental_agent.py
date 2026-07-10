@@ -10,8 +10,6 @@ from agents.agent import CodeBoardingAgent
 from agents.agent_responses import (
     AnalysisInsights,
     Component,
-    FileMethodGroup,
-    MethodEntry,
     SourceCodeReference,
     MetaAnalysisInsights,
     Relation,
@@ -22,7 +20,9 @@ from agents.agent_responses import (
     assign_component_ids,
     iter_components,
 )
+from agents.file_index_models import FileMethodGroup, MethodEntry
 from agents.cluster_methods_mixin import ClusterMethodsMixin
+from agents.content_hash import SourceCache
 from agents.cluster_ids import CodeBoardingClusterIds
 from agents.incremental_results import ScopeUpdateResult
 from agents.prompts import get_scope_relations_message, get_system_message
@@ -189,11 +189,13 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
             cfg_graphs,
             cluster_id_prefix,
         )
+        source_cache: SourceCache = {}
         patched_groups = {
-            component_id: self._build_file_methods_from_nodes(nodes) for component_id, nodes in component_nodes.items()
+            component_id: self._build_file_methods_from_nodes(nodes, source_cache)
+            for component_id, nodes in component_nodes.items()
         }
         _patch_file_methods(scope, patched_groups, touched_ids, _live_cfg_qnames(self.static_analysis))
-        scope.files = self.build_files_index(scope)
+        scope.files = self.build_files_index(scope, source_cache)
 
     @trace
     def generate_scope_relations(self, scope: AnalysisInsights, scope_name: str) -> list[Relation]:

@@ -1,7 +1,5 @@
-import hashlib
 import logging
 import json
-import os
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -11,16 +9,12 @@ from agents.agent_responses import (
     Component,
     Relation,
     AnalysisInsights,
-    FileEntry,
-    FileMethodGroup,
-    MethodEntry,
     RelationCallSite,
     RelationEdge,
     SourceCodeReference,
 )
-from agents.content_hash import SOURCE_DECODE_ERRORS, SOURCE_ENCODING, hash_whole_file
+from agents.file_index_models import FileEntry, FileMethodGroup, MethodEntry
 from agents.relation_edges import merge_relations_by_pair
-from repo_utils.ignore import RepoIgnoreManager
 from repo_utils.path_utils import normalize_repo_path
 
 logger = logging.getLogger(__name__)
@@ -244,54 +238,6 @@ def _build_file_entry_json_from_files(files_index: dict[str, FileEntry]) -> dict
     }
 
 
-def tree_hash_from_file_hashes(file_hashes: dict[str, str]) -> str:
-    """SHA-256 over sorted ``path:hash`` lines. '' when no files carry a hash.
-
-    Why: the aggregate source-state key. Files with an unknown ('') hash are
-    skipped so a partial read can't silently collide two different trees. Public
-    so the wrapper can reproduce ``source_tree_hash`` from a fingerprint map.
-    """
-    parts = [f"{path}:{digest}" for path, digest in sorted(file_hashes.items()) if digest]
-    if not parts:
-        return ""
-    return hashlib.sha256("\n".join(parts).encode("utf-8")).hexdigest()
-
-
-def hash_repo_source_files(repo_dir: Path) -> dict[str, str]:
-    """Fingerprint every non-ignored file under *repo_dir* as ``{posix_path: sha16}``.
-
-    Why: the source-tree hash must cover the WHOLE analyzable tree (docs, configs,
-    unclustered source), not just files that landed in a component. Otherwise a
-    consumer that fingerprints the working tree (the wrapper) can never reproduce
-    this hash. Uses the same ignore rules + whole-file hashing as clustering.
-
-    Ignored directories are pruned during the walk, so ``.git`` / ``node_modules``
-    are never descended into.
-    """
-    ignore = RepoIgnoreManager(repo_dir)
-    result: dict[str, str] = {}
-    for dirpath, dirnames, filenames in os.walk(repo_dir):
-        base = Path(dirpath)
-        dirnames[:] = [d for d in dirnames if not ignore.should_ignore((base / d).relative_to(repo_dir))]
-        for name in filenames:
-            rel = (base / name).relative_to(repo_dir)
-            if ignore.should_ignore(rel):
-                continue
-            try:
-                lines = (base / name).read_text(encoding=SOURCE_ENCODING, errors=SOURCE_DECODE_ERRORS).splitlines()
-            except OSError:
-                continue
-            digest = hash_whole_file(lines)
-            if digest:
-                result[rel.as_posix()] = digest
-    return result
-
-
-def compute_source_tree_hash(repo_dir: Path) -> str:
-    """The canonical source-tree version key: whole-repo walk, hashed and aggregated."""
-    return tree_hash_from_file_hashes(hash_repo_source_files(repo_dir))
-
-
 def _hydrate_component_methods_from_refs(
     analysis: AnalysisInsights,
     methods_index: dict[str, MethodIndexEntry],
@@ -464,41 +410,24 @@ def build_unified_analysis_json(
     analysis: AnalysisInsights,
     expandable_components: list[Component],
     repo_name: str,
-    source_root: Path,
+    repo_dir: Path,
+    source_tree_hash: str,
     sub_analyses: dict[str, tuple[AnalysisInsights, list[Component]]] | None = None,
     file_coverage_summary: FileCoverageSummary | None = None,
     commit_hash: str = "",
-    repo_dir: Path | None = None,
-    source_tree_hash_override: str = "",
 ) -> str:
     """Build the full unified analysis JSON with metadata and nested sub-analyses.
 
-    ``source_root`` is the repo root used to relativize relation-edge file paths
-    into ``methods_index`` keys — always required. ``repo_dir`` is the optional
-    whole-tree-hash source: ``source_tree_hash`` is the whole-tree walk when it is
-    given; else ``source_tree_hash_override`` (e.g. the existing on-disk value, so a
-    sub-analysis write doesn't downgrade it); else empty. The depth_level metadata
-    is computed automatically from the sub_analyses structure if not provided.
+    ``repo_dir`` relativizes relation-edge file paths into ``methods_index`` keys.
+    ``source_tree_hash`` is the precomputed whole-tree version key (the caller
+    fingerprints the tree once and reuses it across saves). The depth_level
+    metadata is computed automatically from the sub_analyses structure.
     """
     components_json = [
-        from_component_to_json_component(c, expandable_components, source_root, sub_analyses)
-        for c in analysis.components
+        from_component_to_json_component(c, expandable_components, repo_dir, sub_analyses) for c in analysis.components
     ]
     files_index = _build_files_index_from_analysis(analysis)
     methods_index = _build_methods_index_from_files(files_index)
-    if repo_dir is not None:
-        source_tree_hash = compute_source_tree_hash(repo_dir)
-    elif source_tree_hash_override:
-        source_tree_hash = source_tree_hash_override
-    else:
-        # No repo to walk and no prior hash to carry forward. A component-only
-        # hash wouldn't reproduce the wrapper's whole-tree fingerprint, so emit
-        # empty ("unknown") — the wrapper reads that as "can't skip", which is safe.
-        logger.warning(
-            "build_unified_analysis_json called without repo_dir or source_tree_hash_override; "
-            "writing an empty source_tree_hash (idempotency skip disabled for this write)."
-        )
-        source_tree_hash = ""
 
     # Use default summary if none provided
     if file_coverage_summary is None:
@@ -507,7 +436,7 @@ def build_unified_analysis_json(
         summary = file_coverage_summary
 
     relations_json = [
-        _relation_to_json(r, source_root)
+        _relation_to_json(r, repo_dir)
         for r in merge_relations_by_pair(analysis.components_relations, include_relation=True)
     ]
     unified = UnifiedAnalysisJson(

@@ -4,10 +4,10 @@ from agents.agent_responses import (
     SourceCodeReference,
     Relation,
     Component,
-    FileMethodGroup,
     AnalysisInsights,
     assign_component_ids,
 )
+from agents.file_index_models import FileMethodGroup
 
 
 class TestSourceCodeReference(unittest.TestCase):
