@@ -1,6 +1,10 @@
 """Application-level constants for CodeBoarding."""
 
 CODEBOARDING_DIR_NAME = ".codeboarding"
+# Ignore-file names read from a repo (``.gitignore`` at the repo root,
+# ``.codeboardingignore`` under ``CODEBOARDING_DIR_NAME``).
+GITIGNORE_FILENAME = ".gitignore"
+CODEBOARDINGIGNORE_FILENAME = ".codeboardingignore"
 DEFAULT_STATIC_RELATION_LABEL = "calls"
 
 

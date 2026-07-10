@@ -14,7 +14,6 @@ from repo_utils.path_utils import normalize_repo_path, to_absolute_path, to_rela
 
 logger = logging.getLogger(__name__)
 NO_REPO_STATE_HASH = "NoRepoStateHash"
-NO_COMMIT_HASH = "NoCommitHash"
 
 # Handle the case where git is not installed on the system
 try:
@@ -176,15 +175,6 @@ def upload_onboarding_materials(project_name, output_dir, repo_dir):
     repo.git.add(onboarding_repo_location, A=True)
     repo.index.commit(f"Uploading onboarding materials for {project_name}")
     origin.push()
-
-
-@require_git_import(default=NO_COMMIT_HASH)
-def get_git_commit_hash(repo_dir: Path) -> str:
-    """
-    Get the latest commit hash of the repository.
-    """
-    repo = Repo(repo_dir)
-    return repo.head.commit.hexsha
 
 
 @require_git_import(default=False)

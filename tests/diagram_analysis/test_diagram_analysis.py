@@ -35,39 +35,12 @@ from diagram_analysis.analysis_json import (
 from diagram_analysis.cluster_delta import ClusterMemberDelta, ClusterRef, LanguageStructuralDiff, StructuralClusterDiff
 from diagram_analysis.diagram_generator import DiagramGenerator, _component_depth, _component_expansion_seeds
 from diagram_analysis.exceptions import IncrementalCacheMissingError
-from diagram_analysis.version import Version
 from repo_utils.change_detector import ChangeSet
 from static_analyzer.analysis_cache import StaticAnalysisCache
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import Language, NodeType
 from static_analyzer.graph import CallGraph, ClusterResult
 from static_analyzer.node import Node
-
-
-class TestVersion(unittest.TestCase):
-    def test_version_creation(self):
-        # Test creating a Version instance
-        version = Version(commit_hash="abc123", code_boarding_version="1.0.0")
-
-        self.assertEqual(version.commit_hash, "abc123")
-        self.assertEqual(version.code_boarding_version, "1.0.0")
-
-    def test_version_model_dump(self):
-        # Test model serialization
-        version = Version(commit_hash="def456", code_boarding_version="2.0.0")
-        data = version.model_dump()
-
-        self.assertEqual(data["commit_hash"], "def456")
-        self.assertEqual(data["code_boarding_version"], "2.0.0")
-
-    def test_version_model_dump_json(self):
-        # Test JSON serialization
-        version = Version(commit_hash="ghi789", code_boarding_version="3.0.0")
-        json_str = version.model_dump_json()
-
-        data = json.loads(json_str)
-        self.assertEqual(data["commit_hash"], "ghi789")
-        self.assertEqual(data["code_boarding_version"], "3.0.0")
 
 
 class TestComponentJson(unittest.TestCase):
@@ -735,10 +708,8 @@ class TestDiagramGenerator(unittest.TestCase):
     @patch("diagram_analysis.diagram_generator.MetaAgent")
     @patch("diagram_analysis.diagram_generator.DetailsAgent")
     @patch("diagram_analysis.diagram_generator.AbstractionAgent")
-    @patch("diagram_analysis.diagram_generator.get_git_commit_hash")
     def test_pre_analysis(
         self,
-        mock_git_hash,
         mock_abstraction,
         mock_details,
         mock_meta,
@@ -747,7 +718,6 @@ class TestDiagramGenerator(unittest.TestCase):
         mock_scanner,
     ):
         # Test pre_analysis method
-        mock_git_hash.return_value = "abc123"
         # Return a proper StaticAnalysisResults object
         mock_analysis_results = StaticAnalysisResults()
         mock_analysis_results.diagnostics = {}
@@ -795,10 +765,6 @@ class TestDiagramGenerator(unittest.TestCase):
         self.assertIsNotNone(gen.abstraction_agent)
         mock_meta_instance.analyze_project_metadata.assert_called_once_with(skip_cache=False)
         # Note: planner is now a module function, not an agent instance
-
-        # Verify version file was created
-        version_file = self.output_dir / "codeboarding_version.json"
-        self.assertTrue(version_file.exists())
 
     def test_process_component_with_exception(self):
         # Test processing a component that raises an exception
@@ -975,7 +941,6 @@ class TestDiagramGenerator(unittest.TestCase):
             source_tree_hash,
             sub_analyses,
             file_coverage_summary,
-            commit_hash,
         ):
             captured["expandable_components"] = expandable_components
             return "{}"
@@ -1091,14 +1056,12 @@ class TestDiagramGenerator(unittest.TestCase):
         self.assertEqual([(component.component_id, level) for component, level in seeds], [("1", 1), ("1.1", 2)])
         self.assertEqual(_component_expansion_seeds([root, child, leaf], max_depth=1), [])
 
-    @patch("diagram_analysis.diagram_generator.get_git_commit_hash", return_value="abc123")
     @patch("diagram_analysis.diagram_generator.save_analysis")
     @patch("diagram_analysis.diagram_generator.get_expandable_components")
     def test_generate_subcomponents_respects_absolute_depth(
         self,
         mock_get_expandable_components,
         mock_save_analysis,
-        _mock_git_hash,
     ):
         gen = DiagramGenerator(
             repo_location=self.repo_location,
@@ -1131,7 +1094,6 @@ class TestDiagramGenerator(unittest.TestCase):
         self.assertEqual(set(sub_analyses), {"1.1"})
         self.assertEqual(mock_save_analysis.call_count, 1)
 
-    @patch("diagram_analysis.diagram_generator.get_git_commit_hash", return_value="abc123")
     @patch("diagram_analysis.diagram_generator.save_analysis")
     @patch("diagram_analysis.diagram_generator.prune_empty_components", return_value=set())
     @patch("diagram_analysis.diagram_generator._build_scope_incremental_inputs")
@@ -1152,7 +1114,6 @@ class TestDiagramGenerator(unittest.TestCase):
         mock_build_scope_inputs,
         _mock_prune,
         mock_save_analysis,
-        _mock_git_hash,
     ):
         gen = DiagramGenerator(
             repo_location=self.repo_location,
@@ -1264,7 +1225,6 @@ class TestDiagramGenerator(unittest.TestCase):
         gen._generate_subcomponents.assert_not_called()
         self.assertEqual(sub_analyses["1"].components[0].name, "Stable Child")
 
-    @patch("diagram_analysis.diagram_generator.get_git_commit_hash", return_value="abc123")
     @patch("diagram_analysis.diagram_generator.save_analysis")
     @patch("diagram_analysis.diagram_generator.prune_empty_components", return_value=set())
     @patch("diagram_analysis.diagram_generator._build_scope_incremental_inputs")
@@ -1285,7 +1245,6 @@ class TestDiagramGenerator(unittest.TestCase):
         mock_build_scope_inputs,
         _mock_prune,
         mock_save_analysis,
-        _mock_git_hash,
     ):
         gen = DiagramGenerator(
             repo_location=self.repo_location,
@@ -1337,7 +1296,6 @@ class TestDiagramGenerator(unittest.TestCase):
         self.assertEqual(_mock_incremental_agent.return_value.update_scope.call_count, 1)
         gen._generate_subcomponents.assert_not_called()
 
-    @patch("diagram_analysis.diagram_generator.get_git_commit_hash", return_value="abc123")
     @patch("diagram_analysis.diagram_generator.save_analysis")
     @patch("diagram_analysis.diagram_generator.prune_empty_components")
     @patch("diagram_analysis.diagram_generator.compute_cluster_delta")
@@ -1348,7 +1306,6 @@ class TestDiagramGenerator(unittest.TestCase):
         mock_delta,
         mock_prune,
         mock_save_analysis,
-        _mock_git_hash,
     ):
         gen = DiagramGenerator(
             repo_location=self.repo_location,
@@ -1449,8 +1406,7 @@ class TestDiagramGenerator(unittest.TestCase):
         return gen
 
     @patch("diagram_analysis.diagram_generator.save_analysis")
-    @patch("diagram_analysis.diagram_generator.get_git_commit_hash", return_value="abc")
-    def test_finalize_and_save_persists_side_artifacts_by_default(self, _hash, mock_save):
+    def test_finalize_and_save_persists_side_artifacts_by_default(self, mock_save):
         mock_save.return_value = self.output_dir / "analysis.json"
         gen = self._finalize_gen()
         analysis = AnalysisInsights(description="d", components=[], components_relations=[])
@@ -1461,8 +1417,7 @@ class TestDiagramGenerator(unittest.TestCase):
         gen._persist_static_analysis_artifact.assert_called_once()
 
     @patch("diagram_analysis.diagram_generator.save_analysis")
-    @patch("diagram_analysis.diagram_generator.get_git_commit_hash", return_value="abc")
-    def test_finalize_and_save_skips_side_artifacts_for_partial(self, _hash, mock_save):
+    def test_finalize_and_save_skips_side_artifacts_for_partial(self, mock_save):
         """Component expansion (partial) must not rewrite file_coverage.json or touch
         the static-analysis cache/SHA tag — that would regress the next incremental run."""
         mock_save.return_value = self.output_dir / "analysis.json"

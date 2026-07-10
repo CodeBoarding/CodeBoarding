@@ -119,7 +119,6 @@ class _AnalysisFileStore:
         sub_analyses: dict[str, AnalysisInsights] | None = None,
         repo_name: str = "",
         file_coverage_summary: FileCoverageSummary | None = None,
-        commit_hash: str = "",
     ) -> Path:
         """Write the full analysis to ``analysis.json`` with file locking.
 
@@ -135,7 +134,6 @@ class _AnalysisFileStore:
                 sub_analyses,
                 repo_name,
                 file_coverage_summary,
-                commit_hash,
             )
 
     def write_sub(
@@ -197,7 +195,6 @@ class _AnalysisFileStore:
         sub_analyses: dict[str, AnalysisInsights] | None = None,
         repo_name: str = "",
         file_coverage_summary: FileCoverageSummary | None = None,
-        commit_hash: str = "",
     ) -> Path:
         """Write ``analysis.json`` — caller must already hold ``self._lock``."""
         # Keep caller-provided expandables, but also preserve deterministic planner eligibility.
@@ -208,7 +205,7 @@ class _AnalysisFileStore:
         expandable = [c for c in analysis.components if c.component_id in expandable_ids]
 
         # Preserve existing metadata fields from disk when not explicitly provided
-        if sub_analyses is None or file_coverage_summary is None or not repo_name or not commit_hash:
+        if sub_analyses is None or file_coverage_summary is None or not repo_name:
             existing = self.read()
             if existing:
                 _, existing_subs, existing_data = existing
@@ -217,8 +214,6 @@ class _AnalysisFileStore:
                 metadata = existing_data.get("metadata", {})
                 if not repo_name:
                     repo_name = metadata.get("repo_name", "")
-                if not commit_hash:
-                    commit_hash = metadata.get("commit_hash", "")
                 if file_coverage_summary is None:
                     raw_summary = metadata.get("file_coverage_summary")
                     if raw_summary:
@@ -251,7 +246,6 @@ class _AnalysisFileStore:
             source_tree_hash=source_tree_hash,
             sub_analyses=sub_analyses_tuples,
             file_coverage_summary=file_coverage_summary,
-            commit_hash=commit_hash,
         )
         tmp_fd, tmp_name = tempfile.mkstemp(
             prefix=f".{self._analysis_path.name}.",
@@ -321,36 +315,6 @@ def load_analysis_metadata(output_dir: Path) -> dict | None:
     return result[2].get("metadata")
 
 
-def load_analysis_commit_hash(output_dir: Path) -> str | None:
-    """Return ``metadata.commit_hash`` from live ``analysis.json``.
-
-    This is the user's git commit at which the analysis was generated, and
-    is the right standalone-CLI default for an incremental ``--base-ref``:
-    the CLI should answer "what changed in the user's git history relative
-    to the user's last full analysis?", not "what changed relative to the
-    wrapper's snapshot commit?" (which is meaningful only inside the
-    extension/snapshot-worktree flow).
-
-    Returns ``None`` when the file is absent, unreadable, malformed, or
-    the field is missing/empty. Reads raw JSON so a partially-malformed
-    analysis.json still yields a usable baseline pointer.
-    """
-    path = Path(output_dir) / ANALYSIS_FILENAME
-    if not path.is_file():
-        return None
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return None
-    if not isinstance(data, dict):
-        return None
-    metadata = data.get("metadata")
-    if not isinstance(metadata, dict):
-        return None
-    sha = metadata.get("commit_hash")
-    return sha if isinstance(sha, str) and sha else None
-
-
 # Whole-tree fingerprint sidecar. analysis.json's ``files`` block covers only
 # component-assigned files; the sidecar covers the whole analyzable tree, so the
 # incremental diff also sees changes to docs/configs/unclustered source.
@@ -385,7 +349,6 @@ def save_analysis(
     sub_analyses: dict[str, AnalysisInsights] | None = None,
     repo_name: str = "",
     file_coverage_summary: FileCoverageSummary | None = None,
-    commit_hash: str = "",
 ) -> Path:
     """Save the analysis to a unified analysis.json file with file locking.
 
@@ -400,7 +363,6 @@ def save_analysis(
         sub_analyses,
         repo_name,
         file_coverage_summary,
-        commit_hash,
     )
 
 

@@ -4,7 +4,7 @@ from typing import Any
 
 import pathspec
 
-from constants import CODEBOARDING_DIR_NAME
+from constants import CODEBOARDING_DIR_NAME, CODEBOARDINGIGNORE_FILENAME, GITIGNORE_FILENAME
 
 logger = logging.getLogger(__name__)
 
@@ -192,7 +192,7 @@ class RepoIgnoreManager:
 
     def _load_gitignore_patterns(self) -> list[str]:
         """Load and parse .gitignore file if it exists."""
-        gitignore_path = self.repo_root / ".gitignore"
+        gitignore_path = self.repo_root / GITIGNORE_FILENAME
 
         if gitignore_path.exists():
             try:
@@ -210,7 +210,7 @@ class RepoIgnoreManager:
         first-run analysis still has sensible exclusions even before
         ``initialize_codeboardingignore`` is called.
         """
-        codeboardingignore_path = self.repo_root / CODEBOARDING_DIR_NAME / ".codeboardingignore"
+        codeboardingignore_path = self.repo_root / CODEBOARDING_DIR_NAME / CODEBOARDINGIGNORE_FILENAME
 
         if codeboardingignore_path.exists():
             try:
@@ -337,7 +337,7 @@ def initialize_codeboardingignore(output_dir: Path) -> None:
     Args:
         output_dir: Path to the .codeboarding directory
     """
-    codeboardingignore_path = output_dir / ".codeboardingignore"
+    codeboardingignore_path = output_dir / CODEBOARDINGIGNORE_FILENAME
 
     if not codeboardingignore_path.exists():
         try:

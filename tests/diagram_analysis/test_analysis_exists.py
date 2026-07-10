@@ -13,7 +13,6 @@ def test_true_when_parseable_analysis_present(tmp_path: Path) -> None:
         repo_dir=tmp_path,
         source_tree_hash="",
         repo_name="repo",
-        commit_hash="head",
     )
     assert analysis_exists(tmp_path) is True
 

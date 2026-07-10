@@ -98,7 +98,6 @@ class AnalysisMetadata(BaseModel):
         default="",
         description="SHA-256 over the sorted per-file content hashes; the source-state version key.",
     )
-    commit_hash: str = Field(default="", description="Git commit hash at which the analysis was generated.")
     repo_name: str = Field(description="Name of the analyzed repository.")
     depth_level: int = Field(description="Maximum depth level of the analysis.")
     file_coverage_summary: FileCoverageSummary = Field(
@@ -414,7 +413,6 @@ def build_unified_analysis_json(
     source_tree_hash: str,
     sub_analyses: dict[str, tuple[AnalysisInsights, list[Component]]] | None = None,
     file_coverage_summary: FileCoverageSummary | None = None,
-    commit_hash: str = "",
 ) -> str:
     """Build the full unified analysis JSON with metadata and nested sub-analyses.
 
@@ -443,7 +441,6 @@ def build_unified_analysis_json(
         metadata=AnalysisMetadata(
             generated_at=datetime.now(timezone.utc).isoformat(),
             source_tree_hash=source_tree_hash,
-            commit_hash=commit_hash,
             repo_name=repo_name,
             depth_level=_compute_depth_level(sub_analyses),
             file_coverage_summary=summary,

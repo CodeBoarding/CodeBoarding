@@ -49,13 +49,11 @@ from diagram_analysis.cluster_snapshot import (
 from diagram_analysis.exceptions import IncrementalCacheMissingError
 from diagram_analysis.file_coverage import FileCoverage
 from diagram_analysis.io_utils import normalize_repo_path, save_analysis, write_fingerprint
-from diagram_analysis.version import Version
 from health.config import initialize_health_dir, load_health_config
 from health.runner import run_health_checks
 from monitoring import StreamingStatsWriter
 from monitoring.mixin import MonitoringMixin
 from monitoring.paths import get_monitoring_run_dir
-from repo_utils import get_git_commit_hash
 from repo_utils.change_detector import ChangeSet
 from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer import StaticAnalyzer, get_static_analysis
@@ -406,15 +404,6 @@ class DiagramGenerator:
         )
         self._monitoring_agents["AbstractionAgent"] = self.abstraction_agent
 
-        version_file = Path(self.output_dir) / "codeboarding_version.json"
-        with open(version_file, "w", encoding="utf-8") as f:
-            f.write(
-                Version(
-                    commit_hash=get_git_commit_hash(self.repo_location),
-                    code_boarding_version="0.2.0",
-                ).model_dump_json(indent=2)
-            )
-
         if self.monitoring_enabled:
             monitoring_dir = get_monitoring_run_dir(self.log_path, create=True)
             logger.debug(f"Monitoring enabled. Writing stats to {monitoring_dir}")
@@ -444,7 +433,6 @@ class DiagramGenerator:
 
         expanded_components: list[Component] = []
         sub_analyses: dict[str, AnalysisInsights] = {}
-        commit_hash = get_git_commit_hash(self.repo_location)
 
         # Group stats to avoid cluttering the local variable scope
         stats = {"submitted": 0, "completed": 0, "saves": 0, "errors": 0}
@@ -489,7 +477,6 @@ class DiagramGenerator:
                                 output_dir=Path(self.output_dir),
                                 sub_analyses=sub_analyses,
                                 repo_name=self.repo_name,
-                                commit_hash=commit_hash,
                                 repo_dir=self.repo_location,
                                 source_tree_hash=self._source_tree_hash(),
                             )
@@ -605,7 +592,6 @@ class DiagramGenerator:
             sub_analyses=sub_analyses,
             repo_name=self.repo_name,
             file_coverage_summary=self._build_file_coverage_summary(),
-            commit_hash=get_git_commit_hash(self.repo_location),
             repo_dir=self.repo_location,
             source_tree_hash=self._source_tree_hash(),
         ).resolve()
