@@ -227,6 +227,33 @@ def _build_methods_index_from_files(files_index: dict[str, FileEntry]) -> dict[s
     return methods_index
 
 
+def _add_relation_endpoints_to_methods_index(
+    methods_index: dict[str, MethodIndexEntry],
+    analysis: AnalysisInsights,
+    repo_dir: Path,
+    sub_analyses: dict[str, tuple[AnalysisInsights, list[Component]]] | None = None,
+) -> None:
+    """Index relation endpoints that are not declared in the analyzed file set."""
+    analyses = [analysis]
+    if sub_analyses:
+        analyses.extend(sub_analysis for sub_analysis, _ in sub_analyses.values())
+
+    for current_analysis in analyses:
+        for relation in current_analysis.components_relations:
+            for edge in [*relation.key_edges, *relation.all_edges]:
+                for reference in (edge.source, edge.target):
+                    key = _source_reference_method_key(reference, repo_dir)
+                    if key in methods_index:
+                        continue
+                    methods_index[key] = MethodIndexEntry(
+                        file_path=normalize_repo_path(reference.reference_file or "", repo_dir),
+                        qualified_name=reference.qualified_name,
+                        start_line=reference.reference_start_line or 0,
+                        end_line=reference.reference_end_line or 0,
+                        type="REFERENCE",
+                    )
+
+
 def _build_file_entry_json_from_files(files_index: dict[str, FileEntry]) -> dict[str, FileEntryJson]:
     return {
         file_path: FileEntryJson(
@@ -349,6 +376,7 @@ def from_analysis_to_json(
     ]
     files_index = _build_files_index_from_analysis(analysis)
     methods_index = _build_methods_index_from_files(files_index)
+    _add_relation_endpoints_to_methods_index(methods_index, analysis, repo_dir, sub_analyses)
     files_json = _build_file_entry_json_from_files(files_index)
     data = {
         "description": analysis.description,
@@ -426,6 +454,7 @@ def build_unified_analysis_json(
     ]
     files_index = _build_files_index_from_analysis(analysis)
     methods_index = _build_methods_index_from_files(files_index)
+    _add_relation_endpoints_to_methods_index(methods_index, analysis, repo_dir, sub_analyses)
 
     # Use default summary if none provided
     if file_coverage_summary is None:

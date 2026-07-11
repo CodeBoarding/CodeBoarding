@@ -202,25 +202,10 @@ class RelationEdge(LLMBaseModel):
         target_key = edge.get("target")
         if not isinstance(source_key, str) or not isinstance(target_key, str):
             raise ValueError("Relation edge endpoints must be method-index keys")
-        source = methods_index.get(source_key)
-        target = methods_index.get(target_key)
-        if source is None or target is None:
-            missing = source_key if source is None else target_key
-            raise ValueError(f"Relation edge endpoint is missing from methods_index: {missing}")
         call_sites = edge.get("call_sites") or []
         return cls(
-            source=SourceCodeReference(
-                qualified_name=source.qualified_name,
-                reference_file=source.file_path,
-                reference_start_line=source.start_line,
-                reference_end_line=source.end_line,
-            ),
-            target=SourceCodeReference(
-                qualified_name=target.qualified_name,
-                reference_file=target.file_path,
-                reference_start_line=target.start_line,
-                reference_end_line=target.end_line,
-            ),
+            source=_relation_endpoint_from_key(source_key, methods_index),
+            target=_relation_endpoint_from_key(target_key, methods_index),
             description=edge.get("description", ""),
             call_sites=[RelationCallSite.model_validate(site) for site in call_sites],
         )
@@ -258,6 +243,28 @@ class RelationEdge(LLMBaseModel):
             self.target.reference_end_line,
             tuple(sorted((site.line, site.column) for site in self.call_sites)),
         )
+
+
+def _relation_endpoint_from_key(
+    key: str,
+    methods_index: dict[str, MethodIndexEntry],
+) -> SourceCodeReference:
+    indexed = methods_index.get(key)
+    if indexed is not None:
+        return SourceCodeReference(
+            qualified_name=indexed.qualified_name,
+            reference_file=indexed.file_path or None,
+            reference_start_line=indexed.start_line,
+            reference_end_line=indexed.end_line,
+        )
+
+    file_path, separator, qualified_name = key.partition("|")
+    if not separator or not qualified_name:
+        raise ValueError(f"Malformed relation edge endpoint key: {key!r}")
+    return SourceCodeReference(
+        qualified_name=qualified_name,
+        reference_file=file_path or None,
+    )
 
 
 class Relation(LLMBaseModel):

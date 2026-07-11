@@ -3,8 +3,8 @@
 Warm-start flow:
 1. Keep unchanged files from the pkl and invalidate changed/deleted files.
 2. Re-LSP existing changed files and merge their fresh nodes/references back in.
-3. Rebuild inbound edges: keep ``unchanged -> changed`` only when references still prove it.
-4. Rebuild outbound edges: resolve changed-file call sites with definitions.
+3. Restore cached cross-boundary edges only when live references still prove them.
+4. Add new outbound edges by resolving changed-file call sites with definitions.
 5. Keep unchanged-only edges cached and let ``StaticAnalyzer`` persist the new pkl.
 """
 
@@ -114,13 +114,13 @@ def _rebuild_changed_file_edges(
     adapter: LanguageAdapter,
     engine_client: LSPClient,
 ) -> None:
-    _restore_inbound_edges(
+    _restore_cross_boundary_edges(
         merged_analysis.call_graph, invalidated_edges, changed_file_strs, adapter, engine_client, SourceInspector()
     )
     _add_outbound_edges_from_changed_files(merged_analysis.call_graph, changed_source_files, engine_client)
 
 
-def _restore_inbound_edges(
+def _restore_cross_boundary_edges(
     call_graph: CallGraph,
     invalidated_edges: list[InvalidatedEdge],
     changed_file_strs: set[str],
@@ -131,20 +131,23 @@ def _restore_inbound_edges(
     if not invalidated_edges:
         return
 
-    restored = 0
-    checked = 0
+    checked = {"inbound": 0, "outbound": 0}
+    restored = {"inbound": 0, "outbound": 0}
     references_cache: dict[str, list[dict]] = {}
 
     for src_name, dst_name, old_src_node, old_dst_node in invalidated_edges:
-        if old_src_node.file_path in changed_file_strs or old_dst_node.file_path not in changed_file_strs:
+        src_changed = old_src_node.file_path in changed_file_strs
+        dst_changed = old_dst_node.file_path in changed_file_strs
+        if src_changed == dst_changed:
             continue
         if not call_graph.has_node(src_name) or not call_graph.has_node(dst_name):
             continue
 
         src_node = call_graph.nodes[src_name]
         dst_node = call_graph.nodes[dst_name]
+        direction = "outbound" if src_changed else "inbound"
 
-        checked += 1
+        checked[direction] += 1
         refs = references_cache.get(dst_name)
         if refs is None:
             try:
@@ -155,29 +158,31 @@ def _restore_inbound_edges(
                 refs = []
             references_cache[dst_name] = refs
 
-        # Inbound: unchanged B -> changed A is kept only if references(A) still lands inside B.
-        if _edge_reference_still_exists(src_node, dst_node, refs, adapter, source_inspector):
+        call_sites = _edge_reference_call_sites(src_node, dst_node, refs, adapter, source_inspector)
+        if call_sites:
             try:
-                call_graph.add_edge(src_name, dst_name)
-                restored += 1
+                call_graph.add_edge(src_name, dst_name, call_sites=call_sites)
+                restored[direction] += 1
             except ValueError:
                 logger.debug("Failed to restore edge %s -> %s", src_name, dst_name, exc_info=True)
 
     logger.info(
-        "Validated %d inbound cached edge(s), restored %d/%d",
-        len(invalidated_edges),
-        restored,
-        checked,
+        "Validated cached cross-boundary edges, restored inbound %d/%d and outbound %d/%d",
+        restored["inbound"],
+        checked["inbound"],
+        restored["outbound"],
+        checked["outbound"],
     )
 
 
-def _edge_reference_still_exists(
+def _edge_reference_call_sites(
     src_node: Node,
     dst_node: Node,
     refs: list[dict],
     adapter: LanguageAdapter,
     source_inspector: SourceInspector,
-) -> bool:
+) -> list[dict[str, str | int]]:
+    call_sites: list[dict[str, str | int]] = []
     for ref in refs:
         ref_file = uri_to_path(ref.get("uri", ""))
         if ref_file is None or str(ref_file) != src_node.file_path:
@@ -195,8 +200,8 @@ def _edge_reference_still_exists(
             dst_node, ref_file, ref_line, ref_char, ref_end_char, adapter, source_inspector
         ):
             continue
-        return True
-    return False
+        call_sites.append({"file": str(ref_file), "line": ref_line + 1, "column": ref_char + 1})
+    return call_sites
 
 
 def _add_outbound_edges_from_changed_files(
@@ -264,7 +269,20 @@ def _containing_callable_nodes(call_graph: CallGraph, file_path: Path, line: int
 
 
 def _definition_nodes(call_graph: CallGraph, definition: dict) -> list[Node]:
-    return [node for node in call_graph.nodes.values() if _definition_points_to_node(definition, node)]
+    matches = [node for node in call_graph.nodes.values() if _definition_points_to_node(definition, node)]
+    if not matches:
+        return []
+    return [
+        max(
+            matches,
+            key=lambda node: (
+                node.line_start,
+                node.col_start,
+                -node.line_end,
+                len(node.fully_qualified_name),
+            ),
+        )
+    ]
 
 
 def _definition_points_to_node(definition: dict, dst_node: Node) -> bool:

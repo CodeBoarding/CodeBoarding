@@ -14,6 +14,7 @@ from agents.agent_responses import (
     AnalysisInsights,
     Component,
     MetaAnalysisInsights,
+    SourceCodeReference,
     ScopeOperationAction,
     ScopeUpdateDecision,
     ScopedClusterRef,
@@ -43,8 +44,9 @@ _ARCHITECTURE_OUTPUT_CONTRACT = """
 ## Architecture output contract
 - This step plans component boundaries only. Do not define component relations; API surfaces and relations are generated later.
 - Preserve an existing component's name, description, and key entities unless its architectural responsibility changed.
-- For create_component, provide a clear name and description plus 1-5 key_entities using exact qualified names from the structural diff or source tools.
+- For create_component, provide a clear name and description. Add up to 5 key_entities only when their exact qualified names are available; otherwise leave them empty for deterministic selection.
 - For update_component, include refreshed name, description, or key_entities only when the component's responsibility changed. An empty key_entities list preserves the current selection.
+- For update_component, delete_component, and noop, copy the exact component_id from the existing-components list.
 """
 
 
@@ -53,6 +55,8 @@ class ScopeOperationValidationContext:
     expected_cluster_refs: set[ClusterRef] = field(default_factory=set)
     existing_component_ids: set[str] = field(default_factory=set)
     known_qnames: set[str] = field(default_factory=set)
+    component_ids_by_cluster_ref: dict[ClusterRef, str] = field(default_factory=dict)
+    component_ids_by_name: dict[str, str] = field(default_factory=dict)
     scope_id: str = ROOT_SCOPE_ID
 
 
@@ -113,6 +117,8 @@ class IncrementalPlanningAgent(CodeBoardingAgent):
             expected_cluster_refs=_actionable_new_cluster_refs(structural_diff),
             existing_component_ids={component.component_id for component in scope.components if component.component_id},
             known_qnames=_known_qnames(self.static_analysis),
+            component_ids_by_cluster_ref=_component_ids_by_cluster_ref(scope_id, scope.components, structural_diff),
+            component_ids_by_name=_component_ids_by_name(scope.components),
             scope_id=scope_id,
         )
         decision = self._validation_invoke(
@@ -153,6 +159,7 @@ def validate_scope_update_decision(
     decision: ScopeUpdateDecision,
     context: ScopeOperationValidationContext,
 ) -> ValidationResult:
+    _normalize_scope_update_decision(decision, context)
     errors: list[str] = []
     seen_refs: list[ClusterRef] = []
     for operation in decision.operations:
@@ -170,8 +177,6 @@ def validate_scope_update_decision(
         if operation.action == ScopeOperationAction.CREATE_COMPONENT:
             if not operation.name or not operation.description:
                 errors.append("create_component operations must include name and description.")
-            if not operation.key_entities:
-                errors.append("create_component operations must include at least one key entity.")
         if operation.action == ScopeOperationAction.NOOP and (
             operation.name or operation.description or operation.key_entities
         ):
@@ -197,6 +202,123 @@ def validate_scope_update_decision(
     if duplicates:
         errors.append(f"Duplicate cluster_refs: {_format_cluster_ref_list(duplicates)}")
     return ValidationResult(is_valid=not errors, feedback_messages=errors)
+
+
+def _normalize_scope_update_decision(
+    decision: ScopeUpdateDecision,
+    context: ScopeOperationValidationContext,
+) -> None:
+    """Repair unambiguous routing and optional key-entity metadata."""
+    qname_aliases = _unique_qname_aliases(context.known_qnames)
+    routed_operations = 0
+    canonicalized_qnames = 0
+    dropped_qnames: set[str] = set()
+    for operation in decision.operations:
+        refs = {_cluster_ref_from_scoped_ref(ref) for ref in operation.cluster_refs}
+        if operation.component_id is None and operation.action in {
+            ScopeOperationAction.UPDATE_COMPONENT,
+            ScopeOperationAction.DELETE_COMPONENT,
+            ScopeOperationAction.NOOP,
+        }:
+            owner_ids = {
+                context.component_ids_by_cluster_ref[ref] for ref in refs if ref in context.component_ids_by_cluster_ref
+            }
+            if len(owner_ids) == 1:
+                operation.component_id = next(iter(owner_ids))
+            elif not owner_ids and operation.name:
+                operation.component_id = context.component_ids_by_name.get(_normalize_component_name(operation.name))
+            if operation.component_id is not None:
+                routed_operations += 1
+
+        if operation.action not in {ScopeOperationAction.CREATE_COMPONENT, ScopeOperationAction.UPDATE_COMPONENT}:
+            continue
+
+        normalized_entities: list[SourceCodeReference] = []
+        seen_qnames: set[str] = set()
+        for entity in operation.key_entities:
+            qname = entity.qualified_name
+            canonical_qname = qname if qname in context.known_qnames else qname_aliases.get(_qname_alias(qname))
+            if context.known_qnames and canonical_qname is None:
+                dropped_qnames.add(qname)
+                continue
+            canonical_qname = canonical_qname or qname
+            if canonical_qname in seen_qnames:
+                continue
+            if canonical_qname != qname:
+                canonicalized_qnames += 1
+            entity.qualified_name = canonical_qname
+            normalized_entities.append(entity)
+            seen_qnames.add(canonical_qname)
+            if len(normalized_entities) == 5:
+                break
+        operation.key_entities = normalized_entities
+
+    if routed_operations or canonicalized_qnames:
+        logger.info(
+            "Normalized incremental plan: routed %d operation(s), canonicalized %d key-entity qname(s)",
+            routed_operations,
+            canonicalized_qnames,
+        )
+    if dropped_qnames:
+        logger.warning("Dropped unresolved optional key entities: %s", sorted(dropped_qnames))
+
+
+def _component_ids_by_cluster_ref(
+    scope_id: str,
+    components: list[Component],
+    structural_diff: StructuralClusterDiff,
+) -> dict[ClusterRef, str]:
+    """Map new-side cluster refs to a unique existing owner when overlap proves one."""
+    prefix = "" if scope_id == ROOT_SCOPE_ID else f"{scope_id}."
+    owners_by_cluster_id: dict[str, set[str]] = {}
+    for component in components:
+        if not component.component_id:
+            continue
+        for cluster_id in component.source_cluster_ids:
+            owners_by_cluster_id.setdefault(cluster_id, set()).add(component.component_id)
+
+    def owner_for_old_ref(ref: ClusterRef) -> str | None:
+        owners = owners_by_cluster_id.get(f"{prefix}{ref.cluster_id}", set())
+        return next(iter(owners)) if len(owners) == 1 else None
+
+    owners_by_new_ref: dict[ClusterRef, set[str]] = {}
+    for language_diff in structural_diff.by_language.values():
+        for delta in language_diff.modified:
+            owner = owner_for_old_ref(delta.old_cluster)
+            if owner:
+                owners_by_new_ref.setdefault(delta.new_cluster, set()).add(owner)
+        for reshape in language_diff.reshaped:
+            for (old_ref, new_ref), overlap in reshape.overlap_counts.items():
+                if overlap <= 0:
+                    continue
+                owner = owner_for_old_ref(old_ref)
+                if owner:
+                    owners_by_new_ref.setdefault(new_ref, set()).add(owner)
+
+    return {ref: next(iter(owner_ids)) for ref, owner_ids in owners_by_new_ref.items() if len(owner_ids) == 1}
+
+
+def _component_ids_by_name(components: list[Component]) -> dict[str, str]:
+    ids_by_name: dict[str, set[str]] = {}
+    for component in components:
+        if component.component_id:
+            ids_by_name.setdefault(_normalize_component_name(component.name), set()).add(component.component_id)
+    return {name: next(iter(component_ids)) for name, component_ids in ids_by_name.items() if len(component_ids) == 1}
+
+
+def _normalize_component_name(name: str) -> str:
+    return " ".join(name.casefold().split())
+
+
+def _qname_alias(qname: str) -> str:
+    return qname.replace("-", "_")
+
+
+def _unique_qname_aliases(known_qnames: set[str]) -> dict[str, str]:
+    qnames_by_alias: dict[str, set[str]] = {}
+    for qname in known_qnames:
+        qnames_by_alias.setdefault(_qname_alias(qname), set()).add(qname)
+    return {alias: next(iter(qnames)) for alias, qnames in qnames_by_alias.items() if len(qnames) == 1}
 
 
 def _cluster_ref_from_scoped_ref(ref: ScopedClusterRef) -> ClusterRef:

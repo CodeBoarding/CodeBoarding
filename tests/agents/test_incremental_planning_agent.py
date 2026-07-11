@@ -16,6 +16,7 @@ from diagram_analysis.exceptions import InvalidIncrementalPlanError, Incremental
 from agents.incremental_planning_agent import (
     ScopeOperationValidationContext,
     IncrementalPlanningAgent,
+    _component_ids_by_cluster_ref,
     format_structural_diff,
     validate_scope_update_decision,
 )
@@ -221,6 +222,136 @@ def test_validate_scope_update_decision_allows_create_when_llm_chooses_new_compo
     result = validate_scope_update_decision(decision, context)
 
     assert result.is_valid
+
+
+def test_validate_scope_update_decision_repairs_full_scope_planner_output() -> None:
+    components = [
+        Component(
+            name="Orchestration & Dispatcher",
+            description="Routes conversions.",
+            key_entities=[],
+            component_id="1",
+            source_cluster_ids=["1", "2", "5"],
+        )
+    ]
+    modified = [
+        ClusterMemberDelta(
+            old_cluster=ClusterRef(language="python", cluster_id=cluster_id),
+            new_cluster=ClusterRef(language="python", cluster_id=cluster_id),
+        )
+        for cluster_id in (1, 2, 5)
+    ]
+    structural = StructuralClusterDiff(
+        by_language={
+            "python": LanguageStructuralDiff(
+                language="python",
+                modified=modified,
+                new=[
+                    ClusterRef(language="python", cluster_id=31),
+                    ClusterRef(language="python", cluster_id=32),
+                    ClusterRef(language="python", cluster_id=33),
+                ],
+            )
+        }
+    )
+    update_refs = [1, 2, 5, 31, 32]
+    decision = ScopeUpdateDecision(
+        operations=[
+            ScopeOperation(
+                action=ScopeOperationAction.UPDATE_COMPONENT,
+                cluster_refs=[
+                    ScopedClusterRef(scope_id="root", language="python", cluster_id=cluster_id)
+                    for cluster_id in update_refs
+                ],
+                name="Orchestration & Dispatcher",
+                description="Routes conversions and result handling.",
+                component_id=None,
+                rationale="The responsibility expanded.",
+            ),
+            ScopeOperation(
+                action=ScopeOperationAction.CREATE_COMPONENT,
+                cluster_refs=[ScopedClusterRef(scope_id="root", language="python", cluster_id=33)],
+                name="OCR Extension",
+                description="Adds OCR converters.",
+                key_entities=[
+                    SourceCodeReference(
+                        qualified_name="packages.markitdown_ocr.src.markitdown_ocr._plugin.register_converters"
+                    ),
+                    SourceCodeReference(qualified_name="hallucinated.missing"),
+                ],
+                rationale="A new extension package was added.",
+            ),
+        ]
+    )
+    expected_refs = {ClusterRef(language="python", cluster_id=cluster_id) for cluster_id in (*update_refs, 33)}
+    canonical_qname = "packages.markitdown-ocr.src.markitdown_ocr._plugin.register_converters"
+    context = ScopeOperationValidationContext(
+        expected_cluster_refs=expected_refs,
+        existing_component_ids={"1"},
+        known_qnames={canonical_qname},
+        component_ids_by_cluster_ref=_component_ids_by_cluster_ref("root", components, structural),
+        component_ids_by_name={"orchestration & dispatcher": "1"},
+    )
+
+    result = validate_scope_update_decision(decision, context)
+
+    assert result.is_valid
+    assert decision.operations[0].component_id == "1"
+    assert [entity.qualified_name for entity in decision.operations[1].key_entities] == [canonical_qname]
+
+
+def test_validate_scope_update_decision_keeps_ownerless_update_invalid() -> None:
+    ref = ClusterRef(language="python", cluster_id=7)
+    decision = ScopeUpdateDecision(
+        operations=[
+            ScopeOperation(
+                action=ScopeOperationAction.UPDATE_COMPONENT,
+                cluster_refs=[ScopedClusterRef(scope_id="root", language="python", cluster_id=7)],
+                name="New Responsibility",
+                description="Owns a new cluster.",
+                component_id=None,
+                rationale="The parser emitted update without an existing target.",
+            )
+        ]
+    )
+    context = ScopeOperationValidationContext(expected_cluster_refs={ref}, existing_component_ids={"1"})
+
+    result = validate_scope_update_decision(decision, context)
+
+    assert not result.is_valid
+    assert decision.operations[0].action == ScopeOperationAction.UPDATE_COMPONENT
+    assert "component_id=None" in "\n".join(result.feedback_messages)
+
+
+def test_validate_scope_update_decision_keeps_ambiguous_missing_owner_invalid() -> None:
+    first = ClusterRef(language="python", cluster_id=1)
+    second = ClusterRef(language="python", cluster_id=2)
+    decision = ScopeUpdateDecision(
+        operations=[
+            ScopeOperation(
+                action=ScopeOperationAction.UPDATE_COMPONENT,
+                cluster_refs=[
+                    ScopedClusterRef(scope_id="root", language="python", cluster_id=1),
+                    ScopedClusterRef(scope_id="root", language="python", cluster_id=2),
+                ],
+                name="Merged Responsibility",
+                description="Would span two existing owners.",
+                component_id=None,
+                rationale="Ambiguous merge.",
+            )
+        ]
+    )
+    context = ScopeOperationValidationContext(
+        expected_cluster_refs={first, second},
+        existing_component_ids={"1", "2"},
+        component_ids_by_cluster_ref={first: "1", second: "2"},
+    )
+
+    result = validate_scope_update_decision(decision, context)
+
+    assert not result.is_valid
+    assert decision.operations[0].action == ScopeOperationAction.UPDATE_COMPONENT
+    assert "component_id=None" in "\n".join(result.feedback_messages)
 
 
 def test_validate_scope_update_decision_rejects_metadata_changes_on_noop() -> None:

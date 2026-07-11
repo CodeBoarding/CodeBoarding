@@ -15,7 +15,12 @@ from static_analyzer.analysis_result import AnalysisData, StaticAnalysisResults
 from static_analyzer.constants import Language, NodeType
 from static_analyzer.graph import CallGraph, ClusterResult, Edge
 from static_analyzer.node import Node
-from static_analyzer.incremental_orchestrator import update_cfg_for_changed_files
+from static_analyzer.incremental_orchestrator import (
+    _definition_nodes,
+    _restore_cross_boundary_edges,
+    update_cfg_for_changed_files,
+)
+from static_analyzer.engine.source_inspector import SourceInspector
 from utils import CODEBOARDING_DIR_NAME
 
 
@@ -368,6 +373,95 @@ class TestWarmStartDeletion(unittest.TestCase):
             self.assertNotIn("a.foo", updated["call_graph"].nodes)
             self.assertIn("b.bar", updated["call_graph"].nodes)
             self.assertEqual([str(path) for path in updated["source_files"]], [str(live_file)])
+
+
+class TestWarmStartOutboundEdges(unittest.TestCase):
+    def test_definition_resolution_selects_the_most_specific_node(self) -> None:
+        file_path = Path("/repo/pkg/converter.py")
+        call_graph = CallGraph(language="python")
+        call_graph.add_node(
+            Node(
+                fully_qualified_name="pkg.converter.DocumentConverter",
+                node_type=NodeType.CLASS,
+                file_path=str(file_path),
+                line_start=1,
+                line_end=40,
+            )
+        )
+        call_graph.add_node(
+            Node(
+                fully_qualified_name="pkg.converter.DocumentConverter.convert",
+                node_type=NodeType.METHOD,
+                file_path=str(file_path),
+                line_start=10,
+                line_end=20,
+                col_start=4,
+            )
+        )
+        definition = {
+            "uri": file_path.as_uri(),
+            "range": {"start": {"line": 9, "character": 8}, "end": {"line": 9, "character": 15}},
+        }
+
+        matches = _definition_nodes(call_graph, definition)
+
+        self.assertEqual(
+            [node.fully_qualified_name for node in matches],
+            ["pkg.converter.DocumentConverter.convert"],
+        )
+
+    def test_cached_outbound_edge_is_restored_from_live_non_call_reference(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            changed_file = Path(temp_dir) / "changed.py"
+            target_file = Path(temp_dir) / "target.py"
+            changed_file.write_text("def convert():\n    return result.text_content\n", encoding="utf-8")
+            target_file.write_text("class Result:\n    def text_content(self): ...\n", encoding="utf-8")
+            source = Node(
+                fully_qualified_name="changed.convert",
+                node_type=NodeType.FUNCTION,
+                file_path=str(changed_file),
+                line_start=1,
+                line_end=2,
+            )
+            target = Node(
+                fully_qualified_name="target.Result.text_content",
+                node_type=NodeType.METHOD,
+                file_path=str(target_file),
+                line_start=2,
+                line_end=2,
+                col_start=4,
+            )
+            call_graph = CallGraph(language="python")
+            call_graph.add_node(source)
+            call_graph.add_node(target)
+            engine_client = MagicMock()
+            engine_client.references.return_value = [
+                {
+                    "uri": changed_file.as_uri(),
+                    "range": {
+                        "start": {"line": 1, "character": 11},
+                        "end": {"line": 1, "character": 30},
+                    },
+                }
+            ]
+            adapter = MagicMock()
+            adapter.language_id = "python"
+            adapter.is_class_like.return_value = False
+
+            _restore_cross_boundary_edges(
+                call_graph,
+                [(source.fully_qualified_name, target.fully_qualified_name, source, target)],
+                {str(changed_file)},
+                adapter,
+                engine_client,
+                SourceInspector(),
+            )
+
+            self.assertEqual(len(call_graph.edges), 1)
+            self.assertEqual(
+                call_graph.edges[0].call_sites,
+                [{"file": str(changed_file), "line": 2, "column": 12}],
+            )
 
 
 if __name__ == "__main__":

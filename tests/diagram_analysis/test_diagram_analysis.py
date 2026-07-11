@@ -473,7 +473,7 @@ class TestAnalysisJsonConversion(unittest.TestCase):
             [site.model_dump() for site in edge.call_sites], [{"line": 14, "column": 6}, {"line": 16, "column": 10}]
         )
 
-    def test_unified_analysis_parse_skips_edges_missing_from_methods_index(self):
+    def test_unified_analysis_parse_recovers_edges_missing_from_methods_index(self):
         data = json.loads(
             build_unified_analysis_json(self.analysis, [], "repo", repo_dir=self.repo_dir, source_tree_hash="")
         )
@@ -499,7 +499,45 @@ class TestAnalysisJsonConversion(unittest.TestCase):
         parsed, _ = parse_unified_analysis(data)
 
         self.assertEqual(len(parsed.components_relations), 1)
-        self.assertEqual(parsed.components_relations[0].key_edges, [])
+        edge = parsed.components_relations[0].key_edges[0]
+        self.assertEqual(edge.source.qualified_name, "missing.call")
+        self.assertEqual(edge.source.reference_file, "missing.py")
+        self.assertEqual(edge.target.qualified_name, "component2.load")
+        self.assertEqual(edge.target.reference_file, "component2.py")
+
+    def test_unified_analysis_indexes_relation_endpoints_outside_files(self):
+        self.analysis.components_relations = [
+            Relation(
+                relation="registers",
+                src_name="Component1",
+                dst_name="Component2",
+                src_id="1",
+                dst_id="2",
+                key_edges=[
+                    RelationEdge(
+                        source=SourceCodeReference(qualified_name="importlib.metadata.entry_points"),
+                        target=SourceCodeReference(
+                            qualified_name="plugin.register",
+                            reference_file="plugin.py",
+                            reference_start_line=12,
+                            reference_end_line=18,
+                        ),
+                    )
+                ],
+            )
+        ]
+
+        data = json.loads(
+            build_unified_analysis_json(self.analysis, [], "repo", repo_dir=self.repo_dir, source_tree_hash="")
+        )
+
+        self.assertEqual(data["methods_index"]["|importlib.metadata.entry_points"]["type"], "REFERENCE")
+        self.assertEqual(data["methods_index"]["plugin.py|plugin.register"]["start_line"], 12)
+        parsed, _ = parse_unified_analysis(data)
+        edge = parsed.components_relations[0].key_edges[0]
+        self.assertEqual(edge.source.qualified_name, "importlib.metadata.entry_points")
+        self.assertIsNone(edge.source.reference_file)
+        self.assertEqual(edge.target.reference_file, "plugin.py")
 
     def test_source_tree_hash_written_to_metadata(self):
         # The precomputed hash the caller passes is what lands in metadata — the
