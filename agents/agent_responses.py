@@ -840,6 +840,13 @@ class ScopeOperation(LLMBaseModel):
     )
     name: str | None = Field(default=None, description="Component name for create/update operations.")
     description: str | None = Field(default=None, description="Component description for create/update operations.")
+    key_entities: list[SourceCodeReference] = Field(
+        default_factory=list,
+        description=(
+            "Important existing source symbols for a created component or a semantically refreshed component. "
+            "Leave empty on updates that preserve the current key entities."
+        ),
+    )
     recurse: bool = Field(
         default=False, description="Whether this component should be considered for child-scope update."
     )
@@ -848,7 +855,11 @@ class ScopeOperation(LLMBaseModel):
     def llm_str(self):
         refs = ", ".join(ref.llm_str() for ref in self.cluster_refs) or "no clusters"
         target = self.component_id or self.name or "new component"
-        return f"{self.action}: {refs} -> {target}; recurse={self.recurse}; {self.rationale}"
+        key_entities = ", ".join(entity.qualified_name for entity in self.key_entities) or "unchanged"
+        return (
+            f"{self.action}: {refs} -> {target}; key_entities=[{key_entities}]; "
+            f"recurse={self.recurse}; {self.rationale}"
+        )
 
 
 class ScopeUpdateDecision(LLMBaseModel):

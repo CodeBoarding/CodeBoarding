@@ -41,3 +41,34 @@ class IncrementalCacheMissingError(RuntimeError):
             f"Incremental analysis cannot proceed: {reason}. " "Run a full analysis first to seed the cache."
         )
         self.artifact_dir = artifact_dir
+
+
+class InvalidIncrementalPlanError(RuntimeError):
+    """Raised when the planner cannot produce a trustworthy scoped update."""
+
+    def __init__(self, scope_id: str, issues: list[str]):
+        issue_summary = "; ".join(issues)
+        super().__init__(f"Incremental plan for scope {scope_id!r} is invalid: {issue_summary}")
+        self.scope_id = scope_id
+        self.issues = issues
+
+
+class IncrementalScopeContextMissingError(RuntimeError):
+    """Raised when relation regeneration lacks its scoped static context."""
+
+    def __init__(self, scope_id: str):
+        super().__init__(f"No incremental relation context was recorded for scope {scope_id!r}")
+        self.scope_id = scope_id
+
+
+class IncrementalScopeRegenerationRequiredError(RuntimeError):
+    """Raised when a requested boundary change cannot be applied incrementally."""
+
+    def __init__(self, scope_id: str, rationale: str = ""):
+        suffix = f" Planner rationale: {rationale}" if rationale else ""
+        super().__init__(
+            f"Incremental analysis cannot safely regenerate or reparent scope {scope_id!r}. "
+            f"Run a full analysis explicitly if that boundary change is intended.{suffix}"
+        )
+        self.scope_id = scope_id
+        self.rationale = rationale

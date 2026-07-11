@@ -47,7 +47,7 @@ from diagram_analysis.cluster_snapshot import (
     ClusterSnapshot,
     snapshot_from_static_analysis,
 )
-from diagram_analysis.exceptions import IncrementalCacheMissingError
+from diagram_analysis.exceptions import IncrementalCacheMissingError, IncrementalScopeRegenerationRequiredError
 from diagram_analysis.file_coverage import FileCoverage
 from diagram_analysis.io_utils import load_analysis_metadata, normalize_repo_path, save_analysis, write_fingerprint
 from health.config import initialize_health_dir, load_health_config
@@ -677,10 +677,10 @@ class DiagramGenerator:
             removed_ids=set(apply_result.removed_ids),
             regenerate_scope=apply_result.regenerate_scope,
         )
-        if apply_result.refresh_ids:
+        if apply_result.refresh_ids or apply_result.removed_ids:
             result.touched_scopes.add(scope_id)
         if result.regenerate_scope:
-            return result
+            raise IncrementalScopeRegenerationRequiredError(scope_id)
 
         components_by_id = {
             component.component_id: component for component in scope.components if component.component_id
@@ -717,7 +717,7 @@ class DiagramGenerator:
             result.touched_scopes |= child_result.touched_scopes
             result.regenerate_scope = result.regenerate_scope or child_result.regenerate_scope
             if result.regenerate_scope:
-                return result
+                raise IncrementalScopeRegenerationRequiredError(scope_id)
         return result
 
     @track_analysis
@@ -730,7 +730,7 @@ class DiagramGenerator:
 
         Deterministic cluster delta, one LLM call to route delta clusters,
         then ``_generate_subcomponents`` seeded with the changed components.
-        Falls back to a full run when no baseline cluster info exists.
+        Raises when no trustworthy baseline or scoped update plan is available.
         """
         if self.details_agent is None or self.abstraction_agent is None:
             self.pre_analysis()
@@ -819,8 +819,7 @@ class DiagramGenerator:
                 sub_analyses,
             )
             if apply_result.regenerate_scope:
-                logger.info("Incremental planning agent requested root regeneration; running full analysis.")
-                return self.generate_analysis()
+                raise IncrementalScopeRegenerationRequiredError(ROOT_SCOPE_ID)
 
             removed_ids = prune_empty_components(root_analysis, sub_analyses, protected_empty_ids)
             if removed_ids:

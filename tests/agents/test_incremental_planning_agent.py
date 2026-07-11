@@ -1,14 +1,18 @@
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from agents.agent_responses import (
     AnalysisInsights,
     Component,
+    SourceCodeReference,
     ScopeOperation,
     ScopeOperationAction,
     ScopedClusterRef,
     ScopeUpdateDecision,
 )
+from diagram_analysis.exceptions import InvalidIncrementalPlanError, IncrementalScopeRegenerationRequiredError
 from agents.incremental_planning_agent import (
     ScopeOperationValidationContext,
     IncrementalPlanningAgent,
@@ -203,6 +207,7 @@ def test_validate_scope_update_decision_allows_create_when_llm_chooses_new_compo
                 cluster_refs=[ScopedClusterRef(scope_id="root", language="python", cluster_id=7)],
                 name="Document Utilities",
                 description="Shared document utilities.",
+                key_entities=[SourceCodeReference(qualified_name="docs.render")],
                 rationale="The structural diff introduces a distinct responsibility.",
             )
         ]
@@ -210,11 +215,35 @@ def test_validate_scope_update_decision_allows_create_when_llm_chooses_new_compo
     context = ScopeOperationValidationContext(
         expected_cluster_refs={ClusterRef(language="python", cluster_id=7)},
         existing_component_ids={"3"},
+        known_qnames={"docs.render"},
     )
 
     result = validate_scope_update_decision(decision, context)
 
     assert result.is_valid
+
+
+def test_validate_scope_update_decision_rejects_metadata_changes_on_noop() -> None:
+    decision = ScopeUpdateDecision(
+        operations=[
+            ScopeOperation(
+                action=ScopeOperationAction.NOOP,
+                cluster_refs=[ScopedClusterRef(scope_id="root", language="python", cluster_id=1)],
+                component_id="1",
+                description="This should be an update instead.",
+                rationale="No boundary change.",
+            )
+        ]
+    )
+    context = ScopeOperationValidationContext(
+        expected_cluster_refs={ClusterRef(language="python", cluster_id=1)},
+        existing_component_ids={"1"},
+    )
+
+    result = validate_scope_update_decision(decision, context)
+
+    assert not result.is_valid
+    assert "noop operations must preserve" in result.feedback_messages[0]
 
 
 def test_incremental_planning_agent_uses_narrow_diff_aware_toolkit() -> None:
@@ -306,6 +335,7 @@ def test_decide_scope_update_passes_structural_diff_to_validator() -> None:
     assert "Existing components in this scope" in prompt
     assert '1 "API" clusters=[2, 10, 1.3]' in prompt
     assert "api.new" in prompt
+    assert "Do not define component relations" in prompt
     assert context.expected_cluster_refs == {ClusterRef(language="python", cluster_id=1)}
     assert context.existing_component_ids == {"1"}
 
@@ -351,9 +381,9 @@ def test_decide_scope_update_tracks_invalid_decision_after_retries() -> None:
     agent._validation_invoke = MagicMock(return_value=invalid)
 
     with patch("agents.incremental_planning_agent.telemetry") as mock_telemetry:
-        result = agent.decide_scope_update("root", scope, structural)
+        with pytest.raises(InvalidIncrementalPlanError, match="Missing cluster_refs"):
+            agent.decide_scope_update("root", scope, structural)
 
-    assert result is invalid
     mock_telemetry.capture_exception.assert_called_once()
     exc = mock_telemetry.capture_exception.call_args.args[0]
     properties = mock_telemetry.capture_exception.call_args.kwargs["properties"]
@@ -363,3 +393,35 @@ def test_decide_scope_update_tracks_invalid_decision_after_retries() -> None:
     assert properties["issue_count"] == 1
     assert "Missing cluster_refs" in properties["issues"][0]
     mock_telemetry.flush.assert_called_once()
+
+
+def test_decide_scope_update_fails_when_scope_regeneration_is_required() -> None:
+    static_analysis = MagicMock(spec=StaticAnalysisResults)
+    static_analysis.get_languages.return_value = []
+    scope = AnalysisInsights(description="root", components=[], components_relations=[])
+    decision = ScopeUpdateDecision(
+        operations=[
+            ScopeOperation(
+                action=ScopeOperationAction.REGENERATE_SCOPE,
+                cluster_refs=[],
+                rationale="The component must move to another parent.",
+            )
+        ]
+    )
+
+    with (
+        patch("agents.agent.create_agent", return_value=MagicMock()),
+        patch("agents.incremental_planning_agent.create_agent", return_value=MagicMock()),
+    ):
+        agent = IncrementalPlanningAgent(
+            repo_dir=Path("/tmp/fake-repo"),
+            static_analysis=static_analysis,
+            project_name="Test",
+            meta_context=None,
+            agent_llm=MagicMock(),
+            parsing_llm=MagicMock(),
+        )
+    agent._validation_invoke = MagicMock(return_value=decision)
+
+    with pytest.raises(IncrementalScopeRegenerationRequiredError, match="Run a full analysis explicitly"):
+        agent.decide_scope_update("root", scope, StructuralClusterDiff())

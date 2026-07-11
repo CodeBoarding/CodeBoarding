@@ -128,7 +128,7 @@ def _collect_llm_relations(
     return relations
 
 
-def _ancestor_relation_label(src_id: str, dst_id: str, llm_relations: list[Relation]) -> str:
+def _ancestor_relation(src_id: str, dst_id: str, llm_relations: list[Relation]) -> Relation | None:
     candidates = [
         rel
         for rel in llm_relations
@@ -138,11 +138,27 @@ def _ancestor_relation_label(src_id: str, dst_id: str, llm_relations: list[Relat
         and is_self_or_descendant(dst_id, rel.dst_id)
     ]
     if not candidates:
-        return DEFAULT_STATIC_RELATION_LABEL
+        return None
     candidates.sort(
         key=lambda rel: (-(rel.src_id.count(".") + rel.dst_id.count(".")), rel.src_id, rel.dst_id, rel.relation)
     )
-    return candidates[0].relation
+    return candidates[0]
+
+
+def _relation_key_edges_for_pair(
+    relation: Relation,
+    src_id: str,
+    dst_id: str,
+    node_to_component: dict[str, str],
+) -> list[RelationEdge]:
+    if (relation.src_id, relation.dst_id) == (src_id, dst_id):
+        return relation.key_edges
+    return [
+        edge
+        for edge in relation.key_edges
+        if node_to_component.get(edge.source.qualified_name) == src_id
+        and node_to_component.get(edge.target.qualified_name) == dst_id
+    ]
 
 
 def build_global_relations(
@@ -172,17 +188,34 @@ def build_global_relations(
                 and is_self_or_descendant(dst_id, llm_rel.dst_id)
             ):
                 superseded_llm_pairs.add((llm_rel.src_id, llm_rel.dst_id))
-        append_or_merge_relation(
-            global_relations,
-            Relation.from_edges(
-                _ancestor_relation_label(src_id, dst_id, llm_relations),
+        llm_relation = _ancestor_relation(src_id, dst_id, llm_relations)
+        if llm_relation is None:
+            relation = Relation.from_edges(
+                DEFAULT_STATIC_RELATION_LABEL,
                 id_to_name.get(src_id, src_id),
                 id_to_name.get(dst_id, dst_id),
                 src_id,
                 dst_id,
                 static_rel.all_edges,
                 True,
-            ),
+            )
+        else:
+            inherited_key_edges = _relation_key_edges_for_pair(llm_relation, src_id, dst_id, node_to_component)
+            key_edges, all_edges = merge_relation_edges(inherited_key_edges, static_rel.all_edges)
+            relation = Relation(
+                relation=llm_relation.relation,
+                src_name=id_to_name.get(src_id, src_id),
+                dst_name=id_to_name.get(dst_id, dst_id),
+                evidence=llm_relation.evidence,
+                key_edges=key_edges,
+                src_id=src_id,
+                dst_id=dst_id,
+                is_static=True,
+                all_edges=all_edges,
+            )
+        append_or_merge_relation(
+            global_relations,
+            relation,
         )
 
     for llm_rel in sorted(llm_relations, key=lambda rel: (rel.src_id, rel.dst_id, rel.relation)):

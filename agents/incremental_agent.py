@@ -1,6 +1,7 @@
 """Incremental refresh helpers for scoped structural updates."""
 
 import logging
+from dataclasses import dataclass
 from pathlib import Path
 
 from langchain_core.language_models import BaseChatModel
@@ -9,15 +10,20 @@ from langchain_core.prompts import PromptTemplate
 from agents.agent import CodeBoardingAgent
 from agents.agent_responses import (
     AnalysisInsights,
+    ClusterAnalysis,
+    ClustersComponent,
     Component,
+    ComponentApiSurfaces,
+    ComponentArchitecture,
+    ComponentRelations,
     SourceCodeReference,
     MetaAnalysisInsights,
     Relation,
     ScopeOperation,
     ScopeOperationAction,
-    ScopeRelations,
     ScopeUpdateDecision,
     assign_component_ids,
+    assign_relation_ids,
     iter_components,
 )
 from agents.file_index_models import FileMethodGroup, MethodEntry
@@ -25,17 +31,23 @@ from agents.cluster_methods_mixin import ClusterMethodsMixin
 from agents.content_hash import SourceCache
 from agents.cluster_ids import CodeBoardingClusterIds
 from agents.incremental_results import ScopeUpdateResult
-from agents.prompts import get_scope_relations_message, get_system_message
+from agents.prompts import get_api_surfaces_message, get_relation_analysis_message, get_system_message
 from agents.scope_ids import ROOT_SCOPE_ID
-from agents.validation import ValidationContext, validate_scope_relation_names
+from agents.validation import ValidationContext, validate_relations
+from diagram_analysis.exceptions import IncrementalScopeContextMissingError, IncrementalScopeRegenerationRequiredError
 from monitoring import trace
 from repo_utils.change_detector import ChangeSet
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.cluster_relations import ClusterRelation, merge_relations
 from static_analyzer.constants import Language
 from static_analyzer.graph import CallGraph, ClusterResult
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class _ScopeRelationContext:
+    cluster_results: dict[str, ClusterResult]
+    cfg_graphs: dict[str, CallGraph]
 
 
 class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
@@ -56,6 +68,30 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
             self.toolkit.context.changes = changes
         self.project_name = project_name
         self.meta_context = meta_context
+        self._scope_relation_contexts: dict[str, _ScopeRelationContext] = {}
+        self.prompts = {
+            "api_surfaces": PromptTemplate(
+                template=get_api_surfaces_message(),
+                input_variables=[
+                    "project_name",
+                    "component_summaries",
+                    "static_call_evidence",
+                    "meta_context",
+                    "project_type",
+                ],
+            ),
+            "relation_analysis": PromptTemplate(
+                template=get_relation_analysis_message(),
+                input_variables=[
+                    "project_name",
+                    "component_summaries",
+                    "api_surfaces",
+                    "static_call_evidence",
+                    "meta_context",
+                    "project_type",
+                ],
+            ),
+        }
 
     @trace
     def update_scope(
@@ -74,8 +110,7 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
 
         for operation in decision.operations:
             if operation.action == ScopeOperationAction.REGENERATE_SCOPE:
-                result.regenerate_scope = True
-                continue
+                raise IncrementalScopeRegenerationRequiredError(scope_id, operation.rationale)
             if operation.action == ScopeOperationAction.CREATE_COMPONENT:
                 self._create_component_from_operation(scope_id, scope, operation, components_by_id, result)
                 continue
@@ -90,6 +125,13 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
                     result.removed_ids.add(operation.component_id)
                 continue
             if operation.action == ScopeOperationAction.NOOP:
+                component = components_by_id.get(operation.component_id or "")
+                if component is not None:
+                    component.source_cluster_ids = CodeBoardingClusterIds.sort(
+                        set(component.source_cluster_ids) | set(_operation_source_cluster_ids(scope_id, operation))
+                    )
+                    if component.component_id:
+                        result.refresh_ids.add(component.component_id)
                 continue
 
             component = components_by_id.get(operation.component_id or "")
@@ -109,8 +151,13 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
         if touched_ids:
             cfg_graphs = _cfg_graphs_for_cluster_results(self.static_analysis, cluster_results)
             self._patch_scope_file_methods(scope, cluster_results, cfg_graphs, touched_ids, scope_id)
-            self.build_static_relations(scope, _cfg_graphs_for_scope_methods(self.static_analysis, scope))
             self._refresh_key_entities(scope, touched_ids)
+
+        if touched_ids or result.removed_ids:
+            self._scope_contexts()[scope_id] = _ScopeRelationContext(
+                cluster_results=cluster_results,
+                cfg_graphs=_cfg_graphs_for_scope_methods(self.static_analysis, scope),
+            )
 
         _log_duplicate_cluster_ownership(scope_id, scope.components)
 
@@ -136,7 +183,7 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
         component = Component(
             name=operation.name or "New Component",
             description=operation.description or "",
-            key_entities=[],
+            key_entities=operation.key_entities,
             source_group_names=[operation.name or "New Component"],
             source_cluster_ids=source_cluster_ids,
         )
@@ -157,6 +204,8 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
             component.name = operation.name
         if operation.description:
             component.description = operation.description
+        if operation.key_entities:
+            component.key_entities = operation.key_entities
         merged_cluster_ids = set(component.source_cluster_ids) | set(_operation_source_cluster_ids(scope_id, operation))
         component.source_cluster_ids = CodeBoardingClusterIds.sort(merged_cluster_ids)
 
@@ -164,7 +213,17 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
         for component in scope.components:
             if component.component_id not in component_ids:
                 continue
-            component.key_entities = _key_entities_from_file_methods(component)
+            owned_qnames = {
+                method.qualified_name
+                for group in component.file_methods
+                for method in group.methods
+                if method.qualified_name
+            }
+            component.key_entities = [
+                entity for entity in component.key_entities if entity.qualified_name in owned_qnames
+            ][:5]
+            if not component.key_entities:
+                component.key_entities = _key_entities_from_file_methods(component)
 
     def _patch_scope_file_methods(
         self,
@@ -198,58 +257,106 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
         scope.files = self.build_files_index(scope, source_cache)
 
     @trace
-    def generate_scope_relations(self, scope: AnalysisInsights, scope_name: str) -> list[Relation]:
-        """Generate LLM relations for a single scope and merge with static relations."""
-        if len(scope.components) < 2:
-            return []
-
+    def step_api_surfaces(self, scope: AnalysisInsights, scope_name: str) -> ComponentApiSurfaces:
+        """Analyze API surfaces for one updated scope."""
+        logger.info("[IncrementalAgent] Analyzing API surfaces for scope: %s", scope_name)
         meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
         project_type = self.meta_context.project_type if self.meta_context else "unknown"
-        component_summaries = "\n".join(c.llm_str() for c in scope.components)
-        cross_calls = self.build_scope_cfg_string(scope)
-
-        prompt_template = PromptTemplate(
-            template=get_scope_relations_message(),
-            input_variables=[
-                "scope_name",
-                "project_name",
-                "meta_context",
-                "project_type",
-                "component_summaries",
-                "cross_component_calls",
-            ],
-        )
-        prompt = prompt_template.format(
-            scope_name=scope_name,
+        prompt = self.prompts["api_surfaces"].format(
             project_name=self.project_name,
+            component_summaries=ComponentArchitecture(
+                description=scope.description, components=scope.components
+            ).llm_str(),
+            static_call_evidence=self.build_scope_cfg_string(scope),
             meta_context=meta_context_str,
             project_type=project_type,
-            component_summaries=component_summaries,
-            cross_component_calls=cross_calls,
+        )
+        return self._validation_invoke(
+            prompt,
+            ComponentApiSurfaces,
+            validators=[],
+            context=None,
+            max_validation_attempts=1,
         )
 
-        valid_names = {c.name for c in scope.components}
-        result: ScopeRelations = self._validation_invoke(
+    @trace
+    def step_relation_analysis(
+        self,
+        scope: AnalysisInsights,
+        scope_name: str,
+        api_surfaces: ComponentApiSurfaces,
+        cluster_analysis: ClusterAnalysis,
+        cluster_results: dict[str, ClusterResult],
+        cfg_graphs: dict[str, CallGraph],
+    ) -> list[Relation]:
+        """Discover evidence-backed relations and attach deterministic CFG edges."""
+        logger.info("[IncrementalAgent] Discovering component relations for scope: %s", scope_name)
+        meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
+        project_type = self.meta_context.project_type if self.meta_context else "unknown"
+        self.toolkit.context.cluster_analysis = cluster_analysis
+        self.toolkit.context.cluster_results = cluster_results
+        self.toolkit.context.cfg_graphs = cfg_graphs
+        prompt = self.prompts["relation_analysis"].format(
+            project_name=self.project_name,
+            component_summaries=ComponentArchitecture(
+                description=scope.description, components=scope.components
+            ).llm_str(),
+            api_surfaces=api_surfaces.llm_str(),
+            static_call_evidence=self.build_scope_cfg_string(scope),
+            meta_context=meta_context_str,
+            project_type=project_type,
+        )
+        relation_result: ComponentRelations = self._validation_invoke(
             prompt,
-            ScopeRelations,
-            validators=[validate_scope_relation_names],
-            context=ValidationContext(valid_component_names=valid_names),
+            ComponentRelations,
+            validators=[validate_relations],
+            context=ValidationContext(
+                cluster_results=cluster_results,
+                cfg_graphs=cfg_graphs,
+                repo_dir=str(self.repo_dir),
+                static_analysis=self.static_analysis,
+                llm_cluster_analysis=cluster_analysis,
+                components=scope.components,
+            ),
             max_validation_attempts=3,
         )
+        scope.components_relations = relation_result.components_relations
+        assign_relation_ids(scope)
+        self.build_static_relations(scope, cfg_graphs)
+        self.reference_resolver.fix_source_code_reference_lines(scope)
+        return relation_result.components_relations
 
-        existing_static = [r for r in scope.components_relations if r.is_static]
-        static_relations = [
-            ClusterRelation(
-                src_cluster_id=relation.src_id,
-                dst_cluster_id=relation.dst_id,
-                all_edges=relation.all_edges,
-            )
-            for relation in existing_static
-        ]
-        merged = merge_relations(result.components_relations, static_relations, scope)
+    @trace
+    def generate_scope_relations(
+        self,
+        scope: AnalysisInsights,
+        scope_name: str,
+        cluster_results: dict[str, ClusterResult] | None = None,
+        cfg_graphs: dict[str, CallGraph] | None = None,
+    ) -> list[Relation]:
+        """Run the API-surface and relation stages for one updated scope."""
+        if len(scope.components) < 2:
+            scope.components_relations = []
+            self.reference_resolver.fix_source_code_reference_lines(scope)
+            return []
 
-        scope.components_relations = merged
-        return result.components_relations
+        if cluster_results is None or cfg_graphs is None:
+            context = self._scope_contexts().get(scope_name)
+            if context is None:
+                raise IncrementalScopeContextMissingError(scope_name)
+            cluster_results = context.cluster_results
+            cfg_graphs = context.cfg_graphs
+
+        cluster_analysis = _cluster_analysis_for_scope(scope, scope_name, cluster_results)
+        api_surfaces = self.step_api_surfaces(scope, scope_name)
+        return self.step_relation_analysis(
+            scope,
+            scope_name,
+            api_surfaces,
+            cluster_analysis,
+            cluster_results,
+            cfg_graphs,
+        )
 
     @trace
     def generate_all_scope_relations(
@@ -260,11 +367,11 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
     ) -> None:
         """Generate LLM relations for every touched scope with at least two components."""
         all_llm_rels: list[tuple[str, list[Relation]]] = []
-        if "" in touched_scopes:
-            rels = self.generate_scope_relations(root_analysis, "root")
+        if ROOT_SCOPE_ID in touched_scopes:
+            rels = self.generate_scope_relations(root_analysis, ROOT_SCOPE_ID)
             if rels:
-                all_llm_rels.append(("root", rels))
-        for scope_id in sorted(touched_scopes - {""}):
+                all_llm_rels.append((ROOT_SCOPE_ID, rels))
+        for scope_id in sorted(touched_scopes - {ROOT_SCOPE_ID}):
             sub = sub_analyses.get(scope_id)
             if sub is not None:
                 rels = self.generate_scope_relations(sub, scope_id)
@@ -273,6 +380,57 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
 
         if all_llm_rels:
             _log_scope_relations_summary(all_llm_rels)
+
+    def _scope_contexts(self) -> dict[str, _ScopeRelationContext]:
+        contexts = getattr(self, "_scope_relation_contexts", None)
+        if contexts is None:
+            contexts = {}
+            self._scope_relation_contexts = contexts
+        return contexts
+
+
+def _cluster_analysis_for_scope(
+    scope: AnalysisInsights,
+    scope_id: str,
+    cluster_results: dict[str, ClusterResult],
+) -> ClusterAnalysis:
+    """Reconstruct grouped-cluster context for a persisted incremental scope."""
+    valid_cluster_ids = {
+        cluster_id for cluster_result in cluster_results.values() for cluster_id in cluster_result.clusters
+    }
+    groups: list[ClustersComponent] = []
+    for component in scope.components:
+        cluster_ids = _local_graph_cluster_ids(component.source_cluster_ids, scope_id, valid_cluster_ids)
+        if not component.source_group_names:
+            component.source_group_names = [component.name]
+        for group_name in component.source_group_names:
+            groups.append(
+                ClustersComponent(
+                    name=group_name,
+                    cluster_ids=cluster_ids,
+                    description=component.description,
+                )
+            )
+    return ClusterAnalysis(cluster_components=groups)
+
+
+def _local_graph_cluster_ids(
+    source_cluster_ids: list[str],
+    scope_id: str,
+    valid_cluster_ids: set[int],
+) -> list[int]:
+    prefix = "" if scope_id == ROOT_SCOPE_ID else f"{scope_id}."
+    local_ids: set[int] = set()
+    for source_cluster_id in source_cluster_ids:
+        if prefix:
+            if not source_cluster_id.startswith(prefix):
+                continue
+            local_id = source_cluster_id.removeprefix(prefix)
+        else:
+            local_id = source_cluster_id
+        if local_id.isdigit() and int(local_id) in valid_cluster_ids:
+            local_ids.add(int(local_id))
+    return sorted(local_ids)
 
 
 def _log_scope_relations_summary(all_rels: list[tuple[str, list[Relation]]]) -> None:

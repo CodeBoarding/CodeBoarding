@@ -34,7 +34,7 @@ from diagram_analysis.analysis_json import (
 )
 from diagram_analysis.cluster_delta import ClusterMemberDelta, ClusterRef, LanguageStructuralDiff, StructuralClusterDiff
 from diagram_analysis.diagram_generator import DiagramGenerator, _component_depth, _component_expansion_seeds
-from diagram_analysis.exceptions import IncrementalCacheMissingError
+from diagram_analysis.exceptions import IncrementalCacheMissingError, IncrementalScopeRegenerationRequiredError
 from repo_utils.change_detector import ChangeSet
 from static_analyzer.analysis_cache import StaticAnalysisCache
 from static_analyzer.analysis_result import StaticAnalysisResults
@@ -1093,6 +1093,58 @@ class TestDiagramGenerator(unittest.TestCase):
         self.assertEqual([component.component_id for component in expanded_components], ["1.1"])
         self.assertEqual(set(sub_analyses), {"1.1"})
         self.assertEqual(mock_save_analysis.call_count, 1)
+
+    def test_removed_only_incremental_update_marks_scope_for_relation_refresh(self):
+        gen = DiagramGenerator(
+            repo_location=self.repo_location,
+            temp_folder=self.temp_folder,
+            repo_name="test_repo",
+            output_dir=self.output_dir,
+            depth_level=2,
+            run_id="test-run-id",
+            log_path="test_repo/test-run-log",
+        )
+        planning_agent = MagicMock()
+        incremental_agent = MagicMock()
+        incremental_agent.update_scope.return_value = ScopeUpdateResult(removed_ids={"2"})
+        scope = AnalysisInsights(description="root", components=[], components_relations=[])
+
+        result = gen._apply_incremental_scope_recursively(
+            "root",
+            scope,
+            StructuralClusterDiff(),
+            {},
+            planning_agent,
+            incremental_agent,
+            {},
+        )
+
+        self.assertEqual(result.touched_scopes, {"root"})
+
+    def test_incremental_regeneration_request_fails_instead_of_running_full(self):
+        gen = DiagramGenerator(
+            repo_location=self.repo_location,
+            temp_folder=self.temp_folder,
+            repo_name="test_repo",
+            output_dir=self.output_dir,
+            depth_level=2,
+            run_id="test-run-id",
+            log_path="test_repo/test-run-log",
+        )
+        incremental_agent = MagicMock()
+        incremental_agent.update_scope.return_value = ScopeUpdateResult(regenerate_scope=True)
+        scope = AnalysisInsights(description="root", components=[], components_relations=[])
+
+        with self.assertRaises(IncrementalScopeRegenerationRequiredError):
+            gen._apply_incremental_scope_recursively(
+                "root",
+                scope,
+                StructuralClusterDiff(),
+                {},
+                MagicMock(),
+                incremental_agent,
+                {},
+            )
 
     @patch("diagram_analysis.diagram_generator.save_analysis")
     @patch("diagram_analysis.diagram_generator.prune_empty_components", return_value=set())

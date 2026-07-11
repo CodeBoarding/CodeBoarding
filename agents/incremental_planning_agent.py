@@ -29,6 +29,7 @@ from diagram_analysis.cluster_delta import (
     LanguageStructuralDiff,
     StructuralClusterDiff,
 )
+from diagram_analysis.exceptions import InvalidIncrementalPlanError, IncrementalScopeRegenerationRequiredError
 from repo_utils.change_detector import ChangeSet
 from static_analyzer.analysis_result import StaticAnalysisResults
 from telemetry.service import telemetry
@@ -37,10 +38,21 @@ from telemetry.service import telemetry
 logger = logging.getLogger(__name__)
 
 
+_ARCHITECTURE_OUTPUT_CONTRACT = """
+
+## Architecture output contract
+- This step plans component boundaries only. Do not define component relations; API surfaces and relations are generated later.
+- Preserve an existing component's name, description, and key entities unless its architectural responsibility changed.
+- For create_component, provide a clear name and description plus 1-5 key_entities using exact qualified names from the structural diff or source tools.
+- For update_component, include refreshed name, description, or key_entities only when the component's responsibility changed. An empty key_entities list preserves the current selection.
+"""
+
+
 @dataclass
 class ScopeOperationValidationContext:
     expected_cluster_refs: set[ClusterRef] = field(default_factory=set)
     existing_component_ids: set[str] = field(default_factory=set)
+    known_qnames: set[str] = field(default_factory=set)
     scope_id: str = ROOT_SCOPE_ID
 
 
@@ -96,9 +108,11 @@ class IncrementalPlanningAgent(CodeBoardingAgent):
             changed_files=_format_changed_files(self.toolkit.context.changes),
             structural_diff=format_structural_diff(structural_diff),
         )
+        prompt += _ARCHITECTURE_OUTPUT_CONTRACT
         context = ScopeOperationValidationContext(
             expected_cluster_refs=_actionable_new_cluster_refs(structural_diff),
             existing_component_ids={component.component_id for component in scope.components if component.component_id},
+            known_qnames=_known_qnames(self.static_analysis),
             scope_id=scope_id,
         )
         decision = self._validation_invoke(
@@ -111,10 +125,14 @@ class IncrementalPlanningAgent(CodeBoardingAgent):
         validation = validate_scope_update_decision(decision, context)
         if not validation.is_valid:
             logger.error(
-                "Incremental planning decision remained invalid after retries; will still pass it on. Issues: %s",
+                "Incremental planning decision remained invalid after retries: %s",
                 validation.feedback_messages,
             )
             _track_invalid_planning_decision(scope_id, validation.feedback_messages)
+            raise InvalidIncrementalPlanError(scope_id, validation.feedback_messages)
+        for operation in decision.operations:
+            if operation.action == ScopeOperationAction.REGENERATE_SCOPE:
+                raise IncrementalScopeRegenerationRequiredError(scope_id, operation.rationale)
         return decision
 
 
@@ -152,6 +170,21 @@ def validate_scope_update_decision(
         if operation.action == ScopeOperationAction.CREATE_COMPONENT:
             if not operation.name or not operation.description:
                 errors.append("create_component operations must include name and description.")
+            if not operation.key_entities:
+                errors.append("create_component operations must include at least one key entity.")
+        if operation.action == ScopeOperationAction.NOOP and (
+            operation.name or operation.description or operation.key_entities
+        ):
+            errors.append("noop operations must preserve the component name, description, and key entities.")
+        if len(operation.key_entities) > 5:
+            errors.append(f"Operation {operation.action} includes more than five key entities.")
+        entity_qnames = [entity.qualified_name for entity in operation.key_entities]
+        duplicate_qnames = {qname for qname in entity_qnames if entity_qnames.count(qname) > 1}
+        if duplicate_qnames:
+            errors.append(f"Operation {operation.action} repeats key entities: {sorted(duplicate_qnames)}.")
+        unknown_qnames = set(entity_qnames) - context.known_qnames
+        if context.known_qnames and unknown_qnames:
+            errors.append(f"Operation {operation.action} references unknown key entities: {sorted(unknown_qnames)}.")
 
     seen_set = set(seen_refs)
     missing = context.expected_cluster_refs - seen_set
@@ -253,12 +286,15 @@ def _actionable_new_cluster_refs(structural_diff: StructuralClusterDiff) -> set[
 def _format_scope_components(components: list[Component]) -> str:
     if not components:
         return "No existing components in this scope."
-    return "\n".join(
-        f'- {component.component_id or "?"} "{component.name}" '
-        f"clusters=[{_format_component_cluster_ids(component.source_cluster_ids)}] -- "
-        f"{(component.description or '').strip()}"
-        for component in components
-    )
+    lines: list[str] = []
+    for component in components:
+        key_entities = ", ".join(entity.qualified_name for entity in component.key_entities) or "None"
+        lines.append(
+            f'- {component.component_id or "?"} "{component.name}" '
+            f"clusters=[{_format_component_cluster_ids(component.source_cluster_ids)}] -- "
+            f"{(component.description or '').strip()} -- key_entities=[{key_entities}]"
+        )
+    return "\n".join(lines)
 
 
 def _format_component_cluster_ids(cluster_ids: list[str]) -> str:
@@ -275,6 +311,16 @@ def _format_changed_files(changes: ChangeSet | None) -> str:
         else:
             lines.append(f"- {file_change.status_code} {file_change.file_path}")
     return "\n".join(lines)
+
+
+def _known_qnames(static_analysis: StaticAnalysisResults) -> set[str]:
+    qnames: set[str] = set()
+    for language in static_analysis.get_languages():
+        try:
+            qnames.update(static_analysis.get_cfg(language).nodes)
+        except (KeyError, ValueError):
+            continue
+    return qnames
 
 
 def _format_cluster_ref(ref: ClusterRef) -> str:

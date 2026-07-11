@@ -42,6 +42,8 @@ from agents.agent_responses import (
     AnalysisInsights,
     Component,
     Relation,
+    RelationEdge,
+    SourceCodeReference,
     assign_component_ids,
 )
 from agents.file_index_models import FileMethodGroup, MethodEntry
@@ -402,6 +404,27 @@ class TestLabelInheritance(unittest.TestCase):
         # search ran; "calls" would also be the fallback and hide a regression.
         r = self.by_pair[("1.1.1", "2.1.2")]
         self.assertEqual(r.relation, "orchestrates")
+
+    def test_ancestor_evidence_and_key_edges_are_preserved(self):
+        root = _build_root_analysis()
+        root_relation = root.components_relations[0]
+        root_relation.evidence = "The public API invokes core services."
+        root_relation.key_edges = [
+            RelationEdge(
+                source=SourceCodeReference(qualified_name="api.rest.list", reference_file="api/public/rest.py"),
+                target=SourceCodeReference(qualified_name="core.profiles.get", reference_file="core/users/profiles.py"),
+                description="List requests load profiles.",
+            )
+        ]
+
+        relations = build_global_relations(root, _build_sub_analyses(), {"python": _build_cfg()})
+        relation = next(item for item in relations if (item.src_id, item.dst_id) == ("1.1.1", "2.1.2"))
+
+        self.assertEqual(relation.evidence, root_relation.evidence)
+        self.assertEqual(relation.key_edges, root_relation.key_edges)
+        self.assertGreaterEqual(len(relation.all_edges), 1)
+        unrelated = next(item for item in relations if (item.src_id, item.dst_id) == ("1.1.1", "2.1.1"))
+        self.assertEqual(unrelated.key_edges, [])
 
     def test_llm_only_relation_survives_with_payload(self):
         # "2.1"->"2.2" ("bills") has no CFG edge crossing Users->Billing, so it
