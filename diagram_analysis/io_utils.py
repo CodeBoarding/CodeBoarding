@@ -247,18 +247,7 @@ class _AnalysisFileStore:
             sub_analyses=sub_analyses_tuples,
             file_coverage_summary=file_coverage_summary,
         )
-        tmp_fd, tmp_name = tempfile.mkstemp(
-            prefix=f".{self._analysis_path.name}.",
-            dir=str(self._analysis_path.parent),
-        )
-        try:
-            with os.fdopen(tmp_fd, "w", encoding="utf-8") as f:
-                f.write(payload)
-            os.replace(tmp_name, self._analysis_path)
-        except Exception:
-            Path(tmp_name).unlink(missing_ok=True)
-            raise
-
+        write_text_atomic(self._analysis_path, payload)
         return self._analysis_path
 
 
@@ -315,15 +304,27 @@ def load_analysis_metadata(output_dir: Path) -> dict | None:
     return result[2].get("metadata")
 
 
+def write_text_atomic(path: Path, text: str) -> None:
+    """Write *text* to *path* via a temp file + ``os.replace`` so a crash mid-write
+    can't leave a truncated file. Creates parent dirs."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(prefix=f".{path.name}.", dir=str(path.parent))
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(text)
+        os.replace(tmp, path)
+    except Exception:
+        Path(tmp).unlink(missing_ok=True)
+        raise
+
+
 # Whole-tree fingerprint sidecar. analysis.json's ``files`` block covers only
 # component-assigned files; the sidecar covers the whole analyzable tree, so the
 # incremental diff also sees changes to docs/configs/unclustered source.
 def write_fingerprint(output_dir: Path, file_hashes: dict[str, str]) -> None:
     """Persist the whole-tree fingerprint next to ``analysis.json``. Best-effort."""
     try:
-        (Path(output_dir) / FINGERPRINT_FILENAME).write_text(
-            json.dumps({"files": file_hashes}, indent=2), encoding="utf-8"
-        )
+        write_text_atomic(Path(output_dir) / FINGERPRINT_FILENAME, json.dumps({"files": file_hashes}, indent=2))
     except OSError as exc:
         logger.warning("Failed to write fingerprint sidecar (continuing): %s", exc)
 

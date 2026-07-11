@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import logging
 import subprocess
-from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -28,8 +27,7 @@ logger = logging.getLogger(__name__)
 # Why: ``subprocess.run(..., text=True)`` without an explicit encoding decodes
 # stdout/stderr through ``locale.getpreferredencoding()`` — on Windows that's
 # typically cp1252 and raises ``UnicodeDecodeError`` on UTF-8 bytes git emits
-# for non-ASCII paths or translated error messages. ``read_file_at_ref`` uses
-# the same UTF-8 + replace strategy on its raw bytes.
+# for non-ASCII paths or translated error messages.
 _GIT_TEXT_KWARGS: dict[str, Any] = {"text": True, "encoding": "utf-8", "errors": "replace"}
 
 
@@ -135,80 +133,6 @@ def get_changed_files_since(repo_dir: Path, from_commit: str) -> set[Path]:
     changed.update(_list_uncommitted_changed_files(repo_dir))
     logger.info("Found %d changed files since commit %s", len(changed), from_commit)
     return changed
-
-
-def read_file_at_ref(repo_dir: Path, ref: str, file_path: str) -> str | None:
-    """Return the contents of *file_path* at *ref*, or ``None`` if unreadable.
-
-    Wraps ``git show <ref>:<file>``. Non-raising on any git or OS error
-    (missing ref, file not present at that ref, git not installed) — callers
-    treat absence as "fall back to worktree". UTF-8 decoded with ``replace``.
-    """
-    # git show requires posix separators; harden against a Windows-style relative path.
-    posix_path = file_path.replace("\\", "/")
-    try:
-        result = subprocess.run(
-            _git_argv("show", f"{ref}:{posix_path}"),
-            cwd=repo_dir,
-            capture_output=True,
-            check=True,
-        )
-    except (subprocess.CalledProcessError, FileNotFoundError, OSError):
-        return None
-    return result.stdout.decode("utf-8", errors="replace")
-
-
-def resolve_ref(repo_dir: Path, ref: str) -> str | None:
-    """Resolve *ref* (branch/tag/SHA) to its full commit SHA, or ``None`` on failure."""
-    try:
-        result = subprocess.run(
-            _git_argv("rev-parse", "--verify", ref),
-            cwd=repo_dir,
-            capture_output=True,
-            **_GIT_TEXT_KWARGS,
-            check=True,
-        )
-    except (OSError, subprocess.CalledProcessError):
-        return None
-    return result.stdout.strip() or None
-
-
-def git_object_type(repo_dir: Path, ref: str) -> str | None:
-    """Return ``commit``/``tree``/``blob``/``tag`` for *ref*, or ``None``.
-
-    Why: incremental callers may pass a tree SHA (or a ``<commit>^{tree}``
-    revspec) as a base/target ref. Validation paths that only make sense for
-    commit-ish refs (HEAD-match, dirty-worktree) need to skip on tree refs.
-    """
-    try:
-        result = subprocess.run(
-            _git_argv("cat-file", "-t", ref),
-            cwd=repo_dir,
-            capture_output=True,
-            **_GIT_TEXT_KWARGS,
-            check=True,
-        )
-    except (OSError, subprocess.CalledProcessError):
-        return None
-    return result.stdout.strip() or None
-
-
-def worktree_has_changes(repo_dir: Path, *, exclude_patterns: Sequence[str] = ()) -> bool:
-    """Return True if the worktree has any tracked/untracked changes.
-
-    Uses ``git status --porcelain --untracked-files=all`` with optional
-    pathspec excludes (e.g. the ``.codeboarding`` output directory). On any
-    git failure, conservatively returns True — callers use this to decide
-    whether to treat the tree as dirty, and "treat as dirty" is the safe
-    default when we cannot tell.
-    """
-    cmd = _git_argv("status", "--porcelain", "--untracked-files=all", "--", ".")
-    cmd.extend(f":!{pattern}" for pattern in exclude_patterns)
-    try:
-        result = subprocess.run(cmd, cwd=repo_dir, capture_output=True, **_GIT_TEXT_KWARGS, check=True)
-    except (OSError, subprocess.CalledProcessError):
-        return True
-    return bool(result.stdout.strip())
 
 
 def approve_https_credentials(*, host: str, username: str, password: str, protocol: str = "https") -> None:

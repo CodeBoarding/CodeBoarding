@@ -48,7 +48,7 @@ from diagram_analysis.cluster_snapshot import (
 )
 from diagram_analysis.exceptions import IncrementalCacheMissingError
 from diagram_analysis.file_coverage import FileCoverage
-from diagram_analysis.io_utils import normalize_repo_path, save_analysis, write_fingerprint
+from diagram_analysis.io_utils import load_analysis_metadata, normalize_repo_path, save_analysis, write_fingerprint
 from health.config import initialize_health_dir, load_health_config
 from health.runner import run_health_checks
 from monitoring import StreamingStatsWriter
@@ -114,13 +114,9 @@ class DiagramGenerator:
         # the prior analysis (see ``compute_cluster_delta``). ``None`` runs
         # unscoped (no drift filtering).
         self.changes: ChangeSet | None = changes
-        # Optional canonical source-state identifier (e.g. a git tree SHA
-        # over HEAD + dirty overlay), stamped into the pkl's sibling .sha
-        # file as the diff base for the next warm-start. Used by Core's
-        # ``_update_cached_results`` to compute "what files changed since
-        # this pkl was saved" — NOT a cache gate. Set externally —
-        # typically by the wrapper, which has the snapshot's tree SHA
-        # at run-prepare time. ``None`` is a tag-less save.
+        # Whole-tree content hash, stamped into the pkl's sibling .sha file as the
+        # diff base for the next warm-start (NOT a cache gate). ``pre_analysis``
+        # fills it from the live tree when unset; ``None`` is a tag-less save.
         self.source_sha: str | None = None
         # Whole-tree ``{posix_path: sha16}`` fingerprint, computed once per run and
         # reused for source_sha, the sidecar, and every save's source_tree_hash
@@ -575,17 +571,23 @@ class DiagramGenerator:
         """Shared post-analysis tail for every flow: finalize, persist, return the path.
 
         ``finalize_for_save`` then ``save_analysis`` (stamped with the current
-        commit hash and file-coverage summary). ``seed_delta`` is the
+        ``source_tree_hash`` and file-coverage summary). ``seed_delta`` is the
         incremental-only cluster baseline, seeded *after* the save so a crash in
         between re-does the delta (idempotent) rather than silently skipping it.
 
-        ``persist_side_artifacts`` writes ``file_coverage.json`` and the static-
-        analysis cache. The partial flow sets this False: it never re-runs static
-        analysis with a fresh ``source_sha``, and persisting the artifact would
-        drop the existing ``static_analysis.sha`` tag, forcing the next
-        incremental run to cold-start instead of reusing the warm cache.
+        ``persist_side_artifacts`` writes ``file_coverage.json``, the static-
+        analysis cache, and the ``fingerprint.json`` sidecar. The partial flow
+        sets it False: it regenerates one component, not the source state, so
+        rewriting those would drop the ``static_analysis.sha`` tag (cold-starting
+        the next incremental) and desync the sidecar from ``source_tree_hash``.
         """
         self.finalize_for_save(root_analysis, sub_analyses)
+        if persist_side_artifacts:
+            source_tree_hash = self._source_tree_hash()
+        else:
+            # Partial: keep the prior hash so metadata matches the unrewritten sidecar.
+            prior_metadata = load_analysis_metadata(Path(self.output_dir)) or {}
+            source_tree_hash = prior_metadata.get("source_tree_hash", "") or self._source_tree_hash()
         analysis_path = save_analysis(
             analysis=root_analysis,
             output_dir=Path(self.output_dir),
@@ -593,7 +595,7 @@ class DiagramGenerator:
             repo_name=self.repo_name,
             file_coverage_summary=self._build_file_coverage_summary(),
             repo_dir=self.repo_location,
-            source_tree_hash=self._source_tree_hash(),
+            source_tree_hash=source_tree_hash,
         ).resolve()
         if seed_delta is not None:
             self._seed_incremental_cluster_cache(seed_delta)

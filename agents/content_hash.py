@@ -78,7 +78,7 @@ def tree_hash_from_file_hashes(file_hashes: dict[str, str]) -> str:
     parts = [f"{path}:{digest}" for path, digest in sorted(file_hashes.items()) if digest]
     if not parts:
         return ""
-    return hashlib.sha256("\n".join(parts).encode(SOURCE_ENCODING)).hexdigest()
+    return hashlib.sha256("\n".join(parts).encode(SOURCE_ENCODING, errors=SOURCE_DECODE_ERRORS)).hexdigest()
 
 
 def hash_repo_source_files(repo_dir: Path) -> dict[str, str]:

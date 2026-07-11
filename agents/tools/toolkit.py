@@ -12,7 +12,7 @@ from .component_bridge_edges import ComponentBridgeEdgesTool
 from .read_file import ReadFileTool
 from .read_docs import ReadDocsTool
 from .get_external_deps import ExternalDepsTool
-from .read_git_diff import ListGitChangesTool
+from .list_git_changes import ListGitChangesTool
 from core import load_plugin_tools
 
 logger = logging.getLogger(__name__)
