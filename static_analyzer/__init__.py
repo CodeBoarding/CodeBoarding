@@ -331,7 +331,7 @@ class StaticAnalyzer:
         before teardown (e.g. snapshot promotion, capture tooling) can invoke
         this explicitly after the run completes.
         """
-        if self._cached_results is None:
+        if not self._persist_cache or self._cached_results is None:
             return
         try:
             StaticAnalysisCache(self._pending_cache_dir, self.repository_path).save(
@@ -389,6 +389,9 @@ class StaticAnalyzer:
         if cached_results is not None:
             self._cached_results = cached_results
             self.collected_diagnostics = cached_results.diagnostics
+            # Health/status consumers load this artifact read-only. Re-saving it
+            # on shutdown would use no pending SHA and strip its valid sidecar.
+            self._persist_cache = False
         return cached_results
 
     def notify_file_changed(self, file_path: Path, content: str) -> None:

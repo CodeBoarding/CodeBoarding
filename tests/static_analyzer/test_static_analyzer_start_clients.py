@@ -207,3 +207,19 @@ class TestFlushCacheRespectsCacheDir:
 
         default_pkl = get_artifact_dir(analyzer.repository_path) / "static_analysis.pkl"
         assert default_pkl.exists()
+
+
+class TestLoadFromDiskCache:
+    def test_loaded_artifact_is_not_rewritten_without_source_sha(
+        self, analyzer: StaticAnalyzer, tmp_path: Path
+    ) -> None:
+        cached_results = StaticAnalysisResults()
+
+        with (
+            patch("static_analyzer.StaticAnalysisCache.get", return_value=cached_results),
+            patch("static_analyzer.StaticAnalysisCache.save") as save,
+        ):
+            assert analyzer.load_from_disk_cache(artifact_dir=tmp_path) is cached_results
+            analyzer.flush_cache()
+
+        save.assert_not_called()
