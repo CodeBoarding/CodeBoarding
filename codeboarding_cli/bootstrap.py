@@ -1,10 +1,10 @@
 import argparse
 import logging
-from dataclasses import dataclass
 from pathlib import Path
 
 from agents.llm_config import configure_models, validate_api_key_provided
 from core import get_registries, load_plugins
+from diagram_analysis.run_context import RunPaths
 from install import ensure_tools
 from logging_config import setup_logging
 from user_config import ensure_config_template, load_user_config
@@ -14,16 +14,7 @@ from vscode_constants import update_config
 logger = logging.getLogger(__name__)
 
 
-@dataclass(frozen=True)
-class LocalRunPaths:
-    """Paths and name derived from CLI args for local-mode commands."""
-
-    repo_path: Path
-    output_dir: Path
-    project_name: str
-
-
-def resolve_local_run_paths(args: argparse.Namespace) -> LocalRunPaths:
+def resolve_local_run_paths(args: argparse.Namespace) -> RunPaths:
     """Derive the paths + project name shared by all local-mode commands.
 
     Pure: no I/O, no mkdir. Callers decide when to create the output directory,
@@ -32,7 +23,7 @@ def resolve_local_run_paths(args: argparse.Namespace) -> LocalRunPaths:
     repo_path = args.local.resolve()
     output_dir = args.output_dir.resolve() if args.output_dir else repo_path / CODEBOARDING_DIR_NAME
     project_name = args.project_name or repo_path.name
-    return LocalRunPaths(repo_path=repo_path, output_dir=output_dir, project_name=project_name)
+    return RunPaths(repo_path=repo_path, output_dir=output_dir, project_name=project_name)
 
 
 def bootstrap_environment(output_dir: Path, binary_location: Path | None) -> None:

@@ -20,18 +20,24 @@
 - **Keep comments and docstrings terse**: write a one-line summary. Add a short `Why:` line only when the rationale is non-obvious. Do NOT narrate diff history (`"Previously X did Y"`), name internal bug tickets (`"V4 reproducer"`, `"Bug C"`), reference line numbers in third-party files (they rot), or re-state what type hints already say. If the prose is longer than the code it documents, delete the prose. See `REVIEW.md` §10 "Comment & Docstring Bloat" for the full checklist.
 - **Don't re-paste module docstrings across submodules**: a package-layout explanation belongs once in `__init__.py`, not copied into every sibling file.
 - **Test docstrings should add information**: if a test is named `test_rejects_none`, the docstring `"""Test that None is rejected."""` is pure noise — delete it. Only add a docstring when there's a non-obvious *reason* the test exists.
+- **Don't make a field nullable just to satisfy a test or a fixture**: for new code, prefer a non-nullable type with a real default (a resolved value, empty string, empty list, or `False`). If a test constructs the object without the value, fix the test to pass a real one rather than widening the production type to `| None`. Reserve `| None` for values genuinely absent at a real runtime boundary, and note why.
 
 ### 4. Execution Flow and Tool Patterns
 - **Understand the analysis pipeline**: CodeBoarding processes repositories in stages: ProjectScanner → StaticAnalyzer (via LSP clients) → DiagramGenerator (LLM agents) → Output generators. When investigating issues, trace through this pipeline in order.
 - **Multiple LLM providers supported**: The system supports OpenAI, Anthropic Claude, Google Gemini, AWS Bedrock, Ollama, and others. Configuration is provider-agnostic via environment variables; verify the correct provider is set in `.env`.
 - **Language Server Protocol (LSP) integration**: Static analysis runs via LSP servers configured in `static_analysis_config.yml`. Supported languages include Python, TypeScript, Go, PHP, and Java. LSP servers are installed by `setup.py`.
 
-### 5. Git Workflow and Branch Management
+### 5. Fail Fast — Never Silently Degrade on Unexpected State
+- **Raise, don't silently fall back**: when an operation cannot do what the caller asked — and doing something *else* would have large, surprising impact — raise a specific exception instead of quietly substituting different behavior. The caller decides how to recover.
+- **Incremental never silently becomes full**: if incremental analysis cannot proceed (no baseline, a baseline that predates content versioning, an unindexable/unparseable file, an empty or untrustworthy change set), raise (`BaselineUnavailableError` / `IncrementalCacheMissingError`) so the surface layer can prompt "run a full analysis first". Do NOT run a full analysis, return an empty-but-successful update, or mark every method deleted. A silent full run discards the existing depth/component IDs and misleads the user into thinking the incremental succeeded.
+- **Prefer a loud, specific error over a plausible-but-wrong result**: a missed change that the user never learns about is worse than a clear failure they can act on. Reserve graceful degradation for genuinely non-critical, clearly-logged paths.
+
+### 6. Git Workflow and Branch Management
 - **Main branch is `main`**: When creating PRs, the base branch is `main`. The current working branch for agent operations should respect this structure.
 - **Commit messages should be descriptive**: Reference related issues and describe the "why" rather than just the "what". Follow existing commit patterns in the repo history.
 - **Run pre-commit hooks locally**: Execute `git commit` with the pre-commit hooks enabled to catch formatting and type errors before pushing. This mirrors the CI/CD validation.
 
-### 6. Output and Logging
+### 7. Output and Logging
 - **Logging is centralized**: Review `logging_config.py` for logging configuration. Structured logging is used throughout the project; integrate logs into this system rather than using ad-hoc print statements.
 - **Multiple output formats supported**: The project generates Markdown, HTML, MDX, and Sphinx documentation. When adding features, consider all output generators if they are affected.
 - **Monitor execution stats**: The `monitoring/` directory provides `StreamingStatsWriter` for tracking LLM usage and performance metrics. Use this for tracking long-running operations.

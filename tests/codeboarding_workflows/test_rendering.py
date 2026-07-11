@@ -136,7 +136,6 @@ def _make_depth3_unified_json() -> dict:
     return {
         "metadata": {
             "generated_at": "2026-01-01T00:00:00+00:00",
-            "commit_hash": "deadbeef",
             "repo_name": "fake",
             "depth_level": 3,
             "file_coverage_summary": {

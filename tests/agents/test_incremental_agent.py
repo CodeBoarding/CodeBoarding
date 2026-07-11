@@ -4,8 +4,6 @@ from unittest.mock import MagicMock
 from agents.agent_responses import (
     AnalysisInsights,
     Component,
-    FileMethodGroup,
-    MethodEntry,
     Relation,
     SourceCodeReference,
     ScopeOperation,
@@ -13,6 +11,7 @@ from agents.agent_responses import (
     ScopedClusterRef,
     ScopeUpdateDecision,
 )
+from agents.file_index_models import FileMethodGroup, MethodEntry
 from agents.incremental_agent import IncrementalAgent, _patch_file_methods, prune_empty_components, remove_deleted_files
 from static_analyzer.graph import ClusterResult
 

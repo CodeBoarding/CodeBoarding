@@ -1,6 +1,7 @@
-"""Domain model for git-diff-derived changes.
+"""Domain model for the incremental change set.
 
-Pure data + methods, no I/O. Produced by :func:`repo_utils.diff_parser.detect_changes`,
+Pure data + methods, no I/O. Produced by the content-hash fingerprint diff
+(:func:`repo_utils.fingerprint_diff.detect_changes_from_fingerprint`),
 consumed by the incremental analysis pipeline:
 
 - file-level accessors: ``added_files``, ``modified_files``, ``deleted_files``,
@@ -14,7 +15,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum
 
-from agents.agent_responses import MethodEntry
+from agents.file_index_models import MethodEntry
 from agents.change_status import ChangeStatus
 
 
@@ -222,15 +223,13 @@ class FileChange:
 
 @dataclass
 class ChangeSet:
-    """The set of file changes detected between two git refs.
+    """A set of file (and per-file method) changes between two source states.
 
-    Built from ``git diff --raw`` output by :func:`repo_utils.diff_parser.detect_changes`.
-    Empty ``files`` + non-None ``error`` means the diff invocation failed —
-    callers check ``error`` first.
+    Produced from a content-hash fingerprint diff (:meth:`from_changed_files`).
+    Empty ``files`` + non-None ``error`` means detection failed — callers check
+    ``error`` first.
     """
 
-    base_ref: str
-    target_ref: str
     files: list[FileChange] = field(default_factory=list)
     error: str | None = None
 
@@ -287,9 +286,22 @@ class ChangeSet:
                 }
                 for f in self.files
             ],
-            "base_ref": self.base_ref,
-            "target_ref": self.target_ref,
         }
+
+    @classmethod
+    def from_changed_files(cls, added: list[str], modified: list[str], deleted: list[str]) -> ChangeSet:
+        """Build a hunk-less ChangeSet from explicit changed-file lists.
+
+        The content-hash path diffs two per-file fingerprint maps and hands us
+        the result. Incremental scoping (``cluster_delta``) reads only
+        ``file_path`` / ``old_path``, so the absent hunks/patch text are fine.
+        """
+        files = (
+            [FileChange(status_code="A", file_path=p) for p in added]
+            + [FileChange(status_code="M", file_path=p) for p in modified]
+            + [FileChange(status_code="D", file_path=p) for p in deleted]
+        )
+        return cls(files=files)
 
 
 # ---------------------------------------------------------------------------

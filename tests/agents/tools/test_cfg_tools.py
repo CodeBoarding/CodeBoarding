@@ -2,7 +2,12 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from agents.agent_responses import ClusterAnalysis, ClustersComponent, Component, FileMethodGroup
+from agents.agent_responses import (
+    ClusterAnalysis,
+    ClustersComponent,
+    Component,
+)
+from agents.file_index_models import FileMethodGroup
 from agents.tools import ComponentBridgeEdgesTool, GetCFGTool, MethodInvocationsTool
 from agents.tools.base import RepoContext
 from repo_utils.ignore import RepoIgnoreManager

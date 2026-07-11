@@ -220,8 +220,6 @@ def test_validate_scope_update_decision_allows_create_when_llm_chooses_new_compo
 def test_incremental_planning_agent_uses_narrow_diff_aware_toolkit() -> None:
     static_analysis = MagicMock(spec=StaticAnalysisResults)
     changes = ChangeSet(
-        base_ref="base",
-        target_ref="head",
         files=[FileChange(status_code="M", file_path="pkg/module.py")],
     )
 
@@ -242,7 +240,7 @@ def test_incremental_planning_agent_uses_narrow_diff_aware_toolkit() -> None:
         )
 
     tools = mock_scoped_create.call_args.kwargs["tools"]
-    assert [type(tool).__name__ for tool in tools] == ["CodeReferenceReader", "ListGitChangesTool", "ReadGitDiffTool"]
+    assert [type(tool).__name__ for tool in tools] == ["CodeReferenceReader", "ListGitChangesTool"]
     assert agent.toolkit.context.changes is changes
 
 

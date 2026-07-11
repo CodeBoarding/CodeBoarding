@@ -9,13 +9,11 @@ from agents.agent_responses import (
     Component,
     Relation,
     AnalysisInsights,
-    FileEntry,
-    FileMethodGroup,
-    MethodEntry,
     RelationCallSite,
     RelationEdge,
     SourceCodeReference,
 )
+from agents.file_index_models import FileEntry, FileMethodGroup, MethodEntry
 from agents.relation_edges import merge_relations_by_pair
 from repo_utils.path_utils import normalize_repo_path
 
@@ -96,7 +94,10 @@ class FileCoverageReport(BaseModel):
 
 class AnalysisMetadata(BaseModel):
     generated_at: str = Field(description="ISO timestamp of when the analysis was generated.")
-    commit_hash: str = Field(default="", description="Git commit hash at which the analysis was generated.")
+    source_tree_hash: str = Field(
+        default="",
+        description="SHA-256 over the sorted per-file content hashes; the source-state version key.",
+    )
     repo_name: str = Field(description="Name of the analyzed repository.")
     depth_level: int = Field(description="Maximum depth level of the analysis.")
     file_coverage_summary: FileCoverageSummary = Field(
@@ -113,6 +114,10 @@ class MethodIndexEntry(BaseModel):
     start_line: int = Field(description="Starting line number in the file.")
     end_line: int = Field(description="Ending line number in the file.")
     type: str = Field(description="Node type name (METHOD, FUNCTION, CLASS, ...).")
+    content_hash: str = Field(
+        default="",
+        description="Truncated SHA-256 of the method's source lines; '' when unknown.",
+    )
 
 
 class ComponentFileMethodGroupJson(BaseModel):
@@ -133,13 +138,13 @@ class FileEntryJson(BaseModel):
         default_factory=list,
         description="Keys into ``methods_index`` ('<file_path>|<qualified_name>'), in declaration order.",
     )
+    content_hash: str = Field(
+        default="",
+        description="Truncated SHA-256 of the entire file's bytes; '' when unknown.",
+    )
 
 
 class UnifiedAnalysisJson(BaseModel):
-    snapshotCommit: str | None = Field(
-        default=None,
-        description="Wrapper-owned snapshot ref used as the next incremental diff baseline.",
-    )
     metadata: AnalysisMetadata = Field(description="Metadata about the analysis run.")
     description: str = Field(
         description="One paragraph explaining the functionality which is represented by this graph."
@@ -162,6 +167,7 @@ def _build_files_index_from_analysis(analysis: AnalysisInsights) -> dict[str, Fi
 
 
 def _method_key(file_path: str, qualified_name: str) -> str:
+    """Canonical ``methods_index`` key ('<file_path>|<qualified_name>')."""
     return f"{file_path}|{qualified_name}"
 
 
@@ -216,6 +222,7 @@ def _build_methods_index_from_files(files_index: dict[str, FileEntry]) -> dict[s
                 start_line=method.start_line,
                 end_line=method.end_line,
                 type=method.node_type,
+                content_hash=method.content_hash,
             )
     return methods_index
 
@@ -224,6 +231,7 @@ def _build_file_entry_json_from_files(files_index: dict[str, FileEntry]) -> dict
     return {
         file_path: FileEntryJson(
             method_keys=[_method_key(file_path, m.qualified_name) for m in entry.methods],
+            content_hash=entry.content_hash,
         )
         for file_path, entry in files_index.items()
     }
@@ -251,6 +259,7 @@ def _hydrate_component_methods_from_refs(
                         start_line=indexed.start_line,
                         end_line=indexed.end_line,
                         node_type=indexed.type,
+                        content_hash=indexed.content_hash,
                     )
                 )
 
@@ -401,15 +410,16 @@ def build_unified_analysis_json(
     expandable_components: list[Component],
     repo_name: str,
     repo_dir: Path,
+    source_tree_hash: str,
     sub_analyses: dict[str, tuple[AnalysisInsights, list[Component]]] | None = None,
     file_coverage_summary: FileCoverageSummary | None = None,
-    commit_hash: str = "",
-    snapshot_commit: str | None = None,
 ) -> str:
     """Build the full unified analysis JSON with metadata and nested sub-analyses.
 
-    The depth_level metadata is computed automatically from the sub_analyses structure
-    if not provided explicitly.
+    ``repo_dir`` relativizes relation-edge file paths into ``methods_index`` keys.
+    ``source_tree_hash`` is the precomputed whole-tree version key (the caller
+    fingerprints the tree once and reuses it across saves). The depth_level
+    metadata is computed automatically from the sub_analyses structure.
     """
     components_json = [
         from_component_to_json_component(c, expandable_components, repo_dir, sub_analyses) for c in analysis.components
@@ -428,10 +438,9 @@ def build_unified_analysis_json(
         for r in merge_relations_by_pair(analysis.components_relations, include_relation=True)
     ]
     unified = UnifiedAnalysisJson(
-        snapshotCommit=snapshot_commit,
         metadata=AnalysisMetadata(
             generated_at=datetime.now(timezone.utc).isoformat(),
-            commit_hash=commit_hash,
+            source_tree_hash=source_tree_hash,
             repo_name=repo_name,
             depth_level=_compute_depth_level(sub_analyses),
             file_coverage_summary=summary,
@@ -493,9 +502,13 @@ def _reconstruct_files_index(
                     start_line=indexed.start_line,
                     end_line=indexed.end_line,
                     node_type=indexed.type,
+                    content_hash=indexed.content_hash,
                 )
             )
-        files_index[file_path] = FileEntry(methods=methods)
+        files_index[file_path] = FileEntry(
+            methods=methods,
+            content_hash=entry_raw.get("content_hash", ""),
+        )
     return files_index
 
 

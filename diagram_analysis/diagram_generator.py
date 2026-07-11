@@ -14,8 +14,8 @@ from agents.agent_responses import (
     AnalysisInsights,
     Component,
     MetaAnalysisInsights,
-    MethodEntry,
 )
+from agents.file_index_models import MethodEntry
 from agents.cluster_methods_mixin import scoped_snapshot_from_lineage
 from agents.details_agent import DetailsAgent
 from agents.incremental_agent import (
@@ -29,6 +29,7 @@ from agents.llm_config import initialize_llms
 from agents.meta_agent import MetaAgent
 from agents.planner_agent import get_expandable_components
 from agents.scope_ids import ROOT_SCOPE_ID
+from agents.content_hash import hash_repo_source_files, tree_hash_from_file_hashes
 from diagram_analysis.analysis_json import (
     FileCoverageReport,
     FileCoverageSummary,
@@ -47,14 +48,12 @@ from diagram_analysis.cluster_snapshot import (
 )
 from diagram_analysis.exceptions import IncrementalCacheMissingError
 from diagram_analysis.file_coverage import FileCoverage
-from diagram_analysis.io_utils import normalize_repo_path, save_analysis
-from diagram_analysis.version import Version
+from diagram_analysis.io_utils import load_analysis_metadata, normalize_repo_path, save_analysis, write_fingerprint
 from health.config import initialize_health_dir, load_health_config
 from health.runner import run_health_checks
 from monitoring import StreamingStatsWriter
 from monitoring.mixin import MonitoringMixin
 from monitoring.paths import get_monitoring_run_dir
-from repo_utils import get_git_commit_hash
 from repo_utils.change_detector import ChangeSet
 from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer import StaticAnalyzer, get_static_analysis
@@ -115,14 +114,14 @@ class DiagramGenerator:
         # the prior analysis (see ``compute_cluster_delta``). ``None`` runs
         # unscoped (no drift filtering).
         self.changes: ChangeSet | None = changes
-        # Optional canonical source-state identifier (e.g. a git tree SHA
-        # over HEAD + dirty overlay), stamped into the pkl's sibling .sha
-        # file as the diff base for the next warm-start. Used by Core's
-        # ``_update_cached_results`` to compute "what files changed since
-        # this pkl was saved" — NOT a cache gate. Set externally —
-        # typically by the wrapper, which has the snapshot's tree SHA
-        # at run-prepare time. ``None`` is a tag-less save.
+        # Whole-tree content hash, stamped into the pkl's sibling .sha file as the
+        # diff base for the next warm-start (NOT a cache gate). ``pre_analysis``
+        # fills it from the live tree when unset; ``None`` is a tag-less save.
         self.source_sha: str | None = None
+        # Whole-tree ``{posix_path: sha16}`` fingerprint, computed once per run and
+        # reused for source_sha, the sidecar, and every save's source_tree_hash
+        # instead of re-walking the tree each time.
+        self._source_tree_fingerprint: dict[str, str] | None = None
         self._static_analyzer = static_analyzer
 
         self.details_agent: DetailsAgent | None = None
@@ -232,17 +231,34 @@ class DiagramGenerator:
             f.write(report.model_dump_json(indent=2, exclude_none=True))
         logger.info(f"File coverage report written to {coverage_path}")
 
+    def _changed_files_for_static_analysis(self) -> set[Path] | None:
+        """Absolute changed-file paths from the incremental ChangeSet, or None.
+
+        Incremental analysis always carries a git-free ``ChangeSet`` (the
+        fingerprint diff). We hand those files to the static-analysis warm-start
+        so it re-LSPs exactly them without shelling out to git. None means "no
+        ChangeSet" (a full run) and leaves the warm-start to its own git scoping;
+        an empty set means "incremental, nothing changed" and correctly re-LSPs
+        zero files instead of falling back to a full re-LSP via git.
+        """
+        if self.changes is None:
+            return None
+        rel_paths = self.changes.added_files + self.changes.modified_files + self.changes.deleted_files
+        return {(self.repo_location / rel).resolve() for rel in rel_paths}
+
     def _get_static_from_injected_analyzer(
         self,
         skip_cache: bool = False,
         source_sha: str | None = None,
     ) -> StaticAnalysisResults:
-        result = self._static_analyzer.analyze(  # type: ignore[union-attr]
+        assert self._static_analyzer is not None
+        self._static_analyzer.changed_files = self._changed_files_for_static_analysis()
+        result = self._static_analyzer.analyze(
             skip_cache=skip_cache,
             source_sha=source_sha,
             cache_dir=self.output_dir,
         )
-        result.diagnostics = self._static_analyzer.collected_diagnostics  # type: ignore[union-attr]
+        result.diagnostics = self._static_analyzer.collected_diagnostics
         return result
 
     def _seed_incremental_cluster_cache(self, cluster_results: dict[str, ClusterResult]) -> None:
@@ -271,8 +287,27 @@ class DiagramGenerator:
             return
         StaticAnalysisCache(self.output_dir, self.repo_location).save(self.static_analysis, source_sha=self.source_sha)
 
+    def _source_tree_fingerprint_map(self) -> dict[str, str]:
+        """The whole-tree fingerprint, fingerprinting on first use if pre_analysis didn't."""
+        if self._source_tree_fingerprint is None:
+            self._source_tree_fingerprint = hash_repo_source_files(self.repo_location)
+        return self._source_tree_fingerprint
+
+    def _source_tree_hash(self) -> str:
+        """The source-tree version key aggregated from the cached fingerprint."""
+        return tree_hash_from_file_hashes(self._source_tree_fingerprint_map())
+
     def pre_analysis(self):
         analysis_start_time = time.time()
+
+        # Fingerprint the whole tree once; source_sha, the sidecar, and every
+        # save's source_tree_hash reuse it instead of re-walking per call.
+        self._source_tree_fingerprint = hash_repo_source_files(self.repo_location)
+        # Compute the source-state tag from live source when a caller didn't
+        # supply one, so the pkl always gets a .sha sibling for the next
+        # warm-start — no caller has to thread source_sha in.
+        if self.source_sha is None:
+            self.source_sha = self._source_tree_hash() or None
 
         # Initialize LLMs before spawning threads so both share the same instances
         agent_llm, parsing_llm = initialize_llms()
@@ -307,6 +342,7 @@ class DiagramGenerator:
                 skip_cache=skip_cache,
                 source_sha=self.source_sha,
                 cache_dir=self.output_dir,
+                changed_files=self._changed_files_for_static_analysis(),
             )
 
         # Decide how to obtain static analysis results, then run it in parallel
@@ -364,15 +400,6 @@ class DiagramGenerator:
         )
         self._monitoring_agents["AbstractionAgent"] = self.abstraction_agent
 
-        version_file = Path(self.output_dir) / "codeboarding_version.json"
-        with open(version_file, "w", encoding="utf-8") as f:
-            f.write(
-                Version(
-                    commit_hash=get_git_commit_hash(self.repo_location),
-                    code_boarding_version="0.2.0",
-                ).model_dump_json(indent=2)
-            )
-
         if self.monitoring_enabled:
             monitoring_dir = get_monitoring_run_dir(self.log_path, create=True)
             logger.debug(f"Monitoring enabled. Writing stats to {monitoring_dir}")
@@ -402,7 +429,6 @@ class DiagramGenerator:
 
         expanded_components: list[Component] = []
         sub_analyses: dict[str, AnalysisInsights] = {}
-        commit_hash = get_git_commit_hash(self.repo_location)
 
         # Group stats to avoid cluttering the local variable scope
         stats = {"submitted": 0, "completed": 0, "saves": 0, "errors": 0}
@@ -447,7 +473,8 @@ class DiagramGenerator:
                                 output_dir=Path(self.output_dir),
                                 sub_analyses=sub_analyses,
                                 repo_name=self.repo_name,
-                                commit_hash=commit_hash,
+                                repo_dir=self.repo_location,
+                                source_tree_hash=self._source_tree_hash(),
                             )
 
                         if new_components and level + 1 < self.depth_level:
@@ -544,30 +571,40 @@ class DiagramGenerator:
         """Shared post-analysis tail for every flow: finalize, persist, return the path.
 
         ``finalize_for_save`` then ``save_analysis`` (stamped with the current
-        commit hash and file-coverage summary). ``seed_delta`` is the
+        ``source_tree_hash`` and file-coverage summary). ``seed_delta`` is the
         incremental-only cluster baseline, seeded *after* the save so a crash in
         between re-does the delta (idempotent) rather than silently skipping it.
 
-        ``persist_side_artifacts`` writes ``file_coverage.json`` and the static-
-        analysis cache. The partial flow sets this False: it never re-runs static
-        analysis with a fresh ``source_sha``, and persisting the artifact would
-        drop the existing ``static_analysis.sha`` tag, forcing the next
-        incremental run to cold-start instead of reusing the warm cache.
+        ``persist_side_artifacts`` writes ``file_coverage.json``, the static-
+        analysis cache, and the ``fingerprint.json`` sidecar. The partial flow
+        sets it False: it regenerates one component, not the source state, so
+        rewriting those would drop the ``static_analysis.sha`` tag (cold-starting
+        the next incremental) and desync the sidecar from ``source_tree_hash``.
         """
         self.finalize_for_save(root_analysis, sub_analyses)
+        if persist_side_artifacts:
+            source_tree_hash = self._source_tree_hash()
+        else:
+            # Partial: keep the prior hash so metadata matches the unrewritten sidecar.
+            prior_metadata = load_analysis_metadata(Path(self.output_dir)) or {}
+            source_tree_hash = prior_metadata.get("source_tree_hash", "") or self._source_tree_hash()
         analysis_path = save_analysis(
             analysis=root_analysis,
             output_dir=Path(self.output_dir),
             sub_analyses=sub_analyses,
             repo_name=self.repo_name,
             file_coverage_summary=self._build_file_coverage_summary(),
-            commit_hash=get_git_commit_hash(self.repo_location),
+            repo_dir=self.repo_location,
+            source_tree_hash=source_tree_hash,
         ).resolve()
         if seed_delta is not None:
             self._seed_incremental_cluster_cache(seed_delta)
         if persist_side_artifacts:
             self._write_file_coverage()
             self._persist_static_analysis_artifact()
+            # Whole-tree sidecar (not the component-only files block) so the next
+            # incremental diffs the same set source_tree_hash covers.
+            write_fingerprint(Path(self.output_dir), self._source_tree_fingerprint_map())
         return analysis_path
 
     def _collect_method_entries_from_static_analysis(self) -> dict[str, list]:
@@ -729,8 +766,10 @@ class DiagramGenerator:
             )
             if not delta.has_changes:
                 logger.info("Cluster delta is empty; rewriting current analysis without re-detailing.")
-                # No structural change: the loaded baseline's relations already
-                # are the global set, so finalize's rebuild is a no-op here.
+                # No structural change, but a body-only edit still moves content
+                # hashes — refresh the files index from live source so they don't
+                # go stale (relations are already the global set here).
+                self._refresh_files_index(root_analysis, sub_analyses)
                 return self.finalize_and_save(root_analysis, sub_analyses)
 
             agent_llm, parsing_llm = initialize_llms()
@@ -792,18 +831,7 @@ class DiagramGenerator:
             if apply_result.touched_scopes:
                 incremental_agent.generate_all_scope_relations(root_analysis, sub_analyses, apply_result.touched_scopes)
 
-            # Rebuild the global files index, unioning every sub-analysis's
-            # files into root. The incremental flow never reruns AbstractionAgent
-            # over the full CFG, so root.files lags behind deeper levels;
-            # build_unified_analysis_json reads only root.files for the top
-            # index, so we must surface every depth's files there.
-            for sub in sub_analyses.values():
-                sub.files = self.abstraction_agent.build_files_index(sub)
-            unified_files = self.abstraction_agent.build_files_index(root_analysis)
-            for sub in sub_analyses.values():
-                for fp, entry in sub.files.items():
-                    unified_files.setdefault(fp, entry)
-            root_analysis.files = unified_files
+            self._refresh_files_index(root_analysis, sub_analyses)
 
             analysis_path = self.finalize_and_save(root_analysis, sub_analyses, seed_delta=delta.cluster_results())
             n_subs = sum(len(sub.components) for sub in sub_analyses.values())
@@ -814,6 +842,32 @@ class DiagramGenerator:
                 len(root_analysis.components_relations),
             )
             return analysis_path
+
+    def _refresh_files_index(
+        self,
+        root_analysis: AnalysisInsights,
+        sub_analyses: dict[str, AnalysisInsights],
+    ) -> None:
+        """Rebuild the global files index from live source, unioning every
+        sub-analysis's files into root.
+
+        The incremental flow never reruns AbstractionAgent over the full CFG, so
+        root.files lags behind deeper levels; build_unified_analysis_json reads
+        only root.files for the top index, so we must surface every depth's files
+        there. Refreshing spans from the live CFG first means build_files_index
+        hashes the current body even for components that weren't re-detailed, so a
+        body-only edit is reflected.
+        """
+        assert self.abstraction_agent is not None
+        for analysis in (root_analysis, *sub_analyses.values()):
+            self.abstraction_agent.refresh_method_spans_from_cfg(analysis)
+        for sub in sub_analyses.values():
+            sub.files = self.abstraction_agent.build_files_index(sub)
+        unified_files = self.abstraction_agent.build_files_index(root_analysis)
+        for sub in sub_analyses.values():
+            for fp, entry in sub.files.items():
+                unified_files.setdefault(fp, entry)
+        root_analysis.files = unified_files
 
 
 def _collect_components_by_id(

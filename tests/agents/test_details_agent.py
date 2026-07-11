@@ -11,11 +11,10 @@ from agents.agent_responses import (
     Component,
     ComponentApiSurfaces,
     ComponentRelations,
-    FileMethodGroup,
     MetaAnalysisInsights,
-    MethodEntry,
     SourceCodeReference,
 )
+from agents.file_index_models import FileMethodGroup, MethodEntry
 
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import NodeType

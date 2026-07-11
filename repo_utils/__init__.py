@@ -14,7 +14,6 @@ from repo_utils.path_utils import normalize_repo_path, to_absolute_path, to_rela
 
 logger = logging.getLogger(__name__)
 NO_REPO_STATE_HASH = "NoRepoStateHash"
-NO_COMMIT_HASH = "NoCommitHash"
 
 # Handle the case where git is not installed on the system
 try:
@@ -47,10 +46,14 @@ def require_git_import(default: Any | None = None) -> Callable:
             try:
                 return func(*args, **kwargs)
             except GitError as e:
-                # Handle the cases in which there is no repository, or the repository state is invalid
-                logger.error(f"Invalid Git repository: {e}")
+                # No repository / invalid repo state. When a default is provided the
+                # caller is git-optional (e.g. analysing a non-git frozen copy), so
+                # this is an expected fallback, not an error — log it quietly. Only
+                # a default-less caller genuinely failed.
                 if default is not None:
+                    logger.debug(f"{func.__name__}: no usable git repository ({e}); using default {default!r}")
                     return default
+                logger.error(f"Invalid Git repository: {e}")
                 raise e
 
         return wrapper
@@ -172,15 +175,6 @@ def upload_onboarding_materials(project_name, output_dir, repo_dir):
     repo.git.add(onboarding_repo_location, A=True)
     repo.index.commit(f"Uploading onboarding materials for {project_name}")
     origin.push()
-
-
-@require_git_import(default=NO_COMMIT_HASH)
-def get_git_commit_hash(repo_dir: Path) -> str:
-    """
-    Get the latest commit hash of the repository.
-    """
-    repo = Repo(repo_dir)
-    return repo.head.commit.hexsha
 
 
 @require_git_import(default=False)

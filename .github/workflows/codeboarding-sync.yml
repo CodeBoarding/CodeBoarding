@@ -9,6 +9,7 @@ on:
     paths-ignore:
       - '.codeboarding/*.md'
       - '.codeboarding/analysis.json'
+      - '.codeboarding/fingerprint.json'
       - '.codeboarding/codeboarding_version.json'
       - '.codeboarding/health/**'
       - 'docs/development/architecture.md'
