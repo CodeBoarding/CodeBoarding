@@ -3,16 +3,19 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from github_action import (
+    _run_analysis,
+    _seed_existing_analysis,
     generate_analysis,
     generate_html,
     generate_markdown,
     generate_mdx,
     generate_rst,
 )
-from utils import CODEBOARDING_DIR_NAME
+from codeboarding_workflows.analysis import BaselineUnavailableError
+from utils import ANALYSIS_FILENAME, CODEBOARDING_DIR_NAME, FINGERPRINT_FILENAME
 
 UNIFIED_ANALYSIS_JSON = {
     "version": 2,
@@ -182,8 +185,7 @@ class TestGenerateRst(unittest.TestCase):
 
 class TestGenerateAnalysis(unittest.TestCase):
     @patch("github_action.generate_markdown")
-    @patch("github_action.run_incremental_workflow")
-    @patch("github_action.DiagramGenerator")
+    @patch("github_action._run_analysis")
     @patch("github_action.create_temp_repo_folder")
     @patch("github_action.checkout_repo")
     @patch("github_action.clone_repository")
@@ -193,22 +195,15 @@ class TestGenerateAnalysis(unittest.TestCase):
         mock_clone,
         mock_checkout,
         mock_create_temp,
-        mock_generator_class,
-        mock_workflow,
+        mock_run_analysis,
         mock_generate_markdown,
     ):
         # Test analysis generation with markdown output
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
             mock_create_temp.return_value = temp_path
-
-            # Mock clone repository
             mock_clone.return_value = "test_repo"
-
-            # Mock generator
-            mock_generator = MagicMock()
-            mock_generator_class.return_value = mock_generator
-            mock_workflow.return_value = temp_path / "analysis.json"
+            mock_run_analysis.return_value = temp_path / "analysis.json"
 
             result = generate_analysis(
                 repo_url="https://github.com/test/repo",
@@ -218,16 +213,11 @@ class TestGenerateAnalysis(unittest.TestCase):
                 output_dir=CODEBOARDING_DIR_NAME,
             )
 
-            # Check that clone was called
             mock_clone.assert_called_once()
-
-            # Check that checkout was called
             mock_checkout.assert_called_once()
 
-            # Check that generator was created with correct params
-            mock_generator_class.assert_called_once()
-            args = mock_generator_class.call_args
-            self.assertEqual(args[1]["depth_level"], 2)
+            # Analysis is driven through _run_analysis (incremental with full fallback).
+            mock_run_analysis.assert_called_once()
 
             # Check that markdown generation was called with a Path
             mock_generate_markdown.assert_called_once()
@@ -240,8 +230,7 @@ class TestGenerateAnalysis(unittest.TestCase):
             self.assertEqual(result, temp_path)
 
     @patch("github_action.generate_html")
-    @patch("github_action.run_incremental_workflow")
-    @patch("github_action.DiagramGenerator")
+    @patch("github_action._run_analysis")
     @patch("github_action.create_temp_repo_folder")
     @patch("github_action.checkout_repo")
     @patch("github_action.clone_repository")
@@ -251,8 +240,7 @@ class TestGenerateAnalysis(unittest.TestCase):
         mock_clone,
         mock_checkout,
         mock_create_temp,
-        mock_generator_class,
-        mock_workflow,
+        mock_run_analysis,
         mock_generate_html,
     ):
         # Test analysis generation with HTML output
@@ -261,9 +249,7 @@ class TestGenerateAnalysis(unittest.TestCase):
             mock_create_temp.return_value = temp_path
             mock_clone.return_value = "test_repo"
 
-            mock_generator = MagicMock()
-            mock_generator_class.return_value = mock_generator
-            mock_workflow.return_value = temp_path / "analysis.json"
+            mock_run_analysis.return_value = temp_path / "analysis.json"
 
             result = generate_analysis(
                 repo_url="https://github.com/test/repo",
@@ -277,8 +263,7 @@ class TestGenerateAnalysis(unittest.TestCase):
             self.assertEqual(result, temp_path)
 
     @patch("github_action.generate_mdx")
-    @patch("github_action.run_incremental_workflow")
-    @patch("github_action.DiagramGenerator")
+    @patch("github_action._run_analysis")
     @patch("github_action.create_temp_repo_folder")
     @patch("github_action.checkout_repo")
     @patch("github_action.clone_repository")
@@ -288,8 +273,7 @@ class TestGenerateAnalysis(unittest.TestCase):
         mock_clone,
         mock_checkout,
         mock_create_temp,
-        mock_generator_class,
-        mock_workflow,
+        mock_run_analysis,
         mock_generate_mdx,
     ):
         # Test analysis generation with MDX output
@@ -298,9 +282,7 @@ class TestGenerateAnalysis(unittest.TestCase):
             mock_create_temp.return_value = temp_path
             mock_clone.return_value = "test_repo"
 
-            mock_generator = MagicMock()
-            mock_generator_class.return_value = mock_generator
-            mock_workflow.return_value = temp_path / "analysis.json"
+            mock_run_analysis.return_value = temp_path / "analysis.json"
 
             result = generate_analysis(
                 repo_url="https://github.com/test/repo",
@@ -314,8 +296,7 @@ class TestGenerateAnalysis(unittest.TestCase):
             self.assertEqual(result, temp_path)
 
     @patch("github_action.generate_rst")
-    @patch("github_action.run_incremental_workflow")
-    @patch("github_action.DiagramGenerator")
+    @patch("github_action._run_analysis")
     @patch("github_action.create_temp_repo_folder")
     @patch("github_action.checkout_repo")
     @patch("github_action.clone_repository")
@@ -325,8 +306,7 @@ class TestGenerateAnalysis(unittest.TestCase):
         mock_clone,
         mock_checkout,
         mock_create_temp,
-        mock_generator_class,
-        mock_workflow,
+        mock_run_analysis,
         mock_generate_rst,
     ):
         # Test analysis generation with RST output
@@ -335,9 +315,7 @@ class TestGenerateAnalysis(unittest.TestCase):
             mock_create_temp.return_value = temp_path
             mock_clone.return_value = "test_repo"
 
-            mock_generator = MagicMock()
-            mock_generator_class.return_value = mock_generator
-            mock_workflow.return_value = temp_path / "analysis.json"
+            mock_run_analysis.return_value = temp_path / "analysis.json"
 
             result = generate_analysis(
                 repo_url="https://github.com/test/repo",
@@ -350,8 +328,7 @@ class TestGenerateAnalysis(unittest.TestCase):
             mock_generate_rst.assert_called_once()
             self.assertEqual(result, temp_path)
 
-    @patch("github_action.run_incremental_workflow")
-    @patch("github_action.DiagramGenerator")
+    @patch("github_action._run_analysis")
     @patch("github_action.create_temp_repo_folder")
     @patch("github_action.checkout_repo")
     @patch("github_action.clone_repository")
@@ -361,8 +338,7 @@ class TestGenerateAnalysis(unittest.TestCase):
         mock_clone,
         mock_checkout,
         mock_create_temp,
-        mock_generator_class,
-        mock_workflow,
+        mock_run_analysis,
     ):
         # Test with unsupported extension
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -370,9 +346,7 @@ class TestGenerateAnalysis(unittest.TestCase):
             mock_create_temp.return_value = temp_path
             mock_clone.return_value = "test_repo"
 
-            mock_generator = MagicMock()
-            mock_generator_class.return_value = mock_generator
-            mock_workflow.return_value = temp_path / "analysis.json"
+            mock_run_analysis.return_value = temp_path / "analysis.json"
 
             with self.assertRaises(ValueError) as context:
                 generate_analysis(
@@ -386,8 +360,7 @@ class TestGenerateAnalysis(unittest.TestCase):
             self.assertIn("Unsupported extension", str(context.exception))
 
     @patch("github_action.generate_markdown")
-    @patch("github_action.run_incremental_workflow")
-    @patch("github_action.DiagramGenerator")
+    @patch("github_action._run_analysis")
     @patch("github_action.create_temp_repo_folder")
     @patch("github_action.checkout_repo")
     @patch("github_action.clone_repository")
@@ -397,8 +370,7 @@ class TestGenerateAnalysis(unittest.TestCase):
         mock_clone,
         mock_checkout,
         mock_create_temp,
-        mock_generator_class,
-        mock_workflow,
+        mock_run_analysis,
         mock_generate_markdown,
     ):
         # Test that branch checkout is called with correct branch
@@ -408,9 +380,7 @@ class TestGenerateAnalysis(unittest.TestCase):
             mock_create_temp.return_value = temp_path
             mock_clone.return_value = "test_repo"
 
-            mock_generator = MagicMock()
-            mock_generator_class.return_value = mock_generator
-            mock_workflow.return_value = temp_path / "analysis.json"
+            mock_run_analysis.return_value = temp_path / "analysis.json"
 
             generate_analysis(
                 repo_url="https://github.com/test/repo",
@@ -424,6 +394,57 @@ class TestGenerateAnalysis(unittest.TestCase):
             mock_checkout.assert_called_once()
             args = mock_checkout.call_args[0]
             self.assertEqual(args[1], "feature-branch")
+
+
+class TestSeedExistingAnalysis(unittest.TestCase):
+    def test_seeds_fingerprint_sidecar(self):
+        # The fingerprint sidecar is the baseline git-free change detection needs.
+        with tempfile.TemporaryDirectory() as src_dir, tempfile.TemporaryDirectory() as dst_dir:
+            src, dst = Path(src_dir), Path(dst_dir)
+            (src / ANALYSIS_FILENAME).write_text("{}")
+            (src / FINGERPRINT_FILENAME).write_text('{"files": {}}')
+
+            _seed_existing_analysis(src, dst)
+
+            self.assertTrue((dst / ANALYSIS_FILENAME).is_file())
+            self.assertTrue((dst / FINGERPRINT_FILENAME).is_file())
+
+    def test_skips_missing_files(self):
+        # Only analysis.json present: seeding copies it and doesn't fail on the rest.
+        with tempfile.TemporaryDirectory() as src_dir, tempfile.TemporaryDirectory() as dst_dir:
+            src, dst = Path(src_dir), Path(dst_dir)
+            (src / ANALYSIS_FILENAME).write_text("{}")
+
+            _seed_existing_analysis(src, dst)
+
+            self.assertTrue((dst / ANALYSIS_FILENAME).is_file())
+            self.assertFalse((dst / FINGERPRINT_FILENAME).is_file())
+
+
+class TestRunAnalysis(unittest.TestCase):
+    @patch("github_action.run_full")
+    @patch("github_action.run_incremental")
+    def test_uses_incremental_when_baseline_available(self, mock_incremental, mock_full):
+        mock_incremental.return_value = Path("/tmp/out/analysis.json")
+
+        result = _run_analysis(run_paths="rp", run_context="rc")
+
+        mock_incremental.assert_called_once_with("rp", "rc")
+        mock_full.assert_not_called()
+        self.assertEqual(result, Path("/tmp/out/analysis.json"))
+
+    @patch.dict(os.environ, {"DIAGRAM_DEPTH_LEVEL": "3"})
+    @patch("github_action.run_full")
+    @patch("github_action.run_incremental")
+    def test_falls_back_to_full_when_no_baseline(self, mock_incremental, mock_full):
+        # A missing/legacy baseline must not fail the docs build — fall back to full.
+        mock_incremental.side_effect = BaselineUnavailableError("no sidecar")
+        mock_full.return_value = Path("/tmp/out/analysis.json")
+
+        result = _run_analysis(run_paths="rp", run_context="rc")
+
+        mock_full.assert_called_once_with("rp", "rc", depth_level=3)
+        self.assertEqual(result, Path("/tmp/out/analysis.json"))
 
 
 if __name__ == "__main__":

@@ -3,11 +3,11 @@ import os
 import shutil
 from pathlib import Path
 
-from codeboarding_workflows.analysis import run_incremental_workflow
+from codeboarding_workflows.analysis import BaselineUnavailableError, run_full, run_incremental
 from codeboarding_workflows.rendering import render_docs
-from diagram_analysis import DiagramGenerator, RunContext
+from diagram_analysis import RunContext, RunPaths
 from repo_utils import checkout_repo, clone_repository
-from utils import ANALYSIS_FILENAME, CODEBOARDING_DIR_NAME, create_temp_repo_folder
+from utils import ANALYSIS_FILENAME, CODEBOARDING_DIR_NAME, FINGERPRINT_FILENAME, create_temp_repo_folder
 
 logger = logging.getLogger(__name__)
 
@@ -76,12 +76,33 @@ def generate_rst(
 
 
 def _seed_existing_analysis(existing_analysis_dir: Path, temp_repo_folder: Path) -> None:
-    """Copy existing analysis files into the temp folder so incremental analysis can use them."""
-    for filename in (ANALYSIS_FILENAME, "analysis_manifest.json"):
+    """Copy existing analysis files into the temp folder so incremental analysis can use them.
+
+    ``fingerprint.json`` is the whole-tree baseline the git-free change detection
+    diffs against; without it the incremental run raises ``BaselineUnavailableError``
+    and falls back to a full analysis.
+    """
+    for filename in (ANALYSIS_FILENAME, FINGERPRINT_FILENAME, "analysis_manifest.json"):
         src = existing_analysis_dir / filename
         if src.is_file():
             shutil.copy2(src, temp_repo_folder / filename)
             logger.info(f"Seeded existing {filename} for incremental analysis")
+
+
+def _run_analysis(run_paths: RunPaths, run_context: RunContext) -> Path:
+    """Incremental when a usable baseline was seeded, else full.
+
+    ``run_incremental`` detects the changed files itself (git-free, by diffing the
+    seeded ``fingerprint.json`` against the checkout) and reuses the baseline's
+    depth. When no usable baseline exists it raises ``BaselineUnavailableError``;
+    the Action can't prompt a user, so it falls back to a full run rather than
+    failing the docs build.
+    """
+    try:
+        return run_incremental(run_paths, run_context)
+    except BaselineUnavailableError as exc:
+        logger.info("No usable baseline (%s); running full analysis.", exc)
+        return run_full(run_paths, run_context, depth_level=int(os.getenv("DIAGRAM_DEPTH_LEVEL", "1")))
 
 
 def generate_analysis(
@@ -104,17 +125,8 @@ def generate_analysis(
     if existing_analysis_dir:
         _seed_existing_analysis(Path(existing_analysis_dir), temp_repo_folder)
 
-    generator = DiagramGenerator(
-        repo_location=repo_dir,
-        temp_folder=temp_repo_folder,
-        repo_name=repo_name,
-        output_dir=temp_repo_folder,
-        depth_level=int(os.getenv("DIAGRAM_DEPTH_LEVEL", "1")),
-        run_id=run_context.run_id,
-        log_path=run_context.log_path,
-    )
-
-    analysis_path = run_incremental_workflow(generator)
+    run_paths = RunPaths(repo_path=repo_dir, output_dir=temp_repo_folder, project_name=repo_name)
+    analysis_path = _run_analysis(run_paths, run_context)
 
     match extension:
         case ".md":
