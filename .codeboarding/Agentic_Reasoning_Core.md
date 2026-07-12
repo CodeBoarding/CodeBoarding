@@ -42,33 +42,33 @@ The central control plane that manages the lifecycle of architectural analysis u
   - `agents.abstraction_agent.AbstractionAgent.step_final_analysis` ([L135-L180](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/abstraction_agent.py#L135-L180)) - Method
   - `agents.abstraction_agent.AbstractionAgent.run` ([L245-L272](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/abstraction_agent.py#L245-L272)) - Method
 - [`agents/agent.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py)
-  - `agents.agent.EmptyExtractorMessageError` ([L31-L32](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py#L31-L32)) - Class
-  - `agents.agent.CodeBoardingAgent` ([L35-L432](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py#L35-L432)) - Class
-  - `agents.agent.CodeBoardingAgent.__init__` ([L36-L59](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py#L36-L59)) - Method
-  - `agents.agent.CodeBoardingAgent.read_source_reference` ([L62-L63](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py#L62-L63)) - Method
-  - `agents.agent.CodeBoardingAgent.read_packages_tool` ([L66-L67](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py#L66-L67)) - Method
-  - `agents.agent.CodeBoardingAgent.read_structure_tool` ([L70-L71](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py#L70-L71)) - Method
-  - `agents.agent.CodeBoardingAgent.read_file_structure` ([L74-L75](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py#L74-L75)) - Method
-  - `agents.agent.CodeBoardingAgent.read_cfg_tool` ([L78-L79](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py#L78-L79)) - Method
-  - `agents.agent.CodeBoardingAgent.read_method_invocations_tool` ([L82-L83](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py#L82-L83)) - Method
-  - `agents.agent.CodeBoardingAgent.read_file_tool` ([L90-L91](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py#L90-L91)) - Method
-  - `agents.agent.CodeBoardingAgent.read_docs` ([L94-L95](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py#L94-L95)) - Method
-  - `agents.agent.CodeBoardingAgent.external_deps_tool` ([L98-L99](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py#L98-L99)) - Method
-  - `agents.agent.CodeBoardingAgent._invoke` ([L101-L166](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py#L101-L166)) - Method
-  - `agents.agent.CodeBoardingAgent._invoke.call_once` ([L116-L136](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py#L116-L136)) - Function
-  - `agents.agent.CodeBoardingAgent._invoke.classify` ([L138-L151](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py#L138-L151)) - Function
-  - `agents.agent.CodeBoardingAgent._invoke.on_exhausted` ([L153-L158](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py#L153-L158)) - Function
-  - `agents.agent.CodeBoardingAgent._invoke_with_timeout` ([L168-L206](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py#L168-L206)) - Method
-  - `agents.agent.CodeBoardingAgent._invoke_with_timeout.invoke_target` ([L176-L184](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py#L176-L184)) - Function
-  - `agents.agent.CodeBoardingAgent._parse_invoke` ([L208-L211](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py#L208-L211)) - Method
-  - `agents.agent.CodeBoardingAgent._score_result` ([L213-L238](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py#L213-L238)) - Method
-  - `agents.agent.CodeBoardingAgent._validation_invoke` ([L240-L335](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py#L240-L335)) - Method
-  - `agents.agent.CodeBoardingAgent._parse_response` ([L337-L384](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py#L337-L384)) - Method
-  - `agents.agent.CodeBoardingAgent._parse_response.call_once` ([L352-L359](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py#L352-L359)) - Function
-  - `agents.agent.CodeBoardingAgent._parse_response.classify` ([L361-L369](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py#L361-L369)) - Function
-  - `agents.agent.CodeBoardingAgent._parse_response.on_exhausted` ([L371-L376](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py#L371-L376)) - Function
-  - `agents.agent.CodeBoardingAgent._structured_parse` ([L386-L411](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py#L386-L411)) - Method
-  - `agents.agent.CodeBoardingAgent._extractor_parse` ([L413-L432](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py#L413-L432)) - Method
+  - `agents.agent.EmptyExtractorMessageError` ([L32-L33](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py#L32-L33)) - Class
+  - `agents.agent.CodeBoardingAgent` ([L51-L450](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py#L51-L450)) - Class
+  - `agents.agent.CodeBoardingAgent.__init__` ([L52-L75](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py#L52-L75)) - Method
+  - `agents.agent.CodeBoardingAgent.read_source_reference` ([L78-L79](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py#L78-L79)) - Method
+  - `agents.agent.CodeBoardingAgent.read_packages_tool` ([L82-L83](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py#L82-L83)) - Method
+  - `agents.agent.CodeBoardingAgent.read_structure_tool` ([L86-L87](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py#L86-L87)) - Method
+  - `agents.agent.CodeBoardingAgent.read_file_structure` ([L90-L91](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py#L90-L91)) - Method
+  - `agents.agent.CodeBoardingAgent.read_cfg_tool` ([L94-L95](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py#L94-L95)) - Method
+  - `agents.agent.CodeBoardingAgent.read_method_invocations_tool` ([L98-L99](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py#L98-L99)) - Method
+  - `agents.agent.CodeBoardingAgent.read_file_tool` ([L106-L107](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py#L106-L107)) - Method
+  - `agents.agent.CodeBoardingAgent.read_docs` ([L110-L111](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py#L110-L111)) - Method
+  - `agents.agent.CodeBoardingAgent.external_deps_tool` ([L114-L115](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py#L114-L115)) - Method
+  - `agents.agent.CodeBoardingAgent._invoke` ([L117-L183](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py#L117-L183)) - Method
+  - `agents.agent.CodeBoardingAgent._invoke.call_once` ([L132-L152](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py#L132-L152)) - Function
+  - `agents.agent.CodeBoardingAgent._invoke.classify` ([L154-L168](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py#L154-L168)) - Function
+  - `agents.agent.CodeBoardingAgent._invoke.on_exhausted` ([L170-L175](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py#L170-L175)) - Function
+  - `agents.agent.CodeBoardingAgent._invoke_with_timeout` ([L185-L223](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py#L185-L223)) - Method
+  - `agents.agent.CodeBoardingAgent._invoke_with_timeout.invoke_target` ([L193-L201](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py#L193-L201)) - Function
+  - `agents.agent.CodeBoardingAgent._parse_invoke` ([L225-L228](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py#L225-L228)) - Method
+  - `agents.agent.CodeBoardingAgent._score_result` ([L230-L255](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py#L230-L255)) - Method
+  - `agents.agent.CodeBoardingAgent._validation_invoke` ([L257-L352](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py#L257-L352)) - Method
+  - `agents.agent.CodeBoardingAgent._parse_response` ([L354-L402](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py#L354-L402)) - Method
+  - `agents.agent.CodeBoardingAgent._parse_response.call_once` ([L369-L376](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py#L369-L376)) - Function
+  - `agents.agent.CodeBoardingAgent._parse_response.classify` ([L378-L387](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py#L378-L387)) - Function
+  - `agents.agent.CodeBoardingAgent._parse_response.on_exhausted` ([L389-L394](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py#L389-L394)) - Function
+  - `agents.agent.CodeBoardingAgent._structured_parse` ([L404-L429](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py#L404-L429)) - Method
+  - `agents.agent.CodeBoardingAgent._extractor_parse` ([L431-L450](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent.py#L431-L450)) - Method
 - [`agents/agent_responses.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py)
   - `agents.agent_responses.LLMBaseModel` ([L24-L129](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L24-L129)) - Class
   - `agents.agent_responses.LLMBaseModel.llm_str` ([L28-L29](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L28-L29)) - Method
@@ -427,9 +427,9 @@ Manages Tool-Augmented Generation constraints by calculating token budgets and p
   - `agents.llm_config.initialize_agent_llm` ([L425-L428](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/llm_config.py#L425-L428)) - Function
   - `agents.llm_config.get_current_agent_context_window` ([L431-L445](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/llm_config.py#L431-L445)) - Function
   - `agents.llm_config.get_current_agent_model_ref` ([L448-L454](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/llm_config.py#L448-L454)) - Function
-  - `agents.llm_config.initialize_parsing_llm` ([L457-L459](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/llm_config.py#L457-L459)) - Function
-  - `agents.llm_config.initialize_llms` ([L462-L465](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/llm_config.py#L462-L465)) - Function
-  - `agents.llm_config.supports_prompt_caching` ([L468-L474](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/llm_config.py#L468-L474)) - Function
+  - `agents.llm_config.initialize_parsing_llm` ([L474-L476](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/llm_config.py#L474-L476)) - Function
+  - `agents.llm_config.initialize_llms` ([L479-L482](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/llm_config.py#L479-L482)) - Function
+  - `agents.llm_config.supports_prompt_caching` ([L485-L491](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/llm_config.py#L485-L491)) - Function
 - [`agents/model_capabilities.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/model_capabilities.py)
   - `agents.model_capabilities.ContextWindow` ([L24-L27](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/model_capabilities.py#L24-L27)) - Class
   - `agents.model_capabilities.get_context_window` ([L30-L44](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/model_capabilities.py#L30-L44)) - Function

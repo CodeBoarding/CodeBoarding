@@ -1,7 +1,7 @@
 {
   "repository_name": "CodeBoarding",
-  "timestamp": "2026-07-12T13:30:38.077548+00:00",
-  "overall_score": 0.9343055843886237,
+  "timestamp": "2026-07-12T17:05:41.920652+00:00",
+  "overall_score": 0.9343840429929723,
   "check_summaries": [
     {
       "check_name": "function_size",
@@ -382,7 +382,7 @@
       "description": "Checks that functions/methods do not exceed line count thresholds",
       "language": "python",
       "check_type": "standard",
-      "total_entities_checked": 1483,
+      "total_entities_checked": 1490,
       "findings_count": 0,
       "warning_count": 0,
       "score": 1.0,
@@ -393,10 +393,10 @@
       "description": "Checks efferent coupling: how many other functions each function calls",
       "language": "python",
       "check_type": "standard",
-      "total_entities_checked": 1493,
-      "findings_count": 45,
-      "warning_count": 45,
-      "score": 0.9698593436034829,
+      "total_entities_checked": 1500,
+      "findings_count": 46,
+      "warning_count": 46,
+      "score": 0.9693333333333334,
       "finding_groups": [
         {
           "severity": "warning",
@@ -406,8 +406,8 @@
             {
               "entity_name": "diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
               "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 715,
-              "line_end": 844,
+              "line_start": 724,
+              "line_end": 853,
               "metric_value": 30
             },
             {
@@ -441,8 +441,8 @@
             {
               "entity_name": "diagram_analysis.diagram_generator.DiagramGenerator.pre_analysis",
               "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 300,
-              "line_end": 420,
+              "line_start": 305,
+              "line_end": 425,
               "metric_value": 18
             },
             {
@@ -628,13 +628,6 @@
               "metric_value": 11
             },
             {
-              "entity_name": "diagram_analysis.diagram_generator.DiagramGenerator.finalize_and_save",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 563,
-              "line_end": 608,
-              "metric_value": 11
-            },
-            {
               "entity_name": "codeboarding_cli.commands.incremental_analysis.run_from_args",
               "file_path": "codeboarding_cli/commands/incremental_analysis.py",
               "line_start": 31,
@@ -653,6 +646,13 @@
               "file_path": "static_analyzer/__init__.py",
               "line_start": 578,
               "line_end": 632,
+              "metric_value": 11
+            },
+            {
+              "entity_name": "diagram_analysis.diagram_generator.DiagramGenerator.finalize_and_save",
+              "file_path": "diagram_analysis/diagram_generator.py",
+              "line_start": 572,
+              "line_end": 617,
               "metric_value": 11
             },
             {
@@ -705,17 +705,24 @@
               "metric_value": 10
             },
             {
-              "entity_name": "diagram_analysis.diagram_generator.DiagramGenerator._collect_method_entries_from_static_analysis",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 610,
-              "line_end": 640,
-              "metric_value": 10
-            },
-            {
               "entity_name": "static_analyzer.__init__.StaticAnalyzer._update_cached_results",
               "file_path": "static_analyzer/__init__.py",
               "line_start": 634,
               "line_end": 682,
+              "metric_value": 10
+            },
+            {
+              "entity_name": "diagram_analysis.diagram_generator.DiagramGenerator._collect_method_entries_from_static_analysis",
+              "file_path": "diagram_analysis/diagram_generator.py",
+              "line_start": 619,
+              "line_end": 649,
+              "metric_value": 10
+            },
+            {
+              "entity_name": "agents.llm_config._initialize_llm",
+              "file_path": "agents/llm_config.py",
+              "line_start": 337,
+              "line_end": 373,
               "metric_value": 10
             }
           ]
@@ -727,10 +734,10 @@
       "description": "Checks afferent coupling: how many other functions call each function",
       "language": "python",
       "check_type": "standard",
-      "total_entities_checked": 1493,
+      "total_entities_checked": 1500,
       "findings_count": 12,
       "warning_count": 12,
-      "score": 0.9919624916275954,
+      "score": 0.992,
       "finding_groups": [
         {
           "severity": "warning",
@@ -794,13 +801,6 @@
               "metric_value": 12
             },
             {
-              "entity_name": "agents.agent.CodeBoardingAgent._validation_invoke",
-              "file_path": "agents/agent.py",
-              "line_start": 240,
-              "line_end": 335,
-              "metric_value": 10
-            },
-            {
               "entity_name": "static_analyzer.graph.CallGraph.to_networkx",
               "file_path": "static_analyzer/graph.py",
               "line_start": 320,
@@ -819,6 +819,13 @@
               "file_path": "utils.py",
               "line_start": 92,
               "line_end": 94,
+              "metric_value": 10
+            },
+            {
+              "entity_name": "agents.agent.CodeBoardingAgent._validation_invoke",
+              "file_path": "agents/agent.py",
+              "line_start": 257,
+              "line_end": 352,
               "metric_value": 10
             }
           ]
@@ -853,7 +860,7 @@
             {
               "entity_name": "diagram_analysis.diagram_generator.DiagramGenerator",
               "file_path": "diagram_analysis/diagram_generator.py",
-              "metric_value": 782.0
+              "metric_value": 790.0
             },
             {
               "entity_name": "static_analyzer.graph.CallGraph",
@@ -891,11 +898,6 @@
               "metric_value": 60.0
             },
             {
-              "entity_name": "agents.agent.CodeBoardingAgent",
-              "file_path": "agents/agent.py",
-              "metric_value": 57.0
-            },
-            {
               "entity_name": "static_analyzer.engine.source_inspector.SourceInspector",
               "file_path": "static_analyzer/engine/source_inspector.py",
               "metric_value": 56.0
@@ -909,6 +911,11 @@
               "entity_name": "static_analyzer.analysis_result.StaticAnalysisResults",
               "file_path": "static_analyzer/analysis_result.py",
               "metric_value": 48.0
+            },
+            {
+              "entity_name": "agents.agent.CodeBoardingAgent",
+              "file_path": "agents/agent.py",
+              "metric_value": 47.0
             },
             {
               "entity_name": "agents.tools.toolkit.CodeBoardingToolkit",
@@ -944,20 +951,6 @@
           "threshold": 0,
           "description": "Variables declared but never used",
           "entities": [
-            {
-              "entity_name": "[unused_variable] \"_config\" is not accessed",
-              "file_path": "agents/llm_config.py",
-              "line_start": 440,
-              "line_end": 440,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"_config\" is not accessed",
-              "file_path": "agents/llm_config.py",
-              "line_start": 453,
-              "line_end": 453,
-              "metric_value": 0.0
-            },
             {
               "entity_name": "[unused_variable] \"provider\" is not accessed",
               "file_path": "agents/model_capabilities.py",
@@ -1680,13 +1673,6 @@
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"ToolMessage\" is not accessed",
-              "file_path": "agents/agent.py",
-              "line_start": 8,
-              "line_end": 8,
-              "metric_value": 0.0
-            },
-            {
               "entity_name": "[unused_variable] \"_subgraph_str\" is not accessed",
               "file_path": "agents/details_agent.py",
               "line_start": 322,
@@ -1855,27 +1841,6 @@
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"cluster_results\" is not accessed",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 519,
-              "line_end": 519,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"expanded_components\" is not accessed",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 525,
-              "line_end": 525,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"_subgraph_str\" is not accessed",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 944,
-              "line_end": 944,
-              "metric_value": 0.0
-            },
-            {
               "entity_name": "[unused_variable] \"normalize_repo_path\" is not accessed",
               "file_path": "diagram_analysis/io_utils.py",
               "line_start": 32,
@@ -1894,6 +1859,48 @@
               "file_path": "static_analyzer/__init__.py",
               "line_start": 206,
               "line_end": 206,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"ToolMessage\" is not accessed",
+              "file_path": "agents/agent.py",
+              "line_start": 8,
+              "line_end": 8,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_config\" is not accessed",
+              "file_path": "agents/llm_config.py",
+              "line_start": 440,
+              "line_end": 440,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_config\" is not accessed",
+              "file_path": "agents/llm_config.py",
+              "line_start": 453,
+              "line_end": 453,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"cluster_results\" is not accessed",
+              "file_path": "diagram_analysis/diagram_generator.py",
+              "line_start": 528,
+              "line_end": 528,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"expanded_components\" is not accessed",
+              "file_path": "diagram_analysis/diagram_generator.py",
+              "line_start": 534,
+              "line_end": 534,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_subgraph_str\" is not accessed",
+              "file_path": "diagram_analysis/diagram_generator.py",
+              "line_start": 953,
+              "line_end": 953,
               "metric_value": 0.0
             }
           ]
@@ -2436,13 +2443,6 @@
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_import] Import \"ToolMessage\" is not accessed",
-              "file_path": "agents/agent.py",
-              "line_start": 8,
-              "line_end": 8,
-              "metric_value": 0.0
-            },
-            {
               "entity_name": "[unused_import] Import \"CodeReferenceReader\" is not accessed",
               "file_path": "agents/tools/__init__.py",
               "line_start": 1,
@@ -2587,6 +2587,13 @@
               "file_path": "repo_utils/__init__.py",
               "line_start": 13,
               "line_end": 13,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"ToolMessage\" is not accessed",
+              "file_path": "agents/agent.py",
+              "line_start": 8,
+              "line_end": 8,
               "metric_value": 0.0
             }
           ]
