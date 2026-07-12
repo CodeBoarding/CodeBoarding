@@ -454,6 +454,23 @@ def get_current_agent_model_ref() -> str:
     return f"{name}/{model_name}"
 
 
+def current_provider_key_context() -> tuple[str, str]:
+    """The selected provider name and a masked key tail, for auth-error messages.
+
+    Returns ``(provider_name, key_tail)`` where ``key_tail`` is the last 4
+    characters of the provider's key (or ``"unknown"`` when no provider is
+    selected or the SDK reads its own credentials, e.g. AWS/Ollama). Never
+    returns the full secret — only enough for the user to recognize which key.
+    """
+    selected = selected_providers()
+    if not selected:
+        return "unknown", "unknown"
+    name = selected[0]
+    key = LLM_PROVIDERS[name].get_api_key()
+    key_tail = key[-4:] if key and len(key) >= 4 else "unknown"
+    return name, key_tail
+
+
 def initialize_parsing_llm(model_override: str | None = None) -> BaseChatModel:
     model, _ = _initialize_llm(model_override, "parsing_model", "parsing_temperature", "Extractor ")
     return model

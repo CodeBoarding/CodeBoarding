@@ -533,5 +533,36 @@ class TestValidateArguments(unittest.TestCase):
         parser.error.assert_called_once()
 
 
+class TestMainAuthErrorHandler(unittest.TestCase):
+    """`_dispatch` turns a rejected key into a clean exit, not a traceback."""
+
+    @patch("main.full_analysis.run_from_args")
+    def test_auth_error_exits_with_distinct_code(self, mock_run):
+        import main
+        from agents.llm_errors import LLMAuthError
+
+        mock_run.side_effect = LLMAuthError(
+            "Your openai API key was rejected (HTTP 401). Verify the key ending in '…a8dd'.",
+            provider="openai",
+            key_tail="a8dd",
+            telemetry_properties={"error_type": "auth"},
+        )
+
+        with self.assertRaises(SystemExit) as ctx:
+            main.main(["full", "--local", "/tmp/repo"])
+
+        self.assertEqual(ctx.exception.code, main.EXIT_AUTH_ERROR)
+
+    @patch("main.full_analysis.run_from_args")
+    def test_non_auth_error_is_not_swallowed(self, mock_run):
+        import main
+
+        mock_run.side_effect = RuntimeError("something else broke")
+
+        # Only auth errors get the friendly-exit treatment; everything else propagates.
+        with self.assertRaises(RuntimeError):
+            main.main(["full", "--local", "/tmp/repo"])
+
+
 if __name__ == "__main__":
     unittest.main()
