@@ -3,13 +3,10 @@ import os
 import sys
 from pathlib import Path
 
-from agents.llm_errors import LLMAuthError
+from agents.llm_errors import EXIT_AUTH_ERROR, LLMAuthError
 from codeboarding_cli.commands import full_analysis, incremental_analysis, partial_analysis
 
 _SUBCOMMANDS = {"full", "incremental", "partial"}
-
-# Distinct from 1 (generic failure) so callers/CI can branch on "fix your key".
-EXIT_AUTH_ERROR = 2
 
 
 def _build_shared_parser() -> argparse.ArgumentParser:

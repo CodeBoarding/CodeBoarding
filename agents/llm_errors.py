@@ -17,6 +17,12 @@ from __future__ import annotations
 
 import re
 
+# Process exit code for a rejected key. Distinct from 1 (generic failure) so the
+# OSS CLI and the wrapper subprocess both signal "fix your key" the same way, and
+# callers/CI can branch on it. Lives here (not in main.py) so the wrapper can
+# import it without pulling in Core's whole CLI module.
+EXIT_AUTH_ERROR = 2
+
 # Class names, across SDKs, that always mean "credentials were rejected".
 # openai/anthropic/cerebras raise ``AuthenticationError``; google raises
 # ``Unauthenticated``/``PermissionDenied``; Bedrock (botocore) surfaces
