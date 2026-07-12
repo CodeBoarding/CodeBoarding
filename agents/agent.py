@@ -21,7 +21,8 @@ from agents.validation import ValidationResult, score_validation_results, VALIDA
 from monitoring.mixin import MonitoringMixin
 from repo_utils.ignore import RepoIgnoreManager
 from agents.agent_responses import LLMBaseModel
-from agents.llm_config import MONITORING_CALLBACK
+from agents.llm_config import MONITORING_CALLBACK, current_provider_key_context
+from agents.llm_errors import detect_auth_error
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.reference_resolver import StaticReferenceResolver
 
@@ -30,6 +31,21 @@ logger = logging.getLogger(__name__)
 
 class EmptyExtractorMessageError(ValueError):
     """Raised when extractor returns an empty message payload."""
+
+
+def _raise_if_auth_error(exc: Exception) -> None:
+    """Re-raise *exc* as a typed :class:`LLMAuthError` when it's a rejected key.
+
+    Shared by the retry classifiers in ``_invoke`` and ``_parse_response``: a
+    401 is permanent for the run, so raising here propagates it terminally (the
+    retry loop never sees a RETRY decision) and the CLI can surface an
+    actionable message. Non-auth exceptions fall through untouched.
+    """
+    provider, key_tail = current_provider_key_context()
+    auth_error = detect_auth_error(exc, provider=provider, key_tail=key_tail)
+    if auth_error is not None:
+        logger.error("LLM auth failure — not retrying: %s", auth_error)
+        raise auth_error from exc
 
 
 class CodeBoardingAgent(MonitoringMixin):
@@ -136,6 +152,7 @@ class CodeBoardingAgent(MonitoringMixin):
             return ""  # unreachable for AIMessage but satisfies typing
 
         def classify(exc: Exception, attempt: int) -> RetryDecision:
+            _raise_if_auth_error(exc)
             if getattr(exc, "status_code", None) == 404:
                 logger.error(f"Permanent HTTP 404 — not retrying: {type(exc).__name__}: {exc}")
                 return RetryDecision(action=RetryAction.GIVE_UP)
@@ -359,6 +376,7 @@ class CodeBoardingAgent(MonitoringMixin):
             return self._extractor_parse(response, return_type, parser, include_hidden=include_hidden)
 
         def classify(exc: Exception, attempt: int) -> RetryDecision:
+            _raise_if_auth_error(exc)
             if isinstance(exc, ResourceExhausted):
                 return RetryDecision(
                     action=RetryAction.RETRY,

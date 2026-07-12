@@ -3,6 +3,7 @@ import os
 import sys
 from pathlib import Path
 
+from agents.llm_errors import EXIT_AUTH_ERROR, LLMAuthError
 from codeboarding_cli.commands import full_analysis, incremental_analysis, partial_analysis
 
 _SUBCOMMANDS = {"full", "incremental", "partial"}
@@ -75,6 +76,25 @@ def _inject_default_subcommand(argv: list[str]) -> list[str]:
     return ["full", *argv]
 
 
+def _dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
+    try:
+        if args.command == "incremental":
+            incremental_analysis.run_from_args(args, parser)
+        elif args.command == "partial":
+            partial_analysis.run_from_args(args, parser)
+        else:
+            full_analysis.run_from_args(args, parser)
+    except LLMAuthError as exc:
+        # A rejected API key is the user's to fix, not a crash: print one
+        # actionable line (no traceback) and exit with a distinct code.
+        print(f"\nCodeBoarding: {exc}", file=sys.stderr)
+        print(
+            "Check your LLM provider API key (shell env or ~/.codeboarding/config.toml) and re-run.",
+            file=sys.stderr,
+        )
+        raise SystemExit(EXIT_AUTH_ERROR) from exc
+
+
 def main(argv: list[str] | None = None) -> None:
     os.environ.setdefault("CODEBOARDING_SOURCE", "oss")
     if argv is None:
@@ -82,13 +102,7 @@ def main(argv: list[str] | None = None) -> None:
     argv = _inject_default_subcommand(list(argv))
     parser = build_parser()
     args = parser.parse_args(argv)
-    if args.command == "incremental":
-        incremental_analysis.run_from_args(args, parser)
-        return
-    if args.command == "partial":
-        partial_analysis.run_from_args(args, parser)
-        return
-    full_analysis.run_from_args(args, parser)
+    _dispatch(args, parser)
 
 
 if __name__ == "__main__":

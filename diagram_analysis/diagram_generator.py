@@ -26,6 +26,7 @@ from agents.incremental_agent import (
 from agents.incremental_planning_agent import IncrementalPlanningAgent
 from agents.incremental_results import RecursiveScopeUpdateResult
 from agents.llm_config import initialize_llms
+from agents.llm_errors import LLMAuthError
 from agents.meta_agent import MetaAgent
 from agents.planner_agent import get_expandable_components
 from agents.scope_ids import ROOT_SCOPE_ID
@@ -156,6 +157,10 @@ class DiagramGenerator:
             new_components = get_expandable_components(analysis, parent_had_clusters=parent_had_clusters)
 
             return component.component_id, analysis, new_components
+        except LLMAuthError:
+            # A rejected key fails every component identically; don't swallow it
+            # per-component and grind through the rest — abort the whole run.
+            raise
         except Exception as e:
             logging.error(f"Error processing component {component.name}: {e}")
             return None, None, []
@@ -483,6 +488,10 @@ class DiagramGenerator:
 
                             logger.info("Expanded '%s' with %d new children.", comp_name, len(new_components))
 
+                    except LLMAuthError:
+                        # Rejected key: abort the whole run rather than logging one
+                        # error per component and continuing with a dead key.
+                        raise
                     except Exception:
                         stats["errors"] += 1
                         logger.exception("Component '%s' generated an exception", component.name)

@@ -201,6 +201,36 @@ class TestCodeBoardingAgent(unittest.TestCase):
         self.assertEqual(mock_agent_executor.invoke.call_count, 5)
 
     @patch("agents.agent.create_agent")
+    @patch("time.sleep")
+    def test_invoke_auth_error_not_retried(self, mock_sleep, mock_create_agent):
+        # A 401 is permanent: fail fast on the first attempt as a typed
+        # LLMAuthError, never retry, never return the generic fallback string.
+        from agents.llm_errors import LLMAuthError
+
+        class _AuthError(Exception):
+            status_code = 401
+
+        mock_agent_executor = Mock()
+        mock_create_agent.return_value = mock_agent_executor
+        mock_agent_executor.invoke.side_effect = _AuthError("Error code: 401 - key invalid")
+
+        agent = CodeBoardingAgent(
+            repo_dir=self.repo_dir,
+            static_analysis=self.mock_analysis,
+            system_message="Test",
+            agent_llm=self.mock_llm,
+            parsing_llm=Mock(spec=BaseChatModel),
+        )
+
+        with self.assertRaises(LLMAuthError) as ctx:
+            agent._invoke("Test prompt")
+
+        self.assertEqual(mock_agent_executor.invoke.call_count, 1)  # no retry storm
+        mock_sleep.assert_not_called()
+        self.assertEqual(ctx.exception.provider, "openai")
+        self.assertEqual(ctx.exception.key_tail, "_key")  # from OPENAI_API_KEY="test_key"
+
+    @patch("agents.agent.create_agent")
     def test_invoke_with_callbacks(self, mock_create_agent):
         # Test invocation with callbacks
         mock_agent_executor = Mock()
