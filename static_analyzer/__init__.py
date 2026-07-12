@@ -178,7 +178,13 @@ class StaticAnalyzer:
         self.collected_diagnostics: dict[Language, FileDiagnosticsMap] = {}
         self._clients_started: bool = False
         self._cached_results: StaticAnalysisResults | None = None
-        self._persist_cache: bool = True
+        # True once ``analyze()`` has produced fresh results this session that
+        # the on-disk pkl doesn't have yet. Only ``analyze()`` sets it;
+        # ``flush_cache``/``stop_clients`` write the pkl iff it is set. A
+        # read-only ``load_cached_analysis`` never flips it, so rehydrating the
+        # artifact for inspection can't rewrite (and strip the SHA sidecar of) a
+        # pkl this session didn't produce.
+        self._results_need_saving: bool = False
         # Git-free changed-file set (absolute paths) scoping the warm-start re-LSP,
         # e.g. the incremental fingerprint diff. ``None`` means "detect via git"
         # (the legacy CLI-on-a-real-checkout path); an empty set re-LSPs nothing.
@@ -312,7 +318,7 @@ class StaticAnalyzer:
         """
         if not self._clients_started:
             return
-        if self._persist_cache:
+        if self._results_need_saving:
             self.flush_cache()
         for engine_config, client in self._engine_clients:
             try:
@@ -326,18 +332,23 @@ class StaticAnalyzer:
     def flush_cache(self) -> None:
         """Write ``_cached_results`` to the SHA-tagged pkl at ``_pending_cache_dir``.
 
-        No-op when ``_cached_results`` is absent (analyze never ran). Called
+        No-op unless ``analyze()`` produced results this session. A pkl loaded
+        read-only via ``load_cached_analysis`` is never written back, so a flush
+        after a bare load can't strip the artifact's SHA sidecar. Called
         automatically by ``stop_clients``; callers that need the pkl on disk
-        before teardown (e.g. snapshot promotion, capture tooling) can invoke
-        this explicitly after the run completes.
+        before teardown (e.g. capture tooling) can invoke this explicitly after
+        the run completes.
         """
-        if not self._persist_cache or self._cached_results is None:
+        if not self._results_need_saving or self._cached_results is None:
             return
         try:
             StaticAnalysisCache(self._pending_cache_dir, self.repository_path).save(
                 self._cached_results, source_sha=self._pending_source_sha
             )
             logger.info(f"Saved static analysis run artifact to {self._pending_cache_dir}")
+            # Clear so an idempotent second stop_clients (or explicit flush)
+            # doesn't rewrite the pkl it just saved.
+            self._results_need_saving = False
         except Exception:
             logger.exception("Failed to persist static analysis pkl during stop_clients; continuing teardown")
 
@@ -359,12 +370,18 @@ class StaticAnalyzer:
         """Return the sum of diagnostics generation counters across all LSP clients."""
         return sum(client.get_diagnostics_generation() for _, client in self._engine_clients)
 
-    def load_from_disk_cache(
+    def load_cached_analysis(
         self,
         artifact_dir: Path | None = None,
         expected_sha: str | None = None,
     ) -> StaticAnalysisResults | None:
-        """Load the static-analysis run artifact, or None if absent/stale.
+        """Rehydrate the on-disk run artifact for read-only reuse, or None if absent/stale.
+
+        Used by health/status consumers that reuse the last analysis's call
+        graph without re-analyzing. This never marks results as produced, so a
+        subsequent ``flush_cache``/``stop_clients`` is a no-op — rehydrating an
+        artifact for inspection can't rewrite (and strip the SHA sidecar of) a
+        pkl this session didn't produce.
 
         Args:
             artifact_dir: Optional artifact directory to load from. If None,
@@ -389,9 +406,6 @@ class StaticAnalyzer:
         if cached_results is not None:
             self._cached_results = cached_results
             self.collected_diagnostics = cached_results.diagnostics
-            # Health/status consumers load this artifact read-only. Re-saving it
-            # on shutdown would use no pending SHA and strip its valid sidecar.
-            self._persist_cache = False
         return cached_results
 
     def notify_file_changed(self, file_path: Path, content: str) -> None:
@@ -502,7 +516,6 @@ class StaticAnalyzer:
         cache_dir: Path,
         skip_cache: bool = False,
         source_sha: str | None = None,
-        persist_cache: bool = True,
     ) -> StaticAnalysisResults:
         """Analyze the repository, warm-starting from the SHA-tagged pkl when present.
 
@@ -526,7 +539,6 @@ class StaticAnalyzer:
                 "LSP clients are not running. Call start_clients() or use StaticAnalyzer as a context manager "
                 "('with StaticAnalyzer(...) as sa:') before calling analyze()."
             )
-        self._persist_cache = persist_cache
 
         if not skip_cache and self._cached_results is not None:
             logger.info("static_analysis_cache: outcome=memhit")
@@ -559,6 +571,8 @@ class StaticAnalyzer:
         self._cached_results = results
         self._pending_source_sha = source_sha
         self._pending_cache_dir = cache_dir
+        # Fresh results this session: flush_cache/stop_clients should write them.
+        self._results_need_saving = True
         return results
 
     def _run_full_lsp_pass(self) -> StaticAnalysisResults:
@@ -825,7 +839,6 @@ def get_static_analysis(
     cache_dir: Path,
     skip_cache: bool = False,
     source_sha: str | None = None,
-    persist_cache: bool = True,
     changed_files: set[Path] | None = None,
 ) -> StaticAnalysisResults:
     """CLI orchestrator: get static analysis results with full LSP lifecycle management.
@@ -842,7 +855,6 @@ def get_static_analysis(
         source_sha: Canonical source-state identifier (typically a git tree SHA)
             stamped onto the freshly-saved pkl as a diff base for the next
             warm-start.
-        persist_cache: If False, skip writing the run artifact on teardown.
 
     Returns:
         StaticAnalysisResults reflecting the live source state.
@@ -853,7 +865,6 @@ def get_static_analysis(
             cache_dir=cache_dir,
             skip_cache=skip_cache,
             source_sha=source_sha,
-            persist_cache=persist_cache,
         )
     results.diagnostics = analyzer.collected_diagnostics
     return results

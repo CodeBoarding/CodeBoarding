@@ -181,6 +181,7 @@ class TestFlushCacheRespectsCacheDir:
         analyzer._cached_results = StaticAnalysisResults()
         analyzer._pending_cache_dir = custom_cache
         analyzer._pending_source_sha = None
+        analyzer._results_need_saving = True  # stand in for a completed analyze()
 
         analyzer.flush_cache()
 
@@ -202,6 +203,7 @@ class TestFlushCacheRespectsCacheDir:
 
         analyzer._cached_results = StaticAnalysisResults()
         analyzer._pending_source_sha = None
+        analyzer._results_need_saving = True  # stand in for a completed analyze()
 
         analyzer.flush_cache()
 
@@ -209,17 +211,44 @@ class TestFlushCacheRespectsCacheDir:
         assert default_pkl.exists()
 
 
-class TestLoadFromDiskCache:
-    def test_loaded_artifact_is_not_rewritten_without_source_sha(
-        self, analyzer: StaticAnalyzer, tmp_path: Path
-    ) -> None:
+class TestLoadCachedAnalysis:
+    def test_read_only_load_is_not_rewritten_on_flush(self, analyzer: StaticAnalyzer, tmp_path: Path) -> None:
+        """A read-only ``load_cached_analysis`` must not mark results as produced,
+        so a following flush is a no-op and can't strip the artifact's SHA sidecar.
+        """
         cached_results = StaticAnalysisResults()
 
         with (
             patch("static_analyzer.StaticAnalysisCache.get", return_value=cached_results),
             patch("static_analyzer.StaticAnalysisCache.save") as save,
         ):
-            assert analyzer.load_from_disk_cache(artifact_dir=tmp_path) is cached_results
+            assert analyzer.load_cached_analysis(artifact_dir=tmp_path) is cached_results
             analyzer.flush_cache()
 
         save.assert_not_called()
+
+    def test_analyze_after_read_only_load_persists_with_source_sha(
+        self, analyzer: StaticAnalyzer, tmp_path: Path
+    ) -> None:
+        """A real ``analyze()`` after a read-only load re-arms persistence: the
+        flush writes the pkl with the run's ``source_sha``. Guards the
+        load-then-analyze ordering the read-only guard must not suppress.
+        """
+        loaded, produced = StaticAnalysisResults(), StaticAnalysisResults()
+
+        with (
+            patch("static_analyzer.StaticAnalysisCache.get", return_value=loaded),
+            patch("static_analyzer.StaticAnalysisCache.save") as save,
+        ):
+            assert analyzer.load_cached_analysis(artifact_dir=tmp_path) is loaded
+            with (
+                patch.object(analyzer, "_clients_started", True),
+                patch.object(analyzer, "_run_full_lsp_pass", return_value=produced),
+                patch.object(analyzer, "_validate_analysis_results"),
+            ):
+                analyzer._cached_results = None  # drop the read-only mem-hit so analyze produces fresh
+                analyzer.analyze(cache_dir=tmp_path, skip_cache=True, source_sha="abc123")
+            analyzer.flush_cache()
+
+        save.assert_called_once()
+        assert save.call_args.kwargs["source_sha"] == "abc123"
