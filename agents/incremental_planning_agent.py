@@ -14,7 +14,7 @@ from agents.agent_responses import (
     AnalysisInsights,
     Component,
     MetaAnalysisInsights,
-    SourceCodeReference,
+    ScopeOperation,
     ScopeOperationAction,
     ScopeUpdateDecision,
     ScopedClusterRef,
@@ -33,10 +33,26 @@ from diagram_analysis.cluster_delta import (
 from diagram_analysis.exceptions import InvalidIncrementalPlanError, IncrementalScopeRegenerationRequiredError
 from repo_utils.change_detector import ChangeSet
 from static_analyzer.analysis_result import StaticAnalysisResults
+from static_analyzer.reference_resolver import StaticReferenceResolver
 from telemetry.service import telemetry
 
 
 logger = logging.getLogger(__name__)
+
+
+_EXISTING_COMPONENT_ACTIONS = frozenset(
+    {
+        ScopeOperationAction.UPDATE_COMPONENT,
+        ScopeOperationAction.DELETE_COMPONENT,
+        ScopeOperationAction.NOOP,
+    }
+)
+_KEY_ENTITY_METADATA_ACTIONS = frozenset(
+    {
+        ScopeOperationAction.CREATE_COMPONENT,
+        ScopeOperationAction.UPDATE_COMPONENT,
+    }
+)
 
 
 _ARCHITECTURE_OUTPUT_CONTRACT = """
@@ -52,9 +68,9 @@ _ARCHITECTURE_OUTPUT_CONTRACT = """
 
 @dataclass
 class ScopeOperationValidationContext:
+    reference_resolver: StaticReferenceResolver
     expected_cluster_refs: set[ClusterRef] = field(default_factory=set)
     existing_component_ids: set[str] = field(default_factory=set)
-    known_qnames: set[str] = field(default_factory=set)
     component_ids_by_cluster_ref: dict[ClusterRef, str] = field(default_factory=dict)
     component_ids_by_name: dict[str, str] = field(default_factory=dict)
     scope_id: str = ROOT_SCOPE_ID
@@ -114,9 +130,9 @@ class IncrementalPlanningAgent(CodeBoardingAgent):
         )
         prompt += _ARCHITECTURE_OUTPUT_CONTRACT
         context = ScopeOperationValidationContext(
+            reference_resolver=self.reference_resolver,
             expected_cluster_refs=_actionable_new_cluster_refs(structural_diff),
             existing_component_ids={component.component_id for component in scope.components if component.component_id},
-            known_qnames=_known_qnames(self.static_analysis),
             component_ids_by_cluster_ref=_component_ids_by_cluster_ref(scope_id, scope.components, structural_diff),
             component_ids_by_name=_component_ids_by_name(scope.components),
             scope_id=scope_id,
@@ -159,17 +175,13 @@ def validate_scope_update_decision(
     decision: ScopeUpdateDecision,
     context: ScopeOperationValidationContext,
 ) -> ValidationResult:
-    _normalize_scope_update_decision(decision, context)
+    _repair_unambiguous_routing_and_optional_key_entity_metadata(decision, context)
     errors: list[str] = []
     seen_refs: list[ClusterRef] = []
     for operation in decision.operations:
         refs = [_cluster_ref_from_scoped_ref(ref) for ref in operation.cluster_refs]
         seen_refs.extend(refs)
-        if operation.action in {
-            ScopeOperationAction.UPDATE_COMPONENT,
-            ScopeOperationAction.DELETE_COMPONENT,
-            ScopeOperationAction.NOOP,
-        }:
+        if operation.action in _EXISTING_COMPONENT_ACTIONS:
             if operation.component_id not in context.existing_component_ids:
                 errors.append(
                     f"Operation {operation.action} references unknown component_id={operation.component_id!r}."
@@ -187,9 +199,6 @@ def validate_scope_update_decision(
         duplicate_qnames = {qname for qname in entity_qnames if entity_qnames.count(qname) > 1}
         if duplicate_qnames:
             errors.append(f"Operation {operation.action} repeats key entities: {sorted(duplicate_qnames)}.")
-        unknown_qnames = set(entity_qnames) - context.known_qnames
-        if context.known_qnames and unknown_qnames:
-            errors.append(f"Operation {operation.action} references unknown key entities: {sorted(unknown_qnames)}.")
 
     seen_set = set(seen_refs)
     missing = context.expected_cluster_refs - seen_set
@@ -204,63 +213,70 @@ def validate_scope_update_decision(
     return ValidationResult(is_valid=not errors, feedback_messages=errors)
 
 
-def _normalize_scope_update_decision(
+def _repair_unambiguous_routing_and_optional_key_entity_metadata(
     decision: ScopeUpdateDecision,
     context: ScopeOperationValidationContext,
 ) -> None:
-    """Repair unambiguous routing and optional key-entity metadata."""
-    qname_aliases = _unique_qname_aliases(context.known_qnames)
-    routed_operations = 0
-    canonicalized_qnames = 0
-    dropped_qnames: set[str] = set()
-    for operation in decision.operations:
-        refs = {_cluster_ref_from_scoped_ref(ref) for ref in operation.cluster_refs}
-        if operation.component_id is None and operation.action in {
-            ScopeOperationAction.UPDATE_COMPONENT,
-            ScopeOperationAction.DELETE_COMPONENT,
-            ScopeOperationAction.NOOP,
-        }:
-            owner_ids = {
-                context.component_ids_by_cluster_ref[ref] for ref in refs if ref in context.component_ids_by_cluster_ref
-            }
-            if len(owner_ids) == 1:
-                operation.component_id = next(iter(owner_ids))
-            elif not owner_ids and operation.name:
-                operation.component_id = context.component_ids_by_name.get(_normalize_component_name(operation.name))
-            if operation.component_id is not None:
-                routed_operations += 1
-
-        if operation.action not in {ScopeOperationAction.CREATE_COMPONENT, ScopeOperationAction.UPDATE_COMPONENT}:
-            continue
-
-        normalized_entities: list[SourceCodeReference] = []
-        seen_qnames: set[str] = set()
-        for entity in operation.key_entities:
-            qname = entity.qualified_name
-            canonical_qname = qname if qname in context.known_qnames else qname_aliases.get(_qname_alias(qname))
-            if context.known_qnames and canonical_qname is None:
-                dropped_qnames.add(qname)
-                continue
-            canonical_qname = canonical_qname or qname
-            if canonical_qname in seen_qnames:
-                continue
-            if canonical_qname != qname:
-                canonicalized_qnames += 1
-            entity.qualified_name = canonical_qname
-            normalized_entities.append(entity)
-            seen_qnames.add(canonical_qname)
-            if len(normalized_entities) == 5:
-                break
-        operation.key_entities = normalized_entities
+    routed_operations = _repair_unambiguous_operation_routing(decision, context)
+    canonicalized_qnames, dropped_qnames = _repair_optional_key_entity_metadata(
+        decision,
+        context.reference_resolver,
+    )
 
     if routed_operations or canonicalized_qnames:
         logger.info(
-            "Normalized incremental plan: routed %d operation(s), canonicalized %d key-entity qname(s)",
+            "Repaired incremental plan: routed %d operation(s), canonicalized %d key-entity qname(s)",
             routed_operations,
             canonicalized_qnames,
         )
     if dropped_qnames:
         logger.warning("Dropped unresolved optional key entities: %s", sorted(dropped_qnames))
+
+
+def _repair_unambiguous_operation_routing(
+    decision: ScopeUpdateDecision,
+    context: ScopeOperationValidationContext,
+) -> int:
+    routed_operations = 0
+    for operation in decision.operations:
+        if operation.component_id is None and operation.action in _EXISTING_COMPONENT_ACTIONS:
+            component_id = _resolve_unambiguous_component_id(operation, context)
+            if component_id is not None:
+                operation.component_id = component_id
+                routed_operations += 1
+
+    return routed_operations
+
+
+def _resolve_unambiguous_component_id(
+    operation: ScopeOperation,
+    context: ScopeOperationValidationContext,
+) -> str | None:
+    refs = {_cluster_ref_from_scoped_ref(ref) for ref in operation.cluster_refs}
+    owner_ids = {
+        context.component_ids_by_cluster_ref[ref] for ref in refs if ref in context.component_ids_by_cluster_ref
+    }
+    if len(owner_ids) == 1:
+        return next(iter(owner_ids))
+    if not owner_ids and operation.name:
+        return context.component_ids_by_name.get(_normalize_component_name(operation.name))
+    return None
+
+
+def _repair_optional_key_entity_metadata(
+    decision: ScopeUpdateDecision,
+    reference_resolver: StaticReferenceResolver,
+) -> tuple[int, set[str]]:
+    canonicalized_qnames = 0
+    dropped_qnames: set[str] = set()
+    for operation in decision.operations:
+        if operation.action in _KEY_ENTITY_METADATA_ACTIONS and operation.key_entities:
+            repair = reference_resolver.repair_key_entity_references(operation.key_entities)
+            operation.key_entities = repair.references[:5]
+            canonicalized_qnames += repair.canonicalized_count
+            dropped_qnames.update(repair.unresolved_qnames)
+
+    return canonicalized_qnames, dropped_qnames
 
 
 def _component_ids_by_cluster_ref(
@@ -308,17 +324,6 @@ def _component_ids_by_name(components: list[Component]) -> dict[str, str]:
 
 def _normalize_component_name(name: str) -> str:
     return " ".join(name.casefold().split())
-
-
-def _qname_alias(qname: str) -> str:
-    return qname.replace("-", "_")
-
-
-def _unique_qname_aliases(known_qnames: set[str]) -> dict[str, str]:
-    qnames_by_alias: dict[str, set[str]] = {}
-    for qname in known_qnames:
-        qnames_by_alias.setdefault(_qname_alias(qname), set()).add(qname)
-    return {alias: next(iter(qnames)) for alias, qnames in qnames_by_alias.items() if len(qnames) == 1}
 
 
 def _cluster_ref_from_scoped_ref(ref: ScopedClusterRef) -> ClusterRef:
@@ -433,16 +438,6 @@ def _format_changed_files(changes: ChangeSet | None) -> str:
         else:
             lines.append(f"- {file_change.status_code} {file_change.file_path}")
     return "\n".join(lines)
-
-
-def _known_qnames(static_analysis: StaticAnalysisResults) -> set[str]:
-    qnames: set[str] = set()
-    for language in static_analysis.get_languages():
-        try:
-            qnames.update(static_analysis.get_cfg(language).nodes)
-        except (KeyError, ValueError):
-            continue
-    return qnames
 
 
 def _format_cluster_ref(ref: ClusterRef) -> str:

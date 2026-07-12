@@ -147,6 +147,7 @@ class TestUpdateScope(unittest.TestCase):
         agent.static_analysis = MagicMock()
         agent.static_analysis.get_languages.return_value = []
         agent.static_analysis.get_cfg.return_value.filter_by_nodes.return_value = "cfg"
+        agent.reference_resolver = MagicMock()
 
         def populate(scope, _cluster_results, _cfg_graphs, _touched_ids, source_cluster_id_prefix=""):
             for component in scope.components:
@@ -185,6 +186,8 @@ class TestUpdateScope(unittest.TestCase):
         )
 
         agent = self._agent()
+        reference_resolver = MagicMock()
+        agent.reference_resolver = reference_resolver
         result = agent.update_scope("root", scope, decision, {"python": ClusterResult()})
 
         self.assertEqual(component.description, "New")
@@ -192,10 +195,11 @@ class TestUpdateScope(unittest.TestCase):
         self.assertEqual(component.key_entities[0].qualified_name, "1.method")
         self.assertEqual(result.refresh_ids, {"1"})
         self.assertEqual(result.new_component_ids, set())
+        reference_resolver.fix_key_entities_refs.assert_called_once_with(scope, {"1"})
 
     def test_update_preserves_planner_selected_key_entities(self) -> None:
         component = _component("API", "1", source_cluster_ids=["1"])
-        selected = SourceCodeReference(qualified_name="1.method", reference_file="selected.py")
+        selected = SourceCodeReference(qualified_name="alias.method", reference_file="selected.py")
         scope = AnalysisInsights(description="root", components=[component], components_relations=[])
         decision = ScopeUpdateDecision(
             operations=[
@@ -209,7 +213,16 @@ class TestUpdateScope(unittest.TestCase):
             ]
         )
 
-        self._agent().update_scope("root", scope, decision, {"python": ClusterResult()})
+        agent = self._agent()
+        reference_resolver = MagicMock()
+        agent.reference_resolver = reference_resolver
+
+        def resolve_selected_key_entity(analysis, _component_ids):
+            analysis.components[0].key_entities[0].qualified_name = "1.method"
+
+        reference_resolver.fix_key_entities_refs.side_effect = resolve_selected_key_entity
+
+        agent.update_scope("root", scope, decision, {"python": ClusterResult()})
 
         self.assertEqual(component.key_entities, [selected])
 

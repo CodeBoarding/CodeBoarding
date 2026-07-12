@@ -23,6 +23,15 @@ class KeyEdgeResolution:
     unresolved: bool = False
 
 
+@dataclass(frozen=True)
+class KeyEntityRepair:
+    """Resolved, unique key entities and repair metadata."""
+
+    references: list[SourceCodeReference]
+    canonicalized_count: int
+    unresolved_qnames: set[str]
+
+
 class StaticReferenceResolver:
     """Resolve LLM source references against static-analysis results."""
 
@@ -37,20 +46,57 @@ class StaticReferenceResolver:
         self.remove_unresolved_references(analysis)
         return self.relative_paths(analysis)
 
-    def fix_key_entities_refs(self, analysis: AnalysisInsights) -> None:
+    def fix_key_entities_refs(
+        self,
+        analysis: AnalysisInsights,
+        component_ids: set[str] | None = None,
+    ) -> None:
         """Resolve component key entity references."""
         for component in analysis.components:
-            for reference in component.key_entities:
-                if (
-                    reference.reference_file is not None
-                    and os.path.exists(reference.reference_file)
-                    and reference.reference_start_line is not None
-                    and reference.reference_end_line is not None
-                ):
-                    continue
+            if component_ids is not None and component.component_id not in component_ids:
+                continue
+            repair = self.repair_key_entity_references(
+                component.key_entities,
+                component.file_paths() or None,
+            )
+            component.key_entities = repair.references
 
-                file_candidates = component.file_paths() or None
-                self.resolve_reference(reference, file_candidates)
+    def repair_key_entity_references(
+        self,
+        references: list[SourceCodeReference],
+        file_candidates: list[str] | None = None,
+    ) -> KeyEntityRepair:
+        """Resolve key entities, dropping unresolved and duplicate references."""
+        resolved_references: list[SourceCodeReference] = []
+        seen_qnames: set[str] = set()
+        canonicalized_count = 0
+        unresolved_qnames: set[str] = set()
+        for reference in references:
+            original_qname = reference.qualified_name
+            has_existing_file = reference.reference_file is not None and self.reference_file_exists(
+                reference.reference_file
+            )
+            has_complete_location = (
+                has_existing_file
+                and reference.reference_start_line is not None
+                and reference.reference_end_line is not None
+            )
+            resolved = has_complete_location or self.resolve_reference(reference, file_candidates)
+            if not resolved and not has_existing_file:
+                unresolved_qnames.add(original_qname)
+                continue
+            if reference.qualified_name in seen_qnames:
+                continue
+            if reference.qualified_name != original_qname:
+                canonicalized_count += 1
+            resolved_references.append(reference)
+            seen_qnames.add(reference.qualified_name)
+
+        return KeyEntityRepair(
+            references=resolved_references,
+            canonicalized_count=canonicalized_count,
+            unresolved_qnames=unresolved_qnames,
+        )
 
     def fix_edge_refs(self, analysis: AnalysisInsights) -> None:
         """Resolve relation edge endpoint references."""
@@ -65,28 +111,29 @@ class StaticReferenceResolver:
                 self.resolve_reference(edge.target, dst_candidates)
                 self.attach_static_call_sites(edge)
 
-    def resolve_reference(self, reference: SourceCodeReference, file_candidates: list[str] | None = None) -> None:
+    def resolve_reference(self, reference: SourceCodeReference, file_candidates: list[str] | None = None) -> bool:
         """Resolve a source reference in-place."""
         qname = reference.qualified_name.replace(os.sep, ".")
         languages = self.static_analysis.get_languages()
 
         for lang in languages:
             if self._try_exact_match(reference, qname, lang):
-                return
+                return True
 
         for lang in languages:
             if self._try_loose_match(reference, qname, lang):
-                return
+                return True
 
         for lang in languages:
             if self._try_symbol_token_match(reference, qname, lang):
-                return
+                return True
 
         for lang in languages:
             if self._try_file_path_resolution(reference, qname, lang, file_candidates):
-                return
+                return True
 
         logger.warning(f"[Reference Resolution] Could not resolve reference {reference.qualified_name} in any language")
+        return False
 
     def resolve_node(self, reference: SourceCodeReference):
         """Resolve a source reference to a static-analysis node without mutating it."""

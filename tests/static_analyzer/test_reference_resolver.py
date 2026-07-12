@@ -89,6 +89,35 @@ class TestStaticReferenceResolver(unittest.TestCase):
 
         self.assertEqual(reference.reference_file, str(self.repo_dir / "module" / "file.py"))
 
+    def test_repair_key_entity_references_canonicalizes_deduplicates_and_drops_unresolved(self):
+        canonical_qname = "service.OCR.extract_text"
+        node = self._node(canonical_qname, "service.py", 3, 4)
+
+        def get_reference(_language, qname):
+            if qname == canonical_qname:
+                return node
+            raise ValueError("not found")
+
+        def get_loose_reference(_language, qname):
+            if qname == "OCR.extract_text":
+                return canonical_qname, node
+            return None, None
+
+        self.static_analysis.get_reference.side_effect = get_reference
+        self.static_analysis.get_loose_reference.side_effect = get_loose_reference
+        self.static_analysis.iter_reference_nodes.return_value = [node]
+        references = [
+            SourceCodeReference(qualified_name="OCR.extract_text"),
+            SourceCodeReference(qualified_name=canonical_qname),
+            SourceCodeReference(qualified_name="hallucinated.missing"),
+        ]
+
+        repair = self.resolver.repair_key_entity_references(references)
+
+        self.assertEqual([reference.qualified_name for reference in repair.references], [canonical_qname])
+        self.assertEqual(repair.canonicalized_count, 1)
+        self.assertEqual(repair.unresolved_qnames, {"hallucinated.missing"})
+
     def test_fix_source_code_reference_lines_resolves_relation_edges_and_call_sites(self):
         source_node = self._node("service.OCR.extract_text", "service.py", 1, 2)
         target_node = self._node("module.file.test_function", "module/file.py", 3, 4)

@@ -151,6 +151,7 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
         if touched_ids:
             cfg_graphs = _cfg_graphs_for_cluster_results(self.static_analysis, cluster_results)
             self._patch_scope_file_methods(scope, cluster_results, cfg_graphs, touched_ids, scope_id)
+            self.reference_resolver.fix_key_entities_refs(scope, touched_ids)
             self._refresh_key_entities(scope, touched_ids)
 
         if touched_ids or result.removed_ids:

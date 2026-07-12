@@ -29,6 +29,27 @@ from diagram_analysis.cluster_delta import (
 )
 from repo_utils.change_detector import ChangeSet, FileChange
 from static_analyzer.analysis_result import StaticAnalysisResults
+from static_analyzer.constants import Language, NodeType
+from static_analyzer.node import Node
+from static_analyzer.reference_resolver import StaticReferenceResolver
+
+
+def _reference_resolver(*qnames: str) -> StaticReferenceResolver:
+    static_analysis = StaticAnalysisResults()
+    static_analysis.add_references(
+        Language.PYTHON,
+        [
+            Node(
+                fully_qualified_name=qname,
+                node_type=NodeType.FUNCTION,
+                file_path=f"/tmp/fake-repo/reference-{index}.py",
+                line_start=1,
+                line_end=2,
+            )
+            for index, qname in enumerate(qnames)
+        ],
+    )
+    return StaticReferenceResolver(Path("/tmp/fake-repo"), static_analysis)
 
 
 def test_format_structural_diff_includes_modified_new_and_dirty_files() -> None:
@@ -118,6 +139,7 @@ def test_validate_scope_update_decision_enforces_cluster_coverage_and_component_
         ]
     )
     context = ScopeOperationValidationContext(
+        reference_resolver=_reference_resolver(),
         expected_cluster_refs={ClusterRef(language="python", cluster_id=1)},
         existing_component_ids={"1"},
     )
@@ -139,6 +161,7 @@ def test_validate_scope_update_decision_accepts_root_scope() -> None:
         ]
     )
     context = ScopeOperationValidationContext(
+        reference_resolver=_reference_resolver(),
         expected_cluster_refs={ClusterRef(language="python", cluster_id=1)},
         existing_component_ids={"1"},
     )
@@ -163,6 +186,7 @@ def test_validate_scope_update_decision_rejects_missing_duplicate_and_unknown_id
         ]
     )
     context = ScopeOperationValidationContext(
+        reference_resolver=_reference_resolver(),
         expected_cluster_refs={
             ClusterRef(language="python", cluster_id=1),
             ClusterRef(language="python", cluster_id=2),
@@ -191,6 +215,7 @@ def test_validate_scope_update_decision_allows_update_for_new_cluster_when_llm_c
         ]
     )
     context = ScopeOperationValidationContext(
+        reference_resolver=_reference_resolver(),
         expected_cluster_refs={ClusterRef(language="python", cluster_id=5)},
         existing_component_ids={"1"},
     )
@@ -214,9 +239,9 @@ def test_validate_scope_update_decision_allows_create_when_llm_chooses_new_compo
         ]
     )
     context = ScopeOperationValidationContext(
+        reference_resolver=_reference_resolver("docs.render"),
         expected_cluster_refs={ClusterRef(language="python", cluster_id=7)},
         existing_component_ids={"3"},
-        known_qnames={"docs.render"},
     )
 
     result = validate_scope_update_decision(decision, context)
@@ -286,9 +311,9 @@ def test_validate_scope_update_decision_repairs_full_scope_planner_output() -> N
     expected_refs = {ClusterRef(language="python", cluster_id=cluster_id) for cluster_id in (*update_refs, 33)}
     canonical_qname = "packages.markitdown-ocr.src.markitdown_ocr._plugin.register_converters"
     context = ScopeOperationValidationContext(
+        reference_resolver=_reference_resolver(canonical_qname),
         expected_cluster_refs=expected_refs,
         existing_component_ids={"1"},
-        known_qnames={canonical_qname},
         component_ids_by_cluster_ref=_component_ids_by_cluster_ref("root", components, structural),
         component_ids_by_name={"orchestration & dispatcher": "1"},
     )
@@ -314,13 +339,43 @@ def test_validate_scope_update_decision_keeps_ownerless_update_invalid() -> None
             )
         ]
     )
-    context = ScopeOperationValidationContext(expected_cluster_refs={ref}, existing_component_ids={"1"})
+    context = ScopeOperationValidationContext(
+        reference_resolver=_reference_resolver(),
+        expected_cluster_refs={ref},
+        existing_component_ids={"1"},
+    )
 
     result = validate_scope_update_decision(decision, context)
 
     assert not result.is_valid
     assert decision.operations[0].action == ScopeOperationAction.UPDATE_COMPONENT
     assert "component_id=None" in "\n".join(result.feedback_messages)
+
+
+def test_validate_scope_update_decision_repairs_missing_component_id_from_unique_name() -> None:
+    ref = ClusterRef(language="python", cluster_id=7)
+    decision = ScopeUpdateDecision(
+        operations=[
+            ScopeOperation(
+                action=ScopeOperationAction.UPDATE_COMPONENT,
+                cluster_refs=[ScopedClusterRef(scope_id="root", language="python", cluster_id=7)],
+                name="  API   Gateway ",
+                component_id=None,
+                rationale="The new cluster belongs to the existing API gateway.",
+            )
+        ]
+    )
+    context = ScopeOperationValidationContext(
+        reference_resolver=_reference_resolver(),
+        expected_cluster_refs={ref},
+        existing_component_ids={"1"},
+        component_ids_by_name={"api gateway": "1"},
+    )
+
+    result = validate_scope_update_decision(decision, context)
+
+    assert result.is_valid
+    assert decision.operations[0].component_id == "1"
 
 
 def test_validate_scope_update_decision_keeps_ambiguous_missing_owner_invalid() -> None:
@@ -342,6 +397,7 @@ def test_validate_scope_update_decision_keeps_ambiguous_missing_owner_invalid() 
         ]
     )
     context = ScopeOperationValidationContext(
+        reference_resolver=_reference_resolver(),
         expected_cluster_refs={first, second},
         existing_component_ids={"1", "2"},
         component_ids_by_cluster_ref={first: "1", second: "2"},
@@ -367,6 +423,7 @@ def test_validate_scope_update_decision_rejects_metadata_changes_on_noop() -> No
         ]
     )
     context = ScopeOperationValidationContext(
+        reference_resolver=_reference_resolver(),
         expected_cluster_refs={ClusterRef(language="python", cluster_id=1)},
         existing_component_ids={"1"},
     )
