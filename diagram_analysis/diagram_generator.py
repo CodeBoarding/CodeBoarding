@@ -9,6 +9,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from langchain_core.language_models import BaseChatModel
+
 from agents.abstraction_agent import AbstractionAgent
 from agents.agent_responses import (
     AnalysisInsights,
@@ -29,6 +31,7 @@ from agents.llm_config import initialize_llms
 from agents.llm_errors import LLMAuthError
 from agents.meta_agent import MetaAgent
 from agents.planner_agent import get_expandable_components
+from agents.relation_edges import index_relation_endpoints
 from agents.scope_ids import ROOT_SCOPE_ID
 from agents.content_hash import hash_repo_source_files, tree_hash_from_file_hashes
 from diagram_analysis.analysis_json import (
@@ -47,8 +50,9 @@ from diagram_analysis.cluster_snapshot import (
     ClusterSnapshot,
     snapshot_from_static_analysis,
 )
-from diagram_analysis.exceptions import IncrementalCacheMissingError, IncrementalScopeRegenerationRequiredError
+from diagram_analysis.exceptions import IncrementalCacheMissingError
 from diagram_analysis.file_coverage import FileCoverage
+from diagram_analysis.file_index import build_files_index, refresh_method_spans_from_cfg
 from diagram_analysis.io_utils import load_analysis_metadata, normalize_repo_path, save_analysis, write_fingerprint
 from health.config import initialize_health_dir, load_health_config
 from health.runner import run_health_checks
@@ -129,6 +133,8 @@ class DiagramGenerator:
         self.static_analysis: StaticAnalysisResults | None = None  # Cache static analysis for reuse
         self.abstraction_agent: AbstractionAgent | None = None
         self.meta_agent: MetaAgent | None = None
+        self.incremental_planning_agent: IncrementalPlanningAgent | None = None
+        self.incremental_agent: IncrementalAgent | None = None
         self.meta_context: MetaAnalysisInsights | None = None
         self.file_coverage_data: dict | None = None
 
@@ -251,20 +257,35 @@ class DiagramGenerator:
         rel_paths = self.changes.added_files + self.changes.modified_files + self.changes.deleted_files
         return {(self.repo_location / rel).resolve() for rel in rel_paths}
 
-    def _get_static_from_injected_analyzer(
-        self,
-        skip_cache: bool = False,
-        source_sha: str | None = None,
-    ) -> StaticAnalysisResults:
+    def _get_static_with_injected_analyzer(self) -> StaticAnalysisResults:
+        """Run the injected analyzer with the configured cache policy."""
         assert self._static_analyzer is not None
+        disable_reuse = os.getenv("CODEBOARDING_DISABLE_CACHE_REUSE", "").lower() in ("1", "true", "yes")
+        skip_cache = self.force_full_analysis or disable_reuse
+        if self.force_full_analysis:
+            logger.info("Force full analysis: skipping static analysis cache")
+        if disable_reuse:
+            logger.info("CODEBOARDING_DISABLE_CACHE_REUSE set; skipping static analysis cache")
         self._static_analyzer.changed_files = self._changed_files_for_static_analysis()
         result = self._static_analyzer.analyze(
             skip_cache=skip_cache,
-            source_sha=source_sha,
+            source_sha=self.source_sha,
             cache_dir=self.output_dir,
         )
         result.diagnostics = self._static_analyzer.collected_diagnostics
         return result
+
+    def _get_static_with_new_analyzer(self) -> StaticAnalysisResults:
+        """Run static analysis with a newly created analyzer."""
+        if self.force_full_analysis:
+            logger.info("Force full analysis: skipping static analysis cache")
+        return get_static_analysis(
+            self.repo_location,
+            skip_cache=self.force_full_analysis,
+            source_sha=self.source_sha,
+            cache_dir=self.output_dir,
+            changed_files=self._changed_files_for_static_analysis(),
+        )
 
     def _seed_incremental_cluster_cache(self, cluster_results: dict[str, ClusterResult]) -> None:
         """Write post-delta ``cluster_results`` into each language CFG's ``_cluster_cache``.
@@ -302,6 +323,69 @@ class DiagramGenerator:
         """The source-tree version key aggregated from the cached fingerprint."""
         return tree_hash_from_file_hashes(self._source_tree_fingerprint_map())
 
+    def _initialize_meta_agent(self, agent_llm: BaseChatModel, parsing_llm: BaseChatModel) -> None:
+        """Initialize the metadata agent needed before the other agents."""
+        self.meta_agent = MetaAgent(
+            repo_dir=self.repo_location,
+            project_name=self.repo_name,
+            agent_llm=agent_llm,
+            parsing_llm=parsing_llm,
+            run_id=self.run_id,
+        )
+        self._monitoring_agents["MetaAgent"] = self.meta_agent
+
+    def _initialize_agents(
+        self,
+        static_analysis: StaticAnalysisResults,
+        meta_context: MetaAnalysisInsights,
+        agent_llm: BaseChatModel,
+        parsing_llm: BaseChatModel,
+    ) -> None:
+        """Initialize agents that depend on static analysis and project metadata."""
+        self.details_agent = DetailsAgent(
+            repo_dir=self.repo_location,
+            project_name=self.repo_name,
+            static_analysis=static_analysis,
+            meta_context=meta_context,
+            agent_llm=agent_llm,
+            parsing_llm=parsing_llm,
+            run_id=self.run_id,
+        )
+        self.abstraction_agent = AbstractionAgent(
+            repo_dir=self.repo_location,
+            project_name=self.repo_name,
+            static_analysis=static_analysis,
+            meta_context=meta_context,
+            agent_llm=agent_llm,
+            parsing_llm=parsing_llm,
+        )
+        self.incremental_planning_agent = IncrementalPlanningAgent(
+            repo_dir=self.repo_location,
+            static_analysis=static_analysis,
+            project_name=self.repo_name,
+            meta_context=meta_context,
+            agent_llm=agent_llm,
+            parsing_llm=parsing_llm,
+            changes=self.changes,
+        )
+        self.incremental_agent = IncrementalAgent(
+            repo_dir=self.repo_location,
+            static_analysis=static_analysis,
+            project_name=self.repo_name,
+            meta_context=meta_context,
+            agent_llm=agent_llm,
+            parsing_llm=parsing_llm,
+            changes=self.changes,
+        )
+        self._monitoring_agents.update(
+            {
+                "DetailsAgent": self.details_agent,
+                "AbstractionAgent": self.abstraction_agent,
+                "IncrementalPlanningAgent": self.incremental_planning_agent,
+                "IncrementalAgent": self.incremental_agent,
+            }
+        )
+
     def pre_analysis(self):
         analysis_start_time = time.time()
 
@@ -317,46 +401,15 @@ class DiagramGenerator:
         # Initialize LLMs before spawning threads so both share the same instances
         agent_llm, parsing_llm = initialize_llms()
 
-        self.meta_agent = MetaAgent(
-            repo_dir=self.repo_location,
-            project_name=self.repo_name,
-            agent_llm=agent_llm,
-            parsing_llm=parsing_llm,
-            run_id=self.run_id,
-        )
-        self._monitoring_agents["MetaAgent"] = self.meta_agent
-
-        def get_static_with_injected_analyzer() -> StaticAnalysisResults:
-            # ``CODEBOARDING_DISABLE_CACHE_REUSE=1`` is the post-deploy kill
-            # switch that reverts to "always re-LSP everything" without a code
-            # change; useful if telemetry surfaces a warm-start regression.
-            disable_reuse = os.getenv("CODEBOARDING_DISABLE_CACHE_REUSE", "").lower() in ("1", "true", "yes")
-            skip_cache = self.force_full_analysis or disable_reuse
-            if self.force_full_analysis:
-                logger.info("Force full analysis: skipping static analysis cache")
-            if disable_reuse:
-                logger.info("CODEBOARDING_DISABLE_CACHE_REUSE set; skipping static analysis cache")
-            return self._get_static_from_injected_analyzer(skip_cache=skip_cache, source_sha=self.source_sha)
-
-        def get_static_with_new_analyzer() -> StaticAnalysisResults:
-            skip_cache = self.force_full_analysis
-            if skip_cache:
-                logger.info("Force full analysis: skipping static analysis cache")
-            return get_static_analysis(
-                self.repo_location,
-                skip_cache=skip_cache,
-                source_sha=self.source_sha,
-                cache_dir=self.output_dir,
-                changed_files=self._changed_files_for_static_analysis(),
-            )
+        self._initialize_meta_agent(agent_llm, parsing_llm)
 
         # Decide how to obtain static analysis results, then run it in parallel
         # with the meta-context computation so neither blocks the other.
         if self._static_analyzer is not None:
             logger.info("Using injected StaticAnalyzer (clients already running)")
-            static_callable = get_static_with_injected_analyzer
+            static_callable = self._get_static_with_injected_analyzer
         else:
-            static_callable = get_static_with_new_analyzer
+            static_callable = self._get_static_with_new_analyzer
 
         with ThreadPoolExecutor(max_workers=2) as executor:
             meta_agent = self.meta_agent
@@ -385,25 +438,7 @@ class DiagramGenerator:
 
         self._run_health_report(static_analysis)
 
-        self.details_agent = DetailsAgent(
-            repo_dir=self.repo_location,
-            project_name=self.repo_name,
-            static_analysis=static_analysis,
-            meta_context=meta_context,
-            agent_llm=agent_llm,
-            parsing_llm=parsing_llm,
-            run_id=self.run_id,
-        )
-        self._monitoring_agents["DetailsAgent"] = self.details_agent
-        self.abstraction_agent = AbstractionAgent(
-            repo_dir=self.repo_location,
-            project_name=self.repo_name,
-            static_analysis=static_analysis,
-            meta_context=meta_context,
-            agent_llm=agent_llm,
-            parsing_llm=parsing_llm,
-        )
-        self._monitoring_agents["AbstractionAgent"] = self.abstraction_agent
+        self._initialize_agents(static_analysis, meta_context, agent_llm, parsing_llm)
 
         if self.monitoring_enabled:
             monitoring_dir = get_monitoring_run_dir(self.log_path, create=True)
@@ -665,22 +700,24 @@ class DiagramGenerator:
         scope: AnalysisInsights,
         structural_diff: StructuralClusterDiff,
         cluster_results: dict[str, ClusterResult],
-        planning_agent: IncrementalPlanningAgent,
-        incremental_agent: IncrementalAgent,
         sub_analyses: dict[str, AnalysisInsights],
     ) -> RecursiveScopeUpdateResult:
-        decision = planning_agent.decide_scope_update(scope_id, scope, structural_diff)
-        apply_result = incremental_agent.update_scope(scope_id, scope, decision, cluster_results)
+        assert self.incremental_planning_agent is not None
+        assert self.incremental_agent is not None
+        decision = self.incremental_planning_agent.decide_scope_update(
+            scope_id,
+            scope,
+            structural_diff,
+            cluster_results,
+        )
+        apply_result = self.incremental_agent.update_scope(scope_id, scope, decision, cluster_results)
         result = RecursiveScopeUpdateResult(
             refresh_ids=set(apply_result.refresh_ids),
             new_component_ids=set(apply_result.new_component_ids),
             removed_ids=set(apply_result.removed_ids),
-            regenerate_scope=apply_result.regenerate_scope,
         )
         if apply_result.refresh_ids or apply_result.removed_ids:
             result.touched_scopes.add(scope_id)
-        if result.regenerate_scope:
-            raise IncrementalScopeRegenerationRequiredError(scope_id)
 
         components_by_id = {
             component.component_id: component for component in scope.components if component.component_id
@@ -694,7 +731,7 @@ class DiagramGenerator:
             child_cluster_results, child_diff = _build_scope_incremental_inputs(
                 child_component,
                 component_id,
-                incremental_agent,
+                self.incremental_agent,
                 self.changes,
                 self.repo_location,
             )
@@ -707,17 +744,12 @@ class DiagramGenerator:
                 child_scope,
                 child_diff,
                 child_cluster_results,
-                planning_agent,
-                incremental_agent,
                 sub_analyses,
             )
             result.refresh_ids |= child_result.refresh_ids
             result.new_component_ids |= child_result.new_component_ids
             result.removed_ids |= child_result.removed_ids
             result.touched_scopes |= child_result.touched_scopes
-            result.regenerate_scope = result.regenerate_scope or child_result.regenerate_scope
-            if result.regenerate_scope:
-                raise IncrementalScopeRegenerationRequiredError(scope_id)
         return result
 
     @track_analysis
@@ -732,10 +764,12 @@ class DiagramGenerator:
         then ``_generate_subcomponents`` seeded with the changed components.
         Raises when no trustworthy baseline or scoped update plan is available.
         """
-        if self.details_agent is None or self.abstraction_agent is None:
+        if self.details_agent is None or self.incremental_planning_agent is None or self.incremental_agent is None:
             self.pre_analysis()
         assert self.static_analysis is not None
-        assert self.abstraction_agent is not None
+        assert self.details_agent is not None
+        assert self.incremental_planning_agent is not None
+        assert self.incremental_agent is not None
 
         monitor = self.stats_writer if self.stats_writer else nullcontext()
         with monitor:
@@ -781,45 +815,20 @@ class DiagramGenerator:
                 self._refresh_files_index(root_analysis, sub_analyses)
                 return self.finalize_and_save(root_analysis, sub_analyses)
 
-            agent_llm, parsing_llm = initialize_llms()
-            planning_agent = IncrementalPlanningAgent(
-                repo_dir=self.repo_location,
-                static_analysis=self.static_analysis,
-                project_name=self.repo_name,
-                meta_context=self.meta_context,
-                agent_llm=agent_llm,
-                parsing_llm=parsing_llm,
-                changes=self.changes,
-            )
-            self._monitoring_agents["IncrementalPlanningAgent"] = planning_agent
             structural_diff = structural_diff_from_delta(
                 old_snapshot,
                 delta,
                 changes=self.changes,
                 repo_dir=self.repo_location,
             )
-            incremental_agent = IncrementalAgent(
-                repo_dir=self.repo_location,
-                static_analysis=self.static_analysis,
-                project_name=self.repo_name,
-                meta_context=self.meta_context,
-                agent_llm=agent_llm,
-                parsing_llm=parsing_llm,
-                changes=self.changes,
-            )
-            self._monitoring_agents["IncrementalAgent"] = incremental_agent
             protected_empty_ids = _cluster_backed_empty_component_ids(root_analysis, sub_analyses)
             apply_result = self._apply_incremental_scope_recursively(
                 ROOT_SCOPE_ID,
                 root_analysis,
                 structural_diff,
                 delta.cluster_results(),
-                planning_agent,
-                incremental_agent,
                 sub_analyses,
             )
-            if apply_result.regenerate_scope:
-                raise IncrementalScopeRegenerationRequiredError(ROOT_SCOPE_ID)
 
             removed_ids = prune_empty_components(root_analysis, sub_analyses, protected_empty_ids)
             if removed_ids:
@@ -837,7 +846,11 @@ class DiagramGenerator:
                 _merge_sub_analyses(sub_analyses, redetailed_subs)
 
             if apply_result.touched_scopes:
-                incremental_agent.generate_all_scope_relations(root_analysis, sub_analyses, apply_result.touched_scopes)
+                self.incremental_agent.generate_all_scope_relations(
+                    root_analysis,
+                    sub_analyses,
+                    apply_result.touched_scopes,
+                )
 
             self._refresh_files_index(root_analysis, sub_analyses)
 
@@ -856,25 +869,32 @@ class DiagramGenerator:
         root_analysis: AnalysisInsights,
         sub_analyses: dict[str, AnalysisInsights],
     ) -> None:
-        """Rebuild the global files index from live source, unioning every
-        sub-analysis's files into root.
+        """Rebuild live per-scope file indexes and union them into the root index."""
+        assert self.static_analysis is not None
+        analyses = (root_analysis, *sub_analyses.values())
+        for analysis in analyses:
+            refresh_method_spans_from_cfg(analysis, self.static_analysis, self.repo_location)
+            analysis.files = build_files_index(analysis, self.repo_location)
+            index_relation_endpoints(analysis, self.repo_location)
 
-        The incremental flow never reruns AbstractionAgent over the full CFG, so
-        root.files lags behind deeper levels; build_unified_analysis_json reads
-        only root.files for the top index, so we must surface every depth's files
-        there. Refreshing spans from the live CFG first means build_files_index
-        hashes the current body even for components that weren't re-detailed, so a
-        body-only edit is reflected.
-        """
-        assert self.abstraction_agent is not None
-        for analysis in (root_analysis, *sub_analyses.values()):
-            self.abstraction_agent.refresh_method_spans_from_cfg(analysis)
-        for sub in sub_analyses.values():
-            sub.files = self.abstraction_agent.build_files_index(sub)
-        unified_files = self.abstraction_agent.build_files_index(root_analysis)
+        unified_files = root_analysis.files
         for sub in sub_analyses.values():
             for fp, entry in sub.files.items():
-                unified_files.setdefault(fp, entry)
+                indexed_entry = unified_files.get(fp)
+                if indexed_entry is None:
+                    unified_files[fp] = entry
+                    continue
+                if not indexed_entry.content_hash:
+                    indexed_entry.content_hash = entry.content_hash
+                methods_by_qname = {method.qualified_name: method for method in indexed_entry.methods}
+                for method in entry.methods:
+                    indexed = methods_by_qname.get(method.qualified_name)
+                    if indexed is None or (indexed.node_type == "REFERENCE" and method.node_type != "REFERENCE"):
+                        methods_by_qname[method.qualified_name] = method
+                indexed_entry.methods = sorted(
+                    methods_by_qname.values(),
+                    key=lambda method: (method.start_line, method.end_line, method.qualified_name),
+                )
         root_analysis.files = unified_files
 
 

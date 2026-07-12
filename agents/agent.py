@@ -227,7 +227,13 @@ class CodeBoardingAgent(MonitoringMixin):
         assert isinstance(response, str), f"Expected a string as response type got {response}"
         return self._parse_response(prompt, response, type, include_hidden=include_hidden)
 
-    def _score_result(self, result, validators: list, context) -> tuple[float, list[tuple[float, str]]]:
+    def _repair_result(self, result, repairs: list, repair_context) -> None:
+        """Apply deterministic repairs to one parsed candidate."""
+        for repair in repairs:
+            logger.info("[Repair] Applying %s", repair.__name__)
+            repair(result, repair_context)
+
+    def _score_result(self, result, validators: list, validation_context) -> tuple[float, list[tuple[float, str]]]:
         """Run all validators on a result and return (score, prioritized_feedback).
 
         The score is computed using weighted validators where coverage-related
@@ -241,7 +247,7 @@ class CodeBoardingAgent(MonitoringMixin):
         validator_results: list[tuple] = []
         weighted_feedback: list[tuple[float, str]] = []
         for validator in validators:
-            validator_result: ValidationResult = validator(result, context)
+            validator_result: ValidationResult = validator(result, validation_context)
             validator_results.append((validator, validator_result))
             if not validator_result.is_valid:
                 weight = VALIDATOR_WEIGHTS.get(validator.__name__, DEFAULT_VALIDATOR_WEIGHT)
@@ -254,44 +260,25 @@ class CodeBoardingAgent(MonitoringMixin):
         score = score_validation_results(validator_results)
         return score, weighted_feedback
 
-    def _validation_invoke(
+    def _invoke_repair_validate(
         self,
         prompt: str,
         return_type: type,
+        repairs: list,
         validators: list,
-        context,
+        repair_context,
+        validation_context,
         max_validation_attempts: int = 1,
         include_hidden: bool = False,
     ):
-        """
-        Invoke LLM with validation, feedback loop, and best-of-N selection.
-
-        Each attempt (initial + retries) is scored using weighted validators.
-        Coverage validators (validate_cluster_coverage, validate_group_name_coverage)
-        are weighted ~2x higher than other validators, so the selection strongly
-        favours results with complete coverage.
-
-        If any attempt scores perfectly (all validators pass), it is returned
-        immediately. Otherwise the highest-scoring result across all attempts is
-        returned.
-
-        Args:
-            prompt: The original prompt
-            return_type: Pydantic type to parse into
-            validators: List of validation functions to run
-            context: ValidationContext with data needed for validation
-            max_validation_attempts: Maximum validation attempts (initial attempt included).
-                Retries occur only when this value is greater than 1. (default: 1)
-
-        Returns:
-            The highest-scoring result of return_type across all attempts
-        """
+        """Parse, repair, and validate each candidate before best-of-N selection."""
         # Compute the maximum possible score so we can detect a perfect result
         max_possible_score = sum(VALIDATOR_WEIGHTS.get(v.__name__, DEFAULT_VALIDATOR_WEIGHT) for v in validators)
 
         result = self._parse_invoke(prompt, return_type, include_hidden=include_hidden)
+        self._repair_result(result, repairs, repair_context)
         logger.info(
-            "[Validation] Parsed %s: %s",
+            "[Validation] Parsed and repaired %s: %s",
             return_type.__name__,
             result.llm_str()[:500],
         )
@@ -304,7 +291,7 @@ class CodeBoardingAgent(MonitoringMixin):
         critical_threshold = 10.0
 
         for attempt in range(1, max_validation_attempts + 1):
-            score, weighted_feedback = self._score_result(result, validators, context)
+            score, weighted_feedback = self._score_result(result, validators, validation_context)
 
             logger.info(
                 f"[Validation] Attempt {attempt}/{max_validation_attempts} "
@@ -348,6 +335,7 @@ class CodeBoardingAgent(MonitoringMixin):
                 f"with {len(weighted_feedback)} feedback items"
             )
             result = self._parse_invoke(feedback_prompt, return_type, include_hidden=include_hidden)
+            self._repair_result(result, repairs, repair_context)
 
         return best_result
 

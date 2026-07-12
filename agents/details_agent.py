@@ -23,6 +23,8 @@ from agents.prompts import (
     get_api_surfaces_message,
     get_relation_analysis_message,
 )
+from agents.relation_edges import index_relation_endpoints
+from agents.repair import ComponentRepairContext, repair_component_group_names, repair_key_entities
 from agents.cluster_methods_mixin import ClusterMethodsMixin
 from caching.cache import ModelSettings
 from caching.details_cache import (
@@ -55,7 +57,14 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
         parsing_llm: BaseChatModel,
         run_id: str,
     ):
-        super().__init__(repo_dir, static_analysis, get_system_details_message(), agent_llm, parsing_llm)
+        meta_context_str = meta_context.llm_str() if meta_context else "No project context available."
+        project_type = meta_context.project_type if meta_context else "unknown"
+        system_message = get_system_details_message().format(
+            project_name=project_name,
+            project_type=project_type,
+            meta_context=meta_context_str,
+        )
+        super().__init__(repo_dir, static_analysis, system_message, agent_llm, parsing_llm)
         self.project_name = project_name
         self.meta_context = meta_context
         self.run_id = run_id
@@ -75,22 +84,16 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
             "api_surfaces": PromptTemplate(
                 template=get_api_surfaces_message(),
                 input_variables=[
-                    "project_name",
                     "component_summaries",
                     "static_call_evidence",
-                    "meta_context",
-                    "project_type",
                 ],
             ),
             "relation_analysis": PromptTemplate(
                 template=get_relation_analysis_message(),
                 input_variables=[
-                    "project_name",
                     "component_summaries",
                     "api_surfaces",
                     "static_call_evidence",
-                    "meta_context",
-                    "project_type",
                 ],
             ),
         }
@@ -145,8 +148,14 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
 
         if (cached := self._cluster_cache.load(cache_key)) is not None:
             return cached
-        cluster_analysis = self._validation_invoke(
-            prompt, ClusterAnalysis, validators=[validate_cluster_coverage], context=context, max_validation_attempts=3
+        cluster_analysis = self._invoke_repair_validate(
+            prompt,
+            ClusterAnalysis,
+            repairs=[],
+            validators=[validate_cluster_coverage],
+            repair_context=None,
+            validation_context=context,
+            max_validation_attempts=3,
         )
         self._cluster_cache.store(
             cache_key,
@@ -210,14 +219,20 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
 
         if (cached := self._analysis_cache.load(cache_key)) is not None:
             return cached
-        architecture = self._validation_invoke(
+        architecture = self._invoke_repair_validate(
             prompt,
             ComponentArchitecture,
+            repairs=[repair_component_group_names, repair_key_entities],
             validators=[
                 validate_group_name_coverage,
                 validate_key_entities,
             ],
-            context=context,
+            repair_context=ComponentRepairContext(
+                reference_resolver=self.reference_resolver,
+                cluster_results=subgraph_cluster_results,
+                llm_cluster_analysis=cluster_analysis,
+            ),
+            validation_context=context,
             max_validation_attempts=3,
         )
         result = AnalysisInsights(
@@ -235,21 +250,18 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
     @trace
     def step_api_surfaces(self, analysis: AnalysisInsights) -> ComponentApiSurfaces:
         logger.info(f"[DetailsAgent] Analyzing component API surfaces for: {self.project_name}")
-        meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
-        project_type = self.meta_context.project_type if self.meta_context else "unknown"
         static_call_evidence = self.build_scope_cfg_string(analysis)
         prompt = self.prompts["api_surfaces"].format(
-            project_name=self.project_name,
             component_summaries=analysis.llm_str(),
             static_call_evidence=static_call_evidence,
-            meta_context=meta_context_str,
-            project_type=project_type,
         )
-        return self._validation_invoke(
+        return self._invoke_repair_validate(
             prompt,
             ComponentApiSurfaces,
+            repairs=[],
             validators=[],
-            context=None,
+            repair_context=None,
+            validation_context=None,
             max_validation_attempts=1,
         )
 
@@ -264,25 +276,22 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
         source_cluster_id_prefix: str,
     ) -> None:
         logger.info(f"[DetailsAgent] Discovering component relations for: {self.project_name}")
-        meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
-        project_type = self.meta_context.project_type if self.meta_context else "unknown"
         static_call_evidence = self.build_scope_cfg_string(analysis)
         self.toolkit.context.cluster_analysis = cluster_analysis
         self.toolkit.context.cluster_results = cluster_results
         self.toolkit.context.cfg_graphs = cfg_graphs
         prompt = self.prompts["relation_analysis"].format(
-            project_name=self.project_name,
             component_summaries=analysis.llm_str(),
             api_surfaces=api_surfaces.llm_str(),
             static_call_evidence=static_call_evidence,
-            meta_context=meta_context_str,
-            project_type=project_type,
         )
-        relation_result = self._validation_invoke(
+        relation_result = self._invoke_repair_validate(
             prompt,
             ComponentRelations,
+            repairs=[],
             validators=[validate_relations],
-            context=ValidationContext(
+            repair_context=None,
+            validation_context=ValidationContext(
                 cluster_results=cluster_results,
                 cfg_graphs=cfg_graphs,
                 repo_dir=str(self.repo_dir),
@@ -357,7 +366,10 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
         # Step 9: Fix source code reference lines (resolves reference_file paths)
         analysis = self.reference_resolver.fix_source_code_reference_lines(analysis)
 
-        # Step 10: Ensure unique key entities across components
+        # Step 10: Index relation endpoints after reference resolution
+        index_relation_endpoints(analysis, self.repo_dir)
+
+        # Step 11: Ensure unique key entities across components
         self._ensure_unique_key_entities(analysis)
 
         return analysis, subgraph_cluster_results

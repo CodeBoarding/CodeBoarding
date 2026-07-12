@@ -426,6 +426,42 @@ class TestLabelInheritance(unittest.TestCase):
         unrelated = next(item for item in relations if (item.src_id, item.dst_id) == ("1.1.1", "2.1.1"))
         self.assertEqual(unrelated.key_edges, [])
 
+    def test_refreshed_scope_payload_overrides_persisted_global_copy(self):
+        root = _build_root_analysis()
+        sub_analyses = _build_sub_analyses()
+        refreshed_relation = sub_analyses["2.1"].components_relations[0]
+        refreshed_relation.evidence = "Fresh scoped evidence."
+        refreshed_relation.key_edges = [
+            RelationEdge(
+                source=SourceCodeReference(qualified_name="core.auth.login"),
+                target=SourceCodeReference(qualified_name="core.profiles.get"),
+                description="Fresh scoped edge.",
+            )
+        ]
+        root.components_relations.append(
+            Relation(
+                relation=refreshed_relation.relation,
+                src_name=refreshed_relation.src_name,
+                dst_name=refreshed_relation.dst_name,
+                evidence="Stale persisted evidence.",
+                key_edges=[
+                    RelationEdge(
+                        source=SourceCodeReference(qualified_name="core.auth.login"),
+                        target=SourceCodeReference(qualified_name="core.profiles.get"),
+                        description="Stale persisted edge.",
+                    )
+                ],
+                src_id="2.1.1",
+                dst_id="2.1.2",
+            )
+        )
+
+        relations = build_global_relations(root, sub_analyses, {"python": _build_cfg()})
+        relation = next(item for item in relations if (item.src_id, item.dst_id) == ("2.1.1", "2.1.2"))
+
+        self.assertEqual(relation.evidence, "Fresh scoped evidence.")
+        self.assertEqual([edge.description for edge in relation.key_edges], ["Fresh scoped edge."])
+
     def test_llm_only_relation_survives_with_payload(self):
         # "2.1"->"2.2" ("bills") has no CFG edge crossing Users->Billing, so it
         # must survive as an LLM-only relation with its label, is_static=False,

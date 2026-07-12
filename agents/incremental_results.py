@@ -8,7 +8,6 @@ class ScopeUpdateResult:
     refresh_ids: set[str] = field(default_factory=set)
     new_component_ids: set[str] = field(default_factory=set)
     removed_ids: set[str] = field(default_factory=set)
-    regenerate_scope: bool = False
 
 
 @dataclass

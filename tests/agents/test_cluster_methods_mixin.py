@@ -135,6 +135,10 @@ class TestClusterResult(unittest.TestCase):
 
 
 class TestCodeBoardingClusterIds(unittest.TestCase):
+    def test_prefix_for_scope_omits_root_sentinel(self):
+        self.assertEqual(CodeBoardingClusterIds.prefix_for_scope("root"), "")
+        self.assertEqual(CodeBoardingClusterIds.prefix_for_scope("1.1"), "1.1")
+
     def test_sort_groups_by_depth_then_uses_natural_order(self):
         self.assertEqual(CodeBoardingClusterIds.sort({"10", "2.1", "3.4", "1", "2"}), ["1", "2", "10", "2.1", "3.4"])
 

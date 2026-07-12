@@ -236,13 +236,18 @@ class TestConvenienceFunctions(unittest.TestCase):
 
     def test_planning_prompt_available_for_all_models(self):
         required_variables = {
-            "{project_name}",
             "{scope_id}",
-            "{project_type}",
-            "{meta_context}",
             "{existing_components}",
             "{changed_files}",
             "{structural_diff}",
+        }
+        system_context_variables = {"{project_name}", "{project_type}", "{meta_context}"}
+        contract_requirements = {
+            "this step plans component boundaries only",
+            "api surfaces and relations are generated later",
+            "for create_component",
+            "for update_component",
+            "copy the exact component_id",
         }
 
         for llm_type in LLMType:
@@ -251,6 +256,31 @@ class TestConvenienceFunctions(unittest.TestCase):
             self.assertGreater(len(prompt), 0)
             for variable in required_variables:
                 self.assertIn(variable, prompt)
+            for variable in system_context_variables:
+                self.assertNotIn(variable, prompt)
+            normalized_prompt = prompt.casefold()
+            for requirement in contract_requirements:
+                self.assertIn(requirement, normalized_prompt)
+
+    def test_project_context_is_reserved_for_system_prompts(self):
+        context_variables = {"{project_name}", "{project_type}", "{meta_context}"}
+
+        for llm_type in LLMType:
+            factory = PromptFactory(llm_type)._prompt_factory
+            system_prompt = factory.get_system_message()
+            api_prompt = factory.get_api_surfaces_message()
+            relation_prompt = factory.get_relation_analysis_message()
+            for variable in context_variables:
+                self.assertIn(variable, system_prompt)
+                self.assertNotIn(variable, api_prompt)
+                self.assertNotIn(variable, relation_prompt)
+            formatted_system_prompt = system_prompt.format(
+                project_name="Example",
+                project_type="library",
+                meta_context="Example context",
+            )
+            for variable in context_variables:
+                self.assertNotIn(variable, formatted_system_prompt)
 
 
 if __name__ == "__main__":

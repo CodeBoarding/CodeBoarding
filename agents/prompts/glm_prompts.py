@@ -436,12 +436,10 @@ Return one routing decision per cluster group. Each decision MUST clearly indica
 PLANNING_MESSAGE = """You are a software architecture incremental-update analyst. STRICTLY follow these rules.
 
 TASK:
-Update one scope of the `{project_name}` architecture diagram.
+Update one scope of the architecture diagram.
 
 CONTEXT:
 - Scope: `{scope_id}` (`root` means the top-level diagram)
-- Project type: {project_type}
-- Meta: {meta_context}
 
 EXISTING COMPONENTS IN THIS SCOPE:
 {existing_components}
@@ -462,8 +460,15 @@ REQUIRED STEPS:
 6. Use listGitChanges ONLY when the structural diff is not enough to judge semantic impact.
 
 MANDATORY RULES:
-- Do NOT reparent existing components. If reparenting seems required, use regenerate_scope.
+- Do not reparent existing components. Preserve their current scope; reparenting is not a valid incremental operation.
 - Every modified/new/reshaped new-side cluster listed below MUST appear in exactly one operation's cluster_refs.
+
+ARCHITECTURE OUTPUT CONTRACT:
+- This step plans component boundaries only. Do NOT define component relations; API surfaces and relations are generated later.
+- Preserve an existing component's name, description, and key entities unless its architectural responsibility changed.
+- For create_component, provide a clear name and description. Select up to 5 key_entities only when their exact qualified names are available; otherwise leave them empty. Key entities are not synthesized later.
+- For update_component, include refreshed name, description, or key_entities only when the component's responsibility changed. An empty key_entities list preserves the current selection.
+- For update_component, delete_component, and noop, copy the exact component_id from the existing-components list.
 """
 
 

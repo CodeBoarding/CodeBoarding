@@ -1,10 +1,8 @@
 """Validation utilities for LLM agent outputs."""
 
 import logging
-import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Protocol
 
@@ -14,13 +12,16 @@ from agents.agent_responses import (
     Component,
     ComponentFiles,
     Relation,
+    ScopeOperationAction,
     ScopeRelations,
+    ScopeUpdateDecision,
+    ScopedClusterRef,
 )
+from diagram_analysis.cluster_delta import ClusterRef
 from repo_utils import normalize_path
-from static_analyzer.reference_resolver import StaticReferenceResolver
-from static_analyzer.graph import CallGraph, ClusterResult
-
 from static_analyzer.analysis_result import StaticAnalysisResults
+from static_analyzer.graph import CallGraph, ClusterResult
+from static_analyzer.reference_resolver import StaticReferenceResolver
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +38,14 @@ VALIDATOR_WEIGHTS: dict[str, float] = {
     "validate_file_classifications": 5.0,
 }
 DEFAULT_VALIDATOR_WEIGHT = 5.0
+
+_EXISTING_COMPONENT_ACTIONS = frozenset(
+    {
+        ScopeOperationAction.UPDATE_COMPONENT,
+        ScopeOperationAction.DELETE_COMPONENT,
+        ScopeOperationAction.NOOP,
+    }
+)
 
 
 @dataclass
@@ -60,6 +69,12 @@ class ValidationContext:
 
 
 @dataclass
+class ScopeOperationValidationContext:
+    expected_cluster_refs: set[ClusterRef] = field(default_factory=set)
+    existing_component_ids: set[str] = field(default_factory=set)
+
+
+@dataclass
 class ValidationResult:
     """Result of a validation check."""
 
@@ -70,6 +85,60 @@ class ValidationResult:
 
 class RelationValidationTarget(Protocol):
     components_relations: list[Relation]
+
+
+class ComponentValidationTarget(Protocol):
+    components: list[Component]
+
+
+def validate_scope_update_decision(
+    decision: ScopeUpdateDecision,
+    context: ScopeOperationValidationContext,
+) -> ValidationResult:
+    errors: list[str] = []
+    seen_refs: list[ClusterRef] = []
+    for operation in decision.operations:
+        refs = [_cluster_ref_from_scoped_ref(ref) for ref in operation.cluster_refs]
+        seen_refs.extend(refs)
+        if operation.action in _EXISTING_COMPONENT_ACTIONS:
+            if operation.component_id not in context.existing_component_ids:
+                errors.append(
+                    f"Operation {operation.action} references unknown component_id={operation.component_id!r}."
+                )
+        if operation.action == ScopeOperationAction.CREATE_COMPONENT:
+            if not operation.name or not operation.description:
+                errors.append("create_component operations must include name and description.")
+        if operation.action == ScopeOperationAction.NOOP and (
+            operation.name or operation.description or operation.key_entities
+        ):
+            errors.append("noop operations must preserve the component name, description, and key entities.")
+        if len(operation.key_entities) > 5:
+            errors.append(f"Operation {operation.action} includes more than five key entities.")
+        entity_qnames = [entity.qualified_name for entity in operation.key_entities]
+        duplicate_qnames = {qname for qname in entity_qnames if entity_qnames.count(qname) > 1}
+        if duplicate_qnames:
+            errors.append(f"Operation {operation.action} repeats key entities: {sorted(duplicate_qnames)}.")
+
+    seen_set = set(seen_refs)
+    missing = context.expected_cluster_refs - seen_set
+    extra = seen_set - context.expected_cluster_refs
+    duplicates = {ref for ref in seen_set if seen_refs.count(ref) > 1}
+    if missing:
+        errors.append(f"Missing cluster_refs: {_format_cluster_ref_list(missing)}")
+    if extra:
+        errors.append(f"Unexpected cluster_refs: {_format_cluster_ref_list(extra)}")
+    if duplicates:
+        errors.append(f"Duplicate cluster_refs: {_format_cluster_ref_list(duplicates)}")
+    return ValidationResult(is_valid=not errors, feedback_messages=errors)
+
+
+def _cluster_ref_from_scoped_ref(ref: ScopedClusterRef) -> ClusterRef:
+    return ClusterRef(ref.language, ref.cluster_id, ref.scope_id)
+
+
+def _format_cluster_ref_list(refs: set[ClusterRef]) -> str:
+    sorted_refs = sorted(refs, key=lambda ref: (ref.scope_id, ref.language, ref.cluster_id))
+    return ", ".join(f"{ref.scope_id}:{ref.language}:{ref.cluster_id}" for ref in sorted_refs) or "None"
 
 
 def _effective_validation_score(result: ValidationResult) -> float:
@@ -203,93 +272,12 @@ def validate_existing_component_ids(result: ClusterAnalysis, context: Validation
     return ValidationResult(is_valid=True)
 
 
-def _normalize_group_name(name: str) -> str:
-    """Normalize a group name for fuzzy comparison: lowercase, collapse whitespace, strip punctuation."""
-    name = name.lower().strip()
-    name = re.sub(r"\s+", " ", name)
-    # Remove common punctuation that LLMs might add/drop inconsistently
-    name = re.sub(r"[()&/\\,\-–—]", " ", name)
-    name = re.sub(r"\s+", " ", name).strip()
-    return name
-
-
-def _fuzzy_match_group_name(name: str, candidates: dict[str, str], threshold: float = 0.75) -> str | None:
-    """Find the best fuzzy match for *name* among *candidates*.
-
-    Args:
-        name: The name to match (already normalized).
-        candidates: Mapping of normalized_name -> original_name.
-        threshold: Minimum similarity ratio (0-1) to accept a match.
-
-    Returns:
-        The original (canonical) name of the best match, or None.
-    """
-    best_score = 0.0
-    best_match: str | None = None
-    for norm_candidate, original in candidates.items():
-        score = SequenceMatcher(None, name, norm_candidate).ratio()
-        if score > best_score and score >= threshold:
-            best_score = score
-            best_match = original
-    return best_match
-
-
-def _auto_correct_group_names(result: AnalysisInsights, expected_group_names: set[str]) -> int:
-    """Auto-correct source_group_names on components in-place.
-
-    Fixes case mismatches, whitespace differences, and close fuzzy matches
-    (similar to how validate_key_entities auto-corrects key_entity names).
-
-    Returns:
-        Number of names that were auto-corrected.
-    """
-    # Build lookup: normalized_name -> canonical_name
-    canonical_lookup: dict[str, str] = {_normalize_group_name(name): name for name in expected_group_names}
-
-    auto_corrected = 0
-    for component in result.components:
-        corrected_names: list[str] = []
-        for gname in component.source_group_names:
-            normalized = _normalize_group_name(gname)
-
-            # Exact normalized match (handles case + whitespace)
-            if normalized in canonical_lookup:
-                canonical = canonical_lookup[normalized]
-                if gname != canonical:
-                    logger.info(
-                        f"[Validation] Auto-corrected source_group_name: "
-                        f"'{gname}' -> '{canonical}' (component '{component.name}')"
-                    )
-                    auto_corrected += 1
-                corrected_names.append(canonical)
-                continue
-
-            # Fuzzy match for close typos
-            fuzzy_match = _fuzzy_match_group_name(normalized, canonical_lookup)
-            if fuzzy_match is not None:
-                logger.info(
-                    f"[Validation] Auto-corrected source_group_name (fuzzy): "
-                    f"'{gname}' -> '{fuzzy_match}' (component '{component.name}')"
-                )
-                auto_corrected += 1
-                corrected_names.append(fuzzy_match)
-                continue
-
-            # No match found, keep original for error reporting
-            corrected_names.append(gname)
-
-        component.source_group_names = corrected_names
-
-    return auto_corrected
-
-
-def validate_group_name_coverage(result: AnalysisInsights, context: ValidationContext) -> ValidationResult:
+def validate_group_name_coverage(result: ComponentValidationTarget, context: ValidationContext) -> ValidationResult:
     """
     Validate bidirectional coverage between cluster groups and components:
-    1. Auto-correct trivial mismatches (case, whitespace, close typos) in-place.
-    2. Every ClusterComponent must be referenced by at least one Component's source_group_names.
-    3. Every Component must have at least one source_group_name assigned.
-    4. Every source_group_name referenced by a Component must exist in the cluster analysis.
+    1. Every ClusterComponent must be referenced by at least one Component's source_group_names.
+    2. Every Component must have at least one source_group_name assigned.
+    3. Every source_group_name referenced by a Component must exist in the cluster analysis.
 
     Args:
         result: AnalysisInsights containing components with source_group_names
@@ -303,11 +291,6 @@ def validate_group_name_coverage(result: AnalysisInsights, context: ValidationCo
         return ValidationResult(is_valid=True)
 
     expected_group_names = {cc.name for cc in context.llm_cluster_analysis.cluster_components}
-
-    # Auto-correct trivial mismatches before validation
-    auto_corrected = _auto_correct_group_names(result, expected_group_names)
-    if auto_corrected:
-        logger.info(f"[Validation] Auto-corrected {auto_corrected} source_group_name(s)")
 
     referenced_group_names: set[str] = set()
     for component in result.components:
@@ -378,85 +361,12 @@ def validate_group_name_coverage(result: AnalysisInsights, context: ValidationCo
     return ValidationResult(is_valid=False, feedback_messages=feedback_messages)
 
 
-def validate_key_entities(result: AnalysisInsights, context: ValidationContext) -> ValidationResult:
-    """
-    Validate key_entities on every component:
-    1. Auto-correct qualified names via loose matching.
-    2. Silently drop invalid key entities (out of scope or not found).
-    3. Only fail if a component ends up with zero key_entities after dropping.
-
-    Args:
-        result: AnalysisInsights containing components with key_entities
-        context: ValidationContext with optional static_analysis for name resolution
-                 and cluster_results for scope validation
-
-    Returns:
-        ValidationResult with feedback only for components left with zero key entities
-    """
-    auto_corrected = 0
-
-    # Auto-correct qualified names via loose matching (always, when static_analysis available)
-    if context.static_analysis:
-        for component in result.components:
-            for key_entity in component.key_entities:
-                qname = key_entity.qualified_name.replace("/", ".")
-                node = context.static_analysis.resolve_across_languages(qname)
-                if node is not None and node.fully_qualified_name != qname:
-                    logger.info(
-                        f"[Validation] Auto-corrected qualified name: "
-                        f"'{key_entity.qualified_name}' -> '{node.fully_qualified_name}'"
-                    )
-                    key_entity.qualified_name = node.fully_qualified_name
-                    auto_corrected += 1
-        if auto_corrected:
-            logger.info(f"[Validation] Auto-corrected {auto_corrected} qualified names via loose matching")
-
-    # Silently drop invalid key entities
-    dropped = 0
-    if context.cluster_results:
-        nodes_in_scope: set[str] = set()
-        for cr in context.cluster_results.values():
-            for members in cr.clusters.values():
-                nodes_in_scope.update(members)
-
-        for component in result.components:
-            valid = []
-            for key_entity in component.key_entities:
-                qname = key_entity.qualified_name
-                in_scope = qname in nodes_in_scope
-                if not in_scope:
-                    for scope_node in nodes_in_scope:
-                        if qname.startswith(scope_node + ".") or scope_node.startswith(qname + "."):
-                            in_scope = True
-                            break
-                if in_scope:
-                    valid.append(key_entity)
-                else:
-                    dropped += 1
-            component.key_entities = valid
-
-    elif context.static_analysis:
-        for component in result.components:
-            valid = []
-            for key_entity in component.key_entities:
-                qname = key_entity.qualified_name.replace("/", ".")
-                node = context.static_analysis.resolve_across_languages(qname)
-                if node is not None:
-                    if node.fully_qualified_name != qname:
-                        key_entity.qualified_name = node.fully_qualified_name
-                    valid.append(key_entity)
-                else:
-                    dropped += 1
-            component.key_entities = valid
-
-    if dropped:
-        logger.info(f"[Validation] Silently dropped {dropped} invalid key entities")
-
-    # Only fail if any component ended up with zero key_entities
+def validate_key_entities(result: ComponentValidationTarget, context: ValidationContext) -> ValidationResult:
+    """Validate that every component retains at least one repaired key entity."""
     empty_components = [c.name for c in result.components if not c.key_entities]
     if empty_components:
         missing_str = ", ".join(empty_components)
-        logger.warning(f"[Validation] Components with no valid key entities after cleanup: {missing_str}")
+        logger.warning(f"[Validation] Components with no valid key entities: {missing_str}")
         return ValidationResult(
             is_valid=False,
             feedback_messages=[

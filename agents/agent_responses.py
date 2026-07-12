@@ -821,7 +821,6 @@ class ScopeOperationAction(StrEnum):
     UPDATE_COMPONENT = "update_component"
     DELETE_COMPONENT = "delete_component"
     NOOP = "noop"
-    REGENERATE_SCOPE = "regenerate_scope"
 
 
 class ScopedClusterRef(LLMBaseModel):

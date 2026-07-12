@@ -2,6 +2,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+from pydantic import ValidationError
 
 from agents.agent_responses import (
     AnalysisInsights,
@@ -12,14 +13,17 @@ from agents.agent_responses import (
     ScopedClusterRef,
     ScopeUpdateDecision,
 )
-from diagram_analysis.exceptions import InvalidIncrementalPlanError, IncrementalScopeRegenerationRequiredError
+from diagram_analysis.exceptions import InvalidIncrementalPlanError
 from agents.incremental_planning_agent import (
-    ScopeOperationValidationContext,
     IncrementalPlanningAgent,
     _component_ids_by_cluster_ref,
     format_structural_diff,
-    validate_scope_update_decision,
 )
+from agents.repair import (
+    ScopeOperationRepairContext,
+    repair_unambiguous_routing_and_optional_key_entity_metadata,
+)
+from agents.validation import ScopeOperationValidationContext, validate_scope_update_decision
 from diagram_analysis.cluster_delta import (
     ClusterMemberDelta,
     ClusterRef,
@@ -30,6 +34,7 @@ from diagram_analysis.cluster_delta import (
 from repo_utils.change_detector import ChangeSet, FileChange
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import Language, NodeType
+from static_analyzer.graph import ClusterResult
 from static_analyzer.node import Node
 from static_analyzer.reference_resolver import StaticReferenceResolver
 
@@ -139,7 +144,6 @@ def test_validate_scope_update_decision_enforces_cluster_coverage_and_component_
         ]
     )
     context = ScopeOperationValidationContext(
-        reference_resolver=_reference_resolver(),
         expected_cluster_refs={ClusterRef(language="python", cluster_id=1)},
         existing_component_ids={"1"},
     )
@@ -161,7 +165,6 @@ def test_validate_scope_update_decision_accepts_root_scope() -> None:
         ]
     )
     context = ScopeOperationValidationContext(
-        reference_resolver=_reference_resolver(),
         expected_cluster_refs={ClusterRef(language="python", cluster_id=1)},
         existing_component_ids={"1"},
     )
@@ -186,7 +189,6 @@ def test_validate_scope_update_decision_rejects_missing_duplicate_and_unknown_id
         ]
     )
     context = ScopeOperationValidationContext(
-        reference_resolver=_reference_resolver(),
         expected_cluster_refs={
             ClusterRef(language="python", cluster_id=1),
             ClusterRef(language="python", cluster_id=2),
@@ -215,7 +217,6 @@ def test_validate_scope_update_decision_allows_update_for_new_cluster_when_llm_c
         ]
     )
     context = ScopeOperationValidationContext(
-        reference_resolver=_reference_resolver(),
         expected_cluster_refs={ClusterRef(language="python", cluster_id=5)},
         existing_component_ids={"1"},
     )
@@ -239,7 +240,6 @@ def test_validate_scope_update_decision_allows_create_when_llm_chooses_new_compo
         ]
     )
     context = ScopeOperationValidationContext(
-        reference_resolver=_reference_resolver("docs.render"),
         expected_cluster_refs={ClusterRef(language="python", cluster_id=7)},
         existing_component_ids={"3"},
     )
@@ -249,7 +249,7 @@ def test_validate_scope_update_decision_allows_create_when_llm_chooses_new_compo
     assert result.is_valid
 
 
-def test_validate_scope_update_decision_repairs_full_scope_planner_output() -> None:
+def test_repair_scope_update_decision_repairs_full_scope_planner_output() -> None:
     components = [
         Component(
             name="Orchestration & Dispatcher",
@@ -310,15 +310,19 @@ def test_validate_scope_update_decision_repairs_full_scope_planner_output() -> N
     )
     expected_refs = {ClusterRef(language="python", cluster_id=cluster_id) for cluster_id in (*update_refs, 33)}
     canonical_qname = "packages.markitdown-ocr.src.markitdown_ocr._plugin.register_converters"
-    context = ScopeOperationValidationContext(
+    repair_context = ScopeOperationRepairContext(
         reference_resolver=_reference_resolver(canonical_qname),
-        expected_cluster_refs=expected_refs,
-        existing_component_ids={"1"},
+        allowed_key_entity_qnames={canonical_qname},
         component_ids_by_cluster_ref=_component_ids_by_cluster_ref("root", components, structural),
         component_ids_by_name={"orchestration & dispatcher": "1"},
     )
+    validation_context = ScopeOperationValidationContext(
+        expected_cluster_refs=expected_refs,
+        existing_component_ids={"1"},
+    )
 
-    result = validate_scope_update_decision(decision, context)
+    repair_unambiguous_routing_and_optional_key_entity_metadata(decision, repair_context)
+    result = validate_scope_update_decision(decision, validation_context)
 
     assert result.is_valid
     assert decision.operations[0].component_id == "1"
@@ -340,7 +344,6 @@ def test_validate_scope_update_decision_keeps_ownerless_update_invalid() -> None
         ]
     )
     context = ScopeOperationValidationContext(
-        reference_resolver=_reference_resolver(),
         expected_cluster_refs={ref},
         existing_component_ids={"1"},
     )
@@ -352,7 +355,7 @@ def test_validate_scope_update_decision_keeps_ownerless_update_invalid() -> None
     assert "component_id=None" in "\n".join(result.feedback_messages)
 
 
-def test_validate_scope_update_decision_repairs_missing_component_id_from_unique_name() -> None:
+def test_repair_scope_update_decision_routes_missing_component_id_from_unique_name() -> None:
     ref = ClusterRef(language="python", cluster_id=7)
     decision = ScopeUpdateDecision(
         operations=[
@@ -365,14 +368,15 @@ def test_validate_scope_update_decision_repairs_missing_component_id_from_unique
             )
         ]
     )
-    context = ScopeOperationValidationContext(
+    repair_context = ScopeOperationRepairContext(
         reference_resolver=_reference_resolver(),
-        expected_cluster_refs={ref},
-        existing_component_ids={"1"},
+        allowed_key_entity_qnames=set(),
         component_ids_by_name={"api gateway": "1"},
     )
+    validation_context = ScopeOperationValidationContext(expected_cluster_refs={ref}, existing_component_ids={"1"})
 
-    result = validate_scope_update_decision(decision, context)
+    repair_unambiguous_routing_and_optional_key_entity_metadata(decision, repair_context)
+    result = validate_scope_update_decision(decision, validation_context)
 
     assert result.is_valid
     assert decision.operations[0].component_id == "1"
@@ -396,14 +400,18 @@ def test_validate_scope_update_decision_keeps_ambiguous_missing_owner_invalid() 
             )
         ]
     )
-    context = ScopeOperationValidationContext(
+    repair_context = ScopeOperationRepairContext(
         reference_resolver=_reference_resolver(),
-        expected_cluster_refs={first, second},
-        existing_component_ids={"1", "2"},
+        allowed_key_entity_qnames=set(),
         component_ids_by_cluster_ref={first: "1", second: "2"},
     )
+    validation_context = ScopeOperationValidationContext(
+        expected_cluster_refs={first, second},
+        existing_component_ids={"1", "2"},
+    )
 
-    result = validate_scope_update_decision(decision, context)
+    repair_unambiguous_routing_and_optional_key_entity_metadata(decision, repair_context)
+    result = validate_scope_update_decision(decision, validation_context)
 
     assert not result.is_valid
     assert decision.operations[0].action == ScopeOperationAction.UPDATE_COMPONENT
@@ -423,7 +431,6 @@ def test_validate_scope_update_decision_rejects_metadata_changes_on_noop() -> No
         ]
     )
     context = ScopeOperationValidationContext(
-        reference_resolver=_reference_resolver(),
         expected_cluster_refs={ClusterRef(language="python", cluster_id=1)},
         existing_component_ids={"1"},
     )
@@ -432,6 +439,60 @@ def test_validate_scope_update_decision_rejects_metadata_changes_on_noop() -> No
 
     assert not result.is_valid
     assert "noop operations must preserve" in result.feedback_messages[0]
+
+
+def test_repair_scope_update_decision_clears_name_used_to_route_noop() -> None:
+    ref = ClusterRef(language="python", cluster_id=1)
+    decision = ScopeUpdateDecision(
+        operations=[
+            ScopeOperation(
+                action=ScopeOperationAction.NOOP,
+                cluster_refs=[ScopedClusterRef(scope_id="root", language="python", cluster_id=1)],
+                name="API Gateway",
+                rationale="The component boundary is unchanged.",
+            )
+        ]
+    )
+    repair_context = ScopeOperationRepairContext(
+        reference_resolver=_reference_resolver(),
+        allowed_key_entity_qnames=set(),
+        component_ids_by_name={"api gateway": "1"},
+    )
+    validation_context = ScopeOperationValidationContext(expected_cluster_refs={ref}, existing_component_ids={"1"})
+
+    repair_unambiguous_routing_and_optional_key_entity_metadata(decision, repair_context)
+    result = validate_scope_update_decision(decision, validation_context)
+
+    assert result.is_valid
+    assert decision.operations[0].component_id == "1"
+    assert decision.operations[0].name is None
+
+
+def test_repair_scope_update_decision_drops_key_entities_outside_scope() -> None:
+    scoped_qname = "nested.worker.run"
+    decision = ScopeUpdateDecision(
+        operations=[
+            ScopeOperation(
+                action=ScopeOperationAction.CREATE_COMPONENT,
+                cluster_refs=[ScopedClusterRef(scope_id="1", language="python", cluster_id=2)],
+                name="Worker",
+                description="Runs nested jobs.",
+                key_entities=[
+                    SourceCodeReference(qualified_name=scoped_qname),
+                    SourceCodeReference(qualified_name="sibling.service.run"),
+                ],
+                rationale="A new nested responsibility was added.",
+            )
+        ]
+    )
+    repair_context = ScopeOperationRepairContext(
+        reference_resolver=_reference_resolver(scoped_qname, "sibling.service.run"),
+        allowed_key_entity_qnames={scoped_qname},
+    )
+
+    repair_unambiguous_routing_and_optional_key_entity_metadata(decision, repair_context)
+
+    assert [entity.qualified_name for entity in decision.operations[0].key_entities] == [scoped_qname]
 
 
 def test_incremental_planning_agent_uses_narrow_diff_aware_toolkit() -> None:
@@ -513,19 +574,23 @@ def test_decide_scope_update_passes_structural_diff_to_validator() -> None:
             agent_llm=MagicMock(),
             parsing_llm=MagicMock(),
         )
-    agent._validation_invoke = MagicMock(return_value=expected)
+    agent._invoke_repair_validate = MagicMock(return_value=expected)
 
-    result = agent.decide_scope_update("root", scope, structural)
+    cluster_results = {"python": ClusterResult(clusters={1: {"api.new"}})}
+    result = agent.decide_scope_update("root", scope, structural, cluster_results)
 
     assert result is expected
-    prompt = agent._validation_invoke.call_args.args[0]
-    context = agent._validation_invoke.call_args.kwargs["context"]
+    prompt = agent._invoke_repair_validate.call_args.args[0]
+    repair_context = agent._invoke_repair_validate.call_args.kwargs["repair_context"]
+    validation_context = agent._invoke_repair_validate.call_args.kwargs["validation_context"]
     assert "Existing components in this scope" in prompt
     assert '1 "API" clusters=[2, 10, 1.3]' in prompt
     assert "api.new" in prompt
     assert "Do not define component relations" in prompt
-    assert context.expected_cluster_refs == {ClusterRef(language="python", cluster_id=1)}
-    assert context.existing_component_ids == {"1"}
+    assert repair_context.component_ids_by_name == {"api": "1"}
+    assert repair_context.allowed_key_entity_qnames == {"api.new"}
+    assert validation_context.expected_cluster_refs == {ClusterRef(language="python", cluster_id=1)}
+    assert validation_context.existing_component_ids == {"1"}
 
 
 def test_decide_scope_update_tracks_invalid_decision_after_retries() -> None:
@@ -566,11 +631,11 @@ def test_decide_scope_update_tracks_invalid_decision_after_retries() -> None:
             agent_llm=MagicMock(),
             parsing_llm=MagicMock(),
         )
-    agent._validation_invoke = MagicMock(return_value=invalid)
+    agent._invoke_repair_validate = MagicMock(return_value=invalid)
 
     with patch("agents.incremental_planning_agent.telemetry") as mock_telemetry:
         with pytest.raises(InvalidIncrementalPlanError, match="Missing cluster_refs"):
-            agent.decide_scope_update("root", scope, structural)
+            agent.decide_scope_update("root", scope, structural, {})
 
     mock_telemetry.capture_exception.assert_called_once()
     exc = mock_telemetry.capture_exception.call_args.args[0]
@@ -583,33 +648,12 @@ def test_decide_scope_update_tracks_invalid_decision_after_retries() -> None:
     mock_telemetry.flush.assert_called_once()
 
 
-def test_decide_scope_update_fails_when_scope_regeneration_is_required() -> None:
-    static_analysis = MagicMock(spec=StaticAnalysisResults)
-    static_analysis.get_languages.return_value = []
-    scope = AnalysisInsights(description="root", components=[], components_relations=[])
-    decision = ScopeUpdateDecision(
-        operations=[
-            ScopeOperation(
-                action=ScopeOperationAction.REGENERATE_SCOPE,
-                cluster_refs=[],
-                rationale="The component must move to another parent.",
-            )
-        ]
-    )
-
-    with (
-        patch("agents.agent.create_agent", return_value=MagicMock()),
-        patch("agents.incremental_planning_agent.create_agent", return_value=MagicMock()),
-    ):
-        agent = IncrementalPlanningAgent(
-            repo_dir=Path("/tmp/fake-repo"),
-            static_analysis=static_analysis,
-            project_name="Test",
-            meta_context=None,
-            agent_llm=MagicMock(),
-            parsing_llm=MagicMock(),
+def test_scope_operation_rejects_regenerate_scope() -> None:
+    with pytest.raises(ValidationError):
+        ScopeOperation.model_validate(
+            {
+                "action": "regenerate_scope",
+                "cluster_refs": [],
+                "rationale": "Reparenting is not a valid incremental operation.",
+            }
         )
-    agent._validation_invoke = MagicMock(return_value=decision)
-
-    with pytest.raises(IncrementalScopeRegenerationRequiredError, match="Run a full analysis explicitly"):
-        agent.decide_scope_update("root", scope, StructuralClusterDiff())

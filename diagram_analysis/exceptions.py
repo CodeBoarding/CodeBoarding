@@ -59,16 +59,3 @@ class IncrementalScopeContextMissingError(RuntimeError):
     def __init__(self, scope_id: str):
         super().__init__(f"No incremental relation context was recorded for scope {scope_id!r}")
         self.scope_id = scope_id
-
-
-class IncrementalScopeRegenerationRequiredError(RuntimeError):
-    """Raised when a requested boundary change cannot be applied incrementally."""
-
-    def __init__(self, scope_id: str, rationale: str = ""):
-        suffix = f" Planner rationale: {rationale}" if rationale else ""
-        super().__init__(
-            f"Incremental analysis cannot safely regenerate or reparent scope {scope_id!r}. "
-            f"Run a full analysis explicitly if that boundary change is intended.{suffix}"
-        )
-        self.scope_id = scope_id
-        self.rationale = rationale

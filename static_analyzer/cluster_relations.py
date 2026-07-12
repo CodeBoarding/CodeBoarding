@@ -122,9 +122,11 @@ def _collect_component_names(
 def _collect_llm_relations(
     root_analysis: AnalysisInsights, sub_analyses: dict[str, AnalysisInsights]
 ) -> list[Relation]:
-    relations = list(root_analysis.components_relations)
+    relations: list[Relation] = []
     for _, sub_analysis in sorted(sub_analyses.items()):
         relations.extend(sub_analysis.components_relations)
+    # Refreshed scope relations override stale global copies loaded on root.
+    relations.extend(root_analysis.components_relations)
     return relations
 
 

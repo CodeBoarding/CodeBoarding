@@ -358,13 +358,9 @@ Important rules:
 - Every cluster id listed in the "Cluster groups to assign" section must appear in exactly one entry's **cluster_ids**."""
 
 
-PLANNING_MESSAGE = """Update one scope of the `{project_name}` architecture diagram.
+PLANNING_MESSAGE = """Update one scope of the architecture diagram.
 
 Scope: `{scope_id}` (`root` means the top-level diagram)
-Project type: {project_type}
-
-Project context:
-{meta_context}
 
 Existing components in this scope:
 {existing_components}
@@ -384,8 +380,15 @@ Rules:
 - For new clusters, decide from the structural diff whether they extend an existing responsibility or introduce a new component; do not infer this from file/package layout alone.
 - For reshaped groups, follow overlap counts to keep old cluster ownership stable. Only assign a reshaped new cluster to a different component when the diff proves a real responsibility move.
 - Use listGitChanges only when the structural diff is not enough to judge semantic impact.
-- Do not reparent existing components. If reparenting seems required, use regenerate_scope.
+- Do not reparent existing components. Preserve their current scope; reparenting is not a valid incremental operation.
 - Every modified/new/reshaped new-side cluster listed below must appear in exactly one operation's cluster_refs.
+
+Architecture output contract:
+- This step plans component boundaries only. Do not define component relations; API surfaces and relations are generated later.
+- Preserve an existing component's name, description, and key entities unless its architectural responsibility changed.
+- For create_component, provide a clear name and description. Select up to 5 key_entities only when their exact qualified names are available; otherwise leave them empty. Key entities are not synthesized later.
+- For update_component, include refreshed name, description, or key_entities only when the component's responsibility changed. An empty key_entities list preserves the current selection.
+- For update_component, delete_component, and noop, copy the exact component_id from the existing-components list.
 """
 
 

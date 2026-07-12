@@ -50,6 +50,7 @@ class StaticReferenceResolver:
         self,
         analysis: AnalysisInsights,
         component_ids: set[str] | None = None,
+        force_resolve: bool = False,
     ) -> None:
         """Resolve component key entity references."""
         for component in analysis.components:
@@ -58,6 +59,7 @@ class StaticReferenceResolver:
             repair = self.repair_key_entity_references(
                 component.key_entities,
                 component.file_paths() or None,
+                force_resolve=force_resolve,
             )
             component.key_entities = repair.references
 
@@ -65,6 +67,7 @@ class StaticReferenceResolver:
         self,
         references: list[SourceCodeReference],
         file_candidates: list[str] | None = None,
+        force_resolve: bool = False,
     ) -> KeyEntityRepair:
         """Resolve key entities, dropping unresolved and duplicate references."""
         resolved_references: list[SourceCodeReference] = []
@@ -73,15 +76,22 @@ class StaticReferenceResolver:
         unresolved_qnames: set[str] = set()
         for reference in references:
             original_qname = reference.qualified_name
-            has_existing_file = reference.reference_file is not None and self.reference_file_exists(
-                reference.reference_file
-            )
-            has_complete_location = (
-                has_existing_file
-                and reference.reference_start_line is not None
-                and reference.reference_end_line is not None
-            )
-            resolved = has_complete_location or self.resolve_reference(reference, file_candidates)
+            if force_resolve:
+                reference.reference_file = None
+                reference.reference_start_line = None
+                reference.reference_end_line = None
+                resolved = self._resolve_symbol_reference(reference, original_qname.replace(os.sep, "."))
+                has_existing_file = False
+            else:
+                has_existing_file = reference.reference_file is not None and self.reference_file_exists(
+                    reference.reference_file
+                )
+                has_complete_location = (
+                    has_existing_file
+                    and reference.reference_start_line is not None
+                    and reference.reference_end_line is not None
+                )
+                resolved = has_complete_location or self.resolve_reference(reference, file_candidates)
             if not resolved and not has_existing_file:
                 unresolved_qnames.add(original_qname)
                 continue
@@ -114,25 +124,28 @@ class StaticReferenceResolver:
     def resolve_reference(self, reference: SourceCodeReference, file_candidates: list[str] | None = None) -> bool:
         """Resolve a source reference in-place."""
         qname = reference.qualified_name.replace(os.sep, ".")
-        languages = self.static_analysis.get_languages()
+        if self._resolve_symbol_reference(reference, qname):
+            return True
 
-        for lang in languages:
-            if self._try_exact_match(reference, qname, lang):
-                return True
-
-        for lang in languages:
-            if self._try_loose_match(reference, qname, lang):
-                return True
-
-        for lang in languages:
-            if self._try_symbol_token_match(reference, qname, lang):
-                return True
-
-        for lang in languages:
+        for lang in self.static_analysis.get_languages():
             if self._try_file_path_resolution(reference, qname, lang, file_candidates):
                 return True
 
         logger.warning(f"[Reference Resolution] Could not resolve reference {reference.qualified_name} in any language")
+        return False
+
+    def _resolve_symbol_reference(self, reference: SourceCodeReference, qname: str) -> bool:
+        """Resolve a reference to a current static-analysis symbol."""
+        languages = self.static_analysis.get_languages()
+        for lang in languages:
+            if self._try_exact_match(reference, qname, lang):
+                return True
+        for lang in languages:
+            if self._try_loose_match(reference, qname, lang):
+                return True
+        for lang in languages:
+            if self._try_symbol_token_match(reference, qname, lang):
+                return True
         return False
 
     def resolve_node(self, reference: SourceCodeReference):

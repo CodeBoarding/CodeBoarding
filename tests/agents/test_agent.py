@@ -11,6 +11,7 @@ from pydantic import BaseModel
 
 from agents.agent import CodeBoardingAgent
 from agents.agent_responses import AnalysisInsights, ClusterAnalysis, ClustersComponent, Relation
+from agents.validation import ValidationResult
 from static_analyzer.analysis_result import StaticAnalysisResults
 from monitoring.stats import RunStats, current_stats
 
@@ -23,6 +24,13 @@ class TestResponse(BaseModel):
     @staticmethod
     def extractor_str(include_hidden: bool = False):
         return "Extract the value field: "
+
+
+class RepairableResponse(BaseModel):
+    value: str
+
+    def llm_str(self) -> str:
+        return self.value
 
 
 class TestCodeBoardingAgent(unittest.TestCase):
@@ -95,6 +103,42 @@ class TestCodeBoardingAgent(unittest.TestCase):
         )
         self.assertIsNotNone(agent)
         self.assertEqual(agent.parsing_llm, mock_parsing_llm)
+
+    @patch("agents.agent.create_agent")
+    def test_invoke_repair_validate_repairs_before_validation(self, mock_create_agent):
+        mock_create_agent.return_value = Mock()
+        agent = CodeBoardingAgent(
+            repo_dir=self.repo_dir,
+            static_analysis=self.mock_analysis,
+            system_message="Test",
+            agent_llm=self.mock_llm,
+            parsing_llm=Mock(spec=BaseChatModel),
+        )
+        agent._parse_invoke = MagicMock(return_value=RepairableResponse(value="raw"))
+        events: list[str] = []
+
+        def repair(result: RepairableResponse, context: object) -> None:
+            self.assertEqual(context, "repair context")
+            events.append("repair")
+            result.value = "repaired"
+
+        def validate(result: RepairableResponse, context: object) -> ValidationResult:
+            self.assertEqual(context, "validation context")
+            self.assertEqual(result.value, "repaired")
+            events.append("validate")
+            return ValidationResult(is_valid=True)
+
+        result = agent._invoke_repair_validate(
+            "prompt",
+            RepairableResponse,
+            repairs=[repair],
+            validators=[validate],
+            repair_context="repair context",
+            validation_context="validation context",
+        )
+
+        self.assertEqual(result.value, "repaired")
+        self.assertEqual(events, ["repair", "validate"])
 
     @patch("agents.agent.create_agent")
     def test_invoke_success(self, mock_create_agent):

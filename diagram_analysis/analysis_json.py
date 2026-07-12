@@ -161,9 +161,31 @@ class UnifiedAnalysisJson(BaseModel):
     components_relations: list[RelationJson] = Field(description="List of relations among the components.")
 
 
-def _build_files_index_from_analysis(analysis: AnalysisInsights) -> dict[str, FileEntry]:
-    """Build a top-level files index from analysis."""
-    return {file_path: entry.model_copy(deep=True) for file_path, entry in analysis.files.items()}
+def _build_files_index_from_analysis(
+    analysis: AnalysisInsights,
+    sub_analyses: dict[str, tuple[AnalysisInsights, list[Component]]] | None = None,
+) -> dict[str, FileEntry]:
+    """Build a unified file index from the root and sub-analyses."""
+    analyses = [analysis]
+    if sub_analyses:
+        analyses.extend(sub_analysis for sub_analysis, _ in sub_analyses.values())
+
+    files_index: dict[str, FileEntry] = {}
+    for current_analysis in analyses:
+        for file_path, entry in current_analysis.files.items():
+            indexed_entry = files_index.setdefault(file_path, FileEntry())
+            if not indexed_entry.content_hash:
+                indexed_entry.content_hash = entry.content_hash
+            methods_by_qname = {method.qualified_name: method for method in indexed_entry.methods}
+            for method in entry.methods:
+                indexed = methods_by_qname.get(method.qualified_name)
+                if indexed is None or (indexed.node_type == "REFERENCE" and method.node_type != "REFERENCE"):
+                    methods_by_qname[method.qualified_name] = method.model_copy(deep=True)
+            indexed_entry.methods = sorted(
+                methods_by_qname.values(),
+                key=lambda method: (method.start_line, method.end_line, method.qualified_name),
+            )
+    return files_index
 
 
 def _method_key(file_path: str, qualified_name: str) -> str:
@@ -227,33 +249,6 @@ def _build_methods_index_from_files(files_index: dict[str, FileEntry]) -> dict[s
     return methods_index
 
 
-def _add_relation_endpoints_to_methods_index(
-    methods_index: dict[str, MethodIndexEntry],
-    analysis: AnalysisInsights,
-    repo_dir: Path,
-    sub_analyses: dict[str, tuple[AnalysisInsights, list[Component]]] | None = None,
-) -> None:
-    """Index relation endpoints that are not declared in the analyzed file set."""
-    analyses = [analysis]
-    if sub_analyses:
-        analyses.extend(sub_analysis for sub_analysis, _ in sub_analyses.values())
-
-    for current_analysis in analyses:
-        for relation in current_analysis.components_relations:
-            for edge in [*relation.key_edges, *relation.all_edges]:
-                for reference in (edge.source, edge.target):
-                    key = _source_reference_method_key(reference, repo_dir)
-                    if key in methods_index:
-                        continue
-                    methods_index[key] = MethodIndexEntry(
-                        file_path=normalize_repo_path(reference.reference_file or "", repo_dir),
-                        qualified_name=reference.qualified_name,
-                        start_line=reference.reference_start_line or 0,
-                        end_line=reference.reference_end_line or 0,
-                        type="REFERENCE",
-                    )
-
-
 def _build_file_entry_json_from_files(files_index: dict[str, FileEntry]) -> dict[str, FileEntryJson]:
     return {
         file_path: FileEntryJson(
@@ -261,6 +256,7 @@ def _build_file_entry_json_from_files(files_index: dict[str, FileEntry]) -> dict
             content_hash=entry.content_hash,
         )
         for file_path, entry in files_index.items()
+        if file_path
     }
 
 
@@ -374,9 +370,8 @@ def from_analysis_to_json(
         _relation_to_json(r, repo_dir)
         for r in merge_relations_by_pair(analysis.components_relations, include_relation=True)
     ]
-    files_index = _build_files_index_from_analysis(analysis)
+    files_index = _build_files_index_from_analysis(analysis, sub_analyses)
     methods_index = _build_methods_index_from_files(files_index)
-    _add_relation_endpoints_to_methods_index(methods_index, analysis, repo_dir, sub_analyses)
     files_json = _build_file_entry_json_from_files(files_index)
     data = {
         "description": analysis.description,
@@ -452,9 +447,8 @@ def build_unified_analysis_json(
     components_json = [
         from_component_to_json_component(c, expandable_components, repo_dir, sub_analyses) for c in analysis.components
     ]
-    files_index = _build_files_index_from_analysis(analysis)
+    files_index = _build_files_index_from_analysis(analysis, sub_analyses)
     methods_index = _build_methods_index_from_files(files_index)
-    _add_relation_endpoints_to_methods_index(methods_index, analysis, repo_dir, sub_analyses)
 
     # Use default summary if none provided
     if file_coverage_summary is None:
@@ -537,6 +531,22 @@ def _reconstruct_files_index(
         files_index[file_path] = FileEntry(
             methods=methods,
             content_hash=entry_raw.get("content_hash", ""),
+        )
+
+    for indexed in methods_index.values():
+        if indexed.type != "REFERENCE":
+            continue
+        entry = files_index.setdefault(indexed.file_path, FileEntry())
+        if any(method.qualified_name == indexed.qualified_name for method in entry.methods):
+            continue
+        entry.methods.append(
+            MethodEntry(
+                qualified_name=indexed.qualified_name,
+                start_line=indexed.start_line,
+                end_line=indexed.end_line,
+                node_type=indexed.type,
+                content_hash=indexed.content_hash,
+            )
         )
     return files_index
 

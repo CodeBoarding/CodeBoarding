@@ -1,6 +1,5 @@
 """Plan scoped analysis updates from structural cluster diffs."""
 
-from dataclasses import dataclass, field
 from collections.abc import Iterable
 import logging
 from pathlib import Path
@@ -14,15 +13,16 @@ from agents.agent_responses import (
     AnalysisInsights,
     Component,
     MetaAnalysisInsights,
-    ScopeOperation,
-    ScopeOperationAction,
     ScopeUpdateDecision,
-    ScopedClusterRef,
 )
 from agents.cluster_ids import CodeBoardingClusterIds
 from agents.prompts import get_planning_message, get_system_message
+from agents.repair import (
+    ScopeOperationRepairContext,
+    repair_unambiguous_routing_and_optional_key_entity_metadata,
+)
 from agents.scope_ids import ROOT_SCOPE_ID
-from agents.validation import ValidationResult
+from agents.validation import ScopeOperationValidationContext, validate_scope_update_decision
 from diagram_analysis.cluster_delta import (
     ClusterMemberDelta,
     ClusterRef,
@@ -30,50 +30,14 @@ from diagram_analysis.cluster_delta import (
     LanguageStructuralDiff,
     StructuralClusterDiff,
 )
-from diagram_analysis.exceptions import InvalidIncrementalPlanError, IncrementalScopeRegenerationRequiredError
+from diagram_analysis.exceptions import InvalidIncrementalPlanError
 from repo_utils.change_detector import ChangeSet
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.reference_resolver import StaticReferenceResolver
+from static_analyzer.graph import ClusterResult
 from telemetry.service import telemetry
 
 
 logger = logging.getLogger(__name__)
-
-
-_EXISTING_COMPONENT_ACTIONS = frozenset(
-    {
-        ScopeOperationAction.UPDATE_COMPONENT,
-        ScopeOperationAction.DELETE_COMPONENT,
-        ScopeOperationAction.NOOP,
-    }
-)
-_KEY_ENTITY_METADATA_ACTIONS = frozenset(
-    {
-        ScopeOperationAction.CREATE_COMPONENT,
-        ScopeOperationAction.UPDATE_COMPONENT,
-    }
-)
-
-
-_ARCHITECTURE_OUTPUT_CONTRACT = """
-
-## Architecture output contract
-- This step plans component boundaries only. Do not define component relations; API surfaces and relations are generated later.
-- Preserve an existing component's name, description, and key entities unless its architectural responsibility changed.
-- For create_component, provide a clear name and description. Add up to 5 key_entities only when their exact qualified names are available; otherwise leave them empty for deterministic selection.
-- For update_component, include refreshed name, description, or key_entities only when the component's responsibility changed. An empty key_entities list preserves the current selection.
-- For update_component, delete_component, and noop, copy the exact component_id from the existing-components list.
-"""
-
-
-@dataclass
-class ScopeOperationValidationContext:
-    reference_resolver: StaticReferenceResolver
-    expected_cluster_refs: set[ClusterRef] = field(default_factory=set)
-    existing_component_ids: set[str] = field(default_factory=set)
-    component_ids_by_cluster_ref: dict[ClusterRef, str] = field(default_factory=dict)
-    component_ids_by_name: dict[str, str] = field(default_factory=dict)
-    scope_id: str = ROOT_SCOPE_ID
 
 
 class IncrementalPlanningAgent(CodeBoardingAgent):
@@ -89,7 +53,14 @@ class IncrementalPlanningAgent(CodeBoardingAgent):
         parsing_llm: BaseChatModel,
         changes: ChangeSet | None = None,
     ):
-        super().__init__(repo_dir, static_analysis, get_system_message(), agent_llm, parsing_llm)
+        meta_context_str = meta_context.llm_str() if meta_context else "No project context available."
+        project_type = meta_context.project_type if meta_context else "unknown"
+        system_message = get_system_message().format(
+            project_name=project_name,
+            project_type=project_type,
+            meta_context=meta_context_str,
+        )
+        super().__init__(repo_dir, static_analysis, system_message, agent_llm, parsing_llm)
         if changes is not None:
             self.toolkit.context.changes = changes
         self.agent = create_agent(
@@ -101,10 +72,7 @@ class IncrementalPlanningAgent(CodeBoardingAgent):
         self.prompt = PromptTemplate(
             template=get_planning_message(),
             input_variables=[
-                "project_name",
                 "scope_id",
-                "project_type",
-                "meta_context",
                 "existing_components",
                 "changed_files",
                 "structural_diff",
@@ -116,35 +84,34 @@ class IncrementalPlanningAgent(CodeBoardingAgent):
         scope_id: str,
         scope: AnalysisInsights,
         structural_diff: StructuralClusterDiff,
+        cluster_results: dict[str, ClusterResult],
     ) -> ScopeUpdateDecision:
-        meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
-        project_type = self.meta_context.project_type if self.meta_context else "unknown"
         prompt = self.prompt.format(
-            project_name=self.project_name,
             scope_id=scope_id,
-            project_type=project_type,
-            meta_context=meta_context_str,
             existing_components=_format_scope_components(scope.components),
             changed_files=_format_changed_files(self.toolkit.context.changes),
             structural_diff=format_structural_diff(structural_diff),
         )
-        prompt += _ARCHITECTURE_OUTPUT_CONTRACT
-        context = ScopeOperationValidationContext(
+        repair_context = ScopeOperationRepairContext(
             reference_resolver=self.reference_resolver,
-            expected_cluster_refs=_actionable_new_cluster_refs(structural_diff),
-            existing_component_ids={component.component_id for component in scope.components if component.component_id},
+            allowed_key_entity_qnames=_scope_key_entity_qnames(cluster_results),
             component_ids_by_cluster_ref=_component_ids_by_cluster_ref(scope_id, scope.components, structural_diff),
             component_ids_by_name=_component_ids_by_name(scope.components),
-            scope_id=scope_id,
         )
-        decision = self._validation_invoke(
+        validation_context = ScopeOperationValidationContext(
+            expected_cluster_refs=_actionable_new_cluster_refs(structural_diff),
+            existing_component_ids={component.component_id for component in scope.components if component.component_id},
+        )
+        decision = self._invoke_repair_validate(
             prompt,
             ScopeUpdateDecision,
+            repairs=[repair_unambiguous_routing_and_optional_key_entity_metadata],
             validators=[validate_scope_update_decision],
-            context=context,
+            repair_context=repair_context,
+            validation_context=validation_context,
             max_validation_attempts=3,
         )
-        validation = validate_scope_update_decision(decision, context)
+        validation = validate_scope_update_decision(decision, validation_context)
         if not validation.is_valid:
             logger.error(
                 "Incremental planning decision remained invalid after retries: %s",
@@ -152,9 +119,6 @@ class IncrementalPlanningAgent(CodeBoardingAgent):
             )
             _track_invalid_planning_decision(scope_id, validation.feedback_messages)
             raise InvalidIncrementalPlanError(scope_id, validation.feedback_messages)
-        for operation in decision.operations:
-            if operation.action == ScopeOperationAction.REGENERATE_SCOPE:
-                raise IncrementalScopeRegenerationRequiredError(scope_id, operation.rationale)
         return decision
 
 
@@ -171,112 +135,13 @@ def _track_invalid_planning_decision(scope_id: str, feedback_messages: list[str]
     telemetry.flush()
 
 
-def validate_scope_update_decision(
-    decision: ScopeUpdateDecision,
-    context: ScopeOperationValidationContext,
-) -> ValidationResult:
-    _repair_unambiguous_routing_and_optional_key_entity_metadata(decision, context)
-    errors: list[str] = []
-    seen_refs: list[ClusterRef] = []
-    for operation in decision.operations:
-        refs = [_cluster_ref_from_scoped_ref(ref) for ref in operation.cluster_refs]
-        seen_refs.extend(refs)
-        if operation.action in _EXISTING_COMPONENT_ACTIONS:
-            if operation.component_id not in context.existing_component_ids:
-                errors.append(
-                    f"Operation {operation.action} references unknown component_id={operation.component_id!r}."
-                )
-        if operation.action == ScopeOperationAction.CREATE_COMPONENT:
-            if not operation.name or not operation.description:
-                errors.append("create_component operations must include name and description.")
-        if operation.action == ScopeOperationAction.NOOP and (
-            operation.name or operation.description or operation.key_entities
-        ):
-            errors.append("noop operations must preserve the component name, description, and key entities.")
-        if len(operation.key_entities) > 5:
-            errors.append(f"Operation {operation.action} includes more than five key entities.")
-        entity_qnames = [entity.qualified_name for entity in operation.key_entities]
-        duplicate_qnames = {qname for qname in entity_qnames if entity_qnames.count(qname) > 1}
-        if duplicate_qnames:
-            errors.append(f"Operation {operation.action} repeats key entities: {sorted(duplicate_qnames)}.")
-
-    seen_set = set(seen_refs)
-    missing = context.expected_cluster_refs - seen_set
-    extra = seen_set - context.expected_cluster_refs
-    duplicates = {ref for ref in seen_set if seen_refs.count(ref) > 1}
-    if missing:
-        errors.append(f"Missing cluster_refs: {_format_cluster_ref_list(missing)}")
-    if extra:
-        errors.append(f"Unexpected cluster_refs: {_format_cluster_ref_list(extra)}")
-    if duplicates:
-        errors.append(f"Duplicate cluster_refs: {_format_cluster_ref_list(duplicates)}")
-    return ValidationResult(is_valid=not errors, feedback_messages=errors)
-
-
-def _repair_unambiguous_routing_and_optional_key_entity_metadata(
-    decision: ScopeUpdateDecision,
-    context: ScopeOperationValidationContext,
-) -> None:
-    routed_operations = _repair_unambiguous_operation_routing(decision, context)
-    canonicalized_qnames, dropped_qnames = _repair_optional_key_entity_metadata(
-        decision,
-        context.reference_resolver,
-    )
-
-    if routed_operations or canonicalized_qnames:
-        logger.info(
-            "Repaired incremental plan: routed %d operation(s), canonicalized %d key-entity qname(s)",
-            routed_operations,
-            canonicalized_qnames,
-        )
-    if dropped_qnames:
-        logger.warning("Dropped unresolved optional key entities: %s", sorted(dropped_qnames))
-
-
-def _repair_unambiguous_operation_routing(
-    decision: ScopeUpdateDecision,
-    context: ScopeOperationValidationContext,
-) -> int:
-    routed_operations = 0
-    for operation in decision.operations:
-        if operation.component_id is None and operation.action in _EXISTING_COMPONENT_ACTIONS:
-            component_id = _resolve_unambiguous_component_id(operation, context)
-            if component_id is not None:
-                operation.component_id = component_id
-                routed_operations += 1
-
-    return routed_operations
-
-
-def _resolve_unambiguous_component_id(
-    operation: ScopeOperation,
-    context: ScopeOperationValidationContext,
-) -> str | None:
-    refs = {_cluster_ref_from_scoped_ref(ref) for ref in operation.cluster_refs}
-    owner_ids = {
-        context.component_ids_by_cluster_ref[ref] for ref in refs if ref in context.component_ids_by_cluster_ref
+def _scope_key_entity_qnames(cluster_results: dict[str, ClusterResult]) -> set[str]:
+    return {
+        qualified_name
+        for cluster_result in cluster_results.values()
+        for members in cluster_result.clusters.values()
+        for qualified_name in members
     }
-    if len(owner_ids) == 1:
-        return next(iter(owner_ids))
-    if not owner_ids and operation.name:
-        return context.component_ids_by_name.get(_normalize_component_name(operation.name))
-    return None
-
-
-def _repair_optional_key_entity_metadata(
-    decision: ScopeUpdateDecision,
-    reference_resolver: StaticReferenceResolver,
-) -> tuple[int, set[str]]:
-    canonicalized_qnames = 0
-    dropped_qnames: set[str] = set()
-    for operation in decision.operations:
-        if operation.action in _KEY_ENTITY_METADATA_ACTIONS and operation.key_entities:
-            repair = reference_resolver.repair_key_entity_references(operation.key_entities)
-            operation.key_entities = repair.references[:5]
-            canonicalized_qnames += repair.canonicalized_count
-            dropped_qnames.update(repair.unresolved_qnames)
-
-    return canonicalized_qnames, dropped_qnames
 
 
 def _component_ids_by_cluster_ref(
@@ -285,7 +150,7 @@ def _component_ids_by_cluster_ref(
     structural_diff: StructuralClusterDiff,
 ) -> dict[ClusterRef, str]:
     """Map new-side cluster refs to a unique existing owner when overlap proves one."""
-    prefix = "" if scope_id == ROOT_SCOPE_ID else f"{scope_id}."
+    cluster_id_prefix = CodeBoardingClusterIds.prefix_for_scope(scope_id)
     owners_by_cluster_id: dict[str, set[str]] = {}
     for component in components:
         if not component.component_id:
@@ -294,7 +159,11 @@ def _component_ids_by_cluster_ref(
             owners_by_cluster_id.setdefault(cluster_id, set()).add(component.component_id)
 
     def owner_for_old_ref(ref: ClusterRef) -> str | None:
-        owners = owners_by_cluster_id.get(f"{prefix}{ref.cluster_id}", set())
+        cluster_id = CodeBoardingClusterIds.qualify_local_id(
+            CodeBoardingClusterIds.from_graph_id(ref.cluster_id),
+            cluster_id_prefix,
+        )
+        owners = owners_by_cluster_id.get(cluster_id, set())
         return next(iter(owners)) if len(owners) == 1 else None
 
     owners_by_new_ref: dict[ClusterRef, set[str]] = {}
@@ -324,10 +193,6 @@ def _component_ids_by_name(components: list[Component]) -> dict[str, str]:
 
 def _normalize_component_name(name: str) -> str:
     return " ".join(name.casefold().split())
-
-
-def _cluster_ref_from_scoped_ref(ref: ScopedClusterRef) -> ClusterRef:
-    return ClusterRef(ref.language, ref.cluster_id, ref.scope_id)
 
 
 def format_structural_diff(structural_diff: StructuralClusterDiff) -> str:
@@ -446,9 +311,3 @@ def _format_cluster_ref(ref: ClusterRef) -> str:
 
 def _sort_cluster_refs(refs: Iterable[ClusterRef]) -> list[ClusterRef]:
     return sorted(refs, key=lambda ref: (ref.scope_id, ref.language, ref.cluster_id))
-
-
-def _format_cluster_ref_list(refs: set[ClusterRef]) -> str:
-    if not refs:
-        return "None"
-    return ", ".join(_format_cluster_ref(ref) for ref in _sort_cluster_refs(refs))

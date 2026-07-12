@@ -118,6 +118,38 @@ class TestStaticReferenceResolver(unittest.TestCase):
         self.assertEqual(repair.canonicalized_count, 1)
         self.assertEqual(repair.unresolved_qnames, {"hallucinated.missing"})
 
+    def test_force_resolve_refreshes_persisted_key_entity_location(self):
+        node = self._node("service.OCR.extract_text", "service.py", 30, 40)
+        self.static_analysis.get_reference.return_value = node
+        reference = SourceCodeReference(
+            qualified_name="service.OCR.extract_text",
+            reference_file="service.py",
+            reference_start_line=3,
+            reference_end_line=4,
+        )
+        component = Component(name="Service", description="", key_entities=[reference], component_id="1")
+        analysis = AnalysisInsights(description="", components=[component], components_relations=[])
+
+        self.resolver.fix_key_entities_refs(analysis, {"1"}, force_resolve=True)
+
+        self.assertEqual(reference.reference_start_line, 30)
+        self.assertEqual(reference.reference_end_line, 40)
+
+    def test_force_resolve_drops_deleted_symbol_even_when_file_still_exists(self):
+        self.static_analysis.get_reference.side_effect = ValueError("not found")
+        self.static_analysis.get_loose_reference.return_value = ("", None)
+        reference = SourceCodeReference(
+            qualified_name="service.deleted",
+            reference_file="service.py",
+            reference_start_line=3,
+            reference_end_line=4,
+        )
+
+        repair = self.resolver.repair_key_entity_references([reference], force_resolve=True)
+
+        self.assertEqual(repair.references, [])
+        self.assertEqual(repair.unresolved_qnames, {"service.deleted"})
+
     def test_fix_source_code_reference_lines_resolves_relation_edges_and_call_sites(self):
         source_node = self._node("service.OCR.extract_text", "service.py", 1, 2)
         target_node = self._node("module.file.test_function", "module/file.py", 3, 4)

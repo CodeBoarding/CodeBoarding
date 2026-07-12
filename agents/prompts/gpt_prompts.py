@@ -437,12 +437,10 @@ For each cluster group above, decide whether it belongs in an existing component
 - **redetail_needed=False** means the component boundary is unchanged; do not use it to absorb new files, new responsibilities, or clusters owned by another component
 - Every cluster id listed in the cluster groups above must appear in exactly one routing entry"""
 
-PLANNING_MESSAGE = """**Task:** Update one scope of the `{project_name}` architecture diagram.
+PLANNING_MESSAGE = """**Task:** Update one scope of the architecture diagram.
 
 **Context:**
 - Scope: `{scope_id}` (`root` means the top-level diagram)
-- Project type: {project_type}
-- Meta: {meta_context}
 
 **Existing components in this scope:**
 {existing_components}
@@ -464,8 +462,15 @@ Return operations for this scope only.
 5. Use listGitChanges only when the structural diff is not enough to judge semantic impact.
 
 **Hard rules:**
-- Do not reparent existing components. If reparenting seems required, use regenerate_scope.
+- Do not reparent existing components. Preserve their current scope; reparenting is not a valid incremental operation.
 - Every modified/new/reshaped new-side cluster listed below must appear in exactly one operation's cluster_refs.
+
+**Architecture output contract:**
+- This step plans component boundaries only. Do not define component relations; API surfaces and relations are generated later.
+- Preserve an existing component's name, description, and key entities unless its architectural responsibility changed.
+- For create_component, provide a clear name and description. Select up to 5 key_entities only when their exact qualified names are available; otherwise leave them empty. Key entities are not synthesized later.
+- For update_component, include refreshed name, description, or key_entities only when the component's responsibility changed. An empty key_entities list preserves the current selection.
+- For update_component, delete_component, and noop, copy the exact component_id from the existing-components list.
 """
 
 SCOPE_RELATIONS_MESSAGE = """Generate inter-component relationships for the `{scope_name}` scope of `{project_name}`.
