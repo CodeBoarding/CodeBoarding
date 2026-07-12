@@ -1,6 +1,6 @@
 {
   "repository_name": "CodeBoarding",
-  "timestamp": "2026-07-11T01:33:03.474149+00:00",
+  "timestamp": "2026-07-12T13:30:38.077548+00:00",
   "overall_score": 0.9343055843886237,
   "check_summaries": [
     {
@@ -497,8 +497,8 @@
             {
               "entity_name": "static_analyzer.__init__.StaticAnalyzer.start_clients",
               "file_path": "static_analyzer/__init__.py",
-              "line_start": 203,
-              "line_end": 303,
+              "line_start": 209,
+              "line_end": 309,
               "metric_value": 14
             },
             {
@@ -628,20 +628,6 @@
               "metric_value": 11
             },
             {
-              "entity_name": "static_analyzer.__init__._create_engine_configs",
-              "file_path": "static_analyzer/__init__.py",
-              "line_start": 51,
-              "line_end": 148,
-              "metric_value": 11
-            },
-            {
-              "entity_name": "static_analyzer.__init__.StaticAnalyzer._run_full_lsp_pass",
-              "file_path": "static_analyzer/__init__.py",
-              "line_start": 561,
-              "line_end": 615,
-              "metric_value": 11
-            },
-            {
               "entity_name": "diagram_analysis.diagram_generator.DiagramGenerator.finalize_and_save",
               "file_path": "diagram_analysis/diagram_generator.py",
               "line_start": 563,
@@ -653,6 +639,20 @@
               "file_path": "codeboarding_cli/commands/incremental_analysis.py",
               "line_start": 31,
               "line_end": 85,
+              "metric_value": 11
+            },
+            {
+              "entity_name": "static_analyzer.__init__._create_engine_configs",
+              "file_path": "static_analyzer/__init__.py",
+              "line_start": 51,
+              "line_end": 148,
+              "metric_value": 11
+            },
+            {
+              "entity_name": "static_analyzer.__init__.StaticAnalyzer._run_full_lsp_pass",
+              "file_path": "static_analyzer/__init__.py",
+              "line_start": 578,
+              "line_end": 632,
               "metric_value": 11
             },
             {
@@ -698,13 +698,6 @@
               "metric_value": 10
             },
             {
-              "entity_name": "static_analyzer.__init__.StaticAnalyzer._update_cached_results",
-              "file_path": "static_analyzer/__init__.py",
-              "line_start": 617,
-              "line_end": 665,
-              "metric_value": 10
-            },
-            {
               "entity_name": "diagram_analysis.analysis_json.build_unified_analysis_json",
               "file_path": "diagram_analysis/analysis_json.py",
               "line_start": 408,
@@ -716,6 +709,13 @@
               "file_path": "diagram_analysis/diagram_generator.py",
               "line_start": 610,
               "line_end": 640,
+              "metric_value": 10
+            },
+            {
+              "entity_name": "static_analyzer.__init__.StaticAnalyzer._update_cached_results",
+              "file_path": "static_analyzer/__init__.py",
+              "line_start": 634,
+              "line_end": 682,
               "metric_value": 10
             }
           ]
@@ -863,7 +863,7 @@
             {
               "entity_name": "static_analyzer.__init__.StaticAnalyzer",
               "file_path": "static_analyzer/__init__.py",
-              "metric_value": 645.0
+              "metric_value": 662.0
             },
             {
               "entity_name": "static_analyzer.reference_resolver.StaticReferenceResolver",
@@ -1892,8 +1892,8 @@
             {
               "entity_name": "[unused_variable] \"_exc_type\" is not accessed",
               "file_path": "static_analyzer/__init__.py",
-              "line_start": 200,
-              "line_end": 200,
+              "line_start": 206,
+              "line_end": 206,
               "metric_value": 0.0
             }
           ]
