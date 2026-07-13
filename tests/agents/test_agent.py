@@ -1,8 +1,6 @@
 import os
 import shutil
 import tempfile
-import threading
-import time
 import unittest
 from pathlib import Path
 from unittest.mock import Mock, MagicMock, patch
@@ -11,12 +9,7 @@ from langchain_core.messages import AIMessage
 from langchain_core.language_models import BaseChatModel
 from pydantic import BaseModel
 
-from agents.agent import (
-    CodeBoardingAgent,
-    _AgentInvocationCancelled,
-    _AgentInvocationStillRunning,
-    _CancellationCallback,
-)
+from agents.agent import CodeBoardingAgent
 from static_analyzer.analysis_result import StaticAnalysisResults
 from monitoring.stats import RunStats, current_stats
 
@@ -218,7 +211,7 @@ class TestCodeBoardingAgent(unittest.TestCase):
         self.assertEqual(mock_agent_executor.invoke.call_count, 5)
 
     @patch("agents.agent.create_agent")
-    def test_invoke_with_callbacks(self, mock_create_agent):
+    def test_invoke_with_callbacks(self, mock_create_agent) -> None:
         # Test invocation with callbacks
         mock_agent_executor = Mock()
         mock_create_agent.return_value = mock_agent_executor
@@ -241,144 +234,16 @@ class TestCodeBoardingAgent(unittest.TestCase):
         call_args = mock_agent_executor.invoke.call_args
         config = call_args[1]["config"]
         self.assertIn("callbacks", config)
-        # Monitoring callbacks plus per-call cancellation callback.
-        self.assertEqual(len(config["callbacks"]), 3)
+        self.assertEqual(len(config["callbacks"]), 2)
         self.assertIn(agent.agent_monitoring_callback, config["callbacks"])
-        cancellation_callback = next(c for c in config["callbacks"] if isinstance(c, _CancellationCallback))
-        self.assertFalse(cancellation_callback.cancellation_event.is_set())
-
-    def test_cancellation_callback_raises_only_after_event_set(self):
-        cancellation_event = threading.Event()
-        callback = _CancellationCallback(cancellation_event)
-
-        callback.on_llm_start({}, ["prompt"])
-        callback.on_chat_model_start({}, [[AIMessage(content="message")]])
-        callback.on_tool_start({"name": "tool"}, "input")
-
-        cancellation_event.set()
-
-        with self.assertRaises(_AgentInvocationCancelled):
-            callback.on_llm_start({}, ["prompt"])
-        with self.assertRaises(_AgentInvocationCancelled):
-            callback.on_chat_model_start({}, [[AIMessage(content="message")]])
-        with self.assertRaises(_AgentInvocationCancelled):
-            callback.on_tool_start({"name": "tool"}, "input")
 
     @patch("agents.agent.create_agent")
-    def test_invoke_with_timeout_sets_cancellation_event_and_stops_worker(self, mock_create_agent):
-        mock_agent_executor = Mock()
-        started = threading.Event()
-        stopped = threading.Event()
-        callbacks_seen = []
-        step_count = 0
-
-        def invoke(_payload, config):
-            nonlocal step_count
-            callbacks_seen.extend(config["callbacks"])
-            cancellation_callback = next(c for c in config["callbacks"] if isinstance(c, _CancellationCallback))
-            started.set()
-            try:
-                while True:
-                    step_count += 1
-                    cancellation_callback.on_tool_start({"name": "fake_tool"}, "input")
-                    time.sleep(0.005)
-            finally:
-                stopped.set()
-
-        mock_agent_executor.invoke.side_effect = invoke
-        agent = self._create_agent_with_executor(mock_create_agent, mock_agent_executor)
-
-        with self.assertLogs("agents.agent", level="INFO") as logs:
-            with self.assertRaisesRegex(TimeoutError, "Agent invocation exceeded 0.05s timeout"):
-                agent._invoke_with_timeout(timeout_seconds=0.05, callback_list=[], prompt="Test prompt")
-            self.assertTrue(started.wait(1))
-            self.assertTrue(stopped.wait(1))
-
-        cancellation_callback = next(c for c in callbacks_seen if isinstance(c, _CancellationCallback))
-        self.assertTrue(cancellation_callback.cancellation_event.is_set())
-        self.assertGreater(step_count, 0)
-        stopped_at = step_count
-        time.sleep(0.02)
-        self.assertEqual(step_count, stopped_at)
-        self.assertTrue(any("cancelled after caller timeout" in message for message in logs.output))
-
-    @patch("agents.agent.create_agent")
-    def test_invoke_with_timeout_raises_still_running_when_provider_call_blocks(self, mock_create_agent):
-        mock_agent_executor = Mock()
-        started = threading.Event()
-        release = threading.Event()
-        invoke_returned = threading.Event()
-        callbacks_seen = []
-
-        def invoke(_payload, config):
-            callbacks_seen.extend(config["callbacks"])
-            started.set()
-            release.wait(1)
-            invoke_returned.set()
-            return {"messages": [AIMessage(content="late")]}
-
-        mock_agent_executor.invoke.side_effect = invoke
-        agent = self._create_agent_with_executor(mock_create_agent, mock_agent_executor)
-
-        with patch("agents.agent._TIMED_OUT_THREAD_JOIN_TIMEOUT_SECONDS", 0.01):
-            with self.assertLogs("agents.agent", level="INFO") as logs:
-                try:
-                    with self.assertRaisesRegex(
-                        _AgentInvocationStillRunning, "Agent invocation exceeded 0.05s timeout"
-                    ):
-                        agent._invoke_with_timeout(timeout_seconds=0.05, callback_list=[], prompt="Test prompt")
-                finally:
-                    release.set()
-                self.assertTrue(invoke_returned.wait(1))
-                time.sleep(0.02)
-
-        self.assertTrue(started.is_set())
-        cancellation_callback = next(c for c in callbacks_seen if isinstance(c, _CancellationCallback))
-        self.assertTrue(cancellation_callback.cancellation_event.is_set())
-        self.assertEqual(mock_agent_executor.invoke.call_count, 1)
-        self.assertTrue(
-            any("Discarding agent invoke response after caller timeout" in message for message in logs.output)
-        )
-
-    @patch("agents.agent.create_agent")
-    def test_invoke_does_not_retry_when_timed_out_worker_remains_blocked(self, mock_create_agent):
-        mock_agent_executor = Mock()
-        started = threading.Event()
-        release = threading.Event()
-        invoke_returned = threading.Event()
-
-        def invoke(_payload, config):
-            started.set()
-            release.wait(1)
-            invoke_returned.set()
-            return {"messages": [AIMessage(content="late")]}
-
-        mock_agent_executor.invoke.side_effect = invoke
-        agent = self._create_agent_with_executor(mock_create_agent, mock_agent_executor)
-
-        try:
-            with (
-                patch("agents.agent._AGENT_INVOKE_INITIAL_TIMEOUT_SECONDS", 0.05),
-                patch("agents.agent._TIMED_OUT_THREAD_JOIN_TIMEOUT_SECONDS", 0.01),
-                patch("agents.retry.time.sleep") as mock_sleep,
-            ):
-                with self.assertRaisesRegex(TimeoutError, "Agent invocation exceeded 0.05s timeout"):
-                    agent._invoke("Test prompt")
-
-            self.assertTrue(started.is_set())
-            self.assertEqual(mock_agent_executor.invoke.call_count, 1)
-            mock_sleep.assert_not_called()
-        finally:
-            release.set()
-            self.assertTrue(invoke_returned.wait(1))
-
-    @patch("agents.agent.create_agent")
-    def test_invoke_with_timeout_returns_fast_response_unchanged(self, mock_create_agent):
+    def test_invoke_with_timeout_returns_fast_response_unchanged(self, mock_create_agent) -> None:
         mock_agent_executor = Mock()
         response = {"messages": [AIMessage(content="fast")]}
         captured_config = {}
 
-        def invoke(_payload, config):
+        def invoke(_payload: object, config: dict) -> dict:
             captured_config.update(config)
             return response
 
@@ -389,10 +254,7 @@ class TestCodeBoardingAgent(unittest.TestCase):
         result = agent._invoke_with_timeout(timeout_seconds=1, callback_list=[callback_marker], prompt="Test prompt")
 
         self.assertIs(result, response)
-        callbacks = captured_config["callbacks"]
-        self.assertIn(callback_marker, callbacks)
-        cancellation_callback = next(c for c in callbacks if isinstance(c, _CancellationCallback))
-        self.assertFalse(cancellation_callback.cancellation_event.is_set())
+        self.assertEqual(captured_config["callbacks"], [callback_marker])
 
     @patch("agents.agent.create_agent")
     def test_invoke_with_timeout_surfaces_original_exception(self, mock_create_agent):

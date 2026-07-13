@@ -24,6 +24,7 @@ MONITORING_CALLBACK = MonitoringCallback(stats_container=RunStats())
 logger = logging.getLogger(__name__)
 
 _OPENROUTER_FALLBACK_CONTEXT_WINDOW = ContextWindow(1_048_576, 65_536, is_fallback=True)
+LLM_REQUEST_TIMEOUT_SECONDS = 120
 
 # Model families that reject sampling params (temperature/top_p/top_k) with HTTP 400.
 # Why: Anthropic removed them starting with Opus 4.7; sending temperature (even 0) 400s.
@@ -153,7 +154,7 @@ LLM_PROVIDERS = {
         extra_args={
             "base_url": lambda: os.getenv("OPENAI_BASE_URL"),
             "max_tokens": None,
-            "timeout": None,
+            "timeout": LLM_REQUEST_TIMEOUT_SECONDS,
             "max_retries": 0,
         },
     ),
@@ -167,7 +168,7 @@ LLM_PROVIDERS = {
         extra_args={
             "base_url": lambda: os.getenv("VERCEL_BASE_URL", f"https://ai-gateway.vercel.sh/v1"),
             "max_tokens": None,
-            "timeout": None,
+            "timeout": LLM_REQUEST_TIMEOUT_SECONDS,
             "max_retries": 0,
         },
     ),
@@ -180,7 +181,7 @@ LLM_PROVIDERS = {
         llm_type=LLMType.CLAUDE,
         extra_args={
             "max_tokens": 8192,
-            "timeout": None,
+            "timeout": LLM_REQUEST_TIMEOUT_SECONDS,
             "max_retries": 0,
         },
     ),
@@ -193,7 +194,7 @@ LLM_PROVIDERS = {
         llm_type=LLMType.GEMINI_FLASH,
         extra_args={
             "max_tokens": None,
-            "timeout": None,
+            "timeout": LLM_REQUEST_TIMEOUT_SECONDS,
             "max_retries": 0,
         },
     ),
@@ -219,7 +220,7 @@ LLM_PROVIDERS = {
         llm_type=LLMType.KIMI,
         extra_args={
             "max_tokens": None,
-            "timeout": None,
+            "timeout": LLM_REQUEST_TIMEOUT_SECONDS,
             "max_retries": 0,
         },
     ),
@@ -249,7 +250,7 @@ LLM_PROVIDERS = {
         extra_args={
             "base_url": lambda: os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1"),
             "max_tokens": None,
-            "timeout": None,
+            "timeout": LLM_REQUEST_TIMEOUT_SECONDS,
             "max_retries": 0,
         },
     ),
@@ -263,7 +264,7 @@ LLM_PROVIDERS = {
         extra_args={
             "base_url": lambda: os.getenv("GLM_BASE_URL", "https://open.bigmodel.cn/api/paas/v4"),
             "max_tokens": None,
-            "timeout": None,
+            "timeout": LLM_REQUEST_TIMEOUT_SECONDS,
             "max_retries": 0,
         },
     ),
@@ -277,7 +278,7 @@ LLM_PROVIDERS = {
         extra_args={
             "base_url": lambda: os.getenv("KIMI_BASE_URL", "https://api.moonshot.cn/v1"),
             "max_tokens": None,
-            "timeout": None,
+            "timeout": LLM_REQUEST_TIMEOUT_SECONDS,
             "max_retries": 0,
         },
     ),
@@ -291,7 +292,7 @@ LLM_PROVIDERS = {
         extra_args={
             "base_url": lambda: os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"),
             "max_tokens": None,
-            "timeout": None,
+            "timeout": LLM_REQUEST_TIMEOUT_SECONDS,
             "max_retries": 0,
         },
     ),
@@ -308,7 +309,7 @@ LLM_PROVIDERS = {
         extra_args={
             "base_url": lambda: os.getenv("LITELLM_BASE_URL"),
             "max_tokens": None,
-            "timeout": None,
+            "timeout": LLM_REQUEST_TIMEOUT_SECONDS,
             "max_retries": 0,
         },
     ),
