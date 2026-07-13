@@ -1,7 +1,7 @@
 {
   "metadata": {
-    "generated_at": "2026-07-13T14:40:12.714301+00:00",
-    "commit_hash": "633c5e8c370ea6f1f6eebfe0a2e9dac20912a423",
+    "generated_at": "2026-07-13T15:19:21.956105+00:00",
+    "commit_hash": "fdfa1b0e0f2910d6d976466e12ff46eeffd0ca02",
     "repo_name": "CodeBoarding",
     "depth_level": 2,
     "file_coverage_summary": {
@@ -16476,8 +16476,7 @@
             {
               "file_path": "diagram_analysis/diagram_generator.py",
               "methods": [
-                "diagram_analysis.diagram_generator.DiagramGenerator._run_health_report",
-                "diagram_analysis.diagram_generator.DiagramGenerator.pre_analysis.get_static_with_new_analyzer"
+                "diagram_analysis.diagram_generator.DiagramGenerator._run_health_report"
               ]
             },
             {
@@ -16943,9 +16942,7 @@
                 "diagram_analysis.diagram_generator.DiagramGenerator._strip_ignored",
                 "diagram_analysis.diagram_generator.DiagramGenerator._build_file_coverage",
                 "diagram_analysis.diagram_generator.DiagramGenerator._write_file_coverage",
-                "diagram_analysis.diagram_generator.DiagramGenerator._get_static_from_injected_analyzer",
                 "diagram_analysis.diagram_generator.DiagramGenerator.pre_analysis",
-                "diagram_analysis.diagram_generator.DiagramGenerator.pre_analysis.get_static_with_injected_analyzer",
                 "diagram_analysis.diagram_generator.DiagramGenerator._generate_subcomponents",
                 "diagram_analysis.diagram_generator.DiagramGenerator._generate_subcomponents.submit_component",
                 "diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis",
@@ -18336,12 +18333,8 @@
               "file_path": "static_analyzer/incremental_orchestrator.py",
               "methods": [
                 "static_analyzer.incremental_orchestrator._rebuild_changed_file_edges",
-                "static_analyzer.incremental_orchestrator._restore_inbound_edges",
-                "static_analyzer.incremental_orchestrator._edge_reference_still_exists",
                 "static_analyzer.incremental_orchestrator._add_outbound_edges_from_changed_files",
-                "static_analyzer.incremental_orchestrator._containing_callable_nodes",
                 "static_analyzer.incremental_orchestrator._definition_nodes",
-                "static_analyzer.incremental_orchestrator._definition_points_to_node",
                 "static_analyzer.incremental_orchestrator._position_inside_node"
               ]
             },
@@ -19077,7 +19070,6 @@
                 "agents.cluster_methods_mixin.ClusterMethodsMixin._find_component_by_file",
                 "agents.cluster_methods_mixin.ClusterMethodsMixin._assign_nodes_to_components",
                 "agents.cluster_methods_mixin.ClusterMethodsMixin._log_node_coverage",
-                "agents.cluster_methods_mixin.ClusterMethodsMixin.build_files_index",
                 "agents.cluster_methods_mixin.ClusterMethodsMixin.populate_file_methods",
                 "agents.cluster_methods_mixin.ClusterMethodsMixin._prefix_local_cluster_ids"
               ]
@@ -19088,14 +19080,11 @@
                 "agents.incremental_agent.IncrementalAgent.update_scope",
                 "agents.incremental_agent.IncrementalAgent._create_component_from_operation",
                 "agents.incremental_agent.IncrementalAgent._update_component_from_operation",
-                "agents.incremental_agent.IncrementalAgent._refresh_key_entities",
                 "agents.incremental_agent.IncrementalAgent._patch_scope_file_methods",
                 "agents.incremental_agent._operation_source_cluster_ids",
                 "agents.incremental_agent._remove_reassigned_clusters",
                 "agents.incremental_agent._log_duplicate_cluster_ownership",
-                "agents.incremental_agent._cluster_id_prefix",
                 "agents.incremental_agent._component_id_parent",
-                "agents.incremental_agent._key_entities_from_file_methods",
                 "agents.incremental_agent._patch_file_methods",
                 "agents.incremental_agent._without_methods",
                 "agents.incremental_agent._merge_file_method_groups",
@@ -19164,7 +19153,6 @@
             {
               "file_path": "diagram_analysis/diagram_generator.py",
               "methods": [
-                "diagram_analysis.diagram_generator.DiagramGenerator._collect_method_entries_from_static_analysis",
                 "diagram_analysis.diagram_generator._build_scope_incremental_inputs"
               ]
             },
@@ -20158,7 +20146,6 @@
                 "agents.agent.CodeBoardingAgent._invoke_with_timeout.invoke_target",
                 "agents.agent.CodeBoardingAgent._parse_invoke",
                 "agents.agent.CodeBoardingAgent._score_result",
-                "agents.agent.CodeBoardingAgent._validation_invoke",
                 "agents.agent.CodeBoardingAgent._parse_response",
                 "agents.agent.CodeBoardingAgent._parse_response.call_once",
                 "agents.agent.CodeBoardingAgent._parse_response.classify",
@@ -20229,11 +20216,8 @@
             {
               "file_path": "agents/incremental_planning_agent.py",
               "methods": [
-                "agents.incremental_planning_agent.ScopeOperationValidationContext",
                 "agents.incremental_planning_agent.IncrementalPlanningAgent.__init__",
                 "agents.incremental_planning_agent.IncrementalPlanningAgent.decide_scope_update",
-                "agents.incremental_planning_agent.validate_scope_update_decision",
-                "agents.incremental_planning_agent._cluster_ref_from_scoped_ref",
                 "agents.incremental_planning_agent.format_structural_diff",
                 "agents.incremental_planning_agent._format_language_diff",
                 "agents.incremental_planning_agent._format_member_delta",
@@ -20244,8 +20228,7 @@
                 "agents.incremental_planning_agent._format_component_cluster_ids",
                 "agents.incremental_planning_agent._format_changed_files",
                 "agents.incremental_planning_agent._format_cluster_ref",
-                "agents.incremental_planning_agent._sort_cluster_refs",
-                "agents.incremental_planning_agent._format_cluster_ref_list"
+                "agents.incremental_planning_agent._sort_cluster_refs"
               ]
             },
             {
@@ -20337,9 +20320,6 @@
                 "agents.validation.score_validation_results",
                 "agents.validation.validate_cluster_coverage",
                 "agents.validation.validate_existing_component_ids",
-                "agents.validation._normalize_group_name",
-                "agents.validation._fuzzy_match_group_name",
-                "agents.validation._auto_correct_group_names",
                 "agents.validation.validate_group_name_coverage",
                 "agents.validation.validate_key_entities",
                 "agents.validation.validate_relation_component_names",
