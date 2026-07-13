@@ -16,7 +16,7 @@ GPT-4 Prompt Design Principles:
 
 from .abstract_prompt_factory import AbstractPromptFactory
 
-SYSTEM_MESSAGE = """You are an expert software architect analyzing {project_name}. Your task is to create comprehensive documentation and interactive diagrams that help new engineers understand the codebase within their first week.
+SYSTEM_MESSAGE = """You are an expert software architect. Your task is to create comprehensive documentation and interactive diagrams that help new engineers understand the codebase within their first week.
 
 **Your Role:**
 - Analyze code structure and generate architectural insights
@@ -32,7 +32,7 @@ Meta: {meta_context}
 **Analysis Approach:**
 1. Start with CFG data to identify structural patterns
 2. Use available tools to fill information gaps
-3. Apply {project_type} architectural best practices
+3. Apply architectural practices appropriate to this project
 4. Design components suitable for visual diagram representation
 5. Include source file references for interactive navigation
 
@@ -42,12 +42,7 @@ Meta: {meta_context}
 - Interactive diagram elements
 - Documentation for quick developer onboarding"""
 
-CLUSTER_GROUPING_MESSAGE = """Analyze and GROUP the Control Flow Graph clusters for `{project_name}`.
-
-Project Context:
-{meta_context}
-
-Project Type: {project_type}
+CLUSTER_GROUPING_MESSAGE = """Analyze and GROUP the Control Flow Graph clusters.
 
 The CFG has been pre-clustered into groups of related methods/functions. Each cluster represents methods that call each other frequently.
 
@@ -72,15 +67,12 @@ Instructions:
      * The most important classes/methods in this group — mention their exact qualified names as shown in the clusters above
 
 Focus on:
-- Creating cohesive, logical groupings that reflect the actual {project_type} architecture
+- Creating cohesive, logical groupings that reflect the actual architecture
 - Semantic meaning based on method names, call patterns, and architectural context
 - Clear justification for why clusters belong together
 - Describing inter-group interactions based on the inter-cluster connections"""
 
-FINAL_ANALYSIS_MESSAGE = """Create final component architecture for `{project_name}` optimized for flow representation.
-
-Project Context:
-{meta_context}
+FINAL_ANALYSIS_MESSAGE = """Create final component architecture optimized for flow representation.
 
 Cluster Analysis:
 {cluster_analysis}
@@ -92,7 +84,7 @@ Instructions:
 4. Add key entities (2-5 most important classes/methods) for each component, referencing the source file where they are defined
 5. Do not define relationships yet; relationships are discovered in a later API-surface step
 
-Guidelines for {project_type} projects:
+Guidelines:
 - Aim for 5-8 final components
 - Merge related cluster groups that serve a common purpose
 - Each component should have clear boundaries
@@ -346,12 +338,7 @@ Required outputs:
 
 Focus on subsystem-specific functionality. Avoid cross-cutting concerns like logging or error handling."""
 
-CFG_DETAILS_MESSAGE = """Analyze and GROUP the Control Flow Graph clusters for the `{component}` subsystem of `{project_name}`.
-
-Project Context:
-{meta_context}
-
-Project Type: {project_type}
+CFG_DETAILS_MESSAGE = """Analyze and GROUP the Control Flow Graph clusters for the `{component}` subsystem.
 
 The CFG has been pre-clustered into groups of related methods/functions. Each cluster represents methods that call each other frequently.
 
@@ -377,10 +364,7 @@ Instructions:
 
 Focus on core subsystem functionality only. Avoid cross-cutting concerns like logging or error handling."""
 
-DETAILS_MESSAGE = """Create final sub-component architecture for the `{component}` subsystem of `{project_name}` optimized for flow representation.
-
-Project Context:
-{meta_context}
+DETAILS_MESSAGE = """Create final sub-component architecture for the `{component}` subsystem optimized for flow representation.
 
 Cluster Analysis:
 {cluster_analysis}
@@ -392,7 +376,7 @@ Instructions:
 4. Add key entities (2-5 most important classes/methods) for each sub-component, referencing the source file where they are defined
 5. Do not define relationships yet; relationships are discovered in a later API-surface step
 
-Guidelines for {project_type} projects:
+Guidelines:
 - Aim for 3-8 final sub-components
 - Merge related cluster groups that serve a common purpose
 - Each sub-component should have clear boundaries
@@ -407,12 +391,7 @@ Constraints:
 
 Justify component choices based on fundamental architectural importance."""
 
-INCREMENTAL_GROUPING_MESSAGE = """**Task:** Update the architecture of {project_name} by routing changed and new CFG clusters into the correct components.
-
-**Context:**
-- Project: {project_name}
-- Type: {project_type}
-- Meta: {meta_context}
+INCREMENTAL_GROUPING_MESSAGE = """**Task:** Update the architecture by routing changed and new CFG clusters into the correct components.
 
 The previous analysis established the components below. Most clusters are unchanged and stay where they are; this prompt only shows the structural slice that changed: new clusters, removed clusters, or clusters whose member set changed through added/removed methods. A method body edit by itself is not a cluster-boundary change.
 
@@ -437,12 +416,10 @@ For each cluster group above, decide whether it belongs in an existing component
 - **redetail_needed=False** means the component boundary is unchanged; do not use it to absorb new files, new responsibilities, or clusters owned by another component
 - Every cluster id listed in the cluster groups above must appear in exactly one routing entry"""
 
-PLANNING_MESSAGE = """**Task:** Update one scope of the `{project_name}` architecture diagram.
+PLANNING_MESSAGE = """**Task:** Update one scope of the architecture diagram.
 
 **Context:**
 - Scope: `{scope_id}` (`root` means the top-level diagram)
-- Project type: {project_type}
-- Meta: {meta_context}
 
 **Existing components in this scope:**
 {existing_components}
@@ -464,16 +441,18 @@ Return operations for this scope only.
 5. Use listGitChanges only when the structural diff is not enough to judge semantic impact.
 
 **Hard rules:**
-- Do not reparent existing components. If reparenting seems required, use regenerate_scope.
+- Reparenting existing components is unsupported by the current incremental schema. Preserve their current scope.
 - Every modified/new/reshaped new-side cluster listed below must appear in exactly one operation's cluster_refs.
+
+**Architecture output contract:**
+- This step plans component boundaries only. Do not define component relations; API surfaces and relations are generated later.
+- Choose exactly one of these mutually exclusive branches for each operation:
+  - For create_component only: leave component_id null; provide a clear name and description. Select up to 5 key_entities only when their exact qualified names are available; otherwise leave them empty. Key entities are not synthesized later.
+  - For update_component only: copy the exact component_id from the existing-components list. Include refreshed name, description, or key_entities only when the component's architectural responsibility changed; otherwise preserve the existing metadata. An empty key_entities list preserves the current selection.
+  - For delete_component or noop only: copy the exact component_id from the existing-components list and leave name, description, and key_entities empty. Use delete_component only when the component has no remaining responsibility; use noop to preserve it unchanged.
 """
 
-SCOPE_RELATIONS_MESSAGE = """Generate inter-component relationships for the `{scope_name}` scope of `{project_name}`.
-
-Project Context:
-{meta_context}
-
-Project Type: {project_type}
+SCOPE_RELATIONS_MESSAGE = """Generate inter-component relationships for the `{scope_name}` scope.
 
 **Components in this scope:**
 {component_summaries}

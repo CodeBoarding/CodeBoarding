@@ -161,9 +161,20 @@ class UnifiedAnalysisJson(BaseModel):
     components_relations: list[RelationJson] = Field(description="List of relations among the components.")
 
 
-def _build_files_index_from_analysis(analysis: AnalysisInsights) -> dict[str, FileEntry]:
-    """Build a top-level files index from analysis."""
-    return {file_path: entry.model_copy(deep=True) for file_path, entry in analysis.files.items()}
+def _build_files_index_from_analysis(
+    analysis: AnalysisInsights,
+    sub_analyses: dict[str, tuple[AnalysisInsights, list[Component]]] | None = None,
+) -> dict[str, FileEntry]:
+    """Build a unified file index from the root and sub-analyses."""
+    analyses = [analysis]
+    if sub_analyses:
+        analyses.extend(sub_analysis for sub_analysis, _ in sub_analyses.values())
+
+    files_index: dict[str, FileEntry] = {}
+    for current_analysis in analyses:
+        for file_path, entry in current_analysis.files.items():
+            files_index.setdefault(file_path, FileEntry()).merge_from(entry)
+    return files_index
 
 
 def _method_key(file_path: str, qualified_name: str) -> str:
@@ -234,6 +245,7 @@ def _build_file_entry_json_from_files(files_index: dict[str, FileEntry]) -> dict
             content_hash=entry.content_hash,
         )
         for file_path, entry in files_index.items()
+        if file_path
     }
 
 
@@ -347,7 +359,7 @@ def from_analysis_to_json(
         _relation_to_json(r, repo_dir)
         for r in merge_relations_by_pair(analysis.components_relations, include_relation=True)
     ]
-    files_index = _build_files_index_from_analysis(analysis)
+    files_index = _build_files_index_from_analysis(analysis, sub_analyses)
     methods_index = _build_methods_index_from_files(files_index)
     files_json = _build_file_entry_json_from_files(files_index)
     data = {
@@ -424,7 +436,7 @@ def build_unified_analysis_json(
     components_json = [
         from_component_to_json_component(c, expandable_components, repo_dir, sub_analyses) for c in analysis.components
     ]
-    files_index = _build_files_index_from_analysis(analysis)
+    files_index = _build_files_index_from_analysis(analysis, sub_analyses)
     methods_index = _build_methods_index_from_files(files_index)
 
     # Use default summary if none provided
@@ -474,10 +486,10 @@ def parse_unified_analysis(
     files_raw = data.get("files", {})
     files_index = _reconstruct_files_index(files_raw, methods_index)
 
-    root_analysis.files = {path: entry.model_copy(deep=True) for path, entry in files_index.items()}
+    root_analysis.files = {path: FileEntry().merge_from(entry) for path, entry in files_index.items()}
     _hydrate_component_methods_from_refs(root_analysis, methods_index)
     for sub in sub_analyses.values():
-        sub.files = {path: entry.model_copy(deep=True) for path, entry in files_index.items()}
+        sub.files = {path: FileEntry().merge_from(entry) for path, entry in files_index.items()}
         _hydrate_component_methods_from_refs(sub, methods_index)
 
     return root_analysis, sub_analyses
@@ -490,13 +502,14 @@ def _reconstruct_files_index(
     """Rebuild in-memory ``FileEntry`` objects from persisted ``method_keys``."""
     files_index: dict[str, FileEntry] = {}
     for file_path, entry_raw in files_raw.items():
-        methods: list[MethodEntry] = []
+        entry = FileEntry(content_hash=entry_raw.get("content_hash", ""))
+        indexed_methods: list[MethodEntry] = []
         for key in entry_raw["method_keys"]:
             indexed = methods_index.get(key)
             if indexed is None:
                 logger.warning("Missing methods_index entry for key %s (file %s)", key, file_path)
                 continue
-            methods.append(
+            indexed_methods.append(
                 MethodEntry(
                     qualified_name=indexed.qualified_name,
                     start_line=indexed.start_line,
@@ -505,10 +518,8 @@ def _reconstruct_files_index(
                     content_hash=indexed.content_hash,
                 )
             )
-        files_index[file_path] = FileEntry(
-            methods=methods,
-            content_hash=entry_raw.get("content_hash", ""),
-        )
+        entry.merge_from(FileEntry(methods=indexed_methods))
+        files_index[file_path] = entry
     return files_index
 
 

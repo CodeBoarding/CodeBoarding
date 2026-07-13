@@ -77,9 +77,7 @@ class AbstractPromptFactory(ABC):
         return RELATION_ANALYSIS_MESSAGE
 
 
-API_SURFACES_MESSAGE = """Analyze component API surfaces for `{project_name}`.
-
-Project Type: {project_type}
+API_SURFACES_MESSAGE = """Analyze the component API surfaces.
 
 Components:
 {component_summaries}
@@ -95,9 +93,7 @@ Identify each component's API surface. For every component, describe:
 Static call evidence is incomplete. Reason from component APIs, registries, protocols, runtime dispatch, plugin hooks, configuration, and data flow."""
 
 
-RELATION_ANALYSIS_MESSAGE = """Discover architectural communication relations for `{project_name}`.
-
-Project Type: {project_type}
+RELATION_ANALYSIS_MESSAGE = """Discover architectural communication relations between the components.
 
 Components:
 {component_summaries}

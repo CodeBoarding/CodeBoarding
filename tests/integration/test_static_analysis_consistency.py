@@ -304,7 +304,14 @@ class TestStaticAnalysisConsistency:
         # Run static analysis with mocked scanner and measure execution time
         mock_scan = create_mock_scanner(config.mock_language)
         start_time = time.perf_counter()
-        with patch("static_analyzer.scanner.ProjectScanner.scan", mock_scan):
+        # Persistence is intentionally excluded from this benchmark. The fixture
+        # timings were recorded for analysis itself, while serializing the large
+        # result (especially with Windows filesystem flushing) is environment-
+        # dependent and can dominate the measurement.
+        with (
+            patch("static_analyzer.scanner.ProjectScanner.scan", mock_scan),
+            patch("static_analyzer.analysis_cache.StaticAnalysisCache.save"),
+        ):
             static_analysis = get_static_analysis(repo_path, cache_dir=get_artifact_dir(repo_path))
         end_time = time.perf_counter()
         actual_execution_time = end_time - start_time

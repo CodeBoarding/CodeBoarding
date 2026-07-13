@@ -1,6 +1,5 @@
 """Plan scoped analysis updates from structural cluster diffs."""
 
-from dataclasses import dataclass, field
 from collections.abc import Iterable
 import logging
 from pathlib import Path
@@ -14,14 +13,17 @@ from agents.agent_responses import (
     AnalysisInsights,
     Component,
     MetaAnalysisInsights,
-    ScopeOperationAction,
     ScopeUpdateDecision,
-    ScopedClusterRef,
 )
 from agents.cluster_ids import CodeBoardingClusterIds
-from agents.prompts import get_planning_message, get_system_message
+from agents.prompts import format_project_system_message, get_planning_message, get_system_message
+from agents.repair import (
+    ScopeOperationRepairContext,
+    repair_unambiguous_routing_and_optional_key_entity_metadata,
+)
 from agents.scope_ids import ROOT_SCOPE_ID
-from agents.validation import ValidationResult
+from agents.scope_operations import cluster_member_qnames, normalize_component_name
+from agents.validation import ScopeOperationValidationContext, validate_scope_update_decision
 from diagram_analysis.cluster_delta import (
     ClusterMemberDelta,
     ClusterRef,
@@ -29,19 +31,14 @@ from diagram_analysis.cluster_delta import (
     LanguageStructuralDiff,
     StructuralClusterDiff,
 )
+from diagram_analysis.exceptions import InvalidIncrementalPlanError
 from repo_utils.change_detector import ChangeSet
 from static_analyzer.analysis_result import StaticAnalysisResults
+from static_analyzer.graph import ClusterResult
 from telemetry.service import telemetry
 
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class ScopeOperationValidationContext:
-    expected_cluster_refs: set[ClusterRef] = field(default_factory=set)
-    existing_component_ids: set[str] = field(default_factory=set)
-    scope_id: str = ROOT_SCOPE_ID
 
 
 class IncrementalPlanningAgent(CodeBoardingAgent):
@@ -57,7 +54,8 @@ class IncrementalPlanningAgent(CodeBoardingAgent):
         parsing_llm: BaseChatModel,
         changes: ChangeSet | None = None,
     ):
-        super().__init__(repo_dir, static_analysis, get_system_message(), agent_llm, parsing_llm)
+        system_message = format_project_system_message(get_system_message(), project_name, meta_context)
+        super().__init__(repo_dir, static_analysis, system_message, agent_llm, parsing_llm)
         if changes is not None:
             self.toolkit.context.changes = changes
         self.agent = create_agent(
@@ -69,10 +67,7 @@ class IncrementalPlanningAgent(CodeBoardingAgent):
         self.prompt = PromptTemplate(
             template=get_planning_message(),
             input_variables=[
-                "project_name",
                 "scope_id",
-                "project_type",
-                "meta_context",
                 "existing_components",
                 "changed_files",
                 "structural_diff",
@@ -84,37 +79,41 @@ class IncrementalPlanningAgent(CodeBoardingAgent):
         scope_id: str,
         scope: AnalysisInsights,
         structural_diff: StructuralClusterDiff,
+        cluster_results: dict[str, ClusterResult],
     ) -> ScopeUpdateDecision:
-        meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
-        project_type = self.meta_context.project_type if self.meta_context else "unknown"
         prompt = self.prompt.format(
-            project_name=self.project_name,
             scope_id=scope_id,
-            project_type=project_type,
-            meta_context=meta_context_str,
             existing_components=_format_scope_components(scope.components),
             changed_files=_format_changed_files(self.toolkit.context.changes),
             structural_diff=format_structural_diff(structural_diff),
         )
-        context = ScopeOperationValidationContext(
+        repair_context = ScopeOperationRepairContext(
+            reference_resolver=self.reference_resolver,
+            allowed_key_entity_qnames=cluster_member_qnames(cluster_results),
+            component_ids_by_cluster_ref=_component_ids_by_cluster_ref(scope_id, scope.components, structural_diff),
+            component_ids_by_name=_component_ids_by_name(scope.components),
+        )
+        validation_context = ScopeOperationValidationContext(
             expected_cluster_refs=_actionable_new_cluster_refs(structural_diff),
             existing_component_ids={component.component_id for component in scope.components if component.component_id},
-            scope_id=scope_id,
         )
-        decision = self._validation_invoke(
+        decision = self._invoke_repair_validate(
             prompt,
             ScopeUpdateDecision,
+            repairs=[repair_unambiguous_routing_and_optional_key_entity_metadata],
             validators=[validate_scope_update_decision],
-            context=context,
+            repair_context=repair_context,
+            validation_context=validation_context,
             max_validation_attempts=3,
         )
-        validation = validate_scope_update_decision(decision, context)
+        validation = validate_scope_update_decision(decision, validation_context)
         if not validation.is_valid:
             logger.error(
-                "Incremental planning decision remained invalid after retries; will still pass it on. Issues: %s",
+                "Incremental planning decision remained invalid after retries: %s",
                 validation.feedback_messages,
             )
             _track_invalid_planning_decision(scope_id, validation.feedback_messages)
+            raise InvalidIncrementalPlanError(scope_id, validation.feedback_messages)
         return decision
 
 
@@ -131,43 +130,51 @@ def _track_invalid_planning_decision(scope_id: str, feedback_messages: list[str]
     telemetry.flush()
 
 
-def validate_scope_update_decision(
-    decision: ScopeUpdateDecision,
-    context: ScopeOperationValidationContext,
-) -> ValidationResult:
-    errors: list[str] = []
-    seen_refs: list[ClusterRef] = []
-    for operation in decision.operations:
-        refs = [_cluster_ref_from_scoped_ref(ref) for ref in operation.cluster_refs]
-        seen_refs.extend(refs)
-        if operation.action in {
-            ScopeOperationAction.UPDATE_COMPONENT,
-            ScopeOperationAction.DELETE_COMPONENT,
-            ScopeOperationAction.NOOP,
-        }:
-            if operation.component_id not in context.existing_component_ids:
-                errors.append(
-                    f"Operation {operation.action} references unknown component_id={operation.component_id!r}."
-                )
-        if operation.action == ScopeOperationAction.CREATE_COMPONENT:
-            if not operation.name or not operation.description:
-                errors.append("create_component operations must include name and description.")
+def _component_ids_by_cluster_ref(
+    scope_id: str,
+    components: list[Component],
+    structural_diff: StructuralClusterDiff,
+) -> dict[ClusterRef, str]:
+    """Map new-side cluster refs to a unique existing owner when overlap proves one."""
+    cluster_id_prefix = CodeBoardingClusterIds.prefix_for_scope(scope_id)
+    owners_by_cluster_id: dict[str, set[str]] = {}
+    for component in components:
+        if not component.component_id:
+            continue
+        for cluster_id in component.source_cluster_ids:
+            owners_by_cluster_id.setdefault(cluster_id, set()).add(component.component_id)
 
-    seen_set = set(seen_refs)
-    missing = context.expected_cluster_refs - seen_set
-    extra = seen_set - context.expected_cluster_refs
-    duplicates = {ref for ref in seen_set if seen_refs.count(ref) > 1}
-    if missing:
-        errors.append(f"Missing cluster_refs: {_format_cluster_ref_list(missing)}")
-    if extra:
-        errors.append(f"Unexpected cluster_refs: {_format_cluster_ref_list(extra)}")
-    if duplicates:
-        errors.append(f"Duplicate cluster_refs: {_format_cluster_ref_list(duplicates)}")
-    return ValidationResult(is_valid=not errors, feedback_messages=errors)
+    def owner_for_old_ref(ref: ClusterRef) -> str | None:
+        cluster_id = CodeBoardingClusterIds.qualify_local_id(
+            CodeBoardingClusterIds.from_graph_id(ref.cluster_id),
+            cluster_id_prefix,
+        )
+        owners = owners_by_cluster_id.get(cluster_id, set())
+        return next(iter(owners)) if len(owners) == 1 else None
+
+    owners_by_new_ref: dict[ClusterRef, set[str]] = {}
+    for language_diff in structural_diff.by_language.values():
+        for delta in language_diff.modified:
+            owner = owner_for_old_ref(delta.old_cluster)
+            if owner:
+                owners_by_new_ref.setdefault(delta.new_cluster, set()).add(owner)
+        for reshape in language_diff.reshaped:
+            for (old_ref, new_ref), overlap in reshape.overlap_counts.items():
+                if overlap <= 0:
+                    continue
+                owner = owner_for_old_ref(old_ref)
+                if owner:
+                    owners_by_new_ref.setdefault(new_ref, set()).add(owner)
+
+    return {ref: next(iter(owner_ids)) for ref, owner_ids in owners_by_new_ref.items() if len(owner_ids) == 1}
 
 
-def _cluster_ref_from_scoped_ref(ref: ScopedClusterRef) -> ClusterRef:
-    return ClusterRef(ref.language, ref.cluster_id, ref.scope_id)
+def _component_ids_by_name(components: list[Component]) -> dict[str, str]:
+    ids_by_name: dict[str, set[str]] = {}
+    for component in components:
+        if component.component_id:
+            ids_by_name.setdefault(normalize_component_name(component.name), set()).add(component.component_id)
+    return {name: next(iter(component_ids)) for name, component_ids in ids_by_name.items() if len(component_ids) == 1}
 
 
 def format_structural_diff(structural_diff: StructuralClusterDiff) -> str:
@@ -253,12 +260,15 @@ def _actionable_new_cluster_refs(structural_diff: StructuralClusterDiff) -> set[
 def _format_scope_components(components: list[Component]) -> str:
     if not components:
         return "No existing components in this scope."
-    return "\n".join(
-        f'- {component.component_id or "?"} "{component.name}" '
-        f"clusters=[{_format_component_cluster_ids(component.source_cluster_ids)}] -- "
-        f"{(component.description or '').strip()}"
-        for component in components
-    )
+    lines: list[str] = []
+    for component in components:
+        key_entities = ", ".join(entity.qualified_name for entity in component.key_entities) or "None"
+        lines.append(
+            f'- {component.component_id or "?"} "{component.name}" '
+            f"clusters=[{_format_component_cluster_ids(component.source_cluster_ids)}] -- "
+            f"{(component.description or '').strip()} -- key_entities=[{key_entities}]"
+        )
+    return "\n".join(lines)
 
 
 def _format_component_cluster_ids(cluster_ids: list[str]) -> str:
@@ -283,9 +293,3 @@ def _format_cluster_ref(ref: ClusterRef) -> str:
 
 def _sort_cluster_refs(refs: Iterable[ClusterRef]) -> list[ClusterRef]:
     return sorted(refs, key=lambda ref: (ref.scope_id, ref.language, ref.cluster_id))
-
-
-def _format_cluster_ref_list(refs: set[ClusterRef]) -> str:
-    if not refs:
-        return "None"
-    return ", ".join(_format_cluster_ref(ref) for ref in _sort_cluster_refs(refs))

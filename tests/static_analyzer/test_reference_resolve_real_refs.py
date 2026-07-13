@@ -17,7 +17,7 @@ from agents.agent_responses import (
     Component,
     SourceCodeReference,
 )
-from agents.file_index_models import FileMethodGroup
+from agents.file_index_models import FileMethodGroup, MethodEntry
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import NodeType
 from static_analyzer.node import Node
@@ -71,9 +71,14 @@ def _make_node(repo_dir: Path, qname: str, rel_file: str) -> Node:
     )
 
 
-def _make_file_methods(file_paths: list[str]) -> list[FileMethodGroup]:
-    """Create FileMethodGroup objects from file paths for testing."""
-    return [FileMethodGroup(file_path=fp, methods=[]) for fp in file_paths]
+def _make_file_methods(entities: list[tuple[str, str]]) -> list[FileMethodGroup]:
+    """Create component method scope from qualified-name/file pairs."""
+    by_file: dict[str, list[MethodEntry]] = {}
+    for qname, file_path in entities:
+        by_file.setdefault(file_path, []).append(
+            MethodEntry(qualified_name=qname, start_line=0, end_line=5, node_type="CLASS")
+        )
+    return [FileMethodGroup(file_path=file_path, methods=methods) for file_path, methods in by_file.items()]
 
 
 # ---------------------------------------------------------------------------
@@ -81,29 +86,29 @@ def _make_file_methods(file_paths: list[str]) -> list[FileMethodGroup]:
 # ---------------------------------------------------------------------------
 
 
-class TestRelativePathAlreadyResolved(unittest.TestCase):
-    """The LLM provides a correct *relative* reference_file.
-
-    fix_source_code_reference_lines should recognise this as already resolved
-    (joining with repo_dir) instead of re-resolving or dropping the reference.
-    """
+class TestPersistedRelativePathRefresh(unittest.TestCase):
+    """Persisted relative paths are revalidated against current scoped symbols."""
 
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
         _make_repo_tree(self.tmp)
         self.sa = MagicMock(spec=StaticAnalysisResults)
         self.sa.get_languages.return_value = ["python"]
-        self.sa.get_reference.side_effect = ValueError("not found")
-        self.sa.get_loose_reference.side_effect = Exception("not found")
+        nodes = {qname: _make_node(self.tmp, qname, file_path) for qname, file_path in ANALYSIS_KEY_ENTITIES}
+        self.sa.get_reference.side_effect = lambda _lang, qname: nodes[qname]
         self.resolver = StaticReferenceResolver(self.tmp, self.sa)
 
     def tearDown(self):
         shutil.rmtree(self.tmp, ignore_errors=True)
 
-    def test_all_analysis_json_refs_preserved(self):
-        """Every key_entity from analysis.json should survive resolution unchanged."""
+    def test_all_analysis_json_refs_are_refreshed(self):
         refs = [SourceCodeReference(qualified_name=qn, reference_file=rf) for qn, rf in ANALYSIS_KEY_ENTITIES]
-        comp = Component(name="C", description="d", key_entities=refs)
+        comp = Component(
+            name="C",
+            description="d",
+            key_entities=refs,
+            file_methods=_make_file_methods(ANALYSIS_KEY_ENTITIES),
+        )
         analysis = AnalysisInsights(description="d", components=[comp], components_relations=[])
 
         result = self.resolver.fix_source_code_reference_lines(analysis)
@@ -115,7 +120,12 @@ class TestRelativePathAlreadyResolved(unittest.TestCase):
     def test_relative_paths_stay_relative(self):
         """After resolution the reference_file should be a relative path."""
         refs = [SourceCodeReference(qualified_name=qn, reference_file=rf) for qn, rf in ANALYSIS_KEY_ENTITIES]
-        comp = Component(name="C", description="d", key_entities=refs)
+        comp = Component(
+            name="C",
+            description="d",
+            key_entities=refs,
+            file_methods=_make_file_methods(ANALYSIS_KEY_ENTITIES),
+        )
         analysis = AnalysisInsights(description="d", components=[comp], components_relations=[])
 
         result = self.resolver.fix_source_code_reference_lines(analysis)
@@ -154,7 +164,9 @@ class TestResolveFromQualifiedNameOnly(unittest.TestCase):
         self.sa.get_reference.return_value = node
 
         ref = SourceCodeReference(qualified_name=qname, reference_file=None)
-        comp = Component(name="C", description="d", key_entities=[ref])
+        comp = Component(
+            name="C", description="d", key_entities=[ref], file_methods=_make_file_methods([(qname, expected_file)])
+        )
         analysis = AnalysisInsights(description="d", components=[comp], components_relations=[])
 
         result = self.resolver.fix_source_code_reference_lines(analysis)
@@ -171,10 +183,12 @@ class TestResolveFromQualifiedNameOnly(unittest.TestCase):
         node = _make_node(self.tmp, qname, expected_file)
 
         self.sa.get_reference.side_effect = ValueError("not found")
-        self.sa.get_loose_reference.return_value = (qname, node)
+        self.sa.iter_reference_nodes.return_value = [node]
 
         ref = SourceCodeReference(qualified_name=qname, reference_file=None)
-        comp = Component(name="C", description="d", key_entities=[ref])
+        comp = Component(
+            name="C", description="d", key_entities=[ref], file_methods=_make_file_methods([(qname, expected_file)])
+        )
         analysis = AnalysisInsights(description="d", components=[comp], components_relations=[])
 
         result = self.resolver.fix_source_code_reference_lines(analysis)
@@ -182,11 +196,7 @@ class TestResolveFromQualifiedNameOnly(unittest.TestCase):
         self.assertEqual(len(result.components[0].key_entities), 1)
         self.assertEqual(result.components[0].key_entities[0].reference_file, expected_file)
 
-    def test_file_path_fallback_resolves(self):
-        """When static analysis fails, qualified_name -> file path conversion should work.
-
-        e.g. agents.llm_config.LLMConfig -> agents/llm_config.py  (strip last segment, add .py)
-        """
+    def test_file_path_without_static_symbol_is_dropped(self):
         qname = "agents.llm_config.LLMConfig"
         expected_file = "agents/llm_config.py"
 
@@ -195,22 +205,18 @@ class TestResolveFromQualifiedNameOnly(unittest.TestCase):
 
         ref = SourceCodeReference(qualified_name=qname, reference_file=None)
         comp = Component(
-            name="C", description="d", key_entities=[ref], file_methods=_make_file_methods([expected_file])
+            name="C",
+            description="d",
+            key_entities=[ref],
+            file_methods=_make_file_methods([(qname, expected_file)]),
         )
         analysis = AnalysisInsights(description="d", components=[comp], components_relations=[])
 
         result = self.resolver.fix_source_code_reference_lines(analysis)
 
-        self.assertEqual(len(result.components[0].key_entities), 1)
-        resolved = result.components[0].key_entities[0]
-        self.assertEqual(resolved.reference_file, expected_file)
+        self.assertEqual(result.components[0].key_entities, [])
 
-    def test_deep_nested_qname_resolves(self):
-        """Deeply nested qualified names should resolve.
-
-        e.g. diagram_analysis.cluster_delta.ClusterDelta
-             -> diagram_analysis/cluster_delta.py
-        """
+    def test_deep_nested_qname_without_static_symbol_is_dropped(self):
         qname = "diagram_analysis.cluster_delta.ClusterDelta"
         expected_file = "diagram_analysis/cluster_delta.py"
 
@@ -219,17 +225,18 @@ class TestResolveFromQualifiedNameOnly(unittest.TestCase):
 
         ref = SourceCodeReference(qualified_name=qname, reference_file=None)
         comp = Component(
-            name="C", description="d", key_entities=[ref], file_methods=_make_file_methods([expected_file])
+            name="C",
+            description="d",
+            key_entities=[ref],
+            file_methods=_make_file_methods([(qname, expected_file)]),
         )
         analysis = AnalysisInsights(description="d", components=[comp], components_relations=[])
 
         result = self.resolver.fix_source_code_reference_lines(analysis)
 
-        self.assertEqual(len(result.components[0].key_entities), 1)
-        self.assertEqual(result.components[0].key_entities[0].reference_file, expected_file)
+        self.assertEqual(result.components[0].key_entities, [])
 
-    def test_module_level_function_resolves(self):
-        """Module-level function: github_action.main -> github_action.py"""
+    def test_module_level_function_without_static_symbol_is_dropped(self):
         qname = "github_action.main"
         expected_file = "github_action.py"
 
@@ -238,24 +245,20 @@ class TestResolveFromQualifiedNameOnly(unittest.TestCase):
 
         ref = SourceCodeReference(qualified_name=qname, reference_file=None)
         comp = Component(
-            name="C", description="d", key_entities=[ref], file_methods=_make_file_methods([expected_file])
+            name="C",
+            description="d",
+            key_entities=[ref],
+            file_methods=_make_file_methods([(qname, expected_file)]),
         )
         analysis = AnalysisInsights(description="d", components=[comp], components_relations=[])
 
         result = self.resolver.fix_source_code_reference_lines(analysis)
 
-        self.assertEqual(len(result.components[0].key_entities), 1)
-        self.assertEqual(result.components[0].key_entities[0].reference_file, expected_file)
+        self.assertEqual(result.components[0].key_entities, [])
 
 
-class TestRelativePathCWDBug(unittest.TestCase):
-    """Expose bug: os.path.exists(relative_path) is CWD-dependent.
-
-    When CWD == repo_dir, the relative path check passes and the reference
-    is skipped — no line numbers are ever populated.  When CWD != repo_dir
-    the same reference falls through to resolution and gets different treatment.
-    The resolver should behave identically regardless of CWD.
-    """
+class TestStrictStaticResolution(unittest.TestCase):
+    """Key entities require a current symbol inside their component scope."""
 
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
@@ -267,17 +270,17 @@ class TestRelativePathCWDBug(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.tmp, ignore_errors=True)
 
-    def test_relative_ref_resolved_regardless_of_cwd(self):
-        """A relative reference_file must be recognized even when CWD != repo_dir.
-
-        The check should use repo_dir to resolve the relative path, not rely on
-        os.path.exists with a bare relative path.
-        """
+    def test_relative_ref_without_static_symbol_is_dropped_regardless_of_cwd(self):
         self.sa.get_reference.side_effect = ValueError("not found")
         self.sa.get_loose_reference.side_effect = Exception("not found")
 
         ref = SourceCodeReference(qualified_name="core.registry.Registry", reference_file="core/registry.py")
-        comp = Component(name="C", description="d", key_entities=[ref])
+        comp = Component(
+            name="C",
+            description="d",
+            key_entities=[ref],
+            file_methods=_make_file_methods([("core.registry.Registry", "core/registry.py")]),
+        )
         analysis = AnalysisInsights(description="d", components=[comp], components_relations=[])
 
         # Run from a different CWD to ensure the resolver doesn't depend on it
@@ -288,8 +291,7 @@ class TestRelativePathCWDBug(unittest.TestCase):
         finally:
             os.chdir(original_cwd)
 
-        self.assertEqual(len(result.components[0].key_entities), 1)
-        self.assertEqual(result.components[0].key_entities[0].reference_file, "core/registry.py")
+        self.assertEqual(result.components[0].key_entities, [])
 
     def test_line_numbers_populated_from_static_analysis(self):
         """When static analysis knows the entity, line numbers must be populated.
@@ -306,7 +308,12 @@ class TestRelativePathCWDBug(unittest.TestCase):
             reference_start_line=None,
             reference_end_line=None,
         )
-        comp = Component(name="C", description="d", key_entities=[ref])
+        comp = Component(
+            name="C",
+            description="d",
+            key_entities=[ref],
+            file_methods=_make_file_methods([("core.registry.Registry", "core/registry.py")]),
+        )
         analysis = AnalysisInsights(description="d", components=[comp], components_relations=[])
 
         result = self.resolver.fix_source_code_reference_lines(analysis)
@@ -315,29 +322,22 @@ class TestRelativePathCWDBug(unittest.TestCase):
         self.assertIsNotNone(resolved.reference_start_line, "start_line should be populated from static analysis")
         self.assertIsNotNone(resolved.reference_end_line, "end_line should be populated from static analysis")
 
-    def test_file_path_resolution_populates_no_line_numbers(self):
-        """Expose: file-path fallback resolves the file but leaves line numbers None.
-
-        This is acceptable but should be documented — line numbers are only
-        available through static analysis (exact/loose match).
-        """
+    def test_file_path_resolution_without_static_symbol_is_dropped(self):
         self.sa.get_reference.side_effect = ValueError("not found")
         self.sa.get_loose_reference.side_effect = Exception("not found")
 
         ref = SourceCodeReference(qualified_name="core.registry.Registry", reference_file=None)
         comp = Component(
-            name="C", description="d", key_entities=[ref], file_methods=_make_file_methods(["core/registry.py"])
+            name="C",
+            description="d",
+            key_entities=[ref],
+            file_methods=_make_file_methods([("core.registry.Registry", "core/registry.py")]),
         )
         analysis = AnalysisInsights(description="d", components=[comp], components_relations=[])
 
         result = self.resolver.fix_source_code_reference_lines(analysis)
 
-        self.assertEqual(len(result.components[0].key_entities), 1)
-        resolved = result.components[0].key_entities[0]
-        # File is found but line numbers are NOT populated by file-path fallback
-        self.assertIsNotNone(resolved.reference_file)
-        self.assertIsNone(resolved.reference_start_line)
-        self.assertIsNone(resolved.reference_end_line)
+        self.assertEqual(result.components[0].key_entities, [])
 
 
 class TestMultiComponentAnalysis(unittest.TestCase):
@@ -396,7 +396,6 @@ class TestMultiComponentAnalysis(unittest.TestCase):
         components = []
         for name, entities in component_groups.items():
             refs = []
-            file_paths = []
             for qn, rf in entities:
                 refs.append(
                     SourceCodeReference(
@@ -404,18 +403,16 @@ class TestMultiComponentAnalysis(unittest.TestCase):
                         reference_file=rf if ref_file_present else None,
                     )
                 )
-                if rf not in file_paths:
-                    file_paths.append(rf)
             components.append(
-                Component(name=name, description="d", key_entities=refs, file_methods=_make_file_methods(file_paths))
+                Component(name=name, description="d", key_entities=refs, file_methods=_make_file_methods(entities))
             )
 
         return AnalysisInsights(description="CodeBoarding analysis", components=components, components_relations=[])
 
     def test_all_refs_resolved_with_reference_file(self):
         """When LLM provides reference_file, every entity must survive."""
-        self.sa.get_reference.side_effect = ValueError("not found")
-        self.sa.get_loose_reference.side_effect = Exception("not found")
+        nodes = {qname: _make_node(self.tmp, qname, file_path) for qname, file_path in ANALYSIS_KEY_ENTITIES}
+        self.sa.get_reference.side_effect = lambda _lang, qname: nodes[qname]
 
         analysis = self._build_analysis(ref_file_present=True)
         result = self.resolver.fix_source_code_reference_lines(analysis)
@@ -446,8 +443,8 @@ class TestMultiComponentAnalysis(unittest.TestCase):
 
     def test_output_paths_are_all_relative(self):
         """No matter the resolution strategy, output paths must be relative."""
-        self.sa.get_reference.side_effect = ValueError("not found")
-        self.sa.get_loose_reference.side_effect = Exception("not found")
+        nodes = {qname: _make_node(self.tmp, qname, file_path) for qname, file_path in ANALYSIS_KEY_ENTITIES}
+        self.sa.get_reference.side_effect = lambda _lang, qname: nodes[qname]
 
         analysis = self._build_analysis(ref_file_present=True)
         result = self.resolver.fix_source_code_reference_lines(analysis)

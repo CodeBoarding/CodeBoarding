@@ -12,10 +12,7 @@ from dataclasses import dataclass, field
 
 from constants import DEFAULT_STATIC_RELATION_LABEL
 from agents.agent_responses import AnalysisInsights, Relation, RelationEdge
-from agents.relation_edges import (
-    append_or_merge_relation,
-    merge_relation_edges,
-)
+from agents.relation_edges import append_or_merge_relation
 from static_analyzer.graph import CallGraph, Edge
 
 logger = logging.getLogger(__name__)
@@ -119,16 +116,23 @@ def _collect_component_names(
     return id_to_name
 
 
-def _collect_llm_relations(
+def _collect_authoritative_relations(
     root_analysis: AnalysisInsights, sub_analyses: dict[str, AnalysisInsights]
 ) -> list[Relation]:
-    relations = list(root_analysis.components_relations)
-    for _, sub_analysis in sorted(sub_analyses.items()):
-        relations.extend(sub_analysis.components_relations)
-    return relations
+    """Select one metadata source per component pair, preferring live scopes."""
+    relations_by_pair: dict[tuple[str, str], Relation] = {}
+    analyses = [
+        root_analysis,
+        *(sub_analyses[scope_id] for scope_id in sorted(sub_analyses, key=lambda item: (item.count("."), item))),
+    ]
+    for analysis in analyses:
+        for relation in analysis.components_relations:
+            if relation.src_id and relation.dst_id:
+                relations_by_pair[(relation.src_id, relation.dst_id)] = relation
+    return list(relations_by_pair.values())
 
 
-def _ancestor_relation_label(src_id: str, dst_id: str, llm_relations: list[Relation]) -> str:
+def _ancestor_relation(src_id: str, dst_id: str, llm_relations: list[Relation]) -> Relation | None:
     candidates = [
         rel
         for rel in llm_relations
@@ -138,11 +142,25 @@ def _ancestor_relation_label(src_id: str, dst_id: str, llm_relations: list[Relat
         and is_self_or_descendant(dst_id, rel.dst_id)
     ]
     if not candidates:
-        return DEFAULT_STATIC_RELATION_LABEL
-    candidates.sort(
-        key=lambda rel: (-(rel.src_id.count(".") + rel.dst_id.count(".")), rel.src_id, rel.dst_id, rel.relation)
-    )
-    return candidates[0].relation
+        return None
+    candidates.sort(key=lambda rel: (-(rel.src_id.count(".") + rel.dst_id.count(".")), rel.src_id, rel.dst_id))
+    return candidates[0]
+
+
+def _relation_key_edges_for_pair(
+    relation: Relation,
+    src_id: str,
+    dst_id: str,
+    node_to_component: dict[str, str],
+) -> list[RelationEdge]:
+    if (relation.src_id, relation.dst_id) == (src_id, dst_id):
+        return relation.key_edges
+    return [
+        edge
+        for edge in relation.key_edges
+        if node_to_component.get(edge.source.qualified_name) == src_id
+        and node_to_component.get(edge.target.qualified_name) == dst_id
+    ]
 
 
 def build_global_relations(
@@ -155,9 +173,9 @@ def build_global_relations(
     static_relations = build_component_relations(node_to_component, cfg_graphs)
     id_to_name = _collect_component_names(root_analysis, sub_analyses)
     live_ids = set(id_to_name)
-    llm_relations = _collect_llm_relations(root_analysis, sub_analyses)
+    llm_relations = _collect_authoritative_relations(root_analysis, sub_analyses)
 
-    global_relations: list[Relation] = []
+    global_relations: dict[tuple[str, str], Relation] = {}
     static_pairs = {(rel.src_cluster_id, rel.dst_cluster_id) for rel in static_relations}
     superseded_llm_pairs: set[tuple[str, str]] = set()
 
@@ -172,28 +190,42 @@ def build_global_relations(
                 and is_self_or_descendant(dst_id, llm_rel.dst_id)
             ):
                 superseded_llm_pairs.add((llm_rel.src_id, llm_rel.dst_id))
-        append_or_merge_relation(
-            global_relations,
-            Relation.from_edges(
-                _ancestor_relation_label(src_id, dst_id, llm_relations),
+        llm_relation = _ancestor_relation(src_id, dst_id, llm_relations)
+        if llm_relation is None:
+            relation = Relation.from_edges(
+                DEFAULT_STATIC_RELATION_LABEL,
                 id_to_name.get(src_id, src_id),
                 id_to_name.get(dst_id, dst_id),
                 src_id,
                 dst_id,
                 static_rel.all_edges,
                 True,
-            ),
-        )
+            )
+        else:
+            inherited_key_edges = _relation_key_edges_for_pair(llm_relation, src_id, dst_id, node_to_component)
+            key_edges, all_edges = Relation._merge_edges(inherited_key_edges, static_rel.all_edges)
+            relation = Relation(
+                relation=llm_relation.relation,
+                src_name=id_to_name.get(src_id, src_id),
+                dst_name=id_to_name.get(dst_id, dst_id),
+                evidence=llm_relation.evidence,
+                key_edges=key_edges,
+                src_id=src_id,
+                dst_id=dst_id,
+                is_static=True,
+                all_edges=all_edges,
+            )
+        global_relations[(src_id, dst_id)] = relation
 
-    for llm_rel in sorted(llm_relations, key=lambda rel: (rel.src_id, rel.dst_id, rel.relation)):
+    for llm_rel in llm_relations:
         pair = (llm_rel.src_id, llm_rel.dst_id)
-        if not llm_rel.src_id or not llm_rel.dst_id or llm_rel.src_id not in live_ids or llm_rel.dst_id not in live_ids:
+        if llm_rel.src_id not in live_ids or llm_rel.dst_id not in live_ids:
             continue
         if pair in static_pairs or pair in superseded_llm_pairs:
             continue
-        append_or_merge_relation(global_relations, llm_rel)
+        global_relations[pair] = llm_rel.with_merged_edges()
 
-    return sorted(global_relations, key=lambda rel: (rel.src_id, rel.dst_id, rel.relation))
+    return sorted(global_relations.values(), key=lambda rel: (rel.src_id, rel.dst_id))
 
 
 def merge_relations(
@@ -244,7 +276,7 @@ def merge_relations(
                 llm_rel.evidence,
             )
 
-        key_edges, all_edges = merge_relation_edges(llm_rel.key_edges, static_edges)
+        key_edges, all_edges = Relation._merge_edges(llm_rel.key_edges, static_edges)
         for edge in static_edges:
             matched_static_edge_ids.add((src_id, dst_id, edge.identity()))
         append_or_merge_relation(

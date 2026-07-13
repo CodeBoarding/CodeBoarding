@@ -63,3 +63,42 @@ class FileEntry(BaseModel):
         default="",
         description="Truncated SHA-256 of the entire file's bytes; '' when source was unavailable.",
     )
+
+    def merge_from(self, other: FileEntry) -> FileEntry:
+        """Merge another entry while retaining independent, canonical method metadata."""
+        if not self.content_hash:
+            self.content_hash = other.content_hash
+
+        methods_by_qname: dict[str, MethodEntry] = {}
+        for method in [*self.methods, *other.methods]:
+            candidate = method.model_copy(deep=True)
+            indexed = methods_by_qname.get(candidate.qualified_name)
+            if indexed is None:
+                methods_by_qname[candidate.qualified_name] = candidate
+                continue
+
+            if bool(indexed.content_hash) != bool(candidate.content_hash) and candidate.content_hash:
+                preferred, fallback = candidate, indexed
+            else:
+                preferred, fallback = indexed, candidate
+            preferred.start_line = preferred.start_line or fallback.start_line
+            preferred.end_line = preferred.end_line or fallback.end_line
+            preferred.content_hash = preferred.content_hash or fallback.content_hash
+            methods_by_qname[candidate.qualified_name] = preferred
+
+        self.methods = sorted(
+            methods_by_qname.values(),
+            key=lambda method: (method.start_line, method.end_line, method.qualified_name),
+        )
+        return self
+
+    def merge_method_spans(self, spans: dict[str, tuple[int, int]]) -> None:
+        """Fill missing spans for methods already owned by this file entry."""
+        methods_by_qname = {method.qualified_name: method for method in self.methods}
+        for qualified_name, (start_line, end_line) in spans.items():
+            method = methods_by_qname.get(qualified_name)
+            if method is None:
+                continue
+            method.start_line = method.start_line or start_line
+            method.end_line = method.end_line or end_line
+        self.methods.sort(key=lambda method: (method.start_line, method.end_line, method.qualified_name))

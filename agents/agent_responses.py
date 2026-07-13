@@ -202,25 +202,10 @@ class RelationEdge(LLMBaseModel):
         target_key = edge.get("target")
         if not isinstance(source_key, str) or not isinstance(target_key, str):
             raise ValueError("Relation edge endpoints must be method-index keys")
-        source = methods_index.get(source_key)
-        target = methods_index.get(target_key)
-        if source is None or target is None:
-            missing = source_key if source is None else target_key
-            raise ValueError(f"Relation edge endpoint is missing from methods_index: {missing}")
         call_sites = edge.get("call_sites") or []
         return cls(
-            source=SourceCodeReference(
-                qualified_name=source.qualified_name,
-                reference_file=source.file_path,
-                reference_start_line=source.start_line,
-                reference_end_line=source.end_line,
-            ),
-            target=SourceCodeReference(
-                qualified_name=target.qualified_name,
-                reference_file=target.file_path,
-                reference_start_line=target.start_line,
-                reference_end_line=target.end_line,
-            ),
+            source=_relation_endpoint_from_key(source_key, methods_index),
+            target=_relation_endpoint_from_key(target_key, methods_index),
             description=edge.get("description", ""),
             call_sites=[RelationCallSite.model_validate(site) for site in call_sites],
         )
@@ -258,6 +243,28 @@ class RelationEdge(LLMBaseModel):
             self.target.reference_end_line,
             tuple(sorted((site.line, site.column) for site in self.call_sites)),
         )
+
+
+def _relation_endpoint_from_key(
+    key: str,
+    methods_index: dict[str, MethodIndexEntry],
+) -> SourceCodeReference:
+    indexed = methods_index.get(key)
+    if indexed is not None:
+        return SourceCodeReference(
+            qualified_name=indexed.qualified_name,
+            reference_file=indexed.file_path or None,
+            reference_start_line=indexed.start_line,
+            reference_end_line=indexed.end_line,
+        )
+
+    file_path, separator, qualified_name = key.partition("|")
+    if not separator or not qualified_name:
+        raise ValueError(f"Malformed relation edge endpoint key: {key!r}")
+    return SourceCodeReference(
+        qualified_name=qualified_name,
+        reference_file=file_path or None,
+    )
 
 
 class Relation(LLMBaseModel):
@@ -814,7 +821,6 @@ class ScopeOperationAction(StrEnum):
     UPDATE_COMPONENT = "update_component"
     DELETE_COMPONENT = "delete_component"
     NOOP = "noop"
-    REGENERATE_SCOPE = "regenerate_scope"
 
 
 class ScopedClusterRef(LLMBaseModel):
@@ -840,6 +846,13 @@ class ScopeOperation(LLMBaseModel):
     )
     name: str | None = Field(default=None, description="Component name for create/update operations.")
     description: str | None = Field(default=None, description="Component description for create/update operations.")
+    key_entities: list[SourceCodeReference] = Field(
+        default_factory=list,
+        description=(
+            "Important existing source symbols for a created component or a semantically refreshed component. "
+            "Leave empty on updates that preserve the current key entities."
+        ),
+    )
     recurse: bool = Field(
         default=False, description="Whether this component should be considered for child-scope update."
     )
@@ -848,7 +861,11 @@ class ScopeOperation(LLMBaseModel):
     def llm_str(self):
         refs = ", ".join(ref.llm_str() for ref in self.cluster_refs) or "no clusters"
         target = self.component_id or self.name or "new component"
-        return f"{self.action}: {refs} -> {target}; recurse={self.recurse}; {self.rationale}"
+        key_entities = ", ".join(entity.qualified_name for entity in self.key_entities) or "unchanged"
+        return (
+            f"{self.action}: {refs} -> {target}; key_entities=[{key_entities}]; "
+            f"recurse={self.recurse}; {self.rationale}"
+        )
 
 
 class ScopeUpdateDecision(LLMBaseModel):

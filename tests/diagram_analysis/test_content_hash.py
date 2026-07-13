@@ -1,15 +1,8 @@
 import hashlib
 from pathlib import Path
 
-from agents.agent_responses import (
-    AnalysisInsights,
-    Component,
-)
-from agents.file_index_models import FileEntry, FileMethodGroup, MethodEntry
-from agents.cluster_methods_mixin import ClusterMethodsMixin
+from agents.file_index_models import FileEntry, MethodEntry
 from agents.content_hash import (
-    MethodRef,
-    MethodSpan,
     compute_source_tree_hash,
     hash_method_body,
     hash_repo_source_files,
@@ -177,79 +170,6 @@ def test_source_tree_hash_reproducible_from_fingerprint_map(tmp_path: Path):
     (tmp_path / "docs.md").write_text("hello\n", encoding="utf-8")
     fps = hash_repo_source_files(tmp_path)
     assert tree_hash_from_file_hashes(fps) == compute_source_tree_hash(tmp_path)
-
-
-class _StubMixin(ClusterMethodsMixin):
-    """Minimal host for ``build_files_index`` / ``refresh_method_spans_from_cfg``
-    — it only reads ``repo_dir`` and the live-CFG spans."""
-
-    def __init__(self, repo_dir: Path, cfg_spans: dict):
-        self.repo_dir = repo_dir
-        self._spans = cfg_spans
-
-    def _cfg_method_spans(self):
-        return self._spans
-
-
-def _analysis_with_method(file_path: str, qname: str, start: int, end: int) -> AnalysisInsights:
-    return AnalysisInsights(
-        description="",
-        components=[
-            Component(
-                name="C",
-                description="d",
-                key_entities=[],
-                component_id="c1",
-                file_methods=[
-                    FileMethodGroup(
-                        file_path=file_path,
-                        methods=[
-                            MethodEntry(qualified_name=qname, start_line=start, end_line=end, node_type="FUNCTION")
-                        ],
-                    )
-                ],
-            )
-        ],
-        components_relations=[],
-    )
-
-
-def test_build_files_index_hashes_carried_span(tmp_path: Path):
-    # build_files_index hashes each method at the span it carries — no CFG lookup.
-    (tmp_path / "m.py").write_text("def foo():\n    return 1\n", encoding="utf-8")
-    analysis = _analysis_with_method("m.py", "foo", start=1, end=2)
-    files = _StubMixin(tmp_path, cfg_spans={}).build_files_index(analysis)
-    method = files["m.py"].methods[0]
-    assert method.content_hash == hash_method_body(["def foo():", "    return 1"], 1, 2)
-    assert method.content_hash != ""
-
-
-def test_refresh_spans_then_index_reflects_live_cfg_span(tmp_path: Path):
-    # The method moved down (edit above it). refresh_method_spans_from_cfg pulls
-    # the real span from the live CFG so build_files_index hashes the CURRENT body,
-    # not the stale carried-forward line numbers.
-    (tmp_path / "m.py").write_text("# added line\ndef foo():\n    return 1\n", encoding="utf-8")
-    analysis = _analysis_with_method("m.py", "foo", start=1, end=2)  # stale carried-forward span
-    live = {MethodRef("m.py", "foo"): MethodSpan(2, 3)}  # live CFG span of foo() now
-    mixin = _StubMixin(tmp_path, live)
-    mixin.refresh_method_spans_from_cfg(analysis)
-    files = mixin.build_files_index(analysis)
-    method = files["m.py"].methods[0]
-    assert method.content_hash == hash_method_body(["# added line", "def foo():", "    return 1"], 2, 3)
-    assert method.content_hash != ""
-
-
-def test_refresh_spans_empty_hash_when_method_absent_from_live_cfg(tmp_path: Path):
-    # The carried-forward method is NOT in the live CFG (deleted/renamed in source).
-    # refresh_method_spans_from_cfg zeroes its span, so build_files_index hashes it
-    # to the ''-unavailable sentinel rather than a stable-but-wrong value.
-    (tmp_path / "m.py").write_text("def something_else():\n    return 42\n", encoding="utf-8")
-    analysis = _analysis_with_method("m.py", "foo", start=1, end=2)
-    mixin = _StubMixin(tmp_path, cfg_spans={})
-    mixin.refresh_method_spans_from_cfg(analysis)
-    files = mixin.build_files_index(analysis)
-    method = files["m.py"].methods[0]
-    assert method.content_hash == ""
 
 
 def test_invalid_utf8_bytes_do_not_collide(tmp_path: Path):

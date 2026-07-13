@@ -11,14 +11,11 @@ from agents.agent_responses import (
     ClusterAnalysis,
     Component,
 )
-from agents.file_index_models import FileEntry, FileMethodGroup, MethodEntry
+from agents.file_index_models import FileMethodGroup, MethodEntry
 from agents.cluster_budget import ClusterPromptBudget
 from agents.content_hash import (
-    MethodRef,
-    MethodSpan,
     SourceCache,
     hash_method_body,
-    hash_whole_file,
     read_source_lines,
 )
 from agents.cluster_ids import CodeBoardingClusterId, CodeBoardingClusterIds, GraphClusterId
@@ -27,6 +24,7 @@ from agents.model_capabilities import ContextWindow
 from constants import MIN_CLUSTERS_THRESHOLD
 from diagram_analysis.cluster_delta import _delta_for_language
 from diagram_analysis.cluster_snapshot import ClusterSnapshotEntry
+from diagram_analysis.file_index import build_files_index
 from repo_utils.path_utils import normalize_repo_path
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cfg_skip_planner import ContextBudgetExceededError, plan_skip_set
@@ -804,77 +802,6 @@ class ClusterMethodsMixin:
         pct = (assigned_nodes / total_nodes * 100) if total_nodes else 0
         logger.info(f"Node coverage: {assigned_nodes}/{total_nodes} ({pct:.1f}%) nodes assigned to components")
 
-    def build_files_index(
-        self, analysis: AnalysisInsights, source_cache: SourceCache | None = None
-    ) -> dict[str, FileEntry]:
-        """Assemble the file -> ``FileEntry`` index, hashing each method's span
-        from live source. Each ``MethodEntry`` is hashed at the span it carries,
-        so callers whose spans may be stale (the incremental carry-forward path)
-        must run :meth:`refresh_method_spans_from_cfg` first. Pass ``source_cache``
-        to reuse the reads from an earlier ``_build_file_methods_from_nodes`` pass.
-        """
-        file_cache = source_cache if source_cache is not None else {}
-        files: dict[str, FileEntry] = {}
-        for component in analysis.components:
-            for fmg in component.file_methods:
-                entry = files.get(fmg.file_path)
-                if entry is None:
-                    entry = FileEntry(
-                        methods=[],
-                        content_hash=hash_whole_file(read_source_lines(self.repo_dir, fmg.file_path, file_cache)),
-                    )
-                    files[fmg.file_path] = entry
-
-                methods_by_qname = {m.qualified_name: m for m in entry.methods}
-                for method in fmg.methods:
-                    if method.qualified_name not in methods_by_qname:
-                        copied = method.model_copy(deep=True)
-                        copied.content_hash = hash_method_body(
-                            read_source_lines(self.repo_dir, fmg.file_path, file_cache),
-                            method.start_line,
-                            method.end_line,
-                        )
-                        methods_by_qname[method.qualified_name] = copied
-
-                entry.methods = sorted(
-                    methods_by_qname.values(),
-                    key=lambda m: (m.start_line, m.end_line, m.qualified_name),
-                )
-        return files
-
-    def refresh_method_spans_from_cfg(self, analysis: AnalysisInsights) -> None:
-        """Update every carried-forward ``MethodEntry`` span from the live CFG.
-
-        The incremental flow reuses component/method assignments from disk while
-        the CFG has been re-analyzed, so an untouched component's spans can point
-        at unrelated code (an edit above the method) and its stored hash can mask
-        a body-only edit. This propagates the current CFG span onto each entry so
-        :meth:`build_files_index` hashes the real body. A method absent from the
-        live CFG gets an out-of-range span, which hashes to '' (unavailable).
-        """
-        spans = self._cfg_method_spans()
-        for component in analysis.components:
-            for fmg in component.file_methods:
-                for method in fmg.methods:
-                    span = spans.get(MethodRef(fmg.file_path, method.qualified_name))
-                    if span is not None:
-                        method.start_line, method.end_line = span
-                    else:
-                        method.start_line, method.end_line = 0, 0
-
-    def _cfg_method_spans(self) -> dict[MethodRef, MethodSpan]:
-        """Live-CFG line span per method, keyed by (repo-relative file, qname)."""
-        spans: dict[MethodRef, MethodSpan] = {}
-        for language in self.static_analysis.get_languages():
-            try:
-                cfg = self.static_analysis.get_cfg(language)
-            except (KeyError, ValueError):
-                continue
-            for qname, node in cfg.nodes.items():
-                rel_path = normalize_repo_path(node.file_path, self.repo_dir)
-                spans.setdefault(MethodRef(rel_path, qname), MethodSpan(node.line_start, node.line_end))
-        return spans
-
     def populate_file_methods(
         self,
         analysis: AnalysisInsights,
@@ -925,7 +852,7 @@ class ClusterMethodsMixin:
                 component_nodes.get(comp.component_id, []), source_cache
             )
 
-        analysis.files = self.build_files_index(analysis, source_cache)
+        analysis.files = build_files_index(analysis, self.repo_dir, source_cache)
 
         self._log_node_coverage(analysis, len(all_nodes))
 

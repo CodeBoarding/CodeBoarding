@@ -6,6 +6,9 @@ This module provides a factory for dynamically selecting prompts based on LLM ty
 
 import logging
 from enum import StrEnum
+
+from agents.agent_responses import MetaAnalysisInsights
+
 from .abstract_prompt_factory import AbstractPromptFactory
 from .gemini_flash_prompts import GeminiFlashPromptFactory
 from .gpt_prompts import GPTPromptFactory
@@ -124,6 +127,19 @@ def get_global_factory() -> PromptFactory:
 def get_prompt(prompt_name: str) -> str:
     """Convenience function to get a prompt using the global factory."""
     return get_global_factory().get_prompt(prompt_name)
+
+
+def format_project_system_message(
+    template: str,
+    project_name: str,
+    meta_context: MetaAnalysisInsights | None,
+) -> str:
+    """Render a provider system prompt with the shared project context."""
+    return template.format(
+        project_name=project_name,
+        project_type=meta_context.project_type if meta_context else "unknown",
+        meta_context=meta_context.llm_str() if meta_context else "No project context available.",
+    )
 
 
 # Convenience functions for backward compatibility - now use the factory methods directly

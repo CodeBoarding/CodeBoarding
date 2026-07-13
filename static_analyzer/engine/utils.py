@@ -32,6 +32,25 @@ def uri_to_path(uri: str) -> Path | None:
         return None
 
 
+def definition_location(definition: dict) -> tuple[Path, int, int] | None:
+    """Return the file and start position from an LSP definition result."""
+    uri = definition.get("targetUri", definition.get("uri", ""))
+    file_path = uri_to_path(uri)
+    if file_path is None:
+        return None
+
+    selection_range = definition.get(
+        "targetSelectionRange",
+        definition.get("targetRange", definition.get("range", {})),
+    )
+    start = selection_range.get("start", {})
+    line = start.get("line")
+    character = start.get("character")
+    if not isinstance(line, int) or not isinstance(character, int):
+        return None
+    return file_path, line, character
+
+
 class _MemoryStatusEx(ctypes.Structure):
     _fields_ = [
         ("dwLength", ctypes.c_ulong),

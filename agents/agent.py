@@ -1,6 +1,8 @@
 import json
 import logging
+from collections.abc import Callable
 from pathlib import Path
+from typing import Protocol, TypeVar
 
 from google.api_core.exceptions import ResourceExhausted
 from langchain_core.exceptions import OutputParserException
@@ -27,6 +29,15 @@ from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.reference_resolver import StaticReferenceResolver
 
 logger = logging.getLogger(__name__)
+
+ParseResultT = TypeVar("ParseResultT")
+ResultT = TypeVar("ResultT", bound="RepairValidationResult")
+RepairContextT = TypeVar("RepairContextT")
+ValidationContextT = TypeVar("ValidationContextT")
+
+
+class RepairValidationResult(Protocol):
+    def llm_str(self) -> str: ...
 
 
 class EmptyExtractorMessageError(ValueError):
@@ -222,12 +233,33 @@ class CodeBoardingAgent(MonitoringMixin):
         except Empty:
             raise RuntimeError("Agent invocation completed but no result was returned")
 
-    def _parse_invoke(self, prompt: str, type: type, include_hidden: bool = False):
+    def _parse_invoke(
+        self,
+        prompt: str,
+        return_type: type[ParseResultT],
+        include_hidden: bool = False,
+    ) -> ParseResultT:
         response = self._invoke(prompt)
         assert isinstance(response, str), f"Expected a string as response type got {response}"
-        return self._parse_response(prompt, response, type, include_hidden=include_hidden)
+        return self._parse_response(prompt, response, return_type, include_hidden=include_hidden)
 
-    def _score_result(self, result, validators: list, context) -> tuple[float, list[tuple[float, str]]]:
+    def _repair_result(
+        self,
+        result: ResultT,
+        repairs: list[Callable[[ResultT, RepairContextT], None]],
+        repair_context: RepairContextT,
+    ) -> None:
+        """Apply deterministic repairs to one parsed candidate."""
+        for repair in repairs:
+            logger.info("[Repair] Applying %s", repair.__name__)
+            repair(result, repair_context)
+
+    def _score_result(
+        self,
+        result: ResultT,
+        validators: list[Callable[[ResultT, ValidationContextT], ValidationResult]],
+        validation_context: ValidationContextT,
+    ) -> tuple[float, list[tuple[float, str]]]:
         """Run all validators on a result and return (score, prioritized_feedback).
 
         The score is computed using weighted validators where coverage-related
@@ -238,10 +270,10 @@ class CodeBoardingAgent(MonitoringMixin):
         weight descending, so that the LLM focuses on the most critical issues
         (cluster/group coverage) before lower-priority ones (key entities).
         """
-        validator_results: list[tuple] = []
+        validator_results: list[tuple[Callable[[ResultT, ValidationContextT], ValidationResult], ValidationResult]] = []
         weighted_feedback: list[tuple[float, str]] = []
         for validator in validators:
-            validator_result: ValidationResult = validator(result, context)
+            validator_result: ValidationResult = validator(result, validation_context)
             validator_results.append((validator, validator_result))
             if not validator_result.is_valid:
                 weight = VALIDATOR_WEIGHTS.get(validator.__name__, DEFAULT_VALIDATOR_WEIGHT)
@@ -254,44 +286,52 @@ class CodeBoardingAgent(MonitoringMixin):
         score = score_validation_results(validator_results)
         return score, weighted_feedback
 
-    def _validation_invoke(
+    def _invoke_repair_validate(
         self,
         prompt: str,
-        return_type: type,
-        validators: list,
-        context,
+        return_type: type[ResultT],
+        repairs: list[Callable[[ResultT, RepairContextT], None]],
+        validators: list[Callable[[ResultT, ValidationContextT], ValidationResult]],
+        repair_context: RepairContextT,
+        validation_context: ValidationContextT,
         max_validation_attempts: int = 1,
         include_hidden: bool = False,
-    ):
-        """
-        Invoke LLM with validation, feedback loop, and best-of-N selection.
+    ) -> ResultT:
+        """Bind deterministic repairs to every candidate before validation."""
 
-        Each attempt (initial + retries) is scored using weighted validators.
-        Coverage validators (validate_cluster_coverage, validate_group_name_coverage)
-        are weighted ~2x higher than other validators, so the selection strongly
-        favours results with complete coverage.
+        def repair_candidate(result: ResultT) -> None:
+            self._repair_result(result, repairs, repair_context)
 
-        If any attempt scores perfectly (all validators pass), it is returned
-        immediately. Otherwise the highest-scoring result across all attempts is
-        returned.
+        return self._invoke_validate(
+            prompt,
+            return_type,
+            validators,
+            validation_context,
+            max_validation_attempts=max_validation_attempts,
+            include_hidden=include_hidden,
+            candidate_repair=repair_candidate,
+        )
 
-        Args:
-            prompt: The original prompt
-            return_type: Pydantic type to parse into
-            validators: List of validation functions to run
-            context: ValidationContext with data needed for validation
-            max_validation_attempts: Maximum validation attempts (initial attempt included).
-                Retries occur only when this value is greater than 1. (default: 1)
-
-        Returns:
-            The highest-scoring result of return_type across all attempts
-        """
+    def _invoke_validate(
+        self,
+        prompt: str,
+        return_type: type[ResultT],
+        validators: list[Callable[[ResultT, ValidationContextT], ValidationResult]],
+        validation_context: ValidationContextT,
+        max_validation_attempts: int = 1,
+        include_hidden: bool = False,
+        candidate_repair: Callable[[ResultT], None] | None = None,
+    ) -> ResultT:
+        """Validate parsed candidates and return the best-scoring result."""
         # Compute the maximum possible score so we can detect a perfect result
         max_possible_score = sum(VALIDATOR_WEIGHTS.get(v.__name__, DEFAULT_VALIDATOR_WEIGHT) for v in validators)
 
         result = self._parse_invoke(prompt, return_type, include_hidden=include_hidden)
+        if candidate_repair is not None:
+            candidate_repair(result)
         logger.info(
-            "[Validation] Parsed %s: %s",
+            "[Validation] Parsed%s %s: %s",
+            " and repaired" if candidate_repair is not None else "",
             return_type.__name__,
             result.llm_str()[:500],
         )
@@ -304,7 +344,7 @@ class CodeBoardingAgent(MonitoringMixin):
         critical_threshold = 10.0
 
         for attempt in range(1, max_validation_attempts + 1):
-            score, weighted_feedback = self._score_result(result, validators, context)
+            score, weighted_feedback = self._score_result(result, validators, validation_context)
 
             logger.info(
                 f"[Validation] Attempt {attempt}/{max_validation_attempts} "
@@ -348,6 +388,8 @@ class CodeBoardingAgent(MonitoringMixin):
                 f"with {len(weighted_feedback)} feedback items"
             )
             result = self._parse_invoke(feedback_prompt, return_type, include_hidden=include_hidden)
+            if candidate_repair is not None:
+                candidate_repair(result)
 
         return best_result
 

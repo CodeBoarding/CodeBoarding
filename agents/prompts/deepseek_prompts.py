@@ -16,12 +16,7 @@ DeepSeek Prompt Design Principles:
 from .abstract_prompt_factory import AbstractPromptFactory
 
 SCOPE_RELATIONS_MESSAGE = """# Task
-Generate inter-component relationships for the `{scope_name}` scope of `{project_name}`.
-
-# Context
-Project Type: {project_type}
-
-{meta_context}
+Generate inter-component relationships for the `{scope_name}` scope.
 
 # Components in this scope
 {component_summaries}
@@ -71,12 +66,7 @@ Analyze Control Flow Graphs (CFG) for `{project_name}` and generate a high-level
 Begin with provided data. Use tools when necessary. Focus on creating analysis suitable for both documentation and visual diagram generation."""
 
 CLUSTER_GROUPING_MESSAGE = """# Task
-Analyze and GROUP the Control Flow Graph clusters for `{project_name}`.
-
-# Context
-Project Type: {project_type}
-
-{meta_context}
+Analyze and GROUP the Control Flow Graph clusters.
 
 The CFG has been pre-clustered into groups of related methods/functions. Each cluster represents methods that call each other frequently.
 
@@ -98,7 +88,7 @@ The CFG has been pre-clustered into groups of related methods/functions. Each cl
      * The most important classes/methods in this group — mention their exact qualified names as shown in the clusters above
 
 # Focus areas
-- Create cohesive, logical groupings that reflect the actual {project_type} architecture
+- Create cohesive, logical groupings that reflect the actual architecture
 - Base decisions on semantic meaning from method names, call patterns, and architectural context
 - Provide clear justification for why clusters belong together
 - Describe inter-group interactions based on the inter-cluster connections
@@ -107,10 +97,7 @@ The CFG has been pre-clustered into groups of related methods/functions. Each cl
 For each component provide a descriptive name, the list of cluster IDs it contains, and a comprehensive description with rationale and inter-group interactions."""
 
 FINAL_ANALYSIS_MESSAGE = """# Task
-Create final component architecture for `{project_name}` optimized for flow representation.
-
-# Context
-{meta_context}
+Create final component architecture optimized for flow representation.
 
 # Cluster Analysis
 {cluster_analysis}
@@ -122,7 +109,7 @@ Create final component architecture for `{project_name}` optimized for flow repr
 4. Add key entities (2-5 most important classes/methods) for each component, referencing the source file where they are defined.
 5. Do not define relationships yet; relationships are discovered in a later API-surface step.
 
-# Guidelines for {project_type} projects
+# Guidelines
 - Aim for 5-8 final components
 - Merge related cluster groups that serve a common purpose
 - Each component must have clear boundaries
@@ -299,12 +286,7 @@ Analyze a subsystem of `{project_name}`.
 Analyze subsystem-specific functionality. Avoid cross-cutting concerns like logging or error handling."""
 
 CFG_DETAILS_MESSAGE = """# Task
-Analyze and GROUP the Control Flow Graph clusters for the `{component}` subsystem of `{project_name}`.
-
-# Context
-Project Type: {project_type}
-
-{meta_context}
+Analyze and GROUP the Control Flow Graph clusters for the `{component}` subsystem.
 
 The CFG has been pre-clustered into groups of related methods/functions. Each cluster represents methods that call each other frequently.
 
@@ -332,10 +314,7 @@ Analyze core subsystem functionality only. Avoid cross-cutting concerns like log
 For each sub-component provide a descriptive name, the list of cluster IDs it contains, and a comprehensive description with rationale and inter-group interactions."""
 
 DETAILS_MESSAGE = """# Task
-Create final sub-component architecture for the `{component}` subsystem of `{project_name}` optimized for flow representation.
-
-# Context
-{meta_context}
+Create final sub-component architecture for the `{component}` subsystem optimized for flow representation.
 
 # Cluster Analysis
 {cluster_analysis}
@@ -347,7 +326,7 @@ Create final sub-component architecture for the `{component}` subsystem of `{pro
 4. Add key entities (2-5 most important classes/methods) for each sub-component, referencing the source file where they are defined.
 5. Do not define relationships yet; relationships are discovered in a later API-surface step.
 
-# Guidelines for {project_type} projects
+# Guidelines
 - Aim for 3-8 final sub-components
 - Merge related cluster groups that serve a common purpose
 - Each sub-component must have clear boundaries
@@ -367,11 +346,6 @@ Base component choices on fundamental architectural importance."""
 
 INCREMENTAL_GROUPING_MESSAGE = """# Task
 Route each changed or new CFG cluster into the correct component — either an existing one or a brand new one.
-
-# Context
-- Project: {project_name}
-- Type: {project_type}
-- Meta: {meta_context}
 
 The previous analysis established the components below. Most clusters are unchanged and stay where they are; this prompt only shows the structural slice that changed: new clusters, removed clusters, or clusters whose member set changed through added/removed methods. A method body edit by itself is not a cluster-boundary change.
 
@@ -404,12 +378,10 @@ Every cluster id listed in the "Cluster groups to assign" section must appear in
 
 
 PLANNING_MESSAGE = """# Task
-Update one scope of the `{project_name}` architecture diagram.
+Update one scope of the architecture diagram.
 
 # Context
 - Scope: `{scope_id}` (`root` means the top-level diagram)
-- Project type: {project_type}
-- Meta: {meta_context}
 
 # Existing components in this scope
 {existing_components}
@@ -431,8 +403,15 @@ Return operations for this scope only.
 5. Use listGitChanges only when the structural diff is not enough to judge semantic impact.
 
 # Critical rules
-- Do not reparent existing components. If reparenting seems required, use regenerate_scope.
+- Reparenting existing components is unsupported by the current incremental schema. Preserve their current scope.
 - Every modified/new/reshaped new-side cluster listed below must appear in exactly one operation's cluster_refs.
+
+# Architecture output contract
+- This step plans component boundaries only. Do not define component relations; API surfaces and relations are generated later.
+- Choose exactly one of these mutually exclusive branches for each operation:
+  - For create_component only: leave component_id null; provide a clear name and description. Select up to 5 key_entities only when their exact qualified names are available; otherwise leave them empty. Key entities are not synthesized later.
+  - For update_component only: copy the exact component_id from the existing-components list. Include refreshed name, description, or key_entities only when the component's architectural responsibility changed; otherwise preserve the existing metadata. An empty key_entities list preserves the current selection.
+  - For delete_component or noop only: copy the exact component_id from the existing-components list and leave name, description, and key_entities empty. Use delete_component only when the component has no remaining responsibility; use noop to preserve it unchanged.
 """
 
 

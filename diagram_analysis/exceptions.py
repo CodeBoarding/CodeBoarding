@@ -41,3 +41,13 @@ class IncrementalCacheMissingError(RuntimeError):
             f"Incremental analysis cannot proceed: {reason}. " "Run a full analysis first to seed the cache."
         )
         self.artifact_dir = artifact_dir
+
+
+class InvalidIncrementalPlanError(RuntimeError):
+    """Raised when the planner cannot produce a trustworthy scoped update."""
+
+    def __init__(self, scope_id: str, issues: list[str]):
+        issue_summary = "; ".join(issues)
+        super().__init__(f"Incremental plan for scope {scope_id!r} is invalid: {issue_summary}")
+        self.scope_id = scope_id
+        self.issues = issues

@@ -1,3 +1,6 @@
+from agents.scope_ids import ROOT_SCOPE_ID
+
+
 type GraphClusterId = int
 type CodeBoardingClusterId = str
 
@@ -9,6 +12,10 @@ class GraphClusterIds:
 
 
 class CodeBoardingClusterIds:
+    @classmethod
+    def prefix_for_scope(cls, scope_id: str) -> CodeBoardingClusterId:
+        return "" if scope_id == ROOT_SCOPE_ID else scope_id
+
     @classmethod
     def sort(cls, cluster_ids: set[CodeBoardingClusterId]) -> list[CodeBoardingClusterId]:
         # Sort by depth first, then naturally within a level: ["1", "2", "10", "2.1", "3.4"].

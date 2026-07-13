@@ -1,6 +1,5 @@
 import logging
 import os
-import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -8,7 +7,8 @@ from typing import Any
 from agents.agent_responses import AnalysisInsights, RelationCallSite, RelationEdge, SourceCodeReference
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import LANGUAGE_EXTENSIONS, Language
-from static_analyzer.internal_references import looks_internal_reference
+from static_analyzer.internal_references import looks_internal_reference, reference_tokens
+from static_analyzer.node import Node
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +21,15 @@ class KeyEdgeResolution:
     valid: bool = False
     same_endpoint: bool = False
     unresolved: bool = False
+
+
+@dataclass(frozen=True)
+class KeyEntityRepair:
+    """Resolved, unique key entities and repair metadata."""
+
+    references: list[SourceCodeReference]
+    canonicalized_count: int
+    unresolved_qnames: set[str]
 
 
 class StaticReferenceResolver:
@@ -37,20 +46,67 @@ class StaticReferenceResolver:
         self.remove_unresolved_references(analysis)
         return self.relative_paths(analysis)
 
-    def fix_key_entities_refs(self, analysis: AnalysisInsights) -> None:
+    def fix_key_entities_refs(
+        self,
+        analysis: AnalysisInsights,
+        component_ids: set[str] | None = None,
+    ) -> None:
         """Resolve component key entity references."""
         for component in analysis.components:
-            for reference in component.key_entities:
-                if (
-                    reference.reference_file is not None
-                    and os.path.exists(reference.reference_file)
-                    and reference.reference_start_line is not None
-                    and reference.reference_end_line is not None
-                ):
-                    continue
+            if component_ids is not None and component.component_id not in component_ids:
+                continue
+            allowed_qnames = {
+                method.qualified_name for file_method in component.file_methods for method in file_method.methods
+            }
+            repair = self.repair_key_entity_references(
+                component.key_entities,
+                allowed_qnames=allowed_qnames,
+                allowed_files=set(component.file_paths()),
+            )
+            component.key_entities = repair.references
 
-                file_candidates = component.file_paths() or None
-                self.resolve_reference(reference, file_candidates)
+    def repair_key_entity_references(
+        self,
+        references: list[SourceCodeReference],
+        allowed_qnames: set[str] | None = None,
+        allowed_files: set[str] | None = None,
+    ) -> KeyEntityRepair:
+        """Resolve key entities, dropping unresolved and duplicate references."""
+        resolved_references: list[SourceCodeReference] = []
+        seen_qnames: set[str] = set()
+        canonicalized_count = 0
+        unresolved_qnames: set[str] = set()
+        scope_files = (
+            {self._absolute_reference_path(file_path) for file_path in allowed_files}
+            if allowed_files is not None
+            else None
+        )
+        for reference in references:
+            original_qname = reference.qualified_name
+            reference.reference_file = None
+            reference.reference_start_line = None
+            reference.reference_end_line = None
+            resolved = self._resolve_symbol_reference(
+                reference,
+                original_qname.replace(os.sep, "."),
+                allowed_qnames,
+                scope_files,
+            )
+            if not resolved:
+                unresolved_qnames.add(original_qname)
+                continue
+            if reference.qualified_name in seen_qnames:
+                continue
+            if reference.qualified_name != original_qname:
+                canonicalized_count += 1
+            resolved_references.append(reference)
+            seen_qnames.add(reference.qualified_name)
+
+        return KeyEntityRepair(
+            references=resolved_references,
+            canonicalized_count=canonicalized_count,
+            unresolved_qnames=unresolved_qnames,
+        )
 
     def fix_edge_refs(self, analysis: AnalysisInsights) -> None:
         """Resolve relation edge endpoint references."""
@@ -65,28 +121,71 @@ class StaticReferenceResolver:
                 self.resolve_reference(edge.target, dst_candidates)
                 self.attach_static_call_sites(edge)
 
-    def resolve_reference(self, reference: SourceCodeReference, file_candidates: list[str] | None = None) -> None:
+    def resolve_reference(self, reference: SourceCodeReference, file_candidates: list[str] | None = None) -> bool:
         """Resolve a source reference in-place."""
         qname = reference.qualified_name.replace(os.sep, ".")
-        languages = self.static_analysis.get_languages()
+        if self._resolve_symbol_reference(reference, qname):
+            return True
 
-        for lang in languages:
-            if self._try_exact_match(reference, qname, lang):
-                return
-
-        for lang in languages:
-            if self._try_loose_match(reference, qname, lang):
-                return
-
-        for lang in languages:
-            if self._try_symbol_token_match(reference, qname, lang):
-                return
-
-        for lang in languages:
+        for lang in self.static_analysis.get_languages():
             if self._try_file_path_resolution(reference, qname, lang, file_candidates):
-                return
+                return True
 
         logger.warning(f"[Reference Resolution] Could not resolve reference {reference.qualified_name} in any language")
+        return False
+
+    def _resolve_symbol_reference(
+        self,
+        reference: SourceCodeReference,
+        qname: str,
+        allowed_qnames: set[str] | None = None,
+        allowed_files: set[Path] | None = None,
+    ) -> bool:
+        """Resolve a reference to a current static-analysis symbol."""
+        languages = self.static_analysis.get_languages()
+        exact_matches: list[Node] = []
+        for lang in languages:
+            try:
+                exact_matches.append(self.static_analysis.get_reference(lang, qname))
+            except (ValueError, FileExistsError):
+                continue
+
+        if exact_matches:
+            node = next(
+                (
+                    candidate
+                    for candidate in exact_matches
+                    if self._node_in_scope(candidate, allowed_qnames, allowed_files)
+                ),
+                None,
+            )
+            if node is None:
+                return False
+            self._apply_resolved_node(reference, node)
+            return True
+
+        if allowed_qnames is None and allowed_files is None:
+            for lang in languages:
+                try:
+                    _, node = self.static_analysis.get_loose_reference(lang, qname)
+                except Exception as error:
+                    logger.warning("[Reference Resolution] Loose match failed for %s in %s: %s", qname, lang, error)
+                    continue
+                if node is not None:
+                    self._apply_resolved_node(reference, node)
+                    return True
+
+        candidates = [
+            node
+            for lang in languages
+            for node in self.static_analysis.iter_reference_nodes(lang)
+            if self._node_in_scope(node, allowed_qnames, allowed_files)
+        ]
+        node = self._unique_token_match(qname, candidates)
+        if node is None:
+            return False
+        self._apply_resolved_node(reference, node)
+        return True
 
     def resolve_node(self, reference: SourceCodeReference):
         """Resolve a source reference to a static-analysis node without mutating it."""
@@ -286,90 +385,47 @@ class StaticReferenceResolver:
                     edge.target.reference_file = os.path.relpath(edge.target.reference_file, self.repo_dir)
         return analysis
 
-    def _try_exact_match(self, reference: SourceCodeReference, qname: str, lang: Language) -> bool:
-        try:
-            node = self.static_analysis.get_reference(lang, qname)
-            reference.reference_file = node.file_path
-            reference.reference_start_line = node.line_start
-            reference.reference_end_line = node.line_end
-            reference.qualified_name = qname
-            logger.info(
-                f"[Reference Resolution] Matched {reference.qualified_name} in {lang} at {reference.reference_file}"
-            )
-            return True
-        except (ValueError, FileExistsError) as e:
-            logger.warning(f"[Reference Resolution] Exact match failed for {reference.qualified_name} in {lang}: {e}")
-            return False
-
-    def _try_loose_match(self, reference: SourceCodeReference, qname: str, lang: Language) -> bool:
-        try:
-            _, node = self.static_analysis.get_loose_reference(lang, qname)
-            if node is not None:
-                self._apply_resolved_node(reference, node)
-                logger.info(
-                    f"[Reference Resolution] Loosely matched {reference.qualified_name} in {lang} at {reference.reference_file}"
-                )
-                return True
-        except Exception as e:
-            logger.warning(f"[Reference Resolution] Loose match failed for {qname} in {lang}: {e}")
-        return False
-
-    def _try_symbol_token_match(self, reference: SourceCodeReference, qname: str, lang: Language) -> bool:
-        query_tokens = self._symbol_tokens(qname)
+    @staticmethod
+    def _unique_token_match(qname: str, candidates: list[Node]) -> Node | None:
+        query_tokens = reference_tokens(qname)
         if not query_tokens:
-            return False
+            return None
 
-        candidates = [
-            node
-            for node in self.static_analysis.iter_reference_nodes(lang)
-            if self._candidate_tokens_match(query_tokens, self._symbol_tokens(node.fully_qualified_name))
-        ]
-        if not candidates:
-            return False
+        matches: list[Node] = []
+        for node in candidates:
+            candidate_tokens = reference_tokens(node.fully_qualified_name)
+            if candidate_tokens[-1:] != query_tokens[-1:]:
+                continue
+            if all(token in candidate_tokens for token in query_tokens[:-1] if token.startswith("_")):
+                matches.append(node)
 
-        selected = self._unique_backwards_token_match(query_tokens, candidates)
-        if selected is None:
-            return False
-
-        self._apply_resolved_node(reference, selected)
-        logger.info(
-            f"[Reference Resolution] Token matched {qname} -> {reference.qualified_name} in {lang} at {reference.reference_file}"
-        )
-        return True
+        unique_matches = {
+            (node.fully_qualified_name, node.file_path, node.line_start, node.line_end): node for node in matches
+        }
+        return next(iter(unique_matches.values())) if len(unique_matches) == 1 else None
 
     @staticmethod
-    def _apply_resolved_node(reference: SourceCodeReference, node: Any) -> None:
+    def _apply_resolved_node(reference: SourceCodeReference, node: Node) -> None:
         reference.reference_file = node.file_path
         reference.reference_start_line = node.line_start
         reference.reference_end_line = node.line_end
         reference.qualified_name = node.fully_qualified_name
 
-    def _unique_backwards_token_match(self, query_tokens: list[str], candidates: list[Any]) -> Any | None:
-        matching = candidates
-        for suffix_len in range(1, len(query_tokens) + 1):
-            query_suffix = query_tokens[-suffix_len:]
-            narrowed = [
-                node
-                for node in matching
-                if len(self._symbol_tokens(node.fully_qualified_name)) >= suffix_len
-                and self._symbol_tokens(node.fully_qualified_name)[-suffix_len:] == query_suffix
-            ]
-            if len(narrowed) == 1:
-                return narrowed[0]
-            if narrowed:
-                matching = narrowed
-        return None
-
-    @staticmethod
-    def _symbol_tokens(qualified_name: str) -> list[str]:
-        return [token.lower() for token in re.split(r"[.:/\\]+", qualified_name) if token]
-
-    @staticmethod
-    def _candidate_tokens_match(query_tokens: list[str], candidate_tokens: list[str]) -> bool:
-        if candidate_tokens[-1:] != query_tokens[-1:]:
+    def _node_in_scope(
+        self,
+        node: Node,
+        allowed_qnames: set[str] | None,
+        allowed_files: set[Path] | None,
+    ) -> bool:
+        if allowed_qnames is not None and node.fully_qualified_name not in allowed_qnames:
             return False
-        required_context = [token for token in query_tokens[:-1] if token.startswith("_")]
-        return all(token in candidate_tokens for token in required_context)
+        if allowed_files is not None and self._absolute_reference_path(node.file_path) not in allowed_files:
+            return False
+        return True
+
+    def _absolute_reference_path(self, file_path: str) -> Path:
+        path = Path(file_path)
+        return path.resolve() if path.is_absolute() else (self.repo_dir / path).resolve()
 
     def _try_file_path_resolution(
         self, reference: SourceCodeReference, qname: str, lang: Language, file_candidates: list[str] | None = None
@@ -397,7 +453,7 @@ class StaticReferenceResolver:
         full_path = os.path.join(self.repo_dir, file_path)
         file_ref = ".".join(full_path.rsplit(os.sep, 1))
         language_extensions = LANGUAGE_EXTENSIONS[Language(lang)]
-        paths = [full_path, *(f"{file_path}{extension}" for extension in language_extensions), file_ref]
+        paths = [full_path, *(f"{full_path}{extension}" for extension in language_extensions), file_ref]
 
         for path in paths:
             if os.path.exists(path):

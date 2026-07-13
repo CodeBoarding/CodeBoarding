@@ -15,13 +15,9 @@ Claude Prompt Design Principles:
 
 from .abstract_prompt_factory import AbstractPromptFactory
 
-SCOPE_RELATIONS_MESSAGE = """Generate inter-component relationships for the `{scope_name}` scope of `{project_name}`.
+SCOPE_RELATIONS_MESSAGE = """Generate inter-component relationships for the `{scope_name}` scope.
 
 <context>
-Project context: {meta_context}
-
-Project type: {project_type}
-
 ### Components in this scope
 {component_summaries}
 
@@ -74,12 +70,7 @@ Focus on:
 - Architectural patterns that help new developers understand the system quickly
 </thinking>"""
 
-CLUSTER_GROUPING_MESSAGE = """Analyze and GROUP the Control Flow Graph clusters for `{project_name}`.
-
-Project Context:
-{meta_context}
-
-Project Type: {project_type}
+CLUSTER_GROUPING_MESSAGE = """Analyze and GROUP the Control Flow Graph clusters.
 
 The CFG has been pre-clustered into groups of related methods/functions. Each cluster represents methods that call each other frequently.
 
@@ -104,15 +95,12 @@ Instructions:
      * The most important classes/methods in this group — mention their exact qualified names as shown in the clusters above
 
 Focus on:
-- Creating cohesive, logical groupings that reflect the actual {project_type} architecture
+- Creating cohesive, logical groupings that reflect the actual architecture
 - Semantic meaning based on method names, call patterns, and architectural context
 - Clear justification for why clusters belong together
 - Describing inter-group interactions based on the inter-cluster connections"""
 
-FINAL_ANALYSIS_MESSAGE = """Create final component architecture for `{project_name}` optimized for flow representation.
-
-Project Context:
-{meta_context}
+FINAL_ANALYSIS_MESSAGE = """Create final component architecture optimized for flow representation.
 
 Cluster Analysis:
 {cluster_analysis}
@@ -125,7 +113,7 @@ Instructions:
 5. Do not define relationships yet; relationships are discovered in a later API-surface step
 6. Provide a one-paragraph description of the overall main flow and purpose
 
-Guidelines for {project_type} projects:
+Guidelines:
 - Aim for 5-8 final components
 - Merge related cluster groups that serve a common purpose
 - Each component should have clear boundaries
@@ -290,12 +278,7 @@ Required outputs:
 
 Focus on subsystem-specific functionality. Avoid cross-cutting concerns like logging or error handling."""
 
-CFG_DETAILS_MESSAGE = """Analyze and GROUP the Control Flow Graph clusters for the `{component}` subsystem of `{project_name}`.
-
-Project Context:
-{meta_context}
-
-Project Type: {project_type}
+CFG_DETAILS_MESSAGE = """Analyze and GROUP the Control Flow Graph clusters for the `{component}` subsystem.
 
 The CFG has been pre-clustered into groups of related methods/functions. Each cluster represents methods that call each other frequently.
 
@@ -321,10 +304,7 @@ Instructions:
 
 Focus on core subsystem functionality only. Avoid cross-cutting concerns like logging or error handling."""
 
-DETAILS_MESSAGE = """Create final sub-component architecture for the `{component}` subsystem of `{project_name}` optimized for flow representation.
-
-Project Context:
-{meta_context}
+DETAILS_MESSAGE = """Create final sub-component architecture for the `{component}` subsystem optimized for flow representation.
 
 Cluster Analysis:
 {cluster_analysis}
@@ -337,7 +317,7 @@ Instructions:
 5. Do not define relationships yet; relationships are discovered in a later API-surface step
 6. Provide a one-paragraph description of the subsystem's main flow and purpose
 
-Guidelines for {project_type} projects:
+Guidelines:
 - Aim for 3-8 final sub-components
 - Merge related cluster groups that serve a common purpose
 - Each sub-component should have clear boundaries
@@ -350,13 +330,9 @@ Constraints:
 
 Justify component choices based on fundamental architectural importance."""
 
-INCREMENTAL_GROUPING_MESSAGE = """Update the architecture of `{project_name}` by routing changed and new CFG clusters to the right components.
+INCREMENTAL_GROUPING_MESSAGE = """Update the architecture by routing changed and new CFG clusters to the right components.
 
 <context>
-Project context: {meta_context}
-
-Project Type: {project_type}
-
 The previous analysis established the components below. Most clusters are unchanged and stay where they are; this prompt only shows the structural slice that changed: new clusters, removed clusters, or clusters whose member set changed through added/removed methods. A method body edit by itself is not a cluster-boundary change.
 
 ### Existing components (each line shows `component_id "name"`)
@@ -386,7 +362,7 @@ Boundary rules:
 
 Focus on:
 - Placing clusters where they belong architecturally, guided by method names, call patterns, and the existing component boundaries
-- Creating cohesive groupings that reflect the actual {project_type} architecture
+- Creating cohesive groupings that reflect the actual architecture
 - Accurately judging whether a delta is meaningful or cosmetic for the redetail decision
 - Choosing sensible parents for new components based on scope and responsibility
 </instructions>
@@ -396,14 +372,10 @@ For each cluster you're uncertain about, you may read source. Keep each read sma
 </tool_usage_policy>"""
 
 
-PLANNING_MESSAGE = """Update one scope of the `{project_name}` architecture diagram.
+PLANNING_MESSAGE = """Update one scope of the architecture diagram.
 
 <context>
 Scope: `{scope_id}` (`root` means the top-level diagram)
-Project type: {project_type}
-
-Project context:
-{meta_context}
 
 Existing components in this scope:
 {existing_components}
@@ -423,8 +395,16 @@ Return operations for this scope only.
 - For modified clusters, preserve the existing owning component shown by its clusters=[...] list; use update_component for that owner instead of moving the cluster to another component.
 - For new clusters, decide from the structural diff whether they extend an existing responsibility or introduce a new component; do not infer this from file/package layout alone.
 - For reshaped groups, follow overlap counts to keep old cluster ownership stable. Only assign a reshaped new cluster to a different component when the diff proves a real responsibility move.
-- Do not reparent existing components. If reparenting seems required, use regenerate_scope.
+- Reparenting existing components is unsupported by the current incremental schema. Preserve their current scope.
 - Every modified/new/reshaped new-side cluster listed below must appear in exactly one operation's cluster_refs.
+
+<architecture_output_contract>
+- This step plans component boundaries only. Do not define component relations; API surfaces and relations are generated later.
+- Choose exactly one of these mutually exclusive branches for each operation:
+  - For create_component only: leave component_id null; provide a clear name and description. Select up to 5 key_entities only when their exact qualified names are available; otherwise leave them empty. Key entities are not synthesized later.
+  - For update_component only: copy the exact component_id from the existing-components list. Include refreshed name, description, or key_entities only when the component's architectural responsibility changed; otherwise preserve the existing metadata. An empty key_entities list preserves the current selection.
+  - For delete_component or noop only: copy the exact component_id from the existing-components list and leave name, description, and key_entities empty. Use delete_component only when the component has no remaining responsibility; use noop to preserve it unchanged.
+</architecture_output_contract>
 
 </instructions>
 
