@@ -15,8 +15,8 @@ from agents.agent_responses import (
     ScopeOperationAction,
     ScopeRelations,
     ScopeUpdateDecision,
-    ScopedClusterRef,
 )
+from agents.scope_operations import EXISTING_COMPONENT_ACTIONS, cluster_ref_from_scoped_ref
 from diagram_analysis.cluster_delta import ClusterRef
 from repo_utils import normalize_path
 from static_analyzer.analysis_result import StaticAnalysisResults
@@ -38,14 +38,6 @@ VALIDATOR_WEIGHTS: dict[str, float] = {
     "validate_file_classifications": 5.0,
 }
 DEFAULT_VALIDATOR_WEIGHT = 5.0
-
-_EXISTING_COMPONENT_ACTIONS = frozenset(
-    {
-        ScopeOperationAction.UPDATE_COMPONENT,
-        ScopeOperationAction.DELETE_COMPONENT,
-        ScopeOperationAction.NOOP,
-    }
-)
 
 
 @dataclass
@@ -98,9 +90,9 @@ def validate_scope_update_decision(
     errors: list[str] = []
     seen_refs: list[ClusterRef] = []
     for operation in decision.operations:
-        refs = [_cluster_ref_from_scoped_ref(ref) for ref in operation.cluster_refs]
+        refs = [cluster_ref_from_scoped_ref(ref) for ref in operation.cluster_refs]
         seen_refs.extend(refs)
-        if operation.action in _EXISTING_COMPONENT_ACTIONS:
+        if operation.action in EXISTING_COMPONENT_ACTIONS:
             if operation.component_id not in context.existing_component_ids:
                 errors.append(
                     f"Operation {operation.action} references unknown component_id={operation.component_id!r}."
@@ -130,10 +122,6 @@ def validate_scope_update_decision(
     if duplicates:
         errors.append(f"Duplicate cluster_refs: {_format_cluster_ref_list(duplicates)}")
     return ValidationResult(is_valid=not errors, feedback_messages=errors)
-
-
-def _cluster_ref_from_scoped_ref(ref: ScopedClusterRef) -> ClusterRef:
-    return ClusterRef(ref.language, ref.cluster_id, ref.scope_id)
 
 
 def _format_cluster_ref_list(refs: set[ClusterRef]) -> str:
@@ -443,7 +431,9 @@ def validate_file_classifications(result: ComponentFiles, context: ValidationCon
     return ValidationResult(is_valid=False, feedback_messages=feedback_messages)
 
 
-def validate_relation_component_names(result: AnalysisInsights, _context: ValidationContext) -> ValidationResult:
+def validate_relation_component_names(
+    result: RelationValidationTarget, _context: ValidationContext
+) -> ValidationResult:
     """
     Validate that every src_name and dst_name in components_relations refers to an existing component.
 
@@ -573,7 +563,7 @@ def validate_relation_evidence(result: RelationValidationTarget, context: Valida
     )
 
 
-def validate_relations(result: AnalysisInsights, context: ValidationContext) -> ValidationResult:
+def validate_relations(result: RelationValidationTarget, context: ValidationContext) -> ValidationResult:
     """Validate relation endpoints and edge evidence as one structural check."""
     name_result = validate_relation_component_names(result, context)
     evidence_result = validate_relation_evidence(result, context)

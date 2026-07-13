@@ -154,7 +154,7 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
             self.reference_resolver.fix_key_entities_refs(scope, touched_ids, force_resolve=True)
 
         if touched_ids or result.removed_ids:
-            self._scope_contexts()[scope_id] = _ScopeRelationContext(
+            self._scope_relation_contexts[scope_id] = _ScopeRelationContext(
                 cluster_results=cluster_results,
                 cfg_graphs=_cfg_graphs_for_scope_methods(self.static_analysis, scope),
             )
@@ -320,7 +320,7 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
             return []
 
         if cluster_results is None or cfg_graphs is None:
-            context = self._scope_contexts().get(scope_name)
+            context = self._scope_relation_contexts.get(scope_name)
             if context is None:
                 raise IncrementalScopeContextMissingError(scope_name)
             cluster_results = context.cluster_results
@@ -359,13 +359,6 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
 
         if all_llm_rels:
             _log_scope_relations_summary(all_llm_rels)
-
-    def _scope_contexts(self) -> dict[str, _ScopeRelationContext]:
-        contexts = getattr(self, "_scope_relation_contexts", None)
-        if contexts is None:
-            contexts = {}
-            self._scope_relation_contexts = contexts
-        return contexts
 
 
 def _cluster_analysis_for_scope(

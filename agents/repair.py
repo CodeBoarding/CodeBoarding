@@ -12,7 +12,12 @@ from agents.agent_responses import (
     ScopeOperation,
     ScopeOperationAction,
     ScopeUpdateDecision,
-    ScopedClusterRef,
+)
+from agents.scope_operations import (
+    EXISTING_COMPONENT_ACTIONS,
+    cluster_member_qnames,
+    cluster_ref_from_scoped_ref,
+    normalize_component_name,
 )
 from diagram_analysis.cluster_delta import ClusterRef
 from static_analyzer.graph import ClusterResult
@@ -20,13 +25,6 @@ from static_analyzer.reference_resolver import StaticReferenceResolver
 
 logger = logging.getLogger(__name__)
 
-_EXISTING_COMPONENT_ACTIONS = frozenset(
-    {
-        ScopeOperationAction.UPDATE_COMPONENT,
-        ScopeOperationAction.DELETE_COMPONENT,
-        ScopeOperationAction.NOOP,
-    }
-)
 _KEY_ENTITY_METADATA_ACTIONS = frozenset(
     {
         ScopeOperationAction.CREATE_COMPONENT,
@@ -81,16 +79,16 @@ def _repair_unambiguous_operation_routing(
 ) -> int:
     routed_operations = 0
     for operation in decision.operations:
-        needs_routing_repair = operation.component_id is None and operation.action in _EXISTING_COMPONENT_ACTIONS
-        if not needs_routing_repair:
-            continue
-
-        component_id = _resolve_unambiguous_component_id(operation, context)
-        if component_id is not None:
-            operation.component_id = component_id
-            if operation.action == ScopeOperationAction.NOOP:
-                operation.name = None
-            routed_operations += 1
+        needs_routing_repair = operation.component_id is None and operation.action in EXISTING_COMPONENT_ACTIONS
+        if needs_routing_repair:
+            component_id = _resolve_unambiguous_component_id(operation, context)
+            if component_id is not None:
+                operation.component_id = component_id
+                routed_operations += 1
+        if operation.action == ScopeOperationAction.NOOP:
+            operation.name = None
+            operation.description = None
+            operation.key_entities = []
     return routed_operations
 
 
@@ -98,7 +96,7 @@ def _resolve_unambiguous_component_id(
     operation: ScopeOperation,
     context: ScopeOperationRepairContext,
 ) -> str | None:
-    refs = {_cluster_ref_from_scoped_ref(ref) for ref in operation.cluster_refs}
+    refs = {cluster_ref_from_scoped_ref(ref) for ref in operation.cluster_refs}
     owner_ids = {
         context.component_ids_by_cluster_ref[ref] for ref in refs if ref in context.component_ids_by_cluster_ref
     }
@@ -109,12 +107,8 @@ def _resolve_unambiguous_component_id(
 
     has_no_known_owner = not owner_ids
     if has_no_known_owner and operation.name:
-        return context.component_ids_by_name.get(_normalize_component_name(operation.name))
+        return context.component_ids_by_name.get(normalize_component_name(operation.name))
     return None
-
-
-def _normalize_component_name(name: str) -> str:
-    return " ".join(name.casefold().split())
 
 
 def _repair_optional_key_entity_metadata(
@@ -203,7 +197,7 @@ def _fuzzy_match_group_name(
 
 def repair_key_entities(result: ComponentRepairTarget, context: ComponentRepairContext) -> None:
     """Resolve key entities and remove references outside the current scope."""
-    nodes_in_scope = _nodes_in_scope(context.cluster_results)
+    nodes_in_scope = cluster_member_qnames(context.cluster_results)
     canonicalized_count = 0
     dropped_qnames: set[str] = set()
 
@@ -233,15 +227,6 @@ def repair_key_entities(result: ComponentRepairTarget, context: ComponentRepairC
         logger.info("Dropped invalid or out-of-scope key entities: %s", sorted(dropped_qnames))
 
 
-def _nodes_in_scope(cluster_results: dict[str, ClusterResult]) -> set[str]:
-    return {
-        qualified_name
-        for cluster_result in cluster_results.values()
-        for members in cluster_result.clusters.values()
-        for qualified_name in members
-    }
-
-
 def _reference_is_in_scope(qualified_name: str, nodes_in_scope: set[str]) -> bool:
     return any(
         qualified_name == scope_node
@@ -249,7 +234,3 @@ def _reference_is_in_scope(qualified_name: str, nodes_in_scope: set[str]) -> boo
         or scope_node.startswith(qualified_name + ".")
         for scope_node in nodes_in_scope
     )
-
-
-def _cluster_ref_from_scoped_ref(ref: ScopedClusterRef) -> ClusterRef:
-    return ClusterRef(ref.language, ref.cluster_id, ref.scope_id)

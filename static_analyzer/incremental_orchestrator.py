@@ -114,10 +114,16 @@ def _rebuild_changed_file_edges(
     adapter: LanguageAdapter,
     engine_client: LSPClient,
 ) -> None:
+    source_inspector = SourceInspector()
     _restore_cross_boundary_edges(
-        merged_analysis.call_graph, invalidated_edges, changed_file_strs, adapter, engine_client, SourceInspector()
+        merged_analysis.call_graph, invalidated_edges, changed_file_strs, adapter, engine_client, source_inspector
     )
-    _add_outbound_edges_from_changed_files(merged_analysis.call_graph, changed_source_files, engine_client)
+    _add_outbound_edges_from_changed_files(
+        merged_analysis.call_graph,
+        changed_source_files,
+        engine_client,
+        source_inspector,
+    )
 
 
 def _restore_cross_boundary_edges(
@@ -208,11 +214,11 @@ def _add_outbound_edges_from_changed_files(
     call_graph: CallGraph,
     changed_source_files: list[Path],
     engine_client: LSPClient,
+    source_inspector: SourceInspector,
 ) -> None:
     if not changed_source_files:
         return
 
-    source_inspector = SourceInspector()
     added = 0
 
     for file_path in changed_source_files:

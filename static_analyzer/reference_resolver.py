@@ -1,6 +1,5 @@
 import logging
 import os
-import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -8,7 +7,7 @@ from typing import Any
 from agents.agent_responses import AnalysisInsights, RelationCallSite, RelationEdge, SourceCodeReference
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import LANGUAGE_EXTENSIONS, Language
-from static_analyzer.internal_references import looks_internal_reference
+from static_analyzer.internal_references import looks_internal_reference, reference_tokens
 
 logger = logging.getLogger(__name__)
 
@@ -375,14 +374,14 @@ class StaticReferenceResolver:
         return False
 
     def _try_symbol_token_match(self, reference: SourceCodeReference, qname: str, lang: Language) -> bool:
-        query_tokens = self._symbol_tokens(qname)
+        query_tokens = reference_tokens(qname)
         if not query_tokens:
             return False
 
         candidates = [
             node
             for node in self.static_analysis.iter_reference_nodes(lang)
-            if self._candidate_tokens_match(query_tokens, self._symbol_tokens(node.fully_qualified_name))
+            if self._candidate_tokens_match(query_tokens, reference_tokens(node.fully_qualified_name))
         ]
         if not candidates:
             return False
@@ -411,18 +410,14 @@ class StaticReferenceResolver:
             narrowed = [
                 node
                 for node in matching
-                if len(self._symbol_tokens(node.fully_qualified_name)) >= suffix_len
-                and self._symbol_tokens(node.fully_qualified_name)[-suffix_len:] == query_suffix
+                if len(reference_tokens(node.fully_qualified_name)) >= suffix_len
+                and reference_tokens(node.fully_qualified_name)[-suffix_len:] == query_suffix
             ]
             if len(narrowed) == 1:
                 return narrowed[0]
             if narrowed:
                 matching = narrowed
         return None
-
-    @staticmethod
-    def _symbol_tokens(qualified_name: str) -> list[str]:
-        return [token.lower() for token in re.split(r"[.:/\\]+", qualified_name) if token]
 
     @staticmethod
     def _candidate_tokens_match(query_tokens: list[str], candidate_tokens: list[str]) -> bool:
@@ -457,7 +452,7 @@ class StaticReferenceResolver:
         full_path = os.path.join(self.repo_dir, file_path)
         file_ref = ".".join(full_path.rsplit(os.sep, 1))
         language_extensions = LANGUAGE_EXTENSIONS[Language(lang)]
-        paths = [full_path, *(f"{file_path}{extension}" for extension in language_extensions), file_ref]
+        paths = [full_path, *(f"{full_path}{extension}" for extension in language_extensions), file_ref]
 
         for path in paths:
             if os.path.exists(path):

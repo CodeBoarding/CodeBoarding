@@ -1,3 +1,5 @@
+"""Build file indexes and refresh method spans from live control-flow graphs."""
+
 from pathlib import Path
 
 from agents.agent_responses import AnalysisInsights

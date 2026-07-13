@@ -174,6 +174,27 @@ def test_validate_scope_update_decision_accepts_root_scope() -> None:
     assert result.is_valid
 
 
+def test_validate_scope_update_decision_normalizes_empty_root_scope() -> None:
+    decision = ScopeUpdateDecision(
+        operations=[
+            ScopeOperation(
+                action=ScopeOperationAction.UPDATE_COMPONENT,
+                cluster_refs=[ScopedClusterRef(scope_id="", language="python", cluster_id=1)],
+                component_id="1",
+                rationale="An empty LLM scope id still represents root.",
+            )
+        ]
+    )
+    context = ScopeOperationValidationContext(
+        expected_cluster_refs={ClusterRef(language="python", cluster_id=1)},
+        existing_component_ids={"1"},
+    )
+
+    result = validate_scope_update_decision(decision, context)
+
+    assert result.is_valid
+
+
 def test_validate_scope_update_decision_rejects_missing_duplicate_and_unknown_ids() -> None:
     decision = ScopeUpdateDecision(
         operations=[
@@ -468,6 +489,39 @@ def test_repair_scope_update_decision_clears_name_used_to_route_noop() -> None:
     assert decision.operations[0].name is None
 
 
+def test_repair_scope_update_decision_clears_noop_metadata_with_existing_id() -> None:
+    decision = ScopeUpdateDecision(
+        operations=[
+            ScopeOperation(
+                action=ScopeOperationAction.NOOP,
+                cluster_refs=[ScopedClusterRef(scope_id="root", language="python", cluster_id=1)],
+                component_id="1",
+                name="API Gateway",
+                description="This should be preserved from the existing component.",
+                key_entities=[SourceCodeReference(qualified_name="api.handle")],
+                rationale="The component boundary is unchanged.",
+            )
+        ]
+    )
+    repair_context = ScopeOperationRepairContext(
+        reference_resolver=_reference_resolver(),
+        allowed_key_entity_qnames=set(),
+    )
+    validation_context = ScopeOperationValidationContext(
+        expected_cluster_refs={ClusterRef(language="python", cluster_id=1)},
+        existing_component_ids={"1"},
+    )
+
+    repair_unambiguous_routing_and_optional_key_entity_metadata(decision, repair_context)
+    result = validate_scope_update_decision(decision, validation_context)
+
+    assert result.is_valid
+    assert decision.operations[0].component_id == "1"
+    assert decision.operations[0].name is None
+    assert decision.operations[0].description is None
+    assert decision.operations[0].key_entities == []
+
+
 def test_repair_scope_update_decision_drops_key_entities_outside_scope() -> None:
     scoped_qname = "nested.worker.run"
     decision = ScopeUpdateDecision(
@@ -591,6 +645,74 @@ def test_decide_scope_update_passes_structural_diff_to_validator() -> None:
     assert repair_context.allowed_key_entity_qnames == {"api.new"}
     assert validation_context.expected_cluster_refs == {ClusterRef(language="python", cluster_id=1)}
     assert validation_context.existing_component_ids == {"1"}
+
+
+def test_decide_scope_update_runs_repair_before_final_validation() -> None:
+    static_analysis = MagicMock(spec=StaticAnalysisResults)
+    scope = AnalysisInsights(
+        description="root",
+        components=[
+            Component(
+                name="API",
+                description="Handles requests",
+                key_entities=[],
+                component_id="1",
+                source_cluster_ids=["1"],
+            )
+        ],
+        components_relations=[],
+    )
+    structural = StructuralClusterDiff(
+        by_language={
+            "python": LanguageStructuralDiff(
+                language="python",
+                modified=[
+                    ClusterMemberDelta(
+                        old_cluster=ClusterRef(language="python", cluster_id=1),
+                        new_cluster=ClusterRef(language="python", cluster_id=1),
+                    )
+                ],
+            )
+        }
+    )
+    decision = ScopeUpdateDecision(
+        operations=[
+            ScopeOperation(
+                action=ScopeOperationAction.NOOP,
+                cluster_refs=[ScopedClusterRef(scope_id="root", language="python", cluster_id=1)],
+                component_id="1",
+                name="API",
+                description="Handles requests",
+                key_entities=[SourceCodeReference(qualified_name="api.handle")],
+                rationale="The component boundary is unchanged.",
+            )
+        ]
+    )
+
+    with (
+        patch("agents.agent.create_agent", return_value=MagicMock()),
+        patch("agents.incremental_planning_agent.create_agent", return_value=MagicMock()),
+    ):
+        agent = IncrementalPlanningAgent(
+            repo_dir=Path("/tmp/fake-repo"),
+            static_analysis=static_analysis,
+            project_name="Test",
+            meta_context=None,
+            agent_llm=MagicMock(),
+            parsing_llm=MagicMock(),
+        )
+    agent._parse_invoke = MagicMock(return_value=decision)
+
+    result = agent.decide_scope_update(
+        "root",
+        scope,
+        structural,
+        {"python": ClusterResult(clusters={1: {"api.handle"}})},
+    )
+
+    assert result.operations[0].name is None
+    assert result.operations[0].description is None
+    assert result.operations[0].key_entities == []
 
 
 def test_decide_scope_update_tracks_invalid_decision_after_retries() -> None:

@@ -22,6 +22,7 @@ from agents.repair import (
     repair_unambiguous_routing_and_optional_key_entity_metadata,
 )
 from agents.scope_ids import ROOT_SCOPE_ID
+from agents.scope_operations import cluster_member_qnames, normalize_component_name
 from agents.validation import ScopeOperationValidationContext, validate_scope_update_decision
 from diagram_analysis.cluster_delta import (
     ClusterMemberDelta,
@@ -94,7 +95,7 @@ class IncrementalPlanningAgent(CodeBoardingAgent):
         )
         repair_context = ScopeOperationRepairContext(
             reference_resolver=self.reference_resolver,
-            allowed_key_entity_qnames=_scope_key_entity_qnames(cluster_results),
+            allowed_key_entity_qnames=cluster_member_qnames(cluster_results),
             component_ids_by_cluster_ref=_component_ids_by_cluster_ref(scope_id, scope.components, structural_diff),
             component_ids_by_name=_component_ids_by_name(scope.components),
         )
@@ -133,15 +134,6 @@ def _track_invalid_planning_decision(scope_id: str, feedback_messages: list[str]
         },
     )
     telemetry.flush()
-
-
-def _scope_key_entity_qnames(cluster_results: dict[str, ClusterResult]) -> set[str]:
-    return {
-        qualified_name
-        for cluster_result in cluster_results.values()
-        for members in cluster_result.clusters.values()
-        for qualified_name in members
-    }
 
 
 def _component_ids_by_cluster_ref(
@@ -187,12 +179,8 @@ def _component_ids_by_name(components: list[Component]) -> dict[str, str]:
     ids_by_name: dict[str, set[str]] = {}
     for component in components:
         if component.component_id:
-            ids_by_name.setdefault(_normalize_component_name(component.name), set()).add(component.component_id)
+            ids_by_name.setdefault(normalize_component_name(component.name), set()).add(component.component_id)
     return {name: next(iter(component_ids)) for name, component_ids in ids_by_name.items() if len(component_ids) == 1}
-
-
-def _normalize_component_name(name: str) -> str:
-    return " ".join(name.casefold().split())
 
 
 def format_structural_diff(structural_diff: StructuralClusterDiff) -> str:

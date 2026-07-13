@@ -12,10 +12,7 @@ from dataclasses import dataclass, field
 
 from constants import DEFAULT_STATIC_RELATION_LABEL
 from agents.agent_responses import AnalysisInsights, Relation, RelationEdge
-from agents.relation_edges import (
-    append_or_merge_relation,
-    merge_relation_edges,
-)
+from agents.relation_edges import append_or_merge_relation
 from static_analyzer.graph import CallGraph, Edge
 
 logger = logging.getLogger(__name__)
@@ -203,7 +200,7 @@ def build_global_relations(
             )
         else:
             inherited_key_edges = _relation_key_edges_for_pair(llm_relation, src_id, dst_id, node_to_component)
-            key_edges, all_edges = merge_relation_edges(inherited_key_edges, static_rel.all_edges)
+            key_edges, all_edges = Relation._merge_edges(inherited_key_edges, static_rel.all_edges)
             relation = Relation(
                 relation=llm_relation.relation,
                 src_name=id_to_name.get(src_id, src_id),
@@ -279,7 +276,7 @@ def merge_relations(
                 llm_rel.evidence,
             )
 
-        key_edges, all_edges = merge_relation_edges(llm_rel.key_edges, static_edges)
+        key_edges, all_edges = Relation._merge_edges(llm_rel.key_edges, static_edges)
         for edge in static_edges:
             matched_static_edge_ids.add((src_id, dst_id, edge.identity()))
         append_or_merge_relation(

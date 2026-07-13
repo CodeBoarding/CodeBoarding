@@ -148,6 +148,7 @@ class TestUpdateScope(unittest.TestCase):
         agent.static_analysis.get_languages.return_value = []
         agent.static_analysis.get_cfg.return_value.filter_by_nodes.return_value = "cfg"
         agent.reference_resolver = MagicMock()
+        agent._scope_relation_contexts = {}
 
         def populate(scope, _cluster_results, _cfg_graphs, _touched_ids, source_cluster_id_prefix=""):
             for component in scope.components:
@@ -271,7 +272,7 @@ class TestUpdateScope(unittest.TestCase):
         self.assertEqual(component.name, "API")
         self.assertEqual(component.description, "API description")
         self.assertEqual(result.refresh_ids, {"1"})
-        self.assertIn("root", agent._scope_contexts())
+        self.assertIn("root", agent._scope_relation_contexts)
 
     def test_create_component_assigns_id_clusters_methods_and_key_entities(self) -> None:
         existing = Component(name="API", description="", key_entities=[], component_id="1")

@@ -386,7 +386,7 @@ class TestDetailsAgent(unittest.TestCase):
         mock_invoke_repair_validate.side_effect = [cluster_response, final_response, api_response, relation_response]
         mock_fix_ref.return_value = final_response
 
-        analysis, subgraph_results = agent.run(self.test_component)
+        analysis, _subgraph_results = agent.run(self.test_component)
 
         self.assertEqual(analysis, final_response)
         self.assertEqual(mock_invoke_repair_validate.call_count, 4)

@@ -33,7 +33,7 @@ from agents.meta_agent import MetaAgent
 from agents.planner_agent import get_expandable_components
 from agents.relation_edges import index_relation_endpoints
 from agents.scope_ids import ROOT_SCOPE_ID
-from agents.content_hash import hash_repo_source_files, tree_hash_from_file_hashes
+from agents.content_hash import SourceCache, hash_repo_source_files, tree_hash_from_file_hashes
 from diagram_analysis.analysis_json import (
     FileCoverageReport,
     FileCoverageSummary,
@@ -277,11 +277,15 @@ class DiagramGenerator:
 
     def _get_static_with_new_analyzer(self) -> StaticAnalysisResults:
         """Run static analysis with a newly created analyzer."""
+        disable_reuse = os.getenv("CODEBOARDING_DISABLE_CACHE_REUSE", "").lower() in ("1", "true", "yes")
+        skip_cache = self.force_full_analysis or disable_reuse
         if self.force_full_analysis:
             logger.info("Force full analysis: skipping static analysis cache")
+        if disable_reuse:
+            logger.info("CODEBOARDING_DISABLE_CACHE_REUSE set; skipping static analysis cache")
         return get_static_analysis(
             self.repo_location,
-            skip_cache=self.force_full_analysis,
+            skip_cache=skip_cache,
             source_sha=self.source_sha,
             cache_dir=self.output_dir,
             changed_files=self._changed_files_for_static_analysis(),
@@ -872,9 +876,10 @@ class DiagramGenerator:
         """Rebuild live per-scope file indexes and union them into the root index."""
         assert self.static_analysis is not None
         analyses = (root_analysis, *sub_analyses.values())
+        source_cache: SourceCache = {}
         for analysis in analyses:
             refresh_method_spans_from_cfg(analysis, self.static_analysis, self.repo_location)
-            analysis.files = build_files_index(analysis, self.repo_location)
+            analysis.files = build_files_index(analysis, self.repo_location, source_cache)
             index_relation_endpoints(analysis, self.repo_location)
 
         unified_files = root_analysis.files
@@ -882,7 +887,7 @@ class DiagramGenerator:
             for fp, entry in sub.files.items():
                 indexed_entry = unified_files.get(fp)
                 if indexed_entry is None:
-                    unified_files[fp] = entry
+                    unified_files[fp] = entry.model_copy(deep=True)
                     continue
                 if not indexed_entry.content_hash:
                     indexed_entry.content_hash = entry.content_hash
@@ -890,7 +895,7 @@ class DiagramGenerator:
                 for method in entry.methods:
                     indexed = methods_by_qname.get(method.qualified_name)
                     if indexed is None or (indexed.node_type == "REFERENCE" and method.node_type != "REFERENCE"):
-                        methods_by_qname[method.qualified_name] = method
+                        methods_by_qname[method.qualified_name] = method.model_copy(deep=True)
                 indexed_entry.methods = sorted(
                     methods_by_qname.values(),
                     key=lambda method: (method.start_line, method.end_line, method.qualified_name),

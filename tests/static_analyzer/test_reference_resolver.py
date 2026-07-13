@@ -89,16 +89,25 @@ class TestStaticReferenceResolver(unittest.TestCase):
 
         self.assertEqual(reference.reference_file, str(self.repo_dir / "module" / "file.py"))
 
-    def test_repair_key_entity_references_canonicalizes_deduplicates_and_drops_unresolved(self):
+    def test_resolve_reference_uses_repo_relative_path_without_candidates(self) -> None:
+        self.static_analysis.get_reference.side_effect = ValueError("not found")
+        self.static_analysis.get_loose_reference.side_effect = ValueError("not found")
+        reference = SourceCodeReference(qualified_name="module.file")
+
+        self.resolver.resolve_reference(reference)
+
+        self.assertEqual(reference.reference_file, str(self.repo_dir / "module" / "file.py"))
+
+    def test_repair_key_entity_references_canonicalizes_deduplicates_and_drops_unresolved(self) -> None:
         canonical_qname = "service.OCR.extract_text"
         node = self._node(canonical_qname, "service.py", 3, 4)
 
-        def get_reference(_language, qname):
+        def get_reference(_language: object, qname: str) -> Node:
             if qname == canonical_qname:
                 return node
             raise ValueError("not found")
 
-        def get_loose_reference(_language, qname):
+        def get_loose_reference(_language: object, qname: str) -> tuple[str | None, Node | None]:
             if qname == "OCR.extract_text":
                 return canonical_qname, node
             return None, None

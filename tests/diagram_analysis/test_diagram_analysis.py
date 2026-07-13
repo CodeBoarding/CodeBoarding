@@ -533,7 +533,7 @@ class TestAnalysisJsonConversion(unittest.TestCase):
             build_unified_analysis_json(self.analysis, [], "repo", repo_dir=self.repo_dir, source_tree_hash="")
         )
 
-        self.assertEqual(data["methods_index"]["|importlib.metadata.entry_points"]["type"], "REFERENCE")
+        self.assertNotIn("|importlib.metadata.entry_points", data["methods_index"])
         self.assertEqual(data["methods_index"]["plugin.py|plugin.register"]["start_line"], 12)
         self.assertNotIn("", data["files"])
         parsed, _ = parse_unified_analysis(data)
@@ -541,7 +541,7 @@ class TestAnalysisJsonConversion(unittest.TestCase):
         self.assertEqual(edge.source.qualified_name, "importlib.metadata.entry_points")
         self.assertIsNone(edge.source.reference_file)
         self.assertEqual(edge.target.reference_file, "plugin.py")
-        self.assertEqual(parsed.files[""].methods[0].qualified_name, "importlib.metadata.entry_points")
+        self.assertNotIn("", parsed.files)
 
     def test_source_tree_hash_written_to_metadata(self):
         # The precomputed hash the caller passes is what lands in metadata — the
@@ -745,6 +745,25 @@ class TestDiagramGenerator(unittest.TestCase):
         self.assertIsNone(gen.abstraction_agent)
         self.assertIsNone(gen.incremental_planning_agent)
         self.assertIsNone(gen.incremental_agent)
+
+    @patch("diagram_analysis.diagram_generator.get_static_analysis")
+    def test_new_analyzer_honors_cache_reuse_override(self, mock_get_static_analysis):
+        gen = DiagramGenerator(
+            repo_location=self.repo_location,
+            temp_folder=self.temp_folder,
+            repo_name="test_repo",
+            output_dir=self.output_dir,
+            depth_level=2,
+            run_id="test-run-id",
+            log_path="test_repo/test-run-log",
+        )
+        gen.source_sha = "current-sha"
+        mock_get_static_analysis.return_value = MagicMock(spec=StaticAnalysisResults)
+
+        with patch.dict(os.environ, {"CODEBOARDING_DISABLE_CACHE_REUSE": "true"}):
+            gen._get_static_with_new_analyzer()
+
+        self.assertTrue(mock_get_static_analysis.call_args.kwargs["skip_cache"])
 
     @patch("diagram_analysis.diagram_generator.ProjectScanner")
     @patch("diagram_analysis.diagram_generator.get_static_analysis")
@@ -1427,6 +1446,45 @@ class TestDiagramGenerator(unittest.TestCase):
         self.assertEqual(sub_analyses["1.1"].components[0].name, "Stable Leaf")
         self.assertIsNone(gen.abstraction_agent)
         self.assertEqual(mock_build_index.call_count, 1 + len(sub_analyses))
+
+    def test_refresh_files_index_reuses_sources_and_copies_sub_entries(self):
+        gen = DiagramGenerator(
+            repo_location=self.repo_location,
+            temp_folder=self.temp_folder,
+            repo_name="test_repo",
+            output_dir=self.output_dir,
+            depth_level=2,
+            run_id="test-run-id",
+            log_path="test_repo/test-run-log",
+        )
+        gen.static_analysis = MagicMock(spec=StaticAnalysisResults)
+        root_analysis = AnalysisInsights(description="root", components=[], components_relations=[])
+        sub_analysis = AnalysisInsights(description="sub", components=[], components_relations=[])
+        root_method = MethodEntry(qualified_name="root.method", start_line=1, end_line=2, node_type="FUNCTION")
+        shared_sub_method = MethodEntry(qualified_name="sub.method", start_line=3, end_line=4, node_type="FUNCTION")
+        sub_only_method = MethodEntry(qualified_name="sub.only", start_line=5, end_line=6, node_type="FUNCTION")
+        root_entry = FileEntry(methods=[root_method])
+        shared_sub_entry = FileEntry(methods=[shared_sub_method])
+        sub_only_entry = FileEntry(methods=[sub_only_method])
+
+        with (
+            patch("diagram_analysis.diagram_generator.refresh_method_spans_from_cfg"),
+            patch("diagram_analysis.diagram_generator.index_relation_endpoints"),
+            patch(
+                "diagram_analysis.diagram_generator.build_files_index",
+                side_effect=[
+                    {"shared.py": root_entry},
+                    {"shared.py": shared_sub_entry, "sub.py": sub_only_entry},
+                ],
+            ) as mock_build_index,
+        ):
+            gen._refresh_files_index(root_analysis, {"1": sub_analysis})
+
+        root_methods = {method.qualified_name: method for method in root_analysis.files["shared.py"].methods}
+        self.assertIsNot(root_methods["sub.method"], shared_sub_method)
+        self.assertIsNot(root_analysis.files["sub.py"], sub_only_entry)
+        self.assertIsNot(root_analysis.files["sub.py"].methods[0], sub_only_method)
+        self.assertIs(mock_build_index.call_args_list[0].args[2], mock_build_index.call_args_list[1].args[2])
 
     def test_persist_static_analysis_artifact_saves_cluster_cache_without_injected_analyzer(self):
         gen = DiagramGenerator(

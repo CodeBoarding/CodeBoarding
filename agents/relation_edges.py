@@ -1,14 +1,10 @@
+"""Merge component relations and index their source endpoints."""
+
 from pathlib import Path
 
-from agents.agent_responses import AnalysisInsights, Relation, RelationEdge
+from agents.agent_responses import AnalysisInsights, Relation
 from agents.file_index_models import FileEntry, MethodEntry
 from repo_utils.path_utils import normalize_repo_path
-
-
-def merge_relation_edges(
-    key_edges: list[RelationEdge], all_edges: list[RelationEdge]
-) -> tuple[list[RelationEdge], list[RelationEdge]]:
-    return Relation._merge_edges(key_edges, all_edges)
 
 
 def append_or_merge_relation(
@@ -37,24 +33,28 @@ def merge_relations_by_pair(relations: list[Relation], include_relation: bool = 
 
 def index_relation_endpoints(analysis: AnalysisInsights, repo_dir: Path) -> None:
     """Add relation endpoint references to the analysis file index."""
+    methods_by_file: dict[str, dict[str, MethodEntry]] = {}
     for relation in analysis.components_relations:
         for edge in [*relation.key_edges, *relation.all_edges]:
             for reference in (edge.source, edge.target):
-                file_path = normalize_repo_path(reference.reference_file or "", repo_dir)
+                if not reference.reference_file:
+                    continue
+                file_path = normalize_repo_path(reference.reference_file, repo_dir)
                 entry = analysis.files.setdefault(file_path, FileEntry())
-                indexed = next(
-                    (method for method in entry.methods if method.qualified_name == reference.qualified_name),
-                    None,
+                methods_by_qname = methods_by_file.setdefault(
+                    file_path,
+                    {method.qualified_name: method for method in entry.methods},
                 )
+                indexed = methods_by_qname.get(reference.qualified_name)
                 if indexed is None:
-                    entry.methods.append(
-                        MethodEntry(
-                            qualified_name=reference.qualified_name,
-                            start_line=reference.reference_start_line or 0,
-                            end_line=reference.reference_end_line or 0,
-                            node_type="REFERENCE",
-                        )
+                    indexed = MethodEntry(
+                        qualified_name=reference.qualified_name,
+                        start_line=reference.reference_start_line or 0,
+                        end_line=reference.reference_end_line or 0,
+                        node_type="REFERENCE",
                     )
+                    entry.methods.append(indexed)
+                    methods_by_qname[reference.qualified_name] = indexed
                 elif indexed.node_type == "REFERENCE":
                     indexed.start_line = indexed.start_line or reference.reference_start_line or 0
                     indexed.end_line = indexed.end_line or reference.reference_end_line or 0

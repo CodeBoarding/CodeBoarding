@@ -1,6 +1,8 @@
 import json
 import logging
+from collections.abc import Callable
 from pathlib import Path
+from typing import Protocol, TypeVar
 
 from google.api_core.exceptions import ResourceExhausted
 from langchain_core.exceptions import OutputParserException
@@ -27,6 +29,15 @@ from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.reference_resolver import StaticReferenceResolver
 
 logger = logging.getLogger(__name__)
+
+ParseResultT = TypeVar("ParseResultT")
+ResultT = TypeVar("ResultT", bound="RepairValidationResult")
+RepairContextT = TypeVar("RepairContextT")
+ValidationContextT = TypeVar("ValidationContextT")
+
+
+class RepairValidationResult(Protocol):
+    def llm_str(self) -> str: ...
 
 
 class EmptyExtractorMessageError(ValueError):
@@ -222,18 +233,33 @@ class CodeBoardingAgent(MonitoringMixin):
         except Empty:
             raise RuntimeError("Agent invocation completed but no result was returned")
 
-    def _parse_invoke(self, prompt: str, type: type, include_hidden: bool = False):
+    def _parse_invoke(
+        self,
+        prompt: str,
+        return_type: type[ParseResultT],
+        include_hidden: bool = False,
+    ) -> ParseResultT:
         response = self._invoke(prompt)
         assert isinstance(response, str), f"Expected a string as response type got {response}"
-        return self._parse_response(prompt, response, type, include_hidden=include_hidden)
+        return self._parse_response(prompt, response, return_type, include_hidden=include_hidden)
 
-    def _repair_result(self, result, repairs: list, repair_context) -> None:
+    def _repair_result(
+        self,
+        result: ResultT,
+        repairs: list[Callable[[ResultT, RepairContextT], None]],
+        repair_context: RepairContextT,
+    ) -> None:
         """Apply deterministic repairs to one parsed candidate."""
         for repair in repairs:
             logger.info("[Repair] Applying %s", repair.__name__)
             repair(result, repair_context)
 
-    def _score_result(self, result, validators: list, validation_context) -> tuple[float, list[tuple[float, str]]]:
+    def _score_result(
+        self,
+        result: ResultT,
+        validators: list[Callable[[ResultT, ValidationContextT], ValidationResult]],
+        validation_context: ValidationContextT,
+    ) -> tuple[float, list[tuple[float, str]]]:
         """Run all validators on a result and return (score, prioritized_feedback).
 
         The score is computed using weighted validators where coverage-related
@@ -244,7 +270,7 @@ class CodeBoardingAgent(MonitoringMixin):
         weight descending, so that the LLM focuses on the most critical issues
         (cluster/group coverage) before lower-priority ones (key entities).
         """
-        validator_results: list[tuple] = []
+        validator_results: list[tuple[Callable[[ResultT, ValidationContextT], ValidationResult], ValidationResult]] = []
         weighted_feedback: list[tuple[float, str]] = []
         for validator in validators:
             validator_result: ValidationResult = validator(result, validation_context)
@@ -263,14 +289,14 @@ class CodeBoardingAgent(MonitoringMixin):
     def _invoke_repair_validate(
         self,
         prompt: str,
-        return_type: type,
-        repairs: list,
-        validators: list,
-        repair_context,
-        validation_context,
+        return_type: type[ResultT],
+        repairs: list[Callable[[ResultT, RepairContextT], None]],
+        validators: list[Callable[[ResultT, ValidationContextT], ValidationResult]],
+        repair_context: RepairContextT,
+        validation_context: ValidationContextT,
         max_validation_attempts: int = 1,
         include_hidden: bool = False,
-    ):
+    ) -> ResultT:
         """Parse, repair, and validate each candidate before best-of-N selection."""
         # Compute the maximum possible score so we can detect a perfect result
         max_possible_score = sum(VALIDATOR_WEIGHTS.get(v.__name__, DEFAULT_VALIDATOR_WEIGHT) for v in validators)
