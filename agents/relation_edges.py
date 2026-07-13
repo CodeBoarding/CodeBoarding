@@ -3,7 +3,6 @@
 from pathlib import Path
 
 from agents.agent_responses import AnalysisInsights, Relation
-from agents.file_index_models import FileEntry, MethodEntry
 from repo_utils.path_utils import normalize_repo_path
 
 
@@ -32,32 +31,22 @@ def merge_relations_by_pair(relations: list[Relation], include_relation: bool = 
 
 
 def index_relation_endpoints(analysis: AnalysisInsights, repo_dir: Path) -> None:
-    """Add relation endpoint references to the analysis file index."""
-    methods_by_file: dict[str, dict[str, MethodEntry]] = {}
+    """Fill missing spans for relation endpoints already present in the file index."""
+    spans_by_file: dict[str, dict[str, tuple[int, int]]] = {}
     for relation in analysis.components_relations:
         for edge in [*relation.key_edges, *relation.all_edges]:
             for reference in (edge.source, edge.target):
                 if not reference.reference_file:
                     continue
                 file_path = normalize_repo_path(reference.reference_file, repo_dir)
-                entry = analysis.files.setdefault(file_path, FileEntry())
-                methods_by_qname = methods_by_file.setdefault(
-                    file_path,
-                    {method.qualified_name: method for method in entry.methods},
+                file_spans = spans_by_file.setdefault(file_path, {})
+                start_line, end_line = file_spans.get(reference.qualified_name, (0, 0))
+                file_spans[reference.qualified_name] = (
+                    start_line or reference.reference_start_line or 0,
+                    end_line or reference.reference_end_line or 0,
                 )
-                indexed = methods_by_qname.get(reference.qualified_name)
-                if indexed is None:
-                    indexed = MethodEntry(
-                        qualified_name=reference.qualified_name,
-                        start_line=reference.reference_start_line or 0,
-                        end_line=reference.reference_end_line or 0,
-                        node_type="REFERENCE",
-                    )
-                    entry.methods.append(indexed)
-                    methods_by_qname[reference.qualified_name] = indexed
-                elif indexed.node_type == "REFERENCE":
-                    indexed.start_line = indexed.start_line or reference.reference_start_line or 0
-                    indexed.end_line = indexed.end_line or reference.reference_end_line or 0
 
-    for entry in analysis.files.values():
-        entry.methods.sort(key=lambda method: (method.start_line, method.end_line, method.qualified_name))
+    for file_path, spans in spans_by_file.items():
+        entry = analysis.files.get(file_path)
+        if entry is not None:
+            entry.merge_method_spans(spans)

@@ -297,14 +297,41 @@ class CodeBoardingAgent(MonitoringMixin):
         max_validation_attempts: int = 1,
         include_hidden: bool = False,
     ) -> ResultT:
-        """Parse, repair, and validate each candidate before best-of-N selection."""
+        """Bind deterministic repairs to every candidate before validation."""
+
+        def repair_candidate(result: ResultT) -> None:
+            self._repair_result(result, repairs, repair_context)
+
+        return self._invoke_validate(
+            prompt,
+            return_type,
+            validators,
+            validation_context,
+            max_validation_attempts=max_validation_attempts,
+            include_hidden=include_hidden,
+            candidate_repair=repair_candidate,
+        )
+
+    def _invoke_validate(
+        self,
+        prompt: str,
+        return_type: type[ResultT],
+        validators: list[Callable[[ResultT, ValidationContextT], ValidationResult]],
+        validation_context: ValidationContextT,
+        max_validation_attempts: int = 1,
+        include_hidden: bool = False,
+        candidate_repair: Callable[[ResultT], None] | None = None,
+    ) -> ResultT:
+        """Validate parsed candidates and return the best-scoring result."""
         # Compute the maximum possible score so we can detect a perfect result
         max_possible_score = sum(VALIDATOR_WEIGHTS.get(v.__name__, DEFAULT_VALIDATOR_WEIGHT) for v in validators)
 
         result = self._parse_invoke(prompt, return_type, include_hidden=include_hidden)
-        self._repair_result(result, repairs, repair_context)
+        if candidate_repair is not None:
+            candidate_repair(result)
         logger.info(
-            "[Validation] Parsed and repaired %s: %s",
+            "[Validation] Parsed%s %s: %s",
+            " and repaired" if candidate_repair is not None else "",
             return_type.__name__,
             result.llm_str()[:500],
         )
@@ -361,7 +388,8 @@ class CodeBoardingAgent(MonitoringMixin):
                 f"with {len(weighted_feedback)} feedback items"
             )
             result = self._parse_invoke(feedback_prompt, return_type, include_hidden=include_hidden)
-            self._repair_result(result, repairs, repair_context)
+            if candidate_repair is not None:
+                candidate_repair(result)
 
         return best_result
 

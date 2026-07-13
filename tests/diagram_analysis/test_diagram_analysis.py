@@ -21,7 +21,7 @@ from agents.agent_responses import (
     assign_component_ids,
 )
 from agents.file_index_models import FileEntry, FileMethodGroup, MethodEntry
-from agents.incremental_results import ScopeUpdateResult
+from agents.incremental_results import ScopeRelationContext, ScopeUpdateResult
 from agents.relation_edges import index_relation_endpoints
 from diagram_analysis.analysis_json import (
     ComponentFileMethodGroupJson,
@@ -506,7 +506,7 @@ class TestAnalysisJsonConversion(unittest.TestCase):
         self.assertEqual(edge.target.qualified_name, "component2.load")
         self.assertEqual(edge.target.reference_file, "component2.py")
 
-    def test_unified_analysis_serializes_indexed_relation_endpoints_outside_files(self):
+    def test_unified_analysis_does_not_invent_kinds_for_endpoints_outside_files(self):
         self.analysis.components_relations = [
             Relation(
                 relation="registers",
@@ -534,7 +534,7 @@ class TestAnalysisJsonConversion(unittest.TestCase):
         )
 
         self.assertNotIn("|importlib.metadata.entry_points", data["methods_index"])
-        self.assertEqual(data["methods_index"]["plugin.py|plugin.register"]["start_line"], 12)
+        self.assertNotIn("plugin.py|plugin.register", data["methods_index"])
         self.assertNotIn("", data["files"])
         parsed, _ = parse_unified_analysis(data)
         edge = parsed.components_relations[0].key_edges[0]
@@ -1178,7 +1178,11 @@ class TestDiagramGenerator(unittest.TestCase):
         )
         planning_agent = MagicMock()
         incremental_agent = MagicMock()
-        incremental_agent.update_scope.return_value = ScopeUpdateResult(removed_ids={"2"})
+        relation_context = ScopeRelationContext(cluster_results={}, cfg_graphs={})
+        incremental_agent.update_scope.return_value = ScopeUpdateResult(
+            relation_context=relation_context,
+            removed_ids={"2"},
+        )
         gen.incremental_planning_agent = planning_agent
         gen.incremental_agent = incremental_agent
         scope = AnalysisInsights(description="root", components=[], components_relations=[])
@@ -1191,7 +1195,78 @@ class TestDiagramGenerator(unittest.TestCase):
             {},
         )
 
-        self.assertEqual(result.touched_scopes, {"root"})
+        self.assertEqual(result.relation_contexts, {"root": relation_context})
+
+    @patch("diagram_analysis.diagram_generator._build_scope_incremental_inputs")
+    def test_recursive_scope_update_aggregates_relation_contexts(self, mock_build_scope_inputs):
+        gen = DiagramGenerator(
+            repo_location=self.repo_location,
+            temp_folder=self.temp_folder,
+            repo_name="test_repo",
+            output_dir=self.output_dir,
+            depth_level=3,
+            run_id="test-run-id",
+            log_path="test_repo/test-run-log",
+        )
+        root_context = ScopeRelationContext(cluster_results={}, cfg_graphs={})
+        child_context = ScopeRelationContext(
+            cluster_results={"python": ClusterResult(clusters={2: {"pkg.changed"}})},
+            cfg_graphs={},
+        )
+        incremental_agent = MagicMock()
+        incremental_agent.update_scope.side_effect = [
+            ScopeUpdateResult(relation_context=root_context, refresh_ids={"1"}),
+            ScopeUpdateResult(relation_context=child_context, refresh_ids={"1.1"}),
+        ]
+        gen.incremental_planning_agent = MagicMock()
+        gen.incremental_agent = incremental_agent
+        root_component = Component(name="Parent", description="", key_entities=[], component_id="1")
+        child_component = Component(
+            name="Child",
+            description="",
+            key_entities=[],
+            component_id="1.1",
+            file_methods=[
+                FileMethodGroup(
+                    file_path="pkg/module.py",
+                    methods=[
+                        MethodEntry(
+                            qualified_name="pkg.changed",
+                            start_line=1,
+                            end_line=2,
+                            node_type="FUNCTION",
+                        )
+                    ],
+                )
+            ],
+        )
+        root = AnalysisInsights(description="root", components=[root_component], components_relations=[])
+        child = AnalysisInsights(description="child", components=[child_component], components_relations=[])
+        child_diff = StructuralClusterDiff(
+            by_language={
+                "python": LanguageStructuralDiff(
+                    language="python",
+                    modified=[
+                        ClusterMemberDelta(
+                            old_cluster=ClusterRef(language="python", cluster_id=2),
+                            new_cluster=ClusterRef(language="python", cluster_id=2),
+                            removed_methods={"pkg.changed"},
+                        )
+                    ],
+                )
+            }
+        )
+        mock_build_scope_inputs.return_value = (child_context.cluster_results, child_diff)
+
+        result = gen._apply_incremental_scope_recursively(
+            "root",
+            root,
+            StructuralClusterDiff(),
+            {},
+            {"1": child},
+        )
+
+        self.assertEqual(result.relation_contexts, {"root": root_context, "1": child_context})
 
     @patch("diagram_analysis.diagram_generator.save_analysis")
     @patch("diagram_analysis.diagram_generator.prune_empty_components", return_value=set())
@@ -1302,8 +1377,16 @@ class TestDiagramGenerator(unittest.TestCase):
         )
         mock_planning_agent.return_value.decide_scope_update.side_effect = [root_decision, child_decision]
         _mock_incremental_agent.return_value.update_scope.side_effect = [
-            ScopeUpdateResult(refresh_ids={"1"}, new_component_ids=set()),
-            ScopeUpdateResult(refresh_ids={"1.1"}, new_component_ids=set()),
+            ScopeUpdateResult(
+                relation_context=ScopeRelationContext(cluster_results={}, cfg_graphs={}),
+                refresh_ids={"1"},
+                new_component_ids=set(),
+            ),
+            ScopeUpdateResult(
+                relation_context=ScopeRelationContext(cluster_results={}, cfg_graphs={}),
+                refresh_ids={"1.1"},
+                new_component_ids=set(),
+            ),
         ]
         mock_save_analysis.return_value = self.output_dir / "analysis.json"
 
@@ -1387,7 +1470,9 @@ class TestDiagramGenerator(unittest.TestCase):
             ]
         )
         _mock_incremental_agent.return_value.update_scope.return_value = ScopeUpdateResult(
-            refresh_ids={"1"}, new_component_ids=set()
+            relation_context=ScopeRelationContext(cluster_results={}, cfg_graphs={}),
+            refresh_ids={"1"},
+            new_component_ids=set(),
         )
         mock_build_scope_inputs.return_value = ({}, StructuralClusterDiff())
         mock_save_analysis.return_value = self.output_dir / "analysis.json"

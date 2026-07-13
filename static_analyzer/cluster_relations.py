@@ -116,15 +116,20 @@ def _collect_component_names(
     return id_to_name
 
 
-def _collect_llm_relations(
+def _collect_authoritative_relations(
     root_analysis: AnalysisInsights, sub_analyses: dict[str, AnalysisInsights]
 ) -> list[Relation]:
-    relations: list[Relation] = []
-    for _, sub_analysis in sorted(sub_analyses.items()):
-        relations.extend(sub_analysis.components_relations)
-    # Refreshed scope relations override stale global copies loaded on root.
-    relations.extend(root_analysis.components_relations)
-    return relations
+    """Select one metadata source per component pair, preferring live scopes."""
+    relations_by_pair: dict[tuple[str, str], Relation] = {}
+    analyses = [
+        root_analysis,
+        *(sub_analyses[scope_id] for scope_id in sorted(sub_analyses, key=lambda item: (item.count("."), item))),
+    ]
+    for analysis in analyses:
+        for relation in analysis.components_relations:
+            if relation.src_id and relation.dst_id:
+                relations_by_pair[(relation.src_id, relation.dst_id)] = relation
+    return list(relations_by_pair.values())
 
 
 def _ancestor_relation(src_id: str, dst_id: str, llm_relations: list[Relation]) -> Relation | None:
@@ -138,9 +143,7 @@ def _ancestor_relation(src_id: str, dst_id: str, llm_relations: list[Relation]) 
     ]
     if not candidates:
         return None
-    candidates.sort(
-        key=lambda rel: (-(rel.src_id.count(".") + rel.dst_id.count(".")), rel.src_id, rel.dst_id, rel.relation)
-    )
+    candidates.sort(key=lambda rel: (-(rel.src_id.count(".") + rel.dst_id.count(".")), rel.src_id, rel.dst_id))
     return candidates[0]
 
 
@@ -170,9 +173,9 @@ def build_global_relations(
     static_relations = build_component_relations(node_to_component, cfg_graphs)
     id_to_name = _collect_component_names(root_analysis, sub_analyses)
     live_ids = set(id_to_name)
-    llm_relations = _collect_llm_relations(root_analysis, sub_analyses)
+    llm_relations = _collect_authoritative_relations(root_analysis, sub_analyses)
 
-    global_relations: list[Relation] = []
+    global_relations: dict[tuple[str, str], Relation] = {}
     static_pairs = {(rel.src_cluster_id, rel.dst_cluster_id) for rel in static_relations}
     superseded_llm_pairs: set[tuple[str, str]] = set()
 
@@ -212,20 +215,17 @@ def build_global_relations(
                 is_static=True,
                 all_edges=all_edges,
             )
-        append_or_merge_relation(
-            global_relations,
-            relation,
-        )
+        global_relations[(src_id, dst_id)] = relation
 
-    for llm_rel in sorted(llm_relations, key=lambda rel: (rel.src_id, rel.dst_id, rel.relation)):
+    for llm_rel in llm_relations:
         pair = (llm_rel.src_id, llm_rel.dst_id)
-        if not llm_rel.src_id or not llm_rel.dst_id or llm_rel.src_id not in live_ids or llm_rel.dst_id not in live_ids:
+        if llm_rel.src_id not in live_ids or llm_rel.dst_id not in live_ids:
             continue
         if pair in static_pairs or pair in superseded_llm_pairs:
             continue
-        append_or_merge_relation(global_relations, llm_rel)
+        global_relations[pair] = llm_rel.with_merged_edges()
 
-    return sorted(global_relations, key=lambda rel: (rel.src_id, rel.dst_id, rel.relation))
+    return sorted(global_relations.values(), key=lambda rel: (rel.src_id, rel.dst_id))
 
 
 def merge_relations(

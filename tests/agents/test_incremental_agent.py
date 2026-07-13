@@ -16,7 +16,7 @@ from agents.agent_responses import (
     ScopedClusterRef,
     ScopeUpdateDecision,
 )
-from agents.file_index_models import FileMethodGroup, MethodEntry
+from agents.file_index_models import FileEntry, FileMethodGroup, MethodEntry
 from agents.incremental_agent import (
     IncrementalAgent,
     _cluster_analysis_for_scope,
@@ -24,7 +24,7 @@ from agents.incremental_agent import (
     prune_empty_components,
     remove_deleted_files,
 )
-from diagram_analysis.exceptions import IncrementalScopeContextMissingError
+from agents.incremental_results import ScopeRelationContext
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import NodeType
 from static_analyzer.graph import CallGraph, ClusterResult
@@ -148,7 +148,6 @@ class TestUpdateScope(unittest.TestCase):
         agent.static_analysis.get_languages.return_value = []
         agent.static_analysis.get_cfg.return_value.filter_by_nodes.return_value = "cfg"
         agent.reference_resolver = MagicMock()
-        agent._scope_relation_contexts = {}
 
         def populate(scope, _cluster_results, _cfg_graphs, _touched_ids, source_cluster_id_prefix=""):
             for component in scope.components:
@@ -196,11 +195,12 @@ class TestUpdateScope(unittest.TestCase):
         self.assertEqual(component.key_entities, [])
         self.assertEqual(result.refresh_ids, {"1"})
         self.assertEqual(result.new_component_ids, set())
-        reference_resolver.fix_key_entities_refs.assert_called_once_with(scope, {"1"}, force_resolve=True)
+        reference_resolver.fix_key_entities_refs.assert_called_once_with(scope, {"1"})
 
     def test_update_preserves_planner_selected_key_entities(self) -> None:
         component = _component("API", "1", source_cluster_ids=["1"])
         selected = SourceCodeReference(qualified_name="alias.method", reference_file="selected.py")
+        expected = selected.model_copy(deep=True)
         scope = AnalysisInsights(description="root", components=[component], components_relations=[])
         decision = ScopeUpdateDecision(
             operations=[
@@ -218,15 +218,15 @@ class TestUpdateScope(unittest.TestCase):
         reference_resolver = MagicMock()
         agent.reference_resolver = reference_resolver
 
-        def resolve_selected_key_entity(analysis, _component_ids, force_resolve=False):
-            self.assertTrue(force_resolve)
-            analysis.components[0].key_entities[0].qualified_name = "1.method"
+        def resolve_selected_key_entity(_analysis: AnalysisInsights, _component_ids: set[str]) -> None:
+            self.assertIs(_analysis, scope)
+            self.assertEqual(_component_ids, {"1"})
 
         reference_resolver.fix_key_entities_refs.side_effect = resolve_selected_key_entity
 
         agent.update_scope("root", scope, decision, {"python": ClusterResult()})
 
-        self.assertEqual(component.key_entities, [selected])
+        self.assertEqual(component.key_entities, [expected])
 
     def test_update_scope_moves_reassigned_clusters_between_siblings(self) -> None:
         first = _component("Core", "1.1", source_cluster_ids=["1.1", "1.2"])
@@ -272,7 +272,8 @@ class TestUpdateScope(unittest.TestCase):
         self.assertEqual(component.name, "API")
         self.assertEqual(component.description, "API description")
         self.assertEqual(result.refresh_ids, {"1"})
-        self.assertIn("root", agent._scope_relation_contexts)
+        self.assertEqual(result.relation_context.cluster_results, {"python": ClusterResult()})
+        self.assertEqual(result.relation_context.cfg_graphs, {})
 
     def test_create_component_assigns_id_clusters_methods_and_key_entities(self) -> None:
         existing = Component(name="API", description="", key_entities=[], component_id="1")
@@ -446,6 +447,10 @@ class TestIncrementalRelations(unittest.TestCase):
         ]
         scope = AnalysisInsights(
             description="root",
+            files={
+                "api.py": FileEntry(methods=[api.file_methods[0].methods[0].model_copy(deep=True)]),
+                "worker.py": FileEntry(methods=[worker.file_methods[0].methods[0].model_copy(deep=True)]),
+            },
             components=[api, worker],
             components_relations=[Relation(relation="legacy relation", src_name="API", dst_name="Worker")],
         )
@@ -484,7 +489,8 @@ class TestIncrementalRelations(unittest.TestCase):
                 agent_llm=MagicMock(),
                 parsing_llm=MagicMock(),
             )
-        agent._invoke_repair_validate = MagicMock(side_effect=[api_surfaces, relation_result])
+        agent._parse_invoke = MagicMock(return_value=api_surfaces)
+        agent._invoke_validate = MagicMock(return_value=relation_result)
         agent.reference_resolver = MagicMock()
         agent.reference_resolver.fix_source_code_reference_lines.side_effect = lambda analysis: analysis
 
@@ -493,12 +499,16 @@ class TestIncrementalRelations(unittest.TestCase):
         self.assertIn("unknown", system_message)
         self.assertNotIn("{project_name}", system_message)
 
-        generated = agent.generate_scope_relations(scope, "root", cluster_results, {"python": cfg})
+        generated = agent.generate_scope_relations(
+            scope,
+            "root",
+            ScopeRelationContext(cluster_results=cluster_results, cfg_graphs={"python": cfg}),
+        )
 
         self.assertEqual(generated, relation_result.components_relations)
-        self.assertEqual(agent._invoke_repair_validate.call_args_list[0].args[1], ComponentApiSurfaces)
-        self.assertNotIn("legacy relation", agent._invoke_repair_validate.call_args_list[0].args[0])
-        relation_call = agent._invoke_repair_validate.call_args_list[1]
+        self.assertEqual(agent._parse_invoke.call_args.args[1], ComponentApiSurfaces)
+        self.assertNotIn("legacy relation", agent._parse_invoke.call_args.args[0])
+        relation_call = agent._invoke_validate.call_args
         self.assertEqual(relation_call.args[1], ComponentRelations)
         self.assertNotIn("legacy relation", relation_call.args[0])
         self.assertEqual(relation_call.kwargs["validators"][0].__name__, "validate_relations")
@@ -509,16 +519,17 @@ class TestIncrementalRelations(unittest.TestCase):
         self.assertTrue(relation.is_static)
         self.assertTrue(any(edge.call_sites[0].line == 3 for edge in relation.all_edges if edge.call_sites))
         self.assertEqual(scope.files["api.py"].methods[0].qualified_name, source.fully_qualified_name)
-        self.assertEqual(scope.files["api.py"].methods[0].node_type, "REFERENCE")
+        self.assertEqual(scope.files["api.py"].methods[0].node_type, NodeType.FUNCTION.name)
 
     def test_generate_all_scope_relations_includes_root_scope_id(self) -> None:
         agent = object.__new__(IncrementalAgent)
         agent.generate_scope_relations = MagicMock(return_value=[])
         root = AnalysisInsights(description="root", components=[], components_relations=[])
+        context = ScopeRelationContext(cluster_results={}, cfg_graphs={})
 
-        agent.generate_all_scope_relations(root, {}, {"root"})
+        agent.generate_all_scope_relations(root, {}, {"root": context})
 
-        agent.generate_scope_relations.assert_called_once_with(root, "root")
+        agent.generate_scope_relations.assert_called_once_with(root, "root", context)
 
     def test_single_component_scope_clears_stale_relations_and_resolves_references(self) -> None:
         agent = object.__new__(IncrementalAgent)
@@ -530,23 +541,15 @@ class TestIncrementalRelations(unittest.TestCase):
             components_relations=[Relation(relation="stale", src_name="Only", dst_name="Removed")],
         )
 
-        result = agent.generate_scope_relations(scope, "root")
+        result = agent.generate_scope_relations(
+            scope,
+            "root",
+            ScopeRelationContext(cluster_results={}, cfg_graphs={}),
+        )
 
         self.assertEqual(result, [])
         self.assertEqual(scope.components_relations, [])
         agent.reference_resolver.fix_source_code_reference_lines.assert_called_once_with(scope)
-
-    def test_relation_generation_requires_recorded_scope_context(self) -> None:
-        agent = object.__new__(IncrementalAgent)
-        agent._scope_relation_contexts = {}
-        scope = AnalysisInsights(
-            description="root",
-            components=[_component("A", "1"), _component("B", "2")],
-            components_relations=[],
-        )
-
-        with self.assertRaises(IncrementalScopeContextMissingError):
-            agent.generate_scope_relations(scope, "root")
 
 
 class TestPatchFileMethods(unittest.TestCase):

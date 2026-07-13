@@ -376,7 +376,7 @@ class TestWarmStartDeletion(unittest.TestCase):
 
 
 class TestWarmStartOutboundEdges(unittest.TestCase):
-    def test_definition_resolution_selects_the_most_specific_node(self) -> None:
+    def test_definition_resolution_includes_the_most_specific_node_and_its_class(self) -> None:
         file_path = Path("/repo/pkg/converter.py")
         call_graph = CallGraph(language="python")
         call_graph.add_node(
@@ -407,7 +407,10 @@ class TestWarmStartOutboundEdges(unittest.TestCase):
 
         self.assertEqual(
             [node.fully_qualified_name for node in matches],
-            ["pkg.converter.DocumentConverter.convert"],
+            [
+                "pkg.converter.DocumentConverter.convert",
+                "pkg.converter.DocumentConverter",
+            ],
         )
 
     def test_cached_outbound_edge_is_restored_from_live_non_call_reference(self) -> None:

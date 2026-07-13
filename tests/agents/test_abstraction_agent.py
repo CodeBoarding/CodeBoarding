@@ -69,8 +69,8 @@ class TestAbstractionAgent(unittest.TestCase):
         self.assertIn("group_clusters", agent.prompts)
         self.assertIn("final_analysis", agent.prompts)
 
-    @patch("agents.abstraction_agent.AbstractionAgent._invoke_repair_validate")
-    def test_step_clusters_grouping_single_language(self, mock_invoke_repair_validate):
+    @patch("agents.abstraction_agent.AbstractionAgent._invoke_validate")
+    def test_step_clusters_grouping_single_language(self, mock_invoke_validate):
         # Test step_clusters_grouping with single language
         mock_llm = MagicMock()
         mock_parsing_llm = MagicMock()
@@ -86,7 +86,7 @@ class TestAbstractionAgent(unittest.TestCase):
         mock_response = ClusterAnalysis(
             cluster_components=[],
         )
-        mock_invoke_repair_validate.return_value = mock_response
+        mock_invoke_validate.return_value = mock_response
 
         mock_cluster_result = ClusterResult(clusters={1: {"node1"}})
         cluster_results = {"python": mock_cluster_result}
@@ -94,10 +94,10 @@ class TestAbstractionAgent(unittest.TestCase):
         result = agent.step_clusters_grouping(cluster_results)
 
         self.assertEqual(result, mock_response)
-        mock_invoke_repair_validate.assert_called_once()
+        mock_invoke_validate.assert_called_once()
 
-    @patch("agents.abstraction_agent.AbstractionAgent._invoke_repair_validate")
-    def test_step_clusters_grouping_multiple_languages(self, mock_invoke_repair_validate):
+    @patch("agents.abstraction_agent.AbstractionAgent._invoke_validate")
+    def test_step_clusters_grouping_multiple_languages(self, mock_invoke_validate):
         # Test step_clusters_grouping with multiple languages
         self.mock_static_analysis.get_languages.return_value = ["python", "javascript"]
 
@@ -115,7 +115,7 @@ class TestAbstractionAgent(unittest.TestCase):
         mock_response = ClusterAnalysis(
             cluster_components=[],
         )
-        mock_invoke_repair_validate.return_value = mock_response
+        mock_invoke_validate.return_value = mock_response
 
         # Create mock cluster_results for both languages
         from static_analyzer.graph import ClusterResult
@@ -128,8 +128,8 @@ class TestAbstractionAgent(unittest.TestCase):
         self.assertEqual(result, mock_response)
         self.mock_static_analysis.get_cfg.assert_called()
 
-    @patch("agents.abstraction_agent.AbstractionAgent._invoke_repair_validate")
-    def test_step_clusters_grouping_no_languages(self, mock_invoke_repair_validate):
+    @patch("agents.abstraction_agent.AbstractionAgent._invoke_validate")
+    def test_step_clusters_grouping_no_languages(self, mock_invoke_validate):
         # Test step_clusters_grouping with no languages detected
         self.mock_static_analysis.get_languages.return_value = []
 
@@ -147,7 +147,7 @@ class TestAbstractionAgent(unittest.TestCase):
         mock_response = ClusterAnalysis(
             cluster_components=[],
         )
-        mock_invoke_repair_validate.return_value = mock_response
+        mock_invoke_validate.return_value = mock_response
 
         # Empty cluster_results for no languages
         cluster_results: dict = {}

@@ -247,7 +247,10 @@ class TestConvenienceFunctions(unittest.TestCase):
             "api surfaces and relations are generated later",
             "for create_component",
             "for update_component",
+            "for delete_component or noop",
             "copy the exact component_id",
+            "mutually exclusive branches",
+            "unsupported by the current incremental schema",
         }
 
         for llm_type in LLMType:
@@ -268,12 +271,21 @@ class TestConvenienceFunctions(unittest.TestCase):
         for llm_type in LLMType:
             factory = PromptFactory(llm_type)._prompt_factory
             system_prompt = factory.get_system_message()
-            api_prompt = factory.get_api_surfaces_message()
-            relation_prompt = factory.get_relation_analysis_message()
+            concrete_prompts = [
+                factory.get_cluster_grouping_message(),
+                factory.get_final_analysis_message(),
+                factory.get_cfg_details_message(),
+                factory.get_details_message(),
+                factory.get_incremental_grouping_message(),
+                factory.get_planning_message(),
+                factory.get_scope_relations_message(),
+                factory.get_api_surfaces_message(),
+                factory.get_relation_analysis_message(),
+            ]
             for variable in context_variables:
                 self.assertIn(variable, system_prompt)
-                self.assertNotIn(variable, api_prompt)
-                self.assertNotIn(variable, relation_prompt)
+                for concrete_prompt in concrete_prompts:
+                    self.assertNotIn(variable, concrete_prompt)
             formatted_system_prompt = system_prompt.format(
                 project_name="Example",
                 project_type="library",

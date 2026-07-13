@@ -1,7 +1,6 @@
 """Incremental refresh helpers for scoped structural updates."""
 
 import logging
-from dataclasses import dataclass
 from pathlib import Path
 
 from langchain_core.language_models import BaseChatModel
@@ -29,12 +28,16 @@ from agents.file_index_models import FileMethodGroup, MethodEntry
 from agents.cluster_methods_mixin import ClusterMethodsMixin
 from agents.content_hash import SourceCache
 from agents.cluster_ids import CodeBoardingClusterIds
-from agents.incremental_results import ScopeUpdateResult
-from agents.prompts import get_api_surfaces_message, get_relation_analysis_message, get_system_message
+from agents.incremental_results import ScopeRelationContext, ScopeUpdateResult
+from agents.prompts import (
+    format_project_system_message,
+    get_api_surfaces_message,
+    get_relation_analysis_message,
+    get_system_message,
+)
 from agents.relation_edges import index_relation_endpoints
 from agents.scope_ids import ROOT_SCOPE_ID
 from agents.validation import ValidationContext, validate_relations
-from diagram_analysis.exceptions import IncrementalScopeContextMissingError
 from diagram_analysis.file_index import build_files_index
 from monitoring import trace
 from repo_utils.change_detector import ChangeSet
@@ -43,12 +46,6 @@ from static_analyzer.constants import Language
 from static_analyzer.graph import CallGraph, ClusterResult
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass(frozen=True)
-class _ScopeRelationContext:
-    cluster_results: dict[str, ClusterResult]
-    cfg_graphs: dict[str, CallGraph]
 
 
 class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
@@ -64,19 +61,12 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
         parsing_llm: BaseChatModel,
         changes: ChangeSet | None = None,
     ):
-        meta_context_str = meta_context.llm_str() if meta_context else "No project context available."
-        project_type = meta_context.project_type if meta_context else "unknown"
-        system_message = get_system_message().format(
-            project_name=project_name,
-            project_type=project_type,
-            meta_context=meta_context_str,
-        )
+        system_message = format_project_system_message(get_system_message(), project_name, meta_context)
         super().__init__(repo_dir, static_analysis, system_message, agent_llm, parsing_llm)
         if changes is not None:
             self.toolkit.context.changes = changes
         self.project_name = project_name
         self.meta_context = meta_context
-        self._scope_relation_contexts: dict[str, _ScopeRelationContext] = {}
         self.prompts = {
             "api_surfaces": PromptTemplate(
                 template=get_api_surfaces_message(),
@@ -104,15 +94,28 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
         cluster_results: dict[str, ClusterResult],
     ) -> ScopeUpdateResult:
         """Apply a planning decision to one scope and refresh its derived fields."""
-        result = ScopeUpdateResult()
         components_by_id = {
             component.component_id: component for component in scope.components if component.component_id
         }
-        result.refresh_ids.update(_remove_reassigned_clusters(scope_id, scope.components, components_by_id, decision))
+        refresh_ids = _remove_reassigned_clusters(
+            scope_id,
+            scope.components,
+            components_by_id,
+            decision,
+        )
+        new_component_ids: set[str] = set()
+        removed_ids: set[str] = set()
 
         for operation in decision.operations:
             if operation.action == ScopeOperationAction.CREATE_COMPONENT:
-                self._create_component_from_operation(scope_id, scope, operation, components_by_id, result)
+                self._create_component_from_operation(
+                    scope_id,
+                    scope,
+                    operation,
+                    components_by_id,
+                    refresh_ids,
+                    new_component_ids,
+                )
                 continue
             if operation.action == ScopeOperationAction.DELETE_COMPONENT:
                 if operation.component_id:
@@ -120,9 +123,9 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
                     if component is not None and _component_has_live_cfg_methods(
                         component, _live_cfg_qnames(self.static_analysis)
                     ):
-                        result.refresh_ids.add(operation.component_id)
+                        refresh_ids.add(operation.component_id)
                         continue
-                    result.removed_ids.add(operation.component_id)
+                    removed_ids.add(operation.component_id)
                 continue
             if operation.action == ScopeOperationAction.NOOP:
                 component = components_by_id.get(operation.component_id or "")
@@ -131,7 +134,7 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
                         set(component.source_cluster_ids) | set(_operation_source_cluster_ids(scope_id, operation))
                     )
                     if component.component_id:
-                        result.refresh_ids.add(component.component_id)
+                        refresh_ids.add(component.component_id)
                 continue
 
             component = components_by_id.get(operation.component_id or "")
@@ -139,29 +142,31 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
                 continue
             self._update_component_from_operation(scope_id, component, operation)
             if component.component_id:
-                result.refresh_ids.add(component.component_id)
+                refresh_ids.add(component.component_id)
 
-        if result.removed_ids:
+        if removed_ids:
             scope.components = [
-                component for component in scope.components if component.component_id not in result.removed_ids
+                component for component in scope.components if component.component_id not in removed_ids
             ]
-            _strip_relations(scope, result.removed_ids)
+            _strip_relations(scope, removed_ids)
 
-        touched_ids = result.refresh_ids | result.new_component_ids
+        touched_ids = refresh_ids | new_component_ids
         if touched_ids:
             cfg_graphs = _cfg_graphs_for_cluster_results(self.static_analysis, cluster_results)
             self._patch_scope_file_methods(scope, cluster_results, cfg_graphs, touched_ids, scope_id)
-            self.reference_resolver.fix_key_entities_refs(scope, touched_ids, force_resolve=True)
-
-        if touched_ids or result.removed_ids:
-            self._scope_relation_contexts[scope_id] = _ScopeRelationContext(
-                cluster_results=cluster_results,
-                cfg_graphs=_cfg_graphs_for_scope_methods(self.static_analysis, scope),
-            )
+            self.reference_resolver.fix_key_entities_refs(scope, touched_ids)
 
         _log_duplicate_cluster_ownership(scope_id, scope.components)
 
-        return result
+        return ScopeUpdateResult(
+            relation_context=ScopeRelationContext(
+                cluster_results=cluster_results,
+                cfg_graphs=_cfg_graphs_for_scope_methods(self.static_analysis, scope),
+            ),
+            refresh_ids=refresh_ids,
+            new_component_ids=new_component_ids,
+            removed_ids=removed_ids,
+        )
 
     def _create_component_from_operation(
         self,
@@ -169,7 +174,8 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
         scope: AnalysisInsights,
         operation: ScopeOperation,
         components_by_id: dict[str, Component],
-        result: ScopeUpdateResult,
+        refresh_ids: set[str],
+        new_component_ids: set[str],
     ) -> None:
         source_cluster_ids = _operation_source_cluster_ids(scope_id, operation)
         if not source_cluster_ids:
@@ -190,8 +196,8 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
         scope.components.append(component)
         assign_component_ids(scope, parent_id=_component_id_parent(scope_id), only_new=True)
         if component.component_id:
-            result.refresh_ids.add(component.component_id)
-            result.new_component_ids.add(component.component_id)
+            refresh_ids.add(component.component_id)
+            new_component_ids.add(component.component_id)
             components_by_id[component.component_id] = component
 
     def _update_component_from_operation(
@@ -250,15 +256,7 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
             ).llm_str(),
             static_call_evidence=self.build_scope_cfg_string(scope),
         )
-        return self._invoke_repair_validate(
-            prompt,
-            ComponentApiSurfaces,
-            repairs=[],
-            validators=[],
-            repair_context=None,
-            validation_context=None,
-            max_validation_attempts=1,
-        )
+        return self._parse_invoke(prompt, ComponentApiSurfaces)
 
     @trace
     def step_relation_analysis(
@@ -282,12 +280,10 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
             api_surfaces=api_surfaces.llm_str(),
             static_call_evidence=self.build_scope_cfg_string(scope),
         )
-        relation_result: ComponentRelations = self._invoke_repair_validate(
+        relation_result: ComponentRelations = self._invoke_validate(
             prompt,
             ComponentRelations,
-            repairs=[],
             validators=[validate_relations],
-            repair_context=None,
             validation_context=ValidationContext(
                 cluster_results=cluster_results,
                 cfg_graphs=cfg_graphs,
@@ -310,8 +306,7 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
         self,
         scope: AnalysisInsights,
         scope_name: str,
-        cluster_results: dict[str, ClusterResult] | None = None,
-        cfg_graphs: dict[str, CallGraph] | None = None,
+        context: ScopeRelationContext,
     ) -> list[Relation]:
         """Run the API-surface and relation stages for one updated scope."""
         if len(scope.components) < 2:
@@ -319,22 +314,15 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
             self.reference_resolver.fix_source_code_reference_lines(scope)
             return []
 
-        if cluster_results is None or cfg_graphs is None:
-            context = self._scope_relation_contexts.get(scope_name)
-            if context is None:
-                raise IncrementalScopeContextMissingError(scope_name)
-            cluster_results = context.cluster_results
-            cfg_graphs = context.cfg_graphs
-
-        cluster_analysis = _cluster_analysis_for_scope(scope, scope_name, cluster_results)
+        cluster_analysis = _cluster_analysis_for_scope(scope, scope_name, context.cluster_results)
         api_surfaces = self.step_api_surfaces(scope, scope_name)
         return self.step_relation_analysis(
             scope,
             scope_name,
             api_surfaces,
             cluster_analysis,
-            cluster_results,
-            cfg_graphs,
+            context.cluster_results,
+            context.cfg_graphs,
         )
 
     @trace
@@ -342,18 +330,19 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
         self,
         root_analysis: AnalysisInsights,
         sub_analyses: dict[str, AnalysisInsights],
-        touched_scopes: set[str],
+        relation_contexts: dict[str, ScopeRelationContext],
     ) -> None:
         """Generate LLM relations for every touched scope with at least two components."""
         all_llm_rels: list[tuple[str, list[Relation]]] = []
-        if ROOT_SCOPE_ID in touched_scopes:
-            rels = self.generate_scope_relations(root_analysis, ROOT_SCOPE_ID)
+        root_context = relation_contexts.get(ROOT_SCOPE_ID)
+        if root_context is not None:
+            rels = self.generate_scope_relations(root_analysis, ROOT_SCOPE_ID, root_context)
             if rels:
                 all_llm_rels.append((ROOT_SCOPE_ID, rels))
-        for scope_id in sorted(touched_scopes - {ROOT_SCOPE_ID}):
+        for scope_id in sorted(relation_contexts.keys() - {ROOT_SCOPE_ID}):
             sub = sub_analyses.get(scope_id)
             if sub is not None:
-                rels = self.generate_scope_relations(sub, scope_id)
+                rels = self.generate_scope_relations(sub, scope_id, relation_contexts[scope_id])
                 if rels:
                     all_llm_rels.append((scope_id, rels))
 

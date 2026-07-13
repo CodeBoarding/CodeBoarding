@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 from static_analyzer.constants import Language
-from static_analyzer.internal_references import looks_internal_reference
+from static_analyzer.internal_references import looks_internal_reference, parent_qualified_name
 
 
 @dataclass
@@ -48,3 +48,9 @@ def test_internal_reference_keeps_private_token_signal():
     source = _ReferenceSource(["app.pipeline._internal_dispatch.run"])
 
     assert looks_internal_reference(source, "plugin._internal_dispatch")
+
+
+def test_parent_qualified_name_strips_member_and_signature():
+    assert parent_qualified_name("pkg.Dog.__init__") == "pkg.Dog"
+    assert parent_qualified_name("pkg.Dog(args).run") == "pkg.Dog"
+    assert parent_qualified_name("standalone") == ""

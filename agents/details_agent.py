@@ -22,6 +22,7 @@ from agents.prompts import (
     get_details_message,
     get_api_surfaces_message,
     get_relation_analysis_message,
+    format_project_system_message,
 )
 from agents.relation_edges import index_relation_endpoints
 from agents.repair import ComponentRepairContext, repair_component_group_names, repair_key_entities
@@ -57,13 +58,7 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
         parsing_llm: BaseChatModel,
         run_id: str,
     ):
-        meta_context_str = meta_context.llm_str() if meta_context else "No project context available."
-        project_type = meta_context.project_type if meta_context else "unknown"
-        system_message = get_system_details_message().format(
-            project_name=project_name,
-            project_type=project_type,
-            meta_context=meta_context_str,
-        )
+        system_message = format_project_system_message(get_system_details_message(), project_name, meta_context)
         super().__init__(repo_dir, static_analysis, system_message, agent_llm, parsing_llm)
         self.project_name = project_name
         self.meta_context = meta_context
@@ -75,11 +70,11 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
         self.prompts = {
             "group_clusters": PromptTemplate(
                 template=get_cfg_details_message(),
-                input_variables=["project_name", "cfg_clusters", "component", "meta_context", "project_type"],
+                input_variables=["cfg_clusters", "component"],
             ),
             "final_analysis": PromptTemplate(
                 template=get_details_message(),
-                input_variables=["project_name", "cluster_analysis", "component", "meta_context", "project_type"],
+                input_variables=["cluster_analysis", "component"],
             ),
             "api_surfaces": PromptTemplate(
                 template=get_api_surfaces_message(),
@@ -113,18 +108,12 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
             ClusterAnalysis with grouped clusters for this component
         """
         logger.info(f"[DetailsAgent] Grouping clusters for component: {component.name}")
-        meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
-        project_type = self.meta_context.project_type if self.meta_context else "unknown"
-
         programming_langs = self.static_analysis.get_languages()
 
         overhead_chars = len(str(self.system_message.content)) + len(
             self.prompts["group_clusters"].format(
-                project_name=self.project_name,
                 cfg_clusters="",
                 component=component.llm_str(),
-                meta_context=meta_context_str,
-                project_type=project_type,
             )
         )
         cluster_str = self._build_cluster_string(
@@ -132,11 +121,8 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
         )
 
         prompt = self.prompts["group_clusters"].format(
-            project_name=self.project_name,
             cfg_clusters=cluster_str,
             component=component.llm_str(),
-            meta_context=meta_context_str,
-            project_type=project_type,
         )
 
         context = ValidationContext(
@@ -148,12 +134,10 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
 
         if (cached := self._cluster_cache.load(cache_key)) is not None:
             return cached
-        cluster_analysis = self._invoke_repair_validate(
+        cluster_analysis = self._invoke_validate(
             prompt,
             ClusterAnalysis,
-            repairs=[],
             validators=[validate_cluster_coverage],
-            repair_context=None,
             validation_context=context,
             max_validation_attempts=3,
         )
@@ -184,19 +168,13 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
             AnalysisInsights with detailed component information
         """
         logger.info(f"[DetailsAgent] Generating final detailed analysis for: {component.name}")
-        meta_context_str = self.meta_context.llm_str() if self.meta_context else "No project context available."
-        project_type = self.meta_context.project_type if self.meta_context else "unknown"
-
         cluster_str = cluster_analysis.llm_str() if cluster_analysis else "No cluster analysis available."
 
         group_names = [cc.name for cc in cluster_analysis.cluster_components] if cluster_analysis else []
 
         prompt = self.prompts["final_analysis"].format(
-            project_name=self.project_name,
             cluster_analysis=cluster_str,
             component=component.llm_str(),
-            meta_context=meta_context_str,
-            project_type=project_type,
         )
 
         if group_names:
@@ -255,15 +233,7 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
             component_summaries=analysis.llm_str(),
             static_call_evidence=static_call_evidence,
         )
-        return self._invoke_repair_validate(
-            prompt,
-            ComponentApiSurfaces,
-            repairs=[],
-            validators=[],
-            repair_context=None,
-            validation_context=None,
-            max_validation_attempts=1,
-        )
+        return self._parse_invoke(prompt, ComponentApiSurfaces)
 
     @trace
     def step_relation_analysis(
@@ -285,12 +255,10 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
             api_surfaces=api_surfaces.llm_str(),
             static_call_evidence=static_call_evidence,
         )
-        relation_result = self._invoke_repair_validate(
+        relation_result = self._invoke_validate(
             prompt,
             ComponentRelations,
-            repairs=[],
             validators=[validate_relations],
-            repair_context=None,
             validation_context=ValidationContext(
                 cluster_results=cluster_results,
                 cfg_graphs=cfg_graphs,

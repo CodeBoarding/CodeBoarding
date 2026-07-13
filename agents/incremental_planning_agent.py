@@ -16,7 +16,7 @@ from agents.agent_responses import (
     ScopeUpdateDecision,
 )
 from agents.cluster_ids import CodeBoardingClusterIds
-from agents.prompts import get_planning_message, get_system_message
+from agents.prompts import format_project_system_message, get_planning_message, get_system_message
 from agents.repair import (
     ScopeOperationRepairContext,
     repair_unambiguous_routing_and_optional_key_entity_metadata,
@@ -54,13 +54,7 @@ class IncrementalPlanningAgent(CodeBoardingAgent):
         parsing_llm: BaseChatModel,
         changes: ChangeSet | None = None,
     ):
-        meta_context_str = meta_context.llm_str() if meta_context else "No project context available."
-        project_type = meta_context.project_type if meta_context else "unknown"
-        system_message = get_system_message().format(
-            project_name=project_name,
-            project_type=project_type,
-            meta_context=meta_context_str,
-        )
+        system_message = format_project_system_message(get_system_message(), project_name, meta_context)
         super().__init__(repo_dir, static_analysis, system_message, agent_llm, parsing_llm)
         if changes is not None:
             self.toolkit.context.changes = changes

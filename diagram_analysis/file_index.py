@@ -11,7 +11,7 @@ from agents.content_hash import (
     hash_whole_file,
     read_source_lines,
 )
-from agents.file_index_models import FileEntry
+from agents.file_index_models import FileEntry, MethodEntry
 from repo_utils.path_utils import normalize_repo_path
 from static_analyzer.analysis_result import StaticAnalysisResults
 
@@ -26,29 +26,23 @@ def build_files_index(
     files: dict[str, FileEntry] = {}
     for component in analysis.components:
         for file_methods in component.file_methods:
-            entry = files.get(file_methods.file_path)
-            if entry is None:
-                entry = FileEntry(
-                    methods=[],
-                    content_hash=hash_whole_file(read_source_lines(repo_dir, file_methods.file_path, file_cache)),
-                )
-                files[file_methods.file_path] = entry
-
-            methods_by_qname = {method.qualified_name: method for method in entry.methods}
+            entry = files.setdefault(file_methods.file_path, FileEntry())
+            source_lines = read_source_lines(repo_dir, file_methods.file_path, file_cache)
+            indexed_methods: list[MethodEntry] = []
             for method in file_methods.methods:
-                if method.qualified_name in methods_by_qname:
-                    continue
                 indexed_method = method.model_copy(deep=True)
                 indexed_method.content_hash = hash_method_body(
-                    read_source_lines(repo_dir, file_methods.file_path, file_cache),
+                    source_lines,
                     method.start_line,
                     method.end_line,
                 )
-                methods_by_qname[method.qualified_name] = indexed_method
+                indexed_methods.append(indexed_method)
 
-            entry.methods = sorted(
-                methods_by_qname.values(),
-                key=lambda method: (method.start_line, method.end_line, method.qualified_name),
+            entry.merge_from(
+                FileEntry(
+                    methods=indexed_methods,
+                    content_hash=hash_whole_file(source_lines),
+                )
             )
     return files
 

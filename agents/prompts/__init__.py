@@ -11,6 +11,7 @@ from .prompt_factory import (
     initialize_global_factory,
     get_global_factory,
     get_prompt,
+    format_project_system_message,
 )
 
 # Import all the convenience functions for backward compatibility
@@ -60,6 +61,7 @@ __all__ = [
     "initialize_global_factory",
     "get_global_factory",
     "get_prompt",
+    "format_project_system_message",
     # Convenience functions
     "get_system_message",
     "get_cluster_grouping_message",

@@ -152,6 +152,14 @@ class TestResolveDefinitionToSymbol:
         )
         assert result is None
 
+    def test_returns_none_for_missing_position(self):
+        result = _resolve_definition_to_symbol(
+            {"uri": Path("/p/a.py").as_uri(), "range": {}},
+            {},
+            {},
+        )
+        assert result is None
+
     def test_returns_none_when_no_match(self):
         result = _resolve_definition_to_symbol(
             {"uri": Path("/p/a.py").as_uri(), "range": {"start": {"line": 100, "character": 0}}},

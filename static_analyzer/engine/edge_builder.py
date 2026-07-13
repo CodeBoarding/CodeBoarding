@@ -21,7 +21,8 @@ from static_analyzer.engine.lsp_constants import (
 from static_analyzer.engine.models import CallSite, SymbolInfo
 from static_analyzer.engine.protocols import EdgeBuildAdapter
 from static_analyzer.engine.symbol_table import SymbolTable
-from static_analyzer.engine.utils import uri_to_path
+from static_analyzer.engine.utils import definition_location, uri_to_path
+from static_analyzer.internal_references import parent_qualified_name
 
 logger = logging.getLogger(__name__)
 
@@ -358,14 +359,10 @@ def _resolve_definitions(
                     if adapter.is_callable(target.kind) and target.parent_chain:
                         _, parent_kind = target.parent_chain[-1]
                         if adapter.is_class_like(parent_kind):
-                            parent_qname = target.qualified_name.rsplit(".", 1)[0]
-                            paren_idx = parent_qname.find("(")
-                            if paren_idx != -1:
-                                parent_qname = parent_qname[:paren_idx]
-                            if parent_qname in st.symbols:
-                                parent_sym = st.symbols[parent_qname]
-                                if _is_valid_edge(caller, parent_sym):
-                                    _add_edge_call_site(edge_set, caller.qualified_name, parent_qname, call_site)
+                            parent_qname = parent_qualified_name(target.qualified_name)
+                            parent_sym = st.symbols.get(parent_qname)
+                            if parent_sym is not None and _is_valid_edge(caller, parent_sym):
+                                _add_edge_call_site(edge_set, caller.qualified_name, parent_qname, call_site)
 
                     # Queue implementation query for polymorphic dispatch
                     if adapter.is_callable(target.kind):
@@ -495,20 +492,10 @@ def _resolve_definition_to_symbol(
     line_to_syms: dict[tuple[str, int], list[SymbolInfo]],
 ) -> SymbolInfo | None:
     """Resolve a definition LSP result to a SymbolInfo in our table."""
-    if "targetUri" in def_result:
-        uri = def_result["targetUri"]
-        sel_range = def_result.get("targetSelectionRange", def_result.get("targetRange", {}))
-    else:
-        uri = def_result.get("uri", "")
-        sel_range = def_result.get("range", {})
-
-    file_path = uri_to_path(uri)
-    if file_path is None:
+    location = definition_location(def_result)
+    if location is None:
         return None
-
-    start = sel_range.get("start", {})
-    line = start.get("line", -1)
-    char = start.get("character", -1)
+    file_path, line, char = location
     file_key = str(file_path)
 
     # Exact match on (file, line, char)

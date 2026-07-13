@@ -18,12 +18,7 @@ from .abstract_prompt_factory import AbstractPromptFactory
 
 SCOPE_RELATIONS_MESSAGE = """You are Kimi, an AI assistant created by Moonshot AI.
 
-Task: Generate inter-component relationships for the `{scope_name}` scope of `{project_name}`.
-
-Project Context:
-{meta_context}
-
-Project Type: {project_type}
+Task: Generate inter-component relationships for the `{scope_name}` scope.
 
 Components in this scope:
 {component_summaries}
@@ -65,12 +60,7 @@ Focus on architectural patterns for {project_type} projects with clear component
 
 CLUSTER_GROUPING_MESSAGE = """You are Kimi, an AI assistant created by Moonshot AI.
 
-Project Context:
-Project Type: {project_type}
-
-{meta_context}
-
-Analyze and GROUP the Control Flow Graph clusters for `{project_name}`.
+Analyze and GROUP the Control Flow Graph clusters.
 
 The CFG has been pre-clustered into groups of related methods/functions. Each cluster represents methods that call each other frequently.
 
@@ -94,19 +84,16 @@ Reason carefully, then execute:
      * How this group interacts with other cluster groups (which groups it calls, receives data from, or depends on)
      * The most important classes/methods in this group — mention their exact qualified names as shown in the clusters above
 
-Focus on creating cohesive, logical groupings that reflect the actual {project_type} architecture based on semantic meaning from method names, call patterns, and architectural context. Describe inter-group interactions based on the inter-cluster connections.
+Focus on creating cohesive, logical groupings that reflect the actual architecture based on semantic meaning from method names, call patterns, and architectural context. Describe inter-group interactions based on the inter-cluster connections.
 
 Return each grouped component with a descriptive name, its cluster_ids list, and a comprehensive description covering rationale and inter-group interactions."""
 
 FINAL_ANALYSIS_MESSAGE = """You are Kimi, an AI assistant created by Moonshot AI.
 
-Project Context:
-{meta_context}
-
 Cluster Analysis:
 {cluster_analysis}
 
-Task: Create final component architecture for `{project_name}` optimized for flow representation.
+Task: Create final component architecture optimized for flow representation.
 
 Reason step-by-step. Decompose this into subtasks:
 
@@ -116,7 +103,7 @@ Reason step-by-step. Decompose this into subtasks:
 4. For each component, list the 2-5 most important classes/methods, referencing their qualified names and source files.
 5. Do not define relationships yet; relationships are discovered in a later API-surface step.
 
-Guidelines for {project_type} projects:
+Guidelines:
 - Aim for 5-8 final components
 - Merge related cluster groups that serve a common purpose
 - Each component should have clear boundaries
@@ -300,12 +287,7 @@ Focus on subsystem-specific functionality. Avoid cross-cutting concerns like log
 
 CFG_DETAILS_MESSAGE = """You are Kimi, an AI assistant created by Moonshot AI.
 
-Project Context:
-Project Type: {project_type}
-
-{meta_context}
-
-Task: Analyze and GROUP the Control Flow Graph clusters for the `{component}` subsystem of `{project_name}`.
+Task: Analyze and GROUP the Control Flow Graph clusters for the `{component}` subsystem.
 
 The CFG has been pre-clustered into groups of related methods/functions. Each cluster represents methods that call each other frequently.
 
@@ -333,13 +315,10 @@ Return each grouped sub-component with a descriptive name, its cluster_ids list,
 
 DETAILS_MESSAGE = """You are Kimi, an AI assistant created by Moonshot AI.
 
-Project Context:
-{meta_context}
-
 Cluster Analysis:
 {cluster_analysis}
 
-Task: Create final sub-component architecture for the `{component}` subsystem of `{project_name}` optimized for flow representation.
+Task: Create final sub-component architecture for the `{component}` subsystem optimized for flow representation.
 
 Think aloud first (reasoning), then synthesize:
 
@@ -349,7 +328,7 @@ Think aloud first (reasoning), then synthesize:
 4. For each sub-component, list the 2-5 most important classes/methods, referencing their qualified names and source files.
 5. Do not define relationships yet; relationships are discovered in a later API-surface step.
 
-Guidelines for {project_type} projects:
+Guidelines:
 - Aim for 3-8 final sub-components
 - Merge related cluster groups that serve a common purpose
 - Each sub-component should have clear boundaries
@@ -366,12 +345,7 @@ Justify component choices based on fundamental architectural importance."""
 
 INCREMENTAL_GROUPING_MESSAGE = """You are Kimi, an AI assistant created by Moonshot AI.
 
-Reason step-by-step about how the architecture of `{project_name}` should change as new and modified CFG clusters arrive. Use tools proactively to verify any cluster placement you're not confident about.
-
-Project context:
-- Project: {project_name}
-- Type: {project_type}
-- Meta: {meta_context}
+Reason step-by-step about how the architecture should change as new and modified CFG clusters arrive. Use tools proactively to verify any cluster placement you're not confident about.
 
 The previous analysis established the components below. Most clusters are unchanged and stay where they are; this prompt only shows the structural slice that changed: new clusters, removed clusters, or clusters whose member set changed through added/removed methods. A method body edit by itself is not a cluster-boundary change.
 
@@ -416,15 +390,15 @@ Rules:
 - For new clusters, decide from the structural diff whether they extend an existing responsibility or introduce a new component; do not infer this from file/package layout alone.
 - For reshaped groups, follow overlap counts to keep old cluster ownership stable. Only assign a reshaped new cluster to a different component when the diff proves a real responsibility move.
 - Use listGitChanges proactively but narrowly when the structural diff is not enough to judge semantic impact.
-- Do not reparent existing components. Preserve their current scope; reparenting is not a valid incremental operation.
+- Reparenting existing components is unsupported by the current incremental schema. Preserve their current scope.
 - Every modified/new/reshaped new-side cluster listed below must appear in exactly one operation's cluster_refs.
 
 Architecture output contract:
 - This step plans component boundaries only. Do not define component relations; API surfaces and relations are generated later.
-- Preserve an existing component's name, description, and key entities unless its architectural responsibility changed.
-- For create_component, provide a clear name and description. Select up to 5 key_entities only when their exact qualified names are available; otherwise leave them empty. Key entities are not synthesized later.
-- For update_component, include refreshed name, description, or key_entities only when the component's responsibility changed. An empty key_entities list preserves the current selection.
-- For update_component, delete_component, and noop, copy the exact component_id from the existing-components list.
+- Choose exactly one of these mutually exclusive branches for each operation:
+  - For create_component only: leave component_id null; provide a clear name and description. Select up to 5 key_entities only when their exact qualified names are available; otherwise leave them empty. Key entities are not synthesized later.
+  - For update_component only: copy the exact component_id from the existing-components list. Include refreshed name, description, or key_entities only when the component's architectural responsibility changed; otherwise preserve the existing metadata. An empty key_entities list preserves the current selection.
+  - For delete_component or noop only: copy the exact component_id from the existing-components list and leave name, description, and key_entities empty. Use delete_component only when the component has no remaining responsibility; use noop to preserve it unchanged.
 """
 
 

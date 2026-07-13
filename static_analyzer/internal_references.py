@@ -20,6 +20,14 @@ def reference_tokens(qualified_name: str) -> list[str]:
     return [token.lower() for token in re.split(r"[.:/\\]+", qualified_name) if token]
 
 
+def parent_qualified_name(qualified_name: str) -> str:
+    """Return the class-like parent portion of a qualified symbol name."""
+    parent, separator, _ = qualified_name.rpartition(".")
+    if not separator:
+        return ""
+    return parent.split("(", 1)[0]
+
+
 def looks_internal_reference(static_analysis: InternalReferenceSource, qualified_name: str) -> bool:
     tokens = reference_tokens(qualified_name)
     if not tokens:

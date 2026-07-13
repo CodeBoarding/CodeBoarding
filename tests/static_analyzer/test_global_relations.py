@@ -426,10 +426,11 @@ class TestLabelInheritance(unittest.TestCase):
         unrelated = next(item for item in relations if (item.src_id, item.dst_id) == ("1.1.1", "2.1.1"))
         self.assertEqual(unrelated.key_edges, [])
 
-    def test_refreshed_scope_payload_overrides_persisted_global_copy(self):
+    def test_refreshed_scope_metadata_overrides_static_backed_global_copy(self):
         root = _build_root_analysis()
         sub_analyses = _build_sub_analyses()
         refreshed_relation = sub_analyses["2.1"].components_relations[0]
+        refreshed_relation.relation = "publishes to"
         refreshed_relation.evidence = "Fresh scoped evidence."
         refreshed_relation.key_edges = [
             RelationEdge(
@@ -440,7 +441,7 @@ class TestLabelInheritance(unittest.TestCase):
         ]
         root.components_relations.append(
             Relation(
-                relation=refreshed_relation.relation,
+                relation="calls",
                 src_name=refreshed_relation.src_name,
                 dst_name=refreshed_relation.dst_name,
                 evidence="Stale persisted evidence.",
@@ -459,6 +460,7 @@ class TestLabelInheritance(unittest.TestCase):
         relations = build_global_relations(root, sub_analyses, {"python": _build_cfg()})
         relation = next(item for item in relations if (item.src_id, item.dst_id) == ("2.1.1", "2.1.2"))
 
+        self.assertEqual(relation.relation, "publishes to")
         self.assertEqual(relation.evidence, "Fresh scoped evidence.")
         self.assertEqual([edge.description for edge in relation.key_edges], ["Fresh scoped edge."])
 
@@ -643,9 +645,8 @@ class TestDeterministicOrder(unittest.TestCase):
 
     Why: sub_analyses is populated in ThreadPoolExecutor completion order on a full
     run, so an unsorted result produced analysis.json diff churn. The final sort by
-    (src_id, dst_id, relation) makes the serialized leaf set reproducible regardless
-    of completion order. (The render-time rolled-up label choice is covered
-    separately in test_rendering.py.)
+    component pair makes the serialized leaf set reproducible regardless of completion
+    order.
     """
 
     def _serialize(self, rels):
@@ -664,40 +665,49 @@ class TestDeterministicOrder(unittest.TestCase):
 
     def test_result_is_sorted(self):
         rels = build_global_relations(_build_root_analysis(), _build_sub_analyses(), {"python": _build_cfg()})
-        keys = [(r.src_id, r.dst_id, r.relation) for r in rels]
+        keys = [(r.src_id, r.dst_id) for r in rels]
         self.assertEqual(keys, sorted(keys))
 
 
 class TestLlmOnlyRelations(unittest.TestCase):
     """Unbacked (LLM-only) relations: deduped by pair, and filtered to live endpoints."""
 
-    def test_duplicate_llm_only_pairs_deduped(self):
-        # Root and a sub-analysis both declare the same unbacked (1 -> 2) relation
-        # with different labels. Only one survives, deterministically (post-sort).
+    def test_refreshed_scope_metadata_overrides_llm_only_global_copy(self):
         root = AnalysisInsights(
             description="root",
-            components=[_comp("A", []), _comp("B", [])],
-            components_relations=[Relation(relation="calls", src_name="A", dst_name="B", src_id="1", dst_id="2")],
+            components=[_comp("A", [])],
+            components_relations=[],
         )
-        assign_component_ids(root)  # A -> "1", B -> "2"
-        # Sub-analysis of component "1": its children are 1.1/1.2, but it also
-        # re-declares the sibling relation 1 -> 2 with a different label.
+        assign_component_ids(root)
+        root.components_relations = [
+            Relation(
+                relation="calls",
+                src_name="Public",
+                dst_name="Internal",
+                evidence="Stale persisted evidence.",
+                src_id="1.1",
+                dst_id="1.2",
+            )
+        ]
         sub = AnalysisInsights(
             description="sub",
-            components=[_comp("A.pub", []), _comp("A.int", [])],
-            components_relations=[Relation(relation="delegates", src_name="A", dst_name="B", src_id="1", dst_id="2")],
+            components=[_comp("Public", []), _comp("Internal", [])],
+            components_relations=[
+                Relation(
+                    relation="publishes to",
+                    src_name="Public",
+                    dst_name="Internal",
+                    evidence="Fresh scoped evidence.",
+                )
+            ],
         )
-        assign_component_ids(sub, parent_id="1")  # children -> 1.1/1.2
-        # Re-pin the sibling relation to 1->2 after assign (name lookup would have
-        # blanked it, since A/B aren't components of this sub-scope).
-        sub.components_relations[0].src_id, sub.components_relations[0].dst_id = "1", "2"
+        assign_component_ids(sub, parent_id="1")
 
         rels = build_global_relations(root, {"1": sub}, {"python": CallGraph()})
-        pairs = [(r.src_id, r.dst_id) for r in rels]
-        self.assertEqual(pairs.count(("1", "2")), 1, "duplicate LLM-only pair must be deduped")
-        # Surviving label is deterministic (smallest by relation), not input-order dependent.
-        survivor = next(r for r in rels if (r.src_id, r.dst_id) == ("1", "2"))
-        self.assertEqual(survivor.relation, "calls")
+        relation = next(item for item in rels if (item.src_id, item.dst_id) == ("1.1", "1.2"))
+
+        self.assertEqual(relation.relation, "publishes to")
+        self.assertEqual(relation.evidence, "Fresh scoped evidence.")
 
     def test_llm_only_relation_to_missing_component_dropped(self):
         # An LLM relation whose endpoint id has no matching live component (e.g. a

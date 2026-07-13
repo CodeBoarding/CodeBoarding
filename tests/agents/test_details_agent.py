@@ -1,7 +1,7 @@
 import shutil
 import unittest
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, call, patch
 
 from agents.details_agent import DetailsAgent
 from agents.agent_responses import (
@@ -149,8 +149,8 @@ class TestDetailsAgent(unittest.TestCase):
         mock_cfg.filter_by_nodes.assert_called_with(expected_qnames)
         mock_subgraph.cluster.assert_called_once()
 
-    @patch("agents.details_agent.DetailsAgent._invoke_repair_validate")
-    def test_step_clusters_grouping(self, mock_invoke_repair_validate):
+    @patch("agents.details_agent.DetailsAgent._invoke_validate")
+    def test_step_clusters_grouping(self, mock_invoke_validate):
         # Test step_clusters_grouping
         mock_llm = MagicMock()
         mock_parsing_llm = MagicMock()
@@ -164,7 +164,7 @@ class TestDetailsAgent(unittest.TestCase):
             run_id="test-run-id",
         )
         mock_response = ClusterAnalysis(cluster_components=[])
-        mock_invoke_repair_validate.return_value = mock_response
+        mock_invoke_validate.return_value = mock_response
 
         # Mock CFG to return a proper cluster string
         mock_cfg = MagicMock()
@@ -177,7 +177,7 @@ class TestDetailsAgent(unittest.TestCase):
         result = agent.step_clusters_grouping(self.test_component, subgraph_cluster_results)
 
         self.assertEqual(result, mock_response)
-        mock_invoke_repair_validate.assert_called_once()
+        mock_invoke_validate.assert_called_once()
 
     @patch("agents.details_agent.DetailsAgent._invoke_repair_validate")
     def test_step_final_analysis(self, mock_invoke_repair_validate):
@@ -324,9 +324,11 @@ class TestDetailsAgent(unittest.TestCase):
         self.assertEqual(analysis.components[0].source_cluster_ids, ["5.3.1", "5.3.2"])
         self.assertEqual(analysis.components[1].source_cluster_ids, ["5.3.7"])
 
+    @patch("agents.details_agent.DetailsAgent._parse_invoke")
+    @patch("agents.details_agent.DetailsAgent._invoke_validate")
     @patch("agents.details_agent.DetailsAgent._invoke_repair_validate")
     @patch("static_analyzer.reference_resolver.StaticReferenceResolver.fix_source_code_reference_lines")
-    def test_run(self, mock_fix_ref, mock_invoke_repair_validate):
+    def test_run(self, mock_fix_ref, mock_invoke_repair_validate, mock_invoke_validate, mock_parse_invoke):
         mock_llm = MagicMock()
         mock_parsing_llm = MagicMock()
         agent = DetailsAgent(
@@ -383,13 +385,34 @@ class TestDetailsAgent(unittest.TestCase):
 
         api_response = ComponentApiSurfaces(api_surfaces=[])
         relation_response = ComponentRelations(components_relations=[])
-        mock_invoke_repair_validate.side_effect = [cluster_response, final_response, api_response, relation_response]
+        mock_invoke_validate.side_effect = [cluster_response, relation_response]
+        mock_invoke_repair_validate.return_value = final_response
+        mock_parse_invoke.return_value = api_response
         mock_fix_ref.return_value = final_response
 
         analysis, _subgraph_results = agent.run(self.test_component)
 
         self.assertEqual(analysis, final_response)
-        self.assertEqual(mock_invoke_repair_validate.call_count, 4)
+        mock_invoke_validate.assert_has_calls(
+            [
+                call(
+                    ANY,
+                    ClusterAnalysis,
+                    validators=ANY,
+                    validation_context=ANY,
+                    max_validation_attempts=3,
+                ),
+                call(
+                    ANY,
+                    ComponentRelations,
+                    validators=ANY,
+                    validation_context=ANY,
+                    max_validation_attempts=3,
+                ),
+            ]
+        )
+        mock_invoke_repair_validate.assert_called_once()
+        mock_parse_invoke.assert_called_once_with(ANY, ComponentApiSurfaces)
         mock_fix_ref.assert_called_once()
 
     def test_populate_file_methods(self):

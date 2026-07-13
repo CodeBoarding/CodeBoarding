@@ -173,18 +173,7 @@ def _build_files_index_from_analysis(
     files_index: dict[str, FileEntry] = {}
     for current_analysis in analyses:
         for file_path, entry in current_analysis.files.items():
-            indexed_entry = files_index.setdefault(file_path, FileEntry())
-            if not indexed_entry.content_hash:
-                indexed_entry.content_hash = entry.content_hash
-            methods_by_qname = {method.qualified_name: method for method in indexed_entry.methods}
-            for method in entry.methods:
-                indexed = methods_by_qname.get(method.qualified_name)
-                if indexed is None or (indexed.node_type == "REFERENCE" and method.node_type != "REFERENCE"):
-                    methods_by_qname[method.qualified_name] = method.model_copy(deep=True)
-            indexed_entry.methods = sorted(
-                methods_by_qname.values(),
-                key=lambda method: (method.start_line, method.end_line, method.qualified_name),
-            )
+            files_index.setdefault(file_path, FileEntry()).merge_from(entry)
     return files_index
 
 
@@ -497,10 +486,10 @@ def parse_unified_analysis(
     files_raw = data.get("files", {})
     files_index = _reconstruct_files_index(files_raw, methods_index)
 
-    root_analysis.files = {path: entry.model_copy(deep=True) for path, entry in files_index.items()}
+    root_analysis.files = {path: FileEntry().merge_from(entry) for path, entry in files_index.items()}
     _hydrate_component_methods_from_refs(root_analysis, methods_index)
     for sub in sub_analyses.values():
-        sub.files = {path: entry.model_copy(deep=True) for path, entry in files_index.items()}
+        sub.files = {path: FileEntry().merge_from(entry) for path, entry in files_index.items()}
         _hydrate_component_methods_from_refs(sub, methods_index)
 
     return root_analysis, sub_analyses
@@ -513,13 +502,14 @@ def _reconstruct_files_index(
     """Rebuild in-memory ``FileEntry`` objects from persisted ``method_keys``."""
     files_index: dict[str, FileEntry] = {}
     for file_path, entry_raw in files_raw.items():
-        methods: list[MethodEntry] = []
+        entry = FileEntry(content_hash=entry_raw.get("content_hash", ""))
+        indexed_methods: list[MethodEntry] = []
         for key in entry_raw["method_keys"]:
             indexed = methods_index.get(key)
             if indexed is None:
                 logger.warning("Missing methods_index entry for key %s (file %s)", key, file_path)
                 continue
-            methods.append(
+            indexed_methods.append(
                 MethodEntry(
                     qualified_name=indexed.qualified_name,
                     start_line=indexed.start_line,
@@ -528,26 +518,8 @@ def _reconstruct_files_index(
                     content_hash=indexed.content_hash,
                 )
             )
-        files_index[file_path] = FileEntry(
-            methods=methods,
-            content_hash=entry_raw.get("content_hash", ""),
-        )
-
-    for indexed in methods_index.values():
-        if indexed.type != "REFERENCE":
-            continue
-        entry = files_index.setdefault(indexed.file_path, FileEntry())
-        if any(method.qualified_name == indexed.qualified_name for method in entry.methods):
-            continue
-        entry.methods.append(
-            MethodEntry(
-                qualified_name=indexed.qualified_name,
-                start_line=indexed.start_line,
-                end_line=indexed.end_line,
-                node_type=indexed.type,
-                content_hash=indexed.content_hash,
-            )
-        )
+        entry.merge_from(FileEntry(methods=indexed_methods))
+        files_index[file_path] = entry
     return files_index
 
 

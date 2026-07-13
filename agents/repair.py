@@ -126,19 +126,9 @@ def _repair_optional_key_entity_metadata(
 
         repair = context.reference_resolver.repair_key_entity_references(
             operation.key_entities,
-            force_resolve=True,
+            allowed_qnames=context.allowed_key_entity_qnames,
         )
-        scoped_references = [
-            reference
-            for reference in repair.references
-            if _reference_is_in_scope(reference.qualified_name, context.allowed_key_entity_qnames)
-        ]
-        dropped_qnames.update(
-            reference.qualified_name
-            for reference in repair.references
-            if not _reference_is_in_scope(reference.qualified_name, context.allowed_key_entity_qnames)
-        )
-        operation.key_entities = scoped_references[:5]
+        operation.key_entities = repair.references[:5]
         canonicalized_qnames += repair.canonicalized_count
         dropped_qnames.update(repair.unresolved_qnames)
     return canonicalized_qnames, dropped_qnames
@@ -202,35 +192,15 @@ def repair_key_entities(result: ComponentRepairTarget, context: ComponentRepairC
     dropped_qnames: set[str] = set()
 
     for component in result.components:
-        repair = context.reference_resolver.repair_key_entity_references(component.key_entities)
-        repaired_references = repair.references
+        repair = context.reference_resolver.repair_key_entity_references(
+            component.key_entities,
+            allowed_qnames=nodes_in_scope if context.cluster_results else None,
+        )
         canonicalized_count += repair.canonicalized_count
         dropped_qnames.update(repair.unresolved_qnames)
-
-        if context.cluster_results:
-            dropped_qnames.update(
-                reference.qualified_name
-                for reference in repaired_references
-                if not _reference_is_in_scope(reference.qualified_name, nodes_in_scope)
-            )
-            repaired_references = [
-                reference
-                for reference in repaired_references
-                if _reference_is_in_scope(reference.qualified_name, nodes_in_scope)
-            ]
-
-        component.key_entities = repaired_references
+        component.key_entities = repair.references
 
     if canonicalized_count:
         logger.info("Repaired %d key-entity qualified name(s)", canonicalized_count)
     if dropped_qnames:
         logger.info("Dropped invalid or out-of-scope key entities: %s", sorted(dropped_qnames))
-
-
-def _reference_is_in_scope(qualified_name: str, nodes_in_scope: set[str]) -> bool:
-    return any(
-        qualified_name == scope_node
-        or qualified_name.startswith(scope_node + ".")
-        or scope_node.startswith(qualified_name + ".")
-        for scope_node in nodes_in_scope
-    )

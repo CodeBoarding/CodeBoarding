@@ -24,8 +24,9 @@ from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_client import LSPClient
 from static_analyzer.engine.result_converter import convert_to_codeboarding_format
 from static_analyzer.engine.source_inspector import SourceInspector
-from static_analyzer.engine.utils import uri_to_path
+from static_analyzer.engine.utils import definition_location, uri_to_path
 from static_analyzer.graph import CallGraph
+from static_analyzer.internal_references import parent_qualified_name
 from static_analyzer.node import Node
 
 logger = logging.getLogger(__name__)
@@ -235,12 +236,9 @@ def _add_outbound_edges_from_changed_files(
         for site, definitions in zip(call_sites, definition_results):
             line = site.lsp_line
             char = site.lsp_column
-            containing_nodes = _containing_callable_nodes(call_graph, file_path, line, char)
-            if not containing_nodes:
+            src_node = _most_specific_node_at_position(call_graph, file_path, line, char, callable_only=True)
+            if src_node is None:
                 continue
-            src_node = max(
-                containing_nodes, key=lambda node: (node.line_start, node.col_start, len(node.fully_qualified_name))
-            )
             for definition in definitions:
                 for dst_node in _definition_nodes(call_graph, definition):
                     if dst_node.fully_qualified_name == src_node.fully_qualified_name:
@@ -266,41 +264,48 @@ def _add_outbound_edges_from_changed_files(
         logger.info("Added %d new outbound edge(s) from changed files", added)
 
 
-def _containing_callable_nodes(call_graph: CallGraph, file_path: Path, line: int, char: int) -> list[Node]:
-    return [
+def _most_specific_node_at_position(
+    call_graph: CallGraph,
+    file_path: Path,
+    line: int,
+    char: int,
+    callable_only: bool = False,
+) -> Node | None:
+    matches = [
         node
         for node in call_graph.nodes.values()
-        if node.is_callable() and node.file_path == str(file_path) and _position_inside_node(node, line, char)
+        if node.file_path == str(file_path)
+        and (not callable_only or node.is_callable())
+        and _position_inside_node(node, line, char)
     ]
+    if not matches:
+        return None
+    return max(
+        matches,
+        key=lambda node: (
+            node.line_start,
+            node.col_start,
+            -node.line_end,
+            len(node.fully_qualified_name),
+        ),
+    )
 
 
 def _definition_nodes(call_graph: CallGraph, definition: dict) -> list[Node]:
-    matches = [node for node in call_graph.nodes.values() if _definition_points_to_node(definition, node)]
-    if not matches:
+    location = definition_location(definition)
+    if location is None:
         return []
-    return [
-        max(
-            matches,
-            key=lambda node: (
-                node.line_start,
-                node.col_start,
-                -node.line_end,
-                len(node.fully_qualified_name),
-            ),
-        )
-    ]
+    file_path, line, character = location
+    target = _most_specific_node_at_position(call_graph, file_path, line, character)
+    if target is None:
+        return []
 
-
-def _definition_points_to_node(definition: dict, dst_node: Node) -> bool:
-    uri = definition.get("targetUri", definition.get("uri", ""))
-    file_path = uri_to_path(uri)
-    if file_path is None or str(file_path) != dst_node.file_path:
-        return False
-    selection_range = definition.get("targetSelectionRange", definition.get("targetRange", definition.get("range", {})))
-    start = selection_range.get("start", {})
-    line = start.get("line", -1)
-    character = start.get("character", -1)
-    return _position_inside_node(dst_node, line, character)
+    targets = [target]
+    if target.is_callable():
+        parent = call_graph.nodes.get(parent_qualified_name(target.fully_qualified_name))
+        if parent is not None and parent.is_class():
+            targets.append(parent)
+    return targets
 
 
 def _position_inside_node(node: Node, zero_based_line: int, character: int) -> bool:

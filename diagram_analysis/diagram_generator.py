@@ -2,7 +2,6 @@ import json
 import logging
 import os
 import time
-from collections import defaultdict
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from contextlib import nullcontext
 from datetime import datetime, timezone
@@ -17,7 +16,6 @@ from agents.agent_responses import (
     Component,
     MetaAnalysisInsights,
 )
-from agents.file_index_models import MethodEntry
 from agents.cluster_methods_mixin import scoped_snapshot_from_lineage
 from agents.details_agent import DetailsAgent
 from agents.incremental_agent import (
@@ -27,6 +25,7 @@ from agents.incremental_agent import (
 )
 from agents.incremental_planning_agent import IncrementalPlanningAgent
 from agents.incremental_results import RecursiveScopeUpdateResult
+from agents.file_index_models import FileEntry
 from agents.llm_config import initialize_llms
 from agents.llm_errors import LLMAuthError
 from agents.meta_agent import MetaAgent
@@ -655,38 +654,6 @@ class DiagramGenerator:
             write_fingerprint(Path(self.output_dir), self._source_tree_fingerprint_map())
         return analysis_path
 
-    def _collect_method_entries_from_static_analysis(self) -> dict[str, list]:
-        assert self.static_analysis is not None
-        methods_by_file: dict[str, list[MethodEntry]] = defaultdict(list)
-
-        for language in self.static_analysis.get_languages():
-            try:
-                cfg = self.static_analysis.get_cfg(language)
-            except ValueError:
-                continue
-
-            for node in cfg.nodes.values():
-                if node.is_callback_or_anonymous():
-                    continue
-                if not (node.is_callable() or node.is_class()):
-                    continue
-                file_path = normalize_repo_path(node.file_path, self.repo_location)
-
-                methods_by_file[file_path].append(
-                    MethodEntry(
-                        qualified_name=node.fully_qualified_name,
-                        start_line=node.line_start,
-                        end_line=node.line_end,
-                        node_type=node.type.name,
-                    )
-                )
-
-        for file_path, methods in methods_by_file.items():
-            methods.sort(key=lambda method: (method.start_line, method.end_line, method.qualified_name))
-            methods_by_file[file_path] = methods
-
-        return methods_by_file
-
     def _build_file_coverage_summary(self) -> FileCoverageSummary | None:
         if not self.file_coverage_data:
             return None
@@ -721,7 +688,7 @@ class DiagramGenerator:
             removed_ids=set(apply_result.removed_ids),
         )
         if apply_result.refresh_ids or apply_result.removed_ids:
-            result.touched_scopes.add(scope_id)
+            result.relation_contexts[scope_id] = apply_result.relation_context
 
         components_by_id = {
             component.component_id: component for component in scope.components if component.component_id
@@ -753,7 +720,7 @@ class DiagramGenerator:
             result.refresh_ids |= child_result.refresh_ids
             result.new_component_ids |= child_result.new_component_ids
             result.removed_ids |= child_result.removed_ids
-            result.touched_scopes |= child_result.touched_scopes
+            result.relation_contexts.update(child_result.relation_contexts)
         return result
 
     @track_analysis
@@ -849,11 +816,11 @@ class DiagramGenerator:
                 _, redetailed_subs = self._generate_subcomponents(root_analysis, new_components)
                 _merge_sub_analyses(sub_analyses, redetailed_subs)
 
-            if apply_result.touched_scopes:
+            if apply_result.relation_contexts:
                 self.incremental_agent.generate_all_scope_relations(
                     root_analysis,
                     sub_analyses,
-                    apply_result.touched_scopes,
+                    apply_result.relation_contexts,
                 )
 
             self._refresh_files_index(root_analysis, sub_analyses)
@@ -882,24 +849,10 @@ class DiagramGenerator:
             analysis.files = build_files_index(analysis, self.repo_location, source_cache)
             index_relation_endpoints(analysis, self.repo_location)
 
-        unified_files = root_analysis.files
-        for sub in sub_analyses.values():
-            for fp, entry in sub.files.items():
-                indexed_entry = unified_files.get(fp)
-                if indexed_entry is None:
-                    unified_files[fp] = entry.model_copy(deep=True)
-                    continue
-                if not indexed_entry.content_hash:
-                    indexed_entry.content_hash = entry.content_hash
-                methods_by_qname = {method.qualified_name: method for method in indexed_entry.methods}
-                for method in entry.methods:
-                    indexed = methods_by_qname.get(method.qualified_name)
-                    if indexed is None or (indexed.node_type == "REFERENCE" and method.node_type != "REFERENCE"):
-                        methods_by_qname[method.qualified_name] = method.model_copy(deep=True)
-                indexed_entry.methods = sorted(
-                    methods_by_qname.values(),
-                    key=lambda method: (method.start_line, method.end_line, method.qualified_name),
-                )
+        unified_files: dict[str, FileEntry] = {}
+        for analysis in analyses:
+            for fp, entry in analysis.files.items():
+                unified_files.setdefault(fp, FileEntry()).merge_from(entry)
         root_analysis.files = unified_files
 
 

@@ -51,11 +51,3 @@ class InvalidIncrementalPlanError(RuntimeError):
         super().__init__(f"Incremental plan for scope {scope_id!r} is invalid: {issue_summary}")
         self.scope_id = scope_id
         self.issues = issues
-
-
-class IncrementalScopeContextMissingError(RuntimeError):
-    """Raised when relation regeneration lacks its scoped static context."""
-
-    def __init__(self, scope_id: str):
-        super().__init__(f"No incremental relation context was recorded for scope {scope_id!r}")
-        self.scope_id = scope_id
