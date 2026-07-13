@@ -243,8 +243,8 @@ Ensures the local environment has the necessary runtimes and Language Server Pro
   - `static_analyzer.engine.language_adapter.LanguageAdapter.lsp_command` ([L50-L51](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/engine/language_adapter.py#L50-L51)) - Method
   - `static_analyzer.engine.language_adapter.LanguageAdapter.get_lsp_command` ([L62-L74](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/engine/language_adapter.py#L62-L74)) - Method
 - [`static_analyzer/engine/utils.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/engine/utils.py)
-  - `static_analyzer.engine.utils._MemoryStatusEx` ([L35-L46](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/engine/utils.py#L35-L46)) - Class
-  - `static_analyzer.engine.utils.total_ram_gb` ([L49-L68](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/engine/utils.py#L49-L68)) - Function
+  - `static_analyzer.engine.utils._MemoryStatusEx` ([L54-L65](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/engine/utils.py#L54-L65)) - Class
+  - `static_analyzer.engine.utils.total_ram_gb` ([L68-L87](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/engine/utils.py#L68-L87)) - Function
 - [`static_analyzer/java_utils.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/java_utils.py)
   - `static_analyzer.java_utils.get_java_version` ([L12-L34](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/java_utils.py#L12-L34)) - Function
   - `static_analyzer.java_utils.detect_java_installations` ([L37-L92](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingstatic_analyzer/java_utils.py#L37-L92)) - Function
@@ -399,10 +399,9 @@ Executes health checks and architectural validations while collecting telemetry 
 **Source Files:**
 
 - [`agents/incremental_planning_agent.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_planning_agent.py)
-  - `agents.incremental_planning_agent._track_invalid_planning_decision` ([L121-L131](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_planning_agent.py#L121-L131)) - Function
+  - `agents.incremental_planning_agent._track_invalid_planning_decision` ([L120-L130](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_planning_agent.py#L120-L130)) - Function
 - [`diagram_analysis/diagram_generator.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py)
-  - `diagram_analysis.diagram_generator.DiagramGenerator._run_health_report` ([L168-L186](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py#L168-L186)) - Method
-  - `diagram_analysis.diagram_generator.DiagramGenerator.pre_analysis.get_static_with_new_analyzer` ([L341-L351](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py#L341-L351)) - Function
+  - `diagram_analysis.diagram_generator.DiagramGenerator._run_health_report` ([L173-L191](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py#L173-L191)) - Method
 - [`health/checks/circular_deps.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardinghealth/checks/circular_deps.py)
   - `health.checks.circular_deps.check_circular_dependencies` ([L10-L48](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardinghealth/checks/circular_deps.py#L10-L48)) - Function
 - [`health/checks/cohesion.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardinghealth/checks/cohesion.py)
@@ -603,24 +602,24 @@ Represents the logic that the Orchestration layer feeds into, consuming the prep
 **Source Files:**
 
 - [`agents/abstraction_agent.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/abstraction_agent.py)
-  - `agents.abstraction_agent.AbstractionAgent` ([L44-L272](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/abstraction_agent.py#L44-L272)) - Class
+  - `agents.abstraction_agent.AbstractionAgent` ([L47-L247](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/abstraction_agent.py#L47-L247)) - Class
 - [`agents/agent_responses.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py)
-  - `agents.agent_responses.iter_components` ([L655-L663](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L655-L663)) - Function
-  - `agents.agent_responses.index_components_by_id` ([L666-L675](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L666-L675)) - Function
+  - `agents.agent_responses.iter_components` ([L662-L670](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L662-L670)) - Function
+  - `agents.agent_responses.index_components_by_id` ([L673-L682](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/agent_responses.py#L673-L682)) - Function
 - [`agents/details_agent.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/details_agent.py)
-  - `agents.details_agent.DetailsAgent` ([L47-L363](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/details_agent.py#L47-L363)) - Class
+  - `agents.details_agent.DetailsAgent` ([L50-L343](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/details_agent.py#L50-L343)) - Class
 - [`agents/incremental_agent.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py)
-  - `agents.incremental_agent.IncrementalAgent` ([L41-L275](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L41-L275)) - Class
-  - `agents.incremental_agent.remove_deleted_files` ([L507-L517](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L507-L517)) - Function
-  - `agents.incremental_agent._scrub_one_analysis` ([L520-L538](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L520-L538)) - Function
-  - `agents.incremental_agent.prune_empty_components` ([L541-L580](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L541-L580)) - Function
-  - `agents.incremental_agent.prune_empty_components.has_methods` ([L550-L555](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L550-L555)) - Function
-  - `agents.incremental_agent.prune_empty_components.collect_empty` ([L557-L560](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L557-L560)) - Function
-  - `agents.incremental_agent._collect_descendant_ids` ([L583-L600](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L583-L600)) - Function
+  - `agents.incremental_agent.IncrementalAgent` ([L51-L350](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L51-L350)) - Class
+  - `agents.incremental_agent.remove_deleted_files` ([L606-L616](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L606-L616)) - Function
+  - `agents.incremental_agent._scrub_one_analysis` ([L619-L637](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L619-L637)) - Function
+  - `agents.incremental_agent.prune_empty_components` ([L640-L679](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L640-L679)) - Function
+  - `agents.incremental_agent.prune_empty_components.has_methods` ([L649-L654](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L649-L654)) - Function
+  - `agents.incremental_agent.prune_empty_components.collect_empty` ([L656-L659](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L656-L659)) - Function
+  - `agents.incremental_agent._collect_descendant_ids` ([L682-L699](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_agent.py#L682-L699)) - Function
 - [`agents/incremental_planning_agent.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_planning_agent.py)
-  - `agents.incremental_planning_agent.IncrementalPlanningAgent` ([L47-L118](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_planning_agent.py#L47-L118)) - Class
+  - `agents.incremental_planning_agent.IncrementalPlanningAgent` ([L44-L117](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_planning_agent.py#L44-L117)) - Class
 - [`agents/incremental_results.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_results.py)
-  - `agents.incremental_results.RecursiveScopeUpdateResult` ([L15-L18](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_results.py#L15-L18)) - Class
+  - `agents.incremental_results.RecursiveScopeUpdateResult` ([L25-L31](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/incremental_results.py#L25-L31)) - Class
 - [`agents/meta_agent.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/meta_agent.py)
   - `agents.meta_agent.MetaAgent` ([L18-L66](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/meta_agent.py#L18-L66)) - Class
 - [`agents/planner_agent.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingagents/planner_agent.py)
@@ -641,16 +640,16 @@ Represents the logic that the Orchestration layer feeds into, consuming the prep
   - `diagram_analysis.analysis_json.AnalysisMetadata` ([L95-L108](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/analysis_json.py#L95-L108)) - Class
   - `diagram_analysis.analysis_json.FileEntryJson` ([L131-L144](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/analysis_json.py#L131-L144)) - Class
   - `diagram_analysis.analysis_json.UnifiedAnalysisJson` ([L147-L161](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/analysis_json.py#L147-L161)) - Class
-  - `diagram_analysis.analysis_json._build_files_index_from_analysis` ([L164-L166](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/analysis_json.py#L164-L166)) - Function
-  - `diagram_analysis.analysis_json._method_key` ([L169-L171](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/analysis_json.py#L169-L171)) - Function
-  - `diagram_analysis.analysis_json._build_methods_index_from_files` ([L215-L227](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/analysis_json.py#L215-L227)) - Function
-  - `diagram_analysis.analysis_json._build_file_entry_json_from_files` ([L230-L237](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/analysis_json.py#L230-L237)) - Function
-  - `diagram_analysis.analysis_json._relation_to_json` ([L275-L287](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/analysis_json.py#L275-L287)) - Function
-  - `diagram_analysis.analysis_json.from_component_to_json_component` ([L290-L332](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/analysis_json.py#L290-L332)) - Function
-  - `diagram_analysis.analysis_json.from_analysis_to_json` ([L335-L361](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/analysis_json.py#L335-L361)) - Function
-  - `diagram_analysis.analysis_json._compute_depth_level` ([L364-L405](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/analysis_json.py#L364-L405)) - Function
-  - `diagram_analysis.analysis_json._compute_depth_level.get_depth` ([L375-L385](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/analysis_json.py#L375-L385)) - Function
-  - `diagram_analysis.analysis_json.build_unified_analysis_json` ([L408-L454](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/analysis_json.py#L408-L454)) - Function
+  - `diagram_analysis.analysis_json._build_files_index_from_analysis` ([L164-L177](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/analysis_json.py#L164-L177)) - Function
+  - `diagram_analysis.analysis_json._method_key` ([L180-L182](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/analysis_json.py#L180-L182)) - Function
+  - `diagram_analysis.analysis_json._build_methods_index_from_files` ([L226-L238](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/analysis_json.py#L226-L238)) - Function
+  - `diagram_analysis.analysis_json._build_file_entry_json_from_files` ([L241-L249](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/analysis_json.py#L241-L249)) - Function
+  - `diagram_analysis.analysis_json._relation_to_json` ([L287-L299](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/analysis_json.py#L287-L299)) - Function
+  - `diagram_analysis.analysis_json.from_component_to_json_component` ([L302-L344](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/analysis_json.py#L302-L344)) - Function
+  - `diagram_analysis.analysis_json.from_analysis_to_json` ([L347-L373](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/analysis_json.py#L347-L373)) - Function
+  - `diagram_analysis.analysis_json._compute_depth_level` ([L376-L417](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/analysis_json.py#L376-L417)) - Function
+  - `diagram_analysis.analysis_json._compute_depth_level.get_depth` ([L387-L397](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/analysis_json.py#L387-L397)) - Function
+  - `diagram_analysis.analysis_json.build_unified_analysis_json` ([L420-L466](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/analysis_json.py#L420-L466)) - Function
 - [`diagram_analysis/cluster_delta.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/cluster_delta.py)
   - `diagram_analysis.cluster_delta.LanguageDelta.affected_cluster_ids` ([L41-L42](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/cluster_delta.py#L41-L42)) - Method
   - `diagram_analysis.cluster_delta.ClusterDelta.has_changes` ([L50-L51](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/cluster_delta.py#L50-L51)) - Method
@@ -658,29 +657,27 @@ Represents the logic that the Orchestration layer feeds into, consuming the prep
   - `diagram_analysis.cluster_delta.LanguageStructuralDiff.has_changes` ([L93-L94](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/cluster_delta.py#L93-L94)) - Method
   - `diagram_analysis.cluster_delta.StructuralClusterDiff.has_changes` ([L102-L103](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/cluster_delta.py#L102-L103)) - Method
 - [`diagram_analysis/diagram_generator.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py)
-  - `diagram_analysis.diagram_generator._component_depth` ([L72-L76](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py#L72-L76)) - Function
-  - `diagram_analysis.diagram_generator._component_expansion_seeds` ([L79-L85](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py#L79-L85)) - Function
-  - `diagram_analysis.diagram_generator.DiagramGenerator` ([L88-L879](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py#L88-L879)) - Class
-  - `diagram_analysis.diagram_generator.DiagramGenerator.__init__` ([L89-L136](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py#L89-L136)) - Method
-  - `diagram_analysis.diagram_generator.DiagramGenerator.process_component` ([L139-L142](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py#L139-L142)) - Method
-  - `diagram_analysis.diagram_generator.DiagramGenerator._process_component` ([L144-L166](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py#L144-L166)) - Method
-  - `diagram_analysis.diagram_generator.DiagramGenerator._strip_ignored` ([L188-L208](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py#L188-L208)) - Method
-  - `diagram_analysis.diagram_generator.DiagramGenerator._build_file_coverage` ([L210-L219](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py#L210-L219)) - Method
-  - `diagram_analysis.diagram_generator.DiagramGenerator._write_file_coverage` ([L221-L237](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py#L221-L237)) - Method
-  - `diagram_analysis.diagram_generator.DiagramGenerator._get_static_from_injected_analyzer` ([L254-L267](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py#L254-L267)) - Method
-  - `diagram_analysis.diagram_generator.DiagramGenerator.pre_analysis` ([L305-L425](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py#L305-L425)) - Method
-  - `diagram_analysis.diagram_generator.DiagramGenerator.pre_analysis.get_static_with_injected_analyzer` ([L329-L339](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py#L329-L339)) - Function
-  - `diagram_analysis.diagram_generator.DiagramGenerator._generate_subcomponents` ([L427-L508](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py#L427-L508)) - Method
-  - `diagram_analysis.diagram_generator.DiagramGenerator._generate_subcomponents.submit_component` ([L444-L448](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py#L444-L448)) - Function
-  - `diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis` ([L511-L538](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py#L511-L538)) - Method
-  - `diagram_analysis.diagram_generator.DiagramGenerator._build_file_coverage_summary` ([L651-L660](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py#L651-L660)) - Method
-  - `diagram_analysis.diagram_generator.DiagramGenerator._apply_incremental_scope_recursively` ([L662-L721](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py#L662-L721)) - Method
-  - `diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental` ([L724-L853](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py#L724-L853)) - Method
-  - `diagram_analysis.diagram_generator._collect_components_by_id` ([L882-L897](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py#L882-L897)) - Function
-  - `diagram_analysis.diagram_generator._drop_removed_subtree_analyses` ([L900-L904](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py#L900-L904)) - Function
-  - `diagram_analysis.diagram_generator._cluster_backed_empty_component_ids` ([L907-L921](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py#L907-L921)) - Function
-  - `diagram_analysis.diagram_generator._child_scope_needs_recursive_update` ([L924-L939](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py#L924-L939)) - Function
-  - `diagram_analysis.diagram_generator._merge_sub_analyses` ([L990-L1020](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py#L990-L1020)) - Function
+  - `diagram_analysis.diagram_generator._component_depth` ([L75-L79](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py#L75-L79)) - Function
+  - `diagram_analysis.diagram_generator._component_expansion_seeds` ([L82-L88](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py#L82-L88)) - Function
+  - `diagram_analysis.diagram_generator.DiagramGenerator` ([L91-L856](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py#L91-L856)) - Class
+  - `diagram_analysis.diagram_generator.DiagramGenerator.__init__` ([L92-L141](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py#L92-L141)) - Method
+  - `diagram_analysis.diagram_generator.DiagramGenerator.process_component` ([L144-L147](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py#L144-L147)) - Method
+  - `diagram_analysis.diagram_generator.DiagramGenerator._process_component` ([L149-L171](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py#L149-L171)) - Method
+  - `diagram_analysis.diagram_generator.DiagramGenerator._strip_ignored` ([L193-L213](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py#L193-L213)) - Method
+  - `diagram_analysis.diagram_generator.DiagramGenerator._build_file_coverage` ([L215-L224](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py#L215-L224)) - Method
+  - `diagram_analysis.diagram_generator.DiagramGenerator._write_file_coverage` ([L226-L242](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py#L226-L242)) - Method
+  - `diagram_analysis.diagram_generator.DiagramGenerator.pre_analysis` ([L392-L463](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py#L392-L463)) - Method
+  - `diagram_analysis.diagram_generator.DiagramGenerator._generate_subcomponents` ([L465-L546](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py#L465-L546)) - Method
+  - `diagram_analysis.diagram_generator.DiagramGenerator._generate_subcomponents.submit_component` ([L482-L486](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py#L482-L486)) - Function
+  - `diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis` ([L549-L576](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py#L549-L576)) - Method
+  - `diagram_analysis.diagram_generator.DiagramGenerator._build_file_coverage_summary` ([L657-L666](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py#L657-L666)) - Method
+  - `diagram_analysis.diagram_generator.DiagramGenerator._apply_incremental_scope_recursively` ([L668-L724](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py#L668-L724)) - Method
+  - `diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental` ([L727-L836](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py#L727-L836)) - Method
+  - `diagram_analysis.diagram_generator._collect_components_by_id` ([L859-L874](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py#L859-L874)) - Function
+  - `diagram_analysis.diagram_generator._drop_removed_subtree_analyses` ([L877-L881](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py#L877-L881)) - Function
+  - `diagram_analysis.diagram_generator._cluster_backed_empty_component_ids` ([L884-L898](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py#L884-L898)) - Function
+  - `diagram_analysis.diagram_generator._child_scope_needs_recursive_update` ([L901-L916](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py#L901-L916)) - Function
+  - `diagram_analysis.diagram_generator._merge_sub_analyses` ([L967-L997](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/diagram_generator.py#L967-L997)) - Function
 - [`diagram_analysis/exceptions.py`](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/exceptions.py)
   - `diagram_analysis.exceptions.IncrementalCacheMissingError` ([L8-L43](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/exceptions.py#L8-L43)) - Class
   - `diagram_analysis.exceptions.IncrementalCacheMissingError.__init__` ([L25-L43](https://github.com/CodeBoarding/CodeBoarding/blob/main/.codeboardingdiagram_analysis/exceptions.py#L25-L43)) - Method

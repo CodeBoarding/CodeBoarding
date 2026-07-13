@@ -1,7 +1,7 @@
 {
   "repository_name": "CodeBoarding",
-  "timestamp": "2026-07-12T17:05:41.920652+00:00",
-  "overall_score": 0.9343840429929723,
+  "timestamp": "2026-07-13T14:39:45.578414+00:00",
+  "overall_score": 0.9353462321792261,
   "check_summaries": [
     {
       "check_name": "function_size",
@@ -382,7 +382,7 @@
       "description": "Checks that functions/methods do not exceed line count thresholds",
       "language": "python",
       "check_type": "standard",
-      "total_entities_checked": 1490,
+      "total_entities_checked": 1512,
       "findings_count": 0,
       "warning_count": 0,
       "score": 1.0,
@@ -393,10 +393,10 @@
       "description": "Checks efferent coupling: how many other functions each function calls",
       "language": "python",
       "check_type": "standard",
-      "total_entities_checked": 1500,
-      "findings_count": 46,
-      "warning_count": 46,
-      "score": 0.9693333333333334,
+      "total_entities_checked": 1523,
+      "findings_count": 45,
+      "warning_count": 45,
+      "score": 0.9704530531845043,
       "finding_groups": [
         {
           "severity": "warning",
@@ -406,57 +406,50 @@
             {
               "entity_name": "diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis_incremental",
               "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 724,
-              "line_end": 853,
-              "metric_value": 30
+              "line_start": 727,
+              "line_end": 836,
+              "metric_value": 27
             },
             {
               "entity_name": "static_analyzer.engine.edge_builder._resolve_definitions",
               "file_path": "static_analyzer/engine/edge_builder.py",
-              "line_start": 299,
-              "line_end": 391,
-              "metric_value": 21
-            },
-            {
-              "entity_name": "agents.details_agent.DetailsAgent.step_clusters_grouping",
-              "file_path": "agents/details_agent.py",
-              "line_start": 99,
-              "line_end": 156,
-              "metric_value": 19
+              "line_start": 300,
+              "line_end": 388,
+              "metric_value": 20
             },
             {
               "entity_name": "agents.details_agent.DetailsAgent.step_final_analysis",
               "file_path": "agents/details_agent.py",
-              "line_start": 159,
-              "line_end": 233,
+              "line_start": 152,
+              "line_end": 226,
+              "metric_value": 19
+            },
+            {
+              "entity_name": "agents.incremental_agent.IncrementalAgent.update_scope",
+              "file_path": "agents/incremental_agent.py",
+              "line_start": 89,
+              "line_end": 169,
               "metric_value": 18
             },
             {
               "entity_name": "agents.cluster_methods_mixin.ClusterMethodsMixin._create_strict_component_subgraph",
               "file_path": "agents/cluster_methods_mixin.py",
-              "line_start": 432,
-              "line_end": 528,
+              "line_start": 430,
+              "line_end": 526,
               "metric_value": 18
+            },
+            {
+              "entity_name": "agents.details_agent.DetailsAgent.step_clusters_grouping",
+              "file_path": "agents/details_agent.py",
+              "line_start": 97,
+              "line_end": 149,
+              "metric_value": 17
             },
             {
               "entity_name": "diagram_analysis.diagram_generator.DiagramGenerator.pre_analysis",
               "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 305,
-              "line_end": 425,
-              "metric_value": 18
-            },
-            {
-              "entity_name": "static_analyzer.incremental_orchestrator.update_cfg_for_changed_files",
-              "file_path": "static_analyzer/incremental_orchestrator.py",
-              "line_start": 34,
-              "line_end": 106,
-              "metric_value": 17
-            },
-            {
-              "entity_name": "agents.abstraction_agent.AbstractionAgent.step_relation_analysis",
-              "file_path": "agents/abstraction_agent.py",
-              "line_start": 204,
-              "line_end": 243,
+              "line_start": 392,
+              "line_end": 463,
               "metric_value": 17
             },
             {
@@ -474,6 +467,20 @@
               "metric_value": 16
             },
             {
+              "entity_name": "agents.incremental_planning_agent.IncrementalPlanningAgent.decide_scope_update",
+              "file_path": "agents/incremental_planning_agent.py",
+              "line_start": 77,
+              "line_end": 117,
+              "metric_value": 16
+            },
+            {
+              "entity_name": "agents.incremental_agent.IncrementalAgent.step_relation_analysis",
+              "file_path": "agents/incremental_agent.py",
+              "line_start": 262,
+              "line_end": 302,
+              "metric_value": 16
+            },
+            {
               "entity_name": "static_analyzer.engine.call_graph_builder.CallGraphBuilder._discover_symbols",
               "file_path": "static_analyzer/engine/call_graph_builder.py",
               "line_start": 126,
@@ -481,17 +488,10 @@
               "metric_value": 15
             },
             {
-              "entity_name": "agents.details_agent.DetailsAgent.step_relation_analysis",
-              "file_path": "agents/details_agent.py",
-              "line_start": 257,
-              "line_end": 297,
-              "metric_value": 15
-            },
-            {
-              "entity_name": "agents.incremental_agent.IncrementalAgent.update_scope",
-              "file_path": "agents/incremental_agent.py",
-              "line_start": 61,
-              "line_end": 117,
+              "entity_name": "agents.abstraction_agent.AbstractionAgent.step_relation_analysis",
+              "file_path": "agents/abstraction_agent.py",
+              "line_start": 182,
+              "line_end": 216,
               "metric_value": 15
             },
             {
@@ -502,18 +502,25 @@
               "metric_value": 14
             },
             {
-              "entity_name": "agents.details_agent.DetailsAgent.run",
-              "file_path": "agents/details_agent.py",
-              "line_start": 299,
-              "line_end": 363,
-              "metric_value": 13
-            },
-            {
               "entity_name": "agents.abstraction_agent.AbstractionAgent.run",
               "file_path": "agents/abstraction_agent.py",
-              "line_start": 245,
-              "line_end": 272,
-              "metric_value": 13
+              "line_start": 218,
+              "line_end": 247,
+              "metric_value": 14
+            },
+            {
+              "entity_name": "agents.details_agent.DetailsAgent.run",
+              "file_path": "agents/details_agent.py",
+              "line_start": 276,
+              "line_end": 343,
+              "metric_value": 14
+            },
+            {
+              "entity_name": "static_analyzer.incremental_orchestrator.update_cfg_for_changed_files",
+              "file_path": "static_analyzer/incremental_orchestrator.py",
+              "line_start": 35,
+              "line_end": 107,
+              "metric_value": 14
             },
             {
               "entity_name": "codeboarding_cli.commands.full_analysis._process_one_remote.scope",
@@ -530,10 +537,24 @@
               "metric_value": 13
             },
             {
-              "entity_name": "agents.incremental_agent.IncrementalAgent.generate_scope_relations",
+              "entity_name": "agents.incremental_agent.IncrementalAgent._patch_scope_file_methods",
               "file_path": "agents/incremental_agent.py",
-              "line_start": 201,
-              "line_end": 252,
+              "line_start": 218,
+              "line_end": 247,
+              "metric_value": 13
+            },
+            {
+              "entity_name": "agents.details_agent.DetailsAgent.__init__",
+              "file_path": "agents/details_agent.py",
+              "line_start": 51,
+              "line_end": 94,
+              "metric_value": 13
+            },
+            {
+              "entity_name": "agents.details_agent.DetailsAgent.step_relation_analysis",
+              "file_path": "agents/details_agent.py",
+              "line_start": 239,
+              "line_end": 274,
               "metric_value": 13
             },
             {
@@ -544,38 +565,17 @@
               "metric_value": 12
             },
             {
-              "entity_name": "agents.details_agent.DetailsAgent.__init__",
-              "file_path": "agents/details_agent.py",
-              "line_start": 48,
-              "line_end": 96,
-              "metric_value": 12
-            },
-            {
-              "entity_name": "agents.abstraction_agent.AbstractionAgent.step_clusters_grouping",
+              "entity_name": "agents.abstraction_agent.AbstractionAgent.step_final_analysis",
               "file_path": "agents/abstraction_agent.py",
-              "line_start": 92,
-              "line_end": 132,
+              "line_start": 124,
+              "line_end": 169,
               "metric_value": 12
             },
             {
               "entity_name": "agents.cluster_methods_mixin.ClusterMethodsMixin._plan_skip_sets",
               "file_path": "agents/cluster_methods_mixin.py",
-              "line_start": 193,
-              "line_end": 269,
-              "metric_value": 12
-            },
-            {
-              "entity_name": "agents.incremental_planning_agent.IncrementalPlanningAgent.decide_scope_update",
-              "file_path": "agents/incremental_planning_agent.py",
-              "line_start": 82,
-              "line_end": 118,
-              "metric_value": 12
-            },
-            {
-              "entity_name": "agents.incremental_agent.IncrementalAgent._patch_scope_file_methods",
-              "file_path": "agents/incremental_agent.py",
-              "line_start": 169,
-              "line_end": 198,
+              "line_start": 191,
+              "line_end": 267,
               "metric_value": 12
             },
             {
@@ -593,24 +593,10 @@
               "metric_value": 11
             },
             {
-              "entity_name": "static_analyzer.engine.edge_builder._process_references_for_position",
-              "file_path": "static_analyzer/engine/edge_builder.py",
-              "line_start": 179,
-              "line_end": 238,
-              "metric_value": 11
-            },
-            {
               "entity_name": "static_analyzer.language_results.LanguageResults.visit_paths",
               "file_path": "static_analyzer/language_results.py",
               "line_start": 144,
               "line_end": 149,
-              "metric_value": 11
-            },
-            {
-              "entity_name": "agents.abstraction_agent.AbstractionAgent.step_final_analysis",
-              "file_path": "agents/abstraction_agent.py",
-              "line_start": 135,
-              "line_end": 180,
               "metric_value": 11
             },
             {
@@ -649,10 +635,17 @@
               "metric_value": 11
             },
             {
+              "entity_name": "static_analyzer.cluster_relations.build_global_relations",
+              "file_path": "static_analyzer/cluster_relations.py",
+              "line_start": 166,
+              "line_end": 228,
+              "metric_value": 11
+            },
+            {
               "entity_name": "diagram_analysis.diagram_generator.DiagramGenerator.finalize_and_save",
               "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 572,
-              "line_end": 617,
+              "line_start": 610,
+              "line_end": 655,
               "metric_value": 11
             },
             {
@@ -684,24 +677,10 @@
               "metric_value": 10
             },
             {
-              "entity_name": "static_analyzer.incremental_orchestrator._add_outbound_edges_from_changed_files",
-              "file_path": "static_analyzer/incremental_orchestrator.py",
-              "line_start": 202,
-              "line_end": 255,
-              "metric_value": 10
-            },
-            {
               "entity_name": "static_analyzer.graph.CallGraph.filter",
               "file_path": "static_analyzer/graph.py",
               "line_start": 219,
               "line_end": 246,
-              "metric_value": 10
-            },
-            {
-              "entity_name": "diagram_analysis.analysis_json.build_unified_analysis_json",
-              "file_path": "diagram_analysis/analysis_json.py",
-              "line_start": 408,
-              "line_end": 454,
               "metric_value": 10
             },
             {
@@ -712,17 +691,31 @@
               "metric_value": 10
             },
             {
-              "entity_name": "diagram_analysis.diagram_generator.DiagramGenerator._collect_method_entries_from_static_analysis",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 619,
-              "line_end": 649,
-              "metric_value": 10
-            },
-            {
               "entity_name": "agents.llm_config._initialize_llm",
               "file_path": "agents/llm_config.py",
               "line_start": 337,
               "line_end": 373,
+              "metric_value": 10
+            },
+            {
+              "entity_name": "agents.abstraction_agent.AbstractionAgent.step_clusters_grouping",
+              "file_path": "agents/abstraction_agent.py",
+              "line_start": 90,
+              "line_end": 121,
+              "metric_value": 10
+            },
+            {
+              "entity_name": "diagram_analysis.analysis_json.build_unified_analysis_json",
+              "file_path": "diagram_analysis/analysis_json.py",
+              "line_start": 420,
+              "line_end": 466,
+              "metric_value": 10
+            },
+            {
+              "entity_name": "static_analyzer.engine.edge_builder._process_references_for_position",
+              "file_path": "static_analyzer/engine/edge_builder.py",
+              "line_start": 180,
+              "line_end": 239,
               "metric_value": 10
             }
           ]
@@ -734,23 +727,16 @@
       "description": "Checks afferent coupling: how many other functions call each function",
       "language": "python",
       "check_type": "standard",
-      "total_entities_checked": 1500,
-      "findings_count": 12,
-      "warning_count": 12,
-      "score": 0.992,
+      "total_entities_checked": 1523,
+      "findings_count": 10,
+      "warning_count": 10,
+      "score": 0.9934340118187788,
       "finding_groups": [
         {
           "severity": "warning",
           "threshold": 10,
           "description": "Functions called by more than 10.0 other functions",
           "entities": [
-            {
-              "entity_name": "static_analyzer.analysis_result.StaticAnalysisResults.get_cfg",
-              "file_path": "static_analyzer/analysis_result.py",
-              "line_start": 206,
-              "line_end": 211,
-              "metric_value": 28
-            },
             {
               "entity_name": "static_analyzer.analysis_result.StaticAnalysisResults.get_languages",
               "file_path": "static_analyzer/analysis_result.py",
@@ -759,10 +745,17 @@
               "metric_value": 28
             },
             {
+              "entity_name": "static_analyzer.analysis_result.StaticAnalysisResults.get_cfg",
+              "file_path": "static_analyzer/analysis_result.py",
+              "line_start": 206,
+              "line_end": 211,
+              "metric_value": 27
+            },
+            {
               "entity_name": "agents.prompts.prompt_factory.get_global_factory",
               "file_path": "agents/prompts/prompt_factory.py",
-              "line_start": 114,
-              "line_end": 121,
+              "line_start": 117,
+              "line_end": 124,
               "metric_value": 18
             },
             {
@@ -808,24 +801,10 @@
               "metric_value": 10
             },
             {
-              "entity_name": "agents.agent_responses.MetaAnalysisInsights.llm_str",
-              "file_path": "agents/agent_responses.py",
-              "line_start": 763,
-              "line_end": 773,
-              "metric_value": 10
-            },
-            {
               "entity_name": "utils.sanitize",
               "file_path": "utils.py",
               "line_start": 92,
               "line_end": 94,
-              "metric_value": 10
-            },
-            {
-              "entity_name": "agents.agent.CodeBoardingAgent._validation_invoke",
-              "file_path": "agents/agent.py",
-              "line_start": 257,
-              "line_end": 352,
               "metric_value": 10
             }
           ]
@@ -837,10 +816,10 @@
       "description": "Detects classes with too many methods, too much code, or too many outgoing dependencies",
       "language": "python",
       "check_type": "standard",
-      "total_entities_checked": 101,
+      "total_entities_checked": 102,
       "findings_count": 17,
       "warning_count": 17,
-      "score": 0.8316831683168316,
+      "score": 0.8333333333333334,
       "finding_groups": [
         {
           "severity": "warning",
@@ -850,7 +829,7 @@
             {
               "entity_name": "agents.cluster_methods_mixin.ClusterMethodsMixin",
               "file_path": "agents/cluster_methods_mixin.py",
-              "metric_value": 877.0
+              "metric_value": 806.0
             },
             {
               "entity_name": "static_analyzer.engine.lsp_client.LSPClient",
@@ -858,14 +837,14 @@
               "metric_value": 791.0
             },
             {
-              "entity_name": "diagram_analysis.diagram_generator.DiagramGenerator",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "metric_value": 790.0
-            },
-            {
               "entity_name": "static_analyzer.graph.CallGraph",
               "file_path": "static_analyzer/graph.py",
               "metric_value": 770.0
+            },
+            {
+              "entity_name": "diagram_analysis.diagram_generator.DiagramGenerator",
+              "file_path": "diagram_analysis/diagram_generator.py",
+              "metric_value": 764.0
             },
             {
               "entity_name": "static_analyzer.__init__.StaticAnalyzer",
@@ -875,27 +854,32 @@
             {
               "entity_name": "static_analyzer.reference_resolver.StaticReferenceResolver",
               "file_path": "static_analyzer/reference_resolver.py",
-              "metric_value": 95.0
+              "metric_value": 443.0
+            },
+            {
+              "entity_name": "agents.agent.CodeBoardingAgent",
+              "file_path": "agents/agent.py",
+              "metric_value": 429.0
             },
             {
               "entity_name": "agents.details_agent.DetailsAgent",
               "file_path": "agents/details_agent.py",
-              "metric_value": 86.0
+              "metric_value": 83.0
+            },
+            {
+              "entity_name": "agents.incremental_agent.IncrementalAgent",
+              "file_path": "agents/incremental_agent.py",
+              "metric_value": 81.0
             },
             {
               "entity_name": "agents.abstraction_agent.AbstractionAgent",
               "file_path": "agents/abstraction_agent.py",
-              "metric_value": 70.0
+              "metric_value": 67.0
             },
             {
               "entity_name": "static_analyzer.engine.call_graph_builder.CallGraphBuilder",
               "file_path": "static_analyzer/engine/call_graph_builder.py",
               "metric_value": 61.0
-            },
-            {
-              "entity_name": "agents.incremental_agent.IncrementalAgent",
-              "file_path": "agents/incremental_agent.py",
-              "metric_value": 60.0
             },
             {
               "entity_name": "static_analyzer.engine.source_inspector.SourceInspector",
@@ -911,11 +895,6 @@
               "entity_name": "static_analyzer.analysis_result.StaticAnalysisResults",
               "file_path": "static_analyzer/analysis_result.py",
               "metric_value": 48.0
-            },
-            {
-              "entity_name": "agents.agent.CodeBoardingAgent",
-              "file_path": "agents/agent.py",
-              "metric_value": 47.0
             },
             {
               "entity_name": "agents.tools.toolkit.CodeBoardingToolkit",
@@ -941,9 +920,9 @@
       "description": "Detects unused imports, variables, functions, and dead code via LSP diagnostics",
       "language": "python",
       "check_type": "standard",
-      "total_entities_checked": 234,
-      "findings_count": 234,
-      "warning_count": 92,
+      "total_entities_checked": 237,
+      "findings_count": 237,
+      "warning_count": 93,
       "score": 0.0,
       "finding_groups": [
         {
@@ -1575,20 +1554,6 @@
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"_edge\" is not accessed",
-              "file_path": "static_analyzer/incremental_orchestrator.py",
-              "line_start": 328,
-              "line_end": 328,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"source_files\" is not accessed",
-              "file_path": "static_analyzer/engine/edge_builder.py",
-              "line_start": 56,
-              "line_end": 56,
-              "metric_value": 0.0
-            },
-            {
               "entity_name": "[unused_variable] \"project_root\" is not accessed",
               "file_path": "static_analyzer/engine/language_adapter.py",
               "line_start": 62,
@@ -1670,20 +1635,6 @@
               "file_path": "static_analyzer/engine/adapters/rust_adapter.py",
               "line_start": 215,
               "line_end": 215,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"_subgraph_str\" is not accessed",
-              "file_path": "agents/details_agent.py",
-              "line_start": 322,
-              "line_end": 322,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"_check_edge_between_cluster_sets\" is not accessed",
-              "file_path": "agents/validation.py",
-              "line_start": 806,
-              "line_end": 806,
               "metric_value": 0.0
             },
             {
@@ -1778,13 +1729,6 @@
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"Edge\" is not accessed",
-              "file_path": "static_analyzer/cluster_relations.py",
-              "line_start": 19,
-              "line_end": 19,
-              "metric_value": 0.0
-            },
-            {
               "entity_name": "[unused_variable] \"GRAPH_NODE_TYPES\" is not accessed",
               "file_path": "static_analyzer/graph.py",
               "line_start": 12,
@@ -1820,20 +1764,6 @@
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"Optional\" is not accessed",
-              "file_path": "agents/agent_responses.py",
-              "line_start": 9,
-              "line_end": 9,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"MethodEntry\" is not accessed",
-              "file_path": "agents/agent_responses.py",
-              "line_start": 15,
-              "line_end": 15,
-              "metric_value": 0.0
-            },
-            {
               "entity_name": "[unused_variable] \"track_analysis\" is not accessed",
               "file_path": "codeboarding_workflows/analysis.py",
               "line_start": 20,
@@ -1862,13 +1792,6 @@
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"ToolMessage\" is not accessed",
-              "file_path": "agents/agent.py",
-              "line_start": 8,
-              "line_end": 8,
-              "metric_value": 0.0
-            },
-            {
               "entity_name": "[unused_variable] \"_config\" is not accessed",
               "file_path": "agents/llm_config.py",
               "line_start": 440,
@@ -1883,24 +1806,94 @@
               "metric_value": 0.0
             },
             {
+              "entity_name": "[unused_variable] \"ToolMessage\" is not accessed",
+              "file_path": "agents/agent.py",
+              "line_start": 10,
+              "line_end": 10,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"Optional\" is not accessed",
+              "file_path": "agents/agent_responses.py",
+              "line_start": 9,
+              "line_end": 9,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"MethodEntry\" is not accessed",
+              "file_path": "agents/agent_responses.py",
+              "line_start": 15,
+              "line_end": 15,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_check_edge_between_cluster_sets\" is not accessed",
+              "file_path": "agents/validation.py",
+              "line_start": 706,
+              "line_end": 706,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"context\" is not accessed",
+              "file_path": "agents/validation.py",
+              "line_start": 352,
+              "line_end": 352,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_subgraph_str\" is not accessed",
+              "file_path": "agents/details_agent.py",
+              "line_start": 299,
+              "line_end": 299,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"ROOT_SCOPE_ID\" is not accessed",
+              "file_path": "agents/incremental_planning_agent.py",
+              "line_start": 24,
+              "line_end": 24,
+              "metric_value": 0.0
+            },
+            {
               "entity_name": "[unused_variable] \"cluster_results\" is not accessed",
               "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 528,
-              "line_end": 528,
+              "line_start": 566,
+              "line_end": 566,
               "metric_value": 0.0
             },
             {
               "entity_name": "[unused_variable] \"expanded_components\" is not accessed",
               "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 534,
-              "line_end": 534,
+              "line_start": 572,
+              "line_end": 572,
               "metric_value": 0.0
             },
             {
               "entity_name": "[unused_variable] \"_subgraph_str\" is not accessed",
               "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 953,
-              "line_end": 953,
+              "line_start": 930,
+              "line_end": 930,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"Edge\" is not accessed",
+              "file_path": "static_analyzer/cluster_relations.py",
+              "line_start": 16,
+              "line_end": 16,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_edge\" is not accessed",
+              "file_path": "static_analyzer/incremental_orchestrator.py",
+              "line_start": 357,
+              "line_end": 357,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"source_files\" is not accessed",
+              "file_path": "static_analyzer/engine/edge_builder.py",
+              "line_start": 57,
+              "line_end": 57,
               "metric_value": 0.0
             }
           ]
@@ -1940,16 +1933,16 @@
             },
             {
               "entity_name": "[unreachable_code] Type analysis indicates code is unreachable",
-              "file_path": "agents/prompts/prompt_factory.py",
-              "line_start": 79,
-              "line_end": 79,
+              "file_path": "repo_utils/__init__.py",
+              "line_start": 84,
+              "line_end": 84,
               "metric_value": 0.0
             },
             {
               "entity_name": "[unreachable_code] Type analysis indicates code is unreachable",
-              "file_path": "repo_utils/__init__.py",
-              "line_start": 84,
-              "line_end": 84,
+              "file_path": "agents/prompts/prompt_factory.py",
+              "line_start": 82,
+              "line_end": 82,
               "metric_value": 0.0
             }
           ]
@@ -2534,13 +2527,6 @@
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_import] Import \"Edge\" is not accessed",
-              "file_path": "static_analyzer/cluster_relations.py",
-              "line_start": 19,
-              "line_end": 19,
-              "metric_value": 0.0
-            },
-            {
               "entity_name": "[unused_import] Import \"GRAPH_NODE_TYPES\" is not accessed",
               "file_path": "static_analyzer/graph.py",
               "line_start": 12,
@@ -2552,20 +2538,6 @@
               "file_path": "utils.py",
               "line_start": 11,
               "line_end": 11,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"Optional\" is not accessed",
-              "file_path": "agents/agent_responses.py",
-              "line_start": 9,
-              "line_end": 9,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_import] Import \"MethodEntry\" is not accessed",
-              "file_path": "agents/agent_responses.py",
-              "line_start": 15,
-              "line_end": 15,
               "metric_value": 0.0
             },
             {
@@ -2592,8 +2564,36 @@
             {
               "entity_name": "[unused_import] Import \"ToolMessage\" is not accessed",
               "file_path": "agents/agent.py",
-              "line_start": 8,
-              "line_end": 8,
+              "line_start": 10,
+              "line_end": 10,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"Optional\" is not accessed",
+              "file_path": "agents/agent_responses.py",
+              "line_start": 9,
+              "line_end": 9,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"MethodEntry\" is not accessed",
+              "file_path": "agents/agent_responses.py",
+              "line_start": 15,
+              "line_end": 15,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"ROOT_SCOPE_ID\" is not accessed",
+              "file_path": "agents/incremental_planning_agent.py",
+              "line_start": 24,
+              "line_end": 24,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"Edge\" is not accessed",
+              "file_path": "static_analyzer/cluster_relations.py",
+              "line_start": 16,
+              "line_end": 16,
               "metric_value": 0.0
             }
           ]
@@ -2606,8 +2606,8 @@
             {
               "entity_name": "[unused_function] Function \"_check_edge_between_cluster_sets\" is not accessed",
               "file_path": "agents/validation.py",
-              "line_start": 806,
-              "line_end": 806,
+              "line_start": 706,
+              "line_end": 706,
               "metric_value": 0.0
             }
           ]
@@ -2757,12 +2757,6 @@
       "composite_risk_score": 80.0
     },
     {
-      "file_path": "diagram_analysis/diagram_generator.py",
-      "total_findings": 8,
-      "warning_findings": 5,
-      "composite_risk_score": 75.0
-    },
-    {
       "file_path": "agents/abstraction_agent.py",
       "total_findings": 5,
       "warning_findings": 5,
@@ -2773,6 +2767,12 @@
       "total_findings": 6,
       "warning_findings": 5,
       "composite_risk_score": 75.0
+    },
+    {
+      "file_path": "diagram_analysis/diagram_generator.py",
+      "total_findings": 7,
+      "warning_findings": 4,
+      "composite_risk_score": 70.0
     },
     {
       "file_path": "monitoring/__init__.py",
@@ -2793,28 +2793,22 @@
       "composite_risk_score": 70.0
     },
     {
-      "file_path": "agents/agent_responses.py",
-      "total_findings": 5,
-      "warning_findings": 3,
-      "composite_risk_score": 65.0
-    },
-    {
       "file_path": "agents/incremental_agent.py",
       "total_findings": 4,
       "warning_findings": 4,
       "composite_risk_score": 60.0
     },
     {
-      "file_path": "agents/agent.py",
-      "total_findings": 4,
-      "warning_findings": 3,
-      "composite_risk_score": 55.0
-    },
-    {
       "file_path": "static_analyzer/engine/language_adapter.py",
       "total_findings": 9,
       "warning_findings": 1,
       "composite_risk_score": 55.0
+    },
+    {
+      "file_path": "agents/agent_responses.py",
+      "total_findings": 4,
+      "warning_findings": 2,
+      "composite_risk_score": 50.0
     },
     {
       "file_path": "agents/cluster_methods_mixin.py",
@@ -2841,7 +2835,13 @@
       "composite_risk_score": 40.0
     },
     {
-      "file_path": "static_analyzer/incremental_orchestrator.py",
+      "file_path": "agents/incremental_planning_agent.py",
+      "total_findings": 3,
+      "warning_findings": 2,
+      "composite_risk_score": 40.0
+    },
+    {
+      "file_path": "static_analyzer/cluster_relations.py",
       "total_findings": 3,
       "warning_findings": 2,
       "composite_risk_score": 40.0
