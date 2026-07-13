@@ -1,6 +1,6 @@
 {
   "repository_name": "CodeBoarding",
-  "timestamp": "2026-07-13T15:19:21.280831+00:00",
+  "timestamp": "2026-07-13T16:24:52.810335+00:00",
   "overall_score": 0.9353462321792261,
   "check_summaries": [
     {
@@ -677,13 +677,6 @@
               "metric_value": 10
             },
             {
-              "entity_name": "static_analyzer.graph.CallGraph.filter",
-              "file_path": "static_analyzer/graph.py",
-              "line_start": 219,
-              "line_end": 246,
-              "metric_value": 10
-            },
-            {
               "entity_name": "static_analyzer.__init__.StaticAnalyzer._update_cached_results",
               "file_path": "static_analyzer/__init__.py",
               "line_start": 634,
@@ -716,6 +709,13 @@
               "file_path": "static_analyzer/engine/edge_builder.py",
               "line_start": 180,
               "line_end": 239,
+              "metric_value": 10
+            },
+            {
+              "entity_name": "static_analyzer.graph.CallGraph.filter",
+              "file_path": "static_analyzer/graph.py",
+              "line_start": 218,
+              "line_end": 245,
               "metric_value": 10
             }
           ]
@@ -761,15 +761,15 @@
             {
               "entity_name": "static_analyzer.graph.Edge.get_source",
               "file_path": "static_analyzer/graph.py",
-              "line_start": 94,
-              "line_end": 95,
+              "line_start": 93,
+              "line_end": 94,
               "metric_value": 16
             },
             {
               "entity_name": "static_analyzer.graph.Edge.get_destination",
               "file_path": "static_analyzer/graph.py",
-              "line_start": 97,
-              "line_end": 98,
+              "line_start": 96,
+              "line_end": 97,
               "metric_value": 16
             },
             {
@@ -794,17 +794,17 @@
               "metric_value": 12
             },
             {
-              "entity_name": "static_analyzer.graph.CallGraph.to_networkx",
-              "file_path": "static_analyzer/graph.py",
-              "line_start": 320,
-              "line_end": 332,
-              "metric_value": 10
-            },
-            {
               "entity_name": "utils.sanitize",
               "file_path": "utils.py",
               "line_start": 92,
               "line_end": 94,
+              "metric_value": 10
+            },
+            {
+              "entity_name": "static_analyzer.graph.CallGraph.to_networkx",
+              "file_path": "static_analyzer/graph.py",
+              "line_start": 319,
+              "line_end": 331,
               "metric_value": 10
             }
           ]
@@ -1729,20 +1729,6 @@
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"GRAPH_NODE_TYPES\" is not accessed",
-              "file_path": "static_analyzer/graph.py",
-              "line_start": 12,
-              "line_end": 12,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"new_d\" is not accessed",
-              "file_path": "static_analyzer/graph.py",
-              "line_start": 174,
-              "line_end": 174,
-              "metric_value": 0.0
-            },
-            {
               "entity_name": "[unused_variable] \"symbol_kind\" is not accessed",
               "file_path": "static_analyzer/engine/adapters/java_adapter.py",
               "line_start": 137,
@@ -1894,6 +1880,20 @@
               "file_path": "static_analyzer/engine/edge_builder.py",
               "line_start": 57,
               "line_end": 57,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"GRAPH_NODE_TYPES\" is not accessed",
+              "file_path": "static_analyzer/graph.py",
+              "line_start": 11,
+              "line_end": 11,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"new_d\" is not accessed",
+              "file_path": "static_analyzer/graph.py",
+              "line_start": 173,
+              "line_end": 173,
               "metric_value": 0.0
             }
           ]
@@ -2527,13 +2527,6 @@
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_import] Import \"GRAPH_NODE_TYPES\" is not accessed",
-              "file_path": "static_analyzer/graph.py",
-              "line_start": 12,
-              "line_end": 12,
-              "metric_value": 0.0
-            },
-            {
               "entity_name": "[unused_import] Import \"to_absolute_path\" is not accessed",
               "file_path": "utils.py",
               "line_start": 11,
@@ -2594,6 +2587,13 @@
               "file_path": "static_analyzer/cluster_relations.py",
               "line_start": 16,
               "line_end": 16,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_import] Import \"GRAPH_NODE_TYPES\" is not accessed",
+              "file_path": "static_analyzer/graph.py",
+              "line_start": 11,
+              "line_end": 11,
               "metric_value": 0.0
             }
           ]
