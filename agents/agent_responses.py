@@ -5,7 +5,6 @@ import logging
 from abc import abstractmethod
 from collections.abc import Hashable
 from enum import StrEnum
-from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, get_origin, Optional
 
 from pydantic import BaseModel, Field
@@ -377,14 +376,6 @@ class Relation(LLMBaseModel):
     def edge_count(self) -> int:
         return len(self.all_edges)
 
-    def analysis_dump(self) -> dict:
-        data = self.model_dump(exclude_none=True)
-        data["src_id"] = self.src_id
-        data["dst_id"] = self.dst_id
-        data["edge_count"] = self.edge_count
-        data["is_static"] = self.is_static
-        return data
-
 
 class ClustersComponent(LLMBaseModel):
     """A grouped component from cluster analysis - may contain multiple clusters."""
@@ -528,10 +519,6 @@ class AnalysisInsights(LLMBaseModel):
         body = "\n".join(ac.llm_str() for ac in self.components)
         relations = "\n".join(cr.llm_str() for cr in self.components_relations)
         return title + body + relations
-
-    def file_to_component(self) -> dict[str, str]:
-        """Build file path -> component_id mapping from root components."""
-        return {str(PurePosixPath(fg.file_path)): c.component_id for c in self.components for fg in c.file_methods}
 
 
 class ComponentArchitecture(LLMBaseModel):
@@ -682,75 +669,6 @@ def index_components_by_id(
     return {c.component_id: c for c in iter_components(root_analysis, sub_analyses) if c.component_id}
 
 
-class CFGComponent(LLMBaseModel):
-    """A component derived from control flow graph analysis."""
-
-    name: str = Field(description="Name of the abstract component")
-    description: str = Field(description="One paragraph explaining the component.")
-    referenced_source: list[str] = Field(
-        description="List of the qualified names of the methods and classes that are within this component."
-    )
-
-    def llm_str(self):
-        n = f"**Component:** `{self.name}`"
-        d = f"   - *Description*: {self.description}"
-        qn = ""
-        if self.referenced_source:
-            qn += "   - *Related Classes/Methods*: "
-            qn += ", ".join(f"`{q}`" for q in self.referenced_source)
-        return "\n".join([n, d, qn]).strip()
-
-
-class CFGAnalysisInsights(LLMBaseModel):
-    """Insights from control flow graph analysis including components and relations."""
-
-    components: list[CFGComponent] = Field(description="List of components identified in the CFG.")
-    components_relations: list[Relation] = Field(description="List of relations among the components in the CFG.")
-
-    def llm_str(self):
-        if not self.components:
-            return "No abstract components found in the CFG."
-        title = "# Abstract Components Overview from CFG\n"
-        body = "\n".join(ac.llm_str() for ac in self.components)
-        relations = "\n".join(cr.llm_str() for cr in self.components_relations)
-        return title + body + relations
-
-
-class ExpandComponent(LLMBaseModel):
-    """Decision on whether to expand a component with reasoning."""
-
-    should_expand: bool = Field(description="Whether the component should be expanded in detail or not.")
-    reason: str = Field(description="Reasoning behind the decision to expand or not.")
-
-    def llm_str(self):
-        return f"- *Should Expand:* {self.should_expand}\n- *Reason:* {self.reason}"
-
-
-class ValidationInsights(LLMBaseModel):
-    """Validation results with status and additional information."""
-
-    is_valid: bool = Field(description="Indicates whether the validation results in valid or not.")
-    additional_info: str | None = Field(
-        default=None,
-        description="Any additional information or context related to the validation.",
-    )
-
-    def llm_str(self):
-        return f"**Feedback Information:**\n{self.additional_info}"
-
-
-class UpdateAnalysis(LLMBaseModel):
-    """Feedback on how much a diagram needs updating."""
-
-    update_degree: int = Field(
-        description="Degree to which the diagram needs update. 0 means no update, 10 means complete update."
-    )
-    feedback: str = Field(description="Feedback provided on the analysis.")
-
-    def llm_str(self):
-        return f"**Feedback:**\n{self.feedback}"
-
-
 class MetaAnalysisInsights(LLMBaseModel):
     """Insights from analyzing project metadata including type, domain, and architecture."""
 
@@ -803,17 +721,6 @@ class ComponentFiles(LLMBaseModel):
         title = "# Component File Classifications\n"
         body = "\n".join(f"- `{fc.file_path}` -> Component: `{fc.component_name}`" for fc in self.file_paths)
         return title + body
-
-
-class ScopeRelations(LLMBaseModel):
-    """Relations between components within a single scope."""
-
-    components_relations: list[Relation] = Field(description="Inter-component relationships within this scope.")
-
-    def llm_str(self):
-        if not self.components_relations:
-            return "No relations found."
-        return "\n".join(r.llm_str() for r in self.components_relations)
 
 
 class ScopeOperationAction(StrEnum):
@@ -877,20 +784,3 @@ class ScopeUpdateDecision(LLMBaseModel):
         if not self.operations:
             return "No scope operations."
         return "\n".join(operation.llm_str() for operation in self.operations)
-
-
-class FilePath(LLMBaseModel):
-    """File path with optional line range reference."""
-
-    file_path: str = Field(description="Full file path for the reference")
-    start_line: int | None = Field(
-        default=None,
-        description="Starting line number in the file for the reference (if applicable).",
-    )
-    end_line: int | None = Field(
-        default=None,
-        description="Ending line number in the file for the reference (if applicable).",
-    )
-
-    def llm_str(self):
-        return f"`{self.file_path}`: ({self.start_line}:{self.end_line})"

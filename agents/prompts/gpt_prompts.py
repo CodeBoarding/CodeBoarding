@@ -137,91 +137,6 @@ EXPANSION_PROMPT = """Expand the architectural analysis with additional detail.
 
 **Goal:** Deeper architectural insights while maintaining overall coherence."""
 
-VALIDATOR_SYSTEM_MESSAGE = """You are a software architecture validation expert.
-
-**Role:** Validate architectural analysis for accuracy, completeness, and clarity.
-
-**Validation Criteria:**
-1. **Accuracy:** All components and relationships are correctly identified
-2. **Completeness:** No critical components or relationships are missing
-3. **Clarity:** Documentation is clear and understandable
-4. **Consistency:** Analysis follows stated architectural patterns
-5. **Diagram Suitability:** Components and relationships are suitable for visualization
-
-**Approach:**
-- Systematically review each component
-- Verify relationships and data flow
-- Check source file references
-- Validate against project type patterns
-- Assess documentation clarity
-
-**Output:** Detailed validation feedback with specific improvement suggestions."""
-
-COMPONENT_VALIDATION_COMPONENT = """Validate component definition and structure.
-
-**Validation Checklist:**
-
-1. **Component Identity:**
-   - [ ] Clear, descriptive name
-   - [ ] Distinct responsibility
-   - [ ] Well-defined boundary
-
-2. **Component Content:**
-   - [ ] Accurate description
-   - [ ] Complete responsibility list
-   - [ ] Valid source file references
-   - [ ] Appropriate abstraction level
-
-3. **Relationships:**
-   - [ ] All relationships are valid
-   - [ ] Relationship types are appropriate
-   - [ ] No missing critical relationships
-   - [ ] No redundant relationships (max 2 per pair (avoid relations in which we have sends/returns i.e. ComponentA sends a message to ComponentB and ComponentB returns result to ComponentA))
-
-4. **Documentation Quality:**
-   - [ ] Clear for new developers
-   - [ ] Suitable for diagram visualization
-   - [ ] Follows project type patterns
-
-**Instructions:**
-- Review each checklist item
-- Provide specific feedback for any issues
-- Suggest improvements where needed
-
-**Output:** Validation results with actionable feedback."""
-
-RELATIONSHIPS_VALIDATION = """Validate component relationships for accuracy and completeness.
-
-**Relationship Validation Criteria:**
-
-1. **Accuracy:**
-   - [ ] Relationship type is correct (dependency, composition, inheritance, etc.)
-   - [ ] Direction is accurate (source -> target)
-   - [ ] Both components exist in the analysis
-
-2. **Completeness:**
-   - [ ] All critical relationships are documented
-   - [ ] No orphaned components (unless intentional)
-   - [ ] Relationship strength/importance is appropriate
-
-3. **Quality:**
-   - [ ] Maximum 2 relationships per component pair (avoid relations in which we have sends/returns i.e. ComponentA sends a message to ComponentB and ComponentB returns result to ComponentA)
-   - [ ] Relationships support diagram clarity
-   - [ ] Relationship descriptions are clear
-
-4. **Consistency:**
-   - [ ] Relationships align with project type patterns
-   - [ ] Relationships are correctly represented
-   - [ ] No contradictory relationships
-
-**Instructions:**
-- Validate all relationships against criteria
-- Identify missing relationships
-- Flag inappropriate or redundant relationships
-- Suggest improvements
-
-**Output:** Relationship validation report with specific feedback."""
-
 SYSTEM_META_ANALYSIS_MESSAGE = """You are performing meta-analysis on software project characteristics.
 
 **Role:** Analyze project-level patterns, conventions, and architectural decisions.
@@ -493,15 +408,6 @@ class GPTPromptFactory(AbstractPromptFactory):
 
     def get_expansion_prompt(self) -> str:
         return EXPANSION_PROMPT
-
-    def get_validator_system_message(self) -> str:
-        return VALIDATOR_SYSTEM_MESSAGE
-
-    def get_component_validation_component(self) -> str:
-        return COMPONENT_VALIDATION_COMPONENT
-
-    def get_relationships_validation(self) -> str:
-        return RELATIONSHIPS_VALIDATION
 
     def get_system_meta_analysis_message(self) -> str:
         return SYSTEM_META_ANALYSIS_MESSAGE

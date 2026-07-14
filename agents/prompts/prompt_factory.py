@@ -89,18 +89,6 @@ class PromptFactory:
         else:
             raise AttributeError(f"Prompt method '{method_name}' not found in factory")
 
-    def get_all_prompts(self) -> dict[str, str]:
-        prompts = {}
-        for method_name in dir(self._prompt_factory):
-            if method_name.startswith("get_") and not method_name.startswith("_"):
-                try:
-                    prompt_value = getattr(self._prompt_factory, method_name)()
-                    constant_name = method_name[4:].upper()
-                    prompts[constant_name] = prompt_value
-                except Exception:
-                    continue
-        return prompts
-
 
 # Global factory instance - will be initialized by configuration
 _global_factory: PromptFactory | None = None

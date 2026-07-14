@@ -30,7 +30,7 @@ from diagram_analysis.analysis_json import (
     parse_unified_analysis,
 )
 from repo_utils.path_utils import normalize_repo_path
-from utils import ANALYSIS_FILENAME, CODEBOARDING_DIR_NAME, FINGERPRINT_FILENAME, RUN_OUTPUT_DIR_NAME
+from utils import ANALYSIS_FILENAME, FINGERPRINT_FILENAME
 
 logger = logging.getLogger(__name__)
 
@@ -59,15 +59,6 @@ class _AnalysisFileStore:
         # 30s rather than 10s: cold-start LSP runs on Windows under AV scans
         # routinely steal multi-second cycles from contended writers.
         self._lock = FileLock(output_dir / f"{ANALYSIS_FILENAME}.lock", timeout=30)
-
-    def _repo_dir_for_source_lookup(self) -> Path:
-        """Recover the repo root from the output_dir layout — the source root a
-        sub-analysis write hashes when the caller doesn't pass its own repo_dir."""
-        if self._output_dir.name == RUN_OUTPUT_DIR_NAME and self._output_dir.parent.name == CODEBOARDING_DIR_NAME:
-            return self._output_dir.parent.parent
-        if self._output_dir.name == CODEBOARDING_DIR_NAME:
-            return self._output_dir.parent
-        return self._output_dir
 
     def read(self) -> tuple[AnalysisInsights, dict[str, AnalysisInsights], dict] | None:
         """Load the unified ``analysis.json`` from disk.
@@ -98,18 +89,6 @@ class _AnalysisFileStore:
         """True when a parseable ``analysis.json`` is present on disk."""
         return self.read_root() is not None
 
-    def read_sub(self, component_id: str) -> AnalysisInsights | None:
-        """Load a sub-analysis for a specific component by component_id."""
-        result = self.read()
-        if result is None:
-            return None
-
-        _, sub_analyses, _ = result
-        sub = sub_analyses.get(component_id)
-        if sub is None:
-            logger.debug(f"No sub-analysis found for component ID '{component_id}' in unified analysis")
-        return sub
-
     def write(
         self,
         analysis: AnalysisInsights,
@@ -135,56 +114,6 @@ class _AnalysisFileStore:
                 repo_name,
                 file_coverage_summary,
             )
-
-    def write_sub(
-        self,
-        sub_analysis: AnalysisInsights,
-        component_id: str,
-        expandable_component_ids: list[str] | None = None,
-    ) -> Path:
-        """Update a single sub-analysis within ``analysis.json``.
-
-        Acquires the file lock, loads the existing unified file, replaces the
-        sub-analysis for *component_id*, and re-writes the whole file.
-        """
-        with self._lock:
-            existing = self.read()
-            if existing is None:
-                logger.error(f"Cannot save sub-analysis: no existing analysis.json in {self._output_dir}")
-                return self._analysis_path
-
-            root_analysis, sub_analyses, raw_data = existing
-
-            # Update the sub-analysis for this component
-            sub_analyses[component_id] = sub_analysis
-
-            # Carry forward repo_name + source_tree_hash from the on-disk metadata:
-            # a sub-analysis write doesn't recompute source state, so it preserves
-            # the whole-tree hash the root write already stamped.
-            metadata = raw_data.get("metadata", {})
-            repo_name = metadata.get("repo_name", "")
-            source_tree_hash = metadata.get("source_tree_hash", "")
-
-            # Determine which root components are expandable
-            all_expandable_ids = expandable_component_ids or list(sub_analyses.keys())
-
-            return self._write_with_lock_held(
-                root_analysis,
-                self._repo_dir_for_source_lookup(),
-                source_tree_hash,
-                all_expandable_ids,
-                sub_analyses,
-                repo_name,
-            )
-
-    def detect_expanded_components(self, analysis: AnalysisInsights) -> list[str]:
-        """Find component IDs that have sub-analyses in the unified ``analysis.json``."""
-        result = self.read()
-        if result is None:
-            return []
-
-        _, sub_analyses, _ = result
-        return [c.component_id for c in analysis.components if c.component_id in sub_analyses]
 
     def _write_with_lock_held(
         self,
@@ -267,13 +196,8 @@ def _get_store(output_dir: Path) -> _AnalysisFileStore:
 
 
 # ---------------------------------------------------------------------------
-# Free-function wrappers (preserve the original public API)
+# Public analysis I/O functions
 # ---------------------------------------------------------------------------
-
-
-def load_root_analysis(output_dir: Path) -> AnalysisInsights | None:
-    """Load the root analysis from the unified analysis.json file."""
-    return _get_store(output_dir).read_root()
 
 
 def analysis_exists(output_dir: Path) -> bool:
@@ -365,18 +289,3 @@ def save_analysis(
         repo_name,
         file_coverage_summary,
     )
-
-
-def load_sub_analysis(output_dir: Path, component_id: str) -> AnalysisInsights | None:
-    """Load a sub-analysis for a component from the unified analysis.json."""
-    return _get_store(output_dir).read_sub(component_id)
-
-
-def save_sub_analysis(
-    sub_analysis: AnalysisInsights,
-    output_dir: Path,
-    component_id: str,
-    expandable_component_ids: list[str] | None = None,
-) -> Path:
-    """Save/update a sub-analysis for a component in the unified analysis.json."""
-    return _get_store(output_dir).write_sub(sub_analysis, component_id, expandable_component_ids)
