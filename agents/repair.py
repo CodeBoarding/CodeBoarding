@@ -93,11 +93,19 @@ def _drop_redundant_owned_cluster_refs(
     no-op (they are preserved when absent), so normalize the plan back to the intended
     actionable-only shape instead of failing the strict cluster_ref validator. A ref owned by a
     *different* component is left in place so genuine moves and cross-component theft still surface.
+
+    An ``update_component`` that has no changed cluster to account for is left as-is, so the
+    validator rejects it rather than trimming it to an empty update that would still apply
+    name/description to an unchanged component (``create_component`` guards the same way).
     """
     prefix = CodeBoardingClusterIds.prefix_for_scope(context.scope_id)
     trimmed = 0
     for operation in decision.operations:
         if operation.action not in EXISTING_COMPONENT_ACTIONS or operation.component_id is None:
+            continue
+        if operation.action == ScopeOperationAction.UPDATE_COMPONENT and not any(
+            cluster_ref_from_scoped_ref(ref) in context.actionable_cluster_refs for ref in operation.cluster_refs
+        ):
             continue
         owned = context.owned_cluster_ids_by_component_id.get(operation.component_id, set())
         kept: list[ScopedClusterRef] = []
