@@ -128,10 +128,15 @@ def validate_scope_update_decision(
         if duplicate_qnames:
             errors.append(f"Operation {operation.action} repeats key entities: {sorted(duplicate_qnames)}.")
 
-    claimed_set = set(claimed_refs)
+    claimed_set: set[ClusterRef] = set()
+    duplicates: set[ClusterRef] = set()
+    for ref in claimed_refs:
+        if ref in claimed_set:
+            duplicates.add(ref)
+        else:
+            claimed_set.add(ref)
     missing = context.expected_cluster_refs - set(covered_refs)
     extra = claimed_set - context.expected_cluster_refs
-    duplicates = {ref for ref in claimed_set if claimed_refs.count(ref) > 1}
     if missing:
         errors.append(f"Missing cluster_refs: {_format_cluster_ref_list(missing)}")
     if extra:
