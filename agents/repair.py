@@ -35,6 +35,15 @@ _KEY_ENTITY_METADATA_ACTIONS = frozenset(
     }
 )
 
+# Actions that change an existing component's metadata or existence (unlike noop). Trimming one of
+# these to zero cluster_refs would let it mutate or remove a component whose clusters never changed.
+_EXISTING_COMPONENT_CHANGE_ACTIONS = frozenset(
+    {
+        ScopeOperationAction.UPDATE_COMPONENT,
+        ScopeOperationAction.DELETE_COMPONENT,
+    }
+)
+
 
 class ComponentRepairTarget(Protocol):
     components: list[Component]
@@ -94,16 +103,16 @@ def _drop_redundant_owned_cluster_refs(
     actionable-only shape instead of failing the strict cluster_ref validator. A ref owned by a
     *different* component is left in place so genuine moves and cross-component theft still surface.
 
-    An ``update_component`` that has no changed cluster to account for is left as-is, so the
-    validator rejects it rather than trimming it to an empty update that would still apply
-    name/description to an unchanged component (``create_component`` guards the same way).
+    An ``update_component`` or ``delete_component`` that has no changed cluster to account for is
+    left as-is, so the validator rejects it rather than trimming it to an empty operation that
+    would still mutate or remove an unchanged component (``create_component`` guards the same way).
     """
     prefix = CodeBoardingClusterIds.prefix_for_scope(context.scope_id)
     trimmed = 0
     for operation in decision.operations:
         if operation.action not in EXISTING_COMPONENT_ACTIONS or operation.component_id is None:
             continue
-        if operation.action == ScopeOperationAction.UPDATE_COMPONENT and not any(
+        if operation.action in _EXISTING_COMPONENT_CHANGE_ACTIONS and not any(
             cluster_ref_from_scoped_ref(ref) in context.actionable_cluster_refs for ref in operation.cluster_refs
         ):
             continue

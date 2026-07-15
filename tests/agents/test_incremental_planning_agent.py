@@ -467,6 +467,51 @@ def test_repair_leaves_no_change_update_for_validator_to_reject() -> None:
     assert "Unexpected cluster_refs" in "\n".join(result.feedback_messages)
 
 
+def test_repair_leaves_no_change_delete_for_validator_to_reject() -> None:
+    """A delete whose refs are all owned-unchanged (no actionable) must stay invalid.
+
+    Why: trimming it to empty would let it silently remove an untouched component.
+    """
+    decision = ScopeUpdateDecision(
+        operations=[
+            ScopeOperation(
+                action=ScopeOperationAction.UPDATE_COMPONENT,
+                cluster_refs=[ScopedClusterRef(scope_id="root", language="python", cluster_id=2)],
+                component_id="1",
+                rationale="Real change.",
+            ),
+            ScopeOperation(
+                action=ScopeOperationAction.DELETE_COMPONENT,
+                cluster_refs=[
+                    ScopedClusterRef(scope_id="root", language="python", cluster_id=cluster_id)
+                    for cluster_id in (13, 14)
+                ],
+                component_id="5",
+                rationale="Nothing here actually changed.",
+            ),
+        ]
+    )
+    actionable = {ClusterRef(language="python", cluster_id=2)}
+    repair_context = ScopeOperationRepairContext(
+        reference_resolver=_reference_resolver(),
+        allowed_key_entity_qnames=set(),
+        scope_id="root",
+        actionable_cluster_refs=actionable,
+        owned_cluster_ids_by_component_id={"1": {"2"}, "5": {"13", "14"}},
+    )
+    validation_context = ScopeOperationValidationContext(
+        expected_cluster_refs=actionable,
+        existing_component_ids={"1", "5"},
+    )
+
+    repair_unambiguous_routing_and_optional_key_entity_metadata(decision, repair_context)
+    result = validate_scope_update_decision(decision, validation_context)
+
+    assert not result.is_valid
+    assert [ref.cluster_id for ref in decision.operations[1].cluster_refs] == [13, 14]
+    assert "Unexpected cluster_refs" in "\n".join(result.feedback_messages)
+
+
 def test_validate_scope_update_decision_keeps_ownerless_update_invalid() -> None:
     ref = ClusterRef(language="python", cluster_id=7)
     decision = ScopeUpdateDecision(
