@@ -35,15 +35,6 @@ _KEY_ENTITY_METADATA_ACTIONS = frozenset(
     }
 )
 
-# Actions that change an existing component's metadata or existence (unlike noop). Trimming one of
-# these to zero cluster_refs would let it mutate or remove a component whose clusters never changed.
-_EXISTING_COMPONENT_CHANGE_ACTIONS = frozenset(
-    {
-        ScopeOperationAction.UPDATE_COMPONENT,
-        ScopeOperationAction.DELETE_COMPONENT,
-    }
-)
-
 
 class ComponentRepairTarget(Protocol):
     components: list[Component]
@@ -95,26 +86,18 @@ def _drop_redundant_owned_cluster_refs(
     decision: ScopeUpdateDecision,
     context: ScopeOperationRepairContext,
 ) -> int:
-    """Trim cluster_refs an existing-component op re-lists that it already owns and that did not change.
+    """Drop cluster_refs an operation lists that its own component already owns and that did not change.
 
-    Why: the planner echoes a touched component's full ``clusters=[...]`` display, but only
-    changed clusters are actionable. Re-listing owned-but-unchanged clusters is a downstream
-    no-op (they are preserved when absent), so normalize the plan back to the intended
-    actionable-only shape instead of failing the strict cluster_ref validator. A ref owned by a
-    *different* component is left in place so genuine moves and cross-component theft still surface.
-
-    An ``update_component`` or ``delete_component`` that has no changed cluster to account for is
-    left as-is, so the validator rejects it rather than trimming it to an empty operation that
-    would still mutate or remove an unchanged component (``create_component`` guards the same way).
+    Why: the planner copies a component's whole ``clusters=[...]`` list, but only the changed
+    (actionable) clusters need to be there. A component re-listing its own unchanged clusters changes
+    nothing, so drop those to match what the validator expects. Clusters owned by another component
+    are always kept so the validator still catches them. Only some operations are safe to trim here
+    (see ``_may_trim_owned_refs``).
     """
     prefix = CodeBoardingClusterIds.prefix_for_scope(context.scope_id)
     trimmed = 0
     for operation in decision.operations:
-        if operation.action not in EXISTING_COMPONENT_ACTIONS or operation.component_id is None:
-            continue
-        if operation.action in _EXISTING_COMPONENT_CHANGE_ACTIONS and not any(
-            cluster_ref_from_scoped_ref(ref) in context.actionable_cluster_refs for ref in operation.cluster_refs
-        ):
+        if operation.component_id is None or not _may_trim_owned_refs(operation, context):
             continue
         owned = context.owned_cluster_ids_by_component_id.get(operation.component_id, set())
         kept: list[ScopedClusterRef] = []
@@ -131,6 +114,33 @@ def _drop_redundant_owned_cluster_refs(
             kept.append(ref)
         operation.cluster_refs = kept
     return trimmed
+
+
+def _may_trim_owned_refs(operation: ScopeOperation, context: ScopeOperationRepairContext) -> bool:
+    """Whether an operation's already-owned, unchanged cluster_refs are safe to drop.
+
+    Only drop them where doing so cannot make an invalid plan look valid:
+    - noop: always - it just keeps a component unchanged.
+    - update_component: only when it edits its own component - it must list at least one changed
+      (actionable) cluster, and every changed cluster it lists must already belong to it. If one
+      belongs to another component, keep the refs so the validator still rejects the move.
+    - delete_component / create_component: never - for a delete, still-owned clusters mean the
+      component is not empty, so keep the refs and let the validator reject it.
+    """
+    if operation.action == ScopeOperationAction.NOOP:
+        return True
+    if operation.action != ScopeOperationAction.UPDATE_COMPONENT:
+        return False
+    accounts_for_own_change = False
+    for ref in operation.cluster_refs:
+        cluster_ref = cluster_ref_from_scoped_ref(ref)
+        if cluster_ref not in context.actionable_cluster_refs:
+            continue
+        proven_owner = context.component_ids_by_cluster_ref.get(cluster_ref)
+        if proven_owner is not None and proven_owner != operation.component_id:
+            return False
+        accounts_for_own_change = True
+    return accounts_for_own_change
 
 
 def _repair_unambiguous_operation_routing(
