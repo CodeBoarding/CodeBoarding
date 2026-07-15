@@ -64,6 +64,7 @@ class ValidationContext:
 class ScopeOperationValidationContext:
     expected_cluster_refs: set[ClusterRef] = field(default_factory=set)
     existing_component_ids: set[str] = field(default_factory=set)
+    component_ids_by_cluster_ref: dict[ClusterRef, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -88,10 +89,26 @@ def validate_scope_update_decision(
     context: ScopeOperationValidationContext,
 ) -> ValidationResult:
     errors: list[str] = []
-    seen_refs: list[ClusterRef] = []
+    claimed_refs: list[ClusterRef] = []  # every op's refs, for the over-claim (extra) and duplicate checks
+    covered_refs: list[ClusterRef] = []  # non-delete refs only; a delete discards its clusters, so it cannot cover them
     for operation in decision.operations:
         refs = [cluster_ref_from_scoped_ref(ref) for ref in operation.cluster_refs]
-        seen_refs.extend(refs)
+        claimed_refs.extend(refs)
+        if operation.action != ScopeOperationAction.DELETE_COMPONENT:
+            covered_refs.extend(refs)
+        if operation.action == ScopeOperationAction.NOOP:
+            # A noop unions its refs into its component without removing them from the real owner,
+            # so any changed cluster it claims from another component becomes duplicate-owned.
+            foreign = {
+                ref
+                for ref in refs
+                if context.component_ids_by_cluster_ref.get(ref) not in (None, operation.component_id)
+            }
+            if foreign:
+                errors.append(
+                    f"noop for component_id={operation.component_id!r} claims clusters owned by another "
+                    f"component: {_format_cluster_ref_list(foreign)}. A noop must only preserve its own clusters."
+                )
         if operation.action in EXISTING_COMPONENT_ACTIONS:
             if operation.component_id not in context.existing_component_ids:
                 errors.append(
@@ -111,10 +128,15 @@ def validate_scope_update_decision(
         if duplicate_qnames:
             errors.append(f"Operation {operation.action} repeats key entities: {sorted(duplicate_qnames)}.")
 
-    seen_set = set(seen_refs)
-    missing = context.expected_cluster_refs - seen_set
-    extra = seen_set - context.expected_cluster_refs
-    duplicates = {ref for ref in seen_set if seen_refs.count(ref) > 1}
+    claimed_set: set[ClusterRef] = set()
+    duplicates: set[ClusterRef] = set()
+    for ref in claimed_refs:
+        if ref in claimed_set:
+            duplicates.add(ref)
+        else:
+            claimed_set.add(ref)
+    missing = context.expected_cluster_refs - set(covered_refs)
+    extra = claimed_set - context.expected_cluster_refs
     if missing:
         errors.append(f"Missing cluster_refs: {_format_cluster_ref_list(missing)}")
     if extra:

@@ -19,10 +19,12 @@ from agents.incremental_planning_agent import (
     _component_ids_by_cluster_ref,
     format_structural_diff,
 )
+from agents.incremental_agent import _operation_source_cluster_ids
 from agents.repair import (
     ScopeOperationRepairContext,
     repair_unambiguous_routing_and_optional_key_entity_metadata,
 )
+from agents.scope_ids import ROOT_SCOPE_ID
 from agents.validation import ScopeOperationValidationContext, validate_scope_update_decision
 from diagram_analysis.cluster_delta import (
     ClusterMemberDelta,
@@ -348,6 +350,357 @@ def test_repair_scope_update_decision_repairs_full_scope_planner_output() -> Non
     assert result.is_valid
     assert decision.operations[0].component_id == "1"
     assert [entity.qualified_name for entity in decision.operations[1].key_entities] == [canonical_qname]
+
+
+def test_repair_trims_redundant_owned_cluster_refs_the_planner_echoed() -> None:
+    """Why: the planner echoes a component's full ``clusters=[...]`` display, but only changed clusters are actionable."""
+    decision = ScopeUpdateDecision(
+        operations=[
+            ScopeOperation(
+                action=ScopeOperationAction.UPDATE_COMPONENT,
+                cluster_refs=[
+                    ScopedClusterRef(scope_id="root", language="python", cluster_id=cluster_id)
+                    for cluster_id in (2, 11, 18)
+                ],
+                component_id="1",
+                rationale="A file owned by this component changed.",
+            )
+        ]
+    )
+    actionable = {ClusterRef(language="python", cluster_id=2)}
+    repair_context = ScopeOperationRepairContext(
+        reference_resolver=_reference_resolver(),
+        allowed_key_entity_qnames=set(),
+        scope_id="root",
+        actionable_cluster_refs=actionable,
+        owned_cluster_ids_by_component_id={"1": {"2", "11", "18"}},
+    )
+    validation_context = ScopeOperationValidationContext(
+        expected_cluster_refs=actionable,
+        existing_component_ids={"1"},
+    )
+
+    repair_unambiguous_routing_and_optional_key_entity_metadata(decision, repair_context)
+    result = validate_scope_update_decision(decision, validation_context)
+
+    assert result.is_valid
+    assert [ref.cluster_id for ref in decision.operations[0].cluster_refs] == [2]
+
+
+def test_repair_keeps_cross_component_owned_refs_so_theft_still_fails() -> None:
+    """A ref owned by a *different* component is not trimmed, so cross-component theft still surfaces."""
+    decision = ScopeUpdateDecision(
+        operations=[
+            ScopeOperation(
+                action=ScopeOperationAction.UPDATE_COMPONENT,
+                cluster_refs=[
+                    ScopedClusterRef(scope_id="root", language="python", cluster_id=2),
+                    ScopedClusterRef(scope_id="root", language="python", cluster_id=7),
+                ],
+                component_id="1",
+                rationale="Claims a cluster still owned by another component.",
+            )
+        ]
+    )
+    actionable = {ClusterRef(language="python", cluster_id=2)}
+    repair_context = ScopeOperationRepairContext(
+        reference_resolver=_reference_resolver(),
+        allowed_key_entity_qnames=set(),
+        scope_id="root",
+        actionable_cluster_refs=actionable,
+        owned_cluster_ids_by_component_id={"1": {"2"}, "2": {"7"}},
+    )
+    validation_context = ScopeOperationValidationContext(
+        expected_cluster_refs=actionable,
+        existing_component_ids={"1", "2"},
+    )
+
+    repair_unambiguous_routing_and_optional_key_entity_metadata(decision, repair_context)
+    result = validate_scope_update_decision(decision, validation_context)
+
+    assert not result.is_valid
+    assert "Unexpected cluster_refs: root:python:7" in "\n".join(result.feedback_messages)
+
+
+def test_repair_leaves_no_change_update_for_validator_to_reject() -> None:
+    """An update whose refs are all owned-unchanged (no actionable) must stay invalid.
+
+    Why: trimming it to empty would let it silently apply name/description to an untouched component.
+    """
+    decision = ScopeUpdateDecision(
+        operations=[
+            ScopeOperation(
+                action=ScopeOperationAction.UPDATE_COMPONENT,
+                cluster_refs=[ScopedClusterRef(scope_id="root", language="python", cluster_id=2)],
+                component_id="1",
+                rationale="Real change.",
+            ),
+            ScopeOperation(
+                action=ScopeOperationAction.UPDATE_COMPONENT,
+                cluster_refs=[
+                    ScopedClusterRef(scope_id="root", language="python", cluster_id=cluster_id)
+                    for cluster_id in (13, 14)
+                ],
+                component_id="5",
+                name="Hijacked",
+                description="Update of an untouched component that changed nothing.",
+                rationale="Nothing here actually changed.",
+            ),
+        ]
+    )
+    actionable = {ClusterRef(language="python", cluster_id=2)}
+    repair_context = ScopeOperationRepairContext(
+        reference_resolver=_reference_resolver(),
+        allowed_key_entity_qnames=set(),
+        scope_id="root",
+        actionable_cluster_refs=actionable,
+        owned_cluster_ids_by_component_id={"1": {"2"}, "5": {"13", "14"}},
+    )
+    validation_context = ScopeOperationValidationContext(
+        expected_cluster_refs=actionable,
+        existing_component_ids={"1", "5"},
+    )
+
+    repair_unambiguous_routing_and_optional_key_entity_metadata(decision, repair_context)
+    result = validate_scope_update_decision(decision, validation_context)
+
+    assert not result.is_valid
+    assert [ref.cluster_id for ref in decision.operations[1].cluster_refs] == [13, 14]
+    assert "Unexpected cluster_refs" in "\n".join(result.feedback_messages)
+
+
+def test_repair_leaves_no_change_delete_for_validator_to_reject() -> None:
+    """A delete whose refs are all owned-unchanged (no actionable) must stay invalid.
+
+    Why: trimming it to empty would let it silently remove an untouched component.
+    """
+    decision = ScopeUpdateDecision(
+        operations=[
+            ScopeOperation(
+                action=ScopeOperationAction.UPDATE_COMPONENT,
+                cluster_refs=[ScopedClusterRef(scope_id="root", language="python", cluster_id=2)],
+                component_id="1",
+                rationale="Real change.",
+            ),
+            ScopeOperation(
+                action=ScopeOperationAction.DELETE_COMPONENT,
+                cluster_refs=[
+                    ScopedClusterRef(scope_id="root", language="python", cluster_id=cluster_id)
+                    for cluster_id in (13, 14)
+                ],
+                component_id="5",
+                rationale="Nothing here actually changed.",
+            ),
+        ]
+    )
+    actionable = {ClusterRef(language="python", cluster_id=2)}
+    repair_context = ScopeOperationRepairContext(
+        reference_resolver=_reference_resolver(),
+        allowed_key_entity_qnames=set(),
+        scope_id="root",
+        actionable_cluster_refs=actionable,
+        owned_cluster_ids_by_component_id={"1": {"2"}, "5": {"13", "14"}},
+    )
+    validation_context = ScopeOperationValidationContext(
+        expected_cluster_refs=actionable,
+        existing_component_ids={"1", "5"},
+    )
+
+    repair_unambiguous_routing_and_optional_key_entity_metadata(decision, repair_context)
+    result = validate_scope_update_decision(decision, validation_context)
+
+    assert not result.is_valid
+    assert [ref.cluster_id for ref in decision.operations[1].cluster_refs] == [13, 14]
+    assert "Unexpected cluster_refs" in "\n".join(result.feedback_messages)
+
+
+def test_repair_keeps_refs_when_update_moves_another_components_cluster() -> None:
+    """An update that lists a changed cluster owned by another component keeps its own owned refs.
+
+    Why: dropping them would let the validator accept moving that cluster off its real owner.
+    """
+    decision = ScopeUpdateDecision(
+        operations=[
+            ScopeOperation(
+                action=ScopeOperationAction.UPDATE_COMPONENT,
+                cluster_refs=[
+                    ScopedClusterRef(scope_id="root", language="python", cluster_id=3),  # changed, owned by comp 2
+                    ScopedClusterRef(scope_id="root", language="python", cluster_id=9),  # owned by comp 1, unchanged
+                ],
+                component_id="1",
+                rationale="Claims a changed cluster that still belongs to another component.",
+            )
+        ]
+    )
+    actionable = {ClusterRef(language="python", cluster_id=3)}
+    repair_context = ScopeOperationRepairContext(
+        reference_resolver=_reference_resolver(),
+        allowed_key_entity_qnames=set(),
+        scope_id="root",
+        actionable_cluster_refs=actionable,
+        owned_cluster_ids_by_component_id={"1": {"9"}, "2": {"3"}},
+        component_ids_by_cluster_ref={ClusterRef(language="python", cluster_id=3): "2"},
+    )
+    validation_context = ScopeOperationValidationContext(
+        expected_cluster_refs=actionable,
+        existing_component_ids={"1", "2"},
+    )
+
+    repair_unambiguous_routing_and_optional_key_entity_metadata(decision, repair_context)
+    result = validate_scope_update_decision(decision, validation_context)
+
+    assert not result.is_valid
+    assert [ref.cluster_id for ref in decision.operations[0].cluster_refs] == [3, 9]
+    assert "Unexpected cluster_refs: root:python:9" in "\n".join(result.feedback_messages)
+
+
+def test_repair_keeps_delete_refs_when_component_still_owns_clusters() -> None:
+    """A delete of a component that still owns clusters keeps its refs so the validator rejects it.
+
+    Why: dropping them would let a delete through even though the component still owns clusters.
+    """
+    decision = ScopeUpdateDecision(
+        operations=[
+            ScopeOperation(
+                action=ScopeOperationAction.DELETE_COMPONENT,
+                cluster_refs=[
+                    ScopedClusterRef(scope_id="root", language="python", cluster_id=cluster_id)
+                    for cluster_id in (2, 13, 14)
+                ],
+                component_id="5",
+                rationale="Deletes a component that still owns live clusters.",
+            )
+        ]
+    )
+    actionable = {ClusterRef(language="python", cluster_id=2)}
+    repair_context = ScopeOperationRepairContext(
+        reference_resolver=_reference_resolver(),
+        allowed_key_entity_qnames=set(),
+        scope_id="root",
+        actionable_cluster_refs=actionable,
+        owned_cluster_ids_by_component_id={"5": {"2", "13", "14"}},
+        component_ids_by_cluster_ref={ClusterRef(language="python", cluster_id=2): "5"},
+    )
+    validation_context = ScopeOperationValidationContext(
+        expected_cluster_refs=actionable,
+        existing_component_ids={"5"},
+    )
+
+    repair_unambiguous_routing_and_optional_key_entity_metadata(decision, repair_context)
+    result = validate_scope_update_decision(decision, validation_context)
+
+    assert not result.is_valid
+    assert [ref.cluster_id for ref in decision.operations[0].cluster_refs] == [2, 13, 14]
+    assert "Unexpected cluster_refs" in "\n".join(result.feedback_messages)
+
+
+def test_validate_rejects_noop_claiming_another_components_cluster() -> None:
+    """A noop that claims a changed cluster owned by another component is rejected (would duplicate ownership).
+
+    Why: the noop branch of update_scope unions the ref into its component without removing it from the
+    real owner, so the cluster would end up owned by two components.
+    """
+    decision = ScopeUpdateDecision(
+        operations=[
+            ScopeOperation(
+                action=ScopeOperationAction.NOOP,
+                cluster_refs=[ScopedClusterRef(scope_id="root", language="python", cluster_id=3)],  # owned by comp 1
+                component_id="2",
+                rationale="Preserves comp 2 but grabs comp 1's changed cluster.",
+            )
+        ]
+    )
+    context = ScopeOperationValidationContext(
+        expected_cluster_refs={ClusterRef(language="python", cluster_id=3)},
+        existing_component_ids={"1", "2"},
+        component_ids_by_cluster_ref={ClusterRef(language="python", cluster_id=3): "1"},
+    )
+
+    result = validate_scope_update_decision(decision, context)
+
+    assert not result.is_valid
+    assert "claims clusters owned by another component" in "\n".join(result.feedback_messages)
+
+
+def test_validate_rejects_delete_that_still_owns_an_actionable_cluster() -> None:
+    """A delete listing an actionable cluster is rejected: a delete discards its clusters, so it cannot cover one.
+
+    Why: otherwise a changed cluster "covered" only by a delete is thrown away on apply and orphaned.
+    """
+    decision = ScopeUpdateDecision(
+        operations=[
+            ScopeOperation(
+                action=ScopeOperationAction.DELETE_COMPONENT,
+                cluster_refs=[ScopedClusterRef(scope_id="root", language="python", cluster_id=5)],
+                component_id="2",
+                rationale="Deletes a component that still owns a changed cluster.",
+            )
+        ]
+    )
+    context = ScopeOperationValidationContext(
+        expected_cluster_refs={ClusterRef(language="python", cluster_id=5)},
+        existing_component_ids={"2"},
+        component_ids_by_cluster_ref={ClusterRef(language="python", cluster_id=5): "2"},
+    )
+
+    result = validate_scope_update_decision(decision, context)
+
+    assert not result.is_valid
+    assert "Missing cluster_refs: root:python:5" in "\n".join(result.feedback_messages)
+
+
+def test_repair_trims_noop_that_only_preserves_its_own_clusters() -> None:
+    """A noop listing only its own unchanged clusters is trimmed to empty and stays valid."""
+    decision = ScopeUpdateDecision(
+        operations=[
+            ScopeOperation(
+                action=ScopeOperationAction.UPDATE_COMPONENT,
+                cluster_refs=[ScopedClusterRef(scope_id="root", language="python", cluster_id=3)],
+                component_id="1",
+                rationale="Real change.",
+            ),
+            ScopeOperation(
+                action=ScopeOperationAction.NOOP,
+                cluster_refs=[
+                    ScopedClusterRef(scope_id="root", language="python", cluster_id=cluster_id) for cluster_id in (8, 9)
+                ],
+                component_id="2",
+                rationale="Preserve comp 2 unchanged.",
+            ),
+        ]
+    )
+    actionable = {ClusterRef(language="python", cluster_id=3)}
+    repair_context = ScopeOperationRepairContext(
+        reference_resolver=_reference_resolver(),
+        allowed_key_entity_qnames=set(),
+        scope_id="root",
+        actionable_cluster_refs=actionable,
+        owned_cluster_ids_by_component_id={"1": {"3"}, "2": {"8", "9"}},
+        component_ids_by_cluster_ref={ClusterRef(language="python", cluster_id=3): "1"},
+    )
+    validation_context = ScopeOperationValidationContext(
+        expected_cluster_refs=actionable,
+        existing_component_ids={"1", "2"},
+    )
+
+    repair_unambiguous_routing_and_optional_key_entity_metadata(decision, repair_context)
+    result = validate_scope_update_decision(decision, validation_context)
+
+    assert result.is_valid
+    assert decision.operations[1].cluster_refs == []
+
+
+def test_operation_source_cluster_ids_treats_blank_scope_as_root() -> None:
+    """A ref with a blank scope_id is counted for the root scope, matching the validator's normalization."""
+    operation = ScopeOperation(
+        action=ScopeOperationAction.CREATE_COMPONENT,
+        cluster_refs=[ScopedClusterRef(scope_id="", language="python", cluster_id=5)],
+        name="New Feature",
+        description="Owns a brand-new cluster.",
+        rationale="A new cluster appeared.",
+    )
+
+    assert _operation_source_cluster_ids(ROOT_SCOPE_ID, operation) == ["5"]
 
 
 def test_validate_scope_update_decision_keeps_ownerless_update_invalid() -> None:
