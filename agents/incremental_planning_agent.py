@@ -87,14 +87,22 @@ class IncrementalPlanningAgent(CodeBoardingAgent):
             changed_files=_format_changed_files(self.toolkit.context.changes),
             structural_diff=format_structural_diff(structural_diff),
         )
+        actionable_cluster_refs = _actionable_new_cluster_refs(structural_diff)
         repair_context = ScopeOperationRepairContext(
             reference_resolver=self.reference_resolver,
             allowed_key_entity_qnames=cluster_member_qnames(cluster_results),
             component_ids_by_cluster_ref=_component_ids_by_cluster_ref(scope_id, scope.components, structural_diff),
             component_ids_by_name=_component_ids_by_name(scope.components),
+            scope_id=scope_id,
+            actionable_cluster_refs=actionable_cluster_refs,
+            owned_cluster_ids_by_component_id={
+                component.component_id: set(component.source_cluster_ids)
+                for component in scope.components
+                if component.component_id
+            },
         )
         validation_context = ScopeOperationValidationContext(
-            expected_cluster_refs=_actionable_new_cluster_refs(structural_diff),
+            expected_cluster_refs=actionable_cluster_refs,
             existing_component_ids={component.component_id for component in scope.components if component.component_id},
         )
         decision = self._invoke_repair_validate(

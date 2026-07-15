@@ -11,8 +11,11 @@ from agents.agent_responses import (
     Component,
     ScopeOperation,
     ScopeOperationAction,
+    ScopedClusterRef,
     ScopeUpdateDecision,
 )
+from agents.cluster_ids import CodeBoardingClusterIds
+from agents.scope_ids import ROOT_SCOPE_ID
 from agents.scope_operations import (
     EXISTING_COMPONENT_ACTIONS,
     cluster_member_qnames,
@@ -50,6 +53,9 @@ class ScopeOperationRepairContext:
     allowed_key_entity_qnames: set[str]
     component_ids_by_cluster_ref: dict[ClusterRef, str] = field(default_factory=dict)
     component_ids_by_name: dict[str, str] = field(default_factory=dict)
+    scope_id: str = ROOT_SCOPE_ID
+    actionable_cluster_refs: set[ClusterRef] = field(default_factory=set)
+    owned_cluster_ids_by_component_id: dict[str, set[str]] = field(default_factory=dict)
 
 
 def repair_unambiguous_routing_and_optional_key_entity_metadata(
@@ -58,19 +64,56 @@ def repair_unambiguous_routing_and_optional_key_entity_metadata(
 ) -> None:
     """Repair deterministic routing and optional key-entity metadata defects."""
     routed_operations = _repair_unambiguous_operation_routing(decision, context)
+    trimmed_refs = _drop_redundant_owned_cluster_refs(decision, context)
     canonicalized_qnames, dropped_qnames = _repair_optional_key_entity_metadata(
         decision,
         context,
     )
 
-    if routed_operations or canonicalized_qnames:
+    if routed_operations or trimmed_refs or canonicalized_qnames:
         logger.info(
-            "Repaired incremental plan: routed %d operation(s), canonicalized %d key-entity qname(s)",
+            "Repaired incremental plan: routed %d operation(s), trimmed %d redundant owned cluster ref(s), "
+            "canonicalized %d key-entity qname(s)",
             routed_operations,
+            trimmed_refs,
             canonicalized_qnames,
         )
     if dropped_qnames:
         logger.warning("Dropped unresolved optional key entities: %s", sorted(dropped_qnames))
+
+
+def _drop_redundant_owned_cluster_refs(
+    decision: ScopeUpdateDecision,
+    context: ScopeOperationRepairContext,
+) -> int:
+    """Trim cluster_refs an existing-component op re-lists that it already owns and that did not change.
+
+    Why: the planner echoes a touched component's full ``clusters=[...]`` display, but only
+    changed clusters are actionable. Re-listing owned-but-unchanged clusters is a downstream
+    no-op (they are preserved when absent), so normalize the plan back to the intended
+    actionable-only shape instead of failing the strict cluster_ref validator. A ref owned by a
+    *different* component is left in place so genuine moves and cross-component theft still surface.
+    """
+    prefix = CodeBoardingClusterIds.prefix_for_scope(context.scope_id)
+    trimmed = 0
+    for operation in decision.operations:
+        if operation.action not in EXISTING_COMPONENT_ACTIONS or operation.component_id is None:
+            continue
+        owned = context.owned_cluster_ids_by_component_id.get(operation.component_id, set())
+        kept: list[ScopedClusterRef] = []
+        for ref in operation.cluster_refs:
+            source_cluster_id = CodeBoardingClusterIds.qualify_local_id(
+                CodeBoardingClusterIds.from_graph_id(ref.cluster_id), prefix
+            )
+            redundant = source_cluster_id in owned and cluster_ref_from_scoped_ref(ref) not in (
+                context.actionable_cluster_refs
+            )
+            if redundant:
+                trimmed += 1
+                continue
+            kept.append(ref)
+        operation.cluster_refs = kept
+    return trimmed
 
 
 def _repair_unambiguous_operation_routing(

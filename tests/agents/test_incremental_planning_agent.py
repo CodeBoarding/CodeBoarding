@@ -350,6 +350,81 @@ def test_repair_scope_update_decision_repairs_full_scope_planner_output() -> Non
     assert [entity.qualified_name for entity in decision.operations[1].key_entities] == [canonical_qname]
 
 
+def test_repair_trims_redundant_owned_cluster_refs_the_planner_echoed() -> None:
+    """An update that re-lists a component's full owned set is trimmed to the changed clusters.
+
+    Why: the planner echoes the existing ``clusters=[...]`` display, but only changed
+    clusters are actionable. Re-listing owned-but-unchanged clusters used to trip the
+    strict validator and crash the sync (TS repos where components own many clusters).
+    """
+    decision = ScopeUpdateDecision(
+        operations=[
+            ScopeOperation(
+                action=ScopeOperationAction.UPDATE_COMPONENT,
+                cluster_refs=[
+                    ScopedClusterRef(scope_id="root", language="python", cluster_id=cluster_id)
+                    for cluster_id in (2, 11, 18)
+                ],
+                component_id="1",
+                rationale="A file owned by this component changed.",
+            )
+        ]
+    )
+    actionable = {ClusterRef(language="python", cluster_id=2)}
+    repair_context = ScopeOperationRepairContext(
+        reference_resolver=_reference_resolver(),
+        allowed_key_entity_qnames=set(),
+        scope_id="root",
+        actionable_cluster_refs=actionable,
+        owned_cluster_ids_by_component_id={"1": {"2", "11", "18"}},
+    )
+    validation_context = ScopeOperationValidationContext(
+        expected_cluster_refs=actionable,
+        existing_component_ids={"1"},
+    )
+
+    repair_unambiguous_routing_and_optional_key_entity_metadata(decision, repair_context)
+    result = validate_scope_update_decision(decision, validation_context)
+
+    assert result.is_valid
+    assert [ref.cluster_id for ref in decision.operations[0].cluster_refs] == [2]
+
+
+def test_repair_keeps_cross_component_owned_refs_so_theft_still_fails() -> None:
+    """A ref owned by a *different* component is not trimmed, so cross-component theft still surfaces."""
+    decision = ScopeUpdateDecision(
+        operations=[
+            ScopeOperation(
+                action=ScopeOperationAction.UPDATE_COMPONENT,
+                cluster_refs=[
+                    ScopedClusterRef(scope_id="root", language="python", cluster_id=2),
+                    ScopedClusterRef(scope_id="root", language="python", cluster_id=7),
+                ],
+                component_id="1",
+                rationale="Claims a cluster still owned by another component.",
+            )
+        ]
+    )
+    actionable = {ClusterRef(language="python", cluster_id=2)}
+    repair_context = ScopeOperationRepairContext(
+        reference_resolver=_reference_resolver(),
+        allowed_key_entity_qnames=set(),
+        scope_id="root",
+        actionable_cluster_refs=actionable,
+        owned_cluster_ids_by_component_id={"1": {"2"}, "2": {"7"}},
+    )
+    validation_context = ScopeOperationValidationContext(
+        expected_cluster_refs=actionable,
+        existing_component_ids={"1", "2"},
+    )
+
+    repair_unambiguous_routing_and_optional_key_entity_metadata(decision, repair_context)
+    result = validate_scope_update_decision(decision, validation_context)
+
+    assert not result.is_valid
+    assert "Unexpected cluster_refs: root:python:7" in "\n".join(result.feedback_messages)
+
+
 def test_validate_scope_update_decision_keeps_ownerless_update_invalid() -> None:
     ref = ClusterRef(language="python", cluster_id=7)
     decision = ScopeUpdateDecision(
