@@ -119,19 +119,19 @@ def _drop_redundant_owned_cluster_refs(
 def _may_trim_owned_refs(operation: ScopeOperation, context: ScopeOperationRepairContext) -> bool:
     """Whether an operation's already-owned, unchanged cluster_refs are safe to drop.
 
-    Only drop them where doing so cannot make an invalid plan look valid:
-    - noop: always - it just keeps a component unchanged.
-    - update_component: only when it edits its own component - it must list at least one changed
-      (actionable) cluster, and every changed cluster it lists must already belong to it. If one
-      belongs to another component, keep the refs so the validator still rejects the move.
-    - delete_component / create_component: never - for a delete, still-owned clusters mean the
-      component is not empty, so keep the refs and let the validator reject it.
+    - noop: always. It only preserves a component; the validator separately rejects a noop that
+      claims a cluster owned by another component.
+    - update_component: only a genuine self-update - it must list at least one changed (actionable)
+      cluster, and no changed ref it lists may belong to another component. Otherwise keep the refs
+      so an empty or cross-component update is rejected instead of silently applied.
+    - delete_component / create_component: never - keep the refs so a delete of a component that
+      still owns clusters is rejected.
     """
     if operation.action == ScopeOperationAction.NOOP:
         return True
     if operation.action != ScopeOperationAction.UPDATE_COMPONENT:
         return False
-    accounts_for_own_change = False
+    lists_own_change = False
     for ref in operation.cluster_refs:
         cluster_ref = cluster_ref_from_scoped_ref(ref)
         if cluster_ref not in context.actionable_cluster_refs:
@@ -139,8 +139,8 @@ def _may_trim_owned_refs(operation: ScopeOperation, context: ScopeOperationRepai
         proven_owner = context.component_ids_by_cluster_ref.get(cluster_ref)
         if proven_owner is not None and proven_owner != operation.component_id:
             return False
-        accounts_for_own_change = True
-    return accounts_for_own_change
+        lists_own_change = True
+    return lists_own_change
 
 
 def _repair_unambiguous_operation_routing(
