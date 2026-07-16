@@ -49,7 +49,7 @@ from diagram_analysis.cluster_snapshot import (
     ClusterSnapshot,
     snapshot_from_static_analysis,
 )
-from diagram_analysis.exceptions import IncrementalCacheMissingError
+from diagram_analysis.exceptions import IncrementalCacheMissingError, ScopeContainmentError
 from diagram_analysis.file_coverage import FileCoverage
 from diagram_analysis.file_index import build_files_index, refresh_method_spans_from_cfg
 from diagram_analysis.io_utils import load_analysis_metadata, normalize_repo_path, save_analysis, write_fingerprint
@@ -606,6 +606,7 @@ class DiagramGenerator:
         """
         self.rebuild_global_relations(root_analysis, sub_analyses)
         self._strip_ignored(root_analysis, sub_analyses)
+        assert_scope_containment(root_analysis, sub_analyses)
 
     def finalize_and_save(
         self,
@@ -664,6 +665,36 @@ class DiagramGenerator:
             not_analyzed=summary["not_analyzed"],
             not_analyzed_by_reason=summary["not_analyzed_by_reason"],
         )
+
+    def _rescope_child_analyses(
+        self,
+        scope: AnalysisInsights,
+        sub_analyses: dict[str, AnalysisInsights],
+    ) -> None:
+        """Re-partition every child scope over its parent's current ``file_methods``.
+
+        Why: ``update_scope`` re-partitions a parent against the live clustering, but a
+        child scope is a separate ``AnalysisInsights`` that no patch touches — a method
+        that moved to another component would otherwise stay in the old owner's subtree
+        and appear under two components.
+        """
+        assert self.incremental_agent is not None
+        for component in scope.components:
+            child_scope = sub_analyses.get(component.component_id)
+            if child_scope is None or not child_scope.components:
+                continue
+            _subgraph_str, cluster_results, cfg_graphs = self.incremental_agent._create_strict_component_subgraph(
+                component, source_cluster_id_prefix=component.component_id
+            )
+            if cluster_results:
+                self.incremental_agent.populate_file_methods(
+                    child_scope, cluster_results, cfg_graphs, component.component_id
+                )
+            else:
+                # The parent owns no live methods, so no child may own any.
+                for child in child_scope.components:
+                    child.file_methods = []
+            self._rescope_child_analyses(child_scope, sub_analyses)
 
     def _apply_incremental_scope_recursively(
         self,
@@ -783,6 +814,9 @@ class DiagramGenerator:
                 # No structural change, but a body-only edit still moves content
                 # hashes — refresh the files index from live source so they don't
                 # go stale (relations are already the global set here).
+                # Re-scope anyway: a baseline written before child scopes were
+                # confined to their parent stays drifted until something repairs it.
+                self._rescope_child_analyses(root_analysis, sub_analyses)
                 self._refresh_files_index(root_analysis, sub_analyses)
                 return self.finalize_and_save(root_analysis, sub_analyses)
 
@@ -800,6 +834,7 @@ class DiagramGenerator:
                 delta.cluster_results(),
                 sub_analyses,
             )
+            self._rescope_child_analyses(root_analysis, sub_analyses)
 
             removed_ids = prune_empty_components(root_analysis, sub_analyses, protected_empty_ids)
             if removed_ids:
@@ -854,6 +889,35 @@ class DiagramGenerator:
             for fp, entry in analysis.files.items():
                 unified_files.setdefault(fp, FileEntry()).merge_from(entry)
         root_analysis.files = unified_files
+
+
+def assert_scope_containment(
+    root_analysis: AnalysisInsights,
+    sub_analyses: dict[str, AnalysisInsights],
+) -> None:
+    """Raise ``ScopeContainmentError`` if any child scope owns methods its parent does not."""
+    components_by_id = {
+        component.component_id: component
+        for analysis in [root_analysis, *sub_analyses.values()]
+        for component in analysis.components
+        if component.component_id
+    }
+    violations: list[str] = []
+    for component_id, child_scope in sorted(sub_analyses.items()):
+        parent = components_by_id.get(component_id)
+        if parent is None:
+            continue
+        owned = {(group.file_path, method.qualified_name) for group in parent.file_methods for method in group.methods}
+        for child in child_scope.components:
+            escaped = {
+                (group.file_path, method.qualified_name) for group in child.file_methods for method in group.methods
+            } - owned
+            if escaped:
+                violations.append(
+                    f"{child.component_id or child.name} holds {len(escaped)} method(s) outside parent {component_id}"
+                )
+    if violations:
+        raise ScopeContainmentError(violations)
 
 
 def _collect_components_by_id(
