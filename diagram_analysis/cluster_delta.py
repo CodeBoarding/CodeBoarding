@@ -1,15 +1,9 @@
-"""Deterministic cluster delta computation.
+"""Seeded Leiden clustering for subcomponent subgraphs.
 
-Mirrors ``build_all_cluster_results`` for the incremental path: produces a
-``ClusterDelta`` describing which clusters carried over, which changed members,
-which are entirely new, and which dropped — without requiring any LLM call.
-
-Seeded Leiden: warm-start ``leidenalg`` with the prior partition as
-``initial_membership`` and lock vertices outside the 1-hop affected frontier
-via ``is_membership_fixed``. The basin-of-attraction property of warm-start
-preserves cluster identity for vertices whose neighborhood didn't change,
-while allowing the affected frontier to re-optimize freely (including pulling
-existing nodes into newly-formed clusters with added nodes).
+Warm-start ``leidenalg`` with a prior partition (recorded via
+``CallGraph.record_cluster_paths``) as ``initial_membership`` and lock vertices
+outside the 1-hop affected frontier via ``is_membership_fixed``. Used by the
+details agent so re-detailing a component reuses its recorded cluster identity.
 """
 
 import logging
@@ -18,11 +12,8 @@ from pathlib import Path
 
 import networkx as nx
 
-from agents.scope_ids import ROOT_SCOPE_ID
-from diagram_analysis.cluster_snapshot import ClusterSnapshot, ClusterSnapshotEntry
+from diagram_analysis.cluster_snapshot import ClusterSnapshotEntry
 from diagram_analysis.io_utils import normalize_repo_path
-from repo_utils.change_detector import ChangeSet
-from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.graph import ClusterResult
 from static_analyzer.leiden_utils import find_partition_seeded
 
@@ -40,327 +31,6 @@ class LanguageDelta:
     @property
     def affected_cluster_ids(self) -> set[int]:
         return self.new_cluster_ids | self.changed_cluster_ids
-
-
-@dataclass
-class ClusterDelta:
-    by_language: dict[str, LanguageDelta] = field(default_factory=dict)
-
-    @property
-    def has_changes(self) -> bool:
-        return any(d.affected_cluster_ids or d.dropped_cluster_ids for d in self.by_language.values())
-
-    def cluster_results(self) -> dict[str, ClusterResult]:
-        return {lang: d.cluster_results for lang, d in self.by_language.items()}
-
-
-@dataclass(frozen=True)
-class ClusterRef:
-    language: str
-    cluster_id: int
-    scope_id: str = ROOT_SCOPE_ID
-
-
-@dataclass
-class ClusterMemberDelta:
-    old_cluster: ClusterRef
-    new_cluster: ClusterRef
-    unchanged_methods: set[str] = field(default_factory=set)
-    added_methods: set[str] = field(default_factory=set)
-    removed_methods: set[str] = field(default_factory=set)
-    dirty_files: set[str] = field(default_factory=set)
-
-
-@dataclass
-class ClusterReshape:
-    old_clusters: list[ClusterRef] = field(default_factory=list)
-    new_clusters: list[ClusterRef] = field(default_factory=list)
-    overlap_counts: dict[tuple[ClusterRef, ClusterRef], int] = field(default_factory=dict)
-    dirty_files: set[str] = field(default_factory=set)
-
-
-@dataclass
-class LanguageStructuralDiff:
-    language: str
-    unchanged: list[ClusterMemberDelta] = field(default_factory=list)
-    modified: list[ClusterMemberDelta] = field(default_factory=list)
-    new: list[ClusterRef] = field(default_factory=list)
-    new_details: list[ClusterMemberDelta] = field(default_factory=list)
-    removed: list[ClusterRef] = field(default_factory=list)
-    reshaped: list[ClusterReshape] = field(default_factory=list)
-
-    @property
-    def has_changes(self) -> bool:
-        return bool(self.modified or self.new or self.removed or self.reshaped)
-
-
-@dataclass
-class StructuralClusterDiff:
-    by_language: dict[str, LanguageStructuralDiff] = field(default_factory=dict)
-
-    @property
-    def has_changes(self) -> bool:
-        return any(diff.has_changes for diff in self.by_language.values())
-
-
-def compute_cluster_delta(
-    old_snapshot: ClusterSnapshot,
-    new_static: StaticAnalysisResults,
-    changes: ChangeSet | None = None,
-    repo_dir: Path | None = None,
-) -> ClusterDelta:
-    """Compute per-language cluster deltas via seeded Leiden.
-
-    When ``changes`` is provided, qnames whose file is outside both the diff
-    and the prior analysis are dropped as drift. Qnames in the prior analysis
-    that vanish without appearing in the diff are kept but logged as
-    inconsistent. ``repo_dir`` normalizes CFG-absolute paths to repo-relative
-    posix so they match the diff. ``changes=None`` disables scoping.
-    """
-    delta = ClusterDelta()
-    diff_files = _changeset_to_path_set(changes) if changes is not None else None
-    for language in new_static.get_languages():
-        cfg = new_static.get_cfg(language)
-        nx_graph = cfg.to_networkx()
-        old_clusters = old_snapshot.get_language(language)
-        delta.by_language[language] = _delta_for_language(
-            language,
-            nx_graph,
-            old_clusters,
-            diff_files,
-            repo_dir,
-        )
-    return delta
-
-
-def structural_diff_from_delta(
-    old_snapshot: ClusterSnapshot,
-    delta: ClusterDelta,
-    changes: ChangeSet | None = None,
-    repo_dir: Path | None = None,
-    scope_id: str = ROOT_SCOPE_ID,
-) -> StructuralClusterDiff:
-    """Classify seeded cluster output into scope-local structural facts."""
-    diff_files = _changeset_to_path_set(changes) if changes is not None else set()
-    structural = StructuralClusterDiff()
-    languages = set(old_snapshot.by_language) | set(delta.by_language)
-    for language in sorted(languages):
-        old_clusters = old_snapshot.get_language(language)
-        language_delta = delta.by_language.get(language)
-        new_result = language_delta.cluster_results if language_delta is not None else ClusterResult()
-        structural.by_language[language] = _structural_diff_for_language(
-            language,
-            old_clusters,
-            new_result,
-            diff_files,
-            repo_dir,
-            scope_id,
-        )
-    return structural
-
-
-def _changeset_to_path_set(changes: ChangeSet) -> set[str]:
-    """Collect every path in *changes*; renames contribute both old and new paths."""
-    paths: set[str] = set()
-    for fc in changes.files:
-        paths.add(fc.file_path)
-        if fc.old_path:
-            paths.add(fc.old_path)
-    return paths
-
-
-def _structural_diff_for_language(
-    language: str,
-    old_clusters: dict[int, ClusterSnapshotEntry],
-    new_result: ClusterResult,
-    diff_files: set[str],
-    repo_dir: Path | None,
-    scope_id: str,
-) -> LanguageStructuralDiff:
-    result = LanguageStructuralDiff(language=language)
-    old_to_new: dict[int, set[int]] = {}
-    new_to_old: dict[int, set[int]] = {}
-    overlap_counts: dict[tuple[int, int], int] = {}
-
-    for old_id, old_entry in old_clusters.items():
-        for new_id, new_members in new_result.clusters.items():
-            overlap = len(old_entry.members & new_members)
-            if overlap == 0:
-                continue
-            old_to_new.setdefault(old_id, set()).add(new_id)
-            new_to_old.setdefault(new_id, set()).add(old_id)
-            overlap_counts[(old_id, new_id)] = overlap
-
-    visited_old: set[int] = set()
-    visited_new: set[int] = set()
-
-    for start_old in sorted(old_to_new):
-        if start_old in visited_old:
-            continue
-        component_old: set[int] = set()
-        component_new: set[int] = set()
-        old_queue = [start_old]
-        new_queue: list[int] = []
-        while old_queue or new_queue:
-            while old_queue:
-                old_id = old_queue.pop()
-                if old_id in component_old:
-                    continue
-                component_old.add(old_id)
-                for new_id in old_to_new.get(old_id, set()):
-                    if new_id not in component_new:
-                        new_queue.append(new_id)
-            while new_queue:
-                new_id = new_queue.pop()
-                if new_id in component_new:
-                    continue
-                component_new.add(new_id)
-                for old_id in new_to_old.get(new_id, set()):
-                    if old_id not in component_old:
-                        old_queue.append(old_id)
-
-        visited_old |= component_old
-        visited_new |= component_new
-        if len(component_old) == 1 and len(component_new) == 1:
-            old_id = next(iter(component_old))
-            new_id = next(iter(component_new))
-            member_delta = _build_member_delta(
-                language,
-                old_id,
-                new_id,
-                old_clusters[old_id],
-                new_result,
-                diff_files,
-                repo_dir,
-                scope_id,
-            )
-            if member_delta.added_methods or member_delta.removed_methods or member_delta.dirty_files:
-                result.modified.append(member_delta)
-            else:
-                result.unchanged.append(member_delta)
-            continue
-
-        result.reshaped.append(
-            _build_reshape(
-                language,
-                component_old,
-                component_new,
-                old_clusters,
-                new_result,
-                overlap_counts,
-                diff_files,
-                repo_dir,
-                scope_id,
-            )
-        )
-
-    for old_id in sorted(set(old_clusters) - visited_old):
-        result.removed.append(ClusterRef(language=language, cluster_id=old_id, scope_id=scope_id))
-    for new_id in sorted(set(new_result.clusters) - visited_new):
-        new_ref = ClusterRef(language=language, cluster_id=new_id, scope_id=scope_id)
-        result.new.append(new_ref)
-        result.new_details.append(
-            _build_new_cluster_delta(
-                language,
-                new_id,
-                new_result,
-                diff_files,
-                repo_dir,
-                scope_id,
-            )
-        )
-    return result
-
-
-def _build_new_cluster_delta(
-    language: str,
-    new_id: int,
-    new_result: ClusterResult,
-    diff_files: set[str],
-    repo_dir: Path | None,
-    scope_id: str,
-) -> ClusterMemberDelta:
-    members = set(new_result.clusters.get(new_id, set()))
-    files = {normalize_repo_path(file_path, repo_dir) for file_path in new_result.cluster_to_files.get(new_id, set())}
-    if diff_files:
-        files &= diff_files
-    return ClusterMemberDelta(
-        old_cluster=ClusterRef(language=language, cluster_id=new_id, scope_id=scope_id),
-        new_cluster=ClusterRef(language=language, cluster_id=new_id, scope_id=scope_id),
-        added_methods=members,
-        dirty_files=files,
-    )
-
-
-def _build_member_delta(
-    language: str,
-    old_id: int,
-    new_id: int,
-    old_entry: ClusterSnapshotEntry,
-    new_result: ClusterResult,
-    diff_files: set[str],
-    repo_dir: Path | None,
-    scope_id: str,
-) -> ClusterMemberDelta:
-    new_members = new_result.clusters.get(new_id, set())
-    return ClusterMemberDelta(
-        old_cluster=ClusterRef(language=language, cluster_id=old_id, scope_id=scope_id),
-        new_cluster=ClusterRef(language=language, cluster_id=new_id, scope_id=scope_id),
-        unchanged_methods=old_entry.members & new_members,
-        added_methods=new_members - old_entry.members,
-        removed_methods=old_entry.members - new_members,
-        dirty_files=_dirty_files(old_entry, new_result, new_id, diff_files, repo_dir),
-    )
-
-
-def _build_reshape(
-    language: str,
-    old_ids: set[int],
-    new_ids: set[int],
-    old_clusters: dict[int, ClusterSnapshotEntry],
-    new_result: ClusterResult,
-    overlap_counts: dict[tuple[int, int], int],
-    diff_files: set[str],
-    repo_dir: Path | None,
-    scope_id: str,
-) -> ClusterReshape:
-    old_refs = [ClusterRef(language=language, cluster_id=old_id, scope_id=scope_id) for old_id in sorted(old_ids)]
-    new_refs = [ClusterRef(language=language, cluster_id=new_id, scope_id=scope_id) for new_id in sorted(new_ids)]
-    ref_by_old_id = {ref.cluster_id: ref for ref in old_refs}
-    ref_by_new_id = {ref.cluster_id: ref for ref in new_refs}
-    ref_overlaps: dict[tuple[ClusterRef, ClusterRef], int] = {}
-    for old_id, new_id in sorted(overlap_counts):
-        if old_id in old_ids and new_id in new_ids:
-            ref_overlaps[(ref_by_old_id[old_id], ref_by_new_id[new_id])] = overlap_counts[(old_id, new_id)]
-
-    dirty_files: set[str] = set()
-    for old_id in old_ids:
-        for new_id in new_ids:
-            dirty_files |= _dirty_files(old_clusters[old_id], new_result, new_id, diff_files, repo_dir)
-    return ClusterReshape(
-        old_clusters=old_refs,
-        new_clusters=new_refs,
-        overlap_counts=ref_overlaps,
-        dirty_files=dirty_files,
-    )
-
-
-def _dirty_files(
-    old_entry: ClusterSnapshotEntry,
-    new_result: ClusterResult,
-    new_id: int,
-    diff_files: set[str],
-    repo_dir: Path | None,
-) -> set[str]:
-    if not diff_files:
-        return set()
-    cluster_files = (
-        set(old_entry.files)
-        | set(old_entry.member_files.values())
-        | set(new_result.cluster_to_files.get(new_id, set()))
-    )
-    normalized = {normalize_repo_path(file_path, repo_dir) for file_path in cluster_files if file_path}
-    return normalized & diff_files
 
 
 def _delta_for_language(
@@ -461,13 +131,13 @@ def _flavor_b_seeded(
 ) -> LanguageDelta:
     """Seeded Leiden with the prior partition as initial state and the non-frontier vertices locked.
 
-    Why: see module docstring — identity comes from ``initial_membership``'s
-    basin of attraction plus the hard ``is_membership_fixed`` guarantee.
+    Why: identity comes from ``initial_membership``'s basin of attraction plus
+    the hard ``is_membership_fixed`` guarantee.
     """
     if nx_graph.number_of_nodes() == 0:
         return LanguageDelta(
             language=language,
-            cluster_results=ClusterResult(strategy="incremental_seeded_empty"),
+            cluster_results=ClusterResult(strategy="seeded_empty"),
             dropped_cluster_ids=set(old_clusters.keys()),
         )
 
@@ -483,7 +153,7 @@ def _flavor_b_seeded(
     if not tracked_qnames:
         return LanguageDelta(
             language=language,
-            cluster_results=ClusterResult(strategy="incremental_seeded_empty"),
+            cluster_results=ClusterResult(strategy="seeded_empty"),
             dropped_cluster_ids=set(old_clusters.keys()),
         )
     working_graph = nx_graph.subgraph(tracked_qnames)
@@ -510,7 +180,7 @@ def _flavor_b_seeded(
     n_total = len(idx_to_qname)
     n_locked = sum(is_fixed)
     logger.info(
-        "[cluster_delta] %s seeded: tracked=%d, affected=%d (%.1f%%), locked=%d, " "old_clusters=%d, prior_carried=%d",
+        "[cluster_delta] %s seeded: tracked=%d, affected=%d (%.1f%%), locked=%d, old_clusters=%d, prior_carried=%d",
         language,
         n_total,
         len(affected),
@@ -551,7 +221,7 @@ def _flavor_b_seeded(
         nx_graph,
     )
 
-    cluster_results = _materialize_cluster_result(final_clusters, working_graph, "incremental_seeded")
+    cluster_results = _materialize_cluster_result(final_clusters, working_graph, "seeded")
     return LanguageDelta(
         language=language,
         cluster_results=cluster_results,

@@ -169,7 +169,7 @@ def _lang_to_adapter_name(language: str) -> str | None:
 class StaticAnalyzer:
     """Sole responsibility: Analyze the code using the engine LSP pipeline."""
 
-    def __init__(self, repository_path: Path, changed_files: set[Path] | None = None):
+    def __init__(self, repository_path: Path):
         self.repository_path = repository_path.resolve()
         self.ignore_manager = RepoIgnoreManager(self.repository_path)
         self.programming_langs = ProjectScanner(self.repository_path).scan()
@@ -185,10 +185,6 @@ class StaticAnalyzer:
         # artifact for inspection can't rewrite (and strip the SHA sidecar of) a
         # pkl this session didn't produce.
         self._results_need_saving: bool = False
-        # Git-free changed-file set (absolute paths) scoping the warm-start re-LSP,
-        # e.g. the incremental fingerprint diff. ``None`` means "detect via git"
-        # (the legacy CLI-on-a-real-checkout path); an empty set re-LSPs nothing.
-        self.changed_files = changed_files
         # ``stop_clients`` writes the pkl using ``_pending_source_sha`` as the
         # tag value (a diff-base for the next warm-start, NOT a cache gate).
         # ``analyze()`` updates it on every call so the latest run's SHA
@@ -523,8 +519,8 @@ class StaticAnalyzer:
 
         1. In-memory cache hit -> return.
         2. ``skip_cache=True`` -> full LSP analysis.
-        3. Pkl present -> load it, scope the warm-start to ``self.changed_files``
-           (or git when that is ``None``), re-LSP just those, merge in memory.
+        3. Pkl present -> load it, scope the warm-start via ``git diff``,
+           re-LSP just those, merge in memory.
         4. No pkl -> full LSP.
 
         Persistence is deferred to ``stop_clients`` so downstream mutations
@@ -559,10 +555,9 @@ class StaticAnalyzer:
             else:
                 cached_results, cached_sha = warm_start
                 logger.info(
-                    "static_analysis_cache: outcome=warmstart (cached_sha=%s, current_sha=%s, changes=%s)",
+                    "static_analysis_cache: outcome=warmstart (cached_sha=%s, current_sha=%s)",
                     cached_sha,
                     source_sha or "<none>",
-                    "supplied" if self.changed_files is not None else "git",
                 )
                 results = self._update_cached_results(cached_results, cached_sha)
 
@@ -638,19 +633,15 @@ class StaticAnalyzer:
     ) -> StaticAnalysisResults:
         """Bring *cached_results* up to date in-memory, scoped to the changed files.
 
-        Per language: determine the changed-file list, hand it to
-        ``update_cfg_for_changed_files`` along with the language's portion of the
-        cached state, and put the merged result back into a fresh
+        Per language: determine the changed-file list via ``git diff``, hand it
+        to ``update_cfg_for_changed_files`` along with the language's portion of
+        the cached state, and put the merged result back into a fresh
         ``StaticAnalysisResults``. Merging (rather than a full re-LSP) is what
-        preserves the cached CFG's ``_cluster_cache``, so the next incremental
-        run still finds a cluster baseline.
+        preserves the cached CFG's ``_cluster_cache`` for the next warm-start.
 
-        Changed-file source: ``self.changed_files`` when set at construction
-        (git-free — e.g. the wrapper's fingerprint diff), else ``git diff`` via
-        ``get_changed_files_since``. If git fails (*cached_sha* unreachable, a
-        non-git frozen copy, or a content-hash SHA that isn't a git object), fall
-        back to a full re-LSP for that language so the run still produces valid
-        output.
+        If git fails (*cached_sha* unreachable, a non-git frozen copy, or a
+        content-hash SHA that isn't a git object), fall back to a full re-LSP
+        for that language so the run still produces valid output.
         """
         results = StaticAnalysisResults()
         for engine_config, engine_client in self._engine_clients:
@@ -678,20 +669,14 @@ class StaticAnalyzer:
                 analysis=analysis,
                 diagnostics=self.collected_diagnostics.get(adapter.language_enum, {}),
             )
-        results.incremental_base_results = cached_results
         return results
 
     def _changed_files_for_language(self, project_path: Path, cached_sha: str, language: str) -> set[Path] | None:
         """The warm-start changed-file set scoped to one language's project root.
 
-        ``self.changed_files`` when set (git-free), else ``git diff`` via
-        ``get_changed_files_since``. ``None`` means "detect failed / no set" and
-        the caller does a full re-LSP for the language.
+        ``git diff`` via ``get_changed_files_since``. ``None`` means "detect
+        failed / no set" and the caller does a full re-LSP for the language.
         """
-        if self.changed_files is not None:
-            # Scope the repo-wide set to this language's project root so a
-            # multi-language repo doesn't re-LSP every changed file per engine.
-            return {f for f in self.changed_files if f.is_relative_to(project_path)}
         try:
             return set(get_changed_files_since(project_path, cached_sha))
         except Exception as e:
@@ -839,7 +824,6 @@ def get_static_analysis(
     cache_dir: Path,
     skip_cache: bool = False,
     source_sha: str | None = None,
-    changed_files: set[Path] | None = None,
 ) -> StaticAnalysisResults:
     """CLI orchestrator: get static analysis results with full LSP lifecycle management.
 
@@ -859,7 +843,7 @@ def get_static_analysis(
     Returns:
         StaticAnalysisResults reflecting the live source state.
     """
-    analyzer = StaticAnalyzer(repo_path, changed_files=changed_files)
+    analyzer = StaticAnalyzer(repo_path)
     with analyzer:
         results = analyzer.analyze(
             cache_dir=cache_dir,
