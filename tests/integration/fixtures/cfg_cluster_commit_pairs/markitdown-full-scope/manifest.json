@@ -1,0 +1,200 @@
+{
+  "case": "markitdown-full-scope",
+  "repo": "https://github.com/microsoft/markitdown.git",
+  "base": "c1f9a323ee43782ab014032ce8731f5de6eb87ed",
+  "head": "e144e0a2be95b34df17433bac904e635f2c5e551",
+  "changed_files": [
+    ".gitattributes",
+    ".github/workflows/pre-commit.yml",
+    ".github/workflows/tests.yml",
+    ".gitignore",
+    "README.md",
+    "packages/markitdown-mcp/Dockerfile",
+    "packages/markitdown-mcp/README.md",
+    "packages/markitdown-mcp/pyproject.toml",
+    "packages/markitdown-mcp/src/markitdown_mcp/__about__.py",
+    "packages/markitdown-mcp/src/markitdown_mcp/__init__.py",
+    "packages/markitdown-mcp/src/markitdown_mcp/__main__.py",
+    "packages/markitdown-mcp/src/markitdown_mcp/py.typed",
+    "packages/markitdown-mcp/tests/__init__.py",
+    "packages/markitdown-ocr/LICENSE",
+    "packages/markitdown-ocr/README.md",
+    "packages/markitdown-ocr/pyproject.toml",
+    "packages/markitdown-ocr/src/markitdown_ocr/__about__.py",
+    "packages/markitdown-ocr/src/markitdown_ocr/__init__.py",
+    "packages/markitdown-ocr/src/markitdown_ocr/_docx_converter_with_ocr.py",
+    "packages/markitdown-ocr/src/markitdown_ocr/_ocr_service.py",
+    "packages/markitdown-ocr/src/markitdown_ocr/_pdf_converter_with_ocr.py",
+    "packages/markitdown-ocr/src/markitdown_ocr/_plugin.py",
+    "packages/markitdown-ocr/src/markitdown_ocr/_pptx_converter_with_ocr.py",
+    "packages/markitdown-ocr/src/markitdown_ocr/_xlsx_converter_with_ocr.py",
+    "packages/markitdown-ocr/tests/__init__.py",
+    "packages/markitdown-ocr/tests/ocr_test_data/docx_complex_layout.docx",
+    "packages/markitdown-ocr/tests/ocr_test_data/docx_image_end.docx",
+    "packages/markitdown-ocr/tests/ocr_test_data/docx_image_middle.docx",
+    "packages/markitdown-ocr/tests/ocr_test_data/docx_image_start.docx",
+    "packages/markitdown-ocr/tests/ocr_test_data/docx_multipage.docx",
+    "packages/markitdown-ocr/tests/ocr_test_data/docx_multiple_images.docx",
+    "packages/markitdown-ocr/tests/ocr_test_data/pdf_complex_layout.pdf",
+    "packages/markitdown-ocr/tests/ocr_test_data/pdf_image_end.pdf",
+    "packages/markitdown-ocr/tests/ocr_test_data/pdf_image_middle.pdf",
+    "packages/markitdown-ocr/tests/ocr_test_data/pdf_image_start.pdf",
+    "packages/markitdown-ocr/tests/ocr_test_data/pdf_multipage.pdf",
+    "packages/markitdown-ocr/tests/ocr_test_data/pdf_multiple_images.pdf",
+    "packages/markitdown-ocr/tests/ocr_test_data/pdf_scanned_invoice.pdf",
+    "packages/markitdown-ocr/tests/ocr_test_data/pdf_scanned_meeting_minutes.pdf",
+    "packages/markitdown-ocr/tests/ocr_test_data/pdf_scanned_minimal.pdf",
+    "packages/markitdown-ocr/tests/ocr_test_data/pdf_scanned_report.pdf",
+    "packages/markitdown-ocr/tests/ocr_test_data/pdf_scanned_sales_report.pdf",
+    "packages/markitdown-ocr/tests/ocr_test_data/pptx_complex_layout.pptx",
+    "packages/markitdown-ocr/tests/ocr_test_data/pptx_image_end.pptx",
+    "packages/markitdown-ocr/tests/ocr_test_data/pptx_image_middle.pptx",
+    "packages/markitdown-ocr/tests/ocr_test_data/pptx_image_start.pptx",
+    "packages/markitdown-ocr/tests/ocr_test_data/pptx_multiple_images.pptx",
+    "packages/markitdown-ocr/tests/ocr_test_data/xlsx_complex_layout.xlsx",
+    "packages/markitdown-ocr/tests/ocr_test_data/xlsx_image_end.xlsx",
+    "packages/markitdown-ocr/tests/ocr_test_data/xlsx_image_middle.xlsx",
+    "packages/markitdown-ocr/tests/ocr_test_data/xlsx_image_start.xlsx",
+    "packages/markitdown-ocr/tests/ocr_test_data/xlsx_multiple_images.xlsx",
+    "packages/markitdown-ocr/tests/test_docx_converter.py",
+    "packages/markitdown-ocr/tests/test_pdf_converter.py",
+    "packages/markitdown-ocr/tests/test_pptx_converter.py",
+    "packages/markitdown-ocr/tests/test_xlsx_converter.py",
+    "packages/markitdown-sample-plugin/README.md",
+    "packages/markitdown-sample-plugin/tests/test_sample_plugin.py",
+    "packages/markitdown/README.md",
+    "packages/markitdown/ThirdPartyNotices.md",
+    "packages/markitdown/pyproject.toml",
+    "packages/markitdown/src/markitdown/__about__.py",
+    "packages/markitdown/src/markitdown/__main__.py",
+    "packages/markitdown/src/markitdown/_base_converter.py",
+    "packages/markitdown/src/markitdown/_markitdown.py",
+    "packages/markitdown/src/markitdown/converter_utils/__init__.py",
+    "packages/markitdown/src/markitdown/converter_utils/docx/__init__.py",
+    "packages/markitdown/src/markitdown/converter_utils/docx/math/__init__.py",
+    "packages/markitdown/src/markitdown/converter_utils/docx/math/latex_dict.py",
+    "packages/markitdown/src/markitdown/converter_utils/docx/math/omml.py",
+    "packages/markitdown/src/markitdown/converter_utils/docx/pre_process.py",
+    "packages/markitdown/src/markitdown/converters/__init__.py",
+    "packages/markitdown/src/markitdown/converters/_audio_converter.py",
+    "packages/markitdown/src/markitdown/converters/_bing_serp_converter.py",
+    "packages/markitdown/src/markitdown/converters/_csv_converter.py",
+    "packages/markitdown/src/markitdown/converters/_cu_converter.py",
+    "packages/markitdown/src/markitdown/converters/_doc_intel_converter.py",
+    "packages/markitdown/src/markitdown/converters/_docx_converter.py",
+    "packages/markitdown/src/markitdown/converters/_epub_converter.py",
+    "packages/markitdown/src/markitdown/converters/_exiftool.py",
+    "packages/markitdown/src/markitdown/converters/_html_converter.py",
+    "packages/markitdown/src/markitdown/converters/_ipynb_converter.py",
+    "packages/markitdown/src/markitdown/converters/_llm_caption.py",
+    "packages/markitdown/src/markitdown/converters/_markdownify.py",
+    "packages/markitdown/src/markitdown/converters/_pdf_converter.py",
+    "packages/markitdown/src/markitdown/converters/_plain_text_converter.py",
+    "packages/markitdown/src/markitdown/converters/_pptx_converter.py",
+    "packages/markitdown/src/markitdown/converters/_rss_converter.py",
+    "packages/markitdown/src/markitdown/converters/_wikipedia_converter.py",
+    "packages/markitdown/src/markitdown/converters/_xlsx_converter.py",
+    "packages/markitdown/src/markitdown/converters/_youtube_converter.py",
+    "packages/markitdown/src/markitdown/converters/_zip_converter.py",
+    "packages/markitdown/tests/_test_vectors.py",
+    "packages/markitdown/tests/test_cli_misc.py",
+    "packages/markitdown/tests/test_cli_vectors.py",
+    "packages/markitdown/tests/test_cu_converter.py",
+    "packages/markitdown/tests/test_docintel_html.py",
+    "packages/markitdown/tests/test_files/MEDRPT-2024-PAT-3847_medical_report_scan.pdf",
+    "packages/markitdown/tests/test_files/RECEIPT-2024-TXN-98765_retail_purchase.pdf",
+    "packages/markitdown/tests/test_files/REPAIR-2022-INV-001_multipage.pdf",
+    "packages/markitdown/tests/test_files/SPARSE-2024-INV-1234_borderless_table.pdf",
+    "packages/markitdown/tests/test_files/equations.docx",
+    "packages/markitdown/tests/test_files/expected_outputs/MEDRPT-2024-PAT-3847_medical_report_scan.md",
+    "packages/markitdown/tests/test_files/expected_outputs/RECEIPT-2024-TXN-98765_retail_purchase.md",
+    "packages/markitdown/tests/test_files/expected_outputs/REPAIR-2022-INV-001_multipage.md",
+    "packages/markitdown/tests/test_files/expected_outputs/SPARSE-2024-INV-1234_borderless_table.md",
+    "packages/markitdown/tests/test_files/expected_outputs/movie-theater-booking-2024.md",
+    "packages/markitdown/tests/test_files/expected_outputs/test.md",
+    "packages/markitdown/tests/test_files/masterformat_partial_numbering.pdf",
+    "packages/markitdown/tests/test_files/movie-theater-booking-2024.pdf",
+    "packages/markitdown/tests/test_files/rlink.docx",
+    "packages/markitdown/tests/test_module_misc.py",
+    "packages/markitdown/tests/test_module_vectors.py",
+    "packages/markitdown/tests/test_pdf_masterformat.py",
+    "packages/markitdown/tests/test_pdf_memory.py",
+    "packages/markitdown/tests/test_pdf_tables.py"
+  ],
+  "languages": {
+    "python": {
+      "base_graph": "base-python.json",
+      "head_graph": "head-python.json",
+      "incremental_graph": "incremental-python.json",
+      "expected_graph_changes": {
+        "added_node_count": 220,
+        "removed_node_count": 7,
+        "added_edge_count": 462,
+        "removed_edge_count": 23,
+        "added_nodes": [
+          "file::packages/markitdown-mcp/src/markitdown_mcp/__main__.py",
+          "package::python::packages.markitdown-mcp.src.markitdown_mcp",
+          "packages.markitdown-mcp.src.markitdown_mcp.__main__.convert_to_markdown",
+          "packages.markitdown-ocr.src.markitdown_ocr._ocr_service.LLMVisionOCRService.extract_text",
+          "packages.markitdown-ocr.src.markitdown_ocr._plugin.register_converters"
+        ],
+        "added_edges": [
+          [
+            "contains",
+            "file::packages/markitdown-mcp/src/markitdown_mcp/__main__.py",
+            "packages.markitdown-mcp.src.markitdown_mcp.__main__.convert_to_markdown"
+          ],
+          [
+            "call",
+            "packages.markitdown-ocr.src.markitdown_ocr._plugin.register_converters",
+            "packages.markitdown-ocr.src.markitdown_ocr._ocr_service.LLMVisionOCRService"
+          ],
+          [
+            "call",
+            "packages.markitdown-ocr.src.markitdown_ocr._pdf_converter_with_ocr.PdfConverterWithOCR.convert",
+            "packages.markitdown-ocr.src.markitdown_ocr._ocr_service.LLMVisionOCRService.extract_text"
+          ]
+        ]
+      },
+      "expected_clustering": {
+        "base_cluster_count": 32,
+        "head_cluster_count": 35,
+        "stable_outside_symbol_count": 38,
+        "new_clusters": [
+          {
+            "nodes": [
+              "packages.markitdown-mcp.src.markitdown_mcp.__main__.convert_to_markdown",
+              "packages.markitdown-mcp.src.markitdown_mcp.__main__.main"
+            ],
+            "distinct_from": [
+              "packages.markitdown.src.markitdown._markitdown.MarkItDown.convert",
+              "packages.markitdown-ocr.src.markitdown_ocr._plugin.register_converters"
+            ]
+          },
+          {
+            "nodes": [
+              "packages.markitdown-ocr.src.markitdown_ocr._ocr_service.LLMVisionOCRService.extract_text",
+              "packages.markitdown-ocr.src.markitdown_ocr._plugin.register_converters",
+              "packages.markitdown-ocr.src.markitdown_ocr._pdf_converter_with_ocr.PdfConverterWithOCR.convert"
+            ],
+            "distinct_from": [
+              "packages.markitdown.src.markitdown._markitdown.MarkItDown.convert",
+              "packages.markitdown-mcp.src.markitdown_mcp.__main__.convert_to_markdown"
+            ]
+          },
+          {
+            "nodes": [
+              "packages.markitdown.src.markitdown.converter_utils.docx.math.omml.oMath2Latex",
+              "packages.markitdown.src.markitdown.converter_utils.docx.math.omml.oMath2Latex.do_m"
+            ],
+            "distinct_from": [
+              "packages.markitdown.src.markitdown._markitdown.MarkItDown.convert",
+              "packages.markitdown-mcp.src.markitdown_mcp.__main__.convert_to_markdown",
+              "packages.markitdown-ocr.src.markitdown_ocr._plugin.register_converters"
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

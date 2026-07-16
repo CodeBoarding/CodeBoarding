@@ -398,6 +398,20 @@ class TestBuildPackageDeps:
 
 
 class TestImportResolution:
+    def test_scoped_analysis_resolves_imports_against_the_full_project(self, tmp_path: Path):
+        source = tmp_path / "pkg" / "source.py"
+        target = tmp_path / "pkg" / "target.py"
+        source.parent.mkdir(parents=True)
+        source.write_text("from .target import helper\n")
+        target.touch()
+
+        builder = CallGraphBuilder(_make_lsp(), _TestAdapter(), tmp_path)
+        dependencies = builder.resolve_import_dependencies([source], [source, target])
+
+        assert len(dependencies) == 1
+        assert dependencies[0].target_file == str(target)
+        assert dependencies[0].external_package is None
+
     def test_parent_directory_import_prefers_index_file(self, tmp_path: Path):
         source = tmp_path / "src" / "services" / "processor.ts"
         index = tmp_path / "src" / "models" / "index.ts"
