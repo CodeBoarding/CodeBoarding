@@ -367,6 +367,18 @@ class ProgramGraph:
             for node_id, node in self.nodes.items()
             if node.file_path in removed or (node.kind == ProgramNodeKind.FILE and node.name in removed)
         }
+        surviving_import_targets = {
+            edge.target
+            for edge in self.edges
+            if edge.kind == ProgramEdgeKind.IMPORTS
+            and edge.source not in removed_node_ids
+            and edge.target not in removed_node_ids
+        }
+        removed_node_ids.update(
+            node_id
+            for node_id, node in self.nodes.items()
+            if node.kind == ProgramNodeKind.EXTERNAL_PACKAGE and node_id not in surviving_import_targets
+        )
         out = ProgramGraph(language=self.language)
         for node_id in sorted(self.nodes):
             if node_id not in removed_node_ids:

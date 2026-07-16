@@ -79,7 +79,7 @@ class CallGraphBuilder:
         package_deps = self._build_package_deps(edge_set, source_files)
         logger.info("Phase %d (package deps): %.1fs", next_phase, time.monotonic() - t_pre_pkgdeps)
 
-        imports = self._build_import_dependencies(source_files)
+        imports = self.resolve_import_dependencies(source_files, source_files)
 
         # Build references from primary symbols only (not unqualified aliases).
         references: dict[str, dict] = {}
@@ -120,7 +120,12 @@ class CallGraphBuilder:
             source_files=abs_files,
         )
 
-    def _build_import_dependencies(self, source_files: list[Path]) -> list[ImportDependency]:
+    def resolve_import_dependencies(
+        self,
+        source_files: list[Path],
+        known_source_files: list[Path],
+    ) -> list[ImportDependency]:
+        """Resolve imports from analyzed files against known project files."""
         declarations = [
             declaration
             for source_file in source_files
@@ -128,7 +133,7 @@ class CallGraphBuilder:
         ]
         resolved: list[ImportDependency] = []
         for declaration in declarations:
-            target_file = self.resolve_import_target(declaration, source_files)
+            target_file = self.resolve_import_target(declaration, known_source_files)
             external = None if target_file else self._external_package_name(declaration.declared_module)
             resolved.append(
                 ImportDependency(

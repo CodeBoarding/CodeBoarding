@@ -1,0 +1,42 @@
+{
+  "case": "markitdown-small-scope",
+  "repo": "https://github.com/microsoft/markitdown.git",
+  "base": "c83de14a9c87698ac41b5c433fb7e82df938abcf",
+  "head": "2b6ec9f315654aea1190f09f9bbebd617021d171",
+  "changed_files": [
+    "packages/markitdown/src/markitdown/_markitdown.py"
+  ],
+  "languages": {
+    "python": {
+      "base_graph": "base-python.json",
+      "head_graph": "head-python.json",
+      "incremental_graph": "incremental-python.json",
+      "expected_graph_changes": {
+        "added_node_count": 0,
+        "removed_node_count": 0,
+        "added_edge_count": 0,
+        "removed_edge_count": 0,
+        "changed_node_locations": [
+          {
+            "node": "packages.markitdown.src.markitdown._markitdown.MarkItDown.__init__",
+            "base": [97, 131],
+            "head": [97, 138]
+          },
+          {
+            "node": "packages.markitdown.src.markitdown._markitdown.MarkItDown.convert",
+            "base": [245, 293],
+            "head": [252, 300]
+          }
+        ]
+      },
+      "expected_clustering": {
+        "base_cluster_count": 2,
+        "head_cluster_count": 2,
+        "stable_outside_symbol_count": 275,
+        "stable": [
+          "packages.markitdown.src.markitdown._base_converter.DocumentConverter"
+        ]
+      }
+    }
+  }
+}

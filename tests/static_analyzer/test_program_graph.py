@@ -211,6 +211,7 @@ def test_external_packages_are_persisted_but_excluded_from_clustering(tmp_path: 
     assert external_id in graph.nodes
     weighted = HierarchicalInfomapClusterer._weighted_edges(graph, set(graph.nodes) - {external_id})
     assert all(external_id not in (source, target) for source, target, _weight in weighted)
+    assert external_id not in graph.without_files({str(tmp_path / "app.py")}).nodes
 
 
 def test_hierarchical_infomap_is_deterministic(tmp_path: Path) -> None:
@@ -233,6 +234,7 @@ def test_infomap_update_preserves_cluster_identity(tmp_path: Path) -> None:
     graph = _graph(tmp_path)
     clusterer = HierarchicalInfomapClusterer()
     before = clusterer.cluster(graph)
+    before_owners = {node_id: cluster_id for cluster_id, members in before.clusters.items() for node_id in members}
     app = str(tmp_path / "app.py")
     graph.add_node(_symbol("pkg.app.new_handler", app, line_start=5))
     graph.add_edge(ProgramEdge(ProgramEdgeKind.CONTAINS, file_node_id(app), "pkg.app.new_handler"))
@@ -240,9 +242,9 @@ def test_infomap_update_preserves_cluster_identity(tmp_path: Path) -> None:
 
     after = clusterer.cluster(graph)
 
-    old_owner = next(cid for cid, members in before.clusters.items() if "pkg.app.run" in members)
-    new_owner = next(cid for cid, members in after.clusters.items() if "pkg.app.run" in members)
-    assert old_owner == new_owner
+    after_owners = {node_id: cluster_id for cluster_id, members in after.clusters.items() for node_id in members}
+    assert {node_id: after_owners[node_id] for node_id in before_owners} == before_owners
+    assert after_owners["pkg.app.new_handler"] == before_owners["pkg.app.run"]
 
 
 def test_symbol_scope_keeps_structural_context(tmp_path: Path) -> None:

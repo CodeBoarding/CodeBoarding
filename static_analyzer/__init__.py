@@ -1,6 +1,7 @@
 import copy
 import logging
 import time
+from collections.abc import Collection
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -676,7 +677,12 @@ class StaticAnalyzer:
 
             updated_graph = baseline_graph.without_files(str(path) for path in changed_files)
             if scope_files:
-                delta = self._run_analysis_for_files(engine_config, engine_client, scope_files)
+                delta = self._run_analysis_for_files(
+                    engine_config,
+                    engine_client,
+                    scope_files,
+                    known_source_files=current_source_files,
+                )
                 delta_graph = delta.get("program_graph")
                 if not isinstance(delta_graph, ProgramGraph):
                     raise StaticAnalysisFatalError(
@@ -821,6 +827,7 @@ class StaticAnalyzer:
         engine_config: EngineConfig,
         engine_client: LSPClient,
         source_files: list[Path],
+        known_source_files: Collection[Path] = (),
     ) -> dict:
         """Analyze an explicit source-file scope with the active language server."""
         adapter, project_path = engine_config.adapter, engine_config.project_path
@@ -838,6 +845,11 @@ class StaticAnalyzer:
         t_build_start = time.monotonic()
         builder = CallGraphBuilder(engine_client, adapter, project_path)
         engine_result = builder.build(source_files)
+        if known_source_files:
+            engine_result.imports = builder.resolve_import_dependencies(
+                source_files,
+                list(known_source_files),
+            )
         logger.info(f"CallGraphBuilder.build() for {adapter.language}: {time.monotonic() - t_build_start:.1f}s")
         if adapter.fail_on_empty_symbols is True and not builder.symbol_table.symbols:
             raise StaticAnalysisFatalError(
