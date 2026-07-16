@@ -1,21 +1,4 @@
-"""
-Helper functions for working with CFG cluster analysis.
-
-This module provides common patterns for cluster operations to reduce code duplication
-across agents and other components that work with static analysis cluster results.
-
-Super-clustering overview
--------------------------
-When a language produces more clusters than `MAX_LLM_CLUSTERS`, we collapse them
-into *super-clusters* via community detection on a weighted meta-graph of inter-
-cluster call edges (Leiden with resolution tuning, Louvain fallback).
-
-After community detection, there are often leftover singleton / tiny communities
-because many clusters are isolated in the call graph (no inter-cluster edges).
-We absorb these into larger communities using **graph distance** on the meta-graph
-first. Only when a community is completely disconnected (infinite shortest-path
-distance) do we fall back to **file overlap** as a proxy for relatedness.
-"""
+"""Helpers for ProgramGraph clustering and downstream cluster ID handling."""
 
 import logging
 from collections import defaultdict
@@ -49,8 +32,12 @@ def build_cluster_results_for_languages(
     """
     cluster_results: dict[str, ClusterResult] = {}
     for lang in languages:
-        cfg = static_analysis.get_cfg(lang)
-        cluster_results[lang] = cfg.cluster()
+        try:
+            graph = static_analysis.get_program_graph(lang)
+            cluster_results[str(lang)] = graph.cluster()
+        except ValueError:
+            cfg = static_analysis.get_cfg(lang)
+            cluster_results[str(lang)] = cfg.cluster()
     return cluster_results
 
 
@@ -58,8 +45,8 @@ def build_all_cluster_results(static_analysis: StaticAnalysisResults) -> dict[st
     """
     Build cluster results for all detected languages in the static analysis.
 
-    If a language produces more than MAX_LLM_CLUSTERS clusters, they are
-    automatically merged into super-clusters using inter-cluster connectivity.
+    Hierarchical Infomap decides module granularity. This function never
+    hyperclusters its output; it only gives languages disjoint ID ranges.
 
     Args:
         static_analysis: Static analysis results containing CFG data
@@ -70,28 +57,21 @@ def build_all_cluster_results(static_analysis: StaticAnalysisResults) -> dict[st
     languages = static_analysis.get_languages()
     cluster_results = build_cluster_results_for_languages(static_analysis, languages)
 
-    for lang in list(cluster_results.keys()):
-        cr = cluster_results[lang]
-        n_clusters = len(cr.clusters)
-        if n_clusters > MAX_LLM_CLUSTERS:
-            cfg = static_analysis.get_cfg(Language(lang))
-            logger.info(
-                f"[SuperCluster] {lang}: {n_clusters} clusters exceeds limit of {MAX_LLM_CLUSTERS}, "
-                f"merging into super-clusters"
-            )
-            cluster_results[lang] = merge_clusters(cr, cfg.to_networkx(), MAX_LLM_CLUSTERS)
-            new_count = len(cluster_results[lang].clusters)
-            logger.info(f"[SuperCluster] {lang}: merged {n_clusters} -> {new_count} super-clusters")
-
-    # For multi-language repos, ensure the combined cluster count stays
-    # within MAX_LLM_CLUSTERS by proportionally reducing per-language counts,
-    # then re-index IDs so they don't overlap across languages.
     if len(cluster_results) > 1:
-        cfg_graphs = {lang: static_analysis.get_cfg(Language(lang)).to_networkx() for lang in cluster_results}
-        enforce_cross_language_budget(cluster_results, cfg_graphs)
+        reindex_cross_language_clusters(cluster_results)
 
     _sync_cluster_cache(static_analysis, cluster_results)
     return cluster_results
+
+
+def reindex_cross_language_clusters(cluster_results: dict[str, ClusterResult]) -> None:
+    """Give each language a deterministic, disjoint cluster-ID range."""
+    offset = 0
+    for lang in sorted(cluster_results):
+        result = cluster_results[lang]
+        if offset:
+            cluster_results[lang] = reindex_cluster_result(result, offset)
+        offset += len(result.clusters)
 
 
 def _sync_cluster_cache(static_analysis: StaticAnalysisResults, cluster_results: dict[str, ClusterResult]) -> None:

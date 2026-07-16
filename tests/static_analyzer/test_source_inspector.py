@@ -205,3 +205,60 @@ class TestFindCallSites:
         si = SourceInspector()
 
         assert (1, 1) in _positions(si.find_call_sites(f))
+
+
+class TestFindImportDeclarations:
+    def test_python_imports(self, tmp_path: Path):
+        f = tmp_path / "app.py"
+        f.write_text("import requests\nfrom .services import run\n")
+
+        imports = SourceInspector().find_import_declarations(f)
+
+        assert [(item.declared_module, item.line) for item in imports] == [
+            ("requests", 1),
+            (".services", 2),
+        ]
+
+    def test_typescript_imports(self, tmp_path: Path):
+        f = tmp_path / "app.ts"
+        f.write_text('import { helper } from "./helper";\nimport "reflect-metadata";\n')
+
+        imports = SourceInspector().find_import_declarations(f)
+
+        assert [item.declared_module for item in imports] == ["./helper", "reflect-metadata"]
+
+    def test_python_comma_separated_imports(self, tmp_path: Path):
+        f = tmp_path / "app.py"
+        f.write_text("import os, requests as http\n")
+
+        imports = SourceInspector().find_import_declarations(f)
+
+        assert [item.declared_module for item in imports] == ["os", "requests"]
+
+    def test_typescript_reexport(self, tmp_path: Path):
+        f = tmp_path / "index.ts"
+        f.write_text('export { Entity } from "./base";\n')
+
+        imports = SourceInspector().find_import_declarations(f)
+
+        assert [item.declared_module for item in imports] == ["./base"]
+
+    def test_php_grouped_imports(self, tmp_path: Path):
+        f = tmp_path / "app.php"
+        f.write_text("<?php\nuse App\\Models\\{Dog, Cat as HouseCat};\n")
+
+        imports = SourceInspector().find_import_declarations(f)
+
+        assert [item.declared_module for item in imports] == ["App\\Models\\Dog", "App\\Models\\Cat"]
+
+    def test_java_and_go_imports(self, tmp_path: Path):
+        java = tmp_path / "App.java"
+        java.write_text("import java.util.List;\n")
+        go = tmp_path / "app.go"
+        go.write_text('package app\nimport (\n  "fmt"\n  "example/internal/store"\n)\n')
+
+        assert [item.declared_module for item in SourceInspector().find_import_declarations(java)] == ["java.util.List"]
+        assert [item.declared_module for item in SourceInspector().find_import_declarations(go)] == [
+            "fmt",
+            "example/internal/store",
+        ]

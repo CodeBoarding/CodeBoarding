@@ -22,16 +22,12 @@ from agents.cluster_ids import CodeBoardingClusterId, CodeBoardingClusterIds, Gr
 from agents.llm_config import get_current_agent_context_window, get_current_agent_model_ref
 from agents.model_capabilities import ContextWindow
 from constants import MIN_CLUSTERS_THRESHOLD
-from diagram_analysis.cluster_delta import _delta_for_language
-from diagram_analysis.cluster_snapshot import ClusterSnapshotEntry
 from diagram_analysis.file_index import build_files_index
 from repo_utils.path_utils import normalize_repo_path
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cfg_skip_planner import ContextBudgetExceededError, plan_skip_set
 from static_analyzer.cluster_helpers import (
-    MAX_LLM_CLUSTERS,
-    enforce_cross_language_budget,
-    merge_clusters,
+    reindex_cross_language_clusters,
 )
 from static_analyzer.cluster_relations import (
     build_component_relations,
@@ -50,30 +46,6 @@ class _RenderedClusterString:
     text: str
     by_language: dict[str, str]
     cluster_ids: set[GraphClusterId]
-
-
-def scoped_snapshot_from_lineage(cfg: CallGraph, scope_id: str) -> dict[int, ClusterSnapshotEntry]:
-    """Build a scoped snapshot from each method's recorded cluster ancestry/path."""
-    if not scope_id:
-        return {}
-    prefix = f"{scope_id}."
-    entries: dict[int, ClusterSnapshotEntry] = {}
-    for qname, cluster_ids in cfg.method_cluster_paths_snapshot():
-        if qname not in cfg.nodes:
-            continue
-        for cluster_id in cluster_ids:
-            if not cluster_id.startswith(prefix):
-                continue
-            local_id = cluster_id.removeprefix(prefix)
-            if not local_id.isdigit():
-                continue
-            entry = entries.setdefault(int(local_id), ClusterSnapshotEntry())
-            entry.members.add(qname)
-            file_path = cfg.nodes[qname].file_path
-            if file_path:
-                entry.files.add(file_path)
-                entry.member_files[qname] = file_path
-    return entries
 
 
 def _describe_window(ctx: ContextWindow) -> str:
@@ -470,36 +442,18 @@ class ClusterMethodsMixin:
 
             if sub_cfg.nodes:
                 subgraph_cfgs[lang] = sub_cfg
-
-                seeded_snapshot = scoped_snapshot_from_lineage(sub_cfg, source_cluster_id_prefix)
-                if seeded_snapshot:
-                    scoped_delta = _delta_for_language(
-                        str(lang),
-                        sub_cfg.to_networkx(),
-                        seeded_snapshot,
-                    )
-                    sub_cluster_result = scoped_delta.cluster_results
-                else:
-                    # Calculate clusters for the subgraph
-                    sub_cluster_result = sub_cfg.cluster()
-
-                # Merge into super-clusters if too many (same limit as AbstractionAgent)
-                if len(sub_cluster_result.clusters) > MAX_LLM_CLUSTERS:
-                    n_before = len(sub_cluster_result.clusters)
-                    sub_cluster_result = merge_clusters(sub_cluster_result, sub_cfg.to_networkx(), MAX_LLM_CLUSTERS)
-                    logger.info(
-                        f"[DetailsAgent] Subgraph for '{component.name}': "
-                        f"merged {n_before} -> {len(sub_cluster_result.clusters)} super-clusters"
-                    )
+                program_graph = self.static_analysis.get_program_graph(lang)
+                scoped_program_graph = program_graph.induced_by_symbols(assigned_qnames)
+                sub_cluster_result = scoped_program_graph.cluster()
 
                 # Expand to method-level if insufficient clusters
                 sub_cluster_result = self._expand_to_method_level_clusters(sub_cfg, sub_cluster_result)
                 cluster_results[lang] = sub_cluster_result
 
-        # Cross-language: enforce combined budget and unique IDs
+        # Hierarchical Infomap chooses granularity; only ID namespaces need
+        # reconciliation across languages.
         if len(cluster_results) > 1:
-            cfg_nx = {lang: subgraph_cfgs[lang].to_networkx() for lang in cluster_results}
-            enforce_cross_language_budget(cluster_results, cfg_nx)
+            reindex_cross_language_clusters(cluster_results)
 
         if source_cluster_id_prefix:
             for lang, cluster_result in cluster_results.items():

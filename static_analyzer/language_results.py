@@ -13,8 +13,24 @@ import logging
 
 from static_analyzer.graph import CallGraph
 from static_analyzer.node import Node
+from static_analyzer.program_graph import ProgramGraph
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class ProgramGraphData:
+    graph: ProgramGraph | None = None
+
+    def merge(self, other: ProgramGraph) -> None:
+        if self.graph is None:
+            self.graph = other
+        else:
+            self.graph.merge(other)
+
+    def visit_paths(self, fn: Callable[[str], str]) -> None:
+        if self.graph is not None:
+            self.graph.visit_paths(fn)
 
 
 @dataclass
@@ -135,6 +151,7 @@ class SourceFiles:
 class LanguageResults:
     """All static-analysis artefacts for a single language."""
 
+    program_graph: ProgramGraphData = field(default_factory=ProgramGraphData)
     cfg: ControlFlowGraph = field(default_factory=ControlFlowGraph)
     hierarchy: ClassHierarchy = field(default_factory=ClassHierarchy)
     references: References = field(default_factory=References)
@@ -142,6 +159,7 @@ class LanguageResults:
     source_files: SourceFiles = field(default_factory=SourceFiles)
 
     def visit_paths(self, fn: Callable[[str], str]) -> None:
+        self.program_graph.visit_paths(fn)
         self.cfg.visit_paths(fn)
         self.hierarchy.visit_paths(fn)
         self.references.visit_paths(fn)

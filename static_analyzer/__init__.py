@@ -1,5 +1,6 @@
 import logging
 import time
+import copy
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -20,6 +21,7 @@ from static_analyzer.graph import CallGraph
 from static_analyzer.incremental_orchestrator import update_cfg_for_changed_files
 from static_analyzer.java_config_scanner import JavaConfigScanner
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
+from static_analyzer.program_graph import ProgramGraph
 from static_analyzer.programming_language import ProgrammingLanguage
 from static_analyzer.scanner import ProjectScanner
 from static_analyzer.typescript_config_scanner import TypeScriptConfigScanner
@@ -651,7 +653,23 @@ class StaticAnalyzer:
             t_lang_start = time.monotonic()
             changed_files = self._changed_files_for_language(project_path, cached_sha, adapter.language)
 
-            if changed_files is None:
+            cached_program_graph = None
+            try:
+                cached_program_graph = cached_results.get_program_graph(language)
+            except ValueError:
+                pass
+
+            if cached_program_graph is not None and changed_files == set():
+                results.results[language] = copy.deepcopy(cached_results.results[language])
+                self.collected_diagnostics[language] = copy.deepcopy(cached_results.diagnostics.get(language, {}))
+                continue
+            if cached_program_graph is not None:
+                # Structural relations are one canonical graph. Until a changed-file
+                # graph splice can prove all cross-boundary import/containment edges,
+                # rebuild this language rather than combine incompatible partial views.
+                analysis = self._run_full_analysis(engine_config, engine_client)
+                analysis["program_graph"]._cluster_snapshot = copy.deepcopy(cached_program_graph._cluster_snapshot)
+            elif changed_files is None:
                 analysis = self._run_full_analysis(engine_config, engine_client)
             else:
                 logger.info(f"warmstart {adapter.language}: re-LSPing {len(changed_files)} changed file(s)")
@@ -712,12 +730,15 @@ class StaticAnalyzer:
         }
 
     def _absorb_into_results(self, results: StaticAnalysisResults, language: Language, analysis: dict) -> None:
-        """Stuff one language's analysis-dict into the shared ``StaticAnalysisResults``."""
-        results.add_references(language, analysis.get("references", []))
-        call_graph = analysis.get("call_graph") or CallGraph()
-        results.add_cfg(language, call_graph)
-        results.add_class_hierarchy(language, analysis.get("class_hierarchies", {}))
-        results.add_package_dependencies(language, analysis.get("package_relations", {}))
+        """Persist one language's canonical graph and source-file inventory.
+
+        CFG, hierarchy, references, and package relations are projections of
+        ProgramGraph.  Keeping second copies here would let those views drift.
+        """
+        program_graph = analysis.get("program_graph")
+        if program_graph is None:
+            raise StaticAnalysisFatalError(f"Analysis for {language.value} did not produce a ProgramGraph")
+        results.add_program_graph(language, program_graph)
         results.add_source_files(language, [str(f) for f in analysis.get("source_files", [])])
 
     def _collect_diagnostics_for(self, adapter: LanguageAdapter, engine_client: LSPClient, analysis: dict) -> None:
@@ -771,10 +792,7 @@ class StaticAnalyzer:
         if not source_files:
             logger.warning(f"No source files found for {adapter.language} in {project_path}")
             return {
-                "call_graph": CallGraph(language=adapter.language),
-                "class_hierarchies": {},
-                "package_relations": {},
-                "references": [],
+                "program_graph": ProgramGraph(language=adapter.language.lower()),
                 "source_files": [],
                 "diagnostics": {},
             }
@@ -793,7 +811,7 @@ class StaticAnalyzer:
             )
 
         t_convert = time.monotonic()
-        result = convert_to_codeboarding_format(builder.symbol_table, engine_result, adapter)
+        result = convert_to_codeboarding_format(builder.symbol_table, engine_result, adapter, project_path)
         logger.info(f"convert_to_codeboarding_format for {adapter.language}: {time.monotonic() - t_convert:.1f}s")
         return result
 

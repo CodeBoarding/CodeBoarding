@@ -47,14 +47,10 @@ logger = logging.getLogger(__name__)
 STATIC_ANALYSIS_PKL = "static_analysis.pkl"
 STATIC_ANALYSIS_SHA = "static_analysis.sha"
 STATIC_ANALYSIS_LOCK = "static_analysis.lock"
-# Legacy location ``StaticAnalysisCache`` wrote to before the run-artifact
-# split. Kept for one-time read fallback so CLI users transition smoothly.
-_LEGACY_PKL_NAME = "static_analysis_results.pkl"
-_LEGACY_CACHE_SUBDIR = "cache"
 # Tag file format prefix; bump if the on-disk pickle layout changes.
-# v2: StaticAnalysisResults switched from dict-of-dicts to LanguageResults
-# dataclass storage. v1 pickles will be treated as cache misses and re-run.
-_TAG_VERSION = "v2"
+# v3: static analysis persists the canonical typed ProgramGraph. Older
+# artifacts do not contain structural/import evidence and must be rebuilt.
+_TAG_VERSION = "v3"
 
 
 class StaticAnalysisCache:
@@ -139,9 +135,6 @@ class StaticAnalysisCache:
             return None
         return sha
 
-    def _legacy_pkl_path(self) -> Path:
-        return self.artifact_dir / _LEGACY_CACHE_SUBDIR / _LEGACY_PKL_NAME
-
     def load_with_sha(self) -> "tuple[StaticAnalysisResults, str] | None":
         """Load the pkl and its tag SHA together; returns ``None`` if either is absent.
 
@@ -167,10 +160,8 @@ class StaticAnalysisCache:
         """Load the cached results, or None if absent/invalid/SHA-mismatched.
 
         When ``expected_sha`` is provided, the tag file is read first and
-        the pickle is only unpickled if the SHA matches — protects against
-        stale-cache hits when the source has drifted. When ``expected_sha``
-        is None, any tag (or no tag at all) is accepted; legacy pickles
-        from the previous on-disk layout are also picked up here.
+        the pickle is only unpickled if the SHA matches — protecting against
+        stale-cache hits when the source has drifted.
         """
         if not self.artifact_dir.exists():
             return None
@@ -192,16 +183,7 @@ class StaticAnalysisCache:
 
         target = self.pkl_path
         if not target.exists():
-            legacy = self._legacy_pkl_path()
-            if expected_sha is None and legacy.exists():
-                logger.info(
-                    "Reading legacy static analysis cache from %s; "
-                    "next save will write to the new artifact location.",
-                    legacy,
-                )
-                target = legacy
-            else:
-                return None
+            return None
 
         try:
             with open(target, "rb") as f:

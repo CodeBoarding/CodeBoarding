@@ -38,6 +38,15 @@ class TestClusterHelpers(unittest.TestCase):
         python_cfg.to_networkx.return_value = object()
         typescript_cfg.to_networkx.return_value = object()
 
+        python_graph = MagicMock()
+        typescript_graph = MagicMock()
+        python_graph.cluster.return_value = self._make_cluster_result("py", 40)
+        typescript_graph.cluster.return_value = self._make_cluster_result("ts", 40)
+        analysis.get_program_graph.side_effect = lambda language: {
+            "python": python_graph,
+            "typescript": typescript_graph,
+        }[language]
+
         analysis.get_cfg.side_effect = lambda language: {
             "python": python_cfg,
             "typescript": typescript_cfg,
@@ -51,17 +60,16 @@ class TestClusterHelpers(unittest.TestCase):
         with patch("static_analyzer.cluster_helpers.merge_clusters", side_effect=_fake_merge) as mock_merge:
             result = build_all_cluster_results(analysis)
 
-        self.assertEqual(mock_merge.call_count, 2)
-        self.assertEqual([call.args[2] for call in mock_merge.call_args_list], [25, 25])
+        mock_merge.assert_not_called()
 
         python_ids = set(result["python"].clusters.keys())
         typescript_ids = set(result["typescript"].clusters.keys())
-        self.assertEqual(python_ids, set(range(1, 26)))
-        self.assertEqual(typescript_ids, set(range(26, 51)))
+        self.assertEqual(python_ids, set(range(1, 41)))
+        self.assertEqual(typescript_ids, set(range(41, 81)))
         self.assertTrue(python_ids.isdisjoint(typescript_ids))
 
         shifted_ts_ids = set().union(*result["typescript"].file_to_clusters.values())
-        self.assertEqual(shifted_ts_ids, set(range(26, 51)))
+        self.assertEqual(shifted_ts_ids, set(range(41, 81)))
         self.assertIs(python_cfg._cluster_cache, result["python"])
         self.assertIs(typescript_cfg._cluster_cache, result["typescript"])
 

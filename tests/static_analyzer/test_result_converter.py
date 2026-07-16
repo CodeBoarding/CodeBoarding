@@ -10,9 +10,10 @@ from unittest.mock import MagicMock
 
 from static_analyzer.constants import NodeType
 from static_analyzer.engine.language_adapter import LanguageAdapter
-from static_analyzer.engine.models import CallFlowGraph, LanguageAnalysisResult, SymbolInfo
+from static_analyzer.engine.models import CallFlowGraph, ImportDependency, LanguageAnalysisResult, SymbolInfo
 from static_analyzer.engine.result_converter import _map_symbol_kind, convert_to_codeboarding_format
 from static_analyzer.engine.symbol_table import SymbolTable
+from static_analyzer.program_graph import ProgramEdgeKind, ProgramNodeKind
 
 
 # ---------------------------------------------------------------------------
@@ -590,3 +591,40 @@ class TestOutputStructure:
         assert "diagnostics" in out
         assert out["diagnostics"] == {}
         assert out["source_files"] == ["/root/mod.py"]
+        assert "program_graph" in out
+
+    def test_program_graph_contains_structural_and_external_import_evidence(self):
+        adapter = _make_adapter()
+        adapter.get_package_for_file.side_effect = lambda _path, _root: "pkg"
+        st = SymbolTable(adapter)
+        _register(
+            st,
+            [
+                _lsp_sym(
+                    "Service",
+                    NodeType.CLASS,
+                    0,
+                    10,
+                    children=[_lsp_sym("run", NodeType.METHOD, 2, 5)],
+                )
+            ],
+        )
+        result = _empty_result(source_files=["/root/mod.py"])
+        result.imports = [
+            ImportDependency(
+                source_file="/root/mod.py",
+                declared_module="requests",
+                line=1,
+                column=8,
+                external_package="requests",
+            )
+        ]
+
+        graph = convert_to_codeboarding_format(st, result, adapter, Path("/root"))["program_graph"]
+
+        assert any(
+            node.kind == ProgramNodeKind.EXTERNAL_PACKAGE and node.name == "requests" for node in graph.nodes.values()
+        )
+        containment = {(edge.source, edge.target) for edge in graph.edges_of_kind(ProgramEdgeKind.CONTAINS)}
+        assert ("mod.Service", "Service.run") in containment
+        assert len(graph.edges_of_kind(ProgramEdgeKind.IMPORTS)) == 1

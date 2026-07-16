@@ -59,6 +59,18 @@ class CallSite:
         return self.column - 1
 
 
+@dataclass(frozen=True)
+class ImportDependency:
+    """One statically declared source import and its resolved internal target."""
+
+    source_file: str
+    declared_module: str
+    line: int
+    column: int
+    target_file: str | None = None
+    external_package: str | None = None
+
+
 @dataclass
 class Edge:
     """A directed edge in the call flow graph."""
@@ -95,6 +107,7 @@ class LanguageAnalysisResult:
     hierarchy: dict[str, dict] = field(default_factory=dict)
     cfg: CallFlowGraph = field(default_factory=CallFlowGraph)
     package_dependencies: dict[str, dict] = field(default_factory=dict)
+    imports: list[ImportDependency] = field(default_factory=list)
     source_files: list[str] = field(default_factory=list)
 
 

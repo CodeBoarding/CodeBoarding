@@ -819,5 +819,18 @@
     "src/utils/constants.js",
     "src/utils/helpers.js",
     "src/utils/index.js"
+  ],
+  "expected_containment": [
+    {"container": "src.models.entities.Task", "member": "src.models.entities.Task.getLabel"}
+  ],
+  "expected_inheritance": [
+    {"child": "src.models.entities.UrgentTask", "parent": "src.models.entities.Task"}
+  ],
+  "expected_imports": [
+    {"source_file": "src/models/entities.js", "declared_module": "./base.js", "target_file": "src/models/base.js"}
+  ],
+  "expected_external_packages": [],
+  "expected_call_multiplicity": [
+    {"source": "src.index.main", "destination": "src.models.entities.Repository.add", "count": 3}
   ]
 }

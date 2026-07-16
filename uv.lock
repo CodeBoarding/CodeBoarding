@@ -342,6 +342,7 @@ dependencies = [
     { name = "filelock" },
     { name = "gitpython" },
     { name = "google-api-core" },
+    { name = "infomap" },
     { name = "jsonpatch" },
     { name = "jsonschema" },
     { name = "langchain" },
@@ -418,6 +419,7 @@ requires-dist = [
     { name = "filelock", specifier = ">=3.12" },
     { name = "gitpython", specifier = ">=3.1" },
     { name = "google-api-core", specifier = ">=2.10" },
+    { name = "infomap", specifier = ">=2.9" },
     { name = "jsonpatch", specifier = ">=1.33" },
     { name = "jsonschema", specifier = ">=4.25" },
     { name = "langchain", specifier = ">=1.2" },
@@ -1055,6 +1057,22 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/7b/5d/8f7f6f619d374e959aa3664ebc4b24c10abc90c2e8efbed97f2623fadaf5/igraph-1.0.0-cp39-abi3-win32.whl", hash = "sha256:c2bce3cd472fec3dd9c4d8a3ea5b6b9be65fb30edf760beb4850760dd4f2d479", size = 2725406, upload-time = "2025-10-23T12:22:37.588Z" },
     { url = "https://files.pythonhosted.org/packages/af/77/a85b3745cf40a0572bae2de8cd9c2a2a8af78e5cf3e880fc0a249114e609/igraph-1.0.0-cp39-abi3-win_amd64.whl", hash = "sha256:faeff8ede0cf15eb4ded44b0fcea6e1886740146e60504c24ad2da14e0939563", size = 3221663, upload-time = "2025-10-23T12:22:39.404Z" },
     { url = "https://files.pythonhosted.org/packages/ef/7e/5df541c37bdf6493035e89c22bd53f30d99b291bcda6c78e9a8afeecec2b/igraph-1.0.0-cp39-abi3-win_arm64.whl", hash = "sha256:b607cafc24b10a615e713ee96e58208ef27e0764af80140c7cc45d4724a3f2df", size = 2785701, upload-time = "2025-10-23T12:22:41.03Z" },
+]
+
+[[package]]
+name = "infomap"
+version = "2.15.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/ac/65/4500bd402e7314339e74baa6bcf156f66b8f80cf3a260c054f747002ab45/infomap-2.15.0.tar.gz", hash = "sha256:144c8d73fcf7acd017eb5f0e539c1eb0391db7e81381470a2c432aab15bb4041", size = 722191, upload-time = "2026-07-13T14:50:32.878Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/90/83/6495c2b4238c2fc3bd15c5fb2cf24d310e96516c35dbe187c02fa149e12c/infomap-2.15.0-cp312-cp312-macosx_15_0_arm64.whl", hash = "sha256:5babe342fd6091cf67115416f53f881470e01458d772a579c6fef987bf16efb9", size = 1353986, upload-time = "2026-07-13T14:50:09.042Z" },
+    { url = "https://files.pythonhosted.org/packages/8e/77/d44a0217625a7d909eba71081d97d681c3bca98e41986f7a2c7e6da258ac/infomap-2.15.0-cp312-cp312-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:8c204714e0ee906a8508df2066e8433ac12765d51f5dde5a15fd1e41a2a7db70", size = 20635560, upload-time = "2026-07-13T14:50:10.907Z" },
+    { url = "https://files.pythonhosted.org/packages/09/4f/5101b5b9c6a34cdc7d5be5b2b4f355ee43b7dabad5a48fcc088224fe2891/infomap-2.15.0-cp312-cp312-win32.whl", hash = "sha256:99eabf7ccab890d20dbcd03251700cc53fad0e62de51a8e3d55ac5004ae5a085", size = 988915, upload-time = "2026-07-13T14:50:13.352Z" },
+    { url = "https://files.pythonhosted.org/packages/29/4f/1066ffe3b5a8a656134f0641aadaca4f60e682c850256b68acca863aa064/infomap-2.15.0-cp312-cp312-win_amd64.whl", hash = "sha256:b004ce339702ea9908c15622300296a9e1e256b8b5d39dfdea5826196bb8ecb4", size = 1112482, upload-time = "2026-07-13T14:50:14.996Z" },
+    { url = "https://files.pythonhosted.org/packages/0a/54/32bb5431538af9ccb53c6c04c8c6b811bcdc0aeccc9dcf9d30f9ff24bf94/infomap-2.15.0-cp313-cp313-macosx_15_0_arm64.whl", hash = "sha256:23fdc530db7870b394446c06330a5d94021fa2438e5ec690f1b17bcefb229e38", size = 1353660, upload-time = "2026-07-13T14:50:16.694Z" },
+    { url = "https://files.pythonhosted.org/packages/01/3a/dd6005606eaecffb45da4479414dcadbd5f266a875b23998af8818c71586/infomap-2.15.0-cp313-cp313-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:5a954ed5fc7f73f841eff935962a54792c970e6962af6f6d66a980602c0e2bd3", size = 20636371, upload-time = "2026-07-13T14:50:18.709Z" },
+    { url = "https://files.pythonhosted.org/packages/da/90/65a82124e6175cfabcc575c3679b4be6922836494310ecc0af4303ce5048/infomap-2.15.0-cp313-cp313-win32.whl", hash = "sha256:6258e0457b0d8e9f39777d10416ccd40e8a356b56e22d55632ddc2d58404a29b", size = 988258, upload-time = "2026-07-13T14:50:20.952Z" },
+    { url = "https://files.pythonhosted.org/packages/38/ad/e42811661f8444a1eba315e7d2f078cf0817fb9a56ff7df4b2d57459890c/infomap-2.15.0-cp313-cp313-win_amd64.whl", hash = "sha256:632cf298abd6621ffb6178959b6b5f45bc779ad55b7bdddcb964dc5bcaa7bc55", size = 1112236, upload-time = "2026-07-13T14:50:22.637Z" },
 ]
 
 [[package]]

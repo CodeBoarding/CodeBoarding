@@ -10,6 +10,7 @@ from static_analyzer.graph import CallGraph
 from static_analyzer.language_results import LanguageResults
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
 from static_analyzer.node import Node
+from static_analyzer.program_graph import ProgramGraph
 
 logger = logging.getLogger(__name__)
 
@@ -185,6 +186,15 @@ class StaticAnalysisResults:
         """Add/merge a class hierarchy for a language; supports repeated calls."""
         self._bucket(language).hierarchy.merge(hierarchy)
 
+    def add_program_graph(self, language: Language, graph: ProgramGraph) -> None:
+        self._bucket(language).program_graph.merge(graph)
+
+    def get_program_graph(self, language: Language) -> ProgramGraph:
+        bucket = self._get_bucket(language)
+        if bucket is not None and bucket.program_graph.graph is not None:
+            return bucket.program_graph.graph
+        raise ValueError(f"Program graph for language '{language}' not found in results.")
+
     def add_cfg(self, language: Language, cfg: CallGraph):
         """Add/merge a control flow graph for a language; supports repeated calls."""
         self._bucket(language).cfg.merge(cfg)
@@ -204,6 +214,8 @@ class StaticAnalysisResults:
     def get_cfg(self, language: Language) -> CallGraph:
         """Return the control flow graph for ``language`` or raise ``ValueError``."""
         bucket = self._get_bucket(language)
+        if bucket is not None and bucket.program_graph.graph is not None:
+            return bucket.program_graph.graph.to_call_graph()
         if bucket is not None and bucket.cfg.graph is not None:
             return bucket.cfg.graph
         raise ValueError(f"Control flow graph for language '{language}' not found in results.")
@@ -212,7 +224,9 @@ class StaticAnalysisResults:
         """Return every language CFG that is already present."""
         cfgs: dict[str, CallGraph] = {}
         for language, bucket in self.results.items():
-            if bucket.cfg.graph is not None:
+            if bucket.program_graph.graph is not None:
+                cfgs[str(language)] = bucket.program_graph.graph.to_call_graph()
+            elif bucket.cfg.graph is not None:
                 cfgs[str(language)] = bucket.cfg.graph
         return cfgs
 
@@ -223,6 +237,8 @@ class StaticAnalysisResults:
         "file_path": str, "line_start": int, "line_end": int}``.
         """
         bucket = self._get_bucket(language)
+        if bucket is not None and bucket.program_graph.graph is not None:
+            return bucket.program_graph.graph.hierarchy()
         if bucket is not None and bucket.hierarchy.entries is not None:
             return bucket.hierarchy.entries
         raise ValueError(f"Class hierarchy for language '{language}' not found in results.")
@@ -230,6 +246,8 @@ class StaticAnalysisResults:
     def get_package_dependencies(self, language: Language) -> dict:
         """Return the package dependencies for ``language`` or raise ``ValueError``."""
         bucket = self._get_bucket(language)
+        if bucket is not None and bucket.program_graph.graph is not None:
+            return bucket.program_graph.graph.package_dependencies()
         if bucket is not None and bucket.dependencies.entries is not None:
             return bucket.dependencies.entries
         raise ValueError(f"Package dependencies for language '{language}' not found in results.")
@@ -242,6 +260,17 @@ class StaticAnalysisResults:
         and ``models.base.(entity).gettype`` resolve to the same reference.
         """
         bucket = self._get_bucket(language)
+        if bucket is not None and bucket.program_graph.graph is not None:
+            refs = {
+                node.node_id: node.to_legacy_node()
+                for node in bucket.program_graph.graph.symbol_nodes(reference_worthy_only=True)
+            }
+            if qualified_name in refs:
+                return refs[qualified_name]
+            norm_qn = _reference_key(qualified_name)
+            for ref_key, ref_val in refs.items():
+                if _reference_key(ref_key) == norm_qn:
+                    return ref_val
         if bucket is not None and bucket.references.by_qualified_name is not None:
             refs = bucket.references.by_qualified_name
             if qualified_name in refs:
@@ -261,6 +290,20 @@ class StaticAnalysisResults:
     def get_loose_reference(self, language: Language, qualified_name: str) -> tuple[str | None, Node | None]:
         norm_qn = _reference_key(qualified_name)
         bucket = self._get_bucket(language)
+        if bucket is not None and bucket.program_graph.graph is not None:
+            refs = {
+                node.node_id: node.to_legacy_node()
+                for node in bucket.program_graph.graph.symbol_nodes(reference_worthy_only=True)
+            }
+            subset_refs = []
+            for ref, value in refs.items():
+                ref_lower = ref.lower()
+                if ref_lower.endswith(norm_qn):
+                    return f"Found a loose match with a fully quantified name: {ref}", value
+                if norm_qn in ref_lower:
+                    subset_refs.append(ref)
+            if len(subset_refs) == 1:
+                return subset_refs[0], refs[subset_refs[0]]
         if bucket is not None and bucket.references.by_qualified_name is not None:
             refs = bucket.references.by_qualified_name
             subset_refs = []
@@ -300,6 +343,10 @@ class StaticAnalysisResults:
         languages = [language] if language is not None else self.get_languages()
         for lang in languages:
             bucket = self._get_bucket(lang)
+            if bucket is not None and bucket.program_graph.graph is not None:
+                for node in bucket.program_graph.graph.symbol_nodes(reference_worthy_only=True):
+                    yield node.to_legacy_node()
+                continue
             if bucket is None or bucket.references.by_qualified_name is None:
                 continue
             for node in bucket.references.by_qualified_name.values():

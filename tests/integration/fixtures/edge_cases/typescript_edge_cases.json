@@ -902,5 +902,18 @@
     "src/utils/constants.ts",
     "src/utils/helpers.ts",
     "src/utils/index.ts"
+  ],
+  "expected_containment": [
+    {"container": "src.models.entities.Task", "member": "src.models.entities.Task.getLabel"}
+  ],
+  "expected_inheritance": [
+    {"child": "src.models.entities.Task", "parent": "src.models.base.Entity"}
+  ],
+  "expected_imports": [
+    {"source_file": "src/services/processor.ts", "declared_module": "../models", "target_file": "src/models/index.ts"}
+  ],
+  "expected_external_packages": [],
+  "expected_call_multiplicity": [
+    {"source": "src.index.main", "destination": "src.models.entities.Repository.add", "count": 2}
   ]
 }

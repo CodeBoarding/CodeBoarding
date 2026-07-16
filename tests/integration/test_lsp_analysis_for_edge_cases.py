@@ -29,6 +29,7 @@ import pytest
 
 from static_analyzer import StaticAnalyzer
 from static_analyzer.constants import Language
+from static_analyzer.program_graph import ProgramEdgeKind, ProgramNodeKind
 from utils import get_artifact_dir
 
 logger = logging.getLogger(__name__)
@@ -237,7 +238,7 @@ class TestEdgeCases:
 
     def test_expected_references(self, analysis: AnalysisRunData):
         language = Language(analysis.fixture["language"].lower())
-        refs = analysis.all_results[0].results[language].references.by_qualified_name or {}
+        refs = {node.fully_qualified_name: node for node in analysis.all_results[0].iter_reference_nodes(language)}
         expected = set(analysis.fixture.get("expected_references", []))
         actual = set(refs.keys())
         missing = sorted(expected - actual)
@@ -251,7 +252,6 @@ class TestEdgeCases:
             )
         assert not errors, "\n\n".join(errors)
 
-    @pytest.mark.skip(reason="Class hierarchy is currently skipped (skip_hierarchy=True in CallGraphBuilder)")
     def test_expected_classes_in_hierarchy(self, analysis: AnalysisRunData):
         language = Language(analysis.fixture["language"].lower())
         hierarchy = analysis.all_results[0].get_hierarchy(language)
@@ -266,7 +266,6 @@ class TestEdgeCases:
             errors.append(f"Found {len(unexpected)} unexpected classes:\n" + "\n".join(f"  + {c}" for c in unexpected))
         assert not errors, "\n\n".join(errors)
 
-    @pytest.mark.skip(reason="Class hierarchy is currently skipped (skip_hierarchy=True in CallGraphBuilder)")
     def test_inheritance_relationships(self, analysis: AnalysisRunData):
         language = Language(analysis.fixture["language"].lower())
         hierarchy = analysis.all_results[0].get_hierarchy(language)
@@ -343,43 +342,103 @@ class TestEdgeCases:
 
         assert not errors, "\n\n".join(errors)
 
-    def test_package_dependencies(self, analysis: AnalysisRunData):
+    def test_program_graph_containment(self, analysis: AnalysisRunData):
         language = Language(analysis.fixture["language"].lower())
-        deps = analysis.all_results[0].get_package_dependencies(language)
-        expected_deps = analysis.fixture.get("expected_package_deps", {})
-        errors = []
-        # Check expected packages exist with correct imports/imported_by
-        for pkg_name, expectations in expected_deps.items():
-            if pkg_name not in deps:
-                errors.append(f"Package '{pkg_name}' not found in dependencies (found: {list(deps.keys())})")
-                continue
-            pkg_info = deps[pkg_name]
-            for expected_import in expectations.get("imports_contain", []):
-                if expected_import not in pkg_info.get("imports", []):
-                    errors.append(
-                        f"'{pkg_name}' missing import '{expected_import}' (has: {pkg_info.get('imports', [])})"
-                    )
-            for expected_importer in expectations.get("imported_by_contain", []):
-                if expected_importer not in pkg_info.get("imported_by", []):
-                    errors.append(
-                        f"'{pkg_name}' missing imported_by '{expected_importer}' "
-                        f"(has: {pkg_info.get('imported_by', [])})"
-                    )
-        # Check for unexpected packages
-        unexpected_pkgs = sorted(set(deps.keys()) - set(expected_deps.keys()))
-        if unexpected_pkgs:
-            errors.append(
-                f"Found {len(unexpected_pkgs)} unexpected packages:\n" + "\n".join(f"  + {p}" for p in unexpected_pkgs)
-            )
-        assert not errors, (
-            f"{len(errors)} package dependency issues:\n"
-            + "\n".join(f"  - {e}" for e in errors)
-            + f"\n\nActual packages ({len(deps)}):\n"
-            + "\n".join(
-                f"  - {p}: imports={info.get('imports', [])}, imported_by={info.get('imported_by', [])}"
-                for p, info in sorted(deps.items())
-            )
+        graph = analysis.all_results[0].get_program_graph(language)
+        actual = {(edge.source, edge.target) for edge in graph.edges_of_kind(ProgramEdgeKind.CONTAINS)}
+        expected = {(item["container"], item["member"]) for item in analysis.fixture.get("expected_containment", [])}
+        missing = sorted(expected - actual)
+        assert not missing, "Missing containment relations:\n" + "\n".join(
+            f"  - {source} -> {target}" for source, target in missing
         )
+
+    def test_program_graph_schema_and_coverage(self, analysis: AnalysisRunData):
+        language = Language(analysis.fixture["language"].lower())
+        graph = analysis.all_results[0].get_program_graph(language)
+        containment = graph.edges_of_kind(ProgramEdgeKind.CONTAINS)
+        contained = {edge.target for edge in containment}
+
+        file_nodes = graph.nodes_of_kind(ProgramNodeKind.FILE)
+        actual_files = {Path(node.file_path).relative_to(analysis.project_path).as_posix() for node in file_nodes}
+        assert actual_files == set(analysis.fixture.get("expected_source_files", []))
+        assert all(node.node_id in contained for node in file_nodes)
+        assert all(node.node_id in contained for node in graph.symbol_nodes())
+
+        for edge in graph.edges:
+            source_kind = graph.nodes[edge.source].kind
+            target_kind = graph.nodes[edge.target].kind
+            if edge.kind == ProgramEdgeKind.CALL:
+                assert (source_kind, target_kind) == (ProgramNodeKind.SYMBOL, ProgramNodeKind.SYMBOL)
+            elif edge.kind == ProgramEdgeKind.IMPORTS:
+                assert source_kind == ProgramNodeKind.FILE
+                assert target_kind in {ProgramNodeKind.FILE, ProgramNodeKind.EXTERNAL_PACKAGE}
+            elif edge.kind == ProgramEdgeKind.INHERITS:
+                assert (source_kind, target_kind) == (ProgramNodeKind.SYMBOL, ProgramNodeKind.SYMBOL)
+
+    def test_program_graph_inheritance(self, analysis: AnalysisRunData):
+        language = Language(analysis.fixture["language"].lower())
+        graph = analysis.all_results[0].get_program_graph(language)
+        actual = {(edge.source, edge.target) for edge in graph.edges_of_kind(ProgramEdgeKind.INHERITS)}
+        expected = {(item["child"], item["parent"]) for item in analysis.fixture.get("expected_inheritance", [])}
+        missing = sorted(expected - actual)
+        assert not missing, "Missing inheritance relations:\n" + "\n".join(
+            f"  - {child} -> {parent}" for child, parent in missing
+        )
+
+    def test_program_graph_imports_and_external_packages(self, analysis: AnalysisRunData):
+        language = Language(analysis.fixture["language"].lower())
+        graph = analysis.all_results[0].get_program_graph(language)
+        imports = graph.edges_of_kind(ProgramEdgeKind.IMPORTS)
+        actual = set()
+        for edge in imports:
+            modules = edge.metadata.get("declared_modules") or [edge.metadata.get("declared_module", "")]
+            for module in modules:
+                actual.add(
+                    (
+                        Path(graph.nodes[edge.source].file_path).relative_to(analysis.project_path).as_posix(),
+                        str(module),
+                        (
+                            Path(graph.nodes[edge.target].file_path).relative_to(analysis.project_path).as_posix()
+                            if graph.nodes[edge.target].kind == ProgramNodeKind.FILE
+                            else None
+                        ),
+                        (
+                            graph.nodes[edge.target].name
+                            if graph.nodes[edge.target].kind == ProgramNodeKind.EXTERNAL_PACKAGE
+                            else None
+                        ),
+                    )
+                )
+        expected = {
+            (
+                item["source_file"],
+                item["declared_module"],
+                item.get("target_file"),
+                item.get("external_package"),
+            )
+            for item in analysis.fixture.get("expected_imports", [])
+        }
+        missing = sorted(expected - actual, key=str)
+        assert not missing, "Missing import relations:\n" + "\n".join(f"  - {item}" for item in missing)
+
+        actual_external = {node.name for node in graph.nodes_of_kind(ProgramNodeKind.EXTERNAL_PACKAGE)}
+        expected_external = set(analysis.fixture.get("expected_external_packages", []))
+        assert expected_external <= actual_external, (
+            f"Missing external packages: {sorted(expected_external - actual_external)}; "
+            f"found: {sorted(actual_external)}"
+        )
+
+    def test_program_graph_call_multiplicity(self, analysis: AnalysisRunData):
+        language = Language(analysis.fixture["language"].lower())
+        graph = analysis.all_results[0].get_program_graph(language)
+        counts = {
+            (edge.source, edge.target): edge.occurrence_count for edge in graph.edges_of_kind(ProgramEdgeKind.CALL)
+        }
+        for expected in analysis.fixture.get("expected_call_multiplicity", []):
+            key = (expected["source"], expected["destination"])
+            assert (
+                counts.get(key) == expected["count"]
+            ), f"Expected {key} occurrence count {expected['count']}, got {counts.get(key)}"
 
     def test_source_files(self, analysis: AnalysisRunData):
         language = Language(analysis.fixture["language"].lower())
@@ -404,11 +463,13 @@ class TestEdgeCases:
         language = Language(analysis.fixture["language"].lower())
 
         def _compute_metrics(results):
-            refs = results.results[language].references.by_qualified_name or {}
+            refs = {node.fully_qualified_name: node for node in results.iter_reference_nodes(language)}
             deps = results.get_package_dependencies(language)
             cfg = results.get_cfg(language)
             source_files = results.get_source_files(language)
             actual_edges = {(e.get_source(), e.get_destination()) for e in cfg.edges}
+            program_graph = results.get_program_graph(language)
+            cluster_result = program_graph.cluster()
             return {
                 "references": len(refs),
                 "packages": len(deps),
@@ -417,6 +478,11 @@ class TestEdgeCases:
                 "source_files": len(source_files),
                 "edge_set": sorted((s, d) for s, d in actual_edges),
                 "reference_keys": sorted(refs.keys()),
+                "program_graph": program_graph.to_dict(),
+                "infomap_clusters": {
+                    cluster_id: sorted(members) for cluster_id, members in cluster_result.clusters.items()
+                },
+                "infomap_paths": dict(program_graph._cluster_snapshot.node_paths),
             }
 
         first_metrics = _compute_metrics(analysis.all_results[0])

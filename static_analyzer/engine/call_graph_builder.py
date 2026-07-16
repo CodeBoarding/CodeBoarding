@@ -13,7 +13,7 @@ from static_analyzer.engine.hierarchy_builder import HierarchyBuilder
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_client import LSPClient
 from static_analyzer.engine.lsp_constants import DID_OPEN_BATCH_SIZE, EdgeStrategy
-from static_analyzer.engine.models import CallFlowGraph, LanguageAnalysisResult
+from static_analyzer.engine.models import CallFlowGraph, ImportDependency, LanguageAnalysisResult
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.symbol_table import SymbolTable
 
@@ -41,13 +41,13 @@ class CallGraphBuilder:
         """Public access to the symbol table for result conversion."""
         return self._symbol_table
 
-    def build(self, source_files: list[Path], skip_hierarchy: bool = True) -> LanguageAnalysisResult:
+    def build(self, source_files: list[Path], skip_hierarchy: bool = False) -> LanguageAnalysisResult:
         """Run the full analysis pipeline and return results.
 
         Args:
             source_files: List of source files to analyze.
-            skip_hierarchy: If True (default), skip Phase 3 (class hierarchy).
-                Hierarchy is currently not consumed by the LLM agents.
+            skip_hierarchy: If True, skip class hierarchy collection. Normal
+                analysis keeps it enabled for the enriched program graph.
         """
         t_pipeline = time.monotonic()
 
@@ -78,6 +78,8 @@ class CallGraphBuilder:
         t_pre_pkgdeps = time.monotonic()
         package_deps = self._build_package_deps(edge_set, source_files)
         logger.info("Phase %d (package deps): %.1fs", next_phase, time.monotonic() - t_pre_pkgdeps)
+
+        imports = self._build_import_dependencies(source_files)
 
         # Build references from primary symbols only (not unqualified aliases).
         references: dict[str, dict] = {}
@@ -114,8 +116,131 @@ class CallGraphBuilder:
             hierarchy=hierarchy,
             cfg=cfg,
             package_dependencies=package_deps,
+            imports=imports,
             source_files=abs_files,
         )
+
+    def _build_import_dependencies(self, source_files: list[Path]) -> list[ImportDependency]:
+        declarations = [
+            declaration
+            for source_file in source_files
+            for declaration in self._source_inspector.find_import_declarations(source_file)
+        ]
+        resolved: list[ImportDependency] = []
+        for declaration in declarations:
+            target_file = self._resolve_import_target(declaration, source_files)
+            external = None if target_file else self._external_package_name(declaration.declared_module)
+            resolved.append(
+                ImportDependency(
+                    source_file=declaration.source_file,
+                    declared_module=declaration.declared_module,
+                    line=declaration.line,
+                    column=declaration.column,
+                    target_file=target_file,
+                    external_package=external,
+                )
+            )
+        return sorted(
+            set(resolved),
+            key=lambda item: (item.source_file, item.line, item.column, item.declared_module),
+        )
+
+    def _resolve_import_target(self, declaration: ImportDependency, source_files: list[Path]) -> str | None:
+        source_path = Path(declaration.source_file)
+        source = (source_path if source_path.is_absolute() else self._root / source_path).resolve()
+        module = declaration.declared_module.strip().rstrip(":")
+        candidates = {(path if path.is_absolute() else self._root / path).resolve() for path in source_files}
+
+        # Relative path/module forms (Python dots, JS ../, Rust self::/super::).
+        relative_module = module
+        base = source.parent
+        if module.startswith(".") and not module.startswith(("./", "../")):
+            leading = len(module) - len(module.lstrip("."))
+            for _ in range(max(0, leading - 1)):
+                base = base.parent
+            relative_module = module.lstrip(".")
+        elif module.startswith(("./", "../")):
+            relative_module = module
+        elif module.startswith("self::"):
+            relative_module = module.removeprefix("self::")
+        elif module.startswith("super::"):
+            base = base.parent
+            relative_module = module.removeprefix("super::")
+        elif module.startswith("crate::"):
+            relative_module = module.removeprefix("crate::")
+        else:
+            base = self._root
+
+        if relative_module.startswith(("./", "../")):
+            relative_path = relative_module
+        elif "/" in relative_module:
+            relative_path = relative_module.replace("::", "/").replace("\\", "/")
+        else:
+            relative_path = relative_module.replace("::", "/").replace("\\", "/").replace(".", "/")
+        path_base = (base / relative_path).resolve()
+        if path_base in candidates:
+            return str(path_base)
+        for suffix in sorted(set(self._adapter.file_extensions)):
+            for candidate in (
+                path_base if path_base.suffix == suffix else path_base.with_suffix(suffix),
+                path_base / f"index{suffix}",
+                path_base / f"__init__{suffix}",
+                path_base / f"mod{suffix}",
+            ):
+                if candidate in candidates:
+                    return str(candidate)
+
+        module_suffix = relative_path.strip("/")
+        suffixes = {module_suffix}
+        # Go imports contain the module prefix although repository paths do
+        # not. The final package segment still identifies an internal package.
+        if "/" in module_suffix and self._adapter.language.lower() == "go":
+            suffixes.add(module_suffix.rsplit("/", 1)[-1])
+        suffix_matches = sorted(
+            str(path)
+            for path in candidates
+            if any(
+                path.with_suffix("").as_posix().endswith(suffix) or path.parent.as_posix().endswith(suffix)
+                for suffix in suffixes
+            )
+        )
+        if suffix_matches:
+            return suffix_matches[0]
+
+        normalized_module = module.lstrip(".").replace("::", ".").replace("\\", ".").rstrip(".*")
+        imported_name = normalized_module.rsplit(".", 1)[-1]
+        namespace_parts = {part.lower() for part in normalized_module.split(".")[:-1]}
+        matching_symbols: list[tuple[int, str]] = []
+        for symbol in self._symbol_table.symbols.values():
+            qname_match = symbol.qualified_name == normalized_module or symbol.qualified_name.startswith(
+                normalized_module + "."
+            )
+            name_match = symbol.qualified_name.rsplit(".", 1)[-1] == imported_name
+            if not qname_match and not name_match:
+                continue
+            symbol_path = Path(symbol.file_path).resolve()
+            evidence = {part.lower() for part in symbol_path.parts}
+            evidence.update(part.lower() for part in symbol.qualified_name.split("."))
+            score = (100 if qname_match else 10) + len(namespace_parts & evidence)
+            matching_symbols.append((score, str(symbol_path)))
+        if matching_symbols:
+            return sorted(matching_symbols, key=lambda item: (-item[0], item[1]))[0][1]
+
+        package_matches = sorted(
+            str(path)
+            for path in candidates
+            if self._adapter.get_package_for_file(path, self._root) == normalized_module
+            or normalized_module.endswith("." + self._adapter.get_package_for_file(path, self._root))
+        )
+        return package_matches[0] if package_matches else None
+
+    def _external_package_name(self, declared_module: str) -> str:
+        module = declared_module.lstrip(".").replace("\\", ".").replace("::", ".")
+        if module.startswith("@"):
+            return "/".join(module.split("/")[:2])
+        if "/" in module and self._adapter.language.lower() in {"typescript", "javascript"}:
+            return module.split("/", 1)[0]
+        return module.split(".", 1)[0] or declared_module
 
     def _build_edges(self, ctx: EdgeBuildContext, source_files: list[Path]) -> EdgeMap:
         """Dispatch to the edge-building strategy specified by the adapter."""

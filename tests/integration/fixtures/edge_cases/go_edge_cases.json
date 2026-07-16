@@ -734,5 +734,19 @@
     "unused/orphan.go",
     "utils/constants.go",
     "utils/helpers.go"
+  ],
+  "expected_containment": [
+    {"container": "models.entities.Dog", "member": "models.entities.(Dog).Speak"}
+  ],
+  "expected_inheritance": [
+    {"child": "models.entities.Dog", "parent": "models.base.Speaker"}
+  ],
+  "expected_imports": [
+    {"source_file": "main.go", "declared_module": "example.com/edgecases/models", "target_file": "models/base.go"},
+    {"source_file": "models/base.go", "declared_module": "fmt", "external_package": "fmt"}
+  ],
+  "expected_external_packages": ["fmt", "strings"],
+  "expected_call_multiplicity": [
+    {"source": "main.main", "destination": "models.entities.(*Repository).Add", "count": 2}
   ]
 }
