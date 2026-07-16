@@ -6,13 +6,14 @@ parameters, and dual-registration aliases are correctly excluded from references
 """
 
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from static_analyzer.constants import NodeType
 from static_analyzer.engine.language_adapter import LanguageAdapter
-from static_analyzer.engine.models import CallFlowGraph, LanguageAnalysisResult, SymbolInfo
+from static_analyzer.engine.models import CallFlowGraph, ImportDependency, LanguageAnalysisResult, SymbolInfo
 from static_analyzer.engine.result_converter import _map_symbol_kind, convert_to_codeboarding_format
 from static_analyzer.engine.symbol_table import SymbolTable
+from static_analyzer.program_graph import ProgramEdgeKind, ProgramNodeKind
 
 
 # ---------------------------------------------------------------------------
@@ -86,6 +87,10 @@ def _empty_result(source_files: list[str] | None = None) -> LanguageAnalysisResu
     return LanguageAnalysisResult(source_files=source_files or [])
 
 
+def _references(result: dict) -> list:
+    return result["program_graph"].symbol_nodes(reference_worthy_only=True)
+
+
 # ---------------------------------------------------------------------------
 # _map_symbol_kind
 # ---------------------------------------------------------------------------
@@ -121,9 +126,9 @@ class TestReferenceLineNumbers:
         _register(st, [_lsp_sym("my_func", NodeType.FUNCTION, start_line=9, end_line=19)])
         result = convert_to_codeboarding_format(st, _empty_result(), adapter)
 
-        refs = result["references"]
+        refs = _references(result)
         assert len(refs) == 1
-        assert refs[0].fully_qualified_name == "mod.my_func"
+        assert refs[0].id == "mod.my_func"
         assert refs[0].line_start == 10  # 9 + 1
         assert refs[0].line_end == 20  # 19 + 1
 
@@ -147,7 +152,7 @@ class TestReferenceLineNumbers:
         )
         result = convert_to_codeboarding_format(st, _empty_result(), adapter)
 
-        refs = {r.fully_qualified_name: r for r in result["references"]}
+        refs = {node.id: node for node in _references(result)}
         # Class itself
         assert "mod.MyClass" in refs
         assert refs["mod.MyClass"].line_start == 1
@@ -169,7 +174,7 @@ class TestReferenceLineNumbers:
         _register(st, [_lsp_sym("top", NodeType.FUNCTION, start_line=0, end_line=3)])
         result = convert_to_codeboarding_format(st, _empty_result(), adapter)
 
-        refs = result["references"]
+        refs = _references(result)
         assert len(refs) == 1
         assert refs[0].line_start == 1
         assert refs[0].line_end == 4
@@ -187,15 +192,15 @@ class TestReferenceNodeTypes:
         adapter = _make_adapter()
         st = SymbolTable(adapter)
         _register(st, [_lsp_sym("fn", NodeType.FUNCTION, 0, 5)])
-        refs = convert_to_codeboarding_format(st, _empty_result(), adapter)["references"]
-        assert refs[0].type == NodeType.FUNCTION
+        refs = _references(convert_to_codeboarding_format(st, _empty_result(), adapter))
+        assert refs[0].symbol_type == NodeType.FUNCTION
 
     def test_class_type(self):
         adapter = _make_adapter()
         st = SymbolTable(adapter)
         _register(st, [_lsp_sym("Cls", NodeType.CLASS, 0, 10)])
-        refs = convert_to_codeboarding_format(st, _empty_result(), adapter)["references"]
-        assert refs[0].type == NodeType.CLASS
+        refs = _references(convert_to_codeboarding_format(st, _empty_result(), adapter))
+        assert refs[0].symbol_type == NodeType.CLASS
 
     def test_method_type(self):
         adapter = _make_adapter()
@@ -204,23 +209,23 @@ class TestReferenceNodeTypes:
             st,
             [_lsp_sym("Cls", NodeType.CLASS, 0, 20, children=[_lsp_sym("m", NodeType.METHOD, 2, 10)])],
         )
-        refs = convert_to_codeboarding_format(st, _empty_result(), adapter)["references"]
-        methods = [r for r in refs if r.type == NodeType.METHOD]
+        refs = _references(convert_to_codeboarding_format(st, _empty_result(), adapter))
+        methods = [node for node in refs if node.symbol_type == NodeType.METHOD]
         assert len(methods) == 1
 
     def test_variable_type(self):
         adapter = _make_adapter()
         st = SymbolTable(adapter)
         _register(st, [_lsp_sym("MY_CONST", NodeType.VARIABLE, 0, 0)])
-        refs = convert_to_codeboarding_format(st, _empty_result(), adapter)["references"]
-        assert refs[0].type == NodeType.VARIABLE
+        refs = _references(convert_to_codeboarding_format(st, _empty_result(), adapter))
+        assert refs[0].symbol_type == NodeType.VARIABLE
 
     def test_enum_type(self):
         adapter = _make_adapter()
         st = SymbolTable(adapter)
         _register(st, [_lsp_sym("Color", NodeType.ENUM, 0, 5)])
-        refs = convert_to_codeboarding_format(st, _empty_result(), adapter)["references"]
-        assert refs[0].type == NodeType.ENUM
+        refs = _references(convert_to_codeboarding_format(st, _empty_result(), adapter))
+        assert refs[0].symbol_type == NodeType.ENUM
 
 
 # ---------------------------------------------------------------------------
@@ -248,7 +253,7 @@ class TestReferenceExclusions:
             ],
         )
         result = convert_to_codeboarding_format(st, _empty_result(), adapter)
-        ref_names = {r.fully_qualified_name for r in result["references"]}
+        ref_names = {node.id for node in _references(result)}
         # The function itself should be present
         assert "mod.outer" in ref_names
         # The local variable should be excluded (it has a parent chain)
@@ -279,7 +284,7 @@ class TestReferenceExclusions:
             ],
         )
         result = convert_to_codeboarding_format(st, _empty_result(), adapter)
-        ref_names = {r.fully_qualified_name for r in result["references"]}
+        ref_names = {node.id for node in _references(result)}
         assert all("param" not in n for n in ref_names)
 
     def test_module_level_variable_included(self):
@@ -288,7 +293,7 @@ class TestReferenceExclusions:
         st = SymbolTable(adapter)
         _register(st, [_lsp_sym("GLOBAL_FLAG", NodeType.VARIABLE, 0, 0)])
         result = convert_to_codeboarding_format(st, _empty_result(), adapter)
-        ref_names = {r.fully_qualified_name for r in result["references"]}
+        ref_names = {node.id for node in _references(result)}
         assert "mod.GLOBAL_FLAG" in ref_names
 
     def test_module_level_constant_included(self):
@@ -296,7 +301,7 @@ class TestReferenceExclusions:
         st = SymbolTable(adapter)
         _register(st, [_lsp_sym("MAX_RETRIES", NodeType.CONSTANT, 2, 2)])
         result = convert_to_codeboarding_format(st, _empty_result(), adapter)
-        ref_names = {r.fully_qualified_name for r in result["references"]}
+        ref_names = {node.id for node in _references(result)}
         assert "mod.MAX_RETRIES" in ref_names
 
     def test_dual_registration_alias_not_duplicated(self):
@@ -317,9 +322,9 @@ class TestReferenceExclusions:
         )
         result = convert_to_codeboarding_format(st, _empty_result(), adapter)
         # The method should appear once as "Cls.method" (primary), not also as "mod.method" (alias)
-        method_refs = [r for r in result["references"] if "method" in r.fully_qualified_name]
+        method_refs = [node for node in _references(result) if "method" in node.id]
         assert len(method_refs) == 1
-        assert method_refs[0].fully_qualified_name == "Cls.method"
+        assert method_refs[0].id == "Cls.method"
 
     def test_non_reference_worthy_kinds_excluded(self):
         """Kinds like MODULE, NAMESPACE, PACKAGE should not become references."""
@@ -341,7 +346,7 @@ class TestReferenceExclusions:
         st.build_indices()
 
         result = convert_to_codeboarding_format(st, _empty_result(), adapter)
-        ref_names = {r.fully_qualified_name for r in result["references"]}
+        ref_names = {node.id for node in _references(result)}
         assert "mod.mymod" not in ref_names
 
 
@@ -369,7 +374,7 @@ class TestClassLevelProperties:
             ],
         )
         result = convert_to_codeboarding_format(st, _empty_result(), adapter)
-        ref_names = {r.fully_qualified_name for r in result["references"]}
+        ref_names = {node.id for node in _references(result)}
         # Class-level property should be present
         assert any("name" in n for n in ref_names)
 
@@ -390,7 +395,7 @@ class TestClassLevelProperties:
             ],
         )
         result = convert_to_codeboarding_format(st, _empty_result(), adapter)
-        ref_names = {r.fully_qualified_name for r in result["references"]}
+        ref_names = {node.id for node in _references(result)}
         assert all("prop" not in n for n in ref_names)
 
 
@@ -416,10 +421,10 @@ class TestCallGraphConversion:
         result = LanguageAnalysisResult(cfg=cfg)
         out = convert_to_codeboarding_format(st, result, adapter)
 
-        cg = out["call_graph"]
-        assert "mod.foo" in cg.nodes
-        assert "mod.bar" in cg.nodes
-        assert len(cg.edges) == 1
+        graph = out["program_graph"]
+        assert "mod.foo" in graph.nodes
+        assert "mod.bar" in graph.nodes
+        assert len(graph.edges_of_kind(ProgramEdgeKind.CALL)) == 1
 
     def test_edge_with_missing_node_skipped(self):
         """If an edge references a symbol not in the symbol table, it should be skipped."""
@@ -430,8 +435,7 @@ class TestCallGraphConversion:
         result = LanguageAnalysisResult(cfg=cfg)
         out = convert_to_codeboarding_format(st, result, adapter)
 
-        cg = out["call_graph"]
-        assert len(cg.edges) == 0
+        assert len(out["program_graph"].edges_of_kind(ProgramEdgeKind.CALL)) == 0
 
     def test_edge_participant_nodes_included_even_if_not_graph_type(self):
         """A VARIABLE that participates in edges should appear as a call graph node."""
@@ -448,12 +452,11 @@ class TestCallGraphConversion:
         result = LanguageAnalysisResult(cfg=cfg)
         out = convert_to_codeboarding_format(st, result, adapter)
 
-        cg = out["call_graph"]
-        assert "mod.handler" in cg.nodes
-        assert "mod.process" in cg.nodes
+        graph = out["program_graph"]
+        assert "mod.handler" in graph.nodes
+        assert "mod.process" in graph.nodes
 
-    def test_reference_reuses_graph_node(self):
-        """If a symbol is both in the graph and reference-worthy, the same Node is reused."""
+    def test_reference_is_the_canonical_graph_node(self):
         adapter = _make_adapter()
         st = SymbolTable(adapter)
         _register(st, [_lsp_sym("foo", NodeType.FUNCTION, 0, 5)])
@@ -461,9 +464,8 @@ class TestCallGraphConversion:
         result = LanguageAnalysisResult(cfg=cfg)
         out = convert_to_codeboarding_format(st, result, adapter)
 
-        graph_node = out["call_graph"].nodes["mod.foo"]
-        ref_node = out["references"][0]
-        assert graph_node is ref_node
+        graph = out["program_graph"]
+        assert _references(out) == [graph.nodes["mod.foo"]]
 
 
 # ---------------------------------------------------------------------------
@@ -492,7 +494,7 @@ class TestMultiFileReferences:
         st.build_indices()
         result = convert_to_codeboarding_format(st, _empty_result(), adapter)
 
-        refs = {r.fully_qualified_name: r for r in result["references"]}
+        refs = {node.id: node for node in _references(result)}
         assert "alpha.func_a" in refs
         assert refs["alpha.func_a"].file_path == "alpha.py"
         assert refs["alpha.func_a"].line_start == 1
@@ -544,7 +546,7 @@ class TestMixedSymbolScenario:
         )
 
         result = convert_to_codeboarding_format(st, _empty_result(), adapter)
-        ref_names = {r.fully_qualified_name for r in result["references"]}
+        ref_names = {node.id for node in _references(result)}
 
         # Should be present:
         assert "mod.main" in ref_names
@@ -558,7 +560,7 @@ class TestMixedSymbolScenario:
         assert all("result" not in n for n in ref_names)
 
         # Verify line numbers
-        ref_map = {r.fully_qualified_name: r for r in result["references"]}
+        ref_map = {node.id: node for node in _references(result)}
         assert ref_map["mod.main"].line_start == 1
         assert ref_map["mod.VERSION"].line_start == 11
         assert ref_map["mod.Engine"].line_start == 13
@@ -582,115 +584,52 @@ class TestOutputStructure:
         result = _empty_result(source_files=["/root/mod.py"])
         out = convert_to_codeboarding_format(st, result, adapter)
 
-        assert "call_graph" in out
-        assert "class_hierarchies" in out
-        assert "package_relations" in out
-        assert "references" in out
-        assert "source_files" in out
-        assert "diagnostics" in out
+        assert set(out) == {"program_graph", "source_files", "diagnostics"}
         assert out["diagnostics"] == {}
         assert out["source_files"] == ["/root/mod.py"]
+        assert "program_graph" in out
 
+    def test_project_root_inference_does_not_probe_source_paths(self):
+        adapter = _make_adapter()
+        result = _empty_result(source_files=["/restricted/mod.py"])
 
-# ---------------------------------------------------------------------------
-# Reference edges (CONTAINS / INHERITS / TYPEREF / IMPORT)
-# ---------------------------------------------------------------------------
+        with patch.object(Path, "is_file", side_effect=AssertionError("filesystem probe")):
+            out = convert_to_codeboarding_format(SymbolTable(adapter), result, adapter)
 
+        assert out["program_graph"].language == "python"
 
-def test_add_reference_edges_contains_and_inherits():
-    """CONTAINS from the qualified-name hierarchy; INHERITS from the class hierarchy."""
-    from static_analyzer.engine.result_converter import _add_reference_edges
-    from static_analyzer.graph import CallGraph, EdgeKind
-    from static_analyzer.node import Node
-
-    cg = CallGraph(language="python")
-    for i, (qname, kind) in enumerate(
-        [
-            ("mod.Base", NodeType.CLASS),
-            ("mod.Widget", NodeType.CLASS),
-            ("mod.Widget.render", NodeType.METHOD),
-            ("mod.Widget.__init__", NodeType.METHOD),
-            ("mod.helper", NodeType.FUNCTION),
+    def test_program_graph_contains_structural_and_external_import_evidence(self):
+        adapter = _make_adapter()
+        adapter.get_package_for_file.side_effect = lambda _path, _root: "pkg"
+        st = SymbolTable(adapter)
+        _register(
+            st,
+            [
+                _lsp_sym(
+                    "Service",
+                    NodeType.CLASS,
+                    0,
+                    10,
+                    children=[_lsp_sym("run", NodeType.METHOD, 2, 5)],
+                )
+            ],
+        )
+        result = _empty_result(source_files=["/root/mod.py"])
+        result.imports = [
+            ImportDependency(
+                source_file="/root/mod.py",
+                declared_module="requests",
+                line=1,
+                column=8,
+                external_package="requests",
+            )
         ]
-    ):
-        cg.add_node(
-            Node(
-                fully_qualified_name=qname,
-                node_type=kind,
-                file_path="mod.py",
-                line_start=i * 10 + 1,
-                line_end=i * 10 + 5,
-            )
+
+        graph = convert_to_codeboarding_format(st, result, adapter, Path("/root"))["program_graph"]
+
+        assert any(
+            node.kind == ProgramNodeKind.EXTERNAL_PACKAGE and node.name == "requests" for node in graph.nodes.values()
         )
-
-    result = LanguageAnalysisResult(
-        hierarchy={"mod.Widget": {"superclasses": ["mod.Base"], "subclasses": []}},
-        type_references=[("mod.helper", "mod.Widget")],
-        import_edges=[("mod.helper", "mod.Base")],
-    )
-    _add_reference_edges(cg, result)
-
-    got = {(s, d, k) for s, d, k in cg.reference_edges}
-    # methods -> their class
-    assert ("mod.Widget.render", "mod.Widget", str(EdgeKind.CONTAINS)) in got
-    assert ("mod.Widget.__init__", "mod.Widget", str(EdgeKind.CONTAINS)) in got
-    # subclass -> superclass
-    assert ("mod.Widget", "mod.Base", str(EdgeKind.INHERITS)) in got
-    # engine-supplied typeref / import
-    assert ("mod.helper", "mod.Widget", str(EdgeKind.TYPEREF)) in got
-    assert ("mod.helper", "mod.Base", str(EdgeKind.IMPORT)) in got
-    # top-level function is not "contained" by any class
-    assert not any(s == "mod.helper" and k == str(EdgeKind.CONTAINS) for s, d, k in cg.reference_edges)
-
-
-def test_clustering_networkx_includes_configured_reference_kinds():
-    from static_analyzer.graph import CallGraph, EdgeKind
-    from static_analyzer.node import Node
-
-    cg = CallGraph(language="python")
-    for i, qname in enumerate(("mod.A", "mod.B")):
-        cg.add_node(
-            Node(
-                fully_qualified_name=qname,
-                node_type=NodeType.CLASS,
-                file_path="mod.py",
-                line_start=i * 10 + 1,
-                line_end=i * 10 + 5,
-            )
-        )
-    cg.add_reference_edge("mod.A", "mod.B", EdgeKind.CONTAINS)
-
-    # default kinds include contains -> edge present
-    assert cg.clustering_networkx().has_edge("mod.A", "mod.B")
-    # restricting to a kind that isn't present -> edge absent (call graph had no edges)
-    assert not cg.clustering_networkx(reference_kinds={"import"}).has_edge("mod.A", "mod.B")
-
-
-class TestIgnoredFilesExcluded:
-    """The LSP indexes the whole workspace, so ignored files (tests) reach the symbol
-    table; the converter must keep them out of the call graph."""
-
-    def test_symbols_in_ignored_files_are_dropped(self):
-        from repo_utils.ignore import RepoIgnoreManager
-
-        adapter = _make_adapter()
-        st = SymbolTable(adapter)
-        _register(st, [_lsp_sym("run", NodeType.FUNCTION, 0, 1)], file="app.py", root="/root")
-        _register(st, [_lsp_sym("test_run", NodeType.FUNCTION, 0, 1)], file="tests/test_app.py", root="/root")
-
-        result = convert_to_codeboarding_format(st, _empty_result(), adapter, RepoIgnoreManager(Path("/root")))
-
-        node_files = {node.file_path for node in result["call_graph"].nodes.values()}
-        assert not any("tests/" in f for f in node_files), node_files
-        assert any("app.py" in f for f in node_files)
-        ref_files = {ref.file_path for ref in result["references"]}
-        assert not any("tests/" in f for f in ref_files), ref_files
-
-    def test_without_ignore_manager_nothing_is_dropped(self):
-        adapter = _make_adapter()
-        st = SymbolTable(adapter)
-        _register(st, [_lsp_sym("test_run", NodeType.FUNCTION, 0, 1)], file="tests/test_app.py", root="/root")
-
-        result = convert_to_codeboarding_format(st, _empty_result(), adapter)
-
-        assert any("tests/" in node.file_path for node in result["call_graph"].nodes.values())
+        containment = {(edge.source, edge.target) for edge in graph.edges_of_kind(ProgramEdgeKind.CONTAINS)}
+        assert ("mod.Service", "Service.run") in containment
+        assert len(graph.edges_of_kind(ProgramEdgeKind.IMPORTS)) == 1

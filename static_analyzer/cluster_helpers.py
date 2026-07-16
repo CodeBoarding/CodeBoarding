@@ -1,109 +1,310 @@
-"""Group a language's leaf clusters into the architecture's top-level components.
-
-Two stages, both deterministic:
-
-1. **Partition** — resolution-tuned Leiden over a weighted meta-graph of
-   inter-cluster call edges picks both the component count (the modularity peak
-   over ``[low, high]``) and the membership. The LLM only names the result.
-2. **Absorption** — real call graphs carry a long tail of leaf clusters with no
-   inter-cluster edge at all, which Leiden leaves as singletons. Each is folded
-   into the nearest seed by call proximity, then by directory affinity, with the
-   smaller seed winning ties so the tail spreads instead of piling onto one
-   component.
-"""
+"""Helpers for ProgramGraph clustering and downstream cluster ID handling."""
 
 import logging
-import os
-from collections import Counter, defaultdict, deque
-from dataclasses import dataclass
+from collections import defaultdict
+from typing import TypeVar
 
 import networkx as nx
-import networkx.algorithms.community as nx_comm
 
 from static_analyzer.analysis_result import StaticAnalysisResults
+from static_analyzer.clustering import ClusterResult
 from static_analyzer.constants import ClusteringConfig, Language
-from static_analyzer.graph import ClusterResult, detect_communities
+from static_analyzer.infomap_clustering import HierarchicalInfomapClusterer
+from static_analyzer.leiden_utils import find_partition
 
 logger = logging.getLogger(__name__)
-
-# Range for the number of top-level architecture components. The exact count N
-# inside this range is chosen deterministically by the modularity peak of a
-# resolution-tuned Leiden partition (see ``supercluster_leaf_ids``), not by the
-# LLM — so the component structure is stable across re-runs.
-TOP_LEVEL_COMPONENTS_MIN = 5
-TOP_LEVEL_COMPONENTS_MAX = 8
-
-# Same idea for a component's sub-components (one level down); a component is
-# usually smaller than the whole repo, so the floor is lower.
-SUBCOMPONENTS_MIN = 3
-SUBCOMPONENTS_MAX = 8
-
-# Resolution ladder swept to steer Leiden toward a target community count.
-# Ascending: higher resolution -> more, finer communities. Reaches well past 1.0
-# so a graph with a large connected core can still be over-segmented to any N in
-# the target range before absorbing leftovers back down.
-_RESOLUTION_LADDER = (0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0, 7.0, 10.0)
+NodeId = TypeVar("NodeId")
 
 
-def build_all_cluster_results(static_analysis: StaticAnalysisResults) -> dict[str, ClusterResult]:
-    """Cluster every detected language and give the clusters a shared ID namespace.
+def detect_communities(
+    graph: nx.Graph | nx.DiGraph,
+    *,
+    weight: str | None = None,
+    resolution: float | None = None,
+    seed: int | None = None,
+) -> list[set[NodeId]]:
+    """Run Leiden for budget-level cluster aggregation."""
+    return find_partition(graph, weight=weight, resolution=resolution, seed=seed)
 
-    Downstream code maps ``cluster_id -> component`` in a single dict, so IDs must
-    not collide across languages.
+
+# Maximum number of clusters the LLM should see. When a language produces
+# more clusters than this, merge_clusters() collapses them into super-clusters
+# using community detection on the inter-cluster connectivity graph.
+MAX_LLM_CLUSTERS = 50
+
+
+def build_cluster_results_for_languages(
+    static_analysis: StaticAnalysisResults, languages: list[Language]
+) -> dict[str, ClusterResult]:
+    """
+    Build cluster results for specified languages.
+
+    Args:
+        static_analysis: Static analysis results containing CFG data
+        languages: List of language names to build cluster results for
+
+    Returns:
+        Dictionary mapping language name -> ClusterResult
     """
     cluster_results: dict[str, ClusterResult] = {}
-    offset = 0
-    for lang in static_analysis.get_languages():
-        result = static_analysis.get_cfg(lang).cluster()
-        if offset:
-            result = reindex_cluster_result(result, offset)
-            logger.info(f"[Cluster] {lang}: offset IDs by +{offset} ({len(result.clusters)} clusters)")
-        cluster_results[str(lang)] = result
-        offset += max(result.clusters, default=0) + 1
-
-    _sync_cluster_cache(static_analysis, cluster_results)
+    clusterer = HierarchicalInfomapClusterer()
+    for lang in languages:
+        graph = static_analysis.get_program_graph(lang)
+        cluster_results[str(lang)] = clusterer.cluster(graph)
     return cluster_results
 
 
-def _sync_cluster_cache(static_analysis: StaticAnalysisResults, cluster_results: dict[str, ClusterResult]) -> None:
-    """Keep each CFG cache aligned with returned cluster IDs."""
-    for lang, result in cluster_results.items():
-        try:
-            cfg = static_analysis.get_cfg(Language(lang))
-            cfg._cluster_cache = result
-            cfg.record_cluster_paths(result)
-        except ValueError:
-            logger.warning("Could not sync cluster cache for missing language %s", lang)
-
-
-def reindex_across_languages(cluster_results: dict[str, ClusterResult]) -> None:
-    """Give each language's clusters a disjoint ID range, in place.
-
-    Needed wherever per-language ``ClusterResult``s are built independently (the
-    per-component subgraphs) and then merged into one ``cluster_id -> component``
-    lookup.
+def build_all_cluster_results(static_analysis: StaticAnalysisResults) -> dict[str, ClusterResult]:
     """
-    if len(cluster_results) <= 1:
-        return
-    # Already disjoint across languages — e.g. the seeded incremental path returned the
-    # previous run's scoped ids. Re-offsetting would drift a stable namespace every run,
-    # so a TypeScript sub-cluster saved as 2/3 would become 4/5 next time and the persisted
-    # lineage would never settle. Only the cold path (each language freshly clustered from 1)
-    # overlaps and needs reindexing.
-    ranges = sorted((min(r.clusters), max(r.clusters)) for r in cluster_results.values() if r.clusters)
-    if all(ranges[i][0] > ranges[i - 1][1] for i in range(1, len(ranges))):
-        return
+    Build cluster results for all detected languages in the static analysis.
+
+    Hierarchical Infomap decides module granularity. This function never
+    hyperclusters its output; it only gives languages disjoint ID ranges.
+
+    Args:
+        static_analysis: Static analysis results containing CFG data
+
+    Returns:
+        Dictionary mapping language name -> ClusterResult
+    """
+    languages = static_analysis.get_languages()
+    cluster_results = build_cluster_results_for_languages(static_analysis, languages)
+
+    if len(cluster_results) > 1:
+        reindex_cross_language_clusters(cluster_results)
+
+    return cluster_results
+
+
+def reindex_cross_language_clusters(cluster_results: dict[str, ClusterResult]) -> None:
+    """Give each language a deterministic, disjoint cluster-ID range."""
     offset = 0
     for lang in sorted(cluster_results):
         result = cluster_results[lang]
         if offset:
             cluster_results[lang] = reindex_cluster_result(result, offset)
-            logger.info(f"[ReIndex] {lang}: offset IDs by +{offset} (now {offset + 1}-{offset + len(result.clusters)})")
-        offset += max(result.clusters, default=0) + 1
+        offset = max(cluster_results[lang].clusters, default=offset)
+
+
+def enforce_cross_language_budget(
+    cluster_results: dict[str, ClusterResult],
+    cfg_graphs: dict[str, nx.DiGraph],
+    target: int = MAX_LLM_CLUSTERS,
+) -> None:
+    """Enforce a combined cluster budget across languages and re-index IDs.
+
+    Mutates *cluster_results* in place:
+      1. If the combined cluster count exceeds *target*, proportionally reduce
+         each language's count (minimum 2 per language) via ``merge_clusters``.
+      2. Re-index cluster IDs with per-language offsets so they form a unique,
+         non-overlapping namespace (required by downstream code that maps
+         cluster_id -> component in a single dict).
+
+    Args:
+        cluster_results: Language -> ClusterResult mapping (mutated in place).
+        cfg_graphs: Language -> networkx DiGraph for each language (needed by
+            ``merge_clusters`` when reducing).
+        target: Maximum total clusters across all languages.
+    """
+    if len(cluster_results) <= 1:
+        return
+
+    total_clusters = sum(len(cr.clusters) for cr in cluster_results.values())
+    if total_clusters > target:
+        for lang in list(cluster_results.keys()):
+            cr = cluster_results[lang]
+            lang_count = len(cr.clusters)
+            lang_target = max(2, round(target * lang_count / total_clusters))
+            if lang_count > lang_target:
+                logger.info(f"[SuperCluster] {lang}: reducing {lang_count} -> {lang_target} (cross-language budget)")
+                cluster_results[lang] = merge_clusters(cr, cfg_graphs[lang], lang_target)
+
+    # Re-index so IDs don't overlap across languages
+    offset = 0
+    for lang in sorted(cluster_results.keys()):
+        cr = cluster_results[lang]
+        if offset > 0:
+            cluster_results[lang] = reindex_cluster_result(cr, offset)
+            logger.info(f"[ReIndex] {lang}: offset IDs by +{offset} (now {offset + 1}-{offset + len(cr.clusters)})")
+        offset += len(cr.clusters)
+
+
+# ---------------------------------------------------------------------------
+# Meta-graph construction
+# ---------------------------------------------------------------------------
+
+
+def _build_node_to_cluster_lookup(cluster_result: ClusterResult) -> dict[str, int]:
+    """Map each CFG node to its owning cluster ID."""
+    node_to_cluster: dict[str, int] = {}
+    for cluster_id, nodes in cluster_result.clusters.items():
+        for node in nodes:
+            node_to_cluster[node] = cluster_id
+    return node_to_cluster
+
+
+def _build_meta_graph(cluster_result: ClusterResult, cfg_graph: nx.DiGraph) -> nx.DiGraph:
+    """Build a weighted directed meta-graph of inter-cluster connectivity.
+
+    Each node is a cluster ID. Each edge ``(src_cid, dst_cid)`` carries the
+    number of CFG calls from ``src_cid`` members into ``dst_cid`` members.
+    Mutual coupling A<->B becomes two separate edges, each contributing
+    independently to directed Leicht-Newman modularity (decision #15).
+    """
+    node_to_cluster = _build_node_to_cluster_lookup(cluster_result)
+
+    meta_graph = nx.DiGraph()
+    for cid in cluster_result.clusters:
+        meta_graph.add_node(cid)
+
+    edge_weights: dict[tuple[int, int], int] = defaultdict(int)
+    for src, dst in cfg_graph.edges():
+        src_cid = node_to_cluster.get(src)
+        dst_cid = node_to_cluster.get(dst)
+        if src_cid is not None and dst_cid is not None and src_cid != dst_cid:
+            edge_weights[(src_cid, dst_cid)] += 1
+
+    for (src_cid, dst_cid), weight in edge_weights.items():
+        meta_graph.add_edge(src_cid, dst_cid, weight=weight)
+
+    return meta_graph
+
+
+# ---------------------------------------------------------------------------
+# Community detection
+# ---------------------------------------------------------------------------
+
+
+def _detect_communities(meta_graph: nx.Graph | nx.DiGraph, target: int, n_original: int) -> list[set[int]]:
+    """
+    Run Leiden community detection (Louvain fallback) with resolution tuning to approach the target count.
+
+    Falls back to connected components if community detection fails or produces no improvement.
+    """
+    best_communities: list[set[int]] | None = None
+    best_distance = float("inf")
+
+    for resolution in [0.5, 0.8, 1.0, 1.2, 1.5, 2.0, 3.0, 5.0]:
+        try:
+            communities: list[set[int]] = detect_communities(
+                meta_graph,
+                weight="weight",
+                resolution=resolution,
+                seed=ClusteringConfig.CLUSTERING_SEED,
+            )
+            distance = abs(len(communities) - target)
+            if distance < best_distance:
+                best_distance = distance
+                best_communities = communities
+            logger.debug(f"[SuperCluster] resolution={resolution}: {len(communities)} communities")
+        except Exception as e:
+            logger.debug(f"[SuperCluster] resolution={resolution} failed: {e}")
+
+    if best_communities is None or len(best_communities) >= n_original:
+        # Why weakly_connected_components: under directed meta-graphs (decision #15),
+        # nx.connected_components is undefined. Reachability-ignoring-direction is
+        # the right semantic for a structural-isolation safety net.
+        components_iter = (
+            nx.weakly_connected_components(meta_graph)
+            if meta_graph.is_directed()
+            else nx.connected_components(meta_graph)
+        )
+        best_communities = [set(c) for c in components_iter]
+        logger.warning(f"[SuperCluster] Falling back to connected components: {len(best_communities)} groups")
+
+    return best_communities
+
+
+# ---------------------------------------------------------------------------
+# Small-community absorption
+# ---------------------------------------------------------------------------
+
+
+def _community_files(community: set[int], cluster_result: ClusterResult) -> set[str]:
+    """Collect all file paths touched by a community of cluster IDs."""
+    files: set[str] = set()
+    for cid in community:
+        files.update(cluster_result.cluster_to_files.get(cid, set()))
+    return files
+
+
+def _find_nearest_by_graph_distance(
+    smallest_idx: int,
+    communities: list[set[int]],
+    meta_graph: nx.Graph | nx.DiGraph,
+) -> int | None:
+    """
+    Find the community closest to *smallest_idx* by shortest-path distance
+    in the meta-graph.
+
+    For each candidate community we take the minimum shortest-path length
+    between any cluster in the smallest community and any cluster in the
+    candidate. Returns ``None`` when no finite path exists (disconnected).
+
+    Distance is computed on an undirected view: absorption is about
+    topological proximity, not directional reachability — a tiny utility
+    cluster should be absorbable by a nearby cluster regardless of which
+    way the calls flow.
+    """
+    smallest = communities[smallest_idx]
+    best_idx: int | None = None
+    best_dist = float("inf")
+
+    distance_graph = meta_graph.to_undirected(as_view=True) if meta_graph.is_directed() else meta_graph
+
+    for idx, candidate in enumerate(communities):
+        if idx == smallest_idx:
+            continue
+        for src in smallest:
+            for dst in candidate:
+                try:
+                    dist = nx.shortest_path_length(distance_graph, src, dst)
+                except nx.NetworkXNoPath:
+                    continue
+                if dist < best_dist:
+                    best_dist = dist
+                    best_idx = idx
+            if best_dist == 1:
+                # Can't do better than direct neighbours – stop early.
+                return best_idx
+
+    return best_idx
+
+
+def _find_nearest_by_file_overlap(
+    smallest_idx: int,
+    communities: list[set[int]],
+    cluster_result: ClusterResult,
+) -> int | None:
+    """
+    Fallback for disconnected communities: find the candidate with the most
+    file overlap with the smallest community.
+    """
+    smallest_files = _community_files(communities[smallest_idx], cluster_result)
+    best_idx: int | None = None
+    best_overlap = -1
+
+    for idx, candidate in enumerate(communities):
+        if idx == smallest_idx:
+            continue
+        overlap = len(smallest_files & _community_files(candidate, cluster_result))
+        if overlap > best_overlap:
+            best_overlap = overlap
+            best_idx = idx
+
+    return best_idx
 
 
 def reindex_cluster_result(cluster_result: ClusterResult, offset: int) -> ClusterResult:
-    """Return a copy of *cluster_result* with every cluster ID shifted by *offset*."""
+    """Re-index all cluster IDs in a ClusterResult by adding an offset.
+
+    Args:
+        cluster_result: Original ClusterResult
+        offset: Integer to add to every cluster ID
+
+    Returns:
+        New ClusterResult with shifted IDs
+    """
     new_clusters: dict[int, set[str]] = {}
     new_cluster_to_files: dict[int, set[str]] = {}
     new_file_to_clusters: dict[str, set[int]] = defaultdict(set)
@@ -125,453 +326,167 @@ def reindex_cluster_result(cluster_result: ClusterResult, offset: int) -> Cluste
     )
 
 
-# ---------------------------------------------------------------------------
-# Meta-graph construction
-# ---------------------------------------------------------------------------
-
-
-def _build_meta_graph(cluster_result: ClusterResult, cfg_graph: nx.DiGraph) -> nx.DiGraph:
-    """Build a weighted directed meta-graph of inter-cluster connectivity.
-
-    Each node is a cluster ID. Each edge ``(src_cid, dst_cid)`` carries the
-    number of CFG calls from ``src_cid`` members into ``dst_cid`` members.
-    Mutual coupling A<->B becomes two separate edges, each contributing
-    independently to directed Leicht-Newman modularity.
-    """
-    node_to_cluster: dict[str, int] = {}
-    for cluster_id, nodes in cluster_result.clusters.items():
-        for node in nodes:
-            node_to_cluster[node] = cluster_id
-
-    meta_graph = nx.DiGraph()
-    for cid in cluster_result.clusters:
-        meta_graph.add_node(cid)
-
-    edge_weights: dict[tuple[int, int], int] = defaultdict(int)
-    for src, dst in cfg_graph.edges():
-        src_cid = node_to_cluster.get(src)
-        dst_cid = node_to_cluster.get(dst)
-        if src_cid is not None and dst_cid is not None and src_cid != dst_cid:
-            edge_weights[(src_cid, dst_cid)] += 1
-
-    for (src_cid, dst_cid), weight in edge_weights.items():
-        meta_graph.add_edge(src_cid, dst_cid, weight=weight)
-
-    return meta_graph
-
-
-def group_symbols(cluster_ids: list[int], node_lookup: dict[int, set[str]]) -> list[str]:
-    """Qualified names in a group, most top-level first (fewest name segments)."""
-    names = {qname for cid in cluster_ids for qname in node_lookup.get(cid, set())}
-    return sorted(names, key=lambda qname: (qname.count("."), qname))
-
-
-def combine_cluster_results(cluster_results: dict[str, ClusterResult]) -> ClusterResult:
-    """Union per-language ClusterResults into one.
-
-    Cluster IDs are globally unique across languages, so a plain union is safe and
-    lets us group every language's leaf clusters against a single meta-graph.
-    """
-    clusters: dict[int, set[str]] = {}
-    cluster_to_files: dict[int, set[str]] = {}
-    file_to_clusters: dict[str, set[int]] = defaultdict(set)
-    for cr in cluster_results.values():
-        clusters.update(cr.clusters)
-        cluster_to_files.update(cr.cluster_to_files)
-        for file_path, cids in cr.file_to_clusters.items():
-            file_to_clusters[file_path].update(cids)
-    return ClusterResult(
-        clusters=clusters,
-        cluster_to_files=cluster_to_files,
-        file_to_clusters=dict(file_to_clusters),
-        strategy="combined",
-    )
-
-
-# ---------------------------------------------------------------------------
-# Partitioning
-# ---------------------------------------------------------------------------
-
-
-def _pick_peak_partition(
-    meta_graph: nx.DiGraph,
-    low: int,
-    high: int,
-    seed: int,
-) -> list[set[int]]:
-    """Sweep the resolution ladder and return the partition at the modularity peak in ``[low, high]``.
-
-    "N" counts *non-singleton* communities (size >= 2 leaf clusters) — the
-    connected structure Leiden actually resolves — because real call graphs
-    carry a long tail of isolated leaf clusters that would otherwise pin the raw
-    community count far above ``high`` at every resolution. Among partitions
-    whose non-singleton count lands in range, the highest-modularity one wins.
-    Falls back to the partition whose count is closest to the range when none
-    lands inside it (or to all-singletons on an edgeless graph).
-    """
-    if meta_graph.number_of_edges() == 0:
-        return [{cid} for cid in meta_graph.nodes]
-
-    candidates: list[tuple[int, float, list[set[int]]]] = []
-    for resolution in _RESOLUTION_LADDER:
-        try:
-            communities: list[set[int]] = detect_communities(
-                meta_graph, weight="weight", resolution=resolution, seed=seed
-            )
-        except Exception as e:  # noqa: BLE001 - a bad resolution shouldn't abort the sweep
-            logger.debug(f"[SuperCluster] resolution={resolution} failed: {e}")
-            continue
-        n_real = sum(1 for community in communities if len(community) >= 2)
-        modularity = nx_comm.modularity(meta_graph, communities, weight="weight")
-        candidates.append((n_real, modularity, communities))
-        logger.debug(f"[SuperCluster] resolution={resolution}: n_real={n_real} modularity={modularity:.4f}")
-
-    if not candidates:
-        return [{cid} for cid in meta_graph.nodes]
-
-    in_range = [c for c in candidates if low <= c[0] <= high]
-    if in_range:
-        n_real, modularity, communities = max(in_range, key=lambda c: c[1])
-        logger.info(f"[SuperCluster] modularity peak at N={n_real} (modularity={modularity:.4f}) over [{low},{high}]")
-        return communities
-
-    def range_distance(n_real: int) -> int:
-        return 0 if low <= n_real <= high else min(abs(n_real - low), abs(n_real - high))
-
-    n_real, _, communities = min(candidates, key=lambda c: (range_distance(c[0]), -c[1]))
-    logger.info(f"[SuperCluster] no partition with N in [{low},{high}]; using closest (N={n_real})")
-    return communities
-
-
-def _seeds_from_partition(
+def _absorb_small_communities(
     communities: list[set[int]],
-    method_count: dict[int, int],
-    low: int,
-    high: int,
-) -> tuple[list[set[int]], list[int]]:
-    """Split a partition into top-level *seed* communities and leftover leaf clusters.
-
-    Seeds are the non-singleton communities (ranked by total method count),
-    capped at ``high``. When there are fewer than ``low`` seeds, the largest
-    leftover leaf clusters are promoted to their own seed so a genuinely big but
-    call-isolated module (e.g. a data-model file nothing calls) still becomes a
-    component instead of being folded into another. Everything else is a
-    leftover to be absorbed.
+    cluster_result: ClusterResult,
+    meta_graph: nx.Graph | nx.DiGraph,
+    target: int,
+) -> list[set[int]]:
     """
-    reals = sorted(
-        (set(c) for c in communities if len(c) >= 2),
-        key=lambda community: (sum(method_count.get(cid, 0) for cid in community), -min(community)),
+    Absorb small communities into larger ones until we reach *target* count.
+
+    Merge strategy (applied repeatedly to the smallest community):
+      1. **Graph distance** – merge into the community with the shortest path
+         in the meta-graph. This is consistent with the Louvain step.
+      2. **File overlap** – fallback for completely disconnected communities
+         where no finite path exists.
+    """
+    result = [set(c) for c in communities]
+
+    while len(result) > target:
+        smallest_idx = min(range(len(result)), key=lambda i: len(result[i]))
+
+        # Prefer graph distance; fall back to file overlap for disconnected clusters.
+        merge_idx = _find_nearest_by_graph_distance(smallest_idx, result, meta_graph)
+        if merge_idx is None:
+            merge_idx = _find_nearest_by_file_overlap(smallest_idx, result, cluster_result)
+
+        if merge_idx is None:
+            break
+
+        result[merge_idx].update(result[smallest_idx])
+        result.pop(smallest_idx)
+
+    logger.info(f"[SuperCluster] Absorbed small communities: {len(communities)} -> {len(result)}")
+    return result
+
+
+# ---------------------------------------------------------------------------
+# ClusterResult assembly
+# ---------------------------------------------------------------------------
+
+
+def _build_merged_cluster_result(
+    communities: list[set[int]],
+    cluster_result: ClusterResult,
+    cfg_graph: nx.DiGraph,
+) -> ClusterResult:
+    """
+    Build a new ClusterResult by merging original clusters according to
+    the given community assignments, re-indexed from 1..N (largest first).
+    """
+    # Sort super-clusters by total node count (largest first) for consistent ordering.
+    sorted_communities = sorted(
+        communities,
+        key=lambda sc: sum(len(cluster_result.clusters.get(cid, set())) for cid in sc),
         reverse=True,
     )
-    leftovers = [cid for c in communities if len(c) == 1 for cid in c]
 
-    if len(reals) > high:
-        leftovers.extend(cid for community in reals[high:] for cid in community)
-        reals = reals[:high]
+    new_clusters: dict[int, set[str]] = {}
+    new_cluster_to_files: dict[int, set[str]] = defaultdict(set)
+    new_file_to_clusters: dict[str, set[int]] = defaultdict(set)
 
-    # Biggest clusters first (they anchor packages), tie-broken by id, so the
-    # order absorption sees never depends on set iteration order.
-    leftovers.sort(key=lambda cid: (-method_count.get(cid, 0), cid))
+    for new_id, old_cids in enumerate(sorted_communities, start=1):
+        merged_nodes: set[str] = set()
+        for old_cid in old_cids:
+            merged_nodes.update(cluster_result.clusters.get(old_cid, set()))
+        new_clusters[new_id] = merged_nodes
 
-    seeds = reals
-    while len(seeds) < low and leftovers:
-        seeds.append({leftovers.pop(0)})
+        for node in merged_nodes:
+            node_data = cfg_graph.nodes.get(node, {})
+            file_path = node_data.get("file_path")
+            if file_path:
+                new_cluster_to_files[new_id].add(file_path)
+                new_file_to_clusters[file_path].add(new_id)
 
-    return seeds, leftovers
-
-
-def _cluster_packages(cid: int, cluster_result: ClusterResult) -> set[str]:
-    """Directories of the files a leaf cluster touches (its 'package')."""
-    return {os.path.dirname(path) for path in cluster_result.cluster_to_files.get(cid, set())}
-
-
-def _package_affinity(package: str, candidates: set[str]) -> int:
-    """Leading path segments *package* shares with its closest match in *candidates*."""
-    own = package.split(os.sep)
-    best = 0
-    for candidate in candidates:
-        other = candidate.split(os.sep)
-        shared = 0
-        for a, b in zip(own, other):
-            if a != b:
-                break
-            shared += 1
-        best = max(best, shared)
-    return best
-
-
-def _seed_distances(meta_graph: nx.DiGraph, seeds: list[set[int]]) -> list[dict[int, int]]:
-    """Hop distance from each seed to every leaf cluster it can reach.
-
-    One multi-source BFS per seed on an undirected view — absorption is about
-    topological proximity, not directional reachability, and a tiny utility
-    cluster should be absorbable regardless of which way the calls flow.
-    """
-    undirected = meta_graph.to_undirected(as_view=True) if meta_graph.is_directed() else meta_graph
-    distances: list[dict[int, int]] = []
-    for seed in seeds:
-        reached = {cid: 0 for cid in seed if undirected.has_node(cid)}
-        frontier = deque(reached)
-        while frontier:
-            cid = frontier.popleft()
-            for neighbour in undirected.neighbors(cid):
-                if neighbour not in reached:
-                    reached[neighbour] = reached[cid] + 1
-                    frontier.append(neighbour)
-        distances.append(reached)
-    return distances
-
-
-def _absorb_leftovers(
-    seeds: list[set[int]],
-    leftovers: list[int],
-    meta_graph: nx.DiGraph,
-    cluster_result: ClusterResult,
-    method_count: dict[int, int],
-) -> None:
-    """Fold every leftover leaf cluster into a seed, in place.
-
-    Preference order per leftover: fewest hops to a seed member, then deepest
-    shared directory prefix with the seed's *original* packages, then the
-    smallest seed. Ties always go to the smaller seed, and affinity is measured
-    against the seed's pre-absorption packages — otherwise a seed that absorbed
-    early keeps widening its package set and wins every later comparison, which
-    is what collapses a repo into one mega-component.
-    """
-    distances = _seed_distances(meta_graph, seeds)
-    seed_packages = [{pkg for cid in seed for pkg in _cluster_packages(cid, cluster_result)} for seed in seeds]
-    sizes = [sum(method_count.get(cid, 0) for cid in seed) for seed in seeds]
-
-    for cid in leftovers:
-        ranked = [(reached[cid], sizes[idx], idx) for idx, reached in enumerate(distances) if cid in reached]
-        if not ranked:
-            packages = _cluster_packages(cid, cluster_result)
-            for idx, seed_pkgs in enumerate(seed_packages):
-                affinity = max((_package_affinity(pkg, seed_pkgs) for pkg in packages), default=0)
-                if affinity:
-                    ranked.append((-affinity, sizes[idx], idx))
-        if not ranked:
-            ranked = [(0, sizes[idx], idx) for idx in range(len(seeds))]
-        target = min(ranked)[2]
-        seeds[target].add(cid)
-        sizes[target] += method_count.get(cid, 0)
+    return ClusterResult(
+        clusters=new_clusters,
+        cluster_to_files=dict(new_cluster_to_files),
+        file_to_clusters=dict(new_file_to_clusters),
+        strategy=f"super_{cluster_result.strategy}",
+    )
 
 
 # ---------------------------------------------------------------------------
-# Public entry points
+# Public entry point
 # ---------------------------------------------------------------------------
 
 
-def _method_counts(cluster_result: ClusterResult) -> dict[int, int]:
-    return {cid: len(members) for cid, members in cluster_result.clusters.items()}
-
-
-def _modularity(meta_graph: nx.DiGraph, groups: list[set[int]]) -> float:
-    """0.0 on an edgeless meta-graph — there is nothing to separate."""
-    return nx_comm.modularity(meta_graph, groups, weight="weight") if meta_graph.number_of_edges() else 0.0
-
-
-def _optimize_grouping(
-    meta_graph: nx.DiGraph,
-    cluster_result: ClusterResult,
-    method_count: dict[int, int],
-    low: int,
-    high: int,
-    seed: int,
-) -> tuple[list[set[int]], float]:
-    """The from-scratch partition of a prebuilt meta-graph, with every leftover absorbed."""
-    n_leaf = meta_graph.number_of_nodes()
-    if n_leaf == 0:
-        return [], 0.0
-    if n_leaf <= low:
-        # Fewer leaf clusters than the floor — each is its own component.
-        return [{cid} for cid in meta_graph.nodes], 0.0
-
-    high = min(high, n_leaf)
-    communities = _pick_peak_partition(meta_graph, low, high, seed)
-    seeds, leftovers = _seeds_from_partition(communities, method_count, low, high)
-    if seeds:
-        _absorb_leftovers(seeds, leftovers, meta_graph, cluster_result, method_count)
-    # Score the grouping we actually return, not the pre-absorption communities: absorbing
-    # singletons into seeds changes the modularity, and callers compare this number against
-    # the carried grouping's own modularity (the drift gate) and against the expansion
-    # threshold. A stale pre-absorption score would misjudge both.
-    return seeds, _modularity(meta_graph, seeds if seeds else communities)
-
-
-def supercluster_by_modularity_peak(
+def merge_clusters(
     cluster_result: ClusterResult,
     cfg_graph: nx.DiGraph,
-    low: int = TOP_LEVEL_COMPONENTS_MIN,
-    high: int = TOP_LEVEL_COMPONENTS_MAX,
-    seed: int = ClusteringConfig.CLUSTERING_SEED,
-) -> tuple[list[set[int]], float]:
-    """Group leaf clusters into N components; return the groups and the split's modularity.
-
-    Resolution tuning steers Leiden over the weighted inter-cluster meta-graph;
-    N (the number of components) is the modularity peak among partitions with
-    ``[low, high]`` non-singleton communities. Those communities become seeds and
-    every remaining leaf cluster is absorbed into the nearest one. The groups are
-    a complete, disjoint cover of the leaf clusters.
-
-    The returned modularity scores the partition the sweep chose, so a caller
-    deciding *whether* to split and a caller performing the split read the same
-    number.
+    target: int = MAX_LLM_CLUSTERS,
+) -> ClusterResult:
     """
+    Merge clusters into super-clusters using community detection on the
+    inter-cluster connectivity graph.
+
+    Pipeline:
+      1. Build a weighted meta-graph (nodes = cluster IDs, edge weights =
+         number of cross-cluster calls).
+      2. Run Louvain community detection at several resolutions, picking the
+         result closest to *target*.
+      3. Absorb leftover small / singleton communities – first by graph
+         distance, then by file overlap for disconnected ones.
+      4. Re-index the super-clusters from 1..N.
+
+    Args:
+        cluster_result: Original ClusterResult with too many clusters
+        cfg_graph: The networkx DiGraph of the full call graph
+        target: Target maximum number of super-clusters
+
+    Returns:
+        New ClusterResult with merged clusters and re-indexed IDs (1..N)
+    """
+    n_original = len(cluster_result.clusters)
+
     meta_graph = _build_meta_graph(cluster_result, cfg_graph)
-    groups, modularity = _optimize_grouping(meta_graph, cluster_result, _method_counts(cluster_result), low, high, seed)
+    communities = _detect_communities(meta_graph, target, n_original)
+
+    if len(communities) > target:
+        communities = _absorb_small_communities(communities, cluster_result, meta_graph, target)
+
     logger.info(
-        f"[SuperCluster] {meta_graph.number_of_nodes()} leaf clusters -> {len(groups)} components "
-        f"(modularity={modularity:.4f}, sizes {sorted((len(g) for g in groups), reverse=True)})"
+        f"[SuperCluster] Merged {n_original} clusters into {len(communities)} super-clusters " f"(target was {target})"
     )
-    return groups, modularity
 
-
-def supercluster_leaf_ids(
-    cluster_results: dict[str, ClusterResult],
-    cfg_graphs: dict[str, nx.DiGraph],
-    low: int = TOP_LEVEL_COMPONENTS_MIN,
-    high: int = TOP_LEVEL_COMPONENTS_MAX,
-    seed: int = ClusteringConfig.CLUSTERING_SEED,
-) -> tuple[list[set[int]], float]:
-    """Partition all languages' leaf clusters into component groups, with the split's modularity.
-
-    Builds one combined meta-graph across languages (leaf-cluster IDs are already
-    globally unique) so the returned groups sum to a single top-level count in
-    ``[low, high]``. Each group is a set of leaf-cluster IDs; the LLM later only
-    names and describes these fixed groups.
-    """
-    combined = combine_cluster_results(cluster_results)
-    combined_cfg: nx.DiGraph = nx.compose_all(list(cfg_graphs.values())) if cfg_graphs else nx.DiGraph()
-    return supercluster_by_modularity_peak(combined, combined_cfg, low, high, seed)
+    return _build_merged_cluster_result(communities, cluster_result, cfg_graph)
 
 
 # ---------------------------------------------------------------------------
-# Anchored regrouping (the incremental path)
+# Cluster ID / file helpers
 # ---------------------------------------------------------------------------
 
-# How far the carried-forward grouping may fall behind a freshly optimized one
-# before the structure is re-derived from scratch. Modularity difference, so it
-# is comparable across repos. Below it, identity is worth more than the last
-# few points of coupling; above it, the diagram no longer describes the code.
-REGROUP_DRIFT_BUDGET = 0.10
 
-
-def _inherit_ids(
-    groups: list[set[int]],
-    previous_owner: dict[int, str],
-    method_count: dict[int, int],
-) -> list[str]:
-    """Give each group the id of the previous component whose code it mostly holds.
-
-    Used even when the structure is re-derived from scratch: a regrouping that renamed
-    every component would light up the whole diagram, when in truth most of the code
-    stayed where it was. Weighted by method count, biggest claim first, one id per
-    group, so the dominant successor of a component keeps its identity and only
-    genuinely new groups come out unnamed.
+def get_all_cluster_ids(cluster_results: dict[str, ClusterResult]) -> set[int]:
     """
-    claims: list[tuple[int, Counter[str]]] = []
-    for index, group in enumerate(groups):
-        tally: Counter[str] = Counter()
-        for cid in group:
-            owner = previous_owner.get(cid)
-            if owner:
-                tally[owner] += method_count.get(cid, 0)
-        claims.append((index, tally))
+    Get all cluster IDs from cluster results across all languages.
 
-    owners = [""] * len(groups)
-    taken: set[str] = set()
-    for index, tally in sorted(claims, key=lambda claim: (-max(claim[1].values(), default=0), claim[0])):
-        for owner, _weight in tally.most_common():
-            if owner not in taken:
-                taken.add(owner)
-                owners[index] = owner
-                break
-    return owners
+    Args:
+        cluster_results: Dictionary mapping language -> ClusterResult
 
-
-@dataclass(frozen=True)
-class AnchoredGrouping:
-    """A grouping carried forward from the previous run, plus what it cost."""
-
-    groups: list[set[int]]
-    #: index into ``groups`` -> the component id it inherited, or "" when new.
-    owners: list[str]
-    #: True when drift forced a from-scratch re-derivation rather than a carry-forward.
-    regrouped: bool
-
-
-def anchored_grouping(
-    cluster_result: ClusterResult,
-    cfg_graph: nx.DiGraph,
-    previous_owner: dict[int, str],
-    low: int = TOP_LEVEL_COMPONENTS_MIN,
-    high: int = TOP_LEVEL_COMPONENTS_MAX,
-    seed: int = ClusteringConfig.CLUSTERING_SEED,
-    drift_budget: float = REGROUP_DRIFT_BUDGET,
-) -> AnchoredGrouping:
-    """Repair the previous grouping against a new clustering instead of re-deriving one.
-
-    ``supercluster_by_modularity_peak`` re-optimizes from scratch. Modularity has a
-    degenerate solution landscape — many partitions score within noise of each other —
-    so a two-line diff can select a different near-optimal partition and reshuffle which
-    component owns what. Deterministic, but not continuous, and the incremental path
-    needs continuity: a component's identity has to survive a change that did not touch it.
-
-    So each live leaf cluster simply keeps the component that owned it
-    (``previous_owner``, from the baseline's ``source_cluster_ids``); genuinely new
-    clusters are absorbed into the nearest existing group; and a component left holding
-    nothing is dropped. No re-partitioning at all in the steady state.
-
-    The escape hatch is ``drift_budget``: when the carried-forward grouping scores that
-    much worse than a fresh optimum, the code really has moved on, and the result is a
-    from-scratch regrouping with ``regrouped=True`` so the caller can say so out loud.
+    Returns:
+        Set of all cluster IDs found across all languages
     """
-    meta_graph = _build_meta_graph(cluster_result, cfg_graph)
-    live = set(meta_graph.nodes)
-    if not live:
-        return AnchoredGrouping([], [], False)
-    method_count = _method_counts(cluster_result)
+    cluster_ids = set()
+    for cluster_result in cluster_results.values():
+        cluster_ids.update(cluster_result.get_cluster_ids())
+    return cluster_ids
 
-    # Carry forward: one group per surviving component, in a stable id order.
-    carried: dict[str, set[int]] = defaultdict(set)
-    for cid in sorted(live):
-        owner = previous_owner.get(cid)
-        if owner:
-            carried[owner].add(cid)
-    if not carried:
-        # Nothing to anchor to — a first run, or a baseline that shares no cluster.
-        fresh, _ = _optimize_grouping(meta_graph, cluster_result, method_count, low, high, seed)
-        return AnchoredGrouping(fresh, [""] * len(fresh), True)
 
-    owners = sorted(carried)
-    groups = [carried[owner] for owner in owners]
-    fresh_groups, fresh_modularity = _optimize_grouping(meta_graph, cluster_result, method_count, low, high, seed)
-    newcomers = set(live) - {cid for group in groups for cid in group}
+def get_files_for_cluster_ids(cluster_ids: list[int], cluster_results: dict[str, ClusterResult]) -> set[str]:
+    """
+    Get all files that belong to the specified cluster IDs across all languages.
 
-    # A whole new subsystem arriving must become its own component, not be scattered into
-    # the existing ones by absorption. The from-scratch partition already isolates it: a
-    # fresh community made *entirely* of new clusters is a subsystem the carried grouping
-    # has no home for. Promote those as new (unowned) groups; absorb only the rest.
-    new_subsystems = [group for group in fresh_groups if len(group) >= 2 and group <= newcomers]
-    for subsystem in new_subsystems:
-        groups.append(set(subsystem))
-        owners.append("")
-    absorbed = sorted(newcomers - {cid for subsystem in new_subsystems for cid in subsystem})
-    if absorbed:
-        _absorb_leftovers(groups, absorbed, meta_graph, cluster_result, method_count)
+    Args:
+        cluster_ids: List of cluster IDs to get files for
+        cluster_results: Dictionary mapping language -> ClusterResult
 
-    modularity = _modularity(meta_graph, groups)
-    if fresh_modularity - modularity > drift_budget:
-        logger.info(
-            f"[Anchored] carried grouping scores {modularity:.4f} vs {fresh_modularity:.4f} fresh "
-            f"(> {drift_budget} budget); re-deriving structure from scratch"
-        )
-        return AnchoredGrouping(fresh_groups, _inherit_ids(fresh_groups, previous_owner, method_count), True)
-
-    logger.info(
-        f"[Anchored] {len(live)} leaf clusters -> {len(groups)} components carried forward "
-        f"({len(new_subsystems)} new component(s), {len(absorbed)} clusters absorbed, "
-        f"modularity={modularity:.4f} vs {fresh_modularity:.4f} fresh)"
-    )
-    return AnchoredGrouping(groups, owners, False)
+    Returns:
+        Set of file paths belonging to the specified clusters
+    """
+    files: set[str] = set()
+    for cluster_result in cluster_results.values():
+        for cluster_id in cluster_ids:
+            files.update(cluster_result.get_files_for_cluster(cluster_id))
+    return files

@@ -32,14 +32,12 @@ class MethodInvocationsTool(BaseRepoTool):
         results = ""
         for lang in self.static_analysis.get_languages():
             # Attempt to retrieve the control flow graph for the specified language
-            cfg = self.static_analysis.get_cfg(lang)
-            for edge in cfg.edges:
-                if edge.src_node.fully_qualified_name == method:
-                    results += (
-                        f"Method {edge.src_node.fully_qualified_name} is calling {edge.dst_node.fully_qualified_name}\n"
-                    )
-                if edge.dst_node.fully_qualified_name == method:
-                    results += f"Method {edge.dst_node.fully_qualified_name} is called by {edge.src_node.fully_qualified_name}\n"
+            cfg = self.static_analysis.get_program_graph(lang)
+            for edge in cfg.call_edges():
+                if edge.source == method:
+                    results += f"Method {edge.source} is calling {edge.target}\n"
+                if edge.target == method:
+                    results += f"Method {edge.target} is called by {edge.source}\n"
         if results:
             return results.strip()
         # If no results found, return a message indicating no calls or callees

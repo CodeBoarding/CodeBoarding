@@ -3,25 +3,24 @@ from __future__ import annotations
 import abc
 import logging
 from abc import abstractmethod
-from collections.abc import Hashable
+from collections.abc import Hashable, Mapping
 from pathlib import PurePosixPath
-from typing import TYPE_CHECKING, get_origin
+from typing import get_origin, Optional, Protocol
 
 from pydantic import BaseModel, Field
 from pydantic.fields import FieldInfo
 
 from agents.cluster_ids import CodeBoardingClusterId, GraphClusterId
-<<<<<<< HEAD
-from agents.file_index_models import FileEntry, FileMethodGroup
-from agents.scope_ids import ROOT_SCOPE_ID
-=======
 from agents.file_index_models import FileEntry, FileMethodGroup, MethodEntry
->>>>>>> bbd8b83 (refactor: remove incremental analysis pipeline (#417))
 
 logger = logging.getLogger(__name__)
 
-if TYPE_CHECKING:
-    from diagram_analysis.analysis_json import MethodIndexEntry
+
+class MethodIndexRecord(Protocol):
+    qualified_name: str
+    file_path: str
+    start_line: int
+    end_line: int
 
 
 class LLMBaseModel(BaseModel, abc.ABC):
@@ -200,7 +199,7 @@ class RelationEdge(LLMBaseModel):
     )
 
     @classmethod
-    def from_dict(cls, edge: dict, methods_index: dict[str, MethodIndexEntry]) -> RelationEdge:
+    def from_dict(cls, edge: dict, methods_index: Mapping[str, MethodIndexRecord]) -> RelationEdge:
         source_key = edge.get("source")
         target_key = edge.get("target")
         if not isinstance(source_key, str) or not isinstance(target_key, str):
@@ -214,21 +213,23 @@ class RelationEdge(LLMBaseModel):
         )
 
     @classmethod
-    def from_edge(cls, edge) -> RelationEdge:
+    def from_program_edge(cls, edge, graph) -> RelationEdge:
+        source = graph.nodes[edge.source]
+        target = graph.nodes[edge.target]
         return cls(
             source=SourceCodeReference(
-                qualified_name=edge.src_node.fully_qualified_name,
-                reference_file=edge.src_node.file_path,
-                reference_start_line=edge.src_node.line_start,
-                reference_end_line=edge.src_node.line_end,
+                qualified_name=source.id,
+                reference_file=source.file_path,
+                reference_start_line=source.line_start,
+                reference_end_line=source.line_end,
             ),
             target=SourceCodeReference(
-                qualified_name=edge.dst_node.fully_qualified_name,
-                reference_file=edge.dst_node.file_path,
-                reference_start_line=edge.dst_node.line_start,
-                reference_end_line=edge.dst_node.line_end,
+                qualified_name=target.id,
+                reference_file=target.file_path,
+                reference_start_line=target.line_start,
+                reference_end_line=target.line_end,
             ),
-            call_sites=[RelationCallSite.model_validate(call_site) for call_site in edge.call_sites],
+            call_sites=[RelationCallSite.model_validate(call_site) for call_site in edge.occurrence_dicts()],
         )
 
     def llm_str(self) -> str:
@@ -250,7 +251,7 @@ class RelationEdge(LLMBaseModel):
 
 def _relation_endpoint_from_key(
     key: str,
-    methods_index: dict[str, MethodIndexEntry],
+    methods_index: Mapping[str, MethodIndexRecord],
 ) -> SourceCodeReference:
     indexed = methods_index.get(key)
     if indexed is not None:
@@ -594,14 +595,7 @@ def assign_component_ids(analysis: AnalysisInsights, parent_id: str = "") -> Non
 
 
 def assign_relation_ids(analysis: AnalysisInsights) -> None:
-    """Assign relation component IDs by name, dropping any relation whose endpoint
-    does not name a component in this scope.
-
-    Relation generation can emit an endpoint that is not a sibling — a name from a
-    neighbouring scope, or one the wording invented. Such a relation has no valid id and
-    would render as a dangling edge (``relations.endpoints_resolve``), so it is removed
-    rather than kept with an empty endpoint id.
-    """
+    """Assign relation component IDs by looking up component names."""
     name_to_id: dict[str, str] = {}
     for c in analysis.components:
         if c.name in name_to_id:
@@ -611,17 +605,9 @@ def assign_relation_ids(analysis: AnalysisInsights) -> None:
             )
         else:
             name_to_id[c.name] = c.component_id
-    resolved: list[Relation] = []
     for relation in analysis.components_relations:
-        src_id = name_to_id.get(relation.src_name, "")
-        dst_id = name_to_id.get(relation.dst_name, "")
-        if not src_id or not dst_id:
-            logger.info(f"Dropping relation with unresolved endpoint: '{relation.src_name}' -> '{relation.dst_name}'")
-            continue
-        relation.src_id = src_id
-        relation.dst_id = dst_id
-        resolved.append(relation)
-    analysis.components_relations = resolved
+        relation.src_id = name_to_id.get(relation.src_name, "")
+        relation.dst_id = name_to_id.get(relation.dst_name, "")
 
 
 def iter_components(
@@ -770,72 +756,6 @@ class ComponentFiles(LLMBaseModel):
         return title + body
 
 
-<<<<<<< HEAD
-class ScopeOperationAction(StrEnum):
-    CREATE_COMPONENT = "create_component"
-    UPDATE_COMPONENT = "update_component"
-    DELETE_COMPONENT = "delete_component"
-    NOOP = "noop"
-
-
-class ScopedClusterRef(LLMBaseModel):
-    """A cluster reference scoped by component depth and language."""
-
-    scope_id: str = Field(description="Component scope id; use 'root' for the top-level scope.")
-    language: str = Field(description="Programming language for this cluster.")
-    cluster_id: int = Field(description="Cluster id within the scope/language cluster result.")
-
-    def llm_str(self):
-        scope_id = self.scope_id or ROOT_SCOPE_ID
-        return f"{scope_id}:{self.language}:{self.cluster_id}"
-
-
-class ScopeOperation(LLMBaseModel):
-    """One diagram update operation for a single scope."""
-
-    action: ScopeOperationAction = Field(description="Operation to apply in this scope.")
-    cluster_refs: list[ScopedClusterRef] = Field(description="New-side clusters this operation accounts for.")
-    component_id: str | None = Field(
-        default=None,
-        description="Existing component id for update/delete/noop; null when creating a component.",
-    )
-    name: str | None = Field(default=None, description="Component name for create/update operations.")
-    description: str | None = Field(default=None, description="Component description for create/update operations.")
-    key_entities: list[SourceCodeReference] = Field(
-        default_factory=list,
-        description=(
-            "Important existing source symbols for a created component or a semantically refreshed component. "
-            "Leave empty on updates that preserve the current key entities."
-        ),
-    )
-    recurse: bool = Field(
-        default=False, description="Whether this component should be considered for child-scope update."
-    )
-    rationale: str = Field(description="Short reason for the operation, especially for ambiguous reshapes.")
-
-    def llm_str(self):
-        refs = ", ".join(ref.llm_str() for ref in self.cluster_refs) or "no clusters"
-        target = self.component_id or self.name or "new component"
-        key_entities = ", ".join(entity.qualified_name for entity in self.key_entities) or "unchanged"
-        return (
-            f"{self.action}: {refs} -> {target}; key_entities=[{key_entities}]; "
-            f"recurse={self.recurse}; {self.rationale}"
-        )
-
-
-class ScopeUpdateDecision(LLMBaseModel):
-    """LLM-selected operations for one incremental scope update."""
-
-    operations: list[ScopeOperation] = Field(description="Operations to apply to the current scope.")
-
-    def llm_str(self):
-        if not self.operations:
-            return "No scope operations."
-        return "\n".join(operation.llm_str() for operation in self.operations)
-
-
-=======
->>>>>>> bbd8b83 (refactor: remove incremental analysis pipeline (#417))
 class FilePath(LLMBaseModel):
     """File path with optional line range reference."""
 

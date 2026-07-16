@@ -1,215 +1,118 @@
-import unittest
+import pytest
 
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import Language, NodeType
-from static_analyzer.node import Node
-from static_analyzer.graph import CallGraph
+from static_analyzer.program_graph import ProgramGraph, ProgramNode, ProgramNodeKind
 
 
-class TestStaticAnalysisResults(unittest.TestCase):
-    def setUp(self):
-        self.results = StaticAnalysisResults()
+def _graph(*symbol_ids: str) -> ProgramGraph:
+    graph = ProgramGraph(language="python")
+    for symbol_id in symbol_ids:
+        line_start = sum(ord(character) for character in symbol_id)
+        graph.add_node(
+            ProgramNode(
+                node_id=symbol_id,
+                kind=ProgramNodeKind.SYMBOL,
+                language="python",
+                name=symbol_id.rsplit(".", 1)[-1],
+                file_path=f"{symbol_id.split('.')[0]}.py",
+                symbol_type=NodeType.FUNCTION,
+                line_start=line_start,
+                line_end=line_start + 1,
+                reference_worthy=True,
+            )
+        )
+    return graph
 
-    def test_language_tracking(self):
-        self.assertEqual(self.results.get_languages(), [])
-        self.results.add_class_hierarchy(Language.PYTHON, {})
-        self.assertIn(Language.PYTHON, self.results.get_languages())
-        self.results.add_cfg(Language.TYPESCRIPT, CallGraph())
-        self.assertIn(Language.TYPESCRIPT, self.results.get_languages())
-        self.assertEqual(len(self.results.get_languages()), 2)
 
-    def test_hierarchy_storage_and_retrieval(self):
-        hierarchy = {
-            "MyClass": {
-                "superclasses": ["BaseClass"],
-                "subclasses": [],
-                "file_path": "test.py",
-                "line_start": 1,
-                "line_end": 10,
-            }
-        }
-        self.results.add_class_hierarchy(Language.PYTHON, hierarchy)
-        retrieved = self.results.get_hierarchy(Language.PYTHON)
-        self.assertEqual(retrieved, hierarchy)
+def test_program_graphs_merge_per_language() -> None:
+    results = StaticAnalysisResults()
+    results.add_program_graph(Language.PYTHON, _graph("pkg.first"))
+    results.add_program_graph(Language.PYTHON, _graph("pkg.second"))
 
-    def test_cfg_storage_and_retrieval(self):
-        cfg = CallGraph()
-        node1 = Node("test.func1", NodeType.FUNCTION, "test.py", 1, 5)
-        node2 = Node("test.func2", NodeType.FUNCTION, "test.py", 6, 10)
-        cfg.add_node(node1)
-        cfg.add_node(node2)
-        cfg.add_edge("test.func1", "test.func2")
-        self.results.add_cfg(Language.PYTHON, cfg)
-        retrieved = self.results.get_cfg(Language.PYTHON)
-        self.assertEqual(len(retrieved.nodes), 2)
-        self.assertEqual(len(retrieved.edges), 1)
+    assert set(results.get_program_graph(Language.PYTHON).symbols) == {"pkg.first", "pkg.second"}
+    assert results.get_languages() == [Language.PYTHON]
 
-    def test_package_dependencies_storage(self):
-        deps = {"mypackage": {"imports": ["requests"], "imported_by": ["main"]}}
-        self.results.add_package_dependencies(Language.PYTHON, deps)
-        retrieved = self.results.get_package_dependencies(Language.PYTHON)
-        self.assertEqual(retrieved, deps)
 
-    def test_references_case_insensitive_lookup(self):
-        node1 = Node("MyClass.method", NodeType.METHOD, "test.py", 1, 5)
-        node2 = Node("utils.helper", NodeType.FUNCTION, "utils.py", 10, 15)
-        self.results.add_references(Language.PYTHON, [node1, node2])
-        retrieved = self.results.get_reference(Language.PYTHON, "myclass.method")
-        self.assertEqual(retrieved.fully_qualified_name, "MyClass.method")
-        retrieved2 = self.results.get_reference(Language.PYTHON, "UTILS.HELPER")
-        self.assertEqual(retrieved2.fully_qualified_name, "utils.helper")
+def test_reference_lookup_is_case_insensitive_and_returns_program_node() -> None:
+    results = StaticAnalysisResults()
+    results.add_program_graph(Language.PYTHON, _graph("MyClass.method", "utils.helper"))
 
-    def test_missing_data_raises_value_error(self):
-        with self.assertRaises(ValueError):
-            self.results.get_hierarchy(Language.GO)
-        with self.assertRaises(ValueError):
-            self.results.get_cfg(Language.GO)
-        with self.assertRaises(ValueError):
-            self.results.get_package_dependencies(Language.GO)
-        with self.assertRaises(ValueError):
-            self.results.get_reference(Language.GO, "any")
+    assert results.get_reference(Language.PYTHON, "myclass.method").id == "MyClass.method"
+    assert results.get_reference(Language.PYTHON, "UTILS.HELPER").id == "utils.helper"
 
-    def test_reference_file_path_error(self):
-        node = Node("mymodule.file.Class", NodeType.CLASS, "mymodule/file.py", 1, 5)
-        self.results.add_references(Language.PYTHON, [node])
-        with self.assertRaises(FileExistsError):
-            self.results.get_reference(Language.PYTHON, "mymodule.file")
 
-    def test_loose_reference_matching(self):
-        node = Node("mypackage.module.MyClass.method", NodeType.METHOD, "test.py", 1, 5)
-        self.results.add_references(Language.PYTHON, [node])
-        message, retrieved = self.results.get_loose_reference(Language.PYTHON, "myclass.method")
-        self.assertIsNotNone(retrieved)
-        assert retrieved is not None
-        self.assertEqual(retrieved.fully_qualified_name, "mypackage.module.MyClass.method")
+def test_loose_reference_requires_unique_match() -> None:
+    results = StaticAnalysisResults()
+    results.add_program_graph(Language.PYTHON, _graph("pkg.unique_function"))
 
-    def test_loose_reference_unique_substring(self):
-        node = Node("mypackage.unique_function", NodeType.FUNCTION, "test.py", 1, 5)
-        self.results.add_references(Language.PYTHON, [node])
-        message, retrieved = self.results.get_loose_reference(Language.PYTHON, "unique")
-        self.assertIsNotNone(retrieved)
-        assert retrieved is not None
-        self.assertEqual(retrieved.fully_qualified_name, "mypackage.unique_function")
+    message, node = results.get_loose_reference(Language.PYTHON, "unique")
 
-    def test_loose_reference_not_found(self):
-        node = Node("mypackage.module.Class", NodeType.CLASS, "test.py", 1, 5)
-        self.results.add_references(Language.PYTHON, [node])
-        message, retrieved = self.results.get_loose_reference(Language.PYTHON, Language.GO)
-        self.assertIsNone(retrieved)
+    assert message == "pkg.unique_function"
+    assert node is not None and node.id == "pkg.unique_function"
 
-    def test_source_files_tracking(self):
-        files = ["src/main.py", "src/utils.py", "tests/test_main.py"]
-        self.results.add_source_files(Language.PYTHON, files)
-        retrieved = self.results.get_source_files(Language.PYTHON)
-        self.assertEqual(retrieved, files)
-        empty_files = self.results.get_source_files(Language.TYPESCRIPT)
-        self.assertEqual(empty_files, [])
 
-    def test_all_source_files_across_languages(self):
-        self.results.add_source_files(Language.PYTHON, ["main.py", "utils.py"])
-        self.results.add_source_files(Language.TYPESCRIPT, ["index.ts", "app.ts"])
-        all_files = self.results.get_all_source_files()
-        self.assertEqual(len(all_files), 4)
-        self.assertIn("main.py", all_files)
-        self.assertIn("index.ts", all_files)
+def test_source_files_merge_and_rewrite() -> None:
+    results = StaticAnalysisResults()
+    results.add_source_files(Language.PYTHON, ["src/a.py"])
+    results.add_source_files(Language.PYTHON, ["src/b.py"])
 
-    def test_language_isolation_on_merge(self):
-        self.results.add_class_hierarchy(Language.PYTHON, {"PythonClass": {}})
-        self.results.add_class_hierarchy(Language.TYPESCRIPT, {"TypeScriptClass": {}})
-        python_hierarchy = self.results.get_hierarchy(Language.PYTHON)
-        ts_hierarchy = self.results.get_hierarchy(Language.TYPESCRIPT)
-        self.assertIn("PythonClass", python_hierarchy)
-        self.assertNotIn("PythonClass", ts_hierarchy)
-        self.assertIn("TypeScriptClass", ts_hierarchy)
-        self.assertNotIn("TypeScriptClass", python_hierarchy)
+    assert results.get_source_files(Language.PYTHON) == ["src/a.py", "src/b.py"]
+    assert results.get_all_source_files() == ["src/a.py", "src/b.py"]
 
-    def test_hierarchy_merge_dict_format(self):
-        hierarchy1 = {"ClassA": {"superclasses": [], "file_path": "project1/a.py"}}
-        hierarchy2 = {"ClassB": {"superclasses": ["ClassA"], "file_path": "project2/b.py"}}
-        self.results.add_class_hierarchy(Language.PYTHON, hierarchy1)
-        self.results.add_class_hierarchy(Language.PYTHON, hierarchy2)
-        retrieved = self.results.get_hierarchy(Language.PYTHON)
-        self.assertEqual(len(retrieved), 2)
-        self.assertIn("ClassA", retrieved)
-        self.assertIn("ClassB", retrieved)
 
-    def test_hierarchy_merge_list_format(self):
-        hierarchy1: list[dict] = [{"ClassA": {"superclasses": []}}]
-        hierarchy2: list[dict] = [{"ClassB": {"superclasses": ["ClassA"]}}]
-        self.results.add_class_hierarchy(Language.PYTHON, hierarchy1)
-        self.results.add_class_hierarchy(Language.PYTHON, hierarchy2)
-        retrieved = self.results.get_hierarchy(Language.PYTHON)
-        self.assertEqual(len(retrieved), 2)
-        self.assertIn("ClassA", retrieved)
-        self.assertIn("ClassB", retrieved)
+def test_available_program_graphs_excludes_empty_languages() -> None:
+    results = StaticAnalysisResults()
+    results.add_source_files(Language.GO, ["main.go"])
+    results.add_program_graph(Language.PYTHON, _graph("pkg.run"))
 
-    def test_cfg_merge_multiple_projects(self):
-        cfg1 = CallGraph()
-        node1 = Node("project1.func1", NodeType.FUNCTION, "project1/file.py", 1, 5)
-        node2 = Node("project1.func2", NodeType.FUNCTION, "project1/file.py", 6, 10)
-        cfg1.add_node(node1)
-        cfg1.add_node(node2)
-        cfg1.add_edge("project1.func1", "project1.func2")
+    assert set(results.available_program_graphs()) == {"python"}
 
-        cfg2 = CallGraph()
-        node3 = Node("project2.func3", NodeType.FUNCTION, "project2/file.py", 1, 5)
-        node4 = Node("project2.func4", NodeType.FUNCTION, "project2/file.py", 6, 10)
-        cfg2.add_node(node3)
-        cfg2.add_node(node4)
-        cfg2.add_edge("project2.func3", "project2.func4")
 
-        self.results.add_cfg(Language.PYTHON, cfg1)
-        self.results.add_cfg(Language.PYTHON, cfg2)
+def test_missing_language_queries_fail_without_creating_a_bucket() -> None:
+    results = StaticAnalysisResults()
 
-        retrieved = self.results.get_cfg(Language.PYTHON)
-        self.assertEqual(len(retrieved.nodes), 4)
-        self.assertEqual(len(retrieved.edges), 2)
+    with pytest.raises(ValueError, match="Program graph"):
+        results.get_program_graph(Language.PYTHON)
+    with pytest.raises(ValueError, match="Class hierarchy"):
+        results.get_hierarchy(Language.PYTHON)
+    with pytest.raises(ValueError, match="Package dependencies"):
+        results.get_package_dependencies(Language.PYTHON)
+    assert results.get_source_files(Language.PYTHON) == []
+    assert results.get_languages() == []
 
-    def test_cfg_merge_duplicate_edges(self):
-        cfg1 = CallGraph()
-        node1 = Node("func1", NodeType.FUNCTION, "file.py", 1, 5)
-        node2 = Node("func2", NodeType.FUNCTION, "file.py", 6, 10)
-        cfg1.add_node(node1)
-        cfg1.add_node(node2)
-        cfg1.add_edge("func1", "func2")
 
-        cfg2 = CallGraph()
-        cfg2.add_node(node1)
-        cfg2.add_node(node2)
-        cfg2.add_edge("func1", "func2")
+def test_reference_lookup_normalizes_generic_signatures_and_go_receivers() -> None:
+    results = StaticAnalysisResults()
+    results.add_program_graph(
+        Language.JAVA,
+        _graph(
+            "pkg.Service.convert(List<Animal>, T) <T>",
+            "pkg.Model.(Entity).GetType",
+        ),
+    )
 
-        self.results.add_cfg(Language.PYTHON, cfg1)
-        self.results.add_cfg(Language.PYTHON, cfg2)
+    assert (
+        results.get_reference(Language.JAVA, "pkg.service.convert(List, Object)").id
+        == "pkg.Service.convert(List<Animal>, T) <T>"
+    )
+    assert results.get_reference(Language.JAVA, "pkg.model.(Entity).gettype").id == "pkg.Model.(Entity).GetType"
 
-        retrieved = self.results.get_cfg(Language.PYTHON)
-        self.assertEqual(len(retrieved.edges), 1)
 
-    def test_dependencies_merge(self):
-        deps1 = {"pkg1": {"imports": ["os"], "imported_by": ["main"]}}
-        deps2 = {"pkg2": {"imports": ["sys"], "imported_by": ["utils"]}}
-        self.results.add_package_dependencies(Language.PYTHON, deps1)
-        self.results.add_package_dependencies(Language.PYTHON, deps2)
-        retrieved = self.results.get_package_dependencies(Language.PYTHON)
-        self.assertEqual(len(retrieved), 2)
-        self.assertIn("pkg1", retrieved)
-        self.assertIn("pkg2", retrieved)
+def test_cross_language_resolution_uses_exact_then_unique_loose_matches() -> None:
+    results = StaticAnalysisResults()
+    results.add_program_graph(Language.PYTHON, _graph("pkg.alpha.run", "pkg.beta.run"))
+    results.add_program_graph(Language.GO, _graph("service.unique_handler"))
 
-    def test_references_merge_multiple_projects(self):
-        node1 = Node("project1.Class.method", NodeType.METHOD, "project1/file.py", 1, 5)
-        node2 = Node("project2.OtherClass.method", NodeType.METHOD, "project2/file.py", 1, 5)
-        self.results.add_references(Language.PYTHON, [node1])
-        self.results.add_references(Language.PYTHON, [node2])
-        retrieved1 = self.results.get_reference(Language.PYTHON, "project1.class.method")
-        self.assertEqual(retrieved1.fully_qualified_name, "project1.Class.method")
-        retrieved2 = self.results.get_reference(Language.PYTHON, "project2.otherclass.method")
-        self.assertEqual(retrieved2.fully_qualified_name, "project2.OtherClass.method")
-
-    def test_source_files_merge(self):
-        files1 = ["project1/main.py", "project1/utils.py"]
-        files2 = ["project2/app.py", "project2/helpers.py"]
-        self.results.add_source_files(Language.PYTHON, files1)
-        self.results.add_source_files(Language.PYTHON, files2)
-        retrieved = self.results.get_source_files(Language.PYTHON)
-        self.assertEqual(len(retrieved), 4)
-        self.assertIn("project1/main.py", retrieved)
-        self.assertIn("project2/app.py", retrieved)
+    message, node = results.get_loose_reference(Language.GO, "unique_handler")
+    assert message == "Found a loose match with a fully quantified name: service.unique_handler"
+    assert node is not None
+    assert results.get_loose_reference(Language.PYTHON, "pkg") == (None, None)
+    resolved = results.resolve_across_languages("unique_handler")
+    assert resolved is not None and resolved.id == "service.unique_handler"
+    assert results.resolve_across_languages("missing") is None
+    assert {node.id for node in results.iter_reference_nodes()} == {
+        "pkg.alpha.run",
+        "pkg.beta.run",
+        "service.unique_handler",
+    }

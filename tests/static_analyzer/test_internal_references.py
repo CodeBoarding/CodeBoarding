@@ -6,7 +6,7 @@ from static_analyzer.internal_references import looks_internal_reference, parent
 
 @dataclass
 class _Node:
-    fully_qualified_name: str
+    id: str
 
 
 class _ReferenceSource:
@@ -16,7 +16,7 @@ class _ReferenceSource:
     def get_languages(self) -> list[Language]:
         return [Language.PYTHON]
 
-    def iter_reference_nodes(self, _lang: Language):
+    def iter_reference_nodes(self, _lang: Language | None = None):
         return iter(self._nodes)
 
 

@@ -17,6 +17,7 @@ from agents.agent_responses import (
 )
 from agents.cluster_methods_mixin import ClusterMethodsMixin
 from agents.prompts import (
+    get_cluster_grouping_message,
     get_final_analysis_message,
     get_api_surfaces_message,
     get_relation_analysis_message,
@@ -27,16 +28,18 @@ from agents.relation_edges import index_relation_endpoints
 from agents.repair import ComponentRepairContext, repair_component_group_names, repair_key_entities
 from agents.validation import (
     ValidationContext,
+    validate_cluster_coverage,
     validate_group_name_coverage,
     validate_key_entities,
     validate_relations,
 )
 from monitoring import trace
-from static_analyzer import StaticAnalysisFatalError
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.cluster_helpers import build_all_cluster_results
-from static_analyzer.constants import Language
-from static_analyzer.graph import ClusterResult
+from static_analyzer.cluster_helpers import (
+    build_all_cluster_results,
+    get_all_cluster_ids,
+)
+from static_analyzer.clustering import ClusterResult
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +61,10 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
         self.meta_context = meta_context
 
         self.prompts = {
+            "group_clusters": PromptTemplate(
+                template=get_cluster_grouping_message(),
+                input_variables=["cfg_clusters"],
+            ),
             "final_analysis": PromptTemplate(
                 template=get_final_analysis_message(),
                 input_variables=["cluster_analysis"],
@@ -81,18 +88,37 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
 
     @trace
     def step_clusters_grouping(self, cluster_results: dict[str, ClusterResult]) -> ClusterAnalysis:
-        """Deterministically partition leaf clusters into the top-level component groups.
+        logger.info(f"[AbstractionAgent] Grouping CFG clusters for: {self.project_name}")
 
-        Resolution-tuned Leiden picks both the count (modularity peak over
-        ``[5, 8]``) and the membership, so the top-level structure is stable across
-        re-runs — the LLM no longer decides it; it only names them in the
-        final-analysis step.
-        """
-        logger.info(f"[AbstractionAgent] Super-clustering leaf clusters for: {self.project_name}")
-        cfg_graphs = {
-            lang: self.static_analysis.get_cfg(Language(lang)).clustering_networkx() for lang in cluster_results
-        }
-        return self.deterministic_cluster_grouping(cluster_results, cfg_graphs)
+        programming_langs = self.static_analysis.get_languages()
+
+        # Measure everything that wraps cfg_clusters (system message + rendered
+        # template with an empty slot) so the skip planner can back it out of
+        # the input window before budgeting the cluster string.
+        overhead_chars = len(str(self.system_message.content)) + len(
+            self.prompts["group_clusters"].format(
+                cfg_clusters="",
+            )
+        )
+        cluster_str = self._build_cluster_string(
+            programming_langs, cluster_results, prompt_overhead_chars=overhead_chars
+        )
+
+        prompt = self.prompts["group_clusters"].format(
+            cfg_clusters=cluster_str,
+        )
+
+        cluster_analysis = self._invoke_validate(
+            prompt,
+            ClusterAnalysis,
+            validators=[validate_cluster_coverage],
+            validation_context=ValidationContext(
+                cluster_results=cluster_results,
+                expected_cluster_ids=get_all_cluster_ids(cluster_results),
+            ),
+            max_validation_attempts=3,
+        )
+        return cluster_analysis
 
     @trace
     def step_final_analysis(
@@ -136,7 +162,6 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
             validation_context=context,
             max_validation_attempts=3,
         )
-        self.assemble_one_component_per_group(architecture, llm_cluster_analysis, cluster_results)
         return AnalysisInsights(
             description=architecture.description,
             components=architecture.components,
@@ -163,7 +188,7 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
     ) -> None:
         logger.info(f"[AbstractionAgent] Discovering component relations for: {self.project_name}")
         static_call_evidence = self.build_scope_cfg_string(analysis)
-        cfg_graphs = self.static_analysis.available_cfgs()
+        cfg_graphs = self.static_analysis.available_program_graphs()
         self.toolkit.context.cluster_analysis = cluster_analysis
         self.toolkit.context.cluster_results = cluster_results
         self.toolkit.context.cfg_graphs = cfg_graphs
@@ -194,18 +219,10 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
         # Build full cluster results dict for all languages ONCE
         cluster_results = build_all_cluster_results(self.static_analysis)
 
-        # Step 1: Deterministically partition leaf clusters into the top-level groups (Leiden, modularity-peak N)
+        # Step 1: Group related clusters together into logical components
         cluster_analysis = self.step_clusters_grouping(cluster_results)
-        if not cluster_analysis.cluster_components:
-            # No leaf clusters means the repo has no callable structure to abstract
-            # (unsupported/empty/no-code). Fail loudly instead of emptying the
-            # architecture and crashing downstream in populate_file_methods.
-            raise StaticAnalysisFatalError(
-                f"No component groups found for {self.project_name}: the static analysis produced "
-                "no callable structure to build an architecture from."
-            )
 
-        # Step 2: Name and describe each fixed group into a component (LLM, one component per group)
+        # Step 2: Generate abstract components from grouped clusters
         analysis = self.step_final_analysis(cluster_analysis, cluster_results)
         # Step 3: Assign hierarchical component IDs ("1", "2", "3", ...)
         assign_component_ids(analysis)

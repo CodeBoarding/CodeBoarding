@@ -7,6 +7,7 @@ from agents.validation import (
     ValidationContext,
     ValidationResult,
     score_validation_results,
+    validate_cluster_coverage,
     validate_file_classifications,
     validate_key_entities,
     validate_relation_component_names,
@@ -25,8 +26,9 @@ from agents.agent_responses import (
     ComponentFiles,
     FileClassification,
 )
-from static_analyzer.graph import ClusterResult, CallGraph
-from static_analyzer.node import Node
+from static_analyzer.clustering import ClusterResult
+from static_analyzer.program_graph import ProgramGraph
+from tests.program_graph_factory import make_symbol
 from static_analyzer.constants import NodeType
 
 
@@ -37,13 +39,15 @@ class TestValidationContext(unittest.TestCase):
         context = ValidationContext()
         self.assertEqual(context.cluster_results, {})
         self.assertEqual(context.cfg_graphs, {})
+        self.assertEqual(context.expected_cluster_ids, set())
         self.assertEqual(context.expected_files, set())
         self.assertEqual(context.valid_component_names, set())
         self.assertIsNone(context.repo_dir)
 
     def test_initialization_with_values(self):
         cluster_results = {"python": ClusterResult()}
-        cfg_graphs = {"python": CallGraph()}
+        cfg_graphs = {"python": ProgramGraph(language="")}
+        expected_ids = {1, 2, 3}
         expected_files = {"file1.py", "file2.py"}
         valid_names = {"ComponentA", "ComponentB"}
         repo_dir = "/path/to/repo"
@@ -51,6 +55,7 @@ class TestValidationContext(unittest.TestCase):
         context = ValidationContext(
             cluster_results=cluster_results,
             cfg_graphs=cfg_graphs,
+            expected_cluster_ids=expected_ids,
             expected_files=expected_files,
             valid_component_names=valid_names,
             repo_dir=repo_dir,
@@ -58,6 +63,7 @@ class TestValidationContext(unittest.TestCase):
 
         self.assertEqual(context.cluster_results, cluster_results)
         self.assertEqual(context.cfg_graphs, cfg_graphs)
+        self.assertEqual(context.expected_cluster_ids, expected_ids)
         self.assertEqual(context.expected_files, expected_files)
         self.assertEqual(context.valid_component_names, valid_names)
         self.assertEqual(context.repo_dir, repo_dir)
@@ -110,6 +116,60 @@ class TestValidationScoring(unittest.TestCase):
         )
 
         self.assertEqual(score, VALIDATOR_WEIGHTS["validate_relations"] * 0.75)
+
+
+class TestValidateClusterCoverage(unittest.TestCase):
+    """Test validate_cluster_coverage function."""
+
+    def test_all_clusters_covered(self):
+        cluster_analysis = ClusterAnalysis(
+            cluster_components=[
+                ClustersComponent(name="Component A", description="desc", cluster_ids=[1, 2]),
+                ClustersComponent(name="Component B", description="desc", cluster_ids=[3, 4]),
+            ]
+        )
+        context = ValidationContext(expected_cluster_ids={1, 2, 3, 4})
+        result = validate_cluster_coverage(cluster_analysis, context)
+        self.assertTrue(result.is_valid)
+
+    def test_missing_clusters(self):
+        cluster_analysis = ClusterAnalysis(
+            cluster_components=[
+                ClustersComponent(name="Component A", description="desc", cluster_ids=[1, 2]),
+            ]
+        )
+        context = ValidationContext(expected_cluster_ids={1, 2, 3, 4, 5})
+        result = validate_cluster_coverage(cluster_analysis, context)
+        self.assertFalse(result.is_valid)
+        self.assertIn("3, 4, 5", result.feedback_messages[0])
+
+    def test_no_expected_clusters(self):
+        cluster_analysis = ClusterAnalysis(cluster_components=[])
+        context = ValidationContext(expected_cluster_ids=set())
+        result = validate_cluster_coverage(cluster_analysis, context)
+        self.assertTrue(result.is_valid)
+
+    def test_empty_cluster_analysis(self):
+        cluster_analysis = ClusterAnalysis(cluster_components=[])
+        context = ValidationContext(expected_cluster_ids={1, 2, 3})
+        result = validate_cluster_coverage(cluster_analysis, context)
+        self.assertFalse(result.is_valid)
+        self.assertIn("1, 2, 3", result.feedback_messages[0])
+
+    def test_overlapping_cluster_ids(self):
+        cluster_analysis = ClusterAnalysis(
+            cluster_components=[
+                ClustersComponent(name="Component A", description="desc", cluster_ids=[1, 2, 3]),
+                ClustersComponent(name="Component B", description="desc", cluster_ids=[2, 3, 4]),
+            ]
+        )
+        context = ValidationContext(expected_cluster_ids={1, 2, 3, 4})
+        result = validate_cluster_coverage(cluster_analysis, context)
+        self.assertFalse(result.is_valid)
+        # Clusters 2 and 3 are duplicated
+        feedback = " ".join(result.feedback_messages)
+        self.assertIn("cluster 2", feedback)
+        self.assertIn("cluster 3", feedback)
 
 
 class TestValidateFileClassifications(unittest.TestCase):
@@ -254,13 +314,13 @@ class TestCheckEdgeBetweenClusterSets(unittest.TestCase):
 
     def test_edge_exists_between_clusters(self):
         """Test when an edge exists between cluster sets."""
-        cfg = CallGraph(language="python")
-        node1 = Node("module.Class1.method1", 6, "file1.py", 1, 10)
-        node2 = Node("module.Class2.method2", 6, "file2.py", 1, 10)
+        cfg = ProgramGraph(language="python")
+        node1 = make_symbol("module.Class1.method1", 6, "file1.py", 1, 10)
+        node2 = make_symbol("module.Class2.method2", 6, "file2.py", 1, 10)
 
         cfg.add_node(node1)
         cfg.add_node(node2)
-        cfg.add_edge("module.Class1.method1", "module.Class2.method2")
+        cfg.add_call("module.Class1.method1", "module.Class2.method2")
 
         cluster_result = ClusterResult(
             clusters={
@@ -280,15 +340,15 @@ class TestCheckEdgeBetweenClusterSets(unittest.TestCase):
 
     def test_no_edge_between_clusters(self):
         """Test when no edge exists between cluster sets."""
-        cfg = CallGraph(language="python")
-        node1 = Node("module.Class1.method1", 6, "file1.py", 1, 10)
-        node2 = Node("module.Class2.method2", 6, "file2.py", 1, 10)
-        node3 = Node("module.Class3.method3", 6, "file3.py", 1, 10)
+        cfg = ProgramGraph(language="python")
+        node1 = make_symbol("module.Class1.method1", 6, "file1.py", 1, 10)
+        node2 = make_symbol("module.Class2.method2", 6, "file2.py", 1, 10)
+        node3 = make_symbol("module.Class3.method3", 6, "file3.py", 1, 10)
 
         cfg.add_node(node1)
         cfg.add_node(node2)
         cfg.add_node(node3)
-        cfg.add_edge("module.Class1.method1", "module.Class2.method2")  # 1->2, but we check 1->3
+        cfg.add_call("module.Class1.method1", "module.Class2.method2")  # 1->2, but we check 1->3
 
         cluster_result = ClusterResult(
             clusters={
@@ -309,15 +369,15 @@ class TestCheckEdgeBetweenClusterSets(unittest.TestCase):
 
     def test_multiple_clusters_with_one_edge(self):
         """Test when multiple clusters are provided and at least one pair has an edge."""
-        cfg = CallGraph(language="python")
-        node1 = Node("module.Class1.method1", 6, "file1.py", 1, 10)
-        node2 = Node("module.Class2.method2", 6, "file2.py", 1, 10)
-        node3 = Node("module.Class3.method3", 6, "file3.py", 1, 10)
+        cfg = ProgramGraph(language="python")
+        node1 = make_symbol("module.Class1.method1", 6, "file1.py", 1, 10)
+        node2 = make_symbol("module.Class2.method2", 6, "file2.py", 1, 10)
+        node3 = make_symbol("module.Class3.method3", 6, "file3.py", 1, 10)
 
         cfg.add_node(node1)
         cfg.add_node(node2)
         cfg.add_node(node3)
-        cfg.add_edge("module.Class1.method1", "module.Class2.method2")
+        cfg.add_call("module.Class1.method1", "module.Class2.method2")
 
         cluster_result = ClusterResult(
             clusters={
@@ -338,7 +398,7 @@ class TestCheckEdgeBetweenClusterSets(unittest.TestCase):
 
     def test_empty_cluster_sets(self):
         """Test when cluster sets are empty."""
-        cfg = CallGraph(language="python")
+        cfg = ProgramGraph(language="python")
         cluster_result = ClusterResult(clusters={})
 
         has_edge = _check_edge_between_cluster_sets(
@@ -352,13 +412,13 @@ class TestCheckEdgeBetweenClusterSets(unittest.TestCase):
 
     def test_node_not_in_cluster(self):
         """Test when graph has nodes not assigned to any cluster."""
-        cfg = CallGraph(language="python")
-        node1 = Node("module.Class1.method1", 6, "file1.py", 1, 10)
-        node2 = Node("module.Class2.method2", 6, "file2.py", 1, 10)
+        cfg = ProgramGraph(language="python")
+        node1 = make_symbol("module.Class1.method1", 6, "file1.py", 1, 10)
+        node2 = make_symbol("module.Class2.method2", 6, "file2.py", 1, 10)
 
         cfg.add_node(node1)
         cfg.add_node(node2)
-        cfg.add_edge("module.Class1.method1", "module.Class2.method2")
+        cfg.add_call("module.Class1.method1", "module.Class2.method2")
 
         # Only node1 is in a cluster, node2 is not
         cluster_result = ClusterResult(
@@ -379,12 +439,12 @@ class TestCheckEdgeBetweenClusterSets(unittest.TestCase):
     def test_multiple_languages(self):
         """Test when checking across multiple languages."""
         # Python graph with edge 1->2
-        cfg_python = CallGraph(language="python")
-        node1 = Node("module.Class1.method1", 6, "file1.py", 1, 10)
-        node2 = Node("module.Class2.method2", 6, "file2.py", 1, 10)
+        cfg_python = ProgramGraph(language="python")
+        node1 = make_symbol("module.Class1.method1", 6, "file1.py", 1, 10)
+        node2 = make_symbol("module.Class2.method2", 6, "file2.py", 1, 10)
         cfg_python.add_node(node1)
         cfg_python.add_node(node2)
-        cfg_python.add_edge("module.Class1.method1", "module.Class2.method2")
+        cfg_python.add_call("module.Class1.method1", "module.Class2.method2")
 
         cluster_result_python = ClusterResult(
             clusters={
@@ -394,8 +454,8 @@ class TestCheckEdgeBetweenClusterSets(unittest.TestCase):
         )
 
         # JavaScript graph with no edges
-        cfg_js = CallGraph(language="javascript")
-        node3 = Node("module.Class3.method3", 6, "file3.js", 1, 10)
+        cfg_js = ProgramGraph(language="javascript")
+        node3 = make_symbol("module.Class3.method3", 6, "file3.js", 1, 10)
         cfg_js.add_node(node3)
 
         cluster_result_js = ClusterResult(
@@ -415,13 +475,13 @@ class TestCheckEdgeBetweenClusterSets(unittest.TestCase):
 
     def test_reverse_direction_edge(self):
         """Test that edge is found when checking in reverse direction (dst->src exists but we query src->dst)."""
-        cfg = CallGraph(language="python")
-        node1 = Node("module.Class1.method1", 6, "file1.py", 1, 10)
-        node2 = Node("module.Class2.method2", 6, "file2.py", 1, 10)
+        cfg = ProgramGraph(language="python")
+        node1 = make_symbol("module.Class1.method1", 6, "file1.py", 1, 10)
+        node2 = make_symbol("module.Class2.method2", 6, "file2.py", 1, 10)
 
         cfg.add_node(node1)
         cfg.add_node(node2)
-        cfg.add_edge("module.Class1.method1", "module.Class2.method2")  # Edge: 1->2
+        cfg.add_call("module.Class1.method1", "module.Class2.method2")  # Edge: 1->2
 
         cluster_result = ClusterResult(
             clusters={
@@ -523,10 +583,10 @@ class TestValidateRelationComponentNames(unittest.TestCase):
 
 class TestValidateRelationEvidence(unittest.TestCase):
     def _make_context(self, edge_direction: tuple[str, str]) -> ValidationContext:
-        cfg = CallGraph(language="python")
-        cfg.add_node(Node("a.run", NodeType.FUNCTION, "a.py", 1, 2))
-        cfg.add_node(Node("b.load", NodeType.FUNCTION, "b.py", 1, 2))
-        cfg.add_edge(*edge_direction)
+        cfg = ProgramGraph(language="python")
+        cfg.add_node(make_symbol("a.run", NodeType.FUNCTION, "a.py", 1, 2))
+        cfg.add_node(make_symbol("b.load", NodeType.FUNCTION, "b.py", 1, 2))
+        cfg.add_call(*edge_direction)
         cluster_result = ClusterResult(
             clusters={1: {"a.run"}, 2: {"b.load"}},
             file_to_clusters={},
@@ -646,7 +706,8 @@ class TestValidateRelationEvidence(unittest.TestCase):
             )
         )
         source_node = MagicMock()
-        source_node.fully_qualified_name = "service.OCR.extract_text"
+        source_node.id = "service.OCR.extract_text"
+        source_node.id = "service.OCR.extract_text"
         source_node.file_path = "service.py"
         source_node.line_start = 1
         source_node.line_end = 2
@@ -677,7 +738,8 @@ class TestValidateRelationEvidence(unittest.TestCase):
             )
         )
         source_node = MagicMock()
-        source_node.fully_qualified_name = "service.OCR.extract_text"
+        source_node.id = "service.OCR.extract_text"
+        source_node.id = "service.OCR.extract_text"
         source_node.file_path = "service.py"
         source_node.line_start = 1
         source_node.line_end = 2
@@ -727,12 +789,12 @@ class TestValidateRelationEvidence(unittest.TestCase):
             )
         )
         source_node = MagicMock()
-        source_node.fully_qualified_name = "a.run"
+        source_node.id = "a.run"
         source_node.file_path = "a.py"
         source_node.line_start = 1
         source_node.line_end = 2
         target_node = MagicMock()
-        target_node.fully_qualified_name = "b.load"
+        target_node.id = "b.load"
         target_node.file_path = "b.py"
         target_node.line_start = 1
         target_node.line_end = 2
@@ -761,12 +823,12 @@ class TestValidateRelationEvidence(unittest.TestCase):
             )
         )
         source_node = MagicMock()
-        source_node.fully_qualified_name = "a.run"
+        source_node.id = "a.run"
         source_node.file_path = "a.py"
         source_node.line_start = 1
         source_node.line_end = 2
         target_node = MagicMock()
-        target_node.fully_qualified_name = "b.load"
+        target_node.id = "b.load"
         target_node.file_path = "b.py"
         target_node.line_start = 1
         target_node.line_end = 2
@@ -795,7 +857,7 @@ class TestValidateRelationEvidence(unittest.TestCase):
             )
         )
         node = MagicMock()
-        node.fully_qualified_name = "a.run"
+        node.id = "a.run"
         node.file_path = "a.py"
         node.line_start = 1
         node.line_end = 2

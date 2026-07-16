@@ -8,27 +8,26 @@ from health.models import (
     Severity,
     StandardCheckSummary,
 )
-from static_analyzer.graph import CallGraph
+from static_analyzer.program_graph import ProgramGraph
 
 logger = logging.getLogger(__name__)
 
 
-def _group_methods_by_class(call_graph: CallGraph) -> dict[str, list[str]]:
+def _group_methods_by_class(call_graph: ProgramGraph) -> dict[str, list[str]]:
     """Group node Fully Qualified Names (FQNs) by their class prefix.
 
     Example FQN: 'module.ClassName.method_name'
     """
     class_methods: dict[str, list[str]] = defaultdict(list)
-    delimiter = call_graph.delimiter
-    for fqn in call_graph.nodes:
-        parts = fqn.rsplit(delimiter, 1)
+    for fqn in call_graph.symbols:
+        parts = fqn.rsplit(".", 1)
         if len(parts) == 2:
             class_methods[parts[0]].append(fqn)
     return class_methods
 
 
 def collect_god_class_values(
-    call_graph: CallGraph,
+    call_graph: ProgramGraph,
 ) -> tuple[list[float], list[float], list[float]]:
     """Collect per-class method counts, LOC estimates, and fan-out totals.
 
@@ -46,9 +45,8 @@ def collect_god_class_values(
 
         method_counts.append(float(len(method_fqns)))
 
-        total_fan_out = sum(
-            len(call_graph.nodes[fqn].methods_called_by_me) for fqn in method_fqns if fqn in call_graph.nodes
-        )
+        nx_graph = call_graph.to_networkx()
+        total_fan_out = sum(nx_graph.out_degree(fqn) for fqn in method_fqns if fqn in nx_graph)
         class_fan_out_values.append(float(total_fan_out))
 
         min_line = float("inf")
@@ -64,7 +62,9 @@ def collect_god_class_values(
     return method_counts, class_loc_values, class_fan_out_values
 
 
-def check_god_classes(call_graph: CallGraph, hierarchy: dict | None, config: HealthCheckConfig) -> StandardCheckSummary:
+def check_god_classes(
+    call_graph: ProgramGraph, hierarchy: dict | None, config: HealthCheckConfig
+) -> StandardCheckSummary:
     """E4: Detect god classes — classes with too many methods, too much code, or too many dependencies.
 
     A god class violates the Single Responsibility Principle by doing too much.
@@ -93,9 +93,8 @@ def check_god_classes(call_graph: CallGraph, hierarchy: dict | None, config: Hea
         total_checked += 1
 
         method_count = len(method_fqns)
-        total_fan_out = sum(
-            len(call_graph.nodes[fqn].methods_called_by_me) for fqn in method_fqns if fqn in call_graph.nodes
-        )
+        nx_graph = call_graph.to_networkx()
+        total_fan_out = sum(nx_graph.out_degree(fqn) for fqn in method_fqns if fqn in nx_graph)
 
         # Get class LOC from hierarchy if available, else estimate from method spans
         class_loc = 0

@@ -52,7 +52,7 @@ class CodeReferenceReader(BaseRepoTool):
                 text, loose_node = self.static_analysis.get_loose_reference(lang, code_reference)
                 if loose_node is None:
                     continue
-                logger.warning(f"Loose match: {code_reference} -> {loose_node.fully_qualified_name}")
+                logger.warning(f"Loose match: {code_reference} -> {loose_node.id}")
                 source_code = self.read_file(loose_node.file_path, loose_node.line_start, loose_node.line_end)
                 if text is None:
                     return source_code

@@ -160,8 +160,8 @@ class TestStaticAnalysisCacheShaGate(unittest.TestCase):
         self.assertIsNone(loaded)
 
 
-class TestStaticAnalysisCacheLegacyMigration(unittest.TestCase):
-    """One-time fallback for pickles written by the previous on-disk layout."""
+class TestStaticAnalysisCacheLegacyInvalidation(unittest.TestCase):
+    """The ProgramGraph artifact format must not load legacy pickles."""
 
     def setUp(self):
         self.temp_dir = tempfile.mkdtemp()
@@ -172,7 +172,7 @@ class TestStaticAnalysisCacheLegacyMigration(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
-    def test_reads_legacy_cache_when_new_artifact_absent(self):
+    def test_ignores_legacy_cache_when_new_artifact_absent(self):
         # Seed a legacy-shaped pickle by writing through the new save path
         # then moving the file to the old location, so the on-disk bytes are
         # still loadable but live where the previous code would have written.
@@ -187,13 +187,7 @@ class TestStaticAnalysisCacheLegacyMigration(unittest.TestCase):
         new_pkl.replace(legacy_pkl)
 
         loaded = self.cache.get(expected_sha=None)
-        self.assertIsNotNone(loaded)
-        if loaded is None:
-            return
-        self.assertEqual(
-            _realpaths(loaded.get_source_files(Language.PYTHON)),
-            _realpaths([str(self.repo_root / "src/legacy.py")]),
-        )
+        self.assertIsNone(loaded)
 
     def test_legacy_fallback_disabled_under_sha_gate(self):
         # SHA-gated callers must not silently accept untagged legacy pickles.

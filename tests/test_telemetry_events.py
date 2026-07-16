@@ -170,7 +170,7 @@ def test_lsp_analysis_result_marks_zero_nodes_as_error(captured, monkeypatch):
 def test_lsp_analysis_result_warns_when_summary_fields_missing(captured, caplog):
     track_lsp_result(language="python", loc=0, status="error", duration_ms=10, analysis={}, diagnostics={})
 
-    assert "LSP analysis result for python is degraded: missing call graph, missing source files" in caplog.text
+    assert "LSP analysis result for python is degraded: missing program graph, missing source files" in caplog.text
     props = props_for(captured, "lsp_analysis_result")
     assert props["source_file_count"] == 0
     assert props["node_count"] == 0

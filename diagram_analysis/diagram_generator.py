@@ -499,7 +499,7 @@ class DiagramGenerator:
         """
         if not self.static_analysis:
             return []
-        cfg_graphs = {str(lang): self.static_analysis.get_cfg(lang) for lang in self.static_analysis.get_languages()}
+        cfg_graphs = self.static_analysis.available_program_graphs()
         global_relations = build_global_relations(root_analysis, sub_analyses, cfg_graphs)
         root_analysis.components_relations = global_relations
         return global_relations

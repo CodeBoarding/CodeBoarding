@@ -12,17 +12,11 @@ one component. However, `_build_file_methods_from_nodes` deduplicates by
 (start_line, end_line, type, short_name) — so both aliases produce the same MethodEntry
 in the output. Result: the same deduplicated method appears in BOTH components.
 
-The invariant has two halves:
-1. Within a tree level, a method (by its deduplicated key: start_line + end_line +
-   type + short_name) appears in at most ONE component's file_methods.
-2. Across levels, a child scope only owns methods its parent component owns. A child
-   scope is a separate ``AnalysisInsights`` in ``sub_analyses`` — ``Component`` has no
-   ``.components`` field, nesting is stitched at serialization — so no single populate
-   pass sees both halves. ``TestScopeContainment`` covers this one.
+The invariant: at the same tree level, a method (identified by its deduplicated key:
+start_line + end_line + type + short_name) must appear in at most ONE component's
+file_methods.
 """
 
-import shutil
-import tempfile
 import unittest
 from collections import defaultdict
 from pathlib import Path
@@ -34,12 +28,10 @@ from agents.agent_responses import (
     SourceCodeReference,
 )
 from agents.cluster_methods_mixin import ClusterMethodsMixin
-from agents.file_index_models import FileEntry, FileMethodGroup, MethodEntry
-from diagram_analysis.diagram_generator import DiagramGenerator, assert_scope_containment
-from diagram_analysis.exceptions import ScopeContainmentError
-from static_analyzer.constants import Language, NodeType
-from static_analyzer.graph import CallGraph, ClusterResult
-from static_analyzer.node import Node
+from static_analyzer.constants import NodeType
+from static_analyzer.clustering import ClusterResult
+from static_analyzer.program_graph import ProgramGraph
+from tests.program_graph_factory import make_symbol
 
 
 class MockMixin(ClusterMethodsMixin):
@@ -118,31 +110,31 @@ class TestMethodUniquenessWithAliases(unittest.TestCase):
         of aliases produces one MethodEntry — which currently appears in BOTH components.
         """
         repo_dir = Path("/test/repo")
-        cfg = CallGraph(language="typescript")
+        cfg = ProgramGraph(language="typescript")
 
         shared_file = "/test/repo/container/agent-runner/src/index.ts"
 
         # Alias pair 1: funcA
-        cfg.add_node(Node("container.agent-runner.src.index.funcA", NodeType.FUNCTION, shared_file, 1, 10))
-        cfg.add_node(Node("src.index.funcA", NodeType.FUNCTION, shared_file, 1, 10))
+        cfg.add_node(make_symbol("container.agent-runner.src.index.funcA", NodeType.FUNCTION, shared_file, 1, 10))
+        cfg.add_node(make_symbol("src.index.funcA", NodeType.FUNCTION, shared_file, 1, 10))
 
         # Alias pair 2: funcB
-        cfg.add_node(Node("container.agent-runner.src.index.funcB", NodeType.FUNCTION, shared_file, 11, 20))
-        cfg.add_node(Node("src.index.funcB", NodeType.FUNCTION, shared_file, 11, 20))
+        cfg.add_node(make_symbol("container.agent-runner.src.index.funcB", NodeType.FUNCTION, shared_file, 11, 20))
+        cfg.add_node(make_symbol("src.index.funcB", NodeType.FUNCTION, shared_file, 11, 20))
 
         # Alias pair 3: funcC
-        cfg.add_node(Node("container.agent-runner.src.index.funcC", NodeType.FUNCTION, shared_file, 21, 30))
-        cfg.add_node(Node("src.index.funcC", NodeType.FUNCTION, shared_file, 21, 30))
+        cfg.add_node(make_symbol("container.agent-runner.src.index.funcC", NodeType.FUNCTION, shared_file, 21, 30))
+        cfg.add_node(make_symbol("src.index.funcC", NodeType.FUNCTION, shared_file, 21, 30))
 
         # Non-aliased nodes in separate files (one per component)
         sandbox_file = "/test/repo/container/agent-runner/src/ipc.ts"
         orch_file = "/test/repo/src/orchestrator.ts"
-        cfg.add_node(Node("src.ipc.handleIpc", NodeType.FUNCTION, sandbox_file, 1, 10))
-        cfg.add_node(Node("src.orchestrator.run", NodeType.FUNCTION, orch_file, 1, 10))
+        cfg.add_node(make_symbol("src.ipc.handleIpc", NodeType.FUNCTION, sandbox_file, 1, 10))
+        cfg.add_node(make_symbol("src.orchestrator.run", NodeType.FUNCTION, orch_file, 1, 10))
 
         # Add edges to create cluster structure
-        cfg.add_edge("container.agent-runner.src.index.funcA", "src.ipc.handleIpc")
-        cfg.add_edge("src.index.funcA", "src.orchestrator.run")
+        cfg.add_call("container.agent-runner.src.index.funcA", "src.ipc.handleIpc")
+        cfg.add_call("src.index.funcA", "src.orchestrator.run")
 
         # Cluster result: aliases in different clusters
         cluster_result = ClusterResult(
@@ -196,7 +188,7 @@ class TestMethodUniquenessWithAliases(unittest.TestCase):
         )
 
         static_analysis = MagicMock()
-        static_analysis.get_cfg.return_value = cfg
+        static_analysis.get_program_graph.return_value = cfg
         static_analysis.get_languages.return_value = ["typescript"]
 
         mixin = MockMixin(repo_dir=repo_dir, static_analysis=static_analysis)
@@ -242,7 +234,7 @@ class TestMethodUniquenessNanoclaw(unittest.TestCase):
         clusters, spread across 3 components. No physical method should appear in
         more than one component."""
         repo_dir = Path("/test/repo")
-        cfg = CallGraph(language="typescript")
+        cfg = ProgramGraph(language="typescript")
 
         monolith = "/test/repo/container/agent-runner/src/index.ts"
         method_names = [f"func_{i}" for i in range(20)]
@@ -251,13 +243,13 @@ class TestMethodUniquenessNanoclaw(unittest.TestCase):
         for i, name in enumerate(method_names):
             long_alias = f"container.agent-runner.src.index.{name}"
             short_alias = f"src.index.{name}"
-            cfg.add_node(Node(long_alias, NodeType.FUNCTION, monolith, i * 10 + 1, i * 10 + 10))
-            cfg.add_node(Node(short_alias, NodeType.FUNCTION, monolith, i * 10 + 1, i * 10 + 10))
+            cfg.add_node(make_symbol(long_alias, NodeType.FUNCTION, monolith, i * 10 + 1, i * 10 + 10))
+            cfg.add_node(make_symbol(short_alias, NodeType.FUNCTION, monolith, i * 10 + 1, i * 10 + 10))
 
         # 3 component-specific files
         for comp_idx in range(3):
             f = f"/test/repo/src/comp_{comp_idx}.ts"
-            cfg.add_node(Node(f"src.comp_{comp_idx}.main", NodeType.FUNCTION, f, 1, 10))
+            cfg.add_node(make_symbol(f"src.comp_{comp_idx}.main", NodeType.FUNCTION, f, 1, 10))
 
         # Clusters: long aliases go to components 0,1,2 in round-robin
         # Short aliases go to a DIFFERENT component
@@ -327,7 +319,7 @@ class TestMethodUniquenessNanoclaw(unittest.TestCase):
         )
 
         static_analysis = MagicMock()
-        static_analysis.get_cfg.return_value = cfg
+        static_analysis.get_program_graph.return_value = cfg
         static_analysis.get_languages.return_value = ["typescript"]
 
         mixin = MockMixin(repo_dir=repo_dir, static_analysis=static_analysis)
@@ -351,19 +343,19 @@ class TestMethodUniquenessNoAliases(unittest.TestCase):
         """Methods from a shared file with no aliases in different clusters
         must appear in only one component."""
         repo_dir = Path("/test/repo")
-        cfg = CallGraph(language="typescript")
+        cfg = ProgramGraph(language="typescript")
         shared_file = "/test/repo/src/shared.ts"
         alpha_file = "/test/repo/src/alpha.ts"
 
-        cfg.add_node(Node("src.shared.funcA", NodeType.FUNCTION, shared_file, 1, 10))
-        cfg.add_node(Node("src.shared.funcB", NodeType.FUNCTION, shared_file, 11, 20))
-        cfg.add_node(Node("src.shared.funcC", NodeType.FUNCTION, shared_file, 21, 30))
-        cfg.add_node(Node("src.shared.funcD", NodeType.FUNCTION, shared_file, 31, 40))
-        cfg.add_node(Node("src.shared.funcE", NodeType.FUNCTION, shared_file, 41, 50))  # orphan
-        cfg.add_node(Node("src.alpha.funcF", NodeType.FUNCTION, alpha_file, 1, 10))
+        cfg.add_node(make_symbol("src.shared.funcA", NodeType.FUNCTION, shared_file, 1, 10))
+        cfg.add_node(make_symbol("src.shared.funcB", NodeType.FUNCTION, shared_file, 11, 20))
+        cfg.add_node(make_symbol("src.shared.funcC", NodeType.FUNCTION, shared_file, 21, 30))
+        cfg.add_node(make_symbol("src.shared.funcD", NodeType.FUNCTION, shared_file, 31, 40))
+        cfg.add_node(make_symbol("src.shared.funcE", NodeType.FUNCTION, shared_file, 41, 50))  # orphan
+        cfg.add_node(make_symbol("src.alpha.funcF", NodeType.FUNCTION, alpha_file, 1, 10))
 
-        cfg.add_edge("src.shared.funcA", "src.shared.funcB")
-        cfg.add_edge("src.shared.funcC", "src.shared.funcD")
+        cfg.add_call("src.shared.funcA", "src.shared.funcB")
+        cfg.add_call("src.shared.funcC", "src.shared.funcD")
 
         cluster_result = ClusterResult(
             clusters={
@@ -407,7 +399,7 @@ class TestMethodUniquenessNoAliases(unittest.TestCase):
         )
 
         static_analysis = MagicMock()
-        static_analysis.get_cfg.return_value = cfg
+        static_analysis.get_program_graph.return_value = cfg
         static_analysis.get_languages.return_value = ["typescript"]
 
         mixin = MockMixin(repo_dir=repo_dir, static_analysis=static_analysis)
@@ -419,137 +411,6 @@ class TestMethodUniquenessNoAliases(unittest.TestCase):
         # All 6 methods should be assigned
         total = sum(len(m.methods) for c in analysis.components for m in c.file_methods)
         self.assertEqual(total, 6)
-
-
-class TestScopeContainment(unittest.TestCase):
-    """A child scope must only own methods its parent component still owns.
-
-    Why: a child scope is a separate ``AnalysisInsights``, so re-partitioning a
-    parent cannot evict the moved methods from its children.
-    """
-
-    def setUp(self):
-        self.temp_dir = tempfile.mkdtemp()
-        self.repo_location = Path(self.temp_dir) / "repo"
-        self.repo_location.mkdir(parents=True)
-        self.output_dir = Path(self.temp_dir) / "out"
-        self.output_dir.mkdir(parents=True)
-        self.temp_folder = Path(self.temp_dir) / "tmp"
-        self.temp_folder.mkdir(parents=True)
-
-    def tearDown(self):
-        shutil.rmtree(self.temp_dir, ignore_errors=True)
-
-    def _method(self, qname: str, start: int) -> MethodEntry:
-        return MethodEntry(
-            qualified_name=qname, start_line=start, end_line=start + 8, node_type="FUNCTION", content_hash="h"
-        )
-
-    def _build_tree(self):
-        """Root owns 6 methods in shared.ts, split 3/3 between components 1 and 2.
-
-        sub_analyses["1"] still covers all 6 — the state left behind after an
-        incremental run moved 3 of them from component 1 to component 2.
-        """
-        cfg = CallGraph(language="typescript")
-        shared = str(self.repo_location / "shared.ts")
-        for i in range(6):
-            cfg.add_node(Node(f"shared.func{i}", NodeType.FUNCTION, shared, i * 10 + 1, i * 10 + 9))
-        for i in range(5):
-            cfg.add_edge(f"shared.func{i}", f"shared.func{i + 1}")
-
-        keeps = [self._method(f"shared.func{i}", i * 10 + 1) for i in range(3)]
-        moved = [self._method(f"shared.func{i}", i * 10 + 1) for i in range(3, 6)]
-
-        comp_one = Component(
-            name="One",
-            description="parent that lost methods",
-            component_id="1",
-            key_entities=[SourceCodeReference(qualified_name="shared.func0")],
-            source_cluster_ids=["0"],
-            file_methods=[FileMethodGroup(file_path="shared.ts", methods=keeps)],
-        )
-        comp_two = Component(
-            name="Two",
-            description="component that gained them",
-            component_id="2",
-            key_entities=[SourceCodeReference(qualified_name="shared.func3")],
-            source_cluster_ids=["1"],
-            file_methods=[FileMethodGroup(file_path="shared.ts", methods=moved)],
-        )
-        root = AnalysisInsights(description="root", components=[comp_one, comp_two], components_relations=[])
-
-        # Child of component 1, still detailed against the pre-move boundary.
-        child = Component(
-            name="One-child",
-            description="stale subtree",
-            component_id="1.1",
-            key_entities=[SourceCodeReference(qualified_name="shared.func0")],
-            source_cluster_ids=["1.0"],
-            file_methods=[FileMethodGroup(file_path="shared.ts", methods=keeps + moved)],
-        )
-        sub_analyses = {"1": AnalysisInsights(description="sub of 1", components=[child], components_relations=[])}
-
-        static_analysis = MagicMock()
-        static_analysis.get_cfg.return_value = cfg
-        static_analysis.get_languages.return_value = [Language.TYPESCRIPT]
-        return root, sub_analyses, static_analysis
-
-    def _generator(self, static_analysis) -> DiagramGenerator:
-        gen = DiagramGenerator(
-            repo_location=self.repo_location,
-            temp_folder=self.temp_folder,
-            repo_name="repo",
-            output_dir=self.output_dir,
-            depth_level=2,
-            run_id="test-run",
-            log_path="repo/test-run",
-        )
-        # _rescope_child_analyses only needs the mixin half of IncrementalAgent.
-        gen.incremental_agent = MockMixin(repo_dir=self.repo_location, static_analysis=static_analysis)  # type: ignore[assignment]
-        return gen
-
-    def test_stale_child_scope_is_detected(self):
-        """The guard must reject a child holding methods its parent no longer owns."""
-        root, sub_analyses, _ = self._build_tree()
-
-        with self.assertRaises(ScopeContainmentError) as ctx:
-            assert_scope_containment(root, sub_analyses)
-        self.assertIn("1.1", str(ctx.exception))
-
-    def test_rescope_confines_children_to_parent(self):
-        """Re-scoping must drop the moved methods from component 1's subtree."""
-        root, sub_analyses, static_analysis = self._build_tree()
-        gen = self._generator(static_analysis)
-
-        gen._rescope_child_analyses(root, sub_analyses, set())
-
-        parent_owned = {m.qualified_name for g in root.components[0].file_methods for m in g.methods}
-        child_owned = {
-            m.qualified_name for c in sub_analyses["1"].components for g in c.file_methods for m in g.methods
-        }
-        self.assertEqual(child_owned - parent_owned, set(), "child escaped its parent's scope")
-        self.assertEqual(child_owned, parent_owned, "children must partition the parent exactly")
-
-        # The moved methods now belong to component 2 alone.
-        two_owned = {m.qualified_name for g in root.components[1].file_methods for m in g.methods}
-        self.assertEqual(child_owned & two_owned, set(), "method still rendered under two components")
-
-        assert_scope_containment(root, sub_analyses)
-
-    def test_rescope_empties_children_when_parent_owns_nothing(self):
-        root, sub_analyses, static_analysis = self._build_tree()
-        root.components[0].file_methods = []
-        sub_analyses["1"].files = {"shared.ts": FileEntry()}
-        gen = self._generator(static_analysis)
-
-        gen._rescope_child_analyses(root, sub_analyses, set())
-
-        self.assertEqual([m for c in sub_analyses["1"].components for g in c.file_methods for m in g.methods], [])
-        # save_analysis merges every scope's index into the unified files/methods_index,
-        # so a scope with no owned methods must not keep one.
-        self.assertEqual(sub_analyses["1"].files, {})
-        assert_scope_containment(root, sub_analyses)
 
 
 if __name__ == "__main__":

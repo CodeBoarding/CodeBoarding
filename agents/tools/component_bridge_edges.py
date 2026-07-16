@@ -41,20 +41,22 @@ class ComponentBridgeEdgesTool(BaseRepoTool):
         if not cfg_graphs:
             if not self.static_analysis:
                 return "No static analysis data available."
-            cfg_graphs = self.static_analysis.available_cfgs()
+            cfg_graphs = self.static_analysis.available_program_graphs()
 
         source_nodes = self._nodes_for_clusters(source_clusters)
         destination_nodes = self._nodes_for_clusters(destination_clusters)
         all_edges: list[str] = []
 
         for language, cfg in cfg_graphs.items():
-            for edge in cfg.edges:
-                src_name = edge.get_source()
-                dst_name = edge.get_destination()
+            for edge in cfg.call_edges():
+                src_name = edge.source
+                dst_name = edge.target
                 if src_name in source_nodes and dst_name in destination_nodes:
+                    source = cfg.nodes[src_name]
+                    target = cfg.nodes[dst_name]
                     all_edges.append(
-                        f"{language}: {src_name} ({edge.src_node.file_path}:{edge.src_node.line_start}) "
-                        f"-> {dst_name} ({edge.dst_node.file_path}:{edge.dst_node.line_start})"
+                        f"{language}: {src_name} ({source.file_path}:{source.line_start}) "
+                        f"-> {dst_name} ({target.file_path}:{target.line_start})"
                     )
 
         if not all_edges:

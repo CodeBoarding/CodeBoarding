@@ -11,32 +11,32 @@ from agents.repair import ComponentRepairContext, repair_component_group_names, 
 from agents.validation import ValidationContext, validate_group_name_coverage, validate_key_entities
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import Language, NodeType
-from static_analyzer.graph import ClusterResult
-from static_analyzer.node import Node
+from static_analyzer.clustering import ClusterResult
+from static_analyzer.program_graph import ProgramGraph, ProgramNode, ProgramNodeKind
 from static_analyzer.reference_resolver import StaticReferenceResolver
 
 
 def _component_repair_context() -> ComponentRepairContext:
     static_analysis = StaticAnalysisResults()
-    static_analysis.add_references(
-        Language.PYTHON,
-        [
-            Node(
-                fully_qualified_name="pkg.service.run",
-                node_type=NodeType.FUNCTION,
-                file_path="/tmp/fake-repo/pkg/service.py",
+    graph = ProgramGraph(language="python")
+    for qualified_name, file_path in (
+        ("pkg.service.run", "/tmp/fake-repo/pkg/service.py"),
+        ("other.service.run", "/tmp/fake-repo/other/service.py"),
+    ):
+        graph.add_node(
+            ProgramNode(
+                node_id=qualified_name,
+                kind=ProgramNodeKind.SYMBOL,
+                language="python",
+                name=qualified_name.rsplit(".", 1)[-1],
+                symbol_type=NodeType.FUNCTION,
+                reference_worthy=True,
+                file_path=file_path,
                 line_start=1,
                 line_end=2,
-            ),
-            Node(
-                fully_qualified_name="other.service.run",
-                node_type=NodeType.FUNCTION,
-                file_path="/tmp/fake-repo/other/service.py",
-                line_start=1,
-                line_end=2,
-            ),
-        ],
-    )
+            )
+        )
+    static_analysis.add_program_graph(Language.PYTHON, graph)
     cluster_results = {
         "python": ClusterResult(
             clusters={1: {"pkg.service.run"}},
