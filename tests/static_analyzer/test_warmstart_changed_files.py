@@ -14,8 +14,10 @@ def _analyzer_with_one_engine(project_path: Path) -> StaticAnalyzer:
     adapter = MagicMock()
     adapter.language = "Python"
     adapter.language_enum = MagicMock()
+    adapter.file_extensions = {".py"}
     analyzer._engine_clients = [(EngineConfig(adapter=adapter, project_path=project_path), MagicMock())]
     analyzer.collected_diagnostics = {}
+    analyzer.ignore_manager = MagicMock()
     return analyzer
 
 
@@ -37,13 +39,24 @@ class TestWarmStartChangedFiles(unittest.TestCase):
             analyzer._update_cached_results(StaticAnalysisResults(), cached_sha="HEAD~1")
 
     @patch("static_analyzer.get_changed_files_since", return_value={Path("/proj/x.py")})
-    def test_changed_files_raise_instead_of_running_full_analysis(self, mock_git) -> None:
+    def test_changed_files_are_spliced_from_a_scoped_analysis(self, mock_git) -> None:
         analyzer = _analyzer_with_one_engine(self.project)
+        delta_graph = ProgramGraph(language="python")
 
-        with self.assertRaisesRegex(IncrementalProgramGraphUnavailableError, "splicing is unavailable"):
-            analyzer._update_cached_results(_cached_graph(analyzer), cached_sha="HEAD~1")
+        with (
+            patch.object(analyzer, "_source_files_for_config", return_value=[Path("/proj/x.py")]),
+            patch.object(analyzer, "_incremental_scope_files", return_value=[Path("/proj/x.py")]),
+            patch.object(analyzer, "_run_analysis_for_files", return_value={"program_graph": delta_graph}) as run_delta,
+            patch.object(analyzer, "_merge_incremental_diagnostics"),
+        ):
+            updated = analyzer._update_cached_results(_cached_graph(analyzer), cached_sha="HEAD~1")
 
         mock_git.assert_called_once()
+        run_delta.assert_called_once()
+        self.assertEqual(
+            updated.get_program_graph(analyzer._engine_clients[0][0].adapter.language_enum).language,
+            "python",
+        )
 
     @patch("static_analyzer.get_changed_files_since", side_effect=RuntimeError("Invalid Git repository"))
     def test_git_failure_raises(self, mock_git) -> None:

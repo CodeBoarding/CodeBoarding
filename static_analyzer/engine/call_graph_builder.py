@@ -128,7 +128,7 @@ class CallGraphBuilder:
         ]
         resolved: list[ImportDependency] = []
         for declaration in declarations:
-            target_file = self._resolve_import_target(declaration, source_files)
+            target_file = self.resolve_import_target(declaration, source_files)
             external = None if target_file else self._external_package_name(declaration.declared_module)
             resolved.append(
                 ImportDependency(
@@ -146,7 +146,8 @@ class CallGraphBuilder:
             key=lambda item: (item.source_file, item.line, item.column, item.declared_module),
         )
 
-    def _resolve_import_target(self, declaration: ImportDependency, source_files: list[Path]) -> str | None:
+    def resolve_import_target(self, declaration: ImportDependency, source_files: list[Path]) -> str | None:
+        """Resolve one import against the supplied project source files."""
         source_path = Path(declaration.source_file)
         source = (source_path if source_path.is_absolute() else self._root / source_path).resolve()
         module = declaration.declared_module.strip().rstrip(":")

@@ -409,7 +409,7 @@ class TestImportResolution:
         builder = CallGraphBuilder(_make_lsp(), TypeScriptAdapter(), tmp_path)
         declaration = ImportDependency(str(source), "../models", 1, 1)
 
-        assert builder._resolve_import_target(declaration, [source, base, index]) == str(index)
+        assert builder.resolve_import_target(declaration, [source, base, index]) == str(index)
 
     def test_rust_module_declaration_resolves_from_declaring_module(self, tmp_path: Path):
         declaring_module = tmp_path / "src" / "a" / "mod.rs"
@@ -428,4 +428,4 @@ class TestImportResolution:
             kind=ImportDependencyKind.MODULE,
         )
 
-        assert builder._resolve_import_target(declaration, [declaring_module, unrelated, expected]) == str(expected)
+        assert builder.resolve_import_target(declaration, [declaring_module, unrelated, expected]) == str(expected)

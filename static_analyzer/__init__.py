@@ -1,6 +1,6 @@
+import copy
 import logging
 import time
-import copy
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -634,9 +634,9 @@ class StaticAnalyzer:
         cached_results: StaticAnalysisResults,
         cached_sha: str,
     ) -> StaticAnalysisResults:
-        """Reuse an unchanged ProgramGraph or fail when graph splicing is required."""
+        """Update changed file neighborhoods while retaining the cached graph."""
         results = StaticAnalysisResults()
-        for engine_config, _engine_client in self._engine_clients:
+        for engine_config, engine_client in self._engine_clients:
             adapter, project_path = engine_config.adapter, engine_config.project_path
             language = adapter.language_enum
             try:
@@ -646,16 +646,102 @@ class StaticAnalyzer:
                     f"No ProgramGraph baseline is available for {adapter.language}; run a full analysis first"
                 ) from error
 
-            changed_files = self._changed_files_for_language(project_path, cached_sha, adapter.language)
-            if changed_files:
-                raise IncrementalProgramGraphUnavailableError(
-                    f"Incremental ProgramGraph splicing is unavailable for {adapter.language} "
-                    f"({len(changed_files)} changed files); run a full analysis"
-                )
+            if language not in results.results:
+                results.results[language] = copy.deepcopy(cached_results.results[language])
+                self.collected_diagnostics[language] = copy.deepcopy(cached_results.diagnostics.get(language, {}))
 
-            results.results[language] = copy.deepcopy(cached_results.results[language])
-            self.collected_diagnostics[language] = copy.deepcopy(cached_results.diagnostics.get(language, {}))
+            changed_files = {
+                path.resolve()
+                for path in self._changed_files_for_language(project_path, cached_sha, adapter.language)
+                if path.suffix in adapter.file_extensions and path.resolve().is_relative_to(project_path.resolve())
+            }
+            if not changed_files:
+                continue
+
+            current_source_files = self._source_files_for_config(engine_config)
+            baseline_graph = results.get_program_graph(language)
+            builder = CallGraphBuilder(engine_client, adapter, project_path)
+            scope_files = self._incremental_scope_files(
+                baseline_graph,
+                changed_files,
+                current_source_files,
+                builder,
+            )
+            logger.info(
+                "Incremental %s graph update: %d changed files, %d scoped files",
+                adapter.language,
+                len(changed_files),
+                len(scope_files),
+            )
+
+            updated_graph = baseline_graph.without_files(str(path) for path in changed_files)
+            if scope_files:
+                delta = self._run_analysis_for_files(engine_config, engine_client, scope_files)
+                delta_graph = delta.get("program_graph")
+                if not isinstance(delta_graph, ProgramGraph):
+                    raise StaticAnalysisFatalError(
+                        f"Incremental analysis for {adapter.language} did not produce a ProgramGraph"
+                    )
+                updated_graph.merge(delta_graph)
+            self._merge_incremental_diagnostics(language, changed_files, engine_client)
+
+            bucket = results.results[language]
+            bucket.program_graph = updated_graph
+            project_root = project_path.resolve()
+            outside_project = [
+                path for path in bucket.source_files if not Path(path).resolve().is_relative_to(project_root)
+            ]
+            bucket.source_files = sorted({*outside_project, *(str(path) for path in current_source_files)})
         return results
+
+    def _source_files_for_config(self, engine_config: EngineConfig) -> list[Path]:
+        adapter, project_path = engine_config.adapter, engine_config.project_path
+        source_files = engine_config.source_files or adapter.discover_source_files(project_path, self.ignore_manager)
+        return sorted(path.resolve() for path in source_files if path.exists())
+
+    @staticmethod
+    def _incremental_scope_files(
+        baseline_graph: ProgramGraph,
+        changed_files: set[Path],
+        current_source_files: list[Path],
+        builder: CallGraphBuilder,
+    ) -> list[Path]:
+        current_by_path = {str(path): path for path in current_source_files}
+        changed_paths = {str(path) for path in changed_files}
+        scope_paths = changed_paths & current_by_path.keys()
+
+        for edge in baseline_graph.edges:
+            source_path = baseline_graph.nodes[edge.source].file_path
+            target_path = baseline_graph.nodes[edge.target].file_path
+            if source_path not in changed_paths and target_path not in changed_paths:
+                continue
+            if source_path in current_by_path:
+                scope_paths.add(source_path)
+            if target_path in current_by_path:
+                scope_paths.add(target_path)
+
+        inspector = SourceInspector()
+        for changed_path in sorted(scope_paths & changed_paths):
+            for declaration in inspector.find_import_declarations(Path(changed_path)):
+                target = builder.resolve_import_target(declaration, current_source_files)
+                if target in current_by_path:
+                    scope_paths.add(target)
+        return [current_by_path[path] for path in sorted(scope_paths)]
+
+    def _merge_incremental_diagnostics(
+        self,
+        language: Language,
+        changed_files: set[Path],
+        engine_client: LSPClient,
+    ) -> None:
+        changed_paths = {str(path) for path in changed_files}
+        retained = {
+            path: diagnostics
+            for path, diagnostics in self.collected_diagnostics.get(language, {}).items()
+            if str(Path(path).resolve()) not in changed_paths
+        }
+        retained.update(engine_client.get_collected_diagnostics())
+        self.collected_diagnostics[language] = retained
 
     def _changed_files_for_language(self, project_path: Path, cached_sha: str, language: str) -> set[Path]:
         """The warm-start changed-file set scoped to one language's project root.
@@ -727,8 +813,17 @@ class StaticAnalyzer:
         otherwise the adapter walks ``engine_config.project_path`` and applies
         the ignore manager.
         """
+        source_files = self._source_files_for_config(engine_config)
+        return self._run_analysis_for_files(engine_config, engine_client, source_files)
+
+    def _run_analysis_for_files(
+        self,
+        engine_config: EngineConfig,
+        engine_client: LSPClient,
+        source_files: list[Path],
+    ) -> dict:
+        """Analyze an explicit source-file scope with the active language server."""
         adapter, project_path = engine_config.adapter, engine_config.project_path
-        source_files = engine_config.source_files or adapter.discover_source_files(project_path, self.ignore_manager)
 
         if not source_files:
             logger.warning(f"No source files found for {adapter.language} in {project_path}")
