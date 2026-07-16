@@ -7,6 +7,7 @@ the circular type dependency between LSPClient, SymbolTable, and LanguageAdapter
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from enum import StrEnum
 from pathlib import Path
 
 
@@ -59,6 +60,24 @@ class CallSite:
         return self.column - 1
 
 
+class ImportDependencyKind(StrEnum):
+    IMPORT = "import"
+    MODULE = "module"
+
+
+@dataclass(frozen=True)
+class ImportDependency:
+    """One statically declared source import and its resolved internal target."""
+
+    source_file: str
+    declared_module: str
+    line: int
+    column: int
+    kind: ImportDependencyKind = ImportDependencyKind.IMPORT
+    target_file: str | None = None
+    external_package: str | None = None
+
+
 @dataclass
 class Edge:
     """A directed edge in the call flow graph."""
@@ -95,37 +114,5 @@ class LanguageAnalysisResult:
     hierarchy: dict[str, dict] = field(default_factory=dict)
     cfg: CallFlowGraph = field(default_factory=CallFlowGraph)
     package_dependencies: dict[str, dict] = field(default_factory=dict)
+    imports: list[ImportDependency] = field(default_factory=list)
     source_files: list[str] = field(default_factory=list)
-
-
-class AnalysisResults:
-    """Container for all analysis results, keyed by language."""
-
-    def __init__(self) -> None:
-        self._lang_results: dict[str, LanguageAnalysisResult] = {}
-
-    def add_language_result(self, language: str, result: LanguageAnalysisResult) -> None:
-        self._lang_results[language] = result
-
-    def get_languages(self) -> set[str]:
-        return set(self._lang_results.keys())
-
-    def get_hierarchy(self, language: str) -> dict[str, dict]:
-        if language not in self._lang_results:
-            raise ValueError(f"No results for language: {language}")
-        return self._lang_results[language].hierarchy
-
-    def get_cfg(self, language: str) -> CallFlowGraph:
-        if language not in self._lang_results:
-            raise ValueError(f"No results for language: {language}")
-        return self._lang_results[language].cfg
-
-    def get_package_dependencies(self, language: str) -> dict[str, dict]:
-        if language not in self._lang_results:
-            raise ValueError(f"No results for language: {language}")
-        return self._lang_results[language].package_dependencies
-
-    def get_source_files(self, language: str) -> list[str]:
-        if language not in self._lang_results:
-            raise ValueError(f"No results for language: {language}")
-        return self._lang_results[language].source_files

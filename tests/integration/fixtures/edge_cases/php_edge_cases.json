@@ -799,5 +799,18 @@
     "src/utils/constants.php",
     "src/utils/helpers.php",
     "src/unused/orphan.php"
+  ],
+  "expected_containment": [
+    {"container": "src.models.entities.Dog", "member": "src.models.entities.Dog.speak"}
+  ],
+  "expected_inheritance": [
+    {"child": "src.models.entities.Dog", "parent": "src.models.base.Entity"}
+  ],
+  "expected_imports": [
+    {"source_file": "src/services/processor.php", "declared_module": "App\\Models\\Task", "target_file": "src/models/entities.php"}
+  ],
+  "expected_external_packages": [],
+  "expected_call_multiplicity": [
+    {"source": "main.main", "destination": "src.models.base.Entity.getId", "count": 2}
   ]
 }

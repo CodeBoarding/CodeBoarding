@@ -13,8 +13,9 @@ from agents.tools.base import RepoContext
 from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer import StaticAnalyzer
 from static_analyzer.constants import NodeType
-from static_analyzer.graph import CallGraph, ClusterResult, Edge
-from static_analyzer.node import Node
+from static_analyzer.clustering import ClusterResult
+from static_analyzer.program_graph import ProgramGraph
+from tests.program_graph_factory import make_symbol
 from utils import get_artifact_dir
 
 
@@ -51,7 +52,7 @@ class TestCFGTools(unittest.TestCase):
         # Test when CFG is empty or has no data
         mock_analysis = MagicMock()
         mock_analysis.get_languages.return_value = ["python"]
-        mock_analysis.get_cfg.return_value = None
+        mock_analysis.get_program_graph.return_value = None
 
         context = RepoContext(repo_dir=Path("."), ignore_manager=MagicMock(), static_analysis=mock_analysis)
         tool = GetCFGTool(context=context)
@@ -68,10 +69,10 @@ class TestCFGTools(unittest.TestCase):
 
         # Get some files from the analysis
         for lang in self.static_analysis.get_languages():
-            cfg = self.static_analysis.get_cfg(lang)
-            if cfg and cfg.nodes:
+            cfg = self.static_analysis.get_program_graph(lang)
+            if cfg and cfg.symbols:
                 # Add first node's file to component
-                first_node = next(iter(cfg.nodes.values()))
+                first_node = next(iter(cfg.symbols.values()))
                 component.file_methods.append(FileMethodGroup(file_path=first_node.file_path))
                 break
 
@@ -102,11 +103,11 @@ class TestCFGTools(unittest.TestCase):
         # Find a method that exists in the CFG
         method_name = None
         for lang in self.static_analysis.get_languages():
-            cfg = self.static_analysis.get_cfg(lang)
-            if cfg and cfg.edges:
+            cfg = self.static_analysis.get_program_graph(lang)
+            if cfg and cfg.call_edges():
                 # Get the first edge's source node
-                first_edge = next(iter(cfg.edges))
-                method_name = first_edge.src_node.fully_qualified_name
+                first_edge = cfg.call_edges()[0]
+                method_name = first_edge.source
                 break
 
         if method_name:
@@ -130,11 +131,11 @@ class TestCFGTools(unittest.TestCase):
         # Test finding methods that are called by others
         method_name = None
         for lang in self.static_analysis.get_languages():
-            cfg = self.static_analysis.get_cfg(lang)
-            if cfg and cfg.edges:
+            cfg = self.static_analysis.get_program_graph(lang)
+            if cfg and cfg.call_edges():
                 # Get a method that is called (destination node)
-                first_edge = next(iter(cfg.edges))
-                method_name = first_edge.dst_node.fully_qualified_name
+                first_edge = cfg.call_edges()[0]
+                method_name = first_edge.target
                 break
 
         if method_name:
@@ -147,22 +148,20 @@ class TestCFGTools(unittest.TestCase):
 
 class TestComponentBridgeEdgesTool(unittest.TestCase):
     def _make_tool(self) -> ComponentBridgeEdgesTool:
-        src = Node("pkg.source.call", NodeType.FUNCTION, "src.py", 10, 12)
-        dst = Node("pkg.destination.handle", NodeType.FUNCTION, "dst.py", 20, 22)
-        other = Node("pkg.other.handle", NodeType.FUNCTION, "other.py", 30, 32)
-        cfg = CallGraph(
+        src = make_symbol("pkg.source.call", NodeType.FUNCTION, "src.py", 10, 12)
+        dst = make_symbol("pkg.destination.handle", NodeType.FUNCTION, "dst.py", 20, 22)
+        other = make_symbol("pkg.other.handle", NodeType.FUNCTION, "other.py", 30, 32)
+        cfg = ProgramGraph(
+            language="python",
             nodes={
-                src.fully_qualified_name: src,
-                dst.fully_qualified_name: dst,
-                other.fully_qualified_name: other,
+                src.id: src,
+                dst.id: dst,
+                other.id: other,
             },
-            edges=[Edge(src, dst), Edge(dst, other)],
         )
-        cluster_results = {
-            "python": ClusterResult(
-                clusters={1: {src.fully_qualified_name}, 2: {dst.fully_qualified_name}, 3: {other.fully_qualified_name}}
-            )
-        }
+        cfg.add_call(src.id, dst.id)
+        cfg.add_call(dst.id, other.id)
+        cluster_results = {"python": ClusterResult(clusters={1: {src.id}, 2: {dst.id}, 3: {other.id}})}
         cluster_analysis = ClusterAnalysis(
             cluster_components=[
                 ClustersComponent(name="Source Group", cluster_ids=[1], description="source"),

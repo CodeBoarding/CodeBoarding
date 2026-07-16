@@ -7,12 +7,12 @@ from health.models import (
     Severity,
     StandardCheckSummary,
 )
-from static_analyzer.graph import CallGraph
+from static_analyzer.program_graph import ProgramGraph
 
 logger = logging.getLogger(__name__)
 
 
-def collect_coupling_values(call_graph: CallGraph) -> tuple[list[float], list[float]]:
+def collect_coupling_values(call_graph: ProgramGraph) -> tuple[list[float], list[float]]:
     """Collect fan-out and fan-in values for all callable entities.
 
     Returns:
@@ -32,7 +32,7 @@ def collect_coupling_values(call_graph: CallGraph) -> tuple[list[float], list[fl
     return fan_out_values, fan_in_values
 
 
-def check_fan_out(call_graph: CallGraph, config: HealthCheckConfig) -> StandardCheckSummary:
+def check_fan_out(call_graph: ProgramGraph, config: HealthCheckConfig) -> StandardCheckSummary:
     """E2: Check efferent coupling (fan-out) per function.
 
     Fan-out measures how many other functions a given function calls.
@@ -43,11 +43,12 @@ def check_fan_out(call_graph: CallGraph, config: HealthCheckConfig) -> StandardC
     total_checked = 0
     threshold = config.fan_out_max
 
-    for fqn, node in call_graph.nodes.items():
+    nx_graph = call_graph.to_networkx()
+    for fqn, node in call_graph.symbols.items():
         if node.is_class() or node.is_data():
             continue
 
-        fan_out = len(node.methods_called_by_me)
+        fan_out = nx_graph.out_degree(fqn)
         total_checked += 1
 
         if fan_out >= threshold:
@@ -85,7 +86,7 @@ def check_fan_out(call_graph: CallGraph, config: HealthCheckConfig) -> StandardC
     )
 
 
-def check_fan_in(call_graph: CallGraph, config: HealthCheckConfig) -> StandardCheckSummary:
+def check_fan_in(call_graph: ProgramGraph, config: HealthCheckConfig) -> StandardCheckSummary:
     """E3: Check afferent coupling (fan-in) per function.
 
     Fan-in measures how many other functions call a given function.

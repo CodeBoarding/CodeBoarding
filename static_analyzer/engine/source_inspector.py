@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -12,7 +13,7 @@ from tree_sitter import Node as TreeSitterNode
 from tree_sitter import Parser, Tree
 
 from static_analyzer.constants import LANGUAGE_EXTENSIONS, Language
-from static_analyzer.engine.models import CallSite
+from static_analyzer.engine.models import CallSite, ImportDependency, ImportDependencyKind
 
 import tree_sitter_c_sharp
 import tree_sitter_go
@@ -77,6 +78,21 @@ _NAME_NODE_TYPES = frozenset(
 _GENERIC_TYPE_NODE_TYPES = frozenset({"generic_name", "generic_type"})
 _CALL_TARGET_FIELD_NAMES = ("function", "constructor", "name", "field", "property", "attribute")
 _CONSTRUCTOR_FIELD_NAMES = ("type", "name")
+_IMPORT_NODE_TYPES = frozenset(
+    {
+        "import_statement",
+        "import_from_statement",
+        "import_declaration",
+        "import_spec",
+        "export_statement",
+        "namespace_use_declaration",
+        "namespace_use_clause",
+        "use_declaration",
+        "using_directive",
+        "extern_crate_declaration",
+        "mod_item",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -150,6 +166,110 @@ class SourceInspector:
             seen.add(pos)
             sites.append(CallSite.from_lsp_position(file=str(file_path), line=pos[0], column=pos[1]))
         return sites
+
+    def find_import_declarations(self, file_path: Path) -> list[ImportDependency]:
+        """Extract static imports from tree-sitter import nodes.
+
+        Resolution is intentionally left to CallGraphBuilder, which owns the
+        symbol table and language adapter. Dynamic/computed imports are ignored.
+        """
+        parsed = self._parse(file_path)
+        if parsed is None:
+            return []
+
+        imports: set[ImportDependency] = set()
+        for node in self._walk(parsed.tree.root_node):
+            if node.type not in _IMPORT_NODE_TYPES:
+                continue
+            if node.parent is not None and node.parent.type in _IMPORT_NODE_TYPES:
+                continue
+            text = parsed.content[node.start_byte : node.end_byte].decode(errors="replace")
+            for module, offset in self._import_modules(text, file_path.suffix.lower()):
+                prefix = text[:offset]
+                line_offset = prefix.count("\n")
+                if line_offset:
+                    column = len(prefix.rsplit("\n", 1)[-1]) + 1
+                else:
+                    column = node.start_point.column + offset + 1
+                imports.add(
+                    ImportDependency(
+                        source_file=str(file_path),
+                        declared_module=module,
+                        line=node.start_point.row + line_offset + 1,
+                        column=column,
+                        kind=(ImportDependencyKind.MODULE if node.type == "mod_item" else ImportDependencyKind.IMPORT),
+                    )
+                )
+        return sorted(imports, key=lambda item: (item.source_file, item.line, item.column, item.declared_module))
+
+    @staticmethod
+    def _import_modules(text: str, suffix: str) -> list[tuple[str, int]]:
+        if suffix == ".py":
+            from_match = re.search(r"\bfrom\s+([.\w]+)\s+import\b", text)
+            if from_match:
+                return [(from_match.group(1), from_match.start(1))]
+            import_match = re.search(r"\bimport\s+(.+)", text, flags=re.DOTALL)
+            if not import_match:
+                return []
+            python_imports = []
+            import_list = import_match.group(1)
+            cursor = import_match.start(1)
+            for item in import_list.split(","):
+                name_match = re.search(r"[A-Za-z_]\w*(?:\.\w+)*", item)
+                if name_match:
+                    python_imports.append((name_match.group(0), cursor + name_match.start()))
+                cursor += len(item) + 1
+            return sorted(set(python_imports), key=lambda item: (item[1], item[0]))
+
+        if suffix == ".php" and "\\{" in text:
+            group_match = re.search(
+                r"\buse\s+(?:function\s+|const\s+)?([\w\\]+)\\\{([^}]+)\}",
+                text,
+            )
+            if group_match:
+                prefix = group_match.group(1).rstrip("\\")
+                php_imports = []
+                group_items = group_match.group(2)
+                cursor = group_match.start(2)
+                for item in group_items.split(","):
+                    name_match = re.search(r"[A-Za-z_]\w*", item)
+                    if name_match:
+                        php_imports.append((f"{prefix}\\{name_match.group(0)}", cursor + name_match.start()))
+                    cursor += len(item) + 1
+                return sorted(set(php_imports), key=lambda item: (item[1], item[0]))
+
+        patterns: list[str]
+        if suffix in {".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".mts", ".cts"}:
+            patterns = [
+                r"\bfrom\s*['\"]([^'\"]+)['\"]",
+                r"\bimport\s*['\"]([^'\"]+)['\"]",
+                r"\brequire\s*\(\s*['\"]([^'\"]+)['\"]",
+            ]
+        elif suffix == ".java":
+            patterns = [r"\bimport\s+(?:static\s+)?([\w.*]+)"]
+        elif suffix == ".go":
+            patterns = [r"['\"]([^'\"]+)['\"]"]
+        elif suffix == ".php":
+            patterns = [
+                r"\buse\s+(?:function\s+|const\s+)?([\w\\]+)",
+                r"\b(?:include|include_once|require|require_once)\s*\(?\s*['\"]([^'\"]+)['\"]",
+            ]
+        elif suffix == ".rs":
+            patterns = [r"\buse\s+([\w:]+)", r"\bextern\s+crate\s+([\w]+)", r"\bmod\s+([\w]+)"]
+        elif suffix == ".cs":
+            patterns = [r"\busing\s+(?:static\s+)?(?:\w+\s*=\s*)?([\w.]+)"]
+        else:
+            patterns = []
+
+        found: dict[tuple[str, int], None] = {}
+        for pattern in patterns:
+            for match in re.finditer(pattern, text):
+                # A Rust grouped import leaves the separator before ``{`` in
+                # this regex match; that separator is syntax, not identity.
+                module = match.group(1).strip().rstrip(";,: ")
+                if module:
+                    found[(module, match.start(1))] = None
+        return sorted(found, key=lambda item: (item[1], item[0]))
 
     def _read_file_bytes(self, file_path: Path) -> bytes | None:
         file_key = str(file_path)

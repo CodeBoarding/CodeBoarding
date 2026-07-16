@@ -29,8 +29,9 @@ from agents.agent_responses import (
 )
 from agents.cluster_methods_mixin import ClusterMethodsMixin
 from static_analyzer.constants import NodeType
-from static_analyzer.graph import CallGraph, ClusterResult
-from static_analyzer.node import Node
+from static_analyzer.clustering import ClusterResult
+from static_analyzer.program_graph import ProgramGraph
+from tests.program_graph_factory import make_symbol
 
 
 class MockMixin(ClusterMethodsMixin):
@@ -109,31 +110,31 @@ class TestMethodUniquenessWithAliases(unittest.TestCase):
         of aliases produces one MethodEntry — which currently appears in BOTH components.
         """
         repo_dir = Path("/test/repo")
-        cfg = CallGraph(language="typescript")
+        cfg = ProgramGraph(language="typescript")
 
         shared_file = "/test/repo/container/agent-runner/src/index.ts"
 
         # Alias pair 1: funcA
-        cfg.add_node(Node("container.agent-runner.src.index.funcA", NodeType.FUNCTION, shared_file, 1, 10))
-        cfg.add_node(Node("src.index.funcA", NodeType.FUNCTION, shared_file, 1, 10))
+        cfg.add_node(make_symbol("container.agent-runner.src.index.funcA", NodeType.FUNCTION, shared_file, 1, 10))
+        cfg.add_node(make_symbol("src.index.funcA", NodeType.FUNCTION, shared_file, 1, 10))
 
         # Alias pair 2: funcB
-        cfg.add_node(Node("container.agent-runner.src.index.funcB", NodeType.FUNCTION, shared_file, 11, 20))
-        cfg.add_node(Node("src.index.funcB", NodeType.FUNCTION, shared_file, 11, 20))
+        cfg.add_node(make_symbol("container.agent-runner.src.index.funcB", NodeType.FUNCTION, shared_file, 11, 20))
+        cfg.add_node(make_symbol("src.index.funcB", NodeType.FUNCTION, shared_file, 11, 20))
 
         # Alias pair 3: funcC
-        cfg.add_node(Node("container.agent-runner.src.index.funcC", NodeType.FUNCTION, shared_file, 21, 30))
-        cfg.add_node(Node("src.index.funcC", NodeType.FUNCTION, shared_file, 21, 30))
+        cfg.add_node(make_symbol("container.agent-runner.src.index.funcC", NodeType.FUNCTION, shared_file, 21, 30))
+        cfg.add_node(make_symbol("src.index.funcC", NodeType.FUNCTION, shared_file, 21, 30))
 
         # Non-aliased nodes in separate files (one per component)
         sandbox_file = "/test/repo/container/agent-runner/src/ipc.ts"
         orch_file = "/test/repo/src/orchestrator.ts"
-        cfg.add_node(Node("src.ipc.handleIpc", NodeType.FUNCTION, sandbox_file, 1, 10))
-        cfg.add_node(Node("src.orchestrator.run", NodeType.FUNCTION, orch_file, 1, 10))
+        cfg.add_node(make_symbol("src.ipc.handleIpc", NodeType.FUNCTION, sandbox_file, 1, 10))
+        cfg.add_node(make_symbol("src.orchestrator.run", NodeType.FUNCTION, orch_file, 1, 10))
 
         # Add edges to create cluster structure
-        cfg.add_edge("container.agent-runner.src.index.funcA", "src.ipc.handleIpc")
-        cfg.add_edge("src.index.funcA", "src.orchestrator.run")
+        cfg.add_call("container.agent-runner.src.index.funcA", "src.ipc.handleIpc")
+        cfg.add_call("src.index.funcA", "src.orchestrator.run")
 
         # Cluster result: aliases in different clusters
         cluster_result = ClusterResult(
@@ -187,7 +188,7 @@ class TestMethodUniquenessWithAliases(unittest.TestCase):
         )
 
         static_analysis = MagicMock()
-        static_analysis.get_cfg.return_value = cfg
+        static_analysis.get_program_graph.return_value = cfg
         static_analysis.get_languages.return_value = ["typescript"]
 
         mixin = MockMixin(repo_dir=repo_dir, static_analysis=static_analysis)
@@ -233,7 +234,7 @@ class TestMethodUniquenessNanoclaw(unittest.TestCase):
         clusters, spread across 3 components. No physical method should appear in
         more than one component."""
         repo_dir = Path("/test/repo")
-        cfg = CallGraph(language="typescript")
+        cfg = ProgramGraph(language="typescript")
 
         monolith = "/test/repo/container/agent-runner/src/index.ts"
         method_names = [f"func_{i}" for i in range(20)]
@@ -242,13 +243,13 @@ class TestMethodUniquenessNanoclaw(unittest.TestCase):
         for i, name in enumerate(method_names):
             long_alias = f"container.agent-runner.src.index.{name}"
             short_alias = f"src.index.{name}"
-            cfg.add_node(Node(long_alias, NodeType.FUNCTION, monolith, i * 10 + 1, i * 10 + 10))
-            cfg.add_node(Node(short_alias, NodeType.FUNCTION, monolith, i * 10 + 1, i * 10 + 10))
+            cfg.add_node(make_symbol(long_alias, NodeType.FUNCTION, monolith, i * 10 + 1, i * 10 + 10))
+            cfg.add_node(make_symbol(short_alias, NodeType.FUNCTION, monolith, i * 10 + 1, i * 10 + 10))
 
         # 3 component-specific files
         for comp_idx in range(3):
             f = f"/test/repo/src/comp_{comp_idx}.ts"
-            cfg.add_node(Node(f"src.comp_{comp_idx}.main", NodeType.FUNCTION, f, 1, 10))
+            cfg.add_node(make_symbol(f"src.comp_{comp_idx}.main", NodeType.FUNCTION, f, 1, 10))
 
         # Clusters: long aliases go to components 0,1,2 in round-robin
         # Short aliases go to a DIFFERENT component
@@ -318,7 +319,7 @@ class TestMethodUniquenessNanoclaw(unittest.TestCase):
         )
 
         static_analysis = MagicMock()
-        static_analysis.get_cfg.return_value = cfg
+        static_analysis.get_program_graph.return_value = cfg
         static_analysis.get_languages.return_value = ["typescript"]
 
         mixin = MockMixin(repo_dir=repo_dir, static_analysis=static_analysis)
@@ -342,19 +343,19 @@ class TestMethodUniquenessNoAliases(unittest.TestCase):
         """Methods from a shared file with no aliases in different clusters
         must appear in only one component."""
         repo_dir = Path("/test/repo")
-        cfg = CallGraph(language="typescript")
+        cfg = ProgramGraph(language="typescript")
         shared_file = "/test/repo/src/shared.ts"
         alpha_file = "/test/repo/src/alpha.ts"
 
-        cfg.add_node(Node("src.shared.funcA", NodeType.FUNCTION, shared_file, 1, 10))
-        cfg.add_node(Node("src.shared.funcB", NodeType.FUNCTION, shared_file, 11, 20))
-        cfg.add_node(Node("src.shared.funcC", NodeType.FUNCTION, shared_file, 21, 30))
-        cfg.add_node(Node("src.shared.funcD", NodeType.FUNCTION, shared_file, 31, 40))
-        cfg.add_node(Node("src.shared.funcE", NodeType.FUNCTION, shared_file, 41, 50))  # orphan
-        cfg.add_node(Node("src.alpha.funcF", NodeType.FUNCTION, alpha_file, 1, 10))
+        cfg.add_node(make_symbol("src.shared.funcA", NodeType.FUNCTION, shared_file, 1, 10))
+        cfg.add_node(make_symbol("src.shared.funcB", NodeType.FUNCTION, shared_file, 11, 20))
+        cfg.add_node(make_symbol("src.shared.funcC", NodeType.FUNCTION, shared_file, 21, 30))
+        cfg.add_node(make_symbol("src.shared.funcD", NodeType.FUNCTION, shared_file, 31, 40))
+        cfg.add_node(make_symbol("src.shared.funcE", NodeType.FUNCTION, shared_file, 41, 50))  # orphan
+        cfg.add_node(make_symbol("src.alpha.funcF", NodeType.FUNCTION, alpha_file, 1, 10))
 
-        cfg.add_edge("src.shared.funcA", "src.shared.funcB")
-        cfg.add_edge("src.shared.funcC", "src.shared.funcD")
+        cfg.add_call("src.shared.funcA", "src.shared.funcB")
+        cfg.add_call("src.shared.funcC", "src.shared.funcD")
 
         cluster_result = ClusterResult(
             clusters={
@@ -398,7 +399,7 @@ class TestMethodUniquenessNoAliases(unittest.TestCase):
         )
 
         static_analysis = MagicMock()
-        static_analysis.get_cfg.return_value = cfg
+        static_analysis.get_program_graph.return_value = cfg
         static_analysis.get_languages.return_value = ["typescript"]
 
         mixin = MockMixin(repo_dir=repo_dir, static_analysis=static_analysis)

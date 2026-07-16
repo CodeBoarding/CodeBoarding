@@ -7,8 +7,8 @@ from agents.file_index_models import FileMethodGroup, MethodEntry
 from diagram_analysis.file_index import build_files_index, refresh_method_spans_from_cfg
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import NodeType
-from static_analyzer.graph import CallGraph
-from static_analyzer.node import Node
+from static_analyzer.program_graph import ProgramGraph, ProgramNode
+from tests.program_graph_factory import make_symbol
 
 
 def _analysis_with_method(file_path: str, qname: str, start: int, end: int) -> AnalysisInsights:
@@ -34,11 +34,11 @@ def _analysis_with_method(file_path: str, qname: str, start: int, end: int) -> A
     )
 
 
-def _static_analysis_with_nodes(*nodes: Node) -> StaticAnalysisResults:
-    cfg = CallGraph(nodes={node.fully_qualified_name: node for node in nodes})
+def _static_analysis_with_nodes(*nodes: ProgramNode) -> StaticAnalysisResults:
+    cfg = ProgramGraph(language="python", nodes={node.id: node for node in nodes})
     static_analysis = MagicMock(spec=StaticAnalysisResults)
     static_analysis.get_languages.return_value = ["python"]
-    static_analysis.get_cfg.return_value = cfg
+    static_analysis.get_program_graph.return_value = cfg
     return static_analysis
 
 
@@ -56,7 +56,7 @@ def test_build_files_index_hashes_carried_span(tmp_path: Path) -> None:
 def test_refresh_spans_then_index_reflects_live_cfg_span(tmp_path: Path) -> None:
     (tmp_path / "m.py").write_text("# added line\ndef foo():\n    return 1\n", encoding="utf-8")
     analysis = _analysis_with_method("m.py", "foo", start=1, end=2)
-    static_analysis = _static_analysis_with_nodes(Node("foo", NodeType.FUNCTION, "m.py", 2, 3))
+    static_analysis = _static_analysis_with_nodes(make_symbol("foo", NodeType.FUNCTION, "m.py", 2, 3))
 
     refresh_method_spans_from_cfg(analysis, static_analysis, tmp_path)
     files = build_files_index(analysis, tmp_path)

@@ -1139,5 +1139,19 @@
     "src/main/java/utils/Helpers.java",
     "src/main/java/unused/DeadCode.java",
     "src/main/java/app/Main.java"
+  ],
+  "expected_containment": [
+    {"container": "src.main.java.core.Animal.Animal", "member": "src.main.java.core.Animal.speak()"}
+  ],
+  "expected_inheritance": [
+    {"child": "src.main.java.core.Dog.Dog", "parent": "src.main.java.core.Animal.Animal"}
+  ],
+  "expected_imports": [
+    {"source_file": "src/main/java/app/Main.java", "declared_module": "core.Animal", "target_file": "src/main/java/core/Animal.java"},
+    {"source_file": "src/main/java/app/Main.java", "declared_module": "java.util.List", "external_package": "java"}
+  ],
+  "expected_external_packages": ["java"],
+  "expected_call_multiplicity": [
+    {"source": "src.main.java.core.Services.nameComparator().new Comparator() {...}.compare(Animal, Animal)", "destination": "src.main.java.core.Animal.getName()", "count": 2}
   ]
 }

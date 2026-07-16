@@ -1,3 +1,4 @@
+import copy
 import logging
 import time
 from dataclasses import dataclass, field
@@ -16,10 +17,9 @@ from static_analyzer.engine.lsp_client import LSPClient
 from static_analyzer.engine.result_converter import convert_to_codeboarding_format
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.utils import uri_to_path
-from static_analyzer.graph import CallGraph
-from static_analyzer.incremental_orchestrator import update_cfg_for_changed_files
 from static_analyzer.java_config_scanner import JavaConfigScanner
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
+from static_analyzer.program_graph import ProgramEdgeKind, ProgramGraph
 from static_analyzer.programming_language import ProgrammingLanguage
 from static_analyzer.scanner import ProjectScanner
 from static_analyzer.typescript_config_scanner import TypeScriptConfigScanner
@@ -46,6 +46,10 @@ class EngineConfig:
 
 class StaticAnalysisFatalError(RuntimeError):
     """Raised when continuing would produce misleading cached analysis."""
+
+
+class IncrementalProgramGraphUnavailableError(RuntimeError):
+    """Raised when a ProgramGraph cannot be updated safely from its baseline."""
 
 
 def _create_engine_configs(
@@ -308,8 +312,7 @@ class StaticAnalyzer:
         """Gracefully shut down all engine LSP server processes. Idempotent.
 
         Persists the latest ``_cached_results`` to the pkl on the way down so
-        downstream mutations (``CallGraph._cluster_cache`` populated by the
-        abstraction agent) reach disk in one save instead of two. Save errors
+        downstream ProgramGraph lineage mutations reach disk in one save. Save errors
         are logged but never block teardown.
         """
         if not self._clients_started:
@@ -524,7 +527,7 @@ class StaticAnalyzer:
         4. No pkl -> full LSP.
 
         Persistence is deferred to ``stop_clients`` so downstream mutations
-        (cluster cache populated by the abstraction agent) reach disk in one
+        (such as Infomap lineage snapshots) reach disk in one
         save instead of two. ``source_sha`` is stashed for that save.
 
         Clients must be running before calling this method. Use ``start_clients()``
@@ -612,9 +615,9 @@ class StaticAnalyzer:
         summaries = []
         for language in results.get_languages():
             try:
-                cfg = results.get_cfg(language)
-                node_count = len(cfg.nodes)
-                edge_count = len(cfg.edges)
+                graph = results.get_program_graph(language)
+                node_count = len(graph.symbol_nodes())
+                edge_count = len(graph.edges_of_kind(ProgramEdgeKind.CALL))
             except ValueError:
                 node_count = 0
                 edge_count = 0
@@ -631,47 +634,116 @@ class StaticAnalyzer:
         cached_results: StaticAnalysisResults,
         cached_sha: str,
     ) -> StaticAnalysisResults:
-        """Bring *cached_results* up to date in-memory, scoped to the changed files.
-
-        Per language: determine the changed-file list via ``git diff``, hand it
-        to ``update_cfg_for_changed_files`` along with the language's portion of
-        the cached state, and put the merged result back into a fresh
-        ``StaticAnalysisResults``. Merging (rather than a full re-LSP) is what
-        preserves the cached CFG's ``_cluster_cache`` for the next warm-start.
-
-        If git fails (*cached_sha* unreachable, a non-git frozen copy, or a
-        content-hash SHA that isn't a git object), fall back to a full re-LSP
-        for that language so the run still produces valid output.
-        """
+        """Update changed file neighborhoods while retaining the cached graph."""
         results = StaticAnalysisResults()
         for engine_config, engine_client in self._engine_clients:
             adapter, project_path = engine_config.adapter, engine_config.project_path
             language = adapter.language_enum
-            cached_lang_dict = self._extract_language_dict(cached_results, language)
-            t_lang_start = time.monotonic()
-            changed_files = self._changed_files_for_language(project_path, cached_sha, adapter.language)
+            try:
+                cached_results.get_program_graph(language)
+            except ValueError as error:
+                raise IncrementalProgramGraphUnavailableError(
+                    f"No ProgramGraph baseline is available for {adapter.language}; run a full analysis first"
+                ) from error
 
-            if changed_files is None:
-                analysis = self._run_full_analysis(engine_config, engine_client)
-            else:
-                logger.info(f"warmstart {adapter.language}: re-LSPing {len(changed_files)} changed file(s)")
-                analysis = update_cfg_for_changed_files(
-                    cached_lang_dict, changed_files, adapter, project_path, engine_client, self.ignore_manager
-                )
+            if language not in results.results:
+                results.results[language] = copy.deepcopy(cached_results.results[language])
+                self.collected_diagnostics[language] = copy.deepcopy(cached_results.diagnostics.get(language, {}))
 
-            self._absorb_into_results(results, language, analysis)
-            self._collect_diagnostics_for(adapter, engine_client, analysis)
-            track_lsp_result(
-                language=adapter.language_enum.value,
-                loc=self._loc_for_adapter(adapter),
-                status="success",
-                duration_ms=round((time.monotonic() - t_lang_start) * 1000),
-                analysis=analysis,
-                diagnostics=self.collected_diagnostics.get(adapter.language_enum, {}),
+            changed_files = {
+                path.resolve()
+                for path in self._changed_files_for_language(project_path, cached_sha, adapter.language)
+                if path.suffix in adapter.file_extensions and path.resolve().is_relative_to(project_path.resolve())
+            }
+            if not changed_files:
+                continue
+
+            current_source_files = self._source_files_for_config(engine_config)
+            baseline_graph = results.get_program_graph(language)
+            builder = CallGraphBuilder(engine_client, adapter, project_path)
+            scope_files = self._incremental_scope_files(
+                baseline_graph,
+                changed_files,
+                current_source_files,
+                builder,
             )
+            logger.info(
+                "Incremental %s graph update: %d changed files, %d scoped files",
+                adapter.language,
+                len(changed_files),
+                len(scope_files),
+            )
+
+            updated_graph = baseline_graph.without_files(str(path) for path in changed_files)
+            if scope_files:
+                delta = self._run_analysis_for_files(engine_config, engine_client, scope_files)
+                delta_graph = delta.get("program_graph")
+                if not isinstance(delta_graph, ProgramGraph):
+                    raise StaticAnalysisFatalError(
+                        f"Incremental analysis for {adapter.language} did not produce a ProgramGraph"
+                    )
+                updated_graph.merge(delta_graph)
+            self._merge_incremental_diagnostics(language, changed_files, engine_client)
+
+            bucket = results.results[language]
+            bucket.program_graph = updated_graph
+            project_root = project_path.resolve()
+            outside_project = [
+                path for path in bucket.source_files if not Path(path).resolve().is_relative_to(project_root)
+            ]
+            bucket.source_files = sorted({*outside_project, *(str(path) for path in current_source_files)})
         return results
 
-    def _changed_files_for_language(self, project_path: Path, cached_sha: str, language: str) -> set[Path] | None:
+    def _source_files_for_config(self, engine_config: EngineConfig) -> list[Path]:
+        adapter, project_path = engine_config.adapter, engine_config.project_path
+        source_files = engine_config.source_files or adapter.discover_source_files(project_path, self.ignore_manager)
+        return sorted(path.resolve() for path in source_files if path.exists())
+
+    @staticmethod
+    def _incremental_scope_files(
+        baseline_graph: ProgramGraph,
+        changed_files: set[Path],
+        current_source_files: list[Path],
+        builder: CallGraphBuilder,
+    ) -> list[Path]:
+        current_by_path = {str(path): path for path in current_source_files}
+        changed_paths = {str(path) for path in changed_files}
+        scope_paths = changed_paths & current_by_path.keys()
+
+        for edge in baseline_graph.edges:
+            source_path = baseline_graph.nodes[edge.source].file_path
+            target_path = baseline_graph.nodes[edge.target].file_path
+            if source_path not in changed_paths and target_path not in changed_paths:
+                continue
+            if source_path in current_by_path:
+                scope_paths.add(source_path)
+            if target_path in current_by_path:
+                scope_paths.add(target_path)
+
+        inspector = SourceInspector()
+        for changed_path in sorted(scope_paths & changed_paths):
+            for declaration in inspector.find_import_declarations(Path(changed_path)):
+                target = builder.resolve_import_target(declaration, current_source_files)
+                if target in current_by_path:
+                    scope_paths.add(target)
+        return [current_by_path[path] for path in sorted(scope_paths)]
+
+    def _merge_incremental_diagnostics(
+        self,
+        language: Language,
+        changed_files: set[Path],
+        engine_client: LSPClient,
+    ) -> None:
+        changed_paths = {str(path) for path in changed_files}
+        retained = {
+            path: diagnostics
+            for path, diagnostics in self.collected_diagnostics.get(language, {}).items()
+            if str(Path(path).resolve()) not in changed_paths
+        }
+        retained.update(engine_client.get_collected_diagnostics())
+        self.collected_diagnostics[language] = retained
+
+    def _changed_files_for_language(self, project_path: Path, cached_sha: str, language: str) -> set[Path]:
         """The warm-start changed-file set scoped to one language's project root.
 
         ``git diff`` via ``get_changed_files_since``. ``None`` means "detect
@@ -680,44 +752,20 @@ class StaticAnalyzer:
         try:
             return set(get_changed_files_since(project_path, cached_sha))
         except Exception as e:
-            logger.warning(
-                f"get_changed_files_since failed for {language} (cached_sha={cached_sha}): {e}; "
-                "falling back to full re-LSP for this language"
-            )
-            return None
-
-    def _extract_language_dict(self, cached_results: StaticAnalysisResults, language: Language) -> dict:
-        """Project a single language's bucket out of ``StaticAnalysisResults`` into the dict shape ``update_cfg_for_changed_files`` expects."""
-        try:
-            cached_cfg = cached_results.get_cfg(language)
-        except ValueError:
-            cached_cfg = CallGraph(language=language)
-        try:
-            class_hierarchies = cached_results.get_hierarchy(language)
-        except ValueError:
-            class_hierarchies = {}
-        try:
-            package_relations = cached_results.get_package_dependencies(language)
-        except ValueError:
-            package_relations = {}
-        cached_refs = list(cached_results.iter_reference_nodes(language))
-        cached_source_files = [Path(p) for p in cached_results.get_source_files(language)]
-        return {
-            "call_graph": cached_cfg,
-            "class_hierarchies": class_hierarchies,
-            "package_relations": package_relations,
-            "references": cached_refs,
-            "source_files": cached_source_files,
-            "diagnostics": cached_results.diagnostics.get(language, {}),
-        }
+            raise IncrementalProgramGraphUnavailableError(
+                f"Cannot diff the {language} ProgramGraph baseline {cached_sha}; run a full analysis"
+            ) from e
 
     def _absorb_into_results(self, results: StaticAnalysisResults, language: Language, analysis: dict) -> None:
-        """Stuff one language's analysis-dict into the shared ``StaticAnalysisResults``."""
-        results.add_references(language, analysis.get("references", []))
-        call_graph = analysis.get("call_graph") or CallGraph()
-        results.add_cfg(language, call_graph)
-        results.add_class_hierarchy(language, analysis.get("class_hierarchies", {}))
-        results.add_package_dependencies(language, analysis.get("package_relations", {}))
+        """Persist one language's canonical graph and source-file inventory.
+
+        CFG, hierarchy, references, and package relations are projections of
+        ProgramGraph.  Keeping second copies here would let those views drift.
+        """
+        program_graph = analysis.get("program_graph")
+        if program_graph is None:
+            raise StaticAnalysisFatalError(f"Analysis for {language.value} did not produce a ProgramGraph")
+        results.add_program_graph(language, program_graph)
         results.add_source_files(language, [str(f) for f in analysis.get("source_files", [])])
 
     def _collect_diagnostics_for(self, adapter: LanguageAdapter, engine_client: LSPClient, analysis: dict) -> None:
@@ -765,16 +813,22 @@ class StaticAnalyzer:
         otherwise the adapter walks ``engine_config.project_path`` and applies
         the ignore manager.
         """
+        source_files = self._source_files_for_config(engine_config)
+        return self._run_analysis_for_files(engine_config, engine_client, source_files)
+
+    def _run_analysis_for_files(
+        self,
+        engine_config: EngineConfig,
+        engine_client: LSPClient,
+        source_files: list[Path],
+    ) -> dict:
+        """Analyze an explicit source-file scope with the active language server."""
         adapter, project_path = engine_config.adapter, engine_config.project_path
-        source_files = engine_config.source_files or adapter.discover_source_files(project_path, self.ignore_manager)
 
         if not source_files:
             logger.warning(f"No source files found for {adapter.language} in {project_path}")
             return {
-                "call_graph": CallGraph(language=adapter.language),
-                "class_hierarchies": {},
-                "package_relations": {},
-                "references": [],
+                "program_graph": ProgramGraph(language=adapter.language.lower()),
                 "source_files": [],
                 "diagnostics": {},
             }
@@ -793,7 +847,7 @@ class StaticAnalyzer:
             )
 
         t_convert = time.monotonic()
-        result = convert_to_codeboarding_format(builder.symbol_table, engine_result, adapter)
+        result = convert_to_codeboarding_format(builder.symbol_table, engine_result, adapter, project_path)
         logger.info(f"convert_to_codeboarding_format for {adapter.language}: {time.monotonic() - t_convert:.1f}s")
         return result
 
@@ -808,7 +862,7 @@ class StaticAnalyzer:
             if not source_files:
                 continue
             try:
-                node_count = len(results.get_cfg(language).nodes)
+                node_count = len(results.get_program_graph(language).symbol_nodes())
             except ValueError:
                 node_count = 0
             if node_count == 0:

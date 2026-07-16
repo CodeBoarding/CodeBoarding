@@ -55,7 +55,18 @@
     "Utils.Formatter.Clamp(int value, int min, int max)",
     "Utils.Formatter.FormatLabel(string label)"
   ],
-  "expected_classes": [],
+  "expected_classes": [
+    "Models.Animal",
+    "Models.Animal.Cat",
+    "Models.Animal.Dog",
+    "Models.Repository.Repository<T>",
+    "Models.Task",
+    "Program",
+    "Services.QueryBuilder",
+    "Services.TaskService",
+    "Unused.Orphan",
+    "Utils.Formatter"
+  ],
   "expected_hierarchy": {},
   "expected_edges": [
     {
@@ -491,5 +502,18 @@
     "Services/TaskService.cs",
     "Unused/Orphan.cs",
     "Utils/Formatter.cs"
+  ],
+  "expected_containment": [
+    {"container": "Models.Animal", "member": "Models.Animal.Speak()"}
+  ],
+  "expected_inheritance": [
+    {"child": "Models.Animal.Dog", "parent": "Models.Animal"}
+  ],
+  "expected_imports": [
+    {"source_file": "Models/Repository.cs", "declared_module": "System.Collections.Generic", "external_package": "System"}
+  ],
+  "expected_external_packages": ["System"],
+  "expected_call_multiplicity": [
+    {"source": "Program.Main(string[] args)", "destination": "Models.Repository.Repository<T>.Add(T item)", "count": 2}
   ]
 }

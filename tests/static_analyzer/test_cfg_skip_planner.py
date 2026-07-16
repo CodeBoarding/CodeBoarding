@@ -2,20 +2,26 @@ import pytest
 
 from static_analyzer.cfg_skip_planner import ContextBudgetExceededError, plan_skip_set
 from static_analyzer.constants import NodeType
-from static_analyzer.graph import CallGraph, ClusterResult
-from static_analyzer.node import Node
+from static_analyzer.clustering import ClusterResult
+from static_analyzer.program_graph import ProgramEdge, ProgramEdgeKind, ProgramGraph, ProgramNode, ProgramNodeKind
 
 
-def _add_node(cfg: CallGraph, name: str, line: int) -> None:
-    cfg.add_node(Node(name, NodeType.FUNCTION, "/src/mod.py", line, line + 1))
+def _add_node(cfg: ProgramGraph, name: str, line: int) -> None:
+    cfg.add_node(
+        ProgramNode(name, ProgramNodeKind.SYMBOL, "python", name, "/src/mod.py", NodeType.FUNCTION, line, line + 1)
+    )
+
+
+def _add_edge(cfg: ProgramGraph, source: str, target: str) -> None:
+    cfg.add_edge(ProgramEdge(ProgramEdgeKind.CALL, source, target))
 
 
 def test_plan_skip_set_returns_empty_when_render_fits():
-    cfg = CallGraph(language="python")
+    cfg = ProgramGraph(language="python")
     for line, name in enumerate(("mod.a", "mod.b", "mod.c"), start=1):
         _add_node(cfg, name, line)
-    cfg.add_edge("mod.a", "mod.b")
-    cfg.add_edge("mod.b", "mod.c")
+    _add_edge(cfg, "mod.a", "mod.b")
+    _add_edge(cfg, "mod.b", "mod.c")
     cluster_result = ClusterResult(clusters={1: {"mod.a", "mod.b", "mod.c"}}, strategy="test")
 
     full = cfg.to_cluster_string(cluster_result=cluster_result)
@@ -24,12 +30,12 @@ def test_plan_skip_set_returns_empty_when_render_fits():
 
 
 def test_plan_skip_set_raises_when_no_peel_safe_cluster_member_can_fit():
-    cfg = CallGraph(language="python")
+    cfg = ProgramGraph(language="python")
     for line, name in enumerate(("mod.a", "mod.b", "mod.c"), start=1):
         _add_node(cfg, name, line)
-    cfg.add_edge("mod.a", "mod.b")
-    cfg.add_edge("mod.b", "mod.c")
-    cfg.add_edge("mod.c", "mod.a")
+    _add_edge(cfg, "mod.a", "mod.b")
+    _add_edge(cfg, "mod.b", "mod.c")
+    _add_edge(cfg, "mod.c", "mod.a")
     cluster_result = ClusterResult(clusters={1: {"mod.a", "mod.b", "mod.c"}}, strategy="test")
 
     full = cfg.to_cluster_string(cluster_result=cluster_result)
@@ -39,13 +45,13 @@ def test_plan_skip_set_raises_when_no_peel_safe_cluster_member_can_fit():
 
 
 def test_plan_skip_set_can_choose_later_high_savings_leaf_under_cap():
-    cfg = CallGraph(language="python")
+    cfg = ProgramGraph(language="python")
     expensive = "mod." + "very_long_function_name_" * 20
     for line, name in enumerate(("mod.cheap_a", "mod.cheap_b", expensive, "mod.center"), start=1):
         _add_node(cfg, name, line)
-    cfg.add_edge("mod.center", "mod.cheap_a")
-    cfg.add_edge("mod.center", "mod.cheap_b")
-    cfg.add_edge("mod.center", expensive)
+    _add_edge(cfg, "mod.center", "mod.cheap_a")
+    _add_edge(cfg, "mod.center", "mod.cheap_b")
+    _add_edge(cfg, "mod.center", expensive)
     cluster_result = ClusterResult(
         clusters={1: {"mod.cheap_a", "mod.cheap_b", expensive, "mod.center"}},
         strategy="test",

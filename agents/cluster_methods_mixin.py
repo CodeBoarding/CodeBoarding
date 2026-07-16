@@ -22,16 +22,12 @@ from agents.cluster_ids import CodeBoardingClusterId, CodeBoardingClusterIds, Gr
 from agents.llm_config import get_current_agent_context_window, get_current_agent_model_ref
 from agents.model_capabilities import ContextWindow
 from constants import MIN_CLUSTERS_THRESHOLD
-from diagram_analysis.cluster_delta import _delta_for_language
-from diagram_analysis.cluster_snapshot import ClusterSnapshotEntry
 from diagram_analysis.file_index import build_files_index
 from repo_utils.path_utils import normalize_repo_path
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cfg_skip_planner import ContextBudgetExceededError, plan_skip_set
 from static_analyzer.cluster_helpers import (
-    MAX_LLM_CLUSTERS,
-    enforce_cross_language_budget,
-    merge_clusters,
+    reindex_cross_language_clusters,
 )
 from static_analyzer.cluster_relations import (
     build_component_relations,
@@ -39,8 +35,9 @@ from static_analyzer.cluster_relations import (
     merge_relations,
 )
 from static_analyzer.constants import CALLABLE_TYPES, CLASS_TYPES, Language
-from static_analyzer.graph import CallGraph, ClusterResult
-from static_analyzer.node import Node
+from static_analyzer.clustering import ClusterResult
+from static_analyzer.program_graph import ProgramGraph, ProgramNode
+from static_analyzer.infomap_clustering import HierarchicalInfomapClusterer
 
 logger = logging.getLogger(__name__)
 
@@ -50,30 +47,6 @@ class _RenderedClusterString:
     text: str
     by_language: dict[str, str]
     cluster_ids: set[GraphClusterId]
-
-
-def scoped_snapshot_from_lineage(cfg: CallGraph, scope_id: str) -> dict[int, ClusterSnapshotEntry]:
-    """Build a scoped snapshot from each method's recorded cluster ancestry/path."""
-    if not scope_id:
-        return {}
-    prefix = f"{scope_id}."
-    entries: dict[int, ClusterSnapshotEntry] = {}
-    for qname, cluster_ids in cfg.method_cluster_paths_snapshot():
-        if qname not in cfg.nodes:
-            continue
-        for cluster_id in cluster_ids:
-            if not cluster_id.startswith(prefix):
-                continue
-            local_id = cluster_id.removeprefix(prefix)
-            if not local_id.isdigit():
-                continue
-            entry = entries.setdefault(int(local_id), ClusterSnapshotEntry())
-            entry.members.add(qname)
-            file_path = cfg.nodes[qname].file_path
-            if file_path:
-                entry.files.add(file_path)
-                entry.member_files[qname] = file_path
-    return entries
 
 
 def _describe_window(ctx: ContextWindow) -> str:
@@ -95,14 +68,11 @@ class ClusterMethodsMixin:
     Mixin providing shared cluster-related functionality for agents.
 
     This mixin provides methods for:
-    - Building cluster strings from CFG analysis (using CallGraph.cluster())
+    - Rendering Infomap cluster results with call evidence
     - Assigning files to components based on clusters and key_entities
     - Ensuring unique key entities across components
 
-    All clustering logic is delegated to CallGraph.cluster() which provides:
-    - Deterministic cluster IDs (seed=42)
-    - Cached results
-    - File <-> cluster bidirectional mappings
+    Hierarchical Infomap is the sole source of cluster assignments.
 
     IMPORTANT: All methods are stateless with respect to ClusterResult.
     Cluster results must be passed explicitly as parameters.
@@ -164,10 +134,14 @@ class ClusterMethodsMixin:
         all_cluster_ids: set[int] = set()
 
         for lang in programming_langs:
-            cfg = self.static_analysis.get_cfg(lang)
+            cfg = self.static_analysis.get_program_graph(lang)
             cluster_result = cluster_results.get(lang)
+            if cluster_result is None:
+                continue
             cluster_str = cfg.to_cluster_string(
-                cluster_ids or set(), cluster_result, skip_nodes=skip_sets.get(lang, set())
+                cluster_result,
+                cluster_ids or set(),
+                skip_nodes=skip_sets.get(lang, set()),
             )
 
             if cluster_str.strip() and cluster_str not in ("empty", "none", "No clusters found."):
@@ -232,7 +206,9 @@ class ClusterMethodsMixin:
 
                 for target in self._language_budget_targets(current_len, deficit):
                     try:
-                        skip = plan_skip_set(self.static_analysis.get_cfg(lang), cluster_results[lang], target)
+                        skip = plan_skip_set(
+                            self.static_analysis.get_program_graph(lang), cluster_results[lang], target
+                        )
                     except ContextBudgetExceededError:
                         continue
 
@@ -371,7 +347,7 @@ class ClusterMethodsMixin:
                 )
             component.source_cluster_ids = CodeBoardingClusterIds.from_graph_ids(set(resolved_ids))
 
-    def _expand_to_method_level_clusters(self, cfg: CallGraph, cluster_result: ClusterResult) -> ClusterResult:
+    def _expand_to_method_level_clusters(self, cfg: ProgramGraph, cluster_result: ClusterResult) -> ClusterResult:
         """
         Expand cluster results to method-level granularity when there are too few clusters.
 
@@ -380,7 +356,7 @@ class ClusterMethodsMixin:
         ensures fine-grained method assignment even for small components.
 
         Args:
-            cfg: The CallGraph containing nodes to cluster
+            cfg: The ProgramGraph containing symbols to cluster
             cluster_result: Original cluster result (may have insufficient clusters)
 
         Returns:
@@ -399,9 +375,9 @@ class ClusterMethodsMixin:
         new_file_to_clusters: dict[str, set[int]] = defaultdict(set)
 
         cluster_id = 0
-        for qname, node in sorted(cfg.nodes.items()):
+        for qname, node in sorted(cfg.symbols.items()):
             # Only create clusters for callable types (functions, methods)
-            if node.type not in CALLABLE_TYPES:
+            if node.symbol_type not in CALLABLE_TYPES:
                 continue
 
             new_clusters[cluster_id] = {qname}
@@ -411,14 +387,16 @@ class ClusterMethodsMixin:
 
         # If we still have few clusters (e.g., only classes, no methods), include classes too
         if len(new_clusters) < MIN_CLUSTERS_THRESHOLD:
-            for qname, node in sorted(cfg.nodes.items()):
-                if node.type in CLASS_TYPES and qname not in {n for members in new_clusters.values() for n in members}:
+            for qname, node in sorted(cfg.symbols.items()):
+                if node.symbol_type in CLASS_TYPES and qname not in {
+                    name for members in new_clusters.values() for name in members
+                }:
                     new_clusters[cluster_id] = {qname}
                     new_cluster_to_files[cluster_id] = {node.file_path}
                     new_file_to_clusters[node.file_path].add(cluster_id)
                     cluster_id += 1
 
-        logger.info(f"Created {len(new_clusters)} method-level clusters from {len(cfg.nodes)} nodes")
+        logger.info(f"Created {len(new_clusters)} method-level clusters from {len(cfg.symbols)} nodes")
 
         return ClusterResult(
             clusters=new_clusters,
@@ -431,7 +409,7 @@ class ClusterMethodsMixin:
         self,
         component: Component,
         source_cluster_id_prefix: str = "",
-    ) -> tuple[str, dict[str, ClusterResult], dict[str, CallGraph]]:
+    ) -> tuple[str, dict[str, ClusterResult], dict[str, ProgramGraph]]:
         """
         Create a strict subgraph containing ONLY nodes from the component's file_methods.
         This ensures the analysis is strictly scoped to the component's boundaries.
@@ -446,7 +424,7 @@ class ClusterMethodsMixin:
         Returns:
             Tuple of (formatted cluster string, cluster_results dict, subgraph_cfgs dict)
             where cluster_results maps language -> ClusterResult for the subgraph
-            and subgraph_cfgs maps language -> filtered CallGraph for the subgraph
+            and subgraph_cfgs maps language -> filtered ProgramGraph for the subgraph
         """
         component_files = component.file_paths()
         if not component_files:
@@ -460,50 +438,32 @@ class ClusterMethodsMixin:
                 assigned_qnames.add(method.qualified_name)
 
         cluster_results: dict[str, ClusterResult] = {}
-        subgraph_cfgs: dict[str, CallGraph] = {}
+        subgraph_cfgs: dict[str, ProgramGraph] = {}
 
         for lang in self.static_analysis.get_languages():
-            cfg = self.static_analysis.get_cfg(lang)
+            cfg = self.static_analysis.get_program_graph(lang)
 
             # Filter by exact method set to prevent scope leakage
             sub_cfg = cfg.filter_by_nodes(assigned_qnames)
 
             if sub_cfg.nodes:
                 subgraph_cfgs[lang] = sub_cfg
-
-                seeded_snapshot = scoped_snapshot_from_lineage(sub_cfg, source_cluster_id_prefix)
-                if seeded_snapshot:
-                    scoped_delta = _delta_for_language(
-                        str(lang),
-                        sub_cfg.to_networkx(),
-                        seeded_snapshot,
-                    )
-                    sub_cluster_result = scoped_delta.cluster_results
-                else:
-                    # Calculate clusters for the subgraph
-                    sub_cluster_result = sub_cfg.cluster()
-
-                # Merge into super-clusters if too many (same limit as AbstractionAgent)
-                if len(sub_cluster_result.clusters) > MAX_LLM_CLUSTERS:
-                    n_before = len(sub_cluster_result.clusters)
-                    sub_cluster_result = merge_clusters(sub_cluster_result, sub_cfg.to_networkx(), MAX_LLM_CLUSTERS)
-                    logger.info(
-                        f"[DetailsAgent] Subgraph for '{component.name}': "
-                        f"merged {n_before} -> {len(sub_cluster_result.clusters)} super-clusters"
-                    )
+                program_graph = self.static_analysis.get_program_graph(lang)
+                scoped_program_graph = program_graph.induced_by_symbols(assigned_qnames)
+                sub_cluster_result = HierarchicalInfomapClusterer().cluster(scoped_program_graph)
 
                 # Expand to method-level if insufficient clusters
                 sub_cluster_result = self._expand_to_method_level_clusters(sub_cfg, sub_cluster_result)
                 cluster_results[lang] = sub_cluster_result
 
-        # Cross-language: enforce combined budget and unique IDs
+        # Hierarchical Infomap chooses granularity; only ID namespaces need
+        # reconciliation across languages.
         if len(cluster_results) > 1:
-            cfg_nx = {lang: subgraph_cfgs[lang].to_networkx() for lang in cluster_results}
-            enforce_cross_language_budget(cluster_results, cfg_nx)
+            reindex_cross_language_clusters(cluster_results)
 
         if source_cluster_id_prefix:
             for lang, cluster_result in cluster_results.items():
-                self.static_analysis.get_cfg(Language(lang)).record_cluster_paths(
+                self.static_analysis.get_program_graph(Language(lang)).record_cluster_paths(
                     cluster_result, source_cluster_id_prefix
                 )
 
@@ -528,8 +488,8 @@ class ClusterMethodsMixin:
     def _collect_all_cfg_nodes(
         self,
         cluster_results: dict[str, ClusterResult],
-        cfg_graphs: dict[str, CallGraph] | None = None,
-    ) -> dict[str, Node]:
+        cfg_graphs: dict[str, ProgramGraph] | None = None,
+    ) -> dict[str, ProgramNode]:
         """Build a lookup of qualified_name -> Node for all languages present in cluster_results.
 
         Args:
@@ -538,18 +498,20 @@ class ClusterMethodsMixin:
                         When provided (e.g. subgraph from DetailsAgent), only nodes
                         from these graphs are included, preventing scope leakage.
         """
-        all_nodes: dict[str, Node] = {}
+        all_nodes: dict[str, ProgramNode] = {}
         for lang in cluster_results:
             cfg = (
-                cfg_graphs[lang] if cfg_graphs and lang in cfg_graphs else self.static_analysis.get_cfg(Language(lang))
+                cfg_graphs[lang]
+                if cfg_graphs and lang in cfg_graphs
+                else self.static_analysis.get_program_graph(Language(lang))
             )
-            all_nodes.update(cfg.nodes)
+            all_nodes.update(cfg.symbols)
         return all_nodes
 
     def _build_undirected_graphs(
         self,
         cluster_results: dict[str, ClusterResult],
-        cfg_graphs: dict[str, CallGraph] | None = None,
+        cfg_graphs: dict[str, ProgramGraph] | None = None,
     ) -> dict[str, nx.Graph]:
         """Pre-build undirected networkx graphs for each language in cluster_results.
 
@@ -563,7 +525,9 @@ class ClusterMethodsMixin:
         graphs: dict[str, nx.Graph] = {}
         for lang in cluster_results:
             cfg = (
-                cfg_graphs[lang] if cfg_graphs and lang in cfg_graphs else self.static_analysis.get_cfg(Language(lang))
+                cfg_graphs[lang]
+                if cfg_graphs and lang in cfg_graphs
+                else self.static_analysis.get_program_graph(Language(lang))
             )
             graphs[lang] = cfg.to_networkx().to_undirected()
         return graphs
@@ -608,7 +572,7 @@ class ClusterMethodsMixin:
         return best_cluster
 
     def _build_file_methods_from_nodes(
-        self, nodes: list[Node], source_cache: SourceCache | None = None
+        self, nodes: list[ProgramNode], source_cache: SourceCache | None = None
     ) -> list[FileMethodGroup]:
         """Group a flat list of Nodes into FileMethodGroups sorted by file then line.
 
@@ -634,18 +598,18 @@ class ClusterMethodsMixin:
             return len(candidate) > len(current)
 
         for node in nodes:
-            if node.type not in allowed_types:
+            if node.symbol_type not in allowed_types or node.symbol_type is None:
                 continue
 
             rel_path = normalize_repo_path(node.file_path, self.repo_dir)
 
-            method_name = node.fully_qualified_name.split(".")[-1]
-            dedupe_key = (node.line_start, node.line_end, node.type.name, method_name)
+            method_name = node.id.split(".")[-1]
+            dedupe_key = (node.line_start, node.line_end, node.symbol_type.name, method_name)
             candidate = MethodEntry(
-                qualified_name=node.fully_qualified_name,
+                qualified_name=node.id,
                 start_line=node.line_start,
                 end_line=node.line_end,
-                node_type=node.type.name,
+                node_type=node.symbol_type.name,
                 content_hash=hash_method_body(
                     read_source_lines(self.repo_dir, rel_path, source_cache),
                     node.line_start,
@@ -701,7 +665,7 @@ class ClusterMethodsMixin:
 
     def _find_component_by_file(
         self,
-        node: Node,
+        node: ProgramNode,
         cluster_results: dict[str, ClusterResult],
         cluster_to_component: dict[str, Component],
         source_cluster_id_prefix: str = "",
@@ -723,16 +687,16 @@ class ClusterMethodsMixin:
 
     def _assign_nodes_to_components(
         self,
-        all_nodes: dict[str, Node],
+        all_nodes: dict[str, ProgramNode],
         node_to_cluster: dict[str, str],
         cluster_to_component: dict[str, Component],
         cluster_results: dict[str, ClusterResult],
         fallback_component: Component,
-        cfg_graphs: dict[str, CallGraph] | None = None,
+        cfg_graphs: dict[str, ProgramGraph] | None = None,
         source_cluster_id_prefix: str = "",
-    ) -> dict[str, list[Node]]:
+    ) -> dict[str, list[ProgramNode]]:
         """Assign every node to a component via its cluster, file co-location, graph distance, or fallback."""
-        component_nodes: dict[str, list[Node]] = defaultdict(list)
+        component_nodes: dict[str, list[ProgramNode]] = defaultdict(list)
         unassigned: list[str] = []
 
         for qname, node in all_nodes.items():
@@ -806,7 +770,7 @@ class ClusterMethodsMixin:
         self,
         analysis: AnalysisInsights,
         cluster_results: dict[str, ClusterResult],
-        cfg_graphs: dict[str, CallGraph] | None = None,
+        cfg_graphs: dict[str, ProgramGraph] | None = None,
         source_cluster_id_prefix: str = "",
     ) -> None:
         """Deterministically populate ``file_methods`` on every component.
@@ -859,7 +823,7 @@ class ClusterMethodsMixin:
     def build_static_relations(
         self,
         analysis: AnalysisInsights,
-        cfg_graphs: dict[str, CallGraph] | None = None,
+        cfg_graphs: dict[str, ProgramGraph] | None = None,
         source_cluster_id_prefix: str = "",
     ) -> None:
         """Build inter-component relations from CFG edges and merge with LLM relations.
@@ -872,7 +836,7 @@ class ClusterMethodsMixin:
         If cfg_graphs is not provided, builds them from self.static_analysis.
         """
         if cfg_graphs is None:
-            cfg_graphs = self.static_analysis.available_cfgs()
+            cfg_graphs = self.static_analysis.available_program_graphs()
         node_to_component = build_node_to_component_map(analysis)
         static_relations = build_component_relations(node_to_component, cfg_graphs)
         analysis.components_relations = merge_relations(analysis.components_relations, static_relations, analysis)
@@ -897,7 +861,7 @@ class ClusterMethodsMixin:
         """
         node_to_component = build_node_to_component_map(analysis)
         id_to_name = {c.component_id: c.name for c in analysis.components}
-        cfg_graphs = self.static_analysis.available_cfgs()
+        cfg_graphs = self.static_analysis.available_program_graphs()
         static_relations = build_component_relations(node_to_component, cfg_graphs)
 
         if not static_relations:

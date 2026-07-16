@@ -532,5 +532,19 @@
     "unused/dead_code.py",
     "utils/__init__.py",
     "utils/helpers.py"
+  ],
+  "expected_containment": [
+    {"container": "core.base.Dog", "member": "core.base.Dog.speak"}
+  ],
+  "expected_inheritance": [
+    {"child": "core.base.Dog", "parent": "core.base.Animal"}
+  ],
+  "expected_imports": [
+    {"source_file": "core/pipeline.py", "declared_module": "core.base", "target_file": "core/base.py"},
+    {"source_file": "core/base.py", "declared_module": "abc", "external_package": "abc"}
+  ],
+  "expected_external_packages": ["abc", "dataclasses"],
+  "expected_call_multiplicity": [
+    {"source": "main.main", "destination": "core.pipeline.dispatch", "count": 3}
   ]
 }

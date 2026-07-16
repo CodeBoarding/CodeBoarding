@@ -2,14 +2,10 @@ import logging
 import re
 from collections.abc import Iterator
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any
-
 from static_analyzer.constants import Language
-from static_analyzer.graph import CallGraph
 from static_analyzer.language_results import LanguageResults
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
-from static_analyzer.node import Node
+from static_analyzer.program_graph import ProgramGraph, ProgramNode
 
 logger = logging.getLogger(__name__)
 
@@ -33,48 +29,6 @@ _WORD_RE = re.compile(r"\b([a-z]+)\b")
 # Matches a standalone single lowercase letter (not preceded or followed by a word char).
 # Used to detect generic type params like T or E in lowercased method signatures.
 _STANDALONE_SINGLE_LETTER_RE = re.compile(r"(?<![a-z])([a-z])(?!\w)")
-
-InvalidatedEdge = tuple[str, str, Node, Node]
-
-
-@dataclass
-class AnalysisData:
-    call_graph: CallGraph
-    class_hierarchies: dict[str, Any]
-    package_relations: dict[str, Any]
-    references: list[Node]
-    source_files: list[Path]
-    diagnostics: FileDiagnosticsMap | None = None
-
-    @classmethod
-    def from_dict(cls, analysis: dict[str, Any]) -> "AnalysisData":
-        return cls(
-            call_graph=analysis["call_graph"],
-            class_hierarchies=analysis["class_hierarchies"],
-            package_relations=analysis["package_relations"],
-            references=analysis["references"],
-            source_files=analysis["source_files"],
-            diagnostics=analysis.get("diagnostics"),
-        )
-
-    def to_dict(self) -> dict[str, Any]:
-        analysis: dict[str, Any] = {
-            "call_graph": self.call_graph,
-            "class_hierarchies": self.class_hierarchies,
-            "package_relations": self.package_relations,
-            "references": self.references,
-            "source_files": self.source_files,
-        }
-        if self.diagnostics is not None:
-            analysis["diagnostics"] = self.diagnostics
-        return analysis
-
-
-@dataclass
-class InvalidatedAnalysis:
-    analysis: AnalysisData
-    invalidated_edges: list[InvalidatedEdge]
-    invalidated_files: set[str]
 
 
 def _strip_java_generics(name: str) -> str:
@@ -181,40 +135,21 @@ class StaticAnalysisResults:
         """Read-only sibling of ``_bucket`` — returns None instead of inserting an empty bucket."""
         return self.results.get(language)
 
-    def add_class_hierarchy(self, language: Language, hierarchy):
-        """Add/merge a class hierarchy for a language; supports repeated calls."""
-        self._bucket(language).hierarchy.merge(hierarchy)
+    def add_program_graph(self, language: Language, graph: ProgramGraph) -> None:
+        self._bucket(language).merge_graph(graph)
 
-    def add_cfg(self, language: Language, cfg: CallGraph):
-        """Add/merge a control flow graph for a language; supports repeated calls."""
-        self._bucket(language).cfg.merge(cfg)
-
-    def add_package_dependencies(self, language: Language, dependencies):
-        """Add/merge package dependencies for a language; supports repeated calls."""
-        self._bucket(language).dependencies.merge(dependencies)
-
-    def add_references(self, language: Language, references: list[Node]):
-        """Add/merge source code references for a language; supports repeated calls.
-
-        Why: keys use the original qualified name to preserve source-code casing
-        in the output.
-        """
-        self._bucket(language).references.add(references)
-
-    def get_cfg(self, language: Language) -> CallGraph:
-        """Return the control flow graph for ``language`` or raise ``ValueError``."""
+    def get_program_graph(self, language: Language) -> ProgramGraph:
         bucket = self._get_bucket(language)
-        if bucket is not None and bucket.cfg.graph is not None:
-            return bucket.cfg.graph
-        raise ValueError(f"Control flow graph for language '{language}' not found in results.")
+        if bucket is not None and bucket.program_graph is not None:
+            return bucket.program_graph
+        raise ValueError(f"Program graph for language '{language}' not found in results.")
 
-    def available_cfgs(self) -> dict[str, CallGraph]:
-        """Return every language CFG that is already present."""
-        cfgs: dict[str, CallGraph] = {}
-        for language, bucket in self.results.items():
-            if bucket.cfg.graph is not None:
-                cfgs[str(language)] = bucket.cfg.graph
-        return cfgs
+    def available_program_graphs(self) -> dict[str, ProgramGraph]:
+        return {
+            str(language): bucket.program_graph
+            for language, bucket in self.results.items()
+            if bucket.program_graph is not None
+        }
 
     def get_hierarchy(self, language: Language) -> dict:
         """Return the class hierarchy dict for ``language`` or raise ``ValueError``.
@@ -223,65 +158,52 @@ class StaticAnalysisResults:
         "file_path": str, "line_start": int, "line_end": int}``.
         """
         bucket = self._get_bucket(language)
-        if bucket is not None and bucket.hierarchy.entries is not None:
-            return bucket.hierarchy.entries
+        if bucket is not None and bucket.program_graph is not None:
+            return bucket.program_graph.hierarchy()
         raise ValueError(f"Class hierarchy for language '{language}' not found in results.")
 
     def get_package_dependencies(self, language: Language) -> dict:
         """Return the package dependencies for ``language`` or raise ``ValueError``."""
         bucket = self._get_bucket(language)
-        if bucket is not None and bucket.dependencies.entries is not None:
-            return bucket.dependencies.entries
+        if bucket is not None and bucket.program_graph is not None:
+            return bucket.program_graph.package_dependencies()
         raise ValueError(f"Package dependencies for language '{language}' not found in results.")
 
-    def get_reference(self, language: Language, qualified_name: str) -> Node:
+    def get_reference(self, language: Language, qualified_name: str) -> ProgramNode:
         """Return the reference node for ``qualified_name``.
 
         Why: lookup is case-insensitive — the query and stored keys are both
         normalised through ``_reference_key`` so e.g. ``models.base.(Entity).GetType``
         and ``models.base.(entity).gettype`` resolve to the same reference.
         """
-        bucket = self._get_bucket(language)
-        if bucket is not None and bucket.references.by_qualified_name is not None:
-            refs = bucket.references.by_qualified_name
-            if qualified_name in refs:
-                return refs[qualified_name]
-            norm_qn = _reference_key(qualified_name)
-            for ref_key, ref_val in refs.items():
-                if _reference_key(ref_key) == norm_qn:
-                    return ref_val
-            for ref in refs.keys():
-                if ref.lower().startswith(norm_qn):
-                    raise FileExistsError(
-                        f"Source code reference for '{qualified_name}' in language '{language}' is a file path, "
-                        f"please use the full file path instead of the qualified name."
-                    )
+        refs = {node.id: node for node in self.get_program_graph(language).symbol_nodes(reference_worthy_only=True)}
+        if qualified_name in refs:
+            return refs[qualified_name]
+        norm_qn = _reference_key(qualified_name)
+        for ref_id, node in refs.items():
+            if _reference_key(ref_id) == norm_qn:
+                return node
         raise ValueError(f"Source code reference for '{qualified_name}' in language '{language}' not found in results.")
 
-    def get_loose_reference(self, language: Language, qualified_name: str) -> tuple[str | None, Node | None]:
+    def get_loose_reference(self, language: Language, qualified_name: str) -> tuple[str | None, ProgramNode | None]:
         norm_qn = _reference_key(qualified_name)
-        bucket = self._get_bucket(language)
-        if bucket is not None and bucket.references.by_qualified_name is not None:
-            refs = bucket.references.by_qualified_name
-            subset_refs = []
-            for ref in refs.keys():
-                ref_lower = ref.lower()
-                if ref_lower.endswith(norm_qn):
-                    return (
-                        f"Found a loose match with a fully quantified name: {ref}",
-                        refs[ref],
-                    )
-                if norm_qn in ref_lower:
-                    subset_refs.append(ref)
-            if len(subset_refs) == 1:
-                return subset_refs[0], refs[subset_refs[0]]
+        refs = {node.id: node for node in self.get_program_graph(language).symbol_nodes(reference_worthy_only=True)}
+        subset_refs = []
+        for ref_id, node in refs.items():
+            ref_lower = ref_id.lower()
+            if ref_lower.endswith(norm_qn):
+                return f"Found a loose match with a fully quantified name: {ref_id}", node
+            if norm_qn in ref_lower:
+                subset_refs.append(ref_id)
+        if len(subset_refs) == 1:
+            return subset_refs[0], refs[subset_refs[0]]
         return None, None
 
     def get_languages(self) -> list[Language]:
         """Return the list of languages for which any data has been recorded."""
         return list(self.results)
 
-    def resolve_across_languages(self, qualified_name: str) -> Node | None:
+    def resolve_across_languages(self, qualified_name: str) -> ProgramNode | None:
         """Try ``get_reference`` then ``get_loose_reference`` across every language.
 
         Why: hides the try-exact-then-loose pattern several callers re-implement.
@@ -289,22 +211,17 @@ class StaticAnalysisResults:
         for lang in self.get_languages():
             try:
                 return self.get_reference(lang, qualified_name)
-            except (ValueError, FileExistsError):
+            except ValueError:
                 _, node = self.get_loose_reference(lang, qualified_name)
                 if node is not None:
                     return node
         return None
 
-    def iter_reference_nodes(self, language: Language | None = None) -> Iterator[Node]:
-        """Yield every stored reference as a ``Node``."""
+    def iter_reference_nodes(self, language: Language | None = None) -> Iterator[ProgramNode]:
+        """Yield reference-worthy symbol nodes."""
         languages = [language] if language is not None else self.get_languages()
         for lang in languages:
-            bucket = self._get_bucket(lang)
-            if bucket is None or bucket.references.by_qualified_name is None:
-                continue
-            for node in bucket.references.by_qualified_name.values():
-                if isinstance(node, Node):
-                    yield node
+            yield from self.get_program_graph(lang).symbol_nodes(reference_worthy_only=True)
 
     def add_source_files(self, language: Language, source_files):
         """Add/extend source files for a language; supports repeated calls."""
@@ -313,9 +230,9 @@ class StaticAnalysisResults:
     def get_source_files(self, language: Language) -> list[str]:
         """Return the list of source files for ``language``, or ``[]`` if absent."""
         bucket = self._get_bucket(language)
-        if bucket is None or bucket.source_files.paths is None:
+        if bucket is None:
             return []
-        return bucket.source_files.paths
+        return bucket.source_files
 
     def get_all_source_files(self) -> list[str]:
         """Return source files across all languages."""

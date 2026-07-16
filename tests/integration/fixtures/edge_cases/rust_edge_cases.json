@@ -244,5 +244,16 @@
     "src/services/processor.rs",
     "src/utils/helpers.rs",
     "src/utils/mod.rs"
+  ],
+  "expected_containment": [
+    {"container": "src.models.entities.Dog", "member": "src.models.entities.Dog.speak"}
+  ],
+  "expected_inheritance": [],
+  "expected_imports": [
+    {"source_file": "src/models/entities.rs", "declared_module": "crate::models::base", "target_file": "src/models/base.rs"}
+  ],
+  "expected_external_packages": [],
+  "expected_call_multiplicity": [
+    {"source": "src.main", "destination": "src.utils.helpers.add", "count": 2}
   ]
 }

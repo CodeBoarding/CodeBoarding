@@ -83,6 +83,17 @@ class ClusteringConfig:
     CLUSTERING_SEED = 42
 
 
+class InfomapConfig:
+    SEED = 42
+    NUM_TRIALS = 3
+    STRATEGY = "hierarchical_infomap"
+    EMPTY_STRATEGY = "infomap_empty"
+    CALL_WEIGHT = 1.0
+    CONTAINMENT_WEIGHT = 0.35
+    IMPORT_WEIGHT = 0.55
+    INHERITANCE_WEIGHT = 0.35
+
+
 class NodeType(IntEnum):
     """LSP SymbolKind constants as an IntEnum.
 

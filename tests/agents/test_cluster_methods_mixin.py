@@ -15,9 +15,10 @@ from agents.agent_responses import (
 from agents.file_index_models import FileMethodGroup, MethodEntry
 from agents.model_capabilities import ContextWindow
 from static_analyzer.cfg_skip_planner import ContextBudgetExceededError
-from static_analyzer.graph import CallGraph, ClusterResult
+from static_analyzer.clustering import ClusterResult
+from static_analyzer.program_graph import ProgramGraph
 from static_analyzer.constants import Language, NodeType
-from static_analyzer.node import Node
+from tests.program_graph_factory import make_symbol
 
 
 class MockMixin(ClusterMethodsMixin):
@@ -30,16 +31,16 @@ class MockMixin(ClusterMethodsMixin):
 
 class TestBuildScopeCfgString(unittest.TestCase):
     def test_keeps_prompt_examples_bounded_while_counting_all_edges(self):
-        cfg = CallGraph(language="python")
+        cfg = ProgramGraph(language="python")
         for i in range(12):
-            cfg.add_node(Node(f"a.f{i}", NodeType.FUNCTION, "src/a.py", i + 1, i + 1))
-            cfg.add_node(Node(f"b.f{i}", NodeType.FUNCTION, "src/b.py", i + 20, i + 20))
-            cfg.add_edge(f"a.f{i}", f"b.f{i}")
+            cfg.add_node(make_symbol(f"a.f{i}", NodeType.FUNCTION, "src/a.py", i + 1, i + 1))
+            cfg.add_node(make_symbol(f"b.f{i}", NodeType.FUNCTION, "src/b.py", i + 20, i + 20))
+            cfg.add_call(f"a.f{i}", f"b.f{i}")
 
         static = MagicMock()
         static.get_languages.return_value = ["python"]
-        static.get_cfg.return_value = cfg
-        static.available_cfgs.return_value = {"python": cfg}
+        static.get_program_graph.return_value = cfg
+        static.available_program_graphs.return_value = {"python": cfg}
         mixin = MockMixin(repo_dir=Path("/repo"), static_analysis=static)
         analysis = AnalysisInsights(
             description="test",
@@ -160,15 +161,15 @@ class TestFindNearestCluster(unittest.TestCase):
     Node C is the orphan we want to assign.
     """
 
-    def _make_call_graph(self) -> CallGraph:
-        """Build a small CallGraph: A->B->C->D, C->E."""
-        cfg = CallGraph(language="python")
+    def _make_call_graph(self) -> ProgramGraph:
+        """Build a small ProgramGraph: A->B->C->D, C->E."""
+        cfg = ProgramGraph(language="python")
         for i, name in enumerate(("A", "B", "C", "D", "E")):
-            cfg.add_node(Node(name, NodeType.FUNCTION, "/src/mod.py", i * 10 + 1, i * 10 + 10))
-        cfg.add_edge("A", "B")
-        cfg.add_edge("B", "C")
-        cfg.add_edge("C", "D")
-        cfg.add_edge("C", "E")
+            cfg.add_node(make_symbol(name, NodeType.FUNCTION, "/src/mod.py", i * 10 + 1, i * 10 + 10))
+        cfg.add_call("A", "B")
+        cfg.add_call("B", "C")
+        cfg.add_call("C", "D")
+        cfg.add_call("C", "E")
         return cfg
 
     def _make_cluster_result(self) -> ClusterResult:
@@ -179,10 +180,10 @@ class TestFindNearestCluster(unittest.TestCase):
             strategy="test",
         )
 
-    def _make_mixin(self, cfg: CallGraph) -> MockMixin:
+    def _make_mixin(self, cfg: ProgramGraph) -> MockMixin:
         static = MagicMock()
-        static.get_cfg.return_value = cfg
-        static.available_cfgs.return_value = {"python": cfg}
+        static.get_program_graph.return_value = cfg
+        static.available_program_graphs.return_value = {"python": cfg}
         return MockMixin(repo_dir=Path("/repo"), static_analysis=static)
 
     def test_finds_nearest_cluster_by_graph_distance(self):
@@ -203,7 +204,7 @@ class TestFindNearestCluster(unittest.TestCase):
         """A node not in any graph returns None."""
         cfg = self._make_call_graph()
         # Add an isolated node
-        cfg.add_node(Node("Z", NodeType.FUNCTION, "/src/other.py", 1, 5))
+        cfg.add_node(make_symbol("Z", NodeType.FUNCTION, "/src/other.py", 1, 5))
         cr = self._make_cluster_result()
         cluster_results = {"python": cr}
         mixin = self._make_mixin(cfg)
@@ -241,12 +242,12 @@ class TestFindNearestCluster(unittest.TestCase):
         Y is 1 hop from both — tie. But if we add W -> X so X is farther,
         and test from W: W is distance-1 from X (cluster 10), distance-3 from Z (cluster 20).
         """
-        cfg = CallGraph(language="python")
+        cfg = ProgramGraph(language="python")
         for i, name in enumerate(("W", "X", "Y", "Z")):
-            cfg.add_node(Node(name, NodeType.FUNCTION, "/src/mod.py", i * 10 + 1, i * 10 + 10))
-        cfg.add_edge("W", "X")
-        cfg.add_edge("X", "Y")
-        cfg.add_edge("Y", "Z")
+            cfg.add_node(make_symbol(name, NodeType.FUNCTION, "/src/mod.py", i * 10 + 1, i * 10 + 10))
+        cfg.add_call("W", "X")
+        cfg.add_call("X", "Y")
+        cfg.add_call("Y", "Z")
 
         cr = ClusterResult(
             clusters={10: {"X"}, 20: {"Z"}},
@@ -267,14 +268,14 @@ class TestBuildFileMethodsFromNodes(unittest.TestCase):
         static = MagicMock()
         mixin = MockMixin(repo_dir=Path("/repo"), static_analysis=static)
 
-        duplicate_specific = Node(
+        duplicate_specific = make_symbol(
             "diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis",
             NodeType.METHOD,
             "/repo/diagram_analysis/diagram_generator.py",
             468,
             470,
         )
-        duplicate_alias = Node(
+        duplicate_alias = make_symbol(
             "diagram_analysis.diagram_generator.generate_analysis",
             NodeType.METHOD,
             "/repo/diagram_analysis/diagram_generator.py",
@@ -294,12 +295,12 @@ class TestBuildFileMethodsFromNodes(unittest.TestCase):
 
 
 class TestClusterStringBudgeting(unittest.TestCase):
-    def _make_graph(self, language: str, names: list[str]) -> CallGraph:
-        cfg = CallGraph(language=language)
+    def _make_graph(self, language: str, names: list[str]) -> ProgramGraph:
+        cfg = ProgramGraph(language=language)
         for index, name in enumerate(names, start=1):
-            cfg.add_node(Node(name, NodeType.FUNCTION, f"/repo/{language}.py", index, index + 1))
+            cfg.add_node(make_symbol(name, NodeType.FUNCTION, f"/repo/{language}.py", index, index + 1))
         for src, dst in zip(names, names[1:]):
-            cfg.add_edge(src, dst)
+            cfg.add_call(src, dst)
         return cfg
 
     def test_combined_render_that_fits_does_not_use_per_language_skip_planning(self):
@@ -312,7 +313,7 @@ class TestClusterStringBudgeting(unittest.TestCase):
             "javascript": ClusterResult(clusters={2: set(js_names)}, strategy="test"),
         }
         static = MagicMock()
-        static.get_cfg.side_effect = {"python": py_cfg, "javascript": js_cfg}.__getitem__
+        static.get_program_graph.side_effect = {"python": py_cfg, "javascript": js_cfg}.__getitem__
         mixin = MockMixin(repo_dir=Path("/repo"), static_analysis=static)
 
         full = mixin._render_cluster_string([Language.PYTHON, Language.JAVASCRIPT], cluster_results, None, {}).text
@@ -338,7 +339,7 @@ class TestClusterStringBudgeting(unittest.TestCase):
         cfg = self._make_graph("python", names)
         cluster_results = {"python": ClusterResult(clusters={1: set(names)}, strategy="test")}
         static = MagicMock()
-        static.get_cfg.return_value = cfg
+        static.get_program_graph.return_value = cfg
         mixin = MockMixin(repo_dir=Path("/repo"), static_analysis=static)
 
         with (
@@ -378,10 +379,10 @@ class TestExpandToMethodLevelClusters(unittest.TestCase):
 
     def test_does_not_expand_when_enough_clusters(self):
         """Should return original cluster result when >= MIN_CLUSTERS_THRESHOLD clusters."""
-        cfg = CallGraph(language="python")
+        cfg = ProgramGraph(language="python")
         # Add some nodes
         for i in range(10):
-            cfg.add_node(Node(f"mod.func_{i}", NodeType.FUNCTION, f"/test/file_{i}.py", 1, 10))
+            cfg.add_node(make_symbol(f"mod.func_{i}", NodeType.FUNCTION, f"/test/file_{i}.py", 1, 10))
 
         # Create cluster result with 5 clusters (threshold)
         original_result = ClusterResult(
@@ -398,11 +399,11 @@ class TestExpandToMethodLevelClusters(unittest.TestCase):
 
     def test_expands_when_few_clusters(self):
         """Should expand to method-level when < MIN_CLUSTERS_THRESHOLD clusters."""
-        cfg = CallGraph(language="python")
+        cfg = ProgramGraph(language="python")
         # Add 3 function nodes
-        cfg.add_node(Node("mod.func_a", NodeType.FUNCTION, "/test/file_a.py", 1, 10))
-        cfg.add_node(Node("mod.func_b", NodeType.FUNCTION, "/test/file_a.py", 11, 20))
-        cfg.add_node(Node("mod.func_c", NodeType.FUNCTION, "/test/file_b.py", 1, 10))
+        cfg.add_node(make_symbol("mod.func_a", NodeType.FUNCTION, "/test/file_a.py", 1, 10))
+        cfg.add_node(make_symbol("mod.func_b", NodeType.FUNCTION, "/test/file_a.py", 11, 20))
+        cfg.add_node(make_symbol("mod.func_c", NodeType.FUNCTION, "/test/file_b.py", 1, 10))
 
         # Create cluster result with only 2 clusters (< threshold)
         original_result = ClusterResult(
@@ -423,13 +424,13 @@ class TestExpandToMethodLevelClusters(unittest.TestCase):
 
     def test_includes_classes_when_few_callables(self):
         """Should include classes if there aren't enough callable nodes."""
-        cfg = CallGraph(language="python")
+        cfg = ProgramGraph(language="python")
         # Add only 2 function nodes and 3 class nodes
-        cfg.add_node(Node("mod.func_a", NodeType.FUNCTION, "/test/file.py", 1, 10))
-        cfg.add_node(Node("mod.func_b", NodeType.FUNCTION, "/test/file.py", 11, 20))
-        cfg.add_node(Node("mod.ClassA", NodeType.CLASS, "/test/file.py", 21, 50))
-        cfg.add_node(Node("mod.ClassB", NodeType.CLASS, "/test/file.py", 51, 100))
-        cfg.add_node(Node("mod.ClassC", NodeType.CLASS, "/test/file2.py", 1, 50))
+        cfg.add_node(make_symbol("mod.func_a", NodeType.FUNCTION, "/test/file.py", 1, 10))
+        cfg.add_node(make_symbol("mod.func_b", NodeType.FUNCTION, "/test/file.py", 11, 20))
+        cfg.add_node(make_symbol("mod.ClassA", NodeType.CLASS, "/test/file.py", 21, 50))
+        cfg.add_node(make_symbol("mod.ClassB", NodeType.CLASS, "/test/file.py", 51, 100))
+        cfg.add_node(make_symbol("mod.ClassC", NodeType.CLASS, "/test/file2.py", 1, 50))
 
         # Create cluster result with only 1 cluster (< threshold)
         original_result = ClusterResult(
@@ -447,7 +448,7 @@ class TestExpandToMethodLevelClusters(unittest.TestCase):
 
     def test_empty_cfg_returns_empty_clusters(self):
         """Should handle empty CFG gracefully."""
-        cfg = CallGraph(language="python")
+        cfg = ProgramGraph(language="python")
 
         original_result = ClusterResult(
             clusters={},

@@ -39,7 +39,7 @@ from static_analyzer.cluster_helpers import (
     build_all_cluster_results,
     get_all_cluster_ids,
 )
-from static_analyzer.graph import ClusterResult
+from static_analyzer.clustering import ClusterResult
 
 logger = logging.getLogger(__name__)
 
@@ -188,7 +188,7 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
     ) -> None:
         logger.info(f"[AbstractionAgent] Discovering component relations for: {self.project_name}")
         static_call_evidence = self.build_scope_cfg_string(analysis)
-        cfg_graphs = self.static_analysis.available_cfgs()
+        cfg_graphs = self.static_analysis.available_program_graphs()
         self.toolkit.context.cluster_analysis = cluster_analysis
         self.toolkit.context.cluster_results = cluster_results
         self.toolkit.context.cfg_graphs = cfg_graphs

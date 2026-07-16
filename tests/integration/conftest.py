@@ -232,9 +232,9 @@ def extract_metrics(static_analysis, language: Language) -> dict:
         Dictionary with metric counts
     """
     try:
-        cfg = static_analysis.get_cfg(language)
-        nodes_count = len(cfg.nodes)
-        edges_count = len(cfg.edges)
+        graph = static_analysis.get_program_graph(language)
+        nodes_count = len(graph.call_node_ids())
+        edges_count = len(graph.call_edges())
     except ValueError:
         nodes_count = 0
         edges_count = 0

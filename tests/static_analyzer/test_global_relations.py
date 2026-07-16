@@ -53,8 +53,7 @@ from static_analyzer.cluster_relations import (
     build_global_relations,
 )
 from static_analyzer.constants import NodeType
-from static_analyzer.graph import CallGraph, Edge
-from static_analyzer.node import Node
+from static_analyzer.program_graph import ProgramEdge, ProgramEdgeKind, ProgramGraph, ProgramNode, ProgramNodeKind
 
 
 # ---------------------------------------------------------------------------
@@ -62,8 +61,10 @@ from static_analyzer.node import Node
 # ---------------------------------------------------------------------------
 
 
-def _node(name: str, file_path: str) -> Node:
-    return Node(name, NodeType.FUNCTION, file_path, 1, 10)
+def _node(name: str, file_path: str) -> ProgramNode:
+    return ProgramNode(
+        name, ProgramNodeKind.SYMBOL, "python", name.rsplit(".", 1)[-1], file_path, NodeType.FUNCTION, 1, 10
+    )
 
 
 def _method(name: str) -> MethodEntry:
@@ -87,7 +88,7 @@ def _comp(name: str, methods: list[tuple[str, str]], cid: str = "") -> Component
 # All project nodes
 # ---------------------------------------------------------------------------
 
-ALL_NODES: dict[str, Node] = {
+ALL_NODES: dict[str, ProgramNode] = {
     # 1 / 1.1 / 1.1.1  (API > Public > REST)
     "api.rest.list": _node("api.rest.list", "api/public/rest.py"),
     "api.rest.get": _node("api.rest.get", "api/public/rest.py"),
@@ -154,14 +155,16 @@ CFG_EDGE_SPECS: list[tuple[str, str, str]] = [
 ]
 
 
-def _build_cfg() -> CallGraph:
+def _build_cfg() -> ProgramGraph:
     nodes = dict(ALL_NODES)
-    edges = [Edge(nodes[s], nodes[d]) for s, d, _ in CFG_EDGE_SPECS]
-    return CallGraph(nodes=nodes, edges=edges)
+    graph = ProgramGraph(language="python", nodes=nodes)
+    for source, target, _ in CFG_EDGE_SPECS:
+        graph.add_edge(ProgramEdge(ProgramEdgeKind.CALL, source, target))
+    return graph
 
 
 def _methods_for(*file_paths: str) -> list[tuple[str, str]]:
-    return [(n.fully_qualified_name, n.file_path) for n in ALL_NODES.values() if n.file_path in file_paths]
+    return [(node.id, node.file_path) for node in ALL_NODES.values() if node.file_path in file_paths]
 
 
 def _build_root_analysis() -> AnalysisInsights:
@@ -703,7 +706,7 @@ class TestLlmOnlyRelations(unittest.TestCase):
         )
         assign_component_ids(sub, parent_id="1")
 
-        rels = build_global_relations(root, {"1": sub}, {"python": CallGraph()})
+        rels = build_global_relations(root, {"1": sub}, {"python": ProgramGraph(language="python")})
         relation = next(item for item in rels if (item.src_id, item.dst_id) == ("1.1", "1.2"))
 
         self.assertEqual(relation.relation, "publishes to")
@@ -722,7 +725,7 @@ class TestLlmOnlyRelations(unittest.TestCase):
         # Force a dangling dst id that resolves to no component.
         root.components_relations[0].src_id, root.components_relations[0].dst_id = "1", "9"
 
-        rels = build_global_relations(root, {}, {"python": CallGraph()})
+        rels = build_global_relations(root, {}, {"python": ProgramGraph(language="python")})
         self.assertNotIn(("1", "9"), {(r.src_id, r.dst_id) for r in rels})
 
 
