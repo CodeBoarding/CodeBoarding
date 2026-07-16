@@ -1,0 +1,64 @@
+{
+  "case": "markitdown-medium-scope",
+  "repo": "https://github.com/microsoft/markitdown.git",
+  "base": "3fcd48cdfc651cbf508071c8d2fb7d82aeb075de",
+  "head": "8576f1d9153d43d7d7d8f3854ed771bcee281175",
+  "changed_files": [
+    "packages/markitdown/src/markitdown/_markitdown.py",
+    "packages/markitdown/src/markitdown/converters/__init__.py",
+    "packages/markitdown/src/markitdown/converters/_csv_converter.py",
+    "packages/markitdown/src/markitdown/converters/_doc_intel_converter.py",
+    "packages/markitdown/tests/_test_vectors.py"
+  ],
+  "languages": {
+    "python": {
+      "base_graph": "base-python.json",
+      "head_graph": "head-python.json",
+      "incremental_graph": "incremental-python.json",
+      "expected_graph_changes": {
+        "added_node_count": 15,
+        "removed_node_count": 0,
+        "added_edge_count": 30,
+        "removed_edge_count": 0,
+        "added_nodes": [
+          "external::python::csv",
+          "file::packages/markitdown/src/markitdown/converters/_csv_converter.py",
+          "packages.markitdown.src.markitdown.converters._csv_converter.CsvConverter",
+          "packages.markitdown.src.markitdown.converters._csv_converter.CsvConverter.convert"
+        ],
+        "added_edges": [
+          [
+            "call",
+            "packages.markitdown.src.markitdown._markitdown.MarkItDown.enable_builtins",
+            "packages.markitdown.src.markitdown.converters._csv_converter.CsvConverter"
+          ],
+          [
+            "inherits",
+            "packages.markitdown.src.markitdown.converters._csv_converter.CsvConverter",
+            "packages.markitdown.src.markitdown._base_converter.DocumentConverter"
+          ],
+          [
+            "imports",
+            "file::packages/markitdown/src/markitdown/converters/_csv_converter.py",
+            "file::packages/markitdown/src/markitdown/_base_converter.py"
+          ]
+        ]
+      },
+      "expected_clustering": {
+        "base_cluster_count": 3,
+        "head_cluster_count": 3,
+        "stable_outside_symbol_count": 249,
+        "joins_existing": [
+          {
+            "node": "packages.markitdown.src.markitdown.converters._csv_converter.CsvConverter",
+            "anchor": "packages.markitdown.src.markitdown._base_converter.DocumentConverter"
+          },
+          {
+            "node": "packages.markitdown.src.markitdown.converters._csv_converter.CsvConverter.convert",
+            "anchor": "packages.markitdown.src.markitdown.converters._doc_intel_converter.DocumentIntelligenceConverter"
+          }
+        ]
+      }
+    }
+  }
+}

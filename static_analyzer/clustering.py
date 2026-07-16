@@ -7,8 +7,6 @@ from dataclasses import dataclass, field
 
 ModulePath = tuple[int, ...]
 ModuleMembers = dict[int, set[str]]
-ModuleSignature = tuple[str, ...]
-OverlapCandidate = tuple[int, ModuleSignature, int, int]
 
 
 @dataclass
@@ -47,3 +45,10 @@ class InfomapClusterSnapshot:
     module_members: ModuleMembers = field(default_factory=dict)
     next_cluster_id: int = 1
     codelength: float = 0.0
+
+
+@dataclass
+class RawInfomapPartition:
+    node_paths: dict[str, ModulePath]
+    module_members: ModuleMembers
+    codelength: float
