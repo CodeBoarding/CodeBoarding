@@ -17,36 +17,6 @@ GLM Prompt Design Principles:
 
 from .abstract_prompt_factory import AbstractPromptFactory
 
-SCOPE_RELATIONS_MESSAGE = """You are a software architecture relationship analyst. STRICTLY follow these rules:
-
-MANDATORY TASK:
-Generate inter-component relationships for the `{scope_name}` scope.
-
-Components in this scope:
-{component_summaries}
-
-Cross-component communication from static analysis:
-{cross_component_calls}
-
-REQUIRED STEPS (execute in order):
-1. Review the components listed above and their summaries.
-2. Analyze the cross-component communication evidence to identify actual code-flow interactions.
-3. Generate relationships that describe how these components interact with each other.
-
-REQUIRED OUTPUT (complete ALL):
-For each relationship, MUST provide:
-- **src_name**: Source component name — MUST match an existing component name EXACTLY
-- **dst_name**: Target component name — MUST match an existing component name EXACTLY
-- **relation**: A short phrase describing the relationship (e.g. 'delegates to', 'notifies', 'provides data to')
-
-CONSTRAINTS (MUST obey):
-- Every src_name and dst_name MUST match an existing component name exactly — invented or approximate names are STRICTLY forbidden
-- Maximum 2 relationships per component pair — STRICTLY avoid bidirectional sends/returns pairs (e.g. ComponentA sends message to ComponentB AND ComponentB returns result to ComponentA)
-- MUST focus on architecturally significant interactions — STRICTLY avoid implementation details
-- MUST ground relationships in the cross-component communication evidence provided above
-- A component that NEVER calls or is called by another component MUST NOT have a relation to it
-"""
-
 SYSTEM_MESSAGE = """You are a software architecture expert. STRICTLY follow these rules:
 
 MANDATORY INSTRUCTIONS (MUST comply):
@@ -69,29 +39,74 @@ Step 1: Analyze provided CFG data—identify patterns and structures.
 Step 2: Use tools when necessary to fill gaps.
 Step 3: Create analysis suitable for both documentation and visual diagram generation."""
 
+CLUSTER_GROUPING_MESSAGE = """You are a software architecture analyst. STRICTLY follow these rules:
+
+MANDATORY TASK:
+Analyze and GROUP the Control Flow Graph clusters.
+
+Background:
+The CFG has been pre-clustered into groups of related methods/functions. Each cluster represents methods that call each other frequently.
+
+CFG Clusters:
+{cfg_clusters}
+
+REQUIRED STEPS (execute in order):
+1. Analyze the clusters shown above—identify which ones work together or are functionally related.
+2. Group related clusters into meaningful components.
+3. A component can contain one or more cluster IDs (e.g., [1], [2, 5], or [3, 7, 9]).
+4. For each grouped component, MUST provide:
+   - **name**: Short, descriptive name for this group (e.g., 'Authentication', 'Data Pipeline', 'Request Handling')
+   - **cluster_ids**: List of cluster IDs that belong together (as a list, e.g., [1, 3, 5])
+   - **description**: Comprehensive explanation MUST include:
+     * What this component does
+     * What is its main flow/purpose
+     * WHY these specific clusters are grouped together (MUST provide clear rationale)
+     * How this group interacts with other cluster groups (which groups it calls, receives data from, or depends on)
+     * The most important classes/methods in this group — mention their exact qualified names as shown in the clusters above
+
+FOCUS AREAS (prioritize):
+- Create cohesive, logical groupings that reflect the actual architecture
+- Base decisions on semantic meaning from method names, call patterns, and architectural context
+- MUST provide clear justification for why clusters belong together
+- MUST describe inter-group interactions based on the inter-cluster connections
+
+MUST return each component with a descriptive name, its cluster_ids as a list, and a comprehensive description including rationale and inter-group interactions."""
+
 FINAL_ANALYSIS_MESSAGE = """You are a software architecture designer. STRICTLY follow these rules:
 
-Name and describe the final component architecture.
-
-The clusters have already been partitioned into a fixed set of groups by graph community detection. Each "Group N" below is exactly one top-level component — the number of groups and their membership are already decided. Do NOT merge, split, or re-group them; only name and describe each group.
+MANDATORY TASK:
+Create final component architecture optimized for flow representation.
 
 Cluster Analysis:
 {cluster_analysis}
 
-Instructions:
-1. Produce EXACTLY one component per named group above (the same number of components as there are groups).
-2. Set each component's source_group_names to the single group it corresponds to (use the exact group name, e.g. "Group 1").
-3. Give each component a descriptive architectural name (its role, not "Group N") and a one-sentence description of what it does.
-4. Add 2-5 key entities (the most important classes/methods) per component, using their exact qualified names and source files.
+REQUIRED STEPS (execute in order):
+1. Review the named cluster groups above.
+2. Decide which named groups MUST be merged into final components.
+3. For each component, specify which named cluster groups it encompasses via source_group_names.
+4. Add key entities (2-5 most important classes/methods) for each component, referencing the source file where they are defined.
 5. Do not define relationships yet; relationships are discovered in a later API-surface step.
-6. Provide a one-paragraph description of the overall main flow and purpose.
 
-Constraints:
-- Keep every group: there must be exactly as many components as groups, each backed by exactly one group.
-- Name components by architectural role (e.g. 'Authentication', 'Data Pipeline', 'Request Handling'), never 'Group N'.
-- Ground the name in the code's own vocabulary: reuse the terms that the group's own modules, classes, and packages already use, and stay close to them rather than inventing a broader abstraction.
-- Prefer a single dominant concern per name and avoid joining two concerns with '&' when possible; if a group genuinely spans two, name it after the dominant one and note the secondary concern in the description instead.
-- Components should translate well to flow diagram representation."""
+GUIDELINES (MUST follow):
+- Aim for 5-8 final components
+- Merge related cluster groups that serve a common purpose
+- Each component MUST have clear boundaries
+- Focus on component boundaries; relationships are discovered after components are finalized
+
+REQUIRED OUTPUTS (complete all):
+- Description: One paragraph explaining the main flow and purpose
+- Components: Each MUST have:
+  * name: Clear component name
+  * description: What this component does
+  * source_group_names: Which named cluster groups from the analysis above this component encompasses (MUST use exact group names)
+  * key_entities: 2-5 most important classes/methods, mentioning their qualified names and source files
+
+
+CONSTRAINTS (MUST obey):
+- Focus on highest level architectural components
+- Exclude utility/logging components
+- Components MUST translate well to flow diagram representation
+"""
 
 PLANNER_SYSTEM_MESSAGE = """You are a software architecture evaluator. STRICTLY follow these rules:
 
@@ -261,25 +276,54 @@ REQUIRED OUTPUTS (complete all):
 FOCUS:
 MUST analyze subsystem-specific functionality. STRICTLY avoid cross-cutting concerns like logging or error handling."""
 
+CFG_DETAILS_MESSAGE = """You are a CFG cluster grouping analyst. STRICTLY follow these rules:
+
+MANDATORY TASK:
+Analyze and GROUP the Control Flow Graph clusters for the `{component}` subsystem.
+
+Background:
+The CFG has been pre-clustered into groups of related methods/functions. Each cluster represents methods that call each other frequently.
+
+CFG Clusters:
+{cfg_clusters}
+
+REQUIRED STEPS (execute in order):
+1. Analyze the clusters shown above—identify which ones work together or are functionally related.
+2. Group related clusters into meaningful sub-components.
+3. A sub-component can contain one or more cluster IDs (e.g., [1], [2, 5], or [3, 7, 9]).
+4. For each grouped sub-component, MUST provide:
+   - **name**: Short, descriptive name for this group (e.g., 'Request Parsing', 'Response Building')
+   - **cluster_ids**: List of cluster IDs that belong together (as a list, e.g., [1, 3, 5])
+   - **description**: Comprehensive explanation MUST include:
+     * What this sub-component does
+     * What is its main flow/purpose
+     * WHY these specific clusters are grouped together (MUST provide clear rationale)
+     * How this group interacts with other cluster groups
+     * The most important classes/methods in this group — mention their exact qualified names as shown in the clusters above
+
+FOCUS:
+MUST analyze core subsystem functionality only. STRICTLY avoid cross-cutting concerns like logging or error handling.
+
+MUST return each component with a descriptive name, its cluster_ids as a list, and a comprehensive description including rationale and inter-group interactions."""
+
 DETAILS_MESSAGE = """You are a sub-component architecture designer. STRICTLY follow these rules:
 
 MANDATORY TASK:
 Create final sub-component architecture for the `{component}` subsystem optimized for flow representation.
 
-The clusters have already been partitioned into a fixed set of groups by graph community detection. Each "Group N" below is exactly one sub-component — the number of groups and their membership are already decided. Do NOT merge, split, or re-group them; only name and describe each group.
-
 Cluster Analysis:
 {cluster_analysis}
 
 REQUIRED STEPS (execute in order):
-1. Produce EXACTLY one sub-component per named group above (the same number of sub-components as there are groups).
-2. Set each sub-component's source_group_names to the single group it corresponds to (use the exact group name, e.g. "Group 1").
-3. Give each sub-component a descriptive architectural name (its role, not "Group N").
+1. Review the named cluster groups above.
+2. Decide which named groups MUST be merged into final sub-components.
+3. For each sub-component, specify which named cluster groups it encompasses via source_group_names.
 4. Add key entities (2-5 most important classes/methods) for each sub-component, referencing the source file where they are defined.
 5. Do not define relationships yet; relationships are discovered in a later API-surface step.
 
 GUIDELINES (MUST follow):
-- Keep every group: there MUST be exactly as many sub-components as groups, each backed by exactly one group
+- Aim for 3-8 final sub-components
+- Merge related cluster groups that serve a common purpose
 - Each sub-component MUST have clear boundaries
 - Focus on component boundaries; relationships are discovered after components are finalized
 
@@ -306,6 +350,9 @@ class GLMPromptFactory(AbstractPromptFactory):
 
     def get_system_message(self) -> str:
         return SYSTEM_MESSAGE
+
+    def get_cluster_grouping_message(self) -> str:
+        return CLUSTER_GROUPING_MESSAGE
 
     def get_final_analysis_message(self) -> str:
         return FINAL_ANALYSIS_MESSAGE
@@ -340,8 +387,8 @@ class GLMPromptFactory(AbstractPromptFactory):
     def get_system_details_message(self) -> str:
         return SYSTEM_DETAILS_MESSAGE
 
+    def get_cfg_details_message(self) -> str:
+        return CFG_DETAILS_MESSAGE
+
     def get_details_message(self) -> str:
         return DETAILS_MESSAGE
-
-    def get_scope_relations_message(self) -> str:
-        return SCOPE_RELATIONS_MESSAGE

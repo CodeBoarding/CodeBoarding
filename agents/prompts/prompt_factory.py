@@ -147,6 +147,10 @@ def get_system_message() -> str:
     return get_global_factory()._prompt_factory.get_system_message()
 
 
+def get_cluster_grouping_message() -> str:
+    return get_global_factory()._prompt_factory.get_cluster_grouping_message()
+
+
 def get_final_analysis_message() -> str:
     return get_global_factory()._prompt_factory.get_final_analysis_message()
 
@@ -179,12 +183,12 @@ def get_system_details_message() -> str:
     return get_global_factory()._prompt_factory.get_system_details_message()
 
 
+def get_cfg_details_message() -> str:
+    return get_global_factory()._prompt_factory.get_cfg_details_message()
+
+
 def get_details_message() -> str:
     return get_global_factory()._prompt_factory.get_details_message()
-
-
-def get_scope_relations_message() -> str:
-    return get_global_factory()._prompt_factory.get_scope_relations_message()
 
 
 def get_api_surfaces_message() -> str:

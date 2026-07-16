@@ -287,22 +287,6 @@ class TestClusterCachePreservation(unittest.TestCase):
         self.assertIn("c.new", unioned.nodes)
         self.assertNotIn("c.new", {m for members in cc.clusters.values() for m in members})
 
-    def test_static_analysis_cache_does_not_persist_incremental_base_results(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            result = StaticAnalysisResults()
-            result.add_cfg(Language.PYTHON, self._cg_with_cluster_cache())
-            base_results = StaticAnalysisResults()
-            result.incremental_base_results = base_results
-
-            cache = StaticAnalysisCache(root / CODEBOARDING_DIR_NAME, root)
-            cache.save(result, source_sha="sha")
-            loaded = cache.get()
-
-            assert loaded is not None
-            self.assertIsNone(loaded.incremental_base_results)
-            self.assertIs(result.incremental_base_results, base_results)
-
     def test_static_analysis_cache_round_trips_cluster_cache_paths_between_repo_roots(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)

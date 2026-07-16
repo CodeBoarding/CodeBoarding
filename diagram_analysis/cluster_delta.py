@@ -1,15 +1,9 @@
-"""Deterministic cluster delta computation.
+"""Seeded Leiden clustering for subcomponent subgraphs.
 
-Mirrors ``build_all_cluster_results`` for the incremental path: produces a
-``ClusterDelta`` describing which clusters carried over, which changed members,
-which are entirely new, and which dropped — without requiring any LLM call.
-
-Seeded Leiden: warm-start ``leidenalg`` with the prior partition as
-``initial_membership`` and lock vertices outside the 1-hop affected frontier
-via ``is_membership_fixed``. The basin-of-attraction property of warm-start
-preserves cluster identity for vertices whose neighborhood didn't change,
-while allowing the affected frontier to re-optimize freely (including pulling
-existing nodes into newly-formed clusters with added nodes).
+Warm-start ``leidenalg`` with a prior partition (recorded via
+``CallGraph.record_cluster_paths``) as ``initial_membership`` and lock vertices
+outside the 1-hop affected frontier via ``is_membership_fixed``. Used by the
+details agent so re-detailing a component reuses its recorded cluster identity.
 """
 
 import logging
@@ -18,6 +12,7 @@ from pathlib import Path
 
 import networkx as nx
 
+<<<<<<< HEAD
 from agents.content_hash import (
     MethodSpan,
     SourceCache,
@@ -32,6 +27,10 @@ from diagram_analysis.cluster_snapshot import ClusterSnapshot, ClusterSnapshotEn
 from repo_utils.path_utils import normalize_repo_path
 from repo_utils.change_detector import ChangeSet
 from static_analyzer.analysis_result import StaticAnalysisResults
+=======
+from diagram_analysis.cluster_snapshot import ClusterSnapshotEntry
+from diagram_analysis.io_utils import normalize_repo_path
+>>>>>>> bbd8b83 (refactor: remove incremental analysis pipeline (#417))
 from static_analyzer.graph import ClusterResult
 from static_analyzer.leiden_utils import find_partition_seeded
 
@@ -51,6 +50,7 @@ class LanguageDelta:
         return self.new_cluster_ids | self.changed_cluster_ids
 
 
+<<<<<<< HEAD
 @dataclass
 class ClusterDelta:
     by_language: dict[str, LanguageDelta] = field(default_factory=dict)
@@ -578,6 +578,8 @@ def _build_reshape(
     )
 
 
+=======
+>>>>>>> bbd8b83 (refactor: remove incremental analysis pipeline (#417))
 def _delta_for_language(
     language: str,
     nx_graph: nx.DiGraph,
@@ -678,13 +680,13 @@ def _flavor_b_seeded(
 ) -> LanguageDelta:
     """Seeded Leiden with the prior partition as initial state and the non-frontier vertices locked.
 
-    Why: see module docstring — identity comes from ``initial_membership``'s
-    basin of attraction plus the hard ``is_membership_fixed`` guarantee.
+    Why: identity comes from ``initial_membership``'s basin of attraction plus
+    the hard ``is_membership_fixed`` guarantee.
     """
     if nx_graph.number_of_nodes() == 0:
         return LanguageDelta(
             language=language,
-            cluster_results=ClusterResult(strategy="incremental_seeded_empty"),
+            cluster_results=ClusterResult(strategy="seeded_empty"),
             dropped_cluster_ids=set(old_clusters.keys()),
         )
 
@@ -700,7 +702,7 @@ def _flavor_b_seeded(
     if not tracked_qnames:
         return LanguageDelta(
             language=language,
-            cluster_results=ClusterResult(strategy="incremental_seeded_empty"),
+            cluster_results=ClusterResult(strategy="seeded_empty"),
             dropped_cluster_ids=set(old_clusters.keys()),
         )
     working_graph = nx_graph.subgraph(tracked_qnames)
@@ -727,7 +729,7 @@ def _flavor_b_seeded(
     n_total = len(idx_to_qname)
     n_locked = sum(is_fixed)
     logger.info(
-        "[cluster_delta] %s seeded: tracked=%d, affected=%d (%.1f%%), locked=%d, " "old_clusters=%d, prior_carried=%d",
+        "[cluster_delta] %s seeded: tracked=%d, affected=%d (%.1f%%), locked=%d, old_clusters=%d, prior_carried=%d",
         language,
         n_total,
         len(affected),
@@ -769,7 +771,7 @@ def _flavor_b_seeded(
         nx_graph,
     )
 
-    cluster_results = _materialize_cluster_result(final_clusters, working_graph, "incremental_seeded")
+    cluster_results = _materialize_cluster_result(final_clusters, working_graph, "seeded")
     return LanguageDelta(
         language=language,
         cluster_results=cluster_results,

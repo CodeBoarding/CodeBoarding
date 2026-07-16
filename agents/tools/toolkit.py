@@ -12,7 +12,6 @@ from .component_bridge_edges import ComponentBridgeEdgesTool
 from .read_file import ReadFileTool
 from .read_docs import ReadDocsTool
 from .get_external_deps import ExternalDepsTool
-from .list_git_changes import ListGitChangesTool
 from core import load_plugin_tools
 
 logger = logging.getLogger(__name__)
@@ -88,12 +87,6 @@ class CodeBoardingToolkit:
             self._tools["external_deps"] = ExternalDepsTool(context=self.context)
         return cast(ExternalDepsTool, self._tools["external_deps"])
 
-    @property
-    def list_git_changes(self) -> ListGitChangesTool:
-        if "list_git_changes" not in self._tools:
-            self._tools["list_git_changes"] = ListGitChangesTool(context=self.context)
-        return cast(ListGitChangesTool, self._tools["list_git_changes"])
-
     def get_agent_tools(self) -> list[BaseRepoTool]:
         """
         Returns the set of tools traditionally used by the React agent.
@@ -122,7 +115,6 @@ class CodeBoardingToolkit:
             self.read_file,
             self.read_docs,
             self.external_deps,
-            self.list_git_changes,
         ]
         tools.extend(load_plugin_tools(self.context))
         return tools

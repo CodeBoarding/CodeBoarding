@@ -13,6 +13,16 @@ from static_analyzer.reference_resolver import StaticReferenceResolver
 logger = logging.getLogger(__name__)
 
 
+def cluster_member_qnames(cluster_results: dict[str, ClusterResult]) -> set[str]:
+    """Return every qualified name represented in a scope's clusters."""
+    return {
+        qualified_name
+        for cluster_result in cluster_results.values()
+        for members in cluster_result.clusters.values()
+        for qualified_name in members
+    }
+
+
 class ComponentRepairTarget(Protocol):
     components: list[Component]
 
@@ -77,12 +87,7 @@ def _fuzzy_match_group_name(
 
 def repair_key_entities(result: ComponentRepairTarget, context: ComponentRepairContext) -> None:
     """Resolve key entities and remove references outside the current scope."""
-    nodes_in_scope = {
-        qualified_name
-        for cluster_result in context.cluster_results.values()
-        for members in cluster_result.clusters.values()
-        for qualified_name in members
-    }
+    nodes_in_scope = cluster_member_qnames(context.cluster_results)
     canonicalized_count = 0
     dropped_qnames: set[str] = set()
 

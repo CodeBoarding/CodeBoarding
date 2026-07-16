@@ -15,6 +15,10 @@ class AbstractPromptFactory(ABC):
         pass
 
     @abstractmethod
+    def get_cluster_grouping_message(self) -> str:
+        pass
+
+    @abstractmethod
     def get_final_analysis_message(self) -> str:
         pass
 
@@ -47,11 +51,11 @@ class AbstractPromptFactory(ABC):
         pass
 
     @abstractmethod
-    def get_details_message(self) -> str:
+    def get_cfg_details_message(self) -> str:
         pass
 
     @abstractmethod
-    def get_scope_relations_message(self) -> str:
+    def get_details_message(self) -> str:
         pass
 
     def get_api_surfaces_message(self) -> str:

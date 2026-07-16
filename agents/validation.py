@@ -46,7 +46,6 @@ class ValidationContext:
     cfg_graphs: dict[str, CallGraph] = field(default_factory=dict)  # For edge checking
     expected_files: set[str] = field(default_factory=set)
     valid_component_names: set[str] = field(default_factory=set)  # For file classification validation
-    existing_component_ids: set[str] = field(default_factory=set)  # For incremental ID-based routing validation
     repo_dir: str | None = None  # For path normalization
     static_analysis: StaticAnalysisResults | None = None  # For qualified name validation
     llm_cluster_analysis: ClusterAnalysis | None = None  # For group name coverage validation
@@ -99,6 +98,76 @@ def score_validation_results(
     return score
 
 
+<<<<<<< HEAD
+=======
+def validate_cluster_coverage(result: ClusterAnalysis, context: ValidationContext) -> ValidationResult:
+    """
+    Validate that all expected clusters are represented in the ClusterAnalysis
+    and that no cluster component has an empty cluster_ids list.
+
+    Args:
+        result: ClusterAnalysis with cluster_components
+        context: ValidationContext with expected_cluster_ids
+
+    Returns:
+        ValidationResult with feedback for missing clusters or empty components
+    """
+    if not context.expected_cluster_ids:
+        logger.warning("[Validation] No expected cluster IDs provided for coverage validation")
+        return ValidationResult(is_valid=True)
+
+    feedback_messages: list[str] = []
+
+    # Check for cluster components with empty cluster_ids
+    empty_components = [cc.name for cc in result.cluster_components if not cc.cluster_ids]
+    if empty_components:
+        empty_str = ", ".join(sorted(empty_components))
+        feedback_messages.append(
+            f"The following cluster groups have no cluster IDs assigned: {empty_str}. "
+            f"Every cluster group must reference at least one cluster ID. "
+            f"Either assign clusters to these groups or remove them entirely."
+        )
+        logger.warning(f"[Validation] Cluster groups with empty cluster_ids: {empty_str}")
+
+    # Check for duplicate cluster IDs across different cluster groups
+    seen_clusters: dict[int, str] = {}
+    duplicate_reports: list[str] = []
+    for cc in result.cluster_components:
+        for cid in cc.cluster_ids:
+            if cid in seen_clusters:
+                duplicate_reports.append(f"cluster {cid} in both '{seen_clusters[cid]}' and '{cc.name}'")
+            else:
+                seen_clusters[cid] = cc.name
+
+    if duplicate_reports:
+        dup_str = "; ".join(duplicate_reports)
+        feedback_messages.append(
+            f"The following cluster IDs are assigned to multiple groups: {dup_str}. "
+            f"Each cluster ID must belong to exactly one group. "
+            f"Please remove the duplicate assignments so every cluster is in only one group."
+        )
+        logger.warning(f"[Validation] Duplicate cluster assignments: {dup_str}")
+
+    result_cluster_ids = set(seen_clusters.keys())
+
+    missing_clusters = context.expected_cluster_ids - result_cluster_ids
+
+    if missing_clusters:
+        missing_str = ", ".join(str(cid) for cid in sorted(missing_clusters))
+        feedback_messages.append(
+            f"The following cluster IDs are missing from the analysis: {missing_str}. "
+            f"Please ensure all clusters are assigned to a component via cluster_ids."
+        )
+        logger.warning(f"[Validation] Missing clusters: {missing_str}")
+
+    if not feedback_messages:
+        logger.info("[Validation] All clusters are represented in the ClusterAnalysis")
+        return ValidationResult(is_valid=True)
+
+    return ValidationResult(is_valid=False, feedback_messages=feedback_messages)
+
+
+>>>>>>> bbd8b83 (refactor: remove incremental analysis pipeline (#417))
 def validate_group_name_coverage(result: ComponentValidationTarget, context: ValidationContext) -> ValidationResult:
     """
     Validate bidirectional coverage between cluster groups and components:

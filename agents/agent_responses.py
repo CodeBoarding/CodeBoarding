@@ -4,7 +4,6 @@ import abc
 import logging
 from abc import abstractmethod
 from collections.abc import Hashable
-from enum import StrEnum
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, get_origin
 
@@ -12,8 +11,12 @@ from pydantic import BaseModel, Field
 from pydantic.fields import FieldInfo
 
 from agents.cluster_ids import CodeBoardingClusterId, GraphClusterId
+<<<<<<< HEAD
 from agents.file_index_models import FileEntry, FileMethodGroup
 from agents.scope_ids import ROOT_SCOPE_ID
+=======
+from agents.file_index_models import FileEntry, FileMethodGroup, MethodEntry
+>>>>>>> bbd8b83 (refactor: remove incremental analysis pipeline (#417))
 
 logger = logging.getLogger(__name__)
 
@@ -398,39 +401,6 @@ class ClustersComponent(LLMBaseModel):
     description: str = Field(
         description="Explanation of what this component does, its main flow, WHY these clusters are grouped together, how it interacts with other cluster groups, and the most important classes/methods (by their exact qualified names from the clusters)"
     )
-    existing_component_id: str | None = Field(
-        default=None,
-        description=(
-            "Incremental routing: the exact component_id of the existing component "
-            "this entry is routing clusters into (e.g. '1.3'). Set to null to create "
-            "a brand-new component. Identity is by ID, not name — leaving this null "
-            "while reusing an existing component's name forks a duplicate component. "
-            "Ignored by the full-analysis flow."
-        ),
-        json_schema_extra={"hidden": True},
-    )
-    parent_id: str | None = Field(
-        default=None,
-        description=(
-            "Incremental routing: when ``existing_component_id`` is null (brand-new "
-            "component), the existing component_id under which the new component "
-            "should attach (or null to attach at root). Ignored when "
-            "``existing_component_id`` is set, and ignored by the full-analysis flow."
-        ),
-        json_schema_extra={"hidden": True},
-    )
-    redetail_needed: bool = Field(
-        default=True,
-        description=(
-            "Incremental routing only: when routing clusters into an existing component "
-            "(``existing_component_id`` is set), set False if the cluster delta is "
-            "cosmetic (refactor, internal rename, small bug fix) and the component's "
-            "high-level purpose is unchanged — the existing description stays. Default "
-            "True forces a full redetail. Ignored for brand-new components (always "
-            "redetailed) and by the full-analysis flow."
-        ),
-        json_schema_extra={"hidden": True},
-    )
 
     def llm_str(self):
         ids_str = ", ".join(str(cid) for cid in self.cluster_ids)
@@ -609,36 +579,16 @@ class ComponentRelations(LLMBaseModel):
         return "\n".join(relation.llm_str() for relation in self.components_relations)
 
 
-def assign_component_ids(analysis: AnalysisInsights, parent_id: str = "", only_new: bool = False) -> None:
+def assign_component_ids(analysis: AnalysisInsights, parent_id: str = "") -> None:
     """Assign hierarchical component IDs based on sibling index.
 
     IDs encode structural position in the component tree:
     - Top-level (parent_id=""): "1", "2", "3"
     - Under "1" (parent_id="1"): "1.1", "1.2"
     - Under "1.2" (parent_id="1.2"): "1.2.1", "1.2.2"
-
-    With ``only_new=True`` (incremental path), components that already carry a
-    populated ``component_id`` are preserved verbatim and only siblings with an
-    empty id are assigned a fresh slot — used when stitching new components into
-    an existing tree without renumbering survivors.
     """
-    if only_new:
-        used_indices: set[int] = set()
-        for component in analysis.components:
-            if not component.component_id:
-                continue
-            tail = component.component_id.split(".")[-1]
-            if tail.isdigit():
-                used_indices.add(int(tail))
-        next_idx = max(used_indices, default=0) + 1
-        for component in analysis.components:
-            if component.component_id:
-                continue
-            component.component_id = f"{parent_id}.{next_idx}" if parent_id else str(next_idx)
-            next_idx += 1
-    else:
-        for idx, component in enumerate(analysis.components, start=1):
-            component.component_id = f"{parent_id}.{idx}" if parent_id else str(idx)
+    for idx, component in enumerate(analysis.components, start=1):
+        component.component_id = f"{parent_id}.{idx}" if parent_id else str(idx)
 
     assign_relation_ids(analysis)
 
@@ -820,6 +770,7 @@ class ComponentFiles(LLMBaseModel):
         return title + body
 
 
+<<<<<<< HEAD
 class ScopeOperationAction(StrEnum):
     CREATE_COMPONENT = "create_component"
     UPDATE_COMPONENT = "update_component"
@@ -883,6 +834,8 @@ class ScopeUpdateDecision(LLMBaseModel):
         return "\n".join(operation.llm_str() for operation in self.operations)
 
 
+=======
+>>>>>>> bbd8b83 (refactor: remove incremental analysis pipeline (#417))
 class FilePath(LLMBaseModel):
     """File path with optional line range reference."""
 

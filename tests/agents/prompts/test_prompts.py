@@ -21,6 +21,7 @@ class TestAbstractPromptFactory(unittest.TestCase):
         # Test that all expected abstract methods are defined
         expected_methods = [
             "get_system_message",
+            "get_cluster_grouping_message",
             "get_final_analysis_message",
             "get_planner_system_message",
             "get_expansion_prompt",
@@ -29,6 +30,7 @@ class TestAbstractPromptFactory(unittest.TestCase):
             "get_file_classification_message",
             "get_validation_feedback_message",
             "get_system_details_message",
+            "get_cfg_details_message",
             "get_details_message",
         ]
 
@@ -204,6 +206,7 @@ class TestConvenienceFunctions(unittest.TestCase):
 
         convenience_functions = [
             "get_system_message",
+            "get_cluster_grouping_message",
             "get_final_analysis_message",
             "get_planner_system_message",
             "get_expansion_prompt",
@@ -212,6 +215,7 @@ class TestConvenienceFunctions(unittest.TestCase):
             "get_file_classification_message",
             "get_validation_feedback_message",
             "get_system_details_message",
+            "get_cfg_details_message",
             "get_details_message",
         ]
 
@@ -235,9 +239,10 @@ class TestConvenienceFunctions(unittest.TestCase):
             factory = PromptFactory(llm_type)._prompt_factory
             system_prompt = factory.get_system_message()
             concrete_prompts = [
+                factory.get_cluster_grouping_message(),
                 factory.get_final_analysis_message(),
+                factory.get_cfg_details_message(),
                 factory.get_details_message(),
-                factory.get_scope_relations_message(),
                 factory.get_api_surfaces_message(),
                 factory.get_relation_analysis_message(),
             ]

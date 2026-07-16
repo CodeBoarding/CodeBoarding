@@ -42,27 +42,60 @@ Meta: {meta_context}
 - Interactive diagram elements
 - Documentation for quick developer onboarding"""
 
-FINAL_ANALYSIS_MESSAGE = """Name and describe the final component architecture.
+CLUSTER_GROUPING_MESSAGE = """Analyze and GROUP the Control Flow Graph clusters.
 
-The clusters have already been partitioned into a fixed set of groups by graph community detection. Each "Group N" below is exactly one top-level component — the number of groups and their membership are already decided. Do NOT merge, split, or re-group them; only name and describe each group.
+The CFG has been pre-clustered into groups of related methods/functions. Each cluster represents methods that call each other frequently.
+
+CFG Clusters:
+{cfg_clusters}
+
+Your Task:
+GROUP similar clusters together into logical components based on their relationships and purpose.
+
+Instructions:
+1. Analyze the clusters shown above and identify which ones work together or are functionally related
+2. Group related clusters into meaningful components
+3. A component can contain one or more cluster IDs (e.g., [1], [2, 5], or [3, 7, 9])
+4. For each grouped component, provide:
+   - **name**: Short, descriptive name for this group (e.g., 'Authentication', 'Data Pipeline', 'Request Handling')
+   - **cluster_ids**: List of cluster IDs that belong together (as a list, e.g., [1, 3, 5])
+   - **description**: Comprehensive explanation including:
+     * What this component does
+     * What is its main flow/purpose
+     * WHY these specific clusters are grouped together (provide clear rationale for the grouping decision)
+     * How this group interacts with other cluster groups (which groups it calls, receives data from, or depends on)
+     * The most important classes/methods in this group — mention their exact qualified names as shown in the clusters above
+
+Focus on:
+- Creating cohesive, logical groupings that reflect the actual architecture
+- Semantic meaning based on method names, call patterns, and architectural context
+- Clear justification for why clusters belong together
+- Describing inter-group interactions based on the inter-cluster connections"""
+
+FINAL_ANALYSIS_MESSAGE = """Create final component architecture optimized for flow representation.
 
 Cluster Analysis:
 {cluster_analysis}
 
 Instructions:
-1. Produce EXACTLY one component per named group above (the same number of components as there are groups).
-2. Set each component's source_group_names to the single group it corresponds to (use the exact group name, e.g. "Group 1").
-3. Give each component a descriptive architectural name (its role, not "Group N") and a one-sentence description of what it does.
-4. Add 2-5 key entities (the most important classes/methods) per component, using their exact qualified names and source files.
-5. Do not define relationships yet; relationships are discovered in a later API-surface step.
-6. Provide a one-paragraph description of the overall main flow and purpose.
+1. Review the named cluster groups above
+2. Decide which named groups should be merged into final components
+3. For each component, specify which named cluster groups it encompasses via source_group_names
+4. Add key entities (2-5 most important classes/methods) for each component, referencing the source file where they are defined
+5. Do not define relationships yet; relationships are discovered in a later API-surface step
+
+Guidelines:
+- Aim for 5-8 final components
+- Merge related cluster groups that serve a common purpose
+- Each component should have clear boundaries
+- Focus on component boundaries; relationships are discovered after components are finalized
+
+For each component provide: a clear name, a description of what it does, the exact named cluster group names it encompasses, and 2-5 key entities (mentioning their qualified names and source files). Provide one paragraph describing the overall main flow and purpose. Do not define relationships yet.
 
 Constraints:
-- Keep every group: there must be exactly as many components as groups, each backed by exactly one group.
-- Name components by architectural role (e.g. 'Authentication', 'Data Pipeline', 'Request Handling'), never 'Group N'.
-- Ground the name in the code's own vocabulary: reuse the terms that the group's own modules, classes, and packages already use, and stay close to them rather than inventing a broader abstraction.
-- Prefer a single dominant concern per name and avoid joining two concerns with '&' when possible; if a group genuinely spans two, name it after the dominant one and note the secondary concern in the description instead.
-- Components should translate well to flow diagram representation."""
+- Focus on highest level architectural components
+- Exclude utility/logging components
+- Components should translate well to flow diagram representation"""
 
 PLANNER_SYSTEM_MESSAGE = """You are an architectural planning expert for software documentation.
 
@@ -305,26 +338,51 @@ Required outputs:
 
 Focus on subsystem-specific functionality. Avoid cross-cutting concerns like logging or error handling."""
 
-DETAILS_MESSAGE = """Create final sub-component architecture for the `{component}` subsystem optimized for flow representation.
+CFG_DETAILS_MESSAGE = """Analyze and GROUP the Control Flow Graph clusters for the `{component}` subsystem.
 
-The clusters have already been partitioned into a fixed set of groups by graph community detection. Each "Group N" below is exactly one sub-component — the number of groups and their membership are already decided. Do NOT merge, split, or re-group them; only name and describe each group.
+The CFG has been pre-clustered into groups of related methods/functions. Each cluster represents methods that call each other frequently.
+
+CFG Clusters:
+{cfg_clusters}
+
+Your Task:
+GROUP similar clusters together into logical sub-components based on their relationships and purpose within this subsystem.
+
+Instructions:
+1. Analyze the clusters shown above and identify which ones work together or are functionally related
+2. Group related clusters into meaningful sub-components
+3. A sub-component can contain one or more cluster IDs (e.g., [1], [2, 5], or [3, 7, 9])
+4. For each grouped sub-component, provide:
+   - **name**: Short, descriptive name for this group (e.g., 'Request Parsing', 'Response Building')
+   - **cluster_ids**: List of cluster IDs that belong together (as a list, e.g., [1, 3, 5])
+   - **description**: Comprehensive explanation including:
+     * What this sub-component does
+     * What is its main flow/purpose
+     * WHY these specific clusters are grouped together (provide clear rationale)
+     * How this group interacts with other cluster groups
+     * The most important classes/methods in this group — mention their exact qualified names as shown in the clusters above
+
+Focus on core subsystem functionality only. Avoid cross-cutting concerns like logging or error handling."""
+
+DETAILS_MESSAGE = """Create final sub-component architecture for the `{component}` subsystem optimized for flow representation.
 
 Cluster Analysis:
 {cluster_analysis}
 
 Instructions:
-1. Produce EXACTLY one sub-component per named group above (the same number of sub-components as there are groups)
-2. Set each sub-component's source_group_names to the single group it corresponds to (use the exact group name, e.g. "Group 1")
-3. Give each sub-component a descriptive architectural name (its role, not "Group N")
+1. Review the named cluster groups above
+2. Decide which named groups should be merged into final sub-components
+3. For each sub-component, specify which named cluster groups it encompasses via source_group_names
 4. Add key entities (2-5 most important classes/methods) for each sub-component, referencing the source file where they are defined
 5. Do not define relationships yet; relationships are discovered in a later API-surface step
 
 Guidelines:
-- Keep every group: there must be exactly as many sub-components as groups, each backed by exactly one group
+- Aim for 3-8 final sub-components
+- Merge related cluster groups that serve a common purpose
 - Each sub-component should have clear boundaries
 - Focus on component boundaries; relationships are discovered after components are finalized
 
-For each sub-component provide: a clear name, a description of what it does, the single named cluster group it encompasses, and 2-5 key entities (mentioning their qualified names and source files). Provide one paragraph describing the subsystem's main flow and purpose. Do not define relationships yet.
+For each sub-component provide: a clear name, a description of what it does, the exact named cluster group names it encompasses, and 2-5 key entities (mentioning their qualified names and source files). Provide one paragraph describing the subsystem's main flow and purpose. Do not define relationships yet.
 
 Constraints:
 - Focus on subsystem-specific functionality
@@ -333,35 +391,15 @@ Constraints:
 
 Justify component choices based on fundamental architectural importance."""
 
-SCOPE_RELATIONS_MESSAGE = """Generate inter-component relationships for the `{scope_name}` scope.
-
-**Components in this scope:**
-{component_summaries}
-
-**Cross-component communication from static analysis:**
-{cross_component_calls}
-
-Instructions:
-Review the components listed above and the cross-component communication evidence. Generate relationships that describe how these components interact with each other.
-
-For each relationship provide:
-- **src_name**: Source component name
-- **dst_name**: Target component name
-- **relation**: A short phrase describing the relationship (e.g. "delegates to", "notifies", "provides data to")
-
-Guidelines:
-- Every src_name and dst_name must match an existing component name exactly
-- Maximum 2 relationships per component pair, avoiding bidirectional sends/returns pairs
-- Focus on architecturally significant interactions, not implementation details
-- Use the cross-component communication evidence to ground relationships in actual code flow
-- A component that never calls or is called by another component should not have a relation to it"""
-
 
 class GPTPromptFactory(AbstractPromptFactory):
     """Prompt factory for GPT-4 models."""
 
     def get_system_message(self) -> str:
         return SYSTEM_MESSAGE
+
+    def get_cluster_grouping_message(self) -> str:
+        return CLUSTER_GROUPING_MESSAGE
 
     def get_final_analysis_message(self) -> str:
         return FINAL_ANALYSIS_MESSAGE
@@ -396,8 +434,8 @@ class GPTPromptFactory(AbstractPromptFactory):
     def get_system_details_message(self) -> str:
         return SYSTEM_DETAILS_MESSAGE
 
+    def get_cfg_details_message(self) -> str:
+        return CFG_DETAILS_MESSAGE
+
     def get_details_message(self) -> str:
         return DETAILS_MESSAGE
-
-    def get_scope_relations_message(self) -> str:
-        return SCOPE_RELATIONS_MESSAGE

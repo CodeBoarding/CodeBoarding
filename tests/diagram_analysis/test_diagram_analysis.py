@@ -13,15 +13,10 @@ from agents.agent_responses import (
     Relation,
     RelationCallSite,
     RelationEdge,
-    ScopeOperation,
-    ScopeOperationAction,
-    ScopedClusterRef,
-    ScopeUpdateDecision,
     SourceCodeReference,
     assign_component_ids,
 )
 from agents.file_index_models import FileEntry, FileMethodGroup, MethodEntry
-from agents.incremental_results import ScopeRelationContext, ScopeUpdateResult
 from agents.relation_edges import index_relation_endpoints
 from diagram_analysis.analysis_json import (
     ComponentFileMethodGroupJson,
@@ -33,6 +28,7 @@ from diagram_analysis.analysis_json import (
     from_component_to_json_component,
     parse_unified_analysis,
 )
+<<<<<<< HEAD
 from diagram_analysis.cluster_delta import ClusterMemberDelta, ClusterRef, LanguageStructuralDiff, StructuralClusterDiff
 from diagram_analysis.diagram_generator import (
     DiagramGenerator,
@@ -43,6 +39,9 @@ from diagram_analysis.diagram_generator import (
 from diagram_analysis.exceptions import IncrementalCacheMissingError
 from diagram_analysis.io_utils import load_analysis_metadata, save_analysis
 from repo_utils.change_detector import ChangeSet
+=======
+from diagram_analysis.diagram_generator import DiagramGenerator, _component_depth, _component_expansion_seeds
+>>>>>>> bbd8b83 (refactor: remove incremental analysis pipeline (#417))
 from static_analyzer.analysis_cache import StaticAnalysisCache
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import Language, NodeType
@@ -868,7 +867,10 @@ class TestDiagramGenerator(unittest.TestCase):
         self.assertEqual(gen.depth_level, 2)
         self.assertIsNone(gen.details_agent)
         self.assertIsNone(gen.abstraction_agent)
+<<<<<<< HEAD
         self.assertIsNone(gen.incremental_agent)
+=======
+>>>>>>> bbd8b83 (refactor: remove incremental analysis pipeline (#417))
 
     @patch("diagram_analysis.diagram_generator.get_static_analysis")
     def test_new_analyzer_honors_cache_reuse_override(self, mock_get_static_analysis):
@@ -944,14 +946,21 @@ class TestDiagramGenerator(unittest.TestCase):
             log_path="test_repo/test-run-log",
         )
 
+<<<<<<< HEAD
         with (patch("diagram_analysis.diagram_generator.IncrementalAgent") as mock_incremental,):
             gen.pre_analysis()
+=======
+        gen.pre_analysis()
+>>>>>>> bbd8b83 (refactor: remove incremental analysis pipeline (#417))
 
         # Verify agents were created
         self.assertIsNotNone(gen.meta_agent)
         self.assertIsNotNone(gen.details_agent)
         self.assertIsNotNone(gen.abstraction_agent)
+<<<<<<< HEAD
         self.assertIs(gen.incremental_agent, mock_incremental.return_value)
+=======
+>>>>>>> bbd8b83 (refactor: remove incremental analysis pipeline (#417))
         mock_meta_instance.analyze_project_metadata.assert_called_once_with(skip_cache=False)
 
     def test_process_component_with_exception(self):
@@ -1199,7 +1208,10 @@ class TestDiagramGenerator(unittest.TestCase):
         )
         gen.details_agent = Mock()
         gen.abstraction_agent = Mock()
+<<<<<<< HEAD
         gen.incremental_agent = Mock()
+=======
+>>>>>>> bbd8b83 (refactor: remove incremental analysis pipeline (#417))
         gen.abstraction_agent.run.return_value = (analysis, {})
 
         gen.generate_analysis()
@@ -1207,6 +1219,7 @@ class TestDiagramGenerator(unittest.TestCase):
         written = json.loads((self.output_dir / "analysis.json").read_text())
         self.assertEqual([c["can_expand"] for c in written["components"]], [True, True])
 
+<<<<<<< HEAD
     def test_generate_analysis_incremental_raises_when_cluster_cache_missing(self):
         gen = DiagramGenerator(
             repo_location=self.repo_location,
@@ -1232,6 +1245,8 @@ class TestDiagramGenerator(unittest.TestCase):
         self.assertEqual(ctx.exception.artifact_dir, self.output_dir)
         self.assertIn(str(self.output_dir), str(ctx.exception))
 
+=======
+>>>>>>> bbd8b83 (refactor: remove incremental analysis pipeline (#417))
     def test_component_depth_uses_absolute_hierarchical_depth(self):
         self.assertEqual(_component_depth("1"), 1)
         self.assertEqual(_component_depth("1.1"), 2)
@@ -1287,6 +1302,7 @@ class TestDiagramGenerator(unittest.TestCase):
         self.assertEqual(set(sub_analyses), {"1.1"})
         self.assertEqual(mock_save_analysis.call_count, 1)
 
+<<<<<<< HEAD
     def test_removed_only_incremental_update_marks_scope_for_relation_refresh(self):
         gen = DiagramGenerator(
             repo_location=self.repo_location,
@@ -1730,6 +1746,8 @@ class TestDiagramGenerator(unittest.TestCase):
         self.assertIsNot(root_analysis.files["sub.py"].methods[0], sub_only_method)
         self.assertIs(mock_build_index.call_args_list[0].args[2], mock_build_index.call_args_list[1].args[2])
 
+=======
+>>>>>>> bbd8b83 (refactor: remove incremental analysis pipeline (#417))
     def test_persist_static_analysis_artifact_saves_cluster_cache_without_injected_analyzer(self):
         gen = DiagramGenerator(
             repo_location=self.repo_location,
@@ -1800,8 +1818,6 @@ class TestDiagramGenerator(unittest.TestCase):
 
     @patch("diagram_analysis.diagram_generator.save_analysis")
     def test_finalize_and_save_skips_side_artifacts_for_partial(self, mock_save):
-        """Component expansion (partial) must not rewrite file_coverage.json or touch
-        the static-analysis cache/SHA tag — that would regress the next incremental run."""
         mock_save.return_value = self.output_dir / "analysis.json"
         gen = self._finalize_gen()
         analysis = AnalysisInsights(description="d", components=[], components_relations=[])
