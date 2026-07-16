@@ -34,7 +34,7 @@ from agents.agent_responses import (
     SourceCodeReference,
 )
 from agents.cluster_methods_mixin import ClusterMethodsMixin
-from agents.file_index_models import FileMethodGroup, MethodEntry
+from agents.file_index_models import FileEntry, FileMethodGroup, MethodEntry
 from diagram_analysis.diagram_generator import DiagramGenerator, assert_scope_containment
 from diagram_analysis.exceptions import ScopeContainmentError
 from static_analyzer.constants import Language, NodeType
@@ -424,11 +424,8 @@ class TestMethodUniquenessNoAliases(unittest.TestCase):
 class TestScopeContainment(unittest.TestCase):
     """A child scope must only own methods its parent component still owns.
 
-    Reproduces the CodeBoarding-webview drift: an incremental run re-partitions the
-    root components against the live clustering, moving methods from component 1 to
-    component 2, but sub_analyses["1"] is a separate object no patch touches. Its
-    children keep the moved methods, so each one renders under component 2 *and*
-    under component 1's subtree.
+    Why: a child scope is a separate ``AnalysisInsights``, so re-partitioning a
+    parent cannot evict the moved methods from its children.
     """
 
     def setUp(self):
@@ -543,11 +540,15 @@ class TestScopeContainment(unittest.TestCase):
     def test_rescope_empties_children_when_parent_owns_nothing(self):
         root, sub_analyses, static_analysis = self._build_tree()
         root.components[0].file_methods = []
+        sub_analyses["1"].files = {"shared.ts": FileEntry()}
         gen = self._generator(static_analysis)
 
         gen._rescope_child_analyses(root, sub_analyses)
 
         self.assertEqual([m for c in sub_analyses["1"].components for g in c.file_methods for m in g.methods], [])
+        # save_analysis merges every scope's index into the unified files/methods_index,
+        # so a scope with no owned methods must not keep one.
+        self.assertEqual(sub_analyses["1"].files, {})
         assert_scope_containment(root, sub_analyses)
 
 

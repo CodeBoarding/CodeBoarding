@@ -691,9 +691,13 @@ class DiagramGenerator:
                     child_scope, cluster_results, cfg_graphs, component.component_id
                 )
             else:
-                # The parent owns no live methods, so no child may own any.
+                # The parent owns no live methods, so no child may own any. Clear the
+                # scope's own index too: ``save_analysis`` merges it into the unified
+                # ``files``/``methods_index``, and the partial flow saves without a
+                # ``_refresh_files_index`` that would otherwise drop the stale entries.
                 for child in child_scope.components:
                     child.file_methods = []
+                child_scope.files = {}
             self._rescope_child_analyses(child_scope, sub_analyses)
 
     def _apply_incremental_scope_recursively(
