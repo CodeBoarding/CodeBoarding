@@ -6,7 +6,7 @@ from langchain_core.prompts import PromptTemplate
 from langchain.agents import create_agent
 
 from agents.agent import CodeBoardingAgent
-from agents.agent_responses import MetaAnalysisInsights
+from agents.full_analysis_responses import MetaAnalysisInsights
 from agents.prompts import get_system_meta_analysis_message, get_meta_information_prompt
 from caching.meta_cache import MetaCache
 from monitoring import trace

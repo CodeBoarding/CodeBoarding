@@ -3,7 +3,8 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
-from agents.agent_responses import AnalysisInsights, ClusterAnalysis
+from agents.analysis_result_responses import AnalysisInsights
+from agents.full_analysis_responses import ClusterAnalysis
 from caching.cache import CACHE_VERSION, BaseCache, ModelSettings
 
 logger = logging.getLogger(__name__)

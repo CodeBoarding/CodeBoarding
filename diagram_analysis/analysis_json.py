@@ -5,7 +5,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
-from agents.agent_responses import (
+from agents.analysis_result_responses import (
     Component,
     Relation,
     AnalysisInsights,
@@ -291,6 +291,7 @@ def _relation_to_json(r: Relation, repo_dir: Path) -> RelationJson:
         src_name=r.src_name,
         dst_name=r.dst_name,
         evidence=r.evidence,
+        evidence_references=r.evidence_references,
         key_edges=[_relation_edge_to_json(edge, repo_dir) for edge in r.key_edges],
         src_id=r.src_id,
         dst_id=r.dst_id,
@@ -611,6 +612,9 @@ def _extract_analysis_recursive(
                 src_name=r["src_name"],
                 dst_name=r["dst_name"],
                 evidence=r.get("evidence", ""),
+                evidence_references=[
+                    SourceCodeReference.model_validate(reference) for reference in r.get("evidence_references", [])
+                ],
                 key_edges=key_edges,
                 src_id=r.get("src_id", ""),
                 dst_id=r.get("dst_id", ""),

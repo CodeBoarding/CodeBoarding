@@ -11,7 +11,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass, field
 
 from constants import DEFAULT_STATIC_RELATION_LABEL
-from agents.agent_responses import AnalysisInsights, Relation, RelationEdge
+from agents.analysis_result_responses import AnalysisInsights, Relation, RelationEdge
 from agents.relation_edges import append_or_merge_relation
 from static_analyzer.program_graph import ProgramGraph
 
@@ -209,6 +209,7 @@ def build_global_relations(
                 src_name=id_to_name.get(src_id, src_id),
                 dst_name=id_to_name.get(dst_id, dst_id),
                 evidence=llm_relation.evidence,
+                evidence_references=llm_relation.evidence_references,
                 key_edges=key_edges,
                 src_id=src_id,
                 dst_id=dst_id,
@@ -286,6 +287,7 @@ def merge_relations(
                 src_name=llm_rel.src_name,
                 dst_name=llm_rel.dst_name,
                 evidence=llm_rel.evidence,
+                evidence_references=llm_rel.evidence_references,
                 key_edges=key_edges,
                 src_id=src_id,
                 dst_id=dst_id,

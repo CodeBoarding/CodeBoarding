@@ -6,11 +6,8 @@ from typing import NoReturn
 
 import networkx as nx
 
-from agents.agent_responses import (
-    AnalysisInsights,
-    ClusterAnalysis,
-    Component,
-)
+from agents.analysis_result_responses import AnalysisInsights, Component
+from agents.full_analysis_responses import ClusterAnalysis
 from agents.file_index_models import FileMethodGroup, MethodEntry
 from agents.cluster_budget import ClusterPromptBudget
 from agents.content_hash import (

@@ -1,18 +1,13 @@
 """Validation utilities for LLM agent outputs."""
 
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Protocol
 
-from agents.agent_responses import (
-    AnalysisInsights,
-    ClusterAnalysis,
-    Component,
-    ComponentFiles,
-    Relation,
-)
+from agents.analysis_result_responses import AnalysisInsights, Component, Relation, SourceCodeReference
+from agents.full_analysis_responses import ClusterAnalysis, ComponentFiles
 from repo_utils import normalize_path
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.clustering import ClusterResult
@@ -70,6 +65,16 @@ class RelationValidationTarget(Protocol):
 
 class ComponentValidationTarget(Protocol):
     components: list[Component]
+
+
+class KeyEntityComponent(Protocol):
+    name: str
+    key_entities: list[SourceCodeReference]
+
+
+class KeyEntityValidationTarget(Protocol):
+    @property
+    def components(self) -> Sequence[KeyEntityComponent]: ...
 
 
 def _effective_validation_score(result: ValidationResult) -> float:
@@ -257,7 +262,7 @@ def validate_group_name_coverage(result: ComponentValidationTarget, context: Val
     return ValidationResult(is_valid=False, feedback_messages=feedback_messages)
 
 
-def validate_key_entities(result: ComponentValidationTarget, context: ValidationContext) -> ValidationResult:
+def validate_key_entities(result: KeyEntityValidationTarget, context: ValidationContext) -> ValidationResult:
     """Validate that every component retains at least one repaired key entity."""
     empty_components = [c.name for c in result.components if not c.key_entities]
     if empty_components:

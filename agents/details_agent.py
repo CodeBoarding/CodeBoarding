@@ -5,16 +5,13 @@ from langchain_core.prompts import PromptTemplate
 from langchain_core.language_models import BaseChatModel
 
 from agents.agent import CodeBoardingAgent
-from agents.agent_responses import (
-    AnalysisInsights,
+from agents.analysis_result_responses import AnalysisInsights, Component, assign_component_ids, assign_relation_ids
+from agents.full_analysis_responses import (
     ClusterAnalysis,
     ComponentApiSurfaces,
     ComponentArchitecture,
     ComponentRelations,
-    Component,
     MetaAnalysisInsights,
-    assign_component_ids,
-    assign_relation_ids,
 )
 from agents.prompts import (
     get_system_details_message,

@@ -11,11 +11,8 @@ from typing import Any
 from langchain_core.language_models import BaseChatModel
 
 from agents.abstraction_agent import AbstractionAgent
-from agents.agent_responses import (
-    AnalysisInsights,
-    Component,
-    MetaAnalysisInsights,
-)
+from agents.analysis_result_responses import AnalysisInsights, Component
+from agents.full_analysis_responses import MetaAnalysisInsights
 from agents.content_hash import hash_repo_source_files, tree_hash_from_file_hashes
 from agents.details_agent import DetailsAgent
 from agents.llm_config import initialize_llms

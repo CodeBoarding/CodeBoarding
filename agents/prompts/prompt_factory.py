@@ -7,7 +7,7 @@ This module provides a factory for dynamically selecting prompts based on LLM ty
 import logging
 from enum import StrEnum
 
-from agents.agent_responses import MetaAnalysisInsights
+from agents.full_analysis_responses import MetaAnalysisInsights
 
 from .abstract_prompt_factory import AbstractPromptFactory
 from .gemini_flash_prompts import GeminiFlashPromptFactory

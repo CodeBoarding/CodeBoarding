@@ -6,7 +6,8 @@ from dataclasses import dataclass, field
 from difflib import SequenceMatcher
 from typing import Protocol
 
-from agents.agent_responses import ClusterAnalysis, Component
+from agents.analysis_result_responses import Component
+from agents.full_analysis_responses import ClusterAnalysis
 from static_analyzer.clustering import ClusterResult
 from static_analyzer.reference_resolver import StaticReferenceResolver
 

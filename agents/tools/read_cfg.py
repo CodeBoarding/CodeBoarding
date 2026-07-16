@@ -1,5 +1,5 @@
 import logging
-from agents.agent_responses import Component
+from agents.analysis_result_responses import Component
 from agents.tools.base import BaseRepoTool
 
 logger = logging.getLogger(__name__)
