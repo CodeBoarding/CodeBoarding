@@ -1390,6 +1390,7 @@ class TestDiagramGenerator(unittest.TestCase):
                 new_component_ids=set(),
             ),
         ]
+        _mock_incremental_agent.return_value._create_strict_component_subgraph.return_value = ("", {}, {})
         mock_save_analysis.return_value = self.output_dir / "analysis.json"
 
         gen.generate_analysis_incremental(root_analysis, sub_analyses)
@@ -1509,6 +1510,7 @@ class TestDiagramGenerator(unittest.TestCase):
         gen.details_agent = Mock()
         gen.incremental_planning_agent = Mock()
         gen.incremental_agent = Mock()
+        gen.incremental_agent._create_strict_component_subgraph.return_value = ("", {}, {})
         gen.static_analysis = Mock()
         gen.static_analysis.get_languages.return_value = []
         gen.static_analysis.incremental_base_results = Mock()
