@@ -15,36 +15,6 @@ Claude Prompt Design Principles:
 
 from .abstract_prompt_factory import AbstractPromptFactory
 
-SCOPE_RELATIONS_MESSAGE = """Generate inter-component relationships for the `{scope_name}` scope.
-
-<context>
-### Components in this scope
-{component_summaries}
-
-### Cross-component communication from static analysis
-{cross_component_calls}
-</context>
-
-<instructions>
-Review the components and cross-component communication evidence above. Generate `components_relations` entries describing how these components interact.
-
-For each relationship provide:
-- **src_name**: Source component name
-- **dst_name**: Target component name
-- **relation**: Short phrase (e.g. "delegates to", "notifies", "provides data to")
-
-Constraints:
-- Every src_name and dst_name MUST match an existing component name exactly
-- Maximum 2 relationships per component pair — avoid bidirectional sends/returns pairs
-- Focus on architecturally significant interactions, not implementation details
-- Ground relationships in the cross-component communication evidence
-- A component that never calls or is called by another component should not have a relation to it
-</instructions>
-
-<thinking>
-Map the cross-component call evidence to the component boundaries first. Then identify which pairs have meaningful architectural interactions worth documenting. Discard pairs with no communication evidence.
-</thinking>"""
-
 # Highly optimized prompts for Claude performance
 SYSTEM_MESSAGE = """You are a software architecture expert analyzing {project_name} with comprehensive diagram generation optimization.
 
@@ -330,88 +300,6 @@ Constraints:
 
 Justify component choices based on fundamental architectural importance."""
 
-INCREMENTAL_GROUPING_MESSAGE = """Update the architecture by routing changed and new CFG clusters to the right components.
-
-<context>
-The previous analysis established the components below. Most clusters are unchanged and stay where they are; this prompt only shows the structural slice that changed: new clusters, removed clusters, or clusters whose member set changed through added/removed methods. A method body edit by itself is not a cluster-boundary change.
-
-### Existing components (each line shows `component_id "name"`)
-{existing_components}
-
-### Cluster groups to assign
-{cfg_clusters}
-</context>
-
-<instructions>
-Your Task:
-Route each cluster shown above into the right component. Every cluster id must appear in exactly one routing entry.
-
-For each cluster, there are two possibilities:
-
-1. **Route to an existing component.** Match the cluster to one of the existing components listed above by its component id (e.g. "1.3"). Reuse that component's name and a short description verbatim, and collect the cluster ids that belong to it. Multiple groups of clusters can route to the same existing component — just make a separate entry for each group.
-
-   Also judge whether the component's description needs updating. Set the **redetail_needed** flag to True (the default) when the cluster delta meaningfully changes what the component does — a new responsibility, a removed responsibility, or a semantic shift in its public surface. Set it to False only when the delta is purely cosmetic — an internal refactor, rename, small bug fix, or formatting change — and the component's high-level purpose is untouched. When False, the existing description is preserved as-is and no follow-up redetail runs. Bias toward True if you are uncertain.
-
-2. **Create a new component.** Leave the existing component id as null, give the new component a fresh name (distinct from every existing component name), write a description paragraph explaining what this component does and why these clusters belong together, and choose a parent component id under which it should attach (or null for root). Pick the parent whose scope most naturally encloses the new component.
-
-A critical correctness rule: identity is tracked by component id, not by name. If clusters belong in an existing component, you MUST reference its component id explicitly. Reusing an existing component's name without pointing to its component id will fork a duplicate — that is wrong.
-
-Boundary rules:
-- Route each changed cluster to the most specific owning component. If both a parent and a child seem relevant, choose the child only.
-- `redetail_needed=False` means the component boundary is unchanged; do not use it to absorb new files, new responsibilities, or clusters owned by another component.
-
-Focus on:
-- Placing clusters where they belong architecturally, guided by method names, call patterns, and the existing component boundaries
-- Creating cohesive groupings that reflect the actual architecture
-- Accurately judging whether a delta is meaningful or cosmetic for the redetail decision
-- Choosing sensible parents for new components based on scope and responsibility
-</instructions>
-
-<tool_usage_policy>
-For each cluster you're uncertain about, you may read source. Keep each read small and targeted — the source of a single representative qname is usually the right unit. Continue reading further (still in small, focused steps) only while you remain uncertain about that specific cluster's placement, and stop as soon as your confidence is high. Don't broaden the scope of a single read to cover ground you don't yet need.
-</tool_usage_policy>"""
-
-
-PLANNING_MESSAGE = """Update one scope of the architecture diagram.
-
-<context>
-Scope: `{scope_id}` (`root` means the top-level diagram)
-
-Existing components in this scope:
-{existing_components}
-
-Changed files:
-{changed_files}
-
-Structural cluster diff:
-{structural_diff}
-
-</context>
-
-<instructions>
-Return operations for this scope only.
-
-- Keep unchanged clusters out of the operations unless the diff makes the component semantically dirty.
-- For modified clusters, preserve the existing owning component shown by its clusters=[...] list; use update_component for that owner instead of moving the cluster to another component.
-- For new clusters, decide from the structural diff whether they extend an existing responsibility or introduce a new component; do not infer this from file/package layout alone.
-- For reshaped groups, follow overlap counts to keep old cluster ownership stable. Only assign a reshaped new cluster to a different component when the diff proves a real responsibility move.
-- Reparenting existing components is unsupported by the current incremental schema. Preserve their current scope.
-- Every modified/new/reshaped new-side cluster listed below must appear in exactly one operation's cluster_refs.
-
-<architecture_output_contract>
-- This step plans component boundaries only. Do not define component relations; API surfaces and relations are generated later.
-- Choose exactly one of these mutually exclusive branches for each operation:
-  - For create_component only: leave component_id null; provide a clear name and description. Select up to 5 key_entities only when their exact qualified names are available; otherwise leave them empty. Key entities are not synthesized later.
-  - For update_component only: copy the exact component_id from the existing-components list. Include refreshed name, description, or key_entities only when the component's architectural responsibility changed; otherwise preserve the existing metadata. An empty key_entities list preserves the current selection.
-  - For delete_component or noop only: copy the exact component_id from the existing-components list and leave name, description, and key_entities empty. Use delete_component only when the component has no remaining responsibility; use noop to preserve it unchanged.
-</architecture_output_contract>
-
-</instructions>
-
-<tool_usage_policy>
-Use listGitChanges only when the structural diff is not enough to judge semantic impact. Keep reads targeted to the uncertain cluster.
-</tool_usage_policy>"""
-
 
 class ClaudePromptFactory(AbstractPromptFactory):
     """Prompt factory for Claude models."""
@@ -457,15 +345,6 @@ class ClaudePromptFactory(AbstractPromptFactory):
 
     def get_cfg_details_message(self) -> str:
         return CFG_DETAILS_MESSAGE
-
-    def get_incremental_grouping_message(self) -> str:
-        return INCREMENTAL_GROUPING_MESSAGE
-
-    def get_planning_message(self) -> str:
-        return PLANNING_MESSAGE
-
-    def get_scope_relations_message(self) -> str:
-        return SCOPE_RELATIONS_MESSAGE
 
     def get_details_message(self) -> str:
         return DETAILS_MESSAGE

@@ -16,56 +16,29 @@ from agents.agent_responses import (
     Component,
     MetaAnalysisInsights,
 )
-from agents.cluster_methods_mixin import scoped_snapshot_from_lineage
+from agents.content_hash import hash_repo_source_files, tree_hash_from_file_hashes
 from agents.details_agent import DetailsAgent
-from agents.incremental_agent import (
-    IncrementalAgent,
-    prune_empty_components,
-    remove_deleted_files,
-)
-from agents.incremental_planning_agent import IncrementalPlanningAgent
-from agents.incremental_results import RecursiveScopeUpdateResult
-from agents.file_index_models import FileEntry
 from agents.llm_config import initialize_llms
 from agents.llm_errors import LLMAuthError
 from agents.meta_agent import MetaAgent
 from agents.planner_agent import get_expandable_components
-from agents.relation_edges import index_relation_endpoints
-from agents.scope_ids import ROOT_SCOPE_ID
-from agents.content_hash import SourceCache, hash_repo_source_files, tree_hash_from_file_hashes
 from diagram_analysis.analysis_json import (
     FileCoverageReport,
     FileCoverageSummary,
     NotAnalyzedFile,
 )
-from diagram_analysis.cluster_delta import (
-    ClusterDelta,
-    LanguageDelta,
-    StructuralClusterDiff,
-    compute_cluster_delta,
-    structural_diff_from_delta,
-)
-from diagram_analysis.cluster_snapshot import (
-    ClusterSnapshot,
-    snapshot_from_static_analysis,
-)
-from diagram_analysis.exceptions import IncrementalCacheMissingError
 from diagram_analysis.file_coverage import FileCoverage
-from diagram_analysis.file_index import build_files_index, refresh_method_spans_from_cfg
-from diagram_analysis.io_utils import load_analysis_metadata, normalize_repo_path, save_analysis, write_fingerprint
+from diagram_analysis.io_utils import load_analysis_metadata, save_analysis, write_fingerprint
 from health.config import initialize_health_dir, load_health_config
 from health.runner import run_health_checks
 from monitoring import StreamingStatsWriter
 from monitoring.mixin import MonitoringMixin
 from monitoring.paths import get_monitoring_run_dir
-from repo_utils.change_detector import ChangeSet
 from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer import StaticAnalyzer, get_static_analysis
 from static_analyzer.analysis_cache import StaticAnalysisCache
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.cluster_relations import build_global_relations, is_self_or_descendant
-from static_analyzer.constants import Language
-from static_analyzer.graph import ClusterResult
+from static_analyzer.cluster_relations import build_global_relations
 from static_analyzer.scanner import ProjectScanner
 from telemetry.events import track_analysis
 
@@ -101,7 +74,6 @@ class DiagramGenerator:
         project_name: str | None = None,
         monitoring_enabled: bool = False,
         static_analyzer: StaticAnalyzer | None = None,
-        changes: ChangeSet | None = None,
     ):
         self.repo_location = repo_location
         self.temp_folder = temp_folder
@@ -112,12 +84,7 @@ class DiagramGenerator:
         self.run_id = run_id
         self.log_path = log_path
         self.monitoring_enabled = monitoring_enabled
-        self.force_full_analysis = False  # Set to True to skip incremental updates
-        # Source-tree changeset for the iterative path. When set, the cluster
-        # delta drops drift qnames whose file is outside the diff AND outside
-        # the prior analysis (see ``compute_cluster_delta``). ``None`` runs
-        # unscoped (no drift filtering).
-        self.changes: ChangeSet | None = changes
+        self.force_full_analysis = False  # Set to True to skip cache reuse
         # Whole-tree content hash, stamped into the pkl's sibling .sha file as the
         # diff base for the next warm-start (NOT a cache gate). ``pre_analysis``
         # fills it from the live tree when unset; ``None`` is a tag-less save.
@@ -132,8 +99,6 @@ class DiagramGenerator:
         self.static_analysis: StaticAnalysisResults | None = None  # Cache static analysis for reuse
         self.abstraction_agent: AbstractionAgent | None = None
         self.meta_agent: MetaAgent | None = None
-        self.incremental_planning_agent: IncrementalPlanningAgent | None = None
-        self.incremental_agent: IncrementalAgent | None = None
         self.meta_context: MetaAnalysisInsights | None = None
         self.file_coverage_data: dict | None = None
 
@@ -241,21 +206,6 @@ class DiagramGenerator:
             f.write(report.model_dump_json(indent=2, exclude_none=True))
         logger.info(f"File coverage report written to {coverage_path}")
 
-    def _changed_files_for_static_analysis(self) -> set[Path] | None:
-        """Absolute changed-file paths from the incremental ChangeSet, or None.
-
-        Incremental analysis always carries a git-free ``ChangeSet`` (the
-        fingerprint diff). We hand those files to the static-analysis warm-start
-        so it re-LSPs exactly them without shelling out to git. None means "no
-        ChangeSet" (a full run) and leaves the warm-start to its own git scoping;
-        an empty set means "incremental, nothing changed" and correctly re-LSPs
-        zero files instead of falling back to a full re-LSP via git.
-        """
-        if self.changes is None:
-            return None
-        rel_paths = self.changes.added_files + self.changes.modified_files + self.changes.deleted_files
-        return {(self.repo_location / rel).resolve() for rel in rel_paths}
-
     def _get_static_with_injected_analyzer(self) -> StaticAnalysisResults:
         """Run the injected analyzer with the configured cache policy."""
         assert self._static_analyzer is not None
@@ -265,7 +215,6 @@ class DiagramGenerator:
             logger.info("Force full analysis: skipping static analysis cache")
         if disable_reuse:
             logger.info("CODEBOARDING_DISABLE_CACHE_REUSE set; skipping static analysis cache")
-        self._static_analyzer.changed_files = self._changed_files_for_static_analysis()
         result = self._static_analyzer.analyze(
             skip_cache=skip_cache,
             source_sha=self.source_sha,
@@ -287,25 +236,7 @@ class DiagramGenerator:
             skip_cache=skip_cache,
             source_sha=self.source_sha,
             cache_dir=self.output_dir,
-            changed_files=self._changed_files_for_static_analysis(),
         )
-
-    def _seed_incremental_cluster_cache(self, cluster_results: dict[str, ClusterResult]) -> None:
-        """Write post-delta ``cluster_results`` into each language CFG's ``_cluster_cache``.
-
-        On the incremental path the abstraction agent doesn't run, so the live
-        partition has to be plumbed in explicitly before ``stop_clients`` saves
-        the pkl. ``cluster_snapshot`` reads exclusively from this cache.
-        """
-        if self.static_analysis is None:
-            return
-        for language, cr in cluster_results.items():
-            try:
-                cfg = self.static_analysis.get_cfg(Language(language))
-            except (ValueError, KeyError):
-                continue
-            cfg._cluster_cache = cr
-            cfg.record_cluster_paths(cr)
 
     def _persist_static_analysis_artifact(self) -> None:
         """Persist the post-clustering static-analysis artifact."""
@@ -362,30 +293,10 @@ class DiagramGenerator:
             agent_llm=agent_llm,
             parsing_llm=parsing_llm,
         )
-        self.incremental_planning_agent = IncrementalPlanningAgent(
-            repo_dir=self.repo_location,
-            static_analysis=static_analysis,
-            project_name=self.repo_name,
-            meta_context=meta_context,
-            agent_llm=agent_llm,
-            parsing_llm=parsing_llm,
-            changes=self.changes,
-        )
-        self.incremental_agent = IncrementalAgent(
-            repo_dir=self.repo_location,
-            static_analysis=static_analysis,
-            project_name=self.repo_name,
-            meta_context=meta_context,
-            agent_llm=agent_llm,
-            parsing_llm=parsing_llm,
-            changes=self.changes,
-        )
         self._monitoring_agents.update(
             {
                 "DetailsAgent": self.details_agent,
                 "AbstractionAgent": self.abstraction_agent,
-                "IncrementalPlanningAgent": self.incremental_planning_agent,
-                "IncrementalAgent": self.incremental_agent,
             }
         )
 
@@ -600,9 +511,9 @@ class DiagramGenerator:
     ) -> None:
         """Prepare an analysis tree for its authoritative save.
 
-        Single pre-save chokepoint shared by the full, incremental, and partial
-        flows. All steps are idempotent and
-        safe with an empty ``sub_analyses`` (rebuild is a root-only pass).
+        Single pre-save chokepoint shared by the full and partial flows. All
+        steps are idempotent and safe with an empty ``sub_analyses`` (rebuild
+        is a root-only pass).
         """
         self.rebuild_global_relations(root_analysis, sub_analyses)
         self._strip_ignored(root_analysis, sub_analyses)
@@ -612,21 +523,17 @@ class DiagramGenerator:
         root_analysis: AnalysisInsights,
         sub_analyses: dict[str, AnalysisInsights],
         *,
-        seed_delta: dict[str, ClusterResult] | None = None,
         persist_side_artifacts: bool = True,
     ) -> Path:
-        """Shared post-analysis tail for every flow: finalize, persist, return the path.
+        """Shared post-analysis tail: finalize, persist, return the path.
 
         ``finalize_for_save`` then ``save_analysis`` (stamped with the current
-        ``source_tree_hash`` and file-coverage summary). ``seed_delta`` is the
-        incremental-only cluster baseline, seeded *after* the save so a crash in
-        between re-does the delta (idempotent) rather than silently skipping it.
+        ``source_tree_hash`` and file-coverage summary).
 
         ``persist_side_artifacts`` writes ``file_coverage.json``, the static-
         analysis cache, and the ``fingerprint.json`` sidecar. The partial flow
         sets it False: it regenerates one component, not the source state, so
-        rewriting those would drop the ``static_analysis.sha`` tag (cold-starting
-        the next incremental) and desync the sidecar from ``source_tree_hash``.
+        rewriting those would desync the sidecar from ``source_tree_hash``.
         """
         self.finalize_for_save(root_analysis, sub_analyses)
         if persist_side_artifacts:
@@ -644,13 +551,11 @@ class DiagramGenerator:
             repo_dir=self.repo_location,
             source_tree_hash=source_tree_hash,
         ).resolve()
-        if seed_delta is not None:
-            self._seed_incremental_cluster_cache(seed_delta)
         if persist_side_artifacts:
             self._write_file_coverage()
             self._persist_static_analysis_artifact()
-            # Whole-tree sidecar (not the component-only files block) so the next
-            # incremental diffs the same set source_tree_hash covers.
+            # Whole-tree sidecar (not the component-only files block) so the
+            # source_tree_hash covers the same set.
             write_fingerprint(Path(self.output_dir), self._source_tree_fingerprint_map())
         return analysis_path
 
@@ -664,334 +569,3 @@ class DiagramGenerator:
             not_analyzed=summary["not_analyzed"],
             not_analyzed_by_reason=summary["not_analyzed_by_reason"],
         )
-
-    def _apply_incremental_scope_recursively(
-        self,
-        scope_id: str,
-        scope: AnalysisInsights,
-        structural_diff: StructuralClusterDiff,
-        cluster_results: dict[str, ClusterResult],
-        sub_analyses: dict[str, AnalysisInsights],
-    ) -> RecursiveScopeUpdateResult:
-        assert self.incremental_planning_agent is not None
-        assert self.incremental_agent is not None
-        decision = self.incremental_planning_agent.decide_scope_update(
-            scope_id,
-            scope,
-            structural_diff,
-            cluster_results,
-        )
-        apply_result = self.incremental_agent.update_scope(scope_id, scope, decision, cluster_results)
-        result = RecursiveScopeUpdateResult(
-            refresh_ids=set(apply_result.refresh_ids),
-            new_component_ids=set(apply_result.new_component_ids),
-            removed_ids=set(apply_result.removed_ids),
-        )
-        if apply_result.refresh_ids or apply_result.removed_ids:
-            result.relation_contexts[scope_id] = apply_result.relation_context
-
-        components_by_id = {
-            component.component_id: component for component in scope.components if component.component_id
-        }
-        existing_refresh_ids = apply_result.refresh_ids - apply_result.new_component_ids
-        for component_id in sorted(existing_refresh_ids):
-            child_scope = sub_analyses.get(component_id)
-            child_component = components_by_id.get(component_id)
-            if child_scope is None or child_component is None or _component_depth(component_id) >= self.depth_level:
-                continue
-            child_cluster_results, child_diff = _build_scope_incremental_inputs(
-                child_component,
-                component_id,
-                self.incremental_agent,
-                self.changes,
-                self.repo_location,
-            )
-            if not child_diff.has_changes:
-                continue
-            if not _child_scope_needs_recursive_update(child_scope, child_diff):
-                continue
-            child_result = self._apply_incremental_scope_recursively(
-                component_id,
-                child_scope,
-                child_diff,
-                child_cluster_results,
-                sub_analyses,
-            )
-            result.refresh_ids |= child_result.refresh_ids
-            result.new_component_ids |= child_result.new_component_ids
-            result.removed_ids |= child_result.removed_ids
-            result.relation_contexts.update(child_result.relation_contexts)
-        return result
-
-    @track_analysis
-    def generate_analysis_incremental(
-        self,
-        root_analysis: AnalysisInsights,
-        sub_analyses: dict[str, AnalysisInsights],
-    ) -> Path:
-        """Cluster-driven incremental update of an existing ``analysis.json``.
-
-        Deterministic cluster delta, one LLM call to route delta clusters,
-        then ``_generate_subcomponents`` seeded with the changed components.
-        Raises when no trustworthy baseline or scoped update plan is available.
-        """
-        if self.details_agent is None or self.incremental_planning_agent is None or self.incremental_agent is None:
-            self.pre_analysis()
-        assert self.static_analysis is not None
-        assert self.details_agent is not None
-        assert self.incremental_planning_agent is not None
-        assert self.incremental_agent is not None
-
-        monitor = self.stats_writer if self.stats_writer else nullcontext()
-        with monitor:
-            # Scrub before cluster math: orphan-routed files never appear in
-            # any cluster, so deletes wouldn't surface via the delta alone.
-            live_files: set[str] = set()
-            for language in self.static_analysis.get_languages():
-                try:
-                    cfg = self.static_analysis.get_cfg(language)
-                except (ValueError, KeyError):
-                    continue
-                for node in cfg.nodes.values():
-                    if node.file_path:
-                        live_files.add(normalize_repo_path(node.file_path, self.repo_location))
-            remove_deleted_files(root_analysis, sub_analyses, live_files)
-
-            snapshot_source = self.static_analysis.incremental_base_results or self.static_analysis
-            old_snapshot = snapshot_from_static_analysis(snapshot_source)
-            if not old_snapshot.all_cluster_ids():
-                # No cluster_cache on the live CFG — no prior pkl, legacy pkl,
-                # or first-ever incremental run. Refuse to silently rebuild
-                # from scratch; that would discard the existing analysis.json's
-                # depth and component IDs. Caller must explicitly request a
-                # full run instead.  ``IncrementalCacheMissingError`` inspects
-                # the artifact dir to pick the specific diagnostic (missing
-                # pkl, missing sha, or pkl-without-cluster-baseline).
-                artifact_dir = self.output_dir
-                error = IncrementalCacheMissingError(artifact_dir)
-                logger.error("%s", error)
-                raise error
-
-            delta = compute_cluster_delta(
-                old_snapshot,
-                self.static_analysis,
-                changes=self.changes,
-                repo_dir=self.repo_location,
-            )
-            if not delta.has_changes:
-                logger.info("Cluster delta is empty; rewriting current analysis without re-detailing.")
-                # No structural change, but a body-only edit still moves content
-                # hashes — refresh the files index from live source so they don't
-                # go stale (relations are already the global set here).
-                self._refresh_files_index(root_analysis, sub_analyses)
-                return self.finalize_and_save(root_analysis, sub_analyses)
-
-            structural_diff = structural_diff_from_delta(
-                old_snapshot,
-                delta,
-                changes=self.changes,
-                repo_dir=self.repo_location,
-            )
-            protected_empty_ids = _cluster_backed_empty_component_ids(root_analysis, sub_analyses)
-            apply_result = self._apply_incremental_scope_recursively(
-                ROOT_SCOPE_ID,
-                root_analysis,
-                structural_diff,
-                delta.cluster_results(),
-                sub_analyses,
-            )
-
-            removed_ids = prune_empty_components(root_analysis, sub_analyses, protected_empty_ids)
-            if removed_ids:
-                apply_result.refresh_ids -= removed_ids
-                apply_result.new_component_ids -= removed_ids
-            _drop_removed_subtree_analyses(sub_analyses, apply_result.removed_ids | removed_ids)
-
-            new_components = [
-                component
-                for component in _collect_components_by_id(apply_result.new_component_ids, root_analysis, sub_analyses)
-                if _component_depth(component.component_id) < self.depth_level
-            ]
-            if new_components:
-                _, redetailed_subs = self._generate_subcomponents(root_analysis, new_components)
-                _merge_sub_analyses(sub_analyses, redetailed_subs)
-
-            if apply_result.relation_contexts:
-                self.incremental_agent.generate_all_scope_relations(
-                    root_analysis,
-                    sub_analyses,
-                    apply_result.relation_contexts,
-                )
-
-            self._refresh_files_index(root_analysis, sub_analyses)
-
-            analysis_path = self.finalize_and_save(root_analysis, sub_analyses, seed_delta=delta.cluster_results())
-            n_subs = sum(len(sub.components) for sub in sub_analyses.values())
-            logger.info(
-                "[incremental] saved: %d root + %d sub-components, %d relations",
-                len(root_analysis.components),
-                n_subs,
-                len(root_analysis.components_relations),
-            )
-            return analysis_path
-
-    def _refresh_files_index(
-        self,
-        root_analysis: AnalysisInsights,
-        sub_analyses: dict[str, AnalysisInsights],
-    ) -> None:
-        """Rebuild live per-scope file indexes and union them into the root index."""
-        assert self.static_analysis is not None
-        analyses = (root_analysis, *sub_analyses.values())
-        source_cache: SourceCache = {}
-        for analysis in analyses:
-            refresh_method_spans_from_cfg(analysis, self.static_analysis, self.repo_location)
-            analysis.files = build_files_index(analysis, self.repo_location, source_cache)
-            index_relation_endpoints(analysis, self.repo_location)
-
-        unified_files: dict[str, FileEntry] = {}
-        for analysis in analyses:
-            for fp, entry in analysis.files.items():
-                unified_files.setdefault(fp, FileEntry()).merge_from(entry)
-        root_analysis.files = unified_files
-
-
-def _collect_components_by_id(
-    component_ids: set[str],
-    root_analysis: AnalysisInsights,
-    sub_analyses: dict[str, AnalysisInsights],
-) -> list[Component]:
-    """Return concrete ``Component`` objects matching the given IDs across root + sub-analyses."""
-    if not component_ids:
-        return []
-    found: list[Component] = []
-    seen: set[str] = set()
-    for analysis in [root_analysis, *sub_analyses.values()]:
-        for component in analysis.components:
-            if component.component_id in component_ids and component.component_id not in seen:
-                found.append(component)
-                seen.add(component.component_id)
-    return found
-
-
-def _drop_removed_subtree_analyses(sub_analyses: dict[str, AnalysisInsights], removed_ids: set[str]) -> None:
-    for removed_id in removed_ids:
-        for scope_id in list(sub_analyses):
-            if is_self_or_descendant(scope_id, removed_id):
-                del sub_analyses[scope_id]
-
-
-def _cluster_backed_empty_component_ids(
-    root_analysis: AnalysisInsights,
-    sub_analyses: dict[str, AnalysisInsights],
-) -> set[str]:
-    protected_ids: set[str] = set()
-    for analysis in [root_analysis, *sub_analyses.values()]:
-        for component in analysis.components:
-            if (
-                component.component_id
-                and component.source_cluster_ids
-                and not component.key_entities
-                and not any(group.methods for group in component.file_methods)
-            ):
-                protected_ids.add(component.component_id)
-    return protected_ids
-
-
-def _child_scope_needs_recursive_update(
-    child_scope: AnalysisInsights,
-    structural_diff: StructuralClusterDiff,
-) -> bool:
-    owned_qnames = {
-        method.qualified_name
-        for component in child_scope.components
-        for group in component.file_methods
-        for method in group.methods
-        if method.qualified_name
-    }
-    removed_qnames: set[str] = set()
-    for diff in structural_diff.by_language.values():
-        for member_delta in [*diff.modified, *diff.new_details]:
-            removed_qnames.update(member_delta.removed_methods)
-    return bool(removed_qnames.intersection(owned_qnames))
-
-
-def _build_scope_incremental_inputs(
-    component: Component,
-    scope_id: str,
-    incremental_agent: IncrementalAgent,
-    changes: ChangeSet | None,
-    repo_dir: Path,
-) -> tuple[dict[str, ClusterResult], StructuralClusterDiff]:
-    old_snapshot = scoped_snapshot_for_component(component, scope_id, incremental_agent)
-    if not old_snapshot.all_cluster_ids():
-        return {}, StructuralClusterDiff()
-
-    _subgraph_str, cluster_results, _subgraph_cfgs = incremental_agent._create_strict_component_subgraph(
-        component,
-        source_cluster_id_prefix=scope_id,
-    )
-    delta = ClusterDelta(
-        by_language={
-            language: LanguageDelta(language=language, cluster_results=cluster_result)
-            for language, cluster_result in cluster_results.items()
-        }
-    )
-    structural_diff = structural_diff_from_delta(
-        old_snapshot,
-        delta,
-        changes=changes,
-        repo_dir=repo_dir,
-        scope_id=scope_id,
-    )
-    return cluster_results, structural_diff
-
-
-def scoped_snapshot_for_component(
-    component: Component,
-    scope_id: str,
-    incremental_agent: IncrementalAgent,
-) -> ClusterSnapshot:
-    assigned_qnames = {
-        method.qualified_name for group in component.file_methods for method in group.methods if method.qualified_name
-    }
-    by_language = {}
-    for language in incremental_agent.static_analysis.get_languages():
-        cfg = incremental_agent.static_analysis.get_cfg(language)
-        sub_cfg = cfg.filter_by_nodes(assigned_qnames)
-        if sub_cfg.nodes:
-            by_language[str(language)] = scoped_snapshot_from_lineage(sub_cfg, scope_id)
-    return ClusterSnapshot(by_language=by_language)
-
-
-def _merge_sub_analyses(
-    target: dict[str, AnalysisInsights],
-    updates: dict[str, AnalysisInsights],
-) -> None:
-    """Merge *updates* into *target*, preserving components the redetailer didn't touch.
-
-    ``_generate_subcomponents`` produces fresh sub-analyses that only contain
-    components the detailer LLM generated. In the incremental path, scoped
-    operations may have inserted brand-new components that the detailer never
-    saw because they weren't in its input scope. A plain ``dict.update()``
-    would wipe those survivors out.
-
-    For each key in *updates*, we:
-      1. Keep old components whose IDs are absent from the new sub-analysis.
-      2. Replace everything else with the new sub-analysis data.
-
-    Relations are not merged here: they live once on the root as the global set
-    and are rebuilt wholesale by ``rebuild_global_relations`` after this merge.
-    """
-    for key, new_sub in updates.items():
-        old_sub = target.get(key)
-        if old_sub is None:
-            target[key] = new_sub
-            continue
-
-        new_ids = {c.component_id for c in new_sub.components}
-        surviving = [c for c in old_sub.components if c.component_id not in new_ids]
-        if surviving:
-            new_sub.components = surviving + new_sub.components
-
-        target[key] = new_sub
