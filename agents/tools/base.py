@@ -6,7 +6,8 @@ from pydantic import BaseModel, Field, PrivateAttr
 from agents.agent_responses import ClusterAnalysis
 from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.graph import CallGraph, ClusterResult
+from static_analyzer.clustering import ClusterResult
+from static_analyzer.graph import CallGraph
 
 
 class RepoContext(BaseModel):

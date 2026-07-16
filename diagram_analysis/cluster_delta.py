@@ -14,7 +14,7 @@ import networkx as nx
 
 from diagram_analysis.cluster_snapshot import ClusterSnapshotEntry
 from diagram_analysis.io_utils import normalize_repo_path
-from static_analyzer.graph import ClusterResult
+from static_analyzer.clustering import ClusterResult
 from static_analyzer.leiden_utils import find_partition_seeded
 
 logger = logging.getLogger(__name__)

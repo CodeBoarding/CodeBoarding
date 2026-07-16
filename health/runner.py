@@ -98,14 +98,6 @@ def _collect_checks_for_language(
         summaries.append(check_circular_dependencies(package_deps, config))
         summaries.append(check_package_instability(package_deps, config))
 
-    # Component-cohesion check intentionally not run here. It's the only health
-    # check that calls ``CallGraph.cluster()``, which would seed
-    # ``_cluster_cache`` with a current-graph partition and let it masquerade
-    # as a historical snapshot in the next incremental delta. Re-enable via
-    # ``health.checks.cohesion.check_component_cohesion`` only after addressing
-    # that side effect.
-    # use_cache=False
-
     # Run LSP-based unused code detection
     exclude_patterns = config.health_exclude_patterns
     collector = LSPDiagnosticsCollector()

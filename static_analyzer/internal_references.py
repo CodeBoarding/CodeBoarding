@@ -7,13 +7,14 @@ from static_analyzer.constants import Language
 
 
 class ReferenceNode(Protocol):
-    fully_qualified_name: str
+    @property
+    def id(self) -> str: ...
 
 
 class InternalReferenceSource(Protocol):
     def get_languages(self) -> list[Language]: ...
 
-    def iter_reference_nodes(self, lang: Language) -> Iterable[ReferenceNode]: ...
+    def iter_reference_nodes(self, language: Language | None = None) -> Iterable[ReferenceNode]: ...
 
 
 def reference_tokens(qualified_name: str) -> list[str]:
@@ -43,7 +44,7 @@ def _internal_reference_token_paths(static_analysis: InternalReferenceSource) ->
     token_paths: list[list[str]] = []
     for lang in static_analysis.get_languages():
         for node in static_analysis.iter_reference_nodes(lang):
-            token_paths.append(reference_tokens(node.fully_qualified_name))
+            token_paths.append(reference_tokens(node.id))
     return token_paths
 
 

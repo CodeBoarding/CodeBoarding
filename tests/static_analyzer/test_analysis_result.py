@@ -2,13 +2,33 @@ import unittest
 
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import Language, NodeType
-from static_analyzer.node import Node
 from static_analyzer.graph import CallGraph
+from static_analyzer.node import Node
+from static_analyzer.program_graph import ProgramGraph, ProgramNode, ProgramNodeKind
 
 
 class TestStaticAnalysisResults(unittest.TestCase):
     def setUp(self):
         self.results = StaticAnalysisResults()
+
+    def _add_references(self, language: Language, nodes: list[Node]) -> None:
+        graph = ProgramGraph(language=str(language))
+        for node in nodes:
+            graph.add_node(
+                ProgramNode(
+                    node_id=node.fully_qualified_name,
+                    kind=ProgramNodeKind.SYMBOL,
+                    language=str(language),
+                    name=node.fully_qualified_name.rsplit(".", 1)[-1],
+                    file_path=node.file_path,
+                    symbol_type=node.type,
+                    line_start=node.line_start,
+                    line_end=node.line_end,
+                    col_start=node.col_start,
+                    reference_worthy=True,
+                )
+            )
+        self.results.add_program_graph(language, graph)
 
     def test_language_tracking(self):
         self.assertEqual(self.results.get_languages(), [])
@@ -53,11 +73,11 @@ class TestStaticAnalysisResults(unittest.TestCase):
     def test_references_case_insensitive_lookup(self):
         node1 = Node("MyClass.method", NodeType.METHOD, "test.py", 1, 5)
         node2 = Node("utils.helper", NodeType.FUNCTION, "utils.py", 10, 15)
-        self.results.add_references(Language.PYTHON, [node1, node2])
+        self._add_references(Language.PYTHON, [node1, node2])
         retrieved = self.results.get_reference(Language.PYTHON, "myclass.method")
-        self.assertEqual(retrieved.fully_qualified_name, "MyClass.method")
+        self.assertEqual(retrieved.id, "MyClass.method")
         retrieved2 = self.results.get_reference(Language.PYTHON, "UTILS.HELPER")
-        self.assertEqual(retrieved2.fully_qualified_name, "utils.helper")
+        self.assertEqual(retrieved2.id, "utils.helper")
 
     def test_missing_data_raises_value_error(self):
         with self.assertRaises(ValueError):
@@ -71,30 +91,30 @@ class TestStaticAnalysisResults(unittest.TestCase):
 
     def test_reference_file_path_error(self):
         node = Node("mymodule.file.Class", NodeType.CLASS, "mymodule/file.py", 1, 5)
-        self.results.add_references(Language.PYTHON, [node])
-        with self.assertRaises(FileExistsError):
+        self._add_references(Language.PYTHON, [node])
+        with self.assertRaises(ValueError):
             self.results.get_reference(Language.PYTHON, "mymodule.file")
 
     def test_loose_reference_matching(self):
         node = Node("mypackage.module.MyClass.method", NodeType.METHOD, "test.py", 1, 5)
-        self.results.add_references(Language.PYTHON, [node])
+        self._add_references(Language.PYTHON, [node])
         message, retrieved = self.results.get_loose_reference(Language.PYTHON, "myclass.method")
         self.assertIsNotNone(retrieved)
         assert retrieved is not None
-        self.assertEqual(retrieved.fully_qualified_name, "mypackage.module.MyClass.method")
+        self.assertEqual(retrieved.id, "mypackage.module.MyClass.method")
 
     def test_loose_reference_unique_substring(self):
         node = Node("mypackage.unique_function", NodeType.FUNCTION, "test.py", 1, 5)
-        self.results.add_references(Language.PYTHON, [node])
+        self._add_references(Language.PYTHON, [node])
         message, retrieved = self.results.get_loose_reference(Language.PYTHON, "unique")
         self.assertIsNotNone(retrieved)
         assert retrieved is not None
-        self.assertEqual(retrieved.fully_qualified_name, "mypackage.unique_function")
+        self.assertEqual(retrieved.id, "mypackage.unique_function")
 
     def test_loose_reference_not_found(self):
         node = Node("mypackage.module.Class", NodeType.CLASS, "test.py", 1, 5)
-        self.results.add_references(Language.PYTHON, [node])
-        message, retrieved = self.results.get_loose_reference(Language.PYTHON, Language.GO)
+        self._add_references(Language.PYTHON, [node])
+        message, retrieved = self.results.get_loose_reference(Language.PYTHON, "missing")
         self.assertIsNone(retrieved)
 
     def test_source_files_tracking(self):
@@ -197,12 +217,12 @@ class TestStaticAnalysisResults(unittest.TestCase):
     def test_references_merge_multiple_projects(self):
         node1 = Node("project1.Class.method", NodeType.METHOD, "project1/file.py", 1, 5)
         node2 = Node("project2.OtherClass.method", NodeType.METHOD, "project2/file.py", 1, 5)
-        self.results.add_references(Language.PYTHON, [node1])
-        self.results.add_references(Language.PYTHON, [node2])
+        self._add_references(Language.PYTHON, [node1])
+        self._add_references(Language.PYTHON, [node2])
         retrieved1 = self.results.get_reference(Language.PYTHON, "project1.class.method")
-        self.assertEqual(retrieved1.fully_qualified_name, "project1.Class.method")
+        self.assertEqual(retrieved1.id, "project1.Class.method")
         retrieved2 = self.results.get_reference(Language.PYTHON, "project2.otherclass.method")
-        self.assertEqual(retrieved2.fully_qualified_name, "project2.OtherClass.method")
+        self.assertEqual(retrieved2.id, "project2.OtherClass.method")
 
     def test_source_files_merge(self):
         files1 = ["project1/main.py", "project1/utils.py"]

@@ -6,7 +6,7 @@ parameters, and dual-registration aliases are correctly excluded from references
 """
 
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from static_analyzer.constants import NodeType
 from static_analyzer.engine.language_adapter import LanguageAdapter
@@ -87,6 +87,10 @@ def _empty_result(source_files: list[str] | None = None) -> LanguageAnalysisResu
     return LanguageAnalysisResult(source_files=source_files or [])
 
 
+def _references(result: dict) -> list:
+    return result["program_graph"].symbol_nodes(reference_worthy_only=True)
+
+
 # ---------------------------------------------------------------------------
 # _map_symbol_kind
 # ---------------------------------------------------------------------------
@@ -122,9 +126,9 @@ class TestReferenceLineNumbers:
         _register(st, [_lsp_sym("my_func", NodeType.FUNCTION, start_line=9, end_line=19)])
         result = convert_to_codeboarding_format(st, _empty_result(), adapter)
 
-        refs = result["references"]
+        refs = _references(result)
         assert len(refs) == 1
-        assert refs[0].fully_qualified_name == "mod.my_func"
+        assert refs[0].id == "mod.my_func"
         assert refs[0].line_start == 10  # 9 + 1
         assert refs[0].line_end == 20  # 19 + 1
 
@@ -148,7 +152,7 @@ class TestReferenceLineNumbers:
         )
         result = convert_to_codeboarding_format(st, _empty_result(), adapter)
 
-        refs = {r.fully_qualified_name: r for r in result["references"]}
+        refs = {node.id: node for node in _references(result)}
         # Class itself
         assert "mod.MyClass" in refs
         assert refs["mod.MyClass"].line_start == 1
@@ -170,7 +174,7 @@ class TestReferenceLineNumbers:
         _register(st, [_lsp_sym("top", NodeType.FUNCTION, start_line=0, end_line=3)])
         result = convert_to_codeboarding_format(st, _empty_result(), adapter)
 
-        refs = result["references"]
+        refs = _references(result)
         assert len(refs) == 1
         assert refs[0].line_start == 1
         assert refs[0].line_end == 4
@@ -188,15 +192,15 @@ class TestReferenceNodeTypes:
         adapter = _make_adapter()
         st = SymbolTable(adapter)
         _register(st, [_lsp_sym("fn", NodeType.FUNCTION, 0, 5)])
-        refs = convert_to_codeboarding_format(st, _empty_result(), adapter)["references"]
-        assert refs[0].type == NodeType.FUNCTION
+        refs = _references(convert_to_codeboarding_format(st, _empty_result(), adapter))
+        assert refs[0].symbol_type == NodeType.FUNCTION
 
     def test_class_type(self):
         adapter = _make_adapter()
         st = SymbolTable(adapter)
         _register(st, [_lsp_sym("Cls", NodeType.CLASS, 0, 10)])
-        refs = convert_to_codeboarding_format(st, _empty_result(), adapter)["references"]
-        assert refs[0].type == NodeType.CLASS
+        refs = _references(convert_to_codeboarding_format(st, _empty_result(), adapter))
+        assert refs[0].symbol_type == NodeType.CLASS
 
     def test_method_type(self):
         adapter = _make_adapter()
@@ -205,23 +209,23 @@ class TestReferenceNodeTypes:
             st,
             [_lsp_sym("Cls", NodeType.CLASS, 0, 20, children=[_lsp_sym("m", NodeType.METHOD, 2, 10)])],
         )
-        refs = convert_to_codeboarding_format(st, _empty_result(), adapter)["references"]
-        methods = [r for r in refs if r.type == NodeType.METHOD]
+        refs = _references(convert_to_codeboarding_format(st, _empty_result(), adapter))
+        methods = [node for node in refs if node.symbol_type == NodeType.METHOD]
         assert len(methods) == 1
 
     def test_variable_type(self):
         adapter = _make_adapter()
         st = SymbolTable(adapter)
         _register(st, [_lsp_sym("MY_CONST", NodeType.VARIABLE, 0, 0)])
-        refs = convert_to_codeboarding_format(st, _empty_result(), adapter)["references"]
-        assert refs[0].type == NodeType.VARIABLE
+        refs = _references(convert_to_codeboarding_format(st, _empty_result(), adapter))
+        assert refs[0].symbol_type == NodeType.VARIABLE
 
     def test_enum_type(self):
         adapter = _make_adapter()
         st = SymbolTable(adapter)
         _register(st, [_lsp_sym("Color", NodeType.ENUM, 0, 5)])
-        refs = convert_to_codeboarding_format(st, _empty_result(), adapter)["references"]
-        assert refs[0].type == NodeType.ENUM
+        refs = _references(convert_to_codeboarding_format(st, _empty_result(), adapter))
+        assert refs[0].symbol_type == NodeType.ENUM
 
 
 # ---------------------------------------------------------------------------
@@ -249,7 +253,7 @@ class TestReferenceExclusions:
             ],
         )
         result = convert_to_codeboarding_format(st, _empty_result(), adapter)
-        ref_names = {r.fully_qualified_name for r in result["references"]}
+        ref_names = {node.id for node in _references(result)}
         # The function itself should be present
         assert "mod.outer" in ref_names
         # The local variable should be excluded (it has a parent chain)
@@ -280,7 +284,7 @@ class TestReferenceExclusions:
             ],
         )
         result = convert_to_codeboarding_format(st, _empty_result(), adapter)
-        ref_names = {r.fully_qualified_name for r in result["references"]}
+        ref_names = {node.id for node in _references(result)}
         assert all("param" not in n for n in ref_names)
 
     def test_module_level_variable_included(self):
@@ -289,7 +293,7 @@ class TestReferenceExclusions:
         st = SymbolTable(adapter)
         _register(st, [_lsp_sym("GLOBAL_FLAG", NodeType.VARIABLE, 0, 0)])
         result = convert_to_codeboarding_format(st, _empty_result(), adapter)
-        ref_names = {r.fully_qualified_name for r in result["references"]}
+        ref_names = {node.id for node in _references(result)}
         assert "mod.GLOBAL_FLAG" in ref_names
 
     def test_module_level_constant_included(self):
@@ -297,7 +301,7 @@ class TestReferenceExclusions:
         st = SymbolTable(adapter)
         _register(st, [_lsp_sym("MAX_RETRIES", NodeType.CONSTANT, 2, 2)])
         result = convert_to_codeboarding_format(st, _empty_result(), adapter)
-        ref_names = {r.fully_qualified_name for r in result["references"]}
+        ref_names = {node.id for node in _references(result)}
         assert "mod.MAX_RETRIES" in ref_names
 
     def test_dual_registration_alias_not_duplicated(self):
@@ -318,9 +322,9 @@ class TestReferenceExclusions:
         )
         result = convert_to_codeboarding_format(st, _empty_result(), adapter)
         # The method should appear once as "Cls.method" (primary), not also as "mod.method" (alias)
-        method_refs = [r for r in result["references"] if "method" in r.fully_qualified_name]
+        method_refs = [node for node in _references(result) if "method" in node.id]
         assert len(method_refs) == 1
-        assert method_refs[0].fully_qualified_name == "Cls.method"
+        assert method_refs[0].id == "Cls.method"
 
     def test_non_reference_worthy_kinds_excluded(self):
         """Kinds like MODULE, NAMESPACE, PACKAGE should not become references."""
@@ -342,7 +346,7 @@ class TestReferenceExclusions:
         st.build_indices()
 
         result = convert_to_codeboarding_format(st, _empty_result(), adapter)
-        ref_names = {r.fully_qualified_name for r in result["references"]}
+        ref_names = {node.id for node in _references(result)}
         assert "mod.mymod" not in ref_names
 
 
@@ -370,7 +374,7 @@ class TestClassLevelProperties:
             ],
         )
         result = convert_to_codeboarding_format(st, _empty_result(), adapter)
-        ref_names = {r.fully_qualified_name for r in result["references"]}
+        ref_names = {node.id for node in _references(result)}
         # Class-level property should be present
         assert any("name" in n for n in ref_names)
 
@@ -391,7 +395,7 @@ class TestClassLevelProperties:
             ],
         )
         result = convert_to_codeboarding_format(st, _empty_result(), adapter)
-        ref_names = {r.fully_qualified_name for r in result["references"]}
+        ref_names = {node.id for node in _references(result)}
         assert all("prop" not in n for n in ref_names)
 
 
@@ -417,10 +421,10 @@ class TestCallGraphConversion:
         result = LanguageAnalysisResult(cfg=cfg)
         out = convert_to_codeboarding_format(st, result, adapter)
 
-        cg = out["call_graph"]
-        assert "mod.foo" in cg.nodes
-        assert "mod.bar" in cg.nodes
-        assert len(cg.edges) == 1
+        graph = out["program_graph"]
+        assert "mod.foo" in graph.nodes
+        assert "mod.bar" in graph.nodes
+        assert len(graph.edges_of_kind(ProgramEdgeKind.CALL)) == 1
 
     def test_edge_with_missing_node_skipped(self):
         """If an edge references a symbol not in the symbol table, it should be skipped."""
@@ -431,8 +435,7 @@ class TestCallGraphConversion:
         result = LanguageAnalysisResult(cfg=cfg)
         out = convert_to_codeboarding_format(st, result, adapter)
 
-        cg = out["call_graph"]
-        assert len(cg.edges) == 0
+        assert len(out["program_graph"].edges_of_kind(ProgramEdgeKind.CALL)) == 0
 
     def test_edge_participant_nodes_included_even_if_not_graph_type(self):
         """A VARIABLE that participates in edges should appear as a call graph node."""
@@ -449,12 +452,11 @@ class TestCallGraphConversion:
         result = LanguageAnalysisResult(cfg=cfg)
         out = convert_to_codeboarding_format(st, result, adapter)
 
-        cg = out["call_graph"]
-        assert "mod.handler" in cg.nodes
-        assert "mod.process" in cg.nodes
+        graph = out["program_graph"]
+        assert "mod.handler" in graph.nodes
+        assert "mod.process" in graph.nodes
 
-    def test_reference_reuses_graph_node(self):
-        """If a symbol is both in the graph and reference-worthy, the same Node is reused."""
+    def test_reference_is_the_canonical_graph_node(self):
         adapter = _make_adapter()
         st = SymbolTable(adapter)
         _register(st, [_lsp_sym("foo", NodeType.FUNCTION, 0, 5)])
@@ -462,9 +464,8 @@ class TestCallGraphConversion:
         result = LanguageAnalysisResult(cfg=cfg)
         out = convert_to_codeboarding_format(st, result, adapter)
 
-        graph_node = out["call_graph"].nodes["mod.foo"]
-        ref_node = out["references"][0]
-        assert graph_node is ref_node
+        graph = out["program_graph"]
+        assert _references(out) == [graph.nodes["mod.foo"]]
 
 
 # ---------------------------------------------------------------------------
@@ -493,7 +494,7 @@ class TestMultiFileReferences:
         st.build_indices()
         result = convert_to_codeboarding_format(st, _empty_result(), adapter)
 
-        refs = {r.fully_qualified_name: r for r in result["references"]}
+        refs = {node.id: node for node in _references(result)}
         assert "alpha.func_a" in refs
         assert refs["alpha.func_a"].file_path == "alpha.py"
         assert refs["alpha.func_a"].line_start == 1
@@ -545,7 +546,7 @@ class TestMixedSymbolScenario:
         )
 
         result = convert_to_codeboarding_format(st, _empty_result(), adapter)
-        ref_names = {r.fully_qualified_name for r in result["references"]}
+        ref_names = {node.id for node in _references(result)}
 
         # Should be present:
         assert "mod.main" in ref_names
@@ -559,7 +560,7 @@ class TestMixedSymbolScenario:
         assert all("result" not in n for n in ref_names)
 
         # Verify line numbers
-        ref_map = {r.fully_qualified_name: r for r in result["references"]}
+        ref_map = {node.id: node for node in _references(result)}
         assert ref_map["mod.main"].line_start == 1
         assert ref_map["mod.VERSION"].line_start == 11
         assert ref_map["mod.Engine"].line_start == 13
@@ -583,15 +584,19 @@ class TestOutputStructure:
         result = _empty_result(source_files=["/root/mod.py"])
         out = convert_to_codeboarding_format(st, result, adapter)
 
-        assert "call_graph" in out
-        assert "class_hierarchies" in out
-        assert "package_relations" in out
-        assert "references" in out
-        assert "source_files" in out
-        assert "diagnostics" in out
+        assert set(out) == {"program_graph", "source_files", "diagnostics"}
         assert out["diagnostics"] == {}
         assert out["source_files"] == ["/root/mod.py"]
         assert "program_graph" in out
+
+    def test_project_root_inference_does_not_probe_source_paths(self):
+        adapter = _make_adapter()
+        result = _empty_result(source_files=["/restricted/mod.py"])
+
+        with patch.object(Path, "is_file", side_effect=AssertionError("filesystem probe")):
+            out = convert_to_codeboarding_format(SymbolTable(adapter), result, adapter)
+
+        assert out["program_graph"].language == "python"
 
     def test_program_graph_contains_structural_and_external_import_evidence(self):
         adapter = _make_adapter()

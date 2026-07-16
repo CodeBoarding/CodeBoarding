@@ -39,7 +39,7 @@ from static_analyzer.cluster_helpers import (
     build_all_cluster_results,
     get_all_cluster_ids,
 )
-from static_analyzer.graph import ClusterResult
+from static_analyzer.clustering import ClusterResult
 
 logger = logging.getLogger(__name__)
 

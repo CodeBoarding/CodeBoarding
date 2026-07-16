@@ -123,10 +123,10 @@ def _write_snapshot(
 
     # References: sorted list of fully qualified names with type and location
     references_snapshot = []
-    for node in sorted(static_analysis.iter_reference_nodes(language), key=lambda n: n.fully_qualified_name):
+    for node in sorted(static_analysis.iter_reference_nodes(language), key=lambda node: node.id):
         references_snapshot.append(
             {
-                "name": node.fully_qualified_name,
+                "name": node.id,
                 "type": node.entity_label(),
                 "file": _relative_path(node.file_path, repo_path),
                 "lines": f"{node.line_start}-{node.line_end}",
@@ -459,7 +459,7 @@ class TestStaticAnalysisConsistency:
         entity_type: str,
     ):
         """Verify that sample entities are present in the analysis results."""
-        reference_keys = {n.fully_qualified_name.lower() for n in static_analysis.iter_reference_nodes(language)}
+        reference_keys = {node.id.lower() for node in static_analysis.iter_reference_nodes(language)}
 
         for entity in sample_entities:
             entity_lower = entity.lower()

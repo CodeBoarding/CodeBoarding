@@ -29,6 +29,7 @@ from telemetry.schemas import (
 from telemetry.service import telemetry
 
 from agents.llm_config import MONITORING_CALLBACK
+from static_analyzer.program_graph import ProgramEdgeKind
 
 logger = logging.getLogger(__name__)
 
@@ -101,22 +102,22 @@ def track_lsp_result(
     diagnostics: dict,
 ) -> None:
     """Emit one ``lsp_analysis_result`` event for a language analysis pass."""
-    call_graph = analysis.get("call_graph")
-    missing_call_graph = call_graph is None
-    node_count = len(call_graph.nodes) if call_graph is not None else 0
-    edge_count = len(call_graph.edges) if call_graph is not None else 0
+    program_graph = analysis.get("program_graph")
+    missing_program_graph = program_graph is None
+    node_count = len(program_graph.symbol_nodes()) if program_graph is not None else 0
+    edge_count = len(program_graph.edges_of_kind(ProgramEdgeKind.CALL)) if program_graph is not None else 0
     source_files = analysis.get("source_files")
     missing_source_files = source_files is None
     if source_files is None:
         source_files = []
-    references = analysis.get("references", [])
+    reference_count = len(program_graph.symbol_nodes(reference_worthy_only=True)) if program_graph is not None else 0
     if not diagnostics:
         diagnostics = analysis.get("diagnostics") or {}
     diagnostic_count = sum(len(items) for items in diagnostics.values()) if diagnostics else 0
 
     zero_nodes_with_loc = loc > 0 and node_count == 0
     zero_edges_with_loc = loc > 0 and edge_count == 0
-    missing_summary = missing_call_graph or missing_source_files
+    missing_summary = missing_program_graph or missing_source_files
     quality_status = "error" if zero_nodes_with_loc else "warning" if zero_edges_with_loc or missing_summary else "ok"
 
     issues = []
@@ -124,8 +125,8 @@ def track_lsp_result(
         issues.append("zero nodes despite LOC")
     if zero_edges_with_loc:
         issues.append("zero edges despite LOC")
-    if missing_call_graph:
-        issues.append("missing call graph")
+    if missing_program_graph:
+        issues.append("missing program graph")
     if missing_source_files:
         issues.append("missing source files")
     if zero_nodes_with_loc:
@@ -147,7 +148,7 @@ def track_lsp_result(
         source_file_count=len(source_files),
         node_count=node_count,
         edge_count=edge_count,
-        reference_count=len(references),
+        reference_count=reference_count,
         diagnostic_file_count=len(diagnostics),
         diagnostic_count=diagnostic_count,
         quality_status=quality_status,

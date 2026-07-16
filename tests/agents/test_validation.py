@@ -26,7 +26,8 @@ from agents.agent_responses import (
     ComponentFiles,
     FileClassification,
 )
-from static_analyzer.graph import ClusterResult, CallGraph
+from static_analyzer.clustering import ClusterResult
+from static_analyzer.graph import CallGraph
 from static_analyzer.node import Node
 from static_analyzer.constants import NodeType
 
@@ -705,6 +706,7 @@ class TestValidateRelationEvidence(unittest.TestCase):
             )
         )
         source_node = MagicMock()
+        source_node.id = "service.OCR.extract_text"
         source_node.fully_qualified_name = "service.OCR.extract_text"
         source_node.file_path = "service.py"
         source_node.line_start = 1
@@ -736,6 +738,7 @@ class TestValidateRelationEvidence(unittest.TestCase):
             )
         )
         source_node = MagicMock()
+        source_node.id = "service.OCR.extract_text"
         source_node.fully_qualified_name = "service.OCR.extract_text"
         source_node.file_path = "service.py"
         source_node.line_start = 1

@@ -29,7 +29,8 @@ from agents.agent_responses import (
 )
 from agents.cluster_methods_mixin import ClusterMethodsMixin
 from static_analyzer.constants import NodeType
-from static_analyzer.graph import CallGraph, ClusterResult
+from static_analyzer.clustering import ClusterResult
+from static_analyzer.graph import CallGraph
 from static_analyzer.node import Node
 
 

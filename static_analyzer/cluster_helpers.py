@@ -2,14 +2,30 @@
 
 import logging
 from collections import defaultdict
+from typing import TypeVar
 
 import networkx as nx
 
 from static_analyzer.analysis_result import StaticAnalysisResults
+from static_analyzer.clustering import ClusterResult
 from static_analyzer.constants import ClusteringConfig, Language
-from static_analyzer.graph import ClusterResult, detect_communities
+from static_analyzer.infomap_clustering import HierarchicalInfomapClusterer
+from static_analyzer.leiden_utils import find_partition
 
 logger = logging.getLogger(__name__)
+NodeId = TypeVar("NodeId")
+
+
+def detect_communities(
+    graph: nx.Graph | nx.DiGraph,
+    *,
+    weight: str | None = None,
+    resolution: float | None = None,
+    seed: int | None = None,
+) -> list[set[NodeId]]:
+    """Run Leiden for budget-level cluster aggregation."""
+    return find_partition(graph, weight=weight, resolution=resolution, seed=seed)
+
 
 # Maximum number of clusters the LLM should see. When a language produces
 # more clusters than this, merge_clusters() collapses them into super-clusters
@@ -31,13 +47,10 @@ def build_cluster_results_for_languages(
         Dictionary mapping language name -> ClusterResult
     """
     cluster_results: dict[str, ClusterResult] = {}
+    clusterer = HierarchicalInfomapClusterer()
     for lang in languages:
-        try:
-            graph = static_analysis.get_program_graph(lang)
-            cluster_results[str(lang)] = graph.cluster()
-        except ValueError:
-            cfg = static_analysis.get_cfg(lang)
-            cluster_results[str(lang)] = cfg.cluster()
+        graph = static_analysis.get_program_graph(lang)
+        cluster_results[str(lang)] = clusterer.cluster(graph)
     return cluster_results
 
 
@@ -60,7 +73,6 @@ def build_all_cluster_results(static_analysis: StaticAnalysisResults) -> dict[st
     if len(cluster_results) > 1:
         reindex_cross_language_clusters(cluster_results)
 
-    _sync_cluster_cache(static_analysis, cluster_results)
     return cluster_results
 
 
@@ -71,18 +83,7 @@ def reindex_cross_language_clusters(cluster_results: dict[str, ClusterResult]) -
         result = cluster_results[lang]
         if offset:
             cluster_results[lang] = reindex_cluster_result(result, offset)
-        offset += len(result.clusters)
-
-
-def _sync_cluster_cache(static_analysis: StaticAnalysisResults, cluster_results: dict[str, ClusterResult]) -> None:
-    """Keep each CFG cache aligned with returned cluster IDs."""
-    for lang, result in cluster_results.items():
-        try:
-            cfg = static_analysis.get_cfg(Language(lang))
-            cfg._cluster_cache = result
-            cfg.record_cluster_paths(result)
-        except ValueError:
-            logger.warning("Could not sync cluster cache for missing language %s", lang)
+        offset = max(cluster_results[lang].clusters, default=offset)
 
 
 def enforce_cross_language_budget(

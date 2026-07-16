@@ -32,8 +32,10 @@ from diagram_analysis.diagram_generator import DiagramGenerator, _component_dept
 from static_analyzer.analysis_cache import StaticAnalysisCache
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import Language, NodeType
-from static_analyzer.graph import CallGraph, ClusterResult
+from static_analyzer.graph import CallGraph
+from static_analyzer.infomap_clustering import HierarchicalInfomapClusterer
 from static_analyzer.node import Node
+from static_analyzer.program_graph import ProgramGraph, ProgramNode, ProgramNodeKind
 
 
 class TestComponentJson(unittest.TestCase):
@@ -1122,7 +1124,7 @@ class TestDiagramGenerator(unittest.TestCase):
         self.assertEqual(set(sub_analyses), {"1.1"})
         self.assertEqual(mock_save_analysis.call_count, 1)
 
-    def test_persist_static_analysis_artifact_saves_cluster_cache_without_injected_analyzer(self):
+    def test_persist_static_analysis_artifact_saves_infomap_snapshot_without_injected_analyzer(self):
         gen = DiagramGenerator(
             repo_location=self.repo_location,
             temp_folder=self.temp_folder,
@@ -1134,24 +1136,23 @@ class TestDiagramGenerator(unittest.TestCase):
         )
         gen.source_sha = "sha-current"
 
-        cfg = CallGraph(language="python")
-        cfg.add_node(
-            Node(
-                fully_qualified_name="test.fn",
-                node_type=NodeType.FUNCTION,
+        graph = ProgramGraph(language="python")
+        graph.add_node(
+            ProgramNode(
+                node_id="test.fn",
+                kind=ProgramNodeKind.SYMBOL,
+                language="python",
+                name="fn",
+                symbol_type=NodeType.FUNCTION,
+                reference_worthy=True,
                 file_path=str(self.repo_location / "test.py"),
                 line_start=1,
                 line_end=1,
             )
         )
-        cfg._cluster_cache = ClusterResult(
-            clusters={1: {"test.fn"}},
-            cluster_to_files={1: {str(self.repo_location / "test.py")}},
-            file_to_clusters={str(self.repo_location / "test.py"): {1}},
-            strategy="test",
-        )
+        HierarchicalInfomapClusterer().cluster(graph)
         results = StaticAnalysisResults()
-        results.add_cfg(Language.PYTHON, cfg)
+        results.add_program_graph(Language.PYTHON, graph)
         gen.static_analysis = results
 
         gen._persist_static_analysis_artifact()
@@ -1162,7 +1163,7 @@ class TestDiagramGenerator(unittest.TestCase):
             return
         loaded_results, cached_sha = loaded
         self.assertEqual(cached_sha, "sha-current")
-        self.assertIsNotNone(loaded_results.get_cfg(Language.PYTHON)._cluster_cache)
+        self.assertIsNotNone(loaded_results.get_program_graph(Language.PYTHON).cluster_snapshot)
 
     def _finalize_gen(self):
         gen = DiagramGenerator(

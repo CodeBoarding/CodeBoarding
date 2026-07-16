@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -12,7 +13,7 @@ from tree_sitter import Node as TreeSitterNode
 from tree_sitter import Parser, Tree
 
 from static_analyzer.constants import LANGUAGE_EXTENSIONS, Language
-from static_analyzer.engine.models import CallSite, ImportDependency
+from static_analyzer.engine.models import CallSite, ImportDependency, ImportDependencyKind
 
 import tree_sitter_c_sharp
 import tree_sitter_go
@@ -196,14 +197,13 @@ class SourceInspector:
                         declared_module=module,
                         line=node.start_point.row + line_offset + 1,
                         column=column,
+                        kind=(ImportDependencyKind.MODULE if node.type == "mod_item" else ImportDependencyKind.IMPORT),
                     )
                 )
         return sorted(imports, key=lambda item: (item.source_file, item.line, item.column, item.declared_module))
 
     @staticmethod
     def _import_modules(text: str, suffix: str) -> list[tuple[str, int]]:
-        import re
-
         if suffix == ".py":
             from_match = re.search(r"\bfrom\s+([.\w]+)\s+import\b", text)
             if from_match:

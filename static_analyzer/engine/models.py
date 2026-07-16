@@ -7,6 +7,7 @@ the circular type dependency between LSPClient, SymbolTable, and LanguageAdapter
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from enum import StrEnum
 from pathlib import Path
 
 
@@ -59,6 +60,11 @@ class CallSite:
         return self.column - 1
 
 
+class ImportDependencyKind(StrEnum):
+    IMPORT = "import"
+    MODULE = "module"
+
+
 @dataclass(frozen=True)
 class ImportDependency:
     """One statically declared source import and its resolved internal target."""
@@ -67,6 +73,7 @@ class ImportDependency:
     declared_module: str
     line: int
     column: int
+    kind: ImportDependencyKind = ImportDependencyKind.IMPORT
     target_file: str | None = None
     external_package: str | None = None
 

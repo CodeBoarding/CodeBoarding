@@ -4,13 +4,14 @@ from unittest.mock import MagicMock, patch
 import networkx as nx
 
 from static_analyzer.analysis_result import StaticAnalysisResults
+from static_analyzer.clustering import ClusterResult
 from static_analyzer.cluster_helpers import (
     build_all_cluster_results,
     enforce_cross_language_budget,
+    reindex_cross_language_clusters,
     reindex_cluster_result,
     MAX_LLM_CLUSTERS,
 )
-from static_analyzer.graph import ClusterResult
 
 
 class TestClusterHelpers(unittest.TestCase):
@@ -30,26 +31,11 @@ class TestClusterHelpers(unittest.TestCase):
         analysis = MagicMock(spec=StaticAnalysisResults)
         analysis.get_languages.return_value = ["python", "typescript"]
 
-        python_cfg = MagicMock()
-        typescript_cfg = MagicMock()
-
-        python_cfg.cluster.return_value = self._make_cluster_result("py", 40)
-        typescript_cfg.cluster.return_value = self._make_cluster_result("ts", 40)
-        python_cfg.to_networkx.return_value = object()
-        typescript_cfg.to_networkx.return_value = object()
-
         python_graph = MagicMock()
         typescript_graph = MagicMock()
-        python_graph.cluster.return_value = self._make_cluster_result("py", 40)
-        typescript_graph.cluster.return_value = self._make_cluster_result("ts", 40)
         analysis.get_program_graph.side_effect = lambda language: {
             "python": python_graph,
             "typescript": typescript_graph,
-        }[language]
-
-        analysis.get_cfg.side_effect = lambda language: {
-            "python": python_cfg,
-            "typescript": typescript_cfg,
         }[language]
 
         def _fake_merge(cluster_result: ClusterResult, _cfg_graph: object, target: int) -> ClusterResult:
@@ -57,7 +43,13 @@ class TestClusterHelpers(unittest.TestCase):
             prefix = "py" if first_file.startswith("/repo/py_") else "ts"
             return self._make_cluster_result(prefix, target)
 
-        with patch("static_analyzer.cluster_helpers.merge_clusters", side_effect=_fake_merge) as mock_merge:
+        with (
+            patch("static_analyzer.cluster_helpers.merge_clusters", side_effect=_fake_merge) as mock_merge,
+            patch(
+                "static_analyzer.cluster_helpers.HierarchicalInfomapClusterer.cluster",
+                side_effect=[self._make_cluster_result("py", 40), self._make_cluster_result("ts", 40)],
+            ),
+        ):
             result = build_all_cluster_results(analysis)
 
         mock_merge.assert_not_called()
@@ -70,8 +62,17 @@ class TestClusterHelpers(unittest.TestCase):
 
         shifted_ts_ids = set().union(*result["typescript"].file_to_clusters.values())
         self.assertEqual(shifted_ts_ids, set(range(41, 81)))
-        self.assertIs(python_cfg._cluster_cache, result["python"])
-        self.assertIs(typescript_cfg._cluster_cache, result["typescript"])
+
+    def test_cross_language_reindex_handles_sparse_stable_ids(self):
+        cluster_results = {
+            "python": ClusterResult(clusters={1: {"a"}, 3: {"b"}}),
+            "typescript": ClusterResult(clusters={1: {"c"}, 2: {"d"}}),
+        }
+
+        reindex_cross_language_clusters(cluster_results)
+
+        self.assertEqual(set(cluster_results["python"].clusters), {1, 3})
+        self.assertEqual(set(cluster_results["typescript"].clusters), {4, 5})
 
     def test_reindex_cluster_result_shifts_all_ids(self):
         cr = self._make_cluster_result("x", 3)

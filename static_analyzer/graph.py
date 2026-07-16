@@ -1,40 +1,24 @@
+"""Call-evidence view used by agent rendering and health checks.
+
+Cluster assignments are produced exclusively from ProgramGraph by Infomap.
+"""
+
 import logging
 from collections import defaultdict
 from collections.abc import Callable, Collection, Hashable, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from types import MappingProxyType
 
 import networkx as nx
-import networkx.algorithms.community as nx_comm
 
-from static_analyzer.constants import (
-    GRAPH_NODE_TYPES,
-    ClusteringConfig,
-    NodeType,
-)
-from static_analyzer.leiden_utils import find_partition as _leiden_find_partition
+from static_analyzer.clustering import ClusterResult
+from static_analyzer.constants import GRAPH_NODE_TYPES, ClusteringConfig, NodeType
 from static_analyzer.method_cluster_paths import MethodClusterPaths
 from static_analyzer.node import Node
 
 logger = logging.getLogger(__name__)
 
 _EMPTY_NODES: Mapping[str, Node] = MappingProxyType({})
-
-
-def detect_communities[T](
-    graph: nx.Graph | nx.DiGraph,
-    *,
-    weight: str | None = None,
-    resolution: float | None = None,
-    seed: int | None = None,
-) -> list[set[T]]:
-    """Run Leiden community detection (the project-wide Leiden entry point).
-
-    Wraps ``leidenalg.find_partition`` indirectly so callers in
-    ``static_analyzer`` don't import ``igraph``/``leidenalg`` themselves —
-    the dependency surface is contained to ``leiden_utils``.
-    """
-    return _leiden_find_partition(graph, weight=weight, resolution=resolution, seed=seed)
 
 
 @dataclass(frozen=True)
@@ -46,35 +30,6 @@ class LocationKey:
     line_end: int
     node_type: int
     col_start: int = 0
-
-
-@dataclass
-class ClusterResult:
-    """Result of clustering a CallGraph. Provides deterministic cluster IDs and file mappings."""
-
-    clusters: dict[int, set[str]] = field(default_factory=dict)  # cluster_id -> node names
-    cluster_to_files: dict[int, set[str]] = field(default_factory=dict)  # cluster_id -> file_paths
-    file_to_clusters: dict[str, set[int]] = field(default_factory=dict)  # file_path -> cluster_ids
-    strategy: str = ""  # which algorithm was used
-
-    def get_cluster_ids(self) -> set[int]:
-        return set(self.clusters.keys())
-
-    def get_files_for_cluster(self, cluster_id: int) -> set[str]:
-        return self.cluster_to_files.get(cluster_id, set())
-
-    def get_clusters_for_file(self, file_path: str) -> set[int]:
-        return self.file_to_clusters.get(file_path, set())
-
-    def get_nodes_for_cluster(self, cluster_id: int) -> set[str]:
-        return self.clusters.get(cluster_id, set())
-
-    def visit_paths(self, fn: Callable[[str], str]) -> None:
-        self.cluster_to_files = {cid: {fn(path) for path in paths} for cid, paths in self.cluster_to_files.items()}
-        remapped_file_to_clusters: dict[str, set[int]] = defaultdict(set)
-        for path, cluster_ids in self.file_to_clusters.items():
-            remapped_file_to_clusters[fn(path)].update(cluster_ids)
-        self.file_to_clusters = dict(remapped_file_to_clusters)
 
 
 class Edge:
@@ -137,8 +92,6 @@ class CallGraph:
         # Every adapter currently emits ``.``-separated qualified names; see
         # ``constants.QUALIFIED_NAME_DELIMITER`` for the language-switch caveat.
         self.delimiter = ClusteringConfig.QUALIFIED_NAME_DELIMITER
-        # Cache for cluster result
-        self._cluster_cache: ClusterResult | None = None
         # qname -> scoped cluster ids it belongs to, e.g. ["1", "1.3", "1.3.6"].
         self.method_cluster_paths = MethodClusterPaths()
         # Location-based dedup: (file_path, line_start, line_end, type) -> canonical qualified name.
@@ -220,13 +173,7 @@ class CallGraph:
         keep_node: Callable[[Node], bool],
         on_dropped_edge: Callable[[Edge], None],
     ) -> "CallGraph":
-        """Return a new CallGraph keeping only nodes matching ``keep_node`` and connecting edges.
-
-        ``_cluster_cache`` is preserved and pruned to the surviving qnames so
-        a warm-start invalidation/filter step doesn't silently drop the prior
-        clustering. Edges whose endpoints both survive are re-added; edges
-        with a dropped endpoint are cascaded out and optionally collected.
-        """
+        """Return a CallGraph containing matching nodes and connecting edges."""
         out = CallGraph(language=self.language)
         for node in self.nodes.values():
             if keep_node(node):
@@ -240,18 +187,11 @@ class CallGraph:
                     logger.warning(f"Failed to add edge {src} -> {dst} during filter: {e}")
             else:
                 on_dropped_edge(edge)
-        out._cluster_cache = self._prune_cluster_cache(out.nodes)
         out.method_cluster_paths = self._prune_method_cluster_paths(out.nodes)
         return out
 
     def union(self, other: "CallGraph") -> "CallGraph":
-        """Return a new CallGraph unioning ``self`` (cached) with ``other`` (fresh).
-
-        ``_cluster_cache`` comes from ``self`` (the cached side that was
-        clustered in a prior run), pruned to the merged-node set. ``other``'s
-        nodes are new and unclustered until the next clustering pass; that's
-        the intended cluster_delta input — new files appear unassigned.
-        """
+        """Return a new CallGraph containing nodes and edges from both inputs."""
         out = CallGraph(language=self.language)
         for node in self.nodes.values():
             out.add_node(node)
@@ -267,36 +207,8 @@ class CallGraph:
                 out.add_edge(edge.get_source(), edge.get_destination(), call_sites=edge.call_sites)
             except ValueError:
                 pass
-        out._cluster_cache = self._prune_cluster_cache(out.nodes)
         out.method_cluster_paths = self._prune_method_cluster_paths(out.nodes)
         return out
-
-    def _prune_cluster_cache(self, surviving_nodes: dict[str, Node]) -> "ClusterResult | None":
-        """Drop qnames not in ``surviving_nodes`` from ``_cluster_cache``; recompute file maps."""
-        if self._cluster_cache is None:
-            return None
-        pruned_clusters: dict[int, set[str]] = {}
-        pruned_cluster_to_files: dict[int, set[str]] = {}
-        pruned_file_to_clusters: dict[str, set[int]] = {}
-        for cid, members in self._cluster_cache.clusters.items():
-            kept = {m for m in members if m in surviving_nodes}
-            if not kept:
-                continue
-            pruned_clusters[cid] = kept
-            files: set[str] = set()
-            for qname in kept:
-                fp = surviving_nodes[qname].file_path
-                if fp:
-                    files.add(fp)
-                    pruned_file_to_clusters.setdefault(fp, set()).add(cid)
-            if files:
-                pruned_cluster_to_files[cid] = files
-        return ClusterResult(
-            clusters=pruned_clusters,
-            cluster_to_files=pruned_cluster_to_files,
-            file_to_clusters=pruned_file_to_clusters,
-            strategy=self._cluster_cache.strategy,
-        )
 
     def _prune_method_cluster_paths(self, surviving_nodes: dict[str, Node]) -> MethodClusterPaths:
         return self.method_cluster_paths.prune(surviving_nodes)
@@ -306,8 +218,6 @@ class CallGraph:
             node.file_path = fn(node.file_path)
         for edge in self.edges:
             edge.visit_paths(fn)
-        if self._cluster_cache is not None:
-            self._cluster_cache.visit_paths(fn)
 
     def record_cluster_paths(self, cluster_result: ClusterResult, scope_id: str = "") -> None:
         """Record each member's current cluster id for this scope."""
@@ -329,70 +239,6 @@ class CallGraph:
         for edge in self.edges:
             nx_graph.add_edge(edge.get_source(), edge.get_destination())
         return nx_graph
-
-    def cluster(
-        self,
-        target_clusters: int = ClusteringConfig.DEFAULT_TARGET_CLUSTERS,
-        min_cluster_size: int = ClusteringConfig.DEFAULT_MIN_CLUSTER_SIZE,
-    ) -> ClusterResult:
-        """Cluster the graph using a try-all-then-level-up approach.
-
-        Flow: try all algorithms at each abstraction level (None, class, file).
-        If coverage >= 50% at any level, stop and return the best result.
-        Falls back to connected components if everything fails.
-        """
-        if self._cluster_cache is not None:
-            return self._cluster_cache
-
-        nx_graph = self.to_networkx()
-        if nx_graph.number_of_nodes() == 0:
-            logger.warning("No nodes available for clustering.")
-            self._cluster_cache = ClusterResult(strategy="empty")
-            return self._cluster_cache
-
-        total_nodes = nx_graph.number_of_nodes()
-        all_candidates: list[tuple[list[set[str]], str, float]] = []
-        levels: list[str | None] = [None, "class", "file"]
-
-        for level in levels:
-            if level is None:
-                work_graph = nx_graph
-            else:
-                work_graph = self._cluster_at_level(nx_graph, level)
-                if work_graph.number_of_nodes() == 0:
-                    continue
-
-            candidates = self._try_all_algorithms(work_graph, min_cluster_size, total_nodes)
-
-            if level is not None:
-                candidates = self._map_candidates_to_original(
-                    candidates, nx_graph, level, min_cluster_size, total_nodes
-                )
-
-            all_candidates.extend(candidates)
-
-            # Check if best coverage at this level is good enough
-            if candidates:
-                best = max(candidates, key=lambda c: c[2])
-                best_coverage = self._coverage(best[0], min_cluster_size, total_nodes)
-                logger.info(f"Level {level or 'raw'}: best={best[1]} score={best[2]:.3f} coverage={best_coverage:.3f}")
-                if best_coverage >= ClusteringConfig.MIN_COVERAGE_RATIO:
-                    break
-
-        # Pick overall best
-        if all_candidates:
-            best_communities, best_strategy, best_score = max(all_candidates, key=lambda c: c[2])
-            if best_score > 0.0:
-                self._cluster_cache = self._build_result(best_communities, best_strategy, min_cluster_size, nx_graph)
-                return self._cluster_cache
-
-        # Absolute fallback: connected components
-        logger.warning("All clustering strategies scored 0, falling back to connected components")
-        components = list(nx.connected_components(nx_graph.to_undirected()))
-        self._cluster_cache = self._build_result(
-            [set(c) for c in components[:target_clusters]], "connected_components", min_cluster_size, nx_graph
-        )
-        return self._cluster_cache
 
     def filter_by_files(self, file_paths: set[str]) -> "CallGraph":
         """
@@ -446,29 +292,11 @@ class CallGraph:
 
     def to_cluster_string(
         self,
+        cluster_result: ClusterResult,
         cluster_ids: Collection[int] = frozenset(),
-        cluster_result: ClusterResult | None = None,
         skip_nodes: Collection[str] = frozenset(),
     ) -> str:
-        """
-        Generate a human-readable string representation of clusters.
-
-        If cluster_ids is provided, only those clusters are included.
-        Uses provided cluster_result or calls cluster() if not provided.
-
-        Args:
-            cluster_ids: Set of cluster IDs to include. Empty includes all.
-            cluster_result: Optional pre-computed ClusterResult. If None, calls cluster().
-            skip_nodes: Qualified names to omit from the rendered output (both
-                cluster members and edges). The graph itself is not mutated;
-                this is a serialization-layer filter used by ``cfg_skip_planner``
-                to keep the LLM prompt under budget.
-
-        Returns:
-            Formatted string with cluster definitions and inter-cluster connections
-        """
-        if cluster_result is None:
-            cluster_result = self.cluster()
+        """Render a precomputed cluster result with call evidence."""
 
         if not cluster_result.clusters:
             return cluster_result.strategy if cluster_result.strategy in ("empty", "none") else "No clusters found."
@@ -495,171 +323,6 @@ class CallGraph:
         cluster_str = self.__cluster_str(communities, cfg_graph_x, skip)
         non_cluster_str = self.__non_cluster_str(cfg_graph_x, top_nodes, skip)
         return cluster_str + non_cluster_str
-
-    def _get_abstract_node_name(self, node_name: str, level: str) -> str:
-        parts = node_name.split(self.delimiter)
-
-        if level == "class" and len(parts) > 1:
-            return self.delimiter.join(parts[:-1])
-        elif level == "file" and len(parts) > 2:
-            return self.delimiter.join(parts[:-2])
-        elif level == "package" and len(parts) > 3:
-            return parts[0]
-        else:
-            return node_name
-
-    def _cluster_with_algorithm(self, graph: nx.DiGraph, algorithm: str) -> list[set[str]]:
-        # Use class-level seed for reproducibility - Leiden/Louvain are non-deterministic without it
-        if algorithm == "leiden":
-            return detect_communities(graph, seed=ClusteringConfig.CLUSTERING_SEED)
-        elif algorithm == "louvain":
-            return list(nx_comm.louvain_communities(graph, seed=ClusteringConfig.CLUSTERING_SEED))
-        elif algorithm == "greedy_modularity":
-            return list(nx.community.greedy_modularity_communities(graph))
-        else:
-            logger.warning(f"Algorithm {algorithm} not supported, defaulting to leiden")
-            return detect_communities(graph, seed=ClusteringConfig.CLUSTERING_SEED)
-
-    def _score_clustering(
-        self,
-        communities: list[set[str]],
-        min_cluster_size: int,
-        total_nodes: int,
-    ) -> float:
-        """Score clustering from 0.0 to 1.0. Coverage is primary, cluster count is a penalty."""
-        if not communities or total_nodes == 0:
-            return 0.0
-
-        valid_clusters = [c for c in communities if len(c) >= min_cluster_size]
-        if not valid_clusters:
-            return 0.0
-
-        # Coverage: fraction of nodes in valid clusters (primary driver)
-        covered_nodes = sum(len(c) for c in valid_clusters)
-        coverage_score = covered_nodes / total_nodes
-
-        # Cluster count penalty: ideal range [total_nodes/20, total_nodes/5]
-        cluster_count = len(valid_clusters)
-        ideal_min = max(2, total_nodes // 20)
-        ideal_max = max(ideal_min + 1, total_nodes // 5)
-
-        if ideal_min <= cluster_count <= ideal_max:
-            cluster_count_penalty = 1.0
-        elif cluster_count < ideal_min:
-            cluster_count_penalty = cluster_count / ideal_min
-        else:
-            overshoot = cluster_count - ideal_max
-            cluster_count_penalty = max(0.0, 1.0 - overshoot / ideal_max)
-
-        return coverage_score * cluster_count_penalty
-
-    def _cluster_at_level(self, graph: nx.DiGraph, level: str) -> nx.DiGraph:
-        """Create abstracted graph by grouping nodes at the given level."""
-        abstracted = nx.DiGraph()
-        node_map: dict[str, str] = {}
-
-        for node in graph.nodes():
-            abstract_name = self._get_abstract_node_name(node, level)
-            node_map[node] = abstract_name
-            if abstract_name not in abstracted:
-                abstracted.add_node(abstract_name)
-
-        edge_weights: dict[tuple[str, str], int] = defaultdict(int)
-        for src, dst in graph.edges():
-            a_src, a_dst = node_map[src], node_map[dst]
-            if a_src != a_dst:
-                edge_weights[(a_src, a_dst)] += 1
-
-        for (src, dst), weight in edge_weights.items():
-            abstracted.add_edge(src, dst, weight=weight)
-
-        return abstracted
-
-    def _try_all_algorithms(
-        self,
-        graph: nx.DiGraph,
-        min_cluster_size: int,
-        total_nodes: int,
-    ) -> list[tuple[list[set[str]], str, float]]:
-        """Run Leiden and return a single scored candidate.
-
-        Returned as a list so ``cluster()``'s cross-level pooling stays uniform.
-        """
-        candidates: list[tuple[list[set[str]], str, float]] = []
-        try:
-            communities = self._cluster_with_algorithm(graph, "leiden")
-            score = self._score_clustering(communities, min_cluster_size, total_nodes)
-            candidates.append((communities, "leiden", score))
-            logger.debug(f"leiden: score={score:.3f}, clusters={len(communities)}")
-        except Exception as e:
-            logger.debug(f"Algorithm leiden failed: {e}")
-        return candidates
-
-    def _map_candidates_to_original(
-        self,
-        candidates: list[tuple[list[set[str]], str, float]],
-        original_graph: nx.DiGraph,
-        level: str,
-        min_cluster_size: int,
-        total_nodes: int,
-    ) -> list[tuple[list[set[str]], str, float]]:
-        """Map abstract community results back to original node names and re-score."""
-        abstract_to_original: dict[str, list[str]] = defaultdict(list)
-        for node in original_graph.nodes():
-            abstract_to_original[self._get_abstract_node_name(node, level)].append(node)
-
-        mapped: list[tuple[list[set[str]], str, float]] = []
-        for communities, algo, _ in candidates:
-            original_communities: list[set[str]] = []
-            for community in communities:
-                orig: set[str] = set()
-                for abstract_node in community:
-                    orig.update(abstract_to_original[abstract_node])
-                if orig:
-                    original_communities.append(orig)
-            new_score = self._score_clustering(original_communities, min_cluster_size, total_nodes)
-            mapped.append((original_communities, f"{algo}_level_{level}", new_score))
-        return mapped
-
-    def _coverage(self, communities: list[set[str]], min_cluster_size: int, total_nodes: int) -> float:
-        """Calculate coverage: fraction of nodes in valid clusters."""
-        if total_nodes == 0:
-            return 0.0
-        valid = [c for c in communities if len(c) >= min_cluster_size]
-        return sum(len(c) for c in valid) / total_nodes
-
-    def _build_result(
-        self,
-        communities: list[set[str]],
-        strategy: str,
-        min_cluster_size: int,
-        nx_graph: nx.DiGraph,
-    ) -> ClusterResult:
-        """Build ClusterResult from communities."""
-        valid_communities = [c for c in communities if len(c) >= min_cluster_size]
-        sorted_communities = sorted(valid_communities, key=len, reverse=True)
-
-        clusters: dict[int, set[str]] = {}
-        file_to_clusters: dict[str, set[int]] = defaultdict(set)
-        cluster_to_files: dict[int, set[str]] = defaultdict(set)
-
-        for cluster_id, nodes in enumerate(sorted_communities, start=1):
-            clusters[cluster_id] = set(nodes)
-            for node_name in nodes:
-                if node_name in nx_graph.nodes:
-                    file_path = nx_graph.nodes[node_name].get("file_path")
-                    if file_path:
-                        file_to_clusters[file_path].add(cluster_id)
-                        cluster_to_files[cluster_id].add(file_path)
-
-        logger.info(f"Clustered {nx_graph.number_of_nodes()} nodes into {len(clusters)} clusters using {strategy}")
-
-        return ClusterResult(
-            clusters=clusters,
-            file_to_clusters=dict(file_to_clusters),
-            cluster_to_files=dict(cluster_to_files),
-            strategy=strategy,
-        )
 
     @staticmethod
     def _common_dot_prefix(qualified_names: list[str]) -> str:

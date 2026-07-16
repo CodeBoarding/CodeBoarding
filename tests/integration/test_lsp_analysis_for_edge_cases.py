@@ -30,6 +30,7 @@ import pytest
 from static_analyzer import StaticAnalyzer
 from static_analyzer.constants import Language
 from static_analyzer.program_graph import ProgramEdgeKind, ProgramNodeKind
+from static_analyzer.infomap_clustering import HierarchicalInfomapClusterer
 from utils import get_artifact_dir
 
 logger = logging.getLogger(__name__)
@@ -238,7 +239,7 @@ class TestEdgeCases:
 
     def test_expected_references(self, analysis: AnalysisRunData):
         language = Language(analysis.fixture["language"].lower())
-        refs = {node.fully_qualified_name: node for node in analysis.all_results[0].iter_reference_nodes(language)}
+        refs = {node.id: node for node in analysis.all_results[0].iter_reference_nodes(language)}
         expected = set(analysis.fixture.get("expected_references", []))
         actual = set(refs.keys())
         missing = sorted(expected - actual)
@@ -463,13 +464,14 @@ class TestEdgeCases:
         language = Language(analysis.fixture["language"].lower())
 
         def _compute_metrics(results):
-            refs = {node.fully_qualified_name: node for node in results.iter_reference_nodes(language)}
+            refs = {node.id: node for node in results.iter_reference_nodes(language)}
             deps = results.get_package_dependencies(language)
             cfg = results.get_cfg(language)
             source_files = results.get_source_files(language)
             actual_edges = {(e.get_source(), e.get_destination()) for e in cfg.edges}
             program_graph = results.get_program_graph(language)
-            cluster_result = program_graph.cluster()
+            cluster_result = HierarchicalInfomapClusterer().cluster(program_graph)
+            assert program_graph.cluster_snapshot is not None
             return {
                 "references": len(refs),
                 "packages": len(deps),
@@ -482,7 +484,7 @@ class TestEdgeCases:
                 "infomap_clusters": {
                     cluster_id: sorted(members) for cluster_id, members in cluster_result.clusters.items()
                 },
-                "infomap_paths": dict(program_graph._cluster_snapshot.node_paths),
+                "infomap_paths": dict(program_graph.cluster_snapshot.node_paths),
             }
 
         first_metrics = _compute_metrics(analysis.all_results[0])

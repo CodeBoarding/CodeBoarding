@@ -13,7 +13,8 @@ from agents.tools.base import RepoContext
 from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer import StaticAnalyzer
 from static_analyzer.constants import NodeType
-from static_analyzer.graph import CallGraph, ClusterResult, Edge
+from static_analyzer.clustering import ClusterResult
+from static_analyzer.graph import CallGraph, Edge
 from static_analyzer.node import Node
 from utils import get_artifact_dir
 

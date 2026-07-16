@@ -1,30 +1,20 @@
 import logging
 
 from health.models import FindingEntity, FindingGroup, HealthCheckConfig, Severity, StandardCheckSummary
+from static_analyzer.clustering import ClusterResult
 from static_analyzer.graph import CallGraph
 
 logger = logging.getLogger(__name__)
 
 
-def check_component_cohesion(call_graph: CallGraph, config: HealthCheckConfig) -> StandardCheckSummary:
-    """E10: Measure component cohesion via internal vs external edge ratio per cluster.
-
-    For each cluster identified by the call graph clustering, compute:
-        cohesion = internal_edges / total_edges
-
-    Low cohesion means the cluster's nodes talk more to nodes outside the
-    cluster than inside it, suggesting the grouping may not reflect
-    actual code organization.
-
-    NOT wired into ``health.runner`` today: the ``cluster()`` call below seeds
-    ``CallGraph._cluster_cache`` with a current-graph partition, which would
-    masquerade as a historical snapshot in the next incremental delta. Before
-    re-enabling, either reset ``_cluster_cache`` after the call or compute the
-    partition without touching the cache.
-    """
+def check_component_cohesion(
+    call_graph: CallGraph,
+    cluster_result: ClusterResult,
+    config: HealthCheckConfig,
+) -> StandardCheckSummary:
+    """Measure internal versus external call ratio for each cluster."""
     warning_entities: list[FindingEntity] = []
 
-    cluster_result = call_graph.cluster()
     if not cluster_result.clusters:
         return StandardCheckSummary(
             check_name="component_cohesion",

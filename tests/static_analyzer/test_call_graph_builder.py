@@ -3,14 +3,15 @@
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+from static_analyzer.constants import Language, NodeType
+from static_analyzer.engine.adapters.rust_adapter import RustAdapter
+from static_analyzer.engine.adapters.typescript_adapter import TypeScriptAdapter
 from static_analyzer.engine.call_graph_builder import CallGraphBuilder
+from static_analyzer.engine.edge_build_context import EdgeBuildContext
 from static_analyzer.engine.edge_builder import EdgeMap, build_edges_via_references
 from static_analyzer.engine.language_adapter import LanguageAdapter
-from static_analyzer.constants import NodeType
 from static_analyzer.engine.lsp_constants import DID_OPEN_BATCH_SIZE
-from static_analyzer.engine.edge_build_context import EdgeBuildContext
-from static_analyzer.engine.models import CallSite, ImportDependency, SymbolInfo
-from static_analyzer.engine.adapters.typescript_adapter import TypeScriptAdapter
+from static_analyzer.engine.models import CallSite, ImportDependency, ImportDependencyKind, SymbolInfo
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.symbol_table import SymbolTable
 
@@ -24,8 +25,6 @@ class _TestAdapter(LanguageAdapter):
 
     @property
     def language_enum(self):
-        from static_analyzer.constants import Language
-
         return Language.PYTHON
 
     @property
@@ -411,3 +410,22 @@ class TestImportResolution:
         declaration = ImportDependency(str(source), "../models", 1, 1)
 
         assert builder._resolve_import_target(declaration, [source, base, index]) == str(index)
+
+    def test_rust_module_declaration_resolves_from_declaring_module(self, tmp_path: Path):
+        declaring_module = tmp_path / "src" / "a" / "mod.rs"
+        expected = tmp_path / "src" / "a" / "child.rs"
+        unrelated = tmp_path / "src" / "b" / "child.rs"
+        for path in (declaring_module, expected, unrelated):
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.touch()
+
+        builder = CallGraphBuilder(_make_lsp(), RustAdapter(), tmp_path)
+        declaration = ImportDependency(
+            str(declaring_module),
+            "child",
+            1,
+            1,
+            kind=ImportDependencyKind.MODULE,
+        )
+
+        assert builder._resolve_import_target(declaration, [declaring_module, unrelated, expected]) == str(expected)

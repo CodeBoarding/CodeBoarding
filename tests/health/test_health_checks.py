@@ -3,6 +3,7 @@ import unittest
 
 from health.checks.circular_deps import check_circular_dependencies
 from health.checks.cohesion import check_component_cohesion
+from static_analyzer.clustering import ClusterResult
 from health.checks.coupling import check_fan_in, check_fan_out
 from health.checks.function_size import check_function_size
 from health.checks.god_class import check_god_classes
@@ -373,13 +374,14 @@ class TestComponentCohesion(unittest.TestCase):
         graph.add_edge("b.func1", "a.func2")
 
         config = HealthCheckConfig(cohesion_low=0.1)
-        result = check_component_cohesion(graph, config)
+        clusters = ClusterResult(clusters={1: {"a.func1", "a.func2"}, 2: {"b.func1", "b.func2"}})
+        result = check_component_cohesion(graph, clusters, config)
         self.assertIsNotNone(result)
 
     def test_empty_graph(self):
         graph = CallGraph()
         config = HealthCheckConfig()
-        result = check_component_cohesion(graph, config)
+        result = check_component_cohesion(graph, ClusterResult(), config)
         self.assertEqual(result.total_entities_checked, 0)
         self.assertEqual(result.score, 1.0)
 

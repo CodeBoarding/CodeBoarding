@@ -8,7 +8,7 @@ from agents.agent_responses import AnalysisInsights, RelationCallSite, RelationE
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import LANGUAGE_EXTENSIONS, Language
 from static_analyzer.internal_references import looks_internal_reference, reference_tokens
-from static_analyzer.node import Node
+from static_analyzer.program_graph import ProgramNode
 
 logger = logging.getLogger(__name__)
 
@@ -143,7 +143,7 @@ class StaticReferenceResolver:
     ) -> bool:
         """Resolve a reference to a current static-analysis symbol."""
         languages = self.static_analysis.get_languages()
-        exact_matches: list[Node] = []
+        exact_matches: list[ProgramNode] = []
         for lang in languages:
             try:
                 exact_matches.append(self.static_analysis.get_reference(lang, qname))
@@ -217,7 +217,7 @@ class StaticReferenceResolver:
         if self.node_identity(source_node) == self.node_identity(target_node):
             return KeyEdgeResolution(description=description, same_endpoint=True)
 
-        if not self.has_cfg_edge(source_node.fully_qualified_name, target_node.fully_qualified_name, cfg_graphs):
+        if not self.has_cfg_edge(source_node.id, target_node.id, cfg_graphs):
             if not edge.description.strip():
                 return KeyEdgeResolution(description=description)
 
@@ -251,7 +251,7 @@ class StaticReferenceResolver:
     @staticmethod
     def node_identity(node) -> str:
         """Return a stable identity for a static-analysis node."""
-        return f"{node.fully_qualified_name}:{node.file_path}:{node.line_start}:{node.line_end}"
+        return f"{node.id}:{node.file_path}:{node.line_start}:{node.line_end}"
 
     def keep_relation_edge(self, edge: RelationEdge) -> bool:
         """Keep relation edges that resolve internally or target external code."""
@@ -386,38 +386,36 @@ class StaticReferenceResolver:
         return analysis
 
     @staticmethod
-    def _unique_token_match(qname: str, candidates: list[Node]) -> Node | None:
+    def _unique_token_match(qname: str, candidates: list[ProgramNode]) -> ProgramNode | None:
         query_tokens = reference_tokens(qname)
         if not query_tokens:
             return None
 
-        matches: list[Node] = []
+        matches: list[ProgramNode] = []
         for node in candidates:
-            candidate_tokens = reference_tokens(node.fully_qualified_name)
+            candidate_tokens = reference_tokens(node.id)
             if candidate_tokens[-1:] != query_tokens[-1:]:
                 continue
             if all(token in candidate_tokens for token in query_tokens[:-1] if token.startswith("_")):
                 matches.append(node)
 
-        unique_matches = {
-            (node.fully_qualified_name, node.file_path, node.line_start, node.line_end): node for node in matches
-        }
+        unique_matches = {(node.id, node.file_path, node.line_start, node.line_end): node for node in matches}
         return next(iter(unique_matches.values())) if len(unique_matches) == 1 else None
 
     @staticmethod
-    def _apply_resolved_node(reference: SourceCodeReference, node: Node) -> None:
+    def _apply_resolved_node(reference: SourceCodeReference, node: ProgramNode) -> None:
         reference.reference_file = node.file_path
         reference.reference_start_line = node.line_start
         reference.reference_end_line = node.line_end
-        reference.qualified_name = node.fully_qualified_name
+        reference.qualified_name = node.id
 
     def _node_in_scope(
         self,
-        node: Node,
+        node: ProgramNode,
         allowed_qnames: set[str] | None,
         allowed_files: set[Path] | None,
     ) -> bool:
-        if allowed_qnames is not None and node.fully_qualified_name not in allowed_qnames:
+        if allowed_qnames is not None and node.id not in allowed_qnames:
             return False
         if allowed_files is not None and self._absolute_reference_path(node.file_path) not in allowed_files:
             return False

@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from static_analyzer.program_graph import ProgramGraph
+from static_analyzer.infomap_clustering import HierarchicalInfomapClusterer
 
 
 FIXTURE_ROOT = Path(__file__).parent / "fixtures" / "cfg_cluster_commit_pairs"
@@ -74,7 +75,8 @@ def test_recorded_cfg_clustering_change(manifest_path: Path | None) -> None:
         base = ProgramGraph.from_dict(json.loads((manifest_path.parent / config["base_graph"]).read_text()))
         head = ProgramGraph.from_dict(json.loads((manifest_path.parent / config["head_graph"]).read_text()))
         _assert_graph_changes(base, head, config.get("expected_graph_changes", {}))
-        base_result = base.cluster()
-        head._cluster_snapshot = base._cluster_snapshot
-        head_result = head.cluster()
+        clusterer = HierarchicalInfomapClusterer()
+        base_result = clusterer.cluster(base)
+        head.cluster_snapshot = base.cluster_snapshot
+        head_result = clusterer.cluster(head)
         _assert_clustering(base_result, head_result, config.get("expected_clustering", {}))

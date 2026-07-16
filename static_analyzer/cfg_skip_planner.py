@@ -19,7 +19,8 @@ from typing import Callable
 
 import networkx as nx
 
-from static_analyzer.graph import CallGraph, ClusterResult
+from static_analyzer.clustering import ClusterResult
+from static_analyzer.graph import CallGraph
 
 logger = logging.getLogger(__name__)
 

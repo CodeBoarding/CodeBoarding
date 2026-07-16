@@ -1,32 +1,27 @@
 """Canonical typed program graph produced by static analysis.
 
-The graph deliberately keeps semantic edge direction separate from the weighted
-projection used by clustering:
+The graph stores static-analysis entities and their directed relationships:
 
 * CALL: caller -> callee
 * CONTAINS: container -> member
 * IMPORTS: importing file -> imported file/external package
 * INHERITS: child -> parent
 
-CallGraph remains a projection for agent tooling; ProgramGraph is the source of
-truth for structural analysis and clustering.
+ProgramGraph is the source of truth for structural analysis and clustering.
 """
 
 from __future__ import annotations
 
-from collections import defaultdict
 from collections.abc import Callable, Iterable
 import copy
 from dataclasses import dataclass, field
 from enum import StrEnum
-from math import log1p
 from pathlib import Path, PurePosixPath
 from typing import Any
 
-import networkx as nx
-
+from static_analyzer.clustering import InfomapClusterSnapshot
 from static_analyzer.constants import NodeType
-from static_analyzer.graph import CallGraph, ClusterResult
+from static_analyzer.graph import CallGraph
 from static_analyzer.node import Node
 
 
@@ -68,17 +63,12 @@ class ProgramNode:
     reference_worthy: bool = False
     metadata: dict[str, Any] = field(default_factory=dict)
 
-    def to_legacy_node(self) -> Node:
-        if self.kind != ProgramNodeKind.SYMBOL or self.symbol_type is None:
-            raise ValueError(f"Program node {self.node_id!r} is not a source symbol")
-        return Node(
-            fully_qualified_name=self.node_id,
-            node_type=self.symbol_type,
-            file_path=self.file_path,
-            line_start=self.line_start,
-            line_end=self.line_end,
-            col_start=self.col_start,
-        )
+    @property
+    def id(self) -> str:
+        return self.node_id
+
+    def entity_label(self) -> str:
+        return self.symbol_type.label() if self.symbol_type is not None else self.kind.value.replace("_", " ").title()
 
 
 @dataclass
@@ -119,7 +109,7 @@ class ProgramGraph:
     language: str
     nodes: dict[str, ProgramNode] = field(default_factory=dict)
     _edges: dict[tuple[ProgramEdgeKind, str, str], ProgramEdge] = field(default_factory=dict)
-    _cluster_snapshot: Any | None = field(default=None, repr=False, compare=False)
+    cluster_snapshot: InfomapClusterSnapshot | None = field(default=None, repr=False, compare=False)
     _call_projection: CallGraph | None = field(default=None, repr=False, compare=False)
 
     @property
@@ -172,7 +162,18 @@ class ProgramGraph:
             return self._call_projection
         call_graph = CallGraph(language=self.language)
         for node in self.symbol_nodes():
-            call_graph.add_node(node.to_legacy_node())
+            if node.symbol_type is None:
+                raise ValueError(f"Symbol node {node.id!r} has no symbol type")
+            call_graph.add_node(
+                Node(
+                    fully_qualified_name=node.id,
+                    node_type=node.symbol_type,
+                    file_path=node.file_path,
+                    line_start=node.line_start,
+                    line_end=node.line_end,
+                    col_start=node.col_start,
+                )
+            )
         for edge in self.edges_of_kind(ProgramEdgeKind.CALL):
             if not call_graph.has_node(edge.source) or not call_graph.has_node(edge.target):
                 continue
@@ -243,48 +244,6 @@ class ProgramGraph:
             info["imported_by"].sort()
         return result
 
-    def clustering_graph(
-        self,
-        *,
-        call_weight: float = 1.0,
-        containment_weight: float = 0.35,
-        import_weight: float = 0.55,
-        inheritance_weight: float = 0.35,
-    ) -> nx.DiGraph:
-        """Build the deterministic directed weighted graph consumed by Infomap."""
-        graph = nx.DiGraph()
-        for node_id in sorted(self.nodes):
-            node = self.nodes[node_id]
-            if node.kind == ProgramNodeKind.EXTERNAL_PACKAGE:
-                continue
-            graph.add_node(node_id, kind=node.kind.value, file_path=node.file_path)
-
-        weights: defaultdict[tuple[str, str], float] = defaultdict(float)
-        for edge in self.edges:
-            if edge.source not in graph or edge.target not in graph:
-                continue
-            if edge.kind == ProgramEdgeKind.CALL:
-                weights[(edge.source, edge.target)] += call_weight * log1p(edge.occurrence_count)
-            elif edge.kind == ProgramEdgeKind.CONTAINS:
-                weights[(edge.source, edge.target)] += containment_weight
-                weights[(edge.target, edge.source)] += containment_weight
-            elif edge.kind == ProgramEdgeKind.IMPORTS:
-                weights[(edge.source, edge.target)] += import_weight
-            elif edge.kind == ProgramEdgeKind.INHERITS:
-                weights[(edge.source, edge.target)] += inheritance_weight
-
-        for (source, target), weight in sorted(weights.items()):
-            if weight > 0:
-                graph.add_edge(source, target, weight=round(weight, 12))
-        return graph
-
-    def cluster(self) -> ClusterResult:
-        from static_analyzer.infomap_clustering import HierarchicalInfomapClusterer
-
-        snapshot = HierarchicalInfomapClusterer().cluster(self, previous=self._cluster_snapshot)
-        self._cluster_snapshot = snapshot
-        return snapshot.cluster_result
-
     def visit_paths(self, fn: Callable[[str], str]) -> None:
         """Rewrite every path and path-derived file node ID."""
         id_map: dict[str, str] = {}
@@ -308,15 +267,15 @@ class ProgramGraph:
         self.nodes = new_nodes
         self._edges = new_edges
         self._call_projection = None
-        if self._cluster_snapshot is not None:
-            self._cluster_snapshot.node_paths = {
-                id_map.get(node_id, node_id): path for node_id, path in self._cluster_snapshot.node_paths.items()
+        if self.cluster_snapshot is not None:
+            self.cluster_snapshot.node_paths = {
+                id_map.get(node_id, node_id): path for node_id, path in self.cluster_snapshot.node_paths.items()
             }
-            self._cluster_snapshot.module_members = {
+            self.cluster_snapshot.module_members = {
                 cluster_id: {id_map.get(node_id, node_id) for node_id in members}
-                for cluster_id, members in self._cluster_snapshot.module_members.items()
+                for cluster_id, members in self.cluster_snapshot.module_members.items()
             }
-            result = self._cluster_snapshot.cluster_result
+            result = self.cluster_snapshot.cluster_result
             result.cluster_to_files = {
                 cluster_id: {fn(path) for path in paths} for cluster_id, paths in result.cluster_to_files.items()
             }
@@ -367,7 +326,7 @@ class ProgramGraph:
         for edge in self.edges:
             if edge.source in included and edge.target in included:
                 out.add_edge(copy.deepcopy(edge))
-        out._cluster_snapshot = copy.deepcopy(self._cluster_snapshot)
+        out.cluster_snapshot = copy.deepcopy(self.cluster_snapshot)
         return out
 
     def to_dict(self) -> dict[str, Any]:

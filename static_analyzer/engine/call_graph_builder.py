@@ -13,7 +13,7 @@ from static_analyzer.engine.hierarchy_builder import HierarchyBuilder
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_client import LSPClient
 from static_analyzer.engine.lsp_constants import DID_OPEN_BATCH_SIZE, EdgeStrategy
-from static_analyzer.engine.models import CallFlowGraph, ImportDependency, LanguageAnalysisResult
+from static_analyzer.engine.models import CallFlowGraph, ImportDependency, ImportDependencyKind, LanguageAnalysisResult
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.symbol_table import SymbolTable
 
@@ -136,6 +136,7 @@ class CallGraphBuilder:
                     declared_module=declaration.declared_module,
                     line=declaration.line,
                     column=declaration.column,
+                    kind=declaration.kind,
                     target_file=target_file,
                     external_package=external,
                 )
@@ -154,7 +155,9 @@ class CallGraphBuilder:
         # Relative path/module forms (Python dots, JS ../, Rust self::/super::).
         relative_module = module
         base = source.parent
-        if module.startswith(".") and not module.startswith(("./", "../")):
+        if declaration.kind == ImportDependencyKind.MODULE:
+            relative_module = module
+        elif module.startswith(".") and not module.startswith(("./", "../")):
             leading = len(module) - len(module.lstrip("."))
             for _ in range(max(0, leading - 1)):
                 base = base.parent

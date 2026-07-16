@@ -1,4 +1,4 @@
-"""Bridge between engine models and CodeBoarding's CallGraph/Node/Edge models."""
+"""Convert LSP engine output into ProgramGraph."""
 
 from __future__ import annotations
 
@@ -8,10 +8,8 @@ from pathlib import Path
 
 from static_analyzer.constants import GRAPH_NODE_TYPES, NodeType
 from static_analyzer.engine.language_adapter import LanguageAdapter
-from static_analyzer.engine.models import LanguageAnalysisResult
+from static_analyzer.engine.models import LanguageAnalysisResult, SymbolInfo
 from static_analyzer.engine.symbol_table import SymbolTable
-from static_analyzer.graph import CallGraph
-from static_analyzer.node import Node
 from static_analyzer.program_graph import (
     ProgramEdge,
     ProgramEdgeKind,
@@ -27,6 +25,8 @@ from static_analyzer.program_graph import (
 
 logger = logging.getLogger(__name__)
 
+SymbolLocation = tuple[str, int, int, int, int]
+
 
 def convert_to_codeboarding_format(
     symbol_table: SymbolTable,
@@ -34,61 +34,60 @@ def convert_to_codeboarding_format(
     adapter: LanguageAdapter,
     project_root: Path | None = None,
 ) -> dict:
-    """Convert engine analysis results to the dict shape expected by StaticAnalyzer.analyze().
-
-    Returns a dict with keys:
-        - call_graph: CallGraph (CodeBoarding's graph.py model)
-        - class_hierarchies: dict
-        - package_relations: dict
-        - references: list[Node]
-        - source_files: list[str]
-        - diagnostics: dict (empty — diagnostics are collected separately)
-    """
+    """Convert one language analysis into its canonical ProgramGraph."""
     language = adapter.language
-    call_graph = CallGraph(language=language)
     if project_root is None:
-        source_paths = [Path(path).resolve() for path in result.source_files]
-        project_root = Path(os.path.commonpath([str(path) for path in source_paths])) if source_paths else Path.cwd()
-        if project_root.is_file():
-            project_root = project_root.parent
-    project_root = project_root.resolve()
+        source_paths = [Path(os.path.abspath(path)) for path in result.source_files]
+        common_path = Path(os.path.commonpath([str(path) for path in source_paths])) if source_paths else Path.cwd()
+        project_root = common_path.parent if common_path in source_paths else common_path
+    project_root = Path(os.path.abspath(project_root))
     program_graph = ProgramGraph(language=language.lower())
 
-    # Collect all symbol names that participate in edges so we include them as nodes
     edge_participants: set[str] = set()
     for edge in result.cfg.edges:
         edge_participants.add(edge.source)
         edge_participants.add(edge.destination)
     primary_qnames = {item.qualified_name for items in symbol_table.primary_file_symbols.values() for item in items}
 
-    # Build Node objects from the engine's symbol table
-    symbol_nodes: dict[str, Node] = {}
-    for qname, sym in symbol_table.symbols.items():
+    included_symbols: dict[str, SymbolInfo] = {}
+    aliases_by_location: dict[SymbolLocation, list[str]] = {}
+    for qname, sym in sorted(symbol_table.symbols.items()):
         node_type = _map_symbol_kind(sym.kind)
-        # Include symbols that are graph node types OR that participate in edges
-        if node_type not in GRAPH_NODE_TYPES and qname not in edge_participants:
-            continue
-
-        node = Node(
-            fully_qualified_name=qname,
-            node_type=node_type,
-            file_path=str(sym.file_path),
-            line_start=sym.start_line + 1,
-            line_end=sym.end_line + 1,
-            col_start=sym.start_char,
+        is_reference = (
+            qname in primary_qnames
+            and adapter.is_reference_worthy(sym.kind)
+            and not symbol_table.is_local_variable(sym)
         )
-        symbol_nodes[qname] = node
-        call_graph.add_node(node)
-
-    # CallGraph performs location-based alias canonicalization while nodes are
-    # added. Mirror only those canonical symbol identities into ProgramGraph.
-    for qname in sorted(call_graph.nodes):
-        sym = symbol_table.symbols.get(qname)
-        if sym is None:
+        if node_type not in GRAPH_NODE_TYPES and qname not in edge_participants and not is_reference:
             continue
+        included_symbols[qname] = sym
+        location = (
+            str(sym.file_path),
+            sym.start_line,
+            sym.end_line,
+            node_type.value,
+            sym.start_char,
+        )
+        aliases_by_location.setdefault(location, []).append(qname)
+
+    canonical_by_qname: dict[str, str] = {}
+    for aliases in aliases_by_location.values():
+        primary_aliases = [alias for alias in aliases if alias in primary_qnames]
+        canonical = max(primary_aliases or aliases, key=lambda qname: (len(qname), qname))
+        canonical_by_qname.update({alias: canonical for alias in aliases})
+
+    for aliases in aliases_by_location.values():
+        canonical = canonical_by_qname[aliases[0]]
+        sym = included_symbols[canonical]
+        reference_worthy = any(
+            alias in primary_qnames
+            and adapter.is_reference_worthy(included_symbols[alias].kind)
+            and not symbol_table.is_local_variable(included_symbols[alias])
+            for alias in aliases
+        )
         program_graph.add_node(
             ProgramNode(
-                node_id=qname,
+                node_id=canonical,
                 kind=ProgramNodeKind.SYMBOL,
                 language=language.lower(),
                 name=sym.name,
@@ -97,106 +96,39 @@ def convert_to_codeboarding_format(
                 line_start=sym.start_line + 1,
                 line_end=sym.end_line + 1,
                 col_start=sym.start_char,
-                reference_worthy=(
-                    qname in primary_qnames
-                    and adapter.is_reference_worthy(sym.kind)
-                    and not symbol_table.is_local_variable(sym)
-                ),
+                reference_worthy=reference_worthy,
+                metadata={"aliases": sorted(alias for alias in aliases if alias != canonical)},
             )
         )
 
-    # Add edges from the engine's CFG
     edges_added = 0
     edges_skipped = 0
     for edge in result.cfg.edges:
-        src = edge.source
-        dst = edge.destination
-        if call_graph.has_node(src) and call_graph.has_node(dst):
-            try:
-                if edge.call_sites:
-                    call_graph.add_edge(
-                        src,
-                        dst,
-                        call_sites=[
-                            {"file": site.file, "line": site.line, "column": site.column} for site in edge.call_sites
-                        ],
-                    )
-                else:
-                    logger.warning(
-                        "edge_with_no_site language=%s source=%s destination=%s",
-                        language,
-                        src,
-                        dst,
-                    )
-                    call_graph.add_edge(src, dst)
-                edges_added += 1
-                program_graph.add_edge(
-                    ProgramEdge(
-                        kind=ProgramEdgeKind.CALL,
-                        source=call_graph._resolve_name(src),
-                        target=call_graph._resolve_name(dst),
-                        occurrences=[
-                            ProgramOccurrence(file=site.file, line=site.line, column=site.column)
-                            for site in edge.call_sites
-                        ],
-                    )
-                )
-            except ValueError:
-                edges_skipped += 1
-        else:
+        source = canonical_by_qname.get(edge.source)
+        target = canonical_by_qname.get(edge.destination)
+        if source is None or target is None:
             edges_skipped += 1
+            continue
+        program_graph.add_edge(
+            ProgramEdge(
+                kind=ProgramEdgeKind.CALL,
+                source=source,
+                target=target,
+                occurrences=[
+                    ProgramOccurrence(file=site.file, line=site.line, column=site.column) for site in edge.call_sites
+                ],
+            )
+        )
+        edges_added += 1
 
     logger.info(
         "Converted %d nodes, %d edges (%d skipped) for %s",
-        len(call_graph.nodes),
+        len(program_graph.symbol_nodes()),
         edges_added,
         edges_skipped,
         language,
     )
 
-    # Build references list from primary symbols only (excludes dual-registration
-    # aliases and local variables/parameters that are implementation noise).
-    references: list[Node] = []
-    seen_refs: set[str] = set()
-    for qname in sorted(primary_qnames):
-        sym = symbol_table.symbols[qname]
-        if not adapter.is_reference_worthy(sym.kind):
-            continue
-        if symbol_table.is_local_variable(sym):
-            continue
-        if qname in seen_refs:
-            continue
-        seen_refs.add(qname)
-
-        # Reuse existing node if in the graph, otherwise create a new one
-        if qname in symbol_nodes:
-            references.append(symbol_nodes[qname])
-        else:
-            ref_node = Node(
-                fully_qualified_name=qname,
-                node_type=_map_symbol_kind(sym.kind),
-                file_path=str(sym.file_path),
-                line_start=sym.start_line + 1,
-                line_end=sym.end_line + 1,
-            )
-            references.append(ref_node)
-        if qname not in program_graph.nodes:
-            program_graph.add_node(
-                ProgramNode(
-                    node_id=qname,
-                    kind=ProgramNodeKind.SYMBOL,
-                    language=language.lower(),
-                    name=sym.name,
-                    file_path=str(sym.file_path),
-                    symbol_type=_map_symbol_kind(sym.kind),
-                    line_start=sym.start_line + 1,
-                    line_end=sym.end_line + 1,
-                    col_start=sym.start_char,
-                    reference_worthy=True,
-                )
-            )
-
-    # Add file/package anchors and their containment hierarchy.
     file_package: dict[str, str] = {}
     for file_path_str in sorted(result.source_files):
         file_path = Path(file_path_str).resolve()
@@ -241,7 +173,7 @@ def convert_to_codeboarding_format(
                 )
             )
 
-    graph_symbol_ids = {node.node_id for node in program_graph.symbol_nodes() if node.node_id in symbol_table.symbols}
+    graph_symbol_ids = {node.id for node in program_graph.symbol_nodes() if node.id in symbol_table.symbols}
     containment_symbols = [symbol_table.symbols[qname] for qname in sorted(graph_symbol_ids)]
     by_file: dict[str, list] = {}
     for symbol in containment_symbols:
@@ -274,23 +206,33 @@ def convert_to_codeboarding_format(
                     candidates,
                     key=lambda item: (item.end_line - item.start_line, item.qualified_name),
                 )
-                container_id = parent.qualified_name
+                container_id = canonical_by_qname[parent.qualified_name]
             elif semantic_candidates:
-                container_id = max(
-                    semantic_candidates,
-                    key=lambda item: (len(item.qualified_name), item.qualified_name),
-                ).qualified_name
+                container_id = canonical_by_qname[
+                    max(
+                        semantic_candidates,
+                        key=lambda item: (len(item.qualified_name), item.qualified_name),
+                    ).qualified_name
+                ]
             else:
                 container_id = file_node_id(str(symbol.file_path.resolve()))
             if container_id in program_graph.nodes:
-                program_graph.add_edge(ProgramEdge(ProgramEdgeKind.CONTAINS, container_id, symbol.qualified_name))
+                program_graph.add_edge(
+                    ProgramEdge(
+                        ProgramEdgeKind.CONTAINS,
+                        container_id,
+                        canonical_by_qname[symbol.qualified_name],
+                    )
+                )
 
     for child, info in sorted(result.hierarchy.items()):
-        if child not in program_graph.nodes:
+        canonical_child = canonical_by_qname.get(child)
+        if canonical_child is None:
             continue
         for parent in sorted(info.get("superclasses", [])):
-            if parent in program_graph.nodes:
-                program_graph.add_edge(ProgramEdge(ProgramEdgeKind.INHERITS, child, parent))
+            canonical_parent = canonical_by_qname.get(parent)
+            if canonical_parent is not None and canonical_parent != canonical_child:
+                program_graph.add_edge(ProgramEdge(ProgramEdgeKind.INHERITS, canonical_child, canonical_parent))
 
     for dependency in result.imports:
         source_id = file_node_id(str(Path(dependency.source_file).resolve()))
@@ -332,13 +274,9 @@ def convert_to_codeboarding_format(
         )
 
     return {
-        "call_graph": call_graph,
-        "class_hierarchies": result.hierarchy,
-        "package_relations": result.package_dependencies,
-        "references": references,
+        "program_graph": program_graph,
         "source_files": result.source_files,
         "diagnostics": {},
-        "program_graph": program_graph,
     }
 
 

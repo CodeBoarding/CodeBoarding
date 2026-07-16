@@ -9,6 +9,7 @@ from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import NodeType
 from static_analyzer.graph import Edge
 from static_analyzer.node import Node
+from static_analyzer.program_graph import ProgramNode, ProgramNodeKind
 from static_analyzer.reference_resolver import StaticReferenceResolver
 
 
@@ -28,8 +29,18 @@ class TestStaticReferenceResolver(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
-    def _node(self, qname: str, rel_file: str, start: int = 1, end: int = 2) -> Node:
-        return Node(qname, NodeType.FUNCTION, str(self.repo_dir / rel_file), start, end)
+    def _node(self, qname: str, rel_file: str, start: int = 1, end: int = 2) -> ProgramNode:
+        return ProgramNode(
+            node_id=qname,
+            kind=ProgramNodeKind.SYMBOL,
+            language="python",
+            name=qname.rsplit(".", 1)[-1],
+            file_path=str(self.repo_dir / rel_file),
+            symbol_type=NodeType.FUNCTION,
+            line_start=start,
+            line_end=end,
+            reference_worthy=True,
+        )
 
     def _file_methods(self, qname: str, rel_file: str) -> list[FileMethodGroup]:
         return [
@@ -87,7 +98,7 @@ class TestStaticReferenceResolver(unittest.TestCase):
 
         self.resolver.resolve_reference(reference)
 
-        self.assertEqual(reference.qualified_name, node.fully_qualified_name)
+        self.assertEqual(reference.qualified_name, node.id)
         self.assertEqual(reference.reference_file, str(self.repo_dir / "service.py"))
 
     def test_resolve_reference_uses_matching_file_candidate(self):
@@ -112,12 +123,12 @@ class TestStaticReferenceResolver(unittest.TestCase):
         canonical_qname = "service.OCR.extract_text"
         node = self._node(canonical_qname, "service.py", 3, 4)
 
-        def get_reference(_language: object, qname: str) -> Node:
+        def get_reference(_language: object, qname: str) -> ProgramNode:
             if qname == canonical_qname:
                 return node
             raise ValueError("not found")
 
-        def get_loose_reference(_language: object, qname: str) -> tuple[str | None, Node | None]:
+        def get_loose_reference(_language: object, qname: str) -> tuple[str | None, ProgramNode | None]:
             if qname == "OCR.extract_text":
                 return canonical_qname, node
             return None, None
@@ -217,7 +228,11 @@ class TestStaticReferenceResolver(unittest.TestCase):
         source_node = self._node("service.OCR.extract_text", "service.py", 1, 2)
         target_node = self._node("module.file.test_function", "module/file.py", 3, 4)
         self.static_analysis.get_reference.side_effect = [source_node, target_node]
-        static_edge = Edge(source_node, target_node, [{"line": 7, "column": 8}])
+        static_edge = Edge(
+            Node(source_node.id, NodeType.FUNCTION, source_node.file_path, 1, 2),
+            Node(target_node.id, NodeType.FUNCTION, target_node.file_path, 3, 4),
+            [{"line": 7, "column": 8}],
+        )
         cfg = MagicMock()
         cfg.edges = [static_edge]
         self.static_analysis.get_cfg.return_value = cfg

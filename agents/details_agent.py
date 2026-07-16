@@ -42,7 +42,8 @@ from agents.validation import (
 from monitoring import trace
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cluster_helpers import get_all_cluster_ids
-from static_analyzer.graph import CallGraph, ClusterResult
+from static_analyzer.clustering import ClusterResult
+from static_analyzer.graph import CallGraph
 
 logger = logging.getLogger(__name__)
 

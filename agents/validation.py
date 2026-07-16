@@ -15,7 +15,8 @@ from agents.agent_responses import (
 )
 from repo_utils import normalize_path
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.graph import CallGraph, ClusterResult
+from static_analyzer.clustering import ClusterResult
+from static_analyzer.graph import CallGraph
 from static_analyzer.reference_resolver import StaticReferenceResolver
 
 logger = logging.getLogger(__name__)

@@ -35,7 +35,9 @@ from static_analyzer.cluster_relations import (
     merge_relations,
 )
 from static_analyzer.constants import CALLABLE_TYPES, CLASS_TYPES, Language
-from static_analyzer.graph import CallGraph, ClusterResult
+from static_analyzer.clustering import ClusterResult
+from static_analyzer.graph import CallGraph
+from static_analyzer.infomap_clustering import HierarchicalInfomapClusterer
 from static_analyzer.node import Node
 
 logger = logging.getLogger(__name__)
@@ -67,14 +69,11 @@ class ClusterMethodsMixin:
     Mixin providing shared cluster-related functionality for agents.
 
     This mixin provides methods for:
-    - Building cluster strings from CFG analysis (using CallGraph.cluster())
+    - Rendering Infomap cluster results with call evidence
     - Assigning files to components based on clusters and key_entities
     - Ensuring unique key entities across components
 
-    All clustering logic is delegated to CallGraph.cluster() which provides:
-    - Deterministic cluster IDs (seed=42)
-    - Cached results
-    - File <-> cluster bidirectional mappings
+    Hierarchical Infomap is the sole source of cluster assignments.
 
     IMPORTANT: All methods are stateless with respect to ClusterResult.
     Cluster results must be passed explicitly as parameters.
@@ -138,8 +137,12 @@ class ClusterMethodsMixin:
         for lang in programming_langs:
             cfg = self.static_analysis.get_cfg(lang)
             cluster_result = cluster_results.get(lang)
+            if cluster_result is None:
+                continue
             cluster_str = cfg.to_cluster_string(
-                cluster_ids or set(), cluster_result, skip_nodes=skip_sets.get(lang, set())
+                cluster_result,
+                cluster_ids or set(),
+                skip_nodes=skip_sets.get(lang, set()),
             )
 
             if cluster_str.strip() and cluster_str not in ("empty", "none", "No clusters found."):
@@ -444,7 +447,7 @@ class ClusterMethodsMixin:
                 subgraph_cfgs[lang] = sub_cfg
                 program_graph = self.static_analysis.get_program_graph(lang)
                 scoped_program_graph = program_graph.induced_by_symbols(assigned_qnames)
-                sub_cluster_result = scoped_program_graph.cluster()
+                sub_cluster_result = HierarchicalInfomapClusterer().cluster(scoped_program_graph)
 
                 # Expand to method-level if insufficient clusters
                 sub_cluster_result = self._expand_to_method_level_clusters(sub_cfg, sub_cluster_result)
