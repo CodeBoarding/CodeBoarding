@@ -1,7 +1,7 @@
-"""Plan which nodes to omit when serializing a CallGraph for LLM consumption.
+"""Plan which nodes to omit when serializing a ProgramGraph for LLM consumption.
 
 The planner never mutates the graph: it returns a set of qualified names that
-``CallGraph.to_cluster_string`` should drop from its output so the rendered
+``ProgramGraph.to_cluster_string`` should drop from its output so the rendered
 text fits a character budget derived from the agent's context window.
 
 Node selection follows an iterative leaf-peel order on the undirected graph,
@@ -20,7 +20,7 @@ from typing import Callable
 import networkx as nx
 
 from static_analyzer.clustering import ClusterResult
-from static_analyzer.graph import CallGraph
+from static_analyzer.program_graph import ProgramGraph
 
 logger = logging.getLogger(__name__)
 
@@ -138,7 +138,7 @@ def _minimize_skip_set(
 
 
 def plan_skip_set(
-    cfg: CallGraph,
+    cfg: ProgramGraph,
     cluster_result: ClusterResult,
     char_budget: int,
     max_peel_frac: float = 0.5,

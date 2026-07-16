@@ -1,7 +1,7 @@
 """Seeded Leiden clustering for subcomponent subgraphs.
 
 Warm-start ``leidenalg`` with a prior partition (recorded via
-``CallGraph.record_cluster_paths``) as ``initial_membership`` and lock vertices
+``ProgramGraph.record_cluster_paths``) as ``initial_membership`` and lock vertices
 outside the 1-hop affected frontier via ``is_membership_fixed``. Used by the
 details agent so re-detailing a component reuses its recorded cluster identity.
 """

@@ -32,9 +32,9 @@ from diagram_analysis.diagram_generator import DiagramGenerator, _component_dept
 from static_analyzer.analysis_cache import StaticAnalysisCache
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import Language, NodeType
-from static_analyzer.graph import CallGraph
+from static_analyzer.program_graph import ProgramGraph
 from static_analyzer.infomap_clustering import HierarchicalInfomapClusterer
-from static_analyzer.node import Node
+from tests.program_graph_factory import make_symbol
 from static_analyzer.program_graph import ProgramGraph, ProgramNode, ProgramNodeKind
 
 

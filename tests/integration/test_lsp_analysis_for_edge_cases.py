@@ -70,7 +70,7 @@ def _edge_call_site_tuples(edge, project_path: Path) -> set[tuple[str, int, int]
     expected future contract while keeping the assertion code independent of
     whether occurrences are represented as dicts or small objects.
     """
-    sites = getattr(edge, "call_sites", [])
+    sites = edge.occurrences
     actual = set()
     for site in sites:
         if isinstance(site, dict):
@@ -299,8 +299,8 @@ class TestEdgeCases:
 
     def test_call_graph_edges(self, analysis: AnalysisRunData):
         language = Language(analysis.fixture["language"].lower())
-        cfg = analysis.all_results[0].get_cfg(language)
-        actual_edges = {(e.get_source(), e.get_destination()) for e in cfg.edges}
+        graph = analysis.all_results[0].get_program_graph(language)
+        actual_edges = {(edge.source, edge.target) for edge in graph.call_edges()}
         expected_edges = _expected_edges(analysis.fixture)
         missing = sorted(f"{s} -> {d}" for s, d in expected_edges - actual_edges)
         unexpected = sorted(f"{s} -> {d}" for s, d in actual_edges - expected_edges)
@@ -313,11 +313,12 @@ class TestEdgeCases:
 
     def test_call_site_occurrences(self, analysis: AnalysisRunData):
         language = Language(analysis.fixture["language"].lower())
-        cfg = analysis.all_results[0].get_cfg(language)
-        if language == Language.RUST and not cfg.edges:
+        graph = analysis.all_results[0].get_program_graph(language)
+        if language == Language.RUST and not graph.call_edges():
             pytest.skip("Rust edge-case analysis currently emits zero CFG edges")
         actual_by_edge = {
-            (e.get_source(), e.get_destination()): _edge_call_site_tuples(e, analysis.project_path) for e in cfg.edges
+            (edge.source, edge.target): _edge_call_site_tuples(edge, analysis.project_path)
+            for edge in graph.call_edges()
         }
 
         errors = []
@@ -466,25 +467,24 @@ class TestEdgeCases:
         def _compute_metrics(results):
             refs = {node.id: node for node in results.iter_reference_nodes(language)}
             deps = results.get_package_dependencies(language)
-            cfg = results.get_cfg(language)
+            graph = results.get_program_graph(language)
             source_files = results.get_source_files(language)
-            actual_edges = {(e.get_source(), e.get_destination()) for e in cfg.edges}
-            program_graph = results.get_program_graph(language)
-            cluster_result = HierarchicalInfomapClusterer().cluster(program_graph)
-            assert program_graph.cluster_snapshot is not None
+            actual_edges = {(edge.source, edge.target) for edge in graph.call_edges()}
+            cluster_result = HierarchicalInfomapClusterer().cluster(graph)
+            assert graph.cluster_snapshot is not None
             return {
                 "references": len(refs),
                 "packages": len(deps),
-                "graph_nodes": len(cfg.nodes),
-                "graph_edges": len(cfg.edges),
+                "graph_nodes": len(graph.call_node_ids()),
+                "graph_edges": len(graph.call_edges()),
                 "source_files": len(source_files),
                 "edge_set": sorted((s, d) for s, d in actual_edges),
                 "reference_keys": sorted(refs.keys()),
-                "program_graph": program_graph.to_dict(),
+                "program_graph": graph.to_dict(),
                 "infomap_clusters": {
                     cluster_id: sorted(members) for cluster_id, members in cluster_result.clusters.items()
                 },
-                "infomap_paths": dict(program_graph.cluster_snapshot.node_paths),
+                "infomap_paths": dict(graph.cluster_snapshot.node_paths),
             }
 
         first_metrics = _compute_metrics(analysis.all_results[0])

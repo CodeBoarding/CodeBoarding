@@ -3,9 +3,9 @@ from __future__ import annotations
 import abc
 import logging
 from abc import abstractmethod
-from collections.abc import Hashable
+from collections.abc import Hashable, Mapping
 from pathlib import PurePosixPath
-from typing import TYPE_CHECKING, get_origin, Optional
+from typing import get_origin, Optional, Protocol
 
 from pydantic import BaseModel, Field
 from pydantic.fields import FieldInfo
@@ -15,8 +15,12 @@ from agents.file_index_models import FileEntry, FileMethodGroup, MethodEntry
 
 logger = logging.getLogger(__name__)
 
-if TYPE_CHECKING:
-    from diagram_analysis.analysis_json import MethodIndexEntry
+
+class MethodIndexRecord(Protocol):
+    qualified_name: str
+    file_path: str
+    start_line: int
+    end_line: int
 
 
 class LLMBaseModel(BaseModel, abc.ABC):
@@ -195,7 +199,7 @@ class RelationEdge(LLMBaseModel):
     )
 
     @classmethod
-    def from_dict(cls, edge: dict, methods_index: dict[str, MethodIndexEntry]) -> RelationEdge:
+    def from_dict(cls, edge: dict, methods_index: Mapping[str, MethodIndexRecord]) -> RelationEdge:
         source_key = edge.get("source")
         target_key = edge.get("target")
         if not isinstance(source_key, str) or not isinstance(target_key, str):
@@ -209,21 +213,23 @@ class RelationEdge(LLMBaseModel):
         )
 
     @classmethod
-    def from_edge(cls, edge) -> RelationEdge:
+    def from_program_edge(cls, edge, graph) -> RelationEdge:
+        source = graph.nodes[edge.source]
+        target = graph.nodes[edge.target]
         return cls(
             source=SourceCodeReference(
-                qualified_name=edge.src_node.fully_qualified_name,
-                reference_file=edge.src_node.file_path,
-                reference_start_line=edge.src_node.line_start,
-                reference_end_line=edge.src_node.line_end,
+                qualified_name=source.id,
+                reference_file=source.file_path,
+                reference_start_line=source.line_start,
+                reference_end_line=source.line_end,
             ),
             target=SourceCodeReference(
-                qualified_name=edge.dst_node.fully_qualified_name,
-                reference_file=edge.dst_node.file_path,
-                reference_start_line=edge.dst_node.line_start,
-                reference_end_line=edge.dst_node.line_end,
+                qualified_name=target.id,
+                reference_file=target.file_path,
+                reference_start_line=target.line_start,
+                reference_end_line=target.line_end,
             ),
-            call_sites=[RelationCallSite.model_validate(call_site) for call_site in edge.call_sites],
+            call_sites=[RelationCallSite.model_validate(call_site) for call_site in edge.occurrence_dicts()],
         )
 
     def llm_str(self) -> str:
@@ -245,7 +251,7 @@ class RelationEdge(LLMBaseModel):
 
 def _relation_endpoint_from_key(
     key: str,
-    methods_index: dict[str, MethodIndexEntry],
+    methods_index: Mapping[str, MethodIndexRecord],
 ) -> SourceCodeReference:
     indexed = methods_index.get(key)
     if indexed is not None:

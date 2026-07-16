@@ -10,14 +10,14 @@ from health.checks.god_class import check_god_classes
 from health.checks.inheritance import check_inheritance_depth
 from health.checks.instability import check_package_instability
 from health.models import HealthCheckConfig, Severity
-from static_analyzer.graph import CallGraph
+from static_analyzer.program_graph import ProgramGraph, ProgramNode
 from static_analyzer.constants import NodeType
-from static_analyzer.node import Node
+from tests.program_graph_factory import make_symbol
 
 
-def _make_node(fqn: str, file_path: str, line_start: int, line_end: int, node_type: int = 12) -> Node:
-    return Node(
-        fully_qualified_name=fqn,
+def _make_node(fqn: str, file_path: str, line_start: int, line_end: int, node_type: int = 12) -> ProgramNode:
+    return make_symbol(
+        qualified_name=fqn,
         node_type=node_type,
         file_path=file_path,
         line_start=line_start,
@@ -25,28 +25,28 @@ def _make_node(fqn: str, file_path: str, line_start: int, line_end: int, node_ty
     )
 
 
-def _build_simple_graph() -> CallGraph:
+def _build_simple_graph() -> ProgramGraph:
     """Build a small call graph for testing:
     A -> B -> C
     A -> D
     E (orphan)
     """
-    graph = CallGraph()
+    graph = ProgramGraph(language="")
     graph.add_node(_make_node("mod.A", "/src/a.py", 0, 30))
     graph.add_node(_make_node("mod.B", "/src/b.py", 0, 10))
     graph.add_node(_make_node("mod.C", "/src/c.py", 0, 5))
     graph.add_node(_make_node("mod.D", "/src/d.py", 0, 8))
     graph.add_node(_make_node("mod.E", "/src/e.py", 0, 3))
 
-    graph.add_edge("mod.A", "mod.B")
-    graph.add_edge("mod.A", "mod.D")
-    graph.add_edge("mod.B", "mod.C")
+    graph.add_call("mod.A", "mod.B")
+    graph.add_call("mod.A", "mod.D")
+    graph.add_call("mod.B", "mod.C")
     return graph
 
 
 class TestFunctionSize(unittest.TestCase):
     def test_no_findings_below_threshold(self):
-        graph = CallGraph()
+        graph = ProgramGraph(language="")
         graph.add_node(_make_node("mod.small", "/f.py", 0, 10))
         config = HealthCheckConfig(function_size_max=100)
         result = check_function_size(graph, config)
@@ -54,7 +54,7 @@ class TestFunctionSize(unittest.TestCase):
         self.assertEqual(result.score, 1.0)
 
     def test_warning_finding(self):
-        graph = CallGraph()
+        graph = ProgramGraph(language="")
         graph.add_node(_make_node("mod.medium", "/f.py", 0, 60))
         config = HealthCheckConfig(
             function_size_max=50,
@@ -65,7 +65,7 @@ class TestFunctionSize(unittest.TestCase):
         self.assertEqual(result.finding_groups[0].entities[0].metric_value, 60.0)
 
     def test_above_threshold_is_warning(self):
-        graph = CallGraph()
+        graph = ProgramGraph(language="")
         graph.add_node(_make_node("mod.large", "/f.py", 0, 150))
         config = HealthCheckConfig(
             function_size_max=100,
@@ -76,7 +76,7 @@ class TestFunctionSize(unittest.TestCase):
         self.assertEqual(result.total_entities_checked, 1)
 
     def test_function_size_skips_data_entities(self):
-        graph = CallGraph()
+        graph = ProgramGraph(language="")
         graph.add_node(_make_node("mod.MY_CONSTANT", "/f.py", 0, 100, node_type=NodeType.CONSTANT))
         graph.add_node(_make_node("mod.my_var", "/f.py", 0, 100, node_type=NodeType.VARIABLE))
         graph.add_node(_make_node("mod.Class.prop", "/f.py", 0, 100, node_type=NodeType.PROPERTY))
@@ -88,13 +88,13 @@ class TestFunctionSize(unittest.TestCase):
         self.assertEqual(result.total_entities_checked, 0)
 
     def test_empty_graph(self):
-        graph = CallGraph()
+        graph = ProgramGraph(language="")
         result = check_function_size(graph, HealthCheckConfig())
         self.assertEqual(result.total_entities_checked, 0)
         self.assertEqual(result.score, 1.0)
 
     def test_zero_size_skipped(self):
-        graph = CallGraph()
+        graph = ProgramGraph(language="")
         graph.add_node(_make_node("mod.zero", "/f.py", 10, 10))
         result = check_function_size(graph, HealthCheckConfig())
         self.assertEqual(result.total_entities_checked, 0)
@@ -122,13 +122,13 @@ class TestFanOut(unittest.TestCase):
 
 class TestFanIn(unittest.TestCase):
     def test_fan_in_detection(self):
-        graph = CallGraph()
+        graph = ProgramGraph(language="")
         target = _make_node("mod.target", "/f.py", 0, 10)
         graph.add_node(target)
         for i in range(5):
             caller = _make_node(f"mod.caller{i}", "/f.py", 20 + i * 10, 29 + i * 10)
             graph.add_node(caller)
-            graph.add_edge(f"mod.caller{i}", "mod.target")
+            graph.add_call(f"mod.caller{i}", "mod.target")
 
         config = HealthCheckConfig(
             fan_in_max=3,
@@ -144,7 +144,7 @@ class TestFanIn(unittest.TestCase):
 
 class TestGodClass(unittest.TestCase):
     def test_god_class_by_method_count(self):
-        graph = CallGraph()
+        graph = ProgramGraph(language="")
         graph.add_node(_make_node("mod.BigClass", "/f.py", 0, 250, node_type=NodeType.CLASS))
         for i in range(25):
             graph.add_node(
@@ -170,7 +170,7 @@ class TestGodClass(unittest.TestCase):
         self.assertEqual(len(big_class_findings), 1)
 
     def test_no_god_class(self):
-        graph = CallGraph()
+        graph = ProgramGraph(language="")
         for i in range(3):
             graph.add_node(_make_node(f"mod.SmallClass.method{i}", "/f.py", i * 10, i * 10 + 5))
         config = HealthCheckConfig(
@@ -180,7 +180,7 @@ class TestGodClass(unittest.TestCase):
         self.assertEqual(result.findings_count, 0)
 
     def test_god_class_with_hierarchy(self):
-        graph = CallGraph()
+        graph = ProgramGraph(language="")
         for i in range(25):
             graph.add_node(_make_node(f"mod.BigClass.method{i}", "/f.py", i * 10, i * 10 + 5))
         hierarchy = {
@@ -363,15 +363,15 @@ class TestPackageInstability(unittest.TestCase):
 
 class TestComponentCohesion(unittest.TestCase):
     def test_low_cohesion(self):
-        graph = CallGraph()
+        graph = ProgramGraph(language="")
         graph.add_node(_make_node("a.func1", "/a.py", 0, 10))
         graph.add_node(_make_node("a.func2", "/a.py", 10, 20))
         graph.add_node(_make_node("b.func1", "/b.py", 0, 10))
         graph.add_node(_make_node("b.func2", "/b.py", 10, 20))
 
-        graph.add_edge("a.func1", "b.func1")
-        graph.add_edge("a.func2", "b.func2")
-        graph.add_edge("b.func1", "a.func2")
+        graph.add_call("a.func1", "b.func1")
+        graph.add_call("a.func2", "b.func2")
+        graph.add_call("b.func1", "a.func2")
 
         config = HealthCheckConfig(cohesion_low=0.1)
         clusters = ClusterResult(clusters={1: {"a.func1", "a.func2"}, 2: {"b.func1", "b.func2"}})
@@ -379,7 +379,7 @@ class TestComponentCohesion(unittest.TestCase):
         self.assertIsNotNone(result)
 
     def test_empty_graph(self):
-        graph = CallGraph()
+        graph = ProgramGraph(language="")
         config = HealthCheckConfig()
         result = check_component_cohesion(graph, ClusterResult(), config)
         self.assertEqual(result.total_entities_checked, 0)
@@ -390,7 +390,7 @@ class TestEntityTypeFiltering(unittest.TestCase):
     """Tests that health checks correctly filter out classes and data entities."""
 
     def test_function_size_skips_classes(self):
-        graph = CallGraph()
+        graph = ProgramGraph(language="")
         graph.add_node(_make_node("mod.BigClass", "/f.py", 0, 500, node_type=NodeType.CLASS))
         graph.add_node(_make_node("mod.BigClass.big_method", "/f.py", 0, 200, node_type=NodeType.METHOD))
         config = HealthCheckConfig(
@@ -403,7 +403,7 @@ class TestEntityTypeFiltering(unittest.TestCase):
         self.assertEqual(result.total_entities_checked, 1)
 
     def test_function_size_skips_data_entities(self):
-        graph = CallGraph()
+        graph = ProgramGraph(language="")
         graph.add_node(_make_node("mod.MY_CONSTANT", "/f.py", 0, 100, node_type=NodeType.CONSTANT))
         graph.add_node(_make_node("mod.my_var", "/f.py", 0, 100, node_type=NodeType.VARIABLE))
         graph.add_node(_make_node("mod.Class.prop", "/f.py", 0, 100, node_type=NodeType.PROPERTY))
@@ -415,12 +415,12 @@ class TestEntityTypeFiltering(unittest.TestCase):
         self.assertEqual(result.findings_count, 0)
 
     def test_fan_out_skips_classes(self):
-        graph = CallGraph()
+        graph = ProgramGraph(language="")
         graph.add_node(_make_node("mod.MyClass", "/f.py", 0, 100, node_type=NodeType.CLASS))
         graph.add_node(_make_node("mod.func", "/f.py", 101, 110, node_type=NodeType.FUNCTION))
         graph.add_node(_make_node("mod.other", "/f.py", 111, 120, node_type=NodeType.FUNCTION))
-        graph.add_edge("mod.MyClass", "mod.other")
-        graph.add_edge("mod.func", "mod.other")
+        graph.add_call("mod.MyClass", "mod.other")
+        graph.add_call("mod.func", "mod.other")
         config = HealthCheckConfig(
             fan_out_max=1,
         )
@@ -430,12 +430,12 @@ class TestEntityTypeFiltering(unittest.TestCase):
         self.assertIn("mod.func", entity_names)
 
     def test_fan_in_skips_classes(self):
-        graph = CallGraph()
+        graph = ProgramGraph(language="")
         graph.add_node(_make_node("mod.MyClass", "/f.py", 0, 100, node_type=NodeType.CLASS))
         graph.add_node(_make_node("mod.func1", "/f.py", 0, 10, node_type=NodeType.FUNCTION))
         graph.add_node(_make_node("mod.func2", "/f.py", 11, 20, node_type=NodeType.FUNCTION))
-        graph.add_edge("mod.func1", "mod.MyClass")
-        graph.add_edge("mod.func2", "mod.MyClass")
+        graph.add_call("mod.func1", "mod.MyClass")
+        graph.add_call("mod.func2", "mod.MyClass")
         config = HealthCheckConfig(
             fan_in_max=1,
         )
@@ -532,7 +532,7 @@ class TestFunctionSizeTestFileExclusions(unittest.TestCase):
 
     def test_test_file_excluded_from_function_size(self):
         """Large functions in test files should not be flagged."""
-        graph = CallGraph()
+        graph = ProgramGraph(language="")
         # Large function in test file
         graph.add_node(_make_node("test.big_test", "/project/__tests__/test.ts", 1, 300))
         # Large function in production code

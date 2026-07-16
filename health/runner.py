@@ -76,7 +76,7 @@ def _collect_checks_for_language(
     """Run all applicable health checks for a single language and return the summaries."""
     summaries: CheckSummaryList = []
 
-    call_graph = static_analysis.get_cfg(language)
+    call_graph = static_analysis.get_program_graph(language)
     try:
         hierarchy = static_analysis.get_hierarchy(language)
     except ValueError:

@@ -291,9 +291,9 @@ def do_worker(repo_path: Path, repo_name: str) -> None:
         total_files = 0
 
         for lang in results.get_languages():
-            cfg = results.get_cfg(lang)
-            total_nodes += len(cfg.nodes)
-            total_edges += len(cfg.edges)
+            graph = results.get_program_graph(lang)
+            total_nodes += len(graph.call_node_ids())
+            total_edges += len(graph.call_edges())
 
         for lang in results.get_languages():
             total_files += len(results.get_source_files(lang))

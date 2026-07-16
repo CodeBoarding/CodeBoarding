@@ -47,12 +47,12 @@ def _rel(path: str, repo_path: Path) -> str:
 
 def _node_tuple(node, repo_path: Path) -> tuple:
     return (
-        node.fully_qualified_name,
+        node.id,
         _rel(node.file_path, repo_path),
         node.line_start,
         node.line_end,
         node.col_start,
-        int(node.type),
+        int(node.symbol_type),
     )
 
 
@@ -67,20 +67,22 @@ def _static_analysis_by_file(result: StaticAnalysisResults, repo_path: Path) -> 
             add(source_file, ("source", language.value))
 
         try:
-            cfg = result.get_cfg(language)
+            graph = result.get_program_graph(language)
         except ValueError:
             continue
-        for node in cfg.nodes.values():
+        for node in graph.symbol_nodes():
             add(node.file_path, ("node", *_node_tuple(node, repo_path)))
-        for edge in cfg.edges:
+        for edge in graph.call_edges():
+            source = graph.nodes[edge.source]
+            target = graph.nodes[edge.target]
             add(
-                edge.src_node.file_path,
+                source.file_path,
                 (
                     "edge",
                     language.value,
-                    edge.get_source(),
-                    edge.get_destination(),
-                    _rel(edge.dst_node.file_path, repo_path),
+                    edge.source,
+                    edge.target,
+                    _rel(target.file_path, repo_path),
                 ),
             )
 
@@ -123,16 +125,18 @@ def _edge_set(result: StaticAnalysisResults, repo_path: Path) -> set[tuple[str, 
     edges: set[tuple[str, str, str, str]] = set()
     for language in result.get_languages():
         try:
-            cfg = result.get_cfg(language)
+            graph = result.get_program_graph(language)
         except ValueError:
             continue
-        for edge in cfg.edges:
+        for edge in graph.call_edges():
+            source = graph.nodes[edge.source]
+            target = graph.nodes[edge.target]
             edges.add(
                 (
-                    edge.get_source(),
-                    edge.get_destination(),
-                    _rel(edge.src_node.file_path, repo_path),
-                    _rel(edge.dst_node.file_path, repo_path),
+                    edge.source,
+                    edge.target,
+                    _rel(source.file_path, repo_path),
+                    _rel(target.file_path, repo_path),
                 )
             )
     return edges

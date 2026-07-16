@@ -8,7 +8,20 @@ here to keep that distinction clear.
 
 from __future__ import annotations
 
+from typing import Protocol
+
 from pydantic import BaseModel, Field
+
+
+class SymbolType(Protocol):
+    name: str
+
+
+class ProgramSymbol(Protocol):
+    id: str
+    line_start: int
+    line_end: int
+    symbol_type: SymbolType | None
 
 
 class MethodEntry(BaseModel):
@@ -32,13 +45,15 @@ class MethodEntry(BaseModel):
         return self.qualified_name == other.qualified_name
 
     @classmethod
-    def from_node(cls, node) -> MethodEntry:
-        """Build from a ``static_analyzer.Node``. Accepts ``Any`` to avoid a hard dep."""
+    def from_node(cls, node: ProgramSymbol) -> MethodEntry:
+        """Build an entry from a typed program symbol."""
+        if node.symbol_type is None:
+            raise ValueError(f"Program node {node.id!r} is not a source symbol")
         return cls(
-            qualified_name=node.fully_qualified_name,
+            qualified_name=node.id,
             start_line=node.line_start,
             end_line=node.line_end,
-            node_type=node.type.name,
+            node_type=node.symbol_type.name,
         )
 
 

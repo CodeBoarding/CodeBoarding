@@ -20,7 +20,7 @@ from static_analyzer.program_graph import (
 )
 
 
-def _symbol(node_id: str, file_path: str) -> ProgramNode:
+def _symbol(node_id: str, file_path: str, line_start: int = 1) -> ProgramNode:
     return ProgramNode(
         node_id=node_id,
         kind=ProgramNodeKind.SYMBOL,
@@ -28,8 +28,8 @@ def _symbol(node_id: str, file_path: str) -> ProgramNode:
         name=node_id.rsplit(".", 1)[-1],
         file_path=file_path,
         symbol_type=NodeType.FUNCTION,
-        line_start=1,
-        line_end=3,
+        line_start=line_start,
+        line_end=line_start + 2,
         reference_worthy=True,
     )
 
@@ -61,19 +61,145 @@ def _graph(tmp_path: Path) -> ProgramGraph:
     return graph
 
 
-def test_call_projection_preserves_occurrences(tmp_path: Path) -> None:
+def test_call_edges_preserve_occurrences(tmp_path: Path) -> None:
     graph = _graph(tmp_path)
 
-    call_graph = graph.to_call_graph()
-
-    assert set(call_graph.nodes) == {"pkg.app.run", "pkg.helper.load"}
-    assert len(call_graph.edges) == 1
-    assert len(call_graph.edges[0].call_sites) == 2
+    assert graph.call_node_ids() == {"pkg.app.run", "pkg.helper.load"}
+    assert len(graph.call_edges()) == 1
+    assert graph.call_edges()[0].occurrence_count == 2
     weighted = {
         (source, target): weight
         for source, target, weight in HierarchicalInfomapClusterer._weighted_edges(graph, set(graph.nodes))
     }
     assert weighted[("pkg.app.run", "pkg.helper.load")] == pytest.approx(log1p(2))
+
+
+def test_call_node_metric_excludes_reference_only_symbols(tmp_path: Path) -> None:
+    graph = _graph(tmp_path)
+    graph.add_node(
+        ProgramNode(
+            "pkg.app.setting",
+            ProgramNodeKind.SYMBOL,
+            "python",
+            "setting",
+            str(tmp_path / "app.py"),
+            NodeType.VARIABLE,
+            20,
+            20,
+            reference_worthy=True,
+        )
+    )
+
+    assert graph.call_node_ids() == {"pkg.app.run", "pkg.helper.load"}
+    graph.add_call("pkg.app.run", "pkg.app.setting")
+    assert graph.call_node_ids() == {"pkg.app.run", "pkg.app.setting", "pkg.helper.load"}
+
+
+def test_symbol_aliases_resolve_to_the_most_specific_name(tmp_path: Path) -> None:
+    source_file = str(tmp_path / "source.py")
+    target_file = str(tmp_path / "target.py")
+    graph = ProgramGraph(language="python")
+    graph.add_node(_symbol("source.run", source_file))
+    graph.add_node(_symbol("target.handle", target_file))
+    graph.add_call("source.run", "target.handle")
+    graph.add_call("target.handle", "source.run")
+    graph.add_node(_symbol("package.source.run", source_file))
+
+    assert "source.run" not in graph.nodes
+    assert graph.resolve_symbol_id("source.run") == "package.source.run"
+    assert [(edge.source, edge.target) for edge in graph.call_edges()] == [
+        ("package.source.run", "target.handle"),
+        ("target.handle", "package.source.run"),
+    ]
+    restored = ProgramGraph.from_dict(graph.to_dict())
+    assert restored.resolve_symbol_id("source.run") == "package.source.run"
+
+
+def test_typed_edges_merge_metadata_and_reject_invalid_endpoints(tmp_path: Path) -> None:
+    graph = _graph(tmp_path)
+    source = file_node_id(str(tmp_path / "app.py"))
+    target = file_node_id(str(tmp_path / "helper.py"))
+    graph.add_edge(
+        ProgramEdge(
+            ProgramEdgeKind.IMPORTS,
+            source,
+            target,
+            metadata={"declared_module": "pkg.helper"},
+        )
+    )
+    graph.add_edge(
+        ProgramEdge(
+            ProgramEdgeKind.IMPORTS,
+            source,
+            target,
+            metadata={"declared_modules": ["pkg.helper.api"], "resolved": True},
+        )
+    )
+
+    imports = graph.edges_of_kind(ProgramEdgeKind.IMPORTS)[0]
+    assert imports.metadata == {
+        "declared_module": "pkg.helper",
+        "declared_modules": ["pkg.helper", "pkg.helper.api"],
+        "resolved": True,
+    }
+    with pytest.raises(ValueError, match="endpoints must exist"):
+        graph.add_call("missing", "pkg.app.run")
+    with pytest.raises(ValueError, match="different program edges"):
+        imports.merge(ProgramEdge(ProgramEdgeKind.CALL, source, target))
+
+
+def test_hierarchy_packages_filters_and_rendering(tmp_path: Path) -> None:
+    graph = _graph(tmp_path)
+    app = str(tmp_path / "app.py")
+    helper = str(tmp_path / "helper.py")
+    parent = ProgramNode(
+        "pkg.app.Base",
+        ProgramNodeKind.SYMBOL,
+        "python",
+        "Base",
+        app,
+        NodeType.CLASS,
+        10,
+        15,
+    )
+    child = ProgramNode(
+        "pkg.helper.Child",
+        ProgramNodeKind.SYMBOL,
+        "python",
+        "Child",
+        helper,
+        NodeType.CLASS,
+        10,
+        15,
+    )
+    graph.add_node(parent)
+    graph.add_node(child)
+    graph.add_edge(ProgramEdge(ProgramEdgeKind.CONTAINS, file_node_id(app), parent.id))
+    graph.add_edge(ProgramEdge(ProgramEdgeKind.CONTAINS, file_node_id(helper), child.id))
+    graph.add_edge(ProgramEdge(ProgramEdgeKind.INHERITS, child.id, parent.id))
+    graph.add_edge(ProgramEdge(ProgramEdgeKind.IMPORTS, file_node_id(app), file_node_id(helper)))
+
+    hierarchy = graph.hierarchy()
+    assert hierarchy[parent.id]["subclasses"] == [child.id]
+    assert hierarchy[child.id]["superclasses"] == [parent.id]
+    assert graph.package_dependencies() == {"pkg": {"imports": [], "imported_by": []}}
+    assert set(graph.filter_by_files({app}).symbols) == {"pkg.app.Base", "pkg.app.run"}
+    assert graph.to_networkx().has_edge("pkg.app.run", "pkg.helper.load")
+
+    clusters = ClusterResult(clusters={1: {"pkg.app.run"}, 2: {"pkg.helper.load"}}, strategy="test")
+    rendered = graph.to_cluster_string(clusters)
+    assert "pkg.app.run -> pkg.helper.load" in rendered
+    assert "pkg.helper.load" not in graph.to_cluster_string(clusters, cluster_ids={1})
+    graph.record_cluster_paths(clusters, "root")
+    assert dict(graph.method_cluster_paths_snapshot())["pkg.app.run"] == {"root.1"}
+    scoped = graph.filter_by_nodes({"pkg.app.run"})
+    assert dict(scoped.method_cluster_paths_snapshot()) == {"pkg.app.run": {"root.1"}}
+    without_app = graph.without_files({app})
+    assert dict(without_app.method_cluster_paths_snapshot()) == {"pkg.helper.load": {"root.2"}}
+    assert "pkg.app.run calls: pkg.helper.load" in graph.llm_str()
+    assert graph.to_cluster_string(ClusterResult(strategy="empty")) == "empty"
+    with pytest.raises(ValueError, match="Cannot merge"):
+        graph.merge(ProgramGraph(language="go"))
 
 
 def test_external_packages_are_persisted_but_excluded_from_clustering(tmp_path: Path) -> None:
@@ -108,7 +234,7 @@ def test_infomap_update_preserves_cluster_identity(tmp_path: Path) -> None:
     clusterer = HierarchicalInfomapClusterer()
     before = clusterer.cluster(graph)
     app = str(tmp_path / "app.py")
-    graph.add_node(_symbol("pkg.app.new_handler", app))
+    graph.add_node(_symbol("pkg.app.new_handler", app, line_start=5))
     graph.add_edge(ProgramEdge(ProgramEdgeKind.CONTAINS, file_node_id(app), "pkg.app.new_handler"))
     graph.add_edge(ProgramEdge(ProgramEdgeKind.CALL, "pkg.app.new_handler", "pkg.app.run"))
 

@@ -12,17 +12,20 @@ ProgramGraph is the source of truth for structural analysis and clustering.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterable
+from collections import defaultdict
+from collections.abc import Callable, Collection, Iterable
 import copy
 from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path, PurePosixPath
 from typing import Any
 
+import networkx as nx
+
 from static_analyzer.clustering import InfomapClusterSnapshot
-from static_analyzer.constants import NodeType
-from static_analyzer.graph import CallGraph
-from static_analyzer.node import Node
+from static_analyzer.clustering import ClusterResult
+from static_analyzer.constants import CALLABLE_TYPES, CLASS_TYPES, DATA_TYPES, GRAPH_NODE_TYPES, NodeType
+from static_analyzer.method_cluster_paths import MethodClusterPaths
 
 
 class ProgramNodeKind(StrEnum):
@@ -70,6 +73,18 @@ class ProgramNode:
     def entity_label(self) -> str:
         return self.symbol_type.label() if self.symbol_type is not None else self.kind.value.replace("_", " ").title()
 
+    def is_callable(self) -> bool:
+        return self.symbol_type in CALLABLE_TYPES
+
+    def is_class(self) -> bool:
+        return self.symbol_type in CLASS_TYPES
+
+    def is_data(self) -> bool:
+        return self.symbol_type in DATA_TYPES
+
+    def is_callback_or_anonymous(self) -> bool:
+        return any(pattern in self.id for pattern in (") callback", "<function>", "<arrow"))
+
 
 @dataclass
 class ProgramEdge:
@@ -82,6 +97,12 @@ class ProgramEdge:
     @property
     def occurrence_count(self) -> int:
         return len(self.occurrences)
+
+    def occurrence_dicts(self) -> list[dict[str, int | str]]:
+        return [
+            {"file": occurrence.file, "line": occurrence.line, "column": occurrence.column}
+            for occurrence in self.occurrences
+        ]
 
     def merge(self, other: "ProgramEdge") -> None:
         if (self.kind, self.source, self.target) != (other.kind, other.source, other.target):
@@ -110,13 +131,32 @@ class ProgramGraph:
     nodes: dict[str, ProgramNode] = field(default_factory=dict)
     _edges: dict[tuple[ProgramEdgeKind, str, str], ProgramEdge] = field(default_factory=dict)
     cluster_snapshot: InfomapClusterSnapshot | None = field(default=None, repr=False, compare=False)
-    _call_projection: CallGraph | None = field(default=None, repr=False, compare=False)
+    method_cluster_paths: MethodClusterPaths = field(default_factory=MethodClusterPaths, repr=False, compare=False)
+    _location_index: dict[tuple[str, int, int, int, int], str] = field(default_factory=dict, repr=False, compare=False)
+    _aliases: dict[str, str] = field(default_factory=dict, repr=False, compare=False)
+
+    def __post_init__(self) -> None:
+        initial_nodes = list(self.nodes.values())
+        self.nodes = {}
+        for node in sorted(initial_nodes, key=lambda item: item.id):
+            self.add_node(node)
 
     @property
     def edges(self) -> list[ProgramEdge]:
         return [self._edges[key] for key in sorted(self._edges, key=lambda k: (k[0].value, k[1], k[2]))]
 
     def add_node(self, node: ProgramNode) -> None:
+        if node.kind == ProgramNodeKind.SYMBOL and node.symbol_type is not None:
+            location = self._symbol_location(node)
+            existing_id = self._location_index.get(location)
+            if existing_id is not None and existing_id != node.id:
+                canonical_id = max((existing_id, node.id), key=lambda item: (len(item), item))
+                if canonical_id == existing_id:
+                    self._aliases[node.id] = existing_id
+                    return
+                self._promote_symbol(existing_id, node)
+                return
+
         existing = self.nodes.get(node.node_id)
         if existing is None:
             self.nodes[node.node_id] = node
@@ -124,9 +164,39 @@ class ProgramGraph:
             raise ValueError(f"Node ID collision for {node.node_id!r}: {existing.kind} vs {node.kind}")
         elif node.kind == ProgramNodeKind.SYMBOL and len(node.file_path) >= len(existing.file_path):
             self.nodes[node.node_id] = node
-        self._call_projection = None
+        if node.kind == ProgramNodeKind.SYMBOL and node.symbol_type is not None:
+            self._location_index[self._symbol_location(node)] = node.id
+
+    @staticmethod
+    def _symbol_location(node: ProgramNode) -> tuple[str, int, int, int, int]:
+        if node.symbol_type is None:
+            raise ValueError(f"Program node {node.id!r} has no symbol type")
+        return (node.file_path, node.line_start, node.line_end, node.symbol_type.value, node.col_start)
+
+    def _promote_symbol(self, existing_id: str, canonical: ProgramNode) -> None:
+        self.nodes.pop(existing_id)
+        self.nodes[canonical.id] = canonical
+        self._location_index[self._symbol_location(canonical)] = canonical.id
+        for alias, target in list(self._aliases.items()):
+            if target == existing_id:
+                self._aliases[alias] = canonical.id
+        self._aliases[existing_id] = canonical.id
+
+        existing_edges = self.edges
+        self._edges = {}
+        for edge in existing_edges:
+            if edge.source == existing_id:
+                edge.source = canonical.id
+            if edge.target == existing_id:
+                edge.target = canonical.id
+            self.add_edge(edge)
+
+    def resolve_symbol_id(self, node_id: str) -> str:
+        return self._aliases.get(node_id, node_id)
 
     def add_edge(self, edge: ProgramEdge) -> None:
+        edge.source = self.resolve_symbol_id(edge.source)
+        edge.target = self.resolve_symbol_id(edge.target)
         if edge.source not in self.nodes or edge.target not in self.nodes:
             raise ValueError(f"Program edge endpoints must exist: {edge.source!r} -> {edge.target!r}")
         key = (edge.kind, edge.source, edge.target)
@@ -135,7 +205,23 @@ class ProgramGraph:
         else:
             edge.occurrences = sorted(set(edge.occurrences))
             self._edges[key] = edge
-        self._call_projection = None
+
+    def add_call(
+        self,
+        source: str,
+        target: str,
+        *,
+        occurrences: Iterable[ProgramOccurrence] = (),
+    ) -> None:
+        """Add a directed call while preserving all known source occurrences."""
+        self.add_edge(
+            ProgramEdge(
+                kind=ProgramEdgeKind.CALL,
+                source=source,
+                target=target,
+                occurrences=list(occurrences),
+            )
+        )
 
     def edges_of_kind(self, kind: ProgramEdgeKind) -> list[ProgramEdge]:
         return [edge for edge in self.edges if edge.kind == kind]
@@ -149,44 +235,31 @@ class ProgramGraph:
             symbols = [node for node in symbols if node.reference_worthy]
         return symbols
 
+    @property
+    def symbols(self) -> dict[str, ProgramNode]:
+        return {node.id: node for node in self.symbol_nodes()}
+
+    def call_edges(self) -> list[ProgramEdge]:
+        return self.edges_of_kind(ProgramEdgeKind.CALL)
+
+    def call_node_ids(self) -> set[str]:
+        endpoints = {node_id for edge in self.call_edges() for node_id in (edge.source, edge.target)}
+        return {node.id for node in self.symbol_nodes() if node.symbol_type in GRAPH_NODE_TYPES or node.id in endpoints}
+
+    def has_symbol(self, symbol_id: str) -> bool:
+        symbol_id = self.resolve_symbol_id(symbol_id)
+        return symbol_id in self.nodes and self.nodes[symbol_id].kind == ProgramNodeKind.SYMBOL
+
     def merge(self, other: "ProgramGraph") -> None:
         if self.language != other.language:
             raise ValueError(f"Cannot merge {self.language!r} graph with {other.language!r}")
         for node_id in sorted(other.nodes):
             self.add_node(other.nodes[node_id])
+        for alias, target in sorted(other._aliases.items()):
+            self._aliases[alias] = self.resolve_symbol_id(target)
         for edge in other.edges:
             self.add_edge(edge)
-
-    def to_call_graph(self) -> CallGraph:
-        if self._call_projection is not None:
-            return self._call_projection
-        call_graph = CallGraph(language=self.language)
-        for node in self.symbol_nodes():
-            if node.symbol_type is None:
-                raise ValueError(f"Symbol node {node.id!r} has no symbol type")
-            call_graph.add_node(
-                Node(
-                    fully_qualified_name=node.id,
-                    node_type=node.symbol_type,
-                    file_path=node.file_path,
-                    line_start=node.line_start,
-                    line_end=node.line_end,
-                    col_start=node.col_start,
-                )
-            )
-        for edge in self.edges_of_kind(ProgramEdgeKind.CALL):
-            if not call_graph.has_node(edge.source) or not call_graph.has_node(edge.target):
-                continue
-            call_graph.add_edge(
-                edge.source,
-                edge.target,
-                call_sites=[
-                    {"file": occurrence.file, "line": occurrence.line, "column": occurrence.column}
-                    for occurrence in edge.occurrences
-                ],
-            )
-        self._call_projection = call_graph
-        return call_graph
+        self.method_cluster_paths.merge(other.method_cluster_paths)
 
     def hierarchy(self) -> dict[str, dict[str, Any]]:
         hierarchy: dict[str, dict[str, Any]] = {
@@ -233,6 +306,8 @@ class ProgramGraph:
                 continue
             else:
                 continue
+            if src_name == dst_name:
+                continue
             if dst_name not in result[src_name]["imports"]:
                 result[src_name]["imports"].append(dst_name)
             if dst_package_id is not None:
@@ -266,7 +341,9 @@ class ProgramGraph:
             new_edges[(edge.kind, edge.source, edge.target)] = edge
         self.nodes = new_nodes
         self._edges = new_edges
-        self._call_projection = None
+        self._location_index = {
+            self._symbol_location(node): node.id for node in self.symbol_nodes() if node.symbol_type is not None
+        }
         if self.cluster_snapshot is not None:
             self.cluster_snapshot.node_paths = {
                 id_map.get(node_id, node_id): path for node_id, path in self.cluster_snapshot.node_paths.items()
@@ -297,15 +374,13 @@ class ProgramGraph:
         for edge in self.edges:
             if edge.source in out.nodes and edge.target in out.nodes:
                 out.add_edge(copy.deepcopy(edge))
+        out._aliases = {alias: target for alias, target in self._aliases.items() if target in out.nodes}
+        out.method_cluster_paths = self.method_cluster_paths.prune(out.nodes)
         return out
 
     def induced_by_symbols(self, symbol_ids: Iterable[str]) -> "ProgramGraph":
         """Return a strict symbol scope plus its file/package containment context."""
-        included = {
-            node_id
-            for node_id in symbol_ids
-            if node_id in self.nodes and self.nodes[node_id].kind == ProgramNodeKind.SYMBOL
-        }
+        included = {self.resolve_symbol_id(node_id) for node_id in symbol_ids if self.has_symbol(node_id)}
         changed = True
         while changed:
             changed = False
@@ -326,12 +401,96 @@ class ProgramGraph:
         for edge in self.edges:
             if edge.source in included and edge.target in included:
                 out.add_edge(copy.deepcopy(edge))
+        out._aliases = {alias: target for alias, target in self._aliases.items() if target in out.nodes}
         out.cluster_snapshot = copy.deepcopy(self.cluster_snapshot)
+        out.method_cluster_paths = self.method_cluster_paths.prune(out.nodes)
         return out
+
+    def filter_by_files(self, file_paths: set[str]) -> "ProgramGraph":
+        return self.induced_by_symbols(node.id for node in self.symbol_nodes() if node.file_path in file_paths)
+
+    def filter_by_nodes(self, symbol_ids: set[str]) -> "ProgramGraph":
+        return self.induced_by_symbols(symbol_ids)
+
+    def record_cluster_paths(self, cluster_result: ClusterResult, scope_id: str = "") -> None:
+        self.method_cluster_paths.record(cluster_result, scope_id)
+
+    def method_cluster_paths_snapshot(self) -> list[tuple[str, set[str]]]:
+        return self.method_cluster_paths.snapshot()
+
+    def to_networkx(self) -> nx.DiGraph:
+        graph = nx.DiGraph()
+        for node in self.symbol_nodes():
+            graph.add_node(
+                node.id,
+                file_path=node.file_path,
+                line_start=node.line_start,
+                line_end=node.line_end,
+                type=node.symbol_type,
+            )
+        for edge in self.call_edges():
+            graph.add_edge(edge.source, edge.target)
+        return graph
+
+    def to_cluster_string(
+        self,
+        cluster_result: ClusterResult,
+        cluster_ids: Collection[int] = frozenset(),
+        skip_nodes: Collection[str] = frozenset(),
+    ) -> str:
+        if not cluster_result.clusters:
+            return cluster_result.strategy if cluster_result.strategy in {"empty", "none"} else "No clusters found."
+        selected = sorted(cluster_ids or cluster_result.clusters)
+        skip = set(skip_nodes)
+        lines = [f"Cluster Definitions ({len(selected)} clusters):", ""]
+        for cluster_id in selected:
+            members = sorted(cluster_result.clusters.get(cluster_id, set()) - skip)
+            if not members:
+                continue
+            lines.append(f"Cluster {cluster_id} ({len(members)} nodes):")
+            by_file: defaultdict[str, list[str]] = defaultdict(list)
+            for member in members:
+                node = self.nodes.get(member)
+                if node is not None:
+                    by_file[node.file_path].append(f"{member} [{node.entity_label()}]")
+            for file_path, labels in sorted(by_file.items()):
+                lines.append(f"  {file_path}:")
+                lines.extend(f"    {label}" for label in sorted(labels))
+            lines.append("")
+        owner = {
+            member: cluster_id
+            for cluster_id in selected
+            for member in cluster_result.clusters.get(cluster_id, set()) - skip
+        }
+        cross = [
+            (edge.source, edge.target)
+            for edge in self.call_edges()
+            if edge.source in owner and edge.target in owner and owner[edge.source] != owner[edge.target]
+        ]
+        lines.extend(["Inter-Cluster Connections:", ""])
+        lines.extend(f"  - {source} -> {target}" for source, target in sorted(cross))
+        if not cross:
+            lines.append("No inter-cluster connections detected.")
+        return "\n".join(lines) + "\n"
+
+    def llm_str(self, size_limit: int = 2_500_000, skip_nodes: Collection[ProgramNode] = ()) -> str:
+        skip = {node.id for node in skip_nodes}
+        calls: defaultdict[str, list[str]] = defaultdict(list)
+        for edge in self.call_edges():
+            if edge.source not in skip and edge.target not in skip:
+                calls[edge.source].append(edge.target)
+        lines = [
+            f"Control flow graph with {len(self.symbols) - len(skip)} nodes and {sum(map(len, calls.values()))} edges"
+        ]
+        for source, targets in sorted(calls.items()):
+            node = self.nodes[source]
+            lines.append(f"{node.entity_label()} {source} calls: {', '.join(sorted(targets))}")
+        return ("\n".join(lines) + "\n")[:size_limit]
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "language": self.language,
+            "aliases": dict(sorted(self._aliases.items())),
             "nodes": [
                 {
                     "id": node.node_id,
@@ -382,6 +541,7 @@ class ProgramGraph:
                     metadata=dict(raw.get("metadata", {})),
                 )
             )
+        graph._aliases = {str(alias): str(target) for alias, target in data.get("aliases", {}).items()}
         for raw in data.get("edges", []):
             graph.add_edge(
                 ProgramEdge(

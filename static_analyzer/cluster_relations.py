@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from constants import DEFAULT_STATIC_RELATION_LABEL
 from agents.agent_responses import AnalysisInsights, Relation, RelationEdge
 from agents.relation_edges import append_or_merge_relation
-from static_analyzer.graph import CallGraph, Edge
+from static_analyzer.program_graph import ProgramGraph
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +56,7 @@ def build_global_node_to_component_map(
 
 def build_component_relations(
     node_to_component: dict[str, str],
-    cfg_graphs: dict[str, CallGraph],
+    cfg_graphs: dict[str, ProgramGraph],
 ) -> list[ClusterRelation]:
     """Build inter-component relations from actual CFG edges.
 
@@ -65,21 +65,21 @@ def build_component_relations(
 
     Args:
         node_to_component: Mapping from node qualified_name to component_id.
-        cfg_graphs: Mapping from language to CallGraph.
+        cfg_graphs: Mapping from language to ProgramGraph.
 
     Returns:
         List of ClusterRelation objects, one per (src_component, dst_component) pair.
     """
     edge_pairs: dict[tuple[str, str], list[RelationEdge]] = defaultdict(list)
     for cfg in cfg_graphs.values():
-        for edge in cfg.edges:
-            src_name = edge.get_source()
-            dst_name = edge.get_destination()
+        for edge in cfg.call_edges():
+            src_name = edge.source
+            dst_name = edge.target
             src_comp = node_to_component.get(src_name)
             dst_comp = node_to_component.get(dst_name)
             if src_comp and dst_comp and src_comp != dst_comp:
                 key = (src_comp, dst_comp)
-                edge_pairs[key].append(RelationEdge.from_edge(edge))
+                edge_pairs[key].append(RelationEdge.from_program_edge(edge, cfg))
 
     relations = []
     for (src_c, dst_c), edges in sorted(edge_pairs.items()):
@@ -166,7 +166,7 @@ def _relation_key_edges_for_pair(
 def build_global_relations(
     root_analysis: AnalysisInsights,
     sub_analyses: dict[str, AnalysisInsights],
-    cfg_graphs: dict[str, CallGraph],
+    cfg_graphs: dict[str, ProgramGraph],
 ) -> list[Relation]:
     """Build deterministic project-wide relations at the current expansion frontier."""
     node_to_component = build_global_node_to_component_map(root_analysis, sub_analyses)

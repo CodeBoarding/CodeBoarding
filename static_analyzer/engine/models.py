@@ -116,36 +116,3 @@ class LanguageAnalysisResult:
     package_dependencies: dict[str, dict] = field(default_factory=dict)
     imports: list[ImportDependency] = field(default_factory=list)
     source_files: list[str] = field(default_factory=list)
-
-
-class AnalysisResults:
-    """Container for all analysis results, keyed by language."""
-
-    def __init__(self) -> None:
-        self._lang_results: dict[str, LanguageAnalysisResult] = {}
-
-    def add_language_result(self, language: str, result: LanguageAnalysisResult) -> None:
-        self._lang_results[language] = result
-
-    def get_languages(self) -> set[str]:
-        return set(self._lang_results.keys())
-
-    def get_hierarchy(self, language: str) -> dict[str, dict]:
-        if language not in self._lang_results:
-            raise ValueError(f"No results for language: {language}")
-        return self._lang_results[language].hierarchy
-
-    def get_cfg(self, language: str) -> CallFlowGraph:
-        if language not in self._lang_results:
-            raise ValueError(f"No results for language: {language}")
-        return self._lang_results[language].cfg
-
-    def get_package_dependencies(self, language: str) -> dict[str, dict]:
-        if language not in self._lang_results:
-            raise ValueError(f"No results for language: {language}")
-        return self._lang_results[language].package_dependencies
-
-    def get_source_files(self, language: str) -> list[str]:
-        if language not in self._lang_results:
-            raise ValueError(f"No results for language: {language}")
-        return self._lang_results[language].source_files

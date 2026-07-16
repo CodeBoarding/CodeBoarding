@@ -71,10 +71,10 @@ def _cfg_method_spans(
     spans: dict[MethodRef, MethodSpan] = {}
     for language in static_analysis.get_languages():
         try:
-            cfg = static_analysis.get_cfg(language)
+            cfg = static_analysis.get_program_graph(language)
         except (KeyError, ValueError):
             continue
-        for qualified_name, node in cfg.nodes.items():
+        for qualified_name, node in cfg.symbols.items():
             file_path = normalize_repo_path(node.file_path, repo_dir)
             spans.setdefault(MethodRef(file_path, qualified_name), MethodSpan(node.line_start, node.line_end))
     return spans

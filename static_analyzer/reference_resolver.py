@@ -235,16 +235,16 @@ class StaticReferenceResolver:
         """Return true when the static CFG has this exact source-to-target edge."""
         if cfg_graphs:
             for cfg in cfg_graphs.values():
-                for edge in cfg.edges:
-                    if edge.get_source() == source_qname and edge.get_destination() == target_qname:
+                for edge in cfg.call_edges():
+                    if edge.source == source_qname and edge.target == target_qname:
                         return True
         for lang in self.static_analysis.get_languages():
             try:
-                cfg = self.static_analysis.get_cfg(lang)
+                cfg = self.static_analysis.get_program_graph(lang)
             except ValueError:
                 continue
-            for edge in cfg.edges:
-                if edge.get_source() == source_qname and edge.get_destination() == target_qname:
+            for edge in cfg.call_edges():
+                if edge.source == source_qname and edge.target == target_qname:
                     return True
         return False
 
@@ -295,7 +295,7 @@ class StaticReferenceResolver:
         static_edge = self.find_static_edge(edge)
         if static_edge is None:
             return
-        edge.call_sites = [RelationCallSite.model_validate(site) for site in static_edge.call_sites]
+        edge.call_sites = [RelationCallSite.model_validate(site) for site in static_edge.occurrence_dicts()]
 
     def find_static_edge(self, relation_edge: RelationEdge):
         source_qname = relation_edge.source.qualified_name
@@ -304,11 +304,11 @@ class StaticReferenceResolver:
             return None
         for lang in self.static_analysis.get_languages():
             try:
-                cfg = self.static_analysis.get_cfg(lang)
+                cfg = self.static_analysis.get_program_graph(lang)
             except ValueError:
                 continue
-            for edge in cfg.edges:
-                if edge.get_source() == source_qname and edge.get_destination() == target_qname:
+            for edge in cfg.call_edges():
+                if edge.source == source_qname and edge.target == target_qname:
                     return edge
         return None
 

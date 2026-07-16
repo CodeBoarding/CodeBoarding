@@ -20,8 +20,8 @@ from diagram_analysis.file_index import build_files_index
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.clustering import ClusterResult
 from static_analyzer.constants import NodeType
-from static_analyzer.graph import CallGraph
-from static_analyzer.node import Node
+from static_analyzer.program_graph import ProgramGraph
+from tests.program_graph_factory import make_symbol
 
 
 class TestDetailsAgent(unittest.TestCase):
@@ -118,7 +118,7 @@ class TestDetailsAgent(unittest.TestCase):
         mock_node = MagicMock()
         mock_node.type = NodeType.FUNCTION
         mock_node.file_path = str(self.repo_dir / "test.py")
-        mock_node.fully_qualified_name = "test.func"
+        mock_node.id = "test.func"
 
         # Mock cluster result with enough clusters to skip method-level expansion
         mock_sub_cluster_result = ClusterResult(
@@ -133,14 +133,12 @@ class TestDetailsAgent(unittest.TestCase):
         mock_subgraph.cluster.return_value = mock_sub_cluster_result
         mock_subgraph.to_cluster_string.return_value = "Component CFG String"
 
-        mock_cfg = MagicMock()
-        mock_cfg.filter_by_nodes.return_value = mock_subgraph
         mock_scoped_program_graph = MagicMock()
         mock_program_graph = MagicMock()
+        mock_program_graph.filter_by_nodes.return_value = mock_subgraph
         mock_program_graph.induced_by_symbols.return_value = mock_scoped_program_graph
 
         self.mock_static_analysis.get_languages.return_value = ["python"]
-        self.mock_static_analysis.get_cfg.return_value = mock_cfg
         self.mock_static_analysis.get_program_graph.return_value = mock_program_graph
 
         with patch("agents.cluster_methods_mixin.HierarchicalInfomapClusterer") as clusterer:
@@ -152,8 +150,8 @@ class TestDetailsAgent(unittest.TestCase):
         self.assertIn("Component CFG String", subgraph_str)
         self.assertIn("python", subgraph_cfgs)
         self.assertIs(subgraph_cfgs["python"], mock_subgraph)
-        self.mock_static_analysis.get_cfg.assert_called_with("python")
-        mock_cfg.filter_by_nodes.assert_called_with(expected_qnames)
+        self.mock_static_analysis.get_program_graph.assert_called_with("python")
+        mock_program_graph.filter_by_nodes.assert_called_with(expected_qnames)
         mock_program_graph.induced_by_symbols.assert_called_once_with(expected_qnames)
         clusterer.return_value.cluster.assert_called_once_with(mock_scoped_program_graph)
 
@@ -177,7 +175,7 @@ class TestDetailsAgent(unittest.TestCase):
         # Mock CFG to return a proper cluster string
         mock_cfg = MagicMock()
         mock_cfg.to_cluster_string.return_value = "Cluster 1: method_a, method_b"
-        self.mock_static_analysis.get_cfg.return_value = mock_cfg
+        self.mock_static_analysis.get_program_graph.return_value = mock_cfg
 
         mock_cluster_result = MagicMock()
         subgraph_cluster_results = {"python": mock_cluster_result}
@@ -358,7 +356,7 @@ class TestDetailsAgent(unittest.TestCase):
 
         mock_node = MagicMock()
         mock_node.file_path = str(self.repo_dir / "src" / "main.py")
-        mock_node.fully_qualified_name = "n1"
+        mock_node.id = "n1"
         mock_node.type = NodeType.FUNCTION
         mock_node.line_start = 1
         mock_node.line_end = 10
@@ -375,7 +373,7 @@ class TestDetailsAgent(unittest.TestCase):
         mock_cfg.to_cluster_string.return_value = "Cluster 1: method_a, method_b"
 
         self.mock_static_analysis.get_languages.return_value = ["python"]
-        self.mock_static_analysis.get_cfg.return_value = mock_cfg
+        self.mock_static_analysis.get_program_graph.return_value = mock_cfg
 
         # Mock responses for grouping and final analysis
         cluster_response = ClusterAnalysis(cluster_components=[])
@@ -453,10 +451,10 @@ class TestDetailsAgent(unittest.TestCase):
 
         cluster_file = self.repo_dir / "cluster_file.py"
         test_file = self.repo_dir / "test_file.py"
-        call_graph = CallGraph(language="python")
-        call_graph.add_node(Node("pkg.cluster_fn", NodeType.FUNCTION, str(cluster_file), 1, 5))
-        call_graph.add_node(Node("pkg.TestClass", NodeType.CLASS, str(test_file), 1, 10))
-        self.mock_static_analysis.get_cfg.return_value = call_graph
+        call_graph = ProgramGraph(language="python")
+        call_graph.add_node(make_symbol("pkg.cluster_fn", NodeType.FUNCTION, str(cluster_file), 1, 5))
+        call_graph.add_node(make_symbol("pkg.TestClass", NodeType.CLASS, str(test_file), 1, 10))
+        self.mock_static_analysis.get_program_graph.return_value = call_graph
 
         cluster_result = ClusterResult(
             clusters={1: {"pkg.cluster_fn", "pkg.TestClass"}},

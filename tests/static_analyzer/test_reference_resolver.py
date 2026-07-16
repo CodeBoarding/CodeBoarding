@@ -7,9 +7,14 @@ from agents.agent_responses import AnalysisInsights, Component, Relation, Relati
 from agents.file_index_models import FileMethodGroup, MethodEntry
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import NodeType
-from static_analyzer.graph import Edge
-from static_analyzer.node import Node
-from static_analyzer.program_graph import ProgramNode, ProgramNodeKind
+from static_analyzer.program_graph import (
+    ProgramEdge,
+    ProgramEdgeKind,
+    ProgramGraph,
+    ProgramNode,
+    ProgramNodeKind,
+    ProgramOccurrence,
+)
 from static_analyzer.reference_resolver import StaticReferenceResolver
 
 
@@ -228,14 +233,19 @@ class TestStaticReferenceResolver(unittest.TestCase):
         source_node = self._node("service.OCR.extract_text", "service.py", 1, 2)
         target_node = self._node("module.file.test_function", "module/file.py", 3, 4)
         self.static_analysis.get_reference.side_effect = [source_node, target_node]
-        static_edge = Edge(
-            Node(source_node.id, NodeType.FUNCTION, source_node.file_path, 1, 2),
-            Node(target_node.id, NodeType.FUNCTION, target_node.file_path, 3, 4),
-            [{"line": 7, "column": 8}],
+        graph = ProgramGraph(
+            language="python",
+            nodes={source_node.id: source_node, target_node.id: target_node},
         )
-        cfg = MagicMock()
-        cfg.edges = [static_edge]
-        self.static_analysis.get_cfg.return_value = cfg
+        graph.add_edge(
+            ProgramEdge(
+                kind=ProgramEdgeKind.CALL,
+                source=source_node.id,
+                target=target_node.id,
+                occurrences=[ProgramOccurrence(file=source_node.file_path, line=7, column=8)],
+            )
+        )
+        self.static_analysis.get_program_graph.return_value = graph
         relation = Relation(
             relation="calls",
             src_name="Source",

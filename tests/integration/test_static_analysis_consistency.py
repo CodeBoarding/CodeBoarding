@@ -70,7 +70,7 @@ def _relative_path(file_path: str, repo_path: Path) -> str:
 
 def _edge_call_site_dicts(edge, repo_path: Path) -> list[dict]:
     """Return normalized call-site dictionaries for an edge."""
-    sites = getattr(edge, "call_sites", [])
+    sites = edge.occurrences
     normalized = []
     for site in sites:
         if isinstance(site, dict):
@@ -135,16 +135,16 @@ def _write_snapshot(
 
     # Call graph edges
     try:
-        cfg = static_analysis.get_cfg(language)
-        edges_snapshot = sorted([e.get_source(), e.get_destination()] for e in cfg.edges)
+        cfg = static_analysis.get_program_graph(language)
+        edges_snapshot = sorted([edge.source, edge.target] for edge in cfg.call_edges())
         call_site_occurrences_snapshot = []
-        for edge in cfg.edges:
+        for edge in cfg.call_edges():
             occurrences = _edge_call_site_dicts(edge, repo_path)
             if occurrences:
                 call_site_occurrences_snapshot.append(
                     {
-                        "source": edge.get_source(),
-                        "destination": edge.get_destination(),
+                        "source": edge.source,
+                        "destination": edge.target,
                         "occurrences": occurrences,
                     }
                 )
@@ -152,7 +152,7 @@ def _write_snapshot(
             call_site_occurrences_snapshot,
             key=lambda item: (item["source"], item["destination"]),
         )
-        nodes_snapshot = sorted(cfg.nodes.keys())
+        nodes_snapshot = sorted(cfg.call_node_ids())
     except ValueError:
         edges_snapshot = []
         call_site_occurrences_snapshot = []
@@ -488,8 +488,10 @@ class TestStaticAnalysisConsistency:
         expected: dict,
         repo_path: Path,
     ):
-        cfg = static_analysis.get_cfg(language)
-        actual_by_edge = {(e.get_source(), e.get_destination()): _edge_call_site_dicts(e, repo_path) for e in cfg.edges}
+        cfg = static_analysis.get_program_graph(language)
+        actual_by_edge = {
+            (edge.source, edge.target): _edge_call_site_dicts(edge, repo_path) for edge in cfg.call_edges()
+        }
         actual_by_destination: dict[str, set[tuple[str, int, int]]] = {}
         for (_, destination), sites in actual_by_edge.items():
             actual_by_destination.setdefault(destination, set()).update(

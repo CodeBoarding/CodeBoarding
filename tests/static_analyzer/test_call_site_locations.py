@@ -1,47 +1,61 @@
-"""Tests for preserving call-site locations on static-analysis edges."""
-
 from static_analyzer.constants import NodeType
-from static_analyzer.graph import CallGraph, Edge
-from static_analyzer.node import Node
+from static_analyzer.program_graph import (
+    ProgramEdge,
+    ProgramEdgeKind,
+    ProgramGraph,
+    ProgramNode,
+    ProgramNodeKind,
+    ProgramOccurrence,
+)
 
 
-def test_call_graph_preserves_multiple_call_sites_for_same_edge():
-    graph = CallGraph()
-    src = Node("module.caller", NodeType.FUNCTION, "/repo/module.py", 1, 10)
-    dst = Node("module.target", NodeType.FUNCTION, "/repo/module.py", 20, 25)
-    graph.add_node(src)
-    graph.add_node(dst)
+def _graph() -> ProgramGraph:
+    graph = ProgramGraph(language="python")
+    for symbol_id, line in (("module.caller", 1), ("module.target", 20)):
+        graph.add_node(
+            ProgramNode(
+                symbol_id,
+                ProgramNodeKind.SYMBOL,
+                "python",
+                symbol_id.rsplit(".", 1)[-1],
+                "/repo/module.py",
+                NodeType.FUNCTION,
+                line,
+                line + 5,
+            )
+        )
+    return graph
 
-    graph.add_edge(
-        "module.caller",
-        "module.target",
-        call_sites=[{"file": "/repo/module.py", "line": 3, "column": 9}],
-    )
-    graph.add_edge(
-        "module.caller",
-        "module.target",
-        call_sites=[{"file": "/repo/module.py", "line": 7, "column": 13}],
-    )
 
-    assert len(graph.edges) == 1
-    assert graph.edges[0].call_sites == [
+def test_program_graph_merges_call_occurrences() -> None:
+    graph = _graph()
+    for line, column in ((3, 9), (7, 13)):
+        graph.add_edge(
+            ProgramEdge(
+                ProgramEdgeKind.CALL,
+                "module.caller",
+                "module.target",
+                [ProgramOccurrence("/repo/module.py", line, column)],
+            )
+        )
+
+    assert graph.call_edges()[0].occurrence_dicts() == [
         {"file": "/repo/module.py", "line": 3, "column": 9},
         {"file": "/repo/module.py", "line": 7, "column": 13},
     ]
 
 
-def test_call_graph_visit_paths_rewrites_canonical_call_site_file_key():
-    graph = CallGraph()
-    src = Node("module.caller", NodeType.FUNCTION, "/repo/module.py", 1, 10)
-    dst = Node("module.target", NodeType.FUNCTION, "/repo/module.py", 20, 25)
-    graph.add_node(src)
-    graph.add_node(dst)
-
+def test_visit_paths_rewrites_call_occurrences() -> None:
+    graph = _graph()
     graph.add_edge(
-        "module.caller",
-        "module.target",
-        call_sites=[{"file": "/repo/module.py", "line": 3, "column": 9}],
+        ProgramEdge(
+            ProgramEdgeKind.CALL,
+            "module.caller",
+            "module.target",
+            [ProgramOccurrence("/repo/module.py", 3, 9)],
+        )
     )
+
     graph.visit_paths(lambda path: path.replace("/repo/", ""))
 
-    assert graph.edges[0].call_sites == [{"file": "module.py", "line": 3, "column": 9}]
+    assert graph.call_edges()[0].occurrence_dicts() == [{"file": "module.py", "line": 3, "column": 9}]

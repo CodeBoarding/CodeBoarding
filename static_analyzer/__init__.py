@@ -312,8 +312,7 @@ class StaticAnalyzer:
         """Gracefully shut down all engine LSP server processes. Idempotent.
 
         Persists the latest ``_cached_results`` to the pkl on the way down so
-        downstream mutations (``CallGraph._cluster_cache`` populated by the
-        abstraction agent) reach disk in one save instead of two. Save errors
+        downstream ProgramGraph lineage mutations reach disk in one save. Save errors
         are logged but never block teardown.
         """
         if not self._clients_started:

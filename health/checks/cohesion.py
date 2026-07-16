@@ -2,13 +2,13 @@ import logging
 
 from health.models import FindingEntity, FindingGroup, HealthCheckConfig, Severity, StandardCheckSummary
 from static_analyzer.clustering import ClusterResult
-from static_analyzer.graph import CallGraph
+from static_analyzer.program_graph import ProgramGraph
 
 logger = logging.getLogger(__name__)
 
 
 def check_component_cohesion(
-    call_graph: CallGraph,
+    call_graph: ProgramGraph,
     cluster_result: ClusterResult,
     config: HealthCheckConfig,
 ) -> StandardCheckSummary:
@@ -31,12 +31,9 @@ def check_component_cohesion(
         internal_edges = 0
         external_edges = 0
 
-        for node_name in node_names:
-            node = call_graph.nodes.get(node_name)
-            if not node:
-                continue
-            for called_fqn in node.methods_called_by_me:
-                if called_fqn in node_names:
+        for edge in call_graph.call_edges():
+            if edge.source in node_names:
+                if edge.target in node_names:
                     internal_edges += 1
                 else:
                     external_edges += 1

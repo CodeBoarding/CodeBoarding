@@ -19,16 +19,45 @@ from static_analyzer.cluster_relations import (
     merge_relations,
 )
 from static_analyzer.constants import NodeType
-from static_analyzer.graph import CallGraph, Edge
-from static_analyzer.node import Node
+from static_analyzer.program_graph import ProgramEdge, ProgramEdgeKind, ProgramGraph, ProgramNode, ProgramNodeKind
 
 
-def _make_node(name: str, file_path: str = "src/file.py", line_start: int = 1, line_end: int = 10) -> Node:
-    return Node(name, NodeType.FUNCTION, file_path, line_start, line_end)
+def _make_node(name: str, file_path: str = "src/file.py", line_start: int = 1, line_end: int = 10) -> ProgramNode:
+    return ProgramNode(
+        name,
+        ProgramNodeKind.SYMBOL,
+        "python",
+        name.rsplit(".", 1)[-1],
+        file_path,
+        NodeType.FUNCTION,
+        line_start,
+        line_end,
+    )
 
 
-def _make_edge(src_name: str, dst_name: str, src_file: str = "src/file.py", dst_file: str = "src/file.py") -> Edge:
-    return Edge(_make_node(src_name, src_file, 1, 10), _make_node(dst_name, dst_file, 20, 30), [])
+def _make_edge(
+    src_name: str, dst_name: str, src_file: str = "src/file.py", dst_file: str = "src/file.py"
+) -> ProgramEdge:
+    return ProgramEdge(
+        ProgramEdgeKind.CALL,
+        src_name,
+        dst_name,
+        metadata={"source_file": src_file, "target_file": dst_file},
+    )
+
+
+def _make_graph(edges: list[ProgramEdge]) -> ProgramGraph:
+    graph = ProgramGraph(language="python")
+    files: dict[str, str] = {}
+    for edge in edges:
+        files[edge.source] = str(edge.metadata["source_file"])
+        files[edge.target] = str(edge.metadata["target_file"])
+    for index, node_id in enumerate(sorted(files)):
+        line_start, line_end = (1, 10) if index == 0 else (index * 20, index * 20 + 10)
+        graph.add_node(_make_node(node_id, files[node_id], line_start, line_end))
+    for edge in edges:
+        graph.add_edge(edge)
+    return graph
 
 
 def _make_relation_edge(
@@ -100,7 +129,7 @@ class TestBuildComponentRelations(unittest.TestCase):
     def test_cross_component_edges(self):
         """Edges between different components should produce relations."""
         node_to_comp = {"a.func1": "1", "a.func2": "1", "b.func1": "2"}
-        cfg = CallGraph(edges=[_make_edge("a.func1", "b.func1")])
+        cfg = _make_graph([_make_edge("a.func1", "b.func1")])
         relations = build_component_relations(node_to_comp, {"python": cfg})
 
         self.assertEqual(len(relations), 1)
@@ -113,7 +142,7 @@ class TestBuildComponentRelations(unittest.TestCase):
     def test_no_self_relations(self):
         """Edges within the same component should not create relations."""
         node_to_comp = {"a.func1": "1", "a.func2": "1"}
-        cfg = CallGraph(edges=[_make_edge("a.func1", "a.func2")])
+        cfg = _make_graph([_make_edge("a.func1", "a.func2")])
         relations = build_component_relations(node_to_comp, {"python": cfg})
 
         self.assertEqual(len(relations), 0)
@@ -121,7 +150,7 @@ class TestBuildComponentRelations(unittest.TestCase):
     def test_unmapped_nodes_skipped(self):
         """Edges with unmapped src or dst should be skipped."""
         node_to_comp = {"a.func1": "1"}
-        cfg = CallGraph(edges=[_make_edge("a.func1", "unknown.func")])
+        cfg = _make_graph([_make_edge("a.func1", "unknown.func")])
         relations = build_component_relations(node_to_comp, {"python": cfg})
 
         self.assertEqual(len(relations), 0)
@@ -129,8 +158,8 @@ class TestBuildComponentRelations(unittest.TestCase):
     def test_multiple_edges_aggregated(self):
         """Multiple edges between same component pair should be aggregated."""
         node_to_comp = {"a.f1": "1", "a.f2": "1", "b.f1": "2", "b.f2": "2"}
-        cfg = CallGraph(
-            edges=[
+        cfg = _make_graph(
+            [
                 _make_edge("a.f1", "b.f1"),
                 _make_edge("a.f2", "b.f2"),
                 _make_edge("a.f1", "b.f2"),
@@ -146,14 +175,14 @@ class TestBuildComponentRelations(unittest.TestCase):
         node_to_comp = {f"a.f{i}": "1" for i in range(edge_total)}
         node_to_comp.update({f"b.f{i}": "2" for i in range(edge_total)})
         edges = [_make_edge(f"a.f{i}", f"b.f{i}") for i in range(edge_total)]
-        cfg = CallGraph(edges=edges)
+        cfg = _make_graph(edges)
         relations = build_component_relations(node_to_comp, {"python": cfg})
 
         self.assertEqual(len(relations[0].all_edges), edge_total)
 
     def test_bridge_edges_include_locations(self):
         node_to_comp = {"a.func": "1", "b.func": "2"}
-        cfg = CallGraph(edges=[_make_edge("a.func", "b.func", "src/a.py", "src/b.py")])
+        cfg = _make_graph([_make_edge("a.func", "b.func", "src/a.py", "src/b.py")])
 
         relations = build_component_relations(node_to_comp, {"python": cfg})
 
@@ -168,8 +197,8 @@ class TestBuildComponentRelations(unittest.TestCase):
     def test_multiple_languages(self):
         """Edges across multiple language CFGs should be collected."""
         node_to_comp = {"py.func": "1", "ts.func": "2", "py.other": "1"}
-        cfg_py = CallGraph(edges=[_make_edge("py.func", "ts.func")])
-        cfg_ts = CallGraph(edges=[_make_edge("ts.func", "py.other")])
+        cfg_py = _make_graph([_make_edge("py.func", "ts.func")])
+        cfg_ts = _make_graph([_make_edge("ts.func", "py.other")])
         relations = build_component_relations(node_to_comp, {"python": cfg_py, "typescript": cfg_ts})
 
         # Should have 2 relations: 1->2 and 2->1
@@ -179,7 +208,7 @@ class TestBuildComponentRelations(unittest.TestCase):
 
     def test_empty_graph(self):
         """Empty graph should produce no relations."""
-        relations = build_component_relations({}, {"python": CallGraph()})
+        relations = build_component_relations({}, {"python": ProgramGraph(language="python")})
         self.assertEqual(len(relations), 0)
 
 
@@ -217,7 +246,7 @@ class TestMergeRelations(unittest.TestCase):
         llm_rels = [Relation(relation="depends on", src_name="A", dst_name="B")]
         static_rels = build_component_relations(
             {"a.func": "1", "b.func": "2"},
-            {"python": CallGraph(edges=[_make_edge("a.func", "b.func", "src/a.py", "src/b.py")])},
+            {"python": _make_graph([_make_edge("a.func", "b.func", "src/a.py", "src/b.py")])},
         )
 
         merged = merge_relations(llm_rels, static_rels, analysis)
@@ -334,8 +363,8 @@ class TestAssignComponentIdsIntegration(unittest.TestCase):
     def test_nested_ids_work_with_build_relations(self):
         """Verify that nested hierarchical IDs produce correct relations."""
         node_to_comp = {"sub1.func": "1.1", "sub2.func": "1.2", "other.func": "2"}
-        cfg = CallGraph(
-            edges=[
+        cfg = _make_graph(
+            [
                 _make_edge("sub1.func", "other.func"),
                 _make_edge("sub1.func", "sub2.func"),
             ]

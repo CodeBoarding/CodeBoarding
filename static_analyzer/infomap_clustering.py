@@ -49,11 +49,11 @@ class HierarchicalInfomapClusterer:
 
         initial_partition = self._initial_partition(node_names, numeric_id, previous)
         if initial_partition:
-            infomap.run(initial_partition=initial_partition)
+            result = infomap.run(initial_partition=initial_partition)
         else:
-            infomap.run()
+            result = infomap.run()
 
-        raw_paths_by_numeric = infomap.get_multilevel_modules()
+        raw_paths_by_numeric = result.multilevel_modules()
         raw_paths = {node_id: tuple(raw_paths_by_numeric[numeric_id[node_id]]) for node_id in node_names}
         candidates: ModuleMembers = {}
         for node_id in node_names:
@@ -68,7 +68,7 @@ class HierarchicalInfomapClusterer:
             candidates,
             candidate_to_stable,
             next_cluster_id,
-            float(infomap.codelength),
+            float(result.codelength),
         )
         program_graph.cluster_snapshot = snapshot
         return snapshot.cluster_result
