@@ -76,6 +76,7 @@ class ImportDependency:
     kind: ImportDependencyKind = ImportDependencyKind.IMPORT
     target_file: str | None = None
     external_package: str | None = None
+    imported_names: tuple[str, ...] = ()
 
 
 @dataclass

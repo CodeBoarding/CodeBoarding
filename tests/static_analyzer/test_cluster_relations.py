@@ -13,13 +13,22 @@ from agents.agent_responses import (
 from agents.file_index_models import FileMethodGroup, MethodEntry
 from static_analyzer.cluster_relations import (
     ClusterRelation,
+    build_component_relation_candidates,
     build_node_to_component_map,
     build_component_relations,
     is_self_or_descendant,
     merge_relations,
 )
 from static_analyzer.constants import NodeType
-from static_analyzer.program_graph import ProgramEdge, ProgramEdgeKind, ProgramGraph, ProgramNode, ProgramNodeKind
+from static_analyzer.program_graph import (
+    ProgramEdge,
+    ProgramEdgeKind,
+    ProgramGraph,
+    ProgramNode,
+    ProgramNodeKind,
+    file_node_id,
+    package_node_id,
+)
 
 
 def _make_node(name: str, file_path: str = "src/file.py", line_start: int = 1, line_end: int = 10) -> ProgramNode:
@@ -125,6 +134,63 @@ class TestBuildNodeToComponentMap(unittest.TestCase):
 
 
 class TestBuildComponentRelations(unittest.TestCase):
+
+    def test_architectural_candidates_include_imports_and_inheritance_without_concrete_edges(self):
+        graph = ProgramGraph(language="python")
+        source_file = "src/plugin.py"
+        target_init = "src/core/__init__.py"
+        target_file = "src/core/service.py"
+        source_file_id = file_node_id(source_file)
+        target_init_id = file_node_id(target_init)
+        target_file_id = file_node_id(target_file)
+        source_package = package_node_id("python", "plugin")
+        target_package = package_node_id("python", "core")
+        for node in (
+            ProgramNode(source_file_id, ProgramNodeKind.FILE, "python", source_file, source_file),
+            ProgramNode(target_init_id, ProgramNodeKind.FILE, "python", target_init, target_init),
+            ProgramNode(target_file_id, ProgramNodeKind.FILE, "python", target_file, target_file),
+            ProgramNode(source_package, ProgramNodeKind.PACKAGE, "python", "plugin"),
+            ProgramNode(target_package, ProgramNodeKind.PACKAGE, "python", "core"),
+            _make_node("plugin.run", source_file),
+            _make_node("plugin.Extension", source_file),
+            _make_node("core.Service", target_file),
+        ):
+            graph.add_node(node)
+        for container, member in (
+            (source_package, source_file_id),
+            (target_package, target_init_id),
+            (target_package, target_file_id),
+            (source_file_id, "plugin.run"),
+            (source_file_id, "plugin.Extension"),
+            (target_file_id, "core.Service"),
+        ):
+            graph.add_edge(ProgramEdge(ProgramEdgeKind.CONTAINS, container, member))
+        graph.add_edge(ProgramEdge(ProgramEdgeKind.CALL, "plugin.run", "core.Service"))
+        graph.add_edge(ProgramEdge(ProgramEdgeKind.INHERITS, "plugin.Extension", "core.Service"))
+        graph.add_edge(
+            ProgramEdge(
+                ProgramEdgeKind.IMPORTS,
+                source_file_id,
+                target_init_id,
+                metadata={"declared_module": "core", "imported_names": ["Service"]},
+            )
+        )
+        owners = {"plugin.run": "1", "plugin.Extension": "1", "core.Service": "2"}
+
+        candidates = build_component_relation_candidates(owners, {"python": graph})
+        concrete = build_component_relations(owners, {"python": graph})
+
+        self.assertEqual(len(candidates), 1)
+        self.assertEqual(
+            {item.kind for item in candidates[0].evidence},
+            {
+                ProgramEdgeKind.CALL,
+                ProgramEdgeKind.IMPORTS,
+                ProgramEdgeKind.INHERITS,
+            },
+        )
+        self.assertEqual(len(concrete), 1)
+        self.assertEqual(len(concrete[0].all_edges), 1)
 
     def test_cross_component_edges(self):
         """Edges between different components should produce relations."""

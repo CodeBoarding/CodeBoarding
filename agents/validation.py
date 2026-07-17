@@ -1,5 +1,6 @@
 """Validation utilities for LLM agent outputs."""
 
+from collections import Counter
 import logging
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
@@ -22,6 +23,7 @@ logger = logging.getLogger(__name__)
 VALIDATOR_WEIGHTS: dict[str, float] = {
     "validate_cluster_coverage": 20.0,
     "validate_group_name_coverage": 20.0,
+    "validate_module_component_mapping": 20.0,
     "validate_key_entities": 5.0,
     "validate_relations": 30.0,
     "validate_relation_component_names": 5.0,
@@ -260,6 +262,32 @@ def validate_group_name_coverage(result: ComponentValidationTarget, context: Val
         logger.warning(f"[Validation] Unknown source_group_names: {details}")
 
     return ValidationResult(is_valid=False, feedback_messages=feedback_messages)
+
+
+def validate_module_component_mapping(
+    result: ComponentValidationTarget, context: ValidationContext
+) -> ValidationResult:
+    """Require every deterministic Infomap module in exactly one component."""
+    if context.llm_cluster_analysis is None:
+        return ValidationResult(is_valid=False, feedback_messages=["Infomap module context is missing."])
+    expected = {module.name.casefold(): module.name for module in context.llm_cluster_analysis.cluster_components}
+    assignments = [name for component in result.components for name in component.source_group_names]
+    assigned = [name.casefold() for name in assignments]
+    assigned_counts = Counter(assigned)
+    invalid_components = [component.name for component in result.components if not component.source_group_names]
+    missing = sorted(name for key, name in expected.items() if key not in assigned)
+    unexpected = sorted(name for name in assignments if name.casefold() not in expected)
+    duplicates = sorted({name for name in assignments if assigned_counts[name.casefold()] > 1})
+    if not invalid_components and not missing and not unexpected and not duplicates:
+        return ValidationResult(is_valid=True)
+    return ValidationResult(
+        is_valid=False,
+        feedback_messages=[
+            "Infomap modules are indivisible and must belong to exactly one component. "
+            f"components_without_modules={invalid_components}, missing={missing}, "
+            f"unexpected={unexpected}, duplicates={duplicates}."
+        ],
+    )
 
 
 def validate_key_entities(result: KeyEntityValidationTarget, context: ValidationContext) -> ValidationResult:

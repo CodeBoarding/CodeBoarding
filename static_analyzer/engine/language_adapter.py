@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod
+from collections.abc import Collection
 from pathlib import Path
 
 from repo_utils.ignore import RepoIgnoreManager
@@ -14,6 +15,7 @@ from static_analyzer.engine.lsp_constants import (
     CLASS_LIKE_KINDS,
     EdgeStrategy,
 )
+from static_analyzer.engine.models import ImportDependency
 from utils import get_config
 
 logger = logging.getLogger(__name__)
@@ -131,6 +133,43 @@ class LanguageAdapter(ABC):
         if parent_parts and parent_parts[0] != ".":
             return ".".join(parent_parts)
         return rel.stem
+
+    def resolve_import_target(
+        self,
+        declaration: ImportDependency,
+        source_files: Collection[Path],
+        project_root: Path,
+    ) -> Path | None:
+        """Conservatively resolve a project-root-relative import.
+
+        Languages with relative imports, package entry files, or module-root
+        semantics override this method. The base implementation deliberately
+        avoids guessing from symbol names or selecting the first suffix match.
+        """
+        module = declaration.declared_module.strip().rstrip(":")
+        candidates = {(path if path.is_absolute() else project_root / path).resolve() for path in source_files}
+        module_parts = tuple(part for part in module.replace("\\", "/").replace("::", "/").split("/") if part)
+        if len(module_parts) == 1:
+            module_parts = tuple(part for part in module.split(".") if part)
+        if not module_parts:
+            return None
+
+        path_base = project_root.joinpath(*module_parts).resolve()
+        direct_matches = {
+            candidate
+            for suffix in set(self.file_extensions)
+            for candidate in (path_base, path_base.with_suffix(suffix))
+            if candidate in candidates
+        }
+        if len(direct_matches) == 1:
+            return direct_matches.pop()
+        if direct_matches:
+            return None
+
+        suffix_matches = {
+            path for path in candidates if path.with_suffix("").parts[-len(module_parts) :] == module_parts
+        }
+        return suffix_matches.pop() if len(suffix_matches) == 1 else None
 
     def get_lsp_init_options(self, ignore_manager: RepoIgnoreManager | None = None) -> dict:
         """Return LSP initialization options specific to this language server."""

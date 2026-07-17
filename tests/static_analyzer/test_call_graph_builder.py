@@ -4,6 +4,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from static_analyzer.constants import Language, NodeType
+from static_analyzer.engine.adapters.python_adapter import PythonAdapter
 from static_analyzer.engine.adapters.rust_adapter import RustAdapter
 from static_analyzer.engine.adapters.typescript_adapter import TypeScriptAdapter
 from static_analyzer.engine.call_graph_builder import CallGraphBuilder
@@ -398,6 +399,31 @@ class TestBuildPackageDeps:
 
 
 class TestImportResolution:
+    def test_python_src_layout_resolves_package_init_exactly(self, tmp_path: Path):
+        source = tmp_path / "packages" / "client" / "src" / "client" / "app.py"
+        package_init = tmp_path / "packages" / "core" / "src" / "markitdown" / "__init__.py"
+        package_about = tmp_path / "packages" / "core" / "src" / "markitdown" / "__about__.py"
+        for path in (source, package_init, package_about):
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.touch()
+
+        builder = CallGraphBuilder(_make_lsp(), PythonAdapter(), tmp_path)
+        declaration = ImportDependency(str(source), "markitdown", 1, 1, imported_names=("MarkItDown",))
+
+        assert builder.resolve_import_target(declaration, [source, package_about, package_init]) == str(package_init)
+
+    def test_python_external_module_does_not_match_arbitrary_internal_file(self, tmp_path: Path):
+        source = tmp_path / "src" / "client" / "app.py"
+        unrelated = tmp_path / "src" / "client" / "types.py"
+        for path in (source, unrelated):
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.touch()
+
+        builder = CallGraphBuilder(_make_lsp(), PythonAdapter(), tmp_path)
+        declaration = ImportDependency(str(source), "starlette.types", 1, 1)
+
+        assert builder.resolve_import_target(declaration, [source, unrelated]) is None
+
     def test_scoped_analysis_resolves_imports_against_the_full_project(self, tmp_path: Path):
         source = tmp_path / "pkg" / "source.py"
         target = tmp_path / "pkg" / "target.py"

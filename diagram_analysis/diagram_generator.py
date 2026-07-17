@@ -116,6 +116,8 @@ class DiagramGenerator:
             assert self.details_agent is not None
 
             analysis, _ = self.details_agent.run(component)
+            if not analysis.components:
+                return None, None, []
 
             # Track whether parent had clusters for expansion decision
             parent_had_clusters = bool(component.source_cluster_ids)

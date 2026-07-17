@@ -70,7 +70,7 @@ API_SURFACES_MESSAGE = """Analyze the component API surfaces.
 Components:
 {component_summaries}
 
-Known static call evidence between components (incomplete; do not treat as the full communication model):
+Known static architectural evidence between components (calls, imports, and inheritance; still incomplete):
 {static_call_evidence}
 
 Identify each component's API surface. For every component, describe:
@@ -78,7 +78,7 @@ Identify each component's API surface. For every component, describe:
 - consumed_interfaces: important methods/classes/config symbols it calls, configures, imports, or expects from others
 - incoming_api_paths and outgoing_api_paths: how other components enter this component's API, and how this component reaches other components' APIs; include direct calls, runtime dispatch, plugin hooks, REST, queues, files, config, reflection/import, subprocesses, etc.
 
-Static call evidence is incomplete. Reason from component APIs, registries, protocols, runtime dispatch, plugin hooks, configuration, and data flow."""
+Static evidence is incomplete. Reason from component APIs, registries, protocols, runtime dispatch, plugin hooks, configuration, and data flow."""
 
 
 RELATION_ANALYSIS_MESSAGE = """Discover architectural communication relations between the components.
@@ -89,13 +89,14 @@ Components:
 Component API surfaces:
 {api_surfaces}
 
-Known static call evidence between components (incomplete; use as evidence only):
+Known static architectural evidence between components (calls, imports, and inheritance; use as evidence only):
 {static_call_evidence}
 
-Create the component relations. Do not limit relations to static calls. First reason from component API surfaces, including runtime dispatch, plugin hooks, REST/queues/files/config, reflection/imports, and data flow. Use static calls only as one evidence source.
+Create the component relations. First reason from component API surfaces, including runtime dispatch, plugin hooks, REST/queues/files/config, reflection/imports, and data flow. Static evidence identifies candidate neighbors but only CALL entries represent concrete method edges.
 
 For each relation:
 - src_name and dst_name must exactly match component names
+- src_name and dst_name must identify different components; omit calls internal to one component
 - relation should be a short architectural phrase
 - evidence should concisely explain the communication mechanism
 - key_edges should contain 1-3 important source-to-target code references when possible, similar to key_entities

@@ -13,10 +13,9 @@ from agents.full_analysis_responses import (
     ComponentRelations,
     MetaAnalysisInsights,
 )
+from agents.module_architecture import module_architecture_prompt, order_components_by_module
 from agents.prompts import (
     get_system_details_message,
-    get_cfg_details_message,
-    get_details_message,
     get_api_surfaces_message,
     get_relation_analysis_message,
     format_project_system_message,
@@ -25,20 +24,15 @@ from agents.relation_edges import index_relation_endpoints
 from agents.repair import ComponentRepairContext, repair_component_group_names, repair_key_entities
 from agents.cluster_methods_mixin import ClusterMethodsMixin
 from caching.cache import ModelSettings
-from caching.details_cache import (
-    FinalAnalysisCache,
-    ClusterCache,
-)
+from caching.details_cache import FinalAnalysisCache
 from agents.validation import (
     ValidationContext,
-    validate_cluster_coverage,
-    validate_group_name_coverage,
     validate_key_entities,
+    validate_module_component_mapping,
     validate_relations,
 )
 from monitoring import trace
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.cluster_helpers import get_all_cluster_ids
 from static_analyzer.clustering import ClusterResult
 from static_analyzer.program_graph import ProgramGraph
 
@@ -62,18 +56,9 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
         self.meta_context = meta_context
         self.run_id = run_id
         self._cache_model_settings = ModelSettings.from_chat_model(provider="unknown", llm=agent_llm)
-        self._cluster_cache = ClusterCache(repo_dir=repo_dir)
         self._analysis_cache = FinalAnalysisCache(repo_dir=repo_dir)
 
         self.prompts = {
-            "group_clusters": PromptTemplate(
-                template=get_cfg_details_message(),
-                input_variables=["cfg_clusters", "component"],
-            ),
-            "final_analysis": PromptTemplate(
-                template=get_details_message(),
-                input_variables=["cluster_analysis", "component"],
-            ),
             "api_surfaces": PromptTemplate(
                 template=get_api_surfaces_message(),
                 input_variables=[
@@ -92,61 +77,6 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
         }
 
     @trace
-    def step_clusters_grouping(
-        self, component: Component, subgraph_cluster_results: dict[str, ClusterResult]
-    ) -> ClusterAnalysis:
-        """
-        Group clusters within the component's subgraph into logical sub-components.
-
-        Args:
-            component: The component being analyzed
-            subgraph_cluster_results: Cluster results for the subgraph (from _create_strict_component_subgraph)
-
-        Returns:
-            ClusterAnalysis with grouped clusters for this component
-        """
-        logger.info(f"[DetailsAgent] Grouping clusters for component: {component.name}")
-        programming_langs = self.static_analysis.get_languages()
-
-        overhead_chars = len(str(self.system_message.content)) + len(
-            self.prompts["group_clusters"].format(
-                cfg_clusters="",
-                component=component.llm_str(),
-            )
-        )
-        cluster_str = self._build_cluster_string(
-            programming_langs, subgraph_cluster_results, prompt_overhead_chars=overhead_chars
-        )
-
-        prompt = self.prompts["group_clusters"].format(
-            cfg_clusters=cluster_str,
-            component=component.llm_str(),
-        )
-
-        context = ValidationContext(
-            cluster_results=subgraph_cluster_results,
-            expected_cluster_ids=get_all_cluster_ids(subgraph_cluster_results),
-        )
-
-        cache_key = self._cluster_cache.build_key(prompt, self._cache_model_settings)
-
-        if (cached := self._cluster_cache.load(cache_key)) is not None:
-            return cached
-        cluster_analysis = self._invoke_validate(
-            prompt,
-            ClusterAnalysis,
-            validators=[validate_cluster_coverage],
-            validation_context=context,
-            max_validation_attempts=3,
-        )
-        self._cluster_cache.store(
-            cache_key,
-            cluster_analysis,
-            run_id=self.run_id,
-        )
-        return cluster_analysis
-
-    @trace
     def step_final_analysis(
         self,
         component: Component,
@@ -159,27 +89,19 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
 
         Args:
             component: The component being analyzed
-            cluster_analysis: The clustered structure from step_clusters_grouping
+            cluster_analysis: Deterministic modules projected from the Infomap hierarchy
             subgraph_cluster_results: Cluster results for the subgraph (for validation)
 
         Returns:
             AnalysisInsights with detailed component information
         """
         logger.info(f"[DetailsAgent] Generating final detailed analysis for: {component.name}")
-        cluster_str = cluster_analysis.llm_str() if cluster_analysis else "No cluster analysis available."
-
-        group_names = [cc.name for cc in cluster_analysis.cluster_components] if cluster_analysis else []
-
-        prompt = self.prompts["final_analysis"].format(
-            cluster_analysis=cluster_str,
-            component=component.llm_str(),
+        cluster_evidence = self._build_cluster_string(
+            self.static_analysis.get_languages(),
+            subgraph_cluster_results,
+            prompt_overhead_chars=len(str(self.system_message.content)) + len(component.llm_str()),
         )
-
-        if group_names:
-            prompt += (
-                f"\n\n## All Group Names ({len(group_names)} total)\n"
-                f"Every one of these names: {group_names} must appear in exactly one component's source_group_names\n"
-            )
+        prompt = module_architecture_prompt(cluster_analysis, cluster_evidence, component.llm_str())
 
         self.toolkit.context.cluster_analysis = cluster_analysis
         self.toolkit.context.cluster_results = subgraph_cluster_results
@@ -200,7 +122,7 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
             ComponentArchitecture,
             repairs=[repair_component_group_names, repair_key_entities],
             validators=[
-                validate_group_name_coverage,
+                validate_module_component_mapping,
                 validate_key_entities,
             ],
             repair_context=ComponentRepairContext(
@@ -211,6 +133,10 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
             validation_context=context,
             max_validation_attempts=3,
         )
+        module_validation = validate_module_component_mapping(architecture, context)
+        if not module_validation.is_valid:
+            raise ValueError(" ".join(module_validation.feedback_messages))
+        architecture.components = order_components_by_module(architecture.components, cluster_analysis)
         result = AnalysisInsights(
             description=architecture.description,
             components=architecture.components,
@@ -278,12 +204,6 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
         This follows the same pattern as AbstractionAgent but operates on a component-level
         subgraph instead of the full codebase.
 
-        Pipeline:
-        1. Create subgraph from component's assigned files (with method-level expansion if < 5 clusters)
-        2. LLM groups clusters into logical sub-components
-        3. LLM creates components from groups (validated: key_entities must be in cluster scope)
-        4. Deterministically assign methods via cluster -> component mapping
-
         Args:
             component: Component to analyze in detail
 
@@ -292,17 +212,14 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
         """
         logger.info(f"[DetailsAgent] Processing component: {component.name}")
 
-        # Step 1: Create subgraph from component's assigned files using strict filtering
-        # If subgraph has < MIN_CLUSTERS_THRESHOLD clusters, auto-expands to method-level
         _subgraph_str, subgraph_cluster_results, subgraph_cfgs = self._create_strict_component_subgraph(
             component, source_cluster_id_prefix=component.component_id
         )
+        if sum(len(result.clusters) for result in subgraph_cluster_results.values()) <= 1:
+            logger.info("[DetailsAgent] %s has no deeper Infomap module partition", component.name)
+            return AnalysisInsights(description=component.description, components=[], components_relations=[]), {}
 
-        # Step 2: Group clusters within the subgraph
-        cluster_analysis = self.step_clusters_grouping(component, subgraph_cluster_results)
-
-        # Step 3: Generate detailed analysis from grouped clusters
-        # Validation ensures key_entities are within cluster scope (no rescue needed)
+        cluster_analysis = self._module_analysis(subgraph_cluster_results)
         analysis = self.step_final_analysis(component, cluster_analysis, subgraph_cluster_results, subgraph_cfgs)
 
         # Step 4: Assign hierarchical component IDs (e.g., "1.1", "1.2" under parent "1")
@@ -311,9 +228,6 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
         # Step 5: Resolve cluster IDs deterministically from group names
         self._resolve_cluster_ids_from_groups(analysis, cluster_analysis)
 
-        # Step 6: Populate file_methods deterministically from cluster results + orphan assignment
-        # Pass subgraph_cfgs to scope node collection to the component's filtered graph
-        # With method-level expansion, each method has its own cluster -> deterministic assignment
         self.populate_file_methods(analysis, subgraph_cluster_results, subgraph_cfgs)
 
         # Step 7: Analyze component API surfaces

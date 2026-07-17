@@ -675,7 +675,11 @@ class StaticAnalyzer:
                 len(scope_files),
             )
 
+            historical_cluster_snapshot = copy.deepcopy(baseline_graph.cluster_snapshot)
+            historical_method_cluster_paths = copy.deepcopy(baseline_graph.method_cluster_paths)
             updated_graph = baseline_graph.without_files(str(path) for path in changed_files)
+            updated_graph.cluster_snapshot = historical_cluster_snapshot
+            updated_graph.method_cluster_paths = historical_method_cluster_paths
             if scope_files:
                 delta = self._run_analysis_for_files(
                     engine_config,
@@ -689,6 +693,7 @@ class StaticAnalyzer:
                         f"Incremental analysis for {adapter.language} did not produce a ProgramGraph"
                     )
                 updated_graph.merge(delta_graph)
+            updated_graph.method_cluster_paths = updated_graph.method_cluster_paths.prune(updated_graph.nodes)
             self._merge_incremental_diagnostics(language, changed_files, engine_client)
 
             bucket = results.results[language]

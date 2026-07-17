@@ -4,12 +4,18 @@ from collections import defaultdict
 import hashlib
 import logging
 
-from agents.analysis_result_responses import AnalysisInsights, Component, Relation, RelationEdge
+from agents.analysis_result_responses import AnalysisInsights, Component, Relation, RelationEdge, SourceCodeReference
 from agents.incremental_agent import IncrementalAgent
 from constants import DEFAULT_STATIC_RELATION_LABEL
 from diagram_analysis.incremental.models import CatalogEdge
-from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.cluster_relations import ClusterRelation, build_component_relations, build_node_to_component_map
+from static_analyzer.cluster_relations import (
+    ClusterRelation,
+    ComponentRelationCandidate,
+    build_component_relation_candidates,
+    build_component_relations,
+    build_node_to_component_map,
+    render_component_relation_candidates,
+)
 from static_analyzer.program_graph import ProgramGraph
 
 logger = logging.getLogger(__name__)
@@ -18,9 +24,8 @@ logger = logging.getLogger(__name__)
 class IncrementalContractsUpdater:
     """Refresh semantic contracts while keeping concrete edges static-owned."""
 
-    def __init__(self, agent: IncrementalAgent, static_analysis: StaticAnalysisResults) -> None:
+    def __init__(self, agent: IncrementalAgent) -> None:
         self.agent = agent
-        self.static_analysis = static_analysis
 
     def update(
         self,
@@ -30,12 +35,17 @@ class IncrementalContractsUpdater:
         deleted_ids: set[str],
     ) -> None:
         live_ids = {component.component_id for component in analysis.components}
-        prior_relations = list(analysis.components_relations)
-        static_relations = build_component_relations(build_node_to_component_map(analysis), graphs)
+        prior_relations = [relation for relation in analysis.components_relations if relation.src_id != relation.dst_id]
+        node_to_component = build_node_to_component_map(analysis)
+        static_relations = build_component_relations(node_to_component, graphs)
+        candidates = build_component_relation_candidates(node_to_component, graphs)
+        candidate_by_pair = {
+            (candidate.src_cluster_id, candidate.dst_cluster_id): candidate for candidate in candidates
+        }
         catalog = self._edge_catalog(static_relations)
         neighboring_ids = {
             component_id
-            for relation in static_relations
+            for relation in candidates
             if affected_ids & {relation.src_cluster_id, relation.dst_cluster_id}
             for component_id in (relation.src_cluster_id, relation.dst_cluster_id)
         }
@@ -43,7 +53,15 @@ class IncrementalContractsUpdater:
         component_context = self._component_context(
             [component for component in analysis.components if component.component_id in contract_ids]
         )
-        static_context = self._catalog_context(catalog)
+        call_catalog_context = self._catalog_context(catalog)
+        candidate_context = render_component_relation_candidates(
+            candidates,
+            {component.component_id: component.name for component in analysis.components},
+        )
+        static_context = (
+            f"Verified CALL edge IDs:\n{call_catalog_context or 'None'}\n\n"
+            f"Architectural neighbor evidence (not CALL edge IDs):\n{candidate_context or 'None'}"
+        )
         draft_by_pair = {}
         if affected_ids and component_context:
             api_surfaces = self.agent.analyze_api_surfaces(component_context, static_context, affected_ids)
@@ -60,6 +78,7 @@ class IncrementalContractsUpdater:
         id_to_name = {component.component_id: component.name for component in analysis.components}
         relations: list[Relation] = []
         static_pairs = {(relation.src_cluster_id, relation.dst_cluster_id) for relation in static_relations}
+        materialized_pairs = set(static_pairs)
         for static_relation in static_relations:
             pair = (static_relation.src_cluster_id, static_relation.dst_cluster_id)
             prior = prior_by_pair.get(pair)
@@ -92,6 +111,20 @@ class IncrementalContractsUpdater:
                 continue
             if pair[0] not in live_ids or pair[1] not in live_ids or pair[0] == pair[1]:
                 continue
+            candidate = candidate_by_pair.get(pair)
+            if candidate is not None:
+                relations.append(
+                    self._candidate_relation(
+                        pair,
+                        id_to_name,
+                        candidate,
+                        draft.relation,
+                        draft.evidence,
+                        draft.evidence_references,
+                    )
+                )
+                materialized_pairs.add(pair)
+                continue
             reference_owners = {
                 owner_by_method.get(reference.qualified_name) for reference in draft.evidence_references
             }
@@ -112,9 +145,23 @@ class IncrementalContractsUpdater:
             )
 
         for pair, prior in prior_by_pair.items():
-            if pair in static_pairs or affected_ids & set(pair) or deleted_ids & set(pair):
+            if pair in materialized_pairs or deleted_ids & set(pair):
                 continue
-            if set(pair) <= live_ids:
+            if not set(pair) <= live_ids:
+                continue
+            candidate = candidate_by_pair.get(pair)
+            if candidate is not None:
+                relations.append(
+                    self._candidate_relation(
+                        pair,
+                        id_to_name,
+                        candidate,
+                        prior.relation,
+                        prior.evidence,
+                        prior.evidence_references,
+                    )
+                )
+            elif not affected_ids & set(pair):
                 relations.append(prior)
         analysis.components_relations = sorted(relations, key=lambda relation: (relation.src_id, relation.dst_id))
         self.agent.reference_resolver.fix_source_code_reference_lines(analysis)
@@ -126,13 +173,20 @@ class IncrementalContractsUpdater:
             or bool(relation.evidence_references)
         ]
 
-    def refresh(self, analysis: AnalysisInsights) -> None:
-        static_relations = build_component_relations(
-            build_node_to_component_map(analysis),
-            self.static_analysis.available_program_graphs(),
-        )
+    def refresh_static_edges(self, analysis: AnalysisInsights, graphs: dict[str, ProgramGraph]) -> None:
+        """Refresh concrete edges without changing surviving semantic labels."""
+        node_to_component = build_node_to_component_map(analysis)
+        static_relations = build_component_relations(node_to_component, graphs)
+        candidates = build_component_relation_candidates(node_to_component, graphs)
+        candidate_by_pair = {
+            (candidate.src_cluster_id, candidate.dst_cluster_id): candidate for candidate in candidates
+        }
         static_by_pair = {(relation.src_cluster_id, relation.dst_cluster_id): relation for relation in static_relations}
-        prior_by_pair = {(relation.src_id, relation.dst_id): relation for relation in analysis.components_relations}
+        prior_by_pair = {
+            (relation.src_id, relation.dst_id): relation
+            for relation in analysis.components_relations
+            if relation.src_id != relation.dst_id
+        }
         id_to_name = {component.component_id: component.name for component in analysis.components}
         refreshed: list[Relation] = []
         for pair, static_relation in sorted(static_by_pair.items()):
@@ -154,7 +208,19 @@ class IncrementalContractsUpdater:
         for pair, prior in prior_by_pair.items():
             if pair in static_by_pair or not set(pair) <= set(id_to_name):
                 continue
-            if not prior.is_static or (prior.evidence.strip() and prior.evidence_references):
+            candidate = candidate_by_pair.get(pair)
+            if candidate is not None:
+                refreshed.append(
+                    self._candidate_relation(
+                        pair,
+                        id_to_name,
+                        candidate,
+                        prior.relation,
+                        prior.evidence,
+                        prior.evidence_references,
+                    )
+                )
+            elif not prior.is_static or (prior.evidence.strip() and prior.evidence_references):
                 prior.is_static = False
                 prior.key_edges = []
                 prior.all_edges = []
@@ -162,6 +228,29 @@ class IncrementalContractsUpdater:
                 prior.dst_name = id_to_name[pair[1]]
                 refreshed.append(prior)
         analysis.components_relations = sorted(refreshed, key=lambda relation: (relation.src_id, relation.dst_id))
+
+    @staticmethod
+    def _candidate_relation(
+        pair: tuple[str, str],
+        component_names: dict[str, str],
+        candidate: ComponentRelationCandidate,
+        relation: str,
+        evidence: str,
+        evidence_references: list[SourceCodeReference],
+    ) -> Relation:
+        evidence_kinds = ", ".join(sorted({item.kind.value for item in candidate.evidence}))
+        return Relation(
+            relation=relation,
+            src_name=component_names[pair[0]],
+            dst_name=component_names[pair[1]],
+            evidence=evidence or f"ProgramGraph {evidence_kinds} evidence connects these components.",
+            evidence_references=evidence_references,
+            src_id=pair[0],
+            dst_id=pair[1],
+            is_static=True,
+            key_edges=[],
+            all_edges=[],
+        )
 
     @staticmethod
     def _edge_catalog(relations: list[ClusterRelation]) -> dict[str, CatalogEdge]:

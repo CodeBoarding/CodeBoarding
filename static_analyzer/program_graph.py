@@ -111,6 +111,8 @@ class ProgramEdge:
         if self.kind == ProgramEdgeKind.IMPORTS:
             modules = set(self.metadata.get("declared_modules", []))
             modules.update(other.metadata.get("declared_modules", []))
+            imported_names = set(self.metadata.get("imported_names", []))
+            imported_names.update(other.metadata.get("imported_names", []))
             for metadata in (self.metadata, other.metadata):
                 module = metadata.get("declared_module")
                 if module:
@@ -118,8 +120,10 @@ class ProgramEdge:
             if modules:
                 self.metadata["declared_modules"] = sorted(modules)
                 self.metadata["declared_module"] = min(modules)
+            if imported_names:
+                self.metadata["imported_names"] = sorted(imported_names)
             for key, value in other.metadata.items():
-                if key not in {"declared_module", "declared_modules"}:
+                if key not in {"declared_module", "declared_modules", "imported_names"}:
                     self.metadata[key] = value
         else:
             self.metadata.update(other.metadata)
@@ -390,6 +394,40 @@ class ProgramGraph:
         out.method_cluster_paths = self.method_cluster_paths.prune(out.nodes)
         out.cluster_snapshot = copy.deepcopy(self.cluster_snapshot)
         return out
+
+    def hierarchy_level(self, symbol_ids: Iterable[str], level: int) -> ClusterResult:
+        """Project one Infomap hierarchy level for an exact symbol scope."""
+        if self.cluster_snapshot is None:
+            raise ValueError("ProgramGraph has no Infomap hierarchy")
+        members_by_path: dict[tuple[int, ...], set[str]] = defaultdict(set)
+        scoped_paths = {
+            symbol_id: self.cluster_snapshot.node_paths.get(symbol_id, ())
+            for symbol_id in sorted(
+                {self.resolve_symbol_id(node_id) for node_id in symbol_ids if self.has_symbol(node_id)}
+            )
+        }
+        if not any(len(path) > level for path in scoped_paths.values()):
+            return ClusterResult(strategy="hierarchical_infomap_leaf")
+        for symbol_id, path in scoped_paths.items():
+            if path:
+                members_by_path[path[: level + 1]].add(symbol_id)
+        members = {
+            cluster_id: members_by_path[path] for cluster_id, path in enumerate(sorted(members_by_path), start=1)
+        }
+        cluster_to_files = {
+            cluster_id: {self.nodes[node_id].file_path for node_id in nodes if self.nodes[node_id].file_path}
+            for cluster_id, nodes in members.items()
+        }
+        file_to_clusters: dict[str, set[int]] = defaultdict(set)
+        for cluster_id, files in cluster_to_files.items():
+            for file_path in files:
+                file_to_clusters[file_path].add(cluster_id)
+        return ClusterResult(
+            clusters=dict(sorted(members.items())),
+            cluster_to_files=dict(sorted(cluster_to_files.items())),
+            file_to_clusters=dict(sorted(file_to_clusters.items())),
+            strategy="hierarchical_infomap_level",
+        )
 
     def induced_by_symbols(self, symbol_ids: Iterable[str]) -> "ProgramGraph":
         """Return a strict symbol scope plus its file/package containment context."""

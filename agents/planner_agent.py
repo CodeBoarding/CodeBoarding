@@ -10,9 +10,8 @@ Expansion Rules:
 2. If component has no clusters but has files -> expandable ONE level (to explain files)
 3. If neither component nor its parent has clusters -> leaf (stop expanding)
 
-Note: The MIN_CLUSTERS_THRESHOLD in constants.py controls when subgraphs are
-automatically expanded to method-level clustering in cluster_methods_mixin.py.
-This ensures fine-grained method assignment even for small components.
+Details analysis projects the next level of each component's persisted Infomap
+paths. A component becomes a leaf when that projection has no deeper partition.
 
 Example:
 - Component: "Agents" (clusters: [1,2,3]) -> expand (yes)
@@ -44,11 +43,6 @@ def should_expand_component(
       (allows one more level to explain file internals)
     - If neither component nor parent has clusters -> stop (leaf node)
 
-    Note: Method-level cluster expansion is handled separately in
-    cluster_methods_mixin._expand_to_method_level_clusters() when a subgraph
-    has fewer than MIN_CLUSTERS_THRESHOLD clusters. This ensures the planner
-    doesn't need to worry about method counts.
-
     Args:
         component: The component to evaluate
         parent_had_clusters: Whether the parent component had source_cluster_ids.
@@ -69,7 +63,8 @@ def should_expand_component(
         )
         return False
 
-    # If component has clusters, it's expandable (CFG structure exists)
+    # DetailsAgent verifies whether the persisted Infomap hierarchy has a
+    # deeper partition and stops cleanly when this component is a leaf.
     if has_clusters:
         logger.debug(
             f"Component '{component.name}' is expandable: "

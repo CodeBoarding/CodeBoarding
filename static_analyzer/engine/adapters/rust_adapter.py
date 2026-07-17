@@ -5,18 +5,21 @@ from __future__ import annotations
 import logging
 import shutil
 import subprocess
+from collections.abc import Collection
 from pathlib import Path
 
 from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.constants import Language
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_client import LSPClient
+from static_analyzer.engine.models import ImportDependency, ImportDependencyKind
 
 logger = logging.getLogger(__name__)
 
 # File stems implicit in the module path: ``mod.rs`` (directory module
 # entry), ``lib.rs`` (library crate root), ``main.rs`` (binary crate root).
 _IMPLICIT_MODULE_STEMS = {"mod", "lib", "main"}
+RUST_DIRECTORY_MODULE_ENTRY_STEM = "mod"
 
 
 def _skip_angle_block(s: str, start: int) -> int:
@@ -83,6 +86,34 @@ class RustAdapter(LanguageAdapter):
     @property
     def language_enum(self) -> Language:
         return Language.RUST
+
+    def resolve_import_target(
+        self,
+        declaration: ImportDependency,
+        source_files: Collection[Path],
+        project_root: Path,
+    ) -> Path | None:
+        """Resolve ``mod child;`` relative to its declaring Rust module."""
+        if declaration.kind != ImportDependencyKind.MODULE:
+            return super().resolve_import_target(declaration, source_files, project_root)
+
+        source_path = Path(declaration.source_file)
+        source = (source_path if source_path.is_absolute() else project_root / source_path).resolve()
+        module_parts = tuple(part for part in declaration.declared_module.split("::") if part)
+        if not module_parts:
+            return None
+        path_base = source.parent.joinpath(*module_parts).resolve()
+        candidates = {(path if path.is_absolute() else project_root / path).resolve() for path in source_files}
+        matches = {
+            candidate
+            for suffix in set(self.file_extensions)
+            for candidate in (
+                path_base.with_suffix(suffix),
+                path_base / f"{RUST_DIRECTORY_MODULE_ENTRY_STEM}{suffix}",
+            )
+            if candidate in candidates
+        }
+        return matches.pop() if len(matches) == 1 else None
 
     @property
     def references_per_query_timeout(self) -> int:

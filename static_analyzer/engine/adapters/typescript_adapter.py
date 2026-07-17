@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+from collections.abc import Collection
 from pathlib import Path
 
 from static_analyzer.constants import Language
 from static_analyzer.engine.language_adapter import LanguageAdapter
+from static_analyzer.engine.models import ImportDependency
+
+TYPESCRIPT_PACKAGE_ENTRY_STEM = "index"
 
 
 class TypeScriptAdapter(LanguageAdapter):
@@ -31,6 +35,32 @@ class TypeScriptAdapter(LanguageAdapter):
 
     def get_all_packages(self, source_files: list[Path], project_root: Path) -> set[str]:
         return self._get_hierarchical_packages(source_files, project_root)
+
+    def resolve_import_target(
+        self,
+        declaration: ImportDependency,
+        source_files: Collection[Path],
+        project_root: Path,
+    ) -> Path | None:
+        """Resolve relative TypeScript imports and directory entry modules."""
+        module = declaration.declared_module.strip()
+        if not module.startswith(("./", "../")):
+            return super().resolve_import_target(declaration, source_files, project_root)
+
+        source_path = Path(declaration.source_file)
+        source = (source_path if source_path.is_absolute() else project_root / source_path).resolve()
+        path_base = (source.parent / module).resolve()
+        candidates = {(path if path.is_absolute() else project_root / path).resolve() for path in source_files}
+        matches = {
+            candidate
+            for suffix in set(self.file_extensions)
+            for candidate in (
+                path_base if path_base.suffix == suffix else path_base.with_suffix(suffix),
+                path_base / f"{TYPESCRIPT_PACKAGE_ENTRY_STEM}{suffix}",
+            )
+            if candidate in candidates
+        }
+        return matches.pop() if len(matches) == 1 else None
 
 
 class JavaScriptAdapter(TypeScriptAdapter):

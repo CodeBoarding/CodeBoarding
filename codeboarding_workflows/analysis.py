@@ -10,9 +10,9 @@ import os
 from pathlib import Path
 
 from agents.content_hash import hash_repo_source_files
-from agents.incremental_agent import IncrementalAgent
 from diagram_analysis import DiagramGenerator
-from diagram_analysis.incremental import IncrementalAnalysisError, IncrementalAnalysisUpdater
+from diagram_analysis.incremental.errors import IncrementalAnalysisError
+from diagram_analysis.incremental.generator import IncrementalGenerator
 from diagram_analysis.io_utils import load_analysis_metadata, load_full_analysis, read_fingerprint
 from diagram_analysis.run_context import RunContext, RunPaths
 from static_analyzer.analysis_cache import StaticAnalysisCache
@@ -182,31 +182,15 @@ def run_incremental(
             raise IncrementalAnalysisError(f"The {language} ProgramGraph has no persisted Infomap lineage")
 
     depth_level = int(metadata.get("depth_level", 1))
-    generator = build_generator(
-        run_paths,
-        run_context,
-        depth_level=depth_level,
-        monitoring_enabled=monitoring_enabled,
-        static_analyzer=static_analyzer,
-    )
-    generator.source_sha = source_sha
-    generator.pre_analysis()
-    details_agent = generator.details_agent
-    if details_agent is None or generator.static_analysis is None:
-        raise IncrementalAnalysisError("Incremental agent dependencies were not initialized")
-    incremental_agent = IncrementalAgent(
-        repo_dir=run_paths.repo_path,
-        static_analysis=generator.static_analysis,
-        agent_llm=details_agent.agent_llm,
-        parsing_llm=details_agent.parsing_llm,
-    )
     root_analysis, sub_analyses = full_analysis
-    updater = IncrementalAnalysisUpdater(
-        generator=generator,
-        incremental_agent=incremental_agent,
+    return IncrementalGenerator(
+        run_paths=run_paths,
+        run_context=run_context,
+        depth_level=depth_level,
         previous_static=previous_static,
         root_analysis=root_analysis,
         sub_analyses=sub_analyses,
-    )
-    updated_root, updated_sub_analyses = updater.run()
-    return generator.finalize_and_save(updated_root, updated_sub_analyses)
+        monitoring_enabled=monitoring_enabled,
+        static_analyzer=static_analyzer,
+        source_sha=source_sha,
+    ).run()
