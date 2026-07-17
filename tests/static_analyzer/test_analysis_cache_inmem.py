@@ -1,297 +1,131 @@
-"""Tests for the in-memory CFG-update helpers used by the warm-start flow.
+"""Tests for the in-memory graph-update helpers used by the warm-start flow.
 
-The warm-start flow loads a prior pkl, asks git for files changed since the
-pkl's tag SHA, and uses ``invalidate_files`` + ``merge_results`` to bring
-the cached analysis-dict up to date in memory before saving a new pkl.
+The warm-start flow loads a prior pkl, asks for the files changed since the
+pkl's tag SHA, and uses ``ProgramGraph.without_files`` + ``merge`` to bring the
+cached graph up to date in memory before saving a new pkl.
 """
 
-import unittest
 import tempfile
+import unittest
 from pathlib import Path
-from unittest.mock import MagicMock
 
-from static_analyzer.analysis_cache import StaticAnalysisCache, invalidate_files, merge_results
-from static_analyzer.analysis_result import AnalysisData, StaticAnalysisResults
+from static_analyzer.analysis_cache import StaticAnalysisCache
+from static_analyzer.analysis_result import StaticAnalysisResults
+from static_analyzer.clustering import ClusterResult, InfomapClusterSnapshot
 from static_analyzer.constants import Language, NodeType
-from static_analyzer.graph import CallGraph, ClusterResult, Edge
-from static_analyzer.node import Node
-from static_analyzer.incremental_orchestrator import (
-    _definition_nodes,
-    _restore_cross_boundary_edges,
-    update_cfg_for_changed_files,
-)
-from static_analyzer.engine.source_inspector import SourceInspector
+from static_analyzer.program_graph import ProgramEdge, ProgramEdgeKind, ProgramGraph, ProgramOccurrence
+from tests.program_graph_factory import make_symbol
 from utils import CODEBOARDING_DIR_NAME
 
 
-def _node(qname: str, file_path: str, line_start: int = 1) -> Node:
-    return Node(
-        fully_qualified_name=qname,
-        node_type=NodeType.FUNCTION,
-        file_path=file_path,
-        line_start=line_start,
-        line_end=line_start + 1,
+def _graph(specs: list[tuple[str, str, int]]) -> ProgramGraph:
+    graph = ProgramGraph(language="python")
+    for qname, file_path, line_start in specs:
+        graph.add_node(make_symbol(qname, NodeType.FUNCTION, file_path, line_start, line_start + 1, language="python"))
+    return graph
+
+
+def _call(graph: ProgramGraph, source: str, target: str) -> None:
+    graph.add_edge(
+        ProgramEdge(ProgramEdgeKind.CALL, source, target, [ProgramOccurrence(graph.nodes[source].file_path, 1, 1)])
     )
 
 
-def _result(
-    cg: CallGraph,
-    references: list[Node] | None = None,
-    source_files: list[str] | None = None,
-    class_hierarchies: dict | None = None,
-    package_relations: dict | None = None,
-) -> dict:
-    return {
-        "call_graph": cg,
-        "class_hierarchies": class_hierarchies or {},
-        "package_relations": package_relations or {},
-        "references": references or [],
-        "source_files": [Path(p) for p in (source_files or [])],
-    }
-
-
-def _analysis_data(result: dict) -> AnalysisData:
-    return AnalysisData.from_dict(result)
-
-
-class TestInvalidateFiles(unittest.TestCase):
-    def test_drops_nodes_from_changed_files(self) -> None:
-        cg = CallGraph(language="python")
-        cg.add_node(_node("a.foo", "a.py"))
-        cg.add_node(_node("b.bar", "b.py"))
-        cached = _result(cg, source_files=["a.py", "b.py"])
-
-        updated = invalidate_files(cached, {Path("a.py")}).analysis
-
-        self.assertNotIn("a.foo", updated.call_graph.nodes)
-        self.assertIn("b.bar", updated.call_graph.nodes)
-        self.assertEqual([str(p) for p in updated.source_files], ["b.py"])
-
-    def test_cascades_edges_when_endpoint_dropped(self) -> None:
-        # Edge a.foo -> b.bar must be dropped when a.foo is removed; the
-        # remaining b.bar must stay and the dangling-edge guard must not fire.
-        cg = CallGraph(language="python")
-        cg.add_node(_node("a.foo", "a.py"))
-        cg.add_node(_node("b.bar", "b.py"))
-        cg.add_edge("a.foo", "b.bar")
-        cached = _result(cg, source_files=["a.py", "b.py"])
-
-        updated = invalidate_files(cached, {Path("a.py")}).analysis
-
-        self.assertEqual(len(updated.call_graph.edges), 0)
-
-    def test_tracks_invalidated_cross_boundary_edges_for_merge(self) -> None:
-        cg = CallGraph(language="python")
-        cg.add_node(_node("a.foo", "a.py"))
-        cg.add_node(_node("b.bar", "b.py"))
-        cg.add_edge("a.foo", "b.bar")
-        cached = _result(cg, source_files=["a.py", "b.py"])
-
-        updated = invalidate_files(cached, {Path("a.py")})
-
-        self.assertEqual(updated.invalidated_files, {"a.py"})
-        self.assertEqual(
-            [(src, dst) for src, dst, _src_node, _dst_node in updated.invalidated_edges],
-            [("a.foo", "b.bar")],
-        )
-
-    def test_drops_references_class_hierarchies_and_packages(self) -> None:
-        cg = CallGraph(language="python")
-        cg.add_node(_node("a.foo", "a.py"))
-        cached = _result(
-            cg,
-            references=[_node("a.foo", "a.py"), _node("b.bar", "b.py")],
-            source_files=["a.py", "b.py"],
-            class_hierarchies={
-                "A": {"file_path": "a.py", "superclasses": [], "subclasses": []},
-                "B": {"file_path": "b.py", "superclasses": [], "subclasses": []},
-            },
-            package_relations={"pkg": {"files": ["a.py", "b.py"]}},
-        )
-
-        updated = invalidate_files(cached, {Path("a.py")}).analysis
-
-        self.assertEqual([r.fully_qualified_name for r in updated.references], ["b.bar"])
-        self.assertEqual(set(updated.class_hierarchies.keys()), {"B"})
-        self.assertEqual(updated.package_relations["pkg"]["files"], ["b.py"])
-
-    def test_diagnostics_preserved_for_unchanged_files(self) -> None:
-        cg = CallGraph(language="python")
-        cg.add_node(_node("a.foo", "a.py"))
-        cg.add_node(_node("b.bar", "b.py"))
-        cached = _result(cg, source_files=["a.py", "b.py"])
-        cached["diagnostics"] = {"a.py": ["d1"], "b.py": ["d2"]}
-
-        updated = invalidate_files(cached, {Path("a.py")}).analysis
-
-        self.assertEqual(updated.diagnostics, {"b.py": ["d2"]})
-
-
-class TestMergeResults(unittest.TestCase):
-    def test_unions_disjoint_call_graphs(self) -> None:
-        cached_cg = CallGraph(language="python")
-        cached_cg.add_node(_node("a.foo", "a.py"))
-        new_cg = CallGraph(language="python")
-        new_cg.add_node(_node("b.bar", "b.py"))
-
-        merged = merge_results(
-            _analysis_data(_result(cached_cg, source_files=["a.py"])), _result(new_cg, source_files=["b.py"])
-        )
-
-        self.assertEqual(set(merged.call_graph.nodes), {"a.foo", "b.bar"})
-
-    def test_new_overrides_cached_for_same_file_references(self) -> None:
-        # ``b.bar`` lives in b.py in both halves; the new half wins.
-        cached = _result(
-            CallGraph(language="python"),
-            references=[_node("b.bar", "b.py", line_start=10)],
-            source_files=["b.py"],
-        )
-        new = _result(
-            CallGraph(language="python"),
-            references=[_node("b.bar", "b.py", line_start=20)],
-            source_files=["b.py"],
-        )
-
-        merged = merge_results(_analysis_data(cached), new)
-
-        self.assertEqual([(r.fully_qualified_name, r.line_start) for r in merged.references], [("b.bar", 20)])
-
-    def test_cached_references_for_files_not_in_new_are_kept(self) -> None:
-        cached = _result(
-            CallGraph(language="python"),
-            references=[_node("a.foo", "a.py"), _node("b.bar", "b.py")],
-            source_files=["a.py", "b.py"],
-        )
-        new = _result(
-            CallGraph(language="python"),
-            references=[_node("b.bar", "b.py", line_start=99)],
-            source_files=["b.py"],
-        )
-
-        merged = merge_results(_analysis_data(cached), new)
-
-        names = sorted((r.fully_qualified_name, r.line_start) for r in merged.references)
-        self.assertEqual(names, [("a.foo", 1), ("b.bar", 99)])
-
-    def test_diagnostics_merge_with_new_winning(self) -> None:
-        cached = _result(CallGraph(language="python"), source_files=["a.py", "b.py"])
-        cached["diagnostics"] = {"a.py": ["old-a"], "b.py": ["old-b"]}
-        new = _result(CallGraph(language="python"), source_files=["b.py"])
-        new["diagnostics"] = {"b.py": ["new-b"]}
-
-        merged = merge_results(_analysis_data(cached), new)
-
-        self.assertEqual(merged.diagnostics, {"a.py": ["old-a"], "b.py": ["new-b"]})
-
-
-class TestClusterCachePreservation(unittest.TestCase):
-    """``_cluster_cache`` must survive warm-start invalidation/merge.
-
-    Regression: dropping it caused ``IncrementalCacheMissingError`` even
-    when the pkl on disk had a populated cache.
-    """
-
-    def _cg_with_cluster_cache(self) -> CallGraph:
-        cg = CallGraph(language="python")
-        cg.add_node(_node("a.foo", "a.py", line_start=1))
-        cg.add_node(_node("a.bar", "a.py", line_start=10))
-        cg.add_node(_node("b.qux", "b.py", line_start=1))
-        cg._cluster_cache = ClusterResult(
+def _graph_with_lineage() -> ProgramGraph:
+    graph = _graph([("a.foo", "a.py", 1), ("a.bar", "a.py", 10), ("b.qux", "b.py", 1)])
+    graph.cluster_snapshot = InfomapClusterSnapshot(
+        cluster_result=ClusterResult(
             clusters={1: {"a.foo", "a.bar"}, 2: {"b.qux"}},
             cluster_to_files={1: {"a.py"}, 2: {"b.py"}},
             file_to_clusters={"a.py": {1}, "b.py": {2}},
-            strategy="leiden",
-        )
-        return cg
+            strategy="hierarchical_infomap",
+        ),
+        node_paths={"a.foo": (1,), "a.bar": (1,), "b.qux": (2,)},
+        module_members={1: {"a.foo", "a.bar"}, 2: {"b.qux"}},
+        next_cluster_id=3,
+    )
+    return graph
 
-    def test_invalidate_files_preserves_cluster_cache_for_kept_files(self) -> None:
-        cached = _result(self._cg_with_cluster_cache(), source_files=["a.py", "b.py"])
 
-        updated = invalidate_files(cached, {Path("a.py")}).analysis
+class TestWithoutFiles(unittest.TestCase):
+    def test_drops_symbols_from_changed_files(self) -> None:
+        updated = _graph_with_lineage().without_files({"a.py"})
 
-        cc = updated.call_graph._cluster_cache
-        assert cc is not None
-        # Cluster 1 had only a.py members -> dropped entirely.
-        # Cluster 2 keeps b.qux from b.py.
-        self.assertNotIn(1, cc.clusters)
-        self.assertEqual(cc.clusters[2], {"b.qux"})
-        self.assertEqual(cc.cluster_to_files[2], {"b.py"})
-        self.assertEqual(cc.file_to_clusters, {"b.py": {2}})
-        self.assertEqual(cc.strategy, "leiden")
+        self.assertEqual(set(updated.symbols), {"b.qux"})
 
-    def test_invalidate_files_preserves_partial_cluster(self) -> None:
-        cached = _result(self._cg_with_cluster_cache(), source_files=["a.py", "b.py"])
-        # Only invalidate b.py; cluster 1 (members in a.py) survives whole;
-        # cluster 2 (b.qux only) drops.
-        updated = invalidate_files(cached, {Path("b.py")}).analysis
+    def test_drops_edges_whose_endpoint_was_dropped(self) -> None:
+        graph = _graph([("a.foo", "a.py", 1), ("b.qux", "b.py", 1)])
+        _call(graph, "a.foo", "b.qux")
 
-        cc = updated.call_graph._cluster_cache
-        assert cc is not None
-        self.assertEqual(cc.clusters[1], {"a.foo", "a.bar"})
-        self.assertNotIn(2, cc.clusters)
+        updated = graph.without_files({"a.py"})
 
-    def test_merge_results_preserves_cached_cluster_cache(self) -> None:
-        cached = _result(self._cg_with_cluster_cache(), source_files=["a.py", "b.py"])
-        new_cg = CallGraph(language="python")
-        new_cg.add_node(_node("c.new", "c.py"))
-        new = _result(new_cg, source_files=["c.py"])
+        self.assertEqual(updated.call_edges(), [])
+        self.assertNotIn("a.foo", updated.symbols)
+        self.assertIn("b.qux", updated.symbols)
 
-        merged = merge_results(_analysis_data(cached), new)
+    def test_returns_an_independent_graph(self) -> None:
+        graph = _graph_with_lineage()
 
-        cc = merged.call_graph._cluster_cache
-        assert cc is not None
-        # Cached clusters survive; new node 'c.new' is unclustered (intentional —
-        # cluster_delta will pick it up as drift on the next run).
-        self.assertEqual(cc.clusters[1], {"a.foo", "a.bar"})
-        self.assertEqual(cc.clusters[2], {"b.qux"})
+        graph.without_files({"a.py"})
 
-    def test_filter_returns_independent_call_graph(self) -> None:
-        # Ensure CallGraph.filter does not mutate the source.
-        cg = self._cg_with_cluster_cache()
-        original_node_count = len(cg.nodes)
-        assert cg._cluster_cache is not None
-        original_cluster_ids = set(cg._cluster_cache.clusters.keys())
+        self.assertEqual(set(graph.symbols), {"a.foo", "a.bar", "b.qux"})
+        assert graph.cluster_snapshot is not None
+        self.assertEqual(graph.cluster_snapshot.module_members, {1: {"a.foo", "a.bar"}, 2: {"b.qux"}})
 
-        cg.filter(lambda n: n.file_path != "a.py", on_dropped_edge=lambda _edge: None)
 
-        self.assertEqual(len(cg.nodes), original_node_count)
-        assert cg._cluster_cache is not None
-        self.assertEqual(set(cg._cluster_cache.clusters.keys()), original_cluster_ids)
+class TestClusterLineagePreservation(unittest.TestCase):
+    """The lineage must survive warm-start invalidation/merge.
 
-    def test_filter_drops_edges_with_dropped_endpoint(self) -> None:
-        cg = CallGraph(language="python")
-        cg.add_node(_node("a.foo", "a.py"))
-        cg.add_node(_node("b.bar", "b.py"))
-        cg.add_edge("a.foo", "b.bar")
-        dropped_edges: list[Edge] = []
+    Regression: dropping it caused ``IncrementalCacheMissingError`` even when
+    the pkl on disk had a populated snapshot.
+    """
 
-        filtered = cg.filter(lambda n: n.file_path != "a.py", on_dropped_edge=dropped_edges.append)
+    def test_without_files_keeps_lineage_for_surviving_symbols(self) -> None:
+        updated = _graph_with_lineage().without_files({"a.py"})
 
-        self.assertEqual(len(filtered.edges), 0)
-        self.assertNotIn("a.foo", filtered.nodes)
-        self.assertIn("b.bar", filtered.nodes)
-        self.assertEqual([(edge.get_source(), edge.get_destination()) for edge in dropped_edges], [("a.foo", "b.bar")])
+        snapshot = updated.cluster_snapshot
+        assert snapshot is not None
+        # Cluster 1 had only a.py members -> pruned out. Cluster 2 keeps b.qux.
+        self.assertEqual(snapshot.module_members, {2: {"b.qux"}})
+        self.assertEqual(snapshot.node_paths, {"b.qux": (2,)})
 
-    def test_union_preserves_cached_side_cluster_cache(self) -> None:
-        cached = self._cg_with_cluster_cache()
-        new = CallGraph(language="python")
-        new.add_node(_node("c.new", "c.py"))
+    def test_without_files_keeps_partially_surviving_cluster(self) -> None:
+        # Invalidate only b.py: cluster 1 (members in a.py) survives whole,
+        # cluster 2 (b.qux only) is pruned out.
+        updated = _graph_with_lineage().without_files({"b.py"})
 
-        unioned = cached.union(new)
+        snapshot = updated.cluster_snapshot
+        assert snapshot is not None
+        self.assertEqual(snapshot.module_members, {1: {"a.foo", "a.bar"}})
 
-        cc = unioned._cluster_cache
-        assert cc is not None
-        self.assertEqual(cc.clusters, {1: {"a.foo", "a.bar"}, 2: {"b.qux"}})
-        # New node from `other` participates in the graph but not yet in any cluster.
-        self.assertIn("c.new", unioned.nodes)
-        self.assertNotIn("c.new", {m for members in cc.clusters.values() for m in members})
+    def test_merge_preserves_cached_lineage(self) -> None:
+        base = _graph_with_lineage().without_files({"a.py"})
+        delta = _graph([("a.foo", "a.py", 1)])
 
-    def test_static_analysis_cache_does_not_persist_incremental_base_results(self) -> None:
+        base.merge(delta)
+
+        snapshot = base.cluster_snapshot
+        assert snapshot is not None
+        self.assertEqual(set(base.symbols), {"a.foo", "b.qux"})
+        # The re-analyzed symbol is intentionally unseeded: the clusterer starts
+        # it as a singleton and reconciles ids by overlap.
+        self.assertEqual(snapshot.module_members, {2: {"b.qux"}})
+
+    def test_merge_unions_disjoint_graphs(self) -> None:
+        base = _graph([("a.foo", "a.py", 1)])
+        delta = _graph([("c.new", "c.py", 1)])
+
+        base.merge(delta)
+
+        self.assertEqual(set(base.symbols), {"a.foo", "c.new"})
+
+
+class TestCachePersistence(unittest.TestCase):
+    def test_does_not_persist_incremental_base_results(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             result = StaticAnalysisResults()
-            result.add_cfg(Language.PYTHON, self._cg_with_cluster_cache())
+            result.add_program_graph(Language.PYTHON, _graph_with_lineage())
             base_results = StaticAnalysisResults()
             result.incremental_base_results = base_results
 
@@ -303,7 +137,7 @@ class TestClusterCachePreservation(unittest.TestCase):
             self.assertIsNone(loaded.incremental_base_results)
             self.assertIs(result.incremental_base_results, base_results)
 
-    def test_static_analysis_cache_round_trips_cluster_cache_paths_between_repo_roots(self) -> None:
+    def test_round_trips_cluster_lineage_between_repo_roots(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
             repo_a = temp_path / "repo-a"
@@ -313,158 +147,29 @@ class TestClusterCachePreservation(unittest.TestCase):
             repo_b.mkdir()
 
             source_file = repo_a / "pkg" / "a.py"
-            cg = CallGraph(language="python")
-            cg.add_node(_node("pkg.a.foo", str(source_file)))
-            cg._cluster_cache = ClusterResult(
-                clusters={1: {"pkg.a.foo"}},
-                cluster_to_files={1: {str(source_file)}},
-                file_to_clusters={str(source_file): {1}},
-                strategy="leiden",
+            graph = _graph([("pkg.a.foo", str(source_file), 1)])
+            graph.cluster_snapshot = InfomapClusterSnapshot(
+                cluster_result=ClusterResult(
+                    clusters={1: {"pkg.a.foo"}},
+                    cluster_to_files={1: {str(source_file)}},
+                    file_to_clusters={str(source_file): {1}},
+                    strategy="hierarchical_infomap",
+                ),
+                node_paths={"pkg.a.foo": (1,)},
+                module_members={1: {"pkg.a.foo"}},
             )
             result = StaticAnalysisResults()
-            result.add_cfg(Language.PYTHON, cg)
+            result.add_program_graph(Language.PYTHON, graph)
 
             StaticAnalysisCache(artifact_dir, repo_a).save(result, source_sha="sha")
             loaded = StaticAnalysisCache(artifact_dir, repo_b).get(expected_sha="sha")
 
             assert loaded is not None
-            loaded_cfg = loaded.get_cfg(Language.PYTHON)
+            loaded_graph = loaded.get_program_graph(Language.PYTHON)
             expected_file = str(repo_b.resolve() / "pkg" / "a.py")
-            self.assertEqual(loaded_cfg.nodes["pkg.a.foo"].file_path, expected_file)
-            assert loaded_cfg._cluster_cache is not None
-            self.assertEqual(loaded_cfg._cluster_cache.cluster_to_files, {1: {expected_file}})
-            self.assertEqual(loaded_cfg._cluster_cache.file_to_clusters, {expected_file: {1}})
-
-
-class TestWarmStartDeletion(unittest.TestCase):
-    def test_deleted_changed_file_is_removed_from_cached_cfg(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            project_path = Path(temp_dir)
-            live_file = project_path / "b.py"
-            live_file.write_text("def bar():\n    pass\n", encoding="utf-8")
-            deleted_file = project_path / "a.py"
-
-            cg = CallGraph(language="python")
-            cg.add_node(_node("a.foo", str(deleted_file)))
-            cg.add_node(_node("b.bar", str(live_file)))
-            cached = _result(
-                cg,
-                references=[_node("a.foo", str(deleted_file)), _node("b.bar", str(live_file))],
-                source_files=[str(deleted_file), str(live_file)],
-            )
-
-            adapter = MagicMock()
-            adapter.file_extensions = [".py"]
-            adapter.language = "python"
-            engine_client = MagicMock()
-            engine_client.get_collected_diagnostics.return_value = {}
-            ignore_manager = MagicMock()
-            ignore_manager.should_ignore.return_value = False
-
-            updated = update_cfg_for_changed_files(
-                cached,
-                {deleted_file},
-                adapter,
-                project_path,
-                engine_client,
-                ignore_manager,
-            )
-
-            self.assertNotIn("a.foo", updated["call_graph"].nodes)
-            self.assertIn("b.bar", updated["call_graph"].nodes)
-            self.assertEqual([str(path) for path in updated["source_files"]], [str(live_file)])
-
-
-class TestWarmStartOutboundEdges(unittest.TestCase):
-    def test_definition_resolution_includes_the_most_specific_node_and_its_class(self) -> None:
-        file_path = Path("/repo/pkg/converter.py")
-        call_graph = CallGraph(language="python")
-        call_graph.add_node(
-            Node(
-                fully_qualified_name="pkg.converter.DocumentConverter",
-                node_type=NodeType.CLASS,
-                file_path=str(file_path),
-                line_start=1,
-                line_end=40,
-            )
-        )
-        call_graph.add_node(
-            Node(
-                fully_qualified_name="pkg.converter.DocumentConverter.convert",
-                node_type=NodeType.METHOD,
-                file_path=str(file_path),
-                line_start=10,
-                line_end=20,
-                col_start=4,
-            )
-        )
-        definition = {
-            "uri": file_path.as_uri(),
-            "range": {"start": {"line": 9, "character": 8}, "end": {"line": 9, "character": 15}},
-        }
-
-        matches = _definition_nodes(call_graph, definition)
-
-        self.assertEqual(
-            [node.fully_qualified_name for node in matches],
-            [
-                "pkg.converter.DocumentConverter.convert",
-                "pkg.converter.DocumentConverter",
-            ],
-        )
-
-    def test_cached_outbound_edge_is_restored_from_live_non_call_reference(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            changed_file = Path(temp_dir) / "changed.py"
-            target_file = Path(temp_dir) / "target.py"
-            changed_file.write_text("def convert():\n    return result.text_content\n", encoding="utf-8")
-            target_file.write_text("class Result:\n    def text_content(self): ...\n", encoding="utf-8")
-            source = Node(
-                fully_qualified_name="changed.convert",
-                node_type=NodeType.FUNCTION,
-                file_path=str(changed_file),
-                line_start=1,
-                line_end=2,
-            )
-            target = Node(
-                fully_qualified_name="target.Result.text_content",
-                node_type=NodeType.METHOD,
-                file_path=str(target_file),
-                line_start=2,
-                line_end=2,
-                col_start=4,
-            )
-            call_graph = CallGraph(language="python")
-            call_graph.add_node(source)
-            call_graph.add_node(target)
-            engine_client = MagicMock()
-            engine_client.references.return_value = [
-                {
-                    "uri": changed_file.as_uri(),
-                    "range": {
-                        "start": {"line": 1, "character": 11},
-                        "end": {"line": 1, "character": 30},
-                    },
-                }
-            ]
-            adapter = MagicMock()
-            adapter.language_id = "python"
-            adapter.is_class_like.return_value = False
-
-            _restore_cross_boundary_edges(
-                call_graph,
-                [(source.fully_qualified_name, target.fully_qualified_name, source, target)],
-                {str(changed_file)},
-                adapter,
-                engine_client,
-                SourceInspector(),
-            )
-
-            self.assertEqual(len(call_graph.edges), 1)
-            self.assertEqual(
-                call_graph.edges[0].call_sites,
-                [{"file": str(changed_file), "line": 2, "column": 12}],
-            )
+            self.assertEqual(loaded_graph.symbols["pkg.a.foo"].file_path, expected_file)
+            assert loaded_graph.cluster_snapshot is not None
+            self.assertEqual(loaded_graph.cluster_snapshot.cluster_result.cluster_to_files, {1: {expected_file}})
 
 
 if __name__ == "__main__":

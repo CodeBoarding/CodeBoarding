@@ -12,7 +12,7 @@ from agents.agent_responses import (
     SourceCodeReference,
 )
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.graph import ClusterResult
+from static_analyzer.clustering import ClusterResult
 
 
 class TestAbstractionAgent(unittest.TestCase):
@@ -28,7 +28,7 @@ class TestAbstractionAgent(unittest.TestCase):
         # Create mock CFG
         mock_cfg = MagicMock()
         mock_cfg.to_cluster_string.return_value = "Mock CFG string"
-        self.mock_static_analysis.get_cfg.return_value = mock_cfg
+        self.mock_static_analysis.get_program_graph.return_value = mock_cfg
 
         # Create mock meta context
         self.mock_meta_context = MetaAnalysisInsights(
@@ -118,15 +118,13 @@ class TestAbstractionAgent(unittest.TestCase):
         mock_invoke_validate.return_value = mock_response
 
         # Create mock cluster_results for both languages
-        from static_analyzer.graph import ClusterResult
-
         mock_cluster_result = ClusterResult(clusters={1: {"node1"}})
         cluster_results = {"python": mock_cluster_result, "javascript": mock_cluster_result}
 
         result = agent.step_clusters_grouping(cluster_results)
 
         self.assertEqual(result, mock_response)
-        self.mock_static_analysis.get_cfg.assert_called()
+        self.mock_static_analysis.get_program_graph.assert_called()
 
     @patch("agents.abstraction_agent.AbstractionAgent._invoke_validate")
     def test_step_clusters_grouping_no_languages(self, mock_invoke_validate):
@@ -182,8 +180,6 @@ class TestAbstractionAgent(unittest.TestCase):
         mock_invoke_repair_validate.return_value = mock_response
 
         # Create mock cluster_results
-        from static_analyzer.graph import ClusterResult
-
         mock_cluster_result = ClusterResult(clusters={1: {"node1"}})
         cluster_results = {"python": mock_cluster_result}
 

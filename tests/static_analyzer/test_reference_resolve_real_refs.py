@@ -20,7 +20,7 @@ from agents.agent_responses import (
 from agents.file_index_models import FileMethodGroup, MethodEntry
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import NodeType
-from static_analyzer.node import Node
+from static_analyzer.program_graph import ProgramNode, ProgramNodeKind
 from static_analyzer.reference_resolver import StaticReferenceResolver
 
 
@@ -60,14 +60,17 @@ def _make_repo_tree(root: Path) -> None:
         p.write_text(f"# stub for {rel}\nclass Stub: pass\n")
 
 
-def _make_node(repo_dir: Path, qname: str, rel_file: str) -> Node:
-    """Create a Node matching the static analysis expectations."""
-    return Node(
-        fully_qualified_name=qname,
+def _make_node(repo_dir: Path, qname: str, rel_file: str) -> ProgramNode:
+    return ProgramNode(
+        node_id=qname,
+        kind=ProgramNodeKind.SYMBOL,
+        language="python",
+        name=qname.rsplit(".", 1)[-1],
         file_path=str(repo_dir / rel_file),
         line_start=0,
         line_end=5,
-        node_type=NodeType.CLASS,
+        symbol_type=NodeType.CLASS,
+        reference_worthy=True,
     )
 
 

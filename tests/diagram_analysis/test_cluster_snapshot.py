@@ -1,8 +1,8 @@
 """Tests for ``diagram_analysis.cluster_snapshot``.
 
-The snapshot is sourced exclusively from each per-language CFG's
-``CallGraph._cluster_cache`` (the partition is round-tripped through the
-SHA-tagged pkl). Languages without a populated cache contribute nothing,
+The snapshot is sourced exclusively from each per-language
+``ProgramGraph.cluster_snapshot`` (the partition is round-tripped through the
+SHA-tagged pkl). Languages without a populated snapshot contribute nothing,
 which is what triggers the full-analysis fallback in
 ``DiagramGenerator.generate_analysis_incremental``.
 """
@@ -16,41 +16,36 @@ from diagram_analysis.cluster_snapshot import (
     snapshot_from_static_analysis,
 )
 from static_analyzer.analysis_result import StaticAnalysisResults
+from static_analyzer.clustering import ClusterResult, InfomapClusterSnapshot
 from static_analyzer.constants import Language, NodeType
-from static_analyzer.graph import CallGraph, ClusterResult
-from static_analyzer.node import Node
+from static_analyzer.program_graph import ProgramGraph
+from tests.program_graph_factory import make_symbol
 
 
-def _build_graph(node_specs: list[tuple[str, str]]) -> CallGraph:
-    """Build a single-language CFG from (qname, file) pairs."""
-    graph = CallGraph(language="python")
+def _build_graph(node_specs: list[tuple[str, str]], language: str = "python") -> ProgramGraph:
+    """Build a single-language program graph from (qname, file) pairs."""
+    graph = ProgramGraph(language=language)
     for idx, (fqn, fp) in enumerate(node_specs):
-        graph.add_node(
-            Node(
-                fully_qualified_name=fqn,
-                node_type=NodeType.FUNCTION,
-                file_path=fp,
-                line_start=idx * 10,
-                line_end=idx * 10 + 1,
-            )
-        )
+        graph.add_node(make_symbol(fqn, NodeType.FUNCTION, fp, idx * 10, idx * 10 + 1, language=language))
     return graph
 
 
-def _build_static(graphs: dict[str, CallGraph]) -> StaticAnalysisResults:
+def _build_static(graphs: dict[str, ProgramGraph]) -> StaticAnalysisResults:
     results = StaticAnalysisResults()
     for language, graph in graphs.items():
-        results.add_cfg(Language(language), graph)
+        results.add_program_graph(Language(language), graph)
     return results
 
 
 class TestSnapshotFromStaticAnalysis(unittest.TestCase):
-    def test_partition_read_from_cfg_cache(self) -> None:
+    def test_partition_read_from_program_graph_snapshot(self) -> None:
         graph = _build_graph([("a.foo", "a.py"), ("a.bar", "a.py"), ("b.baz", "b.py")])
-        graph._cluster_cache = ClusterResult(
-            clusters={5: {"a.foo", "a.bar"}, 6: {"b.baz"}},
-            cluster_to_files={5: {"a.py"}, 6: {"b.py"}},
-            file_to_clusters={"a.py": {5}, "b.py": {6}},
+        graph.cluster_snapshot = InfomapClusterSnapshot(
+            cluster_result=ClusterResult(
+                clusters={5: {"a.foo", "a.bar"}, 6: {"b.baz"}},
+                cluster_to_files={5: {"a.py"}, 6: {"b.py"}},
+                file_to_clusters={"a.py": {5}, "b.py": {6}},
+            )
         )
         static = _build_static({"python": graph})
 
@@ -65,9 +60,11 @@ class TestSnapshotFromStaticAnalysis(unittest.TestCase):
 
     def test_partitions_each_language_independently(self) -> None:
         py_graph = _build_graph([("a.foo", "a.py"), ("b.baz", "b.py")])
-        py_graph._cluster_cache = ClusterResult(clusters={1: {"a.foo"}, 2: {"b.baz"}})
-        go_graph = _build_graph([("c.qux", "c.go")])
-        go_graph._cluster_cache = ClusterResult(clusters={3: {"c.qux"}})
+        py_graph.cluster_snapshot = InfomapClusterSnapshot(
+            cluster_result=ClusterResult(clusters={1: {"a.foo"}, 2: {"b.baz"}})
+        )
+        go_graph = _build_graph([("c.qux", "c.go")], language="go")
+        go_graph.cluster_snapshot = InfomapClusterSnapshot(cluster_result=ClusterResult(clusters={3: {"c.qux"}}))
         static = _build_static({"python": py_graph, "go": go_graph})
 
         snap = snapshot_from_static_analysis(static)
@@ -77,26 +74,28 @@ class TestSnapshotFromStaticAnalysis(unittest.TestCase):
         self.assertEqual(snap.by_language["python"][2].members, {"b.baz"})
         self.assertEqual(snap.by_language["go"][3].members, {"c.qux"})
 
-    def test_language_without_cluster_cache_is_skipped(self) -> None:
-        # Why: legacy pkl / first-ever run leaves ``_cluster_cache`` as None.
+    def test_language_without_cluster_snapshot_is_skipped(self) -> None:
+        # Why: legacy pkl / first-ever run leaves ``cluster_snapshot`` as None.
         # ``generate_analysis_incremental`` checks ``all_cluster_ids()`` and
-        # falls back to a full run, which then warms the pkl. The empty
+        # raises, prompting a full run which then warms the pkl. The empty
         # snapshot here is the explicit "I have nothing to compare against"
         # signal, not an error.
-        graph = _build_graph([("a.foo", "a.py")])  # _cluster_cache is None
+        graph = _build_graph([("a.foo", "a.py")])  # cluster_snapshot is None
         static = _build_static({"python": graph})
 
         snap = snapshot_from_static_analysis(static)
 
         self.assertEqual(snap.all_cluster_ids(), set())
 
-    def test_qnames_outside_cfg_are_dropped_from_member_files(self) -> None:
-        # A qname can appear in the cluster cache without a corresponding CFG
-        # node when the cache was saved before a node-level mutation. Such
-        # qnames have no authoritative file_path, so they're absorbed into
-        # ``members`` but contribute nothing to ``files`` / ``member_files``.
+    def test_qnames_outside_graph_are_dropped_from_member_files(self) -> None:
+        # A qname can appear in the snapshot without a corresponding graph node
+        # when the snapshot was saved before a node-level mutation. Such qnames
+        # have no authoritative file_path, so they're absorbed into ``members``
+        # but contribute nothing to ``files`` / ``member_files``.
         graph = _build_graph([("a.foo", "a.py")])
-        graph._cluster_cache = ClusterResult(clusters={1: {"a.foo", "ghost.fn"}})
+        graph.cluster_snapshot = InfomapClusterSnapshot(
+            cluster_result=ClusterResult(clusters={1: {"a.foo", "ghost.fn"}})
+        )
         static = _build_static({"python": graph})
 
         snap = snapshot_from_static_analysis(static)

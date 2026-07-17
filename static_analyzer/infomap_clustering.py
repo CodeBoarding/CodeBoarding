@@ -58,10 +58,17 @@ class HierarchicalInfomapClusterer:
         symbol_ids = {node.id for node in program_graph.symbol_nodes()}
 
         fingerprint = self._fingerprint(node_names, weighted_edges)
-        if previous is not None and previous.graph_fingerprint == fingerprint:
+        if (
+            previous is not None
+            and previous.graph_fingerprint == fingerprint
+            and self._snapshot_covers(previous, symbol_ids)
+        ):
             # The partition is a pure function of the weighted graph, so an
             # unchanged graph must not churn cluster ids — a change that only
             # moves line numbers would otherwise re-detail components for nothing.
+            # Only when the snapshot still describes this graph: without_files
+            # prunes module_members, and returning here would persist that pruning
+            # as the seed the next run warm-starts from.
             return previous.cluster_result
 
         prior_members = self._surviving_prior(previous, set(node_names)) if previous else {}
@@ -90,6 +97,12 @@ class HierarchicalInfomapClusterer:
         )
         program_graph.cluster_snapshot = snapshot
         return snapshot.cluster_result
+
+    @staticmethod
+    def _snapshot_covers(previous: InfomapClusterSnapshot, symbol_ids: set[str]) -> bool:
+        """Whether the snapshot still accounts for every symbol in the graph."""
+        seeded = {node_id for members in previous.module_members.values() for node_id in members}
+        return not (symbol_ids - seeded)
 
     @staticmethod
     def _fingerprint(node_names: list[str], weighted_edges: list[tuple[str, str, float]]) -> str:
@@ -209,7 +222,9 @@ class HierarchicalInfomapClusterer:
         """
         ordered = sorted(candidates, key=lambda key: tuple(sorted(candidates[key])))
         if not prior:
-            return {key: index for index, key in enumerate(ordered, start=1)}
+            # Still start above the watermark: an emptied seed must not reissue the
+            # ids of clusters this graph has already retired.
+            return {key: index for index, key in enumerate(ordered, start=next_cluster_id)}
 
         pairs = [
             (len(members & prior_members), cluster_id, key)

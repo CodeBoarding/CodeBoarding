@@ -26,9 +26,10 @@ from agents.incremental_agent import (
 )
 from agents.incremental_results import ScopeRelationContext
 from static_analyzer.analysis_result import StaticAnalysisResults
+from static_analyzer.clustering import ClusterResult
 from static_analyzer.constants import NodeType
-from static_analyzer.graph import CallGraph, ClusterResult
-from static_analyzer.node import Node
+from static_analyzer.program_graph import ProgramGraph, ProgramOccurrence
+from tests.program_graph_factory import make_symbol
 
 
 def _component(name: str, component_id: str, source_cluster_ids: list[str] | None = None) -> Component:
@@ -53,6 +54,15 @@ def _component_with_method(name: str, component_id: str) -> Component:
         )
     ]
     return component
+
+
+def _live_graph() -> ProgramGraph:
+    """Program graph holding the symbols `_component_with_method` puts on components 1 and 2."""
+    nodes = [
+        make_symbol("1.method", NodeType.FUNCTION, "1.py", 1, 2),
+        make_symbol("2.method", NodeType.FUNCTION, "2.py", 1, 2),
+    ]
+    return ProgramGraph(language="python", nodes={node.id: node for node in nodes})
 
 
 class TestPruneEmptyComponents(unittest.TestCase):
@@ -146,7 +156,7 @@ class TestUpdateScope(unittest.TestCase):
         agent = object.__new__(IncrementalAgent)
         agent.static_analysis = MagicMock()
         agent.static_analysis.get_languages.return_value = []
-        agent.static_analysis.get_cfg.return_value.filter_by_nodes.return_value = "cfg"
+        agent.static_analysis.get_program_graph.return_value.filter_by_nodes.return_value = "cfg"
         agent.reference_resolver = MagicMock()
 
         def populate(scope, _cluster_results, _cfg_graphs, _touched_ids, source_cluster_id_prefix=""):
@@ -359,10 +369,8 @@ class TestUpdateScope(unittest.TestCase):
             ]
         )
         agent = self._agent()
-        cfg = MagicMock()
-        cfg.nodes = {"1.method": object(), "2.method": object()}
         agent.static_analysis.get_languages = MagicMock(return_value=["python"])  # type: ignore[method-assign]
-        agent.static_analysis.get_cfg = MagicMock(return_value=cfg)  # type: ignore[method-assign]
+        agent.static_analysis.get_program_graph = MagicMock(return_value=_live_graph())  # type: ignore[method-assign]
 
         result = agent.update_scope("root", scope, decision, {})
 
@@ -386,10 +394,8 @@ class TestUpdateScope(unittest.TestCase):
             ]
         )
         agent = self._agent()
-        cfg = MagicMock()
-        cfg.nodes = {"1.method": object(), "2.method": object()}
         agent.static_analysis.get_languages = MagicMock(return_value=["python"])  # type: ignore[method-assign]
-        agent.static_analysis.get_cfg = MagicMock(return_value=cfg)  # type: ignore[method-assign]
+        agent.static_analysis.get_program_graph = MagicMock(return_value=_live_graph())  # type: ignore[method-assign]
 
         result = agent.update_scope("root", scope, decision, {})
 
@@ -414,35 +420,27 @@ class TestIncrementalRelations(unittest.TestCase):
         self.assertEqual(cluster_analysis.cluster_components[0].cluster_ids, [2])
 
     def test_uses_api_surface_relation_pipeline_and_attaches_static_call_sites(self) -> None:
-        source = Node("pkg.api.run", NodeType.FUNCTION, "api.py", 1, 5)
-        target = Node("pkg.worker.load", NodeType.FUNCTION, "worker.py", 10, 15)
-        cfg = CallGraph(nodes={source.fully_qualified_name: source, target.fully_qualified_name: target})
-        cfg.add_edge(source.fully_qualified_name, target.fully_qualified_name, [{"line": 3, "column": 7}])
+        source = make_symbol("pkg.api.run", NodeType.FUNCTION, "api.py", 1, 5)
+        target = make_symbol("pkg.worker.load", NodeType.FUNCTION, "worker.py", 10, 15)
+        cfg = ProgramGraph(language="python", nodes={source.id: source, target.id: target})
+        cfg.add_call(source.id, target.id, occurrences=[ProgramOccurrence("api.py", 3, 7)])
         static_analysis = MagicMock(spec=StaticAnalysisResults)
         static_analysis.get_languages.return_value = ["python"]
-        static_analysis.get_cfg.return_value = cfg
-        static_analysis.available_cfgs.return_value = {"python": cfg}
+        static_analysis.get_program_graph.return_value = cfg
+        static_analysis.available_program_graphs.return_value = {"python": cfg}
 
         api = _component("API", "1", source_cluster_ids=["1"])
         api.file_methods = [
             FileMethodGroup(
                 file_path="api.py",
-                methods=[
-                    MethodEntry(
-                        qualified_name=source.fully_qualified_name, start_line=1, end_line=5, node_type="FUNCTION"
-                    )
-                ],
+                methods=[MethodEntry(qualified_name=source.id, start_line=1, end_line=5, node_type="FUNCTION")],
             )
         ]
         worker = _component("Worker", "2", source_cluster_ids=["2"])
         worker.file_methods = [
             FileMethodGroup(
                 file_path="worker.py",
-                methods=[
-                    MethodEntry(
-                        qualified_name=target.fully_qualified_name, start_line=10, end_line=15, node_type="FUNCTION"
-                    )
-                ],
+                methods=[MethodEntry(qualified_name=target.id, start_line=10, end_line=15, node_type="FUNCTION")],
             )
         ]
         scope = AnalysisInsights(
@@ -461,8 +459,8 @@ class TestIncrementalRelations(unittest.TestCase):
             ]
         )
         key_edge = RelationEdge(
-            source=SourceCodeReference(qualified_name=source.fully_qualified_name),
-            target=SourceCodeReference(qualified_name=target.fully_qualified_name),
+            source=SourceCodeReference(qualified_name=source.id),
+            target=SourceCodeReference(qualified_name=target.id),
             description="API dispatches work.",
         )
         relation_result = ComponentRelations(
@@ -476,9 +474,7 @@ class TestIncrementalRelations(unittest.TestCase):
                 )
             ]
         )
-        cluster_results = {
-            "python": ClusterResult(clusters={1: {source.fully_qualified_name}, 2: {target.fully_qualified_name}})
-        }
+        cluster_results = {"python": ClusterResult(clusters={1: {source.id}, 2: {target.id}})}
 
         with patch("agents.agent.create_agent", return_value=MagicMock()):
             agent = IncrementalAgent(
@@ -518,7 +514,7 @@ class TestIncrementalRelations(unittest.TestCase):
         self.assertEqual(relation.key_edges, [key_edge])
         self.assertTrue(relation.is_static)
         self.assertTrue(any(edge.call_sites[0].line == 3 for edge in relation.all_edges if edge.call_sites))
-        self.assertEqual(scope.files["api.py"].methods[0].qualified_name, source.fully_qualified_name)
+        self.assertEqual(scope.files["api.py"].methods[0].qualified_name, source.id)
         self.assertEqual(scope.files["api.py"].methods[0].node_type, NodeType.FUNCTION.name)
 
     def test_generate_all_scope_relations_includes_root_scope_id(self) -> None:

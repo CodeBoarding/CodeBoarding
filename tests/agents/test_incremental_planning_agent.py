@@ -35,27 +35,30 @@ from diagram_analysis.cluster_delta import (
 )
 from repo_utils.change_detector import ChangeSet, FileChange
 from static_analyzer.analysis_result import StaticAnalysisResults
+from static_analyzer.clustering import ClusterResult
 from static_analyzer.constants import Language, NodeType
-from static_analyzer.graph import ClusterResult
-from static_analyzer.node import Node
+from static_analyzer.program_graph import ProgramGraph
 from static_analyzer.reference_resolver import StaticReferenceResolver
+from tests.program_graph_factory import make_symbol
 
 
 def _reference_resolver(*qnames: str) -> StaticReferenceResolver:
-    static_analysis = StaticAnalysisResults()
-    static_analysis.add_references(
-        Language.PYTHON,
-        [
-            Node(
-                fully_qualified_name=qname,
-                node_type=NodeType.FUNCTION,
-                file_path=f"/tmp/fake-repo/reference-{index}.py",
-                line_start=1,
-                line_end=2,
+    graph = ProgramGraph(
+        language=str(Language.PYTHON),
+        nodes={
+            qname: make_symbol(
+                qname,
+                NodeType.FUNCTION,
+                f"/tmp/fake-repo/reference-{index}.py",
+                1,
+                2,
+                language=Language.PYTHON,
             )
             for index, qname in enumerate(qnames)
-        ],
+        },
     )
+    static_analysis = StaticAnalysisResults()
+    static_analysis.add_program_graph(Language.PYTHON, graph)
     return StaticReferenceResolver(Path("/tmp/fake-repo"), static_analysis)
 
 

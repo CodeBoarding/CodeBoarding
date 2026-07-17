@@ -36,12 +36,13 @@ from diagram_analysis.analysis_json import (
 from diagram_analysis.cluster_delta import ClusterMemberDelta, ClusterRef, LanguageStructuralDiff, StructuralClusterDiff
 from diagram_analysis.diagram_generator import DiagramGenerator, _component_depth, _component_expansion_seeds
 from diagram_analysis.exceptions import IncrementalCacheMissingError
-from repo_utils.change_detector import ChangeSet
 from static_analyzer.analysis_cache import StaticAnalysisCache
 from static_analyzer.analysis_result import StaticAnalysisResults
+from static_analyzer.clustering import ClusterResult
 from static_analyzer.constants import Language, NodeType
-from static_analyzer.graph import CallGraph, ClusterResult
-from static_analyzer.node import Node
+from static_analyzer.infomap_clustering import HierarchicalInfomapClusterer
+from static_analyzer.program_graph import ProgramGraph
+from tests.program_graph_factory import make_symbol
 
 
 class TestComponentJson(unittest.TestCase):
@@ -1573,7 +1574,7 @@ class TestDiagramGenerator(unittest.TestCase):
         self.assertIsNot(root_analysis.files["sub.py"].methods[0], sub_only_method)
         self.assertIs(mock_build_index.call_args_list[0].args[2], mock_build_index.call_args_list[1].args[2])
 
-    def test_persist_static_analysis_artifact_saves_cluster_cache_without_injected_analyzer(self):
+    def test_persist_static_analysis_artifact_saves_infomap_snapshot_without_injected_analyzer(self):
         gen = DiagramGenerator(
             repo_location=self.repo_location,
             temp_folder=self.temp_folder,
@@ -1585,24 +1586,13 @@ class TestDiagramGenerator(unittest.TestCase):
         )
         gen.source_sha = "sha-current"
 
-        cfg = CallGraph(language="python")
-        cfg.add_node(
-            Node(
-                fully_qualified_name="test.fn",
-                node_type=NodeType.FUNCTION,
-                file_path=str(self.repo_location / "test.py"),
-                line_start=1,
-                line_end=1,
-            )
+        graph = ProgramGraph(language="python")
+        graph.add_node(
+            make_symbol("test.fn", NodeType.FUNCTION, str(self.repo_location / "test.py"), 1, 1, language="python")
         )
-        cfg._cluster_cache = ClusterResult(
-            clusters={1: {"test.fn"}},
-            cluster_to_files={1: {str(self.repo_location / "test.py")}},
-            file_to_clusters={str(self.repo_location / "test.py"): {1}},
-            strategy="test",
-        )
+        HierarchicalInfomapClusterer().cluster(graph)
         results = StaticAnalysisResults()
-        results.add_cfg(Language.PYTHON, cfg)
+        results.add_program_graph(Language.PYTHON, graph)
         gen.static_analysis = results
 
         gen._persist_static_analysis_artifact()
@@ -1613,7 +1603,7 @@ class TestDiagramGenerator(unittest.TestCase):
             return
         loaded_results, cached_sha = loaded
         self.assertEqual(cached_sha, "sha-current")
-        self.assertIsNotNone(loaded_results.get_cfg(Language.PYTHON)._cluster_cache)
+        self.assertIsNotNone(loaded_results.get_program_graph(Language.PYTHON).cluster_snapshot)
 
     def _finalize_gen(self):
         gen = DiagramGenerator(
@@ -1643,8 +1633,6 @@ class TestDiagramGenerator(unittest.TestCase):
 
     @patch("diagram_analysis.diagram_generator.save_analysis")
     def test_finalize_and_save_skips_side_artifacts_for_partial(self, mock_save):
-        """Component expansion (partial) must not rewrite file_coverage.json or touch
-        the static-analysis cache/SHA tag — that would regress the next incremental run."""
         mock_save.return_value = self.output_dir / "analysis.json"
         gen = self._finalize_gen()
         analysis = AnalysisInsights(description="d", components=[], components_relations=[])

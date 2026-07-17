@@ -1,4 +1,4 @@
-"""Warm-start can be scoped git-free from a caller-supplied changed-file set.
+"""ProgramGraph warm-start behavior, including git-free caller-supplied change sets.
 
 The wrapper analyses a frozen, non-git COPY of the working tree, so the git
 ``get_changed_files_since`` path can't run there. When the analyzer is built with
@@ -10,103 +10,125 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from static_analyzer import EngineConfig, StaticAnalyzer
+from static_analyzer import EngineConfig, IncrementalProgramGraphUnavailableError, StaticAnalyzer
 from static_analyzer.analysis_result import StaticAnalysisResults
+from static_analyzer.program_graph import ProgramGraph
 
 
-def _analyzer_with_one_engine(project_path: Path, changed_files: set[Path] | None) -> StaticAnalyzer:
+def _analyzer_with_one_engine(project_path: Path, changed_files: set[Path] | None = None) -> StaticAnalyzer:
     analyzer = object.__new__(StaticAnalyzer)
     adapter = MagicMock()
     adapter.language = "Python"
     adapter.language_enum = MagicMock()
-    client = MagicMock()
-    analyzer._engine_clients = [(EngineConfig(adapter=adapter, project_path=project_path), client)]
+    adapter.file_extensions = {".py"}
+    analyzer._engine_clients = [(EngineConfig(adapter=adapter, project_path=project_path), MagicMock())]
     analyzer.collected_diagnostics = {}
     analyzer.ignore_manager = MagicMock()
-    analyzer._loc_for_adapter = MagicMock(return_value=0)
     analyzer.changed_files = changed_files
     return analyzer
+
+
+def _cached_graph(analyzer: StaticAnalyzer) -> StaticAnalysisResults:
+    language = analyzer._engine_clients[0][0].adapter.language_enum
+    cached = StaticAnalysisResults()
+    cached.add_program_graph(language, ProgramGraph(language="python"))
+    return cached
 
 
 class TestWarmStartChangedFiles(unittest.TestCase):
     def setUp(self) -> None:
         self.project = Path("/proj").resolve()
-        self.cached = StaticAnalysisResults()
 
-    @patch("static_analyzer.update_cfg_for_changed_files", return_value={})
+    def test_missing_program_graph_baseline_raises(self) -> None:
+        analyzer = _analyzer_with_one_engine(self.project)
+
+        with self.assertRaisesRegex(IncrementalProgramGraphUnavailableError, "run a full analysis first"):
+            analyzer._update_cached_results(StaticAnalysisResults(), cached_sha="HEAD~1")
+
+    @patch("static_analyzer.get_changed_files_since", return_value={Path("/proj/x.py")})
+    def test_changed_files_are_spliced_from_a_scoped_analysis(self, mock_git) -> None:
+        analyzer = _analyzer_with_one_engine(self.project)
+        delta_graph = ProgramGraph(language="python")
+
+        with (
+            patch.object(analyzer, "_source_files_for_config", return_value=[Path("/proj/x.py")]),
+            patch.object(analyzer, "_incremental_scope_files", return_value=[Path("/proj/x.py")]),
+            patch.object(analyzer, "_run_analysis_for_files", return_value={"program_graph": delta_graph}) as run_delta,
+            patch.object(analyzer, "_merge_incremental_diagnostics"),
+        ):
+            updated = analyzer._update_cached_results(_cached_graph(analyzer), cached_sha="HEAD~1")
+
+        mock_git.assert_called_once()
+        run_delta.assert_called_once()
+        self.assertEqual(
+            updated.get_program_graph(analyzer._engine_clients[0][0].adapter.language_enum).language,
+            "python",
+        )
+
     @patch("static_analyzer.get_changed_files_since")
-    def test_supplied_changed_files_bypass_git(self, mock_git, mock_update) -> None:
+    def test_supplied_changed_files_bypass_git(self, mock_git) -> None:
         supplied = {self.project / "a.py", self.project / "b.py"}
         analyzer = _analyzer_with_one_engine(self.project, changed_files=supplied)
+
         with (
-            patch.object(analyzer, "_extract_language_dict", return_value={}),
-            patch.object(analyzer, "_absorb_into_results"),
-            patch.object(analyzer, "_collect_diagnostics_for"),
-            patch("static_analyzer.track_lsp_result"),
+            patch.object(analyzer, "_source_files_for_config", return_value=sorted(supplied)),
+            patch.object(analyzer, "_incremental_scope_files", return_value=[]) as scope,
+            patch.object(analyzer, "_merge_incremental_diagnostics"),
         ):
-            analyzer._update_cached_results(self.cached, cached_sha="deadbeef")
+            analyzer._update_cached_results(_cached_graph(analyzer), cached_sha="deadbeef")
 
-        # Git is never consulted on the supplied path.
         mock_git.assert_not_called()
-        # The supplied set (scoped to this engine's project root) reaches the merger.
-        passed = (
-            mock_update.call_args.args[1]
-            if mock_update.call_args.args
-            else mock_update.call_args.kwargs["changed_files"]
-        )
-        self.assertEqual(passed, supplied)
+        self.assertEqual(scope.call_args.args[1], supplied)
 
-    @patch("static_analyzer.update_cfg_for_changed_files", return_value={})
     @patch("static_analyzer.get_changed_files_since")
-    def test_files_outside_project_root_are_scoped_out(self, mock_git, mock_update) -> None:
+    def test_files_outside_project_root_are_scoped_out(self, mock_git) -> None:
         inside = self.project / "keep.py"
         outside = Path("/other/repo/skip.py").resolve()
         analyzer = _analyzer_with_one_engine(self.project, changed_files={inside, outside})
-        with (
-            patch.object(analyzer, "_extract_language_dict", return_value={}),
-            patch.object(analyzer, "_absorb_into_results"),
-            patch.object(analyzer, "_collect_diagnostics_for"),
-            patch("static_analyzer.track_lsp_result"),
-        ):
-            analyzer._update_cached_results(self.cached, cached_sha="deadbeef")
-        mock_git.assert_not_called()
-        passed = (
-            mock_update.call_args.args[1]
-            if mock_update.call_args.args
-            else mock_update.call_args.kwargs["changed_files"]
-        )
-        self.assertEqual(passed, {inside})
 
-    @patch("static_analyzer.update_cfg_for_changed_files", return_value={})
-    @patch("static_analyzer.get_changed_files_since", return_value={Path("/proj/x.py")})
-    def test_none_falls_back_to_git(self, mock_git, mock_update) -> None:
-        analyzer = _analyzer_with_one_engine(self.project, changed_files=None)
         with (
-            patch.object(analyzer, "_extract_language_dict", return_value={}),
-            patch.object(analyzer, "_absorb_into_results"),
-            patch.object(analyzer, "_collect_diagnostics_for"),
-            patch("static_analyzer.track_lsp_result"),
+            patch.object(analyzer, "_source_files_for_config", return_value=[inside]),
+            patch.object(analyzer, "_incremental_scope_files", return_value=[]) as scope,
+            patch.object(analyzer, "_merge_incremental_diagnostics"),
         ):
-            analyzer._update_cached_results(self.cached, cached_sha="HEAD~1")
-        # No supplied set => git IS consulted (legacy CLI-on-a-real-checkout path).
+            analyzer._update_cached_results(_cached_graph(analyzer), cached_sha="deadbeef")
+
+        mock_git.assert_not_called()
+        self.assertEqual(scope.call_args.args[1], {inside})
+
+    @patch("static_analyzer.get_changed_files_since", return_value={Path("/proj/x.py")})
+    def test_none_falls_back_to_git(self, mock_git) -> None:
+        analyzer = _analyzer_with_one_engine(self.project, changed_files=None)
+
+        with (
+            patch.object(analyzer, "_source_files_for_config", return_value=[Path("/proj/x.py")]),
+            patch.object(analyzer, "_incremental_scope_files", return_value=[]),
+            patch.object(analyzer, "_merge_incremental_diagnostics"),
+        ):
+            analyzer._update_cached_results(_cached_graph(analyzer), cached_sha="HEAD~1")
+
         mock_git.assert_called_once()
 
-    @patch("static_analyzer.update_cfg_for_changed_files", return_value={})
     @patch("static_analyzer.get_changed_files_since", side_effect=RuntimeError("Invalid Git repository"))
-    def test_git_failure_falls_back_to_full_relsp(self, mock_git, mock_update) -> None:
-        # When git fails (non-git dir / bad sha) and nothing was supplied, the
-        # language re-LSPs fully rather than crashing.
+    def test_git_failure_raises(self, mock_git) -> None:
+        # Why: incremental must never silently degrade into a full re-analysis —
+        # an unusable change set is a loud failure the caller has to act on.
         analyzer = _analyzer_with_one_engine(self.project, changed_files=None)
-        with (
-            patch.object(analyzer, "_extract_language_dict", return_value={}),
-            patch.object(analyzer, "_run_full_analysis", return_value={}) as mock_full,
-            patch.object(analyzer, "_absorb_into_results"),
-            patch.object(analyzer, "_collect_diagnostics_for"),
-            patch("static_analyzer.track_lsp_result"),
-        ):
-            analyzer._update_cached_results(self.cached, cached_sha="badsha")
-        mock_full.assert_called_once()
-        mock_update.assert_not_called()
+
+        with self.assertRaisesRegex(IncrementalProgramGraphUnavailableError, "No changed-file set"):
+            analyzer._update_cached_results(_cached_graph(analyzer), cached_sha="badsha")
+
+        mock_git.assert_called_once()
+
+    @patch("static_analyzer.get_changed_files_since", return_value=set())
+    def test_unchanged_graph_is_reused(self, _mock_git) -> None:
+        analyzer = _analyzer_with_one_engine(self.project)
+        cached = _cached_graph(analyzer)
+        language = analyzer._engine_clients[0][0].adapter.language_enum
+
+        updated = analyzer._update_cached_results(cached, cached_sha="HEAD")
+
+        self.assertIsNot(updated.get_program_graph(language), cached.get_program_graph(language))
 
 
 if __name__ == "__main__":
