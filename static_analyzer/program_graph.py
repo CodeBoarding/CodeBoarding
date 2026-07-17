@@ -404,11 +404,18 @@ class ProgramGraph:
     def induced_by_symbols(self, symbol_ids: Iterable[str]) -> "ProgramGraph":
         """Return a strict symbol scope plus its file/package containment context."""
         included = {self.resolve_symbol_id(node_id) for node_id in symbol_ids if self.has_symbol(node_id)}
+        # Structural context only: a symbol's container may be its class, and pulling
+        # that in would widen the scope past the symbols asked for — the caller
+        # partitions components by exactly this set, so an extra class lands in a
+        # child scope its parent does not own.
+        context_kinds = (ProgramNodeKind.FILE, ProgramNodeKind.PACKAGE)
         changed = True
         while changed:
             changed = False
             for edge in self.edges_of_kind(ProgramEdgeKind.CONTAINS):
                 if edge.target in included and edge.source not in included:
+                    if self.nodes[edge.source].kind not in context_kinds:
+                        continue
                     included.add(edge.source)
                     changed = True
 

@@ -69,17 +69,22 @@ class HierarchicalInfomapClusterer:
         level = self._choose_level(partition.node_paths, symbol_ids)
         candidates = self._group(partition.node_paths, level, symbol_ids)
         prior_symbols = {cid: members & symbol_ids for cid, members in prior_members.items() if members & symbol_ids}
-        mapping = self._reconcile(candidates, prior_symbols)
+        mapping = self._reconcile(candidates, prior_symbols, previous.next_cluster_id if previous else 1)
 
         module_members: ModuleMembers = {}
         node_paths: dict[str, ModulePath] = {}
-        for key, members in candidates.items():
-            stable_id = mapping[key]
+        for key, members in self._group(partition.node_paths, level).items():
+            stable_id = mapping.get(key)
+            if stable_id is None:
+                continue
             module_members.setdefault(stable_id, set()).update(members)
             for node_id in members:
                 node_paths[node_id] = (stable_id, *partition.node_paths[node_id][level:])
 
-        next_cluster_id = max([*mapping.values(), *prior_members, 0]) + 1
+        # Monotonic across runs: an id, once issued, is never handed to a different module.
+        next_cluster_id = (
+            max([*mapping.values(), *prior_members, previous.next_cluster_id - 1 if previous else 0, 0]) + 1
+        )
         snapshot = self._materialize_snapshot(
             program_graph, module_members, node_paths, next_cluster_id, partition.codelength, level, fingerprint
         )
@@ -177,19 +182,30 @@ class HierarchicalInfomapClusterer:
         return level
 
     @staticmethod
-    def _group(node_paths: dict[str, ModulePath], level: int, symbol_ids: set[str]) -> dict[ModulePath, set[str]]:
+    def _group(
+        node_paths: dict[str, ModulePath],
+        level: int,
+        symbol_ids: set[str] | None = None,
+    ) -> dict[ModulePath, set[str]]:
+        """Group nodes by their module path prefix; ``symbol_ids`` narrows to symbols."""
         modules: defaultdict[ModulePath, set[str]] = defaultdict(set)
         for node_id, path in node_paths.items():
-            if node_id in symbol_ids:
+            if symbol_ids is None or node_id in symbol_ids:
                 modules[tuple(path[:level])].add(node_id)
         return dict(modules)
 
     @staticmethod
-    def _reconcile(candidates: dict[ModulePath, set[str]], prior: ModuleMembers) -> dict[ModulePath, int]:
+    def _reconcile(
+        candidates: dict[ModulePath, set[str]],
+        prior: ModuleMembers,
+        next_cluster_id: int = 1,
+    ) -> dict[ModulePath, int]:
         """Map freshly discovered modules onto prior cluster ids by greatest overlap.
 
-        Leftover candidates take fresh ids; prior ids that nothing claims are not
-        reused, so a cluster id never silently changes meaning.
+        Leftover candidates take fresh ids drawn above every id ever issued, not
+        merely above the surviving ones — otherwise deleting a cluster frees its id
+        for an unrelated module and the delta reads that module as *changed*,
+        handing its symbols to the component that owned the id before.
         """
         ordered = sorted(candidates, key=lambda key: tuple(sorted(candidates[key])))
         if not prior:
@@ -211,7 +227,7 @@ class HierarchicalInfomapClusterer:
             mapping[key] = cluster_id
             used.add(cluster_id)
 
-        nxt = max(prior, default=0) + 1
+        nxt = max(next_cluster_id, max(prior, default=0) + 1)
         for key in ordered:
             if key not in mapping:
                 mapping[key] = nxt
