@@ -1,17 +1,23 @@
 """Scope-level analysis workflows.
 
-Two scopes, one shared generator builder. Each function takes a local
+Three scopes, one shared generator builder. Each function takes a local
 repo path and the minimum context needed to run; they are source-agnostic
 (see ``codeboarding_workflows.sources`` for local/remote materialization).
 """
 
 import logging
+import os
 from pathlib import Path
 
+from agents.content_hash import hash_repo_source_files
 from diagram_analysis import DiagramGenerator
-from diagram_analysis.io_utils import load_analysis_metadata, load_full_analysis
+from diagram_analysis.incremental.errors import IncrementalAnalysisError
+from diagram_analysis.incremental.generator import IncrementalGenerator
+from diagram_analysis.io_utils import load_analysis_metadata, load_full_analysis, read_fingerprint
 from diagram_analysis.run_context import RunContext, RunPaths
+from static_analyzer.analysis_cache import StaticAnalysisCache
 from telemetry.events import track_analysis
+from utils import ANALYSIS_FILENAME
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +26,7 @@ class BaselineUnavailableError(RuntimeError):
     """Raised when a workflow needs an existing analysis.json baseline that is absent or unreadable."""
 
 
-__all__ = ["BaselineUnavailableError", "run_full", "run_partial"]
+__all__ = ["BaselineUnavailableError", "IncrementalAnalysisError", "run_full", "run_incremental", "run_partial"]
 
 
 def build_generator(
@@ -138,3 +144,53 @@ def run_partial(
     sub_analyses[component_id] = sub_analysis
     generator.finalize_and_save(root_analysis, sub_analyses, persist_side_artifacts=False)
     logger.info(f"Updated component '{component_id}' in analysis.json")
+
+
+def run_incremental(
+    run_paths: RunPaths,
+    run_context: RunContext,
+    monitoring_enabled: bool = False,
+    static_analyzer=None,
+    source_sha: str | None = None,
+) -> Path:
+    """Update only method-affected scopes in an existing recursive analysis."""
+    logger.info("Running INCREMENTAL analysis workflow for repo '%s'.", run_paths.project_name)
+    metadata = load_analysis_metadata(run_paths.output_dir)
+    full_analysis = load_full_analysis(run_paths.output_dir)
+    previous_fingerprint = read_fingerprint(run_paths.output_dir)
+    if metadata is None or full_analysis is None:
+        raise BaselineUnavailableError(
+            f"No valid baseline analysis.json found in '{run_paths.output_dir}'. Run a full analysis first."
+        )
+    if previous_fingerprint is None:
+        raise IncrementalAnalysisError("The baseline source fingerprint is missing; run a full analysis first")
+    if os.getenv("CODEBOARDING_DISABLE_CACHE_REUSE", "").lower() in {"1", "true", "yes"}:
+        raise IncrementalAnalysisError("Incremental analysis requires static cache reuse to be enabled")
+
+    current_fingerprint = hash_repo_source_files(run_paths.repo_path)
+    analysis_path = (run_paths.output_dir / ANALYSIS_FILENAME).resolve()
+    if current_fingerprint == previous_fingerprint:
+        logger.info("Source fingerprint is unchanged; incremental analysis is a no-op")
+        return analysis_path
+
+    cached = StaticAnalysisCache(run_paths.output_dir, run_paths.repo_path).load_with_sha()
+    if cached is None:
+        raise IncrementalAnalysisError("The static-analysis cache or its diff-base tag is missing")
+    previous_static, _ = cached
+    for language, graph in previous_static.available_program_graphs().items():
+        if graph.cluster_snapshot is None:
+            raise IncrementalAnalysisError(f"The {language} ProgramGraph has no persisted Infomap lineage")
+
+    depth_level = int(metadata.get("depth_level", 1))
+    root_analysis, sub_analyses = full_analysis
+    return IncrementalGenerator(
+        run_paths=run_paths,
+        run_context=run_context,
+        depth_level=depth_level,
+        previous_static=previous_static,
+        root_analysis=root_analysis,
+        sub_analyses=sub_analyses,
+        monitoring_enabled=monitoring_enabled,
+        static_analyzer=static_analyzer,
+        source_sha=source_sha,
+    ).run()

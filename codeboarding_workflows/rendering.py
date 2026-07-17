@@ -11,7 +11,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from agents.agent_responses import AnalysisInsights, Relation
+from agents.analysis_result_responses import AnalysisInsights, Relation
 from agents.relation_edges import append_or_merge_relation
 from diagram_analysis.analysis_json import build_id_to_name_map, parse_unified_analysis
 from output_generators.html import generate_html_file
@@ -51,6 +51,7 @@ def project_relations_to_level(
                 src_name=id_to_name.get(src, src),
                 dst_name=id_to_name.get(dst, dst),
                 evidence=rel.evidence,
+                evidence_references=rel.evidence_references,
                 key_edges=rel.key_edges,
                 src_id=src,
                 dst_id=dst,

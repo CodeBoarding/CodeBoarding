@@ -9,11 +9,12 @@ import logging
 from collections import defaultdict
 from collections.abc import Iterator
 from dataclasses import dataclass, field
+from typing import Any
 
 from constants import DEFAULT_STATIC_RELATION_LABEL
-from agents.agent_responses import AnalysisInsights, Relation, RelationEdge
+from agents.analysis_result_responses import AnalysisInsights, Relation, RelationEdge
 from agents.relation_edges import append_or_merge_relation
-from static_analyzer.program_graph import ProgramGraph
+from static_analyzer.program_graph import ProgramEdgeKind, ProgramGraph, ProgramNodeKind, file_node_id
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +26,21 @@ class ClusterRelation:
     src_cluster_id: str  # component's component_id, e.g. "1.2"
     dst_cluster_id: str  # e.g. "3"
     all_edges: list[RelationEdge] = field(default_factory=list)
+
+
+@dataclass(frozen=True, order=True)
+class ArchitecturalRelationEvidence:
+    kind: ProgramEdgeKind
+    source: str
+    target: str
+    details: tuple[str, ...] = ()
+
+
+@dataclass
+class ComponentRelationCandidate:
+    src_cluster_id: str
+    dst_cluster_id: str
+    evidence: list[ArchitecturalRelationEvidence] = field(default_factory=list)
 
 
 def build_node_to_component_map(analysis: AnalysisInsights) -> dict[str, str]:
@@ -93,6 +109,140 @@ def build_component_relations(
 
     logger.info(f"Built {len(relations)} static inter-component relations from CFG edges")
     return relations
+
+
+def build_component_relation_candidates(
+    node_to_component: dict[str, str],
+    program_graphs: dict[str, ProgramGraph],
+) -> list[ComponentRelationCandidate]:
+    """Build component-pair candidates from calls, imports, and inheritance."""
+    evidence_by_pair: dict[tuple[str, str], set[ArchitecturalRelationEvidence]] = defaultdict(set)
+    for graph in program_graphs.values():
+        file_owners, file_packages, package_owners = _structural_owners(graph, node_to_component)
+        for edge in graph.edges:
+            if edge.kind in {ProgramEdgeKind.CALL, ProgramEdgeKind.INHERITS}:
+                source_owners = _symbol_owners(graph, edge.source, node_to_component)
+                target_owners = _symbol_owners(graph, edge.target, node_to_component)
+                details: tuple[str, ...] = ()
+            elif edge.kind == ProgramEdgeKind.IMPORTS:
+                source_owners = file_owners.get(edge.source, set())
+                target_owners = _import_target_owners(
+                    graph,
+                    edge.target,
+                    edge.metadata,
+                    node_to_component,
+                    file_owners,
+                    file_packages,
+                    package_owners,
+                )
+                modules = set(edge.metadata.get("declared_modules", []))
+                module = edge.metadata.get("declared_module")
+                if module:
+                    modules.add(str(module))
+                imported_names = {str(name) for name in edge.metadata.get("imported_names", [])}
+                details = tuple(sorted({*modules, *imported_names}))
+            else:
+                continue
+
+            evidence = ArchitecturalRelationEvidence(edge.kind, edge.source, edge.target, details)
+            for source_owner in source_owners:
+                for target_owner in target_owners:
+                    if source_owner != target_owner:
+                        evidence_by_pair[(source_owner, target_owner)].add(evidence)
+
+    return [
+        ComponentRelationCandidate(source, target, sorted(evidence))
+        for (source, target), evidence in sorted(evidence_by_pair.items())
+    ]
+
+
+def render_component_relation_candidates(
+    candidates: list[ComponentRelationCandidate],
+    component_names: dict[str, str],
+) -> str:
+    """Render deterministic architectural evidence for agent context."""
+    lines: list[str] = []
+    for candidate in candidates:
+        source = component_names.get(candidate.src_cluster_id, candidate.src_cluster_id)
+        target = component_names.get(candidate.dst_cluster_id, candidate.dst_cluster_id)
+        count = len(candidate.evidence)
+        lines.append(
+            f"{source} [{candidate.src_cluster_id}] -> {target} [{candidate.dst_cluster_id}] "
+            f"({count} evidence item{'s' if count != 1 else ''}):"
+        )
+        for evidence in candidate.evidence[:10]:
+            if evidence.kind == ProgramEdgeKind.IMPORTS:
+                details = ", ".join(evidence.details) or evidence.target
+                lines.append(f"  IMPORTS: {details}")
+            else:
+                lines.append(f"  {evidence.kind.value.upper()}: {evidence.source} -> {evidence.target}")
+        if len(candidate.evidence) > 10:
+            lines.append(f"  ... and {len(candidate.evidence) - 10} more")
+    return "\n".join(lines)
+
+
+def _symbol_owners(graph: ProgramGraph, symbol_id: str, node_to_component: dict[str, str]) -> set[str]:
+    canonical_id = graph.resolve_symbol_id(symbol_id)
+    owner = node_to_component.get(canonical_id)
+    return {owner} if owner else set()
+
+
+def _structural_owners(
+    graph: ProgramGraph,
+    node_to_component: dict[str, str],
+) -> tuple[dict[str, set[str]], dict[str, str], dict[str, set[str]]]:
+    file_owners: dict[str, set[str]] = defaultdict(set)
+    for symbol_id, owner in node_to_component.items():
+        node = graph.nodes.get(graph.resolve_symbol_id(symbol_id))
+        if node is None or node.kind != ProgramNodeKind.SYMBOL or not node.file_path:
+            continue
+        file_owners[file_node_id(node.file_path)].add(owner)
+
+    file_packages: dict[str, str] = {}
+    for edge in graph.edges_of_kind(ProgramEdgeKind.CONTAINS):
+        source = graph.nodes[edge.source]
+        target = graph.nodes[edge.target]
+        if source.kind == ProgramNodeKind.PACKAGE and target.kind == ProgramNodeKind.FILE:
+            file_packages[edge.target] = edge.source
+
+    package_owners: dict[str, set[str]] = defaultdict(set)
+    for file_id, owners in file_owners.items():
+        package_id = file_packages.get(file_id)
+        if package_id:
+            package_owners[package_id].update(owners)
+    return dict(file_owners), file_packages, dict(package_owners)
+
+
+def _import_target_owners(
+    graph: ProgramGraph,
+    target_id: str,
+    metadata: dict[str, Any],
+    node_to_component: dict[str, str],
+    file_owners: dict[str, set[str]],
+    file_packages: dict[str, str],
+    package_owners: dict[str, set[str]],
+) -> set[str]:
+    target = graph.nodes[target_id]
+    if target.kind != ProgramNodeKind.FILE:
+        return set()
+
+    imported_names = {str(name) for name in metadata.get("imported_names", []) if name != "*"}
+    target_package = file_packages.get(target_id)
+    if imported_names:
+        owners = {
+            owner
+            for symbol_id, owner in node_to_component.items()
+            if (node := graph.nodes.get(graph.resolve_symbol_id(symbol_id))) is not None
+            and node.kind == ProgramNodeKind.SYMBOL
+            and node.name in imported_names
+            and file_packages.get(file_node_id(node.file_path)) == target_package
+        }
+        return owners
+
+    direct_owners = file_owners.get(target_id, set())
+    if direct_owners:
+        return direct_owners
+    return package_owners.get(target_package, set()) if target_package else set()
 
 
 def iter_ancestor_ids(component_id: str) -> Iterator[str]:
@@ -173,7 +323,11 @@ def build_global_relations(
     static_relations = build_component_relations(node_to_component, cfg_graphs)
     id_to_name = _collect_component_names(root_analysis, sub_analyses)
     live_ids = set(id_to_name)
-    llm_relations = _collect_authoritative_relations(root_analysis, sub_analyses)
+    llm_relations = [
+        relation
+        for relation in _collect_authoritative_relations(root_analysis, sub_analyses)
+        if relation.src_id != relation.dst_id
+    ]
 
     global_relations: dict[tuple[str, str], Relation] = {}
     static_pairs = {(rel.src_cluster_id, rel.dst_cluster_id) for rel in static_relations}
@@ -209,6 +363,7 @@ def build_global_relations(
                 src_name=id_to_name.get(src_id, src_id),
                 dst_name=id_to_name.get(dst_id, dst_id),
                 evidence=llm_relation.evidence,
+                evidence_references=llm_relation.evidence_references,
                 key_edges=key_edges,
                 src_id=src_id,
                 dst_id=dst_id,
@@ -259,6 +414,8 @@ def merge_relations(
     for llm_rel in llm_relations:
         src_id = name_to_id.get(llm_rel.src_name, "")
         dst_id = name_to_id.get(llm_rel.dst_name, "")
+        if src_id == dst_id:
+            continue
 
         # Match static relation in the same direction only
         static_rel = static_by_ids.get((src_id, dst_id))
@@ -286,6 +443,7 @@ def merge_relations(
                 src_name=llm_rel.src_name,
                 dst_name=llm_rel.dst_name,
                 evidence=llm_rel.evidence,
+                evidence_references=llm_rel.evidence_references,
                 key_edges=key_edges,
                 src_id=src_id,
                 dst_id=dst_id,

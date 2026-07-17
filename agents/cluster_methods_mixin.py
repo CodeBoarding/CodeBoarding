@@ -6,11 +6,8 @@ from typing import NoReturn
 
 import networkx as nx
 
-from agents.agent_responses import (
-    AnalysisInsights,
-    ClusterAnalysis,
-    Component,
-)
+from agents.analysis_result_responses import AnalysisInsights, Component
+from agents.full_analysis_responses import ClusterAnalysis, ClustersComponent
 from agents.file_index_models import FileMethodGroup, MethodEntry
 from agents.cluster_budget import ClusterPromptBudget
 from agents.content_hash import (
@@ -21,23 +18,24 @@ from agents.content_hash import (
 from agents.cluster_ids import CodeBoardingClusterId, CodeBoardingClusterIds, GraphClusterId
 from agents.llm_config import get_current_agent_context_window, get_current_agent_model_ref
 from agents.model_capabilities import ContextWindow
-from constants import MIN_CLUSTERS_THRESHOLD
 from diagram_analysis.file_index import build_files_index
 from repo_utils.path_utils import normalize_repo_path
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cfg_skip_planner import ContextBudgetExceededError, plan_skip_set
 from static_analyzer.cluster_helpers import (
+    reconcile_scoped_cluster_ids,
     reindex_cross_language_clusters,
 )
 from static_analyzer.cluster_relations import (
     build_component_relations,
+    build_component_relation_candidates,
     build_node_to_component_map,
     merge_relations,
+    render_component_relation_candidates,
 )
 from static_analyzer.constants import CALLABLE_TYPES, CLASS_TYPES, Language
 from static_analyzer.clustering import ClusterResult
 from static_analyzer.program_graph import ProgramGraph, ProgramNode
-from static_analyzer.infomap_clustering import HierarchicalInfomapClusterer
 
 logger = logging.getLogger(__name__)
 
@@ -121,6 +119,19 @@ class ClusterMethodsMixin:
             self._raise_cluster_budget_error(char_budget, rendered_with_skips, per_lang_skip)
 
         return rendered_with_skips.text
+
+    @staticmethod
+    def _module_analysis(cluster_results: dict[str, ClusterResult]) -> ClusterAnalysis:
+        modules = [
+            ClustersComponent(
+                name=f"{language} module {cluster_id}",
+                cluster_ids=[cluster_id],
+                description="A deterministic Infomap module.",
+            )
+            for language, result in sorted(cluster_results.items())
+            for cluster_id in sorted(result.clusters)
+        ]
+        return ClusterAnalysis(cluster_components=modules)
 
     def _render_cluster_string(
         self,
@@ -347,64 +358,6 @@ class ClusterMethodsMixin:
                 )
             component.source_cluster_ids = CodeBoardingClusterIds.from_graph_ids(set(resolved_ids))
 
-    def _expand_to_method_level_clusters(self, cfg: ProgramGraph, cluster_result: ClusterResult) -> ClusterResult:
-        """
-        Expand cluster results to method-level granularity when there are too few clusters.
-
-        When a subgraph has fewer than MIN_CLUSTERS_THRESHOLD clusters, this creates
-        synthetic clusters where each method/function becomes its own cluster. This
-        ensures fine-grained method assignment even for small components.
-
-        Args:
-            cfg: The ProgramGraph containing symbols to cluster
-            cluster_result: Original cluster result (may have insufficient clusters)
-
-        Returns:
-            New ClusterResult with method-level clusters (each method = 1 cluster)
-        """
-        num_clusters = len(cluster_result.clusters)
-
-        if num_clusters >= MIN_CLUSTERS_THRESHOLD:
-            return cluster_result
-
-        logger.info(f"Expanding to method-level clusters: {num_clusters} clusters < {MIN_CLUSTERS_THRESHOLD} threshold")
-
-        # Create synthetic clusters: each callable node becomes its own cluster
-        new_clusters: dict[int, set[str]] = {}
-        new_cluster_to_files: dict[int, set[str]] = {}
-        new_file_to_clusters: dict[str, set[int]] = defaultdict(set)
-
-        cluster_id = 0
-        for qname, node in sorted(cfg.symbols.items()):
-            # Only create clusters for callable types (functions, methods)
-            if node.symbol_type not in CALLABLE_TYPES:
-                continue
-
-            new_clusters[cluster_id] = {qname}
-            new_cluster_to_files[cluster_id] = {node.file_path}
-            new_file_to_clusters[node.file_path].add(cluster_id)
-            cluster_id += 1
-
-        # If we still have few clusters (e.g., only classes, no methods), include classes too
-        if len(new_clusters) < MIN_CLUSTERS_THRESHOLD:
-            for qname, node in sorted(cfg.symbols.items()):
-                if node.symbol_type in CLASS_TYPES and qname not in {
-                    name for members in new_clusters.values() for name in members
-                }:
-                    new_clusters[cluster_id] = {qname}
-                    new_cluster_to_files[cluster_id] = {node.file_path}
-                    new_file_to_clusters[node.file_path].add(cluster_id)
-                    cluster_id += 1
-
-        logger.info(f"Created {len(new_clusters)} method-level clusters from {len(cfg.symbols)} nodes")
-
-        return ClusterResult(
-            clusters=new_clusters,
-            cluster_to_files=new_cluster_to_files,
-            file_to_clusters=dict(new_file_to_clusters),
-            strategy="method_level_expansion",
-        )
-
     def _create_strict_component_subgraph(
         self,
         component: Component,
@@ -413,10 +366,6 @@ class ClusterMethodsMixin:
         """
         Create a strict subgraph containing ONLY nodes from the component's file_methods.
         This ensures the analysis is strictly scoped to the component's boundaries.
-
-        If the resulting subgraph has fewer than MIN_CLUSTERS_THRESHOLD clusters,
-        automatically expands to method-level clustering (each method = 1 cluster)
-        to ensure fine-grained component assignment.
 
         Args:
             component: Component with file_methods to filter by
@@ -449,12 +398,10 @@ class ClusterMethodsMixin:
             if sub_cfg.nodes:
                 subgraph_cfgs[lang] = sub_cfg
                 program_graph = self.static_analysis.get_program_graph(lang)
-                scoped_program_graph = program_graph.induced_by_symbols(assigned_qnames)
-                sub_cluster_result = HierarchicalInfomapClusterer().cluster(scoped_program_graph)
-
-                # Expand to method-level if insufficient clusters
-                sub_cluster_result = self._expand_to_method_level_clusters(sub_cfg, sub_cluster_result)
-                cluster_results[lang] = sub_cluster_result
+                hierarchy_level = component.component_id.count(".") + 1
+                sub_cluster_result = program_graph.hierarchy_level(assigned_qnames, hierarchy_level)
+                if sub_cluster_result.clusters:
+                    cluster_results[lang] = sub_cluster_result
 
         # Hierarchical Infomap chooses granularity; only ID namespaces need
         # reconciliation across languages.
@@ -462,6 +409,11 @@ class ClusterMethodsMixin:
             reindex_cross_language_clusters(cluster_results)
 
         if source_cluster_id_prefix:
+            reconcile_scoped_cluster_ids(
+                self.static_analysis,
+                cluster_results,
+                source_cluster_id_prefix,
+            )
             for lang, cluster_result in cluster_results.items():
                 self.static_analysis.get_program_graph(Language(lang)).record_cluster_paths(
                     cluster_result, source_cluster_id_prefix
@@ -850,36 +802,9 @@ class ClusterMethodsMixin:
             )
 
     def build_scope_cfg_string(self, analysis: AnalysisInsights) -> str:
-        """Render cross-component communication edges as a human-readable string for the LLM.
-
-        For every CFG edge where src belongs to component A and dst belongs to
-        component B (A != B), this produces a grouped summary like:
-
-            ComponentA -> ComponentB (3 edges):
-              src_pkg.MethodX -> dst_pkg.MethodY
-              src_pkg.MethodZ -> dst_pkg.MethodW
-        """
+        """Render cross-component calls, imports, and inheritance for the LLM."""
         node_to_component = build_node_to_component_map(analysis)
         id_to_name = {c.component_id: c.name for c in analysis.components}
         cfg_graphs = self.static_analysis.available_program_graphs()
-        static_relations = build_component_relations(node_to_component, cfg_graphs)
-
-        if not static_relations:
-            return "No cross-component communication edges found."
-
-        lines: list[str] = []
-        for relation in static_relations:
-            src_id = relation.src_cluster_id
-            dst_id = relation.dst_cluster_id
-            src_label = id_to_name.get(src_id, src_id)
-            dst_label = id_to_name.get(dst_id, dst_id)
-            edge_count = len(relation.all_edges)
-            lines.append(f"\n{src_label} -> {dst_label} ({edge_count} edge{'s' if edge_count != 1 else ''}):")
-            for edge in relation.all_edges[:10]:
-                short_s = edge.source.qualified_name.split(".")[-1]
-                short_d = edge.target.qualified_name.split(".")[-1]
-                lines.append(f"  {short_s} -> {short_d}")
-            if edge_count > 10:
-                lines.append(f"  ... and {edge_count - 10} more")
-
-        return "\n".join(lines)
+        candidates = build_component_relation_candidates(node_to_component, cfg_graphs)
+        return render_component_relation_candidates(candidates, id_to_name) or "No cross-component evidence found."

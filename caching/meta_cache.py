@@ -6,7 +6,7 @@ from pathlib import Path
 from langchain_core.language_models import BaseChatModel
 from pydantic import BaseModel
 
-from agents.agent_responses import MetaAnalysisInsights
+from agents.full_analysis_responses import MetaAnalysisInsights
 from agents.dependency_discovery import FileRole, discover_dependency_files
 from caching.cache import CACHE_VERSION, BaseCache, ModelSettings
 from repo_utils.ignore import RepoIgnoreManager

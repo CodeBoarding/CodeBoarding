@@ -26,9 +26,8 @@ STATIC_ANALYSIS_PKL = "static_analysis.pkl"
 STATIC_ANALYSIS_SHA = "static_analysis.sha"
 STATIC_ANALYSIS_LOCK = "static_analysis.lock"
 # Tag file format prefix; bump if the on-disk pickle layout changes.
-# v3: static analysis persists the canonical typed ProgramGraph. Older
-# artifacts do not contain structural/import evidence and must be rebuilt.
-_TAG_VERSION = "v3"
+# v4 includes imported symbols and deterministic language-specific module targets.
+_TAG_VERSION = "v4"
 
 
 class StaticAnalysisCache:

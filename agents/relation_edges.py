@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from agents.agent_responses import AnalysisInsights, Relation
+from agents.analysis_result_responses import AnalysisInsights, Relation
 from repo_utils.path_utils import normalize_repo_path
 
 

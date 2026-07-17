@@ -4,9 +4,9 @@ import sys
 from pathlib import Path
 
 from agents.llm_errors import EXIT_AUTH_ERROR, LLMAuthError
-from codeboarding_cli.commands import full_analysis, partial_analysis
+from codeboarding_cli.commands import full_analysis, incremental_analysis, partial_analysis
 
-_SUBCOMMANDS = {"full", "partial"}
+_SUBCOMMANDS = {"full", "incremental", "partial"}
 
 
 def _build_shared_parser() -> argparse.ArgumentParser:
@@ -29,8 +29,8 @@ def build_parser() -> argparse.ArgumentParser:
         description="Generate onboarding documentation for Git repositories",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-`full` is the default command: when the first argument is not `full`
-or `partial`, `full` is inserted automatically.
+`full` is the default command: when the first argument is not `full`,
+`incremental`, or `partial`, `full` is inserted automatically.
 
 Examples:
   # Local full analysis (output to <repo>/.codeboarding/); `full` is implied
@@ -45,6 +45,9 @@ Examples:
   # Partial update (single component by ID)
   codeboarding partial --local /path/to/repo --component-id "1.2"
 
+  # Incremental update from the existing analysis and static cache
+  codeboarding incremental --local /path/to/repo
+
   # Custom binary location (e.g. VS Code extension)
   codeboarding --local /path/to/repo --binary-location /path/to/binaries
         """,
@@ -52,6 +55,7 @@ Examples:
     shared = _build_shared_parser()
     subparsers = parser.add_subparsers(dest="command", required=True, metavar="COMMAND")
     full_analysis.add_arguments(subparsers, parents=[shared])
+    incremental_analysis.add_arguments(subparsers, parents=[shared])
     partial_analysis.add_arguments(subparsers, parents=[shared])
     return parser
 
@@ -76,6 +80,8 @@ def _dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None
     try:
         if args.command == "partial":
             partial_analysis.run_from_args(args, parser)
+        elif args.command == "incremental":
+            incremental_analysis.run_from_args(args, parser)
         else:
             full_analysis.run_from_args(args, parser)
     except LLMAuthError as exc:

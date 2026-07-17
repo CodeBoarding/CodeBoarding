@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Optional, List
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field, PrivateAttr
-from agents.agent_responses import ClusterAnalysis
+from agents.full_analysis_responses import ClusterAnalysis
 from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.clustering import ClusterResult

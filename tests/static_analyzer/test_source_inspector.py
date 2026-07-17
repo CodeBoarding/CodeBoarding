@@ -218,6 +218,16 @@ class TestFindImportDeclarations:
             ("requests", 1),
             (".services", 2),
         ]
+        assert imports[0].imported_names == ()
+        assert imports[1].imported_names == ("run",)
+
+    def test_python_imported_names_preserve_original_symbols(self, tmp_path: Path):
+        source = tmp_path / "app.py"
+        source.write_text("from markitdown import MarkItDown, StreamInfo as Info\n")
+
+        imports = SourceInspector().find_import_declarations(source)
+
+        assert imports[0].imported_names == ("MarkItDown", "StreamInfo")
 
     def test_typescript_imports(self, tmp_path: Path):
         f = tmp_path / "app.ts"

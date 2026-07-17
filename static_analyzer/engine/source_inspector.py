@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 
 
 LanguageFactory = Callable[[], object]
+ParsedImport = tuple[str, int, tuple[str, ...]]
 
 _LANGUAGE_FACTORY_BY_LANGUAGE: dict[Language, LanguageFactory] = {
     Language.PYTHON: tree_sitter_python.language,
@@ -184,7 +185,7 @@ class SourceInspector:
             if node.parent is not None and node.parent.type in _IMPORT_NODE_TYPES:
                 continue
             text = parsed.content[node.start_byte : node.end_byte].decode(errors="replace")
-            for module, offset in self._import_modules(text, file_path.suffix.lower()):
+            for module, offset, imported_names in self._import_modules(text, file_path.suffix.lower()):
                 prefix = text[:offset]
                 line_offset = prefix.count("\n")
                 if line_offset:
@@ -198,26 +199,32 @@ class SourceInspector:
                         line=node.start_point.row + line_offset + 1,
                         column=column,
                         kind=(ImportDependencyKind.MODULE if node.type == "mod_item" else ImportDependencyKind.IMPORT),
+                        imported_names=imported_names,
                     )
                 )
         return sorted(imports, key=lambda item: (item.source_file, item.line, item.column, item.declared_module))
 
     @staticmethod
-    def _import_modules(text: str, suffix: str) -> list[tuple[str, int]]:
+    def _import_modules(text: str, suffix: str) -> list[ParsedImport]:
         if suffix == ".py":
-            from_match = re.search(r"\bfrom\s+([.\w]+)\s+import\b", text)
+            from_match = re.search(r"\bfrom\s+([.\w]+)\s+import\s+(.+)", text, flags=re.DOTALL)
             if from_match:
-                return [(from_match.group(1), from_match.start(1))]
+                names = []
+                for item in from_match.group(2).replace("(", "").replace(")", "").split(","):
+                    name_match = re.match(r"\s*([A-Za-z_]\w*|\*)", item)
+                    if name_match:
+                        names.append(name_match.group(1))
+                return [(from_match.group(1), from_match.start(1), tuple(dict.fromkeys(names)))]
             import_match = re.search(r"\bimport\s+(.+)", text, flags=re.DOTALL)
             if not import_match:
                 return []
-            python_imports = []
+            python_imports: list[ParsedImport] = []
             import_list = import_match.group(1)
             cursor = import_match.start(1)
             for item in import_list.split(","):
                 name_match = re.search(r"[A-Za-z_]\w*(?:\.\w+)*", item)
                 if name_match:
-                    python_imports.append((name_match.group(0), cursor + name_match.start()))
+                    python_imports.append((name_match.group(0), cursor + name_match.start(), ()))
                 cursor += len(item) + 1
             return sorted(set(python_imports), key=lambda item: (item[1], item[0]))
 
@@ -234,7 +241,7 @@ class SourceInspector:
                 for item in group_items.split(","):
                     name_match = re.search(r"[A-Za-z_]\w*", item)
                     if name_match:
-                        php_imports.append((f"{prefix}\\{name_match.group(0)}", cursor + name_match.start()))
+                        php_imports.append((f"{prefix}\\{name_match.group(0)}", cursor + name_match.start(), ()))
                     cursor += len(item) + 1
                 return sorted(set(php_imports), key=lambda item: (item[1], item[0]))
 
@@ -261,14 +268,14 @@ class SourceInspector:
         else:
             patterns = []
 
-        found: dict[tuple[str, int], None] = {}
+        found: dict[ParsedImport, None] = {}
         for pattern in patterns:
             for match in re.finditer(pattern, text):
                 # A Rust grouped import leaves the separator before ``{`` in
                 # this regex match; that separator is syntax, not identity.
                 module = match.group(1).strip().rstrip(";,: ")
                 if module:
-                    found[(module, match.start(1))] = None
+                    found[(module, match.start(1), ())] = None
         return sorted(found, key=lambda item: (item[1], item[0]))
 
     def _read_file_bytes(self, file_path: Path) -> bytes | None:

@@ -18,4 +18,3 @@ class AppConfig:
 # Minimum number of clusters needed for meaningful component decomposition.
 # If a subgraph has fewer clusters than this threshold, we expand to method-level
 # clustering (each method becomes its own cluster) to ensure fine-grained assignment.
-MIN_CLUSTERS_THRESHOLD = 5

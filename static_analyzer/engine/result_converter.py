@@ -269,6 +269,7 @@ def convert_to_codeboarding_format(
                 metadata={
                     "declared_module": dependency.declared_module,
                     "declared_modules": [dependency.declared_module],
+                    "imported_names": list(dependency.imported_names),
                 },
             )
         )

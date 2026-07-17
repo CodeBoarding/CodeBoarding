@@ -85,9 +85,9 @@ class TestBuildScopeCfgString(unittest.TestCase):
 
         rendered = mixin.build_scope_cfg_string(analysis)
 
-        self.assertIn("A -> B (12 edges):", rendered)
+        self.assertIn("A [1] -> B [2] (12 evidence items):", rendered)
         self.assertIn("... and 2 more", rendered)
-        self.assertEqual(rendered.count("  f"), 10)
+        self.assertEqual(rendered.count("  CALL:"), 10)
 
 
 class TestClusterResult(unittest.TestCase):

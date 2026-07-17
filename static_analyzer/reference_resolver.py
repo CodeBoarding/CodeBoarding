@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from agents.agent_responses import AnalysisInsights, RelationCallSite, RelationEdge, SourceCodeReference
+from agents.analysis_result_responses import AnalysisInsights, RelationCallSite, RelationEdge, SourceCodeReference
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import LANGUAGE_EXTENSIONS, Language
 from static_analyzer.internal_references import looks_internal_reference, reference_tokens
@@ -43,8 +43,16 @@ class StaticReferenceResolver:
         logger.info(f"Fixing source code reference lines for the analysis: {analysis.llm_str()}")
         self.fix_key_entities_refs(analysis)
         self.fix_edge_refs(analysis)
+        self.fix_evidence_refs(analysis)
         self.remove_unresolved_references(analysis)
         return self.relative_paths(analysis)
+
+    def fix_evidence_refs(self, analysis: AnalysisInsights) -> None:
+        """Resolve source symbols cited as non-static relation evidence."""
+        for relation in analysis.components_relations:
+            relation.evidence_references = [
+                reference for reference in relation.evidence_references if self.resolve_reference(reference)
+            ]
 
     def fix_key_entities_refs(
         self,
@@ -373,6 +381,9 @@ class StaticReferenceResolver:
                 if reference.reference_file and reference.reference_file.startswith(str(self.repo_dir)):
                     reference.reference_file = os.path.relpath(reference.reference_file, self.repo_dir)
         for relation in analysis.components_relations:
+            for reference in relation.evidence_references:
+                if reference.reference_file and reference.reference_file.startswith(str(self.repo_dir)):
+                    reference.reference_file = os.path.relpath(reference.reference_file, self.repo_dir)
             for edge in relation.key_edges:
                 if edge.source.reference_file and edge.source.reference_file.startswith(str(self.repo_dir)):
                     edge.source.reference_file = os.path.relpath(edge.source.reference_file, self.repo_dir)

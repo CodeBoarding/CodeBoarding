@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 
-from agents.agent_responses import AnalysisInsights
+from agents.analysis_result_responses import AnalysisInsights
 from static_analyzer.constants import NodeType
 from utils import sanitize
 

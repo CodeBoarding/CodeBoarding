@@ -86,6 +86,90 @@ def reindex_cross_language_clusters(cluster_results: dict[str, ClusterResult]) -
         offset = max(cluster_results[lang].clusters, default=offset)
 
 
+def reconcile_scoped_cluster_ids(
+    static_analysis: StaticAnalysisResults,
+    cluster_results: dict[str, ClusterResult],
+    scope_id: str,
+) -> None:
+    """Reconcile one recursive scope with its persisted method-cluster lineage."""
+    graphs = static_analysis.available_program_graphs()
+    previous_members: dict[int, set[str]] = defaultdict(set)
+    for graph in graphs.values():
+        for cluster_id, members in graph.method_cluster_paths.scope_members(scope_id).items():
+            previous_members[cluster_id].update(members)
+
+    if not previous_members:
+        assigned_ids = {
+            cluster_id for cluster_result in cluster_results.values() for cluster_id in cluster_result.clusters
+        }
+        for graph in graphs.values():
+            graph.method_cluster_paths.reserve_cluster_ids(scope_id, assigned_ids)
+        return
+
+    candidates = [
+        (language, cluster_id, members)
+        for language, cluster_result in sorted(cluster_results.items())
+        for cluster_id, members in sorted(cluster_result.clusters.items())
+    ]
+    matching_graph = nx.Graph()
+    old_nodes = [f"old:{cluster_id}" for cluster_id in sorted(previous_members)]
+    candidate_nodes = [f"candidate:{index}" for index in range(len(candidates))]
+    matching_graph.add_nodes_from(old_nodes, bipartite=0)
+    matching_graph.add_nodes_from(candidate_nodes, bipartite=1)
+    for old_rank, (old_id, old_members) in enumerate(sorted(previous_members.items())):
+        for candidate_rank, (_language, _candidate_id, candidate_members) in enumerate(candidates):
+            overlap = len(old_members & candidate_members)
+            if not overlap:
+                continue
+            tie_break = max(0, 999 - old_rank * 50 - candidate_rank)
+            matching_graph.add_edge(
+                f"old:{old_id}",
+                f"candidate:{candidate_rank}",
+                weight=overlap * 1_000_000 + tie_break,
+            )
+
+    candidate_to_stable: dict[int, int] = {}
+    for left, right in nx.algorithms.matching.max_weight_matching(matching_graph, weight="weight"):
+        old_node, candidate_node = (left, right) if left.startswith("old:") else (right, left)
+        candidate_to_stable[int(candidate_node.removeprefix("candidate:"))] = int(old_node.removeprefix("old:"))
+
+    next_cluster_id = max(
+        max(graph.method_cluster_paths.next_cluster_id(scope_id) for graph in graphs.values()),
+        max(previous_members) + 1,
+    )
+    for candidate_index in range(len(candidates)):
+        if candidate_index in candidate_to_stable:
+            continue
+        candidate_to_stable[candidate_index] = next_cluster_id
+        next_cluster_id += 1
+
+    remaps: dict[str, dict[int, int]] = defaultdict(dict)
+    for candidate_index, (language, cluster_id, _members) in enumerate(candidates):
+        remaps[language][cluster_id] = candidate_to_stable[candidate_index]
+    for language, remap in remaps.items():
+        cluster_results[language] = remap_cluster_result(cluster_results[language], remap)
+
+    assigned_ids = set(candidate_to_stable.values())
+    for graph in graphs.values():
+        graph.method_cluster_paths.reserve_cluster_ids(scope_id, assigned_ids)
+
+
+def remap_cluster_result(cluster_result: ClusterResult, id_map: dict[int, int]) -> ClusterResult:
+    """Return a cluster result with an explicit one-to-one ID mapping."""
+    clusters = {id_map[cluster_id]: members for cluster_id, members in cluster_result.clusters.items()}
+    cluster_to_files = {id_map[cluster_id]: files for cluster_id, files in cluster_result.cluster_to_files.items()}
+    file_to_clusters = {
+        file_path: {id_map[cluster_id] for cluster_id in cluster_ids}
+        for file_path, cluster_ids in cluster_result.file_to_clusters.items()
+    }
+    return ClusterResult(
+        clusters=dict(sorted(clusters.items())),
+        cluster_to_files=dict(sorted(cluster_to_files.items())),
+        file_to_clusters=dict(sorted(file_to_clusters.items())),
+        strategy=cluster_result.strategy,
+    )
+
+
 def enforce_cross_language_budget(
     cluster_results: dict[str, ClusterResult],
     cfg_graphs: dict[str, nx.DiGraph],

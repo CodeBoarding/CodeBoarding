@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from agents.agent_responses import AnalysisInsights
+from agents.analysis_result_responses import AnalysisInsights
 from agents.content_hash import (
     MethodRef,
     MethodSpan,

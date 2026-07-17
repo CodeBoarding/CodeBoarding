@@ -22,7 +22,7 @@ from agents.tools.toolkit import CodeBoardingToolkit
 from agents.validation import ValidationResult, score_validation_results, VALIDATOR_WEIGHTS, DEFAULT_VALIDATOR_WEIGHT
 from monitoring.mixin import MonitoringMixin
 from repo_utils.ignore import RepoIgnoreManager
-from agents.agent_responses import LLMBaseModel
+from agents.analysis_result_responses import LLMBaseModel
 from agents.llm_config import MONITORING_CALLBACK, current_provider_key_context
 from agents.llm_errors import detect_auth_error
 from static_analyzer.analysis_result import StaticAnalysisResults

@@ -5,20 +5,17 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.prompts import PromptTemplate
 
 from agents.agent import CodeBoardingAgent
-from agents.agent_responses import (
-    AnalysisInsights,
+from agents.analysis_result_responses import AnalysisInsights, assign_component_ids, assign_relation_ids
+from agents.full_analysis_responses import (
     ComponentApiSurfaces,
     ComponentArchitecture,
     ComponentRelations,
     ClusterAnalysis,
     MetaAnalysisInsights,
-    assign_component_ids,
-    assign_relation_ids,
 )
 from agents.cluster_methods_mixin import ClusterMethodsMixin
+from agents.module_architecture import module_architecture_prompt, order_components_by_module
 from agents.prompts import (
-    get_cluster_grouping_message,
-    get_final_analysis_message,
     get_api_surfaces_message,
     get_relation_analysis_message,
     get_system_message,
@@ -28,17 +25,13 @@ from agents.relation_edges import index_relation_endpoints
 from agents.repair import ComponentRepairContext, repair_component_group_names, repair_key_entities
 from agents.validation import (
     ValidationContext,
-    validate_cluster_coverage,
-    validate_group_name_coverage,
     validate_key_entities,
+    validate_module_component_mapping,
     validate_relations,
 )
 from monitoring import trace
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.cluster_helpers import (
-    build_all_cluster_results,
-    get_all_cluster_ids,
-)
+from static_analyzer.cluster_helpers import build_all_cluster_results
 from static_analyzer.clustering import ClusterResult
 
 logger = logging.getLogger(__name__)
@@ -61,14 +54,6 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
         self.meta_context = meta_context
 
         self.prompts = {
-            "group_clusters": PromptTemplate(
-                template=get_cluster_grouping_message(),
-                input_variables=["cfg_clusters"],
-            ),
-            "final_analysis": PromptTemplate(
-                template=get_final_analysis_message(),
-                input_variables=["cluster_analysis"],
-            ),
             "api_surfaces": PromptTemplate(
                 template=get_api_surfaces_message(),
                 input_variables=[
@@ -87,58 +72,17 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
         }
 
     @trace
-    def step_clusters_grouping(self, cluster_results: dict[str, ClusterResult]) -> ClusterAnalysis:
-        logger.info(f"[AbstractionAgent] Grouping CFG clusters for: {self.project_name}")
-
-        programming_langs = self.static_analysis.get_languages()
-
-        # Measure everything that wraps cfg_clusters (system message + rendered
-        # template with an empty slot) so the skip planner can back it out of
-        # the input window before budgeting the cluster string.
-        overhead_chars = len(str(self.system_message.content)) + len(
-            self.prompts["group_clusters"].format(
-                cfg_clusters="",
-            )
-        )
-        cluster_str = self._build_cluster_string(
-            programming_langs, cluster_results, prompt_overhead_chars=overhead_chars
-        )
-
-        prompt = self.prompts["group_clusters"].format(
-            cfg_clusters=cluster_str,
-        )
-
-        cluster_analysis = self._invoke_validate(
-            prompt,
-            ClusterAnalysis,
-            validators=[validate_cluster_coverage],
-            validation_context=ValidationContext(
-                cluster_results=cluster_results,
-                expected_cluster_ids=get_all_cluster_ids(cluster_results),
-            ),
-            max_validation_attempts=3,
-        )
-        return cluster_analysis
-
-    @trace
     def step_final_analysis(
         self, llm_cluster_analysis: ClusterAnalysis, cluster_results: dict[str, ClusterResult]
     ) -> AnalysisInsights:
         logger.info(f"[AbstractionAgent] Generating final component analysis for: {self.project_name}")
 
-        cluster_str = llm_cluster_analysis.llm_str() if llm_cluster_analysis else "No cluster analysis available."
-
-        group_names = [cc.name for cc in llm_cluster_analysis.cluster_components] if llm_cluster_analysis else []
-
-        prompt = self.prompts["final_analysis"].format(
-            cluster_analysis=cluster_str,
+        cluster_evidence = self._build_cluster_string(
+            self.static_analysis.get_languages(),
+            cluster_results,
+            prompt_overhead_chars=len(str(self.system_message.content)),
         )
-
-        if group_names:
-            prompt += (
-                f"\n\n## All Group Names ({len(group_names)} total)\n"
-                f"Every one of these names must appear in exactly one component's source_group_names: {group_names}\n"
-            )
+        prompt = module_architecture_prompt(llm_cluster_analysis, cluster_evidence)
 
         context = ValidationContext(
             cluster_results=cluster_results,
@@ -151,7 +95,7 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
             ComponentArchitecture,
             repairs=[repair_component_group_names, repair_key_entities],
             validators=[
-                validate_group_name_coverage,
+                validate_module_component_mapping,
                 validate_key_entities,
             ],
             repair_context=ComponentRepairContext(
@@ -162,6 +106,10 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
             validation_context=context,
             max_validation_attempts=3,
         )
+        module_validation = validate_module_component_mapping(architecture, context)
+        if not module_validation.is_valid:
+            raise ValueError(" ".join(module_validation.feedback_messages))
+        architecture.components = order_components_by_module(architecture.components, llm_cluster_analysis)
         return AnalysisInsights(
             description=architecture.description,
             components=architecture.components,
@@ -219,10 +167,9 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
         # Build full cluster results dict for all languages ONCE
         cluster_results = build_all_cluster_results(self.static_analysis)
 
-        # Step 1: Group related clusters together into logical components
-        cluster_analysis = self.step_clusters_grouping(cluster_results)
+        cluster_analysis = self._module_analysis(cluster_results)
 
-        # Step 2: Generate abstract components from grouped clusters
+        # Generate components from the deterministic top-level Infomap modules.
         analysis = self.step_final_analysis(cluster_analysis, cluster_results)
         # Step 3: Assign hierarchical component IDs ("1", "2", "3", ...)
         assign_component_ids(analysis)
