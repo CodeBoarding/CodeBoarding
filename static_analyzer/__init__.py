@@ -638,6 +638,7 @@ class StaticAnalyzer:
     ) -> StaticAnalysisResults:
         """Update changed file neighborhoods while retaining the cached graph."""
         results = StaticAnalysisResults()
+        results.incremental_base_results = cached_results
         for engine_config, engine_client in self._engine_clients:
             adapter, project_path = engine_config.adapter, engine_config.project_path
             language = adapter.language_enum

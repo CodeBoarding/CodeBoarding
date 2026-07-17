@@ -291,21 +291,33 @@ class DiagramGenerator:
         )
 
     def _seed_incremental_cluster_cache(self, cluster_results: dict[str, ClusterResult]) -> None:
-        """Write post-delta ``cluster_results`` into each language CFG's ``_cluster_cache``.
+        """Make the post-delta partition the one the next run warm-starts from.
 
-        On the incremental path the abstraction agent doesn't run, so the live
-        partition has to be plumbed in explicitly before ``stop_clients`` saves
-        the pkl. ``cluster_snapshot`` reads exclusively from this cache.
+        The clusterer writes a snapshot while computing the delta, but the agent
+        layer can still settle on a different partition; the pkl has to carry the
+        one the analysis actually describes or the next run warm-starts from a
+        partition nobody published.
         """
         if self.static_analysis is None:
             return
         for language, cr in cluster_results.items():
             try:
-                cfg = self.static_analysis.get_cfg(Language(language))
+                graph = self.static_analysis.get_program_graph(Language(language))
             except (ValueError, KeyError):
                 continue
-            cfg._cluster_cache = cr
-            cfg.record_cluster_paths(cr)
+            snapshot = graph.cluster_snapshot
+            if snapshot is not None:
+                snapshot.cluster_result = cr
+                # Replace symbol membership, keep the file/package members the
+                # warm start needs — cr only ever carries symbols.
+                symbol_ids = {node.id for node in graph.symbol_nodes()}
+                members_by_cluster = {
+                    cluster_id: members - symbol_ids for cluster_id, members in snapshot.module_members.items()
+                }
+                for cluster_id, members in cr.clusters.items():
+                    members_by_cluster.setdefault(cluster_id, set()).update(members)
+                snapshot.module_members = {c: m for c, m in members_by_cluster.items() if m}
+            graph.record_cluster_paths(cr)
 
     def _persist_static_analysis_artifact(self) -> None:
         """Persist the post-clustering static-analysis artifact."""
@@ -588,7 +600,9 @@ class DiagramGenerator:
         """
         if not self.static_analysis:
             return []
-        cfg_graphs = {str(lang): self.static_analysis.get_cfg(lang) for lang in self.static_analysis.get_languages()}
+        cfg_graphs = {
+            str(lang): self.static_analysis.get_program_graph(lang) for lang in self.static_analysis.get_languages()
+        }
         global_relations = build_global_relations(root_analysis, sub_analyses, cfg_graphs)
         root_analysis.components_relations = global_relations
         return global_relations
@@ -749,7 +763,7 @@ class DiagramGenerator:
             live_files: set[str] = set()
             for language in self.static_analysis.get_languages():
                 try:
-                    cfg = self.static_analysis.get_cfg(language)
+                    cfg = self.static_analysis.get_program_graph(language)
                 except (ValueError, KeyError):
                     continue
                 for node in cfg.nodes.values():
@@ -957,7 +971,7 @@ def scoped_snapshot_for_component(
     }
     by_language = {}
     for language in incremental_agent.static_analysis.get_languages():
-        cfg = incremental_agent.static_analysis.get_cfg(language)
+        cfg = incremental_agent.static_analysis.get_program_graph(language)
         sub_cfg = cfg.filter_by_nodes(assigned_qnames)
         if sub_cfg.nodes:
             by_language[str(language)] = scoped_snapshot_from_lineage(sub_cfg, scope_id)

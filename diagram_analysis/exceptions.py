@@ -8,7 +8,7 @@ from static_analyzer.analysis_cache import STATIC_ANALYSIS_PKL, STATIC_ANALYSIS_
 class IncrementalCacheMissingError(RuntimeError):
     """Raised when ``generate_analysis_incremental`` finds no usable warm cache.
 
-    The incremental path requires a populated ``CallGraph._cluster_cache``
+    The incremental path requires a populated ``ProgramGraph.cluster_snapshot``
     (sourced from the SHA-tagged ``static_analysis.pkl``). When absent we
     used to silently fall back to a full analysis, which discarded the
     existing analysis.json's depth and component IDs. Callers must

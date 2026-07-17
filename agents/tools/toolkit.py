@@ -1,6 +1,7 @@
 import logging
 from typing import cast
 
+from .list_git_changes import ListGitChangesTool
 from .base import RepoContext, BaseRepoTool
 from .read_source import CodeReferenceReader
 from .read_structure import CodeStructureTool
@@ -26,6 +27,12 @@ class CodeBoardingToolkit:
     def __init__(self, context: RepoContext):
         self.context = context
         self._tools: dict[str, BaseRepoTool] = {}
+
+    @property
+    def list_git_changes(self) -> ListGitChangesTool:
+        if "list_git_changes" not in self._tools:
+            self._tools["list_git_changes"] = ListGitChangesTool(context=self.context)
+        return cast(ListGitChangesTool, self._tools["list_git_changes"])
 
     @property
     def read_source_reference(self) -> CodeReferenceReader:
