@@ -63,6 +63,7 @@ class HierarchicalInfomapClusterer:
             snapshot = InfomapClusterSnapshot(
                 cluster_result=ClusterResult(strategy=InfomapConfig.EMPTY_STRATEGY),
                 next_cluster_id=previous.next_cluster_id if previous else 1,
+                level=previous.level if previous else 1,
             )
             program_graph.cluster_snapshot = snapshot
             return snapshot.cluster_result
@@ -84,7 +85,15 @@ class HierarchicalInfomapClusterer:
 
         prior_members = self._surviving_prior(previous, set(node_names)) if previous else {}
         partition = self._partition(node_names, weighted_edges, prior_members)
-        level = self._choose_level(partition.node_paths, symbol_ids)
+        # Read the SAME level the baseline used, not the deepest of this graph: the
+        # hierarchy deepens as a repo grows, so re-deriving the level makes base and
+        # incremental read different depths and their partitions stop being comparable
+        # (measured: a doubled markitdown dropped from level 2 to level 3 and kept
+        # 19% of cluster ids). A full re-analysis re-picks the level.
+        depth = max((len(path) for path in partition.node_paths.values()), default=1)
+        level = (
+            min(previous.level, depth) if previous is not None else self._choose_level(partition.node_paths, symbol_ids)
+        )
         candidates = self._group(partition.node_paths, level, symbol_ids)
         prior_symbols = {cid: members & symbol_ids for cid, members in prior_members.items() if members & symbol_ids}
         mapping = self._reconcile(candidates, prior_symbols, previous.next_cluster_id if previous else 1)
