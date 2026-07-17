@@ -51,3 +51,18 @@ class InvalidIncrementalPlanError(RuntimeError):
         super().__init__(f"Incremental plan for scope {scope_id!r} is invalid: {issue_summary}")
         self.scope_id = scope_id
         self.issues = issues
+
+
+class ScopeContainmentError(RuntimeError):
+    """Raised when a child scope owns methods its parent component does not.
+
+    Every method must belong to exactly one component per tree level. Because a
+    child scope is a separate ``AnalysisInsights``, containment is the one half of
+    that invariant no single populate/patch pass can enforce — so it is checked
+    once before the save. A violation means the same method renders under two
+    components, which is worse to ship than a failed run.
+    """
+
+    def __init__(self, violations: list[str]):
+        super().__init__("Child scopes own methods outside their parent component: " + "; ".join(violations))
+        self.violations = violations
