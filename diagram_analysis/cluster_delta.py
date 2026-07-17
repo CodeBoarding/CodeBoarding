@@ -105,13 +105,13 @@ def compute_cluster_delta(
     changes: ChangeSet | None = None,
     repo_dir: Path | None = None,
 ) -> ClusterDelta:
-    """Compute per-language cluster deltas via seeded Leiden.
+    """Compute per-language cluster deltas from a fresh clustering of each graph.
 
-    When ``changes`` is provided, qnames whose file is outside both the diff
-    and the prior analysis are dropped as drift. Qnames in the prior analysis
-    that vanish without appearing in the diff are kept but logged as
-    inconsistent. ``repo_dir`` normalizes CFG-absolute paths to repo-relative
-    posix so they match the diff. ``changes=None`` disables scoping.
+    Each language's ProgramGraph is clustered by ``HierarchicalInfomapClusterer``,
+    which warm-starts from its own snapshot; this diffs the result against
+    ``old_snapshot`` into new, changed and dropped cluster ids. ``changes`` and
+    ``repo_dir`` are used only to report symbols that moved without their file
+    appearing in the diff (``changes=None`` skips that check).
     """
     delta = ClusterDelta()
     diff_files = _changeset_to_path_set(changes) if changes is not None else None

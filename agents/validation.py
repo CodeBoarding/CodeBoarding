@@ -515,8 +515,8 @@ def validate_relation_component_names(
     """
     Validate that every src_name and dst_name in components_relations refers to an existing component.
 
-    When a relation references a component name that does not exist, assign_component_ids will
-    leave src_id or dst_id as an empty string, producing broken references in the output JSON.
+    When a relation references a component name that does not exist, assign_relation_ids drops it;
+    this validator gives the model a chance to keep the relation by naming a real component instead.
 
     Args:
         result: AnalysisInsights containing components and components_relations

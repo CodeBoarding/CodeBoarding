@@ -501,7 +501,9 @@ class TestIncrementalRelations(unittest.TestCase):
             ScopeRelationContext(cluster_results=cluster_results, cfg_graphs={"python": cfg}),
         )
 
-        self.assertEqual(generated, relation_result.components_relations)
+        # generate_scope_relations returns what survived id assignment and edge
+        # attachment, i.e. exactly what it left on the scope.
+        self.assertEqual(generated, scope.components_relations)
         self.assertEqual(agent._parse_invoke.call_args.args[1], ComponentApiSurfaces)
         self.assertNotIn("legacy relation", agent._parse_invoke.call_args.args[0])
         relation_call = agent._invoke_validate.call_args

@@ -133,10 +133,8 @@ class TestDetailsAgent(unittest.TestCase):
         mock_subgraph.cluster.return_value = mock_sub_cluster_result
         mock_subgraph.to_cluster_string.return_value = "Component CFG String"
 
-        mock_scoped_program_graph = MagicMock()
         mock_program_graph = MagicMock()
         mock_program_graph.filter_by_nodes.return_value = mock_subgraph
-        mock_program_graph.induced_by_symbols.return_value = mock_scoped_program_graph
 
         self.mock_static_analysis.get_languages.return_value = ["python"]
         self.mock_static_analysis.get_program_graph.return_value = mock_program_graph
@@ -151,9 +149,8 @@ class TestDetailsAgent(unittest.TestCase):
         self.assertIn("python", subgraph_cfgs)
         self.assertIs(subgraph_cfgs["python"], mock_subgraph)
         self.mock_static_analysis.get_program_graph.assert_called_with("python")
-        mock_program_graph.filter_by_nodes.assert_called_with(expected_qnames)
-        mock_program_graph.induced_by_symbols.assert_called_once_with(expected_qnames)
-        clusterer.return_value.cluster.assert_called_once_with(mock_scoped_program_graph)
+        mock_program_graph.filter_by_nodes.assert_called_once_with(expected_qnames)
+        clusterer.return_value.cluster.assert_called_once_with(mock_subgraph)
 
     @patch("agents.details_agent.DetailsAgent._invoke_validate")
     def test_step_clusters_grouping(self, mock_invoke_validate):

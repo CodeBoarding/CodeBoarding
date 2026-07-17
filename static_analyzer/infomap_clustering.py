@@ -1,9 +1,9 @@
 """Deterministic hierarchical Infomap clustering over the ProgramGraph.
 
-Modules come from the deepest hierarchy level that still yields components rather
-than one hairball: ``path[0]`` is the top of a multilevel map and is meant to be
-coarse (2 modules holding 75% of a 295-symbol repo), while one level down gives
-~43 modules at ~8%.
+Modules come from the leaf level of Infomap's map, not ``path[0]``: the top of a
+multilevel map is meant to be coarse (2 modules over a 295-symbol repo), while the
+leaves give the ~49 components a review can act on. The share cap only decides
+whether even the leaves are too coarse to describe components at all.
 
 Incremental runs warm-start from the previous partition and re-optimize the whole
 graph, then map the result back onto the previous cluster ids by greatest overlap.
@@ -76,12 +76,10 @@ class HierarchicalInfomapClusterer:
             and previous.graph_fingerprint == fingerprint
             and self._snapshot_covers(previous, symbol_ids)
         ):
-            # The partition is a pure function of the weighted graph, so an
-            # unchanged graph must not churn cluster ids — a change that only
-            # moves line numbers would otherwise re-detail components for nothing.
-            # Only when the snapshot still describes this graph: without_files
-            # prunes module_members, and returning here would persist that pruning
-            # as the seed the next run warm-starts from.
+            # Reuse the prior partition for an unchanged graph so a line-only edit
+            # cannot churn ids. Gated on _snapshot_covers: without_files can prune
+            # module_members, and returning a half-pruned snapshot would poison the
+            # next warm start.
             return previous.cluster_result
 
         prior_members = self._surviving_prior(previous, set(node_names)) if previous else {}

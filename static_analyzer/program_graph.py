@@ -434,10 +434,8 @@ class ProgramGraph:
                 out.add_edge(copy.deepcopy(edge))
         out._aliases = {alias: target for alias, target in self._aliases.items() if target in out.nodes}
         out.method_cluster_paths = self.method_cluster_paths.prune(out.nodes)
-        # No cluster_snapshot: a scope carries its parent's partition only as a
-        # foregone conclusion. Every scoped node already has a cluster, so the
-        # clusterer would hand back one module and the caller would never re-derive
-        # the structure it asked for.
+        # cluster_snapshot is left unset: the caller seeds a scope from recorded
+        # lineage (_lineage_seed), not from the parent's whole-graph partition.
         return out
 
     def filter_by_files(self, file_paths: set[str]) -> "ProgramGraph":

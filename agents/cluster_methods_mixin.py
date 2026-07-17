@@ -518,15 +518,12 @@ class ClusterMethodsMixin:
 
             if sub_cfg.nodes:
                 subgraph_cfgs[lang] = sub_cfg
-                scoped_program_graph = cfg.induced_by_symbols(assigned_qnames)
-                scoped_program_graph.cluster_snapshot = _lineage_seed(
-                    cfg, scoped_program_graph, source_cluster_id_prefix
-                )
-                sub_cluster_result = HierarchicalInfomapClusterer().cluster(scoped_program_graph)
+                sub_cfg.cluster_snapshot = _lineage_seed(cfg, sub_cfg, source_cluster_id_prefix)
+                sub_cluster_result = HierarchicalInfomapClusterer().cluster(sub_cfg)
 
                 # Expand to method-level if insufficient clusters, reusing the ids this
                 # scope already issued so the expansion cannot renumber what survived.
-                seed = scoped_program_graph.cluster_snapshot
+                seed = sub_cfg.cluster_snapshot
                 prior_owner = (
                     {qname: cid for cid, members in seed.module_members.items() for qname in members} if seed else {}
                 )

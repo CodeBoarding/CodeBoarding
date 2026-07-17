@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 from pydantic.fields import FieldInfo
 
 from agents.cluster_ids import CodeBoardingClusterId, GraphClusterId
+from agents.scope_ids import ROOT_SCOPE_ID
 from agents.file_index_models import FileEntry, FileMethodGroup, MethodEntry
 
 logger = logging.getLogger(__name__)

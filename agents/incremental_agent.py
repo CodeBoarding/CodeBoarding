@@ -300,7 +300,9 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
         self.build_static_relations(scope, cfg_graphs)
         self.reference_resolver.fix_source_code_reference_lines(scope)
         index_relation_endpoints(scope, self.repo_dir)
-        return relation_result.components_relations
+        # Return the relations that survived id assignment, not the pre-filter set —
+        # the caller logs this as what it generated.
+        return scope.components_relations
 
     @trace
     def generate_scope_relations(
