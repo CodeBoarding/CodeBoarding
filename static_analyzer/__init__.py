@@ -682,6 +682,7 @@ class StaticAnalyzer:
                 len(scope_files),
             )
 
+            baseline_lineage = baseline_graph.method_cluster_paths.snapshot_dict()
             updated_graph = baseline_graph.without_files(str(path) for path in changed_files)
             if scope_files:
                 delta = self._run_analysis_for_files(
@@ -696,6 +697,10 @@ class StaticAnalyzer:
                         f"Incremental analysis for {adapter.language} did not produce a ProgramGraph"
                     )
                 updated_graph.merge(delta_graph)
+            # without_files dropped the changed files' methods and their cluster paths;
+            # restore the lineage for any that came back so re-analysing a file does not
+            # dissolve the components its unchanged methods still belong to.
+            updated_graph.method_cluster_paths.restore(baseline_lineage, set(updated_graph.symbols))
             self._merge_incremental_diagnostics(language, changed_files, engine_client)
 
             bucket = results.results[language]

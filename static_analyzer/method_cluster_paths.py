@@ -27,6 +27,19 @@ class MethodClusterPaths:
                 {qname: set(cluster_ids) for qname, cluster_ids in self._paths.items() if qname in surviving_nodes}
             )
 
+    def restore(self, baseline: Mapping[str, set[str]], surviving: set[str]) -> None:
+        """Re-add a prior run's paths for methods that carried over but lost them.
+
+        Why: an incremental rebuild drops a changed file's methods (and their paths)
+        and re-adds them fresh, so a method that only moved a few lines would lose the
+        sub-cluster lineage its component identity is seeded from. Only methods still
+        present are restored, and only where no current path already exists.
+        """
+        with self._lock:
+            for qname, cluster_ids in baseline.items():
+                if qname in surviving and not self._paths.get(qname):
+                    self._paths[qname] = set(cluster_ids)
+
     def record(self, cluster_result, scope_id: str = "") -> None:
         prefix = f"{scope_id}." if scope_id else ""
         with self._lock:
