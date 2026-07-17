@@ -3,22 +3,25 @@ from __future__ import annotations
 import abc
 import logging
 from abc import abstractmethod
-from collections.abc import Hashable
+from collections.abc import Hashable, Mapping
 from enum import StrEnum
 from pathlib import PurePosixPath
-from typing import TYPE_CHECKING, get_origin, Optional
+from typing import get_origin, Optional, Protocol
 
 from pydantic import BaseModel, Field
 from pydantic.fields import FieldInfo
 
 from agents.cluster_ids import CodeBoardingClusterId, GraphClusterId
 from agents.file_index_models import FileEntry, FileMethodGroup, MethodEntry
-from agents.scope_ids import ROOT_SCOPE_ID
 
 logger = logging.getLogger(__name__)
 
-if TYPE_CHECKING:
-    from diagram_analysis.analysis_json import MethodIndexEntry
+
+class MethodIndexRecord(Protocol):
+    qualified_name: str
+    file_path: str
+    start_line: int
+    end_line: int
 
 
 class LLMBaseModel(BaseModel, abc.ABC):
@@ -197,7 +200,7 @@ class RelationEdge(LLMBaseModel):
     )
 
     @classmethod
-    def from_dict(cls, edge: dict, methods_index: dict[str, MethodIndexEntry]) -> RelationEdge:
+    def from_dict(cls, edge: dict, methods_index: Mapping[str, MethodIndexRecord]) -> RelationEdge:
         source_key = edge.get("source")
         target_key = edge.get("target")
         if not isinstance(source_key, str) or not isinstance(target_key, str):
@@ -211,21 +214,23 @@ class RelationEdge(LLMBaseModel):
         )
 
     @classmethod
-    def from_edge(cls, edge) -> RelationEdge:
+    def from_program_edge(cls, edge, graph) -> RelationEdge:
+        source = graph.nodes[edge.source]
+        target = graph.nodes[edge.target]
         return cls(
             source=SourceCodeReference(
-                qualified_name=edge.src_node.fully_qualified_name,
-                reference_file=edge.src_node.file_path,
-                reference_start_line=edge.src_node.line_start,
-                reference_end_line=edge.src_node.line_end,
+                qualified_name=source.id,
+                reference_file=source.file_path,
+                reference_start_line=source.line_start,
+                reference_end_line=source.line_end,
             ),
             target=SourceCodeReference(
-                qualified_name=edge.dst_node.fully_qualified_name,
-                reference_file=edge.dst_node.file_path,
-                reference_start_line=edge.dst_node.line_start,
-                reference_end_line=edge.dst_node.line_end,
+                qualified_name=target.id,
+                reference_file=target.file_path,
+                reference_start_line=target.line_start,
+                reference_end_line=target.line_end,
             ),
-            call_sites=[RelationCallSite.model_validate(call_site) for call_site in edge.call_sites],
+            call_sites=[RelationCallSite.model_validate(call_site) for call_site in edge.occurrence_dicts()],
         )
 
     def llm_str(self) -> str:
@@ -247,7 +252,7 @@ class RelationEdge(LLMBaseModel):
 
 def _relation_endpoint_from_key(
     key: str,
-    methods_index: dict[str, MethodIndexEntry],
+    methods_index: Mapping[str, MethodIndexRecord],
 ) -> SourceCodeReference:
     indexed = methods_index.get(key)
     if indexed is not None:
@@ -397,39 +402,6 @@ class ClustersComponent(LLMBaseModel):
     )
     description: str = Field(
         description="Explanation of what this component does, its main flow, WHY these clusters are grouped together, how it interacts with other cluster groups, and the most important classes/methods (by their exact qualified names from the clusters)"
-    )
-    existing_component_id: str | None = Field(
-        default=None,
-        description=(
-            "Incremental routing: the exact component_id of the existing component "
-            "this entry is routing clusters into (e.g. '1.3'). Set to null to create "
-            "a brand-new component. Identity is by ID, not name — leaving this null "
-            "while reusing an existing component's name forks a duplicate component. "
-            "Ignored by the full-analysis flow."
-        ),
-        json_schema_extra={"hidden": True},
-    )
-    parent_id: str | None = Field(
-        default=None,
-        description=(
-            "Incremental routing: when ``existing_component_id`` is null (brand-new "
-            "component), the existing component_id under which the new component "
-            "should attach (or null to attach at root). Ignored when "
-            "``existing_component_id`` is set, and ignored by the full-analysis flow."
-        ),
-        json_schema_extra={"hidden": True},
-    )
-    redetail_needed: bool = Field(
-        default=True,
-        description=(
-            "Incremental routing only: when routing clusters into an existing component "
-            "(``existing_component_id`` is set), set False if the cluster delta is "
-            "cosmetic (refactor, internal rename, small bug fix) and the component's "
-            "high-level purpose is unchanged — the existing description stays. Default "
-            "True forces a full redetail. Ignored for brand-new components (always "
-            "redetailed) and by the full-analysis flow."
-        ),
-        json_schema_extra={"hidden": True},
     )
 
     def llm_str(self):
@@ -805,6 +777,23 @@ class ComponentFiles(LLMBaseModel):
         return title + body
 
 
+class FilePath(LLMBaseModel):
+    """File path with optional line range reference."""
+
+    file_path: str = Field(description="Full file path for the reference")
+    start_line: int | None = Field(
+        default=None,
+        description="Starting line number in the file for the reference (if applicable).",
+    )
+    end_line: int | None = Field(
+        default=None,
+        description="Ending line number in the file for the reference (if applicable).",
+    )
+
+    def llm_str(self):
+        return f"`{self.file_path}`: ({self.start_line}:{self.end_line})"
+
+
 class ScopeRelations(LLMBaseModel):
     """Relations between components within a single scope."""
 
@@ -877,20 +866,3 @@ class ScopeUpdateDecision(LLMBaseModel):
         if not self.operations:
             return "No scope operations."
         return "\n".join(operation.llm_str() for operation in self.operations)
-
-
-class FilePath(LLMBaseModel):
-    """File path with optional line range reference."""
-
-    file_path: str = Field(description="Full file path for the reference")
-    start_line: int | None = Field(
-        default=None,
-        description="Starting line number in the file for the reference (if applicable).",
-    )
-    end_line: int | None = Field(
-        default=None,
-        description="Ending line number in the file for the reference (if applicable).",
-    )
-
-    def llm_str(self):
-        return f"`{self.file_path}`: ({self.start_line}:{self.end_line})"

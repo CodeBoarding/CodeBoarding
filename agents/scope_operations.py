@@ -3,7 +3,7 @@
 from agents.agent_responses import ScopeOperationAction, ScopedClusterRef
 from agents.scope_ids import ROOT_SCOPE_ID
 from diagram_analysis.cluster_delta import ClusterRef
-from static_analyzer.graph import ClusterResult
+from static_analyzer.clustering import ClusterResult
 
 
 EXISTING_COMPONENT_ACTIONS: frozenset[ScopeOperationAction] = frozenset(

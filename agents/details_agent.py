@@ -42,7 +42,8 @@ from agents.validation import (
 from monitoring import trace
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cluster_helpers import get_all_cluster_ids
-from static_analyzer.graph import CallGraph, ClusterResult
+from static_analyzer.clustering import ClusterResult
+from static_analyzer.program_graph import ProgramGraph
 
 logger = logging.getLogger(__name__)
 
@@ -154,7 +155,7 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
         component: Component,
         cluster_analysis: ClusterAnalysis,
         subgraph_cluster_results: dict[str, ClusterResult],
-        subgraph_cfgs: dict[str, CallGraph],
+        subgraph_cfgs: dict[str, ProgramGraph],
     ) -> AnalysisInsights:
         """
         Generate detailed final analysis from grouped clusters.
@@ -242,7 +243,7 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
         api_surfaces: ComponentApiSurfaces,
         cluster_analysis: ClusterAnalysis,
         cluster_results: dict[str, ClusterResult],
-        cfg_graphs: dict[str, CallGraph],
+        cfg_graphs: dict[str, ProgramGraph],
         source_cluster_id_prefix: str,
     ) -> None:
         logger.info(f"[DetailsAgent] Discovering component relations for: {self.project_name}")

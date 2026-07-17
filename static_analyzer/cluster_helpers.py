@@ -1,32 +1,31 @@
-"""
-Helper functions for working with CFG cluster analysis.
-
-This module provides common patterns for cluster operations to reduce code duplication
-across agents and other components that work with static analysis cluster results.
-
-Super-clustering overview
--------------------------
-When a language produces more clusters than `MAX_LLM_CLUSTERS`, we collapse them
-into *super-clusters* via community detection on a weighted meta-graph of inter-
-cluster call edges (Leiden with resolution tuning, Louvain fallback).
-
-After community detection, there are often leftover singleton / tiny communities
-because many clusters are isolated in the call graph (no inter-cluster edges).
-We absorb these into larger communities using **graph distance** on the meta-graph
-first. Only when a community is completely disconnected (infinite shortest-path
-distance) do we fall back to **file overlap** as a proxy for relatedness.
-"""
+"""Helpers for ProgramGraph clustering and downstream cluster ID handling."""
 
 import logging
 from collections import defaultdict
+from typing import TypeVar
 
 import networkx as nx
 
 from static_analyzer.analysis_result import StaticAnalysisResults
+from static_analyzer.clustering import ClusterResult
 from static_analyzer.constants import ClusteringConfig, Language
-from static_analyzer.graph import ClusterResult, detect_communities
+from static_analyzer.infomap_clustering import HierarchicalInfomapClusterer
+from static_analyzer.leiden_utils import find_partition
 
 logger = logging.getLogger(__name__)
+NodeId = TypeVar("NodeId")
+
+
+def detect_communities(
+    graph: nx.Graph | nx.DiGraph,
+    *,
+    weight: str | None = None,
+    resolution: float | None = None,
+    seed: int | None = None,
+) -> list[set[NodeId]]:
+    """Run Leiden for budget-level cluster aggregation."""
+    return find_partition(graph, weight=weight, resolution=resolution, seed=seed)
+
 
 # Maximum number of clusters the LLM should see. When a language produces
 # more clusters than this, merge_clusters() collapses them into super-clusters
@@ -48,9 +47,10 @@ def build_cluster_results_for_languages(
         Dictionary mapping language name -> ClusterResult
     """
     cluster_results: dict[str, ClusterResult] = {}
+    clusterer = HierarchicalInfomapClusterer()
     for lang in languages:
-        cfg = static_analysis.get_cfg(lang)
-        cluster_results[lang] = cfg.cluster()
+        graph = static_analysis.get_program_graph(lang)
+        cluster_results[str(lang)] = clusterer.cluster(graph)
     return cluster_results
 
 
@@ -58,8 +58,8 @@ def build_all_cluster_results(static_analysis: StaticAnalysisResults) -> dict[st
     """
     Build cluster results for all detected languages in the static analysis.
 
-    If a language produces more than MAX_LLM_CLUSTERS clusters, they are
-    automatically merged into super-clusters using inter-cluster connectivity.
+    Hierarchical Infomap decides module granularity. This function never
+    hyperclusters its output; it only gives languages disjoint ID ranges.
 
     Args:
         static_analysis: Static analysis results containing CFG data
@@ -70,39 +70,20 @@ def build_all_cluster_results(static_analysis: StaticAnalysisResults) -> dict[st
     languages = static_analysis.get_languages()
     cluster_results = build_cluster_results_for_languages(static_analysis, languages)
 
-    for lang in list(cluster_results.keys()):
-        cr = cluster_results[lang]
-        n_clusters = len(cr.clusters)
-        if n_clusters > MAX_LLM_CLUSTERS:
-            cfg = static_analysis.get_cfg(Language(lang))
-            logger.info(
-                f"[SuperCluster] {lang}: {n_clusters} clusters exceeds limit of {MAX_LLM_CLUSTERS}, "
-                f"merging into super-clusters"
-            )
-            cluster_results[lang] = merge_clusters(cr, cfg.to_networkx(), MAX_LLM_CLUSTERS)
-            new_count = len(cluster_results[lang].clusters)
-            logger.info(f"[SuperCluster] {lang}: merged {n_clusters} -> {new_count} super-clusters")
-
-    # For multi-language repos, ensure the combined cluster count stays
-    # within MAX_LLM_CLUSTERS by proportionally reducing per-language counts,
-    # then re-index IDs so they don't overlap across languages.
     if len(cluster_results) > 1:
-        cfg_graphs = {lang: static_analysis.get_cfg(Language(lang)).to_networkx() for lang in cluster_results}
-        enforce_cross_language_budget(cluster_results, cfg_graphs)
+        reindex_cross_language_clusters(cluster_results)
 
-    _sync_cluster_cache(static_analysis, cluster_results)
     return cluster_results
 
 
-def _sync_cluster_cache(static_analysis: StaticAnalysisResults, cluster_results: dict[str, ClusterResult]) -> None:
-    """Keep each CFG cache aligned with returned cluster IDs."""
-    for lang, result in cluster_results.items():
-        try:
-            cfg = static_analysis.get_cfg(Language(lang))
-            cfg._cluster_cache = result
-            cfg.record_cluster_paths(result)
-        except ValueError:
-            logger.warning("Could not sync cluster cache for missing language %s", lang)
+def reindex_cross_language_clusters(cluster_results: dict[str, ClusterResult]) -> None:
+    """Give each language a deterministic, disjoint cluster-ID range."""
+    offset = 0
+    for lang in sorted(cluster_results):
+        result = cluster_results[lang]
+        if offset:
+            cluster_results[lang] = reindex_cluster_result(result, offset)
+        offset = max(cluster_results[lang].clusters, default=offset)
 
 
 def enforce_cross_language_budget(

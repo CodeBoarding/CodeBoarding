@@ -23,7 +23,7 @@ from agents.scope_operations import (
     normalize_component_name,
 )
 from diagram_analysis.cluster_delta import ClusterRef
-from static_analyzer.graph import ClusterResult
+from static_analyzer.clustering import ClusterResult
 from static_analyzer.reference_resolver import StaticReferenceResolver
 
 logger = logging.getLogger(__name__)

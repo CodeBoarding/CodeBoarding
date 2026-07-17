@@ -65,7 +65,7 @@ from static_analyzer.analysis_cache import StaticAnalysisCache
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cluster_relations import build_global_relations, is_self_or_descendant
 from static_analyzer.constants import Language
-from static_analyzer.graph import ClusterResult
+from static_analyzer.clustering import ClusterResult
 from static_analyzer.scanner import ProjectScanner
 from telemetry.events import track_analysis
 

@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 
-from static_analyzer.graph import CallGraph, ClusterResult
+from static_analyzer.clustering import ClusterResult
+from static_analyzer.program_graph import ProgramGraph
 
 
 @dataclass(frozen=True)
@@ -8,7 +9,7 @@ class ScopeRelationContext:
     """Static-analysis context required to regenerate one scope's relations."""
 
     cluster_results: dict[str, ClusterResult]
-    cfg_graphs: dict[str, CallGraph]
+    cfg_graphs: dict[str, ProgramGraph]
 
 
 @dataclass

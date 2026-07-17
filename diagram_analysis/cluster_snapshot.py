@@ -1,19 +1,18 @@
 """In-memory cluster snapshot of the prior clustering, used by ``cluster_delta``.
 
-The partition is sourced exclusively from each per-language CFG's
-``CallGraph._cluster_cache``, populated by the previous run's
-``DiagramGenerator._persist_pkl_with_cluster_cache`` and round-tripped
-through the SHA-tagged pkl. When the cache is absent (legacy pkl, first run
-on a fresh repo) ``snapshot_from_static_analysis`` returns an empty snapshot;
-``DiagramGenerator.generate_analysis_incremental`` then falls back to a
-full run, which warms the pkl for every subsequent incremental.
+The partition comes from each per-language ``ProgramGraph.cluster_snapshot``,
+written by the previous run and round-tripped through the SHA-tagged pkl. When it
+is absent (legacy pkl, first run on a fresh repo) ``snapshot_from_static_analysis``
+returns an empty snapshot and ``DiagramGenerator.generate_analysis_incremental``
+raises rather than silently rebuilding.
 """
 
 import logging
 from dataclasses import dataclass, field
 
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.graph import ClusterResult
+from static_analyzer.clustering import ClusterResult
+from static_analyzer.program_graph import ProgramGraph
 
 logger = logging.getLogger(__name__)
 
@@ -38,47 +37,39 @@ class ClusterSnapshot:
 
 
 def snapshot_from_static_analysis(static_analysis: StaticAnalysisResults) -> ClusterSnapshot:
-    """Reconstruct a ``ClusterSnapshot`` from each per-language CFG's ``_cluster_cache``.
+    """Reconstruct a ``ClusterSnapshot`` from each per-language ``ProgramGraph.cluster_snapshot``.
 
-    Languages whose CFG carries no ``_cluster_cache`` (legacy pkl or first-ever
-    run on a fresh repo) contribute nothing; the resulting snapshot's
-    ``all_cluster_ids()`` will be empty for those languages, which causes
-    ``DiagramGenerator.generate_analysis_incremental`` to fall back to a full
-    run. After that full run the pkl is re-saved with a populated cache and
-    every subsequent incremental rides the warm path.
+    Languages whose graph carries no snapshot contribute nothing, leaving
+    ``all_cluster_ids()`` empty for them.
     """
     by_language: dict[str, dict[int, ClusterSnapshotEntry]] = {}
     for language in static_analysis.get_languages():
         try:
-            cfg = static_analysis.get_cfg(language)
+            program_graph = static_analysis.get_program_graph(language)
         except ValueError:
             continue
-        if cfg._cluster_cache is None:
+        if program_graph.cluster_snapshot is None:
             continue
-        by_language[language] = _entries_from_cfg_cache(cfg._cluster_cache, cfg.to_networkx())
+        by_language[str(language)] = _entries_from_snapshot(
+            program_graph.cluster_snapshot.cluster_result, program_graph
+        )
     return ClusterSnapshot(by_language=by_language)
 
 
-def _entries_from_cfg_cache(
-    cluster_cache: ClusterResult,
-    nx_graph,
+def _entries_from_snapshot(
+    cluster_result: ClusterResult,
+    program_graph: ProgramGraph,
 ) -> dict[int, ClusterSnapshotEntry]:
-    """Build ``{cluster_id -> ClusterSnapshotEntry}`` from a CFG's ``_cluster_cache``.
-
-    File paths come straight off the CFG node attributes — authoritative for
-    every qname Leiden actually placed into a cluster.
-    """
+    """Build ``{cluster_id -> ClusterSnapshotEntry}``, reading file paths off the graph nodes."""
     entries: dict[int, ClusterSnapshotEntry] = {}
-    for cid, members in cluster_cache.clusters.items():
+    for cid, members in cluster_result.clusters.items():
         entry = ClusterSnapshotEntry(members=set(members))
         for qname in members:
-            attrs = nx_graph.nodes.get(qname)
-            if attrs is None:
+            node = program_graph.nodes.get(qname)
+            if node is None or not node.file_path:
                 continue
-            file_path = attrs.get("file_path")
-            if file_path:
-                entry.files.add(file_path)
-                entry.member_files[qname] = file_path
+            entry.files.add(node.file_path)
+            entry.member_files[qname] = node.file_path
         entries[cid] = entry
     return entries
 

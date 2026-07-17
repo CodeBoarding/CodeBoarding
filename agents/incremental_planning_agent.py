@@ -34,7 +34,7 @@ from diagram_analysis.cluster_delta import (
 from diagram_analysis.exceptions import InvalidIncrementalPlanError
 from repo_utils.change_detector import ChangeSet
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.graph import ClusterResult
+from static_analyzer.clustering import ClusterResult
 from telemetry.service import telemetry
 
 

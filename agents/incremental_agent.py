@@ -42,8 +42,9 @@ from diagram_analysis.file_index import build_files_index
 from monitoring import trace
 from repo_utils.change_detector import ChangeSet
 from static_analyzer.analysis_result import StaticAnalysisResults
+from static_analyzer.clustering import ClusterResult
 from static_analyzer.constants import Language
-from static_analyzer.graph import CallGraph, ClusterResult
+from static_analyzer.program_graph import ProgramGraph
 
 logger = logging.getLogger(__name__)
 
@@ -219,7 +220,7 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
         self,
         scope: AnalysisInsights,
         cluster_results: dict[str, ClusterResult],
-        cfg_graphs: dict[str, CallGraph],
+        cfg_graphs: dict[str, ProgramGraph],
         touched_ids: set[str],
         scope_id: str,
     ) -> None:
@@ -266,7 +267,7 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
         api_surfaces: ComponentApiSurfaces,
         cluster_analysis: ClusterAnalysis,
         cluster_results: dict[str, ClusterResult],
-        cfg_graphs: dict[str, CallGraph],
+        cfg_graphs: dict[str, ProgramGraph],
     ) -> list[Relation]:
         """Discover evidence-backed relations and attach deterministic CFG edges."""
         logger.info("[IncrementalAgent] Discovering component relations for scope: %s", scope_name)
@@ -562,7 +563,7 @@ def _live_cfg_qnames(static_analysis: StaticAnalysisResults) -> set[str]:
     qnames: set[str] = set()
     for language in static_analysis.get_languages():
         try:
-            qnames.update(static_analysis.get_cfg(language).nodes)
+            qnames.update(static_analysis.get_program_graph(language).symbols)
         except (KeyError, ValueError):
             continue
     return qnames
@@ -577,19 +578,19 @@ def _component_has_live_cfg_methods(component: Component, live_qnames: set[str])
 def _cfg_graphs_for_scope_methods(
     static_analysis: StaticAnalysisResults,
     scope: AnalysisInsights,
-) -> dict[str, CallGraph]:
+) -> dict[str, ProgramGraph]:
     scope_qnames = {
         method.qualified_name
         for component in scope.components
         for group in component.file_methods
         for method in group.methods
     }
-    cfg_graphs: dict[str, CallGraph] = {}
+    cfg_graphs: dict[str, ProgramGraph] = {}
     if not scope_qnames:
         return cfg_graphs
     for language in static_analysis.get_languages():
         try:
-            cfg_graphs[str(language)] = static_analysis.get_cfg(language).filter_by_nodes(scope_qnames)
+            cfg_graphs[str(language)] = static_analysis.get_program_graph(language).filter_by_nodes(scope_qnames)
         except (KeyError, ValueError):
             continue
     return cfg_graphs
@@ -597,11 +598,11 @@ def _cfg_graphs_for_scope_methods(
 
 def _cfg_graphs_for_cluster_results(
     static_analysis: StaticAnalysisResults, cluster_results: dict[str, ClusterResult]
-) -> dict[str, CallGraph]:
-    cfg_graphs: dict[str, CallGraph] = {}
+) -> dict[str, ProgramGraph]:
+    cfg_graphs: dict[str, ProgramGraph] = {}
     for language, cluster_result in cluster_results.items():
         members = {qname for cluster_members in cluster_result.clusters.values() for qname in cluster_members}
-        cfg_graphs[language] = static_analysis.get_cfg(Language(language)).filter_by_nodes(members)
+        cfg_graphs[language] = static_analysis.get_program_graph(Language(language)).filter_by_nodes(members)
     return cfg_graphs
 
 

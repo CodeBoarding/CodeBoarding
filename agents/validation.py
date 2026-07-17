@@ -20,7 +20,8 @@ from agents.scope_operations import EXISTING_COMPONENT_ACTIONS, cluster_ref_from
 from diagram_analysis.cluster_delta import ClusterRef
 from repo_utils import normalize_path
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.graph import CallGraph, ClusterResult
+from static_analyzer.clustering import ClusterResult
+from static_analyzer.program_graph import ProgramGraph
 from static_analyzer.reference_resolver import StaticReferenceResolver
 
 logger = logging.getLogger(__name__)
@@ -49,7 +50,7 @@ class ValidationContext:
     """
 
     cluster_results: dict[str, ClusterResult] = field(default_factory=dict)
-    cfg_graphs: dict[str, CallGraph] = field(default_factory=dict)  # For edge checking
+    cfg_graphs: dict[str, ProgramGraph] = field(default_factory=dict)
     expected_cluster_ids: set[int] = field(default_factory=set)
     expected_files: set[str] = field(default_factory=set)
     valid_component_names: set[str] = field(default_factory=set)  # For file classification validation
@@ -669,7 +670,7 @@ def validate_scope_relation_names(result: ScopeRelations, _context: ValidationCo
 
 def _build_cluster_edge_lookup(
     cluster_results: dict[str, ClusterResult],
-    cfg_graphs: dict[str, CallGraph],
+    cfg_graphs: dict[str, ProgramGraph],
 ) -> dict[str, set[tuple[int, int]]]:
     """Build a lookup of (src_cluster_id, dst_cluster_id) edges per language."""
     cluster_edge_lookup: dict[str, set[tuple[int, int]]] = {}
@@ -685,9 +686,9 @@ def _build_cluster_edge_lookup(
                 node_to_cluster[node] = cluster_id
 
         cluster_edges: set[tuple[int, int]] = set()
-        for edge in cfg.edges:
-            src_cluster = node_to_cluster.get(edge.get_source())
-            dst_cluster = node_to_cluster.get(edge.get_destination())
+        for edge in cfg.call_edges():
+            src_cluster = node_to_cluster.get(edge.source)
+            dst_cluster = node_to_cluster.get(edge.target)
             if src_cluster is None or dst_cluster is None:
                 continue
             cluster_edges.add((src_cluster, dst_cluster))
@@ -729,7 +730,7 @@ def _check_edge_between_cluster_sets(
     src_cluster_ids: list[int],
     dst_cluster_ids: list[int],
     cluster_results: dict[str, ClusterResult],
-    cfg_graphs: dict[str, CallGraph],
+    cfg_graphs: dict[str, ProgramGraph],
     cluster_edge_lookup: dict[str, set[tuple[int, int]]] | None = None,
 ) -> bool:
     """
@@ -739,7 +740,7 @@ def _check_edge_between_cluster_sets(
         src_cluster_ids: Source cluster IDs
         dst_cluster_ids: Destination cluster IDs
         cluster_results: dict mapping language -> ClusterResult
-        cfg_graphs: dict mapping language -> CallGraph
+        cfg_graphs: dict mapping language -> ProgramGraph
         cluster_edge_lookup: Optional precomputed (src_cluster, dst_cluster) edges per language
 
     Returns:

@@ -28,6 +28,7 @@ dependencies = [
     "fastapi>=0.115",
     "filelock>=3.12",
     "gitpython>=3.1",
+    "infomap>=2.15,<2.16",
     "google-api-core>=2.10",
     "jsonpatch>=1.33",
     "jsonschema>=4.25",

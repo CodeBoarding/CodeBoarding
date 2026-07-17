@@ -23,7 +23,7 @@ class GetCFGTool(BaseRepoTool):
             return "No static analysis data available."
         result_str = ""
         for lang in self.static_analysis.get_languages():
-            cfg = self.static_analysis.get_cfg(lang)
+            cfg = self.static_analysis.get_program_graph(lang)
             logger.info(
                 f"[CFG Tool] Reading control flow graph for {lang}, nodes: {len(cfg.nodes)}, edges: {len(cfg.edges)}"
             )
@@ -44,7 +44,7 @@ class GetCFGTool(BaseRepoTool):
         component_files = set(component.file_paths())
         for lang in self.static_analysis.get_languages():
             logger.info(f"[CFG Tool] Filtering CFG for component {component.name} in {lang}")
-            cfg = self.static_analysis.get_cfg(lang)
+            cfg = self.static_analysis.get_program_graph(lang)
             if cfg is None:
                 logger.warning(f"[CFG Tool] No control flow graph found for {lang}.")
                 continue

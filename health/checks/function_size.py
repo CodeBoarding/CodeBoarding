@@ -8,15 +8,15 @@ from health.models import (
     StandardCheckSummary,
 )
 from repo_utils.ignore import RepoIgnoreManager
-from static_analyzer.graph import CallGraph
+from static_analyzer.program_graph import ProgramGraph
 
 logger = logging.getLogger(__name__)
 
 
-def collect_function_sizes(call_graph: CallGraph) -> list[float]:
+def collect_function_sizes(call_graph: ProgramGraph) -> list[float]:
     """Collect function sizes (line counts) for all callable entities in the graph."""
     sizes: list[float] = []
-    for node in call_graph.nodes.values():
+    for node in call_graph.symbol_nodes():
         if node.is_class() or node.is_data():
             continue
         size = node.line_end - node.line_start
@@ -25,7 +25,7 @@ def collect_function_sizes(call_graph: CallGraph) -> list[float]:
     return sizes
 
 
-def check_function_size(call_graph: CallGraph, config: HealthCheckConfig) -> StandardCheckSummary:
+def check_function_size(call_graph: ProgramGraph, config: HealthCheckConfig) -> StandardCheckSummary:
     """E1: Check function/method sizes across the call graph.
 
     Flags functions that exceed line count thresholds. Large functions are
@@ -37,7 +37,7 @@ def check_function_size(call_graph: CallGraph, config: HealthCheckConfig) -> Sta
     total_checked = 0
     threshold = config.function_size_max
 
-    for fqn, node in call_graph.nodes.items():
+    for fqn, node in call_graph.symbols.items():
         if node.is_class() or node.is_data():
             continue
 
