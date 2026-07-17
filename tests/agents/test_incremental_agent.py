@@ -18,6 +18,7 @@ from agents.agent_responses import (
 )
 from agents.file_index_models import FileEntry, FileMethodGroup, MethodEntry
 from agents.incremental_agent import (
+    _preserve_unchanged_relations,
     IncrementalAgent,
     _cluster_analysis_for_scope,
     _patch_file_methods,
@@ -499,6 +500,7 @@ class TestIncrementalRelations(unittest.TestCase):
             scope,
             "root",
             ScopeRelationContext(cluster_results=cluster_results, cfg_graphs={"python": cfg}),
+            {component.component_id for component in scope.components},
         )
 
         # generate_scope_relations returns what survived id assignment and edge
@@ -525,9 +527,9 @@ class TestIncrementalRelations(unittest.TestCase):
         root = AnalysisInsights(description="root", components=[], components_relations=[])
         context = ScopeRelationContext(cluster_results={}, cfg_graphs={})
 
-        agent.generate_all_scope_relations(root, {}, {"root": context})
+        agent.generate_all_scope_relations(root, {}, {"root": context}, set())
 
-        agent.generate_scope_relations.assert_called_once_with(root, "root", context)
+        agent.generate_scope_relations.assert_called_once_with(root, "root", context, set())
 
     def test_single_component_scope_clears_stale_relations_and_resolves_references(self) -> None:
         agent = object.__new__(IncrementalAgent)
@@ -543,6 +545,7 @@ class TestIncrementalRelations(unittest.TestCase):
             scope,
             "root",
             ScopeRelationContext(cluster_results={}, cfg_graphs={}),
+            set(),
         )
 
         self.assertEqual(result, [])
@@ -611,3 +614,43 @@ class TestPatchFileMethods(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestPreserveUnchangedRelations(unittest.TestCase):
+    @staticmethod
+    def _scope():
+        return AnalysisInsights(
+            description="root",
+            components=[_component("A", "1"), _component("B", "2"), _component("C", "3")],
+            components_relations=[],
+        )
+
+    def test_relation_between_two_unchanged_components_is_carried_over(self):
+        scope = self._scope()
+        baseline = [Relation(relation="uses", src_name="A", dst_name="B", evidence="original")]
+        regenerated = [Relation(relation="calls", src_name="A", dst_name="B", evidence="reworded")]
+        # Only component 3 changed; the A->B edge touches neither.
+        merged = _preserve_unchanged_relations(scope, baseline, regenerated, {"3"})
+        self.assertEqual(len(merged), 1)
+        self.assertEqual(merged[0].evidence, "original")
+
+    def test_relation_touching_a_changed_component_is_taken_from_regeneration(self):
+        scope = self._scope()
+        baseline = [Relation(relation="uses", src_name="A", dst_name="C", evidence="old")]
+        regenerated = [Relation(relation="calls", src_name="A", dst_name="C", evidence="new")]
+        merged = _preserve_unchanged_relations(scope, baseline, regenerated, {"3"})
+        self.assertEqual([r.evidence for r in merged], ["new"])
+
+    def test_a_deep_change_marks_the_top_level_component_changed(self):
+        scope = self._scope()
+        baseline = [Relation(relation="uses", src_name="A", dst_name="B")]
+        regenerated = [Relation(relation="calls", src_name="A", dst_name="B", evidence="new")]
+        # 1.2.4 changed, so component 1 (its ancestor) counts as changed.
+        merged = _preserve_unchanged_relations(scope, baseline, regenerated, {"1.2.4"})
+        self.assertEqual([r.evidence for r in merged], ["new"])
+
+    def test_a_spurious_new_relation_between_unchanged_components_is_dropped(self):
+        scope = self._scope()
+        regenerated = [Relation(relation="calls", src_name="A", dst_name="B")]
+        merged = _preserve_unchanged_relations(scope, [], regenerated, {"3"})
+        self.assertEqual(merged, [])

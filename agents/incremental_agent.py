@@ -310,16 +310,24 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
         scope: AnalysisInsights,
         scope_name: str,
         context: ScopeRelationContext,
+        changed_component_ids: set[str],
     ) -> list[Relation]:
-        """Run the API-surface and relation stages for one updated scope."""
+        """Run the API-surface and relation stages for one updated scope.
+
+        Only relations touching a changed component are taken from the LLM; a relation
+        between two components that did not change is carried over from the baseline.
+        A relation cannot have changed if neither of its endpoints did, and re-deriving
+        it invites the LLM to reword or drop a stable edge for no reason.
+        """
         if len(scope.components) < 2:
             scope.components_relations = []
             self.reference_resolver.fix_source_code_reference_lines(scope)
             return []
 
+        baseline_relations = list(scope.components_relations)
         cluster_analysis = _cluster_analysis_for_scope(scope, scope_name, context.cluster_results)
         api_surfaces = self.step_api_surfaces(scope, scope_name)
-        return self.step_relation_analysis(
+        self.step_relation_analysis(
             scope,
             scope_name,
             api_surfaces,
@@ -327,6 +335,11 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
             context.cluster_results,
             context.cfg_graphs,
         )
+        merged = _preserve_unchanged_relations(
+            scope, baseline_relations, scope.components_relations, changed_component_ids
+        )
+        scope.components_relations = merged
+        return merged
 
     @trace
     def generate_all_scope_relations(
@@ -334,23 +347,64 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
         root_analysis: AnalysisInsights,
         sub_analyses: dict[str, AnalysisInsights],
         relation_contexts: dict[str, ScopeRelationContext],
+        changed_component_ids: set[str],
     ) -> None:
         """Generate LLM relations for every touched scope with at least two components."""
         all_llm_rels: list[tuple[str, list[Relation]]] = []
         root_context = relation_contexts.get(ROOT_SCOPE_ID)
         if root_context is not None:
-            rels = self.generate_scope_relations(root_analysis, ROOT_SCOPE_ID, root_context)
+            rels = self.generate_scope_relations(root_analysis, ROOT_SCOPE_ID, root_context, changed_component_ids)
             if rels:
                 all_llm_rels.append((ROOT_SCOPE_ID, rels))
         for scope_id in sorted(relation_contexts.keys() - {ROOT_SCOPE_ID}):
             sub = sub_analyses.get(scope_id)
             if sub is not None:
-                rels = self.generate_scope_relations(sub, scope_id, relation_contexts[scope_id])
+                rels = self.generate_scope_relations(sub, scope_id, relation_contexts[scope_id], changed_component_ids)
                 if rels:
                     all_llm_rels.append((scope_id, rels))
 
         if all_llm_rels:
             _log_scope_relations_summary(all_llm_rels)
+
+
+def _preserve_unchanged_relations(
+    scope: AnalysisInsights,
+    baseline_relations: list[Relation],
+    regenerated_relations: list[Relation],
+    changed_component_ids: set[str],
+) -> list[Relation]:
+    """Keep regenerated relations that touch a changed component; carry the rest over.
+
+    A component counts as changed if it or any descendant changed. A relation between
+    two unchanged components is taken verbatim from the baseline, so a stable edge is
+    never reworded, dropped, or invented by re-running the LLM over an untouched scope.
+    """
+    id_by_name = {component.name: component.component_id for component in scope.components}
+    live_names = set(id_by_name)
+
+    def changed(name: str) -> bool:
+        component_id = id_by_name.get(name)
+        if component_id is None:
+            return True
+        return any(
+            touched == component_id or touched.startswith(f"{component_id}.") for touched in changed_component_ids
+        )
+
+    def touches_change(relation: Relation) -> bool:
+        return changed(relation.src_name) or changed(relation.dst_name)
+
+    kept = [relation for relation in regenerated_relations if touches_change(relation)]
+    seen = {(relation.src_name, relation.dst_name) for relation in kept}
+    for relation in baseline_relations:
+        if relation.src_name not in live_names or relation.dst_name not in live_names:
+            continue
+        if touches_change(relation):
+            continue
+        if (relation.src_name, relation.dst_name) in seen:
+            continue
+        kept.append(relation)
+        seen.add((relation.src_name, relation.dst_name))
+    return kept
 
 
 def _cluster_analysis_for_scope(

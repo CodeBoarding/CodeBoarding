@@ -874,6 +874,7 @@ class DiagramGenerator:
                     root_analysis,
                     sub_analyses,
                     apply_result.relation_contexts,
+                    apply_result.refresh_ids | apply_result.new_component_ids,
                 )
 
             self._refresh_files_index(root_analysis, sub_analyses)
