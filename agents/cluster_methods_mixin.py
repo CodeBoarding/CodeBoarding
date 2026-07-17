@@ -36,7 +36,7 @@ from static_analyzer.cluster_relations import (
     merge_relations,
 )
 from static_analyzer.constants import CALLABLE_TYPES, CLASS_TYPES, Language
-from static_analyzer.clustering import ClusterResult
+from static_analyzer.clustering import ClusterResult, InfomapClusterSnapshot
 from static_analyzer.program_graph import ProgramGraph, ProgramNode
 from static_analyzer.infomap_clustering import HierarchicalInfomapClusterer
 
@@ -48,6 +48,34 @@ class _RenderedClusterString:
     text: str
     by_language: dict[str, str]
     cluster_ids: set[GraphClusterId]
+
+
+def _lineage_seed(
+    program_graph: ProgramGraph,
+    scoped_program_graph: ProgramGraph,
+    scope_id: str,
+) -> InfomapClusterSnapshot | None:
+    """The scope's previous partition, so a re-run keeps its child cluster ids.
+
+    Why: the scoped graph is clustered from scratch, so without a seed every run
+    numbers this scope's clusters 1..N afresh. The ids are what child components
+    are re-partitioned against, so renumbering moves methods between components
+    for no reason but the ordering of a dict.
+    """
+    entries = scoped_snapshot_from_lineage(program_graph, scope_id)
+    if not entries:
+        return None
+    surviving = set(scoped_program_graph.nodes)
+    members = {
+        cluster_id: entry.members & surviving for cluster_id, entry in entries.items() if entry.members & surviving
+    }
+    if not members:
+        return None
+    return InfomapClusterSnapshot(
+        cluster_result=ClusterResult(),
+        module_members=members,
+        next_cluster_id=max(members) + 1,
+    )
 
 
 def scoped_snapshot_from_lineage(program_graph: ProgramGraph, scope_id: str) -> dict[int, ClusterSnapshotEntry]:
@@ -474,8 +502,10 @@ class ClusterMethodsMixin:
 
             if sub_cfg.nodes:
                 subgraph_cfgs[lang] = sub_cfg
-                program_graph = self.static_analysis.get_program_graph(lang)
-                scoped_program_graph = program_graph.induced_by_symbols(assigned_qnames)
+                scoped_program_graph = cfg.induced_by_symbols(assigned_qnames)
+                scoped_program_graph.cluster_snapshot = _lineage_seed(
+                    cfg, scoped_program_graph, source_cluster_id_prefix
+                )
                 sub_cluster_result = HierarchicalInfomapClusterer().cluster(scoped_program_graph)
 
                 # Expand to method-level if insufficient clusters

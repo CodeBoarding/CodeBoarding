@@ -4,6 +4,7 @@ from typing import Optional, List
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field, PrivateAttr
 from agents.agent_responses import ClusterAnalysis
+from repo_utils.change_detector import ChangeSet
 from repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.clustering import ClusterResult
@@ -14,6 +15,8 @@ class RepoContext(BaseModel):
     """
     Encapsulates shared dependencies for repository-aware tools.
     """
+
+    changes: ChangeSet | None = None
 
     repo_dir: Path
     ignore_manager: RepoIgnoreManager
