@@ -13,6 +13,7 @@ makes the partition blind to any change that does not add a symbol.
 
 from __future__ import annotations
 
+import logging
 from collections import defaultdict
 from hashlib import sha256
 from math import log1p
@@ -28,6 +29,12 @@ from static_analyzer.clustering import (
 )
 from static_analyzer.constants import InfomapConfig
 from static_analyzer.program_graph import ProgramEdgeKind, ProgramGraph, ProgramNodeKind
+
+
+logger = logging.getLogger(__name__)
+
+_PARTITION_SCHEME = "infomap-v2-leaf-level"
+"""Bump when the partitioning rule changes, so cached partitions are recomputed."""
 
 
 class HierarchicalInfomapClusterer:
@@ -50,7 +57,13 @@ class HierarchicalInfomapClusterer:
             node.id for node in program_graph.nodes.values() if node.kind != ProgramNodeKind.EXTERNAL_PACKAGE
         )
         if not node_names:
-            snapshot = InfomapClusterSnapshot(cluster_result=ClusterResult(strategy=InfomapConfig.EMPTY_STRATEGY))
+            # Carry the watermark: a graph that is momentarily empty (a failed language
+            # server, everything filtered) must not let the next run reissue ids this
+            # repo has already spent. _reconcile guards that, but nothing here reaches it.
+            snapshot = InfomapClusterSnapshot(
+                cluster_result=ClusterResult(strategy=InfomapConfig.EMPTY_STRATEGY),
+                next_cluster_id=previous.next_cluster_id if previous else 1,
+            )
             program_graph.cluster_snapshot = snapshot
             return snapshot.cluster_result
 
@@ -104,9 +117,16 @@ class HierarchicalInfomapClusterer:
         seeded = {node_id for members in previous.module_members.values() for node_id in members}
         return not (symbol_ids - seeded)
 
-    @staticmethod
-    def _fingerprint(node_names: list[str], weighted_edges: list[tuple[str, str, float]]) -> str:
+    def _fingerprint(self, node_names: list[str], weighted_edges: list[tuple[str, str, float]]) -> str:
+        """Identify the run, not just the graph.
+
+        The short-circuit reuses a partition when this matches, so anything the
+        partition is a function of belongs here. Hashing the graph alone means a
+        retuned seed, trial count or share cap silently returns the old answer for
+        every repo whose code has not changed — the fix would ship as a no-op.
+        """
         digest = sha256()
+        digest.update(f"{_PARTITION_SCHEME}|{self.seed}|{self.num_trials}|{self.max_module_share!r}|".encode())
         for node_id in node_names:
             digest.update(node_id.encode("utf-8", "surrogatepass"))
             digest.update(b"\x00")
@@ -180,18 +200,28 @@ class HierarchicalInfomapClusterer:
         return infomap, numeric_id
 
     def _choose_level(self, node_paths: dict[str, ModulePath], symbol_ids: set[str]) -> int:
-        """Deepest level whose largest module stays under the share cap.
+        """The finest level Infomap emits, warning when even that is a hairball.
 
-        Why: a count cannot pick the level — a graph can have 4 top modules and 65
-        leaf ones, and neither a floor nor a ceiling on k tells a real decomposition
-        apart from one module holding two thirds of the code.
+        Why not a search: module size is monotone non-increasing in level — refining a
+        partition only shrinks modules, and the symbol count is fixed — so a share
+        predicate true at some level is true at every level below it. The deepest
+        satisfying level is therefore always the deepest level. Reading the leaves is
+        the rule; the cap only decides whether to say the result is unusable.
         """
-        depth = max((len(path) for path in node_paths.values()), default=1)
-        level = 1
-        for candidate in range(1, depth + 1):
-            sizes = [len(members) for members in self._group(node_paths, candidate, symbol_ids).values()]
-            if sizes and max(sizes) / sum(sizes) <= self.max_module_share:
-                level = candidate
+        level = max((len(path) for path in node_paths.values()), default=1)
+        sizes = [len(members) for members in self._group(node_paths, level, symbol_ids).values()]
+        if sizes:
+            share = max(sizes) / sum(sizes)
+            if share > self.max_module_share:
+                # The caller is about to describe this as an architecture. Say that the
+                # finest map Infomap found still has no boundaries in it.
+                logger.warning(
+                    "Infomap's finest level puts %.0f%% of %d symbols in one module (cap %.0f%%); "
+                    "this partition is too coarse to describe components.",
+                    share * 100,
+                    sum(sizes),
+                    self.max_module_share * 100,
+                )
         return level
 
     @staticmethod

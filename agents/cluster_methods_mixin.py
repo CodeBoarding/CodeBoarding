@@ -401,7 +401,12 @@ class ClusterMethodsMixin:
                 )
             component.source_cluster_ids = CodeBoardingClusterIds.from_graph_ids(set(resolved_ids))
 
-    def _expand_to_method_level_clusters(self, cfg: ProgramGraph, cluster_result: ClusterResult) -> ClusterResult:
+    def _expand_to_method_level_clusters(
+        self,
+        cfg: ProgramGraph,
+        cluster_result: ClusterResult,
+        prior_owner: dict[str, int] | None = None,
+    ) -> ClusterResult:
         """
         Expand cluster results to method-level granularity when there are too few clusters.
 
@@ -409,9 +414,15 @@ class ClusterMethodsMixin:
         synthetic clusters where each method/function becomes its own cluster. This
         ensures fine-grained method assignment even for small components.
 
+        Ids come from ``prior_owner`` where the scope has seen the symbol before.
+        Why: the ids name this scope's sub-components, and numbering by sorted qname
+        means one symbol sorting early renumbers every one after it — moving methods
+        between components to follow a dict order rather than a code change.
+
         Args:
             cfg: The ProgramGraph containing symbols to cluster
             cluster_result: Original cluster result (may have insufficient clusters)
+            prior_owner: qname -> the id this scope gave it last run
 
         Returns:
             New ClusterResult with method-level clusters (each method = 1 cluster)
@@ -428,16 +439,24 @@ class ClusterMethodsMixin:
         new_cluster_to_files: dict[int, set[str]] = {}
         new_file_to_clusters: dict[str, set[int]] = defaultdict(set)
 
-        cluster_id = 0
+        owner = prior_owner or {}
+        next_id = max(owner.values(), default=-1) + 1
+
+        def take(qname: str, node: ProgramNode) -> None:
+            nonlocal next_id
+            cluster_id = owner.get(qname)
+            if cluster_id is None or cluster_id in new_clusters:
+                cluster_id = next_id
+                next_id += 1
+            new_clusters[cluster_id] = {qname}
+            new_cluster_to_files[cluster_id] = {node.file_path}
+            new_file_to_clusters[node.file_path].add(cluster_id)
+
         for qname, node in sorted(cfg.symbols.items()):
             # Only create clusters for callable types (functions, methods)
             if node.symbol_type not in CALLABLE_TYPES:
                 continue
-
-            new_clusters[cluster_id] = {qname}
-            new_cluster_to_files[cluster_id] = {node.file_path}
-            new_file_to_clusters[node.file_path].add(cluster_id)
-            cluster_id += 1
+            take(qname, node)
 
         # If we still have few clusters (e.g., only classes, no methods), include classes too
         if len(new_clusters) < MIN_CLUSTERS_THRESHOLD:
@@ -445,10 +464,7 @@ class ClusterMethodsMixin:
                 if node.symbol_type in CLASS_TYPES and qname not in {
                     name for members in new_clusters.values() for name in members
                 }:
-                    new_clusters[cluster_id] = {qname}
-                    new_cluster_to_files[cluster_id] = {node.file_path}
-                    new_file_to_clusters[node.file_path].add(cluster_id)
-                    cluster_id += 1
+                    take(qname, node)
 
         logger.info(f"Created {len(new_clusters)} method-level clusters from {len(cfg.symbols)} nodes")
 
@@ -508,8 +524,13 @@ class ClusterMethodsMixin:
                 )
                 sub_cluster_result = HierarchicalInfomapClusterer().cluster(scoped_program_graph)
 
-                # Expand to method-level if insufficient clusters
-                sub_cluster_result = self._expand_to_method_level_clusters(sub_cfg, sub_cluster_result)
+                # Expand to method-level if insufficient clusters, reusing the ids this
+                # scope already issued so the expansion cannot renumber what survived.
+                seed = scoped_program_graph.cluster_snapshot
+                prior_owner = (
+                    {qname: cid for cid, members in seed.module_members.items() for qname in members} if seed else {}
+                )
+                sub_cluster_result = self._expand_to_method_level_clusters(sub_cfg, sub_cluster_result, prior_owner)
                 cluster_results[lang] = sub_cluster_result
 
         # Hierarchical Infomap chooses granularity; only ID namespaces need

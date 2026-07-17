@@ -404,20 +404,21 @@ class ProgramGraph:
     def induced_by_symbols(self, symbol_ids: Iterable[str]) -> "ProgramGraph":
         """Return a strict symbol scope plus its file/package containment context."""
         included = {self.resolve_symbol_id(node_id) for node_id in symbol_ids if self.has_symbol(node_id)}
-        # Structural context only: a symbol's container may be its class, and pulling
-        # that in would widen the scope past the symbols asked for — the caller
-        # partitions components by exactly this set, so an extra class lands in a
-        # child scope its parent does not own.
+        # Containment is a tree — package -> file -> class -> method — so the walk has
+        # to pass THROUGH a container it will not keep to reach the file above it.
+        # Only file and package context is added: the caller partitions components by
+        # exactly the symbols it asked for, and a class it did not ask for would land
+        # in a child scope its parent does not own.
         context_kinds = (ProgramNodeKind.FILE, ProgramNodeKind.PACKAGE)
-        changed = True
-        while changed:
-            changed = False
-            for edge in self.edges_of_kind(ProgramEdgeKind.CONTAINS):
-                if edge.target in included and edge.source not in included:
-                    if self.nodes[edge.source].kind not in context_kinds:
-                        continue
-                    included.add(edge.source)
-                    changed = True
+        containers = {edge.target: edge.source for edge in self.edges_of_kind(ProgramEdgeKind.CONTAINS)}
+        for node_id in list(included):
+            walker = containers.get(node_id)
+            seen: set[str] = set()
+            while walker is not None and walker not in seen:
+                seen.add(walker)
+                if self.nodes[walker].kind in context_kinds:
+                    included.add(walker)
+                walker = containers.get(walker)
 
         # External dependencies remain evidence on the scoped graph, while
         # internal imports outside the strict symbol scope stay excluded.
