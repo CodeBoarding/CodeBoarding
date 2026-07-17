@@ -3,6 +3,7 @@ import unittest
 from unittest.mock import MagicMock
 
 from agents.validation import (
+    _update_component_errors,
     VALIDATOR_WEIGHTS,
     ValidationContext,
     ValidationResult,
@@ -16,6 +17,8 @@ from agents.validation import (
     _check_edge_between_cluster_sets,
 )
 from agents.agent_responses import (
+    ScopeOperationAction,
+    ScopeOperation,
     ClusterAnalysis,
     ClustersComponent,
     AnalysisInsights,
@@ -885,3 +888,34 @@ class TestValidateRelationEvidence(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestUpdateComponentFields(unittest.TestCase):
+    """update_component applies name/description verbatim and nothing else checks them."""
+
+    @staticmethod
+    def _op(**kwargs):
+        return ScopeOperation(action=ScopeOperationAction.UPDATE_COMPONENT, cluster_refs=[], rationale="r", **kwargs)
+
+    def test_name_that_is_the_components_own_id_is_rejected(self):
+        errors = _update_component_errors(self._op(component_id="1", name="1"))
+        self.assertTrue(any("own id" in error for error in errors))
+
+    def test_description_narrating_the_edit_is_rejected(self):
+        errors = _update_component_errors(
+            self._op(component_id="1", description="Updating component to reflect new plugin registration.")
+        )
+        self.assertTrue(any("describes the edit" in error for error in errors))
+
+    def test_a_real_name_and_description_are_accepted(self):
+        errors = _update_component_errors(
+            self._op(
+                component_id="1",
+                name="Orchestration & Extension Engine",
+                description="Routes documents to converters and owns plugin registration.",
+            )
+        )
+        self.assertEqual(errors, [])
+
+    def test_omitting_name_and_description_keeps_the_existing_ones(self):
+        self.assertEqual(_update_component_errors(self._op(component_id="1")), [])

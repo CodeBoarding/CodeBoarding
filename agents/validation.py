@@ -12,6 +12,7 @@ from agents.agent_responses import (
     Component,
     ComponentFiles,
     Relation,
+    ScopeOperation,
     ScopeOperationAction,
     ScopeRelations,
     ScopeUpdateDecision,
@@ -122,6 +123,8 @@ def validate_scope_update_decision(
             operation.name or operation.description or operation.key_entities
         ):
             errors.append("noop operations must preserve the component name, description, and key entities.")
+        if operation.action == ScopeOperationAction.UPDATE_COMPONENT:
+            errors.extend(_update_component_errors(operation))
         if len(operation.key_entities) > 5:
             errors.append(f"Operation {operation.action} includes more than five key entities.")
         entity_qnames = [entity.qualified_name for entity in operation.key_entities]
@@ -246,6 +249,58 @@ def validate_cluster_coverage(result: ClusterAnalysis, context: ValidationContex
         return ValidationResult(is_valid=True)
 
     return ValidationResult(is_valid=False, feedback_messages=feedback_messages)
+
+
+def _update_component_errors(operation: ScopeOperation) -> list[str]:
+    """Reject an update that names the component after its own id, or describes the edit.
+
+    Why: update carries the component's new name and description, and they are applied
+    verbatim. Nothing else checks them, so a plan that answers "1" for the name of
+    component 1, or writes its own instruction where the description goes, is written
+    into the document and shipped.
+    """
+    errors: list[str] = []
+    name = (operation.name or "").strip()
+    description = (operation.description or "").strip()
+    if name and name == (operation.component_id or "").strip():
+        errors.append(
+            f"update_component for {operation.component_id!r} set name={name!r}, which is the component's own id. "
+            f"Give the component's real name, or omit the field to keep it."
+        )
+    if description and _reads_as_an_instruction(description):
+        errors.append(
+            f"update_component for {operation.component_id!r} set a description that describes the edit "
+            f"({description[:60]!r}...) rather than the component. Describe what the component does."
+        )
+    return errors
+
+
+_EDIT_NARRATION_PREFIXES = (
+    "updating ",
+    "update ",
+    "updated ",
+    "creating ",
+    "create ",
+    "created ",
+    "adding ",
+    "add ",
+    "added ",
+    "removing ",
+    "remove ",
+    "removed ",
+    "modifying ",
+    "modify ",
+    "modified ",
+    "changing ",
+    "change ",
+    "changed ",
+)
+
+
+def _reads_as_an_instruction(description: str) -> bool:
+    """Whether a description narrates the edit instead of the component."""
+    lowered = description.lstrip().lower()
+    return lowered.startswith(_EDIT_NARRATION_PREFIXES)
 
 
 def validate_existing_component_ids(result: ClusterAnalysis, context: ValidationContext) -> ValidationResult:

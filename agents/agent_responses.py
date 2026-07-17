@@ -616,7 +616,13 @@ def assign_component_ids(analysis: AnalysisInsights, parent_id: str = "", only_n
 
 
 def assign_relation_ids(analysis: AnalysisInsights) -> None:
-    """Assign relation component IDs by looking up component names."""
+    """Resolve relation endpoints to component ids, dropping the ones that cannot resolve.
+
+    Why drop: an endpoint naming no component leaves the id empty, which renders as
+    an edge to nothing. The relation validator asks the model to fix these, but the
+    agent keeps the best-scoring candidate once its attempts run out, so an invalid
+    edge set still reaches here. A named relation nobody can follow is not evidence.
+    """
     name_to_id: dict[str, str] = {}
     for c in analysis.components:
         if c.name in name_to_id:
@@ -626,9 +632,27 @@ def assign_relation_ids(analysis: AnalysisInsights) -> None:
             )
         else:
             name_to_id[c.name] = c.component_id
+
+    resolved: list[Relation] = []
+    unresolved: list[str] = []
     for relation in analysis.components_relations:
-        relation.src_id = name_to_id.get(relation.src_name, "")
-        relation.dst_id = name_to_id.get(relation.dst_name, "")
+        src_id = name_to_id.get(relation.src_name, "")
+        dst_id = name_to_id.get(relation.dst_name, "")
+        if not src_id or not dst_id:
+            missing = [n for n, i in ((relation.src_name, src_id), (relation.dst_name, dst_id)) if not i]
+            unresolved.append(f"{relation.src_name} -> {relation.dst_name} (unknown: {', '.join(missing)})")
+            continue
+        relation.src_id = src_id
+        relation.dst_id = dst_id
+        resolved.append(relation)
+
+    if unresolved:
+        logger.warning(
+            "Dropped %d relation(s) naming components that do not exist in this scope: %s",
+            len(unresolved),
+            "; ".join(unresolved[:10]),
+        )
+    analysis.components_relations = resolved
 
 
 def iter_components(
