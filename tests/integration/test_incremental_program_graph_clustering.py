@@ -85,6 +85,23 @@ def _assert_scope_stability(
         assert base.cluster_snapshot.node_paths[node_id][0] == incremental.cluster_snapshot.node_paths[node_id][0]
 
 
+def _assert_changed_file_stability(
+    base: ProgramGraph,
+    incremental: ProgramGraph,
+    changed_files: set[str],
+    expected: dict,
+) -> None:
+    assert base.cluster_snapshot is not None
+    assert incremental.cluster_snapshot is not None
+    stable_symbols = expected.get("stable_changed_file_symbols", [])
+    assert len(stable_symbols) == expected.get("stable_changed_file_symbol_count", 0)
+    checked_symbols = set(stable_symbols) | set(expected.get("stable_changed_file_examples", []))
+    for node_id in checked_symbols:
+        assert base.nodes[node_id].file_path in changed_files
+        assert incremental.nodes[node_id].file_path in changed_files
+        assert base.cluster_snapshot.node_paths[node_id][0] == incremental.cluster_snapshot.node_paths[node_id][0]
+
+
 def _language_graphs(manifest_path: Path) -> list[RecordedGraphs]:
     manifest = json.loads(manifest_path.read_text())
     return [
@@ -141,7 +158,8 @@ def test_recorded_incremental_clustering_preserves_scope(manifest_path: Path | N
     for base, incremental, _head, changed_files, config in _language_graphs(manifest_path):
         clusterer = HierarchicalInfomapClusterer()
         base_result = clusterer.cluster(base)
-        incremental.cluster_snapshot = base.cluster_snapshot
+        pruned_base = base.without_files(changed_files)
+        incremental.cluster_snapshot = pruned_base.cluster_snapshot
         incremental_result = clusterer.cluster(incremental)
         _assert_clustering(base_result, incremental_result, config["expected_clustering"])
         _assert_scope_stability(
@@ -152,11 +170,13 @@ def test_recorded_incremental_clustering_preserves_scope(manifest_path: Path | N
             changed_files,
             config["expected_clustering"]["stable_outside_symbol_count"],
         )
+        _assert_changed_file_stability(base, incremental, changed_files, config["expected_clustering"])
 
         repeat_base = ProgramGraph.from_dict(base.to_dict())
         repeat_incremental = ProgramGraph.from_dict(incremental.to_dict())
         repeat_base_result = clusterer.cluster(repeat_base)
-        repeat_incremental.cluster_snapshot = repeat_base.cluster_snapshot
+        repeat_pruned_base = repeat_base.without_files(changed_files)
+        repeat_incremental.cluster_snapshot = repeat_pruned_base.cluster_snapshot
         repeat_incremental_result = clusterer.cluster(repeat_incremental)
         assert repeat_base_result.clusters == base_result.clusters
         assert repeat_incremental_result.clusters == incremental_result.clusters
