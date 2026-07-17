@@ -246,10 +246,21 @@ def normalize_path(path: str | Path, root: str | Path | None = None) -> Path:
     root_obj = Path(root) if root else None
 
     if root_obj and path_obj.is_absolute():
+        # Try the raw forms first, then symlink-resolved forms: a language server
+        # reports a file under the resolved '/private/var' while the repo root is the
+        # raw '/var' symlink, so a direct relative_to fails and the path would wrongly
+        # stay absolute — leaving it uncomparable to the relative paths everywhere else.
+        candidates = [(path_obj, root_obj)]
         try:
-            path_obj = path_obj.relative_to(root_obj)
-        except (ValueError, TypeError):
+            candidates.append((path_obj.resolve(), root_obj.resolve()))
+        except OSError:
             pass
+        for candidate_path, candidate_root in candidates:
+            try:
+                path_obj = candidate_path.relative_to(candidate_root)
+                break
+            except (ValueError, TypeError):
+                continue
 
     return Path(normalize_repo_path(path_obj))
 
