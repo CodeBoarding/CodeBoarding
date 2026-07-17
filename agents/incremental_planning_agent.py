@@ -145,7 +145,14 @@ def _component_ids_by_cluster_ref(
     components: list[Component],
     structural_diff: StructuralClusterDiff,
 ) -> dict[ClusterRef, str]:
-    """Map new-side cluster refs to a unique existing owner when overlap proves one."""
+    """Map each new-side cluster ref to the prior owner that carried most of its members.
+
+    A reshape can tangle clusters from several components into one new cluster. The
+    prior owner holding a majority of the members that carried over keeps it, so a
+    small addition does not hand a stable cluster to whichever component the planner
+    happens to pick. When no prior owner has a majority the cluster is a genuine
+    merge and the planner decides.
+    """
     cluster_id_prefix = CodeBoardingClusterIds.prefix_for_scope(scope_id)
     owners_by_cluster_id: dict[str, set[str]] = {}
     for component in components:
@@ -162,21 +169,33 @@ def _component_ids_by_cluster_ref(
         owners = owners_by_cluster_id.get(cluster_id, set())
         return next(iter(owners)) if len(owners) == 1 else None
 
-    owners_by_new_ref: dict[ClusterRef, set[str]] = {}
+    # Per new cluster: retained members contributed by each prior owner, and the
+    # total retained (including old clusters no single component owns).
+    by_owner: dict[ClusterRef, dict[str, int]] = {}
+    retained_total: dict[ClusterRef, int] = {}
+
+    def credit(new_ref: ClusterRef, old_ref: ClusterRef, overlap: int) -> None:
+        if overlap <= 0:
+            return
+        retained_total[new_ref] = retained_total.get(new_ref, 0) + overlap
+        owner = owner_for_old_ref(old_ref)
+        if owner:
+            per = by_owner.setdefault(new_ref, {})
+            per[owner] = per.get(owner, 0) + overlap
+
     for language_diff in structural_diff.by_language.values():
         for delta in language_diff.modified:
-            owner = owner_for_old_ref(delta.old_cluster)
-            if owner:
-                owners_by_new_ref.setdefault(delta.new_cluster, set()).add(owner)
+            credit(delta.new_cluster, delta.old_cluster, len(delta.unchanged_methods))
         for reshape in language_diff.reshaped:
             for (old_ref, new_ref), overlap in reshape.overlap_counts.items():
-                if overlap <= 0:
-                    continue
-                owner = owner_for_old_ref(old_ref)
-                if owner:
-                    owners_by_new_ref.setdefault(new_ref, set()).add(owner)
+                credit(new_ref, old_ref, overlap)
 
-    return {ref: next(iter(owner_ids)) for ref, owner_ids in owners_by_new_ref.items() if len(owner_ids) == 1}
+    resolved: dict[ClusterRef, str] = {}
+    for new_ref, per_owner in by_owner.items():
+        owner, held = max(per_owner.items(), key=lambda item: item[1])
+        if held * 2 > retained_total[new_ref]:
+            resolved[new_ref] = owner
+    return resolved
 
 
 def _component_ids_by_name(components: list[Component]) -> dict[str, str]:

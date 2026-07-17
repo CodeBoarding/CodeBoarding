@@ -1135,3 +1135,82 @@ def test_scope_operation_rejects_regenerate_scope() -> None:
                 "rationale": "Reparenting is not a valid incremental operation.",
             }
         )
+
+
+def _ref(cid: int) -> ClusterRef:
+    return ClusterRef(language="python", cluster_id=cid)
+
+
+def _components_owning(mapping: dict[str, list[str]]) -> list[Component]:
+    return [
+        Component(name=f"C{cid}", description="", component_id=cid, source_cluster_ids=list(clusters), key_entities=[])
+        for cid, clusters in mapping.items()
+    ]
+
+
+def test_majority_prior_owner_keeps_a_reshaped_cluster() -> None:
+    # New cluster 7 draws 3 retained members from component A's old cluster and 1
+    # from component B's. A holds the majority, so 7 stays with A rather than going
+    # to whichever component the planner picks.
+    components = _components_owning({"1": ["1"], "2": ["2"]})
+    structural = StructuralClusterDiff(
+        by_language={
+            "python": LanguageStructuralDiff(
+                language="python",
+                reshaped=[
+                    ClusterReshape(
+                        old_clusters=[_ref(1), _ref(2)],
+                        new_clusters=[_ref(7)],
+                        overlap_counts={(_ref(1), _ref(7)): 3, (_ref(2), _ref(7)): 1},
+                    )
+                ],
+            )
+        }
+    )
+    resolved = _component_ids_by_cluster_ref(ROOT_SCOPE_ID, components, structural)
+    assert resolved[_ref(7)] == "1"
+
+
+def test_a_genuine_merge_with_no_majority_is_left_to_the_planner() -> None:
+    # New cluster 7 is an even split between two prior owners: no majority, so the
+    # planner decides rather than a coin-flip forcing one.
+    components = _components_owning({"1": ["1"], "2": ["2"]})
+    structural = StructuralClusterDiff(
+        by_language={
+            "python": LanguageStructuralDiff(
+                language="python",
+                reshaped=[
+                    ClusterReshape(
+                        old_clusters=[_ref(1), _ref(2)],
+                        new_clusters=[_ref(7)],
+                        overlap_counts={(_ref(1), _ref(7)): 2, (_ref(2), _ref(7)): 2},
+                    )
+                ],
+            )
+        }
+    )
+    resolved = _component_ids_by_cluster_ref(ROOT_SCOPE_ID, components, structural)
+    assert _ref(7) not in resolved
+
+
+def test_a_grown_but_stable_cluster_keeps_its_owner() -> None:
+    # A modified cluster that only gained members keeps its owner: every retained
+    # member is still that owner's.
+    components = _components_owning({"1": ["5"]})
+    structural = StructuralClusterDiff(
+        by_language={
+            "python": LanguageStructuralDiff(
+                language="python",
+                modified=[
+                    ClusterMemberDelta(
+                        old_cluster=_ref(5),
+                        new_cluster=_ref(5),
+                        unchanged_methods={"pkg.a", "pkg.b", "pkg.c"},
+                        added_methods={"pkg.new"},
+                    )
+                ],
+            )
+        }
+    )
+    resolved = _component_ids_by_cluster_ref(ROOT_SCOPE_ID, components, structural)
+    assert resolved[_ref(5)] == "1"
