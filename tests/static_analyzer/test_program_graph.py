@@ -247,6 +247,27 @@ def test_infomap_update_preserves_cluster_identity(tmp_path: Path) -> None:
     assert after_owners["pkg.app.new_handler"] == before_owners["pkg.app.run"]
 
 
+def test_file_splice_preserves_reintroduced_symbol_cluster_lineage(tmp_path: Path) -> None:
+    graph = _graph(tmp_path)
+    clusterer = HierarchicalInfomapClusterer()
+    clusterer.cluster(graph)
+    assert graph.cluster_snapshot is not None
+    previous_path = graph.cluster_snapshot.node_paths["pkg.app.run"]
+    app = str(tmp_path / "app.py")
+    delta = graph.filter_by_files({app})
+
+    updated = graph.without_files({app})
+    assert "pkg.app.run" not in updated.nodes
+    assert updated.cluster_snapshot is not None
+    assert updated.cluster_snapshot.node_paths["pkg.app.run"] == previous_path
+
+    updated.merge(delta)
+    clusterer.cluster(updated)
+
+    assert updated.cluster_snapshot is not None
+    assert updated.cluster_snapshot.node_paths["pkg.app.run"][0] == previous_path[0]
+
+
 def test_symbol_scope_keeps_structural_context(tmp_path: Path) -> None:
     graph = _graph(tmp_path)
     HierarchicalInfomapClusterer().cluster(graph)

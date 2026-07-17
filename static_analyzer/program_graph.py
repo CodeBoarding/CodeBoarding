@@ -389,16 +389,6 @@ class ProgramGraph:
         out._aliases = {alias: target for alias, target in self._aliases.items() if target in out.nodes}
         out.method_cluster_paths = self.method_cluster_paths.prune(out.nodes)
         out.cluster_snapshot = copy.deepcopy(self.cluster_snapshot)
-        if out.cluster_snapshot is not None:
-            surviving = set(out.nodes)
-            out.cluster_snapshot.node_paths = {
-                node_id: path for node_id, path in out.cluster_snapshot.node_paths.items() if node_id in surviving
-            }
-            out.cluster_snapshot.module_members = {
-                cluster_id: members & surviving
-                for cluster_id, members in out.cluster_snapshot.module_members.items()
-                if members & surviving
-            }
         return out
 
     def induced_by_symbols(self, symbol_ids: Iterable[str]) -> "ProgramGraph":
