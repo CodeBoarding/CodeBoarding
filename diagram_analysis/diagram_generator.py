@@ -329,7 +329,7 @@ def _fully_unchanged_component_ids(
     """Ids of components whose entire subtree is byte-identical to the baseline.
 
     A component qualifies when, at every depth, no member changed and it neither gained nor
-    lost one. Containment (parent ⊇ every descendant) means a component's own top-level
+    lost one. Containment (parent is a superset of every descendant) means a component's own top-level
     member set already spans its whole subtree, so testing that set is enough: no member
     qname is in ``changed_members`` and the live keys equal the baseline. A subtree holding
     a freshly created component is excluded — restoring it verbatim would delete that
