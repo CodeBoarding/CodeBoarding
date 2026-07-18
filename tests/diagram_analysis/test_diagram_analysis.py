@@ -42,6 +42,7 @@ from diagram_analysis.diagram_generator import (
     _component_expansion_seeds,
     _restore_unchanged_membership,
     _restore_unchanged_metadata,
+    _restore_unchanged_subtrees,
 )
 from diagram_analysis.exceptions import IncrementalCacheMissingError
 from static_analyzer.analysis_cache import StaticAnalysisCache
@@ -1812,6 +1813,100 @@ class TestUnchangedComponentPreservation(unittest.TestCase):
 
         self.assertEqual(_pm_owned(child_x), {("p.py", "p.a")})
         self.assertEqual(_pm_owned(child_y), {("p.py", "p.b")})
+
+
+def _pm_child_map(scope: AnalysisInsights) -> dict[str, str]:
+    """qualified_name -> owning child component_id, across one scope."""
+    return {
+        method.qualified_name: component.component_id
+        for component in scope.components
+        for group in component.file_methods
+        for method in group.methods
+    }
+
+
+class TestUnchangedSubtreePreservation(unittest.TestCase):
+    """A component with no changed member keeps its whole sub-component structure verbatim."""
+
+    def test_unchanged_subtree_child_mapping_preserved_verbatim(self):
+        # Only X changed. Y's top-level ownership is intact, but its child scope got
+        # reshuffled (a child even vanished) the way a re-partition/reconcile can. Restoring
+        # the subtree must reinstate the exact method->child map, not merely top ownership.
+        x = _pm_component("X", "1", {"x.py": [_pm_method("x.x1")]})
+        y = _pm_component("Y", "2", {"p.py": [_pm_method("y.a"), _pm_method("y.b")]})
+        root = AnalysisInsights(description="root", components=[x, y], components_relations=[])
+        y1 = _pm_component("Y1", "2.1", {"p.py": [_pm_method("y.a")]})
+        y2 = _pm_component("Y2", "2.2", {"p.py": [_pm_method("y.b")]})
+        y_scope = AnalysisInsights(description="Y", components=[y1, y2], components_relations=[])
+        sub_analyses = {"2": y_scope}
+        baseline = _capture_membership_baseline(root, sub_analyses)
+
+        # The re-partition collapsed Y's child scope: both methods under Y1, Y2 gone. This is
+        # drift that membership-pinning alone can't undo — Y2's baseline owner no longer exists.
+        y1.file_methods = [FileMethodGroup(file_path="p.py", methods=[_pm_method("y.a"), _pm_method("y.b")])]
+        y_scope.components = [y1]
+
+        preserved = _restore_unchanged_subtrees(root, sub_analyses, baseline, {"x.x1"}, set())
+
+        self.assertIn("2", preserved)
+        self.assertEqual(_pm_child_map(sub_analyses["2"]), {"y.a": "2.1", "y.b": "2.2"})
+
+    def test_changed_component_subtree_is_not_frozen(self):
+        # X genuinely changed; its re-partition stands, not the baseline.
+        x = _pm_component("X", "1", {"x.py": [_pm_method("x.a"), _pm_method("x.b")]})
+        root = AnalysisInsights(description="root", components=[x], components_relations=[])
+        x1 = _pm_component("X1", "1.1", {"x.py": [_pm_method("x.a")]})
+        x2 = _pm_component("X2", "1.2", {"x.py": [_pm_method("x.b")]})
+        x_scope = AnalysisInsights(description="X", components=[x1, x2], components_relations=[])
+        sub_analyses = {"1": x_scope}
+        baseline = _capture_membership_baseline(root, sub_analyses)
+
+        x1.file_methods = [FileMethodGroup(file_path="x.py", methods=[_pm_method("x.a"), _pm_method("x.b")])]
+        x_scope.components = [x1]
+
+        preserved = _restore_unchanged_subtrees(root, sub_analyses, baseline, {"x.b"}, set())
+
+        self.assertNotIn("1", preserved)
+        self.assertEqual([c.component_id for c in sub_analyses["1"].components], ["1.1"])
+
+    def test_new_component_in_subtree_blocks_freeze(self):
+        # A planner split created a new child inside Y; freezing Y verbatim would delete it.
+        y = _pm_component("Y", "2", {"p.py": [_pm_method("y.a"), _pm_method("y.b")]})
+        root = AnalysisInsights(description="root", components=[y], components_relations=[])
+        y1 = _pm_component("Y1", "2.1", {"p.py": [_pm_method("y.a"), _pm_method("y.b")]})
+        y_scope = AnalysisInsights(description="Y", components=[y1], components_relations=[])
+        sub_analyses = {"2": y_scope}
+        baseline = _capture_membership_baseline(root, sub_analyses)
+
+        new_child = _pm_component("Y2", "2.2", {"p.py": [_pm_method("y.b")]})
+        y1.file_methods = [FileMethodGroup(file_path="p.py", methods=[_pm_method("y.a")])]
+        y_scope.components = [y1, new_child]
+
+        preserved = _restore_unchanged_subtrees(root, sub_analyses, baseline, set(), {"2.2"})
+
+        self.assertNotIn("2", preserved)
+        self.assertEqual({c.component_id for c in sub_analyses["2"].components}, {"2.1", "2.2"})
+
+    def test_nested_grandchild_scope_preserved(self):
+        # A change nowhere near Y freezes its entire depth, grandchild scope included.
+        y = _pm_component("Y", "2", {"p.py": [_pm_method("y.a"), _pm_method("y.b")]})
+        root = AnalysisInsights(description="root", components=[y], components_relations=[])
+        y1 = _pm_component("Y1", "2.1", {"p.py": [_pm_method("y.a"), _pm_method("y.b")]})
+        y_scope = AnalysisInsights(description="Y", components=[y1], components_relations=[])
+        g1 = _pm_component("G1", "2.1.1", {"p.py": [_pm_method("y.a")]})
+        g2 = _pm_component("G2", "2.1.2", {"p.py": [_pm_method("y.b")]})
+        y1_scope = AnalysisInsights(description="Y1", components=[g1, g2], components_relations=[])
+        sub_analyses = {"2": y_scope, "2.1": y1_scope}
+        baseline = _capture_membership_baseline(root, sub_analyses)
+
+        # Deep drift: both grandchild methods collapse under G1.
+        g1.file_methods = [FileMethodGroup(file_path="p.py", methods=[_pm_method("y.a"), _pm_method("y.b")])]
+        y1_scope.components = [g1]
+
+        preserved = _restore_unchanged_subtrees(root, sub_analyses, baseline, set(), set())
+
+        self.assertEqual(preserved & {"2", "2.1", "2.1.1", "2.1.2"}, {"2", "2.1"})
+        self.assertEqual(_pm_child_map(sub_analyses["2.1"]), {"y.a": "2.1.1", "y.b": "2.1.2"})
 
 
 if __name__ == "__main__":

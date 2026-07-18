@@ -188,6 +188,10 @@ class _MembershipBaseline:
     # scope_id -> (file_path, qname) -> the baseline method entry (restored verbatim)
     entry_by_scope: dict[str, dict[tuple[str, str], MethodEntry]] = field(default_factory=dict)
     meta_by_id: dict[str, _ComponentBaseline] = field(default_factory=dict)
+    # sub-scope_id -> a verbatim deep copy of the child-scope analysis, so a component with
+    # no changed member anywhere in its subtree can have its whole sub-component structure
+    # (which method sits in which child) restored, not just its top-level ownership.
+    scope_by_id: dict[str, AnalysisInsights] = field(default_factory=dict)
 
 
 def _iter_incremental_scopes(
@@ -212,6 +216,8 @@ def _capture_membership_baseline(
     """
     baseline = _MembershipBaseline()
     for scope_id, analysis in _iter_incremental_scopes(root_analysis, sub_analyses):
+        if scope_id != ROOT_SCOPE_ID:
+            baseline.scope_by_id[scope_id] = analysis.model_copy(deep=True)
         owner = baseline.owner_by_scope.setdefault(scope_id, {})
         entries = baseline.entry_by_scope.setdefault(scope_id, {})
         for component in analysis.components:
@@ -310,6 +316,77 @@ def _restore_unchanged_metadata(
             component.source_group_names = list(meta.source_group_names)
             unchanged_ids.add(component.component_id)
     return unchanged_ids
+
+
+def _fully_unchanged_component_ids(
+    root_analysis: AnalysisInsights,
+    sub_analyses: dict[str, AnalysisInsights],
+    baseline: _MembershipBaseline,
+    changed_members: set[str],
+    protected_ids: set[str],
+) -> set[str]:
+    """Ids of components whose entire subtree is byte-identical to the baseline.
+
+    A component qualifies when, at every depth, no member changed and it neither gained nor
+    lost one. Containment (parent ⊇ every descendant) means a component's own top-level
+    member set already spans its whole subtree, so testing that set is enough: no member
+    qname is in ``changed_members`` and the live keys equal the baseline. A subtree holding
+    a freshly created component is excluded — restoring it verbatim would delete that
+    component, and new components are never restored.
+    """
+    fully_unchanged: set[str] = set()
+    for _scope_id, analysis in _iter_incremental_scopes(root_analysis, sub_analyses):
+        for component in analysis.components:
+            cid = component.component_id
+            meta = baseline.meta_by_id.get(cid)
+            if meta is None or meta.member_qnames & changed_members:
+                continue
+            if any(is_self_or_descendant(protected_id, cid) for protected_id in protected_ids):
+                continue
+            live_keys = frozenset(
+                (group.file_path, method.qualified_name) for group in component.file_methods for method in group.methods
+            )
+            if live_keys == meta.member_keys:
+                fully_unchanged.add(cid)
+    return fully_unchanged
+
+
+def _restore_unchanged_subtrees(
+    root_analysis: AnalysisInsights,
+    sub_analyses: dict[str, AnalysisInsights],
+    baseline: _MembershipBaseline,
+    changed_members: set[str],
+    protected_ids: set[str],
+) -> set[str]:
+    """Restore the whole child-scope subtree of every fully-unchanged component, verbatim.
+
+    ``_restore_unchanged_membership`` pins top-level ownership, but a component's child
+    sub-components live in separate scopes that the re-partition — or the later
+    ``_rescope_child_analyses`` reconcile — can still reshuffle, moving a method from one
+    child to a sibling. That shifts the node->deepest-component map and churns the
+    deepest-granularity relations even though nothing in the component changed. For every
+    component whose subtree has no changed member, replace each descendant scope with its
+    baseline deep copy so which method sits in which child is identical to the baseline.
+
+    Returns the full set of preserved ids so the caller can skip them in the reconcile pass;
+    the restore itself only rewrites each maximal subtree once (restoring a root already
+    covers its descendants).
+    """
+    fully_unchanged = _fully_unchanged_component_ids(
+        root_analysis, sub_analyses, baseline, changed_members, protected_ids
+    )
+    for scope_id, analysis in _iter_incremental_scopes(root_analysis, sub_analyses):
+        # A component whose parent scope is also fully unchanged is restored by that parent.
+        if scope_id != ROOT_SCOPE_ID and scope_id in fully_unchanged:
+            continue
+        for component in analysis.components:
+            cid = component.component_id
+            if cid not in fully_unchanged:
+                continue
+            for descendant_id, baseline_scope in baseline.scope_by_id.items():
+                if is_self_or_descendant(descendant_id, cid):
+                    sub_analyses[descendant_id] = baseline_scope.model_copy(deep=True)
+    return fully_unchanged
 
 
 class DiagramGenerator:
@@ -912,6 +989,7 @@ class DiagramGenerator:
         self,
         scope: AnalysisInsights,
         sub_analyses: dict[str, AnalysisInsights],
+        preserved_ids: set[str],
     ) -> None:
         """Reconcile each child scope whose membership diverges from its parent's, surgically.
 
@@ -926,8 +1004,14 @@ class DiagramGenerator:
         surgical (drop departed, graft entered) rather than a fresh re-cluster, so even a
         genuinely-changed component keeps its unchanged methods where they already were.
         Recurse into every scope so a deeper boundary that shifted is still caught.
+
+        ``preserved_ids`` are components whose subtree was already restored verbatim from
+        the baseline; reconciling them would graft the parent's undistributed methods into
+        children and re-drift the very structure the restore froze, so skip them entirely.
         """
         for component in scope.components:
+            if component.component_id in preserved_ids:
+                continue
             child_scope = sub_analyses.get(component.component_id)
             if child_scope is None or not child_scope.components:
                 continue
@@ -935,7 +1019,7 @@ class DiagramGenerator:
             child_keys = _owned_method_keys(child_scope.components)
             if parent_keys != child_keys:
                 _reconcile_child_scope(component, child_scope, parent_keys, child_keys, self.repo_location)
-            self._rescope_child_analyses(child_scope, sub_analyses)
+            self._rescope_child_analyses(child_scope, sub_analyses, preserved_ids)
 
     def _apply_incremental_scope_recursively(
         self,
@@ -1070,7 +1154,7 @@ class DiagramGenerator:
                 # go stale (relations are already the global set here).
                 # Re-scope anyway: a baseline written before child scopes were
                 # confined to their parent stays drifted until something repairs it.
-                self._rescope_child_analyses(root_analysis, sub_analyses)
+                self._rescope_child_analyses(root_analysis, sub_analyses, set())
                 self._refresh_files_index(root_analysis, sub_analyses)
                 return self.finalize_and_save(root_analysis, sub_analyses)
 
@@ -1091,7 +1175,9 @@ class DiagramGenerator:
                 sub_analyses,
             )
             # Pin unchanged methods back to their baseline owner so the re-partition only
-            # moves what genuinely changed, then reconcile child scopes against the result.
+            # moves what genuinely changed, then freeze the whole subtree of any component
+            # with no changed member so its sub-component boundaries can't drift, and finally
+            # reconcile the child scopes that genuinely moved.
             _restore_unchanged_membership(
                 root_analysis,
                 sub_analyses,
@@ -1099,7 +1185,14 @@ class DiagramGenerator:
                 self._changed_members,
                 apply_result.new_component_ids,
             )
-            self._rescope_child_analyses(root_analysis, sub_analyses)
+            preserved_ids = _restore_unchanged_subtrees(
+                root_analysis,
+                sub_analyses,
+                baseline_membership,
+                self._changed_members,
+                apply_result.new_component_ids,
+            )
+            self._rescope_child_analyses(root_analysis, sub_analyses, preserved_ids)
             # A component identical to its baseline did not change: restore any metadata the
             # planner reworded and drop it from the refresh set so its relations carry over.
             unchanged_ids = _restore_unchanged_metadata(
