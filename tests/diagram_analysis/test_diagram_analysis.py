@@ -40,6 +40,8 @@ from diagram_analysis.diagram_generator import (
     _capture_membership_baseline,
     _component_depth,
     _component_expansion_seeds,
+    _incremental_changed_component_ids,
+    _preserve_unchanged_global_relations,
     _restore_unchanged_membership,
     _restore_unchanged_metadata,
     _restore_unchanged_subtrees,
@@ -1907,6 +1909,115 @@ class TestUnchangedSubtreePreservation(unittest.TestCase):
 
         self.assertEqual(preserved & {"2", "2.1", "2.1.1", "2.1.2"}, {"2", "2.1"})
         self.assertEqual(_pm_child_map(sub_analyses["2.1"]), {"y.a": "2.1.1", "y.b": "2.1.2"})
+
+
+def _pm_relation(src_id: str, dst_id: str, label: str) -> Relation:
+    return Relation(relation=label, src_name=f"C{src_id}", dst_name=f"C{dst_id}", src_id=src_id, dst_id=dst_id)
+
+
+class TestGlobalRelationPreservation(unittest.TestCase):
+    """The save-time global relation rebuild carries edges between two untouched components."""
+
+    def _gen(self) -> DiagramGenerator:
+        temp_dir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, temp_dir, ignore_errors=True)
+        repo = Path(temp_dir) / "repo"
+        repo.mkdir()
+        gen = DiagramGenerator(
+            repo_location=repo,
+            temp_folder=repo,
+            repo_name="repo",
+            output_dir=repo,
+            depth_level=2,
+            run_id="rid",
+            log_path="repo/log",
+        )
+        gen.static_analysis = Mock()
+        gen.static_analysis.get_languages.return_value = []
+        return gen
+
+    @patch("diagram_analysis.diagram_generator.build_global_relations")
+    def test_rebuild_preserves_unchanged_pair_label_and_rederives_changed(self, mock_build):
+        # Only X (1) changed; Y (2) and Z (3) did not.
+        x = _pm_component("X", "1", {"x.py": [_pm_method("x.m1")]})
+        y = _pm_component("Y", "2", {"y.py": [_pm_method("y.m1")]})
+        z = _pm_component("Z", "3", {"z.py": [_pm_method("z.m1")]})
+        root = AnalysisInsights(description="root", components=[x, y, z], components_relations=[])
+
+        gen = self._gen()
+        gen._baseline_component_ids = {"1", "2", "3"}
+        gen._changed_members = {"x.m1"}
+        gen._baseline_global_relations = {
+            ("1", "2"): _pm_relation("1", "2", "X calls Y"),
+            ("2", "3"): _pm_relation("2", "3", "Y observes Z"),  # between two unchanged components
+            ("1", "3"): _pm_relation("1", "3", "X uses Z"),
+        }
+        # The wholesale rebuild relabels every edge with a fresh LLM description.
+        mock_build.return_value = [
+            _pm_relation("1", "2", "reworded X-Y"),
+            _pm_relation("2", "3", "reworded Y-Z"),
+            _pm_relation("1", "3", "reworded X-Z"),
+        ]
+
+        result = gen.rebuild_global_relations(root, {})
+        by_pair = {(rel.src_id, rel.dst_id): rel.relation for rel in result}
+
+        self.assertEqual(by_pair[("2", "3")], "Y observes Z")  # baseline label kept verbatim
+        self.assertEqual(by_pair[("1", "2")], "reworded X-Y")  # touches X -> re-derived
+        self.assertEqual(by_pair[("1", "3")], "reworded X-Z")  # touches X -> re-derived
+        self.assertIs(result, root.components_relations)
+
+    @patch("diagram_analysis.diagram_generator.build_global_relations")
+    def test_full_analysis_rebuilds_every_relation(self, mock_build):
+        # No baseline snapshot => full run: the rebuild wins wholesale even for stable pairs.
+        y = _pm_component("Y", "2", {"y.py": [_pm_method("y.m1")]})
+        z = _pm_component("Z", "3", {"z.py": [_pm_method("z.m1")]})
+        root = AnalysisInsights(description="root", components=[y, z], components_relations=[])
+        gen = self._gen()
+        mock_build.return_value = [_pm_relation("2", "3", "reworded Y-Z")]
+
+        result = gen.rebuild_global_relations(root, {})
+
+        self.assertEqual([rel.relation for rel in result], ["reworded Y-Z"])
+
+    def test_changed_ids_include_owner_ancestors_and_new_components(self):
+        parent = _pm_component("Parent", "1", {"p.py": [_pm_method("p.deep")]})
+        sibling = _pm_component("Sibling", "2", {"s.py": [_pm_method("s.stable")]})
+        fresh = _pm_component("Fresh", "3", {"f.py": [_pm_method("f.m")]})
+        child = _pm_component("Child", "1.1", {"p.py": [_pm_method("p.deep")]})
+        root = AnalysisInsights(description="root", components=[parent, sibling, fresh], components_relations=[])
+        sub = {"1": AnalysisInsights(description="sub", components=[child], components_relations=[])}
+
+        changed = _incremental_changed_component_ids(
+            root, sub, baseline_component_ids={"1", "1.1", "2"}, changed_members={"p.deep"}
+        )
+
+        # Owner of the changed member (1.1), its ancestor (1), and the new component (3).
+        self.assertEqual(changed, {"1", "1.1", "3"})
+
+    def test_structural_drift_between_unchanged_components_is_squashed(self):
+        baseline = {
+            ("2", "3"): _pm_relation("2", "3", "kept edge"),
+            ("2", "4"): _pm_relation("2", "4", "restored edge"),  # rebuild wrongly dropped it
+        }
+        rebuilt = [
+            _pm_relation("2", "3", "reworded"),  # unchanged pair with a baseline -> use baseline
+            _pm_relation("3", "4", "spurious new"),  # unchanged pair, no baseline -> drop
+        ]
+
+        merged = _preserve_unchanged_global_relations(
+            rebuilt, baseline, changed_component_ids=set(), live_ids={"2", "3", "4"}
+        )
+
+        pairs = {(rel.src_id, rel.dst_id): rel.relation for rel in merged}
+        self.assertEqual(pairs, {("2", "3"): "kept edge", ("2", "4"): "restored edge"})
+
+    def test_baseline_edge_to_a_removed_component_is_not_restored(self):
+        baseline = {("2", "9"): _pm_relation("2", "9", "to removed")}
+
+        merged = _preserve_unchanged_global_relations([], baseline, changed_component_ids=set(), live_ids={"2"})
+
+        self.assertEqual(merged, [])
 
 
 if __name__ == "__main__":
