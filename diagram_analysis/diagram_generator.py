@@ -18,6 +18,7 @@ from agents.agent_responses import (
     AnalysisInsights,
     Component,
     MetaAnalysisInsights,
+    Relation,
     SourceCodeReference,
 )
 from agents.cluster_methods_mixin import scoped_snapshot_from_lineage
@@ -312,6 +313,62 @@ def _restore_unchanged_metadata(
     return unchanged_ids
 
 
+def _incremental_changed_component_ids(
+    root_analysis: AnalysisInsights,
+    sub_analyses: dict[str, AnalysisInsights],
+    baseline_component_ids: set[str],
+    changed_members: set[str],
+) -> set[str]:
+    """Component ids whose global relations may legitimately differ from the baseline.
+
+    A live component counts as changed when it owns a body-changed member, or when it is
+    absent from the baseline (freshly created). Because every ancestor scope lists a
+    method in its own ``file_methods``, the owner of a changed member and all of its
+    ancestors are captured together — exactly the endpoints a relation rebuild is allowed
+    to relabel. Everything else is preserved verbatim.
+    """
+    changed: set[str] = set()
+    for _scope_id, analysis in _iter_incremental_scopes(root_analysis, sub_analyses):
+        for component in analysis.components:
+            component_id = component.component_id
+            if not component_id:
+                continue
+            if component_id not in baseline_component_ids or any(
+                method.qualified_name in changed_members for group in component.file_methods for method in group.methods
+            ):
+                changed.add(component_id)
+    return changed
+
+
+def _preserve_unchanged_global_relations(
+    rebuilt_relations: list[Relation],
+    baseline_by_pair: dict[tuple[str, str], Relation],
+    changed_component_ids: set[str],
+    live_ids: set[str],
+) -> list[Relation]:
+    """Carry a global relation over from the baseline when neither endpoint changed.
+
+    The save-time rebuild re-derives every relation at the deepest granularity, re-labelling
+    even edges between two untouched components. For each pair whose endpoints are both
+    unchanged we drop the rebuilt edge and take the baseline verbatim; edges touching a
+    changed component keep the fresh rebuild. A baseline relation between two unchanged,
+    still-live components that the rebuild dropped is restored, and a spurious rebuilt edge
+    between two unchanged components is discarded — so both relabel and structural drift
+    against untouched components is eliminated. Relations are keyed by ``(src_id, dst_id)``,
+    the stable component identity; the rebuild always populates both ids.
+    """
+
+    def touches_change(src_id: str, dst_id: str) -> bool:
+        return src_id in changed_component_ids or dst_id in changed_component_ids
+
+    kept = [rel for rel in rebuilt_relations if touches_change(rel.src_id, rel.dst_id)]
+    for (src_id, dst_id), relation in baseline_by_pair.items():
+        if touches_change(src_id, dst_id) or src_id not in live_ids or dst_id not in live_ids:
+            continue
+        kept.append(relation)
+    return sorted(kept, key=lambda rel: (rel.src_id, rel.dst_id))
+
+
 class DiagramGenerator:
     def __init__(
         self,
@@ -346,6 +403,12 @@ class DiagramGenerator:
         # incremental run. Drives the member-granular "modified" gate so a file's
         # methods dispersed across clusters only dirty the cluster they belong to.
         self._changed_members: set[str] = set()
+        # Incremental-only baseline captured at the top of ``generate_analysis_incremental``,
+        # so the save-time global relation rebuild can carry an edge between two unchanged
+        # components over verbatim instead of re-deriving (and re-labelling) it.
+        # ``None`` => full analysis: rebuild every relation. Keyed by ``(src_id, dst_id)``.
+        self._baseline_global_relations: dict[tuple[str, str], Relation] | None = None
+        self._baseline_component_ids: set[str] = set()
         # Whole-tree content hash, stamped into the pkl's sibling .sha file as the
         # diff base for the next warm-start (NOT a cache gate). ``pre_analysis``
         # fills it from the live tree when unset; ``None`` is a tag-less save.
@@ -832,6 +895,21 @@ class DiagramGenerator:
             str(lang): self.static_analysis.get_program_graph(lang) for lang in self.static_analysis.get_languages()
         }
         global_relations = build_global_relations(root_analysis, sub_analyses, cfg_graphs)
+        if self._baseline_global_relations is not None:
+            # Incremental: the wholesale rebuild would relabel edges between two untouched
+            # components, so carry those over verbatim from the baseline.
+            changed_ids = _incremental_changed_component_ids(
+                root_analysis, sub_analyses, self._baseline_component_ids, self._changed_members
+            )
+            live_ids = {
+                component.component_id
+                for _scope_id, analysis in _iter_incremental_scopes(root_analysis, sub_analyses)
+                for component in analysis.components
+                if component.component_id
+            }
+            global_relations = _preserve_unchanged_global_relations(
+                global_relations, self._baseline_global_relations, changed_ids, live_ids
+            )
         root_analysis.components_relations = global_relations
         return global_relations
 
@@ -1014,6 +1092,22 @@ class DiagramGenerator:
         assert self.details_agent is not None
         assert self.incremental_planning_agent is not None
         assert self.incremental_agent is not None
+
+        # Snapshot the loaded baseline before any mutation: its global relations (deepest
+        # granularity, keyed by component id) are carried over verbatim at save time for any
+        # edge between two components that did not change. This is what marks the run as
+        # incremental for ``rebuild_global_relations``; a full run leaves it ``None``.
+        self._baseline_component_ids = {
+            component.component_id
+            for _scope_id, analysis in _iter_incremental_scopes(root_analysis, sub_analyses)
+            for component in analysis.components
+            if component.component_id
+        }
+        self._baseline_global_relations = {
+            (relation.src_id, relation.dst_id): relation.model_copy(deep=True)
+            for relation in root_analysis.components_relations
+            if relation.src_id and relation.dst_id
+        }
 
         monitor = self.stats_writer if self.stats_writer else nullcontext()
         with monitor:
