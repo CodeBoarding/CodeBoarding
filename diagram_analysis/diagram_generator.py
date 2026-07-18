@@ -39,9 +39,11 @@ from diagram_analysis.analysis_json import (
     NotAnalyzedFile,
 )
 from diagram_analysis.cluster_delta import (
+    ChangedMembers,
     ClusterDelta,
     LanguageDelta,
     StructuralClusterDiff,
+    compute_changed_members,
     compute_cluster_delta,
     structural_diff_from_delta,
 )
@@ -672,6 +674,7 @@ class DiagramGenerator:
         structural_diff: StructuralClusterDiff,
         cluster_results: dict[str, ClusterResult],
         sub_analyses: dict[str, AnalysisInsights],
+        changed_members: ChangedMembers | None,
     ) -> RecursiveScopeUpdateResult:
         assert self.incremental_planning_agent is not None
         assert self.incremental_agent is not None
@@ -705,6 +708,7 @@ class DiagramGenerator:
                 self.incremental_agent,
                 self.changes,
                 self.repo_location,
+                changed_members,
             )
             if not child_diff.has_changes:
                 continue
@@ -716,6 +720,7 @@ class DiagramGenerator:
                 child_diff,
                 child_cluster_results,
                 sub_analyses,
+                changed_members,
             )
             result.refresh_ids |= child_result.refresh_ids
             result.new_component_ids |= child_result.new_component_ids
@@ -757,6 +762,22 @@ class DiagramGenerator:
                         live_files.add(normalize_repo_path(node.file_path, self.repo_location))
             remove_deleted_files(root_analysis, sub_analyses, live_files)
 
+            # Member-granular change signal from per-method content hashes,
+            # captured from the baseline analysis.json *before* the files index
+            # is refreshed (which would overwrite the prior hashes). Drives the
+            # modified decision so a body-only edit lights up only the clusters
+            # whose own members changed, not every cluster sharing the file.
+            changed_members = (
+                compute_changed_members(
+                    root_analysis.files,
+                    self.static_analysis,
+                    self.changes,
+                    self.repo_location,
+                )
+                if self.changes is not None
+                else None
+            )
+
             snapshot_source = self.static_analysis.incremental_base_results or self.static_analysis
             old_snapshot = snapshot_from_static_analysis(snapshot_source)
             if not old_snapshot.all_cluster_ids():
@@ -791,6 +812,7 @@ class DiagramGenerator:
                 delta,
                 changes=self.changes,
                 repo_dir=self.repo_location,
+                changed=changed_members,
             )
             protected_empty_ids = _cluster_backed_empty_component_ids(root_analysis, sub_analyses)
             apply_result = self._apply_incremental_scope_recursively(
@@ -799,6 +821,7 @@ class DiagramGenerator:
                 structural_diff,
                 delta.cluster_results(),
                 sub_analyses,
+                changed_members,
             )
 
             removed_ids = prune_empty_components(root_analysis, sub_analyses, protected_empty_ids)
@@ -922,6 +945,7 @@ def _build_scope_incremental_inputs(
     incremental_agent: IncrementalAgent,
     changes: ChangeSet | None,
     repo_dir: Path,
+    changed_members: ChangedMembers | None,
 ) -> tuple[dict[str, ClusterResult], StructuralClusterDiff]:
     old_snapshot = scoped_snapshot_for_component(component, scope_id, incremental_agent)
     if not old_snapshot.all_cluster_ids():
@@ -943,6 +967,7 @@ def _build_scope_incremental_inputs(
         changes=changes,
         repo_dir=repo_dir,
         scope_id=scope_id,
+        changed=changed_members,
     )
     return cluster_results, structural_diff
 

@@ -1193,6 +1193,7 @@ class TestDiagramGenerator(unittest.TestCase):
             StructuralClusterDiff(),
             {},
             {},
+            None,
         )
 
         self.assertEqual(result.relation_contexts, {"root": relation_context})
@@ -1264,6 +1265,7 @@ class TestDiagramGenerator(unittest.TestCase):
             StructuralClusterDiff(),
             {},
             {"1": child},
+            None,
         )
 
         self.assertEqual(result.relation_contexts, {"root": root_context, "1": child_context})
@@ -1408,6 +1410,7 @@ class TestDiagramGenerator(unittest.TestCase):
             _mock_incremental_agent.return_value,
             gen.changes,
             gen.repo_location,
+            None,
         )
         gen._generate_subcomponents.assert_not_called()
         self.assertEqual(sub_analyses["1"].components[0].name, "Stable Child")
