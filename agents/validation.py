@@ -303,41 +303,6 @@ def _reads_as_an_instruction(description: str) -> bool:
     return lowered.startswith(_EDIT_NARRATION_PREFIXES)
 
 
-def validate_existing_component_ids(result: ClusterAnalysis, context: ValidationContext) -> ValidationResult:
-    """Reject ``existing_component_id`` values the LLM hallucinated.
-
-    Why: incremental routing identifies existing components by id (decision
-    #4). A hallucinated id silently creates a new component during stitching
-    instead of routing into the intended one. Catching it here forces the
-    LLM to retry with a valid id (or null for new components) before any
-    state mutation.
-    """
-    if not context.existing_component_ids:
-        return ValidationResult(is_valid=True)
-
-    feedback_messages: list[str] = []
-    valid_str = ", ".join(sorted(context.existing_component_ids))
-    for cc in result.cluster_components:
-        if cc.existing_component_id is None:
-            continue
-        if cc.existing_component_id not in context.existing_component_ids:
-            feedback_messages.append(
-                f"cluster_components entry '{cc.name}' references "
-                f"existing_component_id={cc.existing_component_id!r} which does not "
-                f"match any live component. Either set existing_component_id to a "
-                f"value from the existing-components list ({valid_str}), or set it "
-                f"to null to create a new component."
-            )
-
-    if feedback_messages:
-        logger.warning(
-            "[Validation] %d cluster_components entries reference unknown existing_component_id",
-            len(feedback_messages),
-        )
-        return ValidationResult(is_valid=False, feedback_messages=feedback_messages)
-    return ValidationResult(is_valid=True)
-
-
 def validate_group_name_coverage(result: ComponentValidationTarget, context: ValidationContext) -> ValidationResult:
     """
     Validate bidirectional coverage between cluster groups and components:
