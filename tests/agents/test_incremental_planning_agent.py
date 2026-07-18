@@ -62,7 +62,7 @@ def _reference_resolver(*qnames: str) -> StaticReferenceResolver:
     return StaticReferenceResolver(Path("/tmp/fake-repo"), static_analysis)
 
 
-def test_format_structural_diff_includes_modified_new_and_dirty_files() -> None:
+def test_format_structural_diff_includes_modified_new_and_changed_members() -> None:
     structural = StructuralClusterDiff(
         by_language={
             "python": LanguageStructuralDiff(
@@ -72,6 +72,7 @@ def test_format_structural_diff_includes_modified_new_and_dirty_files() -> None:
                         old_cluster=ClusterRef(language="python", cluster_id=1),
                         new_cluster=ClusterRef(language="python", cluster_id=1),
                         added_methods={"pkg.new"},
+                        dirty_members={"pkg.edited"},
                         dirty_files={"pkg/module.py"},
                     )
                 ],
@@ -85,7 +86,9 @@ def test_format_structural_diff_includes_modified_new_and_dirty_files() -> None:
     assert "### Modified clusters" in rendered
     assert "root:python:1 -> root:python:1" in rendered
     assert "pkg.new" in rendered
-    assert "pkg/module.py" in rendered
+    # The planner sees the member-granular signal, not the file the members share.
+    assert "changed_members=['pkg.edited']" in rendered
+    assert "pkg/module.py" not in rendered
     assert "### New clusters" in rendered
     assert "root:python:2" in rendered
 

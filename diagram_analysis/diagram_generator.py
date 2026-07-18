@@ -3,9 +3,10 @@ import logging
 import os
 import time
 from collections import Counter, defaultdict
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from contextlib import nullcontext
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -17,6 +18,7 @@ from agents.agent_responses import (
     AnalysisInsights,
     Component,
     MetaAnalysisInsights,
+    SourceCodeReference,
 )
 from agents.cluster_methods_mixin import scoped_snapshot_from_lineage
 from agents.details_agent import DetailsAgent
@@ -53,7 +55,7 @@ from diagram_analysis.cluster_snapshot import (
 )
 from diagram_analysis.exceptions import IncrementalCacheMissingError, ScopeContainmentError
 from diagram_analysis.file_coverage import FileCoverage
-from diagram_analysis.file_index import build_files_index, refresh_method_spans_from_cfg
+from diagram_analysis.file_index import build_files_index, changed_member_qnames, refresh_method_spans_from_cfg
 from diagram_analysis.io_utils import load_analysis_metadata, normalize_repo_path, save_analysis, write_fingerprint
 from health.config import initialize_health_dir, load_health_config
 from health.runner import run_health_checks
@@ -165,6 +167,151 @@ def _append_method(component: Component, file_path: str, method: MethodEntry) ->
     component.file_methods.append(FileMethodGroup(file_path=file_path, methods=[method]))
 
 
+@dataclass
+class _ComponentBaseline:
+    """One component's pre-update metadata and membership, for verbatim restoration."""
+
+    name: str
+    description: str
+    key_entities: list[SourceCodeReference]
+    source_group_names: list[str]
+    member_keys: frozenset[tuple[str, str]]
+    member_qnames: frozenset[str]
+
+
+@dataclass
+class _MembershipBaseline:
+    """Pre-update snapshot the incremental restores unchanged components from."""
+
+    # scope_id -> (file_path, qname) -> owning component_id
+    owner_by_scope: dict[str, dict[tuple[str, str], str]] = field(default_factory=dict)
+    # scope_id -> (file_path, qname) -> the baseline method entry (restored verbatim)
+    entry_by_scope: dict[str, dict[tuple[str, str], MethodEntry]] = field(default_factory=dict)
+    meta_by_id: dict[str, _ComponentBaseline] = field(default_factory=dict)
+
+
+def _iter_incremental_scopes(
+    root_analysis: AnalysisInsights,
+    sub_analyses: dict[str, AnalysisInsights],
+) -> Iterator[tuple[str, AnalysisInsights]]:
+    """Yield ``(scope_id, analysis)`` for the root and every expanded sub-scope."""
+    yield ROOT_SCOPE_ID, root_analysis
+    for scope_id, sub in sub_analyses.items():
+        yield scope_id, sub
+
+
+def _capture_membership_baseline(
+    root_analysis: AnalysisInsights,
+    sub_analyses: dict[str, AnalysisInsights],
+) -> _MembershipBaseline:
+    """Snapshot per-scope method ownership and per-component metadata before the update.
+
+    The incremental re-partitions clusters, which can shuffle unchanged methods between
+    components. This snapshot lets a later pass pin every unchanged method back to the
+    component that owned it and restore the metadata of components that end up identical.
+    """
+    baseline = _MembershipBaseline()
+    for scope_id, analysis in _iter_incremental_scopes(root_analysis, sub_analyses):
+        owner = baseline.owner_by_scope.setdefault(scope_id, {})
+        entries = baseline.entry_by_scope.setdefault(scope_id, {})
+        for component in analysis.components:
+            if not component.component_id:
+                continue
+            keys: set[tuple[str, str]] = set()
+            qnames: set[str] = set()
+            for group in component.file_methods:
+                for method in group.methods:
+                    key = (group.file_path, method.qualified_name)
+                    owner[key] = component.component_id
+                    entries[key] = method.model_copy(deep=True)
+                    keys.add(key)
+                    qnames.add(method.qualified_name)
+            baseline.meta_by_id[component.component_id] = _ComponentBaseline(
+                name=component.name,
+                description=component.description,
+                key_entities=[entity.model_copy(deep=True) for entity in component.key_entities],
+                source_group_names=list(component.source_group_names),
+                member_keys=frozenset(keys),
+                member_qnames=frozenset(qnames),
+            )
+    return baseline
+
+
+def _restore_unchanged_membership(
+    root_analysis: AnalysisInsights,
+    sub_analyses: dict[str, AnalysisInsights],
+    baseline: _MembershipBaseline,
+    changed_members: set[str],
+    protected_ids: set[str],
+) -> None:
+    """Pin every unchanged method back to the component that owned it in the baseline.
+
+    A method whose body did not change (absent from ``changed_members``) and whose baseline
+    owner still exists is returned to that owner, overriding wherever the re-partition placed
+    it — this is what stops an untouched top-level component from silently gaining or losing
+    methods. Body-changed methods, added methods, methods whose owner was removed, and every
+    method inside a freshly created component (``protected_ids``) keep the re-partition's
+    placement, so a genuinely changed component still re-clusters. Each live method resolves
+    to exactly one owner, so nothing is dropped or duplicated.
+    """
+    for scope_id, analysis in _iter_incremental_scopes(root_analysis, sub_analyses):
+        owner = baseline.owner_by_scope.get(scope_id, {})
+        entries = baseline.entry_by_scope.get(scope_id, {})
+        live_ids = {component.component_id for component in analysis.components if component.component_id}
+        assigned: dict[str, dict[str, list[MethodEntry]]] = defaultdict(lambda: defaultdict(list))
+        for component in analysis.components:
+            protected = component.component_id in protected_ids
+            for group in component.file_methods:
+                for method in group.methods:
+                    key = (group.file_path, method.qualified_name)
+                    base_owner = owner.get(key)
+                    if not protected and method.qualified_name not in changed_members and base_owner in live_ids:
+                        assigned[base_owner][group.file_path].append(entries.get(key, method))
+                    else:
+                        assigned[component.component_id][group.file_path].append(method)
+        for component in analysis.components:
+            by_file = assigned.get(component.component_id, {})
+            component.file_methods = [
+                FileMethodGroup(
+                    file_path=file_path,
+                    methods=sorted(methods, key=lambda m: (m.start_line, m.end_line, m.qualified_name)),
+                )
+                for file_path, methods in sorted(by_file.items())
+            ]
+
+
+def _restore_unchanged_metadata(
+    root_analysis: AnalysisInsights,
+    sub_analyses: dict[str, AnalysisInsights],
+    baseline: _MembershipBaseline,
+    changed_members: set[str],
+) -> set[str]:
+    """Restore name/description/key_entities of components identical to their baseline.
+
+    A component with the same membership as the baseline and no body-changed member did not
+    genuinely change; the planner may still have reworded it. Restoring its metadata and
+    returning its id lets the caller drop it from the refresh set, so its relations to other
+    unchanged components are carried over verbatim rather than re-derived.
+    """
+    unchanged_ids: set[str] = set()
+    for _scope_id, analysis in _iter_incremental_scopes(root_analysis, sub_analyses):
+        for component in analysis.components:
+            meta = baseline.meta_by_id.get(component.component_id)
+            if meta is None:
+                continue
+            final_keys = frozenset(
+                (group.file_path, method.qualified_name) for group in component.file_methods for method in group.methods
+            )
+            if final_keys != meta.member_keys or (meta.member_qnames & changed_members):
+                continue
+            component.name = meta.name
+            component.description = meta.description
+            component.key_entities = [entity.model_copy(deep=True) for entity in meta.key_entities]
+            component.source_group_names = list(meta.source_group_names)
+            unchanged_ids.add(component.component_id)
+    return unchanged_ids
+
+
 class DiagramGenerator:
     def __init__(
         self,
@@ -195,6 +342,10 @@ class DiagramGenerator:
         # the prior analysis (see ``compute_cluster_delta``). ``None`` runs
         # unscoped (no drift filtering).
         self.changes: ChangeSet | None = changes
+        # Qnames whose method body changed vs the baseline, computed once per
+        # incremental run. Drives the member-granular "modified" gate so a file's
+        # methods dispersed across clusters only dirty the cluster they belong to.
+        self._changed_members: set[str] = set()
         # Whole-tree content hash, stamped into the pkl's sibling .sha file as the
         # diff base for the next warm-start (NOT a cache gate). ``pre_analysis``
         # fills it from the live tree when unset; ``None`` is a tag-less save.
@@ -826,6 +977,7 @@ class DiagramGenerator:
                 self.incremental_agent,
                 self.changes,
                 self.repo_location,
+                self._changed_members,
             )
             if not child_diff.has_changes:
                 continue
@@ -893,11 +1045,23 @@ class DiagramGenerator:
                 logger.error("%s", error)
                 raise error
 
+            # Body-edited qnames, derived from per-method content hashes so a
+            # body-only edit surfaces even when the graph fingerprint (hence the
+            # cluster membership) is unchanged. Must precede the delta: it seeds
+            # the member-granular "modified" gate for the root and every child.
+            self._changed_members = changed_member_qnames(
+                [root_analysis, *sub_analyses.values()],
+                self.static_analysis,
+                self.repo_location,
+                self.changes,
+            )
+
             delta = compute_cluster_delta(
                 old_snapshot,
                 self.static_analysis,
                 changes=self.changes,
                 repo_dir=self.repo_location,
+                changed_members=self._changed_members,
             )
             if not delta.has_changes:
                 logger.info("Cluster delta is empty; rewriting current analysis without re-detailing.")
@@ -915,8 +1079,10 @@ class DiagramGenerator:
                 delta,
                 changes=self.changes,
                 repo_dir=self.repo_location,
+                changed_members=self._changed_members,
             )
             protected_empty_ids = _cluster_backed_empty_component_ids(root_analysis, sub_analyses)
+            baseline_membership = _capture_membership_baseline(root_analysis, sub_analyses)
             apply_result = self._apply_incremental_scope_recursively(
                 ROOT_SCOPE_ID,
                 root_analysis,
@@ -924,7 +1090,22 @@ class DiagramGenerator:
                 delta.cluster_results(),
                 sub_analyses,
             )
+            # Pin unchanged methods back to their baseline owner so the re-partition only
+            # moves what genuinely changed, then reconcile child scopes against the result.
+            _restore_unchanged_membership(
+                root_analysis,
+                sub_analyses,
+                baseline_membership,
+                self._changed_members,
+                apply_result.new_component_ids,
+            )
             self._rescope_child_analyses(root_analysis, sub_analyses)
+            # A component identical to its baseline did not change: restore any metadata the
+            # planner reworded and drop it from the refresh set so its relations carry over.
+            unchanged_ids = _restore_unchanged_metadata(
+                root_analysis, sub_analyses, baseline_membership, self._changed_members
+            )
+            apply_result.refresh_ids -= unchanged_ids
 
             removed_ids = prune_empty_components(root_analysis, sub_analyses, protected_empty_ids)
             if removed_ids:
@@ -1075,6 +1256,7 @@ def _build_scope_incremental_inputs(
     incremental_agent: IncrementalAgent,
     changes: ChangeSet | None,
     repo_dir: Path,
+    changed_members: set[str],
 ) -> tuple[dict[str, ClusterResult], StructuralClusterDiff]:
     old_snapshot = scoped_snapshot_for_component(component, scope_id, incremental_agent)
     if not old_snapshot.all_cluster_ids():
@@ -1096,6 +1278,7 @@ def _build_scope_incremental_inputs(
         changes=changes,
         repo_dir=repo_dir,
         scope_id=scope_id,
+        changed_members=changed_members,
     )
     return cluster_results, structural_diff
 

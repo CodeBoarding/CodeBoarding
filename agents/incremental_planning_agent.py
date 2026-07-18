@@ -241,8 +241,8 @@ def _format_member_delta(delta: ClusterMemberDelta) -> str:
         parts.append(f"added={sorted(delta.added_methods)}")
     if delta.removed_methods:
         parts.append(f"removed={sorted(delta.removed_methods)}")
-    if delta.dirty_files:
-        parts.append(f"dirty_files={sorted(delta.dirty_files)}")
+    if delta.dirty_members:
+        parts.append(f"changed_members={sorted(delta.dirty_members)}")
     return "; ".join(parts)
 
 
@@ -250,8 +250,6 @@ def _format_new_cluster(delta: ClusterMemberDelta) -> str:
     parts = [f"- {_format_cluster_ref(delta.new_cluster)}"]
     if delta.added_methods:
         parts.append(f"methods={sorted(delta.added_methods)}")
-    if delta.dirty_files:
-        parts.append(f"files={sorted(delta.dirty_files)}")
     return "; ".join(parts)
 
 
@@ -272,8 +270,12 @@ def _format_reshape(reshape: ClusterReshape) -> str:
             ),
         )
     )
-    suffix = f"; dirty_files={sorted(reshape.dirty_files)}" if reshape.dirty_files else ""
-    return f"- old=[{old_refs}] new=[{new_refs}] overlaps=[{overlaps}]{suffix}"
+    parts = [f"- old=[{old_refs}] new=[{new_refs}] overlaps=[{overlaps}]"]
+    if reshape.dirty_members:
+        parts.append(f"changed_members={sorted(reshape.dirty_members)}")
+    if reshape.dirty_files:
+        parts.append(f"dirty_files={sorted(reshape.dirty_files)}")
+    return "; ".join(parts)
 
 
 def _actionable_new_cluster_refs(structural_diff: StructuralClusterDiff) -> set[ClusterRef]:

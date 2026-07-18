@@ -255,7 +255,10 @@ class TestStructuralClusterDiff(unittest.TestCase):
         self.assertEqual(lang.modified[0].added_methods, {"a.new"})
         self.assertEqual(lang.modified[0].removed_methods, set())
 
-    def test_dirty_unchanged_cluster_is_modified(self) -> None:
+    def test_changed_file_alone_does_not_modify_a_cluster(self) -> None:
+        # The core over-firing fix: a cluster whose file changed but whose own
+        # members are untouched stays UNCHANGED. dirty_files is display context,
+        # never the gate.
         old_snapshot = _snapshot(
             {
                 "python": {
@@ -283,11 +286,51 @@ class TestStructuralClusterDiff(unittest.TestCase):
         structural = structural_diff_from_delta(old_snapshot, delta, changes=changes, repo_dir=Path("/repo"))
         lang = structural.by_language["python"]
 
-        self.assertEqual(lang.unchanged, [])
-        self.assertEqual(len(lang.modified), 1)
-        self.assertEqual(lang.modified[0].dirty_files, {"a.py"})
-        self.assertEqual(lang.modified[0].added_methods, set())
-        self.assertEqual(lang.modified[0].removed_methods, set())
+        self.assertEqual(lang.modified, [])
+        self.assertEqual(len(lang.unchanged), 1)
+        self.assertEqual(lang.unchanged[0].dirty_members, set())
+        # File context is still reported for the (unchanged) cluster.
+        self.assertEqual(lang.unchanged[0].dirty_files, {"a.py"})
+
+    def test_body_edit_dirties_only_the_owning_cluster_not_file_siblings(self) -> None:
+        # Three clusters draw their single member from the SAME file. A body-only
+        # edit to one method must dirty ONLY that method's cluster; the other two
+        # share the changed file but keep their bodies, so they stay unchanged.
+        # Proves the dirty signal is member-granular, not file-granular.
+        old_snapshot = _snapshot(
+            {
+                "python": {
+                    1: ClusterSnapshotEntry(members={"mod.a"}, member_files={"mod.a": "mod.py"}),
+                    2: ClusterSnapshotEntry(members={"mod.b"}, member_files={"mod.b": "mod.py"}),
+                    3: ClusterSnapshotEntry(members={"mod.c"}, member_files={"mod.c": "mod.py"}),
+                }
+            }
+        )
+        delta = ClusterDelta(
+            by_language={
+                "python": LanguageDelta(
+                    language="python",
+                    cluster_results=ClusterResult(
+                        clusters={1: {"mod.a"}, 2: {"mod.b"}, 3: {"mod.c"}},
+                        cluster_to_files={1: {"mod.py"}, 2: {"mod.py"}, 3: {"mod.py"}},
+                    ),
+                )
+            }
+        )
+        changes = ChangeSet(files=[FileChange(status_code="M", file_path="mod.py")])
+
+        structural = structural_diff_from_delta(
+            old_snapshot,
+            delta,
+            changes=changes,
+            repo_dir=Path("/repo"),
+            changed_members={"mod.b"},
+        )
+        lang = structural.by_language["python"]
+
+        self.assertEqual([d.old_cluster.cluster_id for d in lang.modified], [2])
+        self.assertEqual(lang.modified[0].dirty_members, {"mod.b"})
+        self.assertEqual({d.old_cluster.cluster_id for d in lang.unchanged}, {1, 3})
 
     def test_classifies_new_and_removed_clusters(self) -> None:
         old_snapshot = _snapshot(

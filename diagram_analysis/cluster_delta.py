@@ -64,6 +64,9 @@ class ClusterMemberDelta:
     unchanged_methods: set[str] = field(default_factory=set)
     added_methods: set[str] = field(default_factory=set)
     removed_methods: set[str] = field(default_factory=set)
+    # Members whose body changed (member-granular dirty signal; drives "modified").
+    dirty_members: set[str] = field(default_factory=set)
+    # Changed files touching this cluster — display context only, never gating.
     dirty_files: set[str] = field(default_factory=set)
 
 
@@ -72,6 +75,7 @@ class ClusterReshape:
     old_clusters: list[ClusterRef] = field(default_factory=list)
     new_clusters: list[ClusterRef] = field(default_factory=list)
     overlap_counts: dict[tuple[ClusterRef, ClusterRef], int] = field(default_factory=dict)
+    dirty_members: set[str] = field(default_factory=set)
     dirty_files: set[str] = field(default_factory=set)
 
 
@@ -104,6 +108,7 @@ def compute_cluster_delta(
     new_static: StaticAnalysisResults,
     changes: ChangeSet | None = None,
     repo_dir: Path | None = None,
+    changed_members: set[str] | None = None,
 ) -> ClusterDelta:
     """Compute per-language cluster deltas from a fresh clustering of each graph.
 
@@ -111,10 +116,12 @@ def compute_cluster_delta(
     which warm-starts from its own snapshot; this diffs the result against
     ``old_snapshot`` into new, changed and dropped cluster ids. ``changes`` and
     ``repo_dir`` are used only to report symbols that moved without their file
-    appearing in the diff (``changes=None`` skips that check).
+    appearing in the diff (``changes=None`` skips that check). ``changed_members``
+    (body-edited qnames) is reported alongside for diagnostics.
     """
     delta = ClusterDelta()
     diff_files = _changeset_to_path_set(changes) if changes is not None else None
+    members = changed_members if changed_members is not None else set()
     for language in new_static.get_languages():
         program_graph = new_static.get_program_graph(language)
         old_clusters = old_snapshot.get_language(str(language))
@@ -122,6 +129,7 @@ def compute_cluster_delta(
             str(language),
             program_graph,
             old_clusters,
+            members,
             diff_files,
             repo_dir,
         )
@@ -134,9 +142,17 @@ def structural_diff_from_delta(
     changes: ChangeSet | None = None,
     repo_dir: Path | None = None,
     scope_id: str = ROOT_SCOPE_ID,
+    changed_members: set[str] | None = None,
 ) -> StructuralClusterDiff:
-    """Classify seeded cluster output into scope-local structural facts."""
+    """Classify seeded cluster output into scope-local structural facts.
+
+    A cluster is ``modified`` only when its own members moved (added/removed) or a
+    member's body changed (``changed_members``). A file shared with a changed
+    cluster is no longer enough — ``changes``/``repo_dir`` populate ``dirty_files``
+    for display only.
+    """
     diff_files = _changeset_to_path_set(changes) if changes is not None else set()
+    members = changed_members if changed_members is not None else set()
     structural = StructuralClusterDiff()
     languages = set(old_snapshot.by_language) | set(delta.by_language)
     for language in sorted(languages):
@@ -147,6 +163,7 @@ def structural_diff_from_delta(
             language,
             old_clusters,
             new_result,
+            members,
             diff_files,
             repo_dir,
             scope_id,
@@ -168,6 +185,7 @@ def _structural_diff_for_language(
     language: str,
     old_clusters: dict[int, ClusterSnapshotEntry],
     new_result: ClusterResult,
+    changed_members: set[str],
     diff_files: set[str],
     repo_dir: Path | None,
     scope_id: str,
@@ -225,11 +243,12 @@ def _structural_diff_for_language(
                 new_id,
                 old_clusters[old_id],
                 new_result,
+                changed_members,
                 diff_files,
                 repo_dir,
                 scope_id,
             )
-            if member_delta.added_methods or member_delta.removed_methods or member_delta.dirty_files:
+            if member_delta.added_methods or member_delta.removed_methods or member_delta.dirty_members:
                 result.modified.append(member_delta)
             else:
                 result.unchanged.append(member_delta)
@@ -243,6 +262,7 @@ def _structural_diff_for_language(
                 old_clusters,
                 new_result,
                 overlap_counts,
+                changed_members,
                 diff_files,
                 repo_dir,
                 scope_id,
@@ -259,6 +279,7 @@ def _structural_diff_for_language(
                 language,
                 new_id,
                 new_result,
+                changed_members,
                 diff_files,
                 repo_dir,
                 scope_id,
@@ -271,6 +292,7 @@ def _build_new_cluster_delta(
     language: str,
     new_id: int,
     new_result: ClusterResult,
+    changed_members: set[str],
     diff_files: set[str],
     repo_dir: Path | None,
     scope_id: str,
@@ -283,6 +305,7 @@ def _build_new_cluster_delta(
         old_cluster=ClusterRef(language=language, cluster_id=new_id, scope_id=scope_id),
         new_cluster=ClusterRef(language=language, cluster_id=new_id, scope_id=scope_id),
         added_methods=members,
+        dirty_members=members & changed_members,
         dirty_files=files,
     )
 
@@ -293,6 +316,7 @@ def _build_member_delta(
     new_id: int,
     old_entry: ClusterSnapshotEntry,
     new_result: ClusterResult,
+    changed_members: set[str],
     diff_files: set[str],
     repo_dir: Path | None,
     scope_id: str,
@@ -304,6 +328,7 @@ def _build_member_delta(
         unchanged_methods=old_entry.members & new_members,
         added_methods=new_members - old_entry.members,
         removed_methods=old_entry.members - new_members,
+        dirty_members=(old_entry.members | new_members) & changed_members,
         dirty_files=_dirty_files(old_entry, new_result, new_id, diff_files, repo_dir),
     )
 
@@ -315,6 +340,7 @@ def _build_reshape(
     old_clusters: dict[int, ClusterSnapshotEntry],
     new_result: ClusterResult,
     overlap_counts: dict[tuple[int, int], int],
+    changed_members: set[str],
     diff_files: set[str],
     repo_dir: Path | None,
     scope_id: str,
@@ -328,14 +354,18 @@ def _build_reshape(
         if old_id in old_ids and new_id in new_ids:
             ref_overlaps[(ref_by_old_id[old_id], ref_by_new_id[new_id])] = overlap_counts[(old_id, new_id)]
 
+    dirty_members: set[str] = set()
     dirty_files: set[str] = set()
     for old_id in old_ids:
         for new_id in new_ids:
+            new_members = new_result.clusters.get(new_id, set())
+            dirty_members |= (old_clusters[old_id].members | new_members) & changed_members
             dirty_files |= _dirty_files(old_clusters[old_id], new_result, new_id, diff_files, repo_dir)
     return ClusterReshape(
         old_clusters=old_refs,
         new_clusters=new_refs,
         overlap_counts=ref_overlaps,
+        dirty_members=dirty_members,
         dirty_files=dirty_files,
     )
 
@@ -362,6 +392,7 @@ def _delta_for_language(
     language: str,
     program_graph: ProgramGraph,
     old_clusters: dict[int, ClusterSnapshotEntry],
+    changed_members: set[str],
     diff_files: set[str] | None = None,
     repo_dir: Path | None = None,
 ) -> LanguageDelta:
@@ -392,10 +423,12 @@ def _delta_for_language(
     }
 
     logger.info(
-        "[cluster_delta] %s: added=%d removed=%d; clusters new=%d changed=%d dropped=%d; changed_pct=%.3f",
+        "[cluster_delta] %s: added=%d removed=%d changed_members=%d; clusters new=%d changed=%d dropped=%d; "
+        "changed_pct=%.3f",
         language,
         len(added_nodes),
         len(removed_nodes),
+        len(changed_members & live_qnames),
         len(new_cluster_ids),
         len(changed_cluster_ids),
         len(dropped_cluster_ids),

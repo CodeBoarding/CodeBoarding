@@ -33,8 +33,16 @@ from diagram_analysis.analysis_json import (
     from_component_to_json_component,
     parse_unified_analysis,
 )
+from agents.incremental_agent import _preserve_unchanged_relations
 from diagram_analysis.cluster_delta import ClusterMemberDelta, ClusterRef, LanguageStructuralDiff, StructuralClusterDiff
-from diagram_analysis.diagram_generator import DiagramGenerator, _component_depth, _component_expansion_seeds
+from diagram_analysis.diagram_generator import (
+    DiagramGenerator,
+    _capture_membership_baseline,
+    _component_depth,
+    _component_expansion_seeds,
+    _restore_unchanged_membership,
+    _restore_unchanged_metadata,
+)
 from diagram_analysis.exceptions import IncrementalCacheMissingError
 from static_analyzer.analysis_cache import StaticAnalysisCache
 from static_analyzer.analysis_result import StaticAnalysisResults
@@ -1410,6 +1418,7 @@ class TestDiagramGenerator(unittest.TestCase):
             _mock_incremental_agent.return_value,
             gen.changes,
             gen.repo_location,
+            gen._changed_members,
         )
         gen._generate_subcomponents.assert_not_called()
         self.assertEqual(sub_analyses["1"].components[0].name, "Stable Child")
@@ -1645,6 +1654,164 @@ class TestDiagramGenerator(unittest.TestCase):
         # ...but the external side artifacts are left untouched.
         gen._write_file_coverage.assert_not_called()
         gen._persist_static_analysis_artifact.assert_not_called()
+
+
+def _pm_method(qname: str, start: int = 1, end: int = 2) -> MethodEntry:
+    return MethodEntry(qualified_name=qname, start_line=start, end_line=end, node_type="FUNCTION", content_hash="h")
+
+
+def _pm_component(name: str, component_id: str, files: dict[str, list[MethodEntry]]) -> Component:
+    return Component(
+        name=name,
+        description=f"{name} description",
+        key_entities=[],
+        source_group_names=[name.lower()],
+        component_id=component_id,
+        file_methods=[FileMethodGroup(file_path=fp, methods=methods) for fp, methods in files.items()],
+    )
+
+
+def _pm_owned(component: Component) -> set[tuple[str, str]]:
+    return {(group.file_path, method.qualified_name) for group in component.file_methods for method in group.methods}
+
+
+class TestUnchangedComponentPreservation(unittest.TestCase):
+    """The incremental keeps a component with no changed member byte-for-byte identical."""
+
+    def test_unchanged_membership_pinned_back_after_reshuffle(self):
+        a = _pm_component("A", "1", {"a.py": [_pm_method("a.a1"), _pm_method("a.a2")]})
+        b = _pm_component("B", "2", {"b.py": [_pm_method("b.b1")]})
+        c = _pm_component("C", "3", {"c.py": [_pm_method("c.c1")]})
+        root = AnalysisInsights(description="root", components=[a, b, c], components_relations=[])
+        baseline = _capture_membership_baseline(root, {})
+
+        # The re-partition spuriously grabs B's unchanged method into A; C's body changed.
+        a.file_methods = [
+            FileMethodGroup(file_path="a.py", methods=[_pm_method("a.a1"), _pm_method("a.a2")]),
+            FileMethodGroup(file_path="b.py", methods=[_pm_method("b.b1")]),
+        ]
+        b.file_methods = []
+
+        _restore_unchanged_membership(root, {}, baseline, {"c.c1"}, set())
+
+        self.assertEqual(_pm_owned(a), {("a.py", "a.a1"), ("a.py", "a.a2")})
+        self.assertEqual(_pm_owned(b), {("b.py", "b.b1")})
+        self.assertEqual(_pm_owned(c), {("c.py", "c.c1")})
+
+    def test_changed_method_follows_the_repartition(self):
+        # A body-changed method the re-partition moved to a new owner is NOT pinned back.
+        a = _pm_component("A", "1", {"a.py": [_pm_method("a.a1")]})
+        c = _pm_component("C", "3", {"c.py": [_pm_method("c.c1")]})
+        root = AnalysisInsights(description="root", components=[a, c], components_relations=[])
+        baseline = _capture_membership_baseline(root, {})
+
+        a.file_methods = [
+            FileMethodGroup(file_path="a.py", methods=[_pm_method("a.a1")]),
+            FileMethodGroup(file_path="c.py", methods=[_pm_method("c.c1")]),
+        ]
+        c.file_methods = []
+
+        _restore_unchanged_membership(root, {}, baseline, {"c.c1"}, set())
+
+        self.assertEqual(_pm_owned(a), {("a.py", "a.a1"), ("c.py", "c.c1")})
+        self.assertEqual(_pm_owned(c), set())
+
+    def test_metadata_restored_and_reported_for_unchanged_only(self):
+        a = _pm_component("A", "1", {"a.py": [_pm_method("a.a1")]})
+        c = _pm_component("C", "3", {"c.py": [_pm_method("c.c1")]})
+        root = AnalysisInsights(description="root", components=[a, c], components_relations=[])
+        baseline = _capture_membership_baseline(root, {})
+
+        # The planner reworded both, but only C actually changed.
+        a.name, a.description = "A renamed", "reworded"
+        c.name, c.description = "C renamed", "genuinely new"
+
+        unchanged = _restore_unchanged_metadata(root, {}, baseline, {"c.c1"})
+
+        self.assertEqual(unchanged, {"1"})
+        self.assertEqual((a.name, a.description), ("A", "A description"))
+        self.assertEqual((c.name, c.description), ("C renamed", "genuinely new"))
+
+    def test_body_changed_member_keeps_component_out_of_the_unchanged_set(self):
+        # Same membership as baseline, but a member's body changed -> still "changed".
+        c = _pm_component("C", "3", {"c.py": [_pm_method("c.c1")]})
+        root = AnalysisInsights(description="root", components=[c], components_relations=[])
+        baseline = _capture_membership_baseline(root, {})
+        c.description = "reworded because body changed"
+
+        unchanged = _restore_unchanged_metadata(root, {}, baseline, {"c.c1"})
+
+        self.assertEqual(unchanged, set())
+        self.assertEqual(c.description, "reworded because body changed")
+
+    def test_relations_between_unchanged_components_carried_over(self):
+        a = _pm_component("A", "1", {"a.py": [_pm_method("a.a1")]})
+        b = _pm_component("B", "2", {"b.py": [_pm_method("b.b1")]})
+        c = _pm_component("C", "3", {"c.py": [_pm_method("c.c1")]})
+        baseline_ab = Relation(relation="uses", src_name="A", dst_name="B", evidence="baseline")
+        baseline_ac = Relation(relation="calls", src_name="A", dst_name="C", evidence="baseline")
+        root = AnalysisInsights(
+            description="root", components=[a, b, c], components_relations=[baseline_ab, baseline_ac]
+        )
+        baseline = _capture_membership_baseline(root, {})
+
+        # A different component (C) changed; the re-partition reshuffled B's method into A.
+        a.file_methods = [
+            FileMethodGroup(file_path="a.py", methods=[_pm_method("a.a1")]),
+            FileMethodGroup(file_path="b.py", methods=[_pm_method("b.b1")]),
+        ]
+        b.file_methods = []
+        _restore_unchanged_membership(root, {}, baseline, {"c.c1"}, set())
+        unchanged = _restore_unchanged_metadata(root, {}, baseline, {"c.c1"})
+        # This is exactly what generate_analysis_incremental does to the refresh set.
+        changed_ids = {"1", "2", "3"} - unchanged
+        self.assertEqual(changed_ids, {"3"})
+
+        regenerated = [
+            Relation(relation="reworded", src_name="A", dst_name="B", evidence="llm"),
+            Relation(relation="reworded", src_name="A", dst_name="C", evidence="llm"),
+        ]
+        merged = _preserve_unchanged_relations(root, [baseline_ab, baseline_ac], regenerated, changed_ids)
+        by_pair = {(rel.src_name, rel.dst_name): rel for rel in merged}
+
+        self.assertEqual(_pm_owned(a), {("a.py", "a.a1")})
+        self.assertEqual(_pm_owned(b), {("b.py", "b.b1")})
+        self.assertEqual(by_pair[("A", "B")].evidence, "baseline")
+        self.assertEqual(by_pair[("A", "C")].evidence, "llm")
+
+    def test_new_component_methods_are_not_pinned_away(self):
+        # A deliberate planner split moves an unchanged method into a fresh component; the
+        # protection keeps it there instead of yanking it back to its old owner.
+        b = _pm_component("B", "2", {"b.py": [_pm_method("b.b1"), _pm_method("b.b2")]})
+        root = AnalysisInsights(description="root", components=[b], components_relations=[])
+        baseline = _capture_membership_baseline(root, {})
+
+        new_component = _pm_component("N", "4", {"b.py": [_pm_method("b.b2")]})
+        b.file_methods = [FileMethodGroup(file_path="b.py", methods=[_pm_method("b.b1")])]
+        root.components.append(new_component)
+
+        _restore_unchanged_membership(root, {}, baseline, set(), {"4"})
+
+        self.assertEqual(_pm_owned(new_component), {("b.py", "b.b2")})
+        self.assertEqual(_pm_owned(b), {("b.py", "b.b1")})
+
+    def test_membership_restore_is_scoped_per_sub_analysis(self):
+        # Each expanded scope pins against its own baseline owners, independently.
+        parent = _pm_component("Parent", "1", {"p.py": [_pm_method("p.a"), _pm_method("p.b")]})
+        child_x = _pm_component("X", "1.1", {"p.py": [_pm_method("p.a")]})
+        child_y = _pm_component("Y", "1.2", {"p.py": [_pm_method("p.b")]})
+        root = AnalysisInsights(description="root", components=[parent], components_relations=[])
+        sub = AnalysisInsights(description="sub", components=[child_x, child_y], components_relations=[])
+        baseline = _capture_membership_baseline(root, {"1": sub})
+
+        # Sub-scope re-partition wrongly merged both methods under X.
+        child_x.file_methods = [FileMethodGroup(file_path="p.py", methods=[_pm_method("p.a"), _pm_method("p.b")])]
+        child_y.file_methods = []
+
+        _restore_unchanged_membership(root, {"1": sub}, baseline, set(), set())
+
+        self.assertEqual(_pm_owned(child_x), {("p.py", "p.a")})
+        self.assertEqual(_pm_owned(child_y), {("p.py", "p.b")})
 
 
 if __name__ == "__main__":
