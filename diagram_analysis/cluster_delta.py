@@ -18,6 +18,8 @@ from pathlib import Path
 
 import networkx as nx
 
+from agents.content_hash import SourceCache, hash_method_body, hash_whole_file, read_source_lines
+from agents.file_index_models import FileEntry
 from agents.scope_ids import ROOT_SCOPE_ID
 from diagram_analysis.cluster_snapshot import ClusterSnapshot, ClusterSnapshotEntry
 from diagram_analysis.io_utils import normalize_repo_path
@@ -68,6 +70,11 @@ class ClusterMemberDelta:
     unchanged_methods: set[str] = field(default_factory=set)
     added_methods: set[str] = field(default_factory=set)
     removed_methods: set[str] = field(default_factory=set)
+    # Members (qnames) this cluster owns whose body content changed — the
+    # member-granular signal that drives the modified decision. ``dirty_files``
+    # is the narrow file-level fallback (module-level / unhashable edits) plus
+    # display context; see ``_dirty_signal``.
+    dirty_members: set[str] = field(default_factory=set)
     dirty_files: set[str] = field(default_factory=set)
 
 
@@ -76,6 +83,7 @@ class ClusterReshape:
     old_clusters: list[ClusterRef] = field(default_factory=list)
     new_clusters: list[ClusterRef] = field(default_factory=list)
     overlap_counts: dict[tuple[ClusterRef, ClusterRef], int] = field(default_factory=dict)
+    dirty_members: set[str] = field(default_factory=set)
     dirty_files: set[str] = field(default_factory=set)
 
 
@@ -101,6 +109,109 @@ class StructuralClusterDiff:
     @property
     def has_changes(self) -> bool:
         return any(diff.has_changes for diff in self.by_language.values())
+
+
+@dataclass
+class ChangedMembers:
+    """Member-granular content-change signal from per-method content hashes.
+
+    ``members`` are qualified names (the identity clusters store, so they join
+    directly against cluster members) whose method body content changed — or
+    that were added/removed — inside the change set's added/modified files.
+    ``unattributed_files`` are changed files whose edit no hashed member
+    represents (module-level statements, data/config files, or source with no
+    indexed methods); the narrow file-level fallback dirties clusters owning
+    them so such edits are never silently missed.
+    """
+
+    members: set[str] = field(default_factory=set)
+    unattributed_files: set[str] = field(default_factory=set)
+
+
+def compute_changed_members(
+    baseline_files: dict[str, FileEntry],
+    new_static: StaticAnalysisResults,
+    changes: ChangeSet,
+    repo_dir: Path,
+    source_cache: SourceCache | None = None,
+) -> ChangedMembers:
+    """Diff per-method content hashes to find genuinely-changed cluster members.
+
+    ``baseline_files`` is the prior ``analysis.json`` file index (its methods
+    carry the previously-persisted ``content_hash``); the new hashes are
+    recomputed from live source at the current CFG spans with the same helper,
+    so an unchanged method below an edit — whose line span shifts but whose body
+    text is identical — hashes equal and does not light up. Scoped to the change
+    set's added/modified files, so drift in untouched files cannot leak in.
+
+    A changed file that produces no changed member (and whose whole-file hash
+    still differs) is recorded in ``unattributed_files`` for the file-level
+    fallback. When the baseline predates content hashing (all hashes ``''``),
+    every method in a changed file differs and the signal degrades gracefully to
+    the old file-granular behavior rather than missing the change.
+    """
+    file_cache: SourceCache = source_cache if source_cache is not None else {}
+    changed_paths = {normalize_repo_path(fc.file_path, repo_dir) for fc in changes.files if fc.is_content_change()}
+    if not changed_paths:
+        return ChangedMembers()
+
+    new_member_hashes = _live_member_hashes(new_static, repo_dir, changed_paths, file_cache)
+
+    result = ChangedMembers()
+    for path in changed_paths:
+        baseline_entry = baseline_files.get(path)
+        baseline_members = (
+            {method.qualified_name: method.content_hash for method in baseline_entry.methods}
+            if baseline_entry is not None
+            else {}
+        )
+        new_members = new_member_hashes.get(path, {})
+
+        file_changed: set[str] = set()
+        for qname in set(baseline_members) | set(new_members):
+            in_baseline = qname in baseline_members
+            in_new = qname in new_members
+            if in_baseline and in_new:
+                if baseline_members[qname] != new_members[qname]:
+                    file_changed.add(qname)
+            else:
+                # Present in exactly one index: a method was added or removed.
+                file_changed.add(qname)
+
+        if file_changed:
+            result.members |= file_changed
+            continue
+
+        # No hashed member represents this file's edit — fall back to file level,
+        # but only if the whole-file content actually differs (a fingerprint
+        # false positive or metadata-only change must not dirty the cluster).
+        baseline_file_hash = baseline_entry.content_hash if baseline_entry is not None else ""
+        new_file_hash = hash_whole_file(read_source_lines(repo_dir, path, file_cache))
+        if new_file_hash != baseline_file_hash:
+            result.unattributed_files.add(path)
+    return result
+
+
+def _live_member_hashes(
+    new_static: StaticAnalysisResults,
+    repo_dir: Path,
+    changed_paths: set[str],
+    file_cache: SourceCache,
+) -> dict[str, dict[str, str]]:
+    """``{file_path -> {qname -> body_hash}}`` for CFG nodes in changed files."""
+    hashes: dict[str, dict[str, str]] = {}
+    for language in new_static.get_languages():
+        try:
+            cfg = new_static.get_cfg(language)
+        except (KeyError, ValueError):
+            continue
+        for qname, node in cfg.nodes.items():
+            path = normalize_repo_path(node.file_path, repo_dir)
+            if path not in changed_paths:
+                continue
+            source_lines = read_source_lines(repo_dir, path, file_cache)
+            hashes.setdefault(path, {})[qname] = hash_method_body(source_lines, node.line_start, node.line_end)
+    return hashes
 
 
 def compute_cluster_delta(
@@ -139,8 +250,17 @@ def structural_diff_from_delta(
     changes: ChangeSet | None = None,
     repo_dir: Path | None = None,
     scope_id: str = ROOT_SCOPE_ID,
+    changed: ChangedMembers | None = None,
 ) -> StructuralClusterDiff:
-    """Classify seeded cluster output into scope-local structural facts."""
+    """Classify seeded cluster output into scope-local structural facts.
+
+    ``changed`` (from ``compute_changed_members``) makes the modified decision
+    member-granular: a carried-over cluster is modified only when its own
+    members changed. Without it, the decision falls back to the legacy
+    file-level dirty signal (a cluster is modified if any of its member files is
+    in the diff), which over-reports because a file's methods disperse across
+    clusters.
+    """
     diff_files = _changeset_to_path_set(changes) if changes is not None else set()
     structural = StructuralClusterDiff()
     languages = set(old_snapshot.by_language) | set(delta.by_language)
@@ -155,6 +275,7 @@ def structural_diff_from_delta(
             diff_files,
             repo_dir,
             scope_id,
+            changed,
         )
     return structural
 
@@ -176,6 +297,7 @@ def _structural_diff_for_language(
     diff_files: set[str],
     repo_dir: Path | None,
     scope_id: str,
+    changed: ChangedMembers | None,
 ) -> LanguageStructuralDiff:
     result = LanguageStructuralDiff(language=language)
     old_to_new: dict[int, set[int]] = {}
@@ -233,13 +355,19 @@ def _structural_diff_for_language(
                 diff_files,
                 repo_dir,
                 scope_id,
+                changed,
             )
-            if member_delta.added_methods or member_delta.removed_methods or member_delta.dirty_files:
+            if _member_delta_has_change(member_delta):
                 result.modified.append(member_delta)
             else:
                 result.unchanged.append(member_delta)
             continue
 
+        # A reshape (many-to-many cluster remap) is itself a structural change:
+        # the partition boundary moved, so components must be re-derived even when
+        # no member body changed. It always surfaces — unlike the member-delta
+        # path, it was never the file-granular over-report source. ``dirty_members``
+        # is computed for display context only.
         result.reshaped.append(
             _build_reshape(
                 language,
@@ -251,6 +379,7 @@ def _structural_diff_for_language(
                 diff_files,
                 repo_dir,
                 scope_id,
+                changed,
             )
         )
 
@@ -267,9 +396,40 @@ def _structural_diff_for_language(
                 diff_files,
                 repo_dir,
                 scope_id,
+                changed,
             )
         )
     return result
+
+
+def _member_delta_has_change(delta: ClusterMemberDelta) -> bool:
+    """A carried-over cluster is modified when its own members (or a fallback
+    dirty file) changed — never merely because some unrelated method in a shared
+    file changed."""
+    return bool(delta.added_methods or delta.removed_methods or delta.dirty_members or delta.dirty_files)
+
+
+def _dirty_signal(
+    cluster_members: set[str],
+    cluster_files: set[str],
+    diff_files: set[str],
+    changed: ChangedMembers | None,
+) -> tuple[set[str], set[str]]:
+    """Return ``(dirty_members, dirty_files)`` for a cluster.
+
+    Member-granular when ``changed`` is provided: ``dirty_members`` are the
+    cluster's own changed members and ``dirty_files`` is the narrow fallback —
+    changed files the cluster owns whose edit no hashed member represents. Without
+    ``changed`` there is no member signal, so it degrades to the legacy file-level
+    dirty (any owned file in the diff), which over-reports.
+    """
+    if changed is None:
+        return set(), (cluster_files & diff_files)
+    return (cluster_members & changed.members), (cluster_files & changed.unattributed_files)
+
+
+def _normalize_files(paths: set[str], repo_dir: Path | None) -> set[str]:
+    return {normalize_repo_path(file_path, repo_dir) for file_path in paths if file_path}
 
 
 def _build_new_cluster_delta(
@@ -279,16 +439,17 @@ def _build_new_cluster_delta(
     diff_files: set[str],
     repo_dir: Path | None,
     scope_id: str,
+    changed: ChangedMembers | None,
 ) -> ClusterMemberDelta:
     members = set(new_result.clusters.get(new_id, set()))
-    files = {normalize_repo_path(file_path, repo_dir) for file_path in new_result.cluster_to_files.get(new_id, set())}
-    if diff_files:
-        files &= diff_files
+    cluster_files = _normalize_files(set(new_result.cluster_to_files.get(new_id, set())), repo_dir)
+    dirty_members, dirty_files = _dirty_signal(members, cluster_files, diff_files, changed)
     return ClusterMemberDelta(
         old_cluster=ClusterRef(language=language, cluster_id=new_id, scope_id=scope_id),
         new_cluster=ClusterRef(language=language, cluster_id=new_id, scope_id=scope_id),
         added_methods=members,
-        dirty_files=files,
+        dirty_members=dirty_members,
+        dirty_files=dirty_files,
     )
 
 
@@ -301,15 +462,25 @@ def _build_member_delta(
     diff_files: set[str],
     repo_dir: Path | None,
     scope_id: str,
+    changed: ChangedMembers | None,
 ) -> ClusterMemberDelta:
     new_members = new_result.clusters.get(new_id, set())
+    cluster_members = old_entry.members | new_members
+    cluster_files = _normalize_files(
+        set(old_entry.files)
+        | set(old_entry.member_files.values())
+        | set(new_result.cluster_to_files.get(new_id, set())),
+        repo_dir,
+    )
+    dirty_members, dirty_files = _dirty_signal(cluster_members, cluster_files, diff_files, changed)
     return ClusterMemberDelta(
         old_cluster=ClusterRef(language=language, cluster_id=old_id, scope_id=scope_id),
         new_cluster=ClusterRef(language=language, cluster_id=new_id, scope_id=scope_id),
         unchanged_methods=old_entry.members & new_members,
         added_methods=new_members - old_entry.members,
         removed_methods=old_entry.members - new_members,
-        dirty_files=_dirty_files(old_entry, new_result, new_id, diff_files, repo_dir),
+        dirty_members=dirty_members,
+        dirty_files=dirty_files,
     )
 
 
@@ -323,6 +494,7 @@ def _build_reshape(
     diff_files: set[str],
     repo_dir: Path | None,
     scope_id: str,
+    changed: ChangedMembers | None,
 ) -> ClusterReshape:
     old_refs = [ClusterRef(language=language, cluster_id=old_id, scope_id=scope_id) for old_id in sorted(old_ids)]
     new_refs = [ClusterRef(language=language, cluster_id=new_id, scope_id=scope_id) for new_id in sorted(new_ids)]
@@ -333,34 +505,25 @@ def _build_reshape(
         if old_id in old_ids and new_id in new_ids:
             ref_overlaps[(ref_by_old_id[old_id], ref_by_new_id[new_id])] = overlap_counts[(old_id, new_id)]
 
-    dirty_files: set[str] = set()
+    cluster_members: set[str] = set()
+    cluster_files_raw: set[str] = set()
     for old_id in old_ids:
-        for new_id in new_ids:
-            dirty_files |= _dirty_files(old_clusters[old_id], new_result, new_id, diff_files, repo_dir)
+        entry = old_clusters[old_id]
+        cluster_members |= entry.members
+        cluster_files_raw |= set(entry.files) | set(entry.member_files.values())
+    for new_id in new_ids:
+        cluster_members |= new_result.clusters.get(new_id, set())
+        cluster_files_raw |= set(new_result.cluster_to_files.get(new_id, set()))
+    dirty_members, dirty_files = _dirty_signal(
+        cluster_members, _normalize_files(cluster_files_raw, repo_dir), diff_files, changed
+    )
     return ClusterReshape(
         old_clusters=old_refs,
         new_clusters=new_refs,
         overlap_counts=ref_overlaps,
+        dirty_members=dirty_members,
         dirty_files=dirty_files,
     )
-
-
-def _dirty_files(
-    old_entry: ClusterSnapshotEntry,
-    new_result: ClusterResult,
-    new_id: int,
-    diff_files: set[str],
-    repo_dir: Path | None,
-) -> set[str]:
-    if not diff_files:
-        return set()
-    cluster_files = (
-        set(old_entry.files)
-        | set(old_entry.member_files.values())
-        | set(new_result.cluster_to_files.get(new_id, set()))
-    )
-    normalized = {normalize_repo_path(file_path, repo_dir) for file_path in cluster_files if file_path}
-    return normalized & diff_files
 
 
 def _delta_for_language(

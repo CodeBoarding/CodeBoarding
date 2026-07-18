@@ -222,6 +222,8 @@ def _format_member_delta(delta: ClusterMemberDelta) -> str:
         parts.append(f"added={sorted(delta.added_methods)}")
     if delta.removed_methods:
         parts.append(f"removed={sorted(delta.removed_methods)}")
+    if delta.dirty_members:
+        parts.append(f"changed_members={sorted(delta.dirty_members)}")
     if delta.dirty_files:
         parts.append(f"dirty_files={sorted(delta.dirty_files)}")
     return "; ".join(parts)
@@ -253,7 +255,12 @@ def _format_reshape(reshape: ClusterReshape) -> str:
             ),
         )
     )
-    suffix = f"; dirty_files={sorted(reshape.dirty_files)}" if reshape.dirty_files else ""
+    suffix_parts: list[str] = []
+    if reshape.dirty_members:
+        suffix_parts.append(f"changed_members={sorted(reshape.dirty_members)}")
+    if reshape.dirty_files:
+        suffix_parts.append(f"dirty_files={sorted(reshape.dirty_files)}")
+    suffix = f"; {'; '.join(suffix_parts)}" if suffix_parts else ""
     return f"- old=[{old_refs}] new=[{new_refs}] overlaps=[{overlaps}]{suffix}"
 
 
