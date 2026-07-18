@@ -2,6 +2,8 @@ import json
 import logging
 import os
 import time
+from collections import Counter, defaultdict
+from collections.abc import Iterable
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from contextlib import nullcontext
 from datetime import datetime, timezone
@@ -25,7 +27,7 @@ from agents.incremental_agent import (
 )
 from agents.incremental_planning_agent import IncrementalPlanningAgent
 from agents.incremental_results import RecursiveScopeUpdateResult
-from agents.file_index_models import FileEntry
+from agents.file_index_models import FileEntry, FileMethodGroup, MethodEntry
 from agents.llm_config import initialize_llms
 from agents.llm_errors import LLMAuthError
 from agents.meta_agent import MetaAgent
@@ -86,6 +88,81 @@ def _component_expansion_seeds(components: list[Component], max_depth: int) -> l
         for component in components
         if (depth := _component_depth(component.component_id)) < max_depth
     ]
+
+
+def _owned_method_keys(components: Iterable[Component]) -> set[tuple[str, str]]:
+    """The ``(file_path, qualified_name)`` set the given components collectively own."""
+    return {
+        (group.file_path, method.qualified_name)
+        for component in components
+        for group in component.file_methods
+        for method in group.methods
+    }
+
+
+def _reconcile_child_scope(
+    parent: Component,
+    child_scope: AnalysisInsights,
+    parent_keys: set[tuple[str, str]],
+    child_keys: set[tuple[str, str]],
+    repo_dir: Path,
+) -> None:
+    """Bring a child scope's membership up to its parent's, preserving unchanged placements.
+
+    ``update_scope`` may shift a handful of methods into or out of a parent. Re-clustering
+    the whole subtree to absorb that would renumber sub-components nothing touched, so
+    instead drop only the departed methods — the double-ownership fix — and graft each
+    entered method onto the child component with the strongest same-file affinity, leaving
+    every method that stayed exactly where it was.
+    """
+    departed = child_keys - parent_keys
+    entered = parent_keys - child_keys
+    if departed:
+        for child in child_scope.components:
+            for group in child.file_methods:
+                group.methods = [m for m in group.methods if (group.file_path, m.qualified_name) not in departed]
+            child.file_methods = [group for group in child.file_methods if group.methods]
+    if entered:
+        parent_methods = {
+            (group.file_path, method.qualified_name): method
+            for group in parent.file_methods
+            for method in group.methods
+        }
+        _graft_entered_methods(child_scope, entered, parent_methods)
+    child_scope.files = build_files_index(child_scope, repo_dir)
+
+
+def _graft_entered_methods(
+    child_scope: AnalysisInsights,
+    entered: set[tuple[str, str]],
+    parent_methods: dict[tuple[str, str], MethodEntry],
+) -> None:
+    """Place each entered method on the child component that already owns most of its file."""
+    file_owner_counts: defaultdict[str, Counter[str]] = defaultdict(Counter)
+    child_by_id: dict[str, Component] = {}
+    for child in child_scope.components:
+        child_by_id[child.component_id] = child
+        for group in child.file_methods:
+            file_owner_counts[group.file_path][child.component_id] += len(group.methods)
+    # Deterministic home for a method whose file no child owns yet.
+    fallback = max(
+        child_scope.components,
+        key=lambda c: (sum(len(g.methods) for g in c.file_methods), c.component_id),
+    )
+    for file_path, qualified_name in sorted(entered):
+        counts = file_owner_counts.get(file_path)
+        target = child_by_id[max(counts, key=lambda cid: (counts[cid], cid))] if counts else fallback
+        _append_method(target, file_path, parent_methods[(file_path, qualified_name)])
+        file_owner_counts[file_path][target.component_id] += 1
+
+
+def _append_method(component: Component, file_path: str, method: MethodEntry) -> None:
+    for group in component.file_methods:
+        if group.file_path == file_path:
+            if all(existing.qualified_name != method.qualified_name for existing in group.methods):
+                group.methods.append(method)
+            return
+    component.file_methods.append(FileMethodGroup(file_path=file_path, methods=[method]))
 
 
 class DiagramGenerator:
@@ -685,33 +762,28 @@ class DiagramGenerator:
         scope: AnalysisInsights,
         sub_analyses: dict[str, AnalysisInsights],
     ) -> None:
-        """Re-partition every child scope over its parent's current ``file_methods``.
+        """Reconcile each child scope whose membership diverges from its parent's, surgically.
 
         Why: ``update_scope`` re-partitions a parent against the live clustering, but a
         child scope is a separate ``AnalysisInsights`` that no patch touches — a method
         that moved to another component would otherwise stay in the old owner's subtree
         and appear under two components.
+
+        Only reconcile a scope whose parent's live method set differs from what its
+        children currently reflect; an agreeing scope is left byte-for-byte, so a small
+        change stops rippling into subtrees nothing touched. The reconcile itself is
+        surgical (drop departed, graft entered) rather than a fresh re-cluster, so even a
+        genuinely-changed component keeps its unchanged methods where they already were.
+        Recurse into every scope so a deeper boundary that shifted is still caught.
         """
-        assert self.incremental_agent is not None
         for component in scope.components:
             child_scope = sub_analyses.get(component.component_id)
             if child_scope is None or not child_scope.components:
                 continue
-            _subgraph_str, cluster_results, cfg_graphs = self.incremental_agent._create_strict_component_subgraph(
-                component, source_cluster_id_prefix=component.component_id
-            )
-            if cluster_results:
-                self.incremental_agent.populate_file_methods(
-                    child_scope, cluster_results, cfg_graphs, component.component_id
-                )
-            else:
-                # The parent owns no live methods, so no child may own any. Clear the
-                # scope's own index too: ``save_analysis`` merges it into the unified
-                # ``files``/``methods_index``, and the partial flow saves without a
-                # ``_refresh_files_index`` that would otherwise drop the stale entries.
-                for child in child_scope.components:
-                    child.file_methods = []
-                child_scope.files = {}
+            parent_keys = _owned_method_keys([component])
+            child_keys = _owned_method_keys(child_scope.components)
+            if parent_keys != child_keys:
+                _reconcile_child_scope(component, child_scope, parent_keys, child_keys, self.repo_location)
             self._rescope_child_analyses(child_scope, sub_analyses)
 
     def _apply_incremental_scope_recursively(
@@ -926,11 +998,9 @@ def assert_scope_containment(
         parent = components_by_id.get(component_id)
         if parent is None:
             continue
-        owned = {(group.file_path, method.qualified_name) for group in parent.file_methods for method in group.methods}
+        owned = _owned_method_keys([parent])
         for child in child_scope.components:
-            escaped = {
-                (group.file_path, method.qualified_name) for group in child.file_methods for method in group.methods
-            } - owned
+            escaped = _owned_method_keys([child]) - owned
             if escaped:
                 violations.append(
                     f"{child.component_id or child.name} holds {len(escaped)} method(s) outside parent {component_id}"
