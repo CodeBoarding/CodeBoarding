@@ -522,7 +522,7 @@ class TestScopeContainment(unittest.TestCase):
         root, sub_analyses, static_analysis = self._build_tree()
         gen = self._generator(static_analysis)
 
-        gen._rescope_child_analyses(root, sub_analyses)
+        gen._rescope_child_analyses(root, sub_analyses, set())
 
         parent_owned = {m.qualified_name for g in root.components[0].file_methods for m in g.methods}
         child_owned = {
@@ -543,7 +543,7 @@ class TestScopeContainment(unittest.TestCase):
         sub_analyses["1"].files = {"shared.ts": FileEntry()}
         gen = self._generator(static_analysis)
 
-        gen._rescope_child_analyses(root, sub_analyses)
+        gen._rescope_child_analyses(root, sub_analyses, set())
 
         self.assertEqual([m for c in sub_analyses["1"].components for g in c.file_methods for m in g.methods], [])
         # save_analysis merges every scope's index into the unified files/methods_index,
