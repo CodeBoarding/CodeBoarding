@@ -159,6 +159,15 @@ class TestStaticAnalysisCacheShaGate(unittest.TestCase):
         loaded = self.cache.get(expected_sha="sha-current")
         self.assertIsNone(loaded)
 
+    def test_unknown_tag_version_treated_as_miss_without_expected_sha(self):
+        # A stale (pre-bump) tag must be rejected even by an ungated read, so a
+        # version bump forces a rebuild instead of loading an incompatible pickle.
+        results = StaticAnalysisResults()
+        self.cache.save(results, source_sha="sha-current")
+        (self.artifact_dir / STATIC_ANALYSIS_SHA).write_text("v999\nsha-current\n")
+
+        self.assertIsNone(self.cache.get(expected_sha=None))
+
 
 class TestStaticAnalysisCacheLegacyInvalidation(unittest.TestCase):
     """The ProgramGraph artifact format must not load legacy pickles."""

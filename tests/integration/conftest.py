@@ -232,9 +232,12 @@ def extract_metrics(static_analysis, language: Language) -> dict:
         Dictionary with metric counts
     """
     try:
-        cfg = static_analysis.get_cfg(language)
-        nodes_count = len(cfg.nodes)
-        edges_count = len(cfg.edges)
+        cfg = static_analysis.get_program_graph(language)
+        # The "call graph" metrics measure the call subgraph, not the whole
+        # ProgramGraph: counting every node/edge (incl. file/package/import/contains)
+        # would silently change what these numbers mean and invalidate the fixtures.
+        nodes_count = len(cfg.call_node_ids())
+        edges_count = len(cfg.call_edges())
     except ValueError:
         nodes_count = 0
         edges_count = 0

@@ -4,6 +4,11 @@ from unittest.mock import MagicMock
 from agents.agent_responses import AnalysisInsights, Component
 from agents.content_hash import hash_method_body
 from agents.file_index_models import FileMethodGroup, MethodEntry
+from diagram_analysis.diagram_generator import (
+    _capture_membership_baseline,
+    _incremental_changed_component_ids,
+    _restore_unchanged_metadata,
+)
 from diagram_analysis.file_index import build_files_index, changed_member_qnames, refresh_method_spans_from_cfg
 from repo_utils.change_detector import ChangeSet, FileChange
 from static_analyzer.analysis_result import StaticAnalysisResults
@@ -117,6 +122,28 @@ def test_changed_member_qnames_skips_unchanged_body(tmp_path: Path) -> None:
     assert changed_member_qnames([analysis], static_analysis, tmp_path, changes) == set()
 
 
+def test_changed_member_qnames_flags_missing_baseline_hash(tmp_path: Path) -> None:
+    # A real, non-empty method with an empty baseline hash cannot be proven unchanged;
+    # the hash inequality marks it dirty instead of silently passing it off as no-change.
+    (tmp_path / "a.py").write_text("def foo():\n    return 2\n", encoding="utf-8")
+    analysis = _analysis(FileMethodGroup(file_path="a.py", methods=[_method("a.foo", 1, 2, "")]))
+    static_analysis = _static_analysis_with_nodes(make_symbol("a.foo", NodeType.FUNCTION, "a.py", 1, 2))
+    changes = ChangeSet(files=[FileChange(status_code="M", file_path="a.py")])
+
+    assert changed_member_qnames([analysis], static_analysis, tmp_path, changes) == {"a.foo"}
+
+
+def test_changed_member_qnames_skips_empty_body_with_empty_baseline_hash(tmp_path: Path) -> None:
+    # Both the live span (out of range -> "") and the baseline hash are empty, so nothing
+    # genuinely changed and the method stays out of the dirty set.
+    (tmp_path / "a.py").write_text("def foo():\n    return 2\n", encoding="utf-8")
+    analysis = _analysis(FileMethodGroup(file_path="a.py", methods=[_method("a.foo", 0, 0, "")]))
+    static_analysis = _static_analysis_with_nodes(make_symbol("a.foo", NodeType.FUNCTION, "a.py", 0, 0))
+    changes = ChangeSet(files=[FileChange(status_code="M", file_path="a.py")])
+
+    assert changed_member_qnames([analysis], static_analysis, tmp_path, changes) == set()
+
+
 def test_changed_member_qnames_restricts_to_changed_files(tmp_path: Path) -> None:
     # Both bodies differ from their stale hash, but only a.py is in the diff, so
     # a drifted hash in the untouched b.py must not surface.
@@ -137,8 +164,10 @@ def test_changed_member_qnames_restricts_to_changed_files(tmp_path: Path) -> Non
 
 def test_changed_member_qnames_resolves_alias_to_canonical(tmp_path: Path) -> None:
     # The persisted index carries an alias; the graph node (and cluster member) is
-    # the canonical id. The changed member must be reported under the canonical id
-    # so it joins the cluster it belongs to.
+    # the canonical id. The changed member is reported under BOTH the canonical id
+    # (so it joins the cluster it belongs to) AND the raw persisted qname (so the
+    # copy-forward / metadata / relation predicates, which compare against the raw
+    # persisted name, also see the change).
     (tmp_path / "a.py").write_text("class C:\n    def m(self):\n        return 2\n", encoding="utf-8")
     canonical = "a.C.m"
     node = ProgramNode(
@@ -156,4 +185,52 @@ def test_changed_member_qnames_resolves_alias_to_canonical(tmp_path: Path) -> No
     static_analysis = _static_analysis_with_nodes(node)
     changes = ChangeSet(files=[FileChange(status_code="M", file_path="a.py")])
 
-    assert changed_member_qnames([analysis], static_analysis, tmp_path, changes) == {canonical}
+    assert changed_member_qnames([analysis], static_analysis, tmp_path, changes) == {canonical, "a.alias"}
+
+
+def test_changed_alias_member_is_seen_by_raw_qname_predicates(tmp_path: Path) -> None:
+    # End-to-end for the canonical-vs-raw mismatch: a body-changed method persisted
+    # under an alias must NOT read as unchanged by the predicates that compare the
+    # raw persisted qname against the changed set, or the component gets frozen and
+    # its diagram goes stale. Because ``changed_member_qnames`` now emits the raw
+    # alias too, the metadata predicate keeps the component out of the unchanged set
+    # and the relation predicate flags it as changed.
+    (tmp_path / "a.py").write_text("class C:\n    def m(self):\n        return 2\n", encoding="utf-8")
+    node = ProgramNode(
+        node_id="a.C.m",
+        kind=ProgramNodeKind.SYMBOL,
+        language="python",
+        name="m",
+        file_path="a.py",
+        symbol_type=NodeType.METHOD,
+        line_start=2,
+        line_end=3,
+        metadata={"aliases": ["a.alias"]},
+    )
+    component = Component(
+        name="C",
+        description="C description",
+        key_entities=[],
+        component_id="1",
+        file_methods=[FileMethodGroup(file_path="a.py", methods=[_method("a.alias", 2, 3, STALE_HASH)])],
+    )
+    analysis = AnalysisInsights(description="", components=[component], components_relations=[])
+    static_analysis = _static_analysis_with_nodes(node)
+    changes = ChangeSet(files=[FileChange(status_code="M", file_path="a.py")])
+
+    changed = changed_member_qnames([analysis], static_analysis, tmp_path, changes)
+    baseline = _capture_membership_baseline(analysis, {})
+    component.description = "planner reworded this"
+
+    unchanged = _restore_unchanged_metadata(analysis, {}, baseline, changed)
+    relation_changed = _incremental_changed_component_ids(
+        analysis,
+        {},
+        baseline_component_ids={"1"},
+        baseline_member_keys={"1": baseline.meta_by_id["1"].member_keys},
+        changed_members=changed,
+    )
+
+    assert unchanged == set()
+    assert component.description == "planner reworded this"
+    assert "1" in relation_changed

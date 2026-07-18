@@ -30,9 +30,7 @@ class MethodInvocationsTool(BaseRepoTool):
             return "No static analysis data available."
 
         results = ""
-        for lang in self.static_analysis.get_languages():
-            # Attempt to retrieve the control flow graph for the specified language
-            cfg = self.static_analysis.get_program_graph(lang)
+        for cfg in self.static_analysis.available_program_graphs().values():
             for edge in cfg.call_edges():
                 if edge.source == method:
                     results += f"Method {edge.source} is calling {edge.target}\n"

@@ -100,6 +100,11 @@ def convert_to_codeboarding_format(
                 metadata={"aliases": sorted(alias for alias in aliases if alias != canonical)},
             )
         )
+        # Register aliases in the graph map so resolve_symbol_id/has_symbol can
+        # follow a non-canonical name from a prior result to its canonical node.
+        for alias in aliases:
+            if alias != canonical:
+                program_graph._aliases[alias] = canonical
 
     edges_added = 0
     edges_skipped = 0

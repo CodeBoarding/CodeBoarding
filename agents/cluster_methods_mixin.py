@@ -518,15 +518,18 @@ class ClusterMethodsMixin:
 
             if sub_cfg.nodes:
                 subgraph_cfgs[lang] = sub_cfg
-                sub_cfg.cluster_snapshot = _lineage_seed(cfg, sub_cfg, source_cluster_id_prefix)
+                # Capture the scope's prior per-method ids from the seed BEFORE clustering:
+                # cluster() overwrites cluster_snapshot with the reconciled partition, which
+                # may merge prior singletons and lose their original ids for the expansion.
+                seed = _lineage_seed(cfg, sub_cfg, source_cluster_id_prefix)
+                sub_cfg.cluster_snapshot = seed
+                prior_owner = (
+                    {qname: cid for cid, members in seed.module_members.items() for qname in members} if seed else {}
+                )
                 sub_cluster_result = HierarchicalInfomapClusterer().cluster(sub_cfg)
 
                 # Expand to method-level if insufficient clusters, reusing the ids this
                 # scope already issued so the expansion cannot renumber what survived.
-                seed = sub_cfg.cluster_snapshot
-                prior_owner = (
-                    {qname: cid for cid, members in seed.module_members.items() for qname in members} if seed else {}
-                )
                 sub_cluster_result = self._expand_to_method_level_clusters(sub_cfg, sub_cluster_result, prior_owner)
                 cluster_results[lang] = sub_cluster_result
 

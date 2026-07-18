@@ -5,15 +5,16 @@ from static_analyzer.constants import Language, NodeType
 from static_analyzer.program_graph import ProgramGraph, ProgramNode, ProgramNodeKind
 
 
-def _graph(*symbol_ids: str) -> ProgramGraph:
-    graph = ProgramGraph(language="python")
+def _graph(*symbol_ids: str, language: Language = Language.PYTHON) -> ProgramGraph:
+    lang = str(language)
+    graph = ProgramGraph(language=lang)
     for symbol_id in symbol_ids:
         line_start = sum(ord(character) for character in symbol_id)
         graph.add_node(
             ProgramNode(
                 node_id=symbol_id,
                 kind=ProgramNodeKind.SYMBOL,
-                language="python",
+                language=lang,
                 name=symbol_id.rsplit(".", 1)[-1],
                 file_path=f"{symbol_id.split('.')[0]}.py",
                 symbol_type=NodeType.FUNCTION,
@@ -89,6 +90,7 @@ def test_reference_lookup_normalizes_generic_signatures_and_go_receivers() -> No
         _graph(
             "pkg.Service.convert(List<Animal>, T) <T>",
             "pkg.Model.(Entity).GetType",
+            language=Language.JAVA,
         ),
     )
 
@@ -102,7 +104,7 @@ def test_reference_lookup_normalizes_generic_signatures_and_go_receivers() -> No
 def test_cross_language_resolution_uses_exact_then_unique_loose_matches() -> None:
     results = StaticAnalysisResults()
     results.add_program_graph(Language.PYTHON, _graph("pkg.alpha.run", "pkg.beta.run"))
-    results.add_program_graph(Language.GO, _graph("service.unique_handler"))
+    results.add_program_graph(Language.GO, _graph("service.unique_handler", language=Language.GO))
 
     message, node = results.get_loose_reference(Language.GO, "unique_handler")
     assert message == "Found a loose match with a fully quantified name: service.unique_handler"

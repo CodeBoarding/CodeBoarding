@@ -134,7 +134,10 @@ warn_return_any = false
 warn_unused_configs = true
 disallow_untyped_defs = false
 check_untyped_defs = true
-exclude = "(?x)(^repos/|^build/|^dist/|^temp/|^static_analyzer/servers/|^tests/integration/)"
+# test_static_analysis_warm_start_delta.py excluded by path: it drives the removed CFG
+# API (ProgramEdge.src_node/dst_node node objects, ProgramNode.type/fully_qualified_name)
+# with no clean 1:1 replacement. Every other integration test is type-checked.
+exclude = "(?x)(^repos/|^build/|^dist/|^temp/|^static_analyzer/servers/|^tests/integration/projects/|^tests/integration/test_static_analysis_warm_start_delta\\.py$)"
 explicit_package_bases = true
 disable_error_code = ["import-untyped", "no-any-return", "assignment"]
 

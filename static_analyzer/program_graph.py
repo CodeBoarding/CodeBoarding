@@ -253,12 +253,15 @@ class ProgramGraph:
     def merge(self, other: "ProgramGraph") -> None:
         if self.language != other.language:
             raise ValueError(f"Cannot merge {self.language!r} graph with {other.language!r}")
+        # Copy before adding: add_edge/add_node rewrite endpoint and id fields during
+        # alias resolution, which would invalidate ``other``'s edge keys and leave both
+        # graphs sharing mutable node/occurrence objects.
         for node_id in sorted(other.nodes):
-            self.add_node(other.nodes[node_id])
+            self.add_node(copy.deepcopy(other.nodes[node_id]))
         for alias, target in sorted(other._aliases.items()):
             self._aliases[alias] = self.resolve_symbol_id(target)
         for edge in other.edges:
-            self.add_edge(edge)
+            self.add_edge(copy.deepcopy(edge))
         self.method_cluster_paths.merge(other.method_cluster_paths)
 
     def hierarchy(self) -> dict[str, dict[str, Any]]:

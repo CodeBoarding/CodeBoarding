@@ -69,28 +69,16 @@ def _relative_path(file_path: str, repo_path: Path) -> str:
 
 
 def _edge_call_site_dicts(edge, repo_path: Path) -> list[dict]:
-    """Return normalized call-site dictionaries for an edge."""
-    sites = getattr(edge, "call_sites", [])
-    normalized = []
-    for site in sites:
-        if isinstance(site, dict):
-            file_value = site.get("file") or site.get("file_path")
-            line = site.get("line")
-            column = site.get("column")
-        else:
-            file_value = getattr(site, "file", None) or getattr(site, "file_path", None)
-            line = getattr(site, "line", None)
-            column = getattr(site, "column", None)
-
-        if file_value is None or line is None or column is None:
-            continue
-        normalized.append(
-            {
-                "file": _relative_path(str(file_value), repo_path),
-                "line": int(line),
-                "column": int(column),
-            }
-        )
+    """Return normalized call-site dictionaries for a program edge's occurrences."""
+    normalized = [
+        {
+            "file": _relative_path(str(occ.file), repo_path),
+            "line": int(occ.line),
+            "column": int(occ.column),
+        }
+        for occ in edge.occurrences
+        if occ.file
+    ]
     return sorted(normalized, key=lambda item: (item["file"], item["line"], item["column"]))
 
 
@@ -123,10 +111,10 @@ def _write_snapshot(
 
     # References: sorted list of fully qualified names with type and location
     references_snapshot = []
-    for node in sorted(static_analysis.iter_reference_nodes(language), key=lambda n: n.fully_qualified_name):
+    for node in sorted(static_analysis.iter_reference_nodes(language), key=lambda n: n.node_id):
         references_snapshot.append(
             {
-                "name": node.fully_qualified_name,
+                "name": node.node_id,
                 "type": node.entity_label(),
                 "file": _relative_path(node.file_path, repo_path),
                 "lines": f"{node.line_start}-{node.line_end}",
@@ -135,16 +123,17 @@ def _write_snapshot(
 
     # Call graph edges
     try:
-        cfg = static_analysis.get_cfg(language)
-        edges_snapshot = sorted([e.get_source(), e.get_destination()] for e in cfg.edges)
+        cfg = static_analysis.get_program_graph(language)
+        call_edges = cfg.call_edges()
+        edges_snapshot = sorted([e.source, e.target] for e in call_edges)
         call_site_occurrences_snapshot = []
-        for edge in cfg.edges:
+        for edge in call_edges:
             occurrences = _edge_call_site_dicts(edge, repo_path)
             if occurrences:
                 call_site_occurrences_snapshot.append(
                     {
-                        "source": edge.get_source(),
-                        "destination": edge.get_destination(),
+                        "source": edge.source,
+                        "destination": edge.target,
                         "occurrences": occurrences,
                     }
                 )
@@ -152,7 +141,7 @@ def _write_snapshot(
             call_site_occurrences_snapshot,
             key=lambda item: (item["source"], item["destination"]),
         )
-        nodes_snapshot = sorted(cfg.nodes.keys())
+        nodes_snapshot = sorted(cfg.call_node_ids())
     except ValueError:
         edges_snapshot = []
         call_site_occurrences_snapshot = []
@@ -459,7 +448,7 @@ class TestStaticAnalysisConsistency:
         entity_type: str,
     ):
         """Verify that sample entities are present in the analysis results."""
-        reference_keys = {n.fully_qualified_name.lower() for n in static_analysis.iter_reference_nodes(language)}
+        reference_keys = {n.node_id.lower() for n in static_analysis.iter_reference_nodes(language)}
 
         for entity in sample_entities:
             entity_lower = entity.lower()
@@ -488,8 +477,8 @@ class TestStaticAnalysisConsistency:
         expected: dict,
         repo_path: Path,
     ):
-        cfg = static_analysis.get_cfg(language)
-        actual_by_edge = {(e.get_source(), e.get_destination()): _edge_call_site_dicts(e, repo_path) for e in cfg.edges}
+        cfg = static_analysis.get_program_graph(language)
+        actual_by_edge = {(e.source, e.target): _edge_call_site_dicts(e, repo_path) for e in cfg.edges}
         actual_by_destination: dict[str, set[tuple[str, int, int]]] = {}
         for (_, destination), sites in actual_by_edge.items():
             actual_by_destination.setdefault(destination, set()).update(

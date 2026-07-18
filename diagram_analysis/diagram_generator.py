@@ -176,6 +176,7 @@ class _ComponentBaseline:
     description: str
     key_entities: list[SourceCodeReference]
     source_group_names: list[str]
+    source_cluster_ids: list[str]
     member_keys: frozenset[tuple[str, str]]
     member_qnames: frozenset[str]
 
@@ -238,6 +239,7 @@ def _capture_membership_baseline(
                 description=component.description,
                 key_entities=[entity.model_copy(deep=True) for entity in component.key_entities],
                 source_group_names=list(component.source_group_names),
+                source_cluster_ids=list(component.source_cluster_ids),
                 member_keys=frozenset(keys),
                 member_qnames=frozenset(qnames),
             )
@@ -315,6 +317,10 @@ def _restore_unchanged_metadata(
             component.description = meta.description
             component.key_entities = [entity.model_copy(deep=True) for entity in meta.key_entities]
             component.source_group_names = list(meta.source_group_names)
+            # Restore the paired cluster ids too: membership is baseline-identical here, so the
+            # repartition's ids would leave the component claiming clusters it no longer owns and
+            # misroute the next incremental's changes for them.
+            component.source_cluster_ids = list(meta.source_cluster_ids)
             unchanged_ids.add(component.component_id)
     return unchanged_ids
 
@@ -394,15 +400,19 @@ def _incremental_changed_component_ids(
     root_analysis: AnalysisInsights,
     sub_analyses: dict[str, AnalysisInsights],
     baseline_component_ids: set[str],
+    baseline_member_keys: dict[str, frozenset[tuple[str, str]]],
     changed_members: set[str],
 ) -> set[str]:
     """Component ids whose global relations may legitimately differ from the baseline.
 
-    A live component counts as changed when it owns a body-changed member, or when it is
-    absent from the baseline (freshly created). Because every ancestor scope lists a
-    method in its own ``file_methods``, the owner of a changed member and all of its
-    ancestors are captured together — exactly the endpoints a relation rebuild is allowed
-    to relabel. Everything else is preserved verbatim.
+    A live component counts as changed when it is absent from the baseline (freshly
+    created), owns a body-changed member, or its live member-key set differs from the
+    baseline — it gained or lost a member. Membership churn alone (a new caller of another
+    component, or the last caller removed) relabels the edges between the two components
+    even with no surviving body-hash change, so it must be treated as changed or the
+    genuinely-new edge is dropped / the stale baseline edge restored. Because every ancestor
+    scope lists a method in its own ``file_methods``, the owner of a change and all of its
+    ancestors are captured together. Everything else is preserved verbatim.
     """
     changed: set[str] = set()
     for _scope_id, analysis in _iter_incremental_scopes(root_analysis, sub_analyses):
@@ -410,9 +420,14 @@ def _incremental_changed_component_ids(
             component_id = component.component_id
             if not component_id:
                 continue
-            if component_id not in baseline_component_ids or any(
+            live_keys = frozenset(
+                (group.file_path, method.qualified_name) for group in component.file_methods for method in group.methods
+            )
+            body_changed = any(
                 method.qualified_name in changed_members for group in component.file_methods for method in group.methods
-            ):
+            )
+            membership_changed = live_keys != baseline_member_keys.get(component_id, frozenset())
+            if component_id not in baseline_component_ids or body_changed or membership_changed:
                 changed.add(component_id)
     return changed
 
@@ -486,6 +501,11 @@ class DiagramGenerator:
         # ``None`` => full analysis: rebuild every relation. Keyed by ``(src_id, dst_id)``.
         self._baseline_global_relations: dict[tuple[str, str], Relation] | None = None
         self._baseline_component_ids: set[str] = set()
+        # Per-component baseline member-key set, captured with the membership baseline. A
+        # component whose live member keys differ from these gained or lost a member (without
+        # necessarily a body-hash change), so its relations may legitimately relabel — the
+        # save-time global rebuild must treat it as changed.
+        self._baseline_member_keys: dict[str, frozenset[tuple[str, str]]] = {}
         # Whole-tree content hash, stamped into the pkl's sibling .sha file as the
         # diff base for the next warm-start (NOT a cache gate). ``pre_analysis``
         # fills it from the live tree when unset; ``None`` is a tag-less save.
@@ -976,7 +996,11 @@ class DiagramGenerator:
             # Incremental: the wholesale rebuild would relabel edges between two untouched
             # components, so carry those over verbatim from the baseline.
             changed_ids = _incremental_changed_component_ids(
-                root_analysis, sub_analyses, self._baseline_component_ids, self._changed_members
+                root_analysis,
+                sub_analyses,
+                self._baseline_component_ids,
+                self._baseline_member_keys,
+                self._changed_members,
             )
             live_ids = {
                 component.component_id
@@ -1210,14 +1234,22 @@ class DiagramGenerator:
 
             snapshot_source = self.static_analysis.incremental_base_results or self.static_analysis
             old_snapshot = snapshot_from_static_analysis(snapshot_source)
-            if not old_snapshot.all_cluster_ids():
+            if not old_snapshot.all_cluster_ids() or old_snapshot.missing_snapshot_languages:
                 # No cluster_cache on the live CFG — no prior pkl, legacy pkl,
-                # or first-ever incremental run. Refuse to silently rebuild
-                # from scratch; that would discard the existing analysis.json's
-                # depth and component IDs. Caller must explicitly request a
-                # full run instead.  ``IncrementalCacheMissingError`` inspects
-                # the artifact dir to pick the specific diagnostic (missing
-                # pkl, missing sha, or pkl-without-cluster-baseline).
+                # or first-ever incremental run — or a partial baseline where
+                # some language carries a snapshot and another with real code
+                # does not. Refuse to silently rebuild from scratch; that would
+                # discard the existing analysis.json's depth and component IDs,
+                # or recluster the missing language and lose its stable ids.
+                # Caller must explicitly request a full run instead.
+                # ``IncrementalCacheMissingError`` inspects the artifact dir to
+                # pick the specific diagnostic (missing pkl, missing sha, or
+                # pkl-without-cluster-baseline).
+                if old_snapshot.missing_snapshot_languages:
+                    logger.error(
+                        "[incremental] partial cluster baseline: %s have code but no snapshot",
+                        sorted(old_snapshot.missing_snapshot_languages),
+                    )
                 artifact_dir = self.output_dir
                 error = IncrementalCacheMissingError(artifact_dir)
                 logger.error("%s", error)
@@ -1261,6 +1293,10 @@ class DiagramGenerator:
             )
             protected_empty_ids = _cluster_backed_empty_component_ids(root_analysis, sub_analyses)
             baseline_membership = _capture_membership_baseline(root_analysis, sub_analyses)
+            # Feed the per-component baseline member keys to the save-time global relation
+            # rebuild so a component that only gained/lost a member (no body-hash change) is
+            # still treated as changed and its edges are re-derived, not carried over stale.
+            self._baseline_member_keys = {cid: meta.member_keys for cid, meta in baseline_membership.meta_by_id.items()}
             apply_result = self._apply_incremental_scope_recursively(
                 ROOT_SCOPE_ID,
                 root_analysis,
@@ -1365,6 +1401,7 @@ def assert_scope_containment(
     for component_id, child_scope in sorted(sub_analyses.items()):
         parent = components_by_id.get(component_id)
         if parent is None:
+            violations.append(f"child scope {component_id!r} has no parent component in the tree")
             continue
         owned = _owned_method_keys([parent])
         for child in child_scope.components:

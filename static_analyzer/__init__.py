@@ -697,6 +697,10 @@ class StaticAnalyzer:
                         f"Incremental analysis for {adapter.language} did not produce a ProgramGraph"
                     )
                 updated_graph.merge(delta_graph)
+                # rust-analyzer / csharp-ls publish diagnostics asynchronously after the
+                # scoped didOpen; wait for quiescence (as the full-analysis path does)
+                # before the merge below snapshots get_collected_diagnostics().
+                adapter.wait_for_diagnostics(engine_client)
             # without_files dropped the changed files' methods and their cluster paths;
             # restore the lineage for any that came back so re-analysing a file does not
             # dissolve the components its unchanged methods still belong to.
@@ -766,15 +770,15 @@ class StaticAnalyzer:
 
         Prefers the set the caller supplied, because change detection is git-free:
         ``cached_sha`` is a content-tree hash, not a git object, so asking git about
-        it is meaningless in the general case. ``None`` means "no usable set" and
-        the caller re-analyses the language in full.
+        it is meaningless in the general case. ``None`` means "no usable set"; the
+        caller raises rather than silently re-analysing the language in full.
         """
         if self.changed_files is not None:
             return {path.resolve() for path in self.changed_files}
         try:
             return set(get_changed_files_since(project_path, cached_sha))
         except Exception:
-            logger.info("No git changed-file set for %s at %s; re-analysing it in full", language, cached_sha)
+            logger.info("No git changed-file set for %s at %s; caller will raise", language, cached_sha)
             return None
 
     def _absorb_into_results(self, results: StaticAnalysisResults, language: Language, analysis: dict) -> None:

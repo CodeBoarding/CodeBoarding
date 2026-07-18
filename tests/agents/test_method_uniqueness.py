@@ -518,6 +518,39 @@ class TestScopeContainment(unittest.TestCase):
             assert_scope_containment(root, sub_analyses)
         self.assertIn("1.1", str(ctx.exception))
 
+    def test_orphan_child_scope_without_parent_component_is_rejected(self):
+        # A sub_analyses key naming no component in the tree is a broken scope, not a
+        # tolerable no-op: it must raise rather than silently pass containment.
+        root = AnalysisInsights(
+            description="root",
+            components=[
+                Component(
+                    name="One",
+                    description="only real component",
+                    component_id="1",
+                    key_entities=[SourceCodeReference(qualified_name="shared.func0")],
+                    source_cluster_ids=["0"],
+                    file_methods=[FileMethodGroup(file_path="shared.ts", methods=[self._method("shared.func0", 1)])],
+                )
+            ],
+            components_relations=[],
+        )
+        ghost_child = Component(
+            name="Ghost-child",
+            description="child of a component that does not exist",
+            component_id="ghost.1",
+            key_entities=[SourceCodeReference(qualified_name="shared.func0")],
+            source_cluster_ids=["9"],
+            file_methods=[FileMethodGroup(file_path="shared.ts", methods=[self._method("shared.func0", 1)])],
+        )
+        sub_analyses = {
+            "ghost": AnalysisInsights(description="orphan", components=[ghost_child], components_relations=[])
+        }
+
+        with self.assertRaises(ScopeContainmentError) as ctx:
+            assert_scope_containment(root, sub_analyses)
+        self.assertIn("ghost", str(ctx.exception))
+
     def test_rescope_confines_children_to_parent(self):
         """Re-scoping must drop the moved methods from component 1's subtree."""
         root, sub_analyses, static_analysis = self._build_tree()

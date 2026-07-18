@@ -101,10 +101,10 @@ def track_lsp_result(
     diagnostics: dict,
 ) -> None:
     """Emit one ``lsp_analysis_result`` event for a language analysis pass."""
-    call_graph = analysis.get("call_graph")
-    missing_call_graph = call_graph is None
-    node_count = len(call_graph.nodes) if call_graph is not None else 0
-    edge_count = len(call_graph.edges) if call_graph is not None else 0
+    program_graph = analysis.get("program_graph")
+    missing_call_graph = program_graph is None
+    node_count = len(program_graph.symbols) if program_graph is not None else 0
+    edge_count = len(program_graph.call_edges()) if program_graph is not None else 0
     source_files = analysis.get("source_files")
     missing_source_files = source_files is None
     if source_files is None:

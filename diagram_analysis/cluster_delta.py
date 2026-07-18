@@ -122,6 +122,7 @@ def compute_cluster_delta(
     delta = ClusterDelta()
     diff_files = _changeset_to_path_set(changes) if changes is not None else None
     members = changed_members if changed_members is not None else set()
+    new_languages = {str(language) for language in new_static.get_languages()}
     for language in new_static.get_languages():
         program_graph = new_static.get_program_graph(language)
         old_clusters = old_snapshot.get_language(str(language))
@@ -132,6 +133,15 @@ def compute_cluster_delta(
             members,
             diff_files,
             repo_dir,
+        )
+    # A language whose files were all deleted produces no graph; emit its old
+    # clusters as dropped so has_changes fires and the components are removed.
+    for language in set(old_snapshot.by_language) - new_languages:
+        old_clusters = old_snapshot.get_language(language)
+        delta.by_language[language] = LanguageDelta(
+            language=language,
+            cluster_results=ClusterResult(),
+            dropped_cluster_ids=set(old_clusters),
         )
     return delta
 
@@ -191,6 +201,7 @@ def _structural_diff_for_language(
     scope_id: str,
 ) -> LanguageStructuralDiff:
     result = LanguageStructuralDiff(language=language)
+    unattributed_files = _unattributed_changed_files(old_clusters, changed_members, diff_files, repo_dir)
     old_to_new: dict[int, set[int]] = {}
     new_to_old: dict[int, set[int]] = {}
     overlap_counts: dict[tuple[int, int], int] = {}
@@ -248,7 +259,17 @@ def _structural_diff_for_language(
                 repo_dir,
                 scope_id,
             )
-            if member_delta.added_methods or member_delta.removed_methods or member_delta.dirty_members:
+            # Narrow file-level fallback: a member sitting in a changed file that produced
+            # NO body-changed member anywhere (a module-level edit — top-level constant,
+            # decorator, import) leaves no member signal, so gate on the file instead. Files
+            # that DID have a body-changed member stay member-granular via ``dirty_members``.
+            module_level_change = bool(member_delta.dirty_files & unattributed_files)
+            if (
+                member_delta.added_methods
+                or member_delta.removed_methods
+                or member_delta.dirty_members
+                or module_level_change
+            ):
                 result.modified.append(member_delta)
             else:
                 result.unchanged.append(member_delta)
@@ -370,6 +391,30 @@ def _build_reshape(
     )
 
 
+def _unattributed_changed_files(
+    old_clusters: dict[int, ClusterSnapshotEntry],
+    changed_members: set[str],
+    diff_files: set[str],
+    repo_dir: Path | None,
+) -> set[str]:
+    """Changed files whose edit produced no body-changed member — a module-level edit.
+
+    A file in the diff that owns a body-changed member stays member-granular: only that
+    member's own cluster is dirtied. A file with no body-changed member changed at module
+    scope (a top-level constant, a decorator/plugin registration, an import) and adds no
+    graph node, so it leaves no member-level signal; every cluster drawing a member from it
+    must be re-examined. Returns the module-level subset of ``diff_files``.
+    """
+    if not diff_files:
+        return set()
+    member_files: dict[str, str] = {}
+    for entry in old_clusters.values():
+        for qname, path in entry.member_files.items():
+            member_files[qname] = normalize_repo_path(path, repo_dir)
+    attributed = {member_files[qname] for qname in changed_members if qname in member_files}
+    return diff_files - attributed
+
+
 def _dirty_files(
     old_entry: ClusterSnapshotEntry,
     new_result: ClusterResult,
@@ -421,6 +466,14 @@ def _delta_for_language(
         for cluster_id in set(cluster_results.clusters) & set(old_clusters)
         if cluster_results.clusters[cluster_id] != old_clusters[cluster_id].members
     }
+    # Body-only edits leave membership identical; fold in surviving clusters that
+    # own a body-changed member so has_changes fires and the owner is re-detailed.
+    if changed_members:
+        changed_cluster_ids |= {
+            cluster_id
+            for cluster_id, members in cluster_results.clusters.items()
+            if cluster_id in old_clusters and members & changed_members
+        }
 
     logger.info(
         "[cluster_delta] %s: added=%d removed=%d changed_members=%d; clusters new=%d changed=%d dropped=%d; "

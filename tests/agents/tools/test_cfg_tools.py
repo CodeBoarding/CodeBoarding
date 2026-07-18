@@ -49,15 +49,16 @@ class TestCFGTools(unittest.TestCase):
         self.assertEqual(result, "No static analysis data available.")
 
     def test_get_cfg_with_empty_cfg(self):
-        # Test when CFG is empty or has no data
+        # get_program_graph returns a ProgramGraph or raises ValueError — never None.
+        # An empty graph renders as a zero-node CFG rather than an impossible response.
         mock_analysis = MagicMock()
         mock_analysis.get_languages.return_value = ["python"]
-        mock_analysis.get_program_graph.return_value = None
+        mock_analysis.get_program_graph.return_value = ProgramGraph(language="python")
 
         context = RepoContext(repo_dir=Path("."), ignore_manager=MagicMock(), static_analysis=mock_analysis)
         tool = GetCFGTool(context=context)
         result = tool._run()
-        self.assertIn("No control flow graph data available", result)
+        self.assertIn("0 nodes", result)
 
     def test_component_cfg_with_valid_component(self):
         # Create a component with some files from the static analysis

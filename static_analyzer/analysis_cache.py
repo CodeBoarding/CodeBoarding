@@ -161,6 +161,12 @@ class StaticAnalysisCache:
                     expected_sha,
                 )
                 return None
+        elif self.sha_path.exists() and self._read_tag_sha_unlocked() is None:
+            # A tag is present but unparsable or from an older format version; refuse the
+            # pickle rather than unpickling a layout the current code cannot trust. A wholly
+            # absent tag stays loadable for the legacy/CLI untagged-save path.
+            logger.info("Static analysis tag present but not %s; treating as cache miss", _TAG_VERSION)
+            return None
 
         target = self.pkl_path
         if not target.exists():

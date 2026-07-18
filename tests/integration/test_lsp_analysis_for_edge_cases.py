@@ -29,6 +29,7 @@ import pytest
 
 from static_analyzer import StaticAnalyzer
 from static_analyzer.constants import Language
+from static_analyzer.program_graph import ProgramEdge
 from utils import get_artifact_dir
 
 logger = logging.getLogger(__name__)
@@ -61,34 +62,16 @@ class AnalysisRunData:
     project_path: Path
 
 
-def _edge_call_site_tuples(edge, project_path: Path) -> set[tuple[str, int, int]]:
-    """Return normalized call-site tuples for an edge.
-
-    The engine does not expose this metadata yet; this helper defines the
-    expected future contract while keeping the assertion code independent of
-    whether occurrences are represented as dicts or small objects.
-    """
-    sites = getattr(edge, "call_sites", [])
+def _edge_call_site_tuples(edge: ProgramEdge, project_path: Path) -> set[tuple[str, int, int]]:
+    """Return normalized (file, line, column) tuples for a program edge's occurrences."""
     actual = set()
-    for site in sites:
-        if isinstance(site, dict):
-            file_value = site.get("file") or site.get("file_path")
-            line = site.get("line")
-            column = site.get("column")
-        else:
-            file_value = getattr(site, "file", None) or getattr(site, "file_path", None)
-            line = getattr(site, "line", None)
-            column = getattr(site, "column", None)
-
-        if file_value is None or line is None or column is None:
-            continue
-
-        file_path = Path(file_value)
+    for occurrence in edge.occurrences:
+        file_path = Path(occurrence.file)
         try:
             file_rel = file_path.resolve().relative_to(project_path.resolve()).as_posix()
         except (OSError, ValueError):
             file_rel = file_path.as_posix()
-        actual.add((file_rel, int(line), int(column)))
+        actual.add((file_rel, occurrence.line, occurrence.column))
     return actual
 
 
@@ -237,9 +220,8 @@ class TestEdgeCases:
 
     def test_expected_references(self, analysis: AnalysisRunData):
         language = Language(analysis.fixture["language"].lower())
-        refs = analysis.all_results[0].results[language].references.by_qualified_name or {}
         expected = set(analysis.fixture.get("expected_references", []))
-        actual = set(refs.keys())
+        actual = {node.node_id for node in analysis.all_results[0].iter_reference_nodes(language)}
         missing = sorted(expected - actual)
         unexpected = sorted(actual - expected)
         errors = []
@@ -299,8 +281,8 @@ class TestEdgeCases:
 
     def test_call_graph_edges(self, analysis: AnalysisRunData):
         language = Language(analysis.fixture["language"].lower())
-        cfg = analysis.all_results[0].get_cfg(language)
-        actual_edges = {(e.get_source(), e.get_destination()) for e in cfg.edges}
+        cfg = analysis.all_results[0].get_program_graph(language)
+        actual_edges = {(e.source, e.target) for e in cfg.call_edges()}
         expected_edges = _expected_edges(analysis.fixture)
         missing = sorted(f"{s} -> {d}" for s, d in expected_edges - actual_edges)
         unexpected = sorted(f"{s} -> {d}" for s, d in actual_edges - expected_edges)
@@ -313,12 +295,11 @@ class TestEdgeCases:
 
     def test_call_site_occurrences(self, analysis: AnalysisRunData):
         language = Language(analysis.fixture["language"].lower())
-        cfg = analysis.all_results[0].get_cfg(language)
-        if language == Language.RUST and not cfg.edges:
-            pytest.skip("Rust edge-case analysis currently emits zero CFG edges")
-        actual_by_edge = {
-            (e.get_source(), e.get_destination()): _edge_call_site_tuples(e, analysis.project_path) for e in cfg.edges
-        }
+        cfg = analysis.all_results[0].get_program_graph(language)
+        call_edges = cfg.call_edges()
+        if language == Language.RUST and not call_edges:
+            pytest.skip("Rust edge-case analysis currently emits zero call edges")
+        actual_by_edge = {(e.source, e.target): _edge_call_site_tuples(e, analysis.project_path) for e in call_edges}
 
         errors = []
         actual_by_destination: dict[str, set[tuple[str, int, int]]] = {}
@@ -404,19 +385,19 @@ class TestEdgeCases:
         language = Language(analysis.fixture["language"].lower())
 
         def _compute_metrics(results):
-            refs = results.results[language].references.by_qualified_name or {}
+            reference_keys = sorted(node.node_id for node in results.iter_reference_nodes(language))
             deps = results.get_package_dependencies(language)
-            cfg = results.get_cfg(language)
+            cfg = results.get_program_graph(language)
             source_files = results.get_source_files(language)
-            actual_edges = {(e.get_source(), e.get_destination()) for e in cfg.edges}
+            actual_edges = {(e.source, e.target) for e in cfg.call_edges()}
             return {
-                "references": len(refs),
+                "references": len(reference_keys),
                 "packages": len(deps),
                 "graph_nodes": len(cfg.nodes),
                 "graph_edges": len(cfg.edges),
                 "source_files": len(source_files),
-                "edge_set": sorted((s, d) for s, d in actual_edges),
-                "reference_keys": sorted(refs.keys()),
+                "edge_set": sorted(actual_edges),
+                "reference_keys": reference_keys,
             }
 
         first_metrics = _compute_metrics(analysis.all_results[0])

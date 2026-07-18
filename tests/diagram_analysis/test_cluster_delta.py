@@ -114,6 +114,36 @@ class TestClusterDelta(unittest.TestCase):
         self.assertEqual(ld.cluster_results.clusters[1], {"a.foo", "a.bar"})
         self.assertEqual(ld.cluster_results.clusters[2], {"b.baz", "b.qux"})
 
+    def test_body_only_edit_dirties_owning_cluster_without_membership_change(self) -> None:
+        # A body-only edit leaves the partition byte-for-byte identical, so the membership
+        # set-diff is empty; the owning cluster surfaces only because it holds a changed
+        # member. With no changed members the same graph produces no delta.
+        graph, snap = _prior_run(BASE_NODES, BASE_EDGES)
+
+        delta = compute_cluster_delta(snap, _build_static(graph), changed_members={"a.foo"})
+
+        self.assertTrue(delta.has_changes)
+        ld = delta.by_language["python"]
+        owning = next(cid for cid, members in ld.cluster_results.clusters.items() if "a.foo" in members)
+        self.assertIn(owning, ld.changed_cluster_ids)
+
+        quiet = compute_cluster_delta(snap, _build_static(graph), changed_members=set())
+        self.assertFalse(quiet.has_changes)
+
+    def test_removed_language_drops_all_its_clusters(self) -> None:
+        # A language present in the baseline but absent from the fresh static analysis had
+        # all its files deleted: every one of its clusters is dropped and has_changes fires.
+        old_snapshot = _snapshot(
+            {"go": {7: ClusterSnapshotEntry(members={"c.qux"}), 8: ClusterSnapshotEntry(members={"c.zap"})}}
+        )
+        new_static = _build_static(_build_graph([], []))
+
+        delta = compute_cluster_delta(old_snapshot, new_static)
+
+        go = delta.by_language["go"]
+        self.assertEqual(go.dropped_cluster_ids, {7, 8})
+        self.assertTrue(delta.has_changes)
+
     def test_added_node_routed_to_neighbor_cluster(self) -> None:
         baseline, snap = _prior_run(BASE_NODES, BASE_EDGES)
         graph = _refresh(
@@ -255,10 +285,10 @@ class TestStructuralClusterDiff(unittest.TestCase):
         self.assertEqual(lang.modified[0].added_methods, {"a.new"})
         self.assertEqual(lang.modified[0].removed_methods, set())
 
-    def test_changed_file_alone_does_not_modify_a_cluster(self) -> None:
-        # The core over-firing fix: a cluster whose file changed but whose own
-        # members are untouched stays UNCHANGED. dirty_files is display context,
-        # never the gate.
+    def test_module_level_file_change_modifies_owning_cluster(self) -> None:
+        # A file changed but none of its methods' bodies did (a module-level edit —
+        # top-level constant, decorator, import). It adds no graph node, so there is no
+        # member-level signal; the file-level fallback re-examines the cluster owning it.
         old_snapshot = _snapshot(
             {
                 "python": {
@@ -286,11 +316,57 @@ class TestStructuralClusterDiff(unittest.TestCase):
         structural = structural_diff_from_delta(old_snapshot, delta, changes=changes, repo_dir=Path("/repo"))
         lang = structural.by_language["python"]
 
-        self.assertEqual(lang.modified, [])
-        self.assertEqual(len(lang.unchanged), 1)
-        self.assertEqual(lang.unchanged[0].dirty_members, set())
-        # File context is still reported for the (unchanged) cluster.
-        self.assertEqual(lang.unchanged[0].dirty_files, {"a.py"})
+        self.assertEqual([d.old_cluster.cluster_id for d in lang.modified], [1])
+        self.assertEqual(lang.unchanged, [])
+        self.assertEqual(lang.modified[0].dirty_members, set())
+        self.assertEqual(lang.modified[0].dirty_files, {"a.py"})
+
+    def test_module_level_edit_dirties_file_siblings_but_body_edit_does_not(self) -> None:
+        # Two files change. mod.py has NO body-changed member (module-level edit): both
+        # clusters drawing from it are dirtied by the file-level fallback. pkg.py has a
+        # body-changed member (pkg.x): only pkg.x's cluster is dirtied; its file-sibling
+        # pkg.y keeps its body and stays unchanged. Proves the fallback fires only for
+        # files with no attributed member change, so the reference small change (all edited
+        # files body-changed) never triggers it.
+        old_snapshot = _snapshot(
+            {
+                "python": {
+                    1: ClusterSnapshotEntry(members={"mod.a"}, member_files={"mod.a": "mod.py"}),
+                    2: ClusterSnapshotEntry(members={"mod.b"}, member_files={"mod.b": "mod.py"}),
+                    3: ClusterSnapshotEntry(members={"pkg.x"}, member_files={"pkg.x": "pkg.py"}),
+                    4: ClusterSnapshotEntry(members={"pkg.y"}, member_files={"pkg.y": "pkg.py"}),
+                }
+            }
+        )
+        delta = ClusterDelta(
+            by_language={
+                "python": LanguageDelta(
+                    language="python",
+                    cluster_results=ClusterResult(
+                        clusters={1: {"mod.a"}, 2: {"mod.b"}, 3: {"pkg.x"}, 4: {"pkg.y"}},
+                        cluster_to_files={1: {"mod.py"}, 2: {"mod.py"}, 3: {"pkg.py"}, 4: {"pkg.py"}},
+                    ),
+                )
+            }
+        )
+        changes = ChangeSet(
+            files=[
+                FileChange(status_code="M", file_path="mod.py"),
+                FileChange(status_code="M", file_path="pkg.py"),
+            ]
+        )
+
+        structural = structural_diff_from_delta(
+            old_snapshot,
+            delta,
+            changes=changes,
+            repo_dir=Path("/repo"),
+            changed_members={"pkg.x"},
+        )
+        lang = structural.by_language["python"]
+
+        self.assertEqual({d.old_cluster.cluster_id for d in lang.modified}, {1, 2, 3})
+        self.assertEqual({d.old_cluster.cluster_id for d in lang.unchanged}, {4})
 
     def test_body_edit_dirties_only_the_owning_cluster_not_file_siblings(self) -> None:
         # Three clusters draw their single member from the SAME file. A body-only

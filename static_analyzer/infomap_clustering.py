@@ -296,7 +296,9 @@ class HierarchicalInfomapClusterer:
             if edge.source not in included_nodes or edge.target not in included_nodes:
                 continue
             if edge.kind == ProgramEdgeKind.CALL:
-                weights[(edge.source, edge.target)] += InfomapConfig.CALL_WEIGHT * log1p(edge.occurrence_count)
+                # A known call with no location metadata still counts as one call;
+                # log1p(0) would zero its weight and drop the edge below the filter.
+                weights[(edge.source, edge.target)] += InfomapConfig.CALL_WEIGHT * log1p(max(edge.occurrence_count, 1))
             elif edge.kind == ProgramEdgeKind.CONTAINS:
                 weights[(edge.source, edge.target)] += InfomapConfig.CONTAINMENT_WEIGHT
                 weights[(edge.target, edge.source)] += InfomapConfig.CONTAINMENT_WEIGHT

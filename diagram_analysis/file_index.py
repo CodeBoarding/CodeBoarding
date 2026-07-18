@@ -88,15 +88,20 @@ def changed_member_qnames(
     repo_dir: Path,
     changes: ChangeSet | None = None,
 ) -> set[str]:
-    """Canonical qnames whose method body changed since the baseline.
+    """Qnames whose method body changed since the baseline — canonical id AND raw persisted name.
 
     Compares each tracked method's stored ``content_hash`` against a fresh hash at
     its live CFG span. Independent of the graph fingerprint, so a body-only edit
     that leaves cluster membership untouched still surfaces. When *changes* is
     given, only files the fingerprint flagged are considered, so span drift in an
-    untouched file cannot masquerade as an edit. Qnames resolve to the graph's
-    canonical id — the same key the cluster member sets use — so an alias in the
-    persisted index still joins the cluster it belongs to.
+    untouched file cannot masquerade as an edit.
+
+    Each changed method contributes BOTH its canonical graph node id (the key the
+    cluster member sets join on) and the raw ``qualified_name`` as persisted. The
+    cluster-delta consumers join on the canonical; the copy-forward / metadata /
+    relation predicates in ``diagram_generator`` compare against the raw persisted
+    qname. Emitting both keeps every consumer's intersection non-empty even when the
+    persisted qname is an alias that canonicalizes to a different id.
     """
     canonical = _canonical_by_qname(static_analysis)
     changed_files = _changed_file_paths(changes, repo_dir) if changes is not None else None
@@ -117,10 +122,12 @@ def changed_member_qnames(
                     if span is None:
                         continue
                     fresh_hash = hash_method_body(lines, span.start_line, span.end_line)
-                    if not fresh_hash or not method.content_hash:
-                        continue
+                    # No skip on empty hashes: a missing baseline hash cannot prove a
+                    # non-empty method unchanged, so the inequality marks it dirty
+                    # instead of silently passing it off as a no-change edit.
                     if fresh_hash != method.content_hash:
                         changed.add(qname)
+                        changed.add(method.qualified_name)
     return changed
 
 

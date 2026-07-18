@@ -87,6 +87,36 @@ class TestSnapshotFromStaticAnalysis(unittest.TestCase):
 
         self.assertEqual(snap.all_cluster_ids(), set())
 
+    def test_language_with_symbols_but_no_snapshot_is_recorded_as_missing(self) -> None:
+        # A partial baseline: python carries its snapshot, go has clusterable symbols but no
+        # snapshot. go is flagged (not silently dropped) so the caller can treat the baseline
+        # as unavailable; python's clusters still populate.
+        py_graph = _build_graph([("a.foo", "a.py"), ("a.bar", "a.py")])
+        py_graph.cluster_snapshot = InfomapClusterSnapshot(
+            cluster_result=ClusterResult(clusters={1: {"a.foo", "a.bar"}})
+        )
+        go_graph = _build_graph([("c.qux", "c.go")], language="go")  # symbols present, snapshot None
+        static = _build_static({"python": py_graph, "go": go_graph})
+
+        snap = snapshot_from_static_analysis(static)
+
+        self.assertEqual(snap.missing_snapshot_languages, {"go"})
+        self.assertEqual(set(snap.by_language), {"python"})
+        self.assertEqual(snap.by_language["python"][1].members, {"a.foo", "a.bar"})
+
+    def test_language_without_symbols_and_no_snapshot_is_not_missing(self) -> None:
+        # An empty graph has nothing to cluster, so a missing snapshot is expected rather
+        # than a partial baseline: it must not be flagged.
+        py_graph = _build_graph([("a.foo", "a.py")])
+        py_graph.cluster_snapshot = InfomapClusterSnapshot(cluster_result=ClusterResult(clusters={1: {"a.foo"}}))
+        empty_graph = _build_graph([], language="go")  # no symbols, snapshot None
+        static = _build_static({"python": py_graph, "go": empty_graph})
+
+        snap = snapshot_from_static_analysis(static)
+
+        self.assertEqual(snap.missing_snapshot_languages, set())
+        self.assertEqual(set(snap.by_language), {"python"})
+
     def test_qnames_outside_graph_are_dropped_from_member_files(self) -> None:
         # A qname can appear in the snapshot without a corresponding graph node
         # when the snapshot was saved before a node-level mutation. Such qnames

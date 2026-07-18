@@ -40,8 +40,11 @@ from diagram_analysis.diagram_generator import (
     _capture_membership_baseline,
     _component_depth,
     _component_expansion_seeds,
+    _graft_entered_methods,
     _incremental_changed_component_ids,
+    _owned_method_keys,
     _preserve_unchanged_global_relations,
+    _reconcile_child_scope,
     _restore_unchanged_membership,
     _restore_unchanged_metadata,
     _restore_unchanged_subtrees,
@@ -892,6 +895,7 @@ class TestDiagramGenerator(unittest.TestCase):
 
         root_a = Component(
             name="A",
+            component_id="A",
             description="Root A",
             key_entities=[],
             source_cluster_ids=["1"],
@@ -899,6 +903,7 @@ class TestDiagramGenerator(unittest.TestCase):
         )
         root_b = Component(
             name="B",
+            component_id="B",
             description="Root B",
             key_entities=[],
             source_cluster_ids=["2"],
@@ -906,6 +911,7 @@ class TestDiagramGenerator(unittest.TestCase):
         )
         child_a = Component(
             name="A-child",
+            component_id="A-child",
             description="Child of A",
             key_entities=[],
             source_cluster_ids=["3"],
@@ -1335,6 +1341,7 @@ class TestDiagramGenerator(unittest.TestCase):
         sub_analyses = {"1": AnalysisInsights(description="sub", components=[child_component], components_relations=[])}
 
         mock_snapshot.return_value.all_cluster_ids.return_value = {1}
+        mock_snapshot.return_value.missing_snapshot_languages = set()
         mock_delta.return_value.has_changes = True
         mock_delta.return_value.cluster_results.return_value = {}
         root_diff = StructuralClusterDiff(
@@ -1468,6 +1475,7 @@ class TestDiagramGenerator(unittest.TestCase):
         sub_analyses = {"1": AnalysisInsights(description="sub", components=[], components_relations=[])}
 
         mock_snapshot.return_value.all_cluster_ids.return_value = {1}
+        mock_snapshot.return_value.missing_snapshot_languages = set()
         mock_delta.return_value.has_changes = True
         mock_delta.return_value.cluster_results.return_value = {}
         _mock_structural_diff.return_value = StructuralClusterDiff(
@@ -1536,6 +1544,7 @@ class TestDiagramGenerator(unittest.TestCase):
         }
 
         mock_snapshot.return_value.all_cluster_ids.return_value = {1}
+        mock_snapshot.return_value.missing_snapshot_languages = set()
         mock_delta.return_value.has_changes = False
         mock_save_analysis.return_value = self.output_dir / "analysis.json"
 
@@ -1747,6 +1756,35 @@ class TestUnchangedComponentPreservation(unittest.TestCase):
         self.assertEqual(unchanged, set())
         self.assertEqual(c.description, "reworded because body changed")
 
+    def test_source_cluster_ids_restored_for_unchanged_component(self):
+        # Copy-forward restores an unchanged component's metadata; the paired cluster ids must
+        # ride along, or it keeps claiming the repartition's ids and misroutes the next
+        # incremental's changes for them.
+        comp = _pm_component("A", "1", {"a.py": [_pm_method("a.a1")]})
+        comp.source_cluster_ids = ["baseline-1"]
+        root = AnalysisInsights(description="root", components=[comp], components_relations=[])
+        baseline = _capture_membership_baseline(root, {})
+
+        comp.source_cluster_ids = ["repartition-9"]  # membership unchanged; only the cluster id churned
+
+        unchanged = _restore_unchanged_metadata(root, {}, baseline, set())
+
+        self.assertEqual(comp.source_cluster_ids, ["baseline-1"])
+        self.assertIn("1", unchanged)
+
+    def test_source_cluster_ids_not_restored_for_changed_component(self):
+        comp = _pm_component("A", "1", {"a.py": [_pm_method("a.a1")]})
+        comp.source_cluster_ids = ["baseline-1"]
+        root = AnalysisInsights(description="root", components=[comp], components_relations=[])
+        baseline = _capture_membership_baseline(root, {})
+
+        comp.source_cluster_ids = ["repartition-9"]
+
+        unchanged = _restore_unchanged_metadata(root, {}, baseline, {"a.a1"})
+
+        self.assertEqual(comp.source_cluster_ids, ["repartition-9"])
+        self.assertNotIn("1", unchanged)
+
     def test_relations_between_unchanged_components_carried_over(self):
         a = _pm_component("A", "1", {"a.py": [_pm_method("a.a1")]})
         b = _pm_component("B", "2", {"b.py": [_pm_method("b.b1")]})
@@ -1946,6 +1984,11 @@ class TestGlobalRelationPreservation(unittest.TestCase):
 
         gen = self._gen()
         gen._baseline_component_ids = {"1", "2", "3"}
+        gen._baseline_member_keys = {
+            "1": frozenset({("x.py", "x.m1")}),
+            "2": frozenset({("y.py", "y.m1")}),
+            "3": frozenset({("z.py", "z.m1")}),
+        }
         gen._changed_members = {"x.m1"}
         gen._baseline_global_relations = {
             ("1", "2"): _pm_relation("1", "2", "X calls Y"),
@@ -1989,10 +2032,19 @@ class TestGlobalRelationPreservation(unittest.TestCase):
         sub = {"1": AnalysisInsights(description="sub", components=[child], components_relations=[])}
 
         changed = _incremental_changed_component_ids(
-            root, sub, baseline_component_ids={"1", "1.1", "2"}, changed_members={"p.deep"}
+            root,
+            sub,
+            baseline_component_ids={"1", "1.1", "2"},
+            baseline_member_keys={
+                "1": frozenset({("p.py", "p.deep")}),
+                "1.1": frozenset({("p.py", "p.deep")}),
+                "2": frozenset({("s.py", "s.stable")}),
+            },
+            changed_members={"p.deep"},
         )
 
         # Owner of the changed member (1.1), its ancestor (1), and the new component (3).
+        # The sibling (2) neither changed a body nor churned membership, so it is preserved.
         self.assertEqual(changed, {"1", "1.1", "3"})
 
     def test_structural_drift_between_unchanged_components_is_squashed(self):
@@ -2018,6 +2070,121 @@ class TestGlobalRelationPreservation(unittest.TestCase):
         merged = _preserve_unchanged_global_relations([], baseline, changed_component_ids=set(), live_ids={"2"})
 
         self.assertEqual(merged, [])
+
+    @patch("diagram_analysis.diagram_generator.build_global_relations")
+    def test_membership_gain_keeps_genuinely_new_edge(self, mock_build):
+        # B (2) gains a method that introduces a B->C edge; no body hash changed, so B is
+        # dirty only through membership churn. It must be treated as changed or the new
+        # edge is discarded as "between two unchanged components".
+        b = _pm_component("B", "2", {"b.py": [_pm_method("b.b1"), _pm_method("b.b2")]})
+        c = _pm_component("C", "3", {"c.py": [_pm_method("c.c1")]})
+        root = AnalysisInsights(description="root", components=[b, c], components_relations=[])
+
+        gen = self._gen()
+        gen._baseline_component_ids = {"2", "3"}
+        gen._baseline_member_keys = {
+            "2": frozenset({("b.py", "b.b1")}),  # baseline B owned only b1
+            "3": frozenset({("c.py", "c.c1")}),
+        }
+        gen._changed_members = set()
+        gen._baseline_global_relations = {}  # no B->C existed before
+        mock_build.return_value = [_pm_relation("2", "3", "B calls C")]
+
+        result = gen.rebuild_global_relations(root, {})
+
+        self.assertIn(("2", "3"), {(rel.src_id, rel.dst_id) for rel in result})
+
+    @patch("diagram_analysis.diagram_generator.build_global_relations")
+    def test_membership_loss_drops_stale_baseline_edge(self, mock_build):
+        # B (2) loses the only method that called C (3); no body hash changed. The stale
+        # baseline B->C must NOT be restored, because B churned membership and is changed.
+        b = _pm_component("B", "2", {"b.py": [_pm_method("b.b1")]})
+        c = _pm_component("C", "3", {"c.py": [_pm_method("c.c1")]})
+        root = AnalysisInsights(description="root", components=[b, c], components_relations=[])
+
+        gen = self._gen()
+        gen._baseline_component_ids = {"2", "3"}
+        gen._baseline_member_keys = {
+            "2": frozenset({("b.py", "b.b1"), ("b.py", "b.b2")}),  # baseline B had the caller b2
+            "3": frozenset({("c.py", "c.c1")}),
+        }
+        gen._changed_members = set()
+        gen._baseline_global_relations = {("2", "3"): _pm_relation("2", "3", "stale B->C")}
+        mock_build.return_value = []  # the rebuild no longer sees a B->C edge
+
+        result = gen.rebuild_global_relations(root, {})
+
+        self.assertNotIn(("2", "3"), {(rel.src_id, rel.dst_id) for rel in result})
+
+
+class TestChildScopeReconcile(unittest.TestCase):
+    """``_reconcile_child_scope`` / ``_graft_entered_methods`` drift-repair on divergent scopes."""
+
+    def setUp(self):
+        self.repo_dir = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.repo_dir, ignore_errors=True)
+
+    def test_reconcile_drops_departed_grafts_entered_and_leaves_the_rest(self):
+        # Parent gained a3 and lost "gone". The child scope must drop gone, graft a3 onto the
+        # child with the strongest same-file affinity (X owns two a.py methods, Y one), and
+        # leave every method that stayed exactly where it was.
+        parent = _pm_component(
+            "P", "1", {"a.py": [_pm_method("a1"), _pm_method("a1b"), _pm_method("a2"), _pm_method("a3")]}
+        )
+        x = _pm_component("X", "1.1", {"a.py": [_pm_method("a1"), _pm_method("a1b")]})
+        y = _pm_component("Y", "1.2", {"a.py": [_pm_method("a2"), _pm_method("gone")]})
+        child_scope = AnalysisInsights(description="sub", components=[x, y], components_relations=[])
+
+        _reconcile_child_scope(
+            parent, child_scope, _owned_method_keys([parent]), _owned_method_keys(child_scope.components), self.repo_dir
+        )
+
+        self.assertEqual(_pm_owned(x), {("a.py", "a1"), ("a.py", "a1b"), ("a.py", "a3")})
+        self.assertEqual(_pm_owned(y), {("a.py", "a2")})
+        # The whole reconciled child scope owns exactly the parent's live set.
+        self.assertEqual(_owned_method_keys(child_scope.components), _owned_method_keys([parent]))
+
+    def test_reconcile_grafts_entered_method_in_new_file_to_deterministic_fallback(self):
+        # An entered method lives in z.py, which no child owns yet. It has no same-file
+        # affinity, so it lands on the deterministic fallback: the largest child by method
+        # count (Y owns two, X one).
+        parent = _pm_component(
+            "P", "1", {"a.py": [_pm_method("a1"), _pm_method("a1b"), _pm_method("a1c")], "z.py": [_pm_method("z1")]}
+        )
+        x = _pm_component("X", "1.1", {"a.py": [_pm_method("a1")]})
+        y = _pm_component("Y", "1.2", {"a.py": [_pm_method("a1b"), _pm_method("a1c")]})
+        child_scope = AnalysisInsights(description="sub", components=[x, y], components_relations=[])
+
+        _reconcile_child_scope(
+            parent, child_scope, _owned_method_keys([parent]), _owned_method_keys(child_scope.components), self.repo_dir
+        )
+
+        self.assertEqual(_pm_owned(x), {("a.py", "a1")})
+        self.assertEqual(_pm_owned(y), {("a.py", "a1b"), ("a.py", "a1c"), ("z.py", "z1")})
+
+    def test_graft_prefers_child_that_already_owns_most_of_the_file(self):
+        x = _pm_component("X", "1.1", {"f.py": [_pm_method("m1"), _pm_method("m2")]})
+        y = _pm_component("Y", "1.2", {"f.py": [_pm_method("m3")]})
+        child_scope = AnalysisInsights(description="sub", components=[x, y], components_relations=[])
+        parent_methods = {("f.py", "m4"): _pm_method("m4")}
+
+        _graft_entered_methods(child_scope, {("f.py", "m4")}, parent_methods)
+
+        self.assertEqual(_pm_owned(x), {("f.py", "m1"), ("f.py", "m2"), ("f.py", "m4")})
+        self.assertEqual(_pm_owned(y), {("f.py", "m3")})
+
+    def test_graft_fallback_breaks_ties_by_component_id(self):
+        # Equal method counts and an entered method whose file no child owns: the fallback
+        # is deterministic — max by (method_count, component_id), so the larger id wins.
+        low = _pm_component("Low", "1.1", {"f.py": [_pm_method("m1")]})
+        high = _pm_component("High", "1.3", {"g.py": [_pm_method("m2")]})
+        child_scope = AnalysisInsights(description="sub", components=[low, high], components_relations=[])
+        parent_methods = {("h.py", "m3"): _pm_method("m3")}
+
+        _graft_entered_methods(child_scope, {("h.py", "m3")}, parent_methods)
+
+        self.assertEqual(_pm_owned(high), {("g.py", "m2"), ("h.py", "m3")})
+        self.assertEqual(_pm_owned(low), {("f.py", "m1")})
 
 
 if __name__ == "__main__":

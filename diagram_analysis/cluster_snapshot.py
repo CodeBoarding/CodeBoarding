@@ -28,6 +28,9 @@ class ClusterSnapshotEntry:
 @dataclass
 class ClusterSnapshot:
     by_language: dict[str, dict[int, ClusterSnapshotEntry]] = field(default_factory=dict)
+    # Languages with clusterable code whose graph carries no cluster snapshot. A
+    # non-empty set means the baseline is only partial and incremental cannot proceed.
+    missing_snapshot_languages: set[str] = field(default_factory=set)
 
     def get_language(self, language: str) -> dict[int, ClusterSnapshotEntry]:
         return self.by_language.get(language, {})
@@ -39,21 +42,26 @@ class ClusterSnapshot:
 def snapshot_from_static_analysis(static_analysis: StaticAnalysisResults) -> ClusterSnapshot:
     """Reconstruct a ``ClusterSnapshot`` from each per-language ``ProgramGraph.cluster_snapshot``.
 
-    Languages whose graph carries no snapshot contribute nothing, leaving
-    ``all_cluster_ids()`` empty for them.
+    A language whose graph has symbols but no snapshot is recorded in
+    ``missing_snapshot_languages`` rather than silently dropped: reclustering it fresh
+    would lose the stable ids the other languages still carry, so the caller must treat
+    such a partial baseline as unavailable and raise.
     """
     by_language: dict[str, dict[int, ClusterSnapshotEntry]] = {}
+    missing: set[str] = set()
     for language in static_analysis.get_languages():
         try:
             program_graph = static_analysis.get_program_graph(language)
         except ValueError:
             continue
         if program_graph.cluster_snapshot is None:
+            if program_graph.symbols:
+                missing.add(str(language))
             continue
         by_language[str(language)] = _entries_from_snapshot(
             program_graph.cluster_snapshot.cluster_result, program_graph
         )
-    return ClusterSnapshot(by_language=by_language)
+    return ClusterSnapshot(by_language=by_language, missing_snapshot_languages=missing)
 
 
 def _entries_from_snapshot(

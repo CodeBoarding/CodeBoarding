@@ -144,7 +144,7 @@ def test_lsp_analysis_result_marks_zero_nodes_as_error(captured, monkeypatch):
     monkeypatch.setenv("CODEBOARDING_RUN_ID", "lsp-run")
 
     analysis = {
-        "call_graph": SimpleNamespace(nodes={}, edges=[]),
+        "program_graph": SimpleNamespace(symbols={}, call_edges=lambda: []),
         "source_files": ["a.py", "b.py"],
     }
 

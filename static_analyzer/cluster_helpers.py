@@ -63,7 +63,12 @@ def reindex_cross_language_clusters(cluster_results: dict[str, ClusterResult]) -
         result = cluster_results[lang]
         if offset:
             cluster_results[lang] = reindex_cluster_result(result, offset)
-        offset = max(cluster_results[lang].clusters, default=offset)
+        # Shift the next language past the highest id used so far. Method-level
+        # expansion can emit id 0, so the range end is ``max + 1``; using ``max``
+        # would let a following zero-based id collide with this language's top id.
+        ids = cluster_results[lang].clusters
+        if ids:
+            offset = max(ids) + 1
 
 
 def get_all_cluster_ids(cluster_results: dict[str, ClusterResult]) -> set[int]:
