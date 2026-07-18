@@ -438,33 +438,40 @@ class ClusterMethodsMixin:
         new_clusters: dict[int, set[str]] = {}
         new_cluster_to_files: dict[int, set[str]] = {}
         new_file_to_clusters: dict[str, set[int]] = defaultdict(set)
+        assigned_nodes: set[str] = set()
 
         owner = prior_owner or {}
         next_id = max(owner.values(), default=-1) + 1
-
-        def take(qname: str, node: ProgramNode) -> None:
-            nonlocal next_id
-            cluster_id = owner.get(qname)
-            if cluster_id is None or cluster_id in new_clusters:
-                cluster_id = next_id
-                next_id += 1
-            new_clusters[cluster_id] = {qname}
-            new_cluster_to_files[cluster_id] = {node.file_path}
-            new_file_to_clusters[node.file_path].add(cluster_id)
 
         for qname, node in sorted(cfg.symbols.items()):
             # Only create clusters for callable types (functions, methods)
             if node.symbol_type not in CALLABLE_TYPES:
                 continue
-            take(qname, node)
+            next_id = self._register_method_level_cluster(
+                qname=qname,
+                node=node,
+                owner=owner,
+                clusters=new_clusters,
+                cluster_to_files=new_cluster_to_files,
+                file_to_clusters=new_file_to_clusters,
+                next_cluster_id=next_id,
+            )
+            assigned_nodes.add(qname)
 
         # If we still have few clusters (e.g., only classes, no methods), include classes too
         if len(new_clusters) < MIN_CLUSTERS_THRESHOLD:
             for qname, node in sorted(cfg.symbols.items()):
-                if node.symbol_type in CLASS_TYPES and qname not in {
-                    name for members in new_clusters.values() for name in members
-                }:
-                    take(qname, node)
+                if node.symbol_type in CLASS_TYPES and qname not in assigned_nodes:
+                    next_id = self._register_method_level_cluster(
+                        qname=qname,
+                        node=node,
+                        owner=owner,
+                        clusters=new_clusters,
+                        cluster_to_files=new_cluster_to_files,
+                        file_to_clusters=new_file_to_clusters,
+                        next_cluster_id=next_id,
+                    )
+                    assigned_nodes.add(qname)
 
         logger.info(f"Created {len(new_clusters)} method-level clusters from {len(cfg.symbols)} nodes")
 
@@ -474,6 +481,27 @@ class ClusterMethodsMixin:
             file_to_clusters=dict(new_file_to_clusters),
             strategy="method_level_expansion",
         )
+
+    def _register_method_level_cluster(
+        self,
+        qname: str,
+        node: ProgramNode,
+        owner: dict[str, int],
+        clusters: dict[int, set[str]],
+        cluster_to_files: dict[int, set[str]],
+        file_to_clusters: dict[str, set[int]],
+        next_cluster_id: int,
+    ) -> int:
+        """Create one singleton method-level cluster for ``qname`` and return the next id."""
+        cluster_id = owner.get(qname)
+        if cluster_id is None or cluster_id in clusters:
+            cluster_id = next_cluster_id
+            next_cluster_id += 1
+
+        clusters[cluster_id] = {qname}
+        cluster_to_files[cluster_id] = {node.file_path}
+        file_to_clusters[node.file_path].add(cluster_id)
+        return next_cluster_id
 
     def _create_strict_component_subgraph(
         self,
