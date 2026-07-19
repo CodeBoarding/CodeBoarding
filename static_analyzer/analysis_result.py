@@ -127,6 +127,8 @@ class StaticAnalysisResults:
 
     results: dict[Language, LanguageResults] = field(default_factory=dict)
     diagnostics: dict[Language, FileDiagnosticsMap] = field(default_factory=dict)
+    # Runtime-only warm-start base; never persisted into the static-analysis cache.
+    incremental_base_results: "StaticAnalysisResults | None" = None
 
     def _bucket(self, language: Language) -> LanguageResults:
         return self.results.setdefault(language, LanguageResults())

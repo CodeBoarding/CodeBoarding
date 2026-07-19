@@ -17,6 +17,36 @@ GLM Prompt Design Principles:
 
 from .abstract_prompt_factory import AbstractPromptFactory
 
+SCOPE_RELATIONS_MESSAGE = """You are a software architecture relationship analyst. STRICTLY follow these rules:
+
+MANDATORY TASK:
+Generate inter-component relationships for the `{scope_name}` scope.
+
+Components in this scope:
+{component_summaries}
+
+Cross-component communication from static analysis:
+{cross_component_calls}
+
+REQUIRED STEPS (execute in order):
+1. Review the components listed above and their summaries.
+2. Analyze the cross-component communication evidence to identify actual code-flow interactions.
+3. Generate relationships that describe how these components interact with each other.
+
+REQUIRED OUTPUT (complete ALL):
+For each relationship, MUST provide:
+- **src_name**: Source component name — MUST match an existing component name EXACTLY
+- **dst_name**: Target component name — MUST match an existing component name EXACTLY
+- **relation**: A short phrase describing the relationship (e.g. 'delegates to', 'notifies', 'provides data to')
+
+CONSTRAINTS (MUST obey):
+- Every src_name and dst_name MUST match an existing component name exactly — invented or approximate names are STRICTLY forbidden
+- Maximum 2 relationships per component pair — STRICTLY avoid bidirectional sends/returns pairs (e.g. ComponentA sends message to ComponentB AND ComponentB returns result to ComponentA)
+- MUST focus on architecturally significant interactions — STRICTLY avoid implementation details
+- MUST ground relationships in the cross-component communication evidence provided above
+- A component that NEVER calls or is called by another component MUST NOT have a relation to it
+"""
+
 SYSTEM_MESSAGE = """You are a software architecture expert. STRICTLY follow these rules:
 
 MANDATORY INSTRUCTIONS (MUST comply):
@@ -344,6 +374,79 @@ CONSTRAINTS (MUST obey):
 JUSTIFICATION:
 MUST base component choices on fundamental architectural importance."""
 
+INCREMENTAL_GROUPING_MESSAGE = """You are a software architecture analyst. STRICTLY follow these rules.
+
+TASK:
+Update the architecture by routing changed and new CFG clusters into the correct components.
+
+The previous analysis established the components below. Most clusters are unchanged and stay where they are; this prompt only shows the structural slice that changed: new clusters, removed clusters, or clusters whose member set changed through added/removed methods. A method body edit by itself is not a cluster-boundary change.
+
+EXISTING COMPONENTS (each line shows component_id and name):
+{existing_components}
+
+CLUSTER GROUPS TO ASSIGN:
+{cfg_clusters}
+
+REQUIRED STEPS (execute in order):
+1. For each cluster group above, decide whether it belongs in an existing component or warrants a new one.
+
+2. When routing to an existing component, you MUST provide the exact component_id from the list above. Reuse that component's existing name and description verbatim. Multiple cluster groups MAY route to the same component — that is fine. Additionally, set **redetail_needed** to True (the default) whenever the change touches functionality or you are unsure. Set it to False ONLY when the delta is purely cosmetic — a refactor, internal rename, small bug fix, or formatting — AND the component's high-level purpose is clearly unchanged. When False, the existing description is preserved as-is. Bias HEAVILY toward True if uncertain.
+
+3. When creating a new component, leave the existing component reference empty. Provide a fresh name that MUST be distinct from every existing component, a description paragraph explaining what this new component does and WHY these clusters belong together, and the component_id of the parent under which it should attach (or leave empty for root). You MUST choose the parent whose scope most naturally encloses the new component.
+
+CRITICAL RULE:
+Identity is by component_id, NOT by name. If clusters belong in an existing component, you MUST reference that component by its exact id — omitting it will fork a duplicate, which is WRONG.
+
+BOUNDARY RULES:
+- Route each changed cluster to the most specific owning component. If both a parent and a child seem relevant, choose the child only.
+- redetail_needed=False means the component boundary is unchanged; do not use it to absorb new files, new responsibilities, or clusters owned by another component.
+
+COVERAGE (MANDATORY):
+Every cluster id listed in the CLUSTER GROUPS TO ASSIGN section MUST appear in exactly one entry.
+
+Return one routing decision per cluster group. Each decision MUST clearly indicate whether it routes to an existing component (referenced by its exact id from the list above) or proposes a new component with a distinct name, a description paragraph, and the parent it should attach to."""
+
+
+PLANNING_MESSAGE = """You are a software architecture incremental-update analyst. STRICTLY follow these rules.
+
+TASK:
+Update one scope of the architecture diagram.
+
+CONTEXT:
+- Scope: `{scope_id}` (`root` means the top-level diagram)
+
+EXISTING COMPONENTS IN THIS SCOPE:
+{existing_components}
+
+CHANGED FILES:
+{changed_files}
+
+STRUCTURAL CLUSTER DIFF:
+{structural_diff}
+
+
+REQUIRED STEPS:
+1. Return operations for this scope only.
+2. Keep unchanged clusters out of operations unless the diff makes the component semantically dirty.
+3. A changed file is context, not proof that its component changed. Act only on method membership, exact method-body changes, or typed graph changes attributed to the cluster.
+4. For CALL, IMPORTS, and INHERITS changes, update only the primary_cluster (caller, importer, or child). related_clusters are read-only context and must not be updated solely because they are targets.
+5. For modified clusters, preserve the existing owning component shown by its clusters=[...] list; use update_component for that owner instead of moving the cluster to another component.
+6. For new clusters, decide from the structural diff whether they extend an existing responsibility or introduce a new component; do not infer this from file/package layout alone.
+7. For reshaped groups, follow overlap counts to keep old cluster ownership stable. Only assign a reshaped new cluster to a different component when the diff proves a real responsibility move.
+8. Use listGitChanges ONLY when the structural diff is not enough to judge semantic impact.
+
+MANDATORY RULES:
+- Reparenting existing components is unsupported by the current incremental schema. Preserve their current scope.
+- Every modified/new/reshaped new-side cluster listed below MUST appear in exactly one operation's cluster_refs.
+
+ARCHITECTURE OUTPUT CONTRACT:
+- This step plans component boundaries only. Do NOT define component relations; API surfaces and relations are generated later.
+- Choose exactly one of these mutually exclusive branches for each operation:
+  - For create_component only: leave component_id null; provide a clear name and description. Select up to 5 key_entities only when their exact qualified names are available; otherwise leave them empty. Key entities are not synthesized later.
+  - For update_component only: copy the exact component_id from the existing-components list. Include refreshed name, description, or key_entities only when the component's architectural responsibility changed; otherwise preserve the existing metadata. An empty key_entities list preserves the current selection.
+  - For delete_component or noop only: copy the exact component_id from the existing-components list and leave name, description, and key_entities empty. Use delete_component only when the component has no remaining responsibility; use noop to preserve it unchanged.
+"""
+
 
 class GLMPromptFactory(AbstractPromptFactory):
     """Prompt factory for GLM models optimized for firm directive prompts with strong role-playing."""
@@ -392,3 +495,12 @@ class GLMPromptFactory(AbstractPromptFactory):
 
     def get_details_message(self) -> str:
         return DETAILS_MESSAGE
+
+    def get_incremental_grouping_message(self) -> str:
+        return INCREMENTAL_GROUPING_MESSAGE
+
+    def get_planning_message(self) -> str:
+        return PLANNING_MESSAGE
+
+    def get_scope_relations_message(self) -> str:
+        return SCOPE_RELATIONS_MESSAGE

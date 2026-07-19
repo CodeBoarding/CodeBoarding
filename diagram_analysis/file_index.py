@@ -11,7 +11,7 @@ from agents.content_hash import (
     hash_whole_file,
     read_source_lines,
 )
-from agents.file_index_models import FileEntry, MethodEntry
+from agents.file_index_models import FileEntry, FileMethodGroup, MethodEntry
 from repo_utils.path_utils import normalize_repo_path
 from static_analyzer.analysis_result import StaticAnalysisResults
 
@@ -62,6 +62,65 @@ def refresh_method_spans_from_cfg(
                     method.start_line, method.end_line = 0, 0
                 else:
                     method.start_line, method.end_line = span
+
+
+def refresh_method_locations_from_cfg(
+    analysis: AnalysisInsights,
+    static_analysis: StaticAnalysisResults,
+    repo_dir: Path,
+) -> None:
+    """Move retained method and key-entity references to their live locations."""
+    locations: dict[str, list[tuple[str, int, int]]] = {}
+    for language in static_analysis.get_languages():
+        try:
+            graph = static_analysis.get_program_graph(language)
+        except (KeyError, ValueError):
+            continue
+        for node in graph.symbol_nodes():
+            location = (normalize_repo_path(node.file_path, repo_dir), node.line_start, node.line_end)
+            if location not in locations.setdefault(node.id, []):
+                locations[node.id].append(location)
+    for candidates in locations.values():
+        candidates.sort()
+
+    for component in analysis.components:
+        relocated: dict[str, list[MethodEntry]] = {}
+        for group in component.file_methods:
+            for method in group.methods:
+                location = _resolve_live_location(locations.get(method.qualified_name, []), group.file_path)
+                file_path = group.file_path
+                if location is not None:
+                    file_path, method.start_line, method.end_line = location
+                relocated.setdefault(file_path, []).append(method)
+        component.file_methods = [
+            FileMethodGroup(
+                file_path=file_path,
+                methods=sorted(
+                    methods,
+                    key=lambda method: (method.start_line, method.end_line, method.qualified_name),
+                ),
+            )
+            for file_path, methods in relocated.items()
+        ]
+
+        for reference in component.key_entities:
+            location = _resolve_live_location(
+                locations.get(reference.qualified_name, []),
+                reference.reference_file or "",
+            )
+            if location is None:
+                continue
+            reference.reference_file, reference.reference_start_line, reference.reference_end_line = location
+
+
+def _resolve_live_location(
+    candidates: list[tuple[str, int, int]],
+    current_file: str,
+) -> tuple[str, int, int] | None:
+    same_file = [location for location in candidates if location[0] == current_file]
+    if len(same_file) == 1:
+        return same_file[0]
+    return candidates[0] if len(candidates) == 1 else None
 
 
 def _cfg_method_spans(

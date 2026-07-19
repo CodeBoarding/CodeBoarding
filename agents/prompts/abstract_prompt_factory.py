@@ -58,6 +58,18 @@ class AbstractPromptFactory(ABC):
     def get_details_message(self) -> str:
         pass
 
+    @abstractmethod
+    def get_incremental_grouping_message(self) -> str:
+        pass
+
+    @abstractmethod
+    def get_planning_message(self) -> str:
+        pass
+
+    @abstractmethod
+    def get_scope_relations_message(self) -> str:
+        pass
+
     def get_api_surfaces_message(self) -> str:
         return API_SURFACES_MESSAGE
 

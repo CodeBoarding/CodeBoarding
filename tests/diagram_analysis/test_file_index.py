@@ -1,10 +1,14 @@
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from agents.agent_responses import AnalysisInsights, Component
+from agents.agent_responses import AnalysisInsights, Component, SourceCodeReference
 from agents.content_hash import hash_method_body
 from agents.file_index_models import FileMethodGroup, MethodEntry
-from diagram_analysis.file_index import build_files_index, refresh_method_spans_from_cfg
+from diagram_analysis.file_index import (
+    build_files_index,
+    refresh_method_locations_from_cfg,
+    refresh_method_spans_from_cfg,
+)
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import NodeType
 from static_analyzer.program_graph import ProgramGraph, ProgramNode
@@ -74,3 +78,30 @@ def test_refresh_spans_empty_hash_when_method_absent_from_live_cfg(tmp_path: Pat
     files = build_files_index(analysis, tmp_path)
 
     assert files["m.py"].methods[0].content_hash == ""
+
+
+def test_refresh_locations_moves_stable_symbol_without_rewriting_component(tmp_path: Path) -> None:
+    analysis = _analysis_with_method("old.py", "pkg.foo", start=1, end=2)
+    analysis.components[0].key_entities = [
+        SourceCodeReference(
+            qualified_name="pkg.foo",
+            reference_file="old.py",
+            reference_start_line=1,
+            reference_end_line=2,
+        )
+    ]
+    static_analysis = _static_analysis_with_nodes(
+        make_symbol("pkg.foo", NodeType.FUNCTION, "new.py", 7, 11),
+    )
+
+    refresh_method_locations_from_cfg(analysis, static_analysis, tmp_path)
+
+    component = analysis.components[0]
+    assert component.file_methods[0].file_path == "new.py"
+    assert (component.file_methods[0].methods[0].start_line, component.file_methods[0].methods[0].end_line) == (
+        7,
+        11,
+    )
+    assert component.key_entities[0].reference_file == "new.py"
+    assert component.key_entities[0].reference_start_line == 7
+    assert component.key_entities[0].reference_end_line == 11

@@ -293,8 +293,8 @@ class RepoIgnoreManager:
         """Check if a file path matches default exclusion patterns.
 
         Standalone check for contexts where no RepoIgnoreManager instance is
-        available (e.g. health checks). Uses the default .codeboardingignore
-        template patterns.
+        available (health checks, incremental analysis). Uses the default
+        .codeboardingignore template patterns.
         """
         if not file_path:
             return False

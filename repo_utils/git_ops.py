@@ -2,8 +2,10 @@
 
 Thin subprocess wrappers callable from any layer. Kept as free functions (rather
 than a class wrapping ``repo_path``) so callers don't have to thread an instance
-around for a handful of calls. The static-analysis LSP-cache warm-start uses
-``get_changed_files_since`` to scope re-LSPing to changed files.
+around for a handful of calls. Two groups of callers today:
+
+- the semantic incremental pipeline (``run_metadata``, CLI)
+- the static-analysis LSP-cache invalidator (``incremental_orchestrator``)
 
 Contract: functions here **raise** ``subprocess.CalledProcessError`` /
 ``FileNotFoundError`` on failure. Callers that want a soft-fail variant

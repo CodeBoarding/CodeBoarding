@@ -16,6 +16,31 @@ Kimi Prompt Design Principles:
 
 from .abstract_prompt_factory import AbstractPromptFactory
 
+SCOPE_RELATIONS_MESSAGE = """You are Kimi, an AI assistant created by Moonshot AI.
+
+Task: Generate inter-component relationships for the `{scope_name}` scope.
+
+Components in this scope:
+{component_summaries}
+
+Cross-component communication from static analysis:
+{cross_component_calls}
+
+Reason step-by-step. Review the components listed above and the cross-component communication evidence, then produce relationships that describe how these components interact.
+
+Think aloud first about which components actually communicate based on the evidence, then for each relationship provide:
+- **src_name**: Source component name
+- **dst_name**: Target component name
+- **relation**: A short phrase describing the relationship (e.g. "delegates to", "notifies", "provides data to")
+
+Constraints:
+- Every src_name and dst_name must match an existing component name exactly
+- Maximum 2 relationships per component pair, avoiding bidirectional sends/returns pairs (i.e. ComponentA sends to ComponentB and ComponentB returns to ComponentA)
+- Focus on architecturally significant interactions, not implementation details
+- Use the cross-component communication evidence to ground relationships in actual code flow
+- A component that never calls or is called by another component should not have a relation to it
+"""
+
 SYSTEM_MESSAGE = """You are Kimi, an AI assistant created by Moonshot AI.
 
 Project Context:
@@ -318,6 +343,66 @@ Constraints:
 
 Justify component choices based on fundamental architectural importance."""
 
+INCREMENTAL_GROUPING_MESSAGE = """You are Kimi, an AI assistant created by Moonshot AI.
+
+Reason step-by-step about how the architecture should change as new and modified CFG clusters arrive. Use tools proactively to verify any cluster placement you're not confident about.
+
+The previous analysis established the components below. Most clusters are unchanged and stay where they are; this prompt only shows the structural slice that changed: new clusters, removed clusters, or clusters whose member set changed through added/removed methods. A method body edit by itself is not a cluster-boundary change.
+
+Existing components (each line shows component_id "name"):
+{existing_components}
+
+Cluster groups to assign:
+{cfg_clusters}
+
+Think aloud first about whether each cluster belongs to an existing component or warrants a new one, then commit to a routing decision. For each cluster group above, choose exactly one of these two paths:
+
+1. **Route to an existing component.** If the cluster fits naturally into one of the existing components listed above, reference it by its exact component_id (e.g. "1.3"). Reuse that component's name and a short description verbatim, and list the cluster ids you are routing into it. Multiple cluster groups can share the same existing component if they all belong there.
+
+   For each routing decision, consider whether the component's description needs updating. Default to yes — only skip the update when the change is purely cosmetic (a refactor, internal rename, small bug fix, or formatting tweak that leaves the component's high-level purpose untouched). When you skip the update, the existing description is preserved as-is and no follow-up redetail runs. If you're unsure, it's safer to request the update.
+
+2. **Create a new component.** If no existing component is a good fit, create a fresh one. Give it a distinct name that doesn't duplicate any existing component, write a description paragraph explaining what this new component does and why these clusters belong together, and choose a parent component whose scope most naturally encloses the new one (or leave it at root level if nothing fits).
+
+A critical note on identity: components are identified by their component_id, not by name. Reusing an existing component's name without explicitly routing to its component_id will fork a duplicate — that is wrong. If clusters belong in an existing component, you must route to it by component_id.
+
+Boundary rules: route each changed cluster to the most specific owning component; if both a parent and a child seem relevant, choose the child only. `redetail_needed=False` means the component boundary is unchanged, so do not use it to absorb new files, new responsibilities, or clusters owned by another component.
+
+Every cluster id listed in the "Cluster groups to assign" section must appear in exactly one routing entry."""
+
+
+PLANNING_MESSAGE = """Reason about ownership, then return operations for one architecture scope only.
+
+- Scope: `{scope_id}` (`root` means the top-level diagram)
+
+Existing components in this scope:
+{existing_components}
+
+Changed files:
+{changed_files}
+
+Structural cluster diff:
+{structural_diff}
+
+
+Rules:
+- Keep unchanged clusters out of the operations unless the diff makes the component semantically dirty.
+- A changed file is context, not proof that its component changed. Act only on method membership, exact method-body changes, or typed graph changes attributed to the cluster.
+- For CALL, IMPORTS, and INHERITS changes, update only the primary_cluster (caller, importer, or child). related_clusters are read-only context and must not be updated solely because they are targets.
+- For modified clusters, preserve the existing owning component shown by its clusters=[...] list; use update_component for that owner instead of moving the cluster to another component.
+- For new clusters, decide from the structural diff whether they extend an existing responsibility or introduce a new component; do not infer this from file/package layout alone.
+- For reshaped groups, follow overlap counts to keep old cluster ownership stable. Only assign a reshaped new cluster to a different component when the diff proves a real responsibility move.
+- Use listGitChanges proactively but narrowly when the structural diff is not enough to judge semantic impact.
+- Reparenting existing components is unsupported by the current incremental schema. Preserve their current scope.
+- Every modified/new/reshaped new-side cluster listed below must appear in exactly one operation's cluster_refs.
+
+Architecture output contract:
+- This step plans component boundaries only. Do not define component relations; API surfaces and relations are generated later.
+- Choose exactly one of these mutually exclusive branches for each operation:
+  - For create_component only: leave component_id null; provide a clear name and description. Select up to 5 key_entities only when their exact qualified names are available; otherwise leave them empty. Key entities are not synthesized later.
+  - For update_component only: copy the exact component_id from the existing-components list. Include refreshed name, description, or key_entities only when the component's architectural responsibility changed; otherwise preserve the existing metadata. An empty key_entities list preserves the current selection.
+  - For delete_component or noop only: copy the exact component_id from the existing-components list and leave name, description, and key_entities empty. Use delete_component only when the component has no remaining responsibility; use noop to preserve it unchanged.
+"""
+
 
 class KimiPromptFactory(AbstractPromptFactory):
     """Prompt factory for Kimi models optimized for proactive tool use and agent swarms."""
@@ -366,3 +451,12 @@ class KimiPromptFactory(AbstractPromptFactory):
 
     def get_details_message(self) -> str:
         return DETAILS_MESSAGE
+
+    def get_incremental_grouping_message(self) -> str:
+        return INCREMENTAL_GROUPING_MESSAGE
+
+    def get_planning_message(self) -> str:
+        return PLANNING_MESSAGE
+
+    def get_scope_relations_message(self) -> str:
+        return SCOPE_RELATIONS_MESSAGE

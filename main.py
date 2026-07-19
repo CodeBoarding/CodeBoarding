@@ -4,9 +4,9 @@ import sys
 from pathlib import Path
 
 from agents.llm_errors import EXIT_AUTH_ERROR, LLMAuthError
-from codeboarding_cli.commands import full_analysis, partial_analysis
+from codeboarding_cli.commands import full_analysis, incremental_analysis, partial_analysis
 
-_SUBCOMMANDS = {"full", "partial"}
+_SUBCOMMANDS = {"full", "incremental", "partial"}
 
 
 def _build_shared_parser() -> argparse.ArgumentParser:
@@ -29,8 +29,8 @@ def build_parser() -> argparse.ArgumentParser:
         description="Generate onboarding documentation for Git repositories",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-`full` is the default command: when the first argument is not `full`
-or `partial`, `full` is inserted automatically.
+`full` is the default command: when the first argument is not `full`,
+`incremental`, or `partial`, `full` is inserted automatically.
 
 Examples:
   # Local full analysis (output to <repo>/.codeboarding/); `full` is implied
@@ -38,6 +38,9 @@ Examples:
 
   # Local full analysis with custom depth level
   codeboarding --local /path/to/repo --depth-level 2
+
+  # Incremental update on a local repository (explicit subcommand required)
+  codeboarding incremental --local /path/to/repo
 
   # Remote repository (cloned to cwd/<repo_name>/); `full` is implied
   codeboarding https://github.com/user/repo
@@ -52,6 +55,7 @@ Examples:
     shared = _build_shared_parser()
     subparsers = parser.add_subparsers(dest="command", required=True, metavar="COMMAND")
     full_analysis.add_arguments(subparsers, parents=[shared])
+    incremental_analysis.add_arguments(subparsers, parents=[shared])
     partial_analysis.add_arguments(subparsers, parents=[shared])
     return parser
 
@@ -61,7 +65,7 @@ def _inject_default_subcommand(argv: list[str]) -> list[str]:
 
     Why: argparse has no first-class "default subcommand" and ``full`` takes a
     ``nargs="*"`` positional for remote repos, so a naive default would parse
-    ``codeboarding partial`` as a repo URL. Subcommand flags like ``--local``
+    ``codeboarding incremental`` as a repo URL. Subcommand flags like ``--local``
     live on the subparser, not the top parser, so they also need ``full`` prepended.
     """
     if not argv:
@@ -74,7 +78,9 @@ def _inject_default_subcommand(argv: list[str]) -> list[str]:
 
 def _dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
     try:
-        if args.command == "partial":
+        if args.command == "incremental":
+            incremental_analysis.run_from_args(args, parser)
+        elif args.command == "partial":
             partial_analysis.run_from_args(args, parser)
         else:
             full_analysis.run_from_args(args, parser)

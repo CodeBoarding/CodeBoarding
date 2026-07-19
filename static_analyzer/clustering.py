@@ -44,6 +44,8 @@ class InfomapClusterSnapshot:
     node_paths: dict[str, ModulePath] = field(default_factory=dict)
     module_members: ModuleMembers = field(default_factory=dict)
     next_cluster_id: int = 1
+    global_cluster_ids: dict[int, int] = field(default_factory=dict)
+    next_global_cluster_id: int = 1
     codelength: float = 0.0
 
 

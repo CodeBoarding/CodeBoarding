@@ -1,8 +1,13 @@
 """Scope-level analysis workflows.
 
-Two scopes, one shared generator builder. Each function takes a local
+Three scopes, one shared generator builder. Each function takes a local
 repo path and the minimum context needed to run; they are source-agnostic
 (see ``codeboarding_workflows.sources`` for local/remote materialization).
+
+``run_incremental_workflow`` is the kernel shared by the CLI path
+(``run_incremental``) and external callers (``github_action.py``, desktop
+wrapper) that build their own ``DiagramGenerator`` and skip the local-git
+baseline resolution.
 """
 
 import logging
@@ -11,16 +16,12 @@ from pathlib import Path
 from diagram_analysis import DiagramGenerator
 from diagram_analysis.io_utils import load_analysis_metadata, load_full_analysis
 from diagram_analysis.run_context import RunContext, RunPaths
+from repo_utils.fingerprint_diff import BaselineUnavailableError, detect_changes_from_fingerprint
 from telemetry.events import track_analysis
 
 logger = logging.getLogger(__name__)
 
-
-class BaselineUnavailableError(RuntimeError):
-    """Raised when a workflow needs an existing analysis.json baseline that is absent or unreadable."""
-
-
-__all__ = ["BaselineUnavailableError", "run_full", "run_partial"]
+__all__ = ["BaselineUnavailableError", "run_full", "run_partial", "run_incremental", "run_incremental_workflow"]
 
 
 def build_generator(
@@ -29,6 +30,7 @@ def build_generator(
     depth_level: int,
     monitoring_enabled: bool = False,
     static_analyzer=None,
+    changes=None,
 ) -> DiagramGenerator:
     return DiagramGenerator(
         repo_location=run_paths.repo_path,
@@ -40,6 +42,7 @@ def build_generator(
         log_path=run_context.log_path,
         monitoring_enabled=monitoring_enabled,
         static_analyzer=static_analyzer,
+        changes=changes,
     )
 
 
@@ -136,5 +139,81 @@ def run_partial(
     # its subcomponents. Rebuild reads each sub's LLM relation labels, which live
     # only in memory (they aren't serialized), so it must run before the save.
     sub_analyses[component_id] = sub_analysis
+    # persist_side_artifacts=False: an expansion must not rewrite file_coverage.json
+    # or the static-analysis cache. The latter would drop the static_analysis.sha
+    # tag (no source_sha here) and force the next incremental run to cold-start.
     generator.finalize_and_save(root_analysis, sub_analyses, persist_side_artifacts=False)
     logger.info(f"Updated component '{component_id}' in analysis.json")
+
+
+def run_incremental(
+    run_paths: RunPaths,
+    run_context: RunContext,
+    monitoring_enabled: bool = False,
+    static_analyzer=None,
+) -> Path:
+    """Incremental scope — cluster-driven update of an existing ``analysis.json``.
+
+    Change detection is internal and git-free: fingerprint the repo and diff it
+    against the baseline hashes in the existing ``analysis.json``. No caller
+    passes a changed-file set or git refs — the CLI and the wrapper both just say
+    "update this directory". The source-tree hash doubles as the warm-start tag.
+
+    Raises ``BaselineUnavailableError`` when no baseline analysis exists — callers
+    should surface a "run full analysis" prompt rather than silently degrading to
+    an unscoped run.
+    """
+    # Depth comes from the existing analysis.json (metadata.depth_level).
+    # Fail fast on cold-start: ``_generate_subcomponents`` requires the prior
+    # depth to re-detail changed components.
+    metadata = load_analysis_metadata(run_paths.output_dir)
+    if metadata is None:
+        raise BaselineUnavailableError(
+            f"No baseline analysis.json found in '{run_paths.output_dir}'. Run a full analysis first."
+        )
+    depth_level = int(metadata.get("depth_level", 1))
+
+    changes = detect_changes_from_fingerprint(run_paths.repo_path, run_paths.output_dir)
+    logger.info(
+        f"Running INCREMENTAL analysis workflow for project '{run_paths.project_name}' "
+        f"({len(changes.files)} changed file(s))."
+    )
+
+    generator = build_generator(
+        run_paths,
+        run_context,
+        depth_level=depth_level,
+        monitoring_enabled=monitoring_enabled,
+        static_analyzer=static_analyzer,
+        changes=changes,
+    )
+    return run_incremental_workflow(generator)
+
+
+def run_incremental_workflow(generator: DiagramGenerator) -> Path:
+    """Run an incremental update from a trustworthy existing baseline."""
+    output_dir = generator.output_dir
+    existing = load_full_analysis(output_dir)
+    metadata = load_analysis_metadata(output_dir)
+    if existing is None or metadata is None:
+        raise BaselineUnavailableError(f"No baseline analysis.json found in '{output_dir}'. Run a full analysis first.")
+
+    root_analysis, sub_analyses = existing
+
+    if not root_analysis.components:
+        raise BaselineUnavailableError(
+            f"Baseline analysis.json in '{output_dir}' has no components. Run a full analysis first."
+        )
+
+    if generator.changes is None:
+        generator.changes = detect_changes_from_fingerprint(generator.repo_location, Path(output_dir))
+    if generator.changes.error:
+        raise BaselineUnavailableError(
+            f"Incremental change detection is untrustworthy: {generator.changes.error}. Run a full analysis first."
+        )
+    if generator.changes.is_empty():
+        raise BaselineUnavailableError(
+            "Incremental analysis requires at least one source modification; no changed source files were detected."
+        )
+
+    return generator.generate_analysis_incremental(root_analysis, sub_analyses)
