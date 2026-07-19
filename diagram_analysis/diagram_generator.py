@@ -408,13 +408,17 @@ def _incremental_changed_component_ids(
     """Component ids whose global relations may legitimately differ from the baseline.
 
     A live component counts as changed when it is absent from the baseline (freshly
-    created), owns a body-changed member, or its live member-key set differs from the
-    baseline — it gained or lost a member. Membership churn alone (a new caller of another
-    component, or the last caller removed) relabels the edges between the two components
-    even with no surviving body-hash change, so it must be treated as changed or the
-    genuinely-new edge is dropped / the stale baseline edge restored. Because every ancestor
-    scope lists a method in its own ``file_methods``, the owner of a change and all of its
-    ancestors are captured together. Everything else is preserved verbatim.
+    created) or its live member-key set differs from the baseline — it gained, lost or
+    handed over a member. Membership churn (a new caller of another component, the last
+    caller removed, or a moved method) relabels the edges between the two components, so it
+    must be treated as changed or the genuinely-new edge is dropped / the stale baseline
+    edge restored. A body-only edit is deliberately NOT enough on its own: it changes a
+    method's content but not which methods call which, so the component's edges are
+    identical to the baseline and re-deriving them only introduces re-analysis churn
+    (relabelled evidence, occasional spurious edges). The description still refreshes via
+    the refresh set; only the edges are preserved. Because every ancestor scope lists a
+    method in its own ``file_methods``, the owner of a change and all of its ancestors are
+    captured together. Everything else is preserved verbatim.
     """
     changed: set[str] = set()
     for _scope_id, analysis in _iter_incremental_scopes(root_analysis, sub_analyses):
@@ -425,11 +429,8 @@ def _incremental_changed_component_ids(
             live_keys = frozenset(
                 (group.file_path, method.qualified_name) for group in component.file_methods for method in group.methods
             )
-            body_changed = any(
-                method.qualified_name in changed_members for group in component.file_methods for method in group.methods
-            )
             membership_changed = live_keys != baseline_member_keys.get(component_id, frozenset())
-            if component_id not in baseline_component_ids or body_changed or membership_changed:
+            if component_id not in baseline_component_ids or membership_changed:
                 changed.add(component_id)
     return changed
 
@@ -1207,6 +1208,18 @@ class DiagramGenerator:
             for relation in root_analysis.components_relations
             if relation.src_id and relation.dst_id
         }
+        # Per-component baseline member keys, captured pre-mutation so the save-time relation
+        # preservation works on BOTH the re-cluster path and the empty-delta path (a body-only
+        # edit). Without it the empty-delta path sees no baseline and treats every component as
+        # changed, re-deriving all edges and churning them for a change that moved nothing.
+        self._baseline_member_keys = {
+            component.component_id: frozenset(
+                (group.file_path, method.qualified_name) for group in component.file_methods for method in group.methods
+            )
+            for _scope_id, analysis in _iter_incremental_scopes(root_analysis, sub_analyses)
+            for component in analysis.components
+            if component.component_id
+        }
 
         monitor = self.stats_writer if self.stats_writer else nullcontext()
         with monitor:
@@ -1282,10 +1295,6 @@ class DiagramGenerator:
             )
             protected_empty_ids = _cluster_backed_empty_component_ids(root_analysis, sub_analyses)
             baseline_membership = _capture_membership_baseline(root_analysis, sub_analyses)
-            # Feed the per-component baseline member keys to the save-time global relation
-            # rebuild so a component that only gained/lost a member (no body-hash change) is
-            # still treated as changed and its edges are re-derived, not carried over stale.
-            self._baseline_member_keys = {cid: meta.member_keys for cid, meta in baseline_membership.meta_by_id.items()}
             apply_result = self._apply_incremental_scope_recursively(
                 ROOT_SCOPE_ID,
                 root_analysis,
