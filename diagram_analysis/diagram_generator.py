@@ -19,6 +19,7 @@ from agents.agent_responses import (
     Component,
     MetaAnalysisInsights,
     Relation,
+    RelationEdge,
     SourceCodeReference,
 )
 from agents.cluster_methods_mixin import scoped_snapshot_from_lineage
@@ -434,28 +435,86 @@ def _incremental_changed_component_ids(
     return changed
 
 
+def _merge_edges_method_granular(
+    fresh: Relation,
+    base: Relation | None,
+    re_extracted_methods: set[str],
+    deleted_methods: set[str],
+    live_methods: set[str],
+) -> Relation | None:
+    """Rebuild a changed pair's edges at method granularity.
+
+    The static call-edge extraction is non-deterministic: re-analysing a file yields a
+    different edge set each run even when its code is byte-identical, so taking the fresh
+    rebuild wholesale churns edges for methods that did not change. Here an edge survives
+    from the fresh rebuild only when its *source method* was actually re-extracted this run
+    — body-changed or newly added. Every other edge is taken from the baseline, so an
+    unchanged method keeps exactly the edges it had. Edges whose source or target method was
+    deleted (or is otherwise gone from the live tree) are dropped, which is how a removal
+    retracts its relations without inventing new ones. Returns ``None`` when nothing
+    survives, so an emptied relation is dropped rather than left as a shell.
+    """
+
+    def live_edge(edge: RelationEdge) -> bool:
+        src = edge.source.qualified_name
+        dst = edge.target.qualified_name
+        return src not in deleted_methods and dst not in deleted_methods and src in live_methods and dst in live_methods
+
+    def collect(fresh_edges: list[RelationEdge], base_edges: list[RelationEdge]) -> list[RelationEdge]:
+        merged = [e for e in fresh_edges if e.source.qualified_name in re_extracted_methods and live_edge(e)]
+        seen = {(e.source.qualified_name, e.target.qualified_name) for e in merged}
+        for e in base_edges:
+            key = (e.source.qualified_name, e.target.qualified_name)
+            if e.source.qualified_name not in re_extracted_methods and live_edge(e) and key not in seen:
+                merged.append(e)
+                seen.add(key)
+        return merged
+
+    all_edges = collect(fresh.all_edges, base.all_edges if base is not None else [])
+    key_edges = collect(fresh.key_edges, base.key_edges if base is not None else [])
+    if not all_edges:
+        return None
+    return fresh.model_copy(update={"all_edges": all_edges, "key_edges": key_edges})
+
+
 def _preserve_unchanged_global_relations(
     rebuilt_relations: list[Relation],
     baseline_by_pair: dict[tuple[str, str], Relation],
     changed_component_ids: set[str],
     live_ids: set[str],
+    re_extracted_methods: set[str],
+    deleted_methods: set[str],
+    live_methods: set[str],
 ) -> list[Relation]:
     """Carry a global relation over from the baseline when neither endpoint changed.
 
     The save-time rebuild re-derives every relation at the deepest granularity, re-labelling
     even edges between two untouched components. For each pair whose endpoints are both
-    unchanged we drop the rebuilt edge and take the baseline verbatim; edges touching a
-    changed component keep the fresh rebuild. A baseline relation between two unchanged,
-    still-live components that the rebuild dropped is restored, and a spurious rebuilt edge
-    between two unchanged components is discarded — so both relabel and structural drift
-    against untouched components is eliminated. Relations are keyed by ``(src_id, dst_id)``,
-    the stable component identity; the rebuild always populates both ids.
+    unchanged we drop the rebuilt edge and take the baseline verbatim. For a pair that DOES
+    touch a changed component we no longer take the fresh rebuild wholesale — that would
+    churn the edges of the pair's unchanged methods, because extraction is non-deterministic
+    — but merge it against the baseline at method granularity (see
+    ``_merge_edges_method_granular``): only a body-changed or newly-added method contributes
+    fresh edges; unchanged methods keep their baseline edges; deleted methods' edges are
+    dropped. Relations are keyed by ``(src_id, dst_id)``, the stable component identity.
     """
 
     def touches_change(src_id: str, dst_id: str) -> bool:
         return src_id in changed_component_ids or dst_id in changed_component_ids
 
-    kept = [rel for rel in rebuilt_relations if touches_change(rel.src_id, rel.dst_id)]
+    kept: list[Relation] = []
+    for rel in rebuilt_relations:
+        if not touches_change(rel.src_id, rel.dst_id):
+            continue
+        merged = _merge_edges_method_granular(
+            rel,
+            baseline_by_pair.get((rel.src_id, rel.dst_id)),
+            re_extracted_methods,
+            deleted_methods,
+            live_methods,
+        )
+        if merged is not None:
+            kept.append(merged)
     for (src_id, dst_id), relation in baseline_by_pair.items():
         if touches_change(src_id, dst_id) or src_id not in live_ids or dst_id not in live_ids:
             continue
@@ -997,8 +1056,26 @@ class DiagramGenerator:
                 for component in analysis.components
                 if component.component_id
             }
+            live_methods = {
+                method.qualified_name
+                for _scope_id, analysis in _iter_incremental_scopes(root_analysis, sub_analyses)
+                for component in analysis.components
+                for group in component.file_methods
+                for method in group.methods
+            }
+            base_methods = {qname for keys in self._baseline_member_keys.values() for _file, qname in keys}
+            deleted_methods = base_methods - live_methods
+            # Only a body-changed or newly-added method has its edges re-extracted from the
+            # (non-deterministic) fresh CFG; every unchanged method keeps its baseline edges.
+            re_extracted_methods = self._changed_members | (live_methods - base_methods)
             global_relations = _preserve_unchanged_global_relations(
-                global_relations, self._baseline_global_relations, changed_ids, live_ids
+                global_relations,
+                self._baseline_global_relations,
+                changed_ids,
+                live_ids,
+                re_extracted_methods,
+                deleted_methods,
+                live_methods,
             )
         root_analysis.components_relations = global_relations
         return global_relations
@@ -1207,6 +1284,19 @@ class DiagramGenerator:
             for relation in root_analysis.components_relations
             if relation.src_id and relation.dst_id
         }
+        # Per-component baseline member keys, captured pre-mutation so the save-time relation
+        # rebuild sees the true before-state on BOTH the re-cluster path and the empty-delta
+        # path (a body-only edit). Deleted methods are still present here, which is how a
+        # removal becomes visible to the rebuild; an empty-delta run left this unset before,
+        # so every component read as changed and its non-deterministic fresh edges were kept.
+        self._baseline_member_keys = {
+            component.component_id: frozenset(
+                (group.file_path, method.qualified_name) for group in component.file_methods for method in group.methods
+            )
+            for _scope_id, analysis in _iter_incremental_scopes(root_analysis, sub_analyses)
+            for component in analysis.components
+            if component.component_id
+        }
 
         monitor = self.stats_writer if self.stats_writer else nullcontext()
         with monitor:
@@ -1282,10 +1372,6 @@ class DiagramGenerator:
             )
             protected_empty_ids = _cluster_backed_empty_component_ids(root_analysis, sub_analyses)
             baseline_membership = _capture_membership_baseline(root_analysis, sub_analyses)
-            # Feed the per-component baseline member keys to the save-time global relation
-            # rebuild so a component that only gained/lost a member (no body-hash change) is
-            # still treated as changed and its edges are re-derived, not carried over stale.
-            self._baseline_member_keys = {cid: meta.member_keys for cid, meta in baseline_membership.meta_by_id.items()}
             apply_result = self._apply_incremental_scope_recursively(
                 ROOT_SCOPE_ID,
                 root_analysis,
