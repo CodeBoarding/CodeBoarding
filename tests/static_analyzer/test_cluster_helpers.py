@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 import networkx as nx
 
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.clustering import ClusterResult
+from static_analyzer.clustering import ClusterResult, InfomapClusterSnapshot
 from static_analyzer.cluster_helpers import (
     build_all_cluster_results,
     enforce_cross_language_budget,
@@ -73,6 +73,47 @@ class TestClusterHelpers(unittest.TestCase):
 
         self.assertEqual(set(cluster_results["python"].clusters), {1, 3})
         self.assertEqual(set(cluster_results["typescript"].clusters), {4, 5})
+
+    def test_cross_language_reindex_handles_zero_based_method_clusters(self):
+        cluster_results = {
+            "python": ClusterResult(clusters={0: {"a"}}),
+            "typescript": ClusterResult(clusters={0: {"b"}}),
+        }
+
+        reindex_cross_language_clusters(cluster_results)
+
+        self.assertEqual(set(cluster_results["python"].clusters), {0})
+        self.assertEqual(set(cluster_results["typescript"].clusters), {1})
+
+    def test_root_cross_language_ids_do_not_shift_when_earlier_language_grows(self):
+        analysis = MagicMock(spec=StaticAnalysisResults)
+        analysis.get_languages.return_value = ["python", "typescript"]
+        python_graph = MagicMock()
+        typescript_graph = MagicMock()
+        python_graph.cluster_snapshot = InfomapClusterSnapshot(cluster_result=ClusterResult())
+        typescript_graph.cluster_snapshot = InfomapClusterSnapshot(cluster_result=ClusterResult())
+        analysis.get_program_graph.side_effect = lambda language: {
+            "python": python_graph,
+            "typescript": typescript_graph,
+        }[language]
+
+        with patch(
+            "static_analyzer.cluster_helpers.HierarchicalInfomapClusterer.cluster",
+            side_effect=[self._make_cluster_result("py", 1), self._make_cluster_result("ts", 1)],
+        ):
+            first = build_all_cluster_results(analysis)
+
+        with patch(
+            "static_analyzer.cluster_helpers.HierarchicalInfomapClusterer.cluster",
+            side_effect=[self._make_cluster_result("py", 2), self._make_cluster_result("ts", 1)],
+        ):
+            second = build_all_cluster_results(analysis)
+
+        self.assertEqual(set(first["python"].clusters), {1})
+        self.assertEqual(set(first["typescript"].clusters), {2})
+        self.assertEqual(set(second["python"].clusters), {1, 3})
+        self.assertEqual(set(second["typescript"].clusters), {2})
+        self.assertEqual(typescript_graph.cluster_snapshot.global_cluster_ids, {1: 2})
 
     def test_reindex_cluster_result_shifts_all_ids(self):
         cr = self._make_cluster_result("x", 3)

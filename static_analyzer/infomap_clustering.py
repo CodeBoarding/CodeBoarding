@@ -36,6 +36,7 @@ class HierarchicalInfomapClusterer:
         )
         if not node_names:
             snapshot = InfomapClusterSnapshot(cluster_result=ClusterResult(strategy=InfomapConfig.EMPTY_STRATEGY))
+            self._inherit_global_namespace(snapshot, previous)
             program_graph.cluster_snapshot = snapshot
             return snapshot.cluster_result
 
@@ -57,8 +58,26 @@ class HierarchicalInfomapClusterer:
             )
         else:
             snapshot = self._incremental_snapshot(program_graph, node_names, weighted_edges, previous)
+            self._inherit_global_namespace(snapshot, previous)
         program_graph.cluster_snapshot = snapshot
         return snapshot.cluster_result
+
+    @staticmethod
+    def _inherit_global_namespace(
+        snapshot: InfomapClusterSnapshot,
+        previous: InfomapClusterSnapshot | None,
+    ) -> None:
+        """Retain root cluster IDs even when local modules disappear."""
+        if previous is None:
+            return
+        snapshot.global_cluster_ids = dict(getattr(previous, "global_cluster_ids", {}))
+        snapshot.next_global_cluster_id = int(
+            getattr(
+                previous,
+                "next_global_cluster_id",
+                max(snapshot.global_cluster_ids.values(), default=0) + 1,
+            )
+        )
 
     def _partition(
         self,

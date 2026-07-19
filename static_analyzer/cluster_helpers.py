@@ -7,7 +7,7 @@ from typing import TypeVar
 import networkx as nx
 
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.clustering import ClusterResult
+from static_analyzer.clustering import ClusterResult, InfomapClusterSnapshot
 from static_analyzer.constants import ClusteringConfig, Language
 from static_analyzer.infomap_clustering import HierarchicalInfomapClusterer
 from static_analyzer.leiden_utils import find_partition
@@ -70,20 +70,85 @@ def build_all_cluster_results(static_analysis: StaticAnalysisResults) -> dict[st
     languages = static_analysis.get_languages()
     cluster_results = build_cluster_results_for_languages(static_analysis, languages)
 
-    if len(cluster_results) > 1:
-        reindex_cross_language_clusters(cluster_results)
+    _assign_persistent_global_cluster_ids(static_analysis, cluster_results)
 
     return cluster_results
 
 
+def _assign_persistent_global_cluster_ids(
+    static_analysis: StaticAnalysisResults,
+    cluster_results: dict[str, ClusterResult],
+) -> None:
+    """Reuse persisted root IDs and allocate new IDs above the high watermark."""
+    snapshots = {
+        str(language): snapshot
+        for language in static_analysis.get_languages()
+        if isinstance(
+            snapshot := static_analysis.get_program_graph(language).cluster_snapshot,
+            InfomapClusterSnapshot,
+        )
+    }
+    mappings = {
+        language: dict(getattr(snapshot, "global_cluster_ids", {}))
+        for language, snapshot in snapshots.items()
+        if snapshot is not None
+    }
+    used_ids = {global_id for mapping in mappings.values() for global_id in mapping.values()}
+    next_global_id = max(
+        [1, *(int(getattr(snapshot, "next_global_cluster_id", 1)) for snapshot in snapshots.values() if snapshot)],
+    )
+    next_global_id = max(next_global_id, max(used_ids, default=0) + 1)
+
+    for language in sorted(cluster_results):
+        result = cluster_results[language]
+        mapping = mappings.setdefault(language, {})
+        for local_id in sorted(result.clusters):
+            if local_id in mapping:
+                continue
+            if local_id >= next_global_id and local_id not in used_ids:
+                global_id = local_id
+            else:
+                while next_global_id in used_ids:
+                    next_global_id += 1
+                global_id = next_global_id
+            mapping[local_id] = global_id
+            used_ids.add(global_id)
+            next_global_id = max(next_global_id, global_id + 1)
+        cluster_results[language] = remap_cluster_result(result, mapping)
+
+    for language, snapshot in snapshots.items():
+        if snapshot is None:
+            continue
+        snapshot.global_cluster_ids = mappings.get(language, {})
+        snapshot.next_global_cluster_id = next_global_id
+
+
 def reindex_cross_language_clusters(cluster_results: dict[str, ClusterResult]) -> None:
     """Give each language a deterministic, disjoint cluster-ID range."""
-    offset = 0
+    used_max = -1
     for lang in sorted(cluster_results):
         result = cluster_results[lang]
+        minimum = min(result.clusters, default=used_max + 1)
+        offset = max(0, used_max - minimum + 1)
         if offset:
-            cluster_results[lang] = reindex_cluster_result(result, offset)
-        offset = max(cluster_results[lang].clusters, default=offset)
+            result = reindex_cluster_result(result, offset)
+            cluster_results[lang] = result
+        used_max = max(used_max, max(result.clusters, default=used_max))
+
+
+def remap_cluster_result(cluster_result: ClusterResult, cluster_ids: dict[int, int]) -> ClusterResult:
+    """Map every cluster-indexed view through an explicit ID namespace."""
+    return ClusterResult(
+        clusters={cluster_ids[cluster_id]: set(nodes) for cluster_id, nodes in cluster_result.clusters.items()},
+        cluster_to_files={
+            cluster_ids[cluster_id]: set(files) for cluster_id, files in cluster_result.cluster_to_files.items()
+        },
+        file_to_clusters={
+            file_path: {cluster_ids[cluster_id] for cluster_id in local_ids}
+            for file_path, local_ids in cluster_result.file_to_clusters.items()
+        },
+        strategy=cluster_result.strategy,
+    )
 
 
 def enforce_cross_language_budget(

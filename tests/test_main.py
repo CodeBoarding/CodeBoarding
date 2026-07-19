@@ -4,7 +4,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
 
 from codeboarding_cli.commands.full_analysis import run_from_args, validate_arguments
-from codeboarding_workflows.analysis import BaselineUnavailableError, run_full, run_partial
+from codeboarding_workflows.analysis import BaselineUnavailableError, run_full, run_incremental, run_partial
 from codeboarding_workflows.sources import local_source, onboarding_materials_exist, remote_source
 from diagram_analysis.run_context import RunContext, RunPaths
 
@@ -62,6 +62,7 @@ class TestGenerateAnalysis(unittest.TestCase):
                 log_path="test_repo/test-run-log",
                 monitoring_enabled=False,
                 static_analyzer=None,
+                changes=None,
             )
             mock_generator.generate_analysis.assert_called_once()
 
@@ -221,6 +222,50 @@ class TestPartialUpdate(unittest.TestCase):
             mock_generator_class.assert_not_called()
             mock_generator.pre_analysis.assert_not_called()
             mock_generator.process_component.assert_not_called()
+
+
+class TestIncrementalDepthSource(unittest.TestCase):
+    """``run_incremental`` reads depth_level from analysis.json metadata."""
+
+    @patch("codeboarding_workflows.analysis.load_analysis_metadata")
+    def test_cold_start_raises_incremental_unavailable(self, mock_load_metadata):
+        mock_load_metadata.return_value = None
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_path = Path(temp_dir) / "repo"
+            repo_path.mkdir()
+            output_dir = Path(temp_dir) / "output"
+            output_dir.mkdir()
+
+            with self.assertRaises(BaselineUnavailableError):
+                run_incremental(
+                    RunPaths(repo_path=repo_path, output_dir=output_dir, project_name="test_project"),
+                    RunContext(run_id="r", log_path="l", repo_dir=repo_path),
+                )
+
+    @patch("codeboarding_workflows.analysis.run_incremental_workflow")
+    @patch("codeboarding_workflows.analysis.detect_changes_from_fingerprint")
+    @patch("codeboarding_workflows.analysis.DiagramGenerator")
+    @patch("codeboarding_workflows.analysis.load_analysis_metadata")
+    def test_depth_level_taken_from_metadata(
+        self, mock_load_metadata, mock_generator_class, mock_detect, mock_workflow
+    ):
+        mock_load_metadata.return_value = {"depth_level": 3}
+        mock_detect.return_value = MagicMock(files=[])
+        mock_workflow.return_value = Path("analysis.json")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_path = Path(temp_dir) / "repo"
+            repo_path.mkdir()
+            output_dir = Path(temp_dir) / "output"
+            output_dir.mkdir()
+
+            run_incremental(
+                RunPaths(repo_path=repo_path, output_dir=output_dir, project_name="test_project"),
+                RunContext(run_id="r", log_path="l", repo_dir=repo_path),
+            )
+
+        self.assertEqual(mock_generator_class.call_args.kwargs["depth_level"], 3)
 
 
 class TestRemoteSource(unittest.TestCase):

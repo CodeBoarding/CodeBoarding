@@ -5,6 +5,7 @@ from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field, PrivateAttr
 from agents.agent_responses import ClusterAnalysis
 from repo_utils.ignore import RepoIgnoreManager
+from repo_utils.change_detector import ChangeSet
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.clustering import ClusterResult
 from static_analyzer.program_graph import ProgramGraph
@@ -18,6 +19,7 @@ class RepoContext(BaseModel):
     repo_dir: Path
     ignore_manager: RepoIgnoreManager
     static_analysis: Optional[StaticAnalysisResults] = None
+    changes: ChangeSet | None = None
     cluster_analysis: ClusterAnalysis = Field(default_factory=lambda: ClusterAnalysis(cluster_components=[]))
     cluster_results: dict[str, ClusterResult] = Field(default_factory=dict)
     cfg_graphs: dict[str, ProgramGraph] = Field(default_factory=dict)

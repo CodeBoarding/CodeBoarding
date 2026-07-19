@@ -15,6 +15,7 @@ from agents.agent_responses import (
 from agents.file_index_models import FileMethodGroup, MethodEntry
 from agents.model_capabilities import ContextWindow
 from static_analyzer.cfg_skip_planner import ContextBudgetExceededError
+from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.clustering import ClusterResult
 from static_analyzer.program_graph import ProgramGraph
 from static_analyzer.constants import Language, NodeType
@@ -24,7 +25,7 @@ from tests.program_graph_factory import make_symbol
 class MockMixin(ClusterMethodsMixin):
     """Concrete implementation for testing the mixin."""
 
-    def __init__(self, repo_dir: Path, static_analysis: MagicMock):
+    def __init__(self, repo_dir: Path, static_analysis: StaticAnalysisResults | MagicMock):
         self.repo_dir = repo_dir
         self.static_analysis = static_analysis
 
@@ -462,6 +463,61 @@ class TestExpandToMethodLevelClusters(unittest.TestCase):
         # Should return a new empty result with method_level_expansion strategy
         self.assertEqual(len(result.clusters), 0)
         self.assertEqual(result.strategy, "method_level_expansion")
+
+    def test_expansion_preserves_prior_singletons_and_allocates_above_scope_high_watermark(self):
+        cfg = ProgramGraph(language="python")
+        cfg.add_node(make_symbol("mod.a", NodeType.FUNCTION, "/test/file.py", 1, 2))
+        cfg.add_node(make_symbol("mod.b", NodeType.FUNCTION, "/test/file.py", 3, 4))
+        cfg.add_node(make_symbol("mod.new", NodeType.FUNCTION, "/test/file.py", 5, 6))
+        current = ClusterResult(clusters={7: {"mod.a", "mod.new"}, 11: {"mod.b"}})
+        prior = ClusterResult(clusters={7: {"mod.a"}, 11: {"mod.b"}})
+
+        result = self.mixin._expand_to_method_level_clusters(
+            cfg,
+            current,
+            prior_cluster_result=prior,
+            next_cluster_id=20,
+        )
+
+        self.assertEqual(result.clusters, {7: {"mod.a"}, 11: {"mod.b"}, 20: {"mod.new"}})
+
+    def test_scoped_multi_language_lineage_keeps_ids_when_one_language_grows(self):
+        python_graph = ProgramGraph(language="python")
+        python_graph.add_node(make_symbol("py.run", NodeType.FUNCTION, "/test/py.py", 1, 2))
+        typescript_graph = ProgramGraph(language="typescript")
+        typescript_graph.add_node(make_symbol("ts.run", NodeType.FUNCTION, "/test/ts.ts", 1, 2))
+        static_analysis = StaticAnalysisResults()
+        static_analysis.add_program_graph(Language.PYTHON, python_graph)
+        static_analysis.add_program_graph(Language.TYPESCRIPT, typescript_graph)
+        mixin = MockMixin(self.repo_dir, static_analysis)
+        component = Component(
+            name="Mixed",
+            description="",
+            key_entities=[],
+            component_id="1",
+            file_methods=[
+                FileMethodGroup(
+                    file_path="/test/py.py",
+                    methods=[MethodEntry(qualified_name="py.run", start_line=1, end_line=2, node_type="FUNCTION")],
+                ),
+                FileMethodGroup(
+                    file_path="/test/ts.ts",
+                    methods=[MethodEntry(qualified_name="ts.run", start_line=1, end_line=2, node_type="FUNCTION")],
+                ),
+            ],
+        )
+
+        _, first, _ = mixin._create_strict_component_subgraph(component, source_cluster_id_prefix="1")
+        python_graph.add_node(make_symbol("py.added", NodeType.FUNCTION, "/test/py.py", 3, 4))
+        component.file_methods[0].methods.append(
+            MethodEntry(qualified_name="py.added", start_line=3, end_line=4, node_type="FUNCTION")
+        )
+        _, second, _ = mixin._create_strict_component_subgraph(component, source_cluster_id_prefix="1")
+
+        self.assertEqual(set(first["python"].clusters), {0})
+        self.assertEqual(set(first["typescript"].clusters), {1})
+        self.assertEqual(set(second["python"].clusters), {0, 2})
+        self.assertEqual(set(second["typescript"].clusters), {1})
 
 
 if __name__ == "__main__":

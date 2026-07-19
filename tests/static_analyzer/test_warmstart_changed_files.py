@@ -9,7 +9,10 @@ from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.program_graph import ProgramGraph
 
 
-def _analyzer_with_one_engine(project_path: Path) -> StaticAnalyzer:
+def _analyzer_with_one_engine(
+    project_path: Path,
+    changed_files: set[Path] | None = None,
+) -> StaticAnalyzer:
     analyzer = object.__new__(StaticAnalyzer)
     adapter = MagicMock()
     adapter.language = "Python"
@@ -18,6 +21,7 @@ def _analyzer_with_one_engine(project_path: Path) -> StaticAnalyzer:
     analyzer._engine_clients = [(EngineConfig(adapter=adapter, project_path=project_path), MagicMock())]
     analyzer.collected_diagnostics = {}
     analyzer.ignore_manager = MagicMock()
+    analyzer.changed_files = changed_files
     return analyzer
 
 
@@ -37,6 +41,24 @@ class TestWarmStartChangedFiles(unittest.TestCase):
 
         with self.assertRaisesRegex(IncrementalProgramGraphUnavailableError, "run a full analysis first"):
             analyzer._update_cached_results(StaticAnalysisResults(), cached_sha="HEAD~1")
+
+    @patch("static_analyzer.get_changed_files_since")
+    def test_supplied_changed_files_bypass_git(self, mock_git) -> None:
+        changed_file = self.project / "x.py"
+        analyzer = _analyzer_with_one_engine(self.project, {changed_file})
+        delta_graph = ProgramGraph(language="python")
+
+        with (
+            patch.object(analyzer, "_source_files_for_config", return_value=[changed_file]),
+            patch.object(analyzer, "_incremental_scope_files", return_value=[changed_file]),
+            patch.object(analyzer, "_run_analysis_for_files", return_value={"program_graph": delta_graph}) as run_delta,
+            patch.object(analyzer, "_merge_incremental_diagnostics"),
+        ):
+            updated = analyzer._update_cached_results(_cached_graph(analyzer), cached_sha="content-hash")
+
+        mock_git.assert_not_called()
+        run_delta.assert_called_once()
+        self.assertIs(updated.incremental_base_results is not None, True)
 
     @patch("static_analyzer.get_changed_files_since", return_value={Path("/proj/x.py")})
     def test_changed_files_are_spliced_from_a_scoped_analysis(self, mock_git) -> None:
@@ -68,7 +90,7 @@ class TestWarmStartChangedFiles(unittest.TestCase):
         mock_git.assert_called_once()
 
     @patch("static_analyzer.get_changed_files_since", return_value=set())
-    def test_unchanged_graph_is_reused(self, _mock_git) -> None:
+    def test_unchanged_graph_is_reused_without_aliasing_baseline(self, _mock_git) -> None:
         analyzer = _analyzer_with_one_engine(self.project)
         cached = _cached_graph(analyzer)
         language = analyzer._engine_clients[0][0].adapter.language_enum
@@ -76,6 +98,7 @@ class TestWarmStartChangedFiles(unittest.TestCase):
         updated = analyzer._update_cached_results(cached, cached_sha="HEAD")
 
         self.assertIsNot(updated.get_program_graph(language), cached.get_program_graph(language))
+        self.assertIs(updated.incremental_base_results, cached)
 
 
 if __name__ == "__main__":

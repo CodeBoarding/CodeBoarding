@@ -22,11 +22,13 @@ from agents.cluster_ids import CodeBoardingClusterId, CodeBoardingClusterIds, Gr
 from agents.llm_config import get_current_agent_context_window, get_current_agent_model_ref
 from agents.model_capabilities import ContextWindow
 from constants import MIN_CLUSTERS_THRESHOLD
+from diagram_analysis.cluster_snapshot import ClusterSnapshotEntry
 from diagram_analysis.file_index import build_files_index
 from repo_utils.path_utils import normalize_repo_path
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cfg_skip_planner import ContextBudgetExceededError, plan_skip_set
 from static_analyzer.cluster_helpers import (
+    remap_cluster_result,
     reindex_cross_language_clusters,
 )
 from static_analyzer.cluster_relations import (
@@ -35,7 +37,7 @@ from static_analyzer.cluster_relations import (
     merge_relations,
 )
 from static_analyzer.constants import CALLABLE_TYPES, CLASS_TYPES, Language
-from static_analyzer.clustering import ClusterResult
+from static_analyzer.clustering import ClusterResult, InfomapClusterSnapshot
 from static_analyzer.program_graph import ProgramGraph, ProgramNode
 from static_analyzer.infomap_clustering import HierarchicalInfomapClusterer
 
@@ -47,6 +49,56 @@ class _RenderedClusterString:
     text: str
     by_language: dict[str, str]
     cluster_ids: set[GraphClusterId]
+
+
+def scoped_snapshot_from_lineage(graph: ProgramGraph, scope_id: str) -> dict[int, ClusterSnapshotEntry]:
+    """Build a scoped cluster snapshot from persisted method ancestry."""
+    if not scope_id:
+        return {}
+    prefix = f"{scope_id}."
+    entries: dict[int, ClusterSnapshotEntry] = {}
+    for qualified_name, cluster_ids in graph.method_cluster_paths_snapshot():
+        node = graph.nodes.get(qualified_name)
+        if node is None:
+            continue
+        for cluster_id in cluster_ids:
+            if not cluster_id.startswith(prefix):
+                continue
+            local_id = cluster_id.removeprefix(prefix)
+            if not local_id.isdigit():
+                continue
+            entry = entries.setdefault(int(local_id), ClusterSnapshotEntry())
+            entry.members.add(qualified_name)
+            if node.file_path:
+                entry.files.add(node.file_path)
+                entry.member_files[qualified_name] = node.file_path
+    return entries
+
+
+def _infomap_snapshot_from_lineage(
+    graph: ProgramGraph,
+    scope_id: str,
+) -> InfomapClusterSnapshot | None:
+    entries = scoped_snapshot_from_lineage(graph, scope_id)
+    if not entries:
+        return None
+    clusters = {cluster_id: set(entry.members) for cluster_id, entry in entries.items()}
+    cluster_to_files = {cluster_id: set(entry.files) for cluster_id, entry in entries.items()}
+    file_to_clusters: dict[str, set[int]] = defaultdict(set)
+    for cluster_id, files in cluster_to_files.items():
+        for file_path in files:
+            file_to_clusters[file_path].add(cluster_id)
+    return InfomapClusterSnapshot(
+        cluster_result=ClusterResult(
+            clusters=clusters,
+            cluster_to_files=cluster_to_files,
+            file_to_clusters=dict(file_to_clusters),
+            strategy="scoped_lineage",
+        ),
+        node_paths={member: (cluster_id,) for cluster_id, members in clusters.items() for member in members},
+        module_members={cluster_id: set(members) for cluster_id, members in clusters.items()},
+        next_cluster_id=max(clusters, default=0) + 1,
+    )
 
 
 def _describe_window(ctx: ContextWindow) -> str:
@@ -347,7 +399,13 @@ class ClusterMethodsMixin:
                 )
             component.source_cluster_ids = CodeBoardingClusterIds.from_graph_ids(set(resolved_ids))
 
-    def _expand_to_method_level_clusters(self, cfg: ProgramGraph, cluster_result: ClusterResult) -> ClusterResult:
+    def _expand_to_method_level_clusters(
+        self,
+        cfg: ProgramGraph,
+        cluster_result: ClusterResult,
+        prior_cluster_result: ClusterResult | None = None,
+        next_cluster_id: int | None = None,
+    ) -> ClusterResult:
         """
         Expand cluster results to method-level granularity when there are too few clusters.
 
@@ -374,16 +432,32 @@ class ClusterMethodsMixin:
         new_cluster_to_files: dict[int, set[str]] = {}
         new_file_to_clusters: dict[str, set[int]] = defaultdict(set)
 
-        cluster_id = 0
+        prior_cluster_result = prior_cluster_result or ClusterResult()
+        prior_singleton_owner = {
+            next(iter(members)): cluster_id
+            for cluster_id, members in prior_cluster_result.clusters.items()
+            if len(members) == 1
+        }
+        used_cluster_ids = set(prior_cluster_result.clusters)
+        cluster_id = next_cluster_id if next_cluster_id is not None else 0
+
+        def add_node_cluster(qname: str, node: ProgramNode) -> None:
+            nonlocal cluster_id
+            assigned_id = prior_singleton_owner.get(qname)
+            if assigned_id is None:
+                while cluster_id in used_cluster_ids or cluster_id in new_clusters:
+                    cluster_id += 1
+                assigned_id = cluster_id
+                cluster_id += 1
+            new_clusters[assigned_id] = {qname}
+            new_cluster_to_files[assigned_id] = {node.file_path}
+            new_file_to_clusters[node.file_path].add(assigned_id)
+
         for qname, node in sorted(cfg.symbols.items()):
             # Only create clusters for callable types (functions, methods)
             if node.symbol_type not in CALLABLE_TYPES:
                 continue
-
-            new_clusters[cluster_id] = {qname}
-            new_cluster_to_files[cluster_id] = {node.file_path}
-            new_file_to_clusters[node.file_path].add(cluster_id)
-            cluster_id += 1
+            add_node_cluster(qname, node)
 
         # If we still have few clusters (e.g., only classes, no methods), include classes too
         if len(new_clusters) < MIN_CLUSTERS_THRESHOLD:
@@ -391,10 +465,7 @@ class ClusterMethodsMixin:
                 if node.symbol_type in CLASS_TYPES and qname not in {
                     name for members in new_clusters.values() for name in members
                 }:
-                    new_clusters[cluster_id] = {qname}
-                    new_cluster_to_files[cluster_id] = {node.file_path}
-                    new_file_to_clusters[node.file_path].add(cluster_id)
-                    cluster_id += 1
+                    add_node_cluster(qname, node)
 
         logger.info(f"Created {len(new_clusters)} method-level clusters from {len(cfg.symbols)} nodes")
 
@@ -439,26 +510,75 @@ class ClusterMethodsMixin:
 
         cluster_results: dict[str, ClusterResult] = {}
         subgraph_cfgs: dict[str, ProgramGraph] = {}
+        scoped_inputs: list[tuple[Language, ProgramGraph, ProgramGraph, InfomapClusterSnapshot | None]] = []
+        lineage_ids_by_language: dict[str, set[int]] = {}
 
-        for lang in self.static_analysis.get_languages():
+        for lang in sorted(self.static_analysis.get_languages(), key=str):
             cfg = self.static_analysis.get_program_graph(lang)
 
             # Filter by exact method set to prevent scope leakage
             sub_cfg = cfg.filter_by_nodes(assigned_qnames)
 
             if sub_cfg.nodes:
-                subgraph_cfgs[lang] = sub_cfg
+                subgraph_cfgs[str(lang)] = sub_cfg
                 program_graph = self.static_analysis.get_program_graph(lang)
                 scoped_program_graph = program_graph.induced_by_symbols(assigned_qnames)
-                sub_cluster_result = HierarchicalInfomapClusterer().cluster(scoped_program_graph)
+                scoped_lineage = _infomap_snapshot_from_lineage(
+                    scoped_program_graph,
+                    source_cluster_id_prefix,
+                )
+                scoped_inputs.append((lang, sub_cfg, scoped_program_graph, scoped_lineage))
+                if scoped_lineage is not None:
+                    lineage_ids_by_language[str(lang)] = set(scoped_lineage.cluster_result.clusters)
 
-                # Expand to method-level if insufficient clusters
-                sub_cluster_result = self._expand_to_method_level_clusters(sub_cfg, sub_cluster_result)
-                cluster_results[lang] = sub_cluster_result
+        seen_lineage_ids: set[int] = set()
+        for language, cluster_ids in lineage_ids_by_language.items():
+            overlap = seen_lineage_ids & cluster_ids
+            if overlap:
+                raise RuntimeError(f"Scoped Infomap lineage has duplicate global IDs for {language}: {sorted(overlap)}")
+            seen_lineage_ids |= cluster_ids
 
-        # Hierarchical Infomap chooses granularity; only ID namespaces need
-        # reconciliation across languages.
-        if len(cluster_results) > 1:
+        has_scoped_lineage = bool(lineage_ids_by_language)
+        persisted_next_ids = (
+            [
+                self.static_analysis.get_program_graph(language).method_cluster_paths.next_cluster_id(
+                    source_cluster_id_prefix
+                )
+                for language in self.static_analysis.get_languages()
+            ]
+            if source_cluster_id_prefix
+            else []
+        )
+        next_scoped_id = max([max(seen_lineage_ids, default=-1) + 1, *persisted_next_ids])
+        active_ids: set[int] = set()
+        for lang, sub_cfg, scoped_program_graph, scoped_lineage in scoped_inputs:
+            prior_result = scoped_lineage.cluster_result if scoped_lineage is not None else None
+            if scoped_lineage is not None:
+                scoped_lineage.next_cluster_id = max(scoped_lineage.next_cluster_id, next_scoped_id)
+                scoped_program_graph.cluster_snapshot = scoped_lineage
+            sub_cluster_result = HierarchicalInfomapClusterer().cluster(scoped_program_graph)
+            sub_cluster_result = self._expand_to_method_level_clusters(
+                sub_cfg,
+                sub_cluster_result,
+                prior_cluster_result=prior_result,
+                next_cluster_id=next_scoped_id if has_scoped_lineage else None,
+            )
+
+            if has_scoped_lineage and scoped_lineage is None:
+                mapping = {
+                    cluster_id: next_scoped_id + index
+                    for index, cluster_id in enumerate(sorted(sub_cluster_result.clusters))
+                }
+                sub_cluster_result = remap_cluster_result(sub_cluster_result, mapping)
+
+            overlap = active_ids & set(sub_cluster_result.clusters)
+            if overlap and has_scoped_lineage:
+                raise RuntimeError(f"Scoped Infomap produced duplicate global IDs for {lang}: {sorted(overlap)}")
+            active_ids.update(sub_cluster_result.clusters)
+            next_scoped_id = max(next_scoped_id, max(sub_cluster_result.clusters, default=-1) + 1)
+            cluster_results[str(lang)] = sub_cluster_result
+
+        if len(cluster_results) > 1 and not has_scoped_lineage:
             reindex_cross_language_clusters(cluster_results)
 
         if source_cluster_id_prefix:
@@ -494,7 +614,7 @@ class ClusterMethodsMixin:
 
         Args:
             cluster_results: Language -> ClusterResult mapping (used to determine languages).
-            cfg_graphs: Optional scoped CallGraphs to use instead of the global CFG.
+            cfg_graphs: Optional scoped ProgramGraphs to use instead of the global graph.
                         When provided (e.g. subgraph from DetailsAgent), only nodes
                         from these graphs are included, preventing scope leakage.
         """
@@ -520,7 +640,7 @@ class ClusterMethodsMixin:
 
         Args:
             cluster_results: Language -> ClusterResult mapping (used to determine languages).
-            cfg_graphs: Optional scoped CallGraphs to use instead of the global CFG.
+            cfg_graphs: Optional scoped ProgramGraphs to use instead of the global graph.
         """
         graphs: dict[str, nx.Graph] = {}
         for lang in cluster_results:
@@ -786,7 +906,7 @@ class ClusterMethodsMixin:
         Args:
             analysis: The analysis insights to populate.
             cluster_results: Language -> ClusterResult mapping.
-            cfg_graphs: Optional scoped CallGraphs (e.g. subgraph from DetailsAgent).
+            cfg_graphs: Optional scoped ProgramGraphs (e.g. subgraph from DetailsAgent).
                         When provided, only nodes from these graphs are considered,
                         preventing child components from exceeding parent scope.
         """

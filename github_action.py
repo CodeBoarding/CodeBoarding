@@ -1,11 +1,13 @@
 import logging
 import os
+import shutil
 from pathlib import Path
 
+from codeboarding_workflows.analysis import run_incremental_workflow
 from codeboarding_workflows.rendering import render_docs
 from diagram_analysis import DiagramGenerator, RunContext
 from repo_utils import checkout_repo, clone_repository
-from utils import CODEBOARDING_DIR_NAME, create_temp_repo_folder
+from utils import ANALYSIS_FILENAME, CODEBOARDING_DIR_NAME, FINGERPRINT_FILENAME, create_temp_repo_folder
 
 logger = logging.getLogger(__name__)
 
@@ -73,12 +75,28 @@ def generate_rst(
     )
 
 
+def _seed_existing_analysis(existing_analysis_dir: Path, temp_repo_folder: Path) -> None:
+    """Copy existing analysis files into the temp folder so incremental analysis can use them."""
+    for filename in (
+        ANALYSIS_FILENAME,
+        "analysis_manifest.json",
+        FINGERPRINT_FILENAME,
+        "static_analysis.pkl",
+        "static_analysis.sha",
+    ):
+        src = existing_analysis_dir / filename
+        if src.is_file():
+            shutil.copy2(src, temp_repo_folder / filename)
+            logger.info(f"Seeded existing {filename} for incremental analysis")
+
+
 def generate_analysis(
     repo_url: str,
     source_branch: str,
     target_branch: str,
     extension: str,
     output_dir: str = CODEBOARDING_DIR_NAME,
+    existing_analysis_dir: str | None = None,
 ) -> Path:
     """Generate analysis for a GitHub repository URL (GitHub Action entry point)."""
     os.environ.setdefault("CODEBOARDING_SOURCE", "github_action")
@@ -88,6 +106,9 @@ def generate_analysis(
     run_context = RunContext.resolve(repo_dir=repo_dir, project_name=repo_name)
     checkout_repo(repo_dir, source_branch)
     temp_repo_folder = create_temp_repo_folder()
+
+    if existing_analysis_dir:
+        _seed_existing_analysis(Path(existing_analysis_dir), temp_repo_folder)
 
     generator = DiagramGenerator(
         repo_location=repo_dir,
@@ -99,7 +120,10 @@ def generate_analysis(
         log_path=run_context.log_path,
     )
 
-    analysis_path = generator.generate_analysis()
+    if existing_analysis_dir:
+        analysis_path = run_incremental_workflow(generator)
+    else:
+        analysis_path = generator.generate_analysis()
 
     match extension:
         case ".md":

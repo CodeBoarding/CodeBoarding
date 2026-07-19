@@ -10,7 +10,7 @@ from langchain_core.language_models import BaseChatModel
 from pydantic import BaseModel
 
 from agents.agent import CodeBoardingAgent
-from agents.agent_responses import AnalysisInsights, ClusterAnalysis, Relation
+from agents.agent_responses import AnalysisInsights, ClusterAnalysis, ClustersComponent, Relation
 from agents.validation import ValidationResult
 from static_analyzer.analysis_result import StaticAnalysisResults
 from monitoring.stats import RunStats, current_stats
@@ -588,6 +588,31 @@ class TestCodeBoardingAgent(unittest.TestCase):
 
 
 class TestIncludeHidden(unittest.TestCase):
+    def test_extractor_str_hides_hidden_fields_by_default(self):
+        prompt = ClustersComponent.extractor_str()
+        for field in ("existing_component_id", "parent_id", "redetail_needed"):
+            self.assertNotIn(field, prompt)
+
+    def test_extractor_str_shows_hidden_fields_when_requested(self):
+        prompt = ClustersComponent.extractor_str(include_hidden=True)
+        for field in ("existing_component_id", "parent_id", "redetail_needed"):
+            self.assertIn(field, prompt)
+
+    def test_model_json_schema_hides_hidden_fields_by_default(self):
+        schema = ClustersComponent.model_json_schema()
+        props = schema.get("properties", {})
+        for field in ("existing_component_id", "parent_id", "redetail_needed"):
+            self.assertNotIn(field, props)
+        defs = schema.get("$defs", {}).get("ClustersComponent", {}).get("properties", {})
+        for field in ("existing_component_id", "parent_id", "redetail_needed"):
+            self.assertNotIn(field, defs)
+
+    def test_model_json_schema_shows_hidden_fields_when_requested(self):
+        schema = ClustersComponent.model_json_schema(include_hidden=True)
+        props = schema.get("properties", {})
+        for field in ("existing_component_id", "parent_id", "redetail_needed"):
+            self.assertIn(field, props)
+
     def test_relation_static_evidence_hidden_from_llm_schema_by_default(self):
         schema = AnalysisInsights.model_json_schema()
         relation_props = schema.get("$defs", {}).get("Relation", {}).get("properties", {})
@@ -609,6 +634,67 @@ class TestIncludeHidden(unittest.TestCase):
             self.assertIn(field, prompt)
         for field in ("source", "target", "description"):
             self.assertIn(field, prompt)
+
+    def test_parse_response_uses_hidden_schema_for_structured_parse(self):
+        mock_create_agent = Mock(return_value=Mock())
+        with patch("agents.agent.create_agent", mock_create_agent):
+            mock_parsing_llm = Mock(spec=BaseChatModel)
+            agent = CodeBoardingAgent(
+                repo_dir=Path(tempfile.mkdtemp()),
+                static_analysis=Mock(spec=StaticAnalysisResults),
+                system_message="Test",
+                agent_llm=Mock(),
+                parsing_llm=mock_parsing_llm,
+            )
+
+        captured_instructions = {}
+
+        original_structured_parse = agent._structured_parse
+
+        def spy_structured_parse(message_content, parser, format_instructions=None):
+            captured_instructions["value"] = format_instructions or parser.get_format_instructions()
+            raise RuntimeError("stop here")
+
+        agent._structured_parse = spy_structured_parse
+
+        try:
+            agent._parse_response("prompt", "response", ClusterAnalysis, include_hidden=True)
+        except Exception:
+            pass
+
+        instructions = captured_instructions.get("value", "")
+        self.assertIn("existing_component_id", instructions)
+        self.assertIn("parent_id", instructions)
+        self.assertIn("redetail_needed", instructions)
+
+    def test_parse_response_hides_fields_by_default(self):
+        mock_create_agent = Mock(return_value=Mock())
+        with patch("agents.agent.create_agent", mock_create_agent):
+            mock_parsing_llm = Mock(spec=BaseChatModel)
+            agent = CodeBoardingAgent(
+                repo_dir=Path(tempfile.mkdtemp()),
+                static_analysis=Mock(spec=StaticAnalysisResults),
+                system_message="Test",
+                agent_llm=Mock(),
+                parsing_llm=mock_parsing_llm,
+            )
+
+        captured_instructions = {}
+
+        def spy_structured_parse(message_content, parser, format_instructions=None):
+            captured_instructions["value"] = format_instructions or parser.get_format_instructions()
+            raise RuntimeError("stop here")
+
+        agent._structured_parse = spy_structured_parse
+
+        try:
+            agent._parse_response("prompt", "response", ClusterAnalysis)
+        except Exception:
+            pass
+
+        instructions = captured_instructions.get("value", "")
+        self.assertNotIn("existing_component_id", instructions)
+        self.assertNotIn("redetail_needed", instructions)
 
 
 if __name__ == "__main__":

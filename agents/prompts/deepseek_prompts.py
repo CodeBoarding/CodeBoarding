@@ -15,6 +15,33 @@ DeepSeek Prompt Design Principles:
 
 from .abstract_prompt_factory import AbstractPromptFactory
 
+SCOPE_RELATIONS_MESSAGE = """# Task
+Generate inter-component relationships for the `{scope_name}` scope.
+
+# Components in this scope
+{component_summaries}
+
+# Cross-component communication evidence
+{cross_component_calls}
+
+# Instructions (execute in order)
+1. Review each component and its responsibilities.
+2. Analyze the cross-component communication evidence to identify actual interaction patterns.
+3. For each meaningful interaction, produce a relationship with:
+   - **src_name**: Source component name (must match an existing component name exactly)
+   - **dst_name**: Target component name (must match an existing component name exactly)
+   - **relation**: Short phrase describing the interaction (e.g. "delegates to", "notifies", "provides data to")
+
+# Constraints
+- Every src_name and dst_name must match an existing component name exactly
+- Maximum 2 relationships per component pair (avoid bidirectional sends/returns pairs like ComponentA sends to ComponentB and ComponentB returns to ComponentA)
+- Only include architecturally significant interactions grounded in the communication evidence
+- Components with no cross-component calls between them must not have a relationship
+
+# Required outputs
+A list of `components_relations` entries, each with src_name, dst_name, and relation.
+"""
+
 SYSTEM_MESSAGE = """You are a software architecture expert.
 
 # Task
@@ -317,6 +344,78 @@ Create final sub-component architecture for the `{component}` subsystem optimize
 # Justification
 Base component choices on fundamental architectural importance."""
 
+INCREMENTAL_GROUPING_MESSAGE = """# Task
+Route each changed or new CFG cluster into the correct component — either an existing one or a brand new one.
+
+The previous analysis established the components below. Most clusters are unchanged and stay where they are; this prompt only shows the structural slice that changed: new clusters, removed clusters, or clusters whose member set changed through added/removed methods. A method body edit by itself is not a cluster-boundary change.
+
+# Existing components
+Each line shows the component id and its name:
+{existing_components}
+
+# Cluster groups to assign
+{cfg_clusters}
+
+# Instructions
+
+1. For each cluster group listed above, decide whether it belongs in an existing component or requires a new one.
+
+2. If routing to an existing component, reference it by its exact component id from the list above (e.g. `"1.3"`). Reuse that component's current name. Include the cluster ids that now belong there. Multiple groups of clusters can route to the same component if they are functionally related.
+
+3. Decide whether the component's description needs updating. Default to yes. Only skip the update when the change is cosmetic — a refactor, internal rename, small bug fix, or formatting change that does not alter the component's high-level purpose. When in doubt, request the update.
+
+4. If creating a new component, give it a fresh name distinct from every existing component, write a description explaining what this component does and why these clusters belong together, and specify a parent component id to attach it under (or leave it at root level). Choose the parent whose scope most naturally encloses the new component.
+
+# Critical rule
+Identity is by component id, not by name. Reusing an existing component's name without explicitly referencing its component id will fork a duplicate — that is wrong. When clusters belong in an existing component, always reference that component by its id.
+
+# Boundary rules
+- Route each changed cluster to the most specific owning component. If both a parent and a child seem relevant, choose the child only.
+- redetail_needed=False means the component boundary is unchanged; do not use it to absorb new files, new responsibilities, or clusters owned by another component.
+
+# Coverage
+Every cluster id listed in the "Cluster groups to assign" section must appear in exactly one output entry."""
+
+
+PLANNING_MESSAGE = """# Task
+Update one scope of the architecture diagram.
+
+# Context
+- Scope: `{scope_id}` (`root` means the top-level diagram)
+
+# Existing components in this scope
+{existing_components}
+
+# Changed files
+{changed_files}
+
+# Structural cluster diff
+{structural_diff}
+
+
+# Instructions
+Return operations for this scope only.
+
+1. Keep unchanged clusters out of the operations unless the diff makes the component semantically dirty.
+2. A changed file is context, not proof that its component changed. Act only on method membership, exact method-body changes, or typed graph changes attributed to the cluster.
+3. For CALL, IMPORTS, and INHERITS changes, update only the primary_cluster (caller, importer, or child). related_clusters are read-only context and must not be updated solely because they are targets.
+4. For modified clusters, preserve the existing owning component shown by its clusters=[...] list; use update_component for that owner instead of moving the cluster to another component.
+5. For new clusters, decide from the structural diff whether they extend an existing responsibility or introduce a new component; do not infer this from file/package layout alone.
+6. For reshaped groups, follow overlap counts to keep old cluster ownership stable. Only assign a reshaped new cluster to a different component when the diff proves a real responsibility move.
+7. Use listGitChanges only when the structural diff is not enough to judge semantic impact.
+
+# Critical rules
+- Reparenting existing components is unsupported by the current incremental schema. Preserve their current scope.
+- Every modified/new/reshaped new-side cluster listed below must appear in exactly one operation's cluster_refs.
+
+# Architecture output contract
+- This step plans component boundaries only. Do not define component relations; API surfaces and relations are generated later.
+- Choose exactly one of these mutually exclusive branches for each operation:
+  - For create_component only: leave component_id null; provide a clear name and description. Select up to 5 key_entities only when their exact qualified names are available; otherwise leave them empty. Key entities are not synthesized later.
+  - For update_component only: copy the exact component_id from the existing-components list. Include refreshed name, description, or key_entities only when the component's architectural responsibility changed; otherwise preserve the existing metadata. An empty key_entities list preserves the current selection.
+  - For delete_component or noop only: copy the exact component_id from the existing-components list and leave name, description, and key_entities empty. Use delete_component only when the component has no remaining responsibility; use noop to preserve it unchanged.
+"""
+
 
 class DeepSeekPromptFactory(AbstractPromptFactory):
     """Prompt factory for DeepSeek models optimized for direct, structured instructions."""
@@ -365,3 +464,12 @@ class DeepSeekPromptFactory(AbstractPromptFactory):
 
     def get_details_message(self) -> str:
         return DETAILS_MESSAGE
+
+    def get_incremental_grouping_message(self) -> str:
+        return INCREMENTAL_GROUPING_MESSAGE
+
+    def get_planning_message(self) -> str:
+        return PLANNING_MESSAGE
+
+    def get_scope_relations_message(self) -> str:
+        return SCOPE_RELATIONS_MESSAGE

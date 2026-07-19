@@ -391,6 +391,92 @@ Constraints:
 
 Justify component choices based on fundamental architectural importance."""
 
+INCREMENTAL_GROUPING_MESSAGE = """**Task:** Update the architecture by routing changed and new CFG clusters into the correct components.
+
+The previous analysis established the components below. Most clusters are unchanged and stay where they are; this prompt only shows the structural slice that changed: new clusters, removed clusters, or clusters whose member set changed through added/removed methods. A method body edit by itself is not a cluster-boundary change.
+
+**Existing components** (each line shows component_id and name):
+{existing_components}
+
+**Cluster groups to assign:**
+{cfg_clusters}
+
+**Instructions:**
+
+For each cluster group above, decide whether it belongs in an existing component or warrants a brand-new one.
+
+1. **Analyze the clusters** and identify which existing component each one naturally fits into based on functional relationships, shared purpose, and architectural role
+2. **Route to an existing component** when the cluster's purpose aligns with something already defined. Reference the existing component by its exact **component_id** (e.g. 1.3), carry forward the current name, and list the cluster ids that now belong there. Multiple cluster groups can route to the same existing component if they share its scope
+3. **Flag whether a description refresh is needed.** By default assume **redetail_needed** is True — the cluster change is substantive enough that the component description should be regenerated. Only set it to False when the delta is purely cosmetic: a refactor, internal rename, small bug fix, or formatting change that leaves the component's high-level purpose untouched. When in doubt, keep it True
+4. **Create a new component** when no existing one is a good fit. Give it a fresh name distinct from every existing component, write a description paragraph explaining what it does and why these clusters belong together, and specify a **parent_id** pointing to the component whose scope most naturally encloses this new one (or leave it null for a root-level component)
+
+**Important rules:**
+- Identity is tracked by **component_id**, not by name. If clusters belong in an existing component, you must reference its **component_id** explicitly — reusing a name without the correct id will fork a duplicate
+- Route each changed cluster to the most specific owning component. If both a parent and a child seem relevant, choose the child only
+- **redetail_needed=False** means the component boundary is unchanged; do not use it to absorb new files, new responsibilities, or clusters owned by another component
+- Every cluster id listed in the cluster groups above must appear in exactly one routing entry"""
+
+PLANNING_MESSAGE = """**Task:** Update one scope of the architecture diagram.
+
+**Context:**
+- Scope: `{scope_id}` (`root` means the top-level diagram)
+
+**Existing components in this scope:**
+{existing_components}
+
+**Changed files:**
+{changed_files}
+
+**Structural cluster diff:**
+{structural_diff}
+
+
+**Instructions:**
+Return operations for this scope only.
+
+1. Keep unchanged clusters out of the operations unless the diff makes the component semantically dirty.
+2. A changed file is context, not proof that its component changed. Act only on method membership, exact method-body changes, or typed graph changes attributed to the cluster.
+3. For CALL, IMPORTS, and INHERITS changes, update only the primary_cluster (caller, importer, or child). related_clusters are read-only context and must not be updated solely because they are targets.
+4. For modified clusters, preserve the existing owning component shown by its clusters=[...] list; use update_component for that owner instead of moving the cluster to another component.
+5. For new clusters, decide from the structural diff whether they extend an existing responsibility or introduce a new component; do not infer this from file/package layout alone.
+6. For reshaped groups, follow overlap counts to keep old cluster ownership stable. Only assign a reshaped new cluster to a different component when the diff proves a real responsibility move.
+7. Use listGitChanges only when the structural diff is not enough to judge semantic impact.
+
+**Hard rules:**
+- Reparenting existing components is unsupported by the current incremental schema. Preserve their current scope.
+- Every modified/new/reshaped new-side cluster listed below must appear in exactly one operation's cluster_refs.
+
+**Architecture output contract:**
+- This step plans component boundaries only. Do not define component relations; API surfaces and relations are generated later.
+- Choose exactly one of these mutually exclusive branches for each operation:
+  - For create_component only: leave component_id null; provide a clear name and description. Select up to 5 key_entities only when their exact qualified names are available; otherwise leave them empty. Key entities are not synthesized later.
+  - For update_component only: copy the exact component_id from the existing-components list. Include refreshed name, description, or key_entities only when the component's architectural responsibility changed; otherwise preserve the existing metadata. An empty key_entities list preserves the current selection.
+  - For delete_component or noop only: copy the exact component_id from the existing-components list and leave name, description, and key_entities empty. Use delete_component only when the component has no remaining responsibility; use noop to preserve it unchanged.
+"""
+
+SCOPE_RELATIONS_MESSAGE = """Generate inter-component relationships for the `{scope_name}` scope.
+
+**Components in this scope:**
+{component_summaries}
+
+**Cross-component communication from static analysis:**
+{cross_component_calls}
+
+Instructions:
+Review the components listed above and the cross-component communication evidence. Generate relationships that describe how these components interact with each other.
+
+For each relationship provide:
+- **src_name**: Source component name
+- **dst_name**: Target component name
+- **relation**: A short phrase describing the relationship (e.g. "delegates to", "notifies", "provides data to")
+
+Guidelines:
+- Every src_name and dst_name must match an existing component name exactly
+- Maximum 2 relationships per component pair, avoiding bidirectional sends/returns pairs
+- Focus on architecturally significant interactions, not implementation details
+- Use the cross-component communication evidence to ground relationships in actual code flow
+- A component that never calls or is called by another component should not have a relation to it"""
+
 
 class GPTPromptFactory(AbstractPromptFactory):
     """Prompt factory for GPT-4 models."""
@@ -439,3 +525,12 @@ class GPTPromptFactory(AbstractPromptFactory):
 
     def get_details_message(self) -> str:
         return DETAILS_MESSAGE
+
+    def get_incremental_grouping_message(self) -> str:
+        return INCREMENTAL_GROUPING_MESSAGE
+
+    def get_planning_message(self) -> str:
+        return PLANNING_MESSAGE
+
+    def get_scope_relations_message(self) -> str:
+        return SCOPE_RELATIONS_MESSAGE
