@@ -149,8 +149,10 @@ What this means for you:
   expected reference/package/call-graph counts. Tell us which repo you'd pin and
   why, and we'll wire it up.
 
-Bootstrap and install behaviour is still verified publicly, on every PR
-including forks, by `.github/workflows/bootstrap-verification.yml`.
+Note that the integration runners uninstall their system Node first, so the
+suite exercises the Node that `codeboarding-setup` bootstraps for itself — the
+same one a user without Node gets. That is why install and `tool_registry`
+changes trigger it.
 
 ---
 

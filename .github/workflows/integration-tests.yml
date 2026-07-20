@@ -9,8 +9,8 @@ name: Integration Tests
 # all end with contributor-authored code executing on the same runner as the
 # private suite - at which point the suite is readable by that code, whatever the
 # approval gate says. Fork PRs get the public unit tests and
-# bootstrap-verification.yml; the private suite covers their changes on the
-# push-to-main run right after merge.
+# the private suite covers their changes on the push-to-main run right after
+# merge.
 #
 # To check a fork PR before merging, read the diff, then dispatch
 # `run-integration-tests.yml` in the private repo with that PR's head SHA.
@@ -55,6 +55,8 @@ on:
       - 'agents/model_capabilities.py'
       - 'agents/llm_config.py'
       - 'health/**'
+      - 'tests/test_install.py'
+      - 'tests/test_tool_registry.py'
       - '.github/workflows/integration-tests.yml'
 
 permissions:
@@ -68,21 +70,51 @@ jobs:
   private-suite:
     runs-on: ubuntu-latest
     timeout-minutes: 75
-    # Fork PRs get no secrets, so this cannot run for them - the condition makes
-    # that explicit rather than letting the job fail on an empty token.
+    # Skip only pull_request runs that cannot mint the token: fork PRs (no
+    # secrets) and Dependabot PRs (treated as forked, no secrets). The actor
+    # check is scoped to pull_request so a Dependabot-authored push to main -
+    # e.g. an auto-merged update - still runs; push relies on this suite for the
+    # coverage those skipped PRs never got. The notice job below explains PR skips.
     if: >-
       github.event_name != 'pull_request' ||
-      github.event.pull_request.head.repo.full_name == github.repository
+      (github.event.pull_request.head.repo.full_name == github.repository &&
+       github.actor != 'dependabot[bot]')
     steps:
       # Mint a short-lived installation token instead of carrying a PAT. It is
-      # narrowed to the tests repo and to Actions, so the worst a leak from this
-      # public workflow yields is the ability to start a test run - not to read
-      # the suite (no `contents`) and not to touch any other org repo.
-      - name: Mint a token for the private repo
-        id: app-token
+      # narrowed to the tests repo and to Actions - it cannot clone the suite
+      # (no `contents`) or touch any other org repo. `actions: write` does
+      # include read, though, so within its ~1h life it can download the private
+      # run's logs and artifacts (test output, fixture values). That is tolerable
+      # only while push access to this repo stays a subset of CodeBoarding-tests
+      # access: a same-repo PR runs this workflow's PR-modified copy *with*
+      # secrets, so a PR author could rewrite the steps below to read those logs,
+      # but anyone who could do that can already clone the tests repo directly.
+      # If the collaborator sets ever diverge, move minting + dispatch into a
+      # workflow_run job that runs the base-branch copy, out of PR control.
+      #
+      # Two mint steps mirror codeboarding-sync's credential handling so the gate
+      # cannot break silently on a config the sync workflow accepts. A client id
+      # (prefix "Iv") may be stored in CODEBOARDING_APP_ID rather than
+      # CODEBOARDING_APP_CLIENT_ID; like sync, an Iv-prefixed app-id value is
+      # routed to client-id rather than passed to the app-id input, which would
+      # otherwise reject it.
+      - name: Mint a token for the private repo (client id)
+        id: token-client-id
+        if: ${{ vars.CODEBOARDING_APP_CLIENT_ID != '' || startsWith(vars.CODEBOARDING_APP_ID, 'Iv') }}
         uses: actions/create-github-app-token@v3
         with:
-          client-id: ${{ vars.CODEBOARDING_APP_CLIENT_ID }}
+          client-id: ${{ vars.CODEBOARDING_APP_CLIENT_ID != '' && vars.CODEBOARDING_APP_CLIENT_ID || vars.CODEBOARDING_APP_ID }}
+          private-key: ${{ secrets.CODEBOARDING_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: CodeBoarding-tests
+          permission-actions: write
+
+      - name: Mint a token for the private repo (app id)
+        id: token-app-id
+        if: ${{ vars.CODEBOARDING_APP_CLIENT_ID == '' && vars.CODEBOARDING_APP_ID != '' && !startsWith(vars.CODEBOARDING_APP_ID, 'Iv') }}
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ vars.CODEBOARDING_APP_ID }}
           private-key: ${{ secrets.CODEBOARDING_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
           repositories: CodeBoarding-tests
@@ -90,10 +122,15 @@ jobs:
 
       - name: Dispatch and await the private suite
         env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_TOKEN: ${{ steps.token-client-id.outputs.token || steps.token-app-id.outputs.token }}
           PRIVATE_REPO: CodeBoarding/CodeBoarding-tests
           WORKFLOW: run-integration-tests.yml
-          ENGINE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          TESTS_REF: main
+          # github.sha is the right engine commit for every event: the PR *merge*
+          # commit for pull_request (so we test what actually merges, not the
+          # branch in isolation), the pushed commit for push, the branch tip for
+          # schedule / workflow_dispatch.
+          ENGINE_SHA: ${{ github.sha }}
           LANGUAGE: ${{ github.event.inputs.language }}
           FULL_MATRIX: ${{ github.event.inputs.full_matrix }}
         run: |
@@ -103,7 +140,7 @@ jobs:
           # empty string, and gh would fail later with an opaque 404. Fail closed
           # - an unverifiable suite must never read as a passing one.
           if [ -z "${GH_TOKEN:-}" ]; then
-            echo "::error::Could not mint a CodeBoarding App token. Check CODEBOARDING_APP_CLIENT_ID and CODEBOARDING_APP_PRIVATE_KEY. See CONTRIBUTING.md."
+            echo "::error::Could not mint a CodeBoarding App token. Check CODEBOARDING_APP_CLIENT_ID (or CODEBOARDING_APP_ID) and CODEBOARDING_APP_PRIVATE_KEY. See CONTRIBUTING.md."
             exit 1
           fi
 
@@ -111,12 +148,15 @@ jobs:
           # race: two PRs dispatching at once would each adopt the newer run.
           dispatch_id="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
 
+          # --ref is required, not cosmetic: without it gh resolves the default
+          # branch via GraphQL, which needs `contents: read` - the one permission
+          # we withhold so a leaked token cannot download the suite.
+          args=(-f "engine_ref=$ENGINE_SHA" -f "dispatch_id=$dispatch_id")
           # Only forward `language` when set, so the receiving workflow applies
           # its own default (all languages) rather than an empty choice value.
-          args=(-f "engine_ref=$ENGINE_SHA" -f "dispatch_id=$dispatch_id")
           [ -n "$LANGUAGE" ] && args+=(-f "language=$LANGUAGE")
           [ "$FULL_MATRIX" = "true" ] && args+=(-f "full_matrix=true")
-          gh workflow run "$WORKFLOW" --repo "$PRIVATE_REPO" "${args[@]}"
+          gh workflow run "$WORKFLOW" --repo "$PRIVATE_REPO" --ref "$TESTS_REF" "${args[@]}"
 
           # `gh workflow run` returns no run id, so poll for the run whose
           # run-name carries our dispatch id.
@@ -142,17 +182,33 @@ jobs:
           echo "Private integration run: $run_url"
           echo "Waiting for it to finish. Logs stay in the private repo."
 
-          # Poll rather than `gh run watch`: watch cannot authenticate with a
-          # fine-grained PAT (it needs checks:read, which they cannot grant), and
-          # its exit code conflates "suite failed" with "gh failed" anyway. The
-          # run's own conclusion is the only trustworthy signal. Bounded here and
-          # by the job's timeout-minutes.
+          # Poll rather than `gh run watch`: watch cannot authenticate with an
+          # App/fine-grained token (it needs checks:read, which they cannot
+          # grant), and its exit code conflates "suite failed" with "gh failed".
+          # The run's own conclusion is the only trustworthy signal.
+          #
+          # The minted App token expires ~1h in, so cap polling below that (110 x
+          # 30s = 55m) and treat a run of gh failures as lost contact rather than
+          # as "still running" - otherwise an expired token silently turns a
+          # green run into a false timeout. Full-matrix runs that need longer
+          # should be launched from the private repo directly.
           conclusion=""
-          for _ in $(seq 1 140); do
-            conclusion=$(gh run view "$run_id" --repo "$PRIVATE_REPO" \
-              --json status,conclusion \
-              -q 'if .status == "completed" then .conclusion else "" end' 2>/dev/null || echo "")
-            [ -n "$conclusion" ] && break
+          fail_streak=0
+          for _ in $(seq 1 110); do
+            if result=$(gh run view "$run_id" --repo "$PRIVATE_REPO" \
+                  --json status,conclusion -q '"\(.status)|\(.conclusion // "")"' 2>/dev/null); then
+              fail_streak=0
+              if [ "${result%%|*}" = "completed" ]; then
+                conclusion="${result#*|}"
+                break
+              fi
+            else
+              fail_streak=$((fail_streak + 1))
+              if [ "$fail_streak" -ge 3 ]; then
+                echo "::error::Lost contact with the private run after repeated API errors (the dispatch token expires ~1h in). It may still be running: $run_url"
+                exit 1
+              fi
+            fi
             sleep 30
           done
 
@@ -165,7 +221,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
           if [ -z "$conclusion" ]; then
-            echo "::error::Timed out waiting for the private run to finish; it may still be going. See $run_url"
+            echo "::error::Private run still unfinished after ~55m of polling. It may still be going. See $run_url"
             exit 1
           fi
 
@@ -174,11 +230,14 @@ jobs:
             exit 1
           fi
 
-  fork-notice:
+  skip-notice:
     runs-on: ubuntu-latest
+    # Mirrors the private-suite skip: fork PRs and Dependabot PRs, which the
+    # private suite cannot run because they have no access to the secrets.
     if: >-
       github.event_name == 'pull_request' &&
-      github.event.pull_request.head.repo.full_name != github.repository
+      (github.event.pull_request.head.repo.full_name != github.repository ||
+       github.actor == 'dependabot[bot]')
     steps:
       - name: Explain why the private suite was skipped
         run: |
@@ -186,7 +245,8 @@ jobs:
             echo "### Integration tests not run"
             echo ""
             echo "The integration suite is private and does not run on pull requests"
-            echo "from forks. A maintainer will run it against this branch before merge."
+            echo "from forks or Dependabot, which cannot access the credentials it"
+            echo "needs. A maintainer will run it against this branch before merge."
             echo ""
-            echo "Unit tests and bootstrap verification cover this PR in the meantime."
+            echo "Unit tests cover this PR in the meantime."
           } >> "$GITHUB_STEP_SUMMARY"
