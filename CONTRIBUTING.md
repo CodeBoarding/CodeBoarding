@@ -38,8 +38,8 @@ uv sync --dev
 # Activate virtual environment
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
-# Run setup (this will automatically install pre-commit hooks if available)
-python setup.py
+# Install the language servers and pre-commit hooks
+codeboarding-setup
 ```
 
 The pre-commit hooks will automatically format your code with Black before each commit.
@@ -124,11 +124,35 @@ If the LSP server doesn't publish pre-built binaries (like gopls or tokei), you 
 ### 5d) Tests
 
 - Write unit tests for the adapter (aim for 100% coverage on new code)
-- Run `uv run pytest --ignore=tests/integration` to verify nothing is broken
+- Run `uv run pytest` to verify nothing is broken
 - Run `uv run mypy .` and `uv run black . --check`
-- Add integration test fixtures:
-  - **Edge cases** (`tests/integration/fixtures/edge_cases/<lang>_edge_cases.json`): A hand-crafted small project that exercises language-specific features (interfaces, generics, inheritance, etc.). Lists `expected_references` that the static analysis must find. See `go_edge_cases.json` or `python_edge_cases.json` for the format.
-  - **Real project** (`tests/integration/fixtures/real_projects/<project>_<lang>.json`): A well-known open-source repo pinned to a specific commit, with expected metric counts (references, packages, call graph nodes/edges, source files). See `prometheus_go.json` or `mockito_java.json` for the format.
+
+### 5e) Integration tests
+
+The integration suite — which runs real language servers over real projects and
+asserts the analysis output — lives in a **private** repository. It stays closed
+because its fixtures encode the exact expected output for every supported
+language, and we don't want that set copied or tuned against.
+
+What this means for you:
+
+- **You don't need it to contribute.** `uv run pytest` covers everything in this
+  repo, and CI runs the private suite against your branch.
+- **On PRs from a fork it does not run automatically.** GitHub does not give
+  fork PRs access to the credentials needed to reach the private repo, and the
+  workarounds would let PR code read the suite. A maintainer runs it against
+  your branch before merging; if it fails, they'll tell you which language and
+  which metric moved.
+- **Adding a language?** Say so in your PR. A maintainer adds the matching
+  fixtures — a hand-written edge-case project exercising the language's
+  interfaces, generics and inheritance, and a pinned real-world repo with
+  expected reference/package/call-graph counts. Tell us which repo you'd pin and
+  why, and we'll wire it up.
+
+Note that the integration runners uninstall their system Node first, so the
+suite exercises the Node that `codeboarding-setup` bootstraps for itself — the
+same one a user without Node gets. That is why install and `tool_registry`
+changes trigger it.
 
 ---
 
