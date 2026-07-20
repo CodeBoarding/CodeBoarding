@@ -1,0 +1,183 @@
+name: Bootstrap Verification
+
+# Verifies that `codeboarding-setup` bootstraps its own Node runtime on a machine
+# with no Node installed. That path only surfaces on Node-less machines, so each
+# job uninstalls the runner image's Node first to simulate one.
+#
+# This is install/tool_registry regression coverage, not test coverage, so it
+# stays public: it needs no secrets and fork PRs get the feedback immediately.
+# It was previously carried by integration-tests.yml, which is now a dispatcher
+# for the private suite.
+
+on:
+  workflow_dispatch:
+
+  push:
+    branches: [main]
+
+  pull_request:
+    paths:
+      - 'install.py'
+      - 'tool_registry/**'
+      - 'vscode_constants.py'
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - 'tests/test_install.py'
+      - 'tests/test_tool_registry.py'
+      - '.github/workflows/bootstrap-verification.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bootstrap-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  bootstrap:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Setup virtual environment (unix)
+        if: runner.os != 'Windows'
+        run: |
+          source .venv/bin/activate
+          echo "VIRTUAL_ENV=$VIRTUAL_ENV" >> $GITHUB_ENV
+          echo "$VIRTUAL_ENV/bin" >> $GITHUB_PATH
+
+      - name: Setup virtual environment (windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          .\.venv\Scripts\Activate.ps1
+          "VIRTUAL_ENV=$env:VIRTUAL_ENV" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "$env:VIRTUAL_ENV\Scripts" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+
+      - name: Uninstall pre-installed Node.js (linux)
+        if: runner.os == 'Linux'
+        # Ubuntu runners install Node via apt (NodeSource). Remove through
+        # the same channel, then drop stragglers and the hostedtoolcache.
+        run: |
+          set -euxo pipefail
+          sudo apt-get remove --purge -y nodejs npm || true
+          sudo apt-get autoremove -y || true
+          sudo rm -rf /usr/local/lib/node_modules
+          sudo rm -f /usr/local/bin/node /usr/local/bin/npm /usr/local/bin/npx
+          sudo rm -rf "${RUNNER_TOOL_CACHE}/node" || true
+          if command -v node >/dev/null 2>&1; then
+            echo "ERROR: node still present at $(command -v node)" >&2
+            exit 1
+          fi
+          if command -v npm >/dev/null 2>&1; then
+            echo "ERROR: npm still present at $(command -v npm)" >&2
+            exit 1
+          fi
+
+      - name: Uninstall pre-installed Node.js (macos)
+        if: runner.os == 'macOS'
+        # The runner image installs Node via `brew install node@N`.
+        # Reverse through brew's own uninstall verb so /opt/homebrew/bin
+        # symlinks are cleaned without hand-editing PATH.
+        run: |
+          set -euxo pipefail
+          brew list --formula | grep -E '^node(@[0-9]+)?$' | xargs -I {} brew uninstall --force --ignore-dependencies {} || true
+          brew list --formula | grep -E '^yarn$' | xargs -I {} brew uninstall --force --ignore-dependencies {} || true
+          rm -rf "${RUNNER_TOOL_CACHE}/node" || true
+          if command -v node >/dev/null 2>&1; then
+            echo "ERROR: node still present at $(command -v node)" >&2
+            exit 1
+          fi
+          if command -v npm >/dev/null 2>&1; then
+            echo "ERROR: npm still present at $(command -v npm)" >&2
+            exit 1
+          fi
+
+      - name: Uninstall pre-installed Node.js (windows)
+        if: runner.os == 'Windows'
+        # Uses the MSI's own uninstaller located via the Uninstall
+        # registry key. Also reverses the C:\npm\prefix customization
+        # the runner image adds separately in Install-NodeJS.ps1.
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $uninstallKeys = @(
+            'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*',
+            'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*'
+          )
+          $nodeEntries = Get-ItemProperty $uninstallKeys -ErrorAction SilentlyContinue |
+            Where-Object { $_.DisplayName -like 'Node.js*' }
+          if (-not $nodeEntries) {
+            Write-Error "No Node.js entry in Uninstall registry; runner image layout changed."
+            exit 1
+          }
+          foreach ($entry in $nodeEntries) {
+            Write-Host "Uninstalling $($entry.DisplayName) $($entry.DisplayVersion)"
+            $proc = Start-Process -FilePath 'msiexec.exe' `
+              -ArgumentList @('/x', $entry.PSChildName, '/qn', '/norestart') `
+              -Wait -PassThru
+            if ($proc.ExitCode -ne 0 -and $proc.ExitCode -ne 3010) {
+              Write-Error "msiexec /x $($entry.PSChildName) exited with code $($proc.ExitCode)"
+              exit 1
+            }
+          }
+          if (Test-Path 'C:\Program Files\nodejs') {
+            Remove-Item -Recurse -Force 'C:\Program Files\nodejs'
+          }
+          if (Test-Path 'C:\npm') { Remove-Item -Recurse -Force 'C:\npm' }
+          [Environment]::SetEnvironmentVariable('npm_config_prefix', $null, 'Machine')
+          [Environment]::SetEnvironmentVariable('npm_config_prefix', $null, 'User')
+          Remove-Item Env:\npm_config_prefix -ErrorAction SilentlyContinue
+          if (Test-Path "$env:RUNNER_TOOL_CACHE\node") {
+            Remove-Item -Recurse -Force "$env:RUNNER_TOOL_CACHE\node"
+          }
+          $machinePath = [Environment]::GetEnvironmentVariable('Path', 'Machine')
+          $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
+          $env:Path = "$machinePath;$userPath"
+          "PATH=$env:Path" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          if (Get-Command node -ErrorAction SilentlyContinue) {
+            Write-Error "node still present at $((Get-Command node).Source)"
+            exit 1
+          }
+          if (Get-Command npm -ErrorAction SilentlyContinue) {
+            Write-Error "npm still present at $((Get-Command npm).Source)"
+            exit 1
+          }
+
+      - name: Setup LSP servers
+        run: codeboarding-setup --auto-install-npm
+
+      - name: Verify embedded Node was installed (unix)
+        if: runner.os != 'Windows'
+        run: |
+          test -x ~/.codeboarding/servers/nodeenv/bin/node
+          ~/.codeboarding/servers/nodeenv/bin/node --version
+
+      - name: Verify embedded Node was installed (windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $nodeExe = "$env:USERPROFILE\.codeboarding\servers\nodeenv\Scripts\node.exe"
+          if (-not (Test-Path $nodeExe)) {
+            Write-Error "Embedded node not found at $nodeExe"
+            exit 1
+          }
+          & $nodeExe --version

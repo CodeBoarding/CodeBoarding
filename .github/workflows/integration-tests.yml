@@ -1,5 +1,20 @@
 name: Integration Tests
 
+# The integration suite lives in a private repository. This workflow dispatches
+# it and mirrors the result; it never downloads the tests, and it prints no test
+# output, so nothing about the suite reaches this repo's public logs.
+#
+# Fork PRs deliberately do not run it. GitHub withholds secrets from fork-PR
+# workflows, and the ways around that (pull_request_target, a workflow_run hop)
+# all end with contributor-authored code executing on the same runner as the
+# private suite - at which point the suite is readable by that code, whatever the
+# approval gate says. Fork PRs get the public unit tests and
+# bootstrap-verification.yml; the private suite covers their changes on the
+# push-to-main run right after merge.
+#
+# To check a fork PR before merging, read the diff, then dispatch
+# `run-integration-tests.yml` in the private repo with that PR's head SHA.
+
 on:
   workflow_dispatch:
     inputs:
@@ -18,13 +33,16 @@ on:
           - javascript
           - rust
           - csharp
+      full_matrix:
+        description: 'Run all 3 OSes instead of the smoke subset'
+        required: false
+        default: false
+        type: boolean
 
   push:
     branches: [main]
 
-  # PRs that touch install / bootstrap / LSP / scanner code. The Node-bootstrap
-  # path only surfaces on Node-less machines, so the per-OS uninstall steps
-  # below simulate that environment and catch regressions before merge.
+  # PRs that touch analysis, install or scanner code.
   pull_request:
     paths:
       - 'install.py'
@@ -34,267 +52,141 @@ on:
       - 'uv.lock'
       - 'static_analyzer/**'
       - 'repo_utils/ignore.py'
-      - 'tests/integration/**'
-      - 'tests/test_install.py'
-      - 'tests/test_tool_registry.py'
+      - 'agents/model_capabilities.py'
+      - 'agents/llm_config.py'
+      - 'health/**'
       - '.github/workflows/integration-tests.yml'
 
-  schedule:
-    - cron: '0 3 * * 0'  # Every Sunday at 3 AM UTC
+permissions:
+  contents: read
+
+concurrency:
+  group: integration-tests-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  # Emit the matrix.include list, event-driven:
-  #   schedule / workflow_dispatch → full 7 langs x 3 OSes minus skipped pairs.
-  #   push / pull_request         → Windows all langs (except java) + java on
-  #                                 Linux/mac (java's dev platforms).
-  # workflow_dispatch honors the optional ``language`` input to narrow
-  # the full matrix to a single language.
-  #
-  # Skipped pairs:
-  #   mac/go    — free macos-latest is 3 vCPU / 7 GB RAM; gopls indexing
-  #               prometheus blows past 25 min under that memory pressure.
-  #   win/java  — JDTLS races its own readiness signals on Windows (observed
-  #               85 vs 142 edges on the same commit across runs). Stable on
-  #               Linux/macOS; revisit after the LSP sync path is reworked.
-  setup-matrix:
+  private-suite:
     runs-on: ubuntu-latest
-    outputs:
-      matrix: ${{ steps.build.outputs.matrix }}
+    timeout-minutes: 75
+    # Fork PRs get no secrets, so this cannot run for them - the condition makes
+    # that explicit rather than letting the job fail on an empty token.
+    if: >-
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository
     steps:
-      - name: Build matrix
-        id: build
+      # Mint a short-lived installation token instead of carrying a PAT. It is
+      # narrowed to the tests repo and to Actions, so the worst a leak from this
+      # public workflow yields is the ability to start a test run - not to read
+      # the suite (no `contents`) and not to touch any other org repo.
+      - name: Mint a token for the private repo
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.CODEBOARDING_APP_CLIENT_ID }}
+          private-key: ${{ secrets.CODEBOARDING_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: CodeBoarding-tests
+          permission-actions: write
+
+      - name: Dispatch and await the private suite
         env:
-          EVENT_NAME: ${{ github.event_name }}
-          DISPATCH_LANG: ${{ github.event.inputs.language }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          PRIVATE_REPO: CodeBoarding/CodeBoarding-tests
+          WORKFLOW: run-integration-tests.yml
+          ENGINE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          LANGUAGE: ${{ github.event.inputs.language }}
+          FULL_MATRIX: ${{ github.event.inputs.full_matrix }}
         run: |
-          python3 <<'PY' >> "$GITHUB_OUTPUT"
-          import json
-          import os
+          set -euo pipefail
 
-          event = os.environ.get("EVENT_NAME", "")
-          dispatch_lang = os.environ.get("DISPATCH_LANG", "").strip()
+          # `set -u` will not catch this: an unavailable token expands to the
+          # empty string, and gh would fail later with an opaque 404. Fail closed
+          # - an unverifiable suite must never read as a passing one.
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::error::Could not mint a CodeBoarding App token. Check CODEBOARDING_APP_CLIENT_ID and CODEBOARDING_APP_PRIVATE_KEY. See CONTRIBUTING.md."
+            exit 1
+          fi
 
-          all_langs = ["python", "java", "go", "typescript", "php", "javascript", "rust", "csharp"]
-          all_os = ["ubuntu-latest", "macos-latest", "windows-latest"]
-          skip = {("macos-latest", "go"), ("windows-latest", "java")}  # see job-level note
+          # Tag the run so we can find the one *we* started. Timestamps alone
+          # race: two PRs dispatching at once would each adopt the newer run.
+          dispatch_id="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
 
-          if event in ("schedule", "workflow_dispatch"):
-              langs = [dispatch_lang] if dispatch_lang else all_langs
-              include = [
-                  {"os": o, "language": lg}
-                  for o in all_os
-                  for lg in langs
-                  if (o, lg) not in skip
-              ]
-          else:
-              # push / pull_request smoke subset.
-              include = [
-                  {"os": "windows-latest", "language": lg}
-                  for lg in all_langs
-                  if ("windows-latest", lg) not in skip
-              ]
-              include.append({"os": "ubuntu-latest", "language": "java"})
-              include.append({"os": "macos-latest", "language": "java"})
+          # Only forward `language` when set, so the receiving workflow applies
+          # its own default (all languages) rather than an empty choice value.
+          args=(-f "engine_ref=$ENGINE_SHA" -f "dispatch_id=$dispatch_id")
+          [ -n "$LANGUAGE" ] && args+=(-f "language=$LANGUAGE")
+          [ "$FULL_MATRIX" = "true" ] && args+=(-f "full_matrix=true")
+          gh workflow run "$WORKFLOW" --repo "$PRIVATE_REPO" "${args[@]}"
 
-          print(f"matrix={json.dumps({'include': include})}")
-          PY
+          # `gh workflow run` returns no run id, so poll for the run whose
+          # run-name carries our dispatch id.
+          run_id=""
+          for _ in $(seq 1 24); do
+            sleep 5
+            # Match either field: GitHub surfaces an evaluated run-name as
+            # `name`, and depending on event also as `displayTitle`.
+            run_id=$(gh run list --repo "$PRIVATE_REPO" --workflow "$WORKFLOW" \
+              --event workflow_dispatch --limit 30 \
+              --json databaseId,name,displayTitle \
+              -q "[.[] | select(((.name // \"\") + \" \" + (.displayTitle // \"\")) | contains(\"[$dispatch_id]\"))] | first | .databaseId" \
+              2>/dev/null || true)
+            [ -n "$run_id" ] && [ "$run_id" != "null" ] && break
+          done
 
-  integration-tests:
-    needs: setup-matrix
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 60
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJson(needs.setup-matrix.outputs.matrix) }}
+          if [ -z "$run_id" ] || [ "$run_id" = "null" ]; then
+            echo "::error::Dispatched the private suite but could not find its run."
+            exit 1
+          fi
 
+          run_url="https://github.com/$PRIVATE_REPO/actions/runs/$run_id"
+          echo "Private integration run: $run_url"
+          echo "Waiting for it to finish. Logs stay in the private repo."
+
+          # Poll rather than `gh run watch`: watch cannot authenticate with a
+          # fine-grained PAT (it needs checks:read, which they cannot grant), and
+          # its exit code conflates "suite failed" with "gh failed" anyway. The
+          # run's own conclusion is the only trustworthy signal. Bounded here and
+          # by the job's timeout-minutes.
+          conclusion=""
+          for _ in $(seq 1 140); do
+            conclusion=$(gh run view "$run_id" --repo "$PRIVATE_REPO" \
+              --json status,conclusion \
+              -q 'if .status == "completed" then .conclusion else "" end' 2>/dev/null || echo "")
+            [ -n "$conclusion" ] && break
+            sleep 30
+          done
+
+          {
+            echo "### Private integration tests: \`${conclusion:-unknown}\`"
+            echo ""
+            echo "Engine commit: \`$ENGINE_SHA\`"
+            echo ""
+            echo "Full output is in the private repo (maintainers only): [run $run_id]($run_url)"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ -z "$conclusion" ]; then
+            echo "::error::Timed out waiting for the private run to finish; it may still be going. See $run_url"
+            exit 1
+          fi
+
+          if [ "$conclusion" != "success" ]; then
+            echo "::error::Private integration tests concluded '$conclusion'. See $run_url"
+            exit 1
+          fi
+
+  fork-notice:
+    runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name != github.repository
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
-
-      - name: Install dependencies
-        run: uv sync
-
-      - name: Setup virtual environment (unix)
-        if: runner.os != 'Windows'
+      - name: Explain why the private suite was skipped
         run: |
-          source .venv/bin/activate
-          echo "VIRTUAL_ENV=$VIRTUAL_ENV" >> $GITHUB_ENV
-          echo "$VIRTUAL_ENV/bin" >> $GITHUB_PATH
-
-      - name: Setup virtual environment (windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          .\.venv\Scripts\Activate.ps1
-          "VIRTUAL_ENV=$env:VIRTUAL_ENV" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-          "$env:VIRTUAL_ENV\Scripts" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
-
-      - name: Install Go
-        if: matrix.language == 'go'
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.21'
-
-      - name: Install Java 21
-        if: matrix.language == 'java'
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '21'
-
-      - name: Install Rust toolchain
-        if: matrix.language == 'rust'
-        # rust-analyzer comes from ``codeboarding-setup`` (tool_registry)
-        # but cargo must be on PATH for ``cargo metadata`` to succeed —
-        # without it, RustAdapter.get_lsp_command raises. Same pattern as
-        # the JDK requirement for Java/JDTLS.
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: stable
-          components: ''
-
-      - name: Install .NET SDK
-        if: matrix.language == 'csharp'
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
-
-      - name: Install PHP (linux)
-        if: matrix.language == 'php' && runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends php
-      # PHP is pre-installed on macos-latest (Homebrew) and windows-latest
-      # (C:\tools\php); no install step needed there.
-
-      - name: Uninstall pre-installed Node.js (linux)
-        if: runner.os == 'Linux'
-        # Ubuntu runners install Node via apt (NodeSource). Remove through
-        # the same channel, then drop stragglers and the hostedtoolcache.
-        run: |
-          set -euxo pipefail
-          sudo apt-get remove --purge -y nodejs npm || true
-          sudo apt-get autoremove -y || true
-          sudo rm -rf /usr/local/lib/node_modules
-          sudo rm -f /usr/local/bin/node /usr/local/bin/npm /usr/local/bin/npx
-          sudo rm -rf "${RUNNER_TOOL_CACHE}/node" || true
-          if command -v node >/dev/null 2>&1; then
-            echo "ERROR: node still present at $(command -v node)" >&2
-            exit 1
-          fi
-          if command -v npm >/dev/null 2>&1; then
-            echo "ERROR: npm still present at $(command -v npm)" >&2
-            exit 1
-          fi
-
-      - name: Uninstall pre-installed Node.js (macos)
-        if: runner.os == 'macOS'
-        # The runner image installs Node via `brew install node@N`.
-        # Reverse through brew's own uninstall verb so /opt/homebrew/bin
-        # symlinks are cleaned without hand-editing PATH.
-        run: |
-          set -euxo pipefail
-          brew list --formula | grep -E '^node(@[0-9]+)?$' | xargs -I {} brew uninstall --force --ignore-dependencies {} || true
-          brew list --formula | grep -E '^yarn$' | xargs -I {} brew uninstall --force --ignore-dependencies {} || true
-          rm -rf "${RUNNER_TOOL_CACHE}/node" || true
-          if command -v node >/dev/null 2>&1; then
-            echo "ERROR: node still present at $(command -v node)" >&2
-            exit 1
-          fi
-          if command -v npm >/dev/null 2>&1; then
-            echo "ERROR: npm still present at $(command -v npm)" >&2
-            exit 1
-          fi
-
-      - name: Uninstall pre-installed Node.js (windows)
-        if: runner.os == 'Windows'
-        # Uses the MSI's own uninstaller located via the Uninstall
-        # registry key. Also reverses the C:\npm\prefix customization
-        # the runner image adds separately in Install-NodeJS.ps1.
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $uninstallKeys = @(
-            'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*',
-            'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*'
-          )
-          $nodeEntries = Get-ItemProperty $uninstallKeys -ErrorAction SilentlyContinue |
-            Where-Object { $_.DisplayName -like 'Node.js*' }
-          if (-not $nodeEntries) {
-            Write-Error "No Node.js entry in Uninstall registry; runner image layout changed."
-            exit 1
-          }
-          foreach ($entry in $nodeEntries) {
-            Write-Host "Uninstalling $($entry.DisplayName) $($entry.DisplayVersion)"
-            $proc = Start-Process -FilePath 'msiexec.exe' `
-              -ArgumentList @('/x', $entry.PSChildName, '/qn', '/norestart') `
-              -Wait -PassThru
-            if ($proc.ExitCode -ne 0 -and $proc.ExitCode -ne 3010) {
-              Write-Error "msiexec /x $($entry.PSChildName) exited with code $($proc.ExitCode)"
-              exit 1
-            }
-          }
-          if (Test-Path 'C:\Program Files\nodejs') {
-            Remove-Item -Recurse -Force 'C:\Program Files\nodejs'
-          }
-          if (Test-Path 'C:\npm') { Remove-Item -Recurse -Force 'C:\npm' }
-          [Environment]::SetEnvironmentVariable('npm_config_prefix', $null, 'Machine')
-          [Environment]::SetEnvironmentVariable('npm_config_prefix', $null, 'User')
-          Remove-Item Env:\npm_config_prefix -ErrorAction SilentlyContinue
-          if (Test-Path "$env:RUNNER_TOOL_CACHE\node") {
-            Remove-Item -Recurse -Force "$env:RUNNER_TOOL_CACHE\node"
-          }
-          $machinePath = [Environment]::GetEnvironmentVariable('Path', 'Machine')
-          $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
-          $env:Path = "$machinePath;$userPath"
-          "PATH=$env:Path" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-          if (Get-Command node -ErrorAction SilentlyContinue) {
-            Write-Error "node still present at $((Get-Command node).Source)"
-            exit 1
-          }
-          if (Get-Command npm -ErrorAction SilentlyContinue) {
-            Write-Error "npm still present at $((Get-Command npm).Source)"
-            exit 1
-          }
-
-      - name: Setup LSP servers
-        run: codeboarding-setup --auto-install-npm
-
-      - name: Verify embedded Node was installed (unix)
-        if: runner.os != 'Windows'
-        run: |
-          test -x ~/.codeboarding/servers/nodeenv/bin/node
-          ~/.codeboarding/servers/nodeenv/bin/node --version
-
-      - name: Verify embedded Node was installed (windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $nodeExe = "$env:USERPROFILE\.codeboarding\servers\nodeenv\Scripts\node.exe"
-          if (-not (Test-Path $nodeExe)) {
-            Write-Error "Embedded node not found at $nodeExe"
-            exit 1
-          }
-          & $nodeExe --version
-
-      - name: Run integration tests (${{ matrix.language }})
-        run: pytest -m "integration and ${{ matrix.language }}_lang" -v -s --tb=long --log-cli-level=INFO
-
-      - name: Upload test artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: integration-test-results-${{ matrix.os }}-${{ matrix.language }}
-          path: |
-            /tmp/actual_*.json
-            ${{ runner.temp }}/actual_*.json
-          retention-days: 7
-          if-no-files-found: ignore
+          {
+            echo "### Integration tests not run"
+            echo ""
+            echo "The integration suite is private and does not run on pull requests"
+            echo "from forks. A maintainer will run it against this branch before merge."
+            echo ""
+            echo "Unit tests and bootstrap verification cover this PR in the meantime."
+          } >> "$GITHUB_STEP_SUMMARY"
