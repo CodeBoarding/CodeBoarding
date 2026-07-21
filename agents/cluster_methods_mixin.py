@@ -180,7 +180,9 @@ class ClusterMethodsMixin:
         longer decides it. Each group gets a stable ``Group i`` label and a summary
         of its members; the final-analysis step only names and describes them.
         """
-        cfg_graphs = {lang: self.static_analysis.get_cfg(Language(lang)).to_networkx() for lang in cluster_results}
+        cfg_graphs = {
+            lang: self.static_analysis.get_cfg(Language(lang)).clustering_networkx() for lang in cluster_results
+        }
         groups = supercluster_leaf_ids(cluster_results, cfg_graphs, low, high)
         node_lookup, file_lookup = _leaf_cluster_lookups(cluster_results)
         cluster_components = [

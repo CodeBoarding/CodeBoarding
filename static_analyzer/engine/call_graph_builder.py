@@ -41,13 +41,14 @@ class CallGraphBuilder:
         """Public access to the symbol table for result conversion."""
         return self._symbol_table
 
-    def build(self, source_files: list[Path], skip_hierarchy: bool = True) -> LanguageAnalysisResult:
+    def build(self, source_files: list[Path], skip_hierarchy: bool = False) -> LanguageAnalysisResult:
         """Run the full analysis pipeline and return results.
 
         Args:
             source_files: List of source files to analyze.
-            skip_hierarchy: If True (default), skip Phase 3 (class hierarchy).
-                Hierarchy is currently not consumed by the LLM agents.
+            skip_hierarchy: If True, skip Phase 3 (class hierarchy). Default False:
+                the hierarchy now feeds INHERITS reference edges that complete the
+                graph for clustering (see ``EdgeKind``).
         """
         t_pipeline = time.monotonic()
 

@@ -121,6 +121,7 @@ class TestAbstractionAgent(unittest.TestCase):
         agent = self._make_agent()
         cr, graph = self._clustered_graph(range(1, 13))
         self.mock_static_analysis.get_cfg.return_value.to_networkx.return_value = graph
+        self.mock_static_analysis.get_cfg.return_value.clustering_networkx.return_value = graph
         cluster_results = {"python": cr}
 
         result = agent.step_clusters_grouping(cluster_results)
@@ -141,6 +142,7 @@ class TestAbstractionAgent(unittest.TestCase):
         py_cr, _ = self._clustered_graph(range(1, 7))
         js_cr, _ = self._clustered_graph(range(7, 13))
         self.mock_static_analysis.get_cfg.return_value.to_networkx.return_value = graph
+        self.mock_static_analysis.get_cfg.return_value.clustering_networkx.return_value = graph
         cluster_results = {"python": py_cr, "javascript": js_cr}
 
         result = agent.step_clusters_grouping(cluster_results)

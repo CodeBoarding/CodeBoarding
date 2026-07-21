@@ -96,6 +96,11 @@ class LanguageAnalysisResult:
     cfg: CallFlowGraph = field(default_factory=CallFlowGraph)
     package_dependencies: dict[str, dict] = field(default_factory=dict)
     source_files: list[str] = field(default_factory=list)
+    # Non-call relationship edges completing the graph for clustering. Each entry
+    # is (source_qname, target_qname). type_references: code names a type (param,
+    # return, annotation, cast); import_edges: module A imports symbol/module B.
+    type_references: list[tuple[str, str]] = field(default_factory=list)
+    import_edges: list[tuple[str, str]] = field(default_factory=list)
 
 
 class AnalysisResults:

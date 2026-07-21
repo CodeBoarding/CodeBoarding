@@ -2,6 +2,7 @@ import logging
 from collections import defaultdict
 from collections.abc import Callable, Collection, Hashable, Mapping, Sequence
 from dataclasses import dataclass, field
+from enum import StrEnum
 from types import MappingProxyType
 
 import networkx as nx
@@ -35,6 +36,25 @@ def detect_communities[T](
     the dependency surface is contained to ``leiden_utils``.
     """
     return _leiden_find_partition(graph, weight=weight, resolution=resolution, seed=seed)
+
+
+class EdgeKind(StrEnum):
+    """Kind of relationship an edge represents.
+
+    ``CALL`` edges live in ``CallGraph.edges`` and drive component *relations*.
+    The rest are *reference edges* (``CallGraph.reference_edges``): structural
+    relationships the pure call graph misses — a method belongs to its class
+    (CONTAINS), a class extends another (INHERITS), code names a type (TYPEREF),
+    a module imports another (IMPORT). They complete the graph for *clustering*
+    (so constructors/dunders/DI/interface methods aren't graph-isolated) without
+    polluting the call-relation semantics.
+    """
+
+    CALL = "call"
+    CONTAINS = "contains"
+    INHERITS = "inherits"
+    TYPEREF = "typeref"
+    IMPORT = "import"
 
 
 @dataclass(frozen=True)
@@ -149,6 +169,11 @@ class CallGraph:
         # ``add_edge`` can transparently resolve references to dropped aliases.
         self._location_index: dict[LocationKey, str] = {}
         self._alias_to_canonical: dict[str, str] = {}
+        # Non-call relationship edges (CONTAINS/INHERITS/TYPEREF/IMPORT), kept off
+        # ``self.edges`` so relations and ``methods_called_by_me`` stay call-only.
+        # Merged into the graph only for clustering (``clustering_networkx``).
+        # Each entry: (src_qname, dst_qname, EdgeKind value).
+        self.reference_edges: list[tuple[str, str, str]] = []
 
     def add_node(self, node: Node) -> None:
         loc_key = LocationKey(node.file_path, node.line_start, node.line_end, node.type.value, node.col_start)
@@ -215,6 +240,23 @@ class CallGraph:
 
         self.nodes[src_name].added_method_called_by_me(self.nodes[dst_name])
 
+    def add_reference_edge(self, src_name: str, dst_name: str, kind: EdgeKind) -> None:
+        """Record a non-call relationship edge (CONTAINS/INHERITS/TYPEREF/IMPORT).
+
+        Stored separately from call edges; used only to complete the graph for
+        clustering. Silently ignores endpoints that aren't nodes or self-loops.
+        """
+        src_name = self._resolve_name(src_name)
+        dst_name = self._resolve_name(dst_name)
+        if src_name in self.nodes and dst_name in self.nodes and src_name != dst_name:
+            self.reference_edges.append((src_name, dst_name, str(kind)))
+
+    def _carry_reference_edges(self, out: "CallGraph") -> None:
+        """Copy reference edges whose both endpoints survive into a derived subgraph."""
+        out.reference_edges = [
+            (s, d, k) for s, d, k in getattr(self, "reference_edges", ()) if s in out.nodes and d in out.nodes
+        ]
+
     def filter(
         self,
         keep_node: Callable[[Node], bool],
@@ -242,6 +284,7 @@ class CallGraph:
                 on_dropped_edge(edge)
         out._cluster_cache = self._prune_cluster_cache(out.nodes)
         out.method_cluster_paths = self._prune_method_cluster_paths(out.nodes)
+        self._carry_reference_edges(out)
         return out
 
     def union(self, other: "CallGraph") -> "CallGraph":
@@ -269,6 +312,7 @@ class CallGraph:
                 pass
         out._cluster_cache = self._prune_cluster_cache(out.nodes)
         out.method_cluster_paths = self._prune_method_cluster_paths(out.nodes)
+        self._carry_reference_edges(out)
         return out
 
     def _prune_cluster_cache(self, surviving_nodes: dict[str, Node]) -> "ClusterResult | None":
@@ -330,6 +374,23 @@ class CallGraph:
             nx_graph.add_edge(edge.get_source(), edge.get_destination())
         return nx_graph
 
+    def clustering_networkx(self, reference_kinds: Collection[str] | None = None) -> nx.DiGraph:
+        """Graph used for clustering: call edges plus configured reference-edge kinds.
+
+        Reference edges (CONTAINS/INHERITS/TYPEREF/IMPORT) complete the graph so
+        constructors, dunders, DI/reflection-invoked, and interface methods aren't
+        graph-isolated. ``reference_kinds`` defaults to
+        ``ClusteringConfig.CLUSTERING_EDGE_KINDS``; pass an explicit set to analyze
+        a different subset. Call edges are always included.
+        """
+        kinds = set(ClusteringConfig.CLUSTERING_EDGE_KINDS if reference_kinds is None else reference_kinds)
+        nx_graph = self.to_networkx()
+        # getattr: baselines pickled before reference edges existed lack the attribute.
+        for src, dst, kind in getattr(self, "reference_edges", ()):
+            if kind in kinds and src in self.nodes and dst in self.nodes:
+                nx_graph.add_edge(src, dst)
+        return nx_graph
+
     def cluster(
         self,
         target_clusters: int = ClusteringConfig.DEFAULT_TARGET_CLUSTERS,
@@ -344,7 +405,7 @@ class CallGraph:
         if self._cluster_cache is not None:
             return self._cluster_cache
 
-        nx_graph = self.to_networkx()
+        nx_graph = self.clustering_networkx()
         if nx_graph.number_of_nodes() == 0:
             logger.warning("No nodes available for clustering.")
             self._cluster_cache = ClusterResult(strategy="empty")
@@ -419,6 +480,7 @@ class CallGraph:
         # Create new graph, preserving the source language
         sub_graph = CallGraph(nodes=relevant_nodes, edges=filtered_edges, language=self.language)
         sub_graph.method_cluster_paths = self._prune_method_cluster_paths(relevant_nodes)
+        self._carry_reference_edges(sub_graph)
 
         return sub_graph
 
