@@ -34,7 +34,7 @@ from agents.file_index_models import FileEntry, FileMethodGroup, MethodEntry
 from agents.llm_config import initialize_llms
 from agents.llm_errors import LLMAuthError
 from agents.meta_agent import MetaAgent
-from agents.planner_agent import get_expandable_components
+from agents.planner_agent import component_is_separable, get_expandable_components
 from agents.relation_edges import index_relation_endpoints
 from agents.scope_ids import ROOT_SCOPE_ID
 from agents.content_hash import SourceCache, hash_repo_source_files, tree_hash_from_file_hashes
@@ -537,6 +537,27 @@ class DiagramGenerator:
     ) -> tuple[str, AnalysisInsights, list[Component]] | tuple[None, None, list]:
         return self._process_component(component)
 
+    def _component_separable(self, component: Component) -> bool:
+        """Deterministic gate: does this component's own call structure actually split?
+
+        Builds the component's subgraph (no side effects — empty scope prefix) and
+        asks whether its inter-cluster meta-graph has a genuine community split.
+        Cohesive components stay leaves instead of being force-expanded to the cap.
+        If the subgraph can't be built (e.g. a legacy static-analysis baseline whose
+        pickled edges predate the current schema), fall back to the structural
+        default of expanding rather than aborting the run.
+        """
+        assert self.details_agent is not None
+        try:
+            _str, cluster_results, subgraph_cfgs = self.details_agent._create_strict_component_subgraph(component)
+        except Exception:
+            logger.exception("Separability check failed for '%s'; defaulting to expandable", component.name)
+            return True
+        if not cluster_results:
+            return False
+        cfg_graphs = {lang: cfg.to_networkx() for lang, cfg in subgraph_cfgs.items()}
+        return component_is_separable(cluster_results, cfg_graphs)
+
     def _process_component(
         self, component: Component
     ) -> tuple[str, AnalysisInsights, list[Component]] | tuple[None, None, list]:
@@ -549,8 +570,11 @@ class DiagramGenerator:
             # Track whether parent had clusters for expansion decision
             parent_had_clusters = bool(component.source_cluster_ids)
 
-            # Get new components to analyze (deterministic, no LLM)
-            new_components = get_expandable_components(analysis, parent_had_clusters=parent_had_clusters)
+            # Get new components to analyze (deterministic, no LLM). The separability
+            # gate keeps cohesive sub-components as leaves rather than splitting them.
+            new_components = get_expandable_components(
+                analysis, parent_had_clusters=parent_had_clusters, separable=self._component_separable
+            )
 
             return component.component_id, analysis, new_components
         except LLMAuthError:
@@ -955,8 +979,9 @@ class DiagramGenerator:
             assert self.abstraction_agent is not None
 
             analysis, cluster_results = self.abstraction_agent.run()
-            # Get the initial components to analyze (deterministic, no LLM)
-            root_components = get_expandable_components(analysis)
+            # Get the initial components to analyze (deterministic, no LLM). The
+            # separability gate keeps cohesive top-level components as leaves.
+            root_components = get_expandable_components(analysis, separable=self._component_separable)
             logger.info(f"Found {len(root_components)} components to analyze at level 1")
 
             # Process components using a frontier queue: submit children as soon as parent finishes.

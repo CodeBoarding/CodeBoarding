@@ -96,34 +96,25 @@ The CFG has been pre-clustered into groups of related methods/functions. Each cl
 # Output format
 For each component provide a descriptive name, the list of cluster IDs it contains, and a comprehensive description with rationale and inter-group interactions."""
 
-FINAL_ANALYSIS_MESSAGE = """# Task
-Create final component architecture optimized for flow representation.
+FINAL_ANALYSIS_MESSAGE = """Name and describe the final component architecture.
 
-# Cluster Analysis
+The clusters have already been partitioned into a fixed set of groups by graph community detection. Each "Group N" below is exactly one top-level component — the number of groups and their membership are already decided. Do NOT merge, split, or re-group them; only name and describe each group.
+
+Cluster Analysis:
 {cluster_analysis}
 
-# Instructions (execute in order)
-1. Review the named cluster groups above.
-2. Decide which named groups should be merged into final components.
-3. For each component, specify which named cluster groups it encompasses via source_group_names.
-4. Add key entities (2-5 most important classes/methods) for each component, referencing the source file where they are defined.
+Instructions:
+1. Produce EXACTLY one component per named group above (the same number of components as there are groups).
+2. Set each component's source_group_names to the single group it corresponds to (use the exact group name, e.g. "Group 1").
+3. Give each component a descriptive architectural name (its role, not "Group N") and a one-sentence description of what it does.
+4. Add 2-5 key entities (the most important classes/methods) per component, using their exact qualified names and source files.
 5. Do not define relationships yet; relationships are discovered in a later API-surface step.
+6. Provide a one-paragraph description of the overall main flow and purpose.
 
-# Guidelines
-- Aim for 5-8 final components
-- Merge related cluster groups that serve a common purpose
-- Each component must have clear boundaries
-- Focus on component boundaries; relationships are discovered after components are finalized
-
-# Required outputs
-- Description: One paragraph explaining the main flow and purpose
-- Components: Each with a clear name, a description of what it does, the exact named cluster groups it encompasses, and 2-5 key entities mentioning their qualified names and source files
-
-# Constraints
-- Focus on highest level architectural components
-- Exclude utility/logging components
-- Components must translate well to flow diagram representation
-"""
+Constraints:
+- Keep every group: there must be exactly as many components as groups, each backed by exactly one group.
+- Name components by architectural role (e.g. 'Authentication', 'Data Pipeline', 'Request Handling'), never 'Group N'.
+- Components should translate well to flow diagram representation."""
 
 PLANNER_SYSTEM_MESSAGE = """You are a software architecture expert.
 
