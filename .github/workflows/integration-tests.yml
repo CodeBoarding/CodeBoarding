@@ -24,7 +24,7 @@ on:
 
 jobs:
   # Emit the matrix.include list, event-driven:
-  #   workflow_dispatch/push/pull_request/schedule → Windows + all languages.
+  #   push → Go on Ubuntu and Windows; workflow_dispatch can select a language.
   # workflow_dispatch honors the optional ``language`` input to narrow
   # the full matrix to a single language.
   setup-matrix:
@@ -53,8 +53,8 @@ jobs:
           dispatch_lang = os.environ.get("DISPATCH_LANG", "").strip()
 
           all_langs = ["python", "java", "go", "typescript", "php", "javascript", "rust", "csharp"]
-          all_os = ["windows-latest"]
-          skip = set()  # single-OS matrix keeps this explicit but empty
+          all_os = ["ubuntu-latest", "windows-latest"]
+          skip = set()
 
           if event in ("schedule", "workflow_dispatch"):
               langs = [dispatch_lang] if dispatch_lang else all_langs
@@ -65,11 +65,11 @@ jobs:
                   if (o, lg) not in skip
               ]
           else:
-              # push / pull_request / all non-scheduled runs.
+              # Keep push validation focused while the refreshed Go baseline is verified.
               include = [
-                  {"os": "windows-latest", "language": lg}
-                  for lg in all_langs
-                  if ("windows-latest", lg) not in skip
+                  {"os": os_name, "language": "go"}
+                  for os_name in all_os
+                  if (os_name, "go") not in skip
               ]
 
           print(f"matrix={json.dumps({'include': include})}")
