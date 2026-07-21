@@ -726,6 +726,84 @@ class TestAnalysisJsonConversion(unittest.TestCase):
         self.assertIn("  ", json_str)  # 2-space indentation
 
 
+class TestDepthCapPersistence(unittest.TestCase):
+    """depth_cap must never be saved lower than the tree's own realized depth —
+    a partial run against a shallow baseline that grafts on a deeper subtree
+    would otherwise permanently freeze future incremental/partial runs at the
+    old, shallower cap even though the tree has already gone deeper."""
+
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.output_dir = Path(self.temp_dir)
+        self.repo_dir = Path(".")
+
+    def tearDown(self):
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def _make_root(self) -> AnalysisInsights:
+        comp = Component(
+            name="Root",
+            component_id="1",
+            description="Root component",
+            key_entities=[],
+            file_methods=[FileMethodGroup(file_path="file1.py")],
+        )
+        return AnalysisInsights(description="Test", components=[comp], components_relations=[])
+
+    def test_save_clamps_depth_cap_to_realized_depth(self):
+        from diagram_analysis.io_utils import load_analysis_metadata, save_analysis
+
+        # A depth-1 baseline (no sub-analyses) with a low configured cap.
+        save_analysis(
+            analysis=self._make_root(),
+            output_dir=self.output_dir,
+            repo_dir=self.repo_dir,
+            source_tree_hash="hash1",
+            repo_name="test",
+            depth_cap=1,
+        )
+        baseline_metadata = load_analysis_metadata(self.output_dir)
+        assert baseline_metadata is not None
+        self.assertEqual(baseline_metadata["depth_cap"], 1)
+
+        # Partial run grafts a depth-2 subtree onto the root (component "1" now
+        # has sub_analyses["1"]), but is still constructed with the old cap (1)
+        # — saving must not persist depth_cap=1 now that the realized tree is
+        # 2 levels deep.
+        child_analysis = AnalysisInsights(description="Child", components=[], components_relations=[])
+        save_analysis(
+            analysis=self._make_root(),
+            output_dir=self.output_dir,
+            repo_dir=self.repo_dir,
+            source_tree_hash="hash2",
+            repo_name="test",
+            sub_analyses={"1": child_analysis},
+            depth_cap=1,
+        )
+        metadata = load_analysis_metadata(self.output_dir)
+        assert metadata is not None
+        self.assertEqual(metadata["depth_level"], 2)
+        self.assertEqual(metadata["depth_cap"], 2)
+
+    def test_save_preserves_higher_cap_than_realized_depth(self):
+        from diagram_analysis.io_utils import load_analysis_metadata, save_analysis
+
+        # A shallow realized tree with a cap that's already deeper (separability
+        # decided there was nothing more to split) must keep the higher cap.
+        save_analysis(
+            analysis=self._make_root(),
+            output_dir=self.output_dir,
+            repo_dir=self.repo_dir,
+            source_tree_hash="hash1",
+            repo_name="test",
+            depth_cap=3,
+        )
+        metadata = load_analysis_metadata(self.output_dir)
+        assert metadata is not None
+        self.assertEqual(metadata["depth_level"], 1)
+        self.assertEqual(metadata["depth_cap"], 3)
+
+
 class TestDiagramGenerator(unittest.TestCase):
     def setUp(self):
         # Create temporary directories for testing

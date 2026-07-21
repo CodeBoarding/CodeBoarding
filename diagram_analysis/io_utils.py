@@ -26,6 +26,7 @@ from agents.agent_responses import AnalysisInsights, Component, index_components
 from agents.planner_agent import should_expand_component
 from diagram_analysis.analysis_json import (
     FileCoverageSummary,
+    _compute_depth_level,
     build_unified_analysis_json,
     parse_unified_analysis,
 )
@@ -262,6 +263,12 @@ class _AnalysisFileStore:
                     parent_had_clusters = bool(parent_component.source_cluster_ids) if parent_component else True
                     sub_expandable = self._compute_expandable_components(sub, parent_had_clusters=parent_had_clusters)
                 sub_analyses_tuples[cid] = (sub, sub_expandable)
+
+        # A cap below the tree's own realized depth would silently freeze future
+        # incremental/partial runs at that shallower depth (e.g. a partial run
+        # against a depth-1 baseline that grafts on a new depth-2 subtree must not
+        # save depth_cap=1 — the realized tree already exceeds it).
+        depth_cap = max(depth_cap, _compute_depth_level(sub_analyses_tuples))
 
         # Atomic write: build the JSON in a sibling temp file, then rename
         # over the destination.  A crashed process leaves either the prior
