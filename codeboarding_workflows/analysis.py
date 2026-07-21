@@ -89,11 +89,8 @@ def run_partial(
         f"Running PARTIAL analysis workflow for project '{run_paths.project_name}', component '{component_id}'."
     )
 
-    # Depth comes from the existing analysis.json's configured cap
-    # (metadata.depth_cap), not the realized depth_level — a run that stopped
-    # short of its cap (separability-gated) must not leave future runs capped
-    # at that shallower depth. Legacy baselines predate depth_cap, so fall
-    # back to depth_level for those.
+    # Depth is the baseline's configured cap (metadata.depth_cap), with a
+    # legacy depth_level fallback — not the realized depth.
     metadata = load_analysis_metadata(run_paths.output_dir)
     if metadata is None:
         raise BaselineUnavailableError(

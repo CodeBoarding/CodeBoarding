@@ -86,15 +86,7 @@ def _seed_existing_analysis(existing_analysis_dir: Path, temp_repo_folder: Path)
 
 
 def _resolve_depth_level(temp_repo_folder: Path) -> int:
-    """Depth cap for this run: explicit env var, else the seeded baseline's own
-    configured cap, else the shared default.
-
-    Mirrors ``run_incremental``'s baseline-depth recovery — without this, an
-    incremental over a seeded baseline would silently re-cap it at whatever
-    ``DEFAULT_DEPTH_LEVEL`` happens to be instead of the depth the baseline
-    was actually built at (e.g. a committed depth-4 analysis re-capped at 3,
-    or a depth-1 baseline unexpectedly re-detailed to 3).
-    """
+    """Depth cap: explicit env var, else the seeded baseline's own depth_cap, else the default."""
     env_depth = os.getenv("DIAGRAM_DEPTH_LEVEL")
     if env_depth is not None:
         return int(env_depth)
