@@ -4,17 +4,6 @@ name: Integration Tests
 # it and mirrors the result; it never downloads the tests, and it prints no test
 # output, so nothing about the suite reaches this repo's public logs.
 #
-# Fork PRs deliberately do not run it. GitHub withholds secrets from fork-PR
-# workflows, and the ways around that (pull_request_target, a workflow_run hop)
-# all end with contributor-authored code executing on the same runner as the
-# private suite - at which point the suite is readable by that code, whatever the
-# approval gate says. Fork PRs get the public unit tests and
-# the private suite covers their changes on the push-to-main run right after
-# merge.
-#
-# To check a fork PR before merging, read the diff, then dispatch
-# `run-integration-tests.yml` in the private repo with that PR's head SHA.
-
 on:
   workflow_dispatch:
     inputs:
@@ -39,25 +28,7 @@ on:
         default: false
         type: boolean
 
-  push:
-    branches: [main]
-
-  # PRs that touch analysis, install or scanner code.
   pull_request:
-    paths:
-      - 'install.py'
-      - 'tool_registry/**'
-      - 'vscode_constants.py'
-      - 'pyproject.toml'
-      - 'uv.lock'
-      - 'static_analyzer/**'
-      - 'repo_utils/ignore.py'
-      - 'agents/model_capabilities.py'
-      - 'agents/llm_config.py'
-      - 'health/**'
-      - 'tests/test_install.py'
-      - 'tests/test_tool_registry.py'
-      - '.github/workflows/integration-tests.yml'
 
   workflow_run:
     workflows: ['CodeBoarding sync']
@@ -75,19 +46,14 @@ jobs:
   private-suite:
     runs-on: ubuntu-latest
     timeout-minutes: 75
-    # Manual runs, pull_request coverage for trusted branches, and sync-job
-    # completion events all remain valid. Fork PRs and Dependabot PRs skip here
-    # because secrets are unavailable.
+    # Manual runs are always available. PR runs are intentionally skipped.
+    # Actual integration suite execution only happens after a successful sync
+    # workflow on main.
     if: >-
       github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'push' &&
-       github.actor != 'codeboarding[bot]' &&
-       github.actor != 'github-actions[bot]') ||
       (github.event_name == 'workflow_run' &&
-       github.event.workflow_run.conclusion == 'success') ||
-      (github.event_name == 'pull_request' &&
-       github.event.pull_request.head.repo.full_name == github.repository &&
-       github.actor != 'dependabot[bot]')
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main')
     steps:
       # Mint a short-lived installation token instead of carrying a PAT. It is
       # narrowed to the tests repo and to Actions - it cannot clone the suite
@@ -135,10 +101,9 @@ jobs:
           PRIVATE_REPO: CodeBoarding/CodeBoarding-tests
           WORKFLOW: run-integration-tests.yml
           TESTS_REF: main
-          # github.sha is the right engine commit for every event: the PR *merge*
-          # commit for pull_request (so we test what actually merges, not the
-          # branch in isolation), the pushed commit for push, the branch tip for
-          # schedule / workflow_dispatch.
+          # github.sha is the commit hash for the triggering event:
+          # the sync-pushed head commit on main, or the current commit for
+          # manual workflow_dispatch runs.
           ENGINE_SHA: ${{ github.sha }}
           LANGUAGE: ${{ github.event.inputs.language }}
           FULL_MATRIX: ${{ github.event.inputs.full_matrix }}
@@ -238,24 +203,3 @@ jobs:
             echo "::error::Private integration tests concluded '$conclusion'. See $run_url"
             exit 1
           fi
-
-  skip-notice:
-    runs-on: ubuntu-latest
-    # Mirrors the private-suite skip: fork PRs and Dependabot PRs, which the
-    # private suite cannot run because they have no access to the secrets.
-    if: >-
-      github.event_name == 'pull_request' &&
-      (github.event.pull_request.head.repo.full_name != github.repository ||
-       github.actor == 'dependabot[bot]')
-    steps:
-      - name: Explain why the private suite was skipped
-        run: |
-          {
-            echo "### Integration tests not run"
-            echo ""
-            echo "The integration suite is private and does not run on pull requests"
-            echo "from forks or Dependabot, which cannot access the credentials it"
-            echo "needs. A maintainer will run it against this branch before merge."
-            echo ""
-            echo "Unit tests cover this PR in the meantime."
-          } >> "$GITHUB_STEP_SUMMARY"
