@@ -80,6 +80,7 @@ class LSPClient:
         self._server_ready = threading.Event()
         self._server_health: str | None = None
         self._server_health_message: str | None = None
+        self._work_done_progress_titles: dict[str | int, str] = {}
         # Set when ``initialize`` returned an error response. ``wait_for_server_ready``
         # bails out immediately when this is set so callers don't burn 5 minutes
         # waiting on an LSP that already reported a fatal startup error
@@ -141,7 +142,10 @@ class LSPClient:
                 "tagSupport": {"valueSet": [1, 2]},
             }
 
-        capabilities: dict = {"textDocument": text_doc_capabilities}
+        capabilities: dict = {
+            "textDocument": text_doc_capabilities,
+            "window": {"workDoneProgress": True},
+        }
         # Shallow-merge adapter extras into the top-level capabilities. On
         # collision: dicts merge, scalars are overwritten by the adapter.
         for cap_key, cap_value in self._extra_client_capabilities.items():
@@ -772,6 +776,15 @@ class LSPClient:
                 self._server_ready.set()
                 logger.info("LSP server: rust-analyzer quiescent (health=%s)", health)
 
+        elif method == "indexingStarted":
+            # Intelephense emits a pair of custom notifications around its
+            # workspace index. References are incomplete until indexingEnded.
+            self._server_ready.clear()
+
+        elif method == "indexingEnded":
+            self._server_ready.set()
+            logger.info("LSP server: workspace indexing ended")
+
         elif method == "window/logMessage":
             message_text = params.get("message", "")
             # csharp-ls signals workspace readiness via logMessage
@@ -780,15 +793,20 @@ class LSPClient:
                 logger.info("LSP server: solution loaded (%s)", message_text)
 
         elif method == "$/progress":
-            # csharp-ls reports csproj-based workspace load completion via
-            # work-done progress (not logMessage). The "End" message looks
-            # like ``OK, N project file(s) loaded``.
+            # csharp-ls and gopls report workspace load through work-done
+            # progress. Remember the begin title because end notifications
+            # do not have to repeat it.
+            token = params.get("token")
             value = params.get("value", {}) or {}
             kind = value.get("kind")
             message_text = value.get("message", "") or ""
-            if kind == "end" and "project file(s) loaded" in message_text:
-                self._server_ready.set()
-                logger.info("LSP server: project files loaded (%s)", message_text)
+            if kind == "begin" and token is not None:
+                self._work_done_progress_titles[token] = value.get("title", "") or ""
+            elif kind == "end":
+                title = self._work_done_progress_titles.pop(token, "") if token is not None else ""
+                if "project file(s) loaded" in message_text or title == "Setting up workspace":
+                    self._server_ready.set()
+                    logger.info("LSP server: workspace loaded (%s%s)", title, message_text)
 
     def _read_single_message(self) -> dict | None:
         """Read a single JSON-RPC message from stdout using raw fd I/O."""

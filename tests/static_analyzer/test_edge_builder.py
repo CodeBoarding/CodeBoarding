@@ -6,6 +6,7 @@ from unittest.mock import MagicMock
 from static_analyzer.engine.edge_builder import (
     _best_candidate,
     _is_valid_edge,
+    _process_references_for_position,
     _resolve_definition_to_symbol,
     build_edges_via_definitions,
     build_edges_via_references,
@@ -17,6 +18,16 @@ from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.symbol_table import SymbolTable
 
 from tests.static_analyzer.test_call_graph_builder import _TestAdapter
+
+
+class _ParentEdgeTestAdapter(_TestAdapter):
+    @property
+    def include_references_on_declaration_line(self) -> bool:
+        return True
+
+    @property
+    def include_callable_parent_edges(self) -> bool:
+        return True
 
 
 def _make_lsp() -> MagicMock:
@@ -57,6 +68,116 @@ def _sym(
         end_char=end_char,
         parent_chain=parent_chain or [],
     )
+
+
+def test_reference_call_on_caller_declaration_line_produces_edge(tmp_path: Path):
+    """Expression-bodied member calls keep method and class dependencies."""
+    source = tmp_path / "Caller.cs"
+    source.write_text("public static string Caller() => Target();\n")
+    target_file = tmp_path / "Target.cs"
+    target_file.write_text('public static string Target() => "target";\n')
+
+    adapter = _ParentEdgeTestAdapter()
+    ctx = EdgeBuildContext(_make_lsp(), SymbolTable(adapter), SourceInspector())
+    caller = _sym("Caller", "Caller.Caller", NodeType.METHOD, str(source), 0, 0, 0, 42)
+    target_class = _sym("Target", "Target", NodeType.CLASS, str(target_file), 0, 0, 0, 45)
+    target = _sym("Target", "Target.Target", NodeType.METHOD, str(target_file), 0, 21, 0, 27)
+    ctx.symbol_table.symbols[target_class.qualified_name] = target_class
+    ctx.symbol_table.file_symbols[str(source)] = [caller]
+    edge_set = {}
+    reference = {
+        "uri": source.as_uri(),
+        "range": {"start": {"line": 0, "character": 33}, "end": {"line": 0, "character": 39}},
+    }
+
+    _process_references_for_position(adapter, ctx, [target], [reference], edge_set)
+
+    assert (caller.qualified_name, target.qualified_name) in edge_set
+    assert (caller.qualified_name, target_class.qualified_name) in edge_set
+
+
+def test_reference_at_caller_declaration_position_is_not_an_edge(tmp_path: Path):
+    source = tmp_path / "Caller.ts"
+    source.write_text("interface Caller { target(): void; }\n")
+    target_file = tmp_path / "Target.ts"
+    target_file.write_text("export function target(): void {}\n")
+
+    ctx, adapter = _make_ctx()
+    caller = _sym("target", "Caller.target", NodeType.METHOD, str(source), 0, 19, 0, 25)
+    target = _sym("target", "Target.target", NodeType.FUNCTION, str(target_file), 0, 16, 0, 22)
+    ctx.symbol_table.file_symbols[str(source)] = [caller]
+    reference = {
+        "uri": source.as_uri(),
+        "range": {"start": {"line": 0, "character": 19}, "end": {"line": 0, "character": 25}},
+    }
+    edge_set = {}
+
+    _process_references_for_position(adapter, ctx, [target], [reference], edge_set)
+
+    assert edge_set == {}
+
+
+def test_reference_later_on_declaration_line_is_ignored_by_default(tmp_path: Path):
+    source = tmp_path / "Caller.ts"
+    source.write_text("const caller = () => target();\n")
+    target_file = tmp_path / "Target.ts"
+    target_file.write_text("export function target(): void {}\n")
+
+    ctx, adapter = _make_ctx()
+    caller = _sym("caller", "Caller.caller", NodeType.FUNCTION, str(source), 0, 6, 0, 30)
+    target = _sym("target", "Target.target", NodeType.FUNCTION, str(target_file), 0, 16, 0, 22)
+    ctx.symbol_table.file_symbols[str(source)] = [caller]
+    reference = {
+        "uri": source.as_uri(),
+        "range": {"start": {"line": 0, "character": 21}, "end": {"line": 0, "character": 27}},
+    }
+    edge_set = {}
+
+    _process_references_for_position(adapter, ctx, [target], [reference], edge_set)
+
+    assert edge_set == {}
+
+
+def test_reference_in_template_interpolation_is_not_a_block_body_edge(tmp_path: Path):
+    source = tmp_path / "Caller.ts"
+    source.write_text("const caller = () => `value: ${target()}`;\n")
+    target_file = tmp_path / "Target.ts"
+    target_file.write_text("export function target(): void {}\n")
+
+    ctx, adapter = _make_ctx()
+    caller = _sym("caller", "Caller.caller", NodeType.FUNCTION, str(source), 0, 6, 0, 42)
+    target = _sym("target", "Target.target", NodeType.FUNCTION, str(target_file), 0, 16, 0, 22)
+    ctx.symbol_table.file_symbols[str(source)] = [caller]
+    reference = {
+        "uri": source.as_uri(),
+        "range": {"start": {"line": 0, "character": 31}, "end": {"line": 0, "character": 37}},
+    }
+    edge_set = {}
+
+    _process_references_for_position(adapter, ctx, [target], [reference], edge_set)
+
+    assert edge_set == {}
+
+
+def test_reference_in_same_line_block_body_is_an_edge(tmp_path: Path):
+    source = tmp_path / "Caller.ts"
+    source.write_text("export function caller() { return target(); }\n")
+    target_file = tmp_path / "Target.ts"
+    target_file.write_text("export function target(): void {}\n")
+
+    ctx, adapter = _make_ctx()
+    caller = _sym("caller", "Caller.caller", NodeType.FUNCTION, str(source), 0, 16, 0, 44)
+    target = _sym("target", "Target.target", NodeType.FUNCTION, str(target_file), 0, 16, 0, 22)
+    ctx.symbol_table.file_symbols[str(source)] = [caller]
+    reference = {
+        "uri": source.as_uri(),
+        "range": {"start": {"line": 0, "character": 34}, "end": {"line": 0, "character": 40}},
+    }
+    edge_set = {}
+
+    _process_references_for_position(adapter, ctx, [target], [reference], edge_set)
+
+    assert (caller.qualified_name, target.qualified_name) in edge_set
 
 
 # ---------------------------------------------------------------------------

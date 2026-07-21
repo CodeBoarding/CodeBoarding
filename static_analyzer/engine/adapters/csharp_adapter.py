@@ -29,6 +29,14 @@ logger = logging.getLogger(__name__)
 class CSharpAdapter(LanguageAdapter):
 
     @property
+    def include_references_on_declaration_line(self) -> bool:
+        return True
+
+    @property
+    def include_callable_parent_edges(self) -> bool:
+        return True
+
+    @property
     def language(self) -> str:
         return "CSharp"
 

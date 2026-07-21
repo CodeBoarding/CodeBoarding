@@ -632,6 +632,28 @@ class TestHandleNotification:
         )
         assert not client._server_ready.is_set()
 
+    def test_gopls_workspace_progress_end_signals_ready(self):
+        client = LSPClient(["cmd"], Path("/root"))
+        client._handle_notification(
+            "$/progress",
+            {"token": "workspace", "value": {"kind": "begin", "title": "Setting up workspace"}},
+        )
+        client._handle_notification(
+            "$/progress",
+            {"token": "workspace", "value": {"kind": "end", "message": "Finished loading packages."}},
+        )
+        assert client._server_ready.is_set()
+
+    def test_intelephense_indexing_notifications_signal_ready(self):
+        client = LSPClient(["cmd"], Path("/root"))
+        client._server_ready.set()
+
+        client._handle_notification("indexingStarted", {})
+        assert not client._server_ready.is_set()
+
+        client._handle_notification("indexingEnded", {})
+        assert client._server_ready.is_set()
+
 
 class TestWaitForServerReady:
     def test_returns_immediately_when_already_ready(self):

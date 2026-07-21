@@ -376,6 +376,28 @@ class TestWarmStartDeletion(unittest.TestCase):
 
 
 class TestWarmStartOutboundEdges(unittest.TestCase):
+    def test_definition_resolution_accepts_declaration_range_before_symbol_name(self) -> None:
+        file_path = Path("/repo/unchanged.php")
+        call_graph = CallGraph(language="php")
+        call_graph.add_node(
+            Node(
+                fully_qualified_name="unchanged.unchanged_target",
+                node_type=NodeType.FUNCTION,
+                file_path=str(file_path),
+                line_start=3,
+                line_end=3,
+                col_start=9,
+            )
+        )
+        definition = {
+            "uri": file_path.as_uri(),
+            "range": {"start": {"line": 2, "character": 0}, "end": {"line": 2, "character": 66}},
+        }
+
+        matches = _definition_nodes(call_graph, definition)
+
+        self.assertEqual([node.fully_qualified_name for node in matches], ["unchanged.unchanged_target"])
+
     def test_definition_resolution_includes_the_most_specific_node_and_its_class(self) -> None:
         file_path = Path("/repo/pkg/converter.py")
         call_graph = CallGraph(language="python")

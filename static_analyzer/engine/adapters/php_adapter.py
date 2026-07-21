@@ -12,6 +12,11 @@ from static_analyzer.engine.language_adapter import LanguageAdapter
 class PHPAdapter(LanguageAdapter):
 
     @property
+    def wait_for_workspace_ready(self) -> bool:
+        """Wait for Intelephense to finish indexing workspace symbols."""
+        return True
+
+    @property
     def language(self) -> str:
         return "PHP"
 

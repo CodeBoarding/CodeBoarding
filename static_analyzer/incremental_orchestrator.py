@@ -298,6 +298,21 @@ def _definition_nodes(call_graph: CallGraph, definition: dict) -> list[Node]:
     file_path, line, character = location
     target = _most_specific_node_at_position(call_graph, file_path, line, character)
     if target is None:
+        same_line = [
+            node
+            for node in call_graph.nodes.values()
+            if node.file_path == str(file_path) and node.line_start == line + 1
+        ]
+        if same_line:
+            target = max(
+                same_line,
+                key=lambda node: (
+                    node.is_callable(),
+                    node.is_class(),
+                    len(node.fully_qualified_name),
+                ),
+            )
+    if target is None:
         return []
 
     targets = [target]

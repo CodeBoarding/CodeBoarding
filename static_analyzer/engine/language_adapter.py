@@ -23,6 +23,16 @@ class LanguageAdapter(ABC):
     """Strategy interface for language-specific behavior."""
 
     @property
+    def include_references_on_declaration_line(self) -> bool:
+        """Whether expression-bodied declarations can contain reference edges."""
+        return False
+
+    @property
+    def include_callable_parent_edges(self) -> bool:
+        """Whether member calls also create dependencies on their containing class."""
+        return False
+
+    @property
     @abstractmethod
     def language(self) -> str:
         """Language name as it appears in results (e.g., 'Python', 'Go')."""

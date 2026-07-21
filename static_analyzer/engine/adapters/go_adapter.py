@@ -73,6 +73,11 @@ def _directory_filters_from_ignore_manager(ignore_manager: RepoIgnoreManager | N
 class GoAdapter(LanguageAdapter):
 
     @property
+    def wait_for_workspace_ready(self) -> bool:
+        """Wait for gopls to finish its initial workspace load."""
+        return True
+
+    @property
     def language(self) -> str:
         return "Go"
 

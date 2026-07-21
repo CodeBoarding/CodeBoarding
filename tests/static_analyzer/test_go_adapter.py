@@ -45,6 +45,9 @@ class TestGetLspCommandGoCheck:
         assert cmd
         assert any("gopls" in part for part in cmd)
 
+    def test_waits_for_initial_workspace_load(self) -> None:
+        assert GoAdapter().wait_for_workspace_ready is True
+
 
 class TestBuildTagFiltering:
     """Tests for _has_excluding_build_tag and discover_source_files filtering."""
