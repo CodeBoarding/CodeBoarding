@@ -39,16 +39,18 @@ DEFAULT_MIN_FILES = 1  # Need at least 1 file to have content
 #   - MIN_METHODS_TO_EXPAND: below this a component is too small to sub-divide.
 #   - EXPAND_MODULARITY_THRESHOLD: peak modularity of the component's inter-cluster
 #     meta-graph; below it the internals are a cohesive blob with no natural split.
-# Calibrated on CodeBoarding / wrapper / action (29 components): peak modularity is a
-# continuous ramp 0.02->0.48 with its only natural gap at (0.242, 0.315). 0.25 sits in
-# that gap (so the decision is insensitive to the exact value) and just under Newman's
-# classic "Q>0.3 = real community structure" line, discounted for these tiny directed
-# meta-graphs. It is deliberately conservative (shallower trees); lower toward ~0.18 if
-# trees come out too shallow, but not near the 0.12 mode where decisions get unstable.
-# No component under 57 methods reached 0.25, so the 30-method floor never flips a
-# decision — it just skips the re-cluster for components too small to be worth splitting.
+# Chosen by sweeping the threshold over real repos and inspecting the resulting tree:
+# peak modularity is a continuous ramp ~0.02->0.48 (no clean bimodal split), so this is
+# a depth dial, not a discovered constant. 0.20 is the deepest setting where every split
+# still maps to genuine structure; below it, weakly-modular components (mod ~0.19) get
+# forced to split and produce degenerate sub-components (2-method fragments, mod~0
+# children padded only to satisfy SUBCOMPONENTS_MIN). Above Newman's ~0.30 "real
+# community structure" line trees get very shallow. Raise toward 0.25 for shallower/
+# cleaner. The 30-method floor backstops tiny leaves; at these thresholds nothing under
+# ~56 methods clears the bar, so it flips no decision on its own — it just skips the
+# re-cluster for components too small to be worth splitting.
 MIN_METHODS_TO_EXPAND = 30
-EXPAND_MODULARITY_THRESHOLD = 0.25
+EXPAND_MODULARITY_THRESHOLD = 0.20
 
 
 def component_is_separable(
