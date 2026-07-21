@@ -979,6 +979,7 @@ class DiagramGenerator:
                                 repo_name=self.repo_name,
                                 repo_dir=self.repo_location,
                                 source_tree_hash=self._source_tree_hash(),
+                                depth_cap=self.depth_level,
                             )
 
                         if new_components and level + 1 < self.depth_level:
@@ -1155,6 +1156,7 @@ class DiagramGenerator:
             source_tree_hash=source_tree_hash,
             expandable_component_ids=expandable_component_ids,
             sub_expandable_ids=sub_expandable_ids,
+            depth_cap=self.depth_level,
         ).resolve()
         if seed_delta is not None:
             self._seed_incremental_cluster_cache(seed_delta)

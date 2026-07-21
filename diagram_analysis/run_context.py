@@ -8,10 +8,7 @@ from utils import generate_run_id
 
 logger = logging.getLogger(__name__)
 
-# Safety-valve ceiling on component-hierarchy depth, not a target: expansion is
-# driven by structural separability (agents.planner_agent.component_is_separable),
-# which stops cohesive components from over-expanding on its own. This cap only
-# guards against pathological recursion on a repo whose structure never bottoms out.
+# Safety-valve depth cap, not a target — see --depth-level help / README for why.
 DEFAULT_DEPTH_LEVEL = 3
 
 

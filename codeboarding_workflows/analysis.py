@@ -89,14 +89,18 @@ def run_partial(
         f"Running PARTIAL analysis workflow for project '{run_paths.project_name}', component '{component_id}'."
     )
 
-    # Depth comes from the existing analysis.json (metadata.depth_level).
+    # Depth comes from the existing analysis.json's configured cap
+    # (metadata.depth_cap), not the realized depth_level — a run that stopped
+    # short of its cap (separability-gated) must not leave future runs capped
+    # at that shallower depth. Legacy baselines predate depth_cap, so fall
+    # back to depth_level for those.
     metadata = load_analysis_metadata(run_paths.output_dir)
     if metadata is None:
         raise BaselineUnavailableError(
             f"No baseline analysis.json found in '{run_paths.output_dir}'. Run a full analysis first."
         )
 
-    depth_level = int(metadata.get("depth_level", DEFAULT_DEPTH_LEVEL))
+    depth_level = int(metadata.get("depth_cap", metadata.get("depth_level", DEFAULT_DEPTH_LEVEL)))
     generator = build_generator(run_paths, run_context, depth_level=depth_level)
     generator.pre_analysis()
 
@@ -167,15 +171,19 @@ def run_incremental(
     should surface a "run full analysis" prompt rather than silently degrading to
     an unscoped run.
     """
-    # Depth comes from the existing analysis.json (metadata.depth_level).
-    # Fail fast on cold-start: ``_generate_subcomponents`` requires the prior
-    # depth to re-detail changed components.
+    # Depth comes from the existing analysis.json's configured cap
+    # (metadata.depth_cap, falling back to depth_level for legacy baselines
+    # that predate it) — not the realized depth_level, so a run that stopped
+    # short of its cap doesn't leave incremental permanently capped shallower
+    # than what was actually configured. Fail fast on cold-start:
+    # ``_generate_subcomponents`` requires the prior depth to re-detail
+    # changed components.
     metadata = load_analysis_metadata(run_paths.output_dir)
     if metadata is None:
         raise BaselineUnavailableError(
             f"No baseline analysis.json found in '{run_paths.output_dir}'. Run a full analysis first."
         )
-    depth_level = int(metadata.get("depth_level", DEFAULT_DEPTH_LEVEL))
+    depth_level = int(metadata.get("depth_cap", metadata.get("depth_level", DEFAULT_DEPTH_LEVEL)))
 
     changes = detect_changes_from_fingerprint(run_paths.repo_path, run_paths.output_dir)
     logger.info(

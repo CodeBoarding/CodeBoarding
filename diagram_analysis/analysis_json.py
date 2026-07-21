@@ -99,7 +99,12 @@ class AnalysisMetadata(BaseModel):
         description="SHA-256 over the sorted per-file content hashes; the source-state version key.",
     )
     repo_name: str = Field(description="Name of the analyzed repository.")
-    depth_level: int = Field(description="Maximum depth level of the analysis.")
+    depth_level: int = Field(description="Maximum depth level actually reached by this analysis.")
+    depth_cap: int = Field(
+        description="Safety-valve depth ceiling the run was configured with (see --depth-level); "
+        "may exceed depth_level when separability stopped expansion before the cap. "
+        "The value future incremental/partial runs reuse as their own cap."
+    )
     file_coverage_summary: FileCoverageSummary = Field(
         default_factory=lambda: FileCoverageSummary(
             total_files=0, analyzed=0, not_analyzed=0, not_analyzed_by_reason={}
@@ -428,6 +433,7 @@ def build_unified_analysis_json(
     repo_name: str,
     repo_dir: Path,
     source_tree_hash: str,
+    depth_cap: int,
     sub_analyses: dict[str, tuple[AnalysisInsights, list[Component]]] | None = None,
     file_coverage_summary: FileCoverageSummary | None = None,
 ) -> str:
@@ -435,8 +441,11 @@ def build_unified_analysis_json(
 
     ``repo_dir`` relativizes relation-edge file paths into ``methods_index`` keys.
     ``source_tree_hash`` is the precomputed whole-tree version key (the caller
-    fingerprints the tree once and reuses it across saves). The depth_level
-    metadata is computed automatically from the sub_analyses structure.
+    fingerprints the tree once and reuses it across saves). ``depth_level``
+    (realized depth) is computed automatically from the sub_analyses structure;
+    ``depth_cap`` is the run's configured ceiling, persisted separately so a run
+    that stopped short of the cap (separability-gated) doesn't leave a future
+    incremental/partial run capped at the shallower realized depth.
     """
     components_json = [
         from_component_to_json_component(c, expandable_components, repo_dir, sub_analyses) for c in analysis.components
@@ -460,6 +469,7 @@ def build_unified_analysis_json(
             source_tree_hash=source_tree_hash,
             repo_name=repo_name,
             depth_level=_compute_depth_level(sub_analyses),
+            depth_cap=depth_cap,
             file_coverage_summary=summary,
         ),
         description=analysis.description,

@@ -29,6 +29,7 @@ from diagram_analysis.analysis_json import (
     build_unified_analysis_json,
     parse_unified_analysis,
 )
+from diagram_analysis.run_context import DEFAULT_DEPTH_LEVEL
 from repo_utils.path_utils import normalize_repo_path
 from utils import ANALYSIS_FILENAME, CODEBOARDING_DIR_NAME, FINGERPRINT_FILENAME, RUN_OUTPUT_DIR_NAME
 
@@ -120,11 +121,14 @@ class _AnalysisFileStore:
         repo_name: str = "",
         file_coverage_summary: FileCoverageSummary | None = None,
         sub_expandable_ids: dict[str, list[str]] | None = None,
+        depth_cap: int | None = None,
     ) -> Path:
         """Write the full analysis to ``analysis.json`` with file locking.
 
         If *sub_analyses* is not provided, existing sub-analyses on disk are
-        preserved.
+        preserved. ``depth_cap`` is the run's configured depth ceiling; when
+        omitted, the existing on-disk value is preserved (see
+        ``_write_with_lock_held``).
         """
         with self._lock:
             return self._write_with_lock_held(
@@ -136,6 +140,7 @@ class _AnalysisFileStore:
                 repo_name,
                 file_coverage_summary,
                 sub_expandable_ids,
+                depth_cap,
             )
 
     def write_sub(
@@ -198,6 +203,7 @@ class _AnalysisFileStore:
         repo_name: str = "",
         file_coverage_summary: FileCoverageSummary | None = None,
         sub_expandable_ids: dict[str, list[str]] | None = None,
+        depth_cap: int | None = None,
     ) -> Path:
         """Write ``analysis.json`` — caller must already hold ``self._lock``."""
         # A caller-provided set is authoritative: it already reflects the run's expansion
@@ -214,7 +220,7 @@ class _AnalysisFileStore:
         expandable = [c for c in analysis.components if c.component_id in expandable_ids]
 
         # Preserve existing metadata fields from disk when not explicitly provided
-        if sub_analyses is None or file_coverage_summary is None or not repo_name:
+        if sub_analyses is None or file_coverage_summary is None or not repo_name or depth_cap is None:
             existing = self.read()
             if existing:
                 _, existing_subs, existing_data = existing
@@ -232,6 +238,13 @@ class _AnalysisFileStore:
                             not_analyzed=raw_summary.get("not_analyzed", 0),
                             not_analyzed_by_reason=raw_summary.get("not_analyzed_by_reason", {}),
                         )
+                if depth_cap is None:
+                    # Legacy baselines predate depth_cap: their depth_level was the
+                    # cap at the time (pre-separability-gate semantics), so it's the
+                    # closest available approximation.
+                    depth_cap = metadata.get("depth_cap", metadata.get("depth_level"))
+        if depth_cap is None:
+            depth_cap = DEFAULT_DEPTH_LEVEL
 
         # Convert sub_analyses dict to the format expected by build_unified_analysis_json
         sub_analyses_tuples: dict[str, tuple[AnalysisInsights, list[Component]]] | None = None
@@ -259,6 +272,7 @@ class _AnalysisFileStore:
             repo_name=repo_name,
             repo_dir=repo_dir,
             source_tree_hash=source_tree_hash,
+            depth_cap=depth_cap,
             sub_analyses=sub_analyses_tuples,
             file_coverage_summary=file_coverage_summary,
         )
@@ -366,11 +380,14 @@ def save_analysis(
     repo_name: str = "",
     file_coverage_summary: FileCoverageSummary | None = None,
     sub_expandable_ids: dict[str, list[str]] | None = None,
+    depth_cap: int | None = None,
 ) -> Path:
     """Save the analysis to a unified analysis.json file with file locking.
 
     ``repo_dir`` relativizes paths; ``source_tree_hash`` is the precomputed
     whole-tree version key (reproducible by consumers that fingerprint the tree).
+    ``depth_cap`` is the run's configured depth ceiling; omit to preserve the
+    existing on-disk value (e.g. for an intermediate save mid-run).
     """
     return _get_store(output_dir).write(
         analysis,
@@ -381,6 +398,7 @@ def save_analysis(
         repo_name,
         file_coverage_summary,
         sub_expandable_ids,
+        depth_cap,
     )
 
 

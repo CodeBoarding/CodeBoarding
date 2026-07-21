@@ -120,7 +120,9 @@ class TestUnifiedAnalysisJson(unittest.TestCase):
         rel = RelationJson(src_name="Comp1", dst_name="Comp2", relation="uses")
 
         analysis = UnifiedAnalysisJson(
-            metadata=AnalysisMetadata(generated_at="2026-01-01T00:00:00Z", repo_name="test", depth_level=1),
+            metadata=AnalysisMetadata(
+                generated_at="2026-01-01T00:00:00Z", repo_name="test", depth_level=1, depth_cap=1
+            ),
             description="Test analysis",
             components=[comp1, comp2],
             components_relations=[rel],
@@ -142,7 +144,9 @@ class TestUnifiedAnalysisJson(unittest.TestCase):
             key_entities=[],
         )
         analysis = UnifiedAnalysisJson(
-            metadata=AnalysisMetadata(generated_at="2026-01-01T00:00:00Z", repo_name="test", depth_level=1),
+            metadata=AnalysisMetadata(
+                generated_at="2026-01-01T00:00:00Z", repo_name="test", depth_level=1, depth_cap=1
+            ),
             description="Test",
             components=[comp],
             components_relations=[],
@@ -424,7 +428,9 @@ class TestAnalysisJsonConversion(unittest.TestCase):
         ]
 
         data = json.loads(
-            build_unified_analysis_json(self.analysis, [], "repo", repo_dir=self.repo_dir, source_tree_hash="")
+            build_unified_analysis_json(
+                self.analysis, [], "repo", repo_dir=self.repo_dir, source_tree_hash="", depth_cap=1
+            )
         )
         parsed, _ = parse_unified_analysis(data)
 
@@ -467,7 +473,9 @@ class TestAnalysisJsonConversion(unittest.TestCase):
         ]
 
         data = json.loads(
-            build_unified_analysis_json(self.analysis, [], "repo", repo_dir=self.repo_dir, source_tree_hash="")
+            build_unified_analysis_json(
+                self.analysis, [], "repo", repo_dir=self.repo_dir, source_tree_hash="", depth_cap=1
+            )
         )
         parsed, _ = parse_unified_analysis(data)
 
@@ -481,7 +489,9 @@ class TestAnalysisJsonConversion(unittest.TestCase):
 
     def test_unified_analysis_parse_recovers_edges_missing_from_methods_index(self):
         data = json.loads(
-            build_unified_analysis_json(self.analysis, [], "repo", repo_dir=self.repo_dir, source_tree_hash="")
+            build_unified_analysis_json(
+                self.analysis, [], "repo", repo_dir=self.repo_dir, source_tree_hash="", depth_cap=1
+            )
         )
         data["components_relations"] = [
             {
@@ -535,7 +545,9 @@ class TestAnalysisJsonConversion(unittest.TestCase):
         index_relation_endpoints(self.analysis, self.repo_dir)
 
         data = json.loads(
-            build_unified_analysis_json(self.analysis, [], "repo", repo_dir=self.repo_dir, source_tree_hash="")
+            build_unified_analysis_json(
+                self.analysis, [], "repo", repo_dir=self.repo_dir, source_tree_hash="", depth_cap=1
+            )
         )
 
         self.assertNotIn("|importlib.metadata.entry_points", data["methods_index"])
@@ -553,7 +565,9 @@ class TestAnalysisJsonConversion(unittest.TestCase):
         # builder no longer re-walks the tree to recompute it.
         precomputed = "a1b2c3d4e5f60718"
         data = json.loads(
-            build_unified_analysis_json(self.analysis, [], "repo", repo_dir=self.repo_dir, source_tree_hash=precomputed)
+            build_unified_analysis_json(
+                self.analysis, [], "repo", repo_dir=self.repo_dir, source_tree_hash=precomputed, depth_cap=1
+            )
         )
         self.assertEqual(data["metadata"]["source_tree_hash"], precomputed)
 
@@ -1012,6 +1026,7 @@ class TestDiagramGenerator(unittest.TestCase):
             repo_name,
             repo_dir,
             source_tree_hash,
+            depth_cap,
             sub_analyses,
             file_coverage_summary,
         ):
