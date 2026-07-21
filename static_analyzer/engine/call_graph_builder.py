@@ -164,6 +164,8 @@ class CallGraphBuilder:
             # that each overlay notification has a response barrier.
             if idx == 1 and probe_result is not None and not interleave_open:
                 symbols = probe_result
+            elif interleave_open:
+                symbols = self._lsp.document_symbol(file_path, timeout=probe_timeout)
             else:
                 symbols = self._lsp.document_symbol(file_path)
             self._symbol_table.register_symbols(file_path, symbols, parent_chain=[], project_root=self._root)

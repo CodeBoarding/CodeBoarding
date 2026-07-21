@@ -188,6 +188,7 @@ class TestDiscoverSymbols:
             ("did_open", files[1]),
             ("document_symbol", files[1]),
         ]
+        assert [item.kwargs.get("timeout") for item in lsp.document_symbol.call_args_list[1:]] == [64, 64]
 
 
 class TestBuild:
