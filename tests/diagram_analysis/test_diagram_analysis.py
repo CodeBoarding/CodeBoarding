@@ -41,6 +41,7 @@ from diagram_analysis.diagram_generator import (
     _component_expansion_seeds,
 )
 from diagram_analysis.exceptions import IncrementalCacheMissingError
+from diagram_analysis.io_utils import load_analysis_metadata, save_analysis
 from repo_utils.change_detector import ChangeSet
 from static_analyzer.analysis_cache import StaticAnalysisCache
 from static_analyzer.analysis_result import StaticAnalysisResults
@@ -751,8 +752,6 @@ class TestDepthCapPersistence(unittest.TestCase):
         return AnalysisInsights(description="Test", components=[comp], components_relations=[])
 
     def test_save_clamps_depth_cap_to_realized_depth(self):
-        from diagram_analysis.io_utils import load_analysis_metadata, save_analysis
-
         # A depth-1 baseline (no sub-analyses) with a low configured cap.
         save_analysis(
             analysis=self._make_root(),
@@ -786,8 +785,6 @@ class TestDepthCapPersistence(unittest.TestCase):
         self.assertEqual(metadata["depth_cap"], 2)
 
     def test_save_preserves_higher_cap_than_realized_depth(self):
-        from diagram_analysis.io_utils import load_analysis_metadata, save_analysis
-
         # A shallow realized tree with a cap that's already deeper (separability
         # decided there was nothing more to split) must keep the higher cap.
         save_analysis(
