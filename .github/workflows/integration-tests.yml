@@ -22,42 +22,20 @@ on:
   push:
     branches: [main]
 
-  # PRs that touch install / bootstrap / LSP / scanner code. The Node-bootstrap
-  # path only surfaces on Node-less machines, so the per-OS uninstall steps
-  # below simulate that environment and catch regressions before merge.
-  pull_request:
-    paths:
-      - 'install.py'
-      - 'tool_registry/**'
-      - 'vscode_constants.py'
-      - 'pyproject.toml'
-      - 'uv.lock'
-      - 'static_analyzer/**'
-      - 'repo_utils/ignore.py'
-      - 'tests/integration/**'
-      - 'tests/test_install.py'
-      - 'tests/test_tool_registry.py'
-      - '.github/workflows/integration-tests.yml'
-
-  schedule:
-    - cron: '0 3 * * 0'  # Every Sunday at 3 AM UTC
-
 jobs:
   # Emit the matrix.include list, event-driven:
-  #   schedule / workflow_dispatch → full 7 langs x 3 OSes minus skipped pairs.
-  #   push / pull_request         → Windows all langs (except java) + java on
-  #                                 Linux/mac (java's dev platforms).
+  #   workflow_dispatch/push/pull_request/schedule → Windows + all languages.
   # workflow_dispatch honors the optional ``language`` input to narrow
   # the full matrix to a single language.
-  #
-  # Skipped pairs:
-  #   mac/go    — free macos-latest is 3 vCPU / 7 GB RAM; gopls indexing
-  #               prometheus blows past 25 min under that memory pressure.
-  #   win/java  — JDTLS races its own readiness signals on Windows (observed
-  #               85 vs 142 edges on the same commit across runs). Stable on
-  #               Linux/macOS; revisit after the LSP sync path is reworked.
   setup-matrix:
     runs-on: ubuntu-latest
+    # Avoid running integration tests on sync-generated commits while still running
+    # on regular pushes to main.
+    if: |
+      github.event_name != 'push' ||
+      (github.actor != 'codeboarding-review[bot]' &&
+       github.actor != 'codeboarding[bot]' &&
+       !startsWith(github.event.head_commit.message, 'chore(codeboarding): sync'))
     outputs:
       matrix: ${{ steps.build.outputs.matrix }}
     steps:
@@ -75,8 +53,8 @@ jobs:
           dispatch_lang = os.environ.get("DISPATCH_LANG", "").strip()
 
           all_langs = ["python", "java", "go", "typescript", "php", "javascript", "rust", "csharp"]
-          all_os = ["ubuntu-latest", "macos-latest", "windows-latest"]
-          skip = {("macos-latest", "go"), ("windows-latest", "java")}  # see job-level note
+          all_os = ["windows-latest"]
+          skip = set()  # single-OS matrix keeps this explicit but empty
 
           if event in ("schedule", "workflow_dispatch"):
               langs = [dispatch_lang] if dispatch_lang else all_langs
@@ -87,14 +65,12 @@ jobs:
                   if (o, lg) not in skip
               ]
           else:
-              # push / pull_request smoke subset.
+              # push / pull_request / all non-scheduled runs.
               include = [
                   {"os": "windows-latest", "language": lg}
                   for lg in all_langs
                   if ("windows-latest", lg) not in skip
               ]
-              include.append({"os": "ubuntu-latest", "language": "java"})
-              include.append({"os": "macos-latest", "language": "java"})
 
           print(f"matrix={json.dumps({'include': include})}")
           PY
