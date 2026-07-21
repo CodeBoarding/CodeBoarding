@@ -15,7 +15,7 @@ from pathlib import Path
 
 from diagram_analysis import DiagramGenerator
 from diagram_analysis.io_utils import load_analysis_metadata, load_full_analysis
-from diagram_analysis.run_context import RunContext, RunPaths
+from diagram_analysis.run_context import DEFAULT_DEPTH_LEVEL, RunContext, RunPaths
 from repo_utils.fingerprint_diff import BaselineUnavailableError, detect_changes_from_fingerprint
 from telemetry.events import track_analysis
 
@@ -49,7 +49,7 @@ def build_generator(
 def run_full(
     run_paths: RunPaths,
     run_context: RunContext,
-    depth_level: int = 1,
+    depth_level: int = DEFAULT_DEPTH_LEVEL,
     monitoring_enabled: bool = False,
     force_full: bool = False,
     static_analyzer=None,
@@ -96,7 +96,7 @@ def run_partial(
             f"No baseline analysis.json found in '{run_paths.output_dir}'. Run a full analysis first."
         )
 
-    depth_level = int(metadata.get("depth_level", 1))
+    depth_level = int(metadata.get("depth_level", DEFAULT_DEPTH_LEVEL))
     generator = build_generator(run_paths, run_context, depth_level=depth_level)
     generator.pre_analysis()
 
@@ -175,7 +175,7 @@ def run_incremental(
         raise BaselineUnavailableError(
             f"No baseline analysis.json found in '{run_paths.output_dir}'. Run a full analysis first."
         )
-    depth_level = int(metadata.get("depth_level", 1))
+    depth_level = int(metadata.get("depth_level", DEFAULT_DEPTH_LEVEL))
 
     changes = detect_changes_from_fingerprint(run_paths.repo_path, run_paths.output_dir)
     logger.info(

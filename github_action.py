@@ -5,7 +5,7 @@ from pathlib import Path
 
 from codeboarding_workflows.analysis import run_incremental_workflow
 from codeboarding_workflows.rendering import render_docs
-from diagram_analysis import DiagramGenerator, RunContext
+from diagram_analysis import DEFAULT_DEPTH_LEVEL, DiagramGenerator, RunContext
 from repo_utils import checkout_repo, clone_repository
 from utils import ANALYSIS_FILENAME, CODEBOARDING_DIR_NAME, create_temp_repo_folder
 
@@ -109,7 +109,7 @@ def generate_analysis(
         temp_folder=temp_repo_folder,
         repo_name=repo_name,
         output_dir=temp_repo_folder,
-        depth_level=int(os.getenv("DIAGRAM_DEPTH_LEVEL", "1")),
+        depth_level=int(os.getenv("DIAGRAM_DEPTH_LEVEL", str(DEFAULT_DEPTH_LEVEL))),
         run_id=run_context.run_id,
         log_path=run_context.log_path,
     )
