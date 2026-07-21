@@ -6,7 +6,7 @@
     "TELEMETRY.md": "9aaa63985f718027",
     "README.md": "53db42746906d33b",
     "vscode_constants.py": "ed4ca12f298bcba0",
-    "CONTRIBUTING.md": "837b34ead3459d8a",
+    "CONTRIBUTING.md": "19fa8b9ad24f77fb",
     "constants.py": "bff81cac1889ae97",
     "install.py": "672e850326926627",
     "utils.py": "6dc702515ecd8b10",
@@ -14,14 +14,14 @@
     "Dockerfile": "cf0ba49d1a6e98fa",
     "github_action.py": "1ed6b50b3b305a81",
     "logging_config.py": "73afb3fdddbebb61",
-    "pyproject.toml": "3999cd7a4fc485cc",
+    "pyproject.toml": "15d200e98e475450",
     "icon.svg": "1f5885e35bb4798e",
     "user_config.py": "c94bf2ed38c3948e",
     "PYPI.md": "7e4bb4c102bb5b8f",
-    "uv.lock": "cebead9e6a7a918a",
+    "uv.lock": "fe948b8f42f9c190",
     "LICENSE": "6fb7a9b883cbc39d",
     "health_main.py": "6b599f527b97d8f1",
-    "AGENTS.md": "f4dd8d54e968ec3d",
+    "AGENTS.md": "f0d53d25dd5ff96f",
     "core/protocols.py": "58bf68dd7b93b353",
     "core/plugin_loader.py": "6199f74020d29502",
     "core/registry.py": "082a9b440f20550a",
@@ -195,6 +195,6 @@
     "monitoring/__init__.py": "e47c5943f16cf6b5",
     "docs/summary-interactive.md": "0307994675365f88",
     "docs/architecture.md": "2f3e7a20143362eb",
-    "docs/development/architecture.md": "4e29c2851cc838ac"
+    "docs/development/architecture.md": "0e50fc78fde21547"
   }
 }

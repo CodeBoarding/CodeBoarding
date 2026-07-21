@@ -133,7 +133,7 @@ warn_return_any = false
 warn_unused_configs = true
 disallow_untyped_defs = false
 check_untyped_defs = true
-exclude = "(?x)(^repos/|^build/|^dist/|^temp/|^static_analyzer/servers/|^tests/integration/projects/)"
+exclude = "(?x)(^repos/|^build/|^dist/|^temp/|^static_analyzer/servers/)"
 explicit_package_bases = true
 disable_error_code = ["import-untyped", "no-any-return", "assignment"]
 
@@ -142,6 +142,9 @@ dev-dependencies = [
     "black==25.9.0",
     "pre-commit==3.8.0",
     "mypy==1.19.0",
+    # Explicit rather than transitive via pytest-cov: the private integration
+    # suite runs on this venv and needs pytest to be a stated guarantee.
+    "pytest>=8.3",
     "pytest-cov==7.0.0",
     "build>=1.4.0",
     "twine>=6.2.0",
@@ -152,16 +155,4 @@ testpaths = ["tests"]
 norecursedirs = ["repos", "build", "dist", "temp", "node_modules"]
 addopts = "--ignore=repos"
 pythonpath = "."
-markers = [
-    "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
-    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
-    "health: marks tests as health check integration tests",
-    "python_lang: marks tests for Python language",
-    "java_lang: marks tests for Java language",
-    "go_lang: marks tests for Go language",
-    "typescript_lang: marks tests for TypeScript language",
-    "php_lang: marks tests for PHP language",
-    "javascript_lang: marks tests for JavaScript language",
-    "rust_lang: marks tests for Rust language",
-    "csharp_lang: marks tests for C# language",
-]
+# The integration markers moved with the suite to CodeBoarding-tests (private).
