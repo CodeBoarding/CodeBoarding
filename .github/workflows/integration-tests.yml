@@ -59,6 +59,11 @@ on:
       - 'tests/test_tool_registry.py'
       - '.github/workflows/integration-tests.yml'
 
+  workflow_run:
+    workflows: ['CodeBoarding sync']
+    types:
+      - completed
+
 permissions:
   contents: read
 
@@ -70,14 +75,16 @@ jobs:
   private-suite:
     runs-on: ubuntu-latest
     timeout-minutes: 75
-    # Fork PRs and Dependabot PRs cannot access secrets, so we intentionally skip
-    # that path here. We also exclude sync-authored pushes to main so the sync
-    # bot doesn't trigger this workflow; all other pushes on main still run.
+    # Manual runs, pull_request coverage for trusted branches, and sync-job
+    # completion events all remain valid. Fork PRs and Dependabot PRs skip here
+    # because secrets are unavailable.
     if: >-
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'push' &&
        github.actor != 'codeboarding[bot]' &&
        github.actor != 'github-actions[bot]') ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success') ||
       (github.event_name == 'pull_request' &&
        github.event.pull_request.head.repo.full_name == github.repository &&
        github.actor != 'dependabot[bot]')
