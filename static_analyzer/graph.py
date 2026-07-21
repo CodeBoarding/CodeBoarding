@@ -251,11 +251,21 @@ class CallGraph:
         if src_name in self.nodes and dst_name in self.nodes and src_name != dst_name:
             self.reference_edges.append((src_name, dst_name, str(kind)))
 
-    def _carry_reference_edges(self, out: "CallGraph") -> None:
-        """Copy reference edges whose both endpoints survive into a derived subgraph."""
-        out.reference_edges = [
-            (s, d, k) for s, d, k in getattr(self, "reference_edges", ()) if s in out.nodes and d in out.nodes
-        ]
+    def _carry_reference_edges(self, out: "CallGraph", *extra_sources: "CallGraph") -> None:
+        """Copy reference edges whose both endpoints survive into a derived graph.
+
+        Includes ``self`` and any ``extra_sources`` (e.g. the ``other`` side of a union), so
+        reference edges freshly computed for changed/added files are not dropped when both
+        endpoints survive. Deduped, keeping only edges whose endpoints are both in ``out``.
+        """
+        seen: set[tuple[str, str, str]] = set()
+        carried: list[tuple[str, str, str]] = []
+        for source in (self, *extra_sources):
+            for s, d, k in getattr(source, "reference_edges", ()):
+                if s in out.nodes and d in out.nodes and (s, d, k) not in seen:
+                    seen.add((s, d, k))
+                    carried.append((s, d, k))
+        out.reference_edges = carried
 
     def filter(
         self,
@@ -312,7 +322,9 @@ class CallGraph:
                 pass
         out._cluster_cache = self._prune_cluster_cache(out.nodes)
         out.method_cluster_paths = self._prune_method_cluster_paths(out.nodes)
-        self._carry_reference_edges(out)
+        # Carry reference edges from BOTH sides: ``other`` holds the fresh reference edges for
+        # changed/added files, which would otherwise be lost and revert those files to call-only.
+        self._carry_reference_edges(out, other)
         return out
 
     def _prune_cluster_cache(self, surviving_nodes: dict[str, Node]) -> "ClusterResult | None":
@@ -504,6 +516,7 @@ class CallGraph:
 
         sub_graph = CallGraph(nodes=relevant_nodes, edges=filtered_edges, language=self.language)
         sub_graph.method_cluster_paths = self._prune_method_cluster_paths(relevant_nodes)
+        self._carry_reference_edges(sub_graph)
         return sub_graph
 
     def to_cluster_string(

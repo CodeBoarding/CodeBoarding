@@ -63,11 +63,21 @@ class FileEntry(BaseModel):
         default="",
         description="Truncated SHA-256 of the entire file's bytes; '' when source was unavailable.",
     )
+    module_hash: str = Field(
+        default="",
+        description=(
+            "Truncated SHA-256 of the file's module-level lines (everything outside indexed "
+            "method spans); '' when unavailable. Lets the incremental path attribute a "
+            "module-level edit even when a sibling method in the same file also changed."
+        ),
+    )
 
     def merge_from(self, other: FileEntry) -> FileEntry:
         """Merge another entry while retaining independent, canonical method metadata."""
         if not self.content_hash:
             self.content_hash = other.content_hash
+        if not self.module_hash:
+            self.module_hash = other.module_hash
 
         methods_by_qname: dict[str, MethodEntry] = {}
         for method in [*self.methods, *other.methods]:

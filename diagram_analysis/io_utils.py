@@ -197,11 +197,17 @@ class _AnalysisFileStore:
         file_coverage_summary: FileCoverageSummary | None = None,
     ) -> Path:
         """Write ``analysis.json`` — caller must already hold ``self._lock``."""
-        # Keep caller-provided expandables, but also preserve deterministic planner eligibility.
-        expandable_ids = set(expandable_component_ids or [])
-        expandable_ids.update(
-            c.component_id for c in self._compute_expandable_components(analysis, parent_had_clusters=True)
-        )
+        # A caller-provided set is authoritative: it already reflects the run's expansion
+        # decision (including the separability gate that keeps cohesive components as leaves),
+        # so unioning in the unconditional ``should_expand_component`` set would re-mark those
+        # suppressed components expandable. Only fall back to the deterministic computation when
+        # the caller supplied nothing.
+        if expandable_component_ids is not None:
+            expandable_ids = set(expandable_component_ids)
+        else:
+            expandable_ids = {
+                c.component_id for c in self._compute_expandable_components(analysis, parent_had_clusters=True)
+            }
         expandable = [c for c in analysis.components if c.component_id in expandable_ids]
 
         # Preserve existing metadata fields from disk when not explicitly provided

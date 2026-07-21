@@ -7,6 +7,7 @@ from agents.content_hash import (
     MethodRef,
     MethodSpan,
     SourceCache,
+    hash_file_residual,
     hash_method_body,
     hash_whole_file,
     read_source_lines,
@@ -44,6 +45,13 @@ def build_files_index(
                     content_hash=hash_whole_file(source_lines),
                 )
             )
+    # module_hash excises *all* of a file's method spans, so it must be computed once the
+    # file's methods are gathered across every component — a file split across components
+    # would otherwise count a sibling component's methods as module-level.
+    for file_path, entry in files.items():
+        source_lines = read_source_lines(repo_dir, file_path, file_cache)
+        spans = [MethodSpan(method.start_line, method.end_line) for method in entry.methods]
+        entry.module_hash = hash_file_residual(source_lines, spans)
     return files
 
 

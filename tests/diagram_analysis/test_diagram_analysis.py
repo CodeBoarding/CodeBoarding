@@ -1020,10 +1020,12 @@ class TestDiagramGenerator(unittest.TestCase):
             ):
                 gen.generate_analysis()
 
-        # Both components have files, so both should be expandable (io_utils merges caller-provided with computed)
+        # The run's separability-respecting expandable set is authoritative: only the planned
+        # component ("1") is advertised as expandable. Component "2" was kept as a leaf and must
+        # NOT be re-added by the save-time structural recompute.
         self.assertEqual(
             sorted([c.component_id for c in captured["expandable_components"]]),
-            sorted([c.component_id for c in analysis.components]),
+            [comp1.component_id],
         )
 
     @patch("diagram_analysis.diagram_generator.get_expandable_components")

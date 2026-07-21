@@ -108,6 +108,8 @@ Instructions:
 Constraints:
 - Keep every group: there must be exactly as many components as groups, each backed by exactly one group.
 - Name components by architectural role (e.g. 'Authentication', 'Data Pipeline', 'Request Handling'), never 'Group N'.
+- Ground the name in the code's own vocabulary: reuse the terms that the group's own modules, classes, and packages already use, and stay close to them rather than inventing a broader abstraction.
+- Prefer a single dominant concern per name and avoid joining two concerns with '&' when possible; if a group genuinely spans two, name it after the dominant one and note the secondary concern in the description instead.
 - Components should translate well to flow diagram representation."""
 
 PLANNER_SYSTEM_MESSAGE = """You are Kimi, an AI assistant created by Moonshot AI.
@@ -314,21 +316,22 @@ Cluster Analysis:
 
 Task: Create final sub-component architecture for the `{component}` subsystem optimized for flow representation.
 
+The clusters have already been partitioned into a fixed set of groups by graph community detection. Each "Group N" above is exactly one sub-component — the number of groups and their membership are already decided. Do NOT merge, split, or re-group them; only name and describe each group.
+
 Think aloud first (reasoning), then synthesize:
 
-1. Review the named cluster groups above.
-2. Decide which named groups should be merged into final sub-components.
-3. For each sub-component, specify which named cluster groups it encompasses via source_group_names.
+1. Produce EXACTLY one sub-component per named group above (the same number of sub-components as there are groups).
+2. Set each sub-component's source_group_names to the single group it corresponds to (use the exact group name, e.g. "Group 1").
+3. Give each sub-component a descriptive architectural name (its role, not "Group N").
 4. For each sub-component, list the 2-5 most important classes/methods, referencing their qualified names and source files.
 5. Do not define relationships yet; relationships are discovered in a later API-surface step.
 
 Guidelines:
-- Aim for 3-8 final sub-components
-- Merge related cluster groups that serve a common purpose
+- Keep every group: there must be exactly as many sub-components as groups, each backed by exactly one group
 - Each sub-component should have clear boundaries
 - Focus on component boundaries; relationships are discovered after components are finalized
 
-For each sub-component provide a clear name, a description of what it does, the exact named cluster group names it encompasses, and the 2-5 most important classes/methods with their qualified names and source files. Also provide one paragraph explaining the subsystem's overall main flow and purpose. Do not define relationships yet.
+For each sub-component provide a clear name, a description of what it does, the single named cluster group it encompasses, and the 2-5 most important classes/methods with their qualified names and source files. Also provide one paragraph explaining the subsystem's overall main flow and purpose. Do not define relationships yet.
 
 Constraints:
 - Focus on subsystem-specific functionality

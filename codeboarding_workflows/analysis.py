@@ -142,7 +142,7 @@ def run_partial(
     # The baseline we loaded may predate child scopes being confined to their parent.
     # Repair it here too: this flow only regenerates one component, so nothing else
     # would reconcile the rest of the tree before the save asserts containment.
-    generator._rescope_child_analyses(root_analysis, sub_analyses)
+    generator._rescope_child_analyses(root_analysis, sub_analyses, set())
     # persist_side_artifacts=False: an expansion must not rewrite file_coverage.json
     # or the static-analysis cache. The latter would drop the static_analysis.sha
     # tag (no source_sha here) and force the next incremental run to cold-start.

@@ -18,7 +18,14 @@ from pathlib import Path
 
 import networkx as nx
 
-from agents.content_hash import SourceCache, hash_method_body, hash_whole_file, read_source_lines
+from agents.content_hash import (
+    MethodSpan,
+    SourceCache,
+    hash_file_residual,
+    hash_method_body,
+    hash_whole_file,
+    read_source_lines,
+)
 from agents.file_index_models import FileEntry
 from agents.scope_ids import ROOT_SCOPE_ID
 from diagram_analysis.cluster_snapshot import ClusterSnapshot, ClusterSnapshotEntry
@@ -155,7 +162,7 @@ def compute_changed_members(
     if not changed_paths:
         return ChangedMembers()
 
-    new_member_hashes = _live_member_hashes(new_static, repo_dir, changed_paths, file_cache)
+    new_member_hashes, new_member_spans = _live_member_hashes(new_static, repo_dir, changed_paths, file_cache)
 
     result = ChangedMembers()
     for path in changed_paths:
@@ -178,8 +185,24 @@ def compute_changed_members(
                 # Present in exactly one index: a method was added or removed.
                 file_changed.add(qname)
 
+        result.members |= file_changed
+
+        # Module-level (non-method) content is not covered by any member hash, so a
+        # constant/import/decorator edit must be caught separately — even when a sibling
+        # method in the same file also changed (a "mixed" edit). Compare the residual of
+        # everything outside the live method spans against the baseline residual; only a
+        # real module-level difference dirties the file, so a pure member edit never does.
+        baseline_module_hash = baseline_entry.module_hash if baseline_entry is not None else ""
+        new_module_hash = hash_file_residual(
+            read_source_lines(repo_dir, path, file_cache), new_member_spans.get(path, [])
+        )
+        module_changed = new_module_hash != baseline_module_hash
+
         if file_changed:
-            result.members |= file_changed
+            if module_changed and baseline_module_hash:
+                # Only trust the residual when the baseline actually carried one; a legacy
+                # baseline (no module_hash) would otherwise dirty the file on every mixed edit.
+                result.unattributed_files.add(path)
             continue
 
         # No hashed member represents this file's edit — fall back to file level,
@@ -197,9 +220,10 @@ def _live_member_hashes(
     repo_dir: Path,
     changed_paths: set[str],
     file_cache: SourceCache,
-) -> dict[str, dict[str, str]]:
-    """``{file_path -> {qname -> body_hash}}`` for CFG nodes in changed files."""
+) -> tuple[dict[str, dict[str, str]], dict[str, list[MethodSpan]]]:
+    """``({file_path -> {qname -> body_hash}}, {file_path -> [method spans]})`` for changed files."""
     hashes: dict[str, dict[str, str]] = {}
+    spans: dict[str, list[MethodSpan]] = {}
     for language in new_static.get_languages():
         try:
             cfg = new_static.get_cfg(language)
@@ -211,7 +235,8 @@ def _live_member_hashes(
                 continue
             source_lines = read_source_lines(repo_dir, path, file_cache)
             hashes.setdefault(path, {})[qname] = hash_method_body(source_lines, node.line_start, node.line_end)
-    return hashes
+            spans.setdefault(path, []).append(MethodSpan(node.line_start, node.line_end))
+    return hashes, spans
 
 
 def compute_cluster_delta(
@@ -232,7 +257,9 @@ def compute_cluster_delta(
     diff_files = _changeset_to_path_set(changes) if changes is not None else None
     for language in new_static.get_languages():
         cfg = new_static.get_cfg(language)
-        nx_graph = cfg.to_networkx()
+        # Cluster the same reference-augmented graph the full run uses; a call-only graph would
+        # re-cluster type-coupled methods differently and drift from what a full analysis produces.
+        nx_graph = cfg.clustering_networkx()
         old_clusters = old_snapshot.get_language(language)
         delta.by_language[language] = _delta_for_language(
             language,

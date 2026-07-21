@@ -30,7 +30,7 @@ from typing import TYPE_CHECKING, Any
 from filelock import FileLock
 
 from static_analyzer.analysis_result import AnalysisData, InvalidatedAnalysis, InvalidatedEdge
-from static_analyzer.graph import Edge
+from static_analyzer.graph import CallGraph, Edge, EdgeKind
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
 from static_analyzer.node import Node
 from repo_utils.path_utils import to_absolute_path, to_relative_path
@@ -413,9 +413,17 @@ def merge_results(
     }
     merged_diagnostics.update(new_diagnostics)
 
+    merged_call_graph = cached_result.call_graph.union(new.call_graph)
+    merged_class_hierarchies = {**cached_result.class_hierarchies, **new.class_hierarchies}
+    # A warm-start re-LSPs only changed files, so a changed subclass whose superclass lives in
+    # an unchanged file emits no INHERITS edge during conversion (the superclass wasn't in that
+    # partial graph). Re-derive INHERITS from the merged hierarchy against the merged node set so
+    # the cross-file link is restored — otherwise incremental clustering loses class cohesion.
+    _rederive_inherits_edges(merged_call_graph, merged_class_hierarchies)
+
     merged = AnalysisData(
-        call_graph=cached_result.call_graph.union(new.call_graph),
-        class_hierarchies={**cached_result.class_hierarchies, **new.class_hierarchies},
+        call_graph=merged_call_graph,
+        class_hierarchies=merged_class_hierarchies,
         package_relations={**cached_result.package_relations, **new.package_relations},
         references=[ref for ref in cached_result.references if ref.file_path not in new_file_paths] + new.references,
         source_files=[path for path in cached_result.source_files if str(path) not in new_file_paths]
@@ -423,6 +431,20 @@ def merge_results(
         diagnostics=merged_diagnostics or None,
     )
     return merged
+
+
+def _rederive_inherits_edges(call_graph: CallGraph, class_hierarchies: dict[str, Any]) -> None:
+    """Add any missing INHERITS edge from the merged hierarchy, endpoints permitting.
+
+    ``add_reference_edge`` only records an edge when both endpoints are live nodes, so a
+    cross-file superclass now present in the merged graph gets its link; existing edges are
+    skipped to avoid duplicates.
+    """
+    existing = {(s, d) for s, d, k in call_graph.reference_edges if k == str(EdgeKind.INHERITS)}
+    for child, info in class_hierarchies.items():
+        for superclass in info.get("superclasses", []):
+            if (child, superclass) not in existing:
+                call_graph.add_reference_edge(child, superclass, EdgeKind.INHERITS)
 
 
 def _collect_invalidated_edge(

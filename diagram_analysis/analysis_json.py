@@ -142,6 +142,10 @@ class FileEntryJson(BaseModel):
         default="",
         description="Truncated SHA-256 of the entire file's bytes; '' when unknown.",
     )
+    module_hash: str = Field(
+        default="",
+        description="Truncated SHA-256 of the file's module-level lines (outside method spans); '' when unknown.",
+    )
 
 
 class UnifiedAnalysisJson(BaseModel):
@@ -243,6 +247,7 @@ def _build_file_entry_json_from_files(files_index: dict[str, FileEntry]) -> dict
         file_path: FileEntryJson(
             method_keys=[_method_key(file_path, m.qualified_name) for m in entry.methods],
             content_hash=entry.content_hash,
+            module_hash=entry.module_hash,
         )
         for file_path, entry in files_index.items()
         if file_path
@@ -502,7 +507,10 @@ def _reconstruct_files_index(
     """Rebuild in-memory ``FileEntry`` objects from persisted ``method_keys``."""
     files_index: dict[str, FileEntry] = {}
     for file_path, entry_raw in files_raw.items():
-        entry = FileEntry(content_hash=entry_raw.get("content_hash", ""))
+        entry = FileEntry(
+            content_hash=entry_raw.get("content_hash", ""),
+            module_hash=entry_raw.get("module_hash", ""),
+        )
         indexed_methods: list[MethodEntry] = []
         for key in entry_raw["method_keys"]:
             indexed = methods_index.get(key)

@@ -32,6 +32,7 @@ from agents.validation import (
     validate_relations,
 )
 from monitoring import trace
+from static_analyzer import StaticAnalysisFatalError
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cluster_helpers import build_all_cluster_results
 from static_analyzer.graph import ClusterResult
@@ -191,6 +192,14 @@ class AbstractionAgent(ClusterMethodsMixin, CodeBoardingAgent):
 
         # Step 1: Deterministically partition leaf clusters into the top-level groups (Leiden, modularity-peak N)
         cluster_analysis = self.step_clusters_grouping(cluster_results)
+        if not cluster_analysis.cluster_components:
+            # No leaf clusters means the repo has no callable structure to abstract
+            # (unsupported/empty/no-code). Fail loudly instead of emptying the
+            # architecture and crashing downstream in populate_file_methods.
+            raise StaticAnalysisFatalError(
+                f"No component groups found for {self.project_name}: the static analysis produced "
+                "no callable structure to build an architecture from."
+            )
 
         # Step 2: Name and describe each fixed group into a component (LLM, one component per group)
         analysis = self.step_final_analysis(cluster_analysis, cluster_results)

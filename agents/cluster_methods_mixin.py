@@ -601,7 +601,7 @@ class ClusterMethodsMixin:
                 if seeded_snapshot:
                     scoped_delta = _delta_for_language(
                         str(lang),
-                        sub_cfg.to_networkx(),
+                        sub_cfg.clustering_networkx(),
                         seeded_snapshot,
                     )
                     sub_cluster_result = scoped_delta.cluster_results
@@ -612,7 +612,9 @@ class ClusterMethodsMixin:
                 # Merge into super-clusters if too many (same limit as AbstractionAgent)
                 if len(sub_cluster_result.clusters) > MAX_LLM_CLUSTERS:
                     n_before = len(sub_cluster_result.clusters)
-                    sub_cluster_result = merge_clusters(sub_cluster_result, sub_cfg.to_networkx(), MAX_LLM_CLUSTERS)
+                    sub_cluster_result = merge_clusters(
+                        sub_cluster_result, sub_cfg.clustering_networkx(), MAX_LLM_CLUSTERS
+                    )
                     logger.info(
                         f"[DetailsAgent] Subgraph for '{component.name}': "
                         f"merged {n_before} -> {len(sub_cluster_result.clusters)} super-clusters"
@@ -624,7 +626,7 @@ class ClusterMethodsMixin:
 
         # Cross-language: enforce combined budget and unique IDs
         if len(cluster_results) > 1:
-            cfg_nx = {lang: subgraph_cfgs[lang].to_networkx() for lang in cluster_results}
+            cfg_nx = {lang: subgraph_cfgs[lang].clustering_networkx() for lang in cluster_results}
             enforce_cross_language_budget(cluster_results, cfg_nx)
 
         if source_cluster_id_prefix:
