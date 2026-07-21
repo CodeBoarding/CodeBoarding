@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from repo_utils.ignore import RepoIgnoreManager
@@ -9,12 +10,49 @@ from static_analyzer.constants import Language, NodeType
 from static_analyzer.engine.language_adapter import LanguageAdapter
 
 
+def _env_bool(name: str, default: bool = False) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _env_int(name: str, default: int) -> int:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    try:
+        return int(raw.strip())
+    except ValueError:
+        return default
+
+
 class PHPAdapter(LanguageAdapter):
 
     @property
     def wait_for_workspace_ready(self) -> bool:
         """Wait for Intelephense to finish indexing workspace symbols."""
-        return True
+        return not _env_bool("CODEBOARDING_PHP_DISABLE_READY_WAIT", False)
+
+    @property
+    def probe_before_open(self) -> bool:
+        """Integphense is happier when indexing readiness is checked before opens."""
+        return _env_bool("CODEBOARDING_PHP_PROBE_BEFORE_OPEN", True)
+
+    @property
+    def interleave_did_open_with_symbols(self) -> bool:
+        """Keep overlay creation and symbol extraction in lockstep for large PHP repos."""
+        return _env_bool("CODEBOARDING_PHP_INTERLEAVE_OPEN_WITH_SYMBOLS", True)
+
+    @property
+    def references_batch_size(self) -> int:
+        """Lower batch concurrency to avoid overloading Intelephense on big projects."""
+        return _env_int("CODEBOARDING_PHP_REFERENCES_BATCH_SIZE", 10)
+
+    @property
+    def references_per_query_timeout(self) -> int:
+        """Keep reference queries bounded to avoid long request tails."""
+        return _env_int("CODEBOARDING_PHP_REFERENCES_QUERY_TIMEOUT", 10)
 
     @property
     def language(self) -> str:
