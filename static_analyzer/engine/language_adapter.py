@@ -24,7 +24,7 @@ class LanguageAdapter(ABC):
 
     @property
     def include_references_on_declaration_line(self) -> bool:
-        """Whether expression-bodied declarations can contain reference edges."""
+        """Whether declaration-line references are known to be call edges."""
         return False
 
     @property

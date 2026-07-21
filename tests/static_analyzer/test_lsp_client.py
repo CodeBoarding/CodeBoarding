@@ -652,6 +652,15 @@ class TestHandleNotification:
         )
         assert not client._server_ready.is_set()
 
+    def test_progress_ignores_invalid_token(self):
+        client = LSPClient(["cmd"], Path("/root"))
+        client._handle_notification(
+            "$/progress",
+            {"token": {}, "value": {"kind": "begin", "title": "Loading"}},
+        )
+
+        assert client._work_done_progress_titles == {}
+
     def test_gopls_workspace_progress_end_signals_ready(self):
         client = LSPClient(["cmd"], Path("/root"))
         client._handle_notification(
@@ -662,6 +671,38 @@ class TestHandleNotification:
             "$/progress",
             {"token": "workspace", "value": {"kind": "end", "message": "Finished loading packages."}},
         )
+        assert client._server_ready.is_set()
+
+    def test_failed_gopls_workspace_progress_does_not_signal_ready(self):
+        client = LSPClient(["cmd"], Path("/root"))
+        client._handle_notification(
+            "$/progress",
+            {"token": "workspace", "value": {"kind": "begin", "title": "Setting up workspace"}},
+        )
+        client._handle_notification(
+            "$/progress",
+            {"token": "workspace", "value": {"kind": "report", "message": "workspace load failed"}},
+        )
+        client._handle_notification(
+            "$/progress",
+            {"token": "workspace", "value": {"kind": "end", "message": "Done."}},
+        )
+
+        assert not client._server_ready.is_set()
+
+    def test_intelephense_progress_end_signals_ready(self):
+        client = LSPClient(["cmd"], Path("/root"))
+        client._server_ready.set()
+        client._handle_notification(
+            "$/progress",
+            {"token": "index", "value": {"kind": "begin", "title": "Indexing workspace"}},
+        )
+        assert not client._server_ready.is_set()
+        client._handle_notification(
+            "$/progress",
+            {"token": "index", "value": {"kind": "end", "message": "Done."}},
+        )
+
         assert client._server_ready.is_set()
 
     def test_intelephense_indexing_notifications_signal_ready(self):

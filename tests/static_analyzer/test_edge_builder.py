@@ -204,6 +204,57 @@ def test_reference_in_same_line_block_body_is_an_edge(tmp_path: Path):
     assert (caller.qualified_name, target.qualified_name) in edge_set
 
 
+def test_non_call_reference_in_same_line_block_body_is_not_an_edge(tmp_path: Path):
+    source = tmp_path / "Caller.ts"
+    source.write_text("export function caller() { const callback = target; }\n")
+    target_file = tmp_path / "Target.ts"
+    target_file.write_text("export function target(): void {}\n")
+
+    ctx, adapter = _make_ctx()
+    caller = _sym("caller", "Caller.caller", NodeType.FUNCTION, str(source), 0, 16, 0, 53)
+    target = _sym("target", "Target.target", NodeType.FUNCTION, str(target_file), 0, 16, 0, 22)
+    ctx.symbol_table.file_symbols[str(source)] = [caller]
+    reference_start = source.read_text().index("target")
+    reference = {
+        "uri": source.as_uri(),
+        "range": {
+            "start": {"line": 0, "character": reference_start},
+            "end": {"line": 0, "character": reference_start + len("target")},
+        },
+    }
+    edge_set: EdgeMap = {}
+
+    _process_references_for_position(adapter, ctx, [target], [reference], edge_set)
+
+    assert edge_set == {}
+
+
+def test_non_call_reference_in_expression_body_is_not_an_edge(tmp_path: Path):
+    source = tmp_path / "Caller.cs"
+    source.write_text("public static Func<string> Caller() => Target;\n")
+    target_file = tmp_path / "Target.cs"
+    target_file.write_text('public static string Target() => "target";\n')
+
+    adapter = _ExpressionBodyTestAdapter()
+    ctx = EdgeBuildContext(_make_lsp(), SymbolTable(adapter), SourceInspector())
+    caller = _sym("Caller", "Caller.Caller", NodeType.METHOD, str(source), 0, 0, 0, 47)
+    target = _sym("Target", "Target.Target", NodeType.METHOD, str(target_file), 0, 21, 0, 27)
+    ctx.symbol_table.file_symbols[str(source)] = [caller]
+    reference_start = source.read_text().index("Target;")
+    reference = {
+        "uri": source.as_uri(),
+        "range": {
+            "start": {"line": 0, "character": reference_start},
+            "end": {"line": 0, "character": reference_start + len("Target")},
+        },
+    }
+    edge_set: EdgeMap = {}
+
+    _process_references_for_position(adapter, ctx, [target], [reference], edge_set)
+
+    assert edge_set == {}
+
+
 # ---------------------------------------------------------------------------
 # _is_valid_edge
 # ---------------------------------------------------------------------------

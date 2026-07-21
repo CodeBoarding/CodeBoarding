@@ -296,7 +296,7 @@ def _most_specific_node_at_position(
 
 def _definition_nodes(
     call_graph: CallGraph,
-    definition: dict,
+    definition: dict[str, Any],
     include_callable_parent: bool = False,
 ) -> list[Node]:
     location = definition_location(definition)
@@ -314,8 +314,8 @@ def _definition_nodes(
             target = max(
                 same_line,
                 key=lambda node: (
-                    node.is_callable(),
                     node.is_class(),
+                    node.is_callable(),
                     len(node.fully_qualified_name),
                 ),
             )
@@ -323,7 +323,7 @@ def _definition_nodes(
         return []
 
     targets = [target]
-    if include_callable_parent and target.is_callable():
+    if (include_callable_parent and target.is_callable()) or target.type == NodeType.CONSTRUCTOR:
         parent = call_graph.nodes.get(parent_qualified_name(target.fully_qualified_name))
         if parent is not None and parent.is_class():
             targets.append(parent)

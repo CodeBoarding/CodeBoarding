@@ -126,6 +126,24 @@ class TestIsCallableUsage:
 
 
 class TestIsReferenceInDeclarationBody:
+    def test_object_literal_is_not_a_declaration_body(self, tmp_path: Path):
+        f = tmp_path / "Caller.ts"
+        source = "const caller = { run: target };\n"
+        f.write_text(source)
+        target_start = source.index("target")
+
+        assert (
+            SourceInspector().is_reference_in_declaration_body(
+                f,
+                0,
+                source.index("caller"),
+                0,
+                target_start,
+                target_start + len("target"),
+            )
+            is False
+        )
+
     def test_reference_in_block_body(self, tmp_path: Path):
         f = tmp_path / "Caller.cs"
         source = "class Caller { string Call() { return Target(); } }\n"

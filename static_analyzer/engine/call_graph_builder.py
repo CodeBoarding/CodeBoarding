@@ -162,10 +162,9 @@ class CallGraphBuilder:
             # redundant document_symbol query (the probe can take minutes).
             # Interleaved adapters deliberately query again after didOpen so
             # that each overlay notification has a response barrier.
-            if idx == 1 and probe_result is not None and not interleave_open:
+            should_reuse_probe = idx == 1 and not interleave_open
+            if should_reuse_probe and probe_result is not None:
                 symbols = probe_result
-            elif interleave_open:
-                symbols = self._lsp.document_symbol(file_path, timeout=probe_timeout)
             else:
                 symbols = self._lsp.document_symbol(file_path)
             self._symbol_table.register_symbols(file_path, symbols, parent_chain=[], project_root=self._root)

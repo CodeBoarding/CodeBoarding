@@ -22,6 +22,19 @@ from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap, LSPDiagno
 logger = logging.getLogger(__name__)
 
 LSP_METHOD_NOT_FOUND = -32601
+ProgressToken = str | int
+
+
+def _progress_indicates_failure(message: str) -> bool:
+    message_lower = message.lower()
+    return "failed" in message_lower or "failure" in message_lower or "error" in message_lower
+
+
+def _progress_token(value: object) -> ProgressToken | None:
+    """Return a valid LSP work-done progress token."""
+    if isinstance(value, str) or (isinstance(value, int) and not isinstance(value, bool)):
+        return value
+    return None
 
 
 class MethodNotFoundError(Exception):
@@ -80,7 +93,8 @@ class LSPClient:
         self._server_ready = threading.Event()
         self._server_health: str | None = None
         self._server_health_message: str | None = None
-        self._work_done_progress_titles: dict[str | int, str] = {}
+        self._work_done_progress_titles: dict[ProgressToken, str] = {}
+        self._work_done_progress_failures: set[ProgressToken] = set()
         # Set when ``initialize`` returned an error response. ``wait_for_server_ready``
         # bails out immediately when this is set so callers don't burn 5 minutes
         # waiting on an LSP that already reported a fatal startup error
@@ -787,6 +801,9 @@ class LSPClient:
 
         elif method == "window/logMessage":
             message_text = params.get("message", "")
+            if "initial workspace load failed" in message_text.lower():
+                self._server_ready.clear()
+                self._work_done_progress_failures.update(self._work_done_progress_titles)
             # csharp-ls signals workspace readiness via logMessage
             if "Finished loading solution" in message_text:
                 self._server_ready.set()
@@ -796,17 +813,36 @@ class LSPClient:
             # csharp-ls and gopls report workspace load through work-done
             # progress. Remember the begin title because end notifications
             # do not have to repeat it.
-            token = params.get("token")
+            token = _progress_token(params.get("token"))
             value = params.get("value", {}) or {}
             kind = value.get("kind")
             message_text = value.get("message", "") or ""
             if kind == "begin" and token is not None:
-                self._work_done_progress_titles[token] = value.get("title", "") or ""
+                title = value.get("title", "") or ""
+                self._work_done_progress_titles[token] = title
+                self._work_done_progress_failures.discard(token)
+                if "indexing" in title.lower():
+                    self._server_ready.clear()
+            elif kind == "report" and token is not None and _progress_indicates_failure(message_text):
+                self._work_done_progress_failures.add(token)
             elif kind == "end":
                 title = self._work_done_progress_titles.pop(token, "") if token is not None else ""
-                if "project file(s) loaded" in message_text or title == "Setting up workspace":
+                failed = (
+                    token in self._work_done_progress_failures if token is not None else False
+                ) or _progress_indicates_failure(message_text)
+                if token is not None:
+                    self._work_done_progress_failures.discard(token)
+                if "project file(s) loaded" in message_text and not failed:
                     self._server_ready.set()
-                    logger.info("LSP server: workspace loaded (%s%s)", title, message_text)
+                    logger.info("LSP server: workspace loaded (%s)", " ".join(filter(None, [title, message_text])))
+                elif title == "Setting up workspace" and not failed:
+                    self._server_ready.set()
+                    logger.info("LSP server: workspace loaded (%s)", " ".join(filter(None, [title, message_text])))
+                elif "indexing" in title.lower() and not failed:
+                    self._server_ready.set()
+                    logger.info(
+                        "LSP server: workspace indexing ended (%s)", " ".join(filter(None, [title, message_text]))
+                    )
 
     def _read_single_message(self) -> dict | None:
         """Read a single JSON-RPC message from stdout using raw fd I/O."""

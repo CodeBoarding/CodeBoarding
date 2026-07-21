@@ -435,6 +435,72 @@ class TestWarmStartOutboundEdges(unittest.TestCase):
             ],
         )
 
+    def test_definition_resolution_same_line_fallback_prefers_class_over_nested_method(self) -> None:
+        file_path = Path("/repo/pkg/target.php")
+        call_graph = CallGraph(language="php")
+        call_graph.add_node(
+            Node(
+                fully_qualified_name="pkg.target.Target",
+                node_type=NodeType.CLASS,
+                file_path=str(file_path),
+                line_start=1,
+                line_end=1,
+                col_start=6,
+            )
+        )
+        call_graph.add_node(
+            Node(
+                fully_qualified_name="pkg.target.Target.method",
+                node_type=NodeType.METHOD,
+                file_path=str(file_path),
+                line_start=1,
+                line_end=1,
+                col_start=29,
+            )
+        )
+        definition = {
+            "uri": file_path.as_uri(),
+            "range": {"start": {"line": 0, "character": 0}, "end": {"line": 0, "character": 6}},
+        }
+
+        matches = _definition_nodes(call_graph, definition)
+
+        self.assertEqual([node.fully_qualified_name for node in matches], ["pkg.target.Target"])
+
+    def test_definition_resolution_includes_constructor_parent_without_definition_strategy(self) -> None:
+        file_path = Path("/repo/pkg/target.php")
+        call_graph = CallGraph(language="php")
+        call_graph.add_node(
+            Node(
+                fully_qualified_name="pkg.target.Target",
+                node_type=NodeType.CLASS,
+                file_path=str(file_path),
+                line_start=1,
+                line_end=5,
+            )
+        )
+        call_graph.add_node(
+            Node(
+                fully_qualified_name="pkg.target.Target.__construct",
+                node_type=NodeType.CONSTRUCTOR,
+                file_path=str(file_path),
+                line_start=2,
+                line_end=2,
+                col_start=5,
+            )
+        )
+        definition = {
+            "uri": file_path.as_uri(),
+            "range": {"start": {"line": 1, "character": 5}, "end": {"line": 1, "character": 16}},
+        }
+
+        matches = _definition_nodes(call_graph, definition)
+
+        self.assertEqual(
+            [node.fully_qualified_name for node in matches],
+            ["pkg.target.Target.__construct", "pkg.target.Target"],
+        )
+
     def test_cached_outbound_edge_is_restored_from_live_non_call_reference(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             changed_file = Path(temp_dir) / "changed.py"
