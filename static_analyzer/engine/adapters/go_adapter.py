@@ -78,6 +78,16 @@ class GoAdapter(LanguageAdapter):
         return True
 
     @property
+    def probe_before_open(self) -> bool:
+        """Probe the loaded gopls workspace before creating file overlays."""
+        return True
+
+    @property
+    def interleave_did_open_with_symbols(self) -> bool:
+        """Apply request backpressure while gopls creates file overlays."""
+        return True
+
+    @property
     def language(self) -> str:
         return "Go"
 

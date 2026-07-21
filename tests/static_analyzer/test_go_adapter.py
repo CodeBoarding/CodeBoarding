@@ -48,6 +48,12 @@ class TestGetLspCommandGoCheck:
     def test_waits_for_initial_workspace_load(self) -> None:
         assert GoAdapter().wait_for_workspace_ready is True
 
+    def test_applies_backpressure_while_opening_files(self) -> None:
+        adapter = GoAdapter()
+
+        assert adapter.probe_before_open is True
+        assert adapter.interleave_did_open_with_symbols is True
+
 
 class TestBuildTagFiltering:
     """Tests for _has_excluding_build_tag and discover_source_files filtering."""

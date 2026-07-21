@@ -186,11 +186,16 @@ class LanguageAdapter(ABC):
         """
         return False
 
+    @property
+    def interleave_did_open_with_symbols(self) -> bool:
+        """If True, probe first, then pair each didOpen with its documentSymbol request."""
+        return False
+
     def get_probe_timeout_minimum(self) -> int:
         """Return the minimum probe timeout in seconds for initial indexing.
 
-        The call graph builder sends a sync probe after opening all files
-        to wait for the LSP server to finish indexing.  Some servers
+        The call graph builder sends a sync probe before or after opening files
+        to wait for the LSP server to finish indexing. Some servers
         (e.g., csharp-ls loading a Roslyn workspace) need significantly
         more time than the default 300s base.  Override to raise the floor.
         """
