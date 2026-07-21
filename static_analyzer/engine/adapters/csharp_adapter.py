@@ -33,10 +33,6 @@ class CSharpAdapter(LanguageAdapter):
         return True
 
     @property
-    def include_callable_parent_edges(self) -> bool:
-        return True
-
-    @property
     def language(self) -> str:
         return "CSharp"
 

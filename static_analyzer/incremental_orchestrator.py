@@ -22,6 +22,7 @@ from static_analyzer.constants import NodeType
 from static_analyzer.engine.call_graph_builder import CallGraphBuilder
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_client import LSPClient
+from static_analyzer.engine.lsp_constants import EdgeStrategy
 from static_analyzer.engine.result_converter import convert_to_codeboarding_format
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.utils import definition_location, uri_to_path
@@ -124,6 +125,7 @@ def _rebuild_changed_file_edges(
         changed_source_files,
         engine_client,
         source_inspector,
+        include_callable_parent=adapter.edge_strategy == EdgeStrategy.DEFINITIONS,
     )
 
 
@@ -216,6 +218,7 @@ def _add_outbound_edges_from_changed_files(
     changed_source_files: list[Path],
     engine_client: LSPClient,
     source_inspector: SourceInspector,
+    include_callable_parent: bool = False,
 ) -> None:
     if not changed_source_files:
         return
@@ -240,7 +243,7 @@ def _add_outbound_edges_from_changed_files(
             if src_node is None:
                 continue
             for definition in definitions:
-                for dst_node in _definition_nodes(call_graph, definition):
+                for dst_node in _definition_nodes(call_graph, definition, include_callable_parent):
                     if dst_node.fully_qualified_name == src_node.fully_qualified_name:
                         continue
                     try:
@@ -291,7 +294,11 @@ def _most_specific_node_at_position(
     )
 
 
-def _definition_nodes(call_graph: CallGraph, definition: dict) -> list[Node]:
+def _definition_nodes(
+    call_graph: CallGraph,
+    definition: dict,
+    include_callable_parent: bool = False,
+) -> list[Node]:
     location = definition_location(definition)
     if location is None:
         return []
@@ -316,7 +323,7 @@ def _definition_nodes(call_graph: CallGraph, definition: dict) -> list[Node]:
         return []
 
     targets = [target]
-    if target.is_callable():
+    if include_callable_parent and target.is_callable():
         parent = call_graph.nodes.get(parent_qualified_name(target.fully_qualified_name))
         if parent is not None and parent.is_class():
             targets.append(parent)

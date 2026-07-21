@@ -28,11 +28,6 @@ class LanguageAdapter(ABC):
         return False
 
     @property
-    def include_callable_parent_edges(self) -> bool:
-        """Whether member calls also create dependencies on their containing class."""
-        return False
-
-    @property
     @abstractmethod
     def language(self) -> str:
         """Language name as it appears in results (e.g., 'Python', 'Go')."""

@@ -39,9 +39,6 @@ class EdgeBuildAdapter(Protocol):
     def include_references_on_declaration_line(self) -> bool: ...
 
     @property
-    def include_callable_parent_edges(self) -> bool: ...
-
-    @property
     def references_batch_size(self) -> int: ...
 
     @property

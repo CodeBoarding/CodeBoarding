@@ -425,7 +425,7 @@ class TestWarmStartOutboundEdges(unittest.TestCase):
             "range": {"start": {"line": 9, "character": 8}, "end": {"line": 9, "character": 15}},
         }
 
-        matches = _definition_nodes(call_graph, definition)
+        matches = _definition_nodes(call_graph, definition, include_callable_parent=True)
 
         self.assertEqual(
             [node.fully_qualified_name for node in matches],

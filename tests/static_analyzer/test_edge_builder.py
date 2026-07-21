@@ -21,13 +21,9 @@ from static_analyzer.engine.symbol_table import SymbolTable
 from tests.static_analyzer.test_call_graph_builder import _TestAdapter
 
 
-class _ParentEdgeTestAdapter(_TestAdapter):
+class _ExpressionBodyTestAdapter(_TestAdapter):
     @property
     def include_references_on_declaration_line(self) -> bool:
-        return True
-
-    @property
-    def include_callable_parent_edges(self) -> bool:
         return True
 
 
@@ -71,14 +67,13 @@ def _sym(
     )
 
 
-def test_reference_call_on_caller_declaration_line_produces_edge(tmp_path: Path):
-    """Expression-bodied member calls keep method and class dependencies."""
+def test_reference_call_in_expression_body_produces_edge(tmp_path: Path):
     source = tmp_path / "Caller.cs"
     source.write_text("public static string Caller() => Target();\n")
     target_file = tmp_path / "Target.cs"
     target_file.write_text('public static string Target() => "target";\n')
 
-    adapter = _ParentEdgeTestAdapter()
+    adapter = _ExpressionBodyTestAdapter()
     ctx = EdgeBuildContext(_make_lsp(), SymbolTable(adapter), SourceInspector())
     caller = _sym("Caller", "Caller.Caller", NodeType.METHOD, str(source), 0, 0, 0, 42)
     target_class = _sym("Target", "Target", NodeType.CLASS, str(target_file), 0, 0, 0, 45)
@@ -94,7 +89,29 @@ def test_reference_call_on_caller_declaration_line_produces_edge(tmp_path: Path)
     _process_references_for_position(adapter, ctx, [target], [reference], edge_set)
 
     assert (caller.qualified_name, target.qualified_name) in edge_set
-    assert (caller.qualified_name, target_class.qualified_name) in edge_set
+    assert (caller.qualified_name, target_class.qualified_name) not in edge_set
+
+
+def test_reference_in_constructor_initializer_is_not_a_call_edge(tmp_path: Path):
+    source = tmp_path / "Cat.cs"
+    source.write_text("public Cat(string name) : base(name) {}\n")
+    target_file = tmp_path / "Animal.cs"
+    target_file.write_text("protected Animal(string name) {}\n")
+
+    adapter = _ExpressionBodyTestAdapter()
+    ctx = EdgeBuildContext(_make_lsp(), SymbolTable(adapter), SourceInspector())
+    caller = _sym("Cat", "Cat.Cat", NodeType.CONSTRUCTOR, str(source), 0, 0, 0, 40)
+    target = _sym("Animal", "Animal.Animal", NodeType.CONSTRUCTOR, str(target_file), 0, 10, 0, 30)
+    ctx.symbol_table.file_symbols[str(source)] = [caller]
+    edge_set: EdgeMap = {}
+    reference = {
+        "uri": source.as_uri(),
+        "range": {"start": {"line": 0, "character": 26}, "end": {"line": 0, "character": 30}},
+    }
+
+    _process_references_for_position(adapter, ctx, [target], [reference], edge_set)
+
+    assert edge_set == {}
 
 
 def test_reference_at_caller_declaration_position_is_not_an_edge(tmp_path: Path):

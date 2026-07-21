@@ -232,7 +232,7 @@ def _process_references_for_position(
                 continue
             if ref_loc == container.definition_location:
                 continue
-            if not adapter.include_references_on_declaration_line and (str(ref_file), ref_line) == (
+            if (str(ref_file), ref_line) == (
                 str(container.file_path),
                 container.start_line,
             ):
@@ -242,25 +242,12 @@ def _process_references_for_position(
                     char == "{" and (index == 0 or line_prefix[index - 1] != "$")
                     for index, char in enumerate(line_prefix)
                 )
-                if not has_block_opening:
+                has_expression_body = adapter.include_references_on_declaration_line and "=>" in line_prefix
+                if not has_block_opening and not has_expression_body:
                     continue
             if sym.qualified_name.startswith(container.qualified_name + "."):
                 continue
             _add_edge_site(edge_set, container.qualified_name, sym.qualified_name, ref_file, ref_line, ref_char)
-
-            # Some language graphs represent a member call as both the call
-            # and a dependency on the member's containing class.
-            if adapter.include_callable_parent_edges and adapter.is_callable(sym.kind):
-                parent = st.symbols.get(parent_qualified_name(sym.qualified_name))
-                if parent is not None and adapter.is_class_like(parent.kind):
-                    _add_edge_site(
-                        edge_set,
-                        container.qualified_name,
-                        parent.qualified_name,
-                        ref_file,
-                        ref_line,
-                        ref_char,
-                    )
 
     return refs_total, refs_call_sites
 
