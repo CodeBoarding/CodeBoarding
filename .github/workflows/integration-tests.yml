@@ -28,7 +28,23 @@ on:
         default: false
         type: boolean
 
+  # PRs are intentionally not executed, but kept for manual visibility + optional
+  # skip behavior when the listed files are touched.
   pull_request:
+    paths:
+      - 'install.py'
+      - 'tool_registry/**'
+      - 'vscode_constants.py'
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - 'static_analyzer/**'
+      - 'repo_utils/ignore.py'
+      - 'agents/model_capabilities.py'
+      - 'agents/llm_config.py'
+      - 'health/**'
+      - 'tests/test_install.py'
+      - 'tests/test_tool_registry.py'
+      - '.github/workflows/integration-tests.yml'
 
   workflow_run:
     workflows: ['CodeBoarding sync']
