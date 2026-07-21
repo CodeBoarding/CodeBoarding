@@ -131,6 +131,10 @@ class ChangedMembers:
     them so such edits are never silently missed.
     """
 
+    # Bare qnames, not (file, qname): downstream dirty/restore checks match on qname alone, which
+    # assumes a qname is unique per file (module-path-prefixed qnames guarantee this). A cross-file
+    # bare-qname collision would let one file's edit dirty the other's cluster — accepted as a
+    # redundant re-detail, never a missed change.
     members: set[str] = field(default_factory=set)
     unattributed_files: set[str] = field(default_factory=set)
 

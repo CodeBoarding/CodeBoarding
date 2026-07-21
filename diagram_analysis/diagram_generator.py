@@ -1571,11 +1571,22 @@ def _child_scope_needs_recursive_update(
         for method in group.methods
         if method.qualified_name
     }
+    # A module-level edit no member represents surfaces only as dirty_files, so match on the
+    # child's owned files too — otherwise a pure import/constant edit in a file this expanded
+    # child owns refreshes the parent but leaves the child's descriptions/relations stale.
+    owned_files = {
+        normalize_repo_path(group.file_path)
+        for component in child_scope.components
+        for group in component.file_methods
+        if group.file_path
+    }
     changed_qnames: set[str] = set()
+    dirty_files: set[str] = set()
     for diff in structural_diff.by_language.values():
         for member_delta in [*diff.modified, *diff.new_details]:
             changed_qnames.update(member_delta.removed_methods, member_delta.added_methods, member_delta.dirty_members)
-    return bool(changed_qnames.intersection(owned_qnames))
+            dirty_files.update(normalize_repo_path(path) for path in member_delta.dirty_files)
+    return bool(changed_qnames & owned_qnames) or bool(dirty_files & owned_files)
 
 
 def _build_scope_incremental_inputs(

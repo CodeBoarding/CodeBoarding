@@ -34,7 +34,12 @@ from diagram_analysis.analysis_json import (
     parse_unified_analysis,
 )
 from diagram_analysis.cluster_delta import ClusterMemberDelta, ClusterRef, LanguageStructuralDiff, StructuralClusterDiff
-from diagram_analysis.diagram_generator import DiagramGenerator, _component_depth, _component_expansion_seeds
+from diagram_analysis.diagram_generator import (
+    DiagramGenerator,
+    _child_scope_needs_recursive_update,
+    _component_depth,
+    _component_expansion_seeds,
+)
 from diagram_analysis.exceptions import IncrementalCacheMissingError
 from repo_utils.change_detector import ChangeSet
 from static_analyzer.analysis_cache import StaticAnalysisCache
@@ -1199,6 +1204,60 @@ class TestDiagramGenerator(unittest.TestCase):
         )
 
         self.assertEqual(result.relation_contexts, {"root": relation_context})
+
+    def test_child_scope_recurses_on_owned_dirty_file(self):
+        # A module-level edit surfaces only as dirty_files (no qname signal); a child that owns
+        # that file must still be recursed into so its descriptions/relations don't go stale.
+        child_scope = AnalysisInsights(
+            description="child",
+            components=[
+                Component(
+                    name="Child",
+                    description="",
+                    key_entities=[],
+                    component_id="1.1",
+                    file_methods=[
+                        FileMethodGroup(
+                            file_path="pkg/module.py",
+                            methods=[MethodEntry(qualified_name="pkg.m", start_line=1, end_line=5, node_type="METHOD")],
+                        )
+                    ],
+                )
+            ],
+            components_relations=[],
+        )
+        dirty_only = StructuralClusterDiff(
+            by_language={
+                "python": LanguageStructuralDiff(
+                    language="python",
+                    modified=[
+                        ClusterMemberDelta(
+                            old_cluster=ClusterRef(language="python", cluster_id=1),
+                            new_cluster=ClusterRef(language="python", cluster_id=1),
+                            dirty_files={"pkg/module.py"},
+                        )
+                    ],
+                )
+            }
+        )
+        self.assertTrue(_child_scope_needs_recursive_update(child_scope, dirty_only))
+
+        # A dirty file the child does not own must not trigger a recursive update.
+        other_file = StructuralClusterDiff(
+            by_language={
+                "python": LanguageStructuralDiff(
+                    language="python",
+                    modified=[
+                        ClusterMemberDelta(
+                            old_cluster=ClusterRef(language="python", cluster_id=1),
+                            new_cluster=ClusterRef(language="python", cluster_id=1),
+                            dirty_files={"other/elsewhere.py"},
+                        )
+                    ],
+                )
+            }
+        )
+        self.assertFalse(_child_scope_needs_recursive_update(child_scope, other_file))
 
     @patch("diagram_analysis.diagram_generator._build_scope_incremental_inputs")
     def test_recursive_scope_update_aggregates_relation_contexts(self, mock_build_scope_inputs):

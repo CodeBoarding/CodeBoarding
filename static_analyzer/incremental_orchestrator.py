@@ -379,10 +379,13 @@ def _filter_to_live_files(merged_analysis: AnalysisData) -> AnalysisData:
         on_dropped_edge=lambda _edge: None,
     )
 
+    # Hierarchy entries are keyed by class qname and carry no file_path, so filter by whether the
+    # class still exists as a live call-graph node (already filtered above) — the old
+    # ``info.get("file_path")`` check was always None and dropped every hierarchy, which then
+    # starved the warm-start INHERITS re-derivation of its source on the next run.
+    live_class_names = set(merged_analysis.call_graph.nodes.keys())
     merged_analysis.class_hierarchies = {
-        name: info
-        for name, info in merged_analysis.class_hierarchies.items()
-        if info.get("file_path") in existing_file_strs
+        name: info for name, info in merged_analysis.class_hierarchies.items() if name in live_class_names
     }
 
     filtered_packages: dict[str, Any] = {}
