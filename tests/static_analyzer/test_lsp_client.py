@@ -275,6 +275,26 @@ class TestSendReferencesBatch:
         assert results[1] == refs_b
         assert error_indices == set()
 
+    def test_scales_batch_deadline_from_per_query_timeout(self):
+        client = LSPClient(["cmd"], Path("/root"))
+
+        def mock_collect(req_ids, timeout=None):
+            assert timeout == 30
+            return {req_id: [] for req_id in req_ids}, set(), set()
+
+        with (
+            patch.object(client, "_write_message"),
+            patch.object(client, "_collect_batch_responses", side_effect=mock_collect),
+        ):
+            client.send_references_batch(
+                [
+                    (Path("/root/a.py"), 1, 0),
+                    (Path("/root/b.py"), 2, 0),
+                    (Path("/root/c.py"), 3, 0),
+                ],
+                per_query_timeout=10,
+            )
+
     def test_returns_error_indices_for_failed_requests(self):
         client = LSPClient(["cmd"], Path("/root"))
         client._request_id = 0

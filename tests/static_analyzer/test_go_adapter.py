@@ -146,6 +146,11 @@ class TestGoplsConfiguration:
         env = adapter.get_lsp_env()
         assert env["GOGC"] == "50"
 
+    def test_reference_queries_use_small_batches_with_scaled_timeout(self):
+        adapter = GoAdapter()
+        assert adapter.references_batch_size == 10
+        assert adapter.references_per_query_timeout == 10
+
     def test_directory_filters_deduplicates(self, tmp_path: Path):
         """Same directory from multiple patterns should only appear once."""
         cb_dir = tmp_path / CODEBOARDING_DIR_NAME

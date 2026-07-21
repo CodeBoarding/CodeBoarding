@@ -190,6 +190,16 @@ class GoAdapter(LanguageAdapter):
         """
         return {"GOGC": "50"}
 
+    @property
+    def references_batch_size(self) -> int:
+        """Limit concurrent gopls reference searches to avoid request backlogs."""
+        return 10
+
+    @property
+    def references_per_query_timeout(self) -> int:
+        """Give each serialized gopls reference search a modest time budget."""
+        return 10
+
     def discover_source_files(self, project_root: Path, ignore_manager: RepoIgnoreManager) -> list[Path]:
         """Discover Go source files, filtering out build-tag-constrained files.
 
