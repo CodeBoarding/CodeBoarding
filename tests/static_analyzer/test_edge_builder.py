@@ -4,6 +4,7 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 from static_analyzer.engine.edge_builder import (
+    EdgeMap,
     _best_candidate,
     _is_valid_edge,
     _process_references_for_position,
@@ -84,7 +85,7 @@ def test_reference_call_on_caller_declaration_line_produces_edge(tmp_path: Path)
     target = _sym("Target", "Target.Target", NodeType.METHOD, str(target_file), 0, 21, 0, 27)
     ctx.symbol_table.symbols[target_class.qualified_name] = target_class
     ctx.symbol_table.file_symbols[str(source)] = [caller]
-    edge_set = {}
+    edge_set: EdgeMap = {}
     reference = {
         "uri": source.as_uri(),
         "range": {"start": {"line": 0, "character": 33}, "end": {"line": 0, "character": 39}},
@@ -110,7 +111,7 @@ def test_reference_at_caller_declaration_position_is_not_an_edge(tmp_path: Path)
         "uri": source.as_uri(),
         "range": {"start": {"line": 0, "character": 19}, "end": {"line": 0, "character": 25}},
     }
-    edge_set = {}
+    edge_set: EdgeMap = {}
 
     _process_references_for_position(adapter, ctx, [target], [reference], edge_set)
 
@@ -131,7 +132,7 @@ def test_reference_later_on_declaration_line_is_ignored_by_default(tmp_path: Pat
         "uri": source.as_uri(),
         "range": {"start": {"line": 0, "character": 21}, "end": {"line": 0, "character": 27}},
     }
-    edge_set = {}
+    edge_set: EdgeMap = {}
 
     _process_references_for_position(adapter, ctx, [target], [reference], edge_set)
 
@@ -152,7 +153,7 @@ def test_reference_in_template_interpolation_is_not_a_block_body_edge(tmp_path: 
         "uri": source.as_uri(),
         "range": {"start": {"line": 0, "character": 31}, "end": {"line": 0, "character": 37}},
     }
-    edge_set = {}
+    edge_set: EdgeMap = {}
 
     _process_references_for_position(adapter, ctx, [target], [reference], edge_set)
 
@@ -173,7 +174,7 @@ def test_reference_in_same_line_block_body_is_an_edge(tmp_path: Path):
         "uri": source.as_uri(),
         "range": {"start": {"line": 0, "character": 34}, "end": {"line": 0, "character": 40}},
     }
-    edge_set = {}
+    edge_set: EdgeMap = {}
 
     _process_references_for_position(adapter, ctx, [target], [reference], edge_set)
 
