@@ -99,7 +99,7 @@ def build_all_cluster_results(static_analysis: StaticAnalysisResults) -> dict[st
                 f"[SuperCluster] {lang}: {n_clusters} clusters exceeds limit of {MAX_LLM_CLUSTERS}, "
                 f"merging into super-clusters"
             )
-            cluster_results[lang] = merge_clusters(cr, cfg.to_networkx(), MAX_LLM_CLUSTERS)
+            cluster_results[lang] = merge_clusters(cr, cfg.clustering_networkx(), MAX_LLM_CLUSTERS)
             new_count = len(cluster_results[lang].clusters)
             logger.info(f"[SuperCluster] {lang}: merged {n_clusters} -> {new_count} super-clusters")
 
@@ -107,7 +107,7 @@ def build_all_cluster_results(static_analysis: StaticAnalysisResults) -> dict[st
     # within MAX_LLM_CLUSTERS by proportionally reducing per-language counts,
     # then re-index IDs so they don't overlap across languages.
     if len(cluster_results) > 1:
-        cfg_graphs = {lang: static_analysis.get_cfg(Language(lang)).to_networkx() for lang in cluster_results}
+        cfg_graphs = {lang: static_analysis.get_cfg(Language(lang)).clustering_networkx() for lang in cluster_results}
         enforce_cross_language_budget(cluster_results, cfg_graphs)
 
     _sync_cluster_cache(static_analysis, cluster_results)

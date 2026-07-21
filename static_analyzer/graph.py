@@ -262,9 +262,13 @@ class CallGraph:
         carried: list[tuple[str, str, str]] = []
         for source in (self, *extra_sources):
             for s, d, k in getattr(source, "reference_edges", ()):
-                if s in out.nodes and d in out.nodes and (s, d, k) not in seen:
-                    seen.add((s, d, k))
-                    carried.append((s, d, k))
+                # Resolve through the SOURCE's alias map: an endpoint stored under a short
+                # alias must map to the canonical name ``out`` promoted it to, or a call edge
+                # (which add_edge resolves) survives while its reference edge is silently dropped.
+                rs, rd = source._resolve_name(s), source._resolve_name(d)
+                if rs in out.nodes and rd in out.nodes and rs != rd and (rs, rd, k) not in seen:
+                    seen.add((rs, rd, k))
+                    carried.append((rs, rd, k))
         out.reference_edges = carried
 
     def filter(
@@ -398,9 +402,12 @@ class CallGraph:
         kinds = set(ClusteringConfig.CLUSTERING_EDGE_KINDS if reference_kinds is None else reference_kinds)
         nx_graph = self.to_networkx()
         # getattr: baselines pickled before reference edges existed lack the attribute.
+        # Resolve endpoints through the alias map so an edge stored under a short alias still
+        # lands on the canonical node (matching how add_edge resolves call edges).
         for src, dst, kind in getattr(self, "reference_edges", ()):
-            if kind in kinds and src in self.nodes and dst in self.nodes:
-                nx_graph.add_edge(src, dst)
+            rsrc, rdst = self._resolve_name(src), self._resolve_name(dst)
+            if kind in kinds and rsrc in self.nodes and rdst in self.nodes:
+                nx_graph.add_edge(rsrc, rdst)
         return nx_graph
 
     def cluster(

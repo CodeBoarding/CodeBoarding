@@ -40,8 +40,8 @@ class TestClusterHelpers(unittest.TestCase):
 
         python_cfg.cluster.return_value = self._make_cluster_result("py", 40)
         typescript_cfg.cluster.return_value = self._make_cluster_result("ts", 40)
-        python_cfg.to_networkx.return_value = object()
-        typescript_cfg.to_networkx.return_value = object()
+        python_cfg.clustering_networkx.return_value = object()
+        typescript_cfg.clustering_networkx.return_value = object()
 
         analysis.get_cfg.side_effect = lambda language: {
             "python": python_cfg,

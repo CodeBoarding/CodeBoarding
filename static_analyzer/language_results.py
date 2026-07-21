@@ -53,7 +53,7 @@ class ControlFlowGraph:
         # Carry the other graph's reference edges (CONTAINS/INHERITS/TYPEREF/IMPORT) so a
         # same-language sub-project's completed graph isn't reduced to call-only after merge.
         # Re-added via the API so alias-resolution and node-existence guards apply post-merge.
-        for src, dst, kind in other.reference_edges:
+        for src, dst, kind in getattr(other, "reference_edges", ()):
             self.graph.add_reference_edge(src, dst, EdgeKind(kind))
         self.graph.method_cluster_paths.merge(other.method_cluster_paths)
 

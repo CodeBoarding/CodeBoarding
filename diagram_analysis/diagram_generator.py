@@ -20,6 +20,7 @@ from agents.agent_responses import (
     MetaAnalysisInsights,
     Relation,
     SourceCodeReference,
+    index_components_by_id,
 )
 from agents.cluster_methods_mixin import scoped_snapshot_from_lineage
 from agents.details_agent import DetailsAgent
@@ -597,7 +598,10 @@ class DiagramGenerator:
             return True
         if not cluster_results:
             return False
-        cfg_graphs = {lang: cfg.to_networkx() for lang, cfg in subgraph_cfgs.items()}
+        # Reference-augmented graph, matching the production split (deterministic_cluster_grouping ->
+        # supercluster_by_modularity_peak): a component separable only via CONTAINS/INHERITS edges
+        # must not be judged cohesive on a call-only graph.
+        cfg_graphs = {lang: cfg.clustering_networkx() for lang, cfg in subgraph_cfgs.items()}
         return component_is_separable(cluster_results, cfg_graphs)
 
     def _process_component(
@@ -1119,12 +1123,28 @@ class DiagramGenerator:
         # Only when the details agent is live (the analysis flows); a bare re-save without it keeps
         # the deterministic default (``None`` -> structural computation) rather than risk a crash.
         expandable_component_ids: list[str] | None = None
+        sub_expandable_ids: dict[str, list[str]] | None = None
         if self.details_agent is not None:
             expandable_component_ids = [
                 component.component_id
                 for component in get_expandable_components(root_analysis, separable=self._component_separable)
                 if component.component_id
             ]
+            # Same separability-respecting decision for each nested scope, so a cohesive
+            # sub-component kept as a leaf isn't advertised as expandable by the save-time
+            # structural recompute either.
+            component_lookup = index_components_by_id(root_analysis, sub_analyses)
+            sub_expandable_ids = {}
+            for cid, sub in sub_analyses.items():
+                parent = component_lookup.get(cid)
+                parent_had_clusters = bool(parent.source_cluster_ids) if parent else True
+                sub_expandable_ids[cid] = [
+                    component.component_id
+                    for component in get_expandable_components(
+                        sub, parent_had_clusters=parent_had_clusters, separable=self._component_separable
+                    )
+                    if component.component_id
+                ]
         analysis_path = save_analysis(
             analysis=root_analysis,
             output_dir=Path(self.output_dir),
@@ -1134,6 +1154,7 @@ class DiagramGenerator:
             repo_dir=self.repo_location,
             source_tree_hash=source_tree_hash,
             expandable_component_ids=expandable_component_ids,
+            sub_expandable_ids=sub_expandable_ids,
         ).resolve()
         if seed_delta is not None:
             self._seed_incremental_cluster_cache(seed_delta)

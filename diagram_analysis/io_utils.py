@@ -119,6 +119,7 @@ class _AnalysisFileStore:
         sub_analyses: dict[str, AnalysisInsights] | None = None,
         repo_name: str = "",
         file_coverage_summary: FileCoverageSummary | None = None,
+        sub_expandable_ids: dict[str, list[str]] | None = None,
     ) -> Path:
         """Write the full analysis to ``analysis.json`` with file locking.
 
@@ -134,6 +135,7 @@ class _AnalysisFileStore:
                 sub_analyses,
                 repo_name,
                 file_coverage_summary,
+                sub_expandable_ids,
             )
 
     def write_sub(
@@ -195,6 +197,7 @@ class _AnalysisFileStore:
         sub_analyses: dict[str, AnalysisInsights] | None = None,
         repo_name: str = "",
         file_coverage_summary: FileCoverageSummary | None = None,
+        sub_expandable_ids: dict[str, list[str]] | None = None,
     ) -> Path:
         """Write ``analysis.json`` — caller must already hold ``self._lock``."""
         # A caller-provided set is authoritative: it already reflects the run's expansion
@@ -236,9 +239,15 @@ class _AnalysisFileStore:
             component_lookup = index_components_by_id(analysis, sub_analyses)
             sub_analyses_tuples = {}
             for cid, sub in sub_analyses.items():
-                parent_component = component_lookup.get(cid)
-                parent_had_clusters = bool(parent_component.source_cluster_ids) if parent_component else True
-                sub_expandable = self._compute_expandable_components(sub, parent_had_clusters=parent_had_clusters)
+                if sub_expandable_ids is not None and cid in sub_expandable_ids:
+                    # Authoritative per-sub set from the run's separability gate; same
+                    # rationale as the root list above (don't re-mark suppressed leaves).
+                    ids = set(sub_expandable_ids[cid])
+                    sub_expandable = [c for c in sub.components if c.component_id in ids]
+                else:
+                    parent_component = component_lookup.get(cid)
+                    parent_had_clusters = bool(parent_component.source_cluster_ids) if parent_component else True
+                    sub_expandable = self._compute_expandable_components(sub, parent_had_clusters=parent_had_clusters)
                 sub_analyses_tuples[cid] = (sub, sub_expandable)
 
         # Atomic write: build the JSON in a sibling temp file, then rename
@@ -356,6 +365,7 @@ def save_analysis(
     sub_analyses: dict[str, AnalysisInsights] | None = None,
     repo_name: str = "",
     file_coverage_summary: FileCoverageSummary | None = None,
+    sub_expandable_ids: dict[str, list[str]] | None = None,
 ) -> Path:
     """Save the analysis to a unified analysis.json file with file locking.
 
@@ -370,6 +380,7 @@ def save_analysis(
         sub_analyses,
         repo_name,
         file_coverage_summary,
+        sub_expandable_ids,
     )
 
 
