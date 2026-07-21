@@ -235,16 +235,16 @@ def _process_references_for_position(
             if (str(ref_file), ref_line) == (
                 str(container.file_path),
                 container.start_line,
+            ) and not si.is_reference_in_declaration_body(
+                ref_file,
+                container.start_line,
+                container.start_char,
+                ref_line,
+                ref_char,
+                ref_end_char,
+                include_expression_body=adapter.include_references_on_declaration_line,
             ):
-                source_line = si.get_source_line(ref_file, ref_line)
-                line_prefix = source_line[container.start_char : ref_char] if source_line is not None else ""
-                has_block_opening = any(
-                    char == "{" and (index == 0 or line_prefix[index - 1] != "$")
-                    for index, char in enumerate(line_prefix)
-                )
-                has_expression_body = adapter.include_references_on_declaration_line and "=>" in line_prefix
-                if not has_block_opening and not has_expression_body:
-                    continue
+                continue
             if sym.qualified_name.startswith(container.qualified_name + "."):
                 continue
             _add_edge_site(edge_set, container.qualified_name, sym.qualified_name, ref_file, ref_line, ref_char)

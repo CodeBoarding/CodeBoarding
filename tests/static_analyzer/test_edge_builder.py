@@ -94,19 +94,25 @@ def test_reference_call_in_expression_body_produces_edge(tmp_path: Path):
 
 def test_reference_in_constructor_initializer_is_not_a_call_edge(tmp_path: Path):
     source = tmp_path / "Cat.cs"
-    source.write_text("public Cat(string name) : base(name) {}\n")
+    source_text = "class Cat : Animal { public Cat(string name) : base(name) {} }\n"
+    source.write_text(source_text)
     target_file = tmp_path / "Animal.cs"
     target_file.write_text("protected Animal(string name) {}\n")
 
     adapter = _ExpressionBodyTestAdapter()
     ctx = EdgeBuildContext(_make_lsp(), SymbolTable(adapter), SourceInspector())
-    caller = _sym("Cat", "Cat.Cat", NodeType.CONSTRUCTOR, str(source), 0, 0, 0, 40)
+    caller_start = source_text.index("Cat(string")
+    caller = _sym("Cat", "Cat.Cat", NodeType.CONSTRUCTOR, str(source), 0, caller_start, 0, len(source_text))
     target = _sym("Animal", "Animal.Animal", NodeType.CONSTRUCTOR, str(target_file), 0, 10, 0, 30)
     ctx.symbol_table.file_symbols[str(source)] = [caller]
     edge_set: EdgeMap = {}
+    ref_start = source_text.index("base")
     reference = {
         "uri": source.as_uri(),
-        "range": {"start": {"line": 0, "character": 26}, "end": {"line": 0, "character": 30}},
+        "range": {
+            "start": {"line": 0, "character": ref_start},
+            "end": {"line": 0, "character": ref_start + len("base")},
+        },
     }
 
     _process_references_for_position(adapter, ctx, [target], [reference], edge_set)
