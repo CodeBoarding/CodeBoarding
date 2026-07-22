@@ -12,6 +12,7 @@ from agents.llm_config import (
     initialize_agent_llm,
     initialize_llms,
     initialize_parsing_llm,
+    selected_providers,
     validate_api_key_provided,
 )
 from agents.model_capabilities import ContextWindow
@@ -82,6 +83,13 @@ class TestValidateApiKeyProvided:
 
 
 class TestProviderSelection:
+    def test_atlascloud_activates_via_api_key(self):
+        atlascloud = LLM_PROVIDERS["atlascloud"]
+        with patch.dict(os.environ, {"ATLASCLOUD_API_KEY": "atlas-test"}, clear=True):
+            assert atlascloud.is_selected_by_env() is True
+            assert atlascloud.has_real_api_key() is True
+            assert selected_providers() == ["atlascloud"]
+
     def test_ollama_activates_via_ollama_host(self):
         ollama = LLM_PROVIDERS["ollama"]
         with patch.dict(os.environ, {"OLLAMA_HOST": "127.0.0.1:11434"}, clear=True):
@@ -204,6 +212,44 @@ class TestLiteLLMProvider:
         with patch.dict(os.environ, env, clear=True):
             with pytest.raises(ValueError, match="is selected by LITELLM_BASE_URL"):
                 initialize_llms()
+
+
+class TestAtlasCloudProvider:
+    """Atlas Cloud is an OpenAI-compatible provider with a fixed default endpoint."""
+
+    @patch("agents.prompts.prompt_factory.initialize_global_factory")
+    @patch("agents.agent.MONITORING_CALLBACK")
+    def test_uses_openai_compatible_defaults(self, mock_monitoring_callback, mock_init_factory):
+        env = {"ATLASCLOUD_API_KEY": "atlas-test"}
+        with patch.dict(os.environ, env, clear=True):
+            atlascloud_config = LLM_PROVIDERS["atlascloud"]
+            mock_llm = MagicMock()
+            with patch.object(atlascloud_config, "chat_class", return_value=mock_llm) as mock_chat_class:
+                initialize_llms()
+
+                agent_kwargs = mock_chat_class.call_args_list[0][1]
+                parsing_kwargs = mock_chat_class.call_args_list[1][1]
+                assert agent_kwargs["model"] == "deepseek-ai/deepseek-v4-pro"
+                assert parsing_kwargs["model"] == "qwen/qwen3.5-flash"
+                assert agent_kwargs["base_url"] == "https://api.atlascloud.ai/v1"
+                assert agent_kwargs["api_key"] == "atlas-test"
+                assert agent_kwargs["max_retries"] == 0
+
+    @patch("agents.prompts.prompt_factory.initialize_global_factory")
+    @patch("agents.agent.MONITORING_CALLBACK")
+    def test_allows_base_url_override(self, mock_monitoring_callback, mock_init_factory):
+        env = {
+            "ATLASCLOUD_API_KEY": "atlas-test",
+            "ATLASCLOUD_BASE_URL": "https://proxy.example.test/v1",
+        }
+        with patch.dict(os.environ, env, clear=True):
+            atlascloud_config = LLM_PROVIDERS["atlascloud"]
+            mock_llm = MagicMock()
+            with patch.object(atlascloud_config, "chat_class", return_value=mock_llm) as mock_chat_class:
+                initialize_llms()
+
+                agent_kwargs = mock_chat_class.call_args_list[0][1]
+                assert agent_kwargs["base_url"] == "https://proxy.example.test/v1"
 
 
 class TestDetectLLMTypeFromModel:

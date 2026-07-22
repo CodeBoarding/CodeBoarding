@@ -157,6 +157,20 @@ LLM_PROVIDERS = {
             "max_retries": 0,
         },
     ),
+    "atlascloud": LLMConfig(
+        chat_class=ChatOpenAI,
+        selection_envs=["ATLASCLOUD_API_KEY"],
+        api_key_env="ATLASCLOUD_API_KEY",
+        agent_model="deepseek-ai/deepseek-v4-pro",
+        parsing_model="qwen/qwen3.5-flash",
+        llm_type=LLMType.DEEPSEEK,
+        extra_args={
+            "base_url": lambda: os.getenv("ATLASCLOUD_BASE_URL", "https://api.atlascloud.ai/v1"),
+            "max_tokens": None,
+            "timeout": None,
+            "max_retries": 0,
+        },
+    ),
     "vercel": LLMConfig(
         chat_class=ChatOpenAI,
         selection_envs=["VERCEL_API_KEY", "VERCEL_BASE_URL"],
