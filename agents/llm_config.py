@@ -165,7 +165,7 @@ LLM_PROVIDERS = {
         parsing_model="qwen/qwen3.5-flash",
         llm_type=LLMType.DEEPSEEK,
         extra_args={
-            "base_url": lambda: os.getenv("ATLASCLOUD_BASE_URL", "https://api.atlascloud.ai/v1"),
+            "base_url": lambda: os.getenv("ATLASCLOUD_BASE_URL") or "https://api.atlascloud.ai/v1",
             "max_tokens": None,
             "timeout": None,
             "max_retries": 0,

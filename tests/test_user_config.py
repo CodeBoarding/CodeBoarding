@@ -1,5 +1,7 @@
 import os
 
+import pytest
+
 from agents.llm_config import LLM_PROVIDERS
 from user_config import (
     _PROVIDER_ENDPOINTS,
@@ -139,6 +141,29 @@ class TestLoadUserConfig:
         cfg = load_user_config(path)
 
         assert cfg.provider.openai_base_url is None
+
+    def test_loads_atlascloud_api_key(self, tmp_path):
+        path = tmp_path / "config.toml"
+        path.write_text('[provider]\natlascloud_api_key = "atlas-local"\n')
+
+        cfg = load_user_config(path)
+
+        assert cfg.provider.atlascloud_api_key == "atlas-local"
+
+    def test_empty_atlascloud_api_key_defaults_none(self, tmp_path):
+        path = tmp_path / "config.toml"
+        path.write_text('[provider]\natlascloud_api_key = ""\n')
+
+        cfg = load_user_config(path)
+
+        assert cfg.provider.atlascloud_api_key is None
+
+    def test_atlascloud_api_key_rejects_non_string(self, tmp_path):
+        path = tmp_path / "config.toml"
+        path.write_text("[provider]\natlascloud_api_key = 123\n")
+
+        with pytest.raises(ValueError, match=r"\[provider\]\.atlascloud_api_key must be a string"):
+            load_user_config(path)
 
 
 class TestEnsureConfigTemplate:

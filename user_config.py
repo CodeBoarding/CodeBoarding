@@ -142,7 +142,7 @@ def load_user_config(path: Path = CONFIG_PATH) -> UserConfig:
     return UserConfig(
         provider=ProviderUserConfig(
             openai_api_key=provider_data.get("openai_api_key") or None,
-            atlascloud_api_key=provider_data.get("atlascloud_api_key") or None,
+            atlascloud_api_key=_optional_string(provider_data, "atlascloud_api_key"),
             openai_base_url=provider_data.get("openai_base_url") or None,
             anthropic_api_key=provider_data.get("anthropic_api_key") or None,
             google_api_key=provider_data.get("google_api_key") or None,
@@ -164,6 +164,15 @@ def load_user_config(path: Path = CONFIG_PATH) -> UserConfig:
             context_window=llm_data.get("context_window"),
         ),
     )
+
+
+def _optional_string(data: dict[str, object], key: str) -> str | None:
+    value = data.get(key)
+    if value is None or value == "":
+        return None
+    if not isinstance(value, str):
+        raise ValueError(f"[provider].{key} must be a string")
+    return value
 
 
 def ensure_config_template(path: Path = CONFIG_PATH) -> None:

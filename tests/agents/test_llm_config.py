@@ -232,8 +232,11 @@ class TestAtlasCloudProvider:
                 assert agent_kwargs["model"] == "deepseek-ai/deepseek-v4-pro"
                 assert parsing_kwargs["model"] == "qwen/qwen3.5-flash"
                 assert agent_kwargs["base_url"] == "https://api.atlascloud.ai/v1"
+                assert parsing_kwargs["base_url"] == "https://api.atlascloud.ai/v1"
                 assert agent_kwargs["api_key"] == "atlas-test"
+                assert parsing_kwargs["api_key"] == "atlas-test"
                 assert agent_kwargs["max_retries"] == 0
+                assert parsing_kwargs["max_retries"] == 0
 
     @patch("agents.prompts.prompt_factory.initialize_global_factory")
     @patch("agents.agent.MONITORING_CALLBACK")
@@ -249,7 +252,24 @@ class TestAtlasCloudProvider:
                 initialize_llms()
 
                 agent_kwargs = mock_chat_class.call_args_list[0][1]
+                parsing_kwargs = mock_chat_class.call_args_list[1][1]
                 assert agent_kwargs["base_url"] == "https://proxy.example.test/v1"
+                assert parsing_kwargs["base_url"] == "https://proxy.example.test/v1"
+
+    @patch("agents.prompts.prompt_factory.initialize_global_factory")
+    @patch("agents.agent.MONITORING_CALLBACK")
+    def test_empty_base_url_uses_default_endpoint(self, mock_monitoring_callback, mock_init_factory):
+        env = {"ATLASCLOUD_API_KEY": "atlas-test", "ATLASCLOUD_BASE_URL": ""}
+        with patch.dict(os.environ, env, clear=True):
+            atlascloud_config = LLM_PROVIDERS["atlascloud"]
+            mock_llm = MagicMock()
+            with patch.object(atlascloud_config, "chat_class", return_value=mock_llm) as mock_chat_class:
+                initialize_llms()
+
+                agent_kwargs = mock_chat_class.call_args_list[0][1]
+                parsing_kwargs = mock_chat_class.call_args_list[1][1]
+                assert agent_kwargs["base_url"] == "https://api.atlascloud.ai/v1"
+                assert parsing_kwargs["base_url"] == "https://api.atlascloud.ai/v1"
 
 
 class TestDetectLLMTypeFromModel:
