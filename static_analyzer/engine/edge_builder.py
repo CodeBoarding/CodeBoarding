@@ -215,9 +215,7 @@ def _process_references_for_position(
             refs_total += 1
 
             # Filter to actual call sites based on symbol kind
-            if adapter.is_callable(sym.kind) and not si.is_invocation(ref_file, ref_line, ref_end_char):
-                continue
-            elif adapter.is_class_like(sym.kind) and not si.is_invocation(ref_file, ref_line, ref_end_char):
+            if adapter.is_class_like(sym.kind) and not si.is_invocation(ref_file, ref_line, ref_end_char):
                 continue
             elif sym.kind == NodeType.CONSTANT and not si.is_invocation(ref_file, ref_line, ref_end_char):
                 continue
@@ -247,8 +245,11 @@ def _process_references_for_position(
                 ref_end_char,
                 include_expression_body=adapter.include_references_on_declaration_line,
             )
-            if is_declaration_line and not is_declaration_body:
-                continue
+            if is_declaration_line:
+                if not is_declaration_body:
+                    continue
+                if adapter.is_callable(sym.kind) and not si.is_invocation(ref_file, ref_line, ref_end_char):
+                    continue
             if sym.qualified_name.startswith(container.qualified_name + "."):
                 continue
             _add_edge_site(edge_set, container.qualified_name, sym.qualified_name, ref_file, ref_line, ref_char)
