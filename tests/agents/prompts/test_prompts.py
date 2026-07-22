@@ -86,14 +86,6 @@ class TestPromptFactory(unittest.TestCase):
         with self.assertRaises(AttributeError):
             factory.get_prompt("nonexistent_prompt")
 
-    def test_get_all_prompts(self):
-        factory = PromptFactory(LLMType.GEMINI_FLASH)
-        prompts = factory.get_all_prompts()
-
-        self.assertIsInstance(prompts, dict)
-        self.assertGreater(len(prompts), 0)
-        self.assertIn("SYSTEM_MESSAGE", prompts)
-
 
 class TestLLMTypeFromModelName(unittest.TestCase):
     def test_from_model_name_gemini(self):

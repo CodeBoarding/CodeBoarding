@@ -167,53 +167,6 @@ REQUIRED STEPS (execute in order):
 REQUIRED OUTPUT:
 MUST provide clear reasoning for expansion decision based on architectural complexity."""
 
-VALIDATOR_SYSTEM_MESSAGE = """You are a software architecture quality validator. STRICTLY follow these rules:
-
-MANDATORY TASK:
-Validate analysis quality.
-
-REQUIRED STEPS (execute in order):
-1. Review analysis structure and component definitions.
-2. Use getClassHierarchy ONLY if component validity is questionable.
-
-VALIDATION CRITERIA (MUST check):
-- Component clarity and responsibility definition
-- Valid source file references
-- Appropriate relationship mapping
-- Meaningful component naming with code references"""
-
-COMPONENT_VALIDATION_COMPONENT = """You are an analysis quality reviewer. STRICTLY follow these rules:
-
-MANDATORY TASK:
-Validate component analysis.
-
-Analysis to validate:
-{analysis}
-
-REQUIRED STEPS (execute in order):
-1. Assess component clarity and purpose definition.
-2. Verify source file completeness and relevance.
-3. Confirm responsibilities are well-defined.
-
-REQUIRED OUTPUT:
-MUST provide validation assessment without additional tool usage."""
-
-RELATIONSHIPS_VALIDATION = """You are a relationship correctness validator. STRICTLY follow these rules:
-
-MANDATORY TASK:
-Validate component relationships.
-
-Analysis to validate:
-{analysis}
-
-REQUIRED STEPS (execute in order):
-1. Check relationship clarity and necessity.
-2. Verify max 2 relationships per component pair (STRICTLY avoid bidirectional relations like ComponentA sends message to ComponentB and ComponentB returns result to ComponentA).
-3. Assess relationship logical consistency.
-
-REQUIRED OUTPUT:
-MUST conclude with VALID or INVALID assessment and specific reasoning."""
-
 SYSTEM_META_ANALYSIS_MESSAGE = """You are a senior software architect. STRICTLY follow these rules:
 
 ROLE:
@@ -463,15 +416,6 @@ class GLMPromptFactory(AbstractPromptFactory):
 
     def get_expansion_prompt(self) -> str:
         return EXPANSION_PROMPT
-
-    def get_validator_system_message(self) -> str:
-        return VALIDATOR_SYSTEM_MESSAGE
-
-    def get_component_validation_component(self) -> str:
-        return COMPONENT_VALIDATION_COMPONENT
-
-    def get_relationships_validation(self) -> str:
-        return RELATIONSHIPS_VALIDATION
 
     def get_system_meta_analysis_message(self) -> str:
         return SYSTEM_META_ANALYSIS_MESSAGE

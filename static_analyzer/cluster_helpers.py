@@ -473,7 +473,7 @@ def merge_clusters(
 
 
 # ---------------------------------------------------------------------------
-# Cluster ID / file helpers
+# Cluster ID helpers
 # ---------------------------------------------------------------------------
 
 
@@ -491,21 +491,3 @@ def get_all_cluster_ids(cluster_results: dict[str, ClusterResult]) -> set[int]:
     for cluster_result in cluster_results.values():
         cluster_ids.update(cluster_result.get_cluster_ids())
     return cluster_ids
-
-
-def get_files_for_cluster_ids(cluster_ids: list[int], cluster_results: dict[str, ClusterResult]) -> set[str]:
-    """
-    Get all files that belong to the specified cluster IDs across all languages.
-
-    Args:
-        cluster_ids: List of cluster IDs to get files for
-        cluster_results: Dictionary mapping language -> ClusterResult
-
-    Returns:
-        Set of file paths belonging to the specified clusters
-    """
-    files: set[str] = set()
-    for cluster_result in cluster_results.values():
-        for cluster_id in cluster_ids:
-            files.update(cluster_result.get_files_for_cluster(cluster_id))
-    return files

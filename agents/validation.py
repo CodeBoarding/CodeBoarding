@@ -13,7 +13,6 @@ from agents.agent_responses import (
     ComponentFiles,
     Relation,
     ScopeOperationAction,
-    ScopeRelations,
     ScopeUpdateDecision,
 )
 from agents.scope_operations import EXISTING_COMPONENT_ACTIONS, cluster_ref_from_scoped_ref
@@ -53,7 +52,6 @@ class ValidationContext:
     expected_cluster_ids: set[int] = field(default_factory=set)
     expected_files: set[str] = field(default_factory=set)
     valid_component_names: set[str] = field(default_factory=set)  # For file classification validation
-    existing_component_ids: set[str] = field(default_factory=set)  # For incremental ID-based routing validation
     repo_dir: str | None = None  # For path normalization
     static_analysis: StaticAnalysisResults | None = None  # For qualified name validation
     llm_cluster_analysis: ClusterAnalysis | None = None  # For group name coverage validation
@@ -245,41 +243,6 @@ def validate_cluster_coverage(result: ClusterAnalysis, context: ValidationContex
         return ValidationResult(is_valid=True)
 
     return ValidationResult(is_valid=False, feedback_messages=feedback_messages)
-
-
-def validate_existing_component_ids(result: ClusterAnalysis, context: ValidationContext) -> ValidationResult:
-    """Reject ``existing_component_id`` values the LLM hallucinated.
-
-    Why: incremental routing identifies existing components by id (decision
-    #4). A hallucinated id silently creates a new component during stitching
-    instead of routing into the intended one. Catching it here forces the
-    LLM to retry with a valid id (or null for new components) before any
-    state mutation.
-    """
-    if not context.existing_component_ids:
-        return ValidationResult(is_valid=True)
-
-    feedback_messages: list[str] = []
-    valid_str = ", ".join(sorted(context.existing_component_ids))
-    for cc in result.cluster_components:
-        if cc.existing_component_id is None:
-            continue
-        if cc.existing_component_id not in context.existing_component_ids:
-            feedback_messages.append(
-                f"cluster_components entry '{cc.name}' references "
-                f"existing_component_id={cc.existing_component_id!r} which does not "
-                f"match any live component. Either set existing_component_id to a "
-                f"value from the existing-components list ({valid_str}), or set it "
-                f"to null to create a new component."
-            )
-
-    if feedback_messages:
-        logger.warning(
-            "[Validation] %d cluster_components entries reference unknown existing_component_id",
-            len(feedback_messages),
-        )
-        return ValidationResult(is_valid=False, feedback_messages=feedback_messages)
-    return ValidationResult(is_valid=True)
 
 
 def validate_group_name_coverage(result: ComponentValidationTarget, context: ValidationContext) -> ValidationResult:
@@ -638,35 +601,6 @@ def _has_relation_evidence(relation) -> bool:
     return any(edge.description.strip() for edge in relation.key_edges)
 
 
-def validate_scope_relation_names(result: ScopeRelations, _context: ValidationContext) -> ValidationResult:
-    """Validate that src_name/dst_name in scope relations match known component names."""
-    known_names = _context.valid_component_names
-    if not known_names:
-        return ValidationResult(is_valid=True)
-
-    invalid: list[str] = []
-    for rel in result.components_relations:
-        unknown: list[str] = []
-        if rel.src_name not in known_names:
-            unknown.append(f"src_name='{rel.src_name}'")
-        if rel.dst_name not in known_names:
-            unknown.append(f"dst_name='{rel.dst_name}'")
-        if unknown:
-            invalid.append(f"({rel.src_name} -{rel.relation}-> {rel.dst_name}): {', '.join(unknown)}")
-
-    if not invalid:
-        return ValidationResult(is_valid=True)
-
-    known_str = ", ".join(sorted(known_names))
-    feedback = (
-        f"The following relations reference component names that do not exist: {'; '.join(invalid)}. "
-        f"Known component names are: {known_str}. "
-        f"Ensure src_name and dst_name match an existing component name exactly."
-    )
-    logger.warning(f"[Validation] Scope relations with unknown names: {'; '.join(invalid)}")
-    return ValidationResult(is_valid=False, feedback_messages=[feedback])
-
-
 def _build_cluster_edge_lookup(
     cluster_results: dict[str, ClusterResult],
     cfg_graphs: dict[str, CallGraph],
@@ -723,34 +657,3 @@ def _cluster_sets_have_edge(
             if src_cluster in src_set and dst_cluster in dst_set:
                 return True
     return False
-
-
-def _check_edge_between_cluster_sets(
-    src_cluster_ids: list[int],
-    dst_cluster_ids: list[int],
-    cluster_results: dict[str, ClusterResult],
-    cfg_graphs: dict[str, CallGraph],
-    cluster_edge_lookup: dict[str, set[tuple[int, int]]] | None = None,
-) -> bool:
-    """
-    Check if there's an edge between any pair of clusters from two sets.
-
-    Args:
-        src_cluster_ids: Source cluster IDs
-        dst_cluster_ids: Destination cluster IDs
-        cluster_results: dict mapping language -> ClusterResult
-        cfg_graphs: dict mapping language -> CallGraph
-        cluster_edge_lookup: Optional precomputed (src_cluster, dst_cluster) edges per language
-
-    Returns:
-        True if any edge exists between the cluster sets
-    """
-    if not src_cluster_ids or not dst_cluster_ids:
-        return False
-
-    if cluster_edge_lookup is None:
-        cluster_edge_lookup = _build_cluster_edge_lookup(cluster_results, cfg_graphs)
-
-    return _cluster_sets_have_edge(src_cluster_ids, dst_cluster_ids, cluster_edge_lookup) or _cluster_sets_have_edge(
-        dst_cluster_ids, src_cluster_ids, cluster_edge_lookup
-    )

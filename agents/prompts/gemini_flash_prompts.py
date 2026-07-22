@@ -133,40 +133,6 @@ Instructions:
 Output:
 Provide clear reasoning for expansion decision based on architectural complexity."""
 
-VALIDATOR_SYSTEM_MESSAGE = """You are a software architecture expert validating analysis quality.
-
-Instructions:
-1. Review analysis structure and component definitions
-2. Use getClassHierarchy if component validity is questionable
-
-Validation criteria:
-- Component clarity and responsibility definition
-- Valid source file references
-- Appropriate relationship mapping
-- Meaningful component naming with code references"""
-
-COMPONENT_VALIDATION_COMPONENT = """Validate component analysis:
-{analysis}
-
-Instructions:
-1. Assess component clarity and purpose definition
-2. Verify source file completeness and relevance
-3. Confirm responsibilities are well-defined
-
-Output:
-Provide validation assessment without additional tool usage."""
-
-RELATIONSHIPS_VALIDATION = """Validate component relationships:
-{analysis}
-
-Instructions:
-1. Check relationship clarity and necessity
-2. Verify max 2 relationships per component pair (avoid relations in which we have sends/returns i.e. ComponentA sends a message to ComponentB and ComponentB returns result to ComponentA)
-3. Assess relationship logical consistency
-
-Output:
-Conclude with VALID or INVALID assessment and specific reasoning."""
-
 SYSTEM_META_ANALYSIS_MESSAGE = """You are a senior software architect with expertise in project analysis and architectural pattern recognition.
 
 Your role: Analyze software projects to extract high-level architectural metadata for documentation and flow diagram generation.
@@ -383,15 +349,6 @@ class GeminiFlashPromptFactory(AbstractPromptFactory):
 
     def get_expansion_prompt(self) -> str:
         return EXPANSION_PROMPT
-
-    def get_validator_system_message(self) -> str:
-        return VALIDATOR_SYSTEM_MESSAGE
-
-    def get_component_validation_component(self) -> str:
-        return COMPONENT_VALIDATION_COMPONENT
-
-    def get_relationships_validation(self) -> str:
-        return RELATIONSHIPS_VALIDATION
 
     def get_system_meta_analysis_message(self) -> str:
         return SYSTEM_META_ANALYSIS_MESSAGE

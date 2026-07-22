@@ -147,52 +147,6 @@ Complex subsystems (multiple interacting modules): CONSIDER expansion
 
 Provide clear reasoning based on architectural complexity."""
 
-VALIDATOR_SYSTEM_MESSAGE = """You validate architectural analysis quality.
-
-<instructions>
-1. Review analysis structure and component definitions first
-2. If component validity is questionable, you MUST use getClassHierarchy
-3. Assess component clarity, relationship accuracy, source references, and overall coherence
-4. Verify source file references are accurate and meaningful
-5. Ensure component naming reflects the actual code structure
-</instructions>
-
-<thinking>
-Validation criteria:
-- Component clarity and responsibility definition
-- Valid source file references
-- Appropriate relationship mapping
-- Meaningful component naming with code references
-</thinking>"""
-
-COMPONENT_VALIDATION_COMPONENT = """Review component structure for clarity and validity.
-
-Analysis to validate:
-{analysis}
-
-Validation requirements:
-- Component clarity and purpose definition
-- Source file completeness and relevance
-- Responsibilities are well-defined
-- Component naming appropriateness
-
-Output:
-Provide validation assessment without tool usage."""
-
-RELATIONSHIPS_VALIDATION = """Validate component relationships and interactions.
-
-Relationships to validate:
-{analysis}
-
-Validation requirements:
-- Relationship clarity and necessity
-- Maximum 2 relationships per component pair (avoid relations in which we have sends/returns i.e. ComponentA sends a message to ComponentB and ComponentB returns result to ComponentA)
-- Logical consistency of interactions
-- Appropriate relationship descriptions
-
-Output:
-Conclude with VALID or INVALID assessment and specific reasoning."""
-
 SYSTEM_META_ANALYSIS_MESSAGE = """You extract architectural metadata from projects.
 
 <instructions>
@@ -430,15 +384,6 @@ class ClaudePromptFactory(AbstractPromptFactory):
 
     def get_expansion_prompt(self) -> str:
         return EXPANSION_PROMPT
-
-    def get_validator_system_message(self) -> str:
-        return VALIDATOR_SYSTEM_MESSAGE
-
-    def get_component_validation_component(self) -> str:
-        return COMPONENT_VALIDATION_COMPONENT
-
-    def get_relationships_validation(self) -> str:
-        return RELATIONSHIPS_VALIDATION
 
     def get_system_meta_analysis_message(self) -> str:
         return SYSTEM_META_ANALYSIS_MESSAGE
