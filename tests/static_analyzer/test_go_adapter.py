@@ -45,6 +45,15 @@ class TestGetLspCommandGoCheck:
         assert cmd
         assert any("gopls" in part for part in cmd)
 
+    def test_waits_for_initial_workspace_load(self) -> None:
+        assert GoAdapter().wait_for_workspace_ready is True
+
+    def test_applies_backpressure_while_opening_files(self) -> None:
+        adapter = GoAdapter()
+
+        assert adapter.probe_before_open is True
+        assert adapter.interleave_did_open_with_symbols is True
+
 
 class TestBuildTagFiltering:
     """Tests for _has_excluding_build_tag and discover_source_files filtering."""
@@ -142,6 +151,11 @@ class TestGoplsConfiguration:
         adapter = GoAdapter()
         env = adapter.get_lsp_env()
         assert env["GOGC"] == "50"
+
+    def test_reference_queries_use_small_batches_with_scaled_timeout(self):
+        adapter = GoAdapter()
+        assert adapter.references_batch_size == 10
+        assert adapter.references_per_query_timeout == 10
 
     def test_directory_filters_deduplicates(self, tmp_path: Path):
         """Same directory from multiple patterns should only appear once."""

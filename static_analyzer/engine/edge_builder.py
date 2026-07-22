@@ -230,8 +230,26 @@ def _process_references_for_position(
             container = st.lift_to_callable(container)
             if not container or container.qualified_name == sym.qualified_name:
                 continue
-            if (str(ref_file), ref_line) == (str(container.file_path), container.start_line):
+            if ref_loc == container.definition_location:
                 continue
+            is_declaration_line = (str(ref_file), ref_line) == (
+                str(container.file_path),
+                container.start_line,
+            )
+            is_declaration_body = is_declaration_line and si.is_reference_in_declaration_body(
+                ref_file,
+                container.start_line,
+                container.start_char,
+                ref_line,
+                ref_char,
+                ref_end_char,
+                include_expression_body=adapter.include_references_on_declaration_line,
+            )
+            if is_declaration_line:
+                if not is_declaration_body:
+                    continue
+                if adapter.is_callable(sym.kind) and not si.is_invocation(ref_file, ref_line, ref_end_char):
+                    continue
             if sym.qualified_name.startswith(container.qualified_name + "."):
                 continue
             _add_edge_site(edge_set, container.qualified_name, sym.qualified_name, ref_file, ref_line, ref_char)

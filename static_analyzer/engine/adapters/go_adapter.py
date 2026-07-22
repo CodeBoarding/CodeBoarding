@@ -73,6 +73,21 @@ def _directory_filters_from_ignore_manager(ignore_manager: RepoIgnoreManager | N
 class GoAdapter(LanguageAdapter):
 
     @property
+    def wait_for_workspace_ready(self) -> bool:
+        """Wait for gopls to finish its initial workspace load."""
+        return True
+
+    @property
+    def probe_before_open(self) -> bool:
+        """Probe the loaded gopls workspace before creating file overlays."""
+        return True
+
+    @property
+    def interleave_did_open_with_symbols(self) -> bool:
+        """Apply request backpressure while gopls creates file overlays."""
+        return True
+
+    @property
     def language(self) -> str:
         return "Go"
 
@@ -184,6 +199,16 @@ class GoAdapter(LanguageAdapter):
         Avoids OOM errors on large codebases, especially in constrained environments like CI.
         """
         return {"GOGC": "50"}
+
+    @property
+    def references_batch_size(self) -> int:
+        """Limit concurrent gopls reference searches to avoid request backlogs."""
+        return 10
+
+    @property
+    def references_per_query_timeout(self) -> int:
+        """Give each serialized gopls reference search a modest time budget."""
+        return 10
 
     def discover_source_files(self, project_root: Path, ignore_manager: RepoIgnoreManager) -> list[Path]:
         """Discover Go source files, filtering out build-tag-constrained files.

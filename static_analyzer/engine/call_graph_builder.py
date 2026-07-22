@@ -124,7 +124,7 @@ class CallGraphBuilder:
         return build_edges_via_references(self._adapter, ctx, source_files)
 
     def _discover_symbols(self, source_files: list[Path]) -> None:
-        """Phase 0+1: Open files, wait for indexing, then extract all symbols."""
+        """Phase 0+1: Synchronize with the server, open files, and extract symbols."""
         total = len(source_files)
 
         # Synchronization probe — blocks until the LSP server has indexed
@@ -140,14 +140,15 @@ class CallGraphBuilder:
         probe_timeout = int(min(_PROBE_STARTUP_BASE + total * _PROBE_PER_FILE, _PROBE_MAX_TIMEOUT))
         probe_timeout = max(probe_timeout, self._adapter.get_probe_timeout_minimum())
 
-        # Phase 0 (didOpen) and the sync probe were originally inline here.
-        # Extracted to _bulk_did_open / _send_sync_probe so the order can
-        # flip: workspace-based servers (e.g., csharp-ls) need the probe
-        # BEFORE didOpen because bulk notifications overwhelm them during
-        # workspace loading.
-        if self._adapter.probe_before_open:
+        interleave_open = self._adapter.interleave_did_open_with_symbols
+
+        # Workspace-based servers can probe before didOpen. Some also need
+        # request backpressure while creating overlays, so they interleave
+        # each didOpen notification with the matching documentSymbol request.
+        if self._adapter.probe_before_open or interleave_open:
             probe_result = self._send_sync_probe(source_files, probe_timeout)
-            self._bulk_did_open(source_files)
+            if not interleave_open:
+                self._bulk_did_open(source_files)
         else:
             self._bulk_did_open(source_files)
             probe_result = self._send_sync_probe(source_files, probe_timeout)
@@ -155,10 +156,17 @@ class CallGraphBuilder:
         # Phase 1: extract symbols from each file
         pbar = ProgressLogger("Phase 1 (symbols)", total, unit="file")
         for idx, file_path in enumerate(source_files, 1):
+            if interleave_open:
+                self._lsp.did_open(file_path, self._adapter.language_id)
             # Reuse the sync probe result for the first file to avoid a
             # redundant document_symbol query (the probe can take minutes).
-            if idx == 1 and probe_result is not None:
+            # Interleaved adapters deliberately query again after didOpen so
+            # that each overlay notification has a response barrier.
+            should_reuse_probe = idx == 1 and not interleave_open
+            if should_reuse_probe and probe_result is not None:
                 symbols = probe_result
+            elif interleave_open:
+                symbols = self._lsp.document_symbol(file_path, timeout=probe_timeout)
             else:
                 symbols = self._lsp.document_symbol(file_path)
             self._symbol_table.register_symbols(file_path, symbols, parent_chain=[], project_root=self._root)

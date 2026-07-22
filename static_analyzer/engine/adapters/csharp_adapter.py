@@ -29,6 +29,10 @@ logger = logging.getLogger(__name__)
 class CSharpAdapter(LanguageAdapter):
 
     @property
+    def include_references_on_declaration_line(self) -> bool:
+        return True
+
+    @property
     def language(self) -> str:
         return "CSharp"
 
