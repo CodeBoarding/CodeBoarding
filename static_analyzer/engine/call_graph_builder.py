@@ -165,6 +165,8 @@ class CallGraphBuilder:
             should_reuse_probe = idx == 1 and not interleave_open
             if should_reuse_probe and probe_result is not None:
                 symbols = probe_result
+            elif interleave_open:
+                symbols = self._lsp.document_symbol(file_path, timeout=probe_timeout)
             else:
                 symbols = self._lsp.document_symbol(file_path)
             self._symbol_table.register_symbols(file_path, symbols, parent_chain=[], project_root=self._root)
