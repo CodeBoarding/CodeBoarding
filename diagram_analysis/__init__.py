@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-__all__ = ["DiagramGenerator", "RunContext", "RunPaths", "configure_models"]
+__all__ = ["DiagramGenerator", "RunContext", "RunPaths", "DEFAULT_DEPTH_LEVEL", "configure_models"]
 
 
 def __getattr__(name: str):
@@ -19,6 +19,10 @@ def __getattr__(name: str):
         from .run_context import RunPaths
 
         return RunPaths
+    if name == "DEFAULT_DEPTH_LEVEL":
+        from .run_context import DEFAULT_DEPTH_LEVEL
+
+        return DEFAULT_DEPTH_LEVEL
     if name == "configure_models":
         from agents.llm_config import configure_models
 

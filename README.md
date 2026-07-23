@@ -124,8 +124,9 @@ Shell environment variables such as `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOG
 # Analyze a local repository
 python main.py full --local ./my-project
 
-# Increase diagram depth
-python main.py full --local ./my-project --depth-level 2
+# Raise the depth ceiling (rarely needed — component expansion is driven by
+# structural separability; --depth-level is a safety-valve cap, default 3)
+python main.py full --local ./my-project --depth-level 5
 
 # Re-analyze only changed parts when possible
 python main.py incremental --local ./my-project

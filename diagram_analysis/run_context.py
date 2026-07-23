@@ -8,6 +8,9 @@ from utils import generate_run_id
 
 logger = logging.getLogger(__name__)
 
+# Safety-valve depth cap, not a target — see --depth-level help / README for why.
+DEFAULT_DEPTH_LEVEL = 3
+
 
 @dataclass(frozen=True, slots=True)
 class RunPaths:

@@ -18,9 +18,11 @@ distance) do we fall back to **file overlap** as a proxy for relatedness.
 """
 
 import logging
+import os
 from collections import defaultdict
 
 import networkx as nx
+import networkx.algorithms.community as nx_comm
 
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.constants import ClusteringConfig, Language
@@ -32,6 +34,24 @@ logger = logging.getLogger(__name__)
 # more clusters than this, merge_clusters() collapses them into super-clusters
 # using community detection on the inter-cluster connectivity graph.
 MAX_LLM_CLUSTERS = 50
+
+# Range for the number of top-level architecture components. The exact count N
+# inside this range is chosen deterministically by the modularity peak of a
+# resolution-tuned Leiden partition (see ``supercluster_leaf_ids``), not by the
+# LLM — so the component structure is stable across re-runs.
+TOP_LEVEL_COMPONENTS_MIN = 5
+TOP_LEVEL_COMPONENTS_MAX = 8
+
+# Same idea for a component's sub-components (one level down); a component is
+# usually smaller than the whole repo, so the floor is lower.
+SUBCOMPONENTS_MIN = 3
+SUBCOMPONENTS_MAX = 8
+
+# Resolution ladder swept to steer Leiden toward a target community count.
+# Ascending: higher resolution -> more, finer communities. Reaches well past 1.0
+# so a graph with a large connected core can still be over-segmented to any N in
+# the target range before absorbing leftovers back down.
+_RESOLUTION_LADDER = (0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0, 7.0, 10.0)
 
 
 def build_cluster_results_for_languages(
@@ -79,7 +99,7 @@ def build_all_cluster_results(static_analysis: StaticAnalysisResults) -> dict[st
                 f"[SuperCluster] {lang}: {n_clusters} clusters exceeds limit of {MAX_LLM_CLUSTERS}, "
                 f"merging into super-clusters"
             )
-            cluster_results[lang] = merge_clusters(cr, cfg.to_networkx(), MAX_LLM_CLUSTERS)
+            cluster_results[lang] = merge_clusters(cr, cfg.clustering_networkx(), MAX_LLM_CLUSTERS)
             new_count = len(cluster_results[lang].clusters)
             logger.info(f"[SuperCluster] {lang}: merged {n_clusters} -> {new_count} super-clusters")
 
@@ -87,7 +107,7 @@ def build_all_cluster_results(static_analysis: StaticAnalysisResults) -> dict[st
     # within MAX_LLM_CLUSTERS by proportionally reducing per-language counts,
     # then re-index IDs so they don't overlap across languages.
     if len(cluster_results) > 1:
-        cfg_graphs = {lang: static_analysis.get_cfg(Language(lang)).to_networkx() for lang in cluster_results}
+        cfg_graphs = {lang: static_analysis.get_cfg(Language(lang)).clustering_networkx() for lang in cluster_results}
         enforce_cross_language_budget(cluster_results, cfg_graphs)
 
     _sync_cluster_cache(static_analysis, cluster_results)
@@ -470,6 +490,263 @@ def merge_clusters(
     )
 
     return _build_merged_cluster_result(communities, cluster_result, cfg_graph)
+
+
+# ---------------------------------------------------------------------------
+# Top-level component grouping (resolution-tuned Leiden, modularity-peak N)
+# ---------------------------------------------------------------------------
+
+
+def _combine_cluster_results(cluster_results: dict[str, ClusterResult]) -> ClusterResult:
+    """Union per-language ClusterResults into one.
+
+    Cluster IDs are already globally unique across languages (``build_all_cluster_results``
+    re-indexes them), so a plain union is safe and lets us super-cluster every
+    language's leaf clusters against a single meta-graph.
+    """
+    clusters: dict[int, set[str]] = {}
+    cluster_to_files: dict[int, set[str]] = {}
+    file_to_clusters: dict[str, set[int]] = defaultdict(set)
+    for cr in cluster_results.values():
+        clusters.update(cr.clusters)
+        cluster_to_files.update(cr.cluster_to_files)
+        for file_path, cids in cr.file_to_clusters.items():
+            file_to_clusters[file_path].update(cids)
+    return ClusterResult(
+        clusters=clusters,
+        cluster_to_files=cluster_to_files,
+        file_to_clusters=dict(file_to_clusters),
+        strategy="combined",
+    )
+
+
+def _pick_peak_partition(
+    meta_graph: nx.DiGraph,
+    low: int,
+    high: int,
+    seed: int,
+) -> list[set[int]]:
+    """Sweep the resolution ladder and return the partition at the modularity peak in ``[low, high]``.
+
+    "N" counts *non-singleton* communities (size >= 2 leaf clusters) — the
+    connected structure Leiden actually resolves — because real call graphs
+    carry a long tail of isolated leaf clusters that would otherwise pin the raw
+    community count far above ``high`` at every resolution. Among partitions
+    whose non-singleton count lands in range, the highest-modularity one wins.
+    Falls back to the partition whose count is closest to the range when none
+    lands inside it (or to all-singletons on an edgeless graph).
+    """
+    if meta_graph.number_of_edges() == 0:
+        return [{cid} for cid in meta_graph.nodes]
+
+    candidates: list[tuple[int, float, list[set[int]]]] = []
+    for resolution in _RESOLUTION_LADDER:
+        try:
+            communities: list[set[int]] = detect_communities(
+                meta_graph, weight="weight", resolution=resolution, seed=seed
+            )
+        except Exception as e:  # noqa: BLE001 - a bad resolution shouldn't abort the sweep
+            logger.debug(f"[SuperCluster] resolution={resolution} failed: {e}")
+            continue
+        n_real = sum(1 for community in communities if len(community) >= 2)
+        modularity = nx_comm.modularity(meta_graph, communities, weight="weight")
+        candidates.append((n_real, modularity, communities))
+        logger.debug(f"[SuperCluster] resolution={resolution}: n_real={n_real} modularity={modularity:.4f}")
+
+    if not candidates:
+        return [{cid} for cid in meta_graph.nodes]
+
+    in_range = [c for c in candidates if low <= c[0] <= high]
+    if in_range:
+        n_real, modularity, communities = max(in_range, key=lambda c: c[1])
+        logger.info(f"[SuperCluster] modularity peak at N={n_real} (modularity={modularity:.4f}) over [{low},{high}]")
+        return communities
+
+    def range_distance(n_real: int) -> int:
+        return 0 if low <= n_real <= high else min(abs(n_real - low), abs(n_real - high))
+
+    n_real, _, communities = min(candidates, key=lambda c: (range_distance(c[0]), -c[1]))
+    logger.info(f"[SuperCluster] no partition with N in [{low},{high}]; using closest (N={n_real})")
+    return communities
+
+
+def _seeds_from_partition(
+    communities: list[set[int]],
+    method_count: dict[int, int],
+    low: int,
+    high: int,
+) -> tuple[list[set[int]], list[int]]:
+    """Split a partition into top-level *seed* communities and leftover leaf clusters.
+
+    Seeds are the non-singleton communities (ranked by total method count),
+    capped at ``high``. When there are fewer than ``low`` seeds, the largest
+    leftover leaf clusters are promoted to their own seed so a genuinely big but
+    call-isolated module (e.g. a data-model file nothing calls) still becomes a
+    component instead of being folded into another. Everything else is a
+    leftover to be absorbed.
+    """
+    reals = sorted(
+        (set(c) for c in communities if len(c) >= 2),
+        key=lambda community: (sum(method_count.get(cid, 0) for cid in community), -min(community)),
+        reverse=True,
+    )
+    leftovers = [cid for c in communities if len(c) == 1 for cid in c]
+
+    if len(reals) > high:
+        leftovers.extend(cid for community in reals[high:] for cid in community)
+        reals = reals[:high]
+
+    # Absorption grows seed packages as it goes (order matters), so order leftovers
+    # deterministically — biggest clusters first (they anchor packages), tie-broken
+    # by id — rather than relying on set/community iteration order.
+    leftovers.sort(key=lambda cid: (-method_count.get(cid, 0), cid))
+
+    seeds = reals
+    if len(seeds) < low:
+        while len(seeds) < low and leftovers:
+            seeds.append({leftovers.pop(0)})
+
+    return seeds, leftovers
+
+
+def _nearest_seed_index(
+    cid: int,
+    seeds: list[set[int]],
+    undirected_meta: nx.Graph,
+    seed_packages: list[set[str]],
+    cluster_result: ClusterResult,
+    method_count: dict[int, int],
+) -> int:
+    """Pick the seed a leftover leaf cluster belongs to: call proximity, then package, then size.
+
+    1. Shortest meta-graph path to any seed member (call coupling).
+    2. Directory/package overlap — the right signal for call-isolated clusters,
+       which have no meta-graph path at all.
+    3. The largest seed by method count, so nothing is dropped.
+    """
+    best_idx, best_dist = None, float("inf")
+    for idx, seed in enumerate(seeds):
+        for member in seed:
+            try:
+                dist = nx.shortest_path_length(undirected_meta, cid, member)
+            except (nx.NetworkXNoPath, nx.NodeNotFound):
+                continue
+            if dist < best_dist:
+                best_dist, best_idx = dist, idx
+    if best_idx is not None:
+        return best_idx
+
+    packages = _cluster_packages(cid, cluster_result)
+    best_idx, best_overlap = None, 0
+    for idx, seed_pkgs in enumerate(seed_packages):
+        overlap = len(packages & seed_pkgs)
+        if overlap > best_overlap:
+            best_overlap, best_idx = overlap, idx
+    if best_idx is not None:
+        return best_idx
+
+    return max(range(len(seeds)), key=lambda idx: sum(method_count.get(cid, 0) for cid in seeds[idx]))
+
+
+def _cluster_packages(cid: int, cluster_result: ClusterResult) -> set[str]:
+    """Directories of the files a leaf cluster touches (its 'package')."""
+    return {os.path.dirname(path) for path in cluster_result.cluster_to_files.get(cid, set())}
+
+
+def supercluster_by_modularity_peak(
+    cluster_result: ClusterResult,
+    cfg_graph: nx.DiGraph,
+    low: int = TOP_LEVEL_COMPONENTS_MIN,
+    high: int = TOP_LEVEL_COMPONENTS_MAX,
+    seed: int = ClusteringConfig.CLUSTERING_SEED,
+) -> list[set[int]]:
+    """Group leaf clusters into N top-level components via resolution-tuned Leiden.
+
+    Resolution tuning steers Leiden over the weighted inter-cluster meta-graph;
+    N (the number of top-level components) is the modularity peak among
+    partitions with ``[low, high]`` non-singleton communities. Those communities
+    become seeds and every remaining leaf cluster is absorbed into the nearest
+    seed (call proximity, then package, then size). Returns the partition as a
+    list of leaf-cluster-id sets — a complete, disjoint cover.
+
+    Unlike ``merge_clusters`` (which targets a preset count and absorbs down to
+    it by size), N here is data-driven: the sweep + modularity peak pick both the
+    partition and its size, and absorption is seed-directed rather than
+    smallest-first.
+    """
+    meta_graph = _build_meta_graph(cluster_result, cfg_graph)
+    n_leaf = meta_graph.number_of_nodes()
+    if n_leaf == 0:
+        return []
+    if n_leaf <= low:
+        # Fewer leaf clusters than the floor — each is its own component.
+        return [{cid} for cid in meta_graph.nodes]
+
+    method_count = {cid: len(members) for cid, members in cluster_result.clusters.items()}
+    communities = _pick_peak_partition(meta_graph, low, min(high, n_leaf), seed)
+    seeds, leftovers = _seeds_from_partition(communities, method_count, low, min(high, n_leaf))
+
+    if seeds:
+        undirected_meta = meta_graph.to_undirected(as_view=True) if meta_graph.is_directed() else meta_graph
+        seed_packages = [{pkg for cid in seed for pkg in _cluster_packages(cid, cluster_result)} for seed in seeds]
+        for cid in leftovers:
+            idx = _nearest_seed_index(cid, seeds, undirected_meta, seed_packages, cluster_result, method_count)
+            seeds[idx].add(cid)
+            seed_packages[idx].update(_cluster_packages(cid, cluster_result))
+
+    logger.info(
+        f"[SuperCluster] {n_leaf} leaf clusters -> {len(seeds)} components "
+        f"(sizes {sorted((len(s) for s in seeds), reverse=True)})"
+    )
+    return seeds
+
+
+def supercluster_leaf_ids(
+    cluster_results: dict[str, ClusterResult],
+    cfg_graphs: dict[str, nx.DiGraph],
+    low: int = TOP_LEVEL_COMPONENTS_MIN,
+    high: int = TOP_LEVEL_COMPONENTS_MAX,
+    seed: int = ClusteringConfig.CLUSTERING_SEED,
+) -> list[set[int]]:
+    """Partition all languages' leaf clusters into N top-level component groups.
+
+    Builds one combined meta-graph across languages (leaf-cluster IDs are already
+    globally unique) so the returned groups sum to a single top-level count in
+    ``[low, high]``. Each group is a set of leaf-cluster IDs; the LLM later only
+    names and describes these fixed groups.
+    """
+    combined = _combine_cluster_results(cluster_results)
+    combined_cfg: nx.DiGraph = nx.compose_all(list(cfg_graphs.values())) if cfg_graphs else nx.DiGraph()
+    return supercluster_by_modularity_peak(combined, combined_cfg, low, high, seed)
+
+
+def subgraph_peak_modularity(
+    cluster_results: dict[str, ClusterResult],
+    cfg_graphs: dict[str, nx.DiGraph],
+    low: int = SUBCOMPONENTS_MIN,
+    high: int = SUBCOMPONENTS_MAX,
+    seed: int = ClusteringConfig.CLUSTERING_SEED,
+) -> float:
+    """Modularity of the sub-component split we would produce for this component — its separability.
+
+    This is the Newman modularity of the exact ``[low, high]`` partition
+    ``supercluster_by_modularity_peak`` would build (via ``_pick_peak_partition``),
+    so the score is the quality of the real split, not an abstract graph metric. A
+    high value means the internals separate cleanly (worth expanding); near-zero
+    means a cohesive blob (a leaf). Returns 0.0 when there are fewer than two leaf
+    clusters or no inter-cluster edges (``nx`` modularity is undefined on an
+    edgeless graph, and a single cluster cannot split).
+    """
+    combined = _combine_cluster_results(cluster_results)
+    n_clusters = len(combined.clusters)
+    if n_clusters < 2:
+        return 0.0
+    combined_cfg: nx.DiGraph = nx.compose_all(list(cfg_graphs.values())) if cfg_graphs else nx.DiGraph()
+    meta_graph = _build_meta_graph(combined, combined_cfg)
+    if meta_graph.number_of_edges() == 0:
+        return 0.0
+    communities = _pick_peak_partition(meta_graph, low, min(high, n_clusters), seed)
+    return nx_comm.modularity(meta_graph, communities, weight="weight")
 
 
 # ---------------------------------------------------------------------------

@@ -21,13 +21,54 @@ Example:
 """
 
 import logging
+from collections.abc import Callable
+
+import networkx as nx
 
 from agents.agent_responses import AnalysisInsights, Component
+from static_analyzer.cluster_helpers import subgraph_peak_modularity
+from static_analyzer.graph import ClusterResult
 
 logger = logging.getLogger(__name__)
 
 # Default thresholds
 DEFAULT_MIN_FILES = 1  # Need at least 1 file to have content
+
+# A component is only expanded into sub-components when its own call structure
+# actually separates. Both gates must pass:
+#   - MIN_METHODS_TO_EXPAND: below this a component is too small to sub-divide.
+#   - EXPAND_MODULARITY_THRESHOLD: peak modularity of the component's inter-cluster
+#     meta-graph; below it the internals are a cohesive blob with no natural split.
+# Why: modularity is a continuous ramp with no bimodal split, so the threshold is a
+# depth dial — 0.20 is the deepest setting where every split still maps to genuine
+# structure; raise toward 0.25 for shallower trees.
+MIN_METHODS_TO_EXPAND = 30
+EXPAND_MODULARITY_THRESHOLD = 0.15
+
+
+def component_is_separable(
+    cluster_results: dict[str, ClusterResult],
+    cfg_graphs: dict[str, nx.DiGraph],
+    min_modularity: float = EXPAND_MODULARITY_THRESHOLD,
+    min_methods: int = MIN_METHODS_TO_EXPAND,
+) -> bool:
+    """Whether a component's own call structure justifies splitting it into sub-components.
+
+    True only when the subgraph is big enough (>= ``min_methods`` methods) AND its
+    inter-cluster meta-graph has a genuine community split (peak modularity
+    >= ``min_modularity``). A cohesive blob (low modularity) or a small component
+    becomes a leaf instead of being force-split down to the depth cap.
+    """
+    total_methods = sum(len(members) for cr in cluster_results.values() for members in cr.clusters.values())
+    if total_methods < min_methods:
+        logger.debug(f"[Planner] subgraph too small to expand ({total_methods} < {min_methods} methods)")
+        return False
+    modularity = subgraph_peak_modularity(cluster_results, cfg_graphs)
+    separable = modularity >= min_modularity
+    logger.debug(
+        f"[Planner] subgraph peak modularity={modularity:.4f} " f"(threshold {min_modularity}) -> separable={separable}"
+    )
+    return separable
 
 
 def should_expand_component(
@@ -95,6 +136,7 @@ def get_expandable_components(
     analysis: AnalysisInsights,
     parent_had_clusters: bool = True,
     min_files: int = DEFAULT_MIN_FILES,
+    separable: Callable[[Component], bool] | None = None,
 ) -> list[Component]:
     """
     Determine which components should be expanded for deeper analysis.
@@ -106,11 +148,22 @@ def get_expandable_components(
         parent_had_clusters: Whether the parent component (that produced this analysis)
                             had source_cluster_ids. True for top-level analysis.
         min_files: Minimum files for expansion (default: 1)
+        separable: Optional predicate that also requires a component's own call
+            structure to actually split (see ``component_is_separable``). When given,
+            cohesive components are kept as leaves instead of being force-expanded to
+            the depth cap. Omitted (None) preserves the structural-only behaviour.
 
     Returns:
         List of components that should be expanded
     """
-    expandable = [c for c in analysis.components if should_expand_component(c, parent_had_clusters, min_files)]
+    expandable: list[Component] = []
+    for component in analysis.components:
+        if not should_expand_component(component, parent_had_clusters, min_files):
+            continue
+        if separable is not None and not separable(component):
+            logger.info(f"[Planner] Component '{component.name}' is cohesive (below split threshold); keeping as leaf")
+            continue
+        expandable.append(component)
 
     logger.info(f"[Planner] {len(expandable)}/{len(analysis.components)} components eligible for expansion")
 

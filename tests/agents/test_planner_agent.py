@@ -12,13 +12,20 @@ Expansion Rules:
 
 import unittest
 
-from agents.planner_agent import should_expand_component, get_expandable_components
+import networkx as nx
+
+from agents.planner_agent import (
+    component_is_separable,
+    get_expandable_components,
+    should_expand_component,
+)
 from agents.agent_responses import (
     AnalysisInsights,
     Component,
     SourceCodeReference,
 )
 from agents.file_index_models import FileMethodGroup, MethodEntry
+from static_analyzer.graph import ClusterResult
 
 
 class TestShouldExpandComponent(unittest.TestCase):
@@ -310,6 +317,90 @@ class TestPlanAnalysis(unittest.TestCase):
         parent_had_clusters = bool(details_agent.source_cluster_ids)
         level2_expandable = get_expandable_components(level2_analysis, parent_had_clusters=parent_had_clusters)
         self.assertEqual(len(level2_expandable), 0)  # Should NOT expand - we're at leaf
+
+
+class TestComponentIsSeparable(unittest.TestCase):
+    """The modularity + method-count gate deciding whether a component splits further."""
+
+    @staticmethod
+    def _subgraph(n_blocks, clusters_per_block, methods_per_cluster, cohesive=False):
+        """Build (cluster_results, cfg_graphs) for a component subgraph.
+
+        Non-cohesive: clusters chained within a block, blocks weakly bridged (clean split).
+        Cohesive: every cluster wired to every other (one blob, no boundary).
+        """
+        n = n_blocks * clusters_per_block
+        clusters, cluster_to_files, file_to_clusters = {}, {}, {}
+        graph = nx.DiGraph()
+        for cid in range(1, n + 1):
+            members = {f"n{cid}_{j}" for j in range(methods_per_cluster)}
+            clusters[cid] = members
+            cluster_to_files[cid] = {f"/repo/c{cid}.py"}
+            file_to_clusters[f"/repo/c{cid}.py"] = {cid}
+            for m in members:
+                graph.add_node(m, file_path=f"/repo/c{cid}.py")
+        if cohesive:
+            for a in range(1, n + 1):
+                for b in range(1, n + 1):
+                    if a != b:
+                        graph.add_edge(f"n{a}_0", f"n{b}_1")
+        else:
+            for cid in range(1, n + 1):
+                block = (cid - 1) // clusters_per_block
+                for other in range(1, n + 1):
+                    if other != cid and (other - 1) // clusters_per_block == block:
+                        graph.add_edge(f"n{cid}_0", f"n{other}_1")
+            for block in range(n_blocks - 1):
+                graph.add_edge(f"n{block * clusters_per_block + 1}_0", f"n{(block + 1) * clusters_per_block + 1}_1")
+        cr = ClusterResult(
+            clusters=clusters, cluster_to_files=cluster_to_files, file_to_clusters=file_to_clusters, strategy="t"
+        )
+        return {"python": cr}, {"python": graph}
+
+    def test_large_separable_component_expands(self):
+        crs, cfgs = self._subgraph(n_blocks=3, clusters_per_block=3, methods_per_cluster=4)  # 36 methods
+        self.assertTrue(component_is_separable(crs, cfgs))
+
+    def test_large_cohesive_component_is_leaf(self):
+        crs, cfgs = self._subgraph(n_blocks=1, clusters_per_block=6, methods_per_cluster=6, cohesive=True)  # 36 methods
+        self.assertFalse(component_is_separable(crs, cfgs))
+
+    def test_small_component_is_leaf_regardless_of_structure(self):
+        # Strong structure but only 9 methods — below the min-method gate.
+        crs, cfgs = self._subgraph(n_blocks=3, clusters_per_block=1, methods_per_cluster=3)  # 9 methods
+        self.assertFalse(component_is_separable(crs, cfgs))
+
+
+class TestSeparablePredicate(unittest.TestCase):
+    """get_expandable_components honours the optional separability predicate."""
+
+    @staticmethod
+    def _expandable_component(name: str) -> Component:
+        methods = [MethodEntry(qualified_name=f"{name}.m", start_line=1, end_line=9, node_type="METHOD")]
+        return Component(
+            name=name,
+            description=name,
+            key_entities=[],
+            source_cluster_ids=["1"],
+            file_methods=[FileMethodGroup(file_path=f"{name}.py", methods=methods)],
+        )
+
+    def test_predicate_filters_cohesive_components(self):
+        analysis = AnalysisInsights(
+            description="d",
+            components=[self._expandable_component("Keep"), self._expandable_component("Drop")],
+            components_relations=[],
+        )
+        result = get_expandable_components(analysis, separable=lambda c: c.name == "Keep")
+        self.assertEqual([c.name for c in result], ["Keep"])
+
+    def test_no_predicate_preserves_structural_behavior(self):
+        analysis = AnalysisInsights(
+            description="d",
+            components=[self._expandable_component("A"), self._expandable_component("B")],
+            components_relations=[],
+        )
+        self.assertEqual(len(get_expandable_components(analysis)), 2)
 
 
 if __name__ == "__main__":

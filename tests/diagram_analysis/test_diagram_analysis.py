@@ -34,8 +34,14 @@ from diagram_analysis.analysis_json import (
     parse_unified_analysis,
 )
 from diagram_analysis.cluster_delta import ClusterMemberDelta, ClusterRef, LanguageStructuralDiff, StructuralClusterDiff
-from diagram_analysis.diagram_generator import DiagramGenerator, _component_depth, _component_expansion_seeds
+from diagram_analysis.diagram_generator import (
+    DiagramGenerator,
+    _child_scope_needs_recursive_update,
+    _component_depth,
+    _component_expansion_seeds,
+)
 from diagram_analysis.exceptions import IncrementalCacheMissingError
+from diagram_analysis.io_utils import load_analysis_metadata, save_analysis
 from repo_utils.change_detector import ChangeSet
 from static_analyzer.analysis_cache import StaticAnalysisCache
 from static_analyzer.analysis_result import StaticAnalysisResults
@@ -115,7 +121,9 @@ class TestUnifiedAnalysisJson(unittest.TestCase):
         rel = RelationJson(src_name="Comp1", dst_name="Comp2", relation="uses")
 
         analysis = UnifiedAnalysisJson(
-            metadata=AnalysisMetadata(generated_at="2026-01-01T00:00:00Z", repo_name="test", depth_level=1),
+            metadata=AnalysisMetadata(
+                generated_at="2026-01-01T00:00:00Z", repo_name="test", depth_level=1, depth_cap=1
+            ),
             description="Test analysis",
             components=[comp1, comp2],
             components_relations=[rel],
@@ -137,7 +145,9 @@ class TestUnifiedAnalysisJson(unittest.TestCase):
             key_entities=[],
         )
         analysis = UnifiedAnalysisJson(
-            metadata=AnalysisMetadata(generated_at="2026-01-01T00:00:00Z", repo_name="test", depth_level=1),
+            metadata=AnalysisMetadata(
+                generated_at="2026-01-01T00:00:00Z", repo_name="test", depth_level=1, depth_cap=1
+            ),
             description="Test",
             components=[comp],
             components_relations=[],
@@ -419,7 +429,9 @@ class TestAnalysisJsonConversion(unittest.TestCase):
         ]
 
         data = json.loads(
-            build_unified_analysis_json(self.analysis, [], "repo", repo_dir=self.repo_dir, source_tree_hash="")
+            build_unified_analysis_json(
+                self.analysis, [], "repo", repo_dir=self.repo_dir, source_tree_hash="", depth_cap=1
+            )
         )
         parsed, _ = parse_unified_analysis(data)
 
@@ -462,7 +474,9 @@ class TestAnalysisJsonConversion(unittest.TestCase):
         ]
 
         data = json.loads(
-            build_unified_analysis_json(self.analysis, [], "repo", repo_dir=self.repo_dir, source_tree_hash="")
+            build_unified_analysis_json(
+                self.analysis, [], "repo", repo_dir=self.repo_dir, source_tree_hash="", depth_cap=1
+            )
         )
         parsed, _ = parse_unified_analysis(data)
 
@@ -476,7 +490,9 @@ class TestAnalysisJsonConversion(unittest.TestCase):
 
     def test_unified_analysis_parse_recovers_edges_missing_from_methods_index(self):
         data = json.loads(
-            build_unified_analysis_json(self.analysis, [], "repo", repo_dir=self.repo_dir, source_tree_hash="")
+            build_unified_analysis_json(
+                self.analysis, [], "repo", repo_dir=self.repo_dir, source_tree_hash="", depth_cap=1
+            )
         )
         data["components_relations"] = [
             {
@@ -530,7 +546,9 @@ class TestAnalysisJsonConversion(unittest.TestCase):
         index_relation_endpoints(self.analysis, self.repo_dir)
 
         data = json.loads(
-            build_unified_analysis_json(self.analysis, [], "repo", repo_dir=self.repo_dir, source_tree_hash="")
+            build_unified_analysis_json(
+                self.analysis, [], "repo", repo_dir=self.repo_dir, source_tree_hash="", depth_cap=1
+            )
         )
 
         self.assertNotIn("|importlib.metadata.entry_points", data["methods_index"])
@@ -548,7 +566,9 @@ class TestAnalysisJsonConversion(unittest.TestCase):
         # builder no longer re-walks the tree to recompute it.
         precomputed = "a1b2c3d4e5f60718"
         data = json.loads(
-            build_unified_analysis_json(self.analysis, [], "repo", repo_dir=self.repo_dir, source_tree_hash=precomputed)
+            build_unified_analysis_json(
+                self.analysis, [], "repo", repo_dir=self.repo_dir, source_tree_hash=precomputed, depth_cap=1
+            )
         )
         self.assertEqual(data["metadata"]["source_tree_hash"], precomputed)
 
@@ -705,6 +725,80 @@ class TestAnalysisJsonConversion(unittest.TestCase):
         # Check that it's indented (contains newlines and spaces)
         self.assertIn("\n", json_str)
         self.assertIn("  ", json_str)  # 2-space indentation
+
+
+class TestDepthCapPersistence(unittest.TestCase):
+    """depth_cap must never be saved lower than the tree's own realized depth —
+    a partial run against a shallow baseline that grafts on a deeper subtree
+    would otherwise permanently freeze future incremental/partial runs at the
+    old, shallower cap even though the tree has already gone deeper."""
+
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.output_dir = Path(self.temp_dir)
+        self.repo_dir = Path(".")
+
+    def tearDown(self):
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def _make_root(self) -> AnalysisInsights:
+        comp = Component(
+            name="Root",
+            component_id="1",
+            description="Root component",
+            key_entities=[],
+            file_methods=[FileMethodGroup(file_path="file1.py")],
+        )
+        return AnalysisInsights(description="Test", components=[comp], components_relations=[])
+
+    def test_save_clamps_depth_cap_to_realized_depth(self):
+        # A depth-1 baseline (no sub-analyses) with a low configured cap.
+        save_analysis(
+            analysis=self._make_root(),
+            output_dir=self.output_dir,
+            repo_dir=self.repo_dir,
+            source_tree_hash="hash1",
+            repo_name="test",
+            depth_cap=1,
+        )
+        baseline_metadata = load_analysis_metadata(self.output_dir)
+        assert baseline_metadata is not None
+        self.assertEqual(baseline_metadata["depth_cap"], 1)
+
+        # Partial run grafts a depth-2 subtree onto the root (component "1" now
+        # has sub_analyses["1"]), but is still constructed with the old cap (1)
+        # — saving must not persist depth_cap=1 now that the realized tree is
+        # 2 levels deep.
+        child_analysis = AnalysisInsights(description="Child", components=[], components_relations=[])
+        save_analysis(
+            analysis=self._make_root(),
+            output_dir=self.output_dir,
+            repo_dir=self.repo_dir,
+            source_tree_hash="hash2",
+            repo_name="test",
+            sub_analyses={"1": child_analysis},
+            depth_cap=1,
+        )
+        metadata = load_analysis_metadata(self.output_dir)
+        assert metadata is not None
+        self.assertEqual(metadata["depth_level"], 2)
+        self.assertEqual(metadata["depth_cap"], 2)
+
+    def test_save_preserves_higher_cap_than_realized_depth(self):
+        # A shallow realized tree with a cap that's already deeper (separability
+        # decided there was nothing more to split) must keep the higher cap.
+        save_analysis(
+            analysis=self._make_root(),
+            output_dir=self.output_dir,
+            repo_dir=self.repo_dir,
+            source_tree_hash="hash1",
+            repo_name="test",
+            depth_cap=3,
+        )
+        metadata = load_analysis_metadata(self.output_dir)
+        assert metadata is not None
+        self.assertEqual(metadata["depth_level"], 1)
+        self.assertEqual(metadata["depth_cap"], 3)
 
 
 class TestDiagramGenerator(unittest.TestCase):
@@ -1007,6 +1101,7 @@ class TestDiagramGenerator(unittest.TestCase):
             repo_name,
             repo_dir,
             source_tree_hash,
+            depth_cap,
             sub_analyses,
             file_coverage_summary,
         ):
@@ -1020,10 +1115,12 @@ class TestDiagramGenerator(unittest.TestCase):
             ):
                 gen.generate_analysis()
 
-        # Both components have files, so both should be expandable (io_utils merges caller-provided with computed)
+        # The run's separability-respecting expandable set is authoritative: only the planned
+        # component ("1") is advertised as expandable. Component "2" was kept as a leaf and must
+        # NOT be re-added by the save-time structural recompute.
         self.assertEqual(
             sorted([c.component_id for c in captured["expandable_components"]]),
-            sorted([c.component_id for c in analysis.components]),
+            [comp1.component_id],
         )
 
     @patch("diagram_analysis.diagram_generator.get_expandable_components")
@@ -1193,9 +1290,64 @@ class TestDiagramGenerator(unittest.TestCase):
             StructuralClusterDiff(),
             {},
             {},
+            None,
         )
 
         self.assertEqual(result.relation_contexts, {"root": relation_context})
+
+    def test_child_scope_recurses_on_owned_dirty_file(self):
+        # A module-level edit surfaces only as dirty_files (no qname signal); a child that owns
+        # that file must still be recursed into so its descriptions/relations don't go stale.
+        child_scope = AnalysisInsights(
+            description="child",
+            components=[
+                Component(
+                    name="Child",
+                    description="",
+                    key_entities=[],
+                    component_id="1.1",
+                    file_methods=[
+                        FileMethodGroup(
+                            file_path="pkg/module.py",
+                            methods=[MethodEntry(qualified_name="pkg.m", start_line=1, end_line=5, node_type="METHOD")],
+                        )
+                    ],
+                )
+            ],
+            components_relations=[],
+        )
+        dirty_only = StructuralClusterDiff(
+            by_language={
+                "python": LanguageStructuralDiff(
+                    language="python",
+                    modified=[
+                        ClusterMemberDelta(
+                            old_cluster=ClusterRef(language="python", cluster_id=1),
+                            new_cluster=ClusterRef(language="python", cluster_id=1),
+                            dirty_files={"pkg/module.py"},
+                        )
+                    ],
+                )
+            }
+        )
+        self.assertTrue(_child_scope_needs_recursive_update(child_scope, dirty_only))
+
+        # A dirty file the child does not own must not trigger a recursive update.
+        other_file = StructuralClusterDiff(
+            by_language={
+                "python": LanguageStructuralDiff(
+                    language="python",
+                    modified=[
+                        ClusterMemberDelta(
+                            old_cluster=ClusterRef(language="python", cluster_id=1),
+                            new_cluster=ClusterRef(language="python", cluster_id=1),
+                            dirty_files={"other/elsewhere.py"},
+                        )
+                    ],
+                )
+            }
+        )
+        self.assertFalse(_child_scope_needs_recursive_update(child_scope, other_file))
 
     @patch("diagram_analysis.diagram_generator._build_scope_incremental_inputs")
     def test_recursive_scope_update_aggregates_relation_contexts(self, mock_build_scope_inputs):
@@ -1264,6 +1416,7 @@ class TestDiagramGenerator(unittest.TestCase):
             StructuralClusterDiff(),
             {},
             {"1": child},
+            None,
         )
 
         self.assertEqual(result.relation_contexts, {"root": root_context, "1": child_context})
@@ -1388,6 +1541,7 @@ class TestDiagramGenerator(unittest.TestCase):
                 new_component_ids=set(),
             ),
         ]
+        _mock_incremental_agent.return_value._create_strict_component_subgraph.return_value = ("", {}, {})
         mock_save_analysis.return_value = self.output_dir / "analysis.json"
 
         gen.generate_analysis_incremental(root_analysis, sub_analyses)
@@ -1408,6 +1562,7 @@ class TestDiagramGenerator(unittest.TestCase):
             _mock_incremental_agent.return_value,
             gen.changes,
             gen.repo_location,
+            None,
         )
         gen._generate_subcomponents.assert_not_called()
         self.assertEqual(sub_analyses["1"].components[0].name, "Stable Child")
@@ -1506,6 +1661,7 @@ class TestDiagramGenerator(unittest.TestCase):
         gen.details_agent = Mock()
         gen.incremental_planning_agent = Mock()
         gen.incremental_agent = Mock()
+        gen.incremental_agent._create_strict_component_subgraph.return_value = ("", {}, {})
         gen.static_analysis = Mock()
         gen.static_analysis.get_languages.return_value = []
         gen.static_analysis.incremental_base_results = Mock()

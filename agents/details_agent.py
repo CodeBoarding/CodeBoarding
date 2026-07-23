@@ -18,7 +18,6 @@ from agents.agent_responses import (
 )
 from agents.prompts import (
     get_system_details_message,
-    get_cfg_details_message,
     get_details_message,
     get_api_surfaces_message,
     get_relation_analysis_message,
@@ -28,20 +27,16 @@ from agents.relation_edges import index_relation_endpoints
 from agents.repair import ComponentRepairContext, repair_component_group_names, repair_key_entities
 from agents.cluster_methods_mixin import ClusterMethodsMixin
 from caching.cache import ModelSettings
-from caching.details_cache import (
-    FinalAnalysisCache,
-    ClusterCache,
-)
+from caching.details_cache import FinalAnalysisCache
 from agents.validation import (
     ValidationContext,
-    validate_cluster_coverage,
     validate_group_name_coverage,
     validate_key_entities,
     validate_relations,
 )
 from monitoring import trace
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.cluster_helpers import get_all_cluster_ids
+from static_analyzer.cluster_helpers import SUBCOMPONENTS_MAX, SUBCOMPONENTS_MIN
 from static_analyzer.graph import CallGraph, ClusterResult
 
 logger = logging.getLogger(__name__)
@@ -64,14 +59,9 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
         self.meta_context = meta_context
         self.run_id = run_id
         self._cache_model_settings = ModelSettings.from_chat_model(provider="unknown", llm=agent_llm)
-        self._cluster_cache = ClusterCache(repo_dir=repo_dir)
         self._analysis_cache = FinalAnalysisCache(repo_dir=repo_dir)
 
         self.prompts = {
-            "group_clusters": PromptTemplate(
-                template=get_cfg_details_message(),
-                input_variables=["cfg_clusters", "component"],
-            ),
             "final_analysis": PromptTemplate(
                 template=get_details_message(),
                 input_variables=["cluster_analysis", "component"],
@@ -97,56 +87,14 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
     def step_clusters_grouping(
         self, component: Component, subgraph_cluster_results: dict[str, ClusterResult]
     ) -> ClusterAnalysis:
+        """Deterministically partition the component's subgraph into sub-component groups.
+
+        Same resolution-tuned Leiden as the top level, but with the sub-component
+        range ``[3, 8]``: the count (modularity peak) and membership are chosen
+        deterministically from the subgraph structure, not by the LLM.
         """
-        Group clusters within the component's subgraph into logical sub-components.
-
-        Args:
-            component: The component being analyzed
-            subgraph_cluster_results: Cluster results for the subgraph (from _create_strict_component_subgraph)
-
-        Returns:
-            ClusterAnalysis with grouped clusters for this component
-        """
-        logger.info(f"[DetailsAgent] Grouping clusters for component: {component.name}")
-        programming_langs = self.static_analysis.get_languages()
-
-        overhead_chars = len(str(self.system_message.content)) + len(
-            self.prompts["group_clusters"].format(
-                cfg_clusters="",
-                component=component.llm_str(),
-            )
-        )
-        cluster_str = self._build_cluster_string(
-            programming_langs, subgraph_cluster_results, prompt_overhead_chars=overhead_chars
-        )
-
-        prompt = self.prompts["group_clusters"].format(
-            cfg_clusters=cluster_str,
-            component=component.llm_str(),
-        )
-
-        context = ValidationContext(
-            cluster_results=subgraph_cluster_results,
-            expected_cluster_ids=get_all_cluster_ids(subgraph_cluster_results),
-        )
-
-        cache_key = self._cluster_cache.build_key(prompt, self._cache_model_settings)
-
-        if (cached := self._cluster_cache.load(cache_key)) is not None:
-            return cached
-        cluster_analysis = self._invoke_validate(
-            prompt,
-            ClusterAnalysis,
-            validators=[validate_cluster_coverage],
-            validation_context=context,
-            max_validation_attempts=3,
-        )
-        self._cluster_cache.store(
-            cache_key,
-            cluster_analysis,
-            run_id=self.run_id,
-        )
-        return cluster_analysis
+        logger.info(f"[DetailsAgent] Super-clustering subgraph for component: {component.name}")
+        return self.deterministic_cluster_grouping(subgraph_cluster_results, SUBCOMPONENTS_MIN, SUBCOMPONENTS_MAX)
 
     @trace
     def step_final_analysis(
@@ -213,6 +161,7 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
             validation_context=context,
             max_validation_attempts=3,
         )
+        self.assemble_one_component_per_group(architecture, cluster_analysis, subgraph_cluster_results)
         result = AnalysisInsights(
             description=architecture.description,
             components=architecture.components,

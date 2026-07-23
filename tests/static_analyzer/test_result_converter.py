@@ -590,3 +590,77 @@ class TestOutputStructure:
         assert "diagnostics" in out
         assert out["diagnostics"] == {}
         assert out["source_files"] == ["/root/mod.py"]
+
+
+# ---------------------------------------------------------------------------
+# Reference edges (CONTAINS / INHERITS / TYPEREF / IMPORT)
+# ---------------------------------------------------------------------------
+
+
+def test_add_reference_edges_contains_and_inherits():
+    """CONTAINS from the qualified-name hierarchy; INHERITS from the class hierarchy."""
+    from static_analyzer.engine.result_converter import _add_reference_edges
+    from static_analyzer.graph import CallGraph, EdgeKind
+    from static_analyzer.node import Node
+
+    cg = CallGraph(language="python")
+    for i, (qname, kind) in enumerate(
+        [
+            ("mod.Base", NodeType.CLASS),
+            ("mod.Widget", NodeType.CLASS),
+            ("mod.Widget.render", NodeType.METHOD),
+            ("mod.Widget.__init__", NodeType.METHOD),
+            ("mod.helper", NodeType.FUNCTION),
+        ]
+    ):
+        cg.add_node(
+            Node(
+                fully_qualified_name=qname,
+                node_type=kind,
+                file_path="mod.py",
+                line_start=i * 10 + 1,
+                line_end=i * 10 + 5,
+            )
+        )
+
+    result = LanguageAnalysisResult(
+        hierarchy={"mod.Widget": {"superclasses": ["mod.Base"], "subclasses": []}},
+        type_references=[("mod.helper", "mod.Widget")],
+        import_edges=[("mod.helper", "mod.Base")],
+    )
+    _add_reference_edges(cg, result)
+
+    got = {(s, d, k) for s, d, k in cg.reference_edges}
+    # methods -> their class
+    assert ("mod.Widget.render", "mod.Widget", str(EdgeKind.CONTAINS)) in got
+    assert ("mod.Widget.__init__", "mod.Widget", str(EdgeKind.CONTAINS)) in got
+    # subclass -> superclass
+    assert ("mod.Widget", "mod.Base", str(EdgeKind.INHERITS)) in got
+    # engine-supplied typeref / import
+    assert ("mod.helper", "mod.Widget", str(EdgeKind.TYPEREF)) in got
+    assert ("mod.helper", "mod.Base", str(EdgeKind.IMPORT)) in got
+    # top-level function is not "contained" by any class
+    assert not any(s == "mod.helper" and k == str(EdgeKind.CONTAINS) for s, d, k in cg.reference_edges)
+
+
+def test_clustering_networkx_includes_configured_reference_kinds():
+    from static_analyzer.graph import CallGraph, EdgeKind
+    from static_analyzer.node import Node
+
+    cg = CallGraph(language="python")
+    for i, qname in enumerate(("mod.A", "mod.B")):
+        cg.add_node(
+            Node(
+                fully_qualified_name=qname,
+                node_type=NodeType.CLASS,
+                file_path="mod.py",
+                line_start=i * 10 + 1,
+                line_end=i * 10 + 5,
+            )
+        )
+    cg.add_reference_edge("mod.A", "mod.B", EdgeKind.CONTAINS)
+
+    # default kinds include contains -> edge present
+    assert cg.clustering_networkx().has_edge("mod.A", "mod.B")
+    # restricting to a kind that isn't present -> edge absent (call graph had no edges)
+    assert not cg.clustering_networkx(reference_kinds={"import"}).has_edge("mod.A", "mod.B")

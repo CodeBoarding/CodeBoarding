@@ -11,7 +11,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 import logging
 
-from static_analyzer.graph import CallGraph
+from static_analyzer.graph import CallGraph, EdgeKind
 from static_analyzer.node import Node
 
 logger = logging.getLogger(__name__)
@@ -50,6 +50,11 @@ class ControlFlowGraph:
                     exc_info=True,
                 )
                 self.graph.add_edge(edge.get_source(), edge.get_destination())
+        # Carry the other graph's reference edges (CONTAINS/INHERITS/TYPEREF/IMPORT) so a
+        # same-language sub-project's completed graph isn't reduced to call-only after merge.
+        # Re-added via the API so alias-resolution and node-existence guards apply post-merge.
+        for src, dst, kind in getattr(other, "reference_edges", ()):
+            self.graph.add_reference_edge(src, dst, EdgeKind(kind))
         self.graph.method_cluster_paths.merge(other.method_cluster_paths)
 
     def visit_paths(self, fn: Callable[[str], str]) -> None:

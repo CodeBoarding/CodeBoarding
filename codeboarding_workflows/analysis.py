@@ -15,7 +15,7 @@ from pathlib import Path
 
 from diagram_analysis import DiagramGenerator
 from diagram_analysis.io_utils import load_analysis_metadata, load_full_analysis
-from diagram_analysis.run_context import RunContext, RunPaths
+from diagram_analysis.run_context import DEFAULT_DEPTH_LEVEL, RunContext, RunPaths
 from repo_utils.fingerprint_diff import BaselineUnavailableError, detect_changes_from_fingerprint
 from telemetry.events import track_analysis
 
@@ -49,7 +49,7 @@ def build_generator(
 def run_full(
     run_paths: RunPaths,
     run_context: RunContext,
-    depth_level: int = 1,
+    depth_level: int = DEFAULT_DEPTH_LEVEL,
     monitoring_enabled: bool = False,
     force_full: bool = False,
     static_analyzer=None,
@@ -89,14 +89,15 @@ def run_partial(
         f"Running PARTIAL analysis workflow for project '{run_paths.project_name}', component '{component_id}'."
     )
 
-    # Depth comes from the existing analysis.json (metadata.depth_level).
+    # Depth is the baseline's configured cap (metadata.depth_cap), with a
+    # legacy depth_level fallback — not the realized depth.
     metadata = load_analysis_metadata(run_paths.output_dir)
     if metadata is None:
         raise BaselineUnavailableError(
             f"No baseline analysis.json found in '{run_paths.output_dir}'. Run a full analysis first."
         )
 
-    depth_level = int(metadata.get("depth_level", 1))
+    depth_level = int(metadata.get("depth_cap", metadata.get("depth_level", DEFAULT_DEPTH_LEVEL)))
     generator = build_generator(run_paths, run_context, depth_level=depth_level)
     generator.pre_analysis()
 
@@ -139,6 +140,10 @@ def run_partial(
     # its subcomponents. Rebuild reads each sub's LLM relation labels, which live
     # only in memory (they aren't serialized), so it must run before the save.
     sub_analyses[component_id] = sub_analysis
+    # The baseline we loaded may predate child scopes being confined to their parent.
+    # Repair it here too: this flow only regenerates one component, so nothing else
+    # would reconcile the rest of the tree before the save asserts containment.
+    generator._rescope_child_analyses(root_analysis, sub_analyses, set())
     # persist_side_artifacts=False: an expansion must not rewrite file_coverage.json
     # or the static-analysis cache. The latter would drop the static_analysis.sha
     # tag (no source_sha here) and force the next incremental run to cold-start.
@@ -163,15 +168,19 @@ def run_incremental(
     should surface a "run full analysis" prompt rather than silently degrading to
     an unscoped run.
     """
-    # Depth comes from the existing analysis.json (metadata.depth_level).
-    # Fail fast on cold-start: ``_generate_subcomponents`` requires the prior
-    # depth to re-detail changed components.
+    # Depth comes from the existing analysis.json's configured cap
+    # (metadata.depth_cap, falling back to depth_level for legacy baselines
+    # that predate it) — not the realized depth_level, so a run that stopped
+    # short of its cap doesn't leave incremental permanently capped shallower
+    # than what was actually configured. Fail fast on cold-start:
+    # ``_generate_subcomponents`` requires the prior depth to re-detail
+    # changed components.
     metadata = load_analysis_metadata(run_paths.output_dir)
     if metadata is None:
         raise BaselineUnavailableError(
             f"No baseline analysis.json found in '{run_paths.output_dir}'. Run a full analysis first."
         )
-    depth_level = int(metadata.get("depth_level", 1))
+    depth_level = int(metadata.get("depth_cap", metadata.get("depth_level", DEFAULT_DEPTH_LEVEL)))
 
     changes = detect_changes_from_fingerprint(run_paths.repo_path, run_paths.output_dir)
     logger.info(

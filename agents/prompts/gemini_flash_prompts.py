@@ -86,30 +86,27 @@ Focus on:
 - Clear justification for why clusters belong together
 - Describing inter-group interactions based on the inter-cluster connections"""
 
-FINAL_ANALYSIS_MESSAGE = """Create final component architecture optimized for flow representation.
+FINAL_ANALYSIS_MESSAGE = """Name and describe the final component architecture.
+
+The clusters have already been partitioned into a fixed set of groups by graph community detection. Each "Group N" below is exactly one top-level component — the number of groups and their membership are already decided. Do NOT merge, split, or re-group them; only name and describe each group.
 
 Cluster Analysis:
 {cluster_analysis}
 
 Instructions:
-1. Review the named cluster groups above
-2. Decide which named groups should be merged into final components
-3. For each component, specify which named cluster groups it encompasses via source_group_names
-4. Add key entities (2-5 most important classes/methods) for each component, referencing the source file where they are defined
-5. Do not define relationships yet; relationships are discovered in a later API-surface step
-
-Guidelines:
-- Aim for 5-8 final components
-- Merge related cluster groups that serve a common purpose
-- Each component should have clear boundaries
-- Focus on component boundaries; relationships are discovered after components are finalized
-
-Each component must have a clear name, a description of what it does, and reference the exact named cluster groups it encompasses (use exact group names). Include 2-5 key entities per component — the most important classes/methods — mentioning their qualified names and source files. Describe the overall architecture in one paragraph explaining the main flow and purpose. Do not define relationships yet.
+1. Produce EXACTLY one component per named group above (the same number of components as there are groups).
+2. Set each component's source_group_names to the single group it corresponds to (use the exact group name, e.g. "Group 1").
+3. Give each component a descriptive architectural name (its role, not "Group N") and a one-sentence description of what it does.
+4. Add 2-5 key entities (the most important classes/methods) per component, using their exact qualified names and source files.
+5. Do not define relationships yet; relationships are discovered in a later API-surface step.
+6. Provide a one-paragraph description of the overall main flow and purpose.
 
 Constraints:
-- Focus on highest level architectural components
-- Exclude utility/logging components
-- Components should translate well to flow diagram representation"""
+- Keep every group: there must be exactly as many components as groups, each backed by exactly one group.
+- Name components by architectural role (e.g. 'Authentication', 'Data Pipeline', 'Request Handling'), never 'Group N'.
+- Ground the name in the code's own vocabulary: reuse the terms that the group's own modules, classes, and packages already use, and stay close to them rather than inventing a broader abstraction.
+- Prefer a single dominant concern per name and avoid joining two concerns with '&' when possible; if a group genuinely spans two, name it after the dominant one and note the secondary concern in the description instead.
+- Components should translate well to flow diagram representation."""
 
 PLANNER_SYSTEM_MESSAGE = """You are a software architecture expert evaluating component expansion needs.
 
@@ -280,23 +277,24 @@ Focus on core subsystem functionality only. Avoid cross-cutting concerns like lo
 
 DETAILS_MESSAGE = """Create final sub-component architecture for the `{component}` subsystem optimized for flow representation.
 
+The clusters have already been partitioned into a fixed set of groups by graph community detection. Each "Group N" below is exactly one sub-component — the number of groups and their membership are already decided. Do NOT merge, split, or re-group them; only name and describe each group.
+
 Cluster Analysis:
 {cluster_analysis}
 
 Instructions:
-1. Review the named cluster groups above
-2. Decide which named groups should be merged into final sub-components
-3. For each sub-component, specify which named cluster groups it encompasses via source_group_names
+1. Produce EXACTLY one sub-component per named group above (the same number of sub-components as there are groups)
+2. Set each sub-component's source_group_names to the single group it corresponds to (use the exact group name, e.g. "Group 1")
+3. Give each sub-component a descriptive architectural name (its role, not "Group N")
 4. Add key entities (2-5 most important classes/methods) for each sub-component, referencing the source file where they are defined
 5. Do not define relationships yet; relationships are discovered in a later API-surface step
 
 Guidelines:
-- Aim for 3-8 final sub-components
-- Merge related cluster groups that serve a common purpose
+- Keep every group: there must be exactly as many sub-components as groups, each backed by exactly one group
 - Each sub-component should have clear boundaries
 - Focus on component boundaries; relationships are discovered after components are finalized
 
-Each sub-component must have a clear name, a description of what it does, and reference the exact named cluster groups it encompasses (use exact group names). Include 2-5 key entities per sub-component — the most important classes/methods — mentioning their qualified names and source files. Describe the subsystem's main flow and purpose in one paragraph. Do not define relationships yet.
+Each sub-component must have a clear name, a description of what it does, and reference the single named cluster group it encompasses (use the exact group name). Include 2-5 key entities per sub-component — the most important classes/methods — mentioning their qualified names and source files. Describe the subsystem's main flow and purpose in one paragraph. Do not define relationships yet.
 
 Constraints:
 - Focus on subsystem-specific functionality

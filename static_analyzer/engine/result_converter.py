@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import logging
 
-from static_analyzer.constants import GRAPH_NODE_TYPES, NodeType
+from collections import Counter
+
+from static_analyzer.constants import CLASS_TYPES, GRAPH_NODE_TYPES, NodeType
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.models import LanguageAnalysisResult
 from static_analyzer.engine.symbol_table import SymbolTable
-from static_analyzer.graph import CallGraph
+from static_analyzer.graph import CallGraph, EdgeKind
 from static_analyzer.node import Node
 
 logger = logging.getLogger(__name__)
@@ -95,6 +97,15 @@ def convert_to_codeboarding_format(
         language,
     )
 
+    _add_reference_edges(call_graph, result)
+
+    logger.info(
+        "Reference edges for %s: %d (%s)",
+        language,
+        len(call_graph.reference_edges),
+        dict(_count_by_kind(call_graph.reference_edges)),
+    )
+
     # Build references list from primary symbols only (excludes dual-registration
     # aliases and local variables/parameters that are implementation noise).
     primary_qnames: set[str] = set()
@@ -135,6 +146,42 @@ def convert_to_codeboarding_format(
         "source_files": result.source_files,
         "diagnostics": {},
     }
+
+
+def _add_reference_edges(call_graph: CallGraph, result: LanguageAnalysisResult) -> None:
+    """Complete the graph with non-call relationship edges (see ``EdgeKind``).
+
+    CONTAINS and INHERITS need no extra LSP work — they come from the qualified-name
+    hierarchy and the already-computed class hierarchy. TYPEREF and IMPORT are read
+    from the engine result when the analyzer populated them.
+    """
+    class_qnames = {qname for qname, node in call_graph.nodes.items() if node.type in CLASS_TYPES}
+
+    # CONTAINS: each method / nested symbol -> its innermost enclosing class node.
+    for qname in call_graph.nodes:
+        if qname in class_qnames:
+            continue
+        parts = qname.split(".")
+        for i in range(len(parts) - 1, 0, -1):
+            parent = ".".join(parts[:i])
+            if parent in class_qnames:
+                call_graph.add_reference_edge(qname, parent, EdgeKind.CONTAINS)
+                break
+
+    # INHERITS: child class -> each superclass (already computed by HierarchyBuilder).
+    for child, info in (result.hierarchy or {}).items():
+        for superclass in info.get("superclasses", []):
+            call_graph.add_reference_edge(child, superclass, EdgeKind.INHERITS)
+
+    # TYPEREF / IMPORT: emitted by the analyzer when available (see engine models).
+    for src, dst in getattr(result, "type_references", None) or ():
+        call_graph.add_reference_edge(src, dst, EdgeKind.TYPEREF)
+    for src, dst in getattr(result, "import_edges", None) or ():
+        call_graph.add_reference_edge(src, dst, EdgeKind.IMPORT)
+
+
+def _count_by_kind(reference_edges: list[tuple[str, str, str]]) -> Counter:
+    return Counter(kind for _, _, kind in reference_edges)
 
 
 def _map_symbol_kind(kind: int) -> NodeType:
