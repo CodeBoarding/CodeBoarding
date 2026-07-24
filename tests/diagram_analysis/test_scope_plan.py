@@ -16,6 +16,7 @@ from diagram_analysis.scope_plan import plan_scope_update, previous_ownership
 from static_analyzer.graph import ClusterResult
 
 FILE = "pkg/mod.py"
+DELETE = ScopeOperationAction.DELETE_COMPONENT
 
 
 def method(qualified_name: str) -> MethodEntry:
@@ -70,14 +71,14 @@ class TestPreviousOwnership(unittest.TestCase):
             components_relations=[],
         )
 
-        owner = previous_ownership(scope, clustering({7: {"a.one", "a.two", "b.one"}}))
+        owner = previous_ownership(scope, clustering({7: {"a.one", "a.two", "b.one"}}), ROOT_SCOPE_ID)
 
         self.assertEqual(owner, {7: "1"})
 
     def test_a_cluster_of_entirely_new_methods_has_no_owner(self):
         scope = AnalysisInsights(description="", components=[component("1", ["a.one"], ["1"])], components_relations=[])
 
-        owner = previous_ownership(scope, clustering({1: {"a.one"}, 2: {"fresh.thing"}}))
+        owner = previous_ownership(scope, clustering({1: {"a.one"}, 2: {"fresh.thing"}}), ROOT_SCOPE_ID)
 
         self.assertEqual(owner, {1: "1"})
 
@@ -90,7 +91,7 @@ class TestPreviousOwnership(unittest.TestCase):
             components_relations=[],
         )
 
-        owner = previous_ownership(scope, clustering({5: {"a.one", "b.one"}}))
+        owner = previous_ownership(scope, clustering({5: {"a.one", "b.one"}}), ROOT_SCOPE_ID)
 
         self.assertEqual(owner, {5: "1"})
 
@@ -226,6 +227,49 @@ class TestPlanScopeUpdate(unittest.TestCase):
             for ref in op.cluster_refs:
                 self.assertEqual(ref.language, "python")
                 self.assertEqual(ref.scope_id, ROOT_SCOPE_ID)
+
+    def test_a_cluster_owner_with_no_methods_is_not_replaced(self):
+        # A data-only cluster has no methods to speak for it, but the component owning it is
+        # deliberately protected from pruning. Ownership must fall back to source_cluster_ids
+        # or the planner deletes a stable leaf and creates a duplicate of it.
+        clusters = {1: {"a.one"}, 2: {"b.one"}, 3: {"data.CONSTANT"}}
+        methodless = Component(
+            name="Cdata", description="", key_entities=[], component_id="3", source_cluster_ids=["3"], file_methods=[]
+        )
+        scope = AnalysisInsights(
+            description="",
+            components=[component("1", ["a.one"], ["1"]), component("2", ["b.one"], ["2"]), methodless],
+            components_relations=[],
+        )
+
+        decision = plan_scope_update(
+            ROOT_SCOPE_ID, scope, {"python": clustering(clusters)}, {"python": cfg_for(clusters)}, set()
+        )
+
+        self.assertNotIn("3", [op.component_id for op in decision.operations if op.action == DELETE])
+        self.assertNotIn(ScopeOperationAction.CREATE_COMPONENT, {op.action for op in decision.operations})
+
+    def test_a_scope_that_lost_every_cluster_deletes_its_components(self):
+        scope = AnalysisInsights(
+            description="",
+            components=[
+                Component(name="C1", description="", key_entities=[], component_id="1", source_cluster_ids=["1"]),
+                Component(name="C2", description="", key_entities=[], component_id="2", source_cluster_ids=["2"]),
+            ],
+            components_relations=[],
+        )
+
+        decision = plan_scope_update(ROOT_SCOPE_ID, scope, {"python": clustering({})}, {}, set())
+
+        self.assertEqual(actions(decision), {"1": DELETE, "2": DELETE})
+
+    def test_a_scope_with_no_clusters_but_live_methods_is_left_alone(self):
+        # Clustering failed rather than the code vanishing; deleting here would be wrong.
+        scope = AnalysisInsights(description="", components=[component("1", ["a.one"], ["1"])], components_relations=[])
+
+        decision = plan_scope_update(ROOT_SCOPE_ID, scope, {"python": clustering({})}, {}, set())
+
+        self.assertEqual(decision.operations, [])
 
     def test_an_empty_clustering_plans_nothing(self):
         scope = AnalysisInsights(description="", components=[component("1", ["a.one"], ["1"])], components_relations=[])

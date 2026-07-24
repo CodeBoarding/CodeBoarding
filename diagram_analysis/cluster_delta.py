@@ -274,7 +274,10 @@ def compute_cluster_delta(
     next_new_id = (
         max((cluster_id for clusters in old_snapshot.by_language.values() for cluster_id in clusters), default=0) + 1
     )
-    for language in new_static.get_languages():
+    # Sorted, not insertion order: the allocator above advances as languages are visited, so
+    # insertion order would decide which language gets which fresh ID and churn component IDs
+    # between runs that differ only in how the languages were registered.
+    for language in sorted(new_static.get_languages(), key=str):
         cfg = new_static.get_cfg(language)
         # Cluster the same reference-augmented graph the full run uses; a call-only graph would
         # re-cluster type-coupled methods differently and drift from what a full analysis produces.

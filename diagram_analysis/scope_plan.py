@@ -38,13 +38,19 @@ from static_analyzer.graph import ClusterResult
 logger = logging.getLogger(__name__)
 
 
-def previous_ownership(scope: AnalysisInsights, cluster_result: ClusterResult) -> dict[int, str]:
+def previous_ownership(scope: AnalysisInsights, cluster_result: ClusterResult, scope_id: str) -> dict[int, str]:
     """Leaf cluster id -> the component that previously owned most of its methods.
 
     Anchoring on methods rather than on the stored ``source_cluster_ids``: a scope's
     leaf clusters are re-derived from its subgraph on every run, so their integer ids
     renumber whenever the code inside the scope changes — exactly when anchoring
     matters. Qualified names survive that; they only disappear when the method does.
+
+    A component can be cluster-backed yet hold no methods — a data-only cluster, which
+    ``_cluster_backed_empty_component_ids`` deliberately protects from pruning. Methods
+    cannot speak for it, so any cluster left unclaimed falls back to whoever lists it in
+    ``source_cluster_ids``; without that the planner would delete a stable leaf and
+    create a replacement holding the same code.
     """
     owner_of_method: dict[str, str] = {
         method.qualified_name: component.component_id
@@ -53,12 +59,23 @@ def previous_ownership(scope: AnalysisInsights, cluster_result: ClusterResult) -
         for group in component.file_methods
         for method in group.methods
     }
+    prefix = CodeBoardingClusterIds.prefix_for_scope(scope_id)
+    claimed_ids: dict[str, str] = {
+        cluster_id: component.component_id
+        for component in scope.components
+        if component.component_id
+        for cluster_id in component.source_cluster_ids
+    }
     owner: dict[int, str] = {}
     for cluster_id, members in cluster_result.clusters.items():
         tally = Counter(owner_of_method[member] for member in members if member in owner_of_method)
         if tally:
             # Ties go to the lowest component id, so the mapping is run-independent.
             owner[cluster_id] = min(tally.items(), key=lambda claim: (-claim[1], claim[0]))[0]
+            continue
+        qualified = CodeBoardingClusterIds.qualify_local_id(CodeBoardingClusterIds.from_graph_id(cluster_id), prefix)
+        if qualified in claimed_ids:
+            owner[cluster_id] = claimed_ids[qualified]
     return owner
 
 
@@ -84,14 +101,41 @@ def plan_scope_update(
     """
     combined = combine_cluster_results(cluster_results)
     if not combined.clusters:
-        return ScopeUpdateDecision(operations=[])
+        # Every cluster is gone. If the components are empty too, the code they described
+        # was deleted and they must go with it -- leaving them would keep ghost components
+        # that ``_cluster_backed_empty_component_ids`` then protects from pruning. If any
+        # still holds methods, the clustering failed rather than the code vanishing, so
+        # say so and change nothing.
+        still_populated = [
+            component.component_id
+            for component in scope.components
+            if component.component_id and any(group.methods for group in component.file_methods)
+        ]
+        if still_populated:
+            logger.warning(
+                f"[ScopePlan] {scope_id}: no clusters, but {len(still_populated)} component(s) still hold methods "
+                f"({', '.join(still_populated[:5])}); leaving the scope untouched"
+            )
+            return ScopeUpdateDecision(operations=[])
+        return ScopeUpdateDecision(
+            operations=[
+                ScopeOperation(
+                    action=ScopeOperationAction.DELETE_COMPONENT,
+                    component_id=component.component_id,
+                    cluster_refs=[],
+                    rationale="every cluster in this scope is gone",
+                )
+                for component in scope.components
+                if component.component_id
+            ]
+        )
     combined_cfg: nx.DiGraph = nx.compose_all(list(cfg_graphs.values())) if cfg_graphs else nx.DiGraph()
 
     is_root = scope_id == ROOT_SCOPE_ID
     low = TOP_LEVEL_COMPONENTS_MIN if is_root else SUBCOMPONENTS_MIN
     high = TOP_LEVEL_COMPONENTS_MAX if is_root else SUBCOMPONENTS_MAX
 
-    previous = previous_ownership(scope, combined)
+    previous = previous_ownership(scope, combined, scope_id)
     grouping = anchored_grouping(combined, combined_cfg, previous, low, high)
 
     language_of: dict[int, str] = {
