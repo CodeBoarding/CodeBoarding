@@ -12,6 +12,7 @@ import networkx as nx
 from agents.agent_responses import AnalysisInsights, Component, ScopeOperationAction
 from agents.file_index_models import FileMethodGroup, MethodEntry
 from agents.scope_ids import ROOT_SCOPE_ID
+from diagram_analysis.exceptions import IncrementalClusteringError
 from diagram_analysis.scope_plan import plan_scope_update, previous_ownership
 from static_analyzer.graph import ClusterResult
 
@@ -263,16 +264,16 @@ class TestPlanScopeUpdate(unittest.TestCase):
 
         self.assertEqual(actions(decision), {"1": DELETE, "2": DELETE})
 
-    def test_a_scope_with_no_clusters_but_live_methods_is_left_alone(self):
-        # Clustering failed rather than the code vanishing; deleting here would be wrong.
+    def test_no_clusters_but_live_methods_fails_loud(self):
+        # The subgraph builder guarantees a cluster per live method, so empty clusters with
+        # live methods means the clustering could not represent the code -- fail, don't no-op.
         scope = AnalysisInsights(description="", components=[component("1", ["a.one"], ["1"])], components_relations=[])
 
-        decision = plan_scope_update(ROOT_SCOPE_ID, scope, {"python": clustering({})}, {}, set())
+        with self.assertRaises(IncrementalClusteringError):
+            plan_scope_update(ROOT_SCOPE_ID, scope, {"python": clustering({})}, {}, set())
 
-        self.assertEqual(decision.operations, [])
-
-    def test_an_empty_clustering_plans_nothing(self):
-        scope = AnalysisInsights(description="", components=[component("1", ["a.one"], ["1"])], components_relations=[])
+    def test_an_empty_scope_plans_nothing(self):
+        scope = AnalysisInsights(description="", components=[], components_relations=[])
 
         decision = plan_scope_update(ROOT_SCOPE_ID, scope, {"python": clustering({})}, {}, set())
 

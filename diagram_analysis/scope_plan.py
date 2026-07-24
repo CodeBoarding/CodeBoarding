@@ -24,6 +24,7 @@ from agents.agent_responses import (
 )
 from agents.cluster_ids import CodeBoardingClusterIds
 from agents.scope_ids import ROOT_SCOPE_ID
+from diagram_analysis.exceptions import IncrementalClusteringError
 from static_analyzer.cluster_helpers import (
     SUBCOMPONENTS_MAX,
     SUBCOMPONENTS_MIN,
@@ -104,19 +105,16 @@ def plan_scope_update(
         # Every cluster is gone. If the components are empty too, the code they described
         # was deleted and they must go with it -- leaving them would keep ghost components
         # that ``_cluster_backed_empty_component_ids`` then protects from pruning. If any
-        # still holds methods, the clustering failed rather than the code vanishing, so
-        # say so and change nothing.
+        # still holds methods the clustering failed to represent live code (the subgraph
+        # builder guarantees one cluster per live method), so fail loud rather than save a
+        # scope with stale membership and hide the missed change.
         still_populated = [
             component.component_id
             for component in scope.components
             if component.component_id and any(group.methods for group in component.file_methods)
         ]
         if still_populated:
-            logger.warning(
-                f"[ScopePlan] {scope_id}: no clusters, but {len(still_populated)} component(s) still hold methods "
-                f"({', '.join(still_populated[:5])}); leaving the scope untouched"
-            )
-            return ScopeUpdateDecision(operations=[])
+            raise IncrementalClusteringError(scope_id, still_populated)
         return ScopeUpdateDecision(
             operations=[
                 ScopeOperation(
