@@ -6,7 +6,7 @@ from collections import Counter, defaultdict
 from collections.abc import Iterable, Iterator
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from contextlib import nullcontext
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -606,31 +606,37 @@ class DiagramGenerator:
         the subtree is right there. Re-litigating it here can only destroy it: the save
         serializes children only for a component it is told is expandable, so a verdict
         that flips to False discards work already done and, because analysis.json is the
-        store, the subtree is gone for good.
+        store, the subtree is gone for good. Such a component is therefore added
+        unconditionally, outside ``get_expandable_components`` — its structural gate runs
+        before the separability one, so a predicate cannot rescue a component the
+        structural gate has already rejected.
         """
         if self.details_agent is None:
             return None, None
 
-        def expandable(component: Component) -> bool:
-            return component.component_id in sub_analyses or self._component_separable(component)
+        def expandable_ids(scope: AnalysisInsights, parent_had_clusters: bool = True) -> list[str]:
+            ids = [
+                component.component_id
+                for component in get_expandable_components(
+                    scope, parent_had_clusters=parent_had_clusters, separable=self._component_separable
+                )
+                if component.component_id
+            ]
+            chosen = set(ids)
+            ids.extend(
+                component.component_id
+                for component in scope.components
+                if component.component_id and component.component_id in sub_analyses
+                if component.component_id not in chosen
+            )
+            return ids
 
-        root_ids = [
-            component.component_id
-            for component in get_expandable_components(root_analysis, separable=expandable)
-            if component.component_id
-        ]
+        root_ids = expandable_ids(root_analysis)
         component_lookup = index_components_by_id(root_analysis, sub_analyses)
         sub_ids: dict[str, list[str]] = {}
         for cid, sub in sub_analyses.items():
             parent = component_lookup.get(cid)
-            parent_had_clusters = bool(parent.source_cluster_ids) if parent else True
-            sub_ids[cid] = [
-                component.component_id
-                for component in get_expandable_components(
-                    sub, parent_had_clusters=parent_had_clusters, separable=expandable
-                )
-                if component.component_id
-            ]
+            sub_ids[cid] = expandable_ids(sub, parent_had_clusters=bool(parent.source_cluster_ids) if parent else True)
         return root_ids, sub_ids
 
     def _process_component(
@@ -1450,10 +1456,18 @@ class DiagramGenerator:
                 _merge_sub_analyses(sub_analyses, redetailed_subs)
 
             if apply_result.relation_contexts:
+                # Each context froze its changed set when its scope was planned, before the
+                # copy-forward pass proved some of those components byte-identical and dropped
+                # them from the refresh set. Narrow the contexts to what actually changed, or
+                # relations between two restored components would be reworded for nothing.
+                settled = apply_result.refresh_ids | apply_result.new_component_ids | apply_result.removed_ids
                 self.incremental_agent.generate_all_scope_relations(
                     root_analysis,
                     sub_analyses,
-                    apply_result.relation_contexts,
+                    {
+                        scope_id: replace(context, changed_ids=context.changed_ids & settled)
+                        for scope_id, context in apply_result.relation_contexts.items()
+                    },
                 )
 
             self._refresh_files_index(root_analysis, sub_analyses)

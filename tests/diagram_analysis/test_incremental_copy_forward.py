@@ -412,6 +412,20 @@ class TestAnalysedSubtreeSurvivesTheSaveTimeVerdict(unittest.TestCase):
             self.assertEqual(root_ids, ["1"])
             self.assertEqual(sub_ids, {"1": []})
 
+    def test_children_survive_even_when_the_structural_gate_rejects(self):
+        # get_expandable_components runs should_expand_component first, so a predicate
+        # cannot rescue a component that gate has already dropped -- a component with no
+        # file_methods of its own would lose its children despite holding them.
+        with tempfile.TemporaryDirectory() as tmp:
+            generator = self._generator(tmp)
+            bare = Component(name="A", description="", key_entities=[], component_id="1", file_methods=[])
+            root = AnalysisInsights(description="", components=[bare], components_relations=[])
+            subs = {"1": analysis(component("1.1", "A child", {"a.py": ["a.one"]}))}
+
+            root_ids, _sub_ids = generator._expandable_ids_for_tree(root, subs)
+
+            self.assertEqual(root_ids, ["1"])
+
     def test_a_childless_component_still_obeys_the_gate(self):
         with tempfile.TemporaryDirectory() as tmp:
             generator = self._generator(tmp)
