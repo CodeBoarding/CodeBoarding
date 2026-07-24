@@ -2,13 +2,17 @@ import logging
 from dataclasses import dataclass
 from pathlib import Path
 
-from caching.details_cache import ClusterCache, FinalAnalysisCache, prune_details_caches
+from caching.details_cache import FinalAnalysisCache, prune_details_caches
 from monitoring.paths import generate_log_path
 from utils import generate_run_id
 
 logger = logging.getLogger(__name__)
 
 # Safety-valve depth cap, not a target — see --depth-level help / README for why.
+# A component that outgrows the leaf ceiling is flagged expandable at whatever depth
+# the run stops, so this cap bounds how much gets expanded up front, not whether a
+# large component *can* be expanded (on demand, via the partial-analysis API). Raise
+# it to auto-expand deeper.
 DEFAULT_DEPTH_LEVEL = 3
 
 
@@ -57,16 +61,11 @@ def _load_existing_run_id(repo_dir: Path) -> str | None:
     if not (repo_dir / ".git").exists():
         logger.info("Repo not yet cloned at %s; skipping run_id cache lookup", repo_dir)
         return None
-    final_cache = FinalAnalysisCache(repo_dir)
-    cluster_cache = ClusterCache(repo_dir)
-    final_latest = final_cache.load_most_recent_run()
-    cluster_latest = cluster_cache.load_most_recent_run()
-
-    candidates = [candidate for candidate in (final_latest, cluster_latest) if candidate is not None]
-    if not candidates:
+    latest = FinalAnalysisCache(repo_dir).load_most_recent_run()
+    if latest is None:
         logger.info("No existing run_id found in details caches")
         return None
 
-    run_id, updated_at = max(candidates, key=lambda candidate: candidate[1])
+    run_id, updated_at = latest
     logger.info("Reusing most recent run_id=%s (updated_at=%d)", run_id, updated_at)
     return run_id

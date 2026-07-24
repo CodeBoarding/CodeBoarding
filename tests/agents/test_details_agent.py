@@ -178,7 +178,7 @@ class TestDetailsAgent(unittest.TestCase):
         mock_subgraph = MagicMock()
         mock_subgraph.nodes = {"n1": mock_node}
         mock_subgraph.cluster.return_value = mock_sub_cluster_result
-        mock_subgraph.to_cluster_string.return_value = "Component CFG String"
+        mock_subgraph.method_cluster_paths_snapshot.return_value = []
 
         mock_cfg = MagicMock()
         mock_cfg.filter_by_nodes.return_value = mock_subgraph
@@ -186,11 +186,9 @@ class TestDetailsAgent(unittest.TestCase):
         self.mock_static_analysis.get_languages.return_value = ["python"]
         self.mock_static_analysis.get_cfg.return_value = mock_cfg
 
-        subgraph_str, subgraph_cluster_results, subgraph_cfgs = agent._create_strict_component_subgraph(
-            self.test_component
-        )
+        subgraph_cluster_results, subgraph_cfgs = agent._create_strict_component_subgraph(self.test_component)
 
-        self.assertIn("Component CFG String", subgraph_str)
+        self.assertIs(subgraph_cluster_results["python"], mock_sub_cluster_result)
         self.assertIn("python", subgraph_cfgs)
         self.assertIs(subgraph_cfgs["python"], mock_subgraph)
         self.mock_static_analysis.get_cfg.assert_called_with("python")
@@ -201,11 +199,13 @@ class TestDetailsAgent(unittest.TestCase):
         # Grouping is deterministic (resolution-tuned Leiden on the subgraph), no LLM call.
         agent = self._make_agent()
         cr, graph = self._clustered_graph(range(1, 11))
-        self.mock_static_analysis.get_cfg.return_value.to_networkx.return_value = graph
+        subgraph_cfg = MagicMock()
+        subgraph_cfg.clustering_networkx.return_value = graph
         subgraph_cluster_results = {"python": cr}
+        subgraph_cfgs = {"python": subgraph_cfg}
 
-        result = agent.step_clusters_grouping(self.test_component, subgraph_cluster_results)
-        result_again = agent.step_clusters_grouping(self.test_component, subgraph_cluster_results)
+        result = agent.step_clusters_grouping(self.test_component, subgraph_cluster_results, subgraph_cfgs)
+        result_again = agent.step_clusters_grouping(self.test_component, subgraph_cluster_results, subgraph_cfgs)
 
         # A complete, disjoint partition of the leaf clusters into "Group i" components.
         self._assert_partition(result, list(range(1, 11)))

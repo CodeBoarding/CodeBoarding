@@ -173,10 +173,11 @@ def _add_reference_edges(call_graph: CallGraph, result: LanguageAnalysisResult) 
         for superclass in info.get("superclasses", []):
             call_graph.add_reference_edge(child, superclass, EdgeKind.INHERITS)
 
-    # TYPEREF / IMPORT: emitted by the analyzer when available (see engine models).
-    for src, dst in getattr(result, "type_references", None) or ():
+    # TYPEREF / IMPORT: no engine populates these yet, so both loops are empty in
+    # production. Kept so an engine that starts emitting them needs no converter change.
+    for src, dst in result.type_references:
         call_graph.add_reference_edge(src, dst, EdgeKind.TYPEREF)
-    for src, dst in getattr(result, "import_edges", None) or ():
+    for src, dst in result.import_edges:
         call_graph.add_reference_edge(src, dst, EdgeKind.IMPORT)
 
 

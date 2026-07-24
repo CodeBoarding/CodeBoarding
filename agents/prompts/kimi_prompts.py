@@ -58,36 +58,6 @@ Your analysis must include:
 
 Focus on architectural patterns for {project_type} projects with clear component boundaries suitable for diagram generation."""
 
-CLUSTER_GROUPING_MESSAGE = """You are Kimi, an AI assistant created by Moonshot AI.
-
-Analyze and GROUP the Control Flow Graph clusters.
-
-The CFG has been pre-clustered into groups of related methods/functions. Each cluster represents methods that call each other frequently.
-
-CFG Clusters:
-{cfg_clusters}
-
-Task: GROUP similar clusters together into logical components based on their relationships and purpose.
-
-Reason carefully, then execute:
-
-1. Analyze the clusters shown above and identify which ones work together or are functionally related.
-2. Group related clusters into meaningful components.
-3. A component can contain one or more cluster IDs (e.g., [1], [2, 5], or [3, 7, 9]).
-4. For each grouped component, provide:
-   - **name**: Short, descriptive name for this group (e.g., 'Authentication', 'Data Pipeline', 'Request Handling')
-   - **cluster_ids**: List of cluster IDs that belong together (as a list, e.g., [1, 3, 5])
-   - **description**: Comprehensive explanation including:
-     * What this component does
-     * What is its main flow/purpose
-     * WHY these specific clusters are grouped together (provide clear rationale for the grouping decision)
-     * How this group interacts with other cluster groups (which groups it calls, receives data from, or depends on)
-     * The most important classes/methods in this group — mention their exact qualified names as shown in the clusters above
-
-Focus on creating cohesive, logical groupings that reflect the actual architecture based on semantic meaning from method names, call patterns, and architectural context. Describe inter-group interactions based on the inter-cluster connections.
-
-Return each grouped component with a descriptive name, its cluster_ids list, and a comprehensive description covering rationale and inter-group interactions."""
-
 FINAL_ANALYSIS_MESSAGE = """You are Kimi, an AI assistant created by Moonshot AI.
 
 Name and describe the final component architecture.
@@ -281,34 +251,6 @@ Required outputs:
 
 Focus on subsystem-specific functionality. Avoid cross-cutting concerns like logging or error handling."""
 
-CFG_DETAILS_MESSAGE = """You are Kimi, an AI assistant created by Moonshot AI.
-
-Task: Analyze and GROUP the Control Flow Graph clusters for the `{component}` subsystem.
-
-The CFG has been pre-clustered into groups of related methods/functions. Each cluster represents methods that call each other frequently.
-
-CFG Clusters:
-{cfg_clusters}
-
-Reason carefully, then execute:
-
-1. Analyze the clusters shown above and identify which ones work together or are functionally related.
-2. Group related clusters into meaningful sub-components.
-3. A sub-component can contain one or more cluster IDs (e.g., [1], [2, 5], or [3, 7, 9]).
-4. For each grouped sub-component, provide:
-   - **name**: Short, descriptive name for this group (e.g., 'Request Parsing', 'Response Building')
-   - **cluster_ids**: List of cluster IDs that belong together (as a list, e.g., [1, 3, 5])
-   - **description**: Comprehensive explanation including:
-     * What this sub-component does
-     * What is its main flow/purpose
-     * WHY these specific clusters are grouped together (provide clear rationale)
-     * How this group interacts with other cluster groups
-     * The most important classes/methods in this group — mention their exact qualified names as shown in the clusters above
-
-Focus on core subsystem functionality only. Avoid cross-cutting concerns like logging or error handling.
-
-Return each grouped sub-component with a descriptive name, its cluster_ids list, and a comprehensive description covering rationale and inter-group interactions."""
-
 DETAILS_MESSAGE = """You are Kimi, an AI assistant created by Moonshot AI.
 
 Cluster Analysis:
@@ -405,9 +347,6 @@ class KimiPromptFactory(AbstractPromptFactory):
     def get_system_message(self) -> str:
         return SYSTEM_MESSAGE
 
-    def get_cluster_grouping_message(self) -> str:
-        return CLUSTER_GROUPING_MESSAGE
-
     def get_final_analysis_message(self) -> str:
         return FINAL_ANALYSIS_MESSAGE
 
@@ -440,9 +379,6 @@ class KimiPromptFactory(AbstractPromptFactory):
 
     def get_system_details_message(self) -> str:
         return SYSTEM_DETAILS_MESSAGE
-
-    def get_cfg_details_message(self) -> str:
-        return CFG_DETAILS_MESSAGE
 
     def get_details_message(self) -> str:
         return DETAILS_MESSAGE

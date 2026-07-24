@@ -1,23 +1,15 @@
-"""
-Deterministic component expansion planning.
+"""Deterministic component expansion planning — which components split further.
 
-This module provides fast, deterministic logic to decide which components
-should be expanded into sub-components. Unlike the previous LLM-based approach,
-this uses CFG clustering structure as the source of truth.
+Two independent gates, no LLM:
 
-Expansion Rules:
-1. If component has source_cluster_ids -> expandable (CFG structure exists)
-2. If component has no clusters but has files -> expandable ONE level (to explain files)
-3. If neither component nor its parent has clusters -> leaf (stop expanding)
+* ``should_expand_component`` — structural. A component needs files, and needs
+  either its own leaf clusters or a parent that had them (one file-level level).
+* ``component_is_separable`` — size and cohesion. Past the leaf ceiling a
+  component splits whatever its call structure says; below it, the split's
+  modularity must clear a bar that eases as the component approaches the ceiling.
 
-Note: The MIN_CLUSTERS_THRESHOLD in constants.py controls when subgraphs are
-automatically expanded to method-level clustering in cluster_methods_mixin.py.
-This ensures fine-grained method assignment even for small components.
-
-Example:
-- Component: "Agents" (clusters: [1,2,3]) -> expand (yes)
-  - Sub-component: "DetailsAgent" (clusters: [], files: [details_agent.py]) -> expand (yes, parent had clusters)
-    - Sub-sub-component: "run_method" (clusters: [], files: []) -> DON'T expand (no, parent had no clusters)
+See docs/development/component-sizing.md for the constants and the measurements
+behind them.
 """
 
 import logging
@@ -26,47 +18,66 @@ from collections.abc import Callable
 import networkx as nx
 
 from agents.agent_responses import AnalysisInsights, Component
-from static_analyzer.cluster_helpers import subgraph_peak_modularity
-from static_analyzer.graph import ClusterResult
+from static_analyzer.cluster_helpers import SUBCOMPONENTS_MAX, SUBCOMPONENTS_MIN, supercluster_leaf_ids
+from static_analyzer.graph import METHOD_LEVEL_STRATEGY, ClusterResult
 
 logger = logging.getLogger(__name__)
 
 # Default thresholds
 DEFAULT_MIN_FILES = 1  # Need at least 1 file to have content
 
-# A component is only expanded into sub-components when its own call structure
-# actually separates. Both gates must pass:
-#   - MIN_METHODS_TO_EXPAND: below this a component is too small to sub-divide.
-#   - EXPAND_MODULARITY_THRESHOLD: peak modularity of the component's inter-cluster
-#     meta-graph; below it the internals are a cohesive blob with no natural split.
-# Why: modularity is a continuous ramp with no bimodal split, so the threshold is a
-# depth dial — 0.20 is the deepest setting where every split still maps to genuine
-# structure; raise toward 0.25 for shallower trees.
+# Below this a component holds too little to be worth sub-dividing at all.
 MIN_METHODS_TO_EXPAND = 30
+
+# The size at which a component stops being readable as one box and must be split
+# whatever its call structure says. Measured across the eval corpus: at 12 files /
+# 120 methods every repo's tree comes out with no oversized leaf, while small repos
+# are untouched (they stop at the modularity gate long before this).
+MAX_LEAF_FILES = 12
+MAX_LEAF_METHODS = 120
+
+# Modularity a *small* component's split must reach to be worth making. The bar
+# ramps linearly to zero as the component approaches the leaf ceiling: a large
+# component gets split on weaker structural evidence, because leaving it whole
+# costs the reader more than an imperfect boundary does.
 EXPAND_MODULARITY_THRESHOLD = 0.15
+
+
+def leaf_load(component: Component) -> float:
+    """How full a component is against the leaf ceiling; >= 1.0 means too big to leave whole."""
+    methods = sum(len(group.methods) for group in component.file_methods)
+    return max(methods / MAX_LEAF_METHODS, len(component.file_methods) / MAX_LEAF_FILES)
 
 
 def component_is_separable(
     cluster_results: dict[str, ClusterResult],
     cfg_graphs: dict[str, nx.DiGraph],
-    min_modularity: float = EXPAND_MODULARITY_THRESHOLD,
+    load: float,
     min_methods: int = MIN_METHODS_TO_EXPAND,
 ) -> bool:
     """Whether a component's own call structure justifies splitting it into sub-components.
 
-    True only when the subgraph is big enough (>= ``min_methods`` methods) AND its
-    inter-cluster meta-graph has a genuine community split (peak modularity
-    >= ``min_modularity``). A cohesive blob (low modularity) or a small component
-    becomes a leaf instead of being force-split down to the depth cap.
+    Requires enough content (>= ``min_methods`` methods) and a split whose modularity
+    clears the size-graded bar. ``load`` is the caller's ``leaf_load``; callers that
+    already know the component is oversized (``load >= 1.0``) should skip this and
+    split unconditionally rather than pay for the partition sweep.
     """
     total_methods = sum(len(members) for cr in cluster_results.values() for members in cr.clusters.values())
     if total_methods < min_methods:
         logger.debug(f"[Planner] subgraph too small to expand ({total_methods} < {min_methods} methods)")
         return False
-    modularity = subgraph_peak_modularity(cluster_results, cfg_graphs)
-    separable = modularity >= min_modularity
+    if all(cr.strategy == METHOD_LEVEL_STRATEGY for cr in cluster_results.values()):
+        # One synthetic cluster per method: the meta-graph is the raw call graph, whose
+        # modularity is far higher than any real clustering's and not comparable to the
+        # threshold. Too few natural clusters to separate means there is nothing to split.
+        logger.debug("[Planner] subgraph has no natural cluster structure; keeping as leaf")
+        return False
+    _groups, modularity = supercluster_leaf_ids(cluster_results, cfg_graphs, SUBCOMPONENTS_MIN, SUBCOMPONENTS_MAX)
+    required = EXPAND_MODULARITY_THRESHOLD * max(0.0, 1.0 - load)
+    separable = modularity >= required
     logger.debug(
-        f"[Planner] subgraph peak modularity={modularity:.4f} " f"(threshold {min_modularity}) -> separable={separable}"
+        f"[Planner] subgraph modularity={modularity:.4f} (load={load:.2f}, required {required:.4f}) "
+        f"-> separable={separable}"
     )
     return separable
 

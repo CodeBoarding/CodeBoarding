@@ -85,7 +85,10 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
 
     @trace
     def step_clusters_grouping(
-        self, component: Component, subgraph_cluster_results: dict[str, ClusterResult]
+        self,
+        component: Component,
+        subgraph_cluster_results: dict[str, ClusterResult],
+        subgraph_cfgs: dict[str, CallGraph],
     ) -> ClusterAnalysis:
         """Deterministically partition the component's subgraph into sub-component groups.
 
@@ -94,7 +97,12 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
         deterministically from the subgraph structure, not by the LLM.
         """
         logger.info(f"[DetailsAgent] Super-clustering subgraph for component: {component.name}")
-        return self.deterministic_cluster_grouping(subgraph_cluster_results, SUBCOMPONENTS_MIN, SUBCOMPONENTS_MAX)
+        return self.deterministic_cluster_grouping(
+            subgraph_cluster_results,
+            {lang: cfg.clustering_networkx() for lang, cfg in subgraph_cfgs.items()},
+            SUBCOMPONENTS_MIN,
+            SUBCOMPONENTS_MAX,
+        )
 
     @trace
     def step_final_analysis(
@@ -245,12 +253,12 @@ class DetailsAgent(ClusterMethodsMixin, CodeBoardingAgent):
 
         # Step 1: Create subgraph from component's assigned files using strict filtering
         # If subgraph has < MIN_CLUSTERS_THRESHOLD clusters, auto-expands to method-level
-        _subgraph_str, subgraph_cluster_results, subgraph_cfgs = self._create_strict_component_subgraph(
+        subgraph_cluster_results, subgraph_cfgs = self._create_strict_component_subgraph(
             component, source_cluster_id_prefix=component.component_id
         )
 
         # Step 2: Group clusters within the subgraph
-        cluster_analysis = self.step_clusters_grouping(component, subgraph_cluster_results)
+        cluster_analysis = self.step_clusters_grouping(component, subgraph_cluster_results, subgraph_cfgs)
 
         # Step 3: Generate detailed analysis from grouped clusters
         # Validation ensures key_entities are within cluster scope (no rescue needed)

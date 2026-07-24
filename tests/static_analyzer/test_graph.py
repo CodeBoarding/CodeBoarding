@@ -269,54 +269,6 @@ class TestCallGraph(unittest.TestCase):
         self.assertIn("module.src", str_repr)
         self.assertIn("module.dst", str_repr)
 
-    def test_to_cluster_string_empty(self):
-        # Test clustering with empty graph
-        graph = CallGraph()
-        result = graph.to_cluster_string()
-
-        # Empty graph returns the strategy name "empty"
-        self.assertIn("empty", result.lower())
-
-    def test_to_cluster_string_small_graph(self):
-        # Test clustering with small graph (no significant clusters)
-        graph = CallGraph()
-        node1 = Node("module.func1", 12, "/file.py", 1, 10)
-        node2 = Node("module.func2", 12, "/file.py", 20, 30)
-
-        graph.add_node(node1)
-        graph.add_node(node2)
-        graph.add_edge("module.func1", "module.func2")
-
-        result = graph.to_cluster_string()
-
-        # With only 2 nodes, may not find significant clusters
-        self.assertIsInstance(result, str)
-
-    @patch("networkx.community.greedy_modularity_communities")
-    def test_to_cluster_string_with_clusters(self, mock_communities):
-        # Test clustering with mocked communities
-        graph = CallGraph()
-
-        # Create a larger graph
-        for i in range(10):
-            node = Node(f"module.func{i}", 12, "/file.py", i * 10, i * 10 + 5)
-            graph.add_node(node)
-
-        # Add some edges
-        for i in range(9):
-            graph.add_edge(f"module.func{i}", f"module.func{i+1}")
-
-        # Mock community detection to return specific clusters
-        mock_communities.return_value = [
-            {"module.func0", "module.func1", "module.func2"},
-            {"module.func3", "module.func4", "module.func5"},
-        ]
-
-        result = graph.to_cluster_string()
-
-        self.assertIn("Cluster", result)
-        self.assertIn("Cluster Definitions", result)
-
     def test_llm_str_small_graph(self):
         # Test LLM string for small graph (within size limit)
         graph = CallGraph()
@@ -395,61 +347,6 @@ class TestCallGraph(unittest.TestCase):
         # The header should reflect 2 active nodes (func1 + func3), not 3
         self.assertIn("2 nodes", result)
 
-    def test_cluster_str_static_method(self):
-        # Test __cluster_str static method
-        graph = CallGraph()
-
-        # Create test graph
-        for i in range(6):
-            node = Node(f"module.func{i}", 12, "/file.py", i * 10, i * 10 + 5)
-            graph.add_node(node)
-
-        # Create edges
-        graph.add_edge("module.func0", "module.func1")
-        graph.add_edge("module.func2", "module.func3")
-        graph.add_edge("module.func0", "module.func3")  # Inter-cluster edge
-
-        nx_graph = graph.to_networkx()
-
-        # Define communities as (cluster_id, members) pairs
-        communities = [
-            (1, {"module.func0", "module.func1"}),
-            (2, {"module.func2", "module.func3"}),
-        ]
-
-        graph_instance = CallGraph()
-        result = graph_instance._CallGraph__cluster_str(communities, nx_graph, set())  # type: ignore[attr-defined]
-
-        self.assertIn("Cluster Definitions", result)
-        self.assertIn("Inter-Cluster Connections", result)
-        self.assertIn("Cluster 1", result)
-        self.assertIn("Cluster 2", result)
-
-    def test_cluster_str_prefix_factoring(self):
-        graph = CallGraph()
-
-        nodes = [
-            Node("pkg.sub.module.ClassA", NodeType.CLASS, "/pkg/sub/module.py", 1, 5),
-            Node("pkg.sub.module.ClassA.method_one", NodeType.METHOD, "/pkg/sub/module.py", 6, 10),
-            Node("pkg.sub.module.ClassA.method_two", NodeType.METHOD, "/pkg/sub/module.py", 11, 15),
-            Node("pkg.sub.module.helper_func", NodeType.FUNCTION, "/pkg/sub/module.py", 16, 20),
-            Node("other.Outside", NodeType.CLASS, "/other.py", 1, 5),
-        ]
-        for n in nodes:
-            graph.add_node(n)
-        graph.add_edge("pkg.sub.module.ClassA.method_one", "pkg.sub.module.helper_func")
-
-        nx_graph = graph.to_networkx()
-        communities = [(1, {n.fully_qualified_name for n in nodes[:4]}), (2, {"other.Outside"})]
-
-        result = graph._CallGraph__cluster_str(communities, nx_graph, set())  # type: ignore[attr-defined]
-
-        self.assertIn('(identifiers below prefixed with "pkg.sub.module.")', result)
-        self.assertIn("ClassA [Class]", result)
-        self.assertIn("helper_func [Function]", result)
-        # Full FQN must not appear inside the factored file block
-        self.assertNotIn("    pkg.sub.module.ClassA [Class]", result)
-
     def test_common_dot_prefix(self):
         self.assertEqual(CallGraph._common_dot_prefix([]), "")
         self.assertEqual(CallGraph._common_dot_prefix(["a.b.c"]), "")
@@ -457,48 +354,6 @@ class TestCallGraph(unittest.TestCase):
         self.assertEqual(CallGraph._common_dot_prefix(["a.b.c", "x.y.z"]), "")
         # Prevents collapsing identical names to empty short form
         self.assertEqual(CallGraph._common_dot_prefix(["a.b", "a.b"]), "a")
-
-    def test_non_cluster_str_static_method(self):
-        # Test __non_cluster_str static method
-        graph = CallGraph()
-
-        for i in range(4):
-            node = Node(f"module.func{i}", 12, "/file.py", i * 10, i * 10 + 5)
-            graph.add_node(node)
-
-        # Create edges
-        graph.add_edge("module.func0", "module.func1")
-        graph.add_edge("module.func2", "module.func3")
-
-        nx_graph = graph.to_networkx()
-
-        # Define top nodes (in clusters)
-        top_nodes = {"module.func0", "module.func1"}
-
-        graph_instance = CallGraph()
-        result = graph_instance._CallGraph__non_cluster_str(nx_graph, top_nodes, set())  # type: ignore[attr-defined]
-
-        # Should show edges involving func2 and func3
-        self.assertIn("module.func2", result)
-        self.assertIn("module.func3", result)
-
-    def test_to_cluster_string_minimum_cluster_size(self):
-        # Test that clusters must meet minimum size requirement
-        graph = CallGraph()
-
-        # Create 100 nodes to ensure minimum threshold
-        for i in range(100):
-            node = Node(f"module.func{i}", 12, "/file.py", i * 10, i * 10 + 5)
-            graph.add_node(node)
-
-        # Create edges to form communities
-        for i in range(99):
-            graph.add_edge(f"module.func{i}", f"module.func{i+1}")
-
-        result = graph.to_cluster_string()
-
-        # Should create clusters (with 100 nodes, 5% = 5 nodes minimum)
-        self.assertIsInstance(result, str)
 
     def test_cluster_returns_cluster_result(self):
         """Test that cluster() returns a ClusterResult."""
@@ -645,24 +500,6 @@ class TestCallGraph(unittest.TestCase):
             sub_result = sub_graph.cluster()
             self.assertIsInstance(sub_result, ClusterResult)
 
-    def test_to_cluster_string_with_cluster_ids_filter(self):
-        """Test to_cluster_string() with specific cluster IDs."""
-        graph = CallGraph()
-
-        for i in range(10):
-            node = Node(f"module.func{i}", 12, f"/file{i % 2}.py", i * 10, i * 10 + 5)
-            graph.add_node(node)
-
-        for i in range(9):
-            graph.add_edge(f"module.func{i}", f"module.func{i+1}")
-
-        cluster_result = graph.cluster()
-        if len(cluster_result.clusters) >= 2:
-            # Get first cluster ID only
-            first_id = min(cluster_result.clusters.keys())
-            filtered_str = graph.to_cluster_string(cluster_ids={first_id})
-
-            self.assertIn("Cluster", filtered_str)
             # Should only include the specified cluster
 
     def test_cluster_determinism(self):

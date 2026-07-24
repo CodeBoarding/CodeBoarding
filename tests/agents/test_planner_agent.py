@@ -1,22 +1,15 @@
-"""
-Tests for the deterministic planner_agent module.
-
-The planner uses CFG structure (source_cluster_ids, file_methods) and parent context
-to determine which components should be expanded - no LLM calls.
-
-Expansion Rules:
-1. Has clusters -> expand (CFG structure exists)
-2. No clusters but has files AND parent had clusters -> expand one level
-3. No clusters AND parent had no clusters -> leaf (stop)
-"""
+"""Tests for the deterministic expansion gates in planner_agent — no LLM calls."""
 
 import unittest
 
 import networkx as nx
 
 from agents.planner_agent import (
+    MAX_LEAF_FILES,
+    MAX_LEAF_METHODS,
     component_is_separable,
     get_expandable_components,
+    leaf_load,
     should_expand_component,
 )
 from agents.agent_responses import (
@@ -25,7 +18,7 @@ from agents.agent_responses import (
     SourceCodeReference,
 )
 from agents.file_index_models import FileMethodGroup, MethodEntry
-from static_analyzer.graph import ClusterResult
+from static_analyzer.graph import METHOD_LEVEL_STRATEGY, ClusterResult
 
 
 class TestShouldExpandComponent(unittest.TestCase):
@@ -323,11 +316,13 @@ class TestComponentIsSeparable(unittest.TestCase):
     """The modularity + method-count gate deciding whether a component splits further."""
 
     @staticmethod
-    def _subgraph(n_blocks, clusters_per_block, methods_per_cluster, cohesive=False):
+    def _subgraph(n_blocks, clusters_per_block, methods_per_cluster, cohesive=False, cross_ratio=0.0):
         """Build (cluster_results, cfg_graphs) for a component subgraph.
 
         Non-cohesive: clusters chained within a block, blocks weakly bridged (clean split).
         Cohesive: every cluster wired to every other (one blob, no boundary).
+        ``cross_ratio`` is the fraction of cross-block pairs that also get an edge; raising
+        it blurs the block boundary and drives the split's modularity toward zero.
         """
         n = n_blocks * clusters_per_block
         clusters, cluster_to_files, file_to_clusters = {}, {}, {}
@@ -352,6 +347,17 @@ class TestComponentIsSeparable(unittest.TestCase):
                         graph.add_edge(f"n{cid}_0", f"n{other}_1")
             for block in range(n_blocks - 1):
                 graph.add_edge(f"n{block * clusters_per_block + 1}_0", f"n{(block + 1) * clusters_per_block + 1}_1")
+            if cross_ratio:
+                cross_pairs = [
+                    (a, b)
+                    for a in range(1, n + 1)
+                    for b in range(1, n + 1)
+                    if (a - 1) // clusters_per_block != (b - 1) // clusters_per_block
+                ]
+                step = max(1, int(1 / cross_ratio))
+                for index, (a, b) in enumerate(cross_pairs):
+                    if index % step == 0:
+                        graph.add_edge(f"n{a}_0", f"n{b}_2")
         cr = ClusterResult(
             clusters=clusters, cluster_to_files=cluster_to_files, file_to_clusters=file_to_clusters, strategy="t"
         )
@@ -359,16 +365,67 @@ class TestComponentIsSeparable(unittest.TestCase):
 
     def test_large_separable_component_expands(self):
         crs, cfgs = self._subgraph(n_blocks=3, clusters_per_block=3, methods_per_cluster=4)  # 36 methods
-        self.assertTrue(component_is_separable(crs, cfgs))
+        self.assertTrue(component_is_separable(crs, cfgs, load=0.3))
 
     def test_large_cohesive_component_is_leaf(self):
         crs, cfgs = self._subgraph(n_blocks=1, clusters_per_block=6, methods_per_cluster=6, cohesive=True)  # 36 methods
-        self.assertFalse(component_is_separable(crs, cfgs))
+        self.assertFalse(component_is_separable(crs, cfgs, load=0.3))
 
     def test_small_component_is_leaf_regardless_of_structure(self):
         # Strong structure but only 9 methods — below the min-method gate.
         crs, cfgs = self._subgraph(n_blocks=3, clusters_per_block=1, methods_per_cluster=3)  # 9 methods
-        self.assertFalse(component_is_separable(crs, cfgs))
+        self.assertFalse(component_is_separable(crs, cfgs, load=0.3))
+
+    def test_method_level_expansion_does_not_masquerade_as_structure(self):
+        # A subgraph with too few natural clusters is re-expanded to one synthetic cluster
+        # per method upstream. That meta-graph is the raw call graph, whose modularity is
+        # not comparable to the threshold, so it must not be read as a split worth making.
+        crs, cfgs = self._subgraph(n_blocks=3, clusters_per_block=3, methods_per_cluster=4)
+        for cr in crs.values():
+            cr.strategy = METHOD_LEVEL_STRATEGY
+        self.assertFalse(component_is_separable(crs, cfgs, load=0.3))
+
+    def test_bar_eases_as_the_component_approaches_the_leaf_ceiling(self):
+        # Weak but real structure: not worth splitting a small component over, worth
+        # splitting a component that is nearly too big to read whole.
+        crs, cfgs = self._subgraph(n_blocks=3, clusters_per_block=3, methods_per_cluster=4, cross_ratio=0.34)
+        self.assertFalse(component_is_separable(crs, cfgs, load=0.1))
+        self.assertTrue(component_is_separable(crs, cfgs, load=0.8))
+
+
+class TestLeafLoad(unittest.TestCase):
+    """leaf_load measures a component against the leaf ceiling on whichever axis is fuller."""
+
+    @staticmethod
+    def _component(files: int, methods_per_file: int) -> Component:
+        return Component(
+            name="C",
+            description="",
+            key_entities=[],
+            file_methods=[
+                FileMethodGroup(
+                    file_path=f"f{i}.py",
+                    methods=[
+                        MethodEntry(qualified_name=f"f{i}.m{j}", start_line=1, end_line=2, node_type="METHOD")
+                        for j in range(methods_per_file)
+                    ],
+                )
+                for i in range(files)
+            ],
+        )
+
+    def test_small_component_is_well_under_the_ceiling(self):
+        self.assertLess(leaf_load(self._component(files=3, methods_per_file=4)), 1.0)
+
+    def test_file_count_alone_can_exceed_the_ceiling(self):
+        # One method each, but spread over more files than a single box should hold.
+        self.assertGreaterEqual(leaf_load(self._component(files=MAX_LEAF_FILES + 1, methods_per_file=1)), 1.0)
+
+    def test_method_count_alone_can_exceed_the_ceiling(self):
+        self.assertGreaterEqual(leaf_load(self._component(files=2, methods_per_file=MAX_LEAF_METHODS)), 1.0)
+
+    def test_empty_component_has_zero_load(self):
+        self.assertEqual(leaf_load(self._component(files=0, methods_per_file=0)), 0.0)
 
 
 class TestSeparablePredicate(unittest.TestCase):

@@ -1,8 +1,6 @@
 import logging
 from collections import defaultdict
-from dataclasses import dataclass
 from pathlib import Path
-from typing import NoReturn
 
 import networkx as nx
 
@@ -14,28 +12,23 @@ from agents.agent_responses import (
     ComponentArchitecture,
 )
 from agents.file_index_models import FileMethodGroup, MethodEntry
-from agents.cluster_budget import ClusterPromptBudget
 from agents.content_hash import (
     SourceCache,
     hash_method_body,
     read_source_lines,
 )
 from agents.cluster_ids import CodeBoardingClusterId, CodeBoardingClusterIds, GraphClusterId
-from agents.llm_config import get_current_agent_context_window, get_current_agent_model_ref
-from agents.model_capabilities import ContextWindow
 from constants import MIN_CLUSTERS_THRESHOLD
 from diagram_analysis.cluster_delta import _delta_for_language
 from diagram_analysis.cluster_snapshot import ClusterSnapshotEntry
 from diagram_analysis.file_index import build_files_index
 from repo_utils.path_utils import normalize_repo_path
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.cfg_skip_planner import ContextBudgetExceededError, plan_skip_set
 from static_analyzer.cluster_helpers import (
-    MAX_LLM_CLUSTERS,
     TOP_LEVEL_COMPONENTS_MAX,
     TOP_LEVEL_COMPONENTS_MIN,
-    enforce_cross_language_budget,
-    merge_clusters,
+    combine_cluster_results,
+    reindex_across_languages,
     supercluster_leaf_ids,
 )
 from static_analyzer.cluster_relations import (
@@ -44,25 +37,10 @@ from static_analyzer.cluster_relations import (
     merge_relations,
 )
 from static_analyzer.constants import CALLABLE_TYPES, CLASS_TYPES, Language
-from static_analyzer.graph import CallGraph, ClusterResult
+from static_analyzer.graph import METHOD_LEVEL_STRATEGY, CallGraph, ClusterResult
 from static_analyzer.node import Node
 
 logger = logging.getLogger(__name__)
-
-
-def _leaf_cluster_lookups(
-    cluster_results: dict[str, ClusterResult],
-) -> tuple[dict[int, set[str]], dict[int, set[str]]]:
-    """Flatten per-language cluster results into id -> members and id -> files.
-
-    Leaf-cluster IDs are globally unique across languages, so a plain merge is safe.
-    """
-    node_lookup: dict[int, set[str]] = {}
-    file_lookup: dict[int, set[str]] = {}
-    for cr in cluster_results.values():
-        node_lookup.update(cr.clusters)
-        file_lookup.update(cr.cluster_to_files)
-    return node_lookup, file_lookup
 
 
 def _group_symbols(cluster_ids: list[int], node_lookup: dict[int, set[str]]) -> list[str]:
@@ -100,13 +78,6 @@ def _fallback_component(group: ClustersComponent, node_lookup: dict[int, set[str
     return Component(name=name, description=group.description, key_entities=[])
 
 
-@dataclass(frozen=True)
-class _RenderedClusterString:
-    text: str
-    by_language: dict[str, str]
-    cluster_ids: set[GraphClusterId]
-
-
 def scoped_snapshot_from_lineage(cfg: CallGraph, scope_id: str) -> dict[int, ClusterSnapshotEntry]:
     """Build a scoped snapshot from each method's recorded cluster ancestry/path."""
     if not scope_id:
@@ -131,36 +102,13 @@ def scoped_snapshot_from_lineage(cfg: CallGraph, scope_id: str) -> dict[int, Clu
     return entries
 
 
-def _describe_window(ctx: ContextWindow) -> str:
-    suffix = "; fallback default, model window unresolved" if ctx.is_fallback else ""
-    return f"{ctx.input_tokens} input tokens for {get_current_agent_model_ref()}{suffix}"
-
-
-def _window_telemetry(ctx: ContextWindow, char_budget: int) -> dict:
-    return {
-        "char_budget": char_budget,
-        "window_input_tokens": ctx.input_tokens,
-        "window_is_fallback": ctx.is_fallback,
-        "agent_model": get_current_agent_model_ref(),
-    }
-
-
 class ClusterMethodsMixin:
-    """
-    Mixin providing shared cluster-related functionality for agents.
+    """Shared cluster handling for the abstraction and details agents.
 
-    This mixin provides methods for:
-    - Building cluster strings from CFG analysis (using CallGraph.cluster())
-    - Assigning files to components based on clusters and key_entities
-    - Ensuring unique key entities across components
-
-    All clustering logic is delegated to CallGraph.cluster() which provides:
-    - Deterministic cluster IDs (seed=42)
-    - Cached results
-    - File <-> cluster bidirectional mappings
-
-    IMPORTANT: All methods are stateless with respect to ClusterResult.
-    Cluster results must be passed explicitly as parameters.
+    Partitions leaf clusters into component groups, assigns every CFG method to
+    exactly one component, and derives the static relations between them. All
+    methods are stateless with respect to ``ClusterResult`` — cluster results are
+    always passed in explicitly.
     """
 
     # These attributes must be provided by the class using this mixin
@@ -170,6 +118,7 @@ class ClusterMethodsMixin:
     def deterministic_cluster_grouping(
         self,
         cluster_results: dict[str, ClusterResult],
+        cfg_graphs: dict[str, nx.DiGraph],
         low: int = TOP_LEVEL_COMPONENTS_MIN,
         high: int = TOP_LEVEL_COMPONENTS_MAX,
     ) -> ClusterAnalysis:
@@ -179,17 +128,19 @@ class ClusterMethodsMixin:
         deterministically, so the structure is stable across re-runs — the LLM no
         longer decides it. Each group gets a stable ``Group i`` label and a summary
         of its members; the final-analysis step only names and describes them.
+
+        ``cfg_graphs`` must span exactly the same scope as ``cluster_results`` — the
+        component's own subgraph when splitting a component, the whole repo at the
+        top level. Handing it the repo graph for a component scope makes the split
+        disagree with the separability gate, which reads the subgraph.
         """
-        cfg_graphs = {
-            lang: self.static_analysis.get_cfg(Language(lang)).clustering_networkx() for lang in cluster_results
-        }
-        groups = supercluster_leaf_ids(cluster_results, cfg_graphs, low, high)
-        node_lookup, file_lookup = _leaf_cluster_lookups(cluster_results)
+        groups, _modularity = supercluster_leaf_ids(cluster_results, cfg_graphs, low, high)
+        combined = combine_cluster_results(cluster_results)
         cluster_components = [
             ClustersComponent(
                 name=f"Group {i}",
                 cluster_ids=sorted(group),
-                description=_summarize_group(group, node_lookup, file_lookup),
+                description=_summarize_group(group, combined.clusters, combined.cluster_to_files),
             )
             for i, group in enumerate(groups, start=1)
         ]
@@ -213,7 +164,7 @@ class ClusterMethodsMixin:
         keeps its name/description/key_entities; any group the LLM merged away or
         dropped gets a deterministic fallback so the count never drifts.
         """
-        node_lookup, _ = _leaf_cluster_lookups(cluster_results)
+        node_lookup = combine_cluster_results(cluster_results).clusters
         claimant: dict[str, Component] = {}
         for comp in architecture.components:
             for group_name in comp.source_group_names:
@@ -237,199 +188,6 @@ class ClusterMethodsMixin:
                 f"to {len(final)} (one per deterministic group)"
             )
         architecture.components = final
-
-    def _build_cluster_string(
-        self,
-        programming_langs: list[Language],
-        cluster_results: dict[str, ClusterResult],
-        cluster_ids: set[int] | None = None,
-        prompt_overhead_chars: int = 0,
-    ) -> str:
-        """
-        Build a cluster string for LLM consumption using pre-computed cluster results.
-
-        Args:
-            programming_langs: List of languages to include
-            cluster_results: Pre-computed cluster results mapping language -> ClusterResult
-            cluster_ids: Optional set of cluster IDs to filter by
-            prompt_overhead_chars: Characters used by everything else in the
-                prompt (system message + rendered template with an empty
-                ``cfg_clusters`` slot). The skip planner subtracts this from
-                the model's input window before computing the char budget for
-                the cluster string.
-
-        Returns:
-            Formatted cluster string with headers per language
-        """
-        rendered = self._render_cluster_string(programming_langs, cluster_results, cluster_ids, {})
-        if cluster_ids:
-            return rendered.text
-
-        char_budget = self._cluster_prompt_budget(prompt_overhead_chars)
-        if len(rendered.text) <= char_budget:
-            return rendered.text
-
-        per_lang_skip = self._plan_skip_sets(programming_langs, cluster_results, prompt_overhead_chars)
-        rendered_with_skips = self._render_cluster_string(
-            programming_langs, cluster_results, cluster_ids, per_lang_skip
-        )
-        if len(rendered_with_skips.text) > char_budget:
-            self._raise_cluster_budget_error(char_budget, rendered_with_skips, per_lang_skip)
-
-        return rendered_with_skips.text
-
-    def _render_cluster_string(
-        self,
-        programming_langs: list[Language],
-        cluster_results: dict[str, ClusterResult],
-        cluster_ids: set[int] | None,
-        skip_sets: dict[str, set[str]],
-    ) -> _RenderedClusterString:
-        cluster_lines: list[str] = []
-        by_language: dict[str, str] = {}
-        all_cluster_ids: set[int] = set()
-
-        for lang in programming_langs:
-            cfg = self.static_analysis.get_cfg(lang)
-            cluster_result = cluster_results.get(lang)
-            cluster_str = cfg.to_cluster_string(
-                cluster_ids or set(), cluster_result, skip_nodes=skip_sets.get(lang, set())
-            )
-
-            if cluster_str.strip() and cluster_str not in ("empty", "none", "No clusters found."):
-                header = "Component CFG" if cluster_ids else "Clusters"
-                lang_text = f"\n## {lang.capitalize()} - {header}\n{cluster_str}\n"
-                cluster_lines.append(lang_text)
-                by_language[lang] = lang_text
-                if cluster_result:
-                    lang_ids = cluster_ids if cluster_ids else cluster_result.get_cluster_ids()
-                    all_cluster_ids.update(lang_ids)
-
-        if all_cluster_ids and not cluster_ids:
-            sorted_cluster_ids = sorted(all_cluster_ids)
-            cluster_lines.append(
-                f"\n## All Cluster IDs ({len(sorted_cluster_ids)} total)\n"
-                f"Every one of these IDs: {sorted_cluster_ids} must appear in exactly one group."
-            )
-
-        return _RenderedClusterString(text="".join(cluster_lines), by_language=by_language, cluster_ids=all_cluster_ids)
-
-    def _plan_skip_sets(
-        self,
-        programming_langs: list[Language],
-        cluster_results: dict[str, ClusterResult],
-        prompt_overhead_chars: int,
-    ) -> dict[str, set[str]]:
-        """Compute per-language skip sets so the final combined cluster string fits."""
-        char_budget = self._cluster_prompt_budget(prompt_overhead_chars)
-        if char_budget <= 0:
-            ctx = get_current_agent_context_window()
-            msg = (
-                f"Prompt overhead ({prompt_overhead_chars} chars) consumes the entire agent input "
-                f"window ({_describe_window(ctx)}); no room for cluster renderings."
-            )
-            logger.error("[CFG skip planner] %s", msg)
-            raise ContextBudgetExceededError(msg, telemetry_properties=_window_telemetry(ctx, char_budget))
-
-        langs_with_clusters = [l for l in programming_langs if cluster_results.get(l)]
-        if not langs_with_clusters:
-            return {}
-
-        skip_sets: dict[str, set[str]] = {}
-        rendered = self._render_cluster_string(programming_langs, cluster_results, None, skip_sets)
-        if len(rendered.text) <= char_budget:
-            return skip_sets
-
-        max_iterations = max(1, len(langs_with_clusters) * 5)
-        for _ in range(max_iterations):
-            deficit = len(rendered.text) - char_budget
-            ordered_langs = sorted(
-                langs_with_clusters,
-                key=lambda lang: len(rendered.by_language.get(lang, "")),
-                reverse=True,
-            )
-            progressed = False
-
-            for lang in ordered_langs:
-                lang_text = rendered.by_language.get(lang, "")
-                current_len = len(lang_text)
-                if current_len == 0:
-                    continue
-
-                for target in self._language_budget_targets(current_len, deficit):
-                    try:
-                        skip = plan_skip_set(self.static_analysis.get_cfg(lang), cluster_results[lang], target)
-                    except ContextBudgetExceededError:
-                        continue
-
-                    if skip == skip_sets.get(lang, set()):
-                        continue
-
-                    trial_skip_sets = dict(skip_sets)
-                    if skip:
-                        trial_skip_sets[lang] = skip
-                    else:
-                        trial_skip_sets.pop(lang, None)
-
-                    trial_rendered = self._render_cluster_string(
-                        programming_langs, cluster_results, None, trial_skip_sets
-                    )
-                    if len(trial_rendered.text) >= len(rendered.text):
-                        continue
-
-                    skip_sets = trial_skip_sets
-                    rendered = trial_rendered
-                    progressed = True
-                    break
-
-                if progressed:
-                    break
-
-            if len(rendered.text) <= char_budget:
-                return skip_sets
-            if not progressed:
-                break
-
-        self._raise_cluster_budget_error(char_budget, rendered, skip_sets)
-
-    @staticmethod
-    def _language_budget_targets(current_len: int, deficit: int) -> list[int]:
-        exact_target = max(0, current_len - deficit)
-        targets = {
-            exact_target,
-            int(current_len * 0.9),
-            int(current_len * 0.75),
-            int(current_len * 0.5),
-            0,
-        }
-        return sorted((target for target in targets if target < current_len), reverse=True)
-
-    @staticmethod
-    def _raise_cluster_budget_error(
-        char_budget: int,
-        rendered: _RenderedClusterString,
-        skip_sets: dict[str, set[str]],
-    ) -> NoReturn:
-        ctx = get_current_agent_context_window()
-        per_lang_sizes = {lang: len(text) for lang, text in rendered.by_language.items()}
-        skipped_counts = {lang: len(skip) for lang, skip in skip_sets.items() if skip}
-        msg = (
-            f"Cluster render {len(rendered.text)} chars exceeds budget {char_budget} "
-            f"(agent window: {_describe_window(ctx)}). "
-            f"Per-language sizes: {per_lang_sizes}; skipped nodes: {skipped_counts}."
-        )
-        logger.error("[CFG skip planner] %s", msg)
-        telemetry = _window_telemetry(ctx, char_budget) | {
-            "render_chars": len(rendered.text),
-            "per_language_chars": per_lang_sizes,
-            "skipped_node_counts": skipped_counts,
-        }
-        raise ContextBudgetExceededError(msg, telemetry_properties=telemetry)
-
-    @staticmethod
-    def _cluster_prompt_budget(prompt_overhead_chars: int) -> int:
-        ctx = get_current_agent_context_window()
-        return ClusterPromptBudget(input_tokens=ctx.input_tokens).available_chars(prompt_overhead_chars)
 
     def _ensure_unique_key_entities(self, analysis: AnalysisInsights):
         """
@@ -550,84 +308,50 @@ class ClusterMethodsMixin:
             clusters=new_clusters,
             cluster_to_files=new_cluster_to_files,
             file_to_clusters=dict(new_file_to_clusters),
-            strategy="method_level_expansion",
+            strategy=METHOD_LEVEL_STRATEGY,
         )
 
     def _create_strict_component_subgraph(
         self,
         component: Component,
         source_cluster_id_prefix: str = "",
-    ) -> tuple[str, dict[str, ClusterResult], dict[str, CallGraph]]:
+    ) -> tuple[dict[str, ClusterResult], dict[str, CallGraph]]:
+        """Cluster the subgraph spanned by exactly the component's own methods.
+
+        Filtering by the component's qualified names (not its files) keeps a
+        sibling component's methods out even when they share a file. A subgraph
+        with fewer than ``MIN_CLUSTERS_THRESHOLD`` clusters is expanded to
+        method-level granularity so assignment stays fine-grained.
+
+        Returns ``(cluster_results, subgraph_cfgs)``, both keyed by language.
+        Passing ``source_cluster_id_prefix`` also records the resulting cluster
+        lineage on the parent CFG, so leave it empty for a read-only probe.
         """
-        Create a strict subgraph containing ONLY nodes from the component's file_methods.
-        This ensures the analysis is strictly scoped to the component's boundaries.
-
-        If the resulting subgraph has fewer than MIN_CLUSTERS_THRESHOLD clusters,
-        automatically expands to method-level clustering (each method = 1 cluster)
-        to ensure fine-grained component assignment.
-
-        Args:
-            component: Component with file_methods to filter by
-
-        Returns:
-            Tuple of (formatted cluster string, cluster_results dict, subgraph_cfgs dict)
-            where cluster_results maps language -> ClusterResult for the subgraph
-            and subgraph_cfgs maps language -> filtered CallGraph for the subgraph
-        """
-        component_files = component.file_paths()
-        if not component_files:
-            logger.warning(f"Component {component.name} has no assigned files")
-            return "No assigned files found for this component.", {}, {}
-
-        # Collect qualified names for method-level filtering
-        assigned_qnames: set[str] = set()
-        for group in component.file_methods:
-            for method in group.methods:
-                assigned_qnames.add(method.qualified_name)
+        assigned_qnames = {method.qualified_name for group in component.file_methods for method in group.methods}
+        if not assigned_qnames:
+            logger.warning(f"Component {component.name} has no assigned methods")
+            return {}, {}
 
         cluster_results: dict[str, ClusterResult] = {}
         subgraph_cfgs: dict[str, CallGraph] = {}
 
         for lang in self.static_analysis.get_languages():
-            cfg = self.static_analysis.get_cfg(lang)
+            sub_cfg = self.static_analysis.get_cfg(lang).filter_by_nodes(assigned_qnames)
+            if not sub_cfg.nodes:
+                continue
+            subgraph_cfgs[lang] = sub_cfg
 
-            # Filter by exact method set to prevent scope leakage
-            sub_cfg = cfg.filter_by_nodes(assigned_qnames)
+            seeded_snapshot = scoped_snapshot_from_lineage(sub_cfg, source_cluster_id_prefix)
+            if seeded_snapshot:
+                sub_cluster_result = _delta_for_language(
+                    str(lang), sub_cfg.clustering_networkx(), seeded_snapshot
+                ).cluster_results
+            else:
+                sub_cluster_result = sub_cfg.cluster()
 
-            if sub_cfg.nodes:
-                subgraph_cfgs[lang] = sub_cfg
+            cluster_results[lang] = self._expand_to_method_level_clusters(sub_cfg, sub_cluster_result)
 
-                seeded_snapshot = scoped_snapshot_from_lineage(sub_cfg, source_cluster_id_prefix)
-                if seeded_snapshot:
-                    scoped_delta = _delta_for_language(
-                        str(lang),
-                        sub_cfg.clustering_networkx(),
-                        seeded_snapshot,
-                    )
-                    sub_cluster_result = scoped_delta.cluster_results
-                else:
-                    # Calculate clusters for the subgraph
-                    sub_cluster_result = sub_cfg.cluster()
-
-                # Merge into super-clusters if too many (same limit as AbstractionAgent)
-                if len(sub_cluster_result.clusters) > MAX_LLM_CLUSTERS:
-                    n_before = len(sub_cluster_result.clusters)
-                    sub_cluster_result = merge_clusters(
-                        sub_cluster_result, sub_cfg.clustering_networkx(), MAX_LLM_CLUSTERS
-                    )
-                    logger.info(
-                        f"[DetailsAgent] Subgraph for '{component.name}': "
-                        f"merged {n_before} -> {len(sub_cluster_result.clusters)} super-clusters"
-                    )
-
-                # Expand to method-level if insufficient clusters
-                sub_cluster_result = self._expand_to_method_level_clusters(sub_cfg, sub_cluster_result)
-                cluster_results[lang] = sub_cluster_result
-
-        # Cross-language: enforce combined budget and unique IDs
-        if len(cluster_results) > 1:
-            cfg_nx = {lang: subgraph_cfgs[lang].clustering_networkx() for lang in cluster_results}
-            enforce_cross_language_budget(cluster_results, cfg_nx)
+        reindex_across_languages(cluster_results)
 
         if source_cluster_id_prefix:
             for lang, cluster_result in cluster_results.items():
@@ -635,23 +359,7 @@ class ClusterMethodsMixin:
                     cluster_result, source_cluster_id_prefix
                 )
 
-        result_parts = []
-        for lang in self.static_analysis.get_languages():
-            if lang not in cluster_results:
-                continue
-            cluster_str = subgraph_cfgs[lang].to_cluster_string(cluster_result=cluster_results[lang])
-            if cluster_str.strip() and cluster_str not in ("empty", "none", "No clusters found."):
-                result_parts.append(f"\n## {lang.capitalize()} - Component CFG\n")
-                result_parts.append(cluster_str)
-                result_parts.append("\n")
-
-        result = "".join(result_parts)
-
-        if not result.strip():
-            logger.warning(f"No CFG found for component {component.name} with {len(assigned_qnames)} methods")
-            return "No relevant CFG clusters found for this component.", cluster_results, subgraph_cfgs
-
-        return result, cluster_results, subgraph_cfgs
+        return cluster_results, subgraph_cfgs
 
     def _collect_all_cfg_nodes(
         self,

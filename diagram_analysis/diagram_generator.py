@@ -35,7 +35,7 @@ from agents.file_index_models import FileEntry, FileMethodGroup, MethodEntry
 from agents.llm_config import initialize_llms
 from agents.llm_errors import LLMAuthError
 from agents.meta_agent import MetaAgent
-from agents.planner_agent import component_is_separable, get_expandable_components
+from agents.planner_agent import component_is_separable, get_expandable_components, leaf_load
 from agents.relation_edges import index_relation_endpoints
 from agents.scope_ids import ROOT_SCOPE_ID
 from agents.content_hash import SourceCache, hash_repo_source_files, tree_hash_from_file_hashes
@@ -96,14 +96,16 @@ def _component_expansion_seeds(components: list[Component], max_depth: int) -> l
     ]
 
 
+def _member_keys(component: Component) -> frozenset[tuple[str, str]]:
+    """The ``(file_path, qualified_name)`` set a component owns — its membership identity."""
+    return frozenset(
+        (group.file_path, method.qualified_name) for group in component.file_methods for method in group.methods
+    )
+
+
 def _owned_method_keys(components: Iterable[Component]) -> set[tuple[str, str]]:
     """The ``(file_path, qualified_name)`` set the given components collectively own."""
-    return {
-        (group.file_path, method.qualified_name)
-        for component in components
-        for group in component.file_methods
-        for method in group.methods
-    }
+    return set().union(*(_member_keys(component) for component in components)) if components else set()
 
 
 def _reconcile_child_scope(
@@ -230,9 +232,7 @@ def _capture_baseline_member_keys(
         for component in analysis.components:
             if not component.component_id:
                 continue
-            keys[component.component_id] = frozenset(
-                (group.file_path, method.qualified_name) for group in component.file_methods for method in group.methods
-            )
+            keys[component.component_id] = _member_keys(component)
     return keys
 
 
@@ -340,9 +340,7 @@ def _restore_unchanged_metadata(
             meta = baseline.meta_by_id.get(component.component_id)
             if meta is None:
                 continue
-            final_keys = frozenset(
-                (group.file_path, method.qualified_name) for group in component.file_methods for method in group.methods
-            )
+            final_keys = _member_keys(component)
             owns_changed_file = any(group.file_path in changed_files for group in component.file_methods)
             if final_keys != meta.member_keys or (meta.member_qnames & changed_members) or owns_changed_file:
                 continue
@@ -387,10 +385,7 @@ def _fully_unchanged_component_ids(
                 continue
             if any(is_self_or_descendant(protected_id, cid) for protected_id in protected_ids):
                 continue
-            live_keys = frozenset(
-                (group.file_path, method.qualified_name) for group in component.file_methods for method in group.methods
-            )
-            if live_keys == meta.member_keys:
+            if _member_keys(component) == meta.member_keys:
                 fully_unchanged.add(cid)
     return fully_unchanged
 
@@ -460,9 +455,7 @@ def _incremental_changed_component_ids(
             component_id = component.component_id
             if not component_id:
                 continue
-            live_keys = frozenset(
-                (group.file_path, method.qualified_name) for group in component.file_methods for method in group.methods
-            )
+            live_keys = _member_keys(component)
             body_changed = any(
                 method.qualified_name in changed_members for group in component.file_methods for method in group.methods
             )
@@ -573,6 +566,11 @@ class DiagramGenerator:
 
         self._monitoring_agents: dict[str, MonitoringMixin] = {}
         self.stats_writer: StreamingStatsWriter | None = None
+        # Separability verdict per component member set. Traversal asks once per
+        # component and every save asks again for the whole tree; the subgraph build
+        # plus Leiden sweep behind each answer is the expensive part of the
+        # deterministic pipeline. Keyed by membership, so a changed component re-runs.
+        self._separable_cache: dict[frozenset[tuple[str, str]], bool] = {}
 
     @track_analysis
     def process_component(
@@ -581,28 +579,77 @@ class DiagramGenerator:
         return self._process_component(component)
 
     def _component_separable(self, component: Component) -> bool:
-        """Deterministic gate: does this component's own call structure actually split?
+        """Deterministic gate: should this component be split into sub-components?
 
-        Builds the component's subgraph (no side effects — empty scope prefix) and
-        asks whether its inter-cluster meta-graph has a genuine community split.
-        Cohesive components stay leaves instead of being force-expanded to the cap.
-        If the subgraph can't be built (e.g. a legacy static-analysis baseline whose
-        pickled edges predate the current schema), fall back to the structural
-        default of expanding rather than aborting the run.
+        A component past the leaf ceiling is split whatever its call structure
+        says — it is too big to read as one box, and that verdict needs no
+        subgraph. Otherwise the component's own subgraph decides, against a bar
+        that eases as the component grows. If the subgraph can't be built (e.g. a
+        legacy static-analysis baseline whose pickled edges predate the current
+        schema), fall back to the structural default of expanding rather than
+        aborting the run.
+
+        Memoized on the component's member set: traversal asks once per component
+        and every save asks again for the whole tree, and the answer depends on
+        nothing else. A component whose membership changed (including one pruned
+        by ``_strip_ignored``) gets a different key and is re-evaluated.
         """
         assert self.details_agent is not None
+        load = leaf_load(component)
+        if load >= 1.0:
+            logger.info(f"[Planner] Component '{component.name}' is past the leaf ceiling (load {load:.2f}); expanding")
+            return True
+        key = _member_keys(component)
+        if key in self._separable_cache:
+            return self._separable_cache[key]
         try:
-            _str, cluster_results, subgraph_cfgs = self.details_agent._create_strict_component_subgraph(component)
+            cluster_results, subgraph_cfgs = self.details_agent._create_strict_component_subgraph(component)
         except Exception:
             logger.exception("Separability check failed for '%s'; defaulting to expandable", component.name)
             return True
         if not cluster_results:
-            return False
-        # Reference-augmented graph, matching the production split (deterministic_cluster_grouping ->
-        # supercluster_by_modularity_peak): a component separable only via CONTAINS/INHERITS edges
-        # must not be judged cohesive on a call-only graph.
-        cfg_graphs = {lang: cfg.clustering_networkx() for lang, cfg in subgraph_cfgs.items()}
-        return component_is_separable(cluster_results, cfg_graphs)
+            separable = False
+        else:
+            # Reference-augmented graph, matching the production split (deterministic_cluster_grouping ->
+            # supercluster_by_modularity_peak): a component separable only via CONTAINS/INHERITS edges
+            # must not be judged cohesive on a call-only graph.
+            cfg_graphs = {lang: cfg.clustering_networkx() for lang, cfg in subgraph_cfgs.items()}
+            separable = component_is_separable(cluster_results, cfg_graphs, load)
+        self._separable_cache[key] = separable
+        return separable
+
+    def _expandable_ids_for_tree(
+        self,
+        root_analysis: AnalysisInsights,
+        sub_analyses: dict[str, AnalysisInsights],
+    ) -> tuple[list[str] | None, dict[str, list[str]] | None]:
+        """The run's own expandable sets for the root scope and each sub-scope.
+
+        Persisting these keeps a component the separability gate kept as a leaf from
+        being re-advertised as expandable by the save-time recompute, which is
+        structural-only. ``(None, None)`` when the details agent isn't live (a bare
+        re-save), leaving the save to its deterministic default rather than crashing.
+        """
+        if self.details_agent is None:
+            return None, None
+        root_ids = [
+            component.component_id
+            for component in get_expandable_components(root_analysis, separable=self._component_separable)
+            if component.component_id
+        ]
+        component_lookup = index_components_by_id(root_analysis, sub_analyses)
+        sub_ids: dict[str, list[str]] = {}
+        for cid, sub in sub_analyses.items():
+            parent = component_lookup.get(cid)
+            parent_had_clusters = bool(parent.source_cluster_ids) if parent else True
+            sub_ids[cid] = [
+                component.component_id
+                for component in get_expandable_components(
+                    sub, parent_had_clusters=parent_had_clusters, separable=self._component_separable
+                )
+                if component.component_id
+            ]
+        return root_ids, sub_ids
 
     def _process_component(
         self, component: Component
@@ -927,12 +974,19 @@ class DiagramGenerator:
         self,
         analysis: AnalysisInsights,
         root_components: list[Component],
+        existing_sub_analyses: dict[str, AnalysisInsights] | None = None,
     ) -> tuple[list[Component], dict[str, AnalysisInsights]]:
-        """Generate subcomponents using absolute component depth and a frontier queue."""
+        """Generate subcomponents using absolute component depth and a frontier queue.
+
+        ``existing_sub_analyses`` seeds the progress saves. A save with a non-None
+        ``sub_analyses`` replaces the whole set on disk, so the incremental path — which
+        only re-details the newly created components — must hand its live tree in or every
+        intermediate save would publish an analysis.json with the untouched subtrees gone.
+        """
         max_workers = min(os.cpu_count() or 4, 8)
 
         expanded_components: list[Component] = []
-        sub_analyses: dict[str, AnalysisInsights] = {}
+        sub_analyses: dict[str, AnalysisInsights] = dict(existing_sub_analyses or {})
 
         # Group stats to avoid cluttering the local variable scope
         stats = {"submitted": 0, "completed": 0, "saves": 0, "errors": 0}
@@ -972,6 +1026,7 @@ class DiagramGenerator:
 
                             logger.debug("Saving intermediate analysis for '%s'", comp_name)
                             self._strip_ignored(analysis, sub_analyses)
+                            expandable_ids, sub_expandable_ids = self._expandable_ids_for_tree(analysis, sub_analyses)
                             save_analysis(
                                 analysis=analysis,
                                 output_dir=Path(self.output_dir),
@@ -979,6 +1034,8 @@ class DiagramGenerator:
                                 repo_name=self.repo_name,
                                 repo_dir=self.repo_location,
                                 source_tree_hash=self._source_tree_hash(),
+                                expandable_component_ids=expandable_ids,
+                                sub_expandable_ids=sub_expandable_ids,
                                 depth_cap=self.depth_level,
                             )
 
@@ -1119,33 +1176,7 @@ class DiagramGenerator:
             # Partial: keep the prior hash so metadata matches the unrewritten sidecar.
             prior_metadata = load_analysis_metadata(Path(self.output_dir)) or {}
             source_tree_hash = prior_metadata.get("source_tree_hash", "") or self._source_tree_hash()
-        # Persist the separability-respecting expandable set so a cohesive component the run kept
-        # as a leaf isn't advertised as expandable by the save-time recompute (which is structural-only).
-        # Only when the details agent is live (the analysis flows); a bare re-save without it keeps
-        # the deterministic default (``None`` -> structural computation) rather than risk a crash.
-        expandable_component_ids: list[str] | None = None
-        sub_expandable_ids: dict[str, list[str]] | None = None
-        if self.details_agent is not None:
-            expandable_component_ids = [
-                component.component_id
-                for component in get_expandable_components(root_analysis, separable=self._component_separable)
-                if component.component_id
-            ]
-            # Same separability-respecting decision for each nested scope, so a cohesive
-            # sub-component kept as a leaf isn't advertised as expandable by the save-time
-            # structural recompute either.
-            component_lookup = index_components_by_id(root_analysis, sub_analyses)
-            sub_expandable_ids = {}
-            for cid, sub in sub_analyses.items():
-                parent = component_lookup.get(cid)
-                parent_had_clusters = bool(parent.source_cluster_ids) if parent else True
-                sub_expandable_ids[cid] = [
-                    component.component_id
-                    for component in get_expandable_components(
-                        sub, parent_had_clusters=parent_had_clusters, separable=self._component_separable
-                    )
-                    if component.component_id
-                ]
+        expandable_component_ids, sub_expandable_ids = self._expandable_ids_for_tree(root_analysis, sub_analyses)
         analysis_path = save_analysis(
             analysis=root_analysis,
             output_dir=Path(self.output_dir),
@@ -1425,6 +1456,9 @@ class DiagramGenerator:
                 apply_result.new_component_ids,
             )
             self._rescope_child_analyses(root_analysis, sub_analyses, preserved_ids)
+            # Fail before the first write rather than after: the later save-time check would
+            # leave a persisted tree from the intermediate saves below.
+            assert_scope_containment(root_analysis, sub_analyses)
             # A component identical to its baseline did not change: restore any metadata the
             # planner reworded and drop it from the refresh set so its relations carry over.
             unchanged_ids = _restore_unchanged_metadata(
@@ -1448,7 +1482,7 @@ class DiagramGenerator:
                 if _component_depth(component.component_id) < self.depth_level
             ]
             if new_components:
-                _, redetailed_subs = self._generate_subcomponents(root_analysis, new_components)
+                _, redetailed_subs = self._generate_subcomponents(root_analysis, new_components, sub_analyses)
                 _merge_sub_analyses(sub_analyses, redetailed_subs)
 
             if apply_result.relation_contexts:
@@ -1507,11 +1541,9 @@ def assert_scope_containment(
         parent = components_by_id.get(component_id)
         if parent is None:
             continue
-        owned = {(group.file_path, method.qualified_name) for group in parent.file_methods for method in group.methods}
+        owned = _member_keys(parent)
         for child in child_scope.components:
-            escaped = {
-                (group.file_path, method.qualified_name) for group in child.file_methods for method in group.methods
-            } - owned
+            escaped = _member_keys(child) - owned
             if escaped:
                 violations.append(
                     f"{child.component_id or child.name} holds {len(escaped)} method(s) outside parent {component_id}"
@@ -1603,7 +1635,7 @@ def _build_scope_incremental_inputs(
     if not old_snapshot.all_cluster_ids():
         return {}, StructuralClusterDiff()
 
-    _subgraph_str, cluster_results, _subgraph_cfgs = incremental_agent._create_strict_component_subgraph(
+    cluster_results, _subgraph_cfgs = incremental_agent._create_strict_component_subgraph(
         component,
         source_cluster_id_prefix=scope_id,
     )

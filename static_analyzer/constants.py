@@ -86,9 +86,10 @@ class ClusteringConfig:
     # for clustering. The static call graph misses ~a fifth of symbols (isolated
     # constructors, dunders, DI/interface methods), so completing it with these
     # relationships avoids grab-bag components. Values are ``graph.EdgeKind`` string
-    # values. IMPORT is emitted but excluded by default — it over-merges (coarse,
-    # dense, file-level). Change this tuple to analyze a different subset.
-    CLUSTERING_EDGE_KINDS = ("contains", "inherits", "typeref")
+    # values. TYPEREF and IMPORT are plumbed through ``LanguageAnalysisResult`` but no
+    # engine emits them yet, so listing them here would be a no-op; IMPORT is also
+    # expected to over-merge (coarse, dense, file-level) once it does arrive.
+    CLUSTERING_EDGE_KINDS = ("contains", "inherits")
 
 
 class NodeType(IntEnum):

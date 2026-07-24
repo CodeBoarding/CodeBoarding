@@ -29,7 +29,6 @@ logger = logging.getLogger(__name__)
 # Coverage and relation evidence validators are the most critical structural
 # checks. Key-entity validation is secondary (auto-correctable, less structural).
 VALIDATOR_WEIGHTS: dict[str, float] = {
-    "validate_cluster_coverage": 20.0,
     "validate_group_name_coverage": 20.0,
     "validate_key_entities": 5.0,
     "validate_relations": 30.0,
@@ -50,7 +49,6 @@ class ValidationContext:
 
     cluster_results: dict[str, ClusterResult] = field(default_factory=dict)
     cfg_graphs: dict[str, CallGraph] = field(default_factory=dict)  # For edge checking
-    expected_cluster_ids: set[int] = field(default_factory=set)
     expected_files: set[str] = field(default_factory=set)
     valid_component_names: set[str] = field(default_factory=set)  # For file classification validation
     existing_component_ids: set[str] = field(default_factory=set)  # For incremental ID-based routing validation
@@ -178,108 +176,6 @@ def score_validation_results(
         weight = VALIDATOR_WEIGHTS.get(validator_fn.__name__, DEFAULT_VALIDATOR_WEIGHT)
         score += weight * _effective_validation_score(vr)
     return score
-
-
-def validate_cluster_coverage(result: ClusterAnalysis, context: ValidationContext) -> ValidationResult:
-    """
-    Validate that all expected clusters are represented in the ClusterAnalysis
-    and that no cluster component has an empty cluster_ids list.
-
-    Args:
-        result: ClusterAnalysis with cluster_components
-        context: ValidationContext with expected_cluster_ids
-
-    Returns:
-        ValidationResult with feedback for missing clusters or empty components
-    """
-    if not context.expected_cluster_ids:
-        logger.warning("[Validation] No expected cluster IDs provided for coverage validation")
-        return ValidationResult(is_valid=True)
-
-    feedback_messages: list[str] = []
-
-    # Check for cluster components with empty cluster_ids
-    empty_components = [cc.name for cc in result.cluster_components if not cc.cluster_ids]
-    if empty_components:
-        empty_str = ", ".join(sorted(empty_components))
-        feedback_messages.append(
-            f"The following cluster groups have no cluster IDs assigned: {empty_str}. "
-            f"Every cluster group must reference at least one cluster ID. "
-            f"Either assign clusters to these groups or remove them entirely."
-        )
-        logger.warning(f"[Validation] Cluster groups with empty cluster_ids: {empty_str}")
-
-    # Check for duplicate cluster IDs across different cluster groups
-    seen_clusters: dict[int, str] = {}
-    duplicate_reports: list[str] = []
-    for cc in result.cluster_components:
-        for cid in cc.cluster_ids:
-            if cid in seen_clusters:
-                duplicate_reports.append(f"cluster {cid} in both '{seen_clusters[cid]}' and '{cc.name}'")
-            else:
-                seen_clusters[cid] = cc.name
-
-    if duplicate_reports:
-        dup_str = "; ".join(duplicate_reports)
-        feedback_messages.append(
-            f"The following cluster IDs are assigned to multiple groups: {dup_str}. "
-            f"Each cluster ID must belong to exactly one group. "
-            f"Please remove the duplicate assignments so every cluster is in only one group."
-        )
-        logger.warning(f"[Validation] Duplicate cluster assignments: {dup_str}")
-
-    result_cluster_ids = set(seen_clusters.keys())
-
-    missing_clusters = context.expected_cluster_ids - result_cluster_ids
-
-    if missing_clusters:
-        missing_str = ", ".join(str(cid) for cid in sorted(missing_clusters))
-        feedback_messages.append(
-            f"The following cluster IDs are missing from the analysis: {missing_str}. "
-            f"Please ensure all clusters are assigned to a component via cluster_ids."
-        )
-        logger.warning(f"[Validation] Missing clusters: {missing_str}")
-
-    if not feedback_messages:
-        logger.info("[Validation] All clusters are represented in the ClusterAnalysis")
-        return ValidationResult(is_valid=True)
-
-    return ValidationResult(is_valid=False, feedback_messages=feedback_messages)
-
-
-def validate_existing_component_ids(result: ClusterAnalysis, context: ValidationContext) -> ValidationResult:
-    """Reject ``existing_component_id`` values the LLM hallucinated.
-
-    Why: incremental routing identifies existing components by id (decision
-    #4). A hallucinated id silently creates a new component during stitching
-    instead of routing into the intended one. Catching it here forces the
-    LLM to retry with a valid id (or null for new components) before any
-    state mutation.
-    """
-    if not context.existing_component_ids:
-        return ValidationResult(is_valid=True)
-
-    feedback_messages: list[str] = []
-    valid_str = ", ".join(sorted(context.existing_component_ids))
-    for cc in result.cluster_components:
-        if cc.existing_component_id is None:
-            continue
-        if cc.existing_component_id not in context.existing_component_ids:
-            feedback_messages.append(
-                f"cluster_components entry '{cc.name}' references "
-                f"existing_component_id={cc.existing_component_id!r} which does not "
-                f"match any live component. Either set existing_component_id to a "
-                f"value from the existing-components list ({valid_str}), or set it "
-                f"to null to create a new component."
-            )
-
-    if feedback_messages:
-        logger.warning(
-            "[Validation] %d cluster_components entries reference unknown existing_component_id",
-            len(feedback_messages),
-        )
-        return ValidationResult(is_valid=False, feedback_messages=feedback_messages)
-    return ValidationResult(is_valid=True)
 
 
 def validate_group_name_coverage(result: ComponentValidationTarget, context: ValidationContext) -> ValidationResult:

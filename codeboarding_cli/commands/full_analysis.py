@@ -48,9 +48,9 @@ def add_arguments(subparsers: argparse._SubParsersAction, parents: list[argparse
         type=int,
         default=DEFAULT_DEPTH_LEVEL,
         help=(
-            "Safety-valve ceiling on component-hierarchy depth (default: "
-            f"{DEFAULT_DEPTH_LEVEL}). Expansion is driven by structural separability, "
-            "not this cap; raise it only if a large repo's diagram is being cut short."
+            "Safety-valve ceiling on how deep components auto-expand (default: "
+            f"{DEFAULT_DEPTH_LEVEL}). A component that outgrows the leaf ceiling is flagged expandable "
+            "regardless and can be expanded on demand; raise this only to auto-expand deeper up front."
         ),
     )
 

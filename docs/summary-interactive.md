@@ -92,7 +92,7 @@ The prompt includes a **tool usage policy**: keep reads small and targeted (sing
 
 **Fast-path parse**: `_direct_pydantic_parse` in `agent.py` tries to parse the LLM response directly as the target Pydantic model before invoking the trustcall extractor — saves a second LLM round-trip when the agent emits clean JSON.
 
-**Validation**: Up to 3 retries via `validate_cluster_coverage` if the LLM doesn't cover all cluster ids.
+**Validation**: cluster coverage is structural, not prompted — `deterministic_cluster_grouping` partitions every leaf cluster into exactly one group before the LLM sees anything.
 
 **Output**: `ClusterAnalysis` with `cluster_components` — each has `name`, `cluster_ids`, `description`, `parent_id`. Every affected cluster id must appear exactly once.
 

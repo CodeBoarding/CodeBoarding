@@ -70,36 +70,6 @@ Focus on:
 - Architectural patterns that help new developers understand the system quickly
 </thinking>"""
 
-CLUSTER_GROUPING_MESSAGE = """Analyze and GROUP the Control Flow Graph clusters.
-
-The CFG has been pre-clustered into groups of related methods/functions. Each cluster represents methods that call each other frequently.
-
-CFG Clusters:
-{cfg_clusters}
-
-Your Task:
-GROUP similar clusters together into logical components based on their relationships and purpose.
-
-Instructions:
-1. Analyze the clusters shown above and identify which ones work together or are functionally related
-2. Group related clusters into meaningful components
-3. A component can contain one or more cluster IDs (e.g., [1], [2, 5], or [3, 7, 9])
-4. For each grouped component, provide:
-   - **name**: Short, descriptive name for this group (e.g., 'Authentication', 'Data Pipeline', 'Request Handling')
-   - **cluster_ids**: List of cluster IDs that belong together (as a list, e.g., [1, 3, 5])
-   - **description**: Comprehensive explanation including:
-     * What this component does
-     * What is its main flow/purpose
-     * WHY these specific clusters are grouped together (provide clear rationale for the grouping decision)
-     * How this group interacts with other cluster groups (which groups it calls, receives data from, or depends on)
-     * The most important classes/methods in this group — mention their exact qualified names as shown in the clusters above
-
-Focus on:
-- Creating cohesive, logical groupings that reflect the actual architecture
-- Semantic meaning based on method names, call patterns, and architectural context
-- Clear justification for why clusters belong together
-- Describing inter-group interactions based on the inter-cluster connections"""
-
 FINAL_ANALYSIS_MESSAGE = """Name and describe the final component architecture.
 
 The clusters have already been partitioned into a fixed set of groups by graph community detection. Each "Group N" below is exactly one top-level component — the number of groups and their membership are already decided. Do NOT merge, split, or re-group them; only name and describe each group.
@@ -276,32 +246,6 @@ Required outputs:
 
 Focus on subsystem-specific functionality. Avoid cross-cutting concerns like logging or error handling."""
 
-CFG_DETAILS_MESSAGE = """Analyze and GROUP the Control Flow Graph clusters for the `{component}` subsystem.
-
-The CFG has been pre-clustered into groups of related methods/functions. Each cluster represents methods that call each other frequently.
-
-CFG Clusters:
-{cfg_clusters}
-
-Your Task:
-GROUP similar clusters together into logical sub-components based on their relationships and purpose within this subsystem.
-
-Instructions:
-1. Analyze the clusters shown above and identify which ones work together or are functionally related
-2. Group related clusters into meaningful sub-components
-3. A sub-component can contain one or more cluster IDs (e.g., [1], [2, 5], or [3, 7, 9])
-4. For each grouped sub-component, provide:
-   - **name**: Short, descriptive name for this group (e.g., 'Request Parsing', 'Response Building')
-   - **cluster_ids**: List of cluster IDs that belong together (as a list, e.g., [1, 3, 5])
-   - **description**: Comprehensive explanation including:
-     * What this sub-component does
-     * What is its main flow/purpose
-     * WHY these specific clusters are grouped together (provide clear rationale)
-     * How this group interacts with other cluster groups
-     * The most important classes/methods in this group — mention their exact qualified names as shown in the clusters above
-
-Focus on core subsystem functionality only. Avoid cross-cutting concerns like logging or error handling."""
-
 DETAILS_MESSAGE = """Create final sub-component architecture for the `{component}` subsystem optimized for flow representation.
 
 The clusters have already been partitioned into a fixed set of groups by graph community detection. Each "Group N" below is exactly one sub-component — the number of groups and their membership are already decided. Do NOT merge, split, or re-group them; only name and describe each group.
@@ -418,9 +362,6 @@ class ClaudePromptFactory(AbstractPromptFactory):
     def get_system_message(self) -> str:
         return SYSTEM_MESSAGE
 
-    def get_cluster_grouping_message(self) -> str:
-        return CLUSTER_GROUPING_MESSAGE
-
     def get_final_analysis_message(self) -> str:
         return FINAL_ANALYSIS_MESSAGE
 
@@ -453,9 +394,6 @@ class ClaudePromptFactory(AbstractPromptFactory):
 
     def get_system_details_message(self) -> str:
         return SYSTEM_DETAILS_MESSAGE
-
-    def get_cfg_details_message(self) -> str:
-        return CFG_DETAILS_MESSAGE
 
     def get_incremental_grouping_message(self) -> str:
         return INCREMENTAL_GROUPING_MESSAGE

@@ -4,7 +4,6 @@ from unittest.mock import MagicMock, patch
 
 import networkx as nx
 
-from agents.cluster_budget import ClusterPromptBudget
 from agents.cluster_ids import CodeBoardingClusterIds
 from agents.cluster_methods_mixin import ClusterMethodsMixin
 from agents.agent_responses import (
@@ -13,8 +12,6 @@ from agents.agent_responses import (
     SourceCodeReference,
 )
 from agents.file_index_models import FileMethodGroup, MethodEntry
-from agents.model_capabilities import ContextWindow
-from static_analyzer.cfg_skip_planner import ContextBudgetExceededError
 from static_analyzer.graph import CallGraph, ClusterResult
 from static_analyzer.constants import Language, NodeType
 from static_analyzer.node import Node
@@ -291,81 +288,6 @@ class TestBuildFileMethodsFromNodes(unittest.TestCase):
             groups[0].methods[0].qualified_name,
             "diagram_analysis.diagram_generator.DiagramGenerator.generate_analysis",
         )
-
-
-class TestClusterStringBudgeting(unittest.TestCase):
-    def _make_graph(self, language: str, names: list[str]) -> CallGraph:
-        cfg = CallGraph(language=language)
-        for index, name in enumerate(names, start=1):
-            cfg.add_node(Node(name, NodeType.FUNCTION, f"/repo/{language}.py", index, index + 1))
-        for src, dst in zip(names, names[1:]):
-            cfg.add_edge(src, dst)
-        return cfg
-
-    def test_combined_render_that_fits_does_not_use_per_language_skip_planning(self):
-        python_names = ["py." + ("large_name_" * 20) + str(i) for i in range(8)]
-        js_names = ["js.a", "js.b"]
-        py_cfg = self._make_graph("python", python_names)
-        js_cfg = self._make_graph("javascript", js_names)
-        cluster_results = {
-            "python": ClusterResult(clusters={1: set(python_names)}, strategy="test"),
-            "javascript": ClusterResult(clusters={2: set(js_names)}, strategy="test"),
-        }
-        static = MagicMock()
-        static.get_cfg.side_effect = {"python": py_cfg, "javascript": js_cfg}.__getitem__
-        mixin = MockMixin(repo_dir=Path("/repo"), static_analysis=static)
-
-        full = mixin._render_cluster_string([Language.PYTHON, Language.JAVASCRIPT], cluster_results, None, {}).text
-        desired_budget = len(full) + 10
-        input_tokens = int(desired_budget / (ClusterPromptBudget(input_tokens=0).chars_per_token * 0.9)) + 8_001
-
-        with (
-            patch(
-                "agents.cluster_methods_mixin.get_current_agent_context_window",
-                return_value=ContextWindow(input_tokens=input_tokens, output_tokens=64_000),
-            ),
-            patch("agents.cluster_methods_mixin.plan_skip_set") as mock_plan_skip,
-        ):
-            result = mixin._build_cluster_string([Language.PYTHON, Language.JAVASCRIPT], cluster_results)
-
-        self.assertEqual(result, full)
-        mock_plan_skip.assert_not_called()
-
-    def test_budget_error_reports_window_provenance_and_telemetry(self):
-        # Why: overflow errors must be diagnosable from PostHog alone — they need the
-        # window size, whether it was a fallback guess, and the active model.
-        names = ["py." + ("long_name_" * 30) + str(i) for i in range(10)]
-        cfg = self._make_graph("python", names)
-        cluster_results = {"python": ClusterResult(clusters={1: set(names)}, strategy="test")}
-        static = MagicMock()
-        static.get_cfg.return_value = cfg
-        mixin = MockMixin(repo_dir=Path("/repo"), static_analysis=static)
-
-        with (
-            patch(
-                "agents.cluster_methods_mixin.get_current_agent_context_window",
-                return_value=ContextWindow(input_tokens=8_100, output_tokens=64_000, is_fallback=True),
-            ),
-            patch(
-                "agents.cluster_methods_mixin.get_current_agent_model_ref",
-                return_value="openrouter/@preset/production",
-            ),
-            patch(
-                "agents.cluster_methods_mixin.plan_skip_set",
-                side_effect=ContextBudgetExceededError("cannot fit"),
-            ),
-        ):
-            with self.assertRaises(ContextBudgetExceededError) as raised:
-                mixin._build_cluster_string([Language.PYTHON], cluster_results)
-
-        message = str(raised.exception)
-        self.assertIn("openrouter/@preset/production", message)
-        self.assertIn("fallback default", message)
-        props = raised.exception.telemetry_properties
-        self.assertTrue(props["window_is_fallback"])
-        self.assertEqual(props["window_input_tokens"], 8_100)
-        self.assertEqual(props["agent_model"], "openrouter/@preset/production")
-        self.assertGreater(props["render_chars"], props["char_budget"])
 
 
 class TestExpandToMethodLevelClusters(unittest.TestCase):

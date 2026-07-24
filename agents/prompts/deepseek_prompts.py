@@ -65,37 +65,6 @@ Analyze Control Flow Graphs (CFG) for `{project_name}` and generate a high-level
 # Output style
 Begin with provided data. Use tools when necessary. Focus on creating analysis suitable for both documentation and visual diagram generation."""
 
-CLUSTER_GROUPING_MESSAGE = """# Task
-Analyze and GROUP the Control Flow Graph clusters.
-
-The CFG has been pre-clustered into groups of related methods/functions. Each cluster represents methods that call each other frequently.
-
-# CFG Clusters
-{cfg_clusters}
-
-# Instructions (execute in order)
-1. Analyze the clusters shown above - identify which ones work together or are functionally related.
-2. Group related clusters into meaningful components.
-3. A component can contain one or more cluster IDs (e.g., [1], [2, 5], or [3, 7, 9]).
-4. For each grouped component, provide:
-   - **name**: Short, descriptive name for this group (e.g., 'Authentication', 'Data Pipeline', 'Request Handling')
-   - **cluster_ids**: List of cluster IDs that belong together (as a list, e.g., [1, 3, 5])
-   - **description**: Comprehensive explanation including:
-     * What this component does
-     * What is its main flow/purpose
-     * WHY these specific clusters are grouped together (provide clear rationale for the grouping decision)
-     * How this group interacts with other cluster groups (which groups it calls, receives data from, or depends on)
-     * The most important classes/methods in this group — mention their exact qualified names as shown in the clusters above
-
-# Focus areas
-- Create cohesive, logical groupings that reflect the actual architecture
-- Base decisions on semantic meaning from method names, call patterns, and architectural context
-- Provide clear justification for why clusters belong together
-- Describe inter-group interactions based on the inter-cluster connections
-
-# Output format
-For each component provide a descriptive name, the list of cluster IDs it contains, and a comprehensive description with rationale and inter-group interactions."""
-
 FINAL_ANALYSIS_MESSAGE = """Name and describe the final component architecture.
 
 The clusters have already been partitioned into a fixed set of groups by graph community detection. Each "Group N" below is exactly one top-level component — the number of groups and their membership are already decided. Do NOT merge, split, or re-group them; only name and describe each group.
@@ -278,34 +247,6 @@ Analyze a subsystem of `{project_name}`.
 # Focus
 Analyze subsystem-specific functionality. Avoid cross-cutting concerns like logging or error handling."""
 
-CFG_DETAILS_MESSAGE = """# Task
-Analyze and GROUP the Control Flow Graph clusters for the `{component}` subsystem.
-
-The CFG has been pre-clustered into groups of related methods/functions. Each cluster represents methods that call each other frequently.
-
-# CFG Clusters
-{cfg_clusters}
-
-# Instructions (execute in order)
-1. Analyze the clusters shown above - identify which ones work together or are functionally related.
-2. Group related clusters into meaningful sub-components.
-3. A sub-component can contain one or more cluster IDs (e.g., [1], [2, 5], or [3, 7, 9]).
-4. For each grouped sub-component, provide:
-   - **name**: Short, descriptive name for this group (e.g., 'Request Parsing', 'Response Building')
-   - **cluster_ids**: List of cluster IDs that belong together (as a list, e.g., [1, 3, 5])
-   - **description**: Comprehensive explanation including:
-     * What this sub-component does
-     * What is its main flow/purpose
-     * WHY these specific clusters are grouped together (provide clear rationale)
-     * How this group interacts with other cluster groups
-     * The most important classes/methods in this group — mention their exact qualified names as shown in the clusters above
-
-# Focus
-Analyze core subsystem functionality only. Avoid cross-cutting concerns like logging or error handling.
-
-# Output format
-For each sub-component provide a descriptive name, the list of cluster IDs it contains, and a comprehensive description with rationale and inter-group interactions."""
-
 DETAILS_MESSAGE = """# Task
 Create final sub-component architecture for the `{component}` subsystem optimized for flow representation.
 
@@ -415,9 +356,6 @@ class DeepSeekPromptFactory(AbstractPromptFactory):
     def get_system_message(self) -> str:
         return SYSTEM_MESSAGE
 
-    def get_cluster_grouping_message(self) -> str:
-        return CLUSTER_GROUPING_MESSAGE
-
     def get_final_analysis_message(self) -> str:
         return FINAL_ANALYSIS_MESSAGE
 
@@ -450,9 +388,6 @@ class DeepSeekPromptFactory(AbstractPromptFactory):
 
     def get_system_details_message(self) -> str:
         return SYSTEM_DETAILS_MESSAGE
-
-    def get_cfg_details_message(self) -> str:
-        return CFG_DETAILS_MESSAGE
 
     def get_details_message(self) -> str:
         return DETAILS_MESSAGE

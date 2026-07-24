@@ -240,10 +240,19 @@ class _AnalysisFileStore:
                             not_analyzed_by_reason=raw_summary.get("not_analyzed_by_reason", {}),
                         )
                 if depth_cap is None:
-                    # Legacy baselines predate depth_cap: their depth_level was the
-                    # cap at the time (pre-separability-gate semantics), so it's the
-                    # closest available approximation.
-                    depth_cap = metadata.get("depth_cap", metadata.get("depth_level"))
+                    depth_cap = metadata.get("depth_cap")
+                    if depth_cap is None:
+                        # Legacy baselines predate depth_cap and only recorded depth_level,
+                        # which is the depth the run *realized* — often short of the cap it
+                        # was configured with. Reusing it as a cap can pin the tree shallower
+                        # than its owner asked for, so say so rather than silently narrowing.
+                        depth_cap = metadata.get("depth_level")
+                        if depth_cap is not None:
+                            logger.warning(
+                                "Baseline has no depth_cap; using its realized depth_level=%s as the cap. "
+                                "Run a full analysis with --depth-level to widen it.",
+                                depth_cap,
+                            )
         if depth_cap is None:
             depth_cap = DEFAULT_DEPTH_LEVEL
 

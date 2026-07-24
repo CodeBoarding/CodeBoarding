@@ -81,7 +81,7 @@ generator = DiagramGenerator(
     temp_folder=output_dir,
     repo_name="my-project",
     output_dir=output_dir,
-    depth_level=3,  # safety-valve cap; component expansion is driven by structural separability
+    depth_level=3,  # safety-valve cap; a component that outgrows the leaf ceiling is flagged expandable and can be expanded on demand
 )
 [analysis_path] = generator.generate_analysis()
 
@@ -139,7 +139,7 @@ codeboarding partial --local PATH --component-id ID   # update one component
 | Option | Description |
 |---|---|
 | `--local PATH` | Analyze a local repository (output: `PATH/.codeboarding/`) |
-| `--depth-level INT` | Safety-valve depth cap (default: 3); expansion is driven by structural separability, not this value |
+| `--depth-level INT` | Safety-valve depth cap (default: 3) on how deep auto-expansion goes; a component that outgrows the leaf ceiling is flagged expandable regardless, and can be expanded on demand |
 | `--force` | (full only) Force full reanalysis, skip cached static analysis |
 | `--base-ref REF` / `--target-ref REF` | (incremental only) Git refs to diff |
 | `--component-id ID` | (partial only) ID of the component to update |

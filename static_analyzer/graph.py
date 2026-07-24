@@ -68,6 +68,12 @@ class LocationKey:
     col_start: int = 0
 
 
+# Marker on a ClusterResult whose clusters are synthetic one-method-per-cluster
+# groups, produced when a subgraph had too few natural clusters to assign methods
+# at a useful granularity. Its modularity is not comparable to a real clustering's.
+METHOD_LEVEL_STRATEGY = "method_level_expansion"
+
+
 @dataclass
 class ClusterResult:
     """Result of clustering a CallGraph. Provides deterministic cluster IDs and file mappings."""
@@ -526,58 +532,6 @@ class CallGraph:
         self._carry_reference_edges(sub_graph)
         return sub_graph
 
-    def to_cluster_string(
-        self,
-        cluster_ids: Collection[int] = frozenset(),
-        cluster_result: ClusterResult | None = None,
-        skip_nodes: Collection[str] = frozenset(),
-    ) -> str:
-        """
-        Generate a human-readable string representation of clusters.
-
-        If cluster_ids is provided, only those clusters are included.
-        Uses provided cluster_result or calls cluster() if not provided.
-
-        Args:
-            cluster_ids: Set of cluster IDs to include. Empty includes all.
-            cluster_result: Optional pre-computed ClusterResult. If None, calls cluster().
-            skip_nodes: Qualified names to omit from the rendered output (both
-                cluster members and edges). The graph itself is not mutated;
-                this is a serialization-layer filter used by ``cfg_skip_planner``
-                to keep the LLM prompt under budget.
-
-        Returns:
-            Formatted string with cluster definitions and inter-cluster connections
-        """
-        if cluster_result is None:
-            cluster_result = self.cluster()
-
-        if not cluster_result.clusters:
-            return cluster_result.strategy if cluster_result.strategy in ("empty", "none") else "No clusters found."
-
-        cfg_graph_x = self.to_networkx()
-        skip = set(skip_nodes)
-
-        # Filter clusters if specific IDs requested
-        if cluster_ids:
-            selected_ids = [cid for cid in sorted(cluster_ids) if cid in cluster_result.clusters]
-            if not selected_ids:
-                return f"No clusters found for IDs: {cluster_ids}"
-        else:
-            selected_ids = sorted(cluster_result.clusters.keys())
-
-        # Carry original cluster IDs through rendering so skip-induced size shifts
-        # or cluster_ids filtering can't relabel clusters.
-        communities = [(cid, cluster_result.clusters[cid] - skip) for cid in selected_ids]
-
-        top_nodes: set[str] = set()
-        for _, members in communities:
-            top_nodes |= members
-
-        cluster_str = self.__cluster_str(communities, cfg_graph_x, skip)
-        non_cluster_str = self.__non_cluster_str(cfg_graph_x, top_nodes, skip)
-        return cluster_str + non_cluster_str
-
     def _get_abstract_node_name(self, node_name: str, level: str) -> str:
         parts = node_name.split(self.delimiter)
 
@@ -758,121 +712,6 @@ class CallGraph:
             else:
                 break
         return ".".join(common)
-
-    @staticmethod
-    def __cluster_str(communities: list[tuple[int, set[str]]], cfg_graph_x: nx.DiGraph, skip: set[str]) -> str:
-        valid_communities = [(cid, members) for cid, members in communities if len(members) >= 2]
-        top_communities = sorted(valid_communities, key=lambda item: len(item[1]), reverse=True)
-        communities_str = f"Cluster Definitions ({len(top_communities)} clusters):\n\n"
-        for cluster_id, community in top_communities:
-            # Group nodes by file, then by class hierarchy within each file
-            file_groups: dict[str, dict[str, list[str]]] = defaultdict(lambda: defaultdict(list))
-            standalone_nodes: dict[str, list[str]] = defaultdict(list)
-            files_in_cluster: set[str] = set()
-
-            for node_name in sorted(community):
-                node_data = cfg_graph_x.nodes.get(node_name, {})
-                file_path = node_data.get("file_path", "unknown")
-                node_type = node_data.get("type")
-                files_in_cluster.add(file_path)
-
-                type_label = node_type.label() if isinstance(node_type, NodeType) else "Function"
-                parts = node_name.split(".")
-
-                if node_type == NodeType.CLASS:
-                    # Class node — register as a group header
-                    file_groups[file_path][node_name]  # ensure key exists
-                elif node_type == NodeType.METHOD and len(parts) > 1:
-                    # Method — group under its parent class
-                    class_name = ".".join(parts[:-1])
-                    method_short = parts[-1]
-                    file_groups[file_path][class_name].append(f".{method_short} [{type_label}]")
-                else:
-                    # Standalone function or unresolvable
-                    standalone_nodes[file_path].append(f"{node_name} [{type_label}]")
-
-            communities_str += f"Cluster {cluster_id} ({len(community)} nodes, {len(files_in_cluster)} files):\n"
-
-            for file_path in sorted(files_in_cluster):
-                classes_in_file = sorted(file_groups.get(file_path, {}))
-                funcs_in_file = sorted(standalone_nodes.get(file_path, []))
-                func_fqns = [f.rsplit(" [", 1)[0] for f in funcs_in_file]
-                prefix = CallGraph._common_dot_prefix(classes_in_file + func_fqns)
-
-                if prefix and prefix.count(".") >= 1 and len(classes_in_file) + len(funcs_in_file) >= 2:
-                    communities_str += f'  {file_path} (identifiers below prefixed with "{prefix}."):\n'
-                    strip = f"{prefix}."
-                else:
-                    communities_str += f"  {file_path}:\n"
-                    strip = ""
-
-                for class_name in classes_in_file:
-                    methods = file_groups[file_path][class_name]
-                    display_class = class_name[len(strip) :] if strip and class_name.startswith(strip) else class_name
-                    communities_str += f"    {display_class} [Class]\n"
-                    for method in sorted(methods):
-                        communities_str += f"      {method}\n"
-                for func in funcs_in_file:
-                    if strip:
-                        fqn_part, sep, label_part = func.partition(" [")
-                        if fqn_part.startswith(strip):
-                            func = fqn_part[len(strip) :] + sep + label_part
-                    communities_str += f"    {func}\n"
-
-            communities_str += "\n"
-
-        # Build summarized inter-cluster connections keyed by real cluster IDs
-        node_to_cluster = {node: cid for cid, members in top_communities for node in members}
-
-        # Aggregate inter-cluster edges: (src_cluster_id, dst_cluster_id) -> count + sample edges
-        inter_cluster_summary: dict[tuple[int, int], list[str]] = defaultdict(list)
-        for src, dst in cfg_graph_x.edges():
-            if src in skip or dst in skip:
-                continue
-            src_cluster = node_to_cluster.get(src)
-            dst_cluster = node_to_cluster.get(dst)
-            if src_cluster is not None and dst_cluster is not None and src_cluster != dst_cluster:
-                inter_cluster_summary[(src_cluster, dst_cluster)].append(f"{src} -> {dst}")
-
-        inter_cluster_str = "Inter-Cluster Connections:\n\n"
-        if inter_cluster_summary:
-            for src_cid, dst_cid in sorted(inter_cluster_summary.keys()):
-                calls = inter_cluster_summary[(src_cid, dst_cid)]
-                # Show count and up to 3 representative edges
-                max_examples = 3
-                inter_cluster_str += f"Cluster {src_cid} -> Cluster {dst_cid} ({len(calls)} calls):\n"
-                for call in calls[:max_examples]:
-                    inter_cluster_str += f"  - {call}\n"
-                if len(calls) > max_examples:
-                    inter_cluster_str += f"  - ... and {len(calls) - max_examples} more\n"
-                inter_cluster_str += "\n"
-        else:
-            inter_cluster_str += "No inter-cluster connections detected.\n\n"
-
-        return communities_str + inter_cluster_str
-
-    @staticmethod
-    def __non_cluster_str(graph_x: nx.DiGraph, top_nodes: set[str], skip: set[str]) -> str:
-        # Count unclustered edges rather than listing them all
-        non_cluster_edges: list[tuple[str, str]] = []
-        for src, dst in graph_x.edges():
-            if src in skip or dst in skip:
-                continue
-            if src not in top_nodes or dst not in top_nodes:
-                non_cluster_edges.append((src, dst))
-
-        if not non_cluster_edges:
-            return ""
-
-        # Summarize by source node to avoid a wall of edges
-        max_unclustered_lines = 20
-        other_edges_str = f"Unclustered connections ({len(non_cluster_edges)} edges):\n\n"
-        for src, dst in sorted(non_cluster_edges)[:max_unclustered_lines]:
-            other_edges_str += f"  - {src} -> {dst}\n"
-        if len(non_cluster_edges) > max_unclustered_lines:
-            other_edges_str += f"  - ... and {len(non_cluster_edges) - max_unclustered_lines} more\n"
-        other_edges_str += "\n"
-        return other_edges_str
 
     def __str__(self) -> str:
         result = f"Control flow graph with {len(self.nodes)} nodes and {len(self.edges)} edges\n"
