@@ -196,6 +196,23 @@ def _source_reference_method_key(reference: SourceCodeReference, repo_dir: Path)
     return _method_key(file_path, reference.qualified_name)
 
 
+def _relativize_key_entities(key_entities: list[SourceCodeReference], repo_dir: Path) -> list[SourceCodeReference]:
+    """Make each key entity's ``reference_file`` repo-relative, like every other path in the document.
+
+    The reference resolver leaves ``reference_file`` absolute; unlike ``file_methods`` and relation
+    endpoints it isn't normalized on the way in, so without this it serializes as an absolute path
+    that no consumer can match against the repo tree.
+    """
+    return [
+        (
+            entity.model_copy(update={"reference_file": normalize_repo_path(entity.reference_file, repo_dir)})
+            if entity.reference_file
+            else entity
+        )
+        for entity in key_entities
+    ]
+
+
 def _relation_edge_to_json(edge: RelationEdge, repo_dir: Path) -> RelationEdgeJson:
     return RelationEdgeJson(
         source=_source_reference_method_key(edge.source, repo_dir),
@@ -345,7 +362,7 @@ def from_component_to_json_component(
         name=component.name,
         component_id=component.component_id,
         description=component.description,
-        key_entities=component.key_entities,
+        key_entities=_relativize_key_entities(component.key_entities, repo_dir),
         source_cluster_ids=component.source_cluster_ids,
         file_methods=_to_component_file_method_refs(component.file_methods),
         can_expand=can_expand,

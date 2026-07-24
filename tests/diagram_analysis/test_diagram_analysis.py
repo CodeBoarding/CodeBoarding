@@ -268,6 +268,37 @@ class TestAnalysisJsonConversion(unittest.TestCase):
         self.assertEqual(set(fg.file_path for fg in result.file_methods), {"a.py", "b.py"})
         self.assertEqual(len(result.key_entities), 1)
 
+    def test_key_entity_reference_file_is_relativized(self):
+        # The reference resolver leaves reference_file absolute; serialization must make it
+        # repo-relative like every other path, or consumers cannot match it against the tree.
+        repo = Path("/tmp/some/repo")
+        comp = Component(
+            name="C",
+            description="",
+            component_id="1",
+            key_entities=[
+                SourceCodeReference(
+                    qualified_name="pkg.mod.fn",
+                    reference_file="/tmp/some/repo/pkg/mod.py",
+                    reference_start_line=1,
+                    reference_end_line=2,
+                ),
+                SourceCodeReference(
+                    qualified_name="pkg.other.fn",
+                    reference_file="pkg/other.py",
+                    reference_start_line=1,
+                    reference_end_line=2,
+                ),
+            ],
+        )
+
+        result = from_component_to_json_component(comp, [], repo)
+
+        self.assertEqual(
+            [ke.reference_file for ke in result.key_entities],
+            ["pkg/mod.py", "pkg/other.py"],
+        )
+
     def test_from_analysis_to_json(self):
         # Test full analysis conversion to JSON
         new_components = [self.comp1]  # Only comp1 can expand
