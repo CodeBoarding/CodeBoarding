@@ -74,3 +74,42 @@ def test_refresh_spans_empty_hash_when_method_absent_from_live_cfg(tmp_path: Pat
     files = build_files_index(analysis, tmp_path)
 
     assert files["m.py"].methods[0].content_hash == ""
+
+
+def test_build_files_index_skips_ignored_files(tmp_path: Path) -> None:
+    # The index is built before _strip_ignored runs, so an ignored file (a test module)
+    # must be excluded here or it lingers in the saved files/methods_index.
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tests" / "test_thing.py").write_text("def test_x():\n    return 1\n", encoding="utf-8")
+    (tmp_path / "app.py").write_text("def run():\n    return 1\n", encoding="utf-8")
+    analysis = AnalysisInsights(
+        description="",
+        components=[
+            Component(
+                name="C",
+                description="d",
+                key_entities=[],
+                component_id="c1",
+                file_methods=[
+                    FileMethodGroup(
+                        file_path="tests/test_thing.py",
+                        methods=[
+                            MethodEntry(
+                                qualified_name="tests.test_thing.test_x", start_line=1, end_line=2, node_type="FUNCTION"
+                            )
+                        ],
+                    ),
+                    FileMethodGroup(
+                        file_path="app.py",
+                        methods=[MethodEntry(qualified_name="app.run", start_line=1, end_line=2, node_type="FUNCTION")],
+                    ),
+                ],
+            )
+        ],
+        components_relations=[],
+    )
+
+    files = build_files_index(analysis, tmp_path)
+
+    assert "tests/test_thing.py" not in files
+    assert "app.py" in files
