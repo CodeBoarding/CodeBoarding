@@ -347,6 +347,18 @@ def from_component_to_json_component(
     nested_components: list[ComponentJson] = []
     nested_relations: list[RelationJson] = []
 
+    if not can_expand and sub_analyses and component.component_id in sub_analyses:
+        # Serializing skips the subtree below, and analysis.json is the store — so this
+        # discards an already-analysed subtree permanently. Callers must mark a component
+        # holding a sub-analysis as expandable; say so loudly rather than losing the work.
+        logger.warning(
+            "Component %s (ID: %s) holds an analysed sub-analysis but is not marked expandable; "
+            "%d sub-component(s) will not be written",
+            component.name,
+            component_id_val,
+            len(sub_analyses[component.component_id][0].components),
+        )
+
     if can_expand and sub_analyses and component.component_id in sub_analyses:
         sub_analysis, sub_expandable = sub_analyses[component.component_id]
         nested_components = [

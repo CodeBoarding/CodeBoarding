@@ -8,6 +8,7 @@ crash, so each helper is driven directly on hand-built trees.
 
 import tempfile
 import unittest
+from unittest.mock import MagicMock
 from pathlib import Path
 
 from agents.agent_responses import AnalysisInsights, Component, Relation, RelationEdge, SourceCodeReference
@@ -375,6 +376,50 @@ class TestProgressSaveNeverTruncates(unittest.TestCase):
             _expanded, produced = generator._generate_subcomponents(analysis(), [])
 
             self.assertEqual(produced, {})
+
+
+class TestAnalysedSubtreeSurvivesTheSaveTimeVerdict(unittest.TestCase):
+    """A component holding children must never be re-litigated into a leaf.
+
+    analysis.json is the store: the save writes children only for a component it is told is
+    expandable, so a separability verdict that flips False on an inherited subtree deletes
+    already-analysed work permanently.
+    """
+
+    def _generator(self, tmp: str) -> DiagramGenerator:
+        generator = DiagramGenerator(
+            repo_location=Path(tmp),
+            temp_folder=Path(tmp),
+            repo_name="test_repo",
+            output_dir=Path(tmp),
+            depth_level=3,
+            run_id="test-run-id",
+            log_path="test_repo/test-run-log",
+        )
+        generator.details_agent = MagicMock()
+        # The gate says "keep it as a leaf" for everything.
+        generator._component_separable = MagicMock(return_value=False)  # type: ignore[method-assign]
+        return generator
+
+    def test_a_component_with_children_stays_expandable(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            generator = self._generator(tmp)
+            root = analysis(component("1", "A", {"a.py": ["a.one"]}))
+            subs = {"1": analysis(component("1.1", "A child", {"a.py": ["a.one"]}))}
+
+            root_ids, sub_ids = generator._expandable_ids_for_tree(root, subs)
+
+            self.assertEqual(root_ids, ["1"])
+            self.assertEqual(sub_ids, {"1": []})
+
+    def test_a_childless_component_still_obeys_the_gate(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            generator = self._generator(tmp)
+            root = analysis(component("1", "A", {"a.py": ["a.one"]}))
+
+            root_ids, _sub_ids = generator._expandable_ids_for_tree(root, {})
+
+            self.assertEqual(root_ids, [])
 
 
 class TestScopeIdContract(unittest.TestCase):

@@ -601,12 +601,22 @@ class DiagramGenerator:
         being re-advertised as expandable by the save-time recompute, which is
         structural-only. ``(None, None)`` when the details agent isn't live (a bare
         re-save), leaving the save to its deterministic default rather than crashing.
+
+        A component that already holds an analysed subtree is expandable by definition —
+        the subtree is right there. Re-litigating it here can only destroy it: the save
+        serializes children only for a component it is told is expandable, so a verdict
+        that flips to False discards work already done and, because analysis.json is the
+        store, the subtree is gone for good.
         """
         if self.details_agent is None:
             return None, None
+
+        def expandable(component: Component) -> bool:
+            return component.component_id in sub_analyses or self._component_separable(component)
+
         root_ids = [
             component.component_id
-            for component in get_expandable_components(root_analysis, separable=self._component_separable)
+            for component in get_expandable_components(root_analysis, separable=expandable)
             if component.component_id
         ]
         component_lookup = index_components_by_id(root_analysis, sub_analyses)
@@ -617,7 +627,7 @@ class DiagramGenerator:
             sub_ids[cid] = [
                 component.component_id
                 for component in get_expandable_components(
-                    sub, parent_had_clusters=parent_had_clusters, separable=self._component_separable
+                    sub, parent_had_clusters=parent_had_clusters, separable=expandable
                 )
                 if component.component_id
             ]
