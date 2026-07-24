@@ -6,6 +6,7 @@ from agents.agent_responses import (
     Component,
     AnalysisInsights,
     assign_component_ids,
+    assign_relation_ids,
 )
 from agents.file_index_models import FileMethodGroup
 
@@ -267,3 +268,42 @@ class TestComponentIds(unittest.TestCase):
         assign_component_ids(analysis)
         self.assertEqual(analysis.components_relations[0].src_id, "1")
         self.assertEqual(analysis.components_relations[0].dst_id, "2")
+
+
+class TestAssignRelationIds(unittest.TestCase):
+    def test_resolved_relations_get_ids(self):
+        analysis = AnalysisInsights(
+            description="",
+            components=[
+                Component(name="A", description="", key_entities=[], component_id="1"),
+                Component(name="B", description="", key_entities=[], component_id="2"),
+            ],
+            components_relations=[Relation(relation="uses", src_name="A", dst_name="B")],
+        )
+
+        assign_relation_ids(analysis)
+
+        self.assertEqual([(r.src_id, r.dst_id) for r in analysis.components_relations], [("1", "2")])
+
+    def test_relation_to_a_non_sibling_is_dropped(self):
+        # A relation whose endpoint is not a component in this scope has no valid id and
+        # would render as a dangling edge, so it is removed rather than kept with an empty id.
+        analysis = AnalysisInsights(
+            description="",
+            components=[
+                Component(name="A", description="", key_entities=[], component_id="1"),
+                Component(name="B", description="", key_entities=[], component_id="2"),
+            ],
+            components_relations=[
+                Relation(relation="uses", src_name="A", dst_name="B"),
+                Relation(relation="uses", src_name="A", dst_name="Elsewhere"),
+            ],
+        )
+
+        assign_relation_ids(analysis)
+
+        self.assertEqual([(r.src_name, r.dst_name) for r in analysis.components_relations], [("A", "B")])
+
+
+if __name__ == "__main__":
+    unittest.main()

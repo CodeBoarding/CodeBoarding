@@ -644,7 +644,14 @@ def assign_component_ids(analysis: AnalysisInsights, parent_id: str = "", only_n
 
 
 def assign_relation_ids(analysis: AnalysisInsights) -> None:
-    """Assign relation component IDs by looking up component names."""
+    """Assign relation component IDs by name, dropping any relation whose endpoint
+    does not name a component in this scope.
+
+    Relation generation can emit an endpoint that is not a sibling — a name from a
+    neighbouring scope, or one the wording invented. Such a relation has no valid id and
+    would render as a dangling edge (``relations.endpoints_resolve``), so it is removed
+    rather than kept with an empty endpoint id.
+    """
     name_to_id: dict[str, str] = {}
     for c in analysis.components:
         if c.name in name_to_id:
@@ -654,9 +661,17 @@ def assign_relation_ids(analysis: AnalysisInsights) -> None:
             )
         else:
             name_to_id[c.name] = c.component_id
+    resolved: list[Relation] = []
     for relation in analysis.components_relations:
-        relation.src_id = name_to_id.get(relation.src_name, "")
-        relation.dst_id = name_to_id.get(relation.dst_name, "")
+        src_id = name_to_id.get(relation.src_name, "")
+        dst_id = name_to_id.get(relation.dst_name, "")
+        if not src_id or not dst_id:
+            logger.info(f"Dropping relation with unresolved endpoint: '{relation.src_name}' -> '{relation.dst_name}'")
+            continue
+        relation.src_id = src_id
+        relation.dst_id = dst_id
+        resolved.append(relation)
+    analysis.components_relations = resolved
 
 
 def iter_components(

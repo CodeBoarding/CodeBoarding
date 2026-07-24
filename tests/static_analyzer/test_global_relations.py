@@ -713,14 +713,12 @@ class TestLlmOnlyRelations(unittest.TestCase):
         # An LLM relation whose endpoint id has no matching live component (e.g. a
         # component deleted in a deep sub-scope, left dangling in a reloaded root
         # set) must not survive into the global set.
-        root = AnalysisInsights(
-            description="root",
-            components=[_comp("A", [])],
-            components_relations=[Relation(relation="calls", src_name="A", dst_name="Ghost", src_id="1", dst_id="9")],
-        )
+        root = AnalysisInsights(description="root", components=[_comp("A", [])], components_relations=[])
         assign_component_ids(root)
-        # Force a dangling dst id that resolves to no component.
-        root.components_relations[0].src_id, root.components_relations[0].dst_id = "1", "9"
+        # A relation that becomes dangling *after* assignment — its target was deleted in a
+        # deep sub-scope, leaving a stale id in the reloaded root set. build_global_relations
+        # must still drop it (assign_relation_ids only catches danglers at generation time).
+        root.components_relations = [Relation(relation="calls", src_name="A", dst_name="Ghost", src_id="1", dst_id="9")]
 
         rels = build_global_relations(root, {}, {"python": CallGraph()})
         self.assertNotIn(("1", "9"), {(r.src_id, r.dst_id) for r in rels})
