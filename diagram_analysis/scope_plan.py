@@ -22,6 +22,7 @@ from agents.agent_responses import (
     ScopedClusterRef,
     ScopeUpdateDecision,
 )
+from agents.cluster_ids import CodeBoardingClusterIds
 from agents.scope_ids import ROOT_SCOPE_ID
 from static_analyzer.cluster_helpers import (
     SUBCOMPONENTS_MAX,
@@ -66,14 +67,20 @@ def plan_scope_update(
     scope: AnalysisInsights,
     cluster_results: dict[str, ClusterResult],
     cfg_graphs: dict[str, nx.DiGraph],
+    changed_members: set[str],
 ) -> ScopeUpdateDecision:
     """The operations that carry this scope's components onto the new clustering.
 
-    ``UPDATE_COMPONENT`` for every component that survives, carrying the clusters it now
-    owns; ``CREATE_COMPONENT`` only for a group with no predecessor; ``DELETE_COMPONENT``
-    only for a component left with nothing. Names and descriptions are deliberately
-    absent — ``update_scope`` leaves the existing wording alone, and refreshing it is the
-    LLM's job downstream.
+    ``UPDATE_COMPONENT`` for a component whose cluster set moved or whose code was edited;
+    ``CREATE_COMPONENT`` only for a group with no predecessor; ``DELETE_COMPONENT`` only
+    for a component left with nothing. Names and descriptions are deliberately absent —
+    ``update_scope`` leaves the existing wording alone.
+
+    A component that comes out of the grouping holding exactly what it already held gets
+    **no operation at all**. An operation is not free: ``update_scope`` puts its target in
+    ``refresh_ids``, which reruns the LLM relation analysis for the whole scope, and
+    ``_remove_reassigned_clusters`` strips and restores the referenced clusters. Emitting
+    one per survivor therefore relabels every relation in the tree on a one-line diff.
     """
     combined = combine_cluster_results(cluster_results)
     if not combined.clusters:
@@ -91,8 +98,24 @@ def plan_scope_update(
         cluster_id: language for language, result in cluster_results.items() for cluster_id in result.clusters
     }
 
+    prefix = CodeBoardingClusterIds.prefix_for_scope(scope_id)
+    held_by: dict[str, set[str]] = {
+        component.component_id: set(component.source_cluster_ids)
+        for component in scope.components
+        if component.component_id
+    }
+    edited: set[str] = {
+        component.component_id
+        for component in scope.components
+        if component.component_id
+        and any(
+            method.qualified_name in changed_members for group in component.file_methods for method in group.methods
+        )
+    }
+
     operations: list[ScopeOperation] = []
     kept: set[str] = set()
+    untouched = 0
     for group, owner in zip(grouping.groups, grouping.owners):
         refs = [
             ScopedClusterRef(scope_id=scope_id, language=language_of.get(cluster_id, ""), cluster_id=cluster_id)
@@ -100,6 +123,12 @@ def plan_scope_update(
         ]
         if owner:
             kept.add(owner)
+            qualified = set(
+                CodeBoardingClusterIds.qualify_local_ids(CodeBoardingClusterIds.from_graph_ids(group), prefix)
+            )
+            if qualified == held_by.get(owner) and owner not in edited:
+                untouched += 1
+                continue
             operations.append(
                 ScopeOperation(
                     action=ScopeOperationAction.UPDATE_COMPONENT,
@@ -131,9 +160,8 @@ def plan_scope_update(
             )
 
     logger.info(
-        f"[ScopePlan] {scope_id}: {len(grouping.groups)} groups, {len(kept)} carried, "
-        f"{len(operations) - len(kept)} created/deleted"
-        + (" (structure re-derived: drift past budget)" if grouping.regrouped else "")
+        f"[ScopePlan] {scope_id}: {len(grouping.groups)} groups, {untouched} unchanged (no operation), "
+        f"{len(operations)} operation(s)" + (" (structure re-derived: drift past budget)" if grouping.regrouped else "")
     )
     return ScopeUpdateDecision(operations=operations)
 

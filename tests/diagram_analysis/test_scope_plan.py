@@ -116,7 +116,9 @@ class TestPlanScopeUpdate(unittest.TestCase):
         }
         self.assertFalse({str(cid) for cid in renumbered} & set(members))
 
-        decision = plan_scope_update("2", scope, {"python": clustering(renumbered)}, {"python": cfg_for(renumbered)})
+        decision = plan_scope_update(
+            "2", scope, {"python": clustering(renumbered)}, {"python": cfg_for(renumbered)}, set()
+        )
 
         self.assertEqual(
             actions(decision),
@@ -127,7 +129,10 @@ class TestPlanScopeUpdate(unittest.TestCase):
             },
         )
 
-    def test_an_untouched_scope_plans_no_creation_and_no_deletion(self):
+    def test_an_untouched_scope_plans_nothing_at_all(self):
+        # An operation is not free: update_scope puts its target in refresh_ids, which
+        # reruns the LLM relation analysis for the entire scope. A scope that did not
+        # move must therefore produce zero operations, not a no-op update per component.
         clusters = {1: {"a.one"}, 2: {"b.one"}, 3: {"c.one"}}
         scope = AnalysisInsights(
             description="",
@@ -140,13 +145,28 @@ class TestPlanScopeUpdate(unittest.TestCase):
         )
 
         decision = plan_scope_update(
-            ROOT_SCOPE_ID, scope, {"python": clustering(clusters)}, {"python": cfg_for(clusters)}
+            ROOT_SCOPE_ID, scope, {"python": clustering(clusters)}, {"python": cfg_for(clusters)}, set()
         )
 
-        self.assertEqual(
-            {op.action for op in decision.operations},
-            {ScopeOperationAction.UPDATE_COMPONENT},
+        self.assertEqual(decision.operations, [])
+
+    def test_a_body_edit_refreshes_only_the_component_that_owns_it(self):
+        clusters = {1: {"a.one"}, 2: {"b.one"}, 3: {"c.one"}}
+        scope = AnalysisInsights(
+            description="",
+            components=[
+                component("1", ["a.one"], ["1"]),
+                component("2", ["b.one"], ["2"]),
+                component("3", ["c.one"], ["3"]),
+            ],
+            components_relations=[],
         )
+
+        decision = plan_scope_update(
+            ROOT_SCOPE_ID, scope, {"python": clustering(clusters)}, {"python": cfg_for(clusters)}, {"b.one"}
+        )
+
+        self.assertEqual(actions(decision), {"2": ScopeOperationAction.UPDATE_COMPONENT})
 
     def test_a_component_whose_methods_all_vanished_is_deleted(self):
         clusters = {1: {"a.one"}, 2: {"b.one"}, 3: {"c.one"}}
@@ -162,7 +182,7 @@ class TestPlanScopeUpdate(unittest.TestCase):
         )
 
         decision = plan_scope_update(
-            ROOT_SCOPE_ID, scope, {"python": clustering(clusters)}, {"python": cfg_for(clusters)}
+            ROOT_SCOPE_ID, scope, {"python": clustering(clusters)}, {"python": cfg_for(clusters)}, set()
         )
 
         self.assertEqual(actions(decision)["4"], ScopeOperationAction.DELETE_COMPONENT)
@@ -180,12 +200,15 @@ class TestPlanScopeUpdate(unittest.TestCase):
         )
 
         decision = plan_scope_update(
-            ROOT_SCOPE_ID, scope, {"python": clustering(clusters)}, {"python": cfg_for(clusters)}
+            ROOT_SCOPE_ID, scope, {"python": clustering(clusters)}, {"python": cfg_for(clusters)}, set()
         )
 
+        # Only the absorbing component is touched; its siblings stay out of the plan.
         self.assertNotIn(ScopeOperationAction.CREATE_COMPONENT, {op.action for op in decision.operations})
-        owned = {ref.cluster_id for op in decision.operations for ref in op.cluster_refs}
-        self.assertEqual(owned, set(clusters))
+        self.assertEqual(len(decision.operations), 1)
+        absorbed = decision.operations[0]
+        self.assertEqual(absorbed.action, ScopeOperationAction.UPDATE_COMPONENT)
+        self.assertIn(4, {ref.cluster_id for ref in absorbed.cluster_refs})
 
     def test_every_planned_ref_is_tagged_with_its_language(self):
         clusters = {1: {"a.one"}, 2: {"b.one"}, 3: {"c.one"}}
@@ -196,7 +219,7 @@ class TestPlanScopeUpdate(unittest.TestCase):
         )
 
         decision = plan_scope_update(
-            ROOT_SCOPE_ID, scope, {"python": clustering(clusters)}, {"python": cfg_for(clusters)}
+            ROOT_SCOPE_ID, scope, {"python": clustering(clusters)}, {"python": cfg_for(clusters)}, set()
         )
 
         for op in decision.operations:
@@ -207,7 +230,7 @@ class TestPlanScopeUpdate(unittest.TestCase):
     def test_an_empty_clustering_plans_nothing(self):
         scope = AnalysisInsights(description="", components=[component("1", ["a.one"], ["1"])], components_relations=[])
 
-        decision = plan_scope_update(ROOT_SCOPE_ID, scope, {"python": clustering({})}, {})
+        decision = plan_scope_update(ROOT_SCOPE_ID, scope, {"python": clustering({})}, {}, set())
 
         self.assertEqual(decision.operations, [])
 

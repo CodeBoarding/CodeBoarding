@@ -50,3 +50,45 @@ def index_relation_endpoints(analysis: AnalysisInsights, repo_dir: Path) -> None
         entry = analysis.files.get(file_path)
         if entry is not None:
             entry.merge_method_spans(spans)
+
+
+def preserve_unchanged_relations(
+    rebuilt_relations: list[Relation],
+    baseline_by_pair: dict[tuple[str, str], Relation],
+    changed_component_ids: set[str],
+    live_ids: set[str],
+) -> list[Relation]:
+    """Keep the wording a reader already read for any relation whose endpoints did not move.
+
+    Regeneration re-derives every relation in its scope and re-words even the edges between
+    two untouched components, so a one-line diff relabels the whole diagram. For a pair
+    neither of whose endpoints changed, the call edges come from the fresh rebuild — they
+    are the structural truth and must never go stale — while the label and evidence come
+    from the baseline. Pairs touching a changed component keep the fresh version outright.
+
+    A baseline relation between two unchanged, still-live components that regeneration
+    dropped is restored, and a fresh edge invented between two unchanged components is
+    discarded, so structural drift against untouched components is eliminated too.
+
+    Keyed on ``(src_id, dst_id)``, the stable component identity, not on displayed names.
+    """
+
+    def touches_change(src_id: str, dst_id: str) -> bool:
+        return src_id in changed_component_ids or dst_id in changed_component_ids
+
+    kept: list[Relation] = []
+    rebuilt_pairs: set[tuple[str, str]] = set()
+    for relation in rebuilt_relations:
+        pair = (relation.src_id, relation.dst_id)
+        rebuilt_pairs.add(pair)
+        if touches_change(*pair):
+            kept.append(relation)
+            continue
+        previous = baseline_by_pair.get(pair)
+        if previous is not None:
+            kept.append(relation.model_copy(update={"relation": previous.relation, "evidence": previous.evidence}))
+    for pair, relation in baseline_by_pair.items():
+        if pair in rebuilt_pairs or touches_change(*pair) or pair[0] not in live_ids or pair[1] not in live_ids:
+            continue
+        kept.append(relation)
+    return sorted(kept, key=lambda rel: (rel.src_id, rel.dst_id))

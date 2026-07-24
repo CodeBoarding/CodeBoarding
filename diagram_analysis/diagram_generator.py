@@ -36,7 +36,7 @@ from agents.llm_config import initialize_llms
 from agents.llm_errors import LLMAuthError
 from agents.meta_agent import MetaAgent
 from agents.planner_agent import component_is_separable, get_expandable_components, leaf_load
-from agents.relation_edges import index_relation_endpoints
+from agents.relation_edges import index_relation_endpoints, preserve_unchanged_relations
 from agents.scope_ids import ROOT_SCOPE_ID
 from agents.content_hash import SourceCache, hash_repo_source_files, tree_hash_from_file_hashes
 from diagram_analysis.analysis_json import (
@@ -466,35 +466,6 @@ def _incremental_changed_component_ids(
             if component_id not in baseline_component_ids or body_changed or file_changed or membership_changed:
                 changed.add(component_id)
     return changed
-
-
-def _preserve_unchanged_global_relations(
-    rebuilt_relations: list[Relation],
-    baseline_by_pair: dict[tuple[str, str], Relation],
-    changed_component_ids: set[str],
-    live_ids: set[str],
-) -> list[Relation]:
-    """Carry a global relation over from the baseline when neither endpoint changed.
-
-    The save-time rebuild re-derives every relation at the deepest granularity, re-labelling
-    even edges between two untouched components. For each pair whose endpoints are both
-    unchanged we drop the rebuilt edge and take the baseline verbatim; edges touching a
-    changed component keep the fresh rebuild. A baseline relation between two unchanged,
-    still-live components that the rebuild dropped is restored, and a spurious rebuilt edge
-    between two unchanged components is discarded — so both relabel and structural drift
-    against untouched components is eliminated. Relations are keyed by ``(src_id, dst_id)``,
-    the stable component identity; the rebuild always populates both ids.
-    """
-
-    def touches_change(src_id: str, dst_id: str) -> bool:
-        return src_id in changed_component_ids or dst_id in changed_component_ids
-
-    kept = [rel for rel in rebuilt_relations if touches_change(rel.src_id, rel.dst_id)]
-    for (src_id, dst_id), relation in baseline_by_pair.items():
-        if touches_change(src_id, dst_id) or src_id not in live_ids or dst_id not in live_ids:
-            continue
-        kept.append(relation)
-    return sorted(kept, key=lambda rel: (rel.src_id, rel.dst_id))
 
 
 class DiagramGenerator:
@@ -1118,7 +1089,7 @@ class DiagramGenerator:
                 for component in analysis.components
                 if component.component_id
             }
-            global_relations = _preserve_unchanged_global_relations(
+            global_relations = preserve_unchanged_relations(
                 global_relations, self._baseline_global_relations, changed_ids, live_ids
             )
         root_analysis.components_relations = global_relations
@@ -1248,7 +1219,7 @@ class DiagramGenerator:
     ) -> RecursiveScopeUpdateResult:
         assert self.incremental_agent is not None
         # Structure is derived, not asked for — see diagram_analysis/scope_plan.py.
-        decision = plan_scope_update(scope_id, scope, cluster_results, cfg_graphs)
+        decision = plan_scope_update(scope_id, scope, cluster_results, cfg_graphs, self._changed_members)
         apply_result = self.incremental_agent.update_scope(scope_id, scope, decision, cluster_results)
         result = RecursiveScopeUpdateResult(
             refresh_ids=set(apply_result.refresh_ids),

@@ -10,7 +10,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from agents.agent_responses import AnalysisInsights, Component, Relation
+from agents.agent_responses import AnalysisInsights, Component, Relation, RelationEdge, SourceCodeReference
 from agents.file_index_models import FileMethodGroup, MethodEntry
 from agents.scope_ids import ROOT_SCOPE_ID
 from diagram_analysis.diagram_generator import (
@@ -21,7 +21,7 @@ from diagram_analysis.diagram_generator import (
     _graft_entered_methods,
     _incremental_changed_component_ids,
     _member_keys,
-    _preserve_unchanged_global_relations,
+    preserve_unchanged_relations,
     _restore_unchanged_membership,
     _restore_unchanged_metadata,
     _restore_unchanged_subtrees,
@@ -242,6 +242,10 @@ class TestIncrementalChangedComponentIds(unittest.TestCase):
         self.assertEqual(changed, {"2"})
 
 
+def _ref(qualified_name: str) -> SourceCodeReference:
+    return SourceCodeReference(qualified_name=qualified_name, reference_file="pkg/mod.py")
+
+
 class TestPreserveUnchangedGlobalRelations(unittest.TestCase):
     @staticmethod
     def _relation(src: str, dst: str, label: str) -> Relation:
@@ -251,36 +255,49 @@ class TestPreserveUnchangedGlobalRelations(unittest.TestCase):
         rebuilt = [self._relation("1", "2", "rebuilt wording")]
         baseline = {("1", "2"): self._relation("1", "2", "baseline wording")}
 
-        kept = _preserve_unchanged_global_relations(rebuilt, baseline, changed_component_ids=set(), live_ids={"1", "2"})
+        kept = preserve_unchanged_relations(rebuilt, baseline, changed_component_ids=set(), live_ids={"1", "2"})
 
         self.assertEqual([rel.relation for rel in kept], ["baseline wording"])
+
+    def test_carried_over_edge_still_takes_the_fresh_call_sites(self):
+        # Wording is sticky, structure never is: preserving a stale call-site set would
+        # make the diagram lie about the code to avoid re-wording a label.
+        fresh = self._relation("1", "2", "rebuilt wording")
+        fresh.key_edges = [RelationEdge(source=_ref("live.caller"), target=_ref("live.callee"))]
+        stale = self._relation("1", "2", "baseline wording")
+        stale.key_edges = [RelationEdge(source=_ref("gone.caller"), target=_ref("gone.callee"))]
+
+        kept = preserve_unchanged_relations([fresh], {("1", "2"): stale}, set(), {"1", "2"})
+
+        self.assertEqual([rel.relation for rel in kept], ["baseline wording"])
+        self.assertEqual([edge.source.qualified_name for edge in kept[0].key_edges], ["live.caller"])
 
     def test_edge_touching_a_changed_component_keeps_the_fresh_rebuild(self):
         rebuilt = [self._relation("1", "2", "rebuilt wording")]
         baseline = {("1", "2"): self._relation("1", "2", "baseline wording")}
 
-        kept = _preserve_unchanged_global_relations(rebuilt, baseline, changed_component_ids={"2"}, live_ids={"1", "2"})
+        kept = preserve_unchanged_relations(rebuilt, baseline, changed_component_ids={"2"}, live_ids={"1", "2"})
 
         self.assertEqual([rel.relation for rel in kept], ["rebuilt wording"])
 
     def test_baseline_edge_the_rebuild_dropped_is_restored(self):
         baseline = {("1", "2"): self._relation("1", "2", "baseline wording")}
 
-        kept = _preserve_unchanged_global_relations([], baseline, changed_component_ids=set(), live_ids={"1", "2"})
+        kept = preserve_unchanged_relations([], baseline, changed_component_ids=set(), live_ids={"1", "2"})
 
         self.assertEqual([(rel.src_id, rel.dst_id) for rel in kept], [("1", "2")])
 
     def test_baseline_edge_to_a_component_that_no_longer_exists_is_dropped(self):
         baseline = {("1", "9"): self._relation("1", "9", "baseline wording")}
 
-        kept = _preserve_unchanged_global_relations([], baseline, changed_component_ids=set(), live_ids={"1", "2"})
+        kept = preserve_unchanged_relations([], baseline, changed_component_ids=set(), live_ids={"1", "2"})
 
         self.assertEqual(kept, [])
 
     def test_spurious_rebuilt_edge_between_untouched_components_is_discarded(self):
         rebuilt = [self._relation("1", "2", "invented")]
 
-        kept = _preserve_unchanged_global_relations(rebuilt, {}, changed_component_ids=set(), live_ids={"1", "2"})
+        kept = preserve_unchanged_relations(rebuilt, {}, changed_component_ids=set(), live_ids={"1", "2"})
 
         self.assertEqual(kept, [])
 

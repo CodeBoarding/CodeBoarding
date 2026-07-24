@@ -35,7 +35,7 @@ from agents.prompts import (
     get_relation_analysis_message,
     get_system_message,
 )
-from agents.relation_edges import index_relation_endpoints
+from agents.relation_edges import index_relation_endpoints, preserve_unchanged_relations
 from agents.scope_ids import ROOT_SCOPE_ID
 from agents.validation import ValidationContext, validate_relations
 from diagram_analysis.file_index import build_files_index
@@ -162,6 +162,7 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
             relation_context=ScopeRelationContext(
                 cluster_results=cluster_results,
                 cfg_graphs=_cfg_graphs_for_scope_methods(self.static_analysis, scope),
+                changed_ids=frozenset(refresh_ids | new_component_ids | removed_ids),
             ),
             refresh_ids=refresh_ids,
             new_component_ids=new_component_ids,
@@ -316,7 +317,14 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
 
         cluster_analysis = _cluster_analysis_for_scope(scope, scope_name, context.cluster_results)
         api_surfaces = self.step_api_surfaces(scope, scope_name)
-        return self.step_relation_analysis(
+        # Snapshot before regeneration: step_relation_analysis replaces the scope's relations
+        # wholesale, so every edge between two untouched components would come back reworded.
+        baseline_by_pair = {
+            (relation.src_id, relation.dst_id): relation.model_copy(deep=True)
+            for relation in scope.components_relations
+            if relation.src_id and relation.dst_id
+        }
+        rels = self.step_relation_analysis(
             scope,
             scope_name,
             api_surfaces,
@@ -324,6 +332,13 @@ class IncrementalAgent(ClusterMethodsMixin, CodeBoardingAgent):
             context.cluster_results,
             context.cfg_graphs,
         )
+        if baseline_by_pair:
+            live_ids = {component.component_id for component in scope.components if component.component_id}
+            scope.components_relations = preserve_unchanged_relations(
+                scope.components_relations, baseline_by_pair, set(context.changed_ids), live_ids
+            )
+            rels = scope.components_relations
+        return rels
 
     @trace
     def generate_all_scope_relations(
